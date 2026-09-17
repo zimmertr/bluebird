@@ -223,9 +223,9 @@ describe('the resting height', () => {
   // the search field moving above the Controls button made the column it hangs
   // under 52px taller in the same week. Its two panels floor at 120 each, so
   // the sheet could hand the map only 202px of the 265 the stack wanted, and
-  // the key's last bands scrolled. #454 cut the stack to 196 — the key and the
-  // snow scale became two-line strips and the two boxes became one — so every
-  // mode now clears it outright, Both included, with 6px to spare.
+  // the key's last bands scrolled. #454 cut the stack to 182 — one box, and
+  // both scale keys drawn as a strip with their numbers inside it — so every
+  // mode now clears it outright, Both included, with 20px to spare.
   describe.each([
     ['table only', { chartShown: false, tableShown: true }, 1, LEGEND_STACK_PX],
     ['chart only', { chartShown: true, tableShown: false }, 1, LEGEND_STACK_PX],
@@ -328,9 +328,12 @@ describe('the camera padding', () => {
   const defaults = { chartPx: 288, tablePx: 280 }
 
   it('is the lift the sheet reserves at 402x874', () => {
-    // The sheet's chrome plus a default-height table (104 + 24 + 280) is more
-    // than the resting reserve leaves at this height, so the lift is what the
-    // reserve leaves: 874 less `RESTING_MAP_PX`.
+    // The sheet's chrome plus a default-height table (104 + 24 + 280) is 408,
+    // and the resting reserve leaves 412 at this height (874 less
+    // `RESTING_MAP_PX`), so the table stands at its own default and the lift is
+    // the sheet's own height. #454's last 14px are what bought that: at a
+    // 196px stack the reserve was the binding edge and the table was clamped
+    // to 398.
     const lift = restingLiftPx({
       collapsed: false,
       gripCount: 1,
@@ -339,8 +342,8 @@ describe('the camera padding', () => {
       availPx: 874,
       ...defaults,
     })
-    expect(lift).toBe(398)
-    expect(874 - lift).toBe(RESTING_MAP_PX)
+    expect(lift).toBe(408)
+    expect(874 - lift).toBeGreaterThanOrEqual(RESTING_MAP_PX)
   })
 
   // The other side of the same clamp: a viewport short enough that the reserve
@@ -348,7 +351,7 @@ describe('the camera padding', () => {
   // panel floors win there, as they do in `clampPanelHeight`, and the lift is
   // the sheet's own smallest height rather than the reserve. The line moves
   // with the reserve: 757 crossed it when the column above the legends grew by
-  // a row (2026-09-14) and crossed back when #454 took 69px out of the stack,
+  // a row (2026-09-14) and crossed back when #454 took 83px out of the stack,
   // so the case is asserted at 667 now — the shortest phone the app is read on.
   it('falls back to the sheet floor on a viewport the reserve cannot have', () => {
     const lift = restingLiftPx({

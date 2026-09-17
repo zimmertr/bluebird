@@ -82,6 +82,8 @@ import {
   SWATCH_CHIP,
   SWATCH_EDGE,
   SWATCH_RAMP,
+  SWATCH_RAMP_SCRIM,
+  SWATCH_RAMP_TICK,
   TAP,
   TEXT,
 } from './styles'
@@ -1500,9 +1502,10 @@ describe('shared recipes', () => {
   // 12px text read as a footnote rather than as a control.
   it('reads the results bar at the size of every other control', () => {
     expect((appSource.match(/\$\{TEXT\.control\} \$\{LINK\}/g) ?? []).length).toBe(5)
-    // The one micro step in this file is the legend strip's tick row (#454),
-    // which is a scale's numbers rather than anything pressable.
-    expect((appSource.match(/\$\{TEXT\.micro\}/g) ?? []).length).toBe(1)
+    // The micro step is for text that is present but never first, and the one
+    // place this file would reach for it — the legend strip's numbers — takes
+    // `SWATCH_RAMP_TICK` instead, which is where their ground is decided too.
+    expect(appSource).not.toMatch(/\$\{TEXT\.micro\}/)
   })
 
   // The map's Open-Meteo credit is a link *and* a 10px caption, so it wears
@@ -2085,7 +2088,7 @@ describe('the map legend sections', () => {
     'label: gridLegend.label',
     "label: 'Rain radar'",
     "label: 'Smoke'",
-    "label: 'Snow depth'",
+    'label: SNOW_LABEL',
   ]
 
   it('found every section', () => {
@@ -2156,6 +2159,42 @@ describe('the legend ramp', () => {
 
   it('is what the legend wears, rather than a strip spelled at the call site', () => {
     expect(appSource).toContain('className={SWATCH_RAMP}')
+    expect(appSource).toContain('className={SWATCH_RAMP_TICK}')
+  })
+
+  // The numbers moved INSIDE the strip (TJ, 2026-09-17), which saves a line per
+  // scale and costs a contrast rule: a metric ramp runs cyan-300 to purple-500,
+  // so no single ink clears AA across it and a ground is what makes one
+  // measurable. These are the measured ratios over all five metric ramps and
+  // the eleven snow bands; a change to the scrim or the ink re-measures them.
+  const RAMP_INK = { straightWhite: 1.45, straightDark: 2.04, onScrim: 6.49 }
+
+  it('stands its numbers on a ground rather than on the ramp', () => {
+    expect(RAMP_INK.straightWhite).toBeLessThan(4.5)
+    expect(RAMP_INK.straightDark).toBeLessThan(4.5)
+    expect(RAMP_INK.onScrim).toBeGreaterThanOrEqual(4.5)
+    expect(SWATCH_RAMP_SCRIM).toContain('bg-slate-900/70')
+    // Full width rather than a chip per number: one ground and one baseline,
+    // where four chips are four dark blocks punched through a six-band scale.
+    expect(SWATCH_RAMP_SCRIM).toContain('inset-x-0')
+    expect(SWATCH_RAMP_TICK).toContain('text-slate-200')
+    // The strip clips the scrim to its own corners, and a number paints over
+    // it rather than under it.
+    expect(SWATCH_RAMP).toContain('overflow-hidden')
+    expect(SWATCH_RAMP_TICK).toContain('relative')
+  })
+
+  // A ramp whose numbers are its children may not be hidden from assistive
+  // technology: it carried `aria-hidden` while they sat outside it, and
+  // keeping that would have taken the scale off a screen reader with it.
+  it('is no longer hidden, now that it holds the numbers', () => {
+    // The strip's OWN attributes, which end where its first child begins. The
+    // scrim inside it is hidden, and rightly: it is a ground, not a number.
+    const from = appSource.indexOf('className={SWATCH_RAMP}')
+    const to = appSource.indexOf('className={SWATCH_RAMP_SCRIM}')
+    expect(from).toBeGreaterThan(-1)
+    expect(to).toBeGreaterThan(from)
+    expect(appSource.slice(from, to)).not.toContain('aria-hidden')
   })
 })
 

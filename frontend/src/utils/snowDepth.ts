@@ -198,16 +198,21 @@ export function snowTicks(): RampTick[] {
 
   return rampTicks(
     found.map(({ inches, at }) => ({ at, text: at === 0 ? '0' : roundedInches(inches) })),
-    SNOW_UNIT,
   )
 }
 
 /**
- * The unit the depths are quoted in, which is the metric scales' `unit` field
- * one module over: the tick row is built by the same function, so it takes the
- * unit the same way.
+ * What the map's legend calls this layer: the depth, and the unit those four
+ * numbers are in.
+ *
+ * The unit is on the LABEL rather than on the last tick (TJ, 2026-09-17),
+ * which is where every metric scale carries its own — `Freezing level (ft)` —
+ * so the two kinds of scale on the map state a unit in one place and the ticks
+ * are numbers alone. The section's own credit is a second pair of parentheses
+ * after it, `Snow depth (in) (NOHRSC)`, rather than a reason to leave the unit
+ * on a tick.
  */
-const SNOW_UNIT = 'in'
+export const SNOW_LABEL = 'Snow depth (in)'
 
 /** A boundary to one significant figure: 3.9 in reads 4, 39 reads 40. */
 function roundedInches(inches: number): string {

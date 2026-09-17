@@ -102,6 +102,8 @@ import {
   SWATCH_CHIP,
   SWATCH_EDGE,
   SWATCH_RAMP,
+  SWATCH_RAMP_SCRIM,
+  SWATCH_RAMP_TICK,
   TAP,
   TEXT,
 } from './styles'
@@ -131,7 +133,7 @@ import {
   radarScaleEnds,
 } from './utils/radar'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
-import { NOHRSC_HREF, SNOW_RAMP, snowRampCss, snowTicks } from './utils/snowDepth'
+import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from './utils/snowDepth'
 import { NIFC_HREF } from './utils/wildfires'
 import { RampTick, scaleRampCss, scaleTicks } from './utils/legendRamp'
 import {
@@ -303,10 +305,12 @@ function layerRow({
  *
  * Two shapes, and the difference is the DATA's rather than the section's. A key
  * on a single value is a ROW — its label on the left, its swatch on the right.
- * A key on a SCALE is the strip across the box with its numbers underneath,
+ * A key on a SCALE is the strip across the box with its numbers INSIDE it,
  * because six bands of temperature and eleven of depth are not things a 14px
  * chip can say, and a row per band is seven lines and eleven on a map that can
- * be 161px tall.
+ * be 161px tall. Inside rather than under, so the whole key is one line: a
+ * scale section is 40px where two of them under their strips were 54 apiece
+ * (TJ, 2026-09-17).
  *
  * One function for both, and one for the metric key and the layers alike,
  * because the sections are sorted by their labels at the call site: a shape
@@ -354,30 +358,35 @@ function legendSection({
   return (
     <div className="flex flex-col gap-1">
       {name}
-      <span
-        className={SWATCH_RAMP}
-        style={{ backgroundImage: ramp.css, borderColor: SWATCH_EDGE }}
-        aria-hidden="true"
-      />
-      {/* A grid of the strip's own bands, so a tick lands on the boundary it
-          names however wide the box is. `minmax(0,1fr)` rather than `1fr`: the
-          last label is wider than a band, and a plain fr track would grow to
-          fit it and shift every tick left of it.
+      {/* The strip IS the grid its numbers sit in, so the whole key is one
+          line: a band per column, so a tick lands on the boundary it names
+          however wide the box is. `minmax(0,1fr)` rather than `1fr` — the last
+          label is wider than a band, and a plain fr track would grow to fit it
+          and shift every tick left of it.
 
           A boundary is a column EDGE, not a column, so a centred tick spans
           the two columns that meet on it and centres across the pair — grid
           has no way to centre one item on a track's edge. The other two
           alignments sit in one column each and hang from the edge that is the
           boundary: `start` in the column that begins there, `end` in the one
-          that ends at the strip's own right edge. */}
+          that ends at the strip's own right edge.
+
+          Not `aria-hidden`, which the strip carried while its numbers were
+          outside it: they are the strip's own children now, and hiding it
+          would take the scale off a screen reader with them. */}
       <span
-        className={`grid ${TEXT.micro}`}
-        style={{ gridTemplateColumns: `repeat(${ramp.bands}, minmax(0, 1fr))` }}
+        className={SWATCH_RAMP}
+        style={{
+          backgroundImage: ramp.css,
+          borderColor: SWATCH_EDGE,
+          gridTemplateColumns: `repeat(${ramp.bands}, minmax(0, 1fr))`,
+        }}
       >
+        <span className={SWATCH_RAMP_SCRIM} aria-hidden="true" />
         {ramp.ticks.map((tick) => (
           <span
             key={tick.label}
-            className="whitespace-nowrap"
+            className={SWATCH_RAMP_TICK}
             style={{
               gridColumn:
                 tick.align === 'center'
@@ -2952,7 +2961,7 @@ export default function App() {
                   ...(showSnow
                     ? [
                         {
-                          label: 'Snow depth',
+                          label: SNOW_LABEL,
                           credit: { href: NOHRSC_HREF, name: 'NOHRSC' },
                           ramp: {
                             css: snowRampCss(),

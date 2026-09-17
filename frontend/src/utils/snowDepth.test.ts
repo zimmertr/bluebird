@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   SNOW_BANDS,
   SNOW_BOUNDS,
+  SNOW_LABEL,
   SNOW_MAX_ZOOM,
   SNOW_RAMP,
   SNOW_TILE_SIZE,
@@ -105,7 +106,7 @@ describe('the legend strip', () => {
     // Rounded labels over unrounded positions: a boundary printed an inch off
     // its true value changes nothing a reader does, and four round decades
     // read as one scale where 3.9, 39 and 394 read as three stray numbers.
-    expect(snowTicks().map((t) => t.label)).toEqual(['0', '4', '40', '400 in'])
+    expect(snowTicks().map((t) => t.label)).toEqual(['0', '4', '40', '400'])
   })
 
   it('puts every tick on a real band boundary', () => {
@@ -140,10 +141,11 @@ describe('the legend strip', () => {
     expect(ats).toEqual([...ats].sort((a, b) => a - b))
   })
 
-  it('states the unit once', () => {
-    const ticks = snowTicks()
-    const withUnit = ticks.filter((t) => t.label.includes('in'))
-    expect(withUnit).toHaveLength(1)
-    expect(withUnit[0]).toBe(ticks[ticks.length - 1])
+  it('states the unit on the label rather than on a tick', () => {
+    // Where every metric scale carries its own — `Freezing level (ft)` — so
+    // the two kinds of scale on the map say a unit in one place (TJ,
+    // 2026-09-17). The ticks are then numbers and nothing else.
+    expect(SNOW_LABEL).toBe('Snow depth (in)')
+    for (const tick of snowTicks()) expect(tick.label).toMatch(/^\d+$/)
   })
 })

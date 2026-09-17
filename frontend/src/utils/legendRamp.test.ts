@@ -38,30 +38,29 @@ describe('rampCss', () => {
 })
 
 describe('rampTicks', () => {
-  // Measured in Chrome 2026-09-17: the unit on every tick was four copies the
-  // scale did not need, and the eye finishes on the last one.
-  it('puts the unit on the last tick alone', () => {
-    const ticks = rampTicks([{ at: 1, text: '5' }, { at: 3, text: '25' }, { at: 5, text: '50' }], 'mph')
-    expect(ticks.map((t) => t.label)).toEqual(['5', '25', '50 mph'])
-  })
-
-  // A scale whose label already carries the unit passes none, which is every
-  // metric scale: `Temperature (°F)` over a strip of bare numbers (TJ,
-  // 2026-09-17). The snow layer's label holds the credit its licence asks for
-  // instead, so its unit stays on the tick.
-  it('leaves the ticks bare when the label carries the unit', () => {
-    expect(rampTicks([{ at: 5, text: '50' }], '')[0].label).toBe('50')
-    expect(rampTicks([{ at: 10, text: '400' }], 'in')[0].label).toBe('400 in')
+  // Every section on the map states its unit on its own label — `Wind (mph)`,
+  // `Snow depth (in)` — so a tick is the number and nothing else (TJ,
+  // 2026-09-17). A unit here would be the second spelling on one key, and the
+  // strip has no room for three more characters on its widest label.
+  it('carries the number and no unit', () => {
+    const ticks = rampTicks([
+      { at: 1, text: '5' },
+      { at: 3, text: '25' },
+      { at: 5, text: '50' },
+    ])
+    expect(ticks.map((t) => t.label)).toEqual(['5', '25', '50'])
   })
 
   // Each label hangs from the nearest edge that keeps it inside the box: the
   // last from the strip's right edge, a tick on the left edge from that, and
   // everything between centred on its own boundary.
   it('hangs each label where it fits', () => {
-    const ticks = rampTicks(
-      [{ at: 0, text: '0' }, { at: 3, text: '4' }, { at: 6, text: '40' }, { at: 10, text: '400' }],
-      'in',
-    )
+    const ticks = rampTicks([
+      { at: 0, text: '0' },
+      { at: 3, text: '4' },
+      { at: 6, text: '40' },
+      { at: 10, text: '400' },
+    ])
     expect(ticks.map((t) => t.align)).toEqual(['start', 'center', 'center', 'end'])
   })
 })
@@ -128,9 +127,9 @@ describe('scaleTicks', () => {
 // The snow strip reads the same two builders, so the two keys on the map cannot
 // be drawn to different rules.
 describe('the snow strip', () => {
-  it('names four of its eleven boundaries and one unit', () => {
+  it('names four of its eleven boundaries, bare', () => {
     const ticks = snowTicks()
-    expect(ticks.map((t) => t.label)).toEqual(['0', '4', '40', '400 in'])
+    expect(ticks.map((t) => t.label)).toEqual(['0', '4', '40', '400'])
     expect(ticks.map((t) => t.at)).toEqual([0, 2, 5, 10])
   })
 })

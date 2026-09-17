@@ -1,14 +1,14 @@
 import { ColorScale, LabelledScale } from './colors'
 
 /**
- * A colour scale drawn as one strip with numbers under it (#454).
+ * A colour scale drawn as one strip with its numbers inside it (#454).
  *
  * Every key on the map that is a SCALE rather than a single value is drawn this
  * way: the five ranking metrics and the snow depth overlay. It started as the
  * snow overlay's own shape (#446), because eleven bands of depth could not be
  * said by the 14px chip the single-value layers key on — and the metric key,
  * which was six rows of swatch-and-range, cost about 130px of a map that can be
- * 161px tall on a phone. Two lines say the same scale.
+ * 161px tall on a phone. One line says the same scale.
  *
  * The strip is ALWAYS equal-width per band, never to scale. Snow's boundaries
  * run 0.39 to 787 in eleven steps and precipitation's run 0.01 to 1.00 in five,
@@ -62,38 +62,35 @@ export function rampCss(colors: readonly string[], blend: boolean): string {
 }
 
 /**
- * The numbers under that strip, from the boundaries a caller chose to print.
+ * The numbers on that strip, from the boundaries a caller chose to print.
  *
  * Two rules, and both were measured on the snow strip before they were shared:
  *
- * **The unit rides on the last tick alone, where it rides a tick at all.** It is
- * the one the eye finishes on, and four copies of `in` across 162px is three
- * more than the scale needs. A metric scale passes no unit: its section label is
- * `Temperature (°F)` and a unit on the strip under it would be the second
- * spelling on one key (TJ, 2026-09-17). The snow layer's label is
- * `Snow depth (NOHRSC)`, whose parentheses are already the credit the licence
- * asks for, so its unit stays on the tick.
+ * **A tick is a bare number.** Its section's label carries the unit —
+ * `Temperature (°F)`, `Snow depth (in)` — so a unit here would be the second
+ * spelling on one key, and it costs the strip's widest label three characters
+ * it has no room for (TJ, 2026-09-17). `AQI` is the section with nothing to
+ * state, the index being a plain index.
  *
  * **A tick hangs from the nearest edge that keeps it inside the box.** The
  * last one hangs from the strip's END: its boundary is one band in from the
  * right edge and its label is wider than a band, so hung on the boundary it
  * would run past the legend box — and hung from the end it reads the way the
- * top band behaves, which is `50 mph` and above. A tick on the strip's left
+ * top band behaves, which is `50` and above. A tick on the strip's left
  * edge (`at` 0, which only the snow scale has) hangs from the START for the
  * mirror reason. Every other tick is CENTRED on its boundary, which is what a
  * colour bar's numbers do and what keeps two of them apart: left-aligned, the
- * freezing level's `12,000` ran within 4px of the `20,000 ft` beside it, where
+ * freezing level's `12,000` ran within 4px of the `20,000` beside it, where
  * centred it clears by 20 (measured in Chrome, 2026-09-17).
  */
 export function rampTicks(
   marks: readonly { readonly at: number; readonly text: string }[],
-  unit: string,
 ): RampTick[] {
   return marks.map((mark, i) => {
     const last = i === marks.length - 1
     return {
       at: mark.at,
-      label: last && unit !== '' ? `${mark.text} ${unit}` : mark.text,
+      label: mark.text,
       align: last ? ('end' as const) : mark.at === 0 ? ('start' as const) : ('center' as const),
     }
   })
@@ -112,7 +109,7 @@ export function scaleRampCss(scale: ColorScale): string {
  * scale has six bands where the snow scale has eleven, so its five boundaries
  * land 27px apart across a 162px strip, and at the 10px step the row is set in
  * the widest of them are wider than that: the freezing level's
- * `4,000 8,000 12,000 16,000 20,000 ft` overlapped into one run of digits and
+ * `4,000 8,000 12,000 16,000 20,000` overlapped into one run of digits and
  * the AQI's last two ran together (Chrome, 2026-09-17; `4,000` alone measures
  * 28.2px). Three sit 54px apart, which every scale clears with at least 20px
  * to spare, the freezing level included.
@@ -154,16 +151,16 @@ export function scaleTicks(scale: LabelledScale): RampTick[] {
       .map((value, i) => ({ value, i }))
       .filter(({ i }) => i % 2 === 0 || i === last)
       .map(({ value, i }) => ({
-      at: i + 1,
-      // en-US rather than the reader's locale: every other number this app
-      // prints is formatted the same way, and a strip whose ticks grouped on a
-      // different separator from the table beside it would read as two scales.
-      text: value.toLocaleString('en-US', {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-      }),
+        at: i + 1,
+        // en-US rather than the reader's locale: every other number this app
+        // prints is formatted the same way, and a strip whose ticks grouped on
+        // a different separator from the table beside it would read as two
+        // scales.
+        text: value.toLocaleString('en-US', {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits,
+        }),
       })),
-    '',
   )
 }
 

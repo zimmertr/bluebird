@@ -51,15 +51,16 @@ export const LEGEND_TOP_FINE_PX = 92
  *
  * It has been 245, then 265, then 313 as bands and layers joined — a six-band
  * freezing-level key (2026-09-14) and then the snow depth overlay's own section
- * (#446). #454 turned both the metric key and the snow key into two-line strips
- * and merged the two boxes into one, which is where 117px of that went.
+ * (#446). #454 merged the two boxes into one and turned both scale keys into
+ * strips, first with their numbers under them (196) and then with the numbers
+ * inside the strip (182), which is where 131px of that went.
  *
- * **Re-measure when a SECTION joins, not when a band does.** A strip is two
- * lines whatever its band count, so the six-band key that cost 20px here in
- * September costs nothing now; what still moves this number is another layer,
- * or a section growing a third line.
+ * **Re-measure when a SECTION joins, not when a band does.** A scale is one
+ * line plus its label whatever its band count, so the six-band key that cost
+ * 20px here in September costs nothing now; what still moves this number is
+ * another layer, or a section growing a line.
  */
-export const LEGEND_STACK_PX = 196
+export const LEGEND_STACK_PX = 182
 
 /** The gap the legend keeps below itself when no timeline is on (`bottom-8`). */
 export const LEGEND_GAP_PX = 32

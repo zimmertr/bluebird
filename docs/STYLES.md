@@ -82,7 +82,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself |
-| `SWATCH_RAMP` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: the five metric scales and the snow depth layer (#454). Two lines whatever the band count, where a row per band was seven lines and eleven. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
+| `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: the five metric scales and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
 
 **Accent and intent**
 
@@ -230,6 +230,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | A disabled control's reason has a hidden twin | `accessibility.test.ts` | Every `aria-describedby` in `App.tsx` matches a `SR_ONLY` element |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
+| A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The map column is one width, gap, height and type size | `styles.test.ts` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
@@ -482,7 +483,7 @@ exemption for the same reason: those bands are NOAA's, and the map draws NOAA's
 rendered image.
 
 Neither of them decides how a scale is DRAWN. That is `utils/legendRamp.ts`,
-which turns a band table into the legend's strip and its three tick numbers, and
+which turns a band table into the legend's strip and the tick numbers on it, and
 is shared by the metric key and the snow key so the map cannot carry two shapes
 of scale. It also decides whether a strip blends, and that follows the data:
 a metric marker is interpolated between anchors so its strip blends, where
@@ -491,6 +492,16 @@ the thresholds themselves, formatted — never a caption written beside them —
 they carry no unit: the section's label does, composed by `metricLabel` in
 `metrics.ts` from the SCALE's own unit, so playback's swap to the hourly rate
 relabels the strip with its bands.
+
+**A tick stands on the strip, and that is what the scrim is for.** No single ink
+clears AA over a ramp that runs the whole hue circle: white measures 1.45:1 on
+the wind scale's cyan-300 and slate-900 measures 2.04:1 on its purple, and every
+metric ramp and all eleven snow bands have an end like each of those. So the
+numbers sit on a `bg-slate-900/70` band along the strip's bottom edge, where
+slate-200 measures **6.49:1** against the worst band under it. A text shadow was
+the alternative and is not measurable, which is the whole reason this one is
+pinned in `styles.test.ts` as `RAMP_INK` — change the ramp colours or the scrim's
+opacity and the number has to be taken again.
 
 ### Model coverage message
 

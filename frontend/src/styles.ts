@@ -651,16 +651,51 @@ export const SWATCH_CHIP =
  * cannot be said that way — eleven chips in a 164px row are 13px each with
  * nothing under them to read — and a row per band is eleven rows for snow and
  * seven lines for a metric, on a map that can be 161px tall on a phone. So a
- * scale takes the box's whole width, with the numbers on their own line below
- * it, and buys two lines whatever the band count.
+ * scale takes the box's whole width and buys ONE line whatever the band count.
  *
- * Half the chip's height because it is long rather than square, and because
- * what a reader takes off it is a position along the strip rather than a
- * colour in isolation. The fill is the scale's own, passed in: `colors.ts` and
- * `snowDepth.ts` are where a band's colour is decided, and a fill named here
- * would be a second opinion about a picture already on the map.
+ * **The numbers live inside it** (TJ, 2026-09-17). Under it they cost a second
+ * line per scale, which with two scales on screen is 16px of a map a phone can
+ * only give 161 to. So the strip is the grid its numbers sit in, and the height
+ * is what a 10px numeral needs rather than what a colour bar does.
+ *
+ * The fill is the scale's own, passed in: `colors.ts` and `snowDepth.ts` are
+ * where a band's colour is decided, and a fill named here would be a second
+ * opinion about a picture already on the map. `overflow-hidden` is what clips
+ * {@link SWATCH_RAMP_SCRIM} to the strip's own corners.
  */
-export const SWATCH_RAMP = `block h-2 w-full ${RADIUS.control} border`
+export const SWATCH_RAMP =
+  `relative grid items-end h-5 w-full overflow-hidden ${RADIUS.control} border`
+
+/**
+ * The band the numbers stand on, inside the strip.
+ *
+ * **Ink on a ramp needs a ground, and this is a measurement rather than a
+ * style.** A metric ramp runs from cyan-300 to purple-500 in one strip, so no
+ * single ink clears AA across it: white measures 1.45:1 on `#67e8f9` and
+ * slate-900 measures 2.04:1 on `#5720c3` (2026-09-17, over all five metric
+ * ramps and the eleven snow bands). A scrim is what gives every number one
+ * ground to be read against — slate-200 on this one measures **6.49:1** at its
+ * worst, on that same cyan-300, where a text-shadow would be carrying the
+ * legibility and no test could measure it.
+ *
+ * It takes the strip's lower 11px and leaves the colour the upper 7, which is
+ * within a pixel of the whole strip before the numbers moved in. Full width
+ * rather than a chip per number, so the numbers read along one baseline on one
+ * ground instead of as four dark blocks punched through a six-band scale.
+ */
+export const SWATCH_RAMP_SCRIM =
+  'pointer-events-none absolute inset-x-0 bottom-0 h-[11px] bg-slate-900/70'
+
+/**
+ * One number on that band: 10px, the ramp's smallest step, on the scrim.
+ *
+ * `relative` lifts it over the scrim, which is a later sibling in paint order.
+ * `leading-none` is what lets a 10px numeral sit in an 11px band at all, and
+ * the 2px of side padding keeps the first and last numbers off the strip's own
+ * edges without moving a centred one, which pads symmetrically.
+ */
+export const SWATCH_RAMP_TICK =
+  `relative whitespace-nowrap px-0.5 pb-px ${MICRO_SIZE} leading-none text-slate-200`
 
 /**
  * The edge every legend swatch wears, as a VALUE rather than a class.
