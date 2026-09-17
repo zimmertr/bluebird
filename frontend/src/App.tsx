@@ -2729,18 +2729,27 @@ export default function App() {
               // top of the sheet where they cover it (#249).
               style={{ bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }}
             >
-              {/* One row per layer: what it is, who it came from, and its key
-                  on the right. The densities used to be three stacked rows
-                  under a heading, the radar and fire keys a box each — about
-                  a hundred pixels of chrome to say four short things.
+              {/* One entry per layer: what it is, who it came from, and its
+                  key. A layer keyed on a single value is a ROW, and the key is
+                  a chip on the right of it. A layer keyed on a SCALE is a
+                  section instead, the scale across the box with its numbers
+                  underneath, because eleven bands of depth are not something a
+                  14px chip can say. They read in the Layers popover's own
+                  alphabetical order, which `styles.test.ts` holds, so a reader
+                  who has just found a row in one surface looks for it in the
+                  same place in the other. The densities used to be three
+                  stacked rows under a heading, the radar and fire keys a box
+                  each — about a hundred pixels of chrome to say four short
+                  things.
 
-                  Each row still carries its own source, which the licences ask
-                  for and which keeps a credit beside the data it describes
+                  Each entry still carries its own source, which the licences
+                  ask for and which keeps a credit beside the data it describes
                   rather than in a list somewhere else.
 
-                  No heading over them either. Every row names its own layer, so
-                  a "Map layers" line above would be a label for four labels —
-                  and on a phone it is a whole row of the little map left. */}
+                  No heading over them either. Every entry names its own
+                  layer, so a "Map layers" line above would be a label for five
+                  labels — and on a phone it is a whole row of the little map
+                  left. */}
               {(showSmoke || showRadar || showSnow || showWildfires || gridPainted || gridCued || gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${MAP_COL_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">

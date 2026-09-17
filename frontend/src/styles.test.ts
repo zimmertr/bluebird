@@ -1798,7 +1798,7 @@ describe('the map legend sections', () => {
   // metric colour key below it is no part of this: it is not a layer, it
   // explains the marker colours, and those exist with every layer off.
   const box = (() => {
-    const from = appSource.indexOf('One row per layer:')
+    const from = appSource.indexOf('One entry per layer:')
     const to = appSource.indexOf('{markerScale !== null &&')
     return from >= 0 && to > from ? appSource.slice(from, to) : ''
   })()
