@@ -105,4 +105,20 @@ describe('every caller of the shared budget', () => {
   it('shows the wait on the compare surface', () => {
     expect(compareSurfaceSource).toContain('paceWaitLine')
   })
+
+  // The grid's wait clears on EVERY chunk, not on the first (#432). A chunk in
+  // hand is a chunk the pacer let through, so there is no count to weigh and
+  // nothing pure to test — which is why the rule is read off the source the
+  // way the ones above are.
+  it('clears the grid wait on every chunk that lands', () => {
+    const chunkLoop = gridSource.match(/for \(let start = 0;[\s\S]*?\n {8}\}/)?.[0] ?? ''
+    expect(chunkLoop, 'the chunk loop was not found').toContain('await fetchWeather(')
+    expect(chunkLoop).toContain('clearPace()')
+    // The clear used to sit in the repaint behind a counter, where the air
+    // quality that repaints late reaches it too and only the first call ever
+    // fired.
+    const repaint = gridSource.match(/function repaint\(\) \{[\s\S]*?\n {4}\}/)?.[0] ?? ''
+    expect(repaint, 'the repaint was not found').toContain('pairCells(')
+    expect(repaint).not.toContain('clearPace()')
+  })
 })

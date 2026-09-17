@@ -215,12 +215,9 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     const wx: (WeatherResult | undefined)[] = new Array(spec.points.length)
     const aqi: (AqiResult | undefined)[] = new Array(spec.points.length)
     let grid: readonly number[] = times
-    // Has anything been painted yet, and how much? The countdown and the
-    // failure state ask different questions of the same history: the first
-    // repaint ends the wait whatever it drew, while a failure withdraws the
-    // layer only when nothing was drawn at all — and a chunk can land with no
-    // forecast in it, which repaints and paints no cell.
-    let repaints = 0
+    // How much has been painted? A failure withdraws the layer only when
+    // nothing was drawn at all — and a chunk can land with no forecast in it,
+    // which repaints and paints no cell.
     let painted = 0
 
     function repaint() {
@@ -236,12 +233,6 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
       }
       if (grid.length === 0) grid = canonicalTimes(wxHave)
       const cells = pairCells(spec as GridSpec, indices, wxHave, aqiHave, grid)
-      // The FIRST samples to arrive end whatever wait was being counted down.
-      // A later chunk's wait is left alone by design: the legend stops saying
-      // `Waiting` of its own accord once the deadline passes, and a whole
-      // field names its pitch through a pace regardless.
-      if (repaints === 0) clearPace()
-      repaints++
       painted = cells.length
       setState({
         status: 'ready',
@@ -304,6 +295,12 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
           got.forEach((w, j) => {
             wx[indices[j]] = w
           })
+          // A chunk in hand is a chunk the pacer has let through, so whatever
+          // wait it reported is over. Clearing on the FIRST paint alone left a
+          // countdown running under a field that had already grown twice
+          // (#432): the countdown says the next samples are waiting, and
+          // nothing else.
+          clearPace()
           repaint()
         }
         // Every sample has been asked for; the legend may name the pitch now
