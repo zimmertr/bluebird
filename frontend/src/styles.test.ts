@@ -73,6 +73,8 @@ import {
   SURFACE_FLOATING,
   SURFACE_POPOVER,
   SURFACE_SHEET,
+  SWATCH_CHIP,
+  SWATCH_RAMP,
   TAP,
   TEXT,
 } from './styles'
@@ -1777,7 +1779,7 @@ describe('the map layer rows', () => {
   })()
 
   it('found every row', () => {
-    expect(labels).toHaveLength(5)
+    expect(labels).toHaveLength(6)
   })
 
   // Alphabetical, because nothing else orders these: no cost, no severity and
@@ -1785,6 +1787,29 @@ describe('the map layer rows', () => {
   // the reader has to learn rather than one they can scan.
   it('lists the layers in alphabetical order', () => {
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
+  })
+})
+
+// The snow depth overlay's legend key (#446): the one key in the stack that is
+// a scale rather than a single value.
+describe('the snow legend ramp', () => {
+  it('spans the box where a single-value key is a chip', () => {
+    // Eleven bands cannot be said by the 14px square the other four layers key
+    // on, and eleven of those squares in a 184px box are unreadable. The strip
+    // takes the width instead and the numbers go under it.
+    expect(SWATCH_RAMP).toMatch(/\bw-full\b/)
+    expect(SWATCH_CHIP).not.toMatch(/\bw-full\b/)
+  })
+
+  it('names no colour of its own', () => {
+    // The map draws NOAA's rendered image, so the key's colours are NOAA's and
+    // arrive from `snowDepth.ts` at the call site. A fill spelled here would be
+    // a second opinion about what the picture already shows.
+    expect(SWATCH_RAMP).not.toMatch(/-(?:slate|sky|blue|cyan|purple|red)-\d{2,3}/)
+  })
+
+  it('is what the legend wears, rather than a strip spelled at the call site', () => {
+    expect(appSource).toContain('className={SWATCH_RAMP}')
   })
 })
 

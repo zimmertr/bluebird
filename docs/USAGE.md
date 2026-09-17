@@ -164,18 +164,19 @@ The default is 200, sized to sit above the 100-row lists people usually paste so
 
 ## Map layers
 
-Four optional overlays, on the map's own **Layers** button rather than in the
+Five optional overlays, on the map's own **Layers** button rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the three that draw somebody else's data is credited on its own legend, and each rides in the shared link.
+again. Each of the four that draw somebody else's data is credited on its own legend, and each rides in the shared link.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
+| **Snow depth (US only)** | Snow on the ground now, in NOAA's own bands from under an inch to over 30 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
@@ -189,8 +190,11 @@ dense it is, which satellite it was traced from, and over what hours. Where smok
 sits over a fire — which is most of the time, since one causes the other — the
 click goes to the fire.
 
-Read them for what they are. Radar is a **measurement of the last hour**,
-which makes it the one layer here that is not a model's opinion about the future.
+Read them for what they are. Radar is a **measurement of the last hour** and
+snow depth is an **analysis of now**, which makes them the two layers here that
+are not a model's opinion about the future. Snow depth is on a 1 km grid, so its
+colour is an average over a square kilometre that may run from a valley floor to
+a ridge; on steep ground the depth at a point can be well either side of it.
 Smoke is an analyst's tracing of what a satellite could see, updated about twice a
 day, and it describes a column of air rather than the ground: a plume overhead can
 mean a hazy sky and clean air to breathe, or the opposite. The AQI columns in the

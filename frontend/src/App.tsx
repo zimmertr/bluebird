@@ -89,6 +89,7 @@ import {
   SURFACE_POPOVER,
   SURFACE_SHEET,
   SWATCH_CHIP,
+  SWATCH_RAMP,
   TAP,
   TEXT,
 } from './styles'
@@ -118,6 +119,7 @@ import {
   radarScaleEnds,
 } from './utils/radar'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
+import { NOHRSC_HREF, SNOW_RAMP, snowRampCss, snowTicks } from './utils/snowDepth'
 import {
   TimelineAxis,
   availableAxes,
@@ -575,6 +577,10 @@ export default function App() {
   // from the pod.
   const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
   const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
+  // The snow analysis (#446), the fourth on that contract. NOAA renders each
+  // tile on request, so like the radar it is the browser that fetches them and
+  // like the radar it draws nothing the ranking ever reads.
+  const [showSnow, setShowSnow] = useState(() => restored?.showSnow ?? false)
   // The forecast grid (#246), on the same contract as the three above with one
   // difference worth naming: this toggle is a spend boundary. Turning it on is
   // what fetches a lattice of forecasts over the analyzed field, and leaving it
@@ -1102,6 +1108,7 @@ export default function App() {
       showWildfires,
       showRadar,
       showSmoke,
+      showSnow,
       showGrid,
       showPlayer,
       gridStyle,
@@ -1137,6 +1144,7 @@ export default function App() {
     showWildfires,
     showRadar,
     showSmoke,
+    showSnow,
     showGrid,
     showPlayer,
     gridStyle,
@@ -1862,6 +1870,7 @@ export default function App() {
       : []),
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
+    { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
     { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
   ]
   const grid = useForecastGrid({
@@ -2644,6 +2653,7 @@ export default function App() {
             showWildfires={showWildfires}
             showRadar={showRadar}
             showSmoke={showSmoke}
+            showSnow={showSnow}
             radarIndex={radarIndex}
             gridSpec={grid.spec}
             gridCells={grid.cells}
@@ -2702,7 +2712,7 @@ export default function App() {
               coming back. A sheet dragged tall closes the box to nothing, and
               a double press on its grip brings the legends back with the rest
               of the default. */}
-          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar) && (
+          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar || showSnow) && (
             <div
               // The inset clears the button column above, which is one row
               // taller while the panel is collapsed and the Controls button
@@ -2731,7 +2741,7 @@ export default function App() {
                   No heading over them either. Every row names its own layer, so
                   a "Map layers" line above would be a label for four labels —
                   and on a phone it is a whole row of the little map left. */}
-              {(showSmoke || showRadar || showWildfires || gridPainted || gridCued || gridFailed) && (
+              {(showSmoke || showRadar || showSnow || showWildfires || gridPainted || gridCued || gridFailed) && (
                 <div className={`${SURFACE_FLOATING} ${MAP_COL_W} px-2.5 py-2`}>
                   <div className="flex flex-col gap-1">
                     {showSmoke && (
@@ -2786,6 +2796,66 @@ export default function App() {
                             borderColor: '#475569',
                           }}
                         />
+                      </div>
+                    )}
+                    {showSnow && (
+                      // The one key here that is a SCALE rather than a colour,
+                      // so it is the one that is not a row. Eleven bands of
+                      // depth cannot be said by a 14px chip, and eleven rows
+                      // would be most of the map a phone has left, so the
+                      // strip spans the box and four numbers sit under it —
+                      // the two ends and the boundaries a decade apart, which
+                      // is what a reader needs to tell ankle-deep from
+                      // waist-deep at a glance.
+                      <div className="flex flex-col gap-1">
+                        <span className={TEXT.control}>
+                          Snow depth (
+                          <a
+                            href={NOHRSC_HREF}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={LINK}
+                          >
+                            NOHRSC
+                          </a>
+                          )
+                        </span>
+                        {/* Hard-stopped between bands rather than blended,
+                            because those boundaries are NOAA's own
+                            classification — the picture and its key have to
+                            agree, which is why both read `snowDepth.ts`. */}
+                        <span
+                          className={SWATCH_RAMP}
+                          style={{ backgroundImage: snowRampCss(), borderColor: '#475569' }}
+                          aria-hidden="true"
+                        />
+                        {/* A grid of the ramp's own bands, so a tick lands on
+                            the boundary it names however wide the box is.
+                            `minmax(0,1fr)` rather than `1fr`: the last label
+                            is wider than a band, and a plain fr track would
+                            grow to fit it and shift every tick left of it. */}
+                        <span
+                          className={`grid ${TEXT.caption}`}
+                          style={{
+                            gridTemplateColumns: `repeat(${SNOW_RAMP.length}, minmax(0, 1fr))`,
+                          }}
+                        >
+                          {snowTicks().map((tick) => {
+                            const last = tick.at >= SNOW_RAMP.length
+                            return (
+                              <span
+                                key={tick.label}
+                                className="whitespace-nowrap"
+                                style={{
+                                  gridColumnStart: last ? SNOW_RAMP.length : tick.at + 1,
+                                  justifySelf: last ? 'end' : 'start',
+                                }}
+                              >
+                                {tick.label}
+                              </span>
+                            )
+                          })}
+                        </span>
                       </div>
                     )}
                     {showWildfires && (
