@@ -19,7 +19,7 @@ import {
 } from '../utils/clientAnalyze'
 import { postDestinations } from '../utils/apiFetch'
 import { pinKey } from '../utils/customList'
-import { OpenMeteoModelCoverage } from '../utils/openMeteo'
+import { COVERAGE_MESSAGE_TAIL, OpenMeteoModelCoverage } from '../utils/openMeteo'
 import { SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot, discoveryKeys } from '../utils/present'
 import type { ForecastModelOption } from './useCapabilities'
@@ -314,11 +314,12 @@ export function useAnalyze(
   // candidate list is the only server call — POST /api/destinations, one
   // Overpass query — and the forecasts come straight from Open-Meteo on the
   // visitor's own IP and quota, paced under it. Throws OpenMeteoUnreachable
-  // when the forecast API can't be reached (network/CORS), which is the
-  // caller's cue to fall back to the server pipeline. A rate limit is NOT
-  // that cue: the quota is per IP, and for a deployment sharing its egress
-  // with the visitor a same-IP retry only deepens the exhaustion (issue
-  // #180) — those surface honestly instead.
+  // when the forecast API can't be reached (network/CORS); since #240 that
+  // fails the analysis with its own message, and nothing retries it through
+  // the pod's shared quota. A rate limit is NOT that class: the quota is per
+  // IP, and for a deployment sharing its egress with the visitor a same-IP
+  // retry only deepens the exhaustion (issue #180) — those surface honestly
+  // instead.
   //
   // That one call answers two different questions. A polygon is *discovered*
   // (what is in here?); a custom list is *resolved* (what does OSM know about
@@ -517,9 +518,7 @@ export function useAnalyze(
         // Compose the message with the model label from the models list
         const modelLabel =
           models.find((m) => m.id === e.modelId)?.label ?? e.modelId
-        setError(
-          `${modelLabel} has no forecast coverage for this area. Switch to a different model and try again.`,
-        )
+        setError(`${modelLabel} ${COVERAGE_MESSAGE_TAIL}`)
       } else {
         setError(e instanceof Error ? e.message : 'Unknown error')
       }

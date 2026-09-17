@@ -466,7 +466,7 @@ number means rather than what the surface is.
 
 ### Model coverage message
 
-The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` and ported to `frontend/src/hooks/useAnalyze.ts`. The `OpenMeteoModelCoverage` error in `frontend/src/utils/openMeteo.ts` is developer-facing, names the model id, and is not a copy of it.
+The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` (`_coverage_message`). The browser spells it once, in `frontend/src/utils/openMeteo.ts`: `COVERAGE_PHRASE` is the first sentence and `COVERAGE_MESSAGE_TAIL` adds the remedy. `useAnalyze.ts` composes the tail with the picker's label, `useModelCompare.ts` composes the phrase alone, and neither types the words. The `OpenMeteoModelCoverage` error carries no message at all, because only a catch site knows the label (#391).
 
 ### Styling a native range input
 
