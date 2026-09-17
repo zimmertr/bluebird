@@ -25,6 +25,7 @@ import {
 import { geoKey } from './points'
 import { WeatherResult, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
+import { resultRow, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -166,32 +167,18 @@ describe('resolveCustomOnly', () => {
 
 // ── rankComparator (port of _sort_key) ─────────────────────────────────────
 
+// One AQI reading across all three aggregates, so a ranking by any of them
+// answers the same way.
 function row(name: string, aqi: number | null): DestinationResult {
-  return {
+  return resultRow({
     name,
-    type: 'peak',
     latitude: 0,
     longitude: 0,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
-    temp_min_f: 0,
-    temp_max_f: 0,
-    temp_avg_f: 0,
-    wind_min_mph: 0,
-    wind_max_mph: 0,
-    wind_avg_mph: 0,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
     aqi_avg: aqi,
     aqi_min: aqi,
     aqi_max: aqi,
     series: null,
-  }
+  })
 }
 
 describe('rankComparator', () => {
@@ -233,10 +220,11 @@ describe('rankComparator', () => {
 
 // ── assemble (port of _assemble) ───────────────────────────────────────────
 
-const WX: WeatherResult = {
+// Two hours, because the AQI alignment below is measured against this grid: one
+// reading lands on the first stamp and the second hour has to read null.
+const WX: WeatherResult = weatherResult({
   precip_total_in: 0.3,
   precip_avg_in_hr: 0.15,
-  precip_min_in_hr: 0,
   precip_max_in_hr: 0.2,
   temp_min_f: 50,
   temp_max_f: 52,
@@ -254,7 +242,7 @@ const WX: WeatherResult = {
     wind_mph: [5, 7],
     freeze_ft: [9000, 9500],
   },
-}
+})
 
 describe('assemble', () => {
   it('drops rows whose weather came back null and keeps alignment', () => {
@@ -341,31 +329,7 @@ function bounded(over: Partial<Constraints>): Constraints {
 }
 
 function boundRow(name: string, over: Partial<DestinationResult>): DestinationResult {
-  return {
-    name,
-    type: 'peak',
-    latitude: 1,
-    longitude: 2,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
-    temp_min_f: 0,
-    temp_max_f: 0,
-    temp_avg_f: 0,
-    wind_min_mph: 0,
-    wind_max_mph: 0,
-    wind_avg_mph: 0,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
-    aqi_avg: null,
-    aqi_min: null,
-    aqi_max: null,
-    ...over,
-  }
+  return resultRow({ name, latitude: 1, longitude: 2, ...over })
 }
 
 describe('filterConstraints', () => {

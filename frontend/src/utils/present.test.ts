@@ -12,6 +12,7 @@ import {
   fieldHasValue,
   presentResults,
 } from './present'
+import { resultRow } from '../testSupport/fixtures'
 
 // Rows differing only in the fields under test, so an assertion on names reads
 // as an assertion on ordering and membership.
@@ -19,32 +20,7 @@ function row(
   name: string,
   over: Partial<DestinationResult> = {},
 ): DestinationResult {
-  return {
-    name,
-    type: 'peak',
-    latitude: 0,
-    longitude: 0,
-    elevation_ft: null,
-    osm_id: null,
-    precip_total_in: 0,
-    precip_avg_in_hr: 0,
-    precip_min_in_hr: 0,
-    precip_max_in_hr: 0,
-    temp_min_f: 0,
-    temp_max_f: 0,
-    temp_avg_f: 0,
-    wind_min_mph: 0,
-    wind_max_mph: 0,
-    wind_avg_mph: 0,
-    freeze_min_ft: null,
-    freeze_max_ft: null,
-    freeze_avg_ft: null,
-    aqi_avg: null,
-    aqi_min: null,
-    aqi_max: null,
-    series: null,
-    ...over,
-  }
+  return resultRow({ name, latitude: 0, longitude: 0, series: null, ...over })
 }
 
 // Distinct coordinates, since removals are keyed by coordinate.
