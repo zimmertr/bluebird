@@ -213,6 +213,24 @@ describe('popupGroups missing values', () => {
     expect(freeze.values.map((v) => v.text)).toEqual(['N/A', 'N/A', 'N/A'])
     expect(freeze.values.every((v) => v.href === null)).toBe(true)
   })
+
+  // A depth at the source file's ceiling is "at least", the way the table
+  // cell reads it. It keeps its link, unlike the mark above: the destination
+  // is real and Windy has a snow layer to show for it.
+  it('marks a snow depth the source file could not hold', () => {
+    const clipped = { ...row, snow_depth_in: 1290.04 } as DestinationResult
+    const groups = popupGroups(clipped, displayedColumns(false, 'precip_total_in'))
+    const snow = groups.find((g) => g.label.startsWith(NOUN.snow))!
+    expect(snow.values.map((v) => v.text)).toEqual(['\u22651,290'])
+    expect(snow.values.every((v) => v.href !== null)).toBe(true)
+  })
+
+  it('prints a depth below that ceiling as the measurement it is', () => {
+    const held = { ...row, snow_depth_in: 1290.03 } as DestinationResult
+    const groups = popupGroups(held, displayedColumns(false, 'precip_total_in'))
+    const snow = groups.find((g) => g.label.startsWith(NOUN.snow))!
+    expect(snow.values.map((v) => v.text)).toEqual(['1,290'])
+  })
 })
 
 describe('popupIdentity', () => {

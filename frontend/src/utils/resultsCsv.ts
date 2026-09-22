@@ -19,6 +19,7 @@ import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
 import type { ResolvedWindow } from './forecastWindow'
 import { geoKey } from './points'
+import { isSnowDepthKey, snowCellText } from './snowCeiling'
 
 /**
  * The leading position column, named rather than numbered.
@@ -112,6 +113,11 @@ function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null
   if (col.key === MODEL_KEY) return (row as ModelRow).modelLabel ?? modelFallback ?? ''
   const raw = row[col.key]
   if (raw == null) return col.csvNull ?? ''
+  // A depth at the source file's ceiling says so here too, ungrouped like
+  // every other number in the file. The bare ceiling in a spreadsheet reads as
+  // a measurement, which is the one thing it is not.
+  const clipped = isSnowDepthKey(col.key as string) ? snowCellText(raw, false) : null
+  if (clipped !== null) return clipped
   const project = col.csv ?? col.format
   return project ? project(raw) : String(raw)
 }

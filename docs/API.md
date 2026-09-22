@@ -775,10 +775,15 @@ direction, exactly as a null AQI does. A grid this instance has never fetched
 answers `null` on every row and `null` for `snow_analysis_date`; a missing grid
 never fails an analysis.
 
-**Over permanent ice, read the number as ice.** SNODAS does not melt permanent
-snow and ice out, so the depth there accumulates year over year: Mount
-Rainier's summit answered 1,290 in on 2026-09-22, which is the worked example
-above. [DATA.md's snow depth section](DATA.md#snow-depth) has the rest.
+**Over permanent ice, read the number as ice, and `1290.04` as a ceiling.**
+SNODAS does not melt permanent snow and ice out, so the depth there accumulates
+year over year. The source file carries depth as 16-bit integer millimetres, so
+`1290.04` (32,767 mm) is the largest value it can hold and the model's own
+answer over deep ice is higher: a row at that number holds at least that much
+and is permanent ice rather than a season's snow. It is the worked example
+above. The API answers that plain number; the web app prints `≥1,290` in
+its place, which is a display decision rather than a contract.
+[DATA.md's snow depth section](DATA.md#snow-depth) has the rest.
 
 ```bash
 curl -s https://bluebirdforecast.com/api/destinations \

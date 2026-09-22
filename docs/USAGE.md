@@ -421,7 +421,7 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 | Temperature · Min/Max/Avg (°F) | Temperature range and average over the window, read at the destination's own elevation. The near-ground value over an archive window |
 | Wind · Min/Max/Avg (mph) | Wind speed range and average over the window |
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
-| Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `N/A` outside the analysis area |
+| Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `≥1,290` marks the source file's own ceiling, which is permanent ice rather than a measurement. `N/A` outside the analysis area |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
 
 A single-hour analysis ("now", or a chosen moment) collapses each of those

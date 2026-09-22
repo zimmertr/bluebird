@@ -171,9 +171,11 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   // pack, and the year-round ice a glaciated summit reads.
   //
   // 400 inches is not a typo and not an outlier to clip. Over permanent ice
-  // SNODAS accumulates year over year, so Mount Rainier's summit reads about
-  // 1,290 inches (measured 2026-09-22), and a top band that stopped at a
-  // season's depth would paint every glacier in the Cascades one colour.
+  // SNODAS accumulates year over year, so Mount Rainier's summit reads 1,290
+  // inches — which is the source file's int16 millimetre CEILING rather than a
+  // measurement (measured 2026-09-22; 86 cells sit on it). A top band that
+  // stopped at a season's depth would paint every glacier in the Cascades one
+  // colour.
   //
   // EVERY STEP IS A 300 OR A 400, which is the freezing level's contrast
   // constraint inherited whole: `cellStyle` paints the band as the text, text

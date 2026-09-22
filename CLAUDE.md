@@ -95,6 +95,7 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 21 | How long a held forecast may stand in | `cache.FORECAST_TTL_S` | `useAnalyze.FORECAST_REUSE_MS` | a comment |
 | 22 | The wire models themselves | the Pydantic models | `types.ts` | `openapi.json`, `api-schema.d.ts`, `api-compat.ts`, and the `check:api` CI step |
 | 23 | The published limits | `/api/capabilities` | `useCapabilities.ts` | not a mirror by design: the browser reads them at runtime and the compiled numbers are only the fallback (#152) |
+| 24 | The snow depth ceiling | `snodas.SNOW_DEPTH_CEILING_IN` | `snowCeiling.SNOW_DEPTH_CEILING_IN` | `mirrored_constants.json` |
 
 Three things here are deliberately **not** mirrors and must not become ones. Row 23 is read at runtime rather than copied. `FUTURE_LIMIT_DAYS` in `calendar.ts` is Open-Meteo's own measured accept edge, which nothing publishes and the backend does not hold. And `wind_direction_10m` is the browser's alone, which is why row 8 is off by one rather than equal.
 

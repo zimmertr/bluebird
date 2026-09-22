@@ -47,6 +47,7 @@ Description: Modeled snow layer thickness, total of snow layers
 Data units: Meters / 1000.000000
 Data type: integer
 Data bytes per pixel: {bytes_per_pixel}
+Maximum data value: {maximum}
 No data value: -9999.00000000000
 Number of columns: {columns}
 Number of rows: {rows}
@@ -60,6 +61,9 @@ Maximum y-axis coordinate: {max_y}
 def header_text(**overrides) -> str:
     fields = {
         "bytes_per_pixel": 2,
+        # As NSIDC writes it, which is why the reader parses rather than
+        # compares strings.
+        "maximum": "32767.0000000000",
         "columns": COLUMNS,
         "rows": ROWS,
         "res": RES,
@@ -132,6 +136,11 @@ def test_ignores_a_line_that_is_not_a_pair():
         # A geometry that cannot index anything.
         {"columns": 0},
         {"res": 0},
+        # A different ceiling is the dangerous one: the numbers would still
+        # look plausible, and the browser's "at least" mark would sit on the
+        # wrong depth with nothing on screen saying so.
+        {"maximum": "65535.0000000000"},
+        {"maximum": "not a number"},
     ],
 )
 def test_refuses_a_header_it_cannot_index(overrides):
@@ -207,6 +216,20 @@ def test_converts_the_stored_millimetres_to_inches():
     assert snapshot.depth_in(39.5, -98.5) == 39.37
     # 2,540 mm is one hundred inches, in the first cell of the middle row.
     assert snapshot.depth_in(38.5, -99.5) == 100.0
+
+
+def test_saturates_at_the_files_own_int16_ceiling():
+    # 32,767 mm is the largest depth the member can carry, and the header says
+    # so. Over deep ice the model holds more and the file clips it: NOAA's map
+    # service reported 68.62 m at Mount Rainier's summit on 2026-09-16 where
+    # the tar read 32.77 m. The number is pinned because it is the one a reader
+    # meets most often on a glaciated summit, and it is a ceiling rather than a
+    # measurement.
+    ceiling = snodas.read_tar(
+        build_tar(samples=sample_bytes([[32767] * COLUMNS] * ROWS)),
+        date(2026, 9, 22),
+    )
+    assert ceiling.depth_in(39.5, -98.5) == 1290.04
 
 
 def test_reads_zero_as_a_reading_rather_than_a_gap():

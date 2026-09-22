@@ -91,6 +91,19 @@ REQUEST_TIMEOUT_S = 120.0
 
 INCHES_PER_METER = 39.3701
 
+# The largest depth the file can carry, in inches, and the number a glaciated
+# summit therefore reads. Depth is int16 millimetres, so 32,767 mm is the
+# ceiling and the header states it as `Maximum data value`; through the
+# `Meters / 1000` divisor and the factor above that is 1290.0400667 in, rounded
+# to the two decimals `depth_in` rounds to. The model holds more than this over
+# deep ice and the file clips it: NOAA's map service reported 68.62 m at Mount
+# Rainier's summit on 2026-09-16 where the tar read 32.77 m. Nothing here
+# corrects that, because the correction is not in the file; the browser marks a
+# row at the ceiling as "at least" instead, which is why this is a mirrored
+# constant rather than a private one.
+_INT16_MAX_MM = 32767
+SNOW_DEPTH_CEILING_IN = round(_INT16_MAX_MM / 1000 * INCHES_PER_METER, 2)
+
 # The header keys this module cannot work without. Named as a set so a missing
 # one fails the fetch by name, rather than as a KeyError three functions later.
 _REQUIRED = (
@@ -103,6 +116,7 @@ _REQUIRED = (
     "y-axis resolution",
     "data bytes per pixel",
     "data units",
+    "maximum data value",
 )
 
 # Two bytes per sample, big-endian signed. Anything else is a different file
@@ -194,8 +208,17 @@ class Snapshot:
 
         The inches themselves are rounded to two places. The grid is whole
         millimetres, so the digits past that are the conversion factor's own
-        binary noise (``1290.0400667000001`` for a reading of 32766 mm) and
-        every surface that shows the number shows fewer digits than that.
+        binary noise (``1290.0400667000001`` at the ceiling below) and every
+        surface that shows the number shows fewer digits than that.
+
+        **The answer saturates at 1290.04 in.** Depth is int16 millimetres, so
+        32,767 mm is the largest the file can carry, and the header says so
+        (``Maximum data value: 32767``). Over deep ice the model holds more and
+        the file clips it: NOAA's map service reported 68.62 m at Mount
+        Rainier's summit on 2026-09-16, where the tar reads 32.77 m. Measured
+        2026-09-22, 86 of the grid's 13,128 snow-bearing cells sit on that
+        ceiling. Nothing here corrects it, because the correction is not in the
+        file; a row at 1290.04 means "at least this much, and permanent ice".
         """
         column = math.floor((longitude - self.min_x) / self.res_x)
         row = math.floor((self.max_y - latitude) / self.res_y)
@@ -276,6 +299,18 @@ def read_tar(payload: bytes, day: date) -> Snapshot:
         raise _bad(f"header is missing {', '.join(missing)}")
     if header["data bytes per pixel"] != str(_BYTES_PER_PIXEL):
         raise _bad(f"{header['data bytes per pixel']} bytes per pixel, expected {_BYTES_PER_PIXEL}")
+    # Refused for the same reason as the byte width, and it matters more: a
+    # file with another ceiling would still read as plausible numbers, and the
+    # browser's "at least" mark would then be attached to the wrong depth with
+    # nothing on screen saying so. Compared as a number because the header
+    # writes it as `32767.0000000000`.
+    declared_max = header["maximum data value"]
+    try:
+        ceiling_mm = int(float(declared_max))
+    except ValueError as exc:
+        raise _bad(f"maximum data value {declared_max!r} is not a number") from exc
+    if ceiling_mm != _INT16_MAX_MM:
+        raise _bad(f"maximum data value {ceiling_mm}, expected {_INT16_MAX_MM}")
 
     try:
         columns = int(header["number of columns"])

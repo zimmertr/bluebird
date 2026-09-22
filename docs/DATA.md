@@ -647,10 +647,24 @@ is a different statement from bare ground. A server that has not yet fetched a
 grid reads `N/A` on every row and names no date.
 
 **The glacier caveat above applies to the column too, and it is the number a
-reader is most likely to misread.** Mount Rainier's summit read 1,290 inches on
-2026-09-22. That is ice the model has accumulated year over year, not snow that
-fell this season, and the colour scale's top band exists to hold it rather than
-to describe it.
+reader is most likely to misread.** Over permanent ice SNODAS accumulates year
+over year, so a glaciated summit reads hundreds of inches in every season. That
+is ice rather than snow that fell this winter, and the colour scale's top band
+exists to hold it rather than to describe it.
+
+**1,290 in is the file's ceiling, not a measurement.** The depth member is
+16-bit integer millimetres, so the largest depth it can carry is 32,767 mm,
+which is 1,290.04 in; the header says as much (`Maximum data value: 32767`).
+The model holds more than that over deep ice, and the file clips it: NOAA's own
+map service reported 68.62 m at Mount Rainier's summit on 2026-09-16, where the
+tar reads 32.77 m. On 2026-09-22 the grid held 13,128 cells with any snow, 202
+cells at 400 in or more, and 86 cells sitting on the ceiling: Rainier, Baker
+and Adams summits all read it, where St Helens, Hood and Eldorado read 0,
+Shasta 2.9 in and Shuksan 10.3 in. So the app does not print the ceiling as a
+measurement. A row there reads `≥1,290` on screen, in the marker popup and
+in the downloaded file, which is the honest statement: at least this much, and
+permanent ice. The API answers the plain number, `1290.04`; the mark is the
+app's.
 
 ## The forecast grid
 

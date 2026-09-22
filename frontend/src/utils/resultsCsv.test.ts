@@ -199,6 +199,22 @@ describe('values a spreadsheet can compute over', () => {
     expect(csv).not.toContain('N/A')
   })
 
+  // A depth at the source file's int16 ceiling is not a measurement, so the
+  // file says "at least" rather than printing the number it was clipped to.
+  // Ungrouped, like every other number here: a spreadsheet reads `1,290` as
+  // text.
+  it('marks a snow depth the source file could not hold', () => {
+    const csv = buildResultsCsv([row({ snow_depth_in: 1290.04 })], WINDOW_COLUMNS, NO_FIRES)
+    expect(csv).toContain('\u22651290')
+    expect(csv).not.toContain('1290.04')
+  })
+
+  it('writes a depth below that ceiling as the measurement it is', () => {
+    const csv = buildResultsCsv([row({ snow_depth_in: 1290.03 })], WINDOW_COLUMNS, NO_FIRES)
+    expect(csv).toContain('1290.03')
+    expect(csv).not.toContain('\u2265')
+  })
+
   it('keeps the precision the table displays rather than the float behind it', () => {
     const csv = buildResultsCsv([row({ precip_total_in: 0.1 + 0.2 })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain('0.300')

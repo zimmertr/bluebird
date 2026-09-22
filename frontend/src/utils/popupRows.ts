@@ -4,6 +4,7 @@ import { ColDef, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
 import { isUnavailableKey, unavailableCellText } from './unavailableCell'
+import { isSnowDepthKey, snowCellText } from './snowCeiling'
 
 /**
  * A marker popup's body, derived from the columns the results table is showing
@@ -78,6 +79,10 @@ function cellText(col: ColDef, row: DestinationResult): { text: string; linkable
   // table's own cell draws. The link stays, matching the table, which links a
   // cell by its column rather than by whether the hour had a value.
   if (raw == null) return { text: '—', linkable: true }
+  // The table's "at least" mark, for the same reason and with the same link:
+  // the row is still a real destination with a real depth under it.
+  const clipped = isSnowDepthKey(col.key as string) ? snowCellText(raw) : null
+  if (clipped !== null) return { text: clipped, linkable: true }
   return { text: col.format ? col.format(raw) : String(raw), linkable: true }
 }
 

@@ -392,8 +392,11 @@ _SNOW_DEPTH_DESCRIPTION = (
     "mean or maximum and no hourly series. Null outside the grid, which covers "
     "the contiguous United States, southern Canada and northern Mexico, and "
     "null while this instance holds no grid. Over permanent ice SNODAS "
-    "accumulates year over year, so a glaciated summit reads over a thousand "
-    "inches; that is ice rather than this season's snow."
+    "accumulates year over year, so a glaciated summit reads hundreds of "
+    "inches in every season; that is ice rather than this season's snow. The "
+    "value saturates at 1290.04, the 16-bit integer millimetre ceiling of the "
+    "source file, so a row at that number holds at least that much and is "
+    "permanent ice."
 )
 
 # The grid a report's snow depths came from, on the two responses that carry

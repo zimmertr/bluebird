@@ -34,6 +34,7 @@ import {
 import type { FireProximityStatus } from '../hooks/useFireProximity'
 import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from '../utils/freezingLevel'
 import { isUnavailableKey, unavailableCellText } from '../utils/unavailableCell'
+import { isSnowDepthKey, snowCellText } from '../utils/snowCeiling'
 import { destinationUrl } from '../utils/destinationUrl'
 import { extremeHourMs, windyUrl } from '../utils/windy'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
@@ -576,7 +577,12 @@ function ResultsTable({
           </td>
         )
       }
-      const display = col.format ? col.format(raw) : String(raw ?? '—')
+      // A depth the source file could not hold prints as "at least" rather
+      // than as the ceiling it was clipped to. Everything else about the cell
+      // is unchanged: it keeps its colour band, its link and its rank.
+      const display =
+        (isSnowDepthKey(col.key as string) ? snowCellText(raw) : null) ??
+        (col.format ? col.format(raw) : String(raw ?? '—'))
       // Each colored cell scores the number printed in it, against the scale
       // its own column is measured on. It used to score the *ranked* value
       // instead, so the whole group came out one flat color and the spread the
