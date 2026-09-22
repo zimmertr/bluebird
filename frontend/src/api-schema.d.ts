@@ -386,6 +386,11 @@ export interface components {
              */
             max_precip_total_in?: number | null;
             /**
+             * Max Snow Depth In
+             * @description Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.
+             */
+            max_snow_depth_in?: number | null;
+            /**
              * Max Temp F
              * @description Drop rows whose `temp_max_f` is above this, i.e. keep only destinations that stay at or below it for the whole window.
              */
@@ -415,6 +420,11 @@ export interface components {
              * @description Drop rows whose `precip_total_in` is below this.
              */
             min_precip_total_in?: number | null;
+            /**
+             * Min Snow Depth In
+             * @description Drop rows whose `snow_depth_in` is below this. A row with a null `snow_depth_in` passes either bound: the destination is outside the snow grid, or this instance holds no grid, and neither says anything about how much snow is on the ground.
+             */
+            min_snow_depth_in?: number | null;
             /**
              * Min Temp F
              * @description Drop rows whose `temp_min_f` is below this, i.e. keep only destinations that stay at or above it for the whole window. Not bounded below: a floor of -40 is a real request.
@@ -465,6 +475,11 @@ export interface components {
              * @description Ranked destinations, best first, at most `limit` of them.
              */
             results: components["schemas"]["DestinationResult"][];
+            /**
+             * Snow Analysis Date
+             * @description The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.
+             */
+            snow_analysis_date?: string | null;
             /**
              * Times
              * @description Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window, and sent in both shapes: under `include_series: false` it is the only statement of which hours the aggregates reduced.
@@ -673,6 +688,11 @@ export interface components {
             /** @description Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`. */
             series?: components["schemas"]["HourlySeries"] | null;
             /**
+             * Snow Depth In
+             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.
+             */
+            snow_depth_in?: number | null;
+            /**
              * Temp Avg F
              * @description Mean temperature, degrees Fahrenheit.
              */
@@ -777,6 +797,11 @@ export interface components {
              */
             destinations: components["schemas"]["DiscoveredDestination"][];
             /**
+             * Snow Analysis Date
+             * @description The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.
+             */
+            snow_analysis_date?: string | null;
+            /**
              * Total
              * @description Same as `len(destinations)`, for convenience.
              */
@@ -823,6 +848,11 @@ export interface components {
              * @description OpenStreetMap identifier such as `node/12345`.
              */
             osm_id?: string | null;
+            /**
+             * Snow Depth In
+             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.
+             */
+            snow_depth_in?: number | null;
             /**
              * Type
              * @description The discovery type this row matched, or `custom` for a caller-supplied row.
@@ -1155,7 +1185,7 @@ export interface components {
          * SortBy
          * @enum {string}
          */
-        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max";
+        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max" | "snow_depth_in";
         /** ValidationError */
         ValidationError: {
             /** Context */

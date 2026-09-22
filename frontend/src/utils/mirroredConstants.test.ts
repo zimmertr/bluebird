@@ -23,6 +23,7 @@ import {
 } from './openMeteo'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
+import { SNOW_DEPTH_CEILING_IN } from './snowCeiling'
 import {
   ARCHIVE_STRADDLE_DAYS,
   FUTURE_LIMIT_SLACK_DAYS,
@@ -58,6 +59,13 @@ describe('the constants the backend publishes for this side to match', () => {
 
   it('believes the wildfire simplification the backend applies', () => {
     expect(COARSE_TOLERANCE_DEG).toBe(constants.COARSE_OFFSET_DEG)
+  })
+
+  it('stops the snow depth column where the source file stops', () => {
+    // The browser prints a depth at this number as "at least" rather than as
+    // a measurement, so the mark is only honest while both sides agree on
+    // where SNODAS's int16 millimetres run out.
+    expect(SNOW_DEPTH_CEILING_IN).toBe(constants.SNOW_DEPTH_CEILING_IN)
   })
 
   it('puts the archive boundary where the backend puts it', () => {

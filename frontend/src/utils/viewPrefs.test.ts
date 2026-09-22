@@ -87,32 +87,48 @@ describe('reading the stored view', () => {
 // six inline reads, so a preference read anywhere else inherited none of it.
 describe('the column-set migration', () => {
   it('reads the current generation verbatim', () => {
-    withStored({ columns3: ['name', 'precip_total_in'] })
+    withStored({ columns4: ['name', 'precip_total_in'] })
     expect([...readViewPrefs().columns!]).toEqual(['name', 'precip_total_in'])
   })
 
+  // `columns3` predates snow depth (#449).
+  it('adds the snow column to a set an older build stored', () => {
+    withStored({ columns3: ['name', WILDFIRE_KEY] })
+    const columns = readViewPrefs().columns!
+    expect(columns.has('name')).toBe(true)
+    expect(columns.has(WILDFIRE_KEY)).toBe(true)
+    for (const key of FAMILY_KEYS.snow) expect(columns.has(key)).toBe(true)
+  })
+
   // `columns2` predates the freezing level (#295).
-  it('adds the freezing-level columns to a set an older build stored', () => {
+  it('adds the freezing-level and snow columns to a set an older build stored', () => {
     withStored({ columns2: ['name', WILDFIRE_KEY] })
     const columns = readViewPrefs().columns!
     expect(columns.has('name')).toBe(true)
     expect(columns.has(WILDFIRE_KEY)).toBe(true)
     for (const key of FAMILY_KEYS.freeze) expect(columns.has(key)).toBe(true)
+    for (const key of FAMILY_KEYS.snow) expect(columns.has(key)).toBe(true)
   })
 
   // `columns` predates the wildfire column joining the picker (#288), so it
   // needs both generations of additions.
-  it('adds the wildfire and freezing-level columns to the oldest set', () => {
+  it('adds every newer column to the oldest set', () => {
     withStored({ columns: ['name'] })
     const columns = readViewPrefs().columns!
     expect(columns.has('name')).toBe(true)
     expect(columns.has(WILDFIRE_KEY)).toBe(true)
     for (const key of FAMILY_KEYS.freeze) expect(columns.has(key)).toBe(true)
+    for (const key of FAMILY_KEYS.snow) expect(columns.has(key)).toBe(true)
   })
 
   it('prefers the newest generation when several are stored', () => {
-    withStored({ columns: ['name'], columns2: ['type'], columns3: ['latitude'] })
-    expect([...readViewPrefs().columns!]).toEqual(['latitude'])
+    withStored({
+      columns: ['name'],
+      columns2: ['type'],
+      columns3: ['latitude'],
+      columns4: ['longitude'],
+    })
+    expect([...readViewPrefs().columns!]).toEqual(['longitude'])
   })
 })
 
@@ -137,9 +153,14 @@ describe('writing a preference', () => {
   // Left behind, a retired generation would outlive the set being edited and
   // migrate again on the next read.
   it('retires the older column keys with the write that supersedes them', () => {
-    const storage = withStored({ columns: ['name'], columns2: ['type'], modeChosen: 'both' })
-    writeViewPrefs({ columns: new Set(['latitude']) })
-    expect(stored(storage)).toEqual({ modeChosen: 'both', columns3: ['latitude'] })
+    const storage = withStored({
+      columns: ['name'],
+      columns2: ['type'],
+      columns3: ['latitude'],
+      modeChosen: 'both',
+    })
+    writeViewPrefs({ columns: new Set(['longitude']) })
+    expect(stored(storage)).toEqual({ modeChosen: 'both', columns4: ['longitude'] })
   })
 
   it('round-trips a whole table shape', () => {

@@ -47,6 +47,7 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     aqi_avg: null,
     aqi_min: null,
     aqi_max: null,
+    snow_depth_in: null,
     ...over,
   }
 }

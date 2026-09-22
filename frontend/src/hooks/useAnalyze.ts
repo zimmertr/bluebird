@@ -107,6 +107,12 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // therefore cues a commit and unticking applies at once: the held field can
   // always answer a smaller question and never a larger one.
   compareModels: readonly string[]
+  // Which day's snow analysis the field's `snow_depth_in` values came from,
+  // and null while the pod holds no grid (#449). Recorded here rather than
+  // read back off a row, because it is a fact about the whole report: the
+  // results header states it in place of the window caption while snow ranks,
+  // and a report of rows that all fall outside the grid still has a date.
+  snowAnalysisDate: string | null
 }
 
 /**
@@ -205,6 +211,10 @@ export function useAnalyze(
   // a ref for the same reason as the discovery identity above: it is fixed the
   // moment analyze() runs, and commit is reached through the client pipeline.
   const pendingCompareRef = useRef<readonly string[]>([])
+  // The grid date the destinations response reported, for commit() to record.
+  // A ref for the reason the two above are: it arrives at discovery, inside
+  // the client pipeline, and commit is reached from there.
+  const pendingSnowDateRef = useRef<string | null>(null)
   // The forecasts the last browser analysis fetched, kept so the next one only
   // pays for what it does not already have. It helps any re-analysis at the
   // same window and model — a pasted destination, a toggled unnamed-peaks, a
@@ -313,6 +323,7 @@ export function useAnalyze(
       polygonKey: pendingDiscoveryRef.current.polygonKey,
       typesKey: pendingDiscoveryRef.current.typesKey,
       compareModels: pendingCompareRef.current,
+      snowAnalysisDate: pendingSnowDateRef.current,
     })
   }
 
@@ -390,13 +401,16 @@ export function useAnalyze(
         throw new Error(message)
       }
       const discovered = (await res.json()) as DestinationsResponse
+      pendingSnowDateRef.current = discovered.snow_analysis_date ?? null
       discoveredTruncation = {
         totalFound: discovered.total_found ?? null,
         truncated: discovered.truncated ?? false,
       }
       candidates = discovered.destinations
     } else {
-      candidates = await resolveCustomOnly(customList, signal)
+      const resolved = await resolveCustomOnly(customList, signal)
+      candidates = resolved.destinations
+      pendingSnowDateRef.current = resolved.snowAnalysisDate
     }
 
     // Announce the retrieval phase with the final count the moment discovery
@@ -492,6 +506,9 @@ export function useAnalyze(
       discoveryKeys(request.polygon ?? null, request.destination_types, request.include_unnamed_peaks)
     pendingDiscoveryRef.current = disc
     pendingCompareRef.current = compareModels
+    // Cleared per run rather than left standing: a report whose discovery
+    // answers with no date must not caption itself with the last one's.
+    pendingSnowDateRef.current = null
     lastRequestRef.current = { request, kind, options }
 
     const controller = new AbortController()

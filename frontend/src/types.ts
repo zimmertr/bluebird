@@ -30,6 +30,9 @@ export type SortBy =
   | 'freeze_min_ft'
   | 'freeze_avg_ft'
   | 'freeze_max_ft'
+  // The one key that is not a window aggregate: snow depth is today's single
+  // number, so its family has one member rather than three (#449).
+  | 'snow_depth_in'
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
@@ -88,6 +91,8 @@ export interface AnalyzeRequest {
   max_wind_mph?: number | null
   min_freeze_ft?: number | null
   max_freeze_ft?: number | null
+  min_snow_depth_in?: number | null
+  max_snow_depth_in?: number | null
   min_aqi?: number | null
   max_aqi?: number | null
   // Explicit opt-in: an over-limit candidate set keeps its highest-elevation
@@ -164,6 +169,13 @@ export interface DestinationResult {
   aqi_avg: number | null
   aqi_min: number | null
   aqi_max: number | null
+  // Snow on the ground TODAY, in inches, from the NOHRSC SNODAS grid the pod
+  // holds — not a forecast, and not a reading of the analyzed window at all
+  // (#449). Null outside the grid, which covers the contiguous US and southern
+  // Canada, and null while the pod holds no grid; both read N/A rather than as
+  // a gap in the weather. Over permanent ice the model accumulates year over
+  // year, so a glaciated summit reads over a thousand inches.
+  snow_depth_in: number | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null
   // Timestamps for `series` when the row came from its own analyze response
@@ -190,6 +202,10 @@ export interface AnalyzeResponse {
   // True only when the request opted into top_by_elevation and the found set
   // exceeded the analysis cap.
   truncated?: boolean
+  // Which day's SNODAS analysis every snow_depth_in above came from, as
+  // YYYY-MM-DD. Null when the pod holds no grid, which is also when every
+  // snow_depth_in is null.
+  snow_analysis_date?: string | null
 }
 
 // Structured fields riding on an over-limit 400 (or the stream's error
@@ -211,6 +227,10 @@ export interface DiscoveredDestination {
   longitude: number
   elevation_ft: number | null
   osm_id: string | null
+  // Today's snow depth, filled from the grid the pod holds. It arrives with
+  // discovery rather than with the forecasts because it is not a forecast:
+  // the browser path fetches its own weather and would otherwise never see it.
+  snow_depth_in?: number | null
 }
 
 export interface DestinationsResponse {
@@ -218,4 +238,5 @@ export interface DestinationsResponse {
   total: number
   total_found?: number | null
   truncated?: boolean
+  snow_analysis_date?: string | null
 }

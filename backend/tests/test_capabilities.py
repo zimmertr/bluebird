@@ -163,6 +163,17 @@ def test_data_sources_are_named_and_linked():
         assert source["provides"]
 
 
+def test_publishes_the_snow_grid_as_a_source():
+    # A caller reading a `snow_depth_in` has to be able to find out where the
+    # number came from, and this is the only place the API says so.
+    names = {source["name"] for source in _capabilities()["data_sources"]}
+    assert "NOAA NOHRSC SNODAS" in names
+
+
+def test_snow_depth_is_rankable():
+    assert "snow_depth_in" in _capabilities()["sort_keys"]
+
+
 def test_capabilities_is_documented_and_tagged():
     operation = app.openapi()["paths"]["/api/capabilities"]["get"]
     assert operation["tags"] == ["metadata"]

@@ -1,8 +1,24 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
-import { MetricFamily, familyOf, formatPrecipRate, metricLabel } from '../metrics'
+import {
+  MetricFamily,
+  SnapshotFamily,
+  familyOf,
+  formatPrecipRate,
+  isSnapshotFamily,
+  metricLabel,
+} from '../metrics'
 import { setKey } from './points'
 
-export type ChartMetric = MetricFamily
+/**
+ * The families this chart can plot: every one that is an hourly series.
+ *
+ * A snapshot family is excluded by construction rather than by a check at each
+ * call site (#449). Snow depth is one number for today, so there is nothing to
+ * draw across an axis of hours, and `SERIES_FIELD` below would have no field
+ * to name for it — which is what makes this a type error rather than an empty
+ * line on screen.
+ */
+export type ChartMetric = Exclude<MetricFamily, SnapshotFamily>
 
 export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
@@ -19,13 +35,22 @@ export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
   ['precip', 'temp', 'wind', 'freeze', 'aqi'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))
 
+/** Whichever metric the chart opens on when the ranking names none it can draw. */
+const FIRST_CHART_METRIC = CHART_METRICS[0].key
+
 // The chart opens on whatever metric the results were ranked by.
 //
 // Read off the ranking key's own family rather than matched against a list of
 // keys: since #291 a family has three or four rankable keys, and a list
 // naming one of them each opened the precipitation chart for the other two.
-export function metricForSort(sortBy: SortBy): ChartMetric {
-  return familyOf(sortBy)
+export function metricForSort(sortBy: SortBy, current?: ChartMetric | null): ChartMetric {
+  const family = familyOf(sortBy)
+  // A snapshot ranking leaves the chart where it is (#449): it has no hourly
+  // series, so following it would mean clearing the chart to say something the
+  // table already says. `current` is what the reader last had on screen, and
+  // the first metric is the answer before they have had one.
+  if (isSnapshotFamily(family)) return current ?? FIRST_CHART_METRIC
+  return family
 }
 
 // Coordinate-based identity: it survives the table's client-side re-sorting and

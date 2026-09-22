@@ -27,6 +27,7 @@ from app.routes.analyze import (
     _truncate_top_elevation,
     discover,
 )
+from app.services import snodas
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -161,6 +162,11 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
                 content=_refusal_body(len(found), noun, suggestion=suggestion),
             )
 
+    # Today's snow depth, from the same held grid POST /api/analyze reads and
+    # through the same call, so a browser that discovers here and forecasts
+    # itself gets the number an all-in-one analysis would have given it.
+    snow_analysis_date = snodas.fill_snow_depth(found)
+
     telemetry.DESTINATIONS_RETURNED.observe(len(found))
     rows = [
         DiscoveredDestination(
@@ -173,6 +179,7 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
             longitude=d["longitude"],
             elevation_ft=d.get("elevation_ft"),
             osm_id=d.get("osm_id"),
+            snow_depth_in=d.get("snow_depth_in"),
         )
         for d in found
     ]
@@ -182,5 +189,9 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse:
         f" (top by elevation of {total_found})" if truncated else "",
     )
     return DestinationsResponse(
-        destinations=rows, total=len(rows), total_found=total_found, truncated=truncated
+        destinations=rows,
+        total=len(rows),
+        total_found=total_found,
+        truncated=truncated,
+        snow_analysis_date=snow_analysis_date,
     )

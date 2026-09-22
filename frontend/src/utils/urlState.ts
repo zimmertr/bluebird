@@ -122,6 +122,8 @@ const CONSTRAINT_PARAMS = [
   ['maxwind', 'maxWindMph'],
   ['minfreeze', 'minFreezeFt'],
   ['maxfreeze', 'maxFreezeFt'],
+  ['minsnow', 'minSnowDepthIn'],
+  ['maxsnow', 'maxSnowDepthIn'],
   ['minaqi', 'minAqi'],
   ['maxaqi', 'maxAqi'],
 ] as const satisfies readonly (readonly [string, keyof Constraints])[]
@@ -306,8 +308,11 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   // same fact is a chance for the two to disagree.
   for (const family of RANKED_FAMILIES) {
     if (family === familyOf(state.sortBy)) continue
-    if (state.rowKeys[family] !== DEFAULT_FAMILY_KEY[family]) {
-      p.set(family, aggregateToken(state.rowKeys[family]))
+    const token = aggregateToken(state.rowKeys[family])
+    // A snapshot family has one key and no dropdown, so there is no choice to
+    // carry and no param to write (#449).
+    if (token !== null && state.rowKeys[family] !== DEFAULT_FAMILY_KEY[family]) {
+      p.set(family, token)
     }
   }
   p.set('limit', String(state.limit))

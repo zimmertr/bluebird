@@ -112,6 +112,7 @@ import {
   MetricFamily,
   NOUN,
   familyOf,
+  isSnapshotFamily,
   metricLabel,
   rankedNoun,
 } from './metrics'
@@ -204,6 +205,7 @@ import {
   clampSelection,
   dayKey,
   selectionLocalWindow,
+  snapshotCaption,
   windowCaption,
 } from './utils/calendar'
 import { isPointSample, normalizeWindow } from './utils/forecastWindow'
@@ -1474,7 +1476,15 @@ export default function App() {
   // that cannot be recovered is worse than no date range at all.
   const windowTitle =
     results.length > 0 && analyzed !== null
-      ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
+      ? isSnapshotFamily(familyOf(view.sortBy))
+        ? // A snapshot ranking is not a reading of the window at all (#449), so
+          // the caption names the day its grid is from instead. Null where the
+          // report carries no date, which is the same report whose rows all
+          // read N/A: there is nothing to be "as of".
+          analyzed.snowAnalysisDate === null
+          ? null
+          : snapshotCaption(NOUN[familyOf(view.sortBy)], analyzed.snowAnalysisDate)
+        : windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
       : null
 
   // Detect rows leaving display via live presentation knobs (not fresh analysis).

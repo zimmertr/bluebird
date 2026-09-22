@@ -288,6 +288,33 @@ describe('presentResults', () => {
     expect(rows.map((r) => r.name)).toEqual(['Dry', 'Untagged'])
   })
 
+  // The one derivation every surface reads, so a snapshot metric ranks and
+  // bounds through it like any other rather than needing a path of its own
+  // (#449). The bounds and the comparator already carry it; this is what
+  // proves the derivation does not have to learn anything.
+  it('ranks and bounds a snapshot metric with no new logic', () => {
+    const field = [
+      at('Bare', 5, { snow_depth_in: 0 }),
+      at('Deep', 6, { snow_depth_in: 60 }),
+      at('Outside', 7, { snow_depth_in: null }),
+      at('Ankle', 8, { snow_depth_in: 3 }),
+    ]
+    const knobs: PresentationKnobs = { ...KNOBS, sortBy: 'snow_depth_in', sortDesc: true }
+    // Nulls rank last in either direction, as they do on every nullable key.
+    expect(presentResults(field, knobs, NONE).rows.map((r) => r.name)).toEqual([
+      'Deep',
+      'Ankle',
+      'Bare',
+      'Outside',
+    ])
+    const bounded: Constraints = { ...NO_CONSTRAINTS, minSnowDepthIn: 12 }
+    const out = presentResults(field, { ...knobs, constraints: bounded }, NONE)
+    // The row with no depth passes the bound, so it survives the cut and is
+    // ranked last rather than dropped.
+    expect(out.rows.map((r) => r.name)).toEqual(['Deep', 'Outside'])
+    expect(out.eligible).toBe(2)
+  })
+
   it('drops removed destinations and promotes the next row into the cut', () => {
     const removed = new Set([geoKey(2, -121.9)])
     const { rows } = presentResults(universe, { ...KNOBS, limit: 2 }, removed)

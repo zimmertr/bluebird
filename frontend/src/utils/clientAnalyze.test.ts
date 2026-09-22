@@ -83,8 +83,23 @@ describe('resolveCustomOnly', () => {
       json: async () => ({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }),
     }))
     const out = await resolveCustomOnly(ROWS)
-    expect(out.map((d) => d.elevation_ft)).toEqual([5165])
-    expect(out[0].osm_id).toBe('node/1')
+    expect(out.destinations.map((d) => d.elevation_ft)).toEqual([5165])
+    expect(out.destinations[0].osm_id).toBe('node/1')
+  })
+
+  // The second thing only the pod can answer about a bare coordinate (#449).
+  it('carries back the snow depth and the grid it came from', async () => {
+    stubFetch(() => ({
+      ok: true,
+      json: async () => ({
+        destinations: [{ ...resolved('McClellan Butte', 5165), snow_depth_in: 12 }],
+        total: 1,
+        snow_analysis_date: '2026-09-22',
+      }),
+    }))
+    const out = await resolveCustomOnly(ROWS)
+    expect(out.destinations[0].snow_depth_in).toBe(12)
+    expect(out.snowAnalysisDate).toBe('2026-09-22')
   })
 
   it('asks for a resolve, never a discovery', async () => {
@@ -105,8 +120,9 @@ describe('resolveCustomOnly', () => {
   it('falls back to unresolved rows when the server refuses', async () => {
     stubFetch(() => ({ ok: false, status: 503, json: async () => ({}) }))
     const out = await resolveCustomOnly(ROWS)
-    expect(out.map((d) => d.name)).toEqual(['McClellan Butte'])
-    expect(out[0].elevation_ft).toBeNull()
+    expect(out.destinations.map((d) => d.name)).toEqual(['McClellan Butte'])
+    expect(out.destinations[0].elevation_ft).toBeNull()
+    expect(out.snowAnalysisDate).toBeNull()
   })
 
   it('falls back to unresolved rows when the request cannot be made', async () => {
@@ -114,13 +130,13 @@ describe('resolveCustomOnly', () => {
       throw new TypeError('Failed to fetch')
     })
     const out = await resolveCustomOnly(ROWS)
-    expect(out[0].elevation_ft).toBeNull()
+    expect(out.destinations[0].elevation_ft).toBeNull()
   })
 
   it('falls back when the server answers with a different number of rows', async () => {
     stubFetch(() => ({ ok: true, json: async () => ({ destinations: [], total: 0 }) }))
     const out = await resolveCustomOnly(ROWS)
-    expect(out.map((d) => d.name)).toEqual(['McClellan Butte'])
+    expect(out.destinations.map((d) => d.name)).toEqual(['McClellan Butte'])
   })
 
   it('propagates an abort instead of reporting resolved-nothing', async () => {
@@ -134,19 +150,30 @@ describe('resolveCustomOnly', () => {
 
   it('makes no call at all for an empty list', async () => {
     const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
-    expect(await resolveCustomOnly([])).toEqual([])
+    expect(await resolveCustomOnly([])).toEqual({ destinations: [], snowAnalysisDate: null })
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('makes no call when every row already knows its elevation', async () => {
-    // The pins-only refresh: each searched place carries Nominatim's answer,
-    // so this path reaches no server, exactly as it did before #207.
-    const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
+  // The pins-only refresh used to skip the call, because elevation was the
+  // only question and a searched place already carries Nominatim's answer.
+  // Snow depth is a second question it cannot answer for itself (#449), and
+  // skipping would leave a pinned summit reading N/A beside the same summit
+  // inside a drawn ring reading a number.
+  it('still asks when every row already knows its elevation', async () => {
+    const spy = stubFetch(() => ({
+      ok: true,
+      json: async () => ({
+        destinations: [{ ...resolved('Pinned', 6000), snow_depth_in: 4 }],
+        total: 1,
+        snow_analysis_date: '2026-09-22',
+      }),
+    }))
     const out = await resolveCustomOnly([
       { name: 'Pinned', latitude: 47.5, longitude: -121.9, elevation_ft: 6000 },
     ])
-    expect(out[0].elevation_ft).toBe(6000)
-    expect(spy).not.toHaveBeenCalled()
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(out.destinations[0].elevation_ft).toBe(6000)
+    expect(out.destinations[0].snow_depth_in).toBe(4)
   })
 
   it('still asks when only some rows know their elevation', async () => {
@@ -216,6 +243,20 @@ describe('rankComparator', () => {
     rows.sort(rankComparator('precip_avg_in_hr', true))
     expect(rows.map((r) => r.name)).toEqual(['c', 'a', 'b'])
   })
+
+  // The one ranking key that is not a window aggregate, and a null there is a
+  // destination outside the grid rather than a gap in a forecast — so it sorts
+  // last either way, like every other nullable key (#449).
+  it('ranks snow depth with nulls last in both directions', () => {
+    const rows = [row('outside', null), row('bare', null), row('deep', null)]
+    rows[0].snow_depth_in = null
+    rows[1].snow_depth_in = 0
+    rows[2].snow_depth_in = 42
+    rows.sort(rankComparator('snow_depth_in', false))
+    expect(rows.map((r) => r.name)).toEqual(['bare', 'deep', 'outside'])
+    rows.sort(rankComparator('snow_depth_in', true))
+    expect(rows.map((r) => r.name)).toEqual(['deep', 'bare', 'outside'])
+  })
 })
 
 // ── assemble (port of _assemble) ───────────────────────────────────────────
@@ -264,6 +305,20 @@ describe('assemble', () => {
     const { results } = assemble([discovered('A')], [WX], [aqi])
     expect(results[0].aqi_avg).toBe(60)
     expect(results[0].series?.aqi).toEqual([60, null])
+  })
+
+  // The snow depth rides on the DISCOVERED row, where every aggregate above
+  // came from Open-Meteo: the pod reads its grid once per candidate when the
+  // candidate list comes back (#449).
+  it('copies the snow depth off the discovered destination', () => {
+    const dest = { ...discovered('Snowy'), snow_depth_in: 42 }
+    const { results } = assemble([dest], [WX], [null])
+    expect(results[0].snow_depth_in).toBe(42)
+  })
+
+  it('leaves the snow depth null when discovery reported none', () => {
+    const { results } = assemble([discovered('Unknown')], [WX], [null])
+    expect(results[0].snow_depth_in).toBeNull()
   })
 
   it('canonicalTimes takes the first row carrying a series', () => {
@@ -381,6 +436,35 @@ describe('filterConstraints', () => {
     ]
     expect(filterConstraints(rows, bounded({ maxWindMph: 20 })).map((r) => r.name)).toEqual([
       'calm',
+    ])
+  })
+
+  // Both ends read one field, and for a third reason: today\'s depth is a
+  // single reading rather than a reduction over hours, so there is no best or
+  // worst hour to choose between (#449).
+  it('bounds snow depth on today\'s one number', () => {
+    const rows = [
+      boundRow('bare', { snow_depth_in: 0 }),
+      boundRow('deep', { snow_depth_in: 42 }),
+    ]
+    expect(filterConstraints(rows, bounded({ minSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
+      'deep',
+    ])
+    expect(filterConstraints(rows, bounded({ maxSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
+      'bare',
+    ])
+  })
+
+  // A row outside the grid, or every row while the pod holds no grid. The
+  // absence says where the destination is, not what is on the ground.
+  it('passes a row with no snow depth through either bound', () => {
+    const rows = [boundRow('outside', {}), boundRow('deep', { snow_depth_in: 42 })]
+    expect(filterConstraints(rows, bounded({ minSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
+      'outside',
+      'deep',
+    ])
+    expect(filterConstraints(rows, bounded({ maxSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
+      'outside',
     ])
   })
 

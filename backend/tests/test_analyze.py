@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from test_snodas import a_snapshot
 
 from app import models, ratelimit
 from app.main import app
@@ -28,6 +30,7 @@ from app.routes.analyze import (
     _sse,
     _summarize_request,
 )
+from app.services import snodas
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
@@ -83,6 +86,7 @@ def _result(
     wind_avg=0.0,
     freeze_min=None,
     freeze_max=None,
+    snow=None,
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
@@ -93,6 +97,7 @@ def _result(
         freeze_min_ft=freeze_min, freeze_max_ft=freeze_max,
         freeze_avg_ft=freeze_min,
         aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
+        snow_depth_in=snow,
     )
 
 
@@ -219,6 +224,41 @@ def test_filter_constraints_null_freeze_passes_either_bound():
         "unknown",
         "low",
     ]
+
+
+def test_sort_key_ranks_snow_depth_with_nulls_last():
+    # The one ranking key that is not a window aggregate. Nulls are the rows
+    # outside the grid, and they sort after every real depth in either
+    # direction, the way a missing AQI does.
+    rows = [
+        _result("outside", snow=None),
+        _result("bare", snow=0.0),
+        _result("deep", snow=42.0),
+    ]
+    rows.sort(key=_sort_key(SortBy.snow_depth.value, descending=False))
+    assert [r.name for r in rows] == ["bare", "deep", "outside"]
+    rows.sort(key=_sort_key(SortBy.snow_depth.value, descending=True))
+    assert [r.name for r in rows] == ["deep", "bare", "outside"]
+
+
+def test_filter_constraints_snow_bounds_compare_todays_one_number():
+    # Both ends read the same field, and not for the reason precipitation's do:
+    # snow depth is today's single reading, so there is no best or worst hour
+    # to choose between.
+    rows = [_result("bare", snow=0.0), _result("deep", snow=42.0)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_snow_depth_in=12))] == ["deep"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_snow_depth_in=12))] == ["bare"]
+
+
+def test_filter_constraints_null_snow_passes_either_bound():
+    # A row outside the grid, or every row while the pod holds no grid. The
+    # absence says where the destination is, not what is on the ground.
+    rows = [_result("outside"), _result("deep", snow=42.0)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_snow_depth_in=12))] == [
+        "outside",
+        "deep",
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_snow_depth_in=12))] == ["outside"]
 
 
 def test_filter_constraints_aqi_bounds_compare_the_worst_hour():
@@ -560,6 +600,8 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
         "times": [],
         "total_found": None,
         "truncated": False,
+        # Nothing was analyzed, so no grid answered and there is no date.
+        "snow_analysis_date": None,
     }
 
 
@@ -1659,3 +1701,70 @@ def test_both_routes_rank_the_same_field_the_same_way(monkeypatch, stub_upstream
     streamed = client.post("/api/analyze/stream", json=body)
     events = [json.loads(line[len("data: "):]) for line in streamed.text.splitlines() if line.startswith("data: ")]
     assert next(e for e in events if e["type"] == "result")["data"] == plain
+
+
+# ── Snow depth on the analyze route (#449) ─────────────────────────────────
+
+
+def _hold_grid(monkeypatch, snapshot) -> None:
+    """A snow cache already holding one grid, and fetching nothing."""
+
+    async def refuse():
+        raise AssertionError("the route must not fetch a grid")
+
+    cache = snodas.snow_cache(fetch=refuse)
+    cache._snapshot = snapshot
+    cache._fresh_until = time.monotonic() + 3600
+    monkeypatch.setattr(snodas, "GRID", cache)
+
+
+def _snow_request(**overrides) -> dict:
+    start, end = _window()
+    return {
+        "destination_types": [],
+        "start_datetime": start,
+        "end_datetime": end,
+        "limit": 10,
+        "custom_destinations": [
+            # Inside test_snodas's synthetic grid: one metre, one hundred
+            # inches, and a coordinate the grid does not cover.
+            {"name": "metre", "latitude": 39.5, "longitude": -98.5},
+            {"name": "hundred", "latitude": 38.5, "longitude": -99.5},
+            {"name": "outside", "latitude": 10.0, "longitude": 10.0},
+        ],
+        **overrides,
+    }
+
+
+def test_analyze_carries_todays_snow_depth_and_its_date(stub_upstreams, monkeypatch):
+    _hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post("/api/analyze", json=_snow_request()).json()
+    assert body["snow_analysis_date"] == "2026-09-22"
+    depths = {r["name"]: r["snow_depth_in"] for r in body["results"]}
+    assert depths["metre"] == 39.37
+    assert depths["hundred"] == pytest.approx(100.0)
+    assert depths["outside"] is None
+
+
+def test_analyze_ranks_by_snow_depth_with_nulls_last(stub_upstreams, monkeypatch):
+    _hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post(
+        "/api/analyze", json=_snow_request(sort_by="snow_depth_in", sort_desc=True)
+    ).json()
+    assert [r["name"] for r in body["results"]] == ["hundred", "metre", "outside"]
+
+
+def test_analyze_bounds_the_field_on_snow_depth(stub_upstreams, monkeypatch):
+    _hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post("/api/analyze", json=_snow_request(max_snow_depth_in=50)).json()
+    # The row with no depth passes the bound, as a null does on every other.
+    assert sorted(r["name"] for r in body["results"]) == ["metre", "outside"]
+    assert body["total_matched"] == 2
+    assert body["total_queried"] == 3
+
+
+def test_analyze_reports_no_snow_while_no_grid_is_held(stub_upstreams):
+    # An analysis never waits for a grid, and never fails over one either.
+    body = client.post("/api/analyze", json=_snow_request()).json()
+    assert body["snow_analysis_date"] is None
+    assert {r["snow_depth_in"] for r in body["results"]} == {None}

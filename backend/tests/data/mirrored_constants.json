@@ -9,7 +9,8 @@
     "FUTURE_LIMIT_SLACK_DAYS": 17,
     "ARCHIVE_STRADDLE_DAYS": 1,
     "BATCH_SIZE": 50,
-    "MAX_CONCURRENT_BATCHES": 4
+    "MAX_CONCURRENT_BATCHES": 4,
+    "SNOW_DEPTH_CEILING_IN": 1290.04
   },
   "strings": {
     "model_coverage_message": "{label} has no forecast coverage for this area. Switch to a different model and try again."

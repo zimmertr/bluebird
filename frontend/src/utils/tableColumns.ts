@@ -8,7 +8,7 @@ import {
   formatPrecipTotal,
   metricLabel,
 } from '../metrics'
-import { FREEZE_UNAVAILABLE } from './freezingLevel'
+import { UNAVAILABLE } from './unavailableCell'
 
 /**
  * One column of the results table.
@@ -183,9 +183,20 @@ export const COLUMNS: ColDef[] = [
   // dash a genuine gap gets; the dash below is the fallback for a formatter
   // called on a null anywhere else. Windy's own name for the layer is its
   // zero-degree isotherm, `deg0`.
-  { key: 'freeze_min_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
-  { key: 'freeze_max_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
-  { key: 'freeze_avg_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: FREEZE_UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_min_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_max_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
+  { key: 'freeze_avg_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
+  // Today's depth, and the one column that is not a reading of the analyzed
+  // window (#449). It sits where the ranked-group lift and the family order
+  // would put it anyway — after the freezing level's group, ahead of the AQI
+  // columns — because `orderColumns` moves whichever group is ranked to the
+  // front and leaves the rest in this file's order. Whole inches, grouped like
+  // the elevation column beside which it is read: the grid resolves 1 km, and
+  // a tenth of an inch on a summit would be a precision nothing measured.
+  // Null is the row outside the grid or the pod with no grid, and both
+  // surfaces draw it as N/A — never the dash a missing hour gets. Windy's own
+  // name for the layer is `snowcover`.
+  { key: 'snow_depth_in', unit: UNIT.snow, label: metricLabel('snow'), format: (v) => (v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'snowcover' },
   { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
@@ -215,6 +226,11 @@ const POINT_LABELS: Record<string, string> = {
   temp_avg_f: metricLabel('temp'),
   wind_avg_mph: metricLabel('wind'),
   freeze_avg_ft: metricLabel('freeze'),
+  // A snapshot has nothing to collapse: it was one column and one label in
+  // window mode too. It is listed rather than left out because this map is
+  // also what decides which columns a point sample KEEPS, and a metric absent
+  // from it disappears from the narrow table.
+  snow_depth_in: metricLabel('snow'),
   aqi_avg: metricLabel('aqi'),
 }
 

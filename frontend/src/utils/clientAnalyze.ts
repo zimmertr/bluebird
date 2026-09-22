@@ -94,6 +94,8 @@ export interface Constraints {
   maxWindMph: number | null
   minFreezeFt: number | null
   maxFreezeFt: number | null
+  minSnowDepthIn: number | null
+  maxSnowDepthIn: number | null
   minAqi: number | null
   maxAqi: number | null
 }
@@ -107,6 +109,8 @@ export const NO_CONSTRAINTS: Constraints = {
   maxWindMph: null,
   minFreezeFt: null,
   maxFreezeFt: null,
+  minSnowDepthIn: null,
+  maxSnowDepthIn: null,
   minAqi: null,
   maxAqi: null,
 }
@@ -123,12 +127,15 @@ export const NO_CONSTRAINTS: Constraints = {
 // Precipitation and AQI have no minimum aggregate to read — a per-hour
 // precipitation floor would be 0.000 almost everywhere — so both of their
 // bounds compare one field, and the panel labels those two rows with the table
-// column they compare so the screen says which.
+// column they compare so the screen says which. Snow depth's two ends also
+// read one field, and for a third reason: it is today's single number rather
+// than a reduction over hours, so there is no best or worst hour to choose.
 const LOWER_BOUNDS = [
   ['minPrecipTotalIn', 'precip_total_in'],
   ['minTempF', 'temp_min_f'],
   ['minWindMph', 'wind_min_mph'],
   ['minFreezeFt', 'freeze_min_ft'],
+  ['minSnowDepthIn', 'snow_depth_in'],
   ['minAqi', 'aqi_max'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
 
@@ -137,6 +144,7 @@ const UPPER_BOUNDS = [
   ['maxTempF', 'temp_max_f'],
   ['maxWindMph', 'wind_max_mph'],
   ['maxFreezeFt', 'freeze_max_ft'],
+  ['maxSnowDepthIn', 'snow_depth_in'],
   ['maxAqi', 'aqi_max'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
 
@@ -156,6 +164,8 @@ export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
     maxWindMph: request.max_wind_mph ?? null,
     minFreezeFt: request.min_freeze_ft ?? null,
     maxFreezeFt: request.max_freeze_ft ?? null,
+    minSnowDepthIn: request.min_snow_depth_in ?? null,
+    maxSnowDepthIn: request.max_snow_depth_in ?? null,
     minAqi: request.min_aqi ?? null,
     maxAqi: request.max_aqi ?? null,
   }
@@ -172,6 +182,8 @@ export function constraintFields(c: Constraints) {
     max_wind_mph: c.maxWindMph,
     min_freeze_ft: c.minFreezeFt,
     max_freeze_ft: c.maxFreezeFt,
+    min_snow_depth_in: c.minSnowDepthIn,
+    max_snow_depth_in: c.maxSnowDepthIn,
     min_aqi: c.minAqi,
     max_aqi: c.maxAqi,
   }
@@ -180,13 +192,14 @@ export function constraintFields(c: Constraints) {
 /**
  * Port of _filter_constraints: drop rows outside the forecast bounds.
  *
- * A null value passes every bound. Two fields can be null here, and neither
+ * A null value passes every bound. Three fields can be null here, and no
  * absence is evidence of anything. A missing AQI means the window outran the
  * ~5-day air-quality horizon or a best-effort fetch failed; a missing freezing
  * level means the chosen model publishes none at all, which is five of the
  * eight, so dropping those rows would empty the table outright for anyone who
- * set the bound under the wrong model. It is the same call `rankComparator`
- * makes for a nullable ranking key.
+ * set the bound under the wrong model; a missing snow depth means the
+ * destination is outside the grid, or the pod holds no grid yet. It is the
+ * same call `rankComparator` makes for a nullable ranking key.
  */
 export function filterConstraints(
   rows: readonly DestinationResult[],
@@ -241,41 +254,55 @@ export function customRows(custom: readonly CustomDestination[]): DiscoveredDest
   }))
 }
 
-// The custom-only analysis path's one server call: what does OSM know about
-// these coordinates? A pasted CSV row carries a name and a point and nothing
-// else, so this is the only way it can learn its elevation (issue #207).
+/** What the custom-only path gets back: the rows, and the grid behind them. */
+export interface ResolvedCustom {
+  destinations: DiscoveredDestination[]
+  snowAnalysisDate: string | null
+}
+
+// The custom-only analysis path's one server call, and what it asks for.
 //
-// Deliberately a nicety rather than a dependency. The destination cap runs
-// client-side already, so nothing here is load bearing, and every failure path
-// returns the rows unresolved — which is
-// exactly how this path behaved before, when it made no server call at all.
-// An abort is the exception: that is the user's own doing and has to
-// propagate rather than masquerade as a resolved-nothing result.
+// Two things a coordinate pair cannot carry and only the pod can answer. What
+// does OSM know about this point — which is the only way a pasted CSV row can
+// learn its elevation (issue #207) — and how much snow is on the ground there
+// today, from the grid the pod holds (#449).
+//
+// **Every list now makes the call**, where a list whose rows already knew
+// their elevations used to skip it. The skip was right while elevation was the
+// only question: a pins-only refresh had nothing to ask. It is wrong now, and
+// the cost of keeping it would be that a pinned search reads N/A for snow
+// while the same summit inside a drawn ring reads a number — one report
+// disagreeing with itself about one destination.
+//
+// Deliberately a nicety rather than a dependency, exactly as before. The
+// destination cap runs client-side already, so nothing here is load bearing,
+// and every failure path returns the rows unresolved with no date. An abort is
+// the exception: that is the user's own doing and has to propagate rather than
+// masquerade as a resolved-nothing result.
 export async function resolveCustomOnly(
   custom: readonly CustomDestination[],
   signal?: AbortSignal,
-): Promise<DiscoveredDestination[]> {
+): Promise<ResolvedCustom> {
   const rows = customRows(custom)
-  // Nothing to ask about: an empty list, or a list whose every row already
-  // knows its elevation. The second case is the pins-only refresh, where each
-  // searched place carries Nominatim's answer — so that path still reaches no
-  // server at all, exactly as it did before this call existed. The server
-  // makes the same check; this one keeps the round trip itself from happening.
-  if (!rows.length || rows.every((r) => r.elevation_ft != null)) return rows
+  if (!rows.length) return { destinations: rows, snowAnalysisDate: null }
   const resolveRequest: DestinationsRequest = {
     destination_types: [],
     custom_destinations: [...custom],
   }
   try {
     const res = await postDestinations(resolveRequest, signal)
-    if (!res.ok) return rows
+    if (!res.ok) return { destinations: rows, snowAnalysisDate: null }
     const body = (await res.json()) as DestinationsResponse
     // A short answer means the server dropped rows this path never asked it
-    // to drop, so trust the list we already hold over a surprising one.
-    return body.destinations?.length === rows.length ? body.destinations : rows
+    // to drop, so trust the list we already hold over a surprising one — and
+    // take no date with it, since the rows it would describe are not the ones
+    // being returned.
+    return body.destinations?.length === rows.length
+      ? { destinations: body.destinations, snowAnalysisDate: body.snow_analysis_date ?? null }
+      : { destinations: rows, snowAnalysisDate: null }
   } catch (err) {
     if (signal?.aborted) throw err
-    return rows
+    return { destinations: rows, snowAnalysisDate: null }
   }
 }
 
@@ -359,6 +386,10 @@ export function assemble(
       elevation_ft: dest.elevation_ft,
       osm_id: dest.osm_id,
       ...aggregates,
+      // Off the discovered row rather than out of the weather answer: the
+      // snow grid is the pod's, read once per candidate when the candidate
+      // list came back, where every aggregate above came from Open-Meteo.
+      snow_depth_in: dest.snow_depth_in ?? null,
       aqi_avg: aqi?.aqi_avg ?? null,
       aqi_min: aqi?.aqi_min ?? null,
       aqi_max: aqi?.aqi_max ?? null,

@@ -120,6 +120,35 @@ class SnapshotCache[T]:
                 raise self._last_error or UpstreamError(f"{self._label} is unavailable.")
             return self._snapshot
 
+    def current_or_schedule(self) -> T | None:
+        """The best snapshot available right now, without ever waiting for one.
+
+        The counterpart to :meth:`get` for a caller that has something useful
+        to say about "no answer yet". ``get`` makes the first caller after a
+        cold start wait out the whole fetch, which is the right trade for an
+        overlay whose only other answer is a blank map; it is the wrong one for
+        a value attached to rows a request is already assembling, where the
+        column simply reads as unknown and the next request has a grid.
+
+        A refresh is scheduled whenever the freshness window has passed, which
+        covers both the aged case and the never-fetched one, and the same
+        window is what a failed refresh pushes out — so an outage is retried on
+        its backoff rather than once per request.
+        """
+        if self._clock() >= self._fresh_until:
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                # No loop to schedule on, which is a caller outside the server
+                # rather than a failure: the contract here is to answer with
+                # whatever is held, and a refresh that cannot be started is one
+                # the next request inside the app starts instead. Asked before
+                # the task is built, so no coroutine is left unawaited.
+                log.debug("%s refresh not scheduled: no running event loop", self._label)
+            else:
+                self._schedule_refresh()
+        return self._snapshot
+
     def _schedule_refresh(self) -> None:
         """Start a background refresh unless one is already running.
 

@@ -19,7 +19,7 @@ import pytest
 # run like `pytest tests/test_osm.py` used to fail on the missing attribute.
 from app import main as _main  # noqa: F401
 from app import ratelimit
-from app.services import cache, hms, nifc, osm
+from app.services import cache, hms, nifc, osm, snodas
 
 # ── Builders ───────────────────────────────────────────────────────────────
 #
@@ -109,6 +109,26 @@ def _no_live_smoke(monkeypatch):
         raise AssertionError("test reached NOAA HMS; install a stub smoke cache")
 
     monkeypatch.setattr(hms, "PLUMES", hms.smoke_cache(fetch=refuse))
+
+
+@pytest.fixture(autouse=True)
+def _no_live_snow(monkeypatch):
+    """The snow grid reaches NSIDC on its first miss and the lifespan warms it
+    up on startup, so both are neutered by default: a route test would
+    otherwise pull a 4.9 MB archive over the network, and `test_main.py` would
+    do it on every run of the app's own lifespan. A refusing fetch leaves the
+    cache on its never-fetched path, where every row's snow depth is null and
+    no analysis date is reported. Tests that mean to exercise it install their
+    own cache (test_snodas.py)."""
+
+    async def refuse():
+        raise AssertionError("test reached NSIDC; install a stub snow cache")
+
+    async def no_warm_up():
+        return None
+
+    monkeypatch.setattr(snodas, "GRID", snodas.snow_cache(fetch=refuse))
+    monkeypatch.setattr(snodas, "warm_up", no_warm_up)
 
 
 @pytest.fixture(autouse=True)

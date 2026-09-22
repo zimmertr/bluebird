@@ -115,7 +115,7 @@ describe('resultPopupHtml mirrors the table', () => {
     expect(html).toContain(`${NOUN.temp} (°F)`)
     // One line per family plus the elevation, each a plain label/value pair.
     const pairs = html.match(/<div><span style="[^"]*">[^<>:]+<\/span>: /g) ?? []
-    expect(pairs).toHaveLength(6)
+    expect(pairs).toHaveLength(7)
   })
 
   it('leads with the family the report is ranked by', () => {
@@ -194,8 +194,8 @@ describe('resultPopupHtml type', () => {
   it('sets values in a monospace face and labels in a stepped-back colour', () => {
     const html = resultPopupHtml({ ...base })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
-    // Sixteen metric values plus the elevation.
-    expect(values).toHaveLength(17)
+    // Seventeen metric values plus the elevation.
+    expect(values).toHaveLength(18)
     // A label that wandered inside a value span would read as part of the
     // number and defeat the whole split.
     for (const value of values) {

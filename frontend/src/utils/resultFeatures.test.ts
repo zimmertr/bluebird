@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { resultsFeatureCollection } from './resultFeatures'
+import { NO_VALUE, fillColor, resultsFeatureCollection } from './resultFeatures'
+import { markerColor } from './colors'
 import type { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
 
@@ -146,5 +147,32 @@ describe('resultsFeatureCollection', () => {
     expect(fc.features.map((f) => f.properties!.rank)).toEqual(['', ''])
     // Still metric-colored like ranked results.
     expect(fc.features[0].properties!.color).not.toBe('#64748b')
+  })
+})
+
+// A snapshot ranking has no hours to read, so playback leaves its markers on
+// the value they rank by (#449). That is the honest picture rather than a
+// special case: the playhead moves over a grid of forecasts, and today's snow
+// depth is the same number at every one of them.
+describe('fillColor under a snapshot ranking', () => {
+  const snowy = result({ snow_depth_in: 60, series: null })
+
+  it('colors by the ranked value whether or not the playhead is moving', () => {
+    const atRest = fillColor(snowy, 'snow_depth_in', null)
+    expect(atRest).not.toBe(NO_VALUE)
+    expect(fillColor(snowy, 'snow_depth_in', 0)).toBe(atRest)
+    expect(fillColor(snowy, 'snow_depth_in', 12)).toBe(atRest)
+  })
+
+  it('reads the bands the ranking reads, so the legend still explains it', () => {
+    expect(fillColor(snowy, 'snow_depth_in', 5)).toBe(markerColor(60, 'snow_depth_in'))
+  })
+
+  // A destination outside the grid takes the neutral fill and keeps its place
+  // on the map, the same answer a missing AQI hour gets.
+  it('falls back to the no-value fill for a row outside the grid', () => {
+    const outside = result({ snow_depth_in: null, series: null })
+    expect(fillColor(outside, 'snow_depth_in', null)).toBe(NO_VALUE)
+    expect(fillColor(outside, 'snow_depth_in', 3)).toBe(NO_VALUE)
   })
 })

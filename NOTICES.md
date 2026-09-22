@@ -50,10 +50,12 @@ services the data comes from, and the software bundled into the shipped image.
   legend whenever radar is drawn.
 - [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/): snow depth from the National
   Operational Hydrologic Remote Sensing Center's National Snow Analysis, served
-  as rendered map images by the National Weather Service. A work of the US
-  government, and so in the public domain under 17 U.S.C. §105; no license names
-  Bluebird Forecast's use of it. Credited on the map's snow legend whenever snow
-  depth is drawn.
+  as rendered map images by the National Weather Service for the optional snow
+  overlay, and as the daily SNODAS grid at
+  [NSIDC](https://nsidc.org/data/g02158) for the snow depth metric. A work of
+  the US government, and so in the public domain under 17 U.S.C. §105; no
+  license names Bluebird Forecast's use of it. Credited on the map's snow
+  legend whenever snow depth is drawn.
 
 ## Software
 

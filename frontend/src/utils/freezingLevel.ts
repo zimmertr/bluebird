@@ -33,25 +33,10 @@ export function isFreezeKey(key: string): boolean {
  */
 export const FREEZE_UNAVAILABLE_NOTE = `${NOUN.freeze} is only available from the GFS Seamless, HRRR and ICON models.`
 
-/**
- * The mark an empty freezing-level cell wears, on every surface that has one:
- * the table, the marker popup, and the downloaded file.
- *
- * `N/A` rather than the dash a missing AQI gets, and the same idiom the
- * wildfire column uses for a row it could not check: a dash says "nothing
- * there", and here there is something to say — the number exists, this model
- * does not carry it. The hover text is what says which, where a surface has
- * hover to give.
- */
-export const FREEZE_UNAVAILABLE = 'N/A'
-
-/**
- * What an empty freezing-level cell reads, or null when the cell has a number
- * and the column's own formatter should render it.
- */
-export function freezeCellText(value: unknown): string | null {
-  return value == null ? FREEZE_UNAVAILABLE : null
-}
+// The mark an empty cell wears, and which columns can wear one, live in
+// `unavailableCell.ts`: this metric is no longer the only one whose number can
+// be missing for a reason that is not the weather (#449). What stays here is
+// the CAUSE, which is this metric's alone.
 
 /**
  * The forecast models that publish a freezing level at all.

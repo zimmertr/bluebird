@@ -33,6 +33,7 @@ import {
   selectionLocalWindow,
   subtractOneHour,
   weekdayInitials,
+  snapshotCaption,
   windowCaption,
   windowPhrase,
   archiveSeamPhrase,
@@ -749,6 +750,43 @@ describe('saying what is selected', () => {
     expect(isWholeDaySpan(localMs('2026-07-15T00:00'), localMs('2026-07-15T23:59'))).toBe(true)
     expect(isWholeDaySpan(localMs('2026-07-15T00:00'), localMs('2026-07-15T18:00'))).toBe(false)
     expect(isWholeDaySpan(localMs('2026-07-15T06:00'), localMs('2026-07-15T23:59'))).toBe(false)
+  })
+})
+
+// A snapshot metric is not a reading of the window at all (#449), so the
+// results header names the day its grid is from instead. Same year rule, same
+// injected clock.
+describe('snapshotCaption', () => {
+  it('names the day the grid was analyzed', () => {
+    expect(snapshotCaption('Snow depth', '2026-09-22', NOW)).toBe('Snow depth as of Sep 22')
+  })
+
+  // Parsed as a LOCAL day. `Date.parse` reads a bare date as UTC midnight,
+  // which prints the day before everywhere west of Greenwich — and this suite
+  // runs in UTC, so the assertion that catches it is the one below on a date
+  // whose local and UTC days would differ.
+  it('reads the date as a local day, not as UTC midnight', () => {
+    expect(snapshotCaption('Snow depth', '2026-01-01', NOW)).toContain('Jan 1')
+  })
+
+  // The archive reaches a year back, so a grid from another year has to say
+  // which — the same predicate the window caption asks.
+  it('spells the year when the grid is from another one', () => {
+    expect(snapshotCaption('Snow depth', '2025-09-22', NOW)).toBe('Snow depth as of Sep 22 2025')
+  })
+
+  // The noun comes from the caller, which reads it out of `metrics.ts`, so a
+  // renamed metric renames its own caption.
+  it('takes the noun rather than spelling one', () => {
+    expect(snapshotCaption('Anything', '2026-09-22', NOW)).toBe('Anything as of Sep 22')
+  })
+
+  // A date this build cannot read is a server saying something unexpected. No
+  // caption beats "as of Invalid Date".
+  it('answers null for a date it cannot read', () => {
+    expect(snapshotCaption('Snow depth', 'yesterday', NOW)).toBeNull()
+    expect(snapshotCaption('Snow depth', '', NOW)).toBeNull()
+    expect(snapshotCaption('Snow depth', '2026-13-40', NOW)).not.toBe('Snow depth as of Invalid Date')
   })
 })
 

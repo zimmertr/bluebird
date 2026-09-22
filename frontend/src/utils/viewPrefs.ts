@@ -27,7 +27,7 @@ export type ResultsMode = 'chart' | 'table' | 'both'
  * reader's sake only — nothing here is trusted, and every accessor below
  * re-checks the value it takes.
  *
- * `columns` and `columns2` are the retired generations of the column set. The
+ * `columns` through `columns3` are the retired generations of the column set. The
  * `mode` field older builds wrote beside `modeChosen` is absent here because
  * nothing reads it (see `readViewPrefs`); it is left in storage rather than
  * deleted, since tidying up after a build nobody runs is not this module's job.
@@ -37,6 +37,7 @@ interface StoredView {
   columns?: string[]
   columns2?: string[]
   columns3?: string[]
+  columns4?: string[]
   modelColumn?: boolean
   columnOrder?: string[]
 }
@@ -68,18 +69,25 @@ function isMode(value: unknown): value is ResultsMode {
 /**
  * One key per generation of the column set, because a stored set cannot
  * otherwise be told apart from a deliberate choice to hide the newest column:
- * `columns` predates the wildfire column joining the picker (#288) and
- * `columns2` predates the freezing level (#295), so reading either verbatim
- * would hide a new column from everyone who has ever touched the picker. Each
- * migrates with the new keys added, which is what those users were already
- * seeing.
+ * `columns` predates the wildfire column joining the picker (#288),
+ * `columns2` predates the freezing level (#295) and `columns3` predates snow
+ * depth (#449), so reading any of them verbatim would hide a new column from
+ * everyone who has ever touched the picker. Each migrates with the newer keys
+ * added, which is what those users were already seeing.
  */
 function storedColumns(stored: StoredView): Set<string> | null {
   try {
-    if (stored.columns3) return new Set(stored.columns3)
-    if (stored.columns2) return new Set<string>([...stored.columns2, ...FAMILY_KEYS.freeze])
+    if (stored.columns4) return new Set(stored.columns4)
+    if (stored.columns3) return new Set<string>([...stored.columns3, ...FAMILY_KEYS.snow])
+    if (stored.columns2)
+      return new Set<string>([...stored.columns2, ...FAMILY_KEYS.freeze, ...FAMILY_KEYS.snow])
     if (stored.columns)
-      return new Set<string>([...stored.columns, WILDFIRE_KEY, ...FAMILY_KEYS.freeze])
+      return new Set<string>([
+        ...stored.columns,
+        WILDFIRE_KEY,
+        ...FAMILY_KEYS.freeze,
+        ...FAMILY_KEYS.snow,
+      ])
   } catch {
     // A value no older build could have written. The default set is a better
     // answer than no table.
@@ -131,7 +139,8 @@ export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
       // is ignored on read rather than superseded, so the write leaves it be.
       delete stored.columns
       delete stored.columns2
-      stored.columns3 = patch.columns ? [...patch.columns] : undefined
+      delete stored.columns3
+      stored.columns4 = patch.columns ? [...patch.columns] : undefined
     }
     localStorage.setItem(VIEW_KEY, JSON.stringify(stored))
   } catch {
