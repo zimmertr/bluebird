@@ -92,7 +92,7 @@ describe('every entry', () => {
     const roots = import.meta.glob(['../*.tsx'], { query: '?raw', import: 'default', eager: true })
     const withRoot = Object.entries(roots as Record<string, string>)
       .filter(([, source]) => source.includes('createRoot('))
-      .map(([path]) => path.replace('../', ''))
+      .map(([path]) => path.slice('../'.length))
       .sort()
     expect(withRoot).toEqual(entries.map(([file]) => file).sort())
   })
