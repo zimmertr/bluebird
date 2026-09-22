@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_DIVIDER } from '../styles'
+import { LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_DIVIDER, SURFACE_PAGE } from '../styles'
 import { logoUrl } from '../logo'
 
 interface Props {
@@ -39,7 +39,7 @@ export function Section({
 // into a bundle that renders text.
 export default function PageShell({ heading, subtitle, children }: Props) {
   return (
-    <div className="min-h-dvh bg-slate-900 px-4 py-10">
+    <div className={`min-h-dvh ${SURFACE_PAGE} px-4 py-10`}>
       <div className="mx-auto w-full max-w-2xl">
         <div className="flex items-center gap-3 mb-6">
           <a href="/" aria-label="Back to Bluebird Forecast">

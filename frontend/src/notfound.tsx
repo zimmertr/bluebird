@@ -1,10 +1,13 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import NotFoundPage from './components/NotFoundPage'
+import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <NotFoundPage />
+    <ErrorBoundary>
+      <NotFoundPage />
+    </ErrorBoundary>
   </React.StrictMode>,
 )

@@ -248,6 +248,15 @@ export const TAP = {
 export const SURFACE_FLOATING =
   `bg-slate-800/95 border border-slate-600 ${RADIUS.surface} shadow-lg backdrop-blur-sm`
 
+/**
+ * The ground every full page stands on: the app's root, the standalone pages'
+ * frame, and the error boundary's fallback. The fallback is the one that forced
+ * a name, because it replaces the whole tree it guards and so cannot borrow the
+ * ground from the component that just failed. Three spellings of one fill are
+ * how the three would come to disagree about what "the page" looks like.
+ */
+export const SURFACE_PAGE = 'bg-slate-900'
+
 /** Opaque cards that sit above a scrim: the dialogs and the analysis overlay. */
 export const SURFACE_CARD =
   `bg-slate-800 border border-slate-600 ${RADIUS.surface} shadow-xl`
