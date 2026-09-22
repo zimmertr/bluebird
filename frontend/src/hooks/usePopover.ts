@@ -10,9 +10,9 @@ import { popoverBox, type PopoverBox } from '../utils/listbox'
  * dismiss listeners, and three of the four had been built by copying a fourth —
  * so a fix to one of them reached none of the others.
  *
- * The maths stays in `utils/listbox.ts`, which is the pure half and the half
- * Vitest can reach: this hook is the wiring around it, and owns nothing a test
- * with no DOM could have checked.
+ * The maths stays in `utils/listbox.ts`, the pure half, which the node test
+ * project checks case by case. This hook is the wiring around it, and
+ * `components/Popover.test.tsx` renders it once for every panel that wears it.
  */
 
 // Between the trigger and the panel, and between the panel and the edge of the

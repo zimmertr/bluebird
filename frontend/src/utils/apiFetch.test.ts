@@ -121,7 +121,7 @@ describe('our API has one door', () => {
   it('is the only file under src that calls the browser primitive', () => {
     const offenders: string[] = []
     for (const [path, text] of Object.entries(sources)) {
-      if (path.endsWith('.test.ts') || ALLOWED.includes(path)) continue
+      if (/\.test\.tsx?$/.test(path) || ALLOWED.includes(path)) continue
       const m = CALL.exec(text)
       if (m) offenders.push(`${path}:${text.slice(0, m.index).split('\n').length}`)
     }

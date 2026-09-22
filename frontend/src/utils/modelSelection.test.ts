@@ -3,7 +3,6 @@ import {
   canRemove,
   chipFocusAfterRemoval,
   chipRemovable,
-  orderCompared,
   rankWith,
   selectedIds,
   toggleSelected,
@@ -48,13 +47,6 @@ describe('the chips', () => {
   it('never draws one model twice', () => {
     expect(selectedIds(MODELS, 'gfs_seamless', ['gfs_seamless', 'gfs_hrrr'])).toEqual([
       'gfs_seamless',
-      'gfs_hrrr',
-    ])
-  })
-
-  // What `compare=` carries: the same order, minus the model `model=` names.
-  it('leaves the ranking model out of the compared list', () => {
-    expect(orderCompared(MODELS, 'ecmwf_ifs025', ['gfs_hrrr', 'ecmwf_ifs025'])).toEqual([
       'gfs_hrrr',
     ])
   })

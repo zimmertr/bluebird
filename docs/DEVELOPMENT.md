@@ -48,7 +48,11 @@ docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm run lint"
 
 # Frontend unit tests (Vitest). Mounts the repo root, because two suites read
-# the manifests the backend commits under backend/tests/data/.
+# the manifests the backend commits under backend/tests/data/. One run covers
+# two projects, split by file extension: `node` runs every `*.test.ts` (pure
+# logic, no DOM) and `dom` runs every `*.test.tsx` (a component rendered in
+# jsdom and driven with Testing Library). Add `-- --project dom` (or `node`)
+# to run one of them.
 docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
   sh -c "npm ci && npm test"
 
