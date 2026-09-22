@@ -91,7 +91,7 @@ router = APIRouter()
         },
     },
 )
-async def destinations(request: DestinationsRequest) -> DestinationsResponse:
+async def destinations(request: DestinationsRequest) -> DestinationsResponse | JSONResponse:
     parts = [
         f"types={','.join(t.value for t in request.destination_types) or 'none'}"
     ]

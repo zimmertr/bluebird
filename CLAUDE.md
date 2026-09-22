@@ -49,7 +49,7 @@ UP) and `known-first-party = ["app"]` there makes the import order the same from
 either working directory; without it isort reads `app` as third-party from the root
 and first-party from inside `backend/`.
 
-Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). CI validates via TypeScript typecheck, ESLint (`npm run lint`), the Vitest unit tests, pytest, Python ruff lint, the aggregation-vectors diff, a full Docker build followed by a Trivy vulnerability scan of the built image, and Lighthouse budgets on the cold load.
+Two suites: the frontend's pure logic under Vitest (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). CI validates via TypeScript typecheck, ESLint (`npm run lint`), the Vitest unit tests, mypy over `backend/app` (settings in `backend/mypy.ini`), pytest, Python ruff lint, the aggregation-vectors diff, a full Docker build followed by a Trivy vulnerability scan of the built image, and Lighthouse budgets on the cold load.
 
 ## Rules for every change
 

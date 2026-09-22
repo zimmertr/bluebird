@@ -4,6 +4,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,10 +33,12 @@ from app.version import get_version
 TRACE = 5
 logging.addLevelName(TRACE, "TRACE")
 
-def _trace(self: logging.Logger, msg: object, *args: object, **kwargs: object) -> None:
+def _trace(self: logging.Logger, msg: object, *args: object, **kwargs: Any) -> None:
     if self.isEnabledFor(TRACE):
-        self._log(TRACE, msg, args, **kwargs)  # type: ignore[arg-type]
+        self._log(TRACE, msg, args, **kwargs)
 
+# The stubs declare Logger's methods, and a level this app invents is not one of
+# them. Attaching it at runtime is the documented way to add a level.
 logging.Logger.trace = _trace  # type: ignore[attr-defined]
 
 _LEVELS: dict[str, int] = {
@@ -173,6 +176,11 @@ async def lifespan(_app: FastAPI):
     await upstream_http.aclose()
 
 
+# FastAPI's own default, named here because the self-hosted /docs page below
+# must point at it, and `app.openapi_url` is typed optional since None turns the
+# schema route off.
+_OPENAPI_URL = "/openapi.json"
+
 app = FastAPI(
     title="Bluebird Forecast",
     lifespan=lifespan,
@@ -195,6 +203,7 @@ app = FastAPI(
     # nothing and it was the one pulling Google Fonts.
     docs_url=None,
     redoc_url=None,
+    openapi_url=_OPENAPI_URL,
 )
 # `servers` is deliberately unset. FastAPI's default leaves Swagger UI's
 # "Try it out" pointed at whatever origin served the page, which is what makes
@@ -235,7 +244,11 @@ app.add_middleware(
 # handler by walking the exception's MRO, so this claims every coded error and
 # leaves a plain HTTPException (the document pages' 404) on FastAPI's stock
 # body.
-app.add_exception_handler(ApiError, api_error_handler)
+#
+# Starlette types every handler as taking a bare Exception, because it cannot
+# relate the class it is keyed on to the handler's parameter. It only ever calls
+# this one with an ApiError, so the narrower signature is the true one.
+app.add_exception_handler(ApiError, api_error_handler)  # type: ignore[arg-type]
 
 
 @app.middleware("http")
@@ -315,13 +328,18 @@ _swagger_base = (
 # every time, and its Content-Security-Policy is derived from those bytes (the
 # init script FastAPI writes inline is allowed by hash), so the two cannot
 # describe different pages.
-_DOCS_HTML = get_swagger_ui_html(
-    openapi_url=app.openapi_url,
-    title=f"{app.title} API reference",
-    swagger_js_url=f"{_swagger_base}/swagger-ui-bundle.js",
-    swagger_css_url=f"{_swagger_base}/swagger-ui.css",
-    swagger_favicon_url="/favicon-32.png",
-).body.decode()
+#
+# `body` is typed bytes or memoryview, since Starlette accepts either; this
+# response always renders bytes, and bytes() of bytes is the same object's value.
+_DOCS_HTML = bytes(
+    get_swagger_ui_html(
+        openapi_url=_OPENAPI_URL,
+        title=f"{app.title} API reference",
+        swagger_js_url=f"{_swagger_base}/swagger-ui-bundle.js",
+        swagger_css_url=f"{_swagger_base}/swagger-ui.css",
+        swagger_favicon_url="/favicon-32.png",
+    ).body
+).decode()
 
 DOCS_PATH = "/docs"
 

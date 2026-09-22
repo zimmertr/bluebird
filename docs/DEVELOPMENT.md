@@ -65,6 +65,14 @@ docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
 docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
   sh -c "pip install -r requirements-dev.txt && pytest"
 
+# Backend type check (mypy), at the version requirements-dev.txt pins. It
+# installs the app's own dependencies too: the pydantic plugin and the FastAPI
+# and Starlette signatures it checks against come from them, and without them
+# those calls read as Any and hide real errors. The settings are in
+# backend/mypy.ini.
+docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
+  sh -c "pip install -r requirements-dev.txt && mypy app"
+
 # Backend lint, at the version CI pins: ruff's default rule set changes between
 # releases. Run it from the REPO ROOT, which is what CI does. The rules live in
 # backend/ruff.toml, and `known-first-party = ["app"]` there is what makes the

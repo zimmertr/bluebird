@@ -93,6 +93,13 @@ jobs:
           python-version: '3.14'
       - run: pip install -r requirements-dev.txt
         working-directory: backend
+      # The type check lives here rather than in Python Lint because the
+      # pydantic plugin and the FastAPI and Starlette signatures it checks
+      # against need the app's own dependencies, which this job has already
+      # installed. It runs before pytest because a type error usually explains
+      # a failing test. Configuration: backend/mypy.ini.
+      - run: mypy app
+        working-directory: backend
       - run: pytest -q
         working-directory: backend
       # openapi.json is committed so a contract change shows up as a reviewable

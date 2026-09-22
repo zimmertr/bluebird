@@ -5,6 +5,7 @@ Bluebird Forecast has one maintainer. For a large change, an issue first is a go
 If you send a change:
 
 - The test and lint commands live in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+- Run `mypy app` from `backend/` with `requirements-dev.txt` installed, so the checker sees the same dependencies CI does. Its settings are in `backend/mypy.ini`.
 - Run `ruff check backend/` from the repository root, not from `backend/`, or it orders imports differently than CI, and at the version CI pins (`ruff==0.16.0`), because ruff's default rule set changes between releases.
 - Every behavior change ships with a test in the same PR.
 - A change to the weather or air-quality aggregation changes the backend first, regenerates `backend/tests/data/weather_vectors.json`, and mirrors the change in the TypeScript port. Both test suites read that one file, so CI fails the PR if either side no longer matches it.

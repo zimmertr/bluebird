@@ -195,6 +195,25 @@ def test_window_equal_on_the_hour_stays_that_hour():
     assert req.end_datetime == t + timedelta(minutes=1)
 
 
+
+def test_resolved_window_is_the_validated_pair():
+    # Every mode leaves both fields set, so the routes can read one pair of
+    # real instants. "current" sends no timestamps at all and is the case the
+    # optional fields exist for.
+    req = _valid_request(start_datetime=None, end_datetime=None, forecast_mode="current")
+    start, end = req.resolved_window()
+    assert (start, end) == (req.start_datetime, req.end_datetime)
+    assert end == start + timedelta(minutes=1)
+
+
+def test_resolved_window_refuses_a_request_that_skipped_validation():
+    # model_construct bypasses the validators, which is the one way a request
+    # reaches a route with its window unfilled. Failing loudly there beats a
+    # None comparison deep inside the analysis.
+    req = AnalyzeRequest.model_construct(start_datetime=None, end_datetime=None)
+    with pytest.raises(RuntimeError):
+        req.resolved_window()
+
 # ── helpers / enums ────────────────────────────────────────────────────────
 
 

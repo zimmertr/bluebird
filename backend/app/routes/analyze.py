@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import math
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -73,8 +73,9 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     and the two are joined per location before the aggregation runs.
     """
     now = datetime.now(UTC)
+    start, end = request.resolved_window()
     return (
-        window_source(request.start_datetime, request.end_datetime, now),
+        window_source(start, end, now),
         archive_boundary(now),
     )
 
@@ -707,7 +708,7 @@ def _assemble(
 
 async def _run_analysis(
     request: AnalyzeRequest, api_key: str | None
-) -> AsyncIterator[AnalyzeEvent]:
+) -> AsyncGenerator[AnalyzeEvent]:
     """Run one analysis, reporting what happens as it happens.
 
     Ends with exactly one terminal event — `Failure`, `Refusal` or `Result` —
@@ -715,7 +716,8 @@ async def _run_analysis(
     generator on the terminal event, so the `finally` blocks that cancel
     in-flight upstream tasks run promptly instead of at collection.
     """
-    if request.start_datetime >= request.end_datetime:
+    start, end = request.resolved_window()
+    if start >= end:
         yield Failure(
             ApiError(
                 status_code=400,
@@ -745,7 +747,8 @@ async def _run_analysis(
             return
         destinations = await _resolve_custom(request.custom_destinations)
     else:
-        if not request.polygon:
+        polygon = request.polygon
+        if not polygon:
             yield Failure(
                 ApiError(
                     status_code=400,
@@ -770,7 +773,7 @@ async def _run_analysis(
         async def run_osm():
             try:
                 return await discover(
-                    request.polygon,
+                    polygon,
                     request.destination_types,
                     include_unnamed_peaks=request.include_unnamed_peaks,
                     on_status=on_status,
@@ -866,8 +869,8 @@ async def _run_analysis(
         try:
             return await weather.fetch_weather_batch(
                 destinations,
-                request.start_datetime,
-                request.end_datetime,
+                start,
+                end,
                 on_progress,
                 on_pace,
                 request.forecast_model,
@@ -890,8 +893,8 @@ async def _run_analysis(
         asyncio.create_task(
             air_quality.fetch_aqi_batch(
                 destinations,
-                request.start_datetime,
-                request.end_datetime,
+                start,
+                end,
                 api_key=api_key,
             )
         )
@@ -984,7 +987,7 @@ async def _run_analysis(
     if not aqi_eager:
         try:
             await _attach_aqi(
-                results, times, request.start_datetime, request.end_datetime, api_key
+                results, times, start, end, api_key
             )
         except InvalidApiKeyError as e:
             # Reachable when the weather half answered entirely from cache, so
@@ -1190,7 +1193,7 @@ async def analyze_stream(
 async def analyze(
     request: AnalyzeRequest,
     api_key: str | None = Security(open_meteo_key),
-) -> AnalyzeResponse:
+) -> AnalyzeResponse | JSONResponse:
     log.info("Analyze request: %s", _summarize_request(request))
 
     terminal: AnalyzeEvent | None = None

@@ -931,9 +931,23 @@ class AnalyzeRequest(_DiscoveryFields):
                 "end_datetime."
             )
 
+    def resolved_window(self) -> tuple[datetime, datetime]:
+        """The window as two real instants, for code that runs after validation.
+
+        The fields are optional on the wire because `forecast_mode` implies
+        them, and `_resolve_forecast_mode` fills both before any route reads
+        the request. Narrowing here, once, lets every reader take a plain
+        `datetime` instead of re-checking the fields or trusting that the
+        validator ran.
+        """
+        if self.start_datetime is None or self.end_datetime is None:
+            raise RuntimeError("AnalyzeRequest window read before validation filled it")
+        return self.start_datetime, self.end_datetime
+
     @model_validator(mode="after")
     def window_within_servable_range(self) -> AnalyzeRequest:
         self._resolve_forecast_mode()
+        start, end = self.resolved_window()
         # A zero-length window is a point sample ("current conditions" /
         # "future day/time"): analyze exactly the hour containing the moment.
         # Flooring to the hour and spanning one minute keeps the weather
@@ -943,18 +957,18 @@ class AnalyzeRequest(_DiscoveryFields):
         # Normalizing here — before the range checks and ahead of the routes'
         # ordering guard — means the rest of the pipeline only ever sees an
         # ordinary ordered window.
-        if self.start_datetime == self.end_datetime:
-            self.start_datetime = self.start_datetime.replace(
-                minute=0, second=0, microsecond=0
-            )
-            self.end_datetime = self.start_datetime + timedelta(minutes=1)
+        if start == end:
+            start = start.replace(minute=0, second=0, microsecond=0)
+            end = start + timedelta(minutes=1)
+            self.start_datetime = start
+            self.end_datetime = end
         now = datetime.now(UTC)
-        if _as_utc(self.start_datetime) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
+        if _as_utc(start) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
                 "start_datetime is beyond the one-year history limit of the "
                 "weather API. Move the window start closer to today."
             )
-        if _as_utc(self.end_datetime) > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
+        if _as_utc(end) > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
             raise ValueError(
                 "end_datetime is beyond the ~16-day forecast horizon of the "
                 "weather API. Move the window end closer to today."
