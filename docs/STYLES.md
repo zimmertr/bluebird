@@ -63,7 +63,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
-| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 50% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something |
+| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.25:1 on the panel, 5.96:1 on an idle metric select and 5.43:1 on an unplotted chart chip, where 50% was 4.11, 4.58 and 4.22 |
 | `SR_ONLY` | Text for assistive technology only, the twin of an approved tooltip |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
@@ -77,7 +77,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
 | `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER_VALUE` and `SLIDER_WORDMARK` compose it |
 | `SELECT_W_AGGREGATE` | The aggregate dropdown in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its arrow, with 12px of deliberate slack because the width also sets a grid track |
-| `CAPTION_LIFTED` | `TEXT.caption` re-derived for `SURFACE_POPOVER`: a search result's description, slate-300 because slate-400 falls under 4.5:1 on that fill |
+| `CAPTION_LIFTED` | `TEXT.caption` re-derived for the slate-700 fills: a search result's description on `SURFACE_POPOVER`, and the window caption on the results sheet's header bar. slate-300 (6.97:1) because slate-400 falls to 3.93:1 on that fill |
 | `SLIDER_OVERLAY` / `SLIDER_VALUE` / `SLIDER_WORDMARK` / `SLIDER_IDLE` | The coverage slider in the Layers popover: the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
@@ -149,7 +149,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 |---|---|
 | `DRAG_GRIP` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
 | `DRAG_GRIP_ACTIVE` | The grip while its own column is the one being carried |
-| `CARRIED` | The column where it used to be, while the ghost is under the pointer. `DISABLED`'s 40 percent without its cursor, because that column still sorts the moment the drag ends, and not `MUTED`'s 50, because it is faded for where it is rather than for what it does |
+| `CARRIED` | The column where it used to be, while the ghost is under the pointer. `DISABLED`'s 40 percent without its cursor, because that column still sorts the moment the drag ends, and not `MUTED`'s 60, because it is faded for where it is rather than for what it does |
 | `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it carries `LAYER.popover` itself rather than asking the call site for it; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
 | `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text, and the same layer as the ghost |
 

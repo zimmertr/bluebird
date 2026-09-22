@@ -761,8 +761,9 @@ flowchart LR
   popover. Every third-party host is answered from fixtures, and a request that
   no handler claims fails the test, so the job spends no Open-Meteo quota and
   cannot go red on someone else's outage. Axe fails on serious and critical
-  violations only; the ones the app ships with today are listed in
-  `accessibility.spec.ts`, and an entry that stops occurring fails too. On a
+  violations only, and there are none today. A violation can only be accepted
+  by an entry in `KNOWN` in `accessibility.spec.ts`, and an entry that stops
+  occurring fails too. It becomes a required check when this job merges. On a
   red run the HTML report, with a trace and a screenshot per failure, is
   uploaded as the `playwright-report` artifact. The pinned
   `mcr.microsoft.com/playwright` image is for local runs only

@@ -136,9 +136,10 @@ devDependency of the app would be downloaded by every `npm ci` the image build
 and the Frontend job run, and neither uses it. `npm run lint` covers
 `frontend/e2e/` without installing it, because the lint reads no types.
 
-Axe fails the run on serious and critical violations only. The ones the app
-ships with today are listed in `frontend/e2e/accessibility.spec.ts`; fixing one
-means deleting its entry, and an entry that stops occurring fails the run.
+Axe fails the run on serious and critical violations only, and the app has
+none today. To accept one for a while, add it to `KNOWN` in
+`frontend/e2e/accessibility.spec.ts` with its issue; an entry that stops
+occurring fails the run.
 
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model

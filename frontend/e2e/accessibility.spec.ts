@@ -6,22 +6,11 @@ import { test, expect, drawRing, DESTINATION_NAMES } from './fixtures'
 // test's annotations, so they are visible in the report without gating.
 const GATING = new Set(['serious', 'critical'])
 
-// Violations the app ships with today, each matched by its rule and the text
+// Serious violations accepted for now, each matched by its rule and the text
 // of the node it lands on, so a new node failing the same rule still fails
-// the test. An entry that stops matching fails the test too: the list may
-// only shrink by deleting the entry along with the fix.
-const KNOWN = [
-  {
-    rule: 'color-contrast',
-    html: 'Include unnamed peaks',
-    why: 'MUTED fades an operable control to 4.13:1 while Peaks is unticked',
-  },
-  {
-    rule: 'color-contrast',
-    html: 'as of ',
-    why: 'TEXT.caption on the results header bar is 3.93:1',
-  },
-]
+// the test. An entry that stops matching fails the test too, so the list can
+// only shrink along with a fix. Each entry names the issue that fixes it.
+const KNOWN: { rule: string; html: string; why: string }[] = []
 
 async function audit(page: Page, state: string, seen: Set<string>) {
   // Park the pointer: a hovered accent button is the one state CLAUDE.md

@@ -75,12 +75,11 @@ module.exports = {
 
         // Unlike performance, this one gates. Its audits are pass or fail
         // checks on the page's markup rather than a curve over timings, so the
-        // score moves only when the page does. Measured at 0.96 on the first
-        // screen (0.963 unrounded, 191 audit weight in play), and the one
-        // failing audit is color-contrast, the same muted label the browser
-        // job's axe audit lists as known. At 0.95 a new failure of weight 3 or
-        // more turns this red; only a weight-1 audit fits in the margin.
-        'categories:accessibility': ['error', { minScore: 0.95 }],
+        // score moves only when the page does. Measured at 1.0 on the first
+        // screen in three of three runs. Lighthouse weights its audits 1, 3, 7
+        // and 10, so at 0.99 any failure of weight 3 or more turns this red;
+        // only a weight-1 audit fits in the margin.
+        'categories:accessibility': ['error', { minScore: 0.99 }],
       },
     },
     upload: {
