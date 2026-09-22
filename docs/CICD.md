@@ -705,6 +705,13 @@ flowchart LR
   scripts/generate_openapi.py`. The script pins `APP_VERSION` to `dev` before
   importing the app, so `info.version` stays deterministic and a released build
   never reads as drift.
+- `pr.yml`'s frontend job runs on the Node major named in `.node-version`,
+  which `setup-node` reads through `node-version-file`. That file is the one
+  place the major is written: the root `Makefile` reads it for every local
+  check, and the `Dockerfile` keeps a literal `node:<major>-alpine` tag, because
+  a `FROM` line reads no file and a build argument would hide the tag from
+  Dependabot. `backend/tests/test_node_version.py` fails when that tag and the
+  file disagree, so CI always tests the runtime the image builds with.
 - `pr.yml`'s frontend job runs `npm run check:api` before the typecheck. The
   SPA's wire types are hand-written, and `frontend/src/api-schema.d.ts` —
   generated from the committed snapshot above — is what the typecheck holds them
@@ -865,7 +872,9 @@ actions (hadolint, trivy-action, lighthouse-ci-action) whose patch bumps do
 auto-merge: every other GitHub Action is major-pinned (`@v7`, `@v4`, `@v3`), so
 Dependabot raises them as *major* bumps that wait for review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
 `node:26-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
-also wait for review — base-OS *patch* fixes arrive without any PR, picked up
+also wait for review. A Node major bump also fails `Backend Tests` until the
+same PR moves `.node-version` to match, which is what keeps CI on the image's
+runtime. Base-OS *patch* fixes arrive without any PR, picked up
 by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests
 (not `Workflows`), so a workflow-file edit is not something it can land on its
 own, and those three actions' patch bumps still wait for a person even though
