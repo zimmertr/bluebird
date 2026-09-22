@@ -10,30 +10,36 @@ describe('rampCss', () => {
   it('gives every band an equal share of the strip', () => {
     // Never to scale: snow runs 0.39 to 787 inches in eleven steps and
     // precipitation 0.01 to 1.00 in five, so a strip drawn to scale would be
-    // most of its bands in the first few pixels.
-    const css = rampCss(['#a', '#b', '#c', '#d'], false)
-    expect(css).toBe('linear-gradient(90deg,#a 0%,#a 25%,#b 25%,#b 50%,#c 50%,#c 75%,#d 75%,#d 100%)')
-  })
-
-  // Hard stops for a classification, a blend for an interpolation — the strip
-  // follows what the map draws rather than what looks better.
-  it('blends from anchor to anchor, with the first band flat', () => {
-    // `interpolateRgb` in `colors.ts` gives everything at or below the first
-    // threshold the first anchor, so band 0 carries no gradient; each later
-    // band runs from one anchor to the next.
-    expect(rampCss(['#a', '#b', '#c', '#d'], true)).toBe(
+    // most of its bands in the first few pixels. Each anchor therefore lands
+    // on an equal boundary: 25%, 50%, 75%, 100% for four bands.
+    expect(rampCss(['#a', '#b', '#c', '#d'])).toBe(
       'linear-gradient(90deg,#a 0%,#a 25%,#b 50%,#c 75%,#d 100%)',
     )
   })
 
-  it('keeps the snow strip hard-stopped and a metric strip blended', () => {
-    expect(snowRampCss()).toContain(`${SNOW_RAMP[1].color} ${(1 / SNOW_RAMP.length) * 100}%`)
-    // A blended strip names each colour once past the first; a hard-stopped one
-    // names every colour twice.
-    const blended = scaleRampCss(METRIC_SCALE.wind)
-    for (const color of METRIC_SCALE.wind.colors.slice(1)) {
-      expect(blended.split(color).length - 1).toBe(1)
+  // The ramp mirrors `interpolateRgb` in `colors.ts`, which gives everything at
+  // or below the first threshold the first anchor: band 0 carries no gradient,
+  // and each later band runs from one anchor to the next.
+  it('holds the first band flat and blends from anchor to anchor after it', () => {
+    const css = rampCss(['#a', '#b', '#c', '#d'])
+    expect(css).toContain('#a 0%,#a 25%')
+    expect(css.split('#b').length - 1).toBe(1)
+  })
+
+  // One drawing for every scale on the map (TJ, 2026-09-22). The snow strip was
+  // the one exception until #460, and a legend box holding a strip of blocks
+  // beside a strip of gradient read as two systems.
+  it('draws the snow strip and a metric strip the same way', () => {
+    for (const css of [snowRampCss(), scaleRampCss(METRIC_SCALE.wind)]) {
+      const colors = css.match(/#[0-9a-f]{6}/g)!
+      // Every colour once, except the first, which is named twice to hold
+      // band 0 flat. A hard-stopped strip named every colour twice.
+      expect(colors.filter((c) => c === colors[0])).toHaveLength(2)
+      expect(new Set(colors).size).toBe(colors.length - 1)
     }
+    // And the snow strip's second anchor sits on its own boundary rather than
+    // at the start of a block.
+    expect(snowRampCss()).toContain(`${SNOW_RAMP[1].color} ${(2 / SNOW_RAMP.length) * 100}%`)
   })
 })
 
@@ -51,17 +57,16 @@ describe('rampTicks', () => {
     expect(ticks.map((t) => t.label)).toEqual(['5', '25', '50'])
   })
 
-  // Each label hangs from the nearest edge that keeps it inside the box: the
-  // last from the strip's right edge, a tick on the left edge from that, and
-  // everything between centred on its own boundary.
+  // Every label is centred on its boundary except the last, which hangs from
+  // the strip's right edge because it is wider than a band.
   it('hangs each label where it fits', () => {
     const ticks = rampTicks([
-      { at: 0, text: '0' },
+      { at: 1, text: '0' },
       { at: 3, text: '4' },
       { at: 6, text: '40' },
       { at: 10, text: '400' },
     ])
-    expect(ticks.map((t) => t.align)).toEqual(['start', 'center', 'center', 'end'])
+    expect(ticks.map((t) => t.align)).toEqual(['center', 'center', 'center', 'end'])
   })
 })
 
@@ -130,6 +135,8 @@ describe('the snow strip', () => {
   it('names four of its eleven boundaries, bare', () => {
     const ticks = snowTicks()
     expect(ticks.map((t) => t.label)).toEqual(['0', '4', '40', '400'])
-    expect(ticks.map((t) => t.at)).toEqual([0, 2, 5, 10])
+    // Band `i`'s anchor is at boundary `i + 1` on a blended strip, and the top
+    // tick's `end` alignment adds that one itself (#460).
+    expect(ticks.map((t) => t.at)).toEqual([1, 3, 6, 10])
   })
 })

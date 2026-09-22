@@ -16,8 +16,8 @@ import { ColorScale, LabelledScale } from './colors'
  * What a reader takes off it is which band a colour is in, and equal widths are
  * what make that readable.
  *
- * What is NOT shared is whether the bands blend, and that is the data's
- * difference rather than a style choice — see {@link rampCss}.
+ * Every strip blends, and every strip is equal-width per band — see
+ * {@link rampCss}.
  */
 
 /**
@@ -26,38 +26,43 @@ import { ColorScale, LabelledScale } from './colors'
  *
  * `at` is a position in BANDS, not in pixels: 0 is the strip's left edge and
  * the band count its right one, so a tick lands on the boundary it names
- * however wide the legend box is. `align` is which edge of that boundary's band
- * column the label hangs from.
+ * however wide the legend box is. On a blended strip that boundary carries a
+ * band's ANCHOR colour, which is why a caller passes `i + 1` for band `i`.
+ *
+ * `align` is how the label meets that boundary: centred on it, or hung from the
+ * end of the strip. There is no `start`, because nothing passes `at` 0 (#460).
  */
 export interface RampTick {
   readonly at: number
   readonly label: string
-  readonly align: 'start' | 'center' | 'end'
+  readonly align: 'center' | 'end'
 }
 
 /**
- * The band colours as one CSS background, `blend` deciding whether the strip is
- * a set of blocks or a continuous ramp.
+ * The band colours as one CSS background: always a continuous ramp.
  *
- * **This follows what the map draws rather than what looks better.** The snow
- * layer is NOAA's own rendered image, classified into eleven bands: a gradient
- * between them would invent depths NOAA never assigned a colour to, so it is
- * hard-stopped. A metric marker is `interpolateRgb` in `colors.ts`, which
- * blends between the anchors, so its strip has to blend too — six blocks would
- * claim six colours where the map paints a continuum.
+ * **One drawing for every scale on the map** (TJ, 2026-09-22). The snow strip
+ * was hard-stopped until #460, because NOAA's bands are a classification and a
+ * gradient between them shows depths NOAA never assigned a colour to. That is
+ * still true and is the accepted cost: two strips in one legend box, one of
+ * blocks and one of gradient, read as two different systems, and the reader
+ * meets the box before they meet the distinction.
  *
- * The blended form mirrors that function exactly: everything at or below the
- * first threshold takes the first anchor, which is why band 0 is flat, and each
- * later band runs from one anchor to the next. The last band is where the
- * function extrapolates over one more band width and then clamps; the strip
- * draws the extrapolation, since the clamp has no width to be drawn in.
+ * The ramp mirrors `interpolateRgb` in `colors.ts` exactly, which is what makes
+ * a metric strip a picture of its own markers: everything at or below the first
+ * threshold takes the first anchor, which is why band 0 is flat, and each later
+ * band runs from one anchor to the next. The last band is where that function
+ * extrapolates over one more band width and then clamps; the strip draws the
+ * extrapolation, since the clamp has no width to be drawn in.
+ *
+ * A band is therefore an ANCHOR at a boundary rather than a block between two,
+ * and colour `i` lands at boundary `i + 1`. Every caller's ticks are placed
+ * against that, {@link rampTicks}.
  */
-export function rampCss(colors: readonly string[], blend: boolean): string {
+export function rampCss(colors: readonly string[]): string {
   const n = colors.length
   const at = (i: number) => `${(i / n) * 100}%`
-  const stops = blend
-    ? [`${colors[0]} 0%`, ...colors.map((color, i) => `${color} ${at(i + 1)}`)]
-    : colors.flatMap((color, i) => [`${color} ${at(i)}`, `${color} ${at(i + 1)}`])
+  const stops = [`${colors[0]} 0%`, ...colors.map((color, i) => `${color} ${at(i + 1)}`)]
   return `linear-gradient(90deg,${stops.join(',')})`
 }
 
@@ -72,16 +77,18 @@ export function rampCss(colors: readonly string[], blend: boolean): string {
  * it has no room for (TJ, 2026-09-17). `AQI` is the section with nothing to
  * state, the index being a plain index.
  *
- * **A tick hangs from the nearest edge that keeps it inside the box.** The
- * last one hangs from the strip's END: its boundary is one band in from the
- * right edge and its label is wider than a band, so hung on the boundary it
- * would run past the legend box — and hung from the end it reads the way the
- * top band behaves, which is `50` and above. A tick on the strip's left
- * edge (`at` 0, which only the snow scale has) hangs from the START for the
- * mirror reason. Every other tick is CENTRED on its boundary, which is what a
- * colour bar's numbers do and what keeps two of them apart: left-aligned, the
- * freezing level's `12,000` ran within 4px of the `20,000` beside it, where
- * centred it clears by 20 (measured in Chrome, 2026-09-17).
+ * **A tick is CENTRED on its boundary, and the last one hangs from the end.**
+ * Centring is what a colour bar's numbers do and what keeps two of them apart:
+ * left-aligned, the freezing level's `12,000` ran within 4px of the `20,000`
+ * beside it, where centred it clears by 20 (measured in Chrome, 2026-09-17).
+ * The last tick is the exception because its label is wider than a band and its
+ * boundary is one band in from the right edge, so centred it would run past the
+ * legend box; hung from the end it also reads the way the top band behaves,
+ * which is `50` and above.
+ *
+ * There is no START case. The snow strip had the one tick that needed it while
+ * it was hard-stopped, and a blended strip moved that tick a boundary right
+ * (#460), so nothing now passes `at` 0.
  */
 export function rampTicks(
   marks: readonly { readonly at: number; readonly text: string }[],
@@ -91,14 +98,14 @@ export function rampTicks(
     return {
       at: mark.at,
       label: mark.text,
-      align: last ? ('end' as const) : mark.at === 0 ? ('start' as const) : ('center' as const),
+      align: last ? ('end' as const) : ('center' as const),
     }
   })
 }
 
-/** A ranking metric's scale as a strip: blended, because its markers are. */
+/** A ranking metric's scale as a strip. */
 export function scaleRampCss(scale: ColorScale): string {
-  return rampCss(scale.colors, true)
+  return rampCss(scale.colors)
 }
 
 /**
