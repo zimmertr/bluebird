@@ -167,10 +167,12 @@ describe('popupGroups follows the table', () => {
     expect(temp.label).toBe(`${NOUN.temp} ${'·'} ${AGGREGATE.maximum} (${UNIT.temp})`)
   })
 
-  it('carries the wind datum into the heading', () => {
-    const groups = popupGroups(row, displayedColumns(false, 'precip_total_in', 'forecast'))
+  // #457: the heading is the bare noun and the shared unit, with nothing else
+  // inside the noun phrase.
+  it('heads a group with the bare noun and unit', () => {
+    const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'))
     const wind = groups.find((g) => g.label.startsWith(NOUN.wind))!
-    expect(wind.label).toBe(`${NOUN.wind} at elevation (${UNIT.wind})`)
+    expect(wind.label).toBe(`${NOUN.wind} (${UNIT.wind})`)
   })
 
   // The wildfire flag is the popup's amber banner, not a measurement among the

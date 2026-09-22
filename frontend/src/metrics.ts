@@ -1,5 +1,4 @@
 import { SortBy } from './types'
-import { WindowSource } from './utils/forecastWindow'
 
 /**
  * One vocabulary for the five things Bluebird Forecast measures.
@@ -181,120 +180,6 @@ export function formatPrecipRate(v: unknown): string {
 }
 
 /**
- * The one datum two families share: the free air at the destination's own
- * elevation, interpolated between the pressure levels bracketing it.
- *
- * Spelled once because the wind (#361) and the temperature (#443) are the same
- * measurement of two quantities, read from the same five levels at the same
- * heights. Two literals would let one surface drift into `at altitude` while
- * the column beside it kept saying something else.
- */
-const AT_ELEVATION = 'at elevation'
-
-/**
- * How the wind number was measured, where a surface has room to say so (#361).
- *
- * Every wind figure this app shows is the free-air wind interpolated between
- * the two ISA pressure levels bracketing the destination's elevation, floored
- * at the 10 m value — and nothing on screen said so, which is the whole of
- * that issue. The column header is where a reader meets the number, so that is
- * where it is said.
- *
- * **Three states, because two of them would be a lie.** The archive endpoint
- * accepts the five pressure levels and answers every hour `null`, so an
- * archive report is the plain 10 m wind for every row whatever its elevation,
- * and a report SPANNING the boundary carries both inside one averaged number.
- * The spanning case therefore claims nothing: it is the one state with no
- * datum, and its silence is the honest answer rather than an omission. That is
- * also why this takes a `WindowSource` rather than a boolean.
- *
- * The 10 m floor is NOT a fourth state. A destination below the lowest level
- * (~762 m, which is 2,500 ft) or with no known elevation reports the 10 m wind
- * on a forecast report too — but that is the method working, not failing: a
- * valley really is sheltered. A header describes a column's method, not each
- * cell's outcome, so `at elevation` stays true over a trailhead.
- *
- * "10 meters" is spelled out rather than written `10 m`. Two reasons, and the
- * second is the one that decided it. A spelled-out unit NAME is ordinary
- * English, so the SI space rule for unit SYMBOLS (BIPM §5.4.3) cannot be got
- * wrong here and no non-breaking space has to be kept out of the CSV header.
- * And the two phrases then measure within 4.7px of each other, so the table's
- * wind columns do not visibly resize when a window crosses the archive
- * boundary — the symbol form moved them 25.6px (measured in Chrome, 2026-09-14).
- */
-const WIND_DATUM: Record<'forecast' | 'archive', string> = {
-  forecast: AT_ELEVATION,
-  archive: 'at 10 meters',
-}
-
-/**
- * The datum as it reads INSIDE a noun phrase: "Wind at elevation · Avg (mph)".
- *
- * `null` for a spanning window, and for a report that does not exist yet —
- * before the first analysis the table shows pending rows with no numbers in
- * them, and a datum there would describe figures nobody has fetched.
- *
- * The map legend deliberately does NOT say this (TJ, 2026-09-14). It was built
- * there first and removed: the column headers carry it on every surface that
- * shows a number, and a legend that repeated them spent a line of the map's
- * narrowest box saying what the table beside it already said.
- */
-export function windDatum(source: WindowSource | null | undefined): string | null {
-  if (source === 'forecast' || source === 'archive') return WIND_DATUM[source]
-  return null
-}
-
-/**
- * How the temperature number was measured, where a surface has room to say so
- * (#443).
- *
- * The same free air the wind is read from, at the same five pressure levels and
- * the same ISA heights: a summit's temperature is the air the summit stands in,
- * not the air 2 m over a smoothed grid ground thousands of feet below it. Over
- * Dome Peak the surface reading said 25.2 °F while the report's own freezing
- * level sat at 12,369 ft, which is the contradiction that issue is named for.
- *
- * **Three states, for the reason the wind has three.** The archive accepts the
- * five pressure levels and answers every hour `null`, so an archive report is
- * the plain 2 m temperature for every row whatever its elevation, and a report
- * SPANNING the boundary carries both datums inside one averaged number. The
- * spanning case therefore claims nothing: it is the one state with no datum,
- * and its silence is the honest answer rather than an omission. That is also
- * why this takes a `WindowSource` rather than a boolean.
- *
- * The temperature's datums move in lockstep with the wind's, which is the whole
- * point of naming them at all: the two columns sit side by side in the table
- * and in the file, they are read from the same levels at the same heights, and
- * a reader comparing them is entitled to see the same claim made the same way.
- * A header that named one datum and left its neighbour bare would read as a
- * difference in the numbers rather than a difference in the wording.
- *
- * The 2 m fallback inside a forecast report is NOT a fourth state, for the
- * reason the wind's 10 m floor is not: a destination below the lowest level
- * (~762 m) or with no known elevation reports its surface temperature on a
- * forecast report too, and that is the method working rather than failing. A
- * header describes a column's method, not each cell's outcome.
- *
- * "2 meters" is spelled out rather than written `2 m`, exactly as the wind's
- * "10 meters" is, and for the same two reasons: a spelled-out unit NAME is
- * ordinary English, so the SI space rule for unit SYMBOLS (BIPM §5.4.3) cannot
- * be got wrong here and no non-breaking space has to be kept out of the CSV
- * header. It also lands the two phrases within 1.6px of each other, so the
- * table's temperature columns do not visibly resize when a window crosses the
- * archive boundary (measured in Chrome, 2026-09-17: 203.1px against 204.7px at
- * the header's own weight and size).
- */
-const TEMP_DATUM: Record<'forecast' | 'archive', string> = {
-  forecast: AT_ELEVATION,
-  archive: 'at 2 meters',
-}
-
-export function tempDatum(source: WindowSource | null | undefined): string | null {
-  if (source === 'forecast' || source === 'archive') return TEMP_DATUM[source]
-  return null
-}
-
-/**
  * How a value was reduced over the analysis window.
  *
  * The nouns above spell out because they are the identity of what's measured;
@@ -403,20 +288,20 @@ export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
  * can report a rate rather than the base quantity: precipitation is inches in
  * a window total and inches per hour in the average and peak columns.
  *
- * The qualifier sits INSIDE the noun phrase rather than beside it — "Wind at
- * elevation · Avg (mph)", never "Wind · Avg (mph) at elevation" — because it
- * says what was measured, not how it was reduced, and the separator's whole
- * job is to mark the seam between those two. Two families have one — the wind
- * (`windDatum`) and the temperature (`tempDatum`) — and only where a report's
- * window source says which.
+ * Nothing else goes inside the noun phrase. The wind and temperature headers
+ * used to carry the datum their numbers came from (`at elevation`, `at 2
+ * meters`), until #457 measured that Open-Meteo lapses the surface reading to
+ * the coordinate's own 90 m DEM height by default: every metric column stands
+ * at the destination's elevation, so a datum on two of them read as a
+ * difference in place where the difference is the method. `docs/DATA.md`
+ * carries the method, as it does the grid's terrain-height caveat.
  */
 export function metricLabel(
   family: MetricFamily,
   aggregate?: string,
   unit: string = UNIT[family],
-  qualifier?: string | null,
 ): string {
-  const noun = qualifier ? `${NOUN[family]} ${qualifier}` : NOUN[family]
+  const noun = NOUN[family]
   const named = aggregate ? `${noun} ${SEP} ${aggregate}` : noun
   return unit ? `${named} (${unit})` : named
 }

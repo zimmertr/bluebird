@@ -483,10 +483,13 @@ const WIND_LEVELS = [
 ] as const
 // Port of weather._TEMP_LEVELS: the same five levels and the same ISA heights,
 // read for the free-air TEMPERATURE each hour also carries (issue #443).
-// `temperature_2m` stands 2 m over the model's smoothed terrain, which under a
-// summit is a valley floor that radiates away on a clear night, so the table
-// reported a summit below freezing while its own freezing level sat thousands
-// of feet higher. `tempAtElevation` reads the free air instead.
+// `temperature_2m` is the model's 2 m reading over its cell's mean terrain,
+// lapsed by Open-Meteo to the coordinate's 90 m DEM height (#457, measured
+// 2026-09-22 within 12 to 155 m of four Cascade summits) — so it stands at the
+// destination's elevation but carries the surface layer of a ground that under
+// a summit is a valley floor radiating away on a clear night, which is how the
+// table reported a summit below freezing while its own freezing level sat
+// thousands of feet higher. `tempAtElevation` reads the free air instead.
 //
 // A separate table from WIND_LEVELS rather than one list of heights: the two
 // interpolations differ in the one place that matters (the wind is floored at

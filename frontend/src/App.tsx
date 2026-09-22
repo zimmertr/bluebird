@@ -1053,13 +1053,6 @@ export default function App() {
   // name, so "a day narrowed to one hour" is recognized as the point sample it
   // is (#166).
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
-  // Which endpoint answered the report on screen, for the surfaces that name
-  // the wind's datum (#361): the table's headers, the file's, the Columns
-  // picker's and a marker's popup. Read off the analysed snapshot rather than
-  // the panel's selection, because these describe numbers already fetched — a
-  // panel moved since is a stale question, not a relabel. Null until the first
-  // analysis, which is one of the two states with no datum to name.
-  const windDatumSource = analyzed?.windowSource ?? null
   // A point-sample flip relabels the metric columns under the SAME keys —
   // the collapsed bare-noun header and the windowed aggregate header both
   // live at one key — so a width fitted under one regime clips the other
@@ -1551,8 +1544,8 @@ export default function App() {
   // wildfire column's key is virtual: its value is the warning's mileage, so a
   // clear row and an uncovered row are both null and land last either way.
   const csvColumns = useMemo(
-    () => displayedColumns(pointSample, view.sortBy, windDatumSource),
-    [pointSample, view.sortBy, windDatumSource],
+    () => displayedColumns(pointSample, view.sortBy),
+    [pointSample, view.sortBy],
   )
   // Every column is on by default — the table scrolls sideways rather than
   // opening narrowed (TJ's call in the #242 review). A stored choice from the
@@ -2276,7 +2269,7 @@ export default function App() {
   // the check answered AND the column is shown, because a file's columns
   // must not disagree with the screen's.
   const tableColumns = useMemo(() => {
-    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys, windDatumSource)
+    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
     const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
     return applyColumnOrder(withModelColumn(withFire, modelColumnOn), columnOrder)
   }, [
@@ -2285,7 +2278,6 @@ export default function App() {
     effectiveVisibleKeys,
     modelColumnOn,
     columnOrder,
-    windDatumSource,
   ])
 
   // Every column there is, in the reader's order: what the Columns picker
