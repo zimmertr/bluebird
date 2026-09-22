@@ -238,7 +238,14 @@ describe('METRIC_SCALE', () => {
   // All five families. The freezing level joined on 2026-09-14, reversing
   // #295, so an absence here is now a missing scale rather than a decision.
   it('exposes every metric family', () => {
-    expect(Object.keys(METRIC_SCALE).sort()).toEqual(['aqi', 'freeze', 'precip', 'temp', 'wind'])
+    expect(Object.keys(METRIC_SCALE).sort()).toEqual([
+      'aqi',
+      'freeze',
+      'precip',
+      'snow',
+      'temp',
+      'wind',
+    ])
   })
 
   it('keeps thresholds strictly ascending with labels and colors aligned', () => {
@@ -580,6 +587,79 @@ describe('the temperature ramp', () => {
     }
     // Purple is cold on both scales that encode a quantity rather than a verdict.
     expect(METRIC_SCALE.temp.colors[0]).toBe(METRIC_SCALE.freeze.colors[0])
+  })
+})
+
+describe('the snow depth ramp', () => {
+  // One family of blues seen from the other end: the freezing level runs
+  // purple at the bottom to cyan at the top, and this runs cyan at the bottom
+  // to purple at the top. Both encode a quantity rather than a verdict, which
+  // is why neither has a red end, and sharing the six shades is what makes
+  // them read as one system (TJ, 2026-09-22).
+  it('is the freezing level\'s six shades, the other way round', () => {
+    expect(METRIC_SCALE.snow.colors).toEqual([...METRIC_SCALE.freeze.colors].reverse())
+  })
+
+  // The boundaries are the snow LAYER's own tick numbers plus one at 20, so a
+  // marker and the raster under it band on the same depths, and the strip's
+  // three printed numbers land on a foot, a season's pack and the year-round
+  // ice a glaciated summit reads.
+  it('bands on the layer\'s numbers and prints three of them', () => {
+    expect(METRIC_SCALE.snow.thresholds).toEqual([1, 4, 20, 40, 400])
+    expect(labelsOf(METRIC_SCALE.snow)).toEqual(['1', '20', '400'])
+    expect(METRIC_SCALE.snow.unit).toBe('in')
+  })
+
+  it('hits each anchor exactly at its threshold boundary', () => {
+    const [b0, b1, b2, b3, b4, b5] = METRIC_SCALE.snow.colors
+    // Bare ground and everything at or below the first boundary.
+    expect(markerColor(0, 'snow_depth_in')).toBe(b0)
+    expect(markerColor(1, 'snow_depth_in')).toBe(b0)
+    expect(markerColor(4, 'snow_depth_in')).toBe(b1)
+    expect(markerColor(20, 'snow_depth_in')).toBe(b2)
+    expect(markerColor(40, 'snow_depth_in')).toBe(b3)
+    expect(markerColor(400, 'snow_depth_in')).toBe(b4)
+    // One more band of extrapolation past the last threshold, then clamped —
+    // which is where a summit reading over a thousand inches of glacier ice
+    // lands (Mount Rainier measured 1,290 in on 2026-09-22).
+    expect(markerColor(760, 'snow_depth_in')).toBe(b5)
+    expect(markerColor(1290, 'snow_depth_in')).toBe(b5)
+  })
+
+  // Measured 2026-09-22 and pinned the way the freezing level's table is:
+  // recomputed from the constants, so a shade that moves fails here and forces
+  // a re-measurement. Same three surfaces, and the same numbers in reverse,
+  // because these are the same six shades.
+  const SLATE_800 = '#1d293d'
+  const MEASURED = [
+    { color: '#67e8f9', cellText: 6.02, markerRing: 1.45, legendSwatch: 10.08 },
+    { color: '#38bdf8', cellText: 4.57, markerRing: 2.14, legendSwatch: 6.82 },
+    { color: '#93c5fd', cellText: 5.16, markerRing: 1.80, legendSwatch: 8.11 },
+    { color: '#a5b4fc', cellText: 4.79, markerRing: 1.99, legendSwatch: 7.33 },
+    { color: '#c4b5fd', cellText: 5.09, markerRing: 1.85, legendSwatch: 7.92 },
+    { color: '#d8b4fe', cellText: 5.24, markerRing: 1.77, legendSwatch: 8.27 },
+  ]
+
+  it('still measures what the comment above says it measures', () => {
+    expect(MEASURED.map((m) => m.color)).toEqual(METRIC_SCALE.snow.colors)
+    for (const m of MEASURED) {
+      const tinted = mixOver(m.color, SLATE_800, 0.2)
+      expect(round2(contrast(m.color, tinted)), `${m.color} cell text`).toBe(m.cellText)
+      expect(round2(contrast(m.color, '#ffffff')), `${m.color} marker ring`).toBe(m.markerRing)
+      expect(round2(contrast(m.color, SLATE_800)), `${m.color} legend swatch`).toBe(m.legendSwatch)
+    }
+  })
+
+  it('clears 4.5:1 for the number printed in a shaded cell, at every band', () => {
+    for (const m of MEASURED) {
+      expect(m.cellText, `${m.color} cell text`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('keeps every legend swatch well clear of the box it sits on', () => {
+    for (const m of MEASURED) {
+      expect(m.legendSwatch, `${m.color} swatch`).toBeGreaterThanOrEqual(4.5)
+    }
   })
 })
 

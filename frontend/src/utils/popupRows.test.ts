@@ -123,6 +123,9 @@ describe('popupGroups over a Current lookup', () => {
       `${NOUN.temp} (${UNIT.temp})`,
       `${NOUN.wind} (${UNIT.wind})`,
       `${NOUN.freeze} (${UNIT.freeze})`,
+      // A snapshot is a one-value group in both modes, because it never had a
+      // triplet to collapse (#449).
+      `${NOUN.snow} (${UNIT.snow})`,
       NOUN.aqi,
     ])
   })

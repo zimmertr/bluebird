@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { DestinationResult, HourlySeries } from '../types'
 import {
+  CHART_METRICS,
   ChartLine,
   alignRowToGrid,
   axisTimeLabel,
@@ -27,7 +28,7 @@ import {
   TOOLTIP_ROW_PX,
   tooltipCapacity,
 } from './chartData'
-import { RANKING_KEYS, familyOf } from '../metrics'
+import { MetricFamily, RANKING_KEYS, familyOf, isSnapshotFamily } from '../metrics'
 // Aliased: the cutSeriesAfter block below binds `series` to a fixture of its own.
 import { resultRow, series as seriesOf } from '../testSupport/fixtures'
 
@@ -48,7 +49,31 @@ describe('metricForSort', () => {
   // four of them, and a lookup naming one each opened the precipitation chart
   // for the other two.
   it('answers with the key’s own family for every rankable key', () => {
-    for (const key of RANKING_KEYS) expect(metricForSort(key)).toBe(familyOf(key))
+    for (const key of RANKING_KEYS) {
+      // A snapshot family has no hourly series, so the chart cannot follow a
+      // ranking on it and keeps what is on screen instead (#449).
+      if (isSnapshotFamily(familyOf(key))) continue
+      expect(metricForSort(key)).toBe(familyOf(key))
+    }
+  })
+
+  // The chart draws hours, and a snapshot has none. Following the ranking
+  // would mean clearing the chart to say what the table already says.
+  it('keeps the metric on screen when the ranking is a snapshot', () => {
+    expect(metricForSort('snow_depth_in', 'wind')).toBe('wind')
+    expect(metricForSort('snow_depth_in', 'aqi')).toBe('aqi')
+  })
+
+  it('opens on the first chart metric when a snapshot ranks and nothing is chosen', () => {
+    expect(metricForSort('snow_depth_in')).toBe(CHART_METRICS[0].key)
+  })
+
+  // The chart never offers it, which is what makes the exclusion a type error
+  // rather than an empty line.
+  it('offers no snapshot family in the metric select', () => {
+    for (const { key } of CHART_METRICS) {
+      expect(isSnapshotFamily(key as MetricFamily)).toBe(false)
+    }
   })
 })
 

@@ -51,6 +51,7 @@ import {
   RANKED_FAMILIES,
   UNIT,
   familyOf,
+  isSnapshotFamily,
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
@@ -144,6 +145,11 @@ function blockerText(
       // control in the panel: the reader can see the one the sentence is
       // about (TJ, 2026-09-14).
       return `${NOUN.freeze} data is not available for ${listPhrase(freezeGaps)}.`
+    case 'compare-snow':
+      // The air-quality line's twin, and for the same reason: one source
+      // answers whatever model ranks the field, so there is nothing for a
+      // second chip to draw (TJ, 2026-09-22).
+      return `${NOUN.snow} is retrieved independently of the model and cannot be compared.`
   }
 }
 
@@ -224,6 +230,15 @@ const BOUNDS: Record<
     hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
     lower: 'minFreezeFt',
     upper: 'maxFreezeFt',
+  },
+  snow: {
+    id: 'snow-depth',
+    step: 1,
+    // No aggregate to name at either end: the row bounds today's one number,
+    // which is why it is also the row with no dropdown beside it.
+    hint: ["Today's depth must be at least this.", "Today's depth must be at most this."],
+    lower: 'minSnowDepthIn',
+    upper: 'maxSnowDepthIn',
   },
   aqi: {
     id: 'air-quality',
@@ -573,6 +588,9 @@ export default function ControlPanel({
   // would fetch the same numbers several times and draw one line where the
   // picker shows several chips.
   const compareAqi = rankFamily === 'aqi' && selected.length > 1
+  // The snow analysis is one national grid the pod holds, so it is the second
+  // metric no model answers.
+  const compareSnow = rankFamily === 'snow' && selected.length > 1
   // Named rather than counted: the model is a control in this panel, so the
   // reader can act on a name and cannot act on a fraction.
   const freezeGaps = useMemo(
@@ -591,6 +609,7 @@ export default function ControlPanel({
     hasPins,
     compareAqi,
     compareFreeze: freezeGaps.length > 0,
+    compareSnow,
   }
   const analyzeEnabled = canAnalyze(gate)
   const blockers = analyzeBlockers({ ...gate, drawPointCount })
@@ -1229,7 +1248,15 @@ export default function ControlPanel({
                     />
                     <span className="truncate">{NOUN[family]}</span>
                   </label>
-                  {!pointSample && (
+                  {!pointSample && isSnapshotFamily(family) && (
+                    // A snapshot has one column, so there is nothing to choose
+                    // between and no dropdown to choose it with. The cell
+                    // stays, empty: the grid's four tracks are what line the
+                    // bound boxes up with the section above, and a row that
+                    // spanned two of them would pull its boxes out of column.
+                    <div aria-hidden="true" />
+                  )}
+                  {!pointSample && !isSnapshotFamily(family) && (
                     // flex, not block: an inline-level select in a block
                     // wrapper reserves baseline descender space below itself,
                     // which read as the dropdown sitting ~1px lower than the

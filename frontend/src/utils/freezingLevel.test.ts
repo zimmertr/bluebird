@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   FREEZE_MODEL_IDS,
   FREEZE_UNAVAILABLE_NOTE,
-  freezeCellText,
   isFreezeKey,
   modelsWithoutFreeze,
 } from './freezingLevel'
@@ -21,22 +20,6 @@ describe('isFreezeKey', () => {
     // The virtual wildfire key and the identity columns reach here too.
     expect(isFreezeKey('wildfire_mi')).toBe(false)
     expect(isFreezeKey('name')).toBe(false)
-  })
-})
-
-describe('freezeCellText', () => {
-  // The classification is made from the DATA, never from a list of models: a
-  // model that starts publishing the variable then works with no code change.
-  it('marks an empty cell N/A and leaves a number to the column', () => {
-    expect(freezeCellText(null)).toBe('N/A')
-    expect(freezeCellText(undefined)).toBe('N/A')
-    expect(freezeCellText(9000)).toBeNull()
-  })
-
-  // Open-Meteo clamps the freezing level to 0 when the whole column is below
-  // freezing, which is the coldest answer there is rather than a missing one.
-  it('treats zero as a reading, not a gap', () => {
-    expect(freezeCellText(0)).toBeNull()
   })
 })
 

@@ -44,11 +44,15 @@ export interface AnalyzeGate {
   // draws most of its lines as columns of nulls. `freezingLevel.ts` owns which
   // ones, and why that has to be a list rather than read off the data.
   compareFreeze: boolean
+  // Snow depth comes off the snow analysis the pod holds, not out of any
+  // forecast model, so a comparison there would draw one answer once per chip
+  // — the air-quality case exactly (#449).
+  compareSnow: boolean
 }
 
 export function canAnalyze(g: AnalyzeGate): boolean {
   if (g.hasWindowWarning || g.datesPending || g.loading || g.areaTooLarge) return false
-  if (g.compareAqi || g.compareFreeze) return false
+  if (g.compareAqi || g.compareFreeze || g.compareSnow) return false
   return g.polygonReady || g.hasCustom || g.hasPins
 }
 
@@ -87,6 +91,7 @@ export type AnalyzeBlocker =
   | 'dates'
   | 'compare-aqi'
   | 'compare-freeze'
+  | 'compare-snow'
   | 'destinations'
   | 'polygon'
   | 'types'
@@ -104,6 +109,7 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   // a setting the reader made, not an input they have yet to give.
   if (g.compareAqi) blockers.push('compare-aqi')
   if (g.compareFreeze) blockers.push('compare-freeze')
+  if (g.compareSnow) blockers.push('compare-snow')
   if (!g.polygonReady && !g.hasCustom && !g.hasPins) {
     if (g.drawPointCount > 0 && g.drawPointCount < 3) blockers.push('polygon')
     // A finished polygon with nothing checked is not an unfinished polygon

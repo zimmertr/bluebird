@@ -12,6 +12,7 @@
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) | Snow depth from the National Snow Analysis, coterminous United States | Free | None |
+| [NOAA NOHRSC SNODAS at NSIDC](https://nsidc.org/data/g02158) | The same analysis as a daily grid, read for the snow depth on each destination | Free | None |
 
 Every one of these is free and paid for by somebody else, and Bluebird Forecast
 sends a key to none of them on its own behalf. The one exception is an API
@@ -611,6 +612,44 @@ far above the top band's 787 in, while a point on the Winthrop Glacier holds
 6.45 m (254 in, the `197 - 295` band) and Paradise and Sunrise hold 0. That is
 why a glaciated summit paints the top band in September. The depth over
 permanent snow and ice is not a number to plan on.
+
+### The snow depth on a row
+
+The same analysis is also a **ranking metric**, one number per destination
+(issue #449). It comes from a different door: the layer above is NOAA's
+rendered image, and the metric reads the numbers themselves out of the daily
+SNODAS grid the server holds.
+
+**One grid a day, held by the server, not fetched per visitor.** NSIDC
+publishes each day's SNODAS products as one tar, and Bluebird Forecast pulls
+the **unmasked** snow depth grid out of it: 8,192 by 4,096 samples of big-endian
+integer millimetres, 64 MiB once unpacked, which is small enough to hold in
+memory and read as an array. A destination's depth is then one array lookup
+rather than a request, so a 1,500-destination analysis costs no upstream call
+at all.
+
+**The numbers are the 06 UTC analysis of the day the report names.** The day's
+tar lands at NSIDC around 13:15 UTC, and before that the server serves the
+previous day's grid and says so. The results header states the date beside the
+ranking (`Snow depth as of Sep 22`) rather than the forecast window, because
+the number is not a reading of that window: it is today's depth whatever days
+you asked for, so it has no minimum, mean or maximum, no chart line, and
+nothing for the map timeline to scrub. Ranking on it with several forecast
+models selected is refused for the same reason air quality is: one source
+answers, whatever model ranks the field.
+
+**The unmasked grid reaches further north than the layer.** It runs 24.1N to
+58.2N and 130.5W to 62.2W, which covers the contiguous United States, southern
+Canada and northern Mexico. Outside that box, and over open water inside it,
+the row reads `N/A` rather than zero: the destination was never analyzed, which
+is a different statement from bare ground. A server that has not yet fetched a
+grid reads `N/A` on every row and names no date.
+
+**The glacier caveat above applies to the column too, and it is the number a
+reader is most likely to misread.** Mount Rainier's summit read 1,290 inches on
+2026-09-22. That is ice the model has accumulated year over year, not snow that
+fell this season, and the colour scale's top band exists to hold it rather than
+to describe it.
 
 ## The forecast grid
 

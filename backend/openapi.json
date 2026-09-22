@@ -230,6 +230,19 @@
             "description": "Drop rows whose `precip_total_in` is above this.",
             "title": "Max Precip Total In"
           },
+          "max_snow_depth_in": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.",
+            "title": "Max Snow Depth In"
+          },
           "max_temp_f": {
             "anyOf": [
               {
@@ -304,6 +317,19 @@
             ],
             "description": "Drop rows whose `precip_total_in` is below this.",
             "title": "Min Precip Total In"
+          },
+          "min_snow_depth_in": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `snow_depth_in` is below this. A row with a null `snow_depth_in` passes either bound: the destination is outside the snow grid, or this instance holds no grid, and neither says anything about how much snow is on the ground.",
+            "title": "Min Snow Depth In"
           },
           "min_temp_f": {
             "anyOf": [
@@ -397,6 +423,18 @@
             },
             "title": "Results",
             "type": "array"
+          },
+          "snow_analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.",
+            "title": "Snow Analysis Date"
           },
           "times": {
             "default": [],
@@ -739,6 +777,18 @@
             ],
             "description": "Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`."
           },
+          "snow_depth_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States and southern Canada, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads over a thousand inches; that is ice rather than this season's snow.",
+            "title": "Snow Depth In"
+          },
           "temp_avg_f": {
             "description": "Mean temperature, degrees Fahrenheit.",
             "title": "Temp Avg F",
@@ -892,6 +942,18 @@
             "title": "Destinations",
             "type": "array"
           },
+          "snow_analysis_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.",
+            "title": "Snow Analysis Date"
+          },
           "total": {
             "description": "Same as `len(destinations)`, for convenience.",
             "title": "Total",
@@ -964,6 +1026,18 @@
             ],
             "description": "OpenStreetMap identifier such as `node/12345`.",
             "title": "Osm Id"
+          },
+          "snow_depth_in": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States and southern Canada, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads over a thousand inches; that is ice rather than this season's snow.",
+            "title": "Snow Depth In"
           },
           "type": {
             "description": "The discovery type this row matched, or `custom` for a caller-supplied row.",
@@ -1465,7 +1539,8 @@
           "freeze_max_ft",
           "aqi_avg",
           "aqi_min",
-          "aqi_max"
+          "aqi_max",
+          "snow_depth_in"
         ],
         "title": "SortBy",
         "type": "string"

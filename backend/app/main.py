@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import time
@@ -23,6 +24,7 @@ from app.routes.smoke import router as smoke_router
 from app.routes.version import router as version_router
 from app.routes.wildfires import router as wildfires_router
 from app.services import http as upstream_http
+from app.services import snodas
 from app.version import get_version
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -156,10 +158,17 @@ async def lifespan(_app: FastAPI):
     # this app: the public gateway allowlist filters /api/* only, so a
     # /metrics route here would be a public one (see telemetry.py).
     telemetry.start_metrics_server()
+    # The snow grid, fetched behind startup rather than during it. A pod that
+    # waited on NSIDC would be a pod one upstream outage keeps out of the load
+    # balancer, and an analysis that runs before the grid lands simply reports
+    # no snow depth (`snodas.fill_snow_depth`). The task reference is held
+    # because asyncio only weakly references running tasks.
+    warm_snow = asyncio.create_task(snodas.warm_up())
     # The Open-Meteo client is built lazily on first use so it binds to this
     # loop; all we owe it is a close, so the pod's keep-alive connections go
     # away with the process rather than waiting on upstream's idle timeout.
     yield
+    warm_snow.cancel()
     telemetry.stop_metrics_server()
     await upstream_http.aclose()
 

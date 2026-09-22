@@ -14,7 +14,7 @@ import {
   withModelColumn,
 } from './tableColumns'
 import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
-import { FREEZE_UNAVAILABLE } from './freezingLevel'
+import { UNAVAILABLE } from './unavailableCell'
 import { SortBy } from '../types'
 
 // The identity columns, which describe the destination rather than its
@@ -34,6 +34,7 @@ const METRICS: SortBy[] = [
   'wind_avg_mph',
   'temp_avg_f',
   'freeze_min_ft',
+  'snow_depth_in',
   'aqi_avg',
 ]
 
@@ -50,8 +51,9 @@ describe('COLUMNS', () => {
   // the value the API uses rather than the one the table title-cases for
   // reading. Adding a third means a file cell changed shape.
   // Elevation is the first case — a grouped number puts a comma inside a
-  // comma-separated cell — and the three freezing-level columns are the same
-  // case for the same reason, being heights in feet formatted the same way.
+  // comma-separated cell — and the three freezing-level columns and the snow
+  // depth are the same case for the same reason, being grouped numbers
+  // formatted the same way.
   it('overrides the display formatter for exactly the columns that need it', () => {
     expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual([
       'type',
@@ -59,6 +61,7 @@ describe('COLUMNS', () => {
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
+      'snow_depth_in',
     ])
   })
 
@@ -67,14 +70,18 @@ describe('COLUMNS', () => {
   // model carries no such variable, and the file is read detached from the
   // app that could say so. So the three declare the mark the screen uses and
   // nothing else does.
-  it('declares a file mark for exactly the freezing-level columns', () => {
+  it('declares a file mark for exactly the columns that can be unavailable', () => {
+    // The two metrics whose cells can be empty for a reason that is not the
+    // weather: the model publishes no freezing level, or the destination is
+    // outside the snow grid.
     expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
+      'snow_depth_in',
     ])
     for (const col of COLUMNS.filter((c) => c.csvNull)) {
-      expect(col.csvNull).toBe(FREEZE_UNAVAILABLE)
+      expect(col.csvNull).toBe(UNAVAILABLE)
     }
   })
 
@@ -86,6 +93,8 @@ describe('COLUMNS', () => {
     expect(layers.get('freeze_min_ft')).toBe('deg0')
     expect(layers.get('freeze_max_ft')).toBe('deg0')
     expect(layers.get('freeze_avg_ft')).toBe('deg0')
+    // Windy's own name for snow on the ground (TJ, 2026-09-22).
+    expect(layers.get('snow_depth_in')).toBe('snowcover')
     for (const col of COLUMNS) {
       if (LEAD.has(col.key as string)) continue
       expect(col.windyLayer, `${col.key} links to no layer`).toBeTruthy()
@@ -119,6 +128,7 @@ describe('orderColumns', () => {
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
+      'snow_depth_in',
     ])
   })
 
@@ -140,6 +150,7 @@ describe('orderColumns', () => {
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
+      'snow_depth_in',
       'aqi_avg',
       'aqi_min',
       'aqi_max',
@@ -178,6 +189,9 @@ describe('pointModeColumns', () => {
       'temp_avg_f',
       'wind_avg_mph',
       'freeze_avg_ft',
+      // A snapshot has nothing to collapse: it was one column in window mode
+      // and is the same column here, under the same label (#449).
+      'snow_depth_in',
       'aqi_avg',
     ])
   })
@@ -188,6 +202,7 @@ describe('pointModeColumns', () => {
     expect(labels.get('temp_avg_f')).toBe('Temperature (°F)')
     expect(labels.get('wind_avg_mph')).toBe('Wind (mph)')
     expect(labels.get('freeze_avg_ft')).toBe('Freezing level (ft)')
+    expect(labels.get('snow_depth_in')).toBe('Snow depth (in)')
     expect(labels.get('aqi_avg')).toBe('AQI')
     // No aggregate means no separator to hang one off.
     for (const label of labels.values()) expect(label).not.toContain(SEP)
@@ -205,6 +220,7 @@ describe('pointModeColumns', () => {
       'temp_avg_f',
       'wind_avg_mph',
       'freeze_avg_ft',
+      'snow_depth_in',
     ])
   })
 })
@@ -222,7 +238,7 @@ describe('displayedColumns', () => {
   // Measured rather than named: the collapse is keyed on the window covering one
   // hourly stamp, not on a mode, so "a day narrowed to one hour" collapses too.
   it('collapses a point sample and nothing else', () => {
-    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(8)
+    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(9)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 })

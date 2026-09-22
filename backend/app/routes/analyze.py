@@ -29,7 +29,7 @@ from app.models import (
     bbox_area_km2,
     window_source,
 )
-from app.services import air_quality, osm, weather
+from app.services import air_quality, osm, snodas, weather
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
@@ -110,11 +110,15 @@ def _filter_elevation(destinations, min_ft, max_ft):
 # Precipitation and AQI have no minimum aggregate to read — a per-hour
 # precipitation floor would be 0.000 almost everywhere — so both of their
 # bounds compare a single field, the window total and the worst hour.
+# Snow depth is the one row where both ends read the same field, and not for
+# either of the reasons above: it is today's single number rather than a
+# reduction over hours, so there is no best or worst hour to pick between.
 _LOWER_BOUNDS = (
     ("min_precip_total_in", "precip_total_in"),
     ("min_temp_f", "temp_min_f"),
     ("min_wind_mph", "wind_min_mph"),
     ("min_freeze_ft", "freeze_min_ft"),
+    ("min_snow_depth_in", "snow_depth_in"),
     ("min_aqi", "aqi_max"),
 )
 _UPPER_BOUNDS = (
@@ -122,6 +126,7 @@ _UPPER_BOUNDS = (
     ("max_temp_f", "temp_max_f"),
     ("max_wind_mph", "wind_max_mph"),
     ("max_freeze_ft", "freeze_max_ft"),
+    ("max_snow_depth_in", "snow_depth_in"),
     ("max_aqi", "aqi_max"),
 )
 
@@ -688,6 +693,10 @@ def _assemble(
                 longitude=dest["longitude"],
                 elevation_ft=dest.get("elevation_ft"),
                 osm_id=dest.get("osm_id"),
+                # Off the destination rather than out of `agg`: the snow grid
+                # is read once per candidate at discovery, where the weather
+                # aggregates arrive per location from Open-Meteo.
+                snow_depth_in=dest.get("snow_depth_in"),
                 **agg,
                 **aqi_stats,
                 series=series,
@@ -808,6 +817,12 @@ async def _run_analysis(
             suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
             yield Refusal(_refusal_body(len(destinations), noun, suggestion=suggestion))
             return
+
+    # Today's snow depth, read off the held grid once the candidate set is
+    # final. It is not a forecast and costs no upstream call, so it rides here
+    # rather than beside the weather fetch, and a pod holding no grid answers
+    # nulls instead of waiting for one (`fill_snow_depth`).
+    snow_analysis_date = snodas.fill_snow_depth(destinations)
 
     total_queried = len(destinations)
     telemetry.ANALYZE_DESTINATIONS.observe(total_queried)
@@ -1004,6 +1019,7 @@ async def _run_analysis(
             times=times,
             total_found=total_found,
             truncated=truncated,
+            snow_analysis_date=snow_analysis_date,
         )
     )
 

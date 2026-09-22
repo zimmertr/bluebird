@@ -12,6 +12,7 @@ const READY_POLYGON: AnalyzeGate = {
   hasPins: false,
   compareAqi: false,
   compareFreeze: false,
+  compareSnow: false,
 }
 
 describe('canAnalyze — ranked inputs', () => {
@@ -133,9 +134,9 @@ describe('analyzeBlockers', () => {
 
   // The two must agree, or the panel disables a button and gives no reason —
   // or gives a reason for a button that works. Exhaustive over every
-  // combination of the eight flags plus a representative point count each.
+  // combination of the nine flags plus a representative point count each.
   it('is non-empty exactly when canAnalyze is false', () => {
-    for (let bits = 0; bits < 256; bits++) {
+    for (let bits = 0; bits < 512; bits++) {
       for (const drawPointCount of [0, 2, 3]) {
         const gate: AnalyzeGate = {
           loading: false,
@@ -147,6 +148,7 @@ describe('analyzeBlockers', () => {
           datesPending: (bits & 32) !== 0,
           compareAqi: (bits & 64) !== 0,
           compareFreeze: (bits & 128) !== 0,
+          compareSnow: (bits & 256) !== 0,
         }
         const label = `${JSON.stringify(gate)} points=${drawPointCount}`
 
@@ -171,6 +173,7 @@ describe('a polygon with nothing checked', () => {
     datesPending: false,
     compareAqi: false,
     compareFreeze: false,
+    compareSnow: false,
     drawPointCount: 4,
   }
 
@@ -209,9 +212,22 @@ describe('a model selection the ranking cannot use', () => {
     expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-freeze'])
   })
 
+  // Snow depth comes off the pod's own snow analysis rather than any forecast
+  // model, so a comparison there is the air-quality case exactly (#449).
+  it('blocks a ranking on snow depth with models compared', () => {
+    const gate = { ...READY_POLYGON, compareSnow: true }
+    expect(canAnalyze(gate)).toBe(false)
+    expect(analyzeBlockers({ ...gate, drawPointCount: 4 })).toEqual(['compare-snow'])
+  })
+
+  it('lets a snow ranking through with one model selected', () => {
+    expect(canAnalyze({ ...READY_POLYGON, compareSnow: false })).toBe(true)
+    expect(analyzeBlockers({ ...READY_POLYGON, compareSnow: false, drawPointCount: 4 })).toEqual([])
+  })
+
   // The vetoes are about work already done, so they lead the missing-input
   // lines and follow the window's own problems.
-  it('reports both contradictions and keeps them in order', () => {
+  it('reports every contradiction and keeps them in order', () => {
     expect(
       analyzeBlockers({
         ...READY_POLYGON,
@@ -219,8 +235,9 @@ describe('a model selection the ranking cannot use', () => {
         datesPending: true,
         compareAqi: true,
         compareFreeze: true,
+        compareSnow: true,
       }),
-    ).toEqual(['dates', 'compare-aqi', 'compare-freeze'])
+    ).toEqual(['dates', 'compare-aqi', 'compare-freeze', 'compare-snow'])
   })
 
   // An input the reader has yet to give is still worth saying beside them.

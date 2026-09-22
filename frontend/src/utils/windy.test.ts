@@ -85,9 +85,12 @@ describe('which hour produced a cell', () => {
   })
 
   // An average and a window total are every hour at once, so they name none.
-  it('names no hour for an average or a total', () => {
+  // Snow depth names none for a different reason: it is today's one number and
+  // has no series at all, so the link opens at Windy's own "now" (#449).
+  it('names no hour for an average, a total or a snapshot', () => {
     expect(extremeHourMs('temp_avg_f', series(), TIMES)).toBeNull()
     expect(extremeHourMs('precip_total_in', series(), TIMES)).toBeNull()
+    expect(extremeHourMs('snow_depth_in', series(), TIMES)).toBeNull()
     expect(extremeHourMs('name', series(), TIMES)).toBeNull()
   })
 

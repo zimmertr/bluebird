@@ -161,30 +161,38 @@ describe('values a spreadsheet can compute over', () => {
     expect(csv).not.toContain('10,171')
   })
 
-  // The one column whose empty cell is not blank, and the same rule the
-  // wildfire column's N/A follows: a blank asserts something. Everywhere else
-  // it asserts "no value measured", which is true of a forecast that fell
-  // short; here it would assert that the freezing level was measured and came
-  // back empty, when the truth is that the chosen model publishes no such
-  // variable at all. The file is read detached from the app, with nothing
-  // around it to say which, so it carries the mark the screen shows.
-  it('writes the screen mark for a freezing level the model does not publish', () => {
+  // The columns whose empty cell is not blank, and the same rule the wildfire
+  // column's N/A follows: a blank asserts something. Everywhere else it
+  // asserts "no value measured", which is true of a forecast that fell short;
+  // here it would assert that the freezing level or the snow depth was
+  // measured and came back empty, when the truth is that the chosen model
+  // publishes no such variable and that the destination is outside the snow
+  // grid. The file is read detached from the app, with nothing around it to
+  // say which, so it carries the mark the screen shows.
+  it('writes the screen mark for a value that was never available', () => {
     const csv = buildResultsCsv(
       [row({ freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null })],
       WINDOW_COLUMNS,
       NO_FIRES,
     )
-    const freezeColumns = WINDOW_COLUMNS.filter((c) => c.key.startsWith('freeze_'))
+    const marked = WINDOW_COLUMNS.filter((c) => c.csvNull)
 
-    expect(freezeColumns).toHaveLength(3)
-    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(3)
+    expect(marked).toHaveLength(4)
+    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(4)
   })
 
-  // A row the model DID answer writes numbers, so the mark above can only ever
-  // mean the absence it names.
-  it('writes no mark where the model answered', () => {
+  // A row whose numbers ARE there writes numbers, so the mark above can only
+  // ever mean the absence it names.
+  it('writes no mark where every value was available', () => {
     const csv = buildResultsCsv(
-      [row({ freeze_min_ft: 9843, freeze_max_ft: 10171, freeze_avg_ft: 10007 })],
+      [
+        row({
+          freeze_min_ft: 9843,
+          freeze_max_ft: 10171,
+          freeze_avg_ft: 10007,
+          snow_depth_in: 62,
+        }),
+      ],
       WINDOW_COLUMNS,
       NO_FIRES,
     )

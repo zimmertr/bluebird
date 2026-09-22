@@ -666,6 +666,38 @@ export function windowPhrase(
  * under the line it qualifies rather than after it, so the preposition had
  * nothing to attach to and was costing a phone real width.
  */
+/**
+ * What the results header says instead of a window, while a snapshot metric
+ * ranks the field (#449).
+ *
+ * The window caption is the wrong statement under a snow ranking: the numbers
+ * the rows are ordered by came off one day's analysis and would read the same
+ * for any window the panel could ask for. So the caption names the day the
+ * grid is from, and the noun is spelled by `metrics.ts` like every other.
+ *
+ * The date is parsed as a LOCAL day rather than through `Date.parse`, which
+ * reads a bare `YYYY-MM-DD` as UTC midnight and would print the day before
+ * everywhere west of Greenwich. `needsYear` is asked the same question the
+ * window caption asks it — both ends of a one-day span — so a grid from last
+ * winter carries its year exactly as a report from last winter does.
+ *
+ * Returns null for a date it cannot read, which is a server that sent one this
+ * build does not understand: no caption is better than `as of Invalid Date`.
+ */
+export function snapshotCaption(
+  noun: string,
+  analysisDate: string,
+  now: Date = new Date(),
+): string | null {
+  const parts = analysisDate.split('-').map(Number)
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null
+  const [year, month, day] = parts
+  const at = new Date(year, month - 1, day)
+  if (Number.isNaN(at.getTime())) return null
+  const ms = at.getTime()
+  return `${noun} as of ${monthDay(ms, needsYear(ms, ms, now))}`
+}
+
 export function windowCaption(
   kind: SelectionKind,
   startMs: number,

@@ -1,12 +1,29 @@
 from __future__ import annotations
 
+import time
+
+import pytest
 from fastapi.testclient import TestClient
+from test_snodas import a_snapshot
 
 from app import ratelimit
 from app.main import app
 from app.models import MAX_ANALYZE_PEAKS
 from app.services import osm as osm_mod
+from app.services import snodas
 from app.services.errors import UpstreamError
+
+
+def _hold_grid(monkeypatch, snapshot) -> None:
+    """A snow cache already holding one grid, and fetching nothing."""
+
+    async def refuse():
+        raise AssertionError("the route must not fetch a grid")
+
+    cache = snodas.snow_cache(fetch=refuse)
+    cache._snapshot = snapshot
+    cache._fresh_until = time.monotonic() + 3600
+    monkeypatch.setattr(snodas, "GRID", cache)
 
 client = TestClient(app)
 
@@ -295,3 +312,54 @@ def test_over_cap_union_speaks_generically(monkeypatch):
     assert "destinations" in detail
     assert "trim" not in detail.lower()
     assert resp.json()["error"] == {"code": "refusal", "retryable": False}
+
+
+# ── Snow depth (#449) ──────────────────────────────────────────────────────
+#
+# The grid is held by the pod, so discovery is where a browser analysis gets
+# its snow number: the SPA fetches its own forecasts and never asks the server
+# for weather at all.
+
+
+def _in_grid(name: str) -> dict:
+    """A peak inside test_snodas's synthetic grid, in its one-metre cell."""
+    return {**_peak(name), "latitude": 39.5, "longitude": -98.5}
+
+
+def test_fills_snow_depth_and_names_the_grids_date(monkeypatch):
+    _stub_osm(monkeypatch, [_in_grid("Alpha"), _peak("Elsewhere")])
+    _hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post("/api/destinations", json=_payload()).json()
+    assert body["snow_analysis_date"] == "2026-09-22"
+    depths = {d["name"]: d["snow_depth_in"] for d in body["destinations"]}
+    assert depths["Alpha"] == pytest.approx(39.3701)
+    # Outside the grid's box, which is the same answer as a pod with no grid
+    # and is why the column reads N/A rather than zero.
+    assert depths["Elsewhere"] is None
+
+
+def test_answers_nulls_and_no_date_while_no_grid_is_held(monkeypatch):
+    # conftest leaves the cache on its never-fetched path, which is the state a
+    # pod is in for the first seconds after a restart.
+    _stub_osm(monkeypatch, [_in_grid("Alpha")])
+    body = client.post("/api/destinations", json=_payload()).json()
+    assert body["snow_analysis_date"] is None
+    assert body["destinations"][0]["snow_depth_in"] is None
+
+
+def test_fills_a_resolved_custom_row_too(monkeypatch):
+    # A pasted coordinate is a destination like any other, and the fill runs
+    # after the custom merge so it reaches both kinds of row.
+    _stub_osm(monkeypatch, [])
+    _hold_grid(monkeypatch, a_snapshot("2026-09-22"))
+    body = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [
+                {"name": "Pasted", "latitude": 38.5, "longitude": -99.5},
+            ],
+        },
+    ).json()
+    assert body["destinations"][0]["snow_depth_in"] == pytest.approx(100.0)
+    assert body["snow_analysis_date"] == "2026-09-22"

@@ -55,11 +55,11 @@ export type ColoredFamily = MetricFamily
 
 // Scales are anchored to absolute conditions, not to the chosen ranking
 // direction — ranking "highest" simply surfaces the far end of the same scale
-// first. Three of the five run green (dry/calm/clean) through red to purple,
+// first. Three of the six run green (dry/calm/clean) through red to purple,
 // because they measure something a hiker wants less of and the purple top is
 // where "less of" stops being advice (#445). Temperature has a bad end on
-// both sides and its green in the middle; the freezing level encodes a height
-// rather than a verdict; each says why on its own entry.
+// both sides and its green in the middle; the freezing level and snow depth
+// encode a quantity rather than a verdict; each says why on its own entry.
 //
 // Every scale has SIX bands, and the count is what `scaleTicks` in
 // `legendRamp.ts` reads the map legend's three tick positions off — its
@@ -155,6 +155,34 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     thresholds: [4000, 8000, 12000, 16000, 20000],
     colors: ['#d8b4fe', '#c4b5fd', '#a5b4fc', '#93c5fd', '#38bdf8', '#67e8f9'],
     unit: UNIT.freeze,
+  },
+  // The freezing level's six shades, run the other way: cyan at the bottom
+  // through sky, blue, indigo and violet to purple at the top. Not a verdict,
+  // for the reason that ramp is not one — deep snow is what a skier drove out
+  // for and what stops a scrambler at the trailhead — so the hue encodes DEPTH
+  // and the two cold ramps read as one family seen from either end.
+  //
+  // The thresholds are the snow LAYER's own tick numbers (`snowDepth.ts`,
+  // NOAA's classes) plus one at 20 inches. The layer's numbers are what a
+  // reader meets on the map, so a marker banding somewhere else would be two
+  // scales over one quantity; the extra boundary is there because the map
+  // legend prints every OTHER threshold (`scaleTicks`), and five of them is
+  // what makes 1, 20 and 400 the three printed — a foot of snow, a season's
+  // pack, and the year-round ice a glaciated summit reads.
+  //
+  // 400 inches is not a typo and not an outlier to clip. Over permanent ice
+  // SNODAS accumulates year over year, so Mount Rainier's summit reads about
+  // 1,290 inches (measured 2026-09-22), and a top band that stopped at a
+  // season's depth would paint every glacier in the Cascades one colour.
+  //
+  // EVERY STEP IS A 300 OR A 400, which is the freezing level's contrast
+  // constraint inherited whole: `cellStyle` paints the band as the text, text
+  // owes 4.5:1, and these six clear it at 4.57 to 6.02. The measurements are
+  // pinned in `colors.test.ts` against the same three surfaces.
+  snow: {
+    thresholds: [1, 4, 20, 40, 400],
+    colors: ['#67e8f9', '#38bdf8', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe'],
+    unit: UNIT.snow,
   },
   // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
   // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top

@@ -3,7 +3,7 @@ import { MetricFamily, familyOf, metricLabel, windowAggregate } from '../metrics
 import { ColDef, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
-import { freezeCellText, isFreezeKey } from './freezingLevel'
+import { isUnavailableKey, unavailableCellText } from './unavailableCell'
 
 /**
  * A marker popup's body, derived from the columns the results table is showing
@@ -60,15 +60,16 @@ export type PopupIdentity = {
  * The value a column reads on a row, formatted exactly as the table's cell
  * formats it.
  *
- * The freezing level is the one metric a model can decline to publish, and
- * five of the eight do. It keeps the table's N/A mark rather than the dash a
- * genuinely missing hour gets, and it carries no link: a mark saying the model
- * publishes no freezing level has nothing for Windy to show.
+ * Two metrics can be empty for a reason that is not the weather — the model
+ * publishes no freezing level, or the destination is outside the snow grid.
+ * Both keep the table's N/A mark rather than the dash a genuinely missing hour
+ * gets, and neither carries a link: a mark saying a number was never available
+ * has nothing for Windy to show.
  */
 function cellText(col: ColDef, row: DestinationResult): { text: string; linkable: boolean } {
   const raw = row[col.key as keyof DestinationResult]
-  if (isFreezeKey(col.key as string)) {
-    const note = freezeCellText(raw)
+  if (isUnavailableKey(col.key as string)) {
+    const note = unavailableCellText(raw)
     if (note !== null) return { text: note, linkable: false }
   }
   // A null never reaches a formatter, which is `resultsCsv.ts`'s rule for the

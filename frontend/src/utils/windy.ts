@@ -116,6 +116,10 @@ interface Extreme {
  * the hour of one is not always the hour of the other. The maintainer chose to
  * link it anyway and to say so in the app instead (issue #361).
  */
+// Snow depth names no hour at all, which is why it is absent from the table
+// below rather than mapped to a series: it is one number for today, so its
+// cell links to Windy's snow cover at the destination and lets Windy open at
+// its own "now" (#449).
 const EXTREME: Readonly<Record<string, Extreme>> = {
   temp_min_f: { field: 'temp_f', lowest: true },
   temp_max_f: { field: 'temp_f', lowest: false },

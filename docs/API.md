@@ -501,6 +501,7 @@ number or omitted, and they combine as an AND:
 | `min_temp_f` / `max_temp_f` | its `temp_min_f` is at or above the floor **and** its `temp_max_f` at or below the ceiling |
 | `min_wind_mph` / `max_wind_mph` | its `wind_min_mph` is at or above the floor **and** its `wind_max_mph` at or below the ceiling |
 | `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
+| `min_snow_depth_in` / `max_snow_depth_in` | its `snow_depth_in` is inside the range |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
 
 ```bash
@@ -613,6 +614,7 @@ curl -s https://bluebirdforecast.com/api/analyze \
     "aqi_avg": 31,
     "aqi_min": 18,
     "aqi_max": 47,
+    "snow_depth_in": 1290,
     "series": null
   }
 }
@@ -754,6 +756,53 @@ identical numbers and none of them is a reading at that summit. And `us_aqi` is
 the US EPA scale applied worldwide, not the index the surrounding country
 publishes. [DATA.md's air quality section](DATA.md#air-quality) has
 the reasoning, along with the equivalent caveats for the other providers.
+
+Snow depth is the one field on a row that is not a forecast at all.
+`snow_depth_in` is how much snow is on the ground **today**, in inches, read
+from the NOHRSC SNODAS 1 km grid this server holds. It is the same number
+whatever window you asked for, it has no minimum, mean or maximum, and
+`series` carries no hourly counterpart. `snow_analysis_date` on the response
+says which day's analysis answered, as `YYYY-MM-DD`; NSIDC publishes each day's
+grid around 13:15 UTC, and before that the previous day's is the current one.
+`POST /api/destinations` carries both fields too, because the number comes from
+discovery rather than from the forecast fetch.
+
+It is `null` in two cases that mean the same thing: the destination is outside
+the grid, which covers the contiguous United States, southern Canada and
+northern Mexico, or this instance holds no grid yet. Neither is a statement
+about the ground, so a null passes either bound and ranks last in either
+direction, exactly as a null AQI does. A grid this instance has never fetched
+answers `null` on every row and `null` for `snow_analysis_date`; a missing grid
+never fails an analysis.
+
+**Over permanent ice, read the number as ice.** SNODAS does not melt permanent
+snow and ice out, so the depth there accumulates year over year: Mount
+Rainier's summit answered 1,290 in on 2026-09-22, which is the worked example
+above. [DATA.md's snow depth section](DATA.md#snow-depth) has the rest.
+
+```bash
+curl -s https://bluebirdforecast.com/api/destinations \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "destination_types": [],
+    "custom_destinations": [
+      { "name": "Mt Rainier", "latitude": 46.8523, "longitude": -121.7603 },
+      { "name": "Paradise",   "latitude": 46.7860, "longitude": -121.7350 },
+      { "name": "Denali",     "latitude": 63.0700, "longitude": -151.0000 }
+    ]
+  }' | jq '{snow_analysis_date, rows: [.destinations[] | {name, snow_depth_in}]}'
+```
+
+```json
+{
+  "snow_analysis_date": "2026-09-22",
+  "rows": [
+    { "name": "Mt Rainier", "snow_depth_in": 1290.04 },
+    { "name": "Paradise", "snow_depth_in": 0 },
+    { "name": "Denali", "snow_depth_in": null }
+  ]
+}
+```
 
 ## When something goes wrong
 

@@ -2,7 +2,7 @@ import type { FeatureCollection } from 'geojson'
 import { DestinationResult, SortBy } from '../types'
 import { colorOnScale, hourlyScale, markerColor } from './colors'
 import { valueAt } from './chartData'
-import { familyOf } from '../metrics'
+import { familyOf, isSnapshotFamily } from '../metrics'
 
 // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day horizon), and
 // scrubbing playback past that horizon hits the same gap an hour at a time.
@@ -27,15 +27,22 @@ export const NO_VALUE = '#64748b'
  * hour, and for precipitation those are different quantities entirely (see
  * `hourlyScale`). `valueAt` is the chart's own reader, so the hour a marker is
  * colored for is the hour the chart draws at the same playhead.
+ *
+ * A snapshot ranking has no hours to read, so playback leaves its markers on
+ * the value they rank by (#449). That is the honest picture rather than a
+ * special case: the playhead moves over a grid of forecasts, and today's snow
+ * depth is the same number at every one of them — it is the OTHER layers the
+ * reader is scrubbing.
  */
 export function fillColor(
   row: DestinationResult,
   sortBy: SortBy,
   hourIndex: number | null,
 ): string {
-  if (hourIndex !== null) {
+  const family = familyOf(sortBy)
+  if (hourIndex !== null && !isSnapshotFamily(family)) {
     const scale = hourlyScale(sortBy)
-    const value = valueAt(row, familyOf(sortBy), hourIndex)
+    const value = valueAt(row, family, hourIndex)
     return value == null || scale === null ? NO_VALUE : colorOnScale(value, scale)
   }
   // Every metric carries a scale now, so the null branch is the type's rather

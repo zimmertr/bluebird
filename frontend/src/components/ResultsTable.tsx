@@ -32,7 +32,8 @@ import {
   fireWarningText,
 } from '../utils/fireProximity'
 import type { FireProximityStatus } from '../hooks/useFireProximity'
-import { FREEZE_UNAVAILABLE_NOTE, freezeCellText, isFreezeKey } from '../utils/freezingLevel'
+import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from '../utils/freezingLevel'
+import { isUnavailableKey, unavailableCellText } from '../utils/unavailableCell'
 import { destinationUrl } from '../utils/destinationUrl'
 import { extremeHourMs, windyUrl } from '../utils/windy'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
@@ -548,22 +549,28 @@ function ResultsTable({
         )
       }
       const raw = row[col.key]
-      // The freezing level is the one metric a model can decline to publish,
-      // and five of the eight do. An empty cell there is not a gap in the
-      // weather, so it wears the wildfire column's N/A idiom — the mark plus
-      // hover text saying why — rather than the dash a missing AQI hour gets.
-      const freezeNote = isFreezeKey(col.key as string) ? freezeCellText(raw) : null
-      if (freezeNote !== null) {
+      // Two metrics can decline to answer for a reason that is not the
+      // weather: the model publishes no freezing level, or the destination is
+      // outside the snow grid. An empty cell in either is not a gap in the
+      // forecast, so it wears the wildfire column's N/A idiom rather than the
+      // dash a missing AQI hour gets.
+      //
+      // Only one of them has a cause a reader can act on, and so only one
+      // carries hover text: the model is a control in the panel, where a
+      // destination's place on the map is not (TJ, 2026-09-22).
+      const missing = isUnavailableKey(col.key as string) ? unavailableCellText(raw) : null
+      if (missing !== null) {
+        const cause = isFreezeKey(col.key as string) ? FREEZE_UNAVAILABLE_NOTE : undefined
         return (
           <td key={col.key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
             {sized(
               col.key as string,
               <span
-                title={FREEZE_UNAVAILABLE_NOTE}
-                aria-label={FREEZE_UNAVAILABLE_NOTE}
-                className="cursor-help"
+                title={cause}
+                aria-label={cause}
+                className={cause ? 'cursor-help' : undefined}
               >
-                {freezeNote}
+                {missing}
               </span>,
             )}
           </td>

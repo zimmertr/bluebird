@@ -146,10 +146,12 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out!.sortBy).toBe(base.sortBy)
   })
 
+  // Read off RANKING_KEYS rather than a list here, so a new ranking key cannot
+  // be offered in the picker and refused by the address bar.
   it('restores every sortable metric', () => {
-    expect(roundTrip({ ...base, sortBy: 'wind_avg_mph' })!.sortBy).toBe('wind_avg_mph')
-    expect(roundTrip({ ...base, sortBy: 'temp_avg_f' })!.sortBy).toBe('temp_avg_f')
-    expect(roundTrip({ ...base, sortBy: 'aqi_avg' })!.sortBy).toBe('aqi_avg')
+    for (const key of RANKING_KEYS) {
+      expect(roundTrip({ ...base, sortBy: key })!.sortBy, key).toBe(key)
+    }
   })
 
   it('round-trips the sort direction', () => {
@@ -422,6 +424,8 @@ describe('encodeState', () => {
       maxWindMph: 20,
       minFreezeFt: 6000,
       maxFreezeFt: 12000,
+      minSnowDepthIn: 2,
+      maxSnowDepthIn: 60,
       minAqi: 10,
       maxAqi: 100,
     }
@@ -431,7 +435,15 @@ describe('encodeState', () => {
     expect(new URLSearchParams(qs).get('maxaqi')).toBe('100')
     expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
+    expect(new URLSearchParams(qs).get('minsnow')).toBe('2')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
+  })
+
+  // A snapshot has one key and no dropdown, so there is no aggregate choice to
+  // carry and no family param to write (#449).
+  it('writes no family param for a snapshot row', () => {
+    const qs = encodeState({ ...base, sortBy: 'precip_total_in' }, DEFAULT_MODEL)
+    expect(new URLSearchParams(qs).get('snow')).toBeNull()
   })
 
   it('leaves a bound out of the decode when the link carries none', () => {
@@ -616,6 +628,7 @@ describe('decodeState tolerance', () => {
         wind: 'wind_max_mph',
         temp: 'temp_min_f',
         freeze: 'freeze_min_ft',
+        snow: 'snow_depth_in',
         aqi: 'aqi_avg',
       })
       expect(out!.sortBy).toBe('precip_total_in')
