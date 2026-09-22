@@ -183,7 +183,10 @@ The rows read in alphabetical order, and one of them draws nothing: **Forecast p
 timeline bar at the bottom of the map on and off. It is on by default in a
 desktop-sized window and off on a phone, where the bar is a band across a map the
 report already stands on. It changes nothing about the ranking either, and once
-you have set it, it rides in the shared link like the four above.
+you have set it, it rides in the shared link like the four above. It goes gray when
+nothing on the map spans time, which is a report of one hour with the rain radar
+off. Every row stays in the list whether or not it applies, so the list is the same
+length every time you open it.
 
 Clicking a perimeter names the fire and links to it on NIFC's live map; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
@@ -232,13 +235,14 @@ the layer comes back.
 
 A segment under the row picks how it is drawn, and both readings are true:
 
-- **Blocks** (the default) draws each point as its own square. You can see and count
-  the points, so how much detail the forecast actually has is visible rather than
-  stated. The hard edges are the one thing it overstates: the model has no boundary
-  there.
-- **Smooth** draws the space between the points, which is how every other forecast
-  map reads and is the honest shape of something the model already treats as
-  continuous. What it hides is how few points are underneath.
+- **Smooth** (the default) draws the space between the points, which is how every
+  other forecast map reads and is the honest shape of something the model already
+  treats as continuous. It also matches the markers standing on it, which take a
+  color from anywhere on the scale. What it hides is how few points are underneath,
+  which is what the pitch beside the layer's name in the legend states.
+- **Blocks** draws each point as its own square. You can see and count the points,
+  so how much detail the forecast actually has is visible rather than stated. The
+  hard edges are the one thing it overstates: the model has no boundary there.
 
 Switching costs nothing. It is the same data drawn two ways, so it applies instantly
 and rides in the shared link. The segment and the coverage slider show only while the

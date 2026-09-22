@@ -749,7 +749,7 @@ export default function App() {
   // that cannot overstate what was sampled, since one square is one forecast
   // and a reader can count them. Purely presentation over held samples, so
   // switching costs one re-render and nothing upstream.
-  const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'blocks')
+  const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'smooth')
   // The coverage slider's committed BAR POSITION in [0, 1] — the kilometres
   // derive from the model's pitch, so the position means the same thing on
   // every model. Changing it re-grids on its own — the layer fetches for
@@ -1904,9 +1904,18 @@ export default function App() {
       // points at: a tooltip does not exist on touch or to a screen reader.
       note: 'The forecast grid is not available for archival data.',
     },
-    ...(playerOffered
-      ? [{ key: 'player', label: 'Forecast player', checked: playerShown, onChange: setShowPlayer }]
-      : []),
+    // Always in the list, gray when nothing spans time (#460). It used to join
+    // and leave the list on the radar toggle, which moved every row under it.
+    // `CHOICE_ROW` fades the label with its checkbox, and there is no `note`:
+    // the gray row is the whole message, where a sentence about a control
+    // would be a tooltip by another name (TJ, 2026-09-22).
+    {
+      key: 'player',
+      label: 'Forecast player',
+      checked: playerShown,
+      onChange: setShowPlayer,
+      disabled: !playerOffered,
+    },
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
     { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },

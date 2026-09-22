@@ -485,9 +485,14 @@ rendered image.
 Neither of them decides how a scale is DRAWN. That is `utils/legendRamp.ts`,
 which turns a band table into the legend's strip and the tick numbers on it, and
 is shared by the metric key and the snow key so the map cannot carry two shapes
-of scale. It also decides whether a strip blends, and that follows the data:
-a metric marker is interpolated between anchors so its strip blends, where
-NOAA's bands are a classification so its strip is hard-stopped. The ticks are
+of scale. **Every strip blends**, mirroring `interpolateRgb`, which is what makes
+a metric strip a picture of its own markers. The snow strip was hard-stopped
+until #460, because NOAA's bands are a classification and a gradient shows
+depths NOAA never assigned a colour to; that cost is accepted rather than
+solved, because one box holding a strip of blocks beside a strip of gradient
+reads as two systems (TJ, 2026-09-22). A blend makes a band an anchor at a
+boundary rather than a block between two, so colour `i` lands at boundary
+`i + 1` and a tick naming that band is placed there. The ticks are
 the thresholds themselves, formatted — never a caption written beside them — and
 they carry no unit: the section's label does, composed by `metricLabel` in
 `metrics.ts` from the SCALE's own unit, so playback's swap to the hourly rate

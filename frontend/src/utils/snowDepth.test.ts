@@ -90,14 +90,18 @@ describe('the band table', () => {
 })
 
 describe('the legend strip', () => {
-  it('draws one hard-edged block per drawn band', () => {
+  it('blends, like every other scale on the map', () => {
     const css = snowRampCss()
-    // Two stops per band is what makes each one a block rather than a blend:
-    // the boundaries are the service's classification, and a gradient across
-    // them would colour depths NOAA never classified.
-    for (const band of SNOW_RAMP) {
-      expect(css.split(band.color!).length - 1).toBe(2)
+    // One stop per band past the first is what makes the strip a ramp rather
+    // than eleven blocks. It was two stops each until #460: NOAA's boundaries
+    // are a classification and the blend shows depths between them, which TJ
+    // accepted on 2026-09-22 so that one legend box holds one kind of scale.
+    for (const band of SNOW_RAMP.slice(1)) {
+      expect(css.split(band.color!).length - 1).toBe(1)
     }
+    // The first anchor is named twice, holding band 0 flat to its own
+    // boundary, which is what `interpolateRgb` does below the first threshold.
+    expect(css.split(SNOW_RAMP[0].color!).length - 1).toBe(2)
     expect(css).toContain('0%')
     expect(css).toContain('100%')
   })
@@ -109,10 +113,20 @@ describe('the legend strip', () => {
     expect(snowTicks().map((t) => t.label)).toEqual(['0', '4', '40', '400'])
   })
 
-  it('puts every tick on a real band boundary', () => {
+  it('puts every tick on the boundary that carries its own band colour', () => {
     // The positions are NOAA's own classification, not the rounded numbers
     // printed over them: 0.39, 3.9, 39 and 394 in.
-    expect(snowTicks().map((t) => SNOW_RAMP[t.at]?.from)).toEqual([0.39, 3.9, 39, 394])
+    //
+    // A blended strip puts band `i`'s anchor at boundary `i + 1`, so a tick
+    // naming that band sits one boundary right of where the band starts — and
+    // the top tick sits ON its band index, because `end` alignment hangs it
+    // from the far side of that column and lands it on the same anchor (#460).
+    const ticks = snowTicks()
+    const bandOf = (t: (typeof ticks)[number], i: number) =>
+      SNOW_RAMP[i === ticks.length - 1 ? t.at : t.at - 1]?.from
+    expect(ticks.map(bandOf)).toEqual([0.39, 3.9, 39, 394])
+    // The colour each tick stands on is its own band's, never its neighbour's.
+    expect(ticks.map((t) => t.at)).toEqual([1, 3, 6, 10])
   })
 
   it('ends on the start of the top band, not on its ceiling', () => {
@@ -128,12 +142,12 @@ describe('the legend strip', () => {
   })
 
   it('hangs each label from the nearest edge that keeps it in the box', () => {
-    // `400 in` is wider than a band and its boundary is one band in from the
-    // right edge, so a label hung there would run past the legend box. `0` is
-    // on the strip's own left edge and hangs the other way for the same
-    // reason. Everything between is centred on its boundary, the way a colour
-    // bar's numbers are (#454).
-    expect(snowTicks().map((t) => t.align)).toEqual(['start', 'center', 'center', 'end'])
+    // `400` is wider than a band and its boundary is one band in from the
+    // right edge, so a label hung there would run past the legend box.
+    // Everything else is centred on its boundary, the way a colour bar's
+    // numbers are (#454). `0` was the one START case and lost it when the
+    // blend moved it a boundary right (#460).
+    expect(snowTicks().map((t) => t.align)).toEqual(['center', 'center', 'center', 'end'])
   })
 
   it('reads left to right', () => {

@@ -138,20 +138,20 @@ export const SNOW_BANDS: readonly SnowBand[] = [
 export const SNOW_RAMP: readonly SnowBand[] = SNOW_BANDS.filter((b) => b.color !== null)
 
 /**
- * The ramp as one CSS background, hard-stopped so each band is its own block.
+ * The ramp as one CSS background, blended like every other scale on the map.
  *
- * Hard stops rather than the metric scales' blend, because these bands are the
- * service's own classification and a gradient between them would invent depths
- * NOAA never assigned a colour to. Equal widths, because the boundaries are
- * near-logarithmic (0.39 to 787 in eleven steps) and a strip drawn to scale
- * would be ten bands in the first two pixels — which `rampCss` does for every
- * scale on the map, so this is one call rather than a second answer (#454).
+ * It was hard-stopped until #460, because these bands are the service's own
+ * classification and a gradient between them shows depths NOAA never assigned a
+ * colour to. That cost is accepted rather than solved: one legend box holding a
+ * strip of blocks beside a strip of gradient reads as two systems, and the
+ * reader meets the box long before they meet the distinction (TJ, 2026-09-22).
+ * Equal widths, because the boundaries are near-logarithmic (0.39 to 787 in
+ * eleven steps) and a strip drawn to scale would be ten bands in the first two
+ * pixels — which `rampCss` does for every scale on the map, so this is one call
+ * rather than a second answer (#454).
  */
 export function snowRampCss(): string {
-  return rampCss(
-    SNOW_RAMP.map((band) => band.color as string),
-    false,
-  )
+  return rampCss(SNOW_RAMP.map((band) => band.color as string))
 }
 
 /**
@@ -196,8 +196,19 @@ export function snowTicks(): RampTick[] {
     at: SNOW_RAMP.findIndex((band) => band.from === inches),
   })).filter((tick) => tick.at >= 0)
 
+  // A tick stands on the boundary that carries its band's COLOUR, and on a
+  // blended strip that is one boundary to the right of where the band starts:
+  // `rampCss` puts colour `i` at boundary `i + 1`. So every tick passes its
+  // band index plus one, and the top tick passes the index itself, because its
+  // `end` alignment already hangs it from the far side of its column and would
+  // otherwise run off the strip (#460). Hard-stopped, every tick sat on its
+  // band's left edge and the two middle ones named the colour to their left.
+  const last = found.length - 1
   return rampTicks(
-    found.map(({ inches, at }) => ({ at, text: at === 0 ? '0' : roundedInches(inches) })),
+    found.map(({ inches, at }, i) => ({
+      at: i === last ? at : at + 1,
+      text: at === 0 ? '0' : roundedInches(inches),
+    })),
   )
 }
 

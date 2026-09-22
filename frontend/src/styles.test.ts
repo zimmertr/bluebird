@@ -2067,6 +2067,27 @@ describe('the map layer rows', () => {
   it('lists the layers in alphabetical order', () => {
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
   })
+
+  // Every row is in the list every time (#460). `Forecast player` used to be
+  // spread in behind `playerOffered`, so switching the rain radar off took a
+  // row out of the middle of the list and moved every row under it. A row that
+  // does not apply now greys instead, which is what the `Forecast grid` row
+  // already did and what `CHOICE_ROW` fades on its own.
+  it('spreads no row in and out of the list', () => {
+    const block = appSource.match(/const MAP_LAYERS = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
+    expect(block).not.toContain('...(')
+    expect(labels).toContain('Forecast player')
+  })
+
+  // A greyed row says it is out of play by fading, and says nothing else. The
+  // `Forecast grid` row's own `note` is older approved copy and stays; the
+  // player takes none, because a sentence explaining a control is a tooltip by
+  // another name (TJ, 2026-09-22).
+  it('greys the player row rather than writing it a reason', () => {
+    const row = appSource.match(/\{[^{}]*label: 'Forecast player'[\s\S]*?\n {4}\}/)?.[0] ?? ''
+    expect(row).toContain('disabled: !playerOffered')
+    expect(row).not.toContain('note:')
+  })
 })
 
 // The map's one legend box (#454): the metric key and a section per layer that

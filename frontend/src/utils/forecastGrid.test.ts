@@ -4,6 +4,7 @@ import {
   GRID_REACH_DEFAULT_FRAC,
   GRID_REACH_MAX_X,
   GRID_REACH_MIN_X,
+  GRID_STYLES,
   MAX_GRID_CELLS,
   MAX_IMAGE_DIM,
   buildGrid,
@@ -14,6 +15,7 @@ import {
   gridLegendLine,
   gridImageCoordinates,
   gridRaster,
+  isGridStyle,
   pairCells,
   pitchLabel,
   type GridCell,
@@ -397,6 +399,31 @@ describe('gridAllowed', () => {
 // checkbox, the fetch, the sub-choices and the legend, and none of that is
 // reachable from the node-env Vitest — so the source is read as text, the same
 // drift-guard idiom useCapabilities.test.ts uses for the published caps.
+// One drawing for every scale on the map (TJ, 2026-09-22). The grid painted a
+// hard rectangle per sample while `blocks` was the default, where the markers
+// standing on it take a continuous colour from `interpolateRgb`.
+describe('the grid opens as a field rather than as blocks', () => {
+  it('starts on the smooth style', () => {
+    expect(appSource).toContain("restored?.gridStyle ?? 'smooth'")
+  })
+
+  // The segment stays, and so does the parameter behind it. `grid=blocks` is a
+  // link somebody has already shared, and the blocks view is the one that shows
+  // how few samples are under the field, which is worth keeping reachable.
+  it('keeps both styles reachable and shareable', () => {
+    expect(GRID_STYLES).toEqual(['blocks', 'smooth'])
+    expect(isGridStyle('blocks')).toBe(true)
+  })
+
+  // `raster-resampling` is the whole switch: one raster layer under two
+  // magnification filters, so the default moves a paint property and nothing
+  // else. A second layer would be a second thing to keep in step.
+  it('changes a paint property and not a layer', () => {
+    expect(mapViewSource).toContain("gridStyle === 'smooth' ? 'linear' : 'nearest'")
+    expect(mapViewSource.match(/'raster-resampling'/g)).toHaveLength(2)
+  })
+})
+
 describe('the grid layer reads that decision rather than re-deriving one', () => {
   it('gates the checkbox, the fetch and every grid surface on one flag', () => {
     // One call, so there is one answer.
