@@ -17,9 +17,11 @@ therefore falls back one day, the way ``hms.py`` does, rather than reporting an
 outage: before publication, yesterday's grid is the current analysis.
 
 **It is the UNMASKED product.** The masked variant covers the contiguous US
-only. Unmasked reaches 24.1N to 58.2N and 130.5W to 62.2W, which adds southern
-Canada and is what puts the North Cascades' Canadian side inside the answer.
-Everything outside the box reads null.
+only. Unmasked reaches 24.1N to 58.23N and 130.5W to 62.25W, which covers the
+contiguous United States, southern Canada and northern Mexico, and is what puts
+the North Cascades' Canadian side inside the answer. It is the same box the
+map's snow layer draws, so a marker and the layer under it agree on where the
+analysis exists. Everything outside it reads null.
 
 **It is one flat array of big-endian int16.** 8192 by 4096 samples, 67,108,864
 bytes, row-major from the north-west corner, in the unit the header declares
@@ -186,8 +188,14 @@ class Snapshot:
         inside the box). Both are "this was never measured", which is why the
         column reads N/A rather than zero.
 
-        Floor rather than round: a sample owns the cell that starts at its
-        origin, and rounding would shift every answer half a cell north-west.
+        Floor rather than round for the CELL: a sample owns the cell that
+        starts at its origin, and rounding would shift every answer half a cell
+        north-west.
+
+        The inches themselves are rounded to two places. The grid is whole
+        millimetres, so the digits past that are the conversion factor's own
+        binary noise (``1290.0400667000001`` for a reading of 32766 mm) and
+        every surface that shows the number shows fewer digits than that.
         """
         column = math.floor((longitude - self.min_x) / self.res_x)
         row = math.floor((self.max_y - latitude) / self.res_y)
@@ -196,13 +204,33 @@ class Snapshot:
         value = _SAMPLE.unpack_from(self.samples, _BYTES_PER_PIXEL * (row * self.columns + column))[0]
         if value == self.no_data:
             return None
-        return value / self.units_divisor * INCHES_PER_METER
+        return round(value / self.units_divisor * INCHES_PER_METER, 2)
+
+
+# The month segment of a path, as NSIDC spells it. Spelled here rather than
+# taken from ``%b``, which reads the C library's locale: a pod whose locale is
+# not English would build ``09_sept`` and get a 404 for every day of the year.
+_MONTH_ABBREVIATIONS = (
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+)
 
 
 def tar_url(day: date) -> str:
     """Where a day's archive lives. The month segment carries its own name, as
     ``09_Sep``, which is NSIDC's own layout rather than a choice here."""
-    return f"{BASE_URL}/{day:%Y}/{day:%m_%b}/SNODAS_unmasked_{day:%Y%m%d}.tar"
+    month = f"{day.month:02d}_{_MONTH_ABBREVIATIONS[day.month - 1]}"
+    return f"{BASE_URL}/{day:%Y}/{month}/SNODAS_unmasked_{day:%Y%m%d}.tar"
 
 
 def _members(archive: tarfile.TarFile) -> tuple[str, str]:
@@ -300,7 +328,7 @@ async def fetch_snapshot(
     request rather than 4.9 MB.
 
     The held-date check is what makes the refresh cheap on the common path: for
-      most of the day the answer is "the grid you already have", and re-reading
+    most of the day the answer is "the grid you already have", and re-reading
     64 MiB to learn that would be the whole cost of the TTL.
     """
     today = (now or datetime.now(UTC)).date()

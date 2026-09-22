@@ -332,7 +332,7 @@ def test_fills_snow_depth_and_names_the_grids_date(monkeypatch):
     body = client.post("/api/destinations", json=_payload()).json()
     assert body["snow_analysis_date"] == "2026-09-22"
     depths = {d["name"]: d["snow_depth_in"] for d in body["destinations"]}
-    assert depths["Alpha"] == pytest.approx(39.3701)
+    assert depths["Alpha"] == 39.37
     # Outside the grid's box, which is the same answer as a pod with no grid
     # and is why the column reads N/A rather than zero.
     assert depths["Elsewhere"] is None

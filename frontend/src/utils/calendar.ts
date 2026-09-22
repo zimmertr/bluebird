@@ -657,16 +657,6 @@ export function windowPhrase(
 }
 
 /**
- * The analyzed window, stated on screen over the results.
- *
- * A multi-hour analysis used to carry no caption at all, so someone opening a
- * shared link had nothing on screen telling them which days they were reading.
- * The click-time sample keeps its own wording: it says when it was taken, where
- * a chosen window simply names itself. The window carries no "for": it sits
- * under the line it qualifies rather than after it, so the preposition had
- * nothing to attach to and was costing a phone real width.
- */
-/**
  * What the results header says instead of a window, while a snapshot metric
  * ranks the field (#449).
  *
@@ -698,6 +688,16 @@ export function snapshotCaption(
   return `${noun} as of ${monthDay(ms, needsYear(ms, ms, now))}`
 }
 
+/**
+ * The analyzed window, stated on screen over the results.
+ *
+ * A multi-hour analysis used to carry no caption at all, so someone opening a
+ * shared link had nothing on screen telling them which days they were reading.
+ * The click-time sample keeps its own wording: it says when it was taken, where
+ * a chosen window simply names itself. The window carries no "for": it sits
+ * under the line it qualifies rather than after it, so the preposition had
+ * nothing to attach to and was costing a phone real width.
+ */
 export function windowCaption(
   kind: SelectionKind,
   startMs: number,

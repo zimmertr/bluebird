@@ -638,9 +638,10 @@ nothing for the map timeline to scrub. Ranking on it with several forecast
 models selected is refused for the same reason air quality is: one source
 answers, whatever model ranks the field.
 
-**The unmasked grid reaches further north than the layer.** It runs 24.1N to
-58.2N and 130.5W to 62.2W, which covers the contiguous United States, southern
-Canada and northern Mexico. Outside that box, and over open water inside it,
+**The grid and the map layer cover the same ground.** Both run 24.1N to 58.23N
+and 130.5W to 62.25W, which covers the contiguous United States, southern Canada and northern Mexico, so a
+marker and the snow layer under it agree on where the analysis exists. Outside
+that box, and over open water inside it,
 the row reads `N/A` rather than zero: the destination was never analyzed, which
 is a different statement from bare ground. A server that has not yet fetched a
 grid reads `N/A` on every row and names no date.

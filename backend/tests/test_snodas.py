@@ -14,7 +14,7 @@ import io
 import struct
 import tarfile
 import time
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import httpx
 import pytest
@@ -167,7 +167,7 @@ def test_reads_the_divisor_out_of_the_declared_units():
         build_tar(header=header_text().replace("/ 1000.000000", "/ 1.000000")),
         datetime.now(UTC).date(),
     )
-    assert metres.depth_in(39.5, -98.5) == pytest.approx(1000 * 39.3701)
+    assert metres.depth_in(39.5, -98.5) == 39370.1
 
 
 # ── Selecting the depth product ────────────────────────────────────────────
@@ -202,10 +202,11 @@ def test_refuses_a_depth_member_with_no_header_beside_it():
 
 def test_converts_the_stored_millimetres_to_inches():
     snapshot = a_snapshot()
-    # One metre in the middle of the top row.
-    assert snapshot.depth_in(39.5, -98.5) == pytest.approx(39.3701)
+    # One metre in the middle of the top row. Two decimals, because the grid
+    # is whole millimetres and the digits past that are the factor's own noise.
+    assert snapshot.depth_in(39.5, -98.5) == 39.37
     # 2,540 mm is one hundred inches, in the first cell of the middle row.
-    assert snapshot.depth_in(38.5, -99.5) == pytest.approx(100.0)
+    assert snapshot.depth_in(38.5, -99.5) == 100.0
 
 
 def test_reads_zero_as_a_reading_rather_than_a_gap():
@@ -236,8 +237,8 @@ def test_floors_a_coordinate_into_the_cell_that_owns_it():
     snapshot = a_snapshot()
     # The whole of the top-middle cell reads the same sample, right up to but
     # not including the boundary with the cell east of it.
-    assert snapshot.depth_in(39.99, -99.0) == pytest.approx(39.3701)
-    assert snapshot.depth_in(39.01, -98.01) == pytest.approx(39.3701)
+    assert snapshot.depth_in(39.99, -99.0) == 39.37
+    assert snapshot.depth_in(39.01, -98.01) == 39.37
     assert snapshot.depth_in(39.5, -98.0) is None
 
 
@@ -287,7 +288,30 @@ YESTERDAY_URL = snodas.tar_url(datetime(2026, 9, 21, tzinfo=UTC).date())
 
 
 def test_url_follows_nsidc_own_month_naming():
-    assert TODAY_URL.endswith("/2026/09_Sep/SNODAS_unmasked_20260922.tar")
+    assert snodas.tar_url(date(2026, 9, 22)).endswith(
+        "/2026/09_Sep/SNODAS_unmasked_20260922.tar"
+    )
+
+
+def test_every_month_segment_is_the_english_abbreviation():
+    # Spelled in the module rather than read off `%b`, which takes the C
+    # library's locale: a pod in a non-English locale would ask for a path
+    # NSIDC does not serve, every day of the year.
+    segments = [snodas.tar_url(date(2026, m, 1)).split("/")[-2] for m in range(1, 13)]
+    assert segments == [
+        "01_Jan",
+        "02_Feb",
+        "03_Mar",
+        "04_Apr",
+        "05_May",
+        "06_Jun",
+        "07_Jul",
+        "08_Aug",
+        "09_Sep",
+        "10_Oct",
+        "11_Nov",
+        "12_Dec",
+    ]
 
 
 async def test_fetches_today_when_nsidc_has_published_it(stub_client):
@@ -363,8 +387,8 @@ def test_fill_sets_the_depth_and_reports_the_grids_date(monkeypatch):
     ]
     assert snodas.fill_snow_depth(rows) == "2026-09-22"
     assert [r["snow_depth_in"] for r in rows] == [
-        pytest.approx(39.3701),
-        pytest.approx(100.0),
+        39.37,
+        100.0,
         None,
         None,
     ]

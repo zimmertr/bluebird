@@ -1741,7 +1741,7 @@ def test_analyze_carries_todays_snow_depth_and_its_date(stub_upstreams, monkeypa
     body = client.post("/api/analyze", json=_snow_request()).json()
     assert body["snow_analysis_date"] == "2026-09-22"
     depths = {r["name"]: r["snow_depth_in"] for r in body["results"]}
-    assert depths["metre"] == pytest.approx(39.3701)
+    assert depths["metre"] == 39.37
     assert depths["hundred"] == pytest.approx(100.0)
     assert depths["outside"] is None
 

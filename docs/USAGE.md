@@ -455,8 +455,8 @@ Zero is a reading rather than a gap: it means the freezing level reached sea
 level, so everything above it was below freezing. What the number can and cannot
 tell you about an overnight refreeze is in [DATA.md](DATA.md#open-meteo).
 
-The snow depth column is shaded on the freezing level's six shades run the
-other way, cyan for bare ground through sky, blue, indigo and violet to purple
+The snow depth column is shaded on the freezing level's six shades, run the
+other way: cyan for bare ground through sky, blue, indigo and violet to purple
 for the deepest, and for the same reason: a depth is not a verdict either. Its
 bands are the snow layer's own numbers, so a marker and the layer under it say
 the same thing. The top band starts at 400 in because SNODAS does not melt

@@ -390,10 +390,10 @@ _SNOW_DEPTH_DESCRIPTION = (
     "One number per destination that ignores the analyzed window entirely: it "
     "is the current analysis rather than a forecast, so it has no minimum, "
     "mean or maximum and no hourly series. Null outside the grid, which covers "
-    "the contiguous United States and southern Canada, and null while this "
-    "instance holds no grid. Over permanent ice SNODAS accumulates year over "
-    "year, so a glaciated summit reads over a thousand inches; that is ice "
-    "rather than this season's snow."
+    "the contiguous United States, southern Canada and northern Mexico, and "
+    "null while this instance holds no grid. Over permanent ice SNODAS "
+    "accumulates year over year, so a glaciated summit reads over a thousand "
+    "inches; that is ice rather than this season's snow."
 )
 
 # The grid a report's snow depths came from, on the two responses that carry

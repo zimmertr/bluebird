@@ -689,7 +689,7 @@ export interface components {
             series?: components["schemas"]["HourlySeries"] | null;
             /**
              * Snow Depth In
-             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States and southern Canada, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads over a thousand inches; that is ice rather than this season's snow.
+             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads over a thousand inches; that is ice rather than this season's snow.
              */
             snow_depth_in?: number | null;
             /**
@@ -850,7 +850,7 @@ export interface components {
             osm_id?: string | null;
             /**
              * Snow Depth In
-             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States and southern Canada, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads over a thousand inches; that is ice rather than this season's snow.
+             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads over a thousand inches; that is ice rather than this season's snow.
              */
             snow_depth_in?: number | null;
             /**
