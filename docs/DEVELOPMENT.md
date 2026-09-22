@@ -100,6 +100,46 @@ CI run keeps the same files as a workflow artifact. Measure before and after
 whenever a change could touch what the first screen loads, and put both numbers
 on the PR.
 
+### The browser suite
+
+CI also operates the built image in a browser (issue #412): Playwright draws a
+ring and analyzes, opens a share link, and runs axe on the panel, the results,
+and the Layers popover. Every third-party host is answered from fixtures in
+`frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota. Locally, run
+it from the pinned Playwright image against the image served on a docker
+network. Mount the repo root: the fixtures read
+`backend/tests/data/weather_vectors.json`.
+
+```bash
+docker build -t bluebird:e2e .
+docker network create e2e-net 2>/dev/null || true
+docker run -d --rm --name e2e-target --network e2e-net bluebird:e2e
+
+docker run --rm --network e2e-net --ipc=host -v "$PWD":/repo \
+  -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 \
+  mcr.microsoft.com/playwright:v1.63.0-noble \
+  sh -c "npm ci && npx playwright test"
+
+docker rm -f e2e-target
+```
+
+The image tag must match the `@playwright/test` version in
+`frontend/e2e/package.json`: each Playwright release pins its own browser
+build, and the image carries the build for its own version only. When
+Dependabot bumps the package, move the tag here in the same PR. CI does not use
+the image; it installs Chromium alone on the runner.
+
+The suite is a package apart from `frontend/package.json`, like the two under
+`frontend/tools/`, but for a different reason: Playwright does not fight
+TypeScript 7 (it strips the types itself and carries no TypeScript peer), but a
+devDependency of the app would be downloaded by every `npm ci` the image build
+and the Frontend job run, and neither uses it. `npm run lint` covers
+`frontend/e2e/` without installing it, because the lint reads no types.
+
+Axe fails the run on serious and critical violations only. The ones the app
+ships with today are listed in `frontend/e2e/accessibility.spec.ts`; fixing one
+means deleting its entry, and an entry that stops occurring fails the run.
+
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with
