@@ -160,7 +160,7 @@ export function popupGroups(
     out.push({
       label: single
         ? cols[0].label
-        : metricLabel(bucket as MetricFamily, undefined, shared ?? '', cols[0].qualifier),
+        : metricLabel(bucket as MetricFamily, undefined, shared ?? ''),
       values,
       single,
     })

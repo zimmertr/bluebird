@@ -322,37 +322,16 @@ describe('resultPopupHtml links out', () => {
   })
 })
 
-// #361: a marker's wind values name the same datum the table's column header
-// does, so a point clicked on the map cannot describe its number differently
-// from the row it came from. It arrives inside the columns now, rather than
-// being derived a second time here.
-describe('resultPopupHtml wind datum', () => {
-  it('names the elevation datum over a forecast window', () => {
+// #457: a marker's headings are the bare noun and unit, the same words the
+// table's headers use. The datum both once carried is gone for the reason
+// tableColumns.test.ts records, and the popup reads the columns it is handed,
+// so this pins that nothing here adds one back.
+describe('resultPopupHtml names no datum', () => {
+  it('carries no datum in any heading', () => {
     const html = resultPopupHtml({
       ...base,
-      columns: displayedColumns(false, 'precip_total_in', 'forecast'),
+      columns: displayedColumns(false, 'precip_total_in'),
     })
-    expect(html).toContain('Wind at elevation')
-  })
-
-  it('names the surface datum over an archive window', () => {
-    const html = resultPopupHtml({
-      ...base,
-      columns: displayedColumns(false, 'precip_total_in', 'archive'),
-    })
-    expect(html).toContain('Wind at 10 meters')
-  })
-
-  // Both silent states, and the reason the columns take a source at all rather
-  // than a boolean.
-  it('claims no datum over a spanning window or without one', () => {
-    for (const source of ['spanning', null, undefined] as const) {
-      const html = resultPopupHtml({
-        ...base,
-        columns: displayedColumns(false, 'precip_total_in', source),
-      })
-      expect(html).not.toContain('at elevation')
-      expect(html).not.toContain('at 10 meters')
-    }
+    expect(html).not.toMatch(/\bat (elevation|\d+ meters)\b/)
   })
 })

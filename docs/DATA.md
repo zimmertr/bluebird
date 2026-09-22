@@ -139,11 +139,18 @@ always: the same cell's plain `temperature_2m` minimum is 23.9 °F, which is
 what neither surface shows.
 
 **Temperature is reported at the destination's own elevation, too.**
-Open-Meteo's `temperature_2m` measures 2 meters above the *model's* terrain,
-and under a summit that terrain is a valley floor: at Dome Peak (8,921 ft) the
-GFS grid ground stands at 6,617 ft. On a clear night that ground radiates its
-heat away and the air just over it freezes, while the summit stands in free air
-well above the cold layer. The table therefore showed a peak below freezing
+Open-Meteo's `temperature_2m` is the model's 2 m reading over its grid cell's
+mean terrain, lapsed by a standard rate to the height of a 90 m elevation model
+at the coordinate. Nothing in the app sends `elevation=`, so every request gets
+that default, on the archive endpoint as on the forecast one. That height sits
+close to a summit (measured 2026-09-22: 12 m under Rainier, 94 m under Glacier
+Peak, 95 m under Dome Peak and 155 m under Mount Stuart, where the grid-cell
+means sat 700 to 900 m under), so the number stands at the destination's
+elevation. What it carries up with it is the surface layer of the cell's
+ground: at Dome Peak (8,921 ft) that ground stands at 6,617 ft, and on a clear
+night it radiates its heat away and the air just over it freezes, while the
+summit stands in free air well above the cold layer. The table therefore
+showed a peak below freezing
 while its own freezing level sat thousands of feet higher
 ([#443](https://github.com/zimmertr/bluebird/issues/443) — measured over
 2026-09-18 to 2026-09-21, `temperature_2m` read a minimum of 25.7 °F where the
@@ -157,11 +164,19 @@ free air on a calm clear night and warmer than it under an inversion, so a
 clamp in either direction would report a number no model produced. And the
 fallback is the 2 m value rather than the 10 m one — a destination with no
 known elevation, below the lowest level (~762 m), or in an archive window
-reports the surface temperature exactly as it did before. The column headers
-read `Temperature at elevation` over a forecast window and
-`Temperature at 2 meters` over an archive one, beside the wind's own datum and
-in step with it; over a crossing window both drop the qualifier, because such a
-report averages the two datums into one number.
+reports the surface temperature exactly as it did before.
+
+No column header says which method produced a number
+([#457](https://github.com/zimmertr/bluebird/issues/457)). The wind and
+temperature headers carried `at elevation` and `at 2 meters` until the
+measurement above showed that every metric column stands at the destination's
+elevation: precipitation and air quality are the grid cell's surface values at
+that point (neither has a pressure-level variant; a request for
+`precipitation_925hPa` or `pm2_5_925hPa` answers `400`), the freezing level is
+a height of its own, and the surface temperature is lapsed to the destination's
+height. A datum on two of the five read as a difference in place where the
+difference is the method, so the method lives here, as the grid's
+terrain-height caveat below does.
 
 The radiative caveat under the freezing level below applies to this number as
 well, and from the other side: free air is what the model resolves, and a calm,
@@ -235,11 +250,12 @@ archive's nature rather than a limitation of the wiring.
   archive accepts the ten pressure levels both elevation adjustments above are
   built on and answers every hour `null`, so an archive row reports the plain
   10 m wind and the plain 2 m temperature for every destination, whatever its
-  elevation. The app says so rather than leaving it here, and says it the same
-  way for both: the columns read `Wind at 10 meters` and
-  `Temperature at 2 meters` over such a window, against `Wind at elevation` and
-  `Temperature at elevation` over a forecast one. A window crossing the boundary
-  drops both qualifiers, because it averages both datums into one number.
+  elevation. The headers do not say so: the archive lapses the 2 m temperature
+  to the coordinate's 90 m DEM height exactly as the forecast endpoint does
+  (measured 2026-09-22 at Rainier: it echoes 4380 m by default and answers
+  14 °F at 12Z, against 1941 m and 43 °F with the downscaling off), so both
+  methods stand at the destination's elevation and the difference is the
+  method. The line under the Analyze button names an archive window.
 - **It has no freezing level.** The archive accepts `freezing_level_height`
   and answers every hour `null` under the unit `undefined` (measured
   2026-09-13), so the three freezing-level columns read `N/A` over an
