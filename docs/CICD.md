@@ -506,6 +506,13 @@ The frontend job grew 5 s on 2026-09-15 when ESLint joined it (issue #379):
 2 s to install the linter's own package and 3 s to lint 57 sources. It is not on
 the critical path, so the whole run is unchanged.
 
+The frontend job moved from Node 22 to Node 26 on 2026-09-22, when it began to
+read `.node-version` (issue #401). Over four runs it measured a 31 s median
+(26 to 43 s) against 29 s (25 to 35 s) for the twelve runs before. `setup-node`
+now takes 5 to 6 s where it took under 1 s, because the runner image carries
+Node 22 in its tool cache and downloads 26. Lint and Vitest ran no slower on 26.
+The job is still off the critical path.
+
 **The critical path is two jobs long**, and only two. Four jobs start within
 about 3 s of each other; three of them finish while `Docker Build` is still
 building. `Lighthouse Budgets` `needs` it, so it starts at about 63 s and adds
