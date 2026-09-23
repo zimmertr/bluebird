@@ -24,8 +24,8 @@ interface Props {
  * off a control near the bottom of it would be clipped at the scroll boundary.
  *
  * It owns those four decisions so that no component makes them again —
- * `styles.test.ts` fails a second `position: 'fixed'` or a second copy of the
- * wrapper anywhere under `components/`. Four call sites had spelled all of
+ * the linter's `style-own-popover` check fails a second `position: 'fixed'` or
+ * a second copy of the wrapper anywhere under `components/`. Four call sites had spelled all of
  * them, and two had spelled the header row as well.
  */
 export default function Popover({ box, popoverRef, header, children }: Props) {

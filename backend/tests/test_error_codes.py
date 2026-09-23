@@ -111,26 +111,6 @@ def test_a_page_route_404_stays_outside_the_api_contract(tmp_path, monkeypatch):
     assert "error" not in response.json()
 
 
-def _sources() -> list[Path]:
-    return sorted(ROUTES.glob("*.py")) + [APP_ROOT / "ratelimit.py"]
-
-
-def test_no_route_raises_an_uncoded_error():
-    """Every 4xx/5xx a route raises must name a code.
-
-    A bare `HTTPException` answers `{"detail": ...}` and nothing else, which is
-    exactly the shape this feature exists to replace. The scan is the guard
-    because the omission is invisible: the route still works, and only a client
-    branching on the code ever notices.
-    """
-    offenders = [
-        path.name for path in _sources() if "HTTPException(" in path.read_text()
-    ]
-    assert not offenders, (
-        f"raise ApiError(..., code=ErrorCode.x) instead of HTTPException in: {offenders}"
-    )
-
-
 def test_every_stream_error_event_carries_the_field():
     """The SSE half of the same rule.
 

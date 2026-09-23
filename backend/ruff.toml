@@ -7,13 +7,25 @@ target-version = "py314"
 line-length = 120
 
 [lint]
-select = ["E", "F", "I", "B", "UP"]
+select = ["E", "F", "I", "B", "UP", "TID251"]
 # UP042 wants `class X(str, Enum)` rewritten as `StrEnum`. These four enums
 # cross the wire: Pydantic serializes them, the OpenAPI snapshot publishes
 # them, and StrEnum changes what `str()` and an f-string produce for a member
 # (the value rather than `Class.member`). That is a contract question rather
 # than a modernization, so it is not this change's to answer.
 ignore = ["UP042"]
+
+[lint.flake8-tidy-imports.banned-api]
+# A bare HTTPException answers `{"detail": ...}` and nothing else, which is the
+# shape the error-code contract replaces, and the omission is invisible: the
+# route still works, and only a client branching on the code notices. Scoped to
+# the modules that answer a request by the per-file ignore below; the document
+# pages in main.py raise a plain one on purpose. The last two names are the same
+# class reached through a module that imports it.
+"fastapi.HTTPException".msg = "Raise ApiError(..., code=ErrorCode.x) instead."
+"starlette.exceptions.HTTPException".msg = "Raise ApiError(..., code=ErrorCode.x) instead."
+"app.error_codes.HTTPException".msg = "Raise ApiError(..., code=ErrorCode.x) instead."
+"app.main.HTTPException".msg = "Raise ApiError(..., code=ErrorCode.x) instead."
 
 [lint.isort]
 # Without this, `app` is a first-party package from inside backend/ and a
@@ -25,3 +37,6 @@ known-first-party = ["app"]
 # The KML fixture in this file is the document NOAA's own file server sends.
 # Wrapping its one long line would change the data under test.
 "tests/test_hms.py" = ["E501"]
+# The HTTPException ban above holds where a request is answered, and nowhere
+# else: error_codes.py subclasses it, and main.py raises one for a missing page.
+"!app/{routes/**,ratelimit.py,ratelimit/**}" = ["TID251"]

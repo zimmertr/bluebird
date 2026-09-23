@@ -1,20 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import pkg from '../package.json'
 
-// The two rules the generated schema lives under, neither of which a type can
-// state about itself. api-compat.ts holds the assertions between the schema and
-// the hand-written types; these hold the setup those assertions sit in.
-//
-// Sources are read as text through the `?raw` trick styles.test.ts and
-// branding.test.ts use, so nothing here executes a module.
-const sources = import.meta.glob('./**/*.{ts,tsx}', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>
-
-// Spelled in pieces so this file's own text is not one of the matches.
-const VALUE_IMPORT = new RegExp(`(?<!import type )\\{[^}]*\\}\\s*from\\s*'[./]*api` + `-schema'`)
+// A rule the generated schema lives under that no type can state about itself.
+// api-compat.ts holds the assertions between the schema and the hand-written
+// types; this holds the setup those assertions sit in. The other rule, that the
+// schema is imported for its types alone, is a lint (tools/eslint/checks).
 
 // The generator's package, read as text rather than imported: the Dockerfile
 // build context excludes it, and an import would make `tsc` in that build
@@ -29,19 +19,6 @@ const toolManifest = Object.values(
 )[0]
 
 describe('the generated API schema', () => {
-  // The issue's second acceptance criterion is "no new runtime dependency", and
-  // the `.d.ts` output is how that is enforced rather than promised: a
-  // declaration file emits nothing, so it cannot be imported as a value at all.
-  // This catches the near miss instead — a value import that reads fine today
-  // and that a later edit could reach for at runtime.
-  it('is only ever imported for its types', () => {
-    const offenders = Object.entries(sources)
-      .filter(([path]) => !path.endsWith('api-compat.test.ts'))
-      .filter(([, text]) => VALUE_IMPORT.test(text))
-      .map(([path]) => path)
-    expect(offenders, 'import the schema with `import type`').toEqual([])
-  })
-
   // The generator is a package rather than a version inside a script, because
   // Dependabot reads manifests and a string in a script is invisible to it. It
   // is a package of its OWN because openapi-typescript loads the TypeScript

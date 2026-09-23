@@ -17,12 +17,13 @@ import { ICON, ICON_ADORNMENT } from '../styles'
  *
  * - **Every glyph is `aria-hidden`.** Each one stands inside a control that
  *   already carries its own `aria-label`, so an icon that reaches the
- *   accessibility tree can only announce a second time. `accessibility.test.ts`
- *   fails an `<svg` here without the attribute.
+ *   accessibility tree can only announce a second time. The linter's
+ *   `glyphs-hidden` check fails an `<svg` here without the attribute.
  * - **`className` carries position and colour, never size.** A call site says
  *   where the glyph sits (`ICON_ADORNMENT`, `flex-shrink-0`) and what colour it
- *   reaches for (`ICON_ACTION`); the step is this module's. `styles.test.ts`
- *   fails a height or width utility passed to one of these.
+ *   reaches for (`ICON_ACTION`); the step is this module's. The linter's
+ *   `style-call-site-classes` check fails a height or width utility passed to
+ *   one of these.
  *
  * Attributes below are per icon rather than shared through one base component.
  * They genuinely differ — three viewBox grids, two stroke weights, and line
@@ -222,8 +223,8 @@ export function IconSearch({ className }: IconProps): ReactNode {
  * The mark on a link that leaves the app, in the results table.
  *
  * The warning it stands for is the anchor's `aria-label`, not this glyph:
- * `accessibility.test.ts` holds every new-tab anchor in that table to a label
- * ending "Opens in a new tab."
+ * the linter's `new-tab-anchors-named` check holds every new-tab anchor in that
+ * table to a label ending "Opens in a new tab."
  *
  * The one glyph whose shape is not spelled here. The map popup draws it too,
  * out of a string this module cannot reach, so both sides read it from

@@ -91,6 +91,68 @@ Five things that shape follows from:
   makes the import order the same from either working directory. Ruff is
   pinned because its default rule set changes between releases.
 
+### Where a source check lives
+
+Some rules are about what a file SAYS rather than what it does: a component
+must not spell a hue, `App.tsx` must not key an effect on a per-keystroke
+array, one module alone may call `fetch`. Those used to be Vitest files that
+imported a source with `?raw` and searched its text. Since issue #408 the rule
+of where one lives is the one in the root `CLAUDE.md`, decided by what the check
+needs to know:
+
+- **A ban or a presence rule over one tree's syntax is a lint.** It lives in
+  `frontend/tools/eslint/`: the class bans in `eslint.config.js`, and every
+  per-file check under `checks/` as a rule of its own (`plugin.js` says how a
+  check is written). A lint reads the syntax tree, so a comment about a rule is
+  not a violation of it, and it reports the line in the editor. Each check has
+  fixtures under `fixtures/checks/`, and `selftest.js` fails unless they report
+  every message the check carries, alone and at the check's real file.
+- **A measurement or a comparison between two artifacts stays a test.** A
+  contrast ratio, a pixel sum, a count of approved tooltips, a source against a
+  value a module exports, TypeScript against Python, `index.html` against the
+  sources, CSS (which ESLint does not parse).
+- **A few text tests stay by decision**, named below.
+- On the backend, a banned import is a ruff rule: `TID251` in
+  `backend/ruff.toml` fails a bare `HTTPException` wherever a request is
+  answered.
+
+The per-file checks, by module:
+
+| Module | Checks | What they hold |
+|---|---|---|
+| `checks/accessibility.js` | `glyphs-hidden`, `markup-glyph-hidden`, `new-tab-anchors-named`, `model-picker-roles`, `compare-notes-no-control`, `disabled-reason-twin` | Every glyph is `aria-hidden`; a new-tab link says so; the model picker's roles and names; the chart's notes carry no control; every `aria-describedby` has an `SR_ONLY` twin |
+| `checks/app.js` | `app-effect-keys`, `app-chart-selection`, `app-memoized`, `app-memo-props`, `app-arriving-field`, `app-resize-grips`, `app-results-mode` | `App.tsx`'s effects and memoized children: no effect keyed on a per-keystroke array, stable props on the three memoized components, one `ResizeGrip` spelling, the results bar and mode control |
+| `checks/app.js` | `app-legend-anchors`, `app-transport-anchor`, `app-docked-panels` | No bottom offset or bottom-anchored legend spelled in a component; the docked panel defaults and floors |
+| `checks/app.js` | `app-grid-gate`, `app-grid-pixels`, `app-paced-fetch`, `app-grid-pace`, `app-compare-pace`, `app-compare-pace-bar` | One flag gates the forecast grid; the grid gets decoded pixels; every paced fetch hands over `onPace` and clears its wait |
+| `checks/app.js` | `app-url-writes`, `app-no-storage`, `app-pair-color`, `app-pair-color-rows` | `App.tsx` writes history in one place and names no storage; one allocator gives every comparison colour |
+| `checks/data.js` | `one-api-door`, `schema-types-only`, `entries-inside-boundary`, `chart-lazy`, `logo-hashed` | One module calls `fetch`; the generated schema is imported for types; every entry renders inside the boundary; the chart loads lazily; the logo is the hashed asset |
+| `checks/data.js` | `area-cap-published`, `archive-reach-published`, `aqi-horizon-published`, `panel-limit-props`, `calendar-limit-args`, `aqi-fetch-horizon-arg` | A published limit is read from `/api/capabilities` and reaches a surface as a prop or an argument, never as a number |
+| `checks/data.js` | `open-meteo-throw-tail`, `open-meteo-copy`, `comparison-blocker-copy`, `snow-mark-shared` | Error copy ends on the standing tail and avoids the retired phrases; the approved blocker lines; the snow mark comes from one module |
+| `checks/data.js` | `column-drag-shared`, `column-drag-header`, `column-drag-picker`, `drag-ghost-inert` | Both surfaces that reorder columns use the shared gesture module |
+| `checks/styles.js` | `style-call-site-classes`, `style-own-glyphs`, `style-icon-module`, `style-own-popover`, `style-popover-shell`, `style-one-placement`, `style-placement-caller`, `style-placement-module`, `style-page-ground` | No call site re-widths a segment, sizes an icon or a choice, draws a glyph, positions a panel or spells the page ground |
+| `checks/styles.js` | `style-map-column`, `style-results-bar`, `style-legend-ramp`, `style-layer-rows`, `style-search-box`, `style-chart-metric`, `style-axis-item`, `style-rank-cell` | The map column, the results bar, the legend strip, the Layers rows, the search box, the chart select and the rank cell wear their roles |
+| `checks/styles.js` | `style-metrics-table`, `style-panel-messages`, `style-footer-notice`, `style-footer-notice-once`, `style-panel-no-status`, `style-draw-counter`, `style-model-picker-quiet`, `style-window-messages`, `style-popup-glyph` | The Metrics grid's boxes and buttons; every notice renders once, below Analyze; the draw counter is the one bare `STATUS`; the popup draws no glyph |
+
+The text tests that stay, and why:
+
+| Test | What it reads | Why it stays a test |
+|---|---|---|
+| `metrics.test.ts` | twelve consumer files | The precipitation `toFixed` guard: kept by the maintainer's decision |
+| `branding.test.ts` | every file under `src/` | The branding scan: kept by the maintainer's decision (its backend twin, `test_branding.py`, too) |
+| `styles.test.ts` | the `sources` glob | The divider and fade guards: kept by the maintainer's decision. The radius scale reads its allowed set from `RADIUS`; the tooltip counts are a count of approved tooltips |
+| `styles.test.ts` | the `roleImporters` glob | Every exported role has an importer: a comparison between `styles.ts` and every other file |
+| `styles.test.ts` | the five panel files | `CHOICE_ROW` and `CHOICE_INPUT` counts per file, and their total: a sum across files |
+| `styles.test.ts` | `App.tsx`, `SearchBox.tsx` | The `MAP_ROW_H` count across both files, the order of the Layers rows, and the legend box, a region bounded by comments rather than by a node |
+| `styles.test.ts` | `index.css`, `map.css` | CSS, which ESLint does not parse |
+| `legal.test.ts` | the pages and the provider list | The pages' claims against `LICENSE` and `dataSources.ts` |
+| `coldLoad.test.ts` | `map/basemap.ts` | The style host against the preconnect hints in `index.html` |
+| `api-compat.test.ts` | `tools/api-types/package.json` | The generator's manifest against the frontend scripts |
+| `hooks/useCapabilities.test.ts` | `forecastWindow.ts` | Each window bound against the value the module exports |
+| `utils/openMeteo.test.ts` | the two hooks, the three Open-Meteo modules | The coverage sentence and the unreadable-body sentence against the constants the modules export |
+| `utils/openMeteoAggregate.test.ts` | `openMeteoAggregate.ts`, `aggregation.py` | The TypeScript port against the Python it mirrors |
+| `utils/resultsSheet.test.ts` | `App.tsx`, `styles.ts`, `MapView.tsx` | The `LEGEND_TOP` classes and the panel default against the numbers the arithmetic uses; the attribution fold is in `MapView.tsx` |
+| `utils/basemapPoi.test.ts`, `map/basemap.test.ts`, `components/MapView.test.ts`, `utils/forecastGrid.test.ts`, `App.test.ts` | `MapView.tsx`, `map/basemap.ts` | Presence checks on the map's wiring, which the MapView split (#410) is moving into `src/map/`; they move with it |
+
 ### The cold-load budgets
 
 CI audits the first screen with Lighthouse and fails the PR when a byte or

@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import appSource from '../App.tsx?raw'
-import modelCompareSource from './modelCompare.ts?raw'
 import type { DestinationResult } from '../types'
 import type { WeatherResult } from './openMeteo'
 import type { WeatherAggregates } from './openMeteoAggregate'
@@ -498,19 +496,5 @@ describe('the pair colour', () => {
   it('falls back to the destination colour with no pair colour', () => {
     expect(pairColor(COLORS, 'gfs_seamless', '46.85,-121.76', '#aaaaaa')).toBe('#aaaaaa')
     expect(pairColor(COLORS, undefined, '46.85,-121.76', '#aaaaaa')).toBe('#aaaaaa')
-  })
-
-  // The guardrail the chart/table split needs: neither surface may spell the
-  // key itself, or the two are one spelling away from two answers.
-  it('is the only place either surface reads the colour map', () => {
-    // Exactly one indexing of the map in this module, and it is the line
-    // inside `pairColor`. A second would be a second answer.
-    expect(modelCompareSource.match(/colors\[/g) ?? []).toHaveLength(1)
-    expect(modelCompareSource).toContain('return colors[pairKey(modelId, destinationKey)]')
-    // And none at all in the component that colours the table rows.
-    expect(appSource.match(/[Cc]olors\[pairKey/g) ?? []).toHaveLength(0)
-    // Both surfaces go through the function.
-    expect(appSource).toContain('pairColor(')
-    expect(modelCompareSource).toContain('pairColor(colors, model.id, destination.key')
   })
 })

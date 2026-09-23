@@ -1002,7 +1002,8 @@ export default function App() {
   // update from inside a passive effect. Fifty in a row is React error #185,
   // which is what a pasted coordinate list used to produce (issue #185;
   // measured at the 61st character, the first ten being the row yet to parse).
-  // `src/App.test.ts` fails any effect here that takes `csvRows` again.
+  // The linter's `app-effect-keys` check fails any effect here that takes
+  // `csvRows` again.
   const destinationNamed = searched.places.length > 0 || csvRows.length > 0
   useEffect(() => {
     if (destinationNamed) setShowResults(true)

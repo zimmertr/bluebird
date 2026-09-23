@@ -212,37 +212,37 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails. Component sources are `App.tsx`, `components/` and `map/`, and the self-test lints one hue at a path in each of the last two to prove the glob reaches them |
 | No component sizes a tap target | `eslint.config.js` | Ban `touch:` utilities in component sources |
 | No component sizes radio/checkbox | `eslint.config.js` | Covered by the hue ban, which reaches `accent-*` |
-| No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
+| No component re-widths a segment | `checks/styles.js` | `style-call-site-classes`: a `w-*` in the template that composes `SEGMENT` |
 | No component sets a slate text colour | `eslint.config.js` | Slate is the surface system, already covered by `TEXT`, `SURFACE_*` and `FIELD` |
 | No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
 | The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` and the section files it renders (`PANEL_FILES`) |
 | A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in the same files |
-| The map's edges are one inset | `styles.test.ts` | Ban a top or left inset at the map's chrome, in `App.tsx` and `map.css` alike |
+| The map's edges are one inset | `checks/styles.js`, `styles.test.ts` | `style-map-column` bans a top or left inset at the map's chrome in `App.tsx`; the test does the same for `map.css`, which ESLint does not read |
 | No component dims a placeholder | `eslint.config.js` | Ban placeholder utilities below AA contrast |
-| Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |
+| Every radio/checkbox uses the shared recipe | `styles.test.ts`, `checks/styles.js` | The test checks `CHOICE_INPUT` composition and counts one per `CHOICE_ROW` in each panel file; `style-call-site-classes` bans a size after `ACCENT.input` |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
 | Segmented controls are built one way | `styles.test.ts` | Check `SEGMENT` / `SEGMENT_IDLE` / `SEGMENT_ITEM` composition |
 | Metric names are centralized | `eslint.config.js` | Ban the six abbreviations in strings and templates across twelve consumer files |
 | Precipitation precision is centralized | `metrics.test.ts` | Ban a `toFixed` on a precipitation value in the same twelve files, read as text; `formatPrecipTotal` / `formatPrecipRate` decide |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
-| No unsafe error message patterns | `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
-| Every full page stands on one ground | `styles.test.ts` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
+| No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
+| Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every notice renders in one block below Analyze | `styles.test.ts` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
-| A disabled control's reason has a hidden twin | `accessibility.test.ts` | Every `aria-describedby` in `App.tsx` matches a `SR_ONLY` element |
+| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
+| A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `App.tsx` matches a `SR_ONLY` element |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
-| The map column is one width, gap, height and type size | `styles.test.ts` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
+| The map column is one width, gap, height and type size | `styles.test.ts`, `checks/styles.js` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
-| No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
+| No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
-| No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
-| Nor does the map popup | `styles.test.ts` | Ban the same tag in `utils/popupChrome.ts`, which builds markup rather than elements, and pin its glyph size to the `inline` step |
-| No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the four `ICON` steps are pinned by measured pixels, and the key set is pinned too |
-| Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
-| No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
-| One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
+| No component draws its own glyph | `checks/styles.js` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
+| Nor does the map popup | `checks/styles.js`, `styles.test.ts` | `style-popup-glyph` bans the same tag in `utils/popupChrome.ts`, which builds markup rather than elements; the test pins its glyph size to the `inline` step |
+| No call site sizes an icon | `checks/styles.js`, `styles.test.ts` | `style-call-site-classes` bans a height or width utility on any `<Icon…>` element; the test pins the four `ICON` steps by measured pixels, and the key set too |
+| Every glyph is hidden from assistive technology | `checks/accessibility.js` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
+| No component positions its own panel | `checks/styles.js` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
+| One place decides where a panel goes | `checks/styles.js` | `popoverBox` has exactly one caller, the `usePopover` hook |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
 | No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `CARRIED` are the three fades |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
@@ -252,21 +252,28 @@ One set of roles for both surfaces that reorder columns, the table header and th
 ### Two enforcers, split by what they know
 
 `eslint.config.js` (in `frontend/tools/eslint/`, for the TypeScript-version
-reason recorded there) carries the **syntactic** bans: the ones a pattern over
-class names can answer on its own. `styles.test.ts` carries the **measured**
-ones: a contrast ratio, a pixel sum, a width read off a role, a count of
-approved tooltips. Nothing was dropped in the move (issue #379); the
-`no-restricted-syntax` rules read string literals and template chunks rather
-than a file's bytes, so a class name written in a COMMENT is prose about the
-rule instead of a violation of it, and a violation is now underlined in the
-editor rather than reported by `npm test`.
+reason recorded there) carries the **syntactic** rules: the ones a pattern over
+class names, string literals or the syntax tree can answer on its own. The
+class bans live in the config itself; the per-file checks, which say what one
+named file must or must not contain, live under `frontend/tools/eslint/checks/`
+(`checks/styles.js` for the design system). `styles.test.ts` carries the
+**measured** ones: a contrast ratio, a pixel sum, a width read off a role, a
+count of approved tooltips, and any comparison between a source and a value the
+role modules export. Nothing was dropped in either move (issues #379 and #408);
+the rules read string literals, template chunks and nodes rather than a file's
+bytes, so a class name written in a COMMENT is prose about the rule instead of
+a violation of it, and a violation is underlined in the editor rather than
+reported by `npm test`.
 
 `npm run lint` in `frontend/` runs it, then runs the rules against
-`frontend/tools/eslint/fixtures/` — one file per ban, each of which must report
-its own ban and no other, plus one file carrying `Precipitation`, `Minimum` and
-`Maximum` that must report nothing. A selector that matches nothing reports
-nothing, which reads exactly like a clean tree; the self-test is what tells the
-two apart. CI runs the same script in the `Frontend Typecheck & Tests` job.
+`frontend/tools/eslint/fixtures/`: one file per class ban, each of which must
+report its own ban and no other, plus one file carrying `Precipitation`,
+`Minimum` and `Maximum` that must report nothing; and, under
+`fixtures/checks/`, one or more files per check that together must report every
+message the check carries. A selector that matches nothing reports nothing,
+which reads exactly like a clean tree; the self-test is what tells the two
+apart. `docs/DEVELOPMENT.md` lists every check that is still a text test and
+why. CI runs the same script in the `Frontend Typecheck & Tests` job.
 
 ## Measured numbers
 
@@ -441,8 +448,9 @@ addition and an accidental deletion alike.
 only thing explaining a state, the same text is also mounted in a visually hidden
 element that `aria-describedby` names (`SR_ONLY` in `styles.ts`), because the
 touch argument above applies to a screen reader as well: a `title` is a pointer's
-affordance and is not promised to anything else. `accessibility.test.ts` fails an
-`aria-describedby` in `App.tsx` with no `SR_ONLY` twin.
+affordance and is not promised to anything else. The linter's
+`disabled-reason-twin` check fails an `aria-describedby` in `App.tsx` with no
+`SR_ONLY` twin.
 
 ### Sentence case
 
@@ -467,7 +475,7 @@ variant for the commit cues, and the footer showed a cue in amber text directly
 above a blocker in an amber box, saying the same kind of thing in two shapes.
 The one bare `STATUS` text left in the panel is the polygon's draw counter,
 which is a field's own readout beside the field rather than a message about the
-analysis; `styles.test.ts` pins it by count.
+analysis; the linter's `style-draw-counter` check pins it by count.
 
 ### No raw exceptions or status
 
@@ -551,8 +559,8 @@ The split is:
   the accessibility tree can only announce the label a second time.
 - **The call site owns placement.** Where the glyph sits (`ICON_ADORNMENT`,
   `flex-shrink-0`) and what colour it reaches for (`ICON_ACTION`), passed as
-  `className`. Never a size: a height or width handed to an icon fails
-  `styles.test.ts`.
+  `className`. Never a size: a height or width handed to an icon fails the
+  linter's `style-call-site-classes` check.
 
 To add one, write the component in that file, give it a step from the `ICON`
 ramp, and let it set `aria-hidden` itself. A step that does not exist yet is a
@@ -566,9 +574,9 @@ MapLibre's `setHTML`, so Tailwind never sees its class names and the icon
 module cannot draw it. The link-out arrow in a popup's title row is therefore
 the same shape as the results table's, read from `frontend/src/iconPaths.ts`
 by both `icons.tsx` and `utils/popupChrome.ts` (#435). That module carries the
-geometry, the stroke, and the one size a string has to spell; `styles.test.ts`
-bans a literal SVG tag in `popupChrome.ts` and pins that size to the `inline`
-step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
+geometry, the stroke, and the one size a string has to spell; the linter's
+`style-popup-glyph` check bans a literal SVG tag in `popupChrome.ts`, and
+`styles.test.ts` pins that size to the `inline` step. It sits at `src/` rather than in `components/`, beside `styles.ts` and
 `metrics.ts`, because `popupChrome.ts` is a util and no util in the app imports
 a component.
 
@@ -585,8 +593,9 @@ portal to `document.body`. Fixed and portalled because the control panel is an
 boundary, which for a control near the bottom cuts the list in half. It also
 draws the overline header row, which two of the four had spelled separately.
 
-`styles.test.ts` fails a second `position: 'fixed'` or a second copy of that
-wrapper anywhere under `components/`, and fails a second caller of `popoverBox`.
+The linter fails a second `position: 'fixed'` or a second copy of that wrapper
+anywhere under `components/` (`style-own-popover`), and a second caller of
+`popoverBox` (`style-one-placement`).
 
 ### Adding a new role
 

@@ -97,14 +97,8 @@ import destinationsSource from './components/DestinationsSection.tsx?raw'
 import forecastSectionSource from './components/ForecastSection.tsx?raw'
 import metricsTableSource from './components/MetricsTable.tsx?raw'
 import panelFooterSource from './components/PanelFooter.tsx?raw'
-import panelMessagesSource from './utils/panelMessages.ts?raw'
-import modelPickerSource from './components/ModelPicker.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
-// Read on its own rather than joined to the component glob below: it is markup
-// for MapLibre's setHTML, so it carries hex colours and spelled sizes that the
-// per-component lints would rightly read as a call site inventing its own.
-import popupChromeSource from './utils/popupChrome.ts?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -251,34 +245,6 @@ const PANEL_SOURCES = [
   panelFooterSource,
 ]
 
-// The one file allowed to draw an SVG.
-const ICON_MODULE = './components/icons.tsx'
-
-// The one file allowed to position a floating panel.
-const POPOVER_MODULE = './components/Popover.tsx'
-
-// Every source that could ask where a panel goes. Wider than `sources` above,
-// because the placement is wired from a hook rather than from a component, and
-// a second caller there would be as much of a second recipe as one here.
-const placementCallers: Record<string, string> = {
-  ...(import.meta.glob(
-    [
-      './components/*.tsx',
-      './hooks/*.ts',
-      './map/**/*.ts',
-      './map/**/*.tsx',
-      './utils/*.ts',
-      '!./**/*.test.ts',
-      '!./**/*.test.tsx',
-    ],
-    { query: '?raw', import: 'default', eager: true },
-  ) as Record<string, string>),
-  './App.tsx': appSource,
-}
-
-// Where the placement is defined, so the export itself does not read as a call.
-const PLACEMENT_MODULE = './utils/listbox.ts'
-
 // Everything the app SHIPS that could import a role. Wider than either set
 // above, because a role is dead only if NOTHING renders it — and narrower than
 // all of `src/`, because a test is not a renderer. A suite that counted itself
@@ -324,16 +290,7 @@ describe('every component', () => {
     expect([...used].filter((c) => !scale.has(c))).toEqual([])
   })
 
-  // A call site that re-widths a segment breaks the alignment the role exists
-  // to hold, and it cannot even be relied on to win: two width utilities resolve
-  // by stylesheet order rather than by class order. Matched only where a width
-  // rides along in the same class list as the role.
-  it.each(Object.entries(sources))('%s re-widths no segment', (_path, source) => {
-    const rides = source.match(/\$\{SEGMENT\}[^`]*/g) ?? []
-    expect(rides.filter((r) => /(^|\s)w-\S+/.test(r))).toEqual([])
-  })
-
-  // The hue lint below lets slate through, because slate is the surface system
+  // The hue ban in eslint.config.js lets slate through, because slate is the surface system
   // — and that exemption is how a third divider weight reached eleven call
   // sites in eight files with no name and no owner (#390). A rule between two
   // blocks of one surface is `SURFACE_DIVIDER` now, so the one place it is
@@ -342,22 +299,6 @@ describe('every component', () => {
   // would otherwise compile.
   it.each(Object.entries(sources))('%s spells no divider of its own', (_path, source) => {
     expect(source).not.toMatch(/border-slate-[7]00/)
-  })
-
-  // The page ground is named for the same reason: the error boundary's
-  // fallback replaces the tree it guards, so it cannot inherit the ground from
-  // App or the page frame, and a fourth spelling is how the grounds would part.
-  // Only the bare fill is caught; a translucent scrim over the map is a
-  // different thing that happens to share the step. Character class for the
-  // same Tailwind reason as above.
-  it.each(Object.entries(sources))('%s spells no page ground of its own', (_path, source) => {
-    expect(source).not.toMatch(/bg-slate-[9]00(?![/\w-])/)
-  })
-
-  it('stands every full page on the one ground', () => {
-    for (const path of ['./App.tsx', './components/PageShell.tsx', './components/ErrorBoundary.tsx']) {
-      expect(sources[path], path).toContain('${SURFACE_PAGE}')
-    }
   })
 
   // How faded a thing is says WHY it is faded — 40 percent is out of reach or
@@ -381,46 +322,6 @@ describe('every component', () => {
 
     expect(uses.length).toBeGreaterThan(6)
     for (const use of uses) expect(use).toMatch(/\bborder-[trbl]\b/)
-  })
-
-  // The guardrail #167 exists to install. Every hue in the app carries meaning
-  // — the accent says "this acts", and green/amber/red say how an analysis is
-  // going — so every one of them is a decision the design system owes an answer
-  // to, and a component that answers for itself is how the app ended up with
-  // three ambers, four notice boxes in three shapes, and a primary button one
-  // shade off the blocks it was supposed to match.
-  //
-  // This is deliberately stricter than the recipe checks above: not "don't
-  // restate a known recipe" but "don't name a hue at all". Slate is exempt and
-  // stays compositional — it is the surface system, already covered by TEXT,
-  // SURFACE_* and FIELD, and banning it would be a different and much larger
-  // change than this one.
-  //
-  // Built from alternation rather than by quoting classes, so it forbids
-  // utilities nobody thought of, and so Tailwind's raw-text scan of this file
-  // finds no candidate to re-emit.
-  const HUE = new RegExp(
-    String.raw`(?:^|["'\s:])(?:bg|text|border|ring|divide|accent|caret|outline|decoration|shadow|from|via|to)-` +
-      String.raw`(?:sky|blue|cyan|indigo|violet|purple|fuchsia|pink|rose|red|orange|amber|yellow|lime|green|emerald|teal)-\d{2,3}`,
-  )
-
-  it.each(Object.entries(sources))('%s names no hue of its own', (_path, source) => {
-    expect(source.match(new RegExp(HUE, 'g'))).toBeNull()
-  })
-
-  // The rule #159 arrived at and #160 acts on: size tap targets across every
-  // control at once, never one at a time. A component that reaches for the
-  // variant directly is doing the thing that broke the panel's rhythm, so the
-  // variant is spelled in exactly one file and this is what holds it there.
-  it.each(Object.entries(sources))('%s sizes no tap target of its own', (_path, source) => {
-    expect(source).not.toMatch(/\btouch:/)
-  })
-
-  // One accent, one size, one cursor for every radio and checkbox in the app —
-  // the panel's, the chart's, and the table's, which had drifted into three
-  // spellings of the same 14px box.
-  it.each(Object.entries(sources))('%s builds no checkbox of its own', (_path, source) => {
-    expect(source).not.toMatch(/accent-sky-500/)
   })
 
   // L6 used to fail any `title=` outright. Tooltips are now an approved LIST
@@ -465,81 +366,18 @@ describe('every component', () => {
     const found = (source.match(/\btitle=/g) ?? []).length
     expect(found).toBe(APPROVED_TOOLTIPS[path] ?? 0)
   })
-
-  // #386. Nineteen hand-drawn glyphs each answered how big, how heavy and
-  // whether a screen reader skips them, and they had stopped agreeing: the
-  // close cross existed six times at three sizes and two stroke weights, two
-  // of the six were announced, and the select arrow's path was typed out
-  // three times. One module draws them all now, and this is what stops a
-  // twentieth arriving by hand.
-  it.each(Object.entries(sources).filter(([path]) => path !== ICON_MODULE))(
-    '%s draws no glyph of its own',
-    (_path, source) => {
-      expect(source).not.toContain('<svg')
-    },
-  )
-
-  // The other half of that rule, and the one a new icon is most likely to
-  // break: a call site says where a glyph sits and what colour it reaches for,
-  // and the module says how big it is. A height or width handed to an icon is
-  // a size decision made at a call site.
-  it.each(Object.entries(sources))('%s hands no icon a size', (_path, source) => {
-    const SIZED = /(?:^|[\s"'`{])[hw]-(?:\d|\[)/
-    const uses = source.match(/<Icon[A-Za-z]*\s[^>]*>/g) ?? []
-    expect(uses.filter((use) => SIZED.test(use))).toEqual([])
-  })
-
-  // Both lints above are vacuous if the module is not in the glob or has
-  // stopped being where the glyphs are.
-  it('reads the icon module it exempts', () => {
-    expect(sources[ICON_MODULE]).toBeDefined()
-    expect((sources[ICON_MODULE].match(/<svg/g) ?? []).length).toBeGreaterThan(10)
-  })
-
-  // #385: four popovers each carried the same fixed-position style object and
-  // the same wrapper, so the card, the stacking order and the offsets could
-  // drift a step apart without anything saying so. `Popover.tsx` owns all
-  // three now, and a fifth panel that spells them again fails here.
-  it.each(Object.entries(sources).filter(([path]) => path !== POPOVER_MODULE))(
-    '%s positions no panel of its own',
-    (_path, source) => {
-      expect(source).not.toMatch(/position: ?'fixed'/)
-      expect(source).not.toContain('${SURFACE_CARD} ${LAYER.popover}')
-    },
-  )
-
-  // The other half of that rule, and the one the ban above cannot state: the
-  // placement itself. `usePopover` is the only caller, so a fix to the two
-  // measuring passes or to what dismisses a panel reaches all four.
-  it('asks one place where a panel goes', () => {
-    const calls = Object.entries(placementCallers).filter(
-      ([path, source]) => path !== PLACEMENT_MODULE && source.includes('popoverBox('),
-    )
-    expect(calls.map(([path]) => path)).toEqual(['./hooks/usePopover.ts'])
-  })
-
-  // Both lints above are vacuous if the shell is not in the glob or has
-  // stopped being where the box is applied.
-  it('reads the popover shell it exempts', () => {
-    expect(sources[POPOVER_MODULE]).toBeDefined()
-    expect(sources[POPOVER_MODULE]).toContain('${SURFACE_CARD} ${LAYER.popover}')
-    expect(placementCallers[PLACEMENT_MODULE]).toContain('export function popoverBox(')
-  })
 })
 
 describe('control panel sizing', () => {
   // The size used to live beside the tint at every call site, which is how the
   // chart's metric radio ended up wearing the tint at the browser's default
   // size. Both now come from ACCENT.input, which CHOICE_INPUT composes, so what
-  // is left to check is that no input re-sizes itself after taking it, and that
-  // the panel reaches for the row that wraps it, since that is what a finger
-  // actually lands on.
+  // is left to check is that no input re-sizes itself after taking it (the
+  // style-call-site-classes check), and that the panel reaches for the row that
+  // wraps it, since that is what a finger actually lands on.
   it('builds every radio and checkbox from the shared recipe', () => {
     expect(ACCENT.input).toMatch(/\bh-[\d.]+ w-[\d.]+/)
     expect(CHOICE_INPUT).toContain(ACCENT.input)
-    for (const source of Object.values(sources)) {
-      expect(source).not.toMatch(/ACCENT\.input\}? [^`"']*\bh-[\d.]+/)
-    }
 
     // Per file, because the panel's rows live in two of its sections.
     let total = 0
@@ -781,9 +619,6 @@ describe('shared recipes', () => {
     // overlay an analysis puts over the whole map.
     expect(depth(LAYER.mapControls)).toBeGreaterThan(depth(LAYER.sheet))
     expect(depth(LAYER.mapControls)).toBeLessThan(depth(LAYER.overlay))
-    // A stacking context orders only its own children, so the layer is useless
-    // unless the cluster itself wears it.
-    expect(appSource).toContain('LAYER.mapControls')
   })
 
   // The map timeline's scrubber (#121). A real range input arrives knowing
@@ -859,8 +694,6 @@ describe('shared recipes', () => {
       .replace(/\s+/g, ' ')
       .trim()
     expect(shared).toBe(SEGMENT_ITEM)
-    // And the bar wears it, or the role is a number nothing reads.
-    expect(sources['./components/TimelineTransport.tsx']).toContain('TRANSPORT_AXIS_ITEM')
   })
 
   // A metric noun is a phrase as readily as a word, and a phrase wraps: at the
@@ -1068,8 +901,6 @@ describe('shared recipes', () => {
     const FREEZING_LEVEL_UNIT_PX = 100
     const chartPx = stepPx(CHART_METRIC_W, 'w')
     expect(chartPx - 8 - selectArrowPx() - 2).toBeGreaterThanOrEqual(FREEZING_LEVEL_UNIT_PX)
-    expect(sources['./components/TimeSeriesChart.tsx']).toContain('CHART_METRIC_W')
-    expect(sources['./components/TimeSeriesChart.tsx']).not.toContain('CONTROL_W')
   })
 
   // The Metrics grid (#341) sizes no control itself: its three control columns
@@ -1114,7 +945,6 @@ describe('shared recipes', () => {
   it('sizes the fill segment by its container, never by the panel column', () => {
     expect(SEGMENT_FILL).toContain('w-full')
     expect(SEGMENT_FILL).not.toContain(CONTROL_W)
-    expect(metricsTableSource).toMatch(/\$\{SEGMENT_FILL\} col-span-2/)
   })
 
   // What the column costs a segment half. Every segment in the panel is the
@@ -1135,60 +965,6 @@ describe('shared recipes', () => {
     expect(insetPx).toBeLessThan(8)
   })
 
-  // Every numeric box in the section — the ten bounds and the results cap —
-  // comes off one shape, so a future box cannot pick its own height or inset
-  // and the rows under the rule line up with the bounds above. Only the width
-  // is allowed to differ, and only between one box column and two: the cap is
-  // a single number, so it spans the pair the way a bound spans one.
-  it('builds every numeric box in the Metrics section from one shape', () => {
-    const inputs = metricsTableSource.match(/type="number"/g) ?? []
-    const boxed = metricsTableSource.match(/METRIC_BOX(_WIDE)?\}/g) ?? []
-    expect(inputs.length).toBeGreaterThanOrEqual(2)
-    expect(boxed.length).toBe(inputs.length)
-    expect(metricsTableSource).toMatch(/const METRIC_BOX = `\$\{METRIC_BOX_SHAPE\} \$\{METRIC_BOX_W\}`/)
-    expect(metricsTableSource).toMatch(/const METRIC_BOX_WIDE = `\$\{METRIC_BOX_SHAPE\} w-full`/)
-    // The wide one spans the two box columns rather than spelling their sum,
-    // which would be a second copy of METRIC_BOX_W and the grid gap.
-    expect(metricsTableSource).toMatch(/\$\{METRIC_BOX_WIDE\} col-span-2/)
-  })
-
-  // Nothing is drawn inside the Metrics table. A rule there reads as a break
-  // the size of the one between whole sections, which is the only thing
-  // PANEL_RULE's weight is allowed to say, and a fainter one was tried and
-  // rejected as confusing (TJ, 2026-09-14). What separates the rows that rank
-  // from the two that do not is the empty radio column, nothing drawn.
-  it('draws no rule inside the Metrics table', () => {
-    const start = metricsTableSource.indexOf('METRICS_GRID}')
-    const grid = metricsTableSource.slice(start, metricsTableSource.indexOf('</section>', start))
-
-    expect(start).toBeGreaterThan(-1)
-    expect(grid).toContain('Rank by')
-    expect(grid).toContain('results')
-    expect(grid).not.toMatch(/border-t|border-b/)
-  })
-
-  // Clear filters has no label to push it into a column, so it spans the two
-  // box columns: both of its edges sit on the boxes it clears, which is what a
-  // CONTROL_W button no longer lines up with now that the boxes are narrower.
-  it('keeps the clear-filters button under the bound boxes', () => {
-    const button = metricsTableSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
-    expect(button).toContain('col-span-2')
-    expect(button).toContain('col-start-3')
-    expect(button).not.toContain('CONTROL_W')
-  })
-
-  // Clear filters is ALWAYS drawn and disables when there is nothing to clear
-  // (TJ, 2026-09-14). A button that appears and disappears moves everything
-  // under it and has to be found again; a disabled one stays where the reader
-  // last saw it. The condition therefore reaches `disabled`, never a `&&`
-  // around the element.
-  it('always draws the clear-filters button and disables it instead', () => {
-    const button = metricsTableSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
-    expect(button).toContain('disabled={!filtersActive}')
-    expect(button).toContain('${DISABLED}')
-    expect(metricsTableSource).not.toContain('{filtersActive && (')
-  })
-
   // The section's one deliberate break: space above the box headings, telling
   // the two controls that order the list from the table of bounds below. It is
   // padding on EVERY cell of that row, because the columns are grid tracks and
@@ -1197,30 +973,6 @@ describe('shared recipes', () => {
   // set.
   it('spaces the Metrics headings off the controls above them', () => {
     expect(METRIC_HEAD_GAP).toMatch(/^pt-[\d.]+$/)
-
-    const start = metricsTableSource.indexOf('METRICS_GRID}')
-    const grid = metricsTableSource.slice(start, metricsTableSource.indexOf('</section>', start))
-    // One per heading cell: the spacer spanning the label and dropdown
-    // columns, plus the two headings the EDGES map draws.
-    expect(grid.match(/METRIC_HEAD_GAP/g)).toHaveLength(2)
-    expect(grid).toMatch(/col-span-2 \$\{METRIC_HEAD_GAP\}/)
-  })
-
-  // The chart's metric control (#348). It was five radios whose labels carry
-  // their units, which at the panel's 12px type need 584px of row; a phone's
-  // results sheet is the phone's width, so at 402px the row wrapped and AQI
-  // sat alone on a second line. A control whose width its labels cannot move
-  // is what ends that: the select composes SELECT at CHART_METRIC_W, and the
-  // row holding it never wraps, so a sixth metric cannot bring the line back.
-  it('keeps the chart metric control on one row at every width', () => {
-    const chart = sources['./components/TimeSeriesChart.tsx']
-    // Through the whole class template rather than to the closing bracket:
-    // the change handler's arrow is a `>` too, and the template's first
-    // interpolation is a `}` too.
-    const select = chart.match(/<select[\s\S]*?className=\{`[^`]*`\}/)![0]
-    expect(select).toContain('SELECT')
-    expect(select).toContain('CHART_METRIC_W')
-    expect(chart).not.toMatch(/flex-wrap/)
   })
 
   // A numeric field is a field with the spinner arrows taken off, not a second
@@ -1276,82 +1028,6 @@ describe('shared recipes', () => {
     for (const recipe of Object.values(STATUS)) expect(sizes(recipe)).toEqual([])
   })
 
-  // Every notice in the panel renders in the ONE block under the Analyze
-  // button. The archive work (#123) shipped a window warning under the
-  // calendar, a screen away from every other message, and found two more
-  // already there — so this is the guardrail rather than a third fix.
-  //
-  // Enforced through the box: a notice IS a `NOTICE` role, only `FooterNotice`
-  // wears one, and `FooterNotice` is rendered once, below the button. A message
-  // put beside a control therefore has nowhere to live. Regexes are built by
-  // alternation rather than by quoting a class, so Tailwind's raw-text scan of
-  // this file finds nothing to emit.
-  const roleUses = (source: string, role: string): number[] =>
-    [...source.matchAll(new RegExp(String.raw`\b${role}\s*[.[]`, 'g'))].map(
-      (m) => m.index,
-    )
-
-  it('renders every notice box below the Analyze button', () => {
-    const footerNotice = panelFooterSource.indexOf('function FooterNotice(')
-    const panel = panelFooterSource.indexOf('export default function PanelFooter(')
-    const rendered = [...panelFooterSource.matchAll(/<FooterNotice\b/g)]
-    const analyze = panelFooterSource.indexOf('onClick={onAnalyze}')
-
-    expect(footerNotice).toBeGreaterThan(-1)
-    expect(analyze).toBeGreaterThan(-1)
-    // The box is built in one component and rendered in one place, after the
-    // button. Two call sites would let a second block open anywhere.
-    expect(rendered).toHaveLength(1)
-    expect(rendered[0].index).toBeGreaterThan(analyze)
-    for (const at of roleUses(panelFooterSource, 'NOTICE')) {
-      expect(at, 'a NOTICE box outside FooterNotice').toBeGreaterThan(footerNotice)
-      expect(at, 'a NOTICE box outside FooterNotice').toBeLessThan(panel)
-    }
-    // The footer is one file of several, so the rest of the panel is held to
-    // the same rule: no box of its own, and no second place the box renders.
-    for (const [path, source] of Object.entries(sources)) {
-      if (path === './components/PanelFooter.tsx') continue
-      expect(source, `${path} renders a notice box`).not.toMatch(/<FooterNotice\b/)
-    }
-    for (const source of PANEL_SOURCES.filter((s) => s !== panelFooterSource)) {
-      expect(roleUses(source, 'NOTICE'), 'a NOTICE box outside the footer').toEqual([])
-    }
-  })
-
-  // The move that emptied ModelPicker's tooltip count above (TJ, 2026-09-14).
-  // The count alone would pass if the sentence had simply been deleted, so
-  // this is the other half: it is in the panel, in the list that feeds the one
-  // notice block, and it is not on the control it describes.
-  it('says why the model control is faded in the message block, not on it', () => {
-    const sentence = 'Archive data uses no forecast model.'
-    expect(modelPickerSource).not.toContain(sentence)
-    expect(panelMessagesSource).toContain(sentence)
-    const messages = panelMessagesSource.indexOf('const windowMessages')
-    expect(messages).toBeGreaterThan(-1)
-    expect(panelMessagesSource.indexOf(sentence)).toBeGreaterThan(messages)
-  })
-
-  it('colours nothing but a notice and the draw counter by status', () => {
-    const section = destinationsSource.indexOf('export default function DestinationsSection(')
-    const outside = roleUses(destinationsSource, 'STATUS').filter((at) => at > section)
-    // The one exception, pinned by count the way the tooltip list is: the
-    // polygon's draw counter colours its captions by state (points placed, the
-    // ring closed, the area over the cap, a large area). Those are a field's own
-    // readout beside the field, not messages about the analysis — and a seventh
-    // is a notice that has wandered out of the footer.
-    expect(section).toBeGreaterThan(-1)
-    expect(outside).toHaveLength(6)
-    // The footer colours by status inside FooterNotice alone, which is
-    // declared above the footer's own body.
-    const footer = panelFooterSource.indexOf('export default function PanelFooter(')
-    expect(footer).toBeGreaterThan(-1)
-    expect(roleUses(panelFooterSource, 'STATUS').filter((at) => at > footer)).toEqual([])
-    // And the rest of the panel colours nothing by status at all.
-    for (const source of [controlPanelSource, forecastSectionSource, metricsTableSource]) {
-      expect(roleUses(source, 'STATUS')).toEqual([])
-    }
-  })
-
   // Three rules, none redundant: Firefox reads the appearance property, WebKit
   // and Blink read the two pseudo-elements. Dropping any one leaves the arrows
   // on somewhere, and the filters grid (#115) budgets its column widths on
@@ -1404,16 +1080,6 @@ describe('shared recipes', () => {
     expect(EXTERNAL_LINK_PX).toBe(stepPx(ICON.inline, 'h'))
   })
 
-  // And the shape itself comes from `iconPaths.ts` rather than being typed out
-  // again: `popupChrome.ts` was the one file outside the icon module still
-  // drawing a glyph of its own, which the component lint above cannot see
-  // because it reads the React tree.
-  it('leaves no glyph spelled in the map popup', () => {
-    const drawn = popupChromeSource.match(/<svg[\s>][^>]*>/g) ?? []
-    expect(drawn, 'draw it from `iconPaths.ts` instead').toEqual([])
-    expect(popupChromeSource).toContain('externalLinkMarkup()')
-  })
-
   // Every floating box on the map is one surface: the search field and its
   // dropdown, the Controls button, both legends, the chart tooltip. The
   // legends used to run a darker fill and border, so the map carried two ideas
@@ -1449,32 +1115,9 @@ describe('shared recipes', () => {
   // ragged edge rather than as a column, so the width is one role and every
   // member of the column wears it.
   it('gives every member of the map column one width', () => {
+    // Who wears it, and what no call site spells beside it, are the
+    // style-map-column and style-search-box checks.
     expect(MAP_COL_W).toBe('w-46')
-    // Four in App.tsx — the legend, the popover, both buttons — and one in
-    // SearchBox, the field's wrapper. It was five while the legend was two
-    // boxes (#454). A width spelled beside the role could not even be relied on
-    // to win: two width utilities resolve by stylesheet order rather than by
-    // class order.
-    const rides = (src: string) => src.match(/\$\{MAP_COL_W\}[^`]*/g) ?? []
-    expect(rides(appSource)).toHaveLength(4)
-    expect(rides(searchBoxSource)).toHaveLength(1)
-    for (const ride of [...rides(appSource), ...rides(searchBoxSource)]) {
-      expect(ride).not.toMatch(/(^|\s)w-\S+/)
-    }
-    // And neither file picks its own width in the range a member of this
-    // column would plausibly take. Written as a range rather than as a list of
-    // names so a step nobody thought of still fails, and with the leading
-    // guard so `max-w-*` is not read as a width of its own.
-    expect(appSource).not.toMatch(/(?<![-\w])w-(?:4\d|5\d)\b/)
-    // SearchBox has ONE deliberate exception, and this is it: the result list
-    // is wider than the column on purpose (TJ, 2026-09-14), because bound to
-    // it, every second line clipped away the county and state that tell four
-    // places of the same name apart. Nothing else in the file spells a width —
-    // the single-digit steps left are icons, square and sized with their own
-    // height beside them.
-    const searchWidths = searchBoxSource.match(/(?<![-\w])w-\d\S*/g) ?? []
-    // The dropdown at each breakpoint, and the spinner's square.
-    expect([...new Set(searchWidths)].sort()).toEqual(['w-4', 'w-72', 'w-80'])
   })
 
   // The third part of the same decision: one gap between members, so the
@@ -1482,14 +1125,6 @@ describe('shared recipes', () => {
   it('gives the column one gap, in both of the forms it takes', () => {
     expect(MAP_COL_GAP).toBe('gap-1')
     expect(MAP_COL_GAP_T).toBe('mt-1')
-    // The cluster, the legend stack, and the popover that hangs rather than
-    // sits. A gap spelled beside any of them would move the column's height
-    // without moving `LEGEND_TOP`, which is derived from this number.
-    expect(appSource.match(/\$\{MAP_COL_GAP\}/g) ?? []).toHaveLength(2)
-    expect(appSource.match(/\$\{MAP_COL_GAP_T\}/g) ?? []).toHaveLength(1)
-    for (const ride of appSource.match(/\$\{MAP_COL_GAP(?:_T)?\}[^`]*/g) ?? []) {
-      expect(ride).not.toMatch(/(^|\s)(?:gap-|mt-)/)
-    }
   })
 
   // The other half of the same decision: one row height, so the field and the
@@ -1500,13 +1135,9 @@ describe('shared recipes', () => {
       ...(appSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
       ...(searchBoxSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
     ]
-    // Both buttons and the search field.
+    // Both buttons and the search field, counted across the two files. A row
+    // that sets its own height beside the role is the style-map-column check.
     expect(rows).toHaveLength(3)
-    // A row that sets its own height, or pads its way to one, is the drift
-    // this replaces: `py-*` on the row box would grow it past the role.
-    for (const ride of appSource.match(/\$\{MAP_ROW_H\}[^`]*/g) ?? []) {
-      expect(ride).not.toMatch(/(^|\s)(?:h-|min-h-|py-)/)
-    }
   })
 
   // One type size for the whole column, which is what `CONTROL_SIZE` is doing
@@ -1520,47 +1151,16 @@ describe('shared recipes', () => {
     // beside `TEXT.control`'s slate-200 would resolve by stylesheet order.
     expect(BUTTON_FLOATING).toContain('text-white')
     expect(BUTTON_FLOATING).not.toContain(TEXT.cta)
-    // And no call site in the column reaches past it. The buttons carry no
-    // size of their own beside the role, and nothing in SearchBox does either.
-    for (const ride of appSource.match(/\$\{BUTTON_FLOATING\}[^`]*/g) ?? []) {
-      expect(sizes(ride)).toEqual([])
-    }
-    expect(searchBoxSource).not.toMatch(/\btext-(?:sm|base|lg|xl)\b/)
   })
 
   // The search results moved onto the popover's fill, which is a step lighter
   // than the surface the caption tier was derived against.
   it('lifts the search results and the caption inside them together', () => {
-    expect(searchBoxSource).toContain('${SURFACE_POPOVER}')
-    expect(searchBoxSource).toContain('${CAPTION_LIFTED}')
     // slate-400 is 3.94:1 on that fill, under the 4.5:1 AA asks of text.
     // The results bar is the same slate-700, and its window caption measured
     // 3.93:1 on the caption tier; slate-300 is 6.97:1 there.
-    expect(appSource).toMatch(/\$\{CAPTION_LIFTED\} truncate`}>\s*\{windowTitle\}/)
-    expect(appSource).not.toMatch(/\$\{TEXT\.caption\} truncate`}>\s*\{windowTitle\}/)
     expect(CAPTION_LIFTED).not.toContain('slate-400')
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
-  })
-
-  // The slot under the field has two states and one box. The message state wore
-  // `NOTICE.warn`, a panel role: a 40% amber tint over whatever is behind it,
-  // which over the map is the map and the Layers button (TJ, 2026-09-14).
-  it('draws both states of the search dropdown on one opaque surface', () => {
-    const dropdown = searchBoxSource.match(/const DROPDOWN = `([^`]*)`/)![1]
-    expect(dropdown).toContain('${SURFACE_POPOVER}')
-    // Both the list and the message ride it, and neither spells a surface of
-    // its own beside it.
-    const rides = searchBoxSource.match(/\$\{DROPDOWN\}[^`]*/g) ?? []
-    expect(rides).toHaveLength(2)
-    for (const ride of rides) expect(ride).not.toMatch(/(^|\s)bg-/)
-    // A panel notice box on a floating surface is the bug this replaced: its
-    // fill is a tint, and a tint over the map is the map. Severity comes from
-    // STATUS instead, which is color only — amber-300 is 7.15:1 on the
-    // popover's fill, measured 2026-09-14.
-    // The interpolated form, not the bare word: the file explains in a comment
-    // which role it stopped wearing, and a comment is not a class list.
-    expect(searchBoxSource).not.toContain('${NOTICE')
-    expect(searchBoxSource).toContain('${STATUS.warn}')
   })
 
   // The Layers popover, separated from the legend boxes by elevation rather
@@ -1602,19 +1202,6 @@ describe('shared recipes', () => {
     expect(LINK_ACTION).toContain('text-sky-400')
     expect(LINK).not.toMatch(/(^|\s)text-sky-/)
     expect(LINK).toContain('hover:text-sky-400')
-  })
-
-  // The results bar's five links — Columns, Models, Removed, Download CSV, and
-  // the Open-Meteo credit beside them — are controls the reader presses, so they
-  // read at the size every other control in the app reads at. The micro step
-  // is for text that is present but never first, and a 10px button in a bar of
-  // 12px text read as a footnote rather than as a control.
-  it('reads the results bar at the size of every other control', () => {
-    expect((appSource.match(/\$\{TEXT\.control\} \$\{LINK\}/g) ?? []).length).toBe(5)
-    // The micro step is for text that is present but never first, and the one
-    // place this file would reach for it — the legend strip's numbers — takes
-    // `SWATCH_RAMP_TICK` instead, which is where their ground is decided too.
-    expect(appSource).not.toMatch(/\$\{TEXT\.micro\}/)
   })
 
   // The map's Open-Meteo credit is a link *and* a 10px caption, so it wears
@@ -2031,38 +1618,18 @@ describe('status and notices', () => {
     // which the overlay must not eat.
     expect(NOTICE_DISMISS.row).toContain('gap-2')
   })
-
-  // Every message in this app is written to fit one line at 360px, and that
-  // budget is measured with the full text column. A list indent and its marker
-  // take 16px of it, which is what made the first message wrap as soon as a
-  // second joined it. Spelled from parts: v4 scans this file as raw text and
-  // would emit the CSS for a marker class quoted here.
-  it('gives the messages the whole text column', () => {
-    for (const source of PANEL_SOURCES) {
-      expect(source).not.toContain(['list', 'disc'].join('-'))
-      expect(source).not.toContain(['<', 'ul'].join(''))
-    }
-  })
 })
 
 // The rank cell trades its number for the remove × on hover. Both faces share
 // one grid cell, so the column is as wide as the wider face at all times;
 // toggling display instead let the # column grow on every hover and shove
 // every column to its right (#339).
+// That the table wears these roles, and never toggles display on hover, is the
+// style-rank-cell check.
 describe('the results table rank cell', () => {
-  const source = sources['./components/ResultsTable.tsx']
-
   it('pins both faces of the rank cell to one grid cell', () => {
     expect(STYLES.TABLE.rankFace.split(' ')).toEqual(['col-start-1', 'row-start-1'])
     expect(STYLES.TABLE.rankStack.split(' ')).toContain('inline-grid')
-    expect((source.match(/TABLE\.rankFace/g) ?? []).length).toBe(2)
-  })
-
-  it('trades visibility, never display, on row hover', () => {
-    // Built from parts so the class name never appears in this file as text,
-    // which Tailwind would otherwise compile.
-    const displayToggle = new RegExp(['group-hover', '(hidden|inline|block|flex)\\b'].join(':'))
-    expect(source).not.toMatch(displayToggle)
   })
 
   // Two kinds of row in one body: the pending destinations waiting on a
@@ -2074,7 +1641,6 @@ describe('the results table rank cell', () => {
   it('draws every row in the body from one recipe', () => {
     expect(STYLES.TABLE.row.split(' ')).toContain('group')
     expect(STYLES.TABLE.row).toMatch(/\bborder-t\b/)
-    expect((source.match(/TABLE\.row\b/g) ?? []).length).toBe(2)
   })
 })
 
@@ -2088,9 +1654,6 @@ describe('moving a column', () => {
   it('carries its own stacking order rather than asking for one', () => {
     expect(DRAG_GHOST).toContain(LAYER.popover)
     expect(DRAG_INSERT).toContain(LAYER.popover)
-    for (const [path, src] of Object.entries(sources)) {
-      expect(src, `${path} re-adds the layer`).not.toMatch(/DRAG_(GHOST|INSERT)\}\s*\$\{LAYER/)
-    }
   })
 })
 
@@ -2105,13 +1668,6 @@ describe('the map edge inset', () => {
       // second copy of it, and the two would drift.
       expect(side).not.toMatch(/rem|px/)
     }
-  })
-
-  // The map wrapper is what carries the property, so everything inside it —
-  // the app's floating chrome and MapLibre's own markup, which has no call
-  // site to hand a role to — inherits the same number.
-  it('is published on the map wrapper', () => {
-    expect(appSource).toContain('MAP_EDGE.publish')
   })
 
   // MapLibre's credit line is sized by map.css from a custom property, because
@@ -2144,17 +1700,6 @@ describe('the map edge inset', () => {
     expect(body).toContain('var(--map-edge-inset)')
     expect(body).not.toMatch(/\d+(?:px|rem)/)
   })
-
-  it('leaves no top edge spelled at the app\'s own column', () => {
-    expect(appSource).toContain('${MAP_EDGE.top}')
-    expect(appSource).not.toMatch(/\btop-(?:3)\b/)
-  })
-
-  it('leaves no left edge spelled at a call site', () => {
-    expect(appSource).not.toMatch(/\bleft-(?:2|3)\b/)
-    expect(appSource).not.toMatch(/\bleft-\[/)
-    expect((appSource.match(/\$\{MAP_EDGE\.left\}/g) ?? []).length).toBe(2)
-  })
 })
 
 // The map's Layers popover: the one list in the app whose members have no
@@ -2179,26 +1724,6 @@ describe('the map layer rows', () => {
     expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)))
   })
 
-  // Every row is in the list every time (#460). `Forecast player` used to be
-  // spread in behind `playerOffered`, so switching the rain radar off took a
-  // row out of the middle of the list and moved every row under it. A row that
-  // does not apply now greys instead, which is what the `Forecast grid` row
-  // already did and what `CHOICE_ROW` fades on its own.
-  it('spreads no row in and out of the list', () => {
-    const block = appSource.match(/const MAP_LAYERS = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
-    expect(block).not.toContain('...(')
-    expect(labels).toContain('Forecast player')
-  })
-
-  // A greyed row says it is out of play by fading, and says nothing else. The
-  // `Forecast grid` row's own `note` is older approved copy and stays; the
-  // player takes none, because a sentence explaining a control is a tooltip by
-  // another name (TJ, 2026-09-22).
-  it('greys the player row rather than writing it a reason', () => {
-    const row = appSource.match(/\{[^{}]*label: 'Forecast player'[\s\S]*?\n {4}\}/)?.[0] ?? ''
-    expect(row).toContain('disabled: !playerOffered')
-    expect(row).not.toContain('note:')
-  })
 })
 
 // The map's one legend box (#454): the metric key and a section per layer that
@@ -2255,7 +1780,6 @@ describe('the map legend sections', () => {
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
     expect((box.match(/\bramp: \{/g) ?? []).length).toBe(2)
-    expect((appSource.match(/className=\{SWATCH_RAMP\}/g) ?? []).length).toBe(1)
   })
 })
 
@@ -2286,12 +1810,6 @@ describe('the legend ramp', () => {
   // inline and two colour utilities resolve by stylesheet order.
   it('edges every swatch from one place', () => {
     expect(SWATCH_EDGE).toBe('#475569')
-    expect(appSource).not.toContain("'#475569'")
-  })
-
-  it('is what the legend wears, rather than a strip spelled at the call site', () => {
-    expect(appSource).toContain('className={SWATCH_RAMP}')
-    expect(appSource).toContain('className={SWATCH_RAMP_TICK}')
   })
 
   // The numbers moved INSIDE the strip (TJ, 2026-09-17), which saves a line per
@@ -2316,18 +1834,6 @@ describe('the legend ramp', () => {
     expect(SWATCH_RAMP_TICK).toContain('relative')
   })
 
-  // A ramp whose numbers are its children may not be hidden from assistive
-  // technology: it carried `aria-hidden` while they sat outside it, and
-  // keeping that would have taken the scale off a screen reader with it.
-  it('is no longer hidden, now that it holds the numbers', () => {
-    // The strip's OWN attributes, which end where its first child begins. The
-    // scrim inside it is hidden, and rightly: it is a ground, not a number.
-    const from = appSource.indexOf('className={SWATCH_RAMP}')
-    const to = appSource.indexOf('className={SWATCH_RAMP_SCRIM}')
-    expect(from).toBeGreaterThan(-1)
-    expect(to).toBeGreaterThan(from)
-    expect(appSource.slice(from, to)).not.toContain('aria-hidden')
-  })
 })
 
 // The chips above the model list: one per selected model, with the one in force

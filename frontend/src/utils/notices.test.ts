@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import panelMessagesSource from './panelMessages.ts?raw'
 import {
   BLOCKER_SEVERITY,
   FooterMessage,
@@ -222,33 +221,5 @@ describe('listPhrase', () => {
   // type does not.
   it('yields nothing for an empty list', () => {
     expect(listPhrase([])).toBe('')
-  })
-})
-
-// The two comparison blockers say what the report cannot answer, and both were
-// read and approved as written (TJ, 2026-09-14). Asserted against the source
-// text, like every other copy lint here, because the panel is wiring and
-// Vitest has no DOM to render it into.
-describe('the approved comparison blocker copy', () => {
-  it('reads the message source it claims to lint', () => {
-    expect(panelMessagesSource.length).toBeGreaterThan(500)
-  })
-
-  // Two lines rather than one, which is the standing rule's one exception:
-  // the reader needs the cause and the consequence, and neither half stands
-  // alone. Measured at 80 characters against a 92-character two-line budget.
-  it('says why air quality cannot be compared, and that it cannot', () => {
-    expect(panelMessagesSource).toContain(
-      '`${NOUN.aqi} data is retrieved independently of the model and cannot be compared.`',
-    )
-  })
-
-  // Names the models rather than counting them: the model is a control in
-  // this panel, so a name is something the reader can act on. Composed from
-  // the metric vocabulary, never spelled.
-  it('names the models that carry no freezing level', () => {
-    expect(panelMessagesSource).toContain(
-      '`${NOUN.freeze} data is not available for ${listPhrase(freezeGaps)}.`',
-    )
   })
 })

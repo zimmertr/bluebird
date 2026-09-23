@@ -27,12 +27,13 @@ import {
   transportBottomPx,
 } from './resultsSheet'
 // `?raw` reads the sources as text, so the offsets the anchors here mirror can be
-// asserted without a DOM. The three classes quoted below are already in the
-// bundle because those files spell them; quoting one that is NOT would emit its
-// CSS, which is the trap `styles.test.ts` documents.
+// asserted without a DOM. The classes quoted below are already in the bundle
+// because styles.ts spells them; quoting one that is NOT would emit its CSS,
+// which is the trap `styles.test.ts` documents. What App.tsx and
+// TimelineTransport.tsx spell is held by the `app-` checks in
+// tools/eslint/checks/app.js.
 import appSource from '../App.tsx?raw'
 import stylesSource from '../styles.ts?raw'
-import transportSource from '../components/TimelineTransport.tsx?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
 
 describe('sheetHeightPx', () => {
@@ -75,27 +76,9 @@ describe('the map chrome anchors', () => {
     )
   })
 
-  // The legend stack hangs under the Layers button and grows DOWNWARD, so a
-  // box never moves because a panel was dragged, and the overflow leaves
-  // through the edge a scroll can follow. A stack pushed to the bottom edge —
-  // by an auto margin on its first child, or by justifying the column to the
-  // end — overflows past its START edge instead, where content sits at
-  // negative coordinates with `scrollTop` pinned at 0 and cannot be reached.
-  //
-  // Both patterns are matched without spelling either class verbatim: v4 scans
-  // this file as raw text and would emit the CSS for anything it finds.
-  it('anchors the legend stack at the top, not at the bottom', () => {
-    expect(appSource).not.toMatch(/\bm[tb]-(?:auto)\b/)
-    expect(appSource).not.toMatch(/\bjustify-(?:end)\b/)
-    expect(appSource).toContain('LEGEND_TOP.compact')
-    expect(appSource).toContain('LEGEND_TOP.full')
-  })
-
   // Every offset on this edge is derived here and applied as a style, so the
-  // one class left to mirror is the legend's top inset. A bottom spelled in
-  // either component would be a second opinion about the same edge — which is
-  // how the gap under the player came to differ per results mode.
-  it('leaves no bottom offset spelled in a component', () => {
+  // one class left to mirror is the legend's top inset.
+  it('mirrors the legend inset the role spells', () => {
     // The inset is a role with four numbers: two pointer sizes, each with and
     // without the Controls button, which stands in the column only while the
     // panel is collapsed. The two a floor is about are asserted against the
@@ -110,12 +93,6 @@ describe('the map chrome anchors', () => {
     expect(LEGEND_TOP_PX).toBe(156)
     // The sheet's floor is promised against the taller column of the two.
     expect(LEGEND_TOP_PX).toBeGreaterThan(LEGEND_TOP_FINE_PX)
-    // `bottom-0` is exempt and is the sheet itself, which stands ON the edge
-    // rather than measuring off it.
-    expect(appSource).not.toMatch(/\bbottom-(?:[1-9]|\[)/)
-    expect(transportSource).not.toMatch(/\bbottom-(?:[1-9]|\[)/)
-    expect(appSource).toContain('legendBottomPx(sheetLiftPx')
-    expect(transportSource).toContain('transportBottomPx(liftPx)')
   })
 
   // The band above the results holds the taller of MapLibre's two bottom
@@ -173,14 +150,6 @@ describe('mapCornerLiftPx', () => {
     expect(transportBottomPx(392) - mapCornerLiftPx(392)).toBe(TRANSPORT_GAP_PX)
   })
 
-  // map.css cannot be read as text here (vitest stubs a CSS import to an empty
-  // string), so what is pinned is the names App publishes under, and that the
-  // band's height is the gap itself rather than a second number.
-  it('is published under the names the stylesheet reads', () => {
-    expect(appSource).toContain('--map-corner-lift')
-    expect(appSource).toMatch(/'--map-corner-band': `\$\{TRANSPORT_GAP_PX\}px`/)
-  })
-
   // maplibre-gl adds a compact attribution open and folds it on the first
   // drag, so the phone's (i) is a licence line until the reader pans. The map
   // folds it as soon as it is added, with the class the library's own toggle
@@ -190,15 +159,6 @@ describe('mapCornerLiftPx', () => {
     expect(add).toBeGreaterThan(-1)
     const after = mapViewSource.slice(add, add + 800)
     expect(after).toContain("classList.remove('maplibregl-compact-show')")
-  })
-})
-
-// #249 is a phone-only layout. Desktop keeps the docked panel it had, spelled
-// exactly as it was spelled — the sheet is a second branch beside it rather than
-// an edit to it, so the two cannot be changed by accident together.
-describe('the docked layout', () => {
-  it('keeps the desktop results panel verbatim', () => {
-    expect(appSource).toContain("'flex flex-shrink-0 flex-col bg-slate-800'")
   })
 })
 
@@ -312,14 +272,6 @@ describe('the drag cap', () => {
     const uncapped = lift(clampPanelHeight(table, 400, 0, VIEWPORT))
     expect(VIEWPORT - uncapped - TRANSPORT_BAND_PX).toBeLessThan(LEGEND_TOP_PX)
   })
-
-  it('is the floor the drag handlers pass', () => {
-    expect(appSource).toContain('draggedMapFloorPx(gripCount)')
-    // Both grips that resize against the map: the map│chart resizer and the
-    // table's own. The chart│table divider preserves the pair's sum, so it
-    // cannot move the sheet and takes no floor.
-    expect(appSource.match(/clampPanelHeight\([^)]*dragFloorPx/g)).toHaveLength(2)
-  })
 })
 
 // What the camera leaves clear of the sheet. `fitBounds` measures into the
@@ -379,14 +331,6 @@ describe('the camera padding', () => {
       }),
     ).toBe(SHEET_HEADER_PX)
   })
-
-  // A camera move must not depend on a height the reader is dragging at the
-  // time, which is what passing the DEFAULT panel heights buys: the number is
-  // the same before and after any drag.
-  it('is derived from the default heights, not the ones a drag sets', () => {
-    expect(appSource).toContain('chartPx: DEFAULT_CHART_HEIGHT')
-    expect(appSource).toContain('tablePx: DEFAULT_TABLE_HEIGHT')
-  })
 })
 
 /** What `App.tsx` opens both panels at; asserted against the source below. */
@@ -439,9 +383,8 @@ describe('dockedMapFloorPx', () => {
 // than restated: they are one number now, and the number is what Both mode can
 // spend on a 1000px window under the floor above.
 describe('the default panel heights', () => {
-  it('open the chart and the table at the same height', () => {
-    expect(appSource).toContain('const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT')
-    expect(appSource).toContain('const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT')
+  // That both panels read DEFAULT_PANEL_HEIGHT is the `app-docked-panels` check.
+  it('open at the number measured here', () => {
     expect(appSource).toContain(`const DEFAULT_PANEL_HEIGHT = ${DEFAULT_PANEL_PX}`)
   })
 
