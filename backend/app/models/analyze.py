@@ -419,18 +419,19 @@ class HourlySeries(BaseModel):
         )
     )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
-    cloud_base_ft: list[float | None] = Field(
+    cloud_base_ft: list[float | None] | None = Field(
+        default=None,
         description=(
-            "Cloud base, feet above sea level. Null at every hour unless the "
-            "cloud variables were fetched; see `cloud_base_min_ft` on the "
-            "result."
-        )
+            "Cloud base, feet above sea level; see `cloud_base_min_ft` on the "
+            "result. Null as a whole unless the cloud variables were fetched."
+        ),
     )
-    cloud_cover_pct: list[float | None] = Field(
+    cloud_cover_pct: list[float | None] | None = Field(
+        default=None,
         description=(
-            "Total cloud cover, percent. Null at every hour unless the cloud "
+            "Total cloud cover, percent. Null as a whole unless the cloud "
             "variables were fetched."
-        )
+        ),
     )
 
 

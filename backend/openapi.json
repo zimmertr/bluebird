@@ -1364,34 +1364,48 @@
             "type": "array"
           },
           "cloud_base_ft": {
-            "description": "Cloud base, feet above sea level. Null at every hour unless the cloud variables were fetched; see `cloud_base_min_ft` on the result.",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Cloud Base Ft",
-            "type": "array"
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cloud base, feet above sea level; see `cloud_base_min_ft` on the result. Null as a whole unless the cloud variables were fetched.",
+            "title": "Cloud Base Ft"
           },
           "cloud_cover_pct": {
-            "description": "Total cloud cover, percent. Null at every hour unless the cloud variables were fetched.",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Cloud Cover Pct",
-            "type": "array"
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total cloud cover, percent. Null as a whole unless the cloud variables were fetched.",
+            "title": "Cloud Cover Pct"
           },
           "freeze_ft": {
             "description": "Freezing level, feet above sea level. Null at every hour for the models that do not publish the variable; see `freeze_avg_ft` on the result.",
@@ -1459,9 +1473,7 @@
           "temp_f",
           "wind_mph",
           "freeze_ft",
-          "aqi",
-          "cloud_base_ft",
-          "cloud_cover_pct"
+          "aqi"
         ],
         "title": "HourlySeries",
         "type": "object"

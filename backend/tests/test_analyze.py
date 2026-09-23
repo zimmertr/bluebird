@@ -1868,7 +1868,7 @@ def test_cloud_eager_reads_the_ranking_and_every_cloud_bound():
 
 
 def test_aligned_cloud_maps_by_stamp_and_nulls_the_rest():
-    assert analyze_mod._aligned_cloud([1, 2, 3], None) == ([None] * 3, [None] * 3)
+    assert analyze_mod._aligned_cloud([1, 2, 3], None) == (None, None)
     series = {"times": [2, 3], "cloud_base_ft": [9000.0, None], "cloud_cover_pct": [40, 60]}
     assert analyze_mod._aligned_cloud([1, 2, 3], series) == (
         [None, 9000.0, None],

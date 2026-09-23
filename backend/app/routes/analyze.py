@@ -734,17 +734,17 @@ def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | Non
 
 def _aligned_cloud(
     times_ms: list[int], cloud_series: dict | None
-) -> tuple[list[float | None], list[float | None]]:
+) -> tuple[list[float | None] | None, list[float | None] | None]:
     """Cloud base and cloud cover aligned onto the weather grid, null where absent.
 
     The two requests ask for the same hours, so the grids agree whenever both
     answered; aligning by stamp rather than by index is what keeps a short or
     missing answer from sliding a value onto the wrong hour. No series at all
-    is every hour null, which is also the shape of a row whose analysis never
-    asked for the cloud fields.
+    is no arrays at all, which is what a row whose analysis never asked for
+    the cloud fields carries: a column of nulls would be bytes that say less.
     """
     if not cloud_series:
-        return [None] * len(times_ms), [None] * len(times_ms)
+        return None, None
     base = dict(zip(cloud_series["times"], cloud_series["cloud_base_ft"], strict=False))
     cover = dict(zip(cloud_series["times"], cloud_series["cloud_cover_pct"], strict=False))
     return [base.get(t) for t in times_ms], [cover.get(t) for t in times_ms]
