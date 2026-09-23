@@ -25,7 +25,7 @@ import {
 } from '../utils/clientAnalyze'
 import { postDestinations } from '../utils/apiFetch'
 import { geoKey } from '../utils/points'
-import { COVERAGE_MESSAGE_TAIL, OpenMeteoModelCoverage } from '../utils/openMeteo'
+import { COVERAGE_MESSAGE_TAIL, OpenMeteoModelCoverage } from '../utils/openMeteoErrors'
 import { AQI_LIMIT_DAYS, SelectionKind } from '../utils/calendar'
 import { AnalyzedSnapshot, discoveryKeys } from '../utils/present'
 import type { ForecastModelOption } from './useCapabilities'

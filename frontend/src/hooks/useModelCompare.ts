@@ -14,7 +14,8 @@ import {
   pairKey,
 } from '../utils/modelCompare'
 import { shownModels } from '../utils/modelVisibility'
-import { COVERAGE_PHRASE, OpenMeteoModelCoverage, fetchWeather } from '../utils/openMeteo'
+import { fetchWeather } from '../utils/openMeteo'
+import { COVERAGE_PHRASE, OpenMeteoModelCoverage } from '../utils/openMeteoErrors'
 import type { WeatherResult } from '../utils/openMeteo'
 import { usePacedFetch } from './usePacedFetch'
 
