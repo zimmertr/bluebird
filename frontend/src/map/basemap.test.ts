@@ -9,7 +9,6 @@ import {
   poiLabelLayout,
   POI_GLOW_IMAGE,
   popupOptions,
-  rasterImage,
   setSource,
   updateResults,
 } from './basemap'
@@ -20,6 +19,7 @@ import { POI_LAYERS, LAKE_CLASS } from '../utils/basemapPoi'
 import { popupWidth } from '../utils/popupChrome'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultRow } from '../testSupport/fixtures'
+import { stubMap } from '../testSupport/stubMap'
 
 /**
  * The functions this file may declare at the top level, carried over from the
@@ -38,7 +38,6 @@ const ALLOWED: Record<string, string> = {
   // Build an image, or read a browser event.
   makeGlowImage: 'draws on a canvas',
   makeArrowImage: 'draws on a canvas',
-  rasterImage: 'draws on a canvas',
   isPinning: 'reads the modifier off a DOM event',
   // Return a MapLibre style spec: a declaration of how a layer draws, which
   // belongs beside the `addLayer` call that takes it rather than in a module of
@@ -67,43 +66,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals()
 })
-
-type Call = [string, ...unknown[]]
-
-/**
- * The part of a MapLibre map these helpers touch, recording every call in
- * order. Layer order is what `enhanceBasemap` is for, so the record is the
- * assertion rather than a spy per method.
- */
-function stubMap(
-  opts: {
-    styleLayers?: { id: string; type: string }[]
-    layers?: string[]
-    filters?: Record<string, unknown>
-    sources?: Record<string, { setData: (d: unknown) => void }>
-    rendered?: (arg: unknown, opts?: unknown) => unknown[]
-    canvasWidth?: number
-  } = {},
-) {
-  const calls: Call[] = []
-  const layers = new Set(opts.layers ?? [])
-  const map = {
-    getStyle: () => ({ layers: opts.styleLayers ?? [] }),
-    hasImage: () => false,
-    addImage: (id: string) => calls.push(['addImage', id]),
-    addLayer: (layer: { id: string }, before?: string) => {
-      layers.add(layer.id)
-      calls.push(['addLayer', layer.id, before])
-    },
-    getLayer: (id: string) => (layers.has(id) ? { id } : undefined),
-    getFilter: (id: string) => opts.filters?.[id],
-    setFilter: (id: string, filter: unknown) => calls.push(['setFilter', id, filter]),
-    getSource: (id: string) => opts.sources?.[id],
-    queryRenderedFeatures: (arg: unknown, o?: unknown) => opts.rendered?.(arg, o) ?? [],
-    getCanvas: () => ({ clientWidth: opts.canvasWidth ?? 0 }),
-  }
-  return { map: map as unknown as maplibregl.Map, calls }
-}
 
 describe('enhanceBasemap', () => {
   const styleLayers = [
@@ -156,7 +118,9 @@ describe('enhanceBasemap', () => {
   })
 
   it('leaves a style without the label layers alone', () => {
-    const { map, calls } = stubMap({ styleLayers })
+    const { map, calls } = stubMap({
+      styleLayers: styleLayers.filter((l) => !l.id.startsWith('water_name')),
+    })
     enhanceBasemap(map)
     expect(calls.filter((c) => c[0] === 'setFilter')).toEqual([])
   })
@@ -294,6 +258,5 @@ describe('the canvas images', () => {
   // Null rather than a throw: the caller skips the image and the map draws on.
   it('return null where the canvas has no 2D context', () => {
     expect(makeArrowImage()).toBeNull()
-    expect(rasterImage({ width: 2, height: 1, rgba: new Uint8ClampedArray(8) })).toBeNull()
   })
 })

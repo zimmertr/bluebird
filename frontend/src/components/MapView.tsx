@@ -53,49 +53,22 @@ import {
   enhanceBasemap,
   isPinning,
   lakeAnchor,
-  makeArrowImage,
   popupOptions,
-  rasterImage,
   setSource,
   updateResults,
 } from '../map/basemap'
+import { SMOKE_CLICK_ORDER, type SmokeProps } from '../utils/smoke'
+import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
+import { mountForecastGrid, type ForecastGridOverlay } from '../map/overlays/forecastGrid'
+import { mountRadar, type RadarOverlay } from '../map/overlays/radar'
+import { mountSmoke, type SmokeOverlay } from '../map/overlays/smoke'
+import { mountSnow, type SnowOverlay } from '../map/overlays/snow'
 import {
-  COARSE_TOLERANCE_DEG,
-  fetchWildfires,
-  fireIdentity,
-  wildfirePopupHtml,
-  nifcFireUrl,
-  type BBox,
-  type WildfireProps,
-} from '../utils/wildfires'
-import {
-  SMOKE_CLICK_ORDER,
-  SMOKE_DENSITIES,
-  SMOKE_EDGE,
-  SMOKE_FILL,
-  SMOKE_OPACITY,
-  fetchSmoke,
-  smokeLayerId,
-  smokePopupHtml,
-  type SmokeProps,
-} from '../utils/smoke'
-import { RADAR_OLDEST_MIN, radarLayerId, radarOffsets, radarTileUrl } from '../utils/radar'
-import {
-  SNOW_BOUNDS,
-  SNOW_LAYER_ID,
-  SNOW_MAX_ZOOM,
-  SNOW_SOURCE_ID,
-  SNOW_TILE_SIZE,
-  snowTileUrl,
-} from '../utils/snowDepth'
-import {
-  GridCell,
-  GridSpec,
-  GridStyle,
-  gridArrowFeatures,
-  gridImageCoordinates,
-  gridRaster,
-} from '../utils/forecastGrid'
+  WILDFIRE_FILL_LAYER,
+  fireLinkAt,
+  mountWildfires,
+  type WildfireOverlay,
+} from '../map/overlays/wildfires'
 
 export interface MapViewHandle {
   framePolygon: () => void
@@ -212,77 +185,7 @@ const SEARCH_VIEW_MILES = 10
 const FIT_PADDING_PX = 60
 const REFIT_WINDOW_MS = 1_000
 
-// How long the wildfire popup survives the cursor leaving its perimeter, so
-// the cursor can cross the gap and land on the NIFC link inside it. The popup
-// opens flush against the hover point, so the gap is a few pixels and this is
-// mostly slack for a hand that overshoots. Long enough to be reachable without
-// hurrying, short enough that a popup left behind by a cursor moving on feels
-// dismissed rather than stuck.
-const FIRE_POPUP_GRACE_MS = 400
-
 const DRAW_COLOR = '#38bdf8'
-
-/**
- * How solid the radar frame on screen is drawn.
- *
- * Light enough that basemap labels survive underneath it, which is the point of
- * a radar overlay on a map you are also reading place names off. Named because
- * two places need the same number — the layer's opening paint and the opacity
- * flip that advances a frame — and a frame that faded up to a different value
- * than it appeared at would pulse every time the loop wrapped.
- */
-const RADAR_OPACITY = 0.65
-
-/**
- * How solid the snow depth field is drawn (#446).
- *
- * Below the radar's 0.65 and above the forecast grid's 0.5, which is where it
- * sits in the layer chain too. Two things bound it. It is a *field*, not a
- * scatter of echoes — a January screen is solid colour from the Cascades to the
- * Rockies, so the terrain and the place names under it have to survive in a way
- * a rain cell never tests. And the radar is drawn on top of it, so the two
- * together must still leave a basemap: 0.55 under 0.65 composites to about a
- * fifth of the ground showing through, which is the floor for reading a lake
- * and a summit label off the map underneath.
- */
-const SNOW_OPACITY = 0.55
-
-/**
- * How solid the forecast field is drawn (#246).
- *
- * Below the radar's 0.65 because this is the layer most likely to be under
- * everything else at once — the field is the ground the markers, plumes and
- * perimeters are read against, and terrain has to survive under it or the map
- * stops being a map. Far enough above nothing that a whole field of green still
- * reads as green at a glance.
- */
-const GRID_OPACITY = 0.5
-
-/**
- * How a per-cell wind arrow is drawn against the markers' own.
- *
- * Smaller and dimmer, because both are on screen at once during a wind scrub
- * and at equal weight a field of hundreds of cell arrows buries the handful
- * actually attached to a ranked destination. Two channels rather than one:
- * measured on a 3 km lattice over Rainier, opacity alone still left the two
- * kinds of arrow reading as one field.
- */
-const GRID_ARROW_OPACITY = 0.5
-const GRID_ARROW_SIZE = 0.7
-
-/**
- * How far apart the loop's frames are armed after the layer is switched on.
- *
- * One frame is ~35 tiles at the zooms this overlay is read at, so twelve of
- * them is ~420 requests. Spacing them keeps that off IEM as a burst and keeps
- * the whole set inside about six seconds, which is comfortably less time than
- * it takes to notice the timeline and reach for play.
- *
- * Deliberately unrelated to the playback frame rate below it: this paces a
- * download, that paces an animation, and tying them would mean a slower loop
- * also loaded more slowly.
- */
-const RADAR_WARM_MS = 500
 
 const MapView = forwardRef<MapViewHandle, Props>(
   (
@@ -351,16 +254,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const cameraCommittedRef = useRef(false)
     const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
     const draggingVertexRef = useRef<number | null>(null)
-    const firePopupRef = useRef<maplibregl.Popup | null>(null)
-    // Which fire the open popup describes, so a mousemove within that same fire
-    // leaves it anchored where it is; and the pending close that gives the
-    // cursor time to travel from the perimeter onto the popup.
-    const hoveredFireRef = useRef<string | null>(null)
-    const fireCloseTimerRef = useRef<number | null>(null)
     // The single popup opened by focusResult (table-rank click), tracked so
     // repeated clicks replace it instead of stacking popups.
     const resultPopupRef = useRef<maplibregl.Popup | null>(null)
-    const fireAbortRef = useRef<AbortController | null>(null)
+    // The overlays the load handler mounts. Each owns its sources, layers,
+    // popups and fetches, and the toggle effects below only hand them props.
+    const overlaysRef = useRef<{
+      grid: ForecastGridOverlay
+      smoke: SmokeOverlay
+      wildfires: WildfireOverlay
+      snow: SnowOverlay
+      radar: RadarOverlay
+    } | null>(null)
     // The props the handlers registered once on map load read at event time:
     // draw mode, the rows and Windy inputs behind a result popup, the fire
     // warnings, the POI inputs, and the sheet's share of the bottom edge for
@@ -693,235 +598,19 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
         restCursor()
 
-        // ── Forecast grid (#246) ───────────────────────────────────────
-        // The lowest overlay of all, because it is the one most likely to have
-        // every other layer sitting on top of it at once: it is the ranked
-        // metric painted as ground, and rain, smoke, fire and the markers are
-        // all things you read against it.
-        //
-        // Added first so the chain comes out grid → radar → smoke → fire →
-        // draw/results: the radar loop inserts itself before the first smoke
-        // fill, which lands it between these layers and that one.
-        //
-        // The arrow image is registered here rather than with the results
-        // layers below, since this is now the first layer to name it. Data
-        // arrives on demand from the grid effect; until then it draws nothing.
-        const arrow = makeArrowImage()
-        if (arrow && !map.hasImage(WIND_ARROW_IMAGE)) map.addImage(WIND_ARROW_IMAGE, arrow)
-        // The field itself is an IMAGE source, one pixel per sample, stretched
-        // over the lattice's outer bounds. The smoothing between samples is
-        // then `raster-resampling: linear` on the GPU, which is both free and
-        // the bilinear the field is entitled to between adjacent model grid
-        // cells. Interpolating in JavaScript instead would mean shipping a
-        // resampler the renderer already contains and re-running it per zoom.
-        //
-        // Declared with no url, which is a source that starts empty and draws
-        // nothing until an image is set on it. The field arrives by
-        // `updateImage` as pixels this file has already decoded, so the source
-        // never fetches anything and there is no decode that can fail
-        // silently. Clearing the field is therefore the layer's visibility
-        // rather than a second image: an image source holds the last image it
-        // was given, so there is no way to hand it emptiness.
-        map.addSource('forecast-grid', {
-          type: 'image',
-          coordinates: [
-            [-180, 85],
-            [180, 85],
-            [180, -85],
-            [-180, -85],
-          ],
-        })
-        // One layer for both styles. Blocks and smooth are the same image
-        // magnified with different filters — `nearest` draws one hard square
-        // per sample, `linear` blends between them — so the whole style switch
-        // is a paint property. There is no second layer to keep in step and no
-        // stacking order to re-establish on a change.
-        map.addLayer({
-          id: 'forecast-grid-fill',
-          type: 'raster',
-          source: 'forecast-grid',
-          // Hidden until a raster exists, and hidden again whenever one stops
-          // existing. This is the only thing that takes the field off the map.
-          layout: { visibility: 'none' },
-          paint: {
-            'raster-opacity': GRID_OPACITY,
-            'raster-resampling': 'nearest',
-            // Zero for the reason the radar loop learned the hard way: a scrub
-            // replaces the image every frame, and the library's own cross-fade
-            // would leave two hours of the forecast half-drawn on top of each
-            // other for the length of it.
-            'raster-fade-duration': 0,
-          },
-        })
-        // Arrows ride their own point source, because MapLibre has no way to
-        // place a symbol per texel of a raster.
-        map.addSource('forecast-grid-arrows', {
-          type: 'geojson',
-          data: emptyFC as FeatureCollection,
-        })
-        map.addLayer({
-          id: 'forecast-grid-wind',
-          type: 'symbol',
-          source: 'forecast-grid-arrows',
-          filter: ['has', 'bearing'],
-          layout: {
-            'icon-image': WIND_ARROW_IMAGE,
-            'icon-rotate': ['get', 'bearing'],
-            'icon-size': GRID_ARROW_SIZE,
-            'icon-rotation-alignment': 'map',
-            'icon-allow-overlap': true,
-            'icon-ignore-placement': true,
-            visibility: 'none',
-          },
-          paint: { 'icon-opacity': GRID_ARROW_OPACITY },
-        })
-
-        // ── Smoke overlay (NOAA HMS) ───────────────────────────────────
-        // First of the three overlays, so it sits under the fire perimeters
-        // and over the radar tiles (which are inserted before this layer when
-        // the radar toggles on). That chain is the one the data implies: rain
-        // is a measurement of the sky, smoke is a shape drawn over the ground,
-        // and a fire is the thing you are steering away from.
-        //
-        // One source, three fills, because opacity is the whole encoding and a
-        // single data-driven fill-opacity would still need the same three-way
-        // match — this way each density is also its own click target and its
-        // own legend row. Data arrives on demand from the showSmoke effect.
-        map.addSource('smoke', { type: 'geojson', data: emptyFC as FeatureCollection })
-        for (const density of SMOKE_DENSITIES) {
-          map.addLayer({
-            id: smokeLayerId(density),
-            type: 'fill',
-            source: 'smoke',
-            filter: ['==', ['get', 'density'], density],
-            paint: { 'fill-color': SMOKE_FILL, 'fill-opacity': SMOKE_OPACITY[density] },
-          })
-        }
-        // One hairline over all three, so a plume has an edge you can find even
-        // where it is faint. Deliberately not per density: the outline says
-        // "here is a boundary", and three weights of it would be a second
-        // encoding competing with the fills.
-        map.addLayer({
-          id: 'smoke-outline',
-          type: 'line',
-          source: 'smoke',
-          paint: { 'line-color': SMOKE_EDGE, 'line-width': 1, 'line-opacity': 0.7 },
-        })
-
-        // ── Wildfire overlay (NIFC) ────────────────────────────────────
-        // Added before draw/results so the red perimeters sit beneath the
-        // drawing UI and result markers. Data is populated on demand by the
-        // showWildfires effect; the layers render nothing until then.
-        map.addSource('wildfires', { type: 'geojson', data: emptyFC as FeatureCollection })
-        map.addLayer({
-          id: 'wildfire-fill',
-          type: 'fill',
-          source: 'wildfires',
-          paint: { 'fill-color': '#dc2626', 'fill-opacity': 0.3 },
-        })
-        map.addLayer({
-          id: 'wildfire-outline',
-          type: 'line',
-          source: 'wildfires',
-          paint: { 'line-color': '#b91c1c', 'line-width': 1.5, 'line-opacity': 0.9 },
-        })
-
-        // NIFC map link, centered where the cursor/click sits on the fire (which
-        // is inside its perimeter). Zoom is clamped so a fire clicked from a
-        // zoomed-out view still opens framed rather than tiny, then nudged one
-        // level closer so the fire fills more of the NIFC map.
-        function fireLink(e: maplibregl.MapLayerMouseEvent) {
-          return nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10) + 1)
-        }
-
-        // Hover (desktop) surfaces the fire's stats. The popup carries a link
-        // to NIFC's map, so it has to be reachable, and two things used to stop
-        // that: it re-anchored on every mousemove, so moving toward it moved it
-        // (it opens above the cursor, and the cursor comes up from below); and
-        // leaving the perimeter removed it synchronously, which is exactly what
-        // reaching for it does. So it re-anchors only when the cursor crosses
-        // into a *different* fire — still tracking overlapping perimeters, the
-        // behavior the per-move update existed for — and a leave schedules the
-        // close instead of doing it, which a hover over the popup cancels.
-        function closeFirePopup() {
-          fireCloseTimerRef.current = null
-          hoveredFireRef.current = null
-          firePopupRef.current?.remove()
-          firePopupRef.current = null
-        }
-        function cancelFireClose() {
-          if (fireCloseTimerRef.current === null) return
-          clearTimeout(fireCloseTimerRef.current)
-          fireCloseTimerRef.current = null
-        }
-        function scheduleFireClose() {
-          cancelFireClose()
-          fireCloseTimerRef.current = window.setTimeout(closeFirePopup, FIRE_POPUP_GRACE_MS)
-        }
-        function showFirePopup(e: maplibregl.MapLayerMouseEvent) {
-          const props = e.features?.[0]?.properties
-          if (!props) return
-          const key = fireIdentity(props as WildfireProps)
-          // Same fire, already open: leave it exactly where it is so it can be
-          // moved onto. A pending close means the cursor re-entered the
-          // perimeter without ever reaching the popup — call that a stay.
-          if (firePopupRef.current && key === hoveredFireRef.current) {
-            cancelFireClose()
-            return
-          }
-          cancelFireClose()
-          hoveredFireRef.current = key
-          const html = wildfirePopupHtml(props as WildfireProps, fireLink(e))
-          if (firePopupRef.current) {
-            firePopupRef.current.setLngLat(e.lngLat).setHTML(html)
-          } else {
-            firePopupRef.current = new maplibregl.Popup({ closeButton: false, maxWidth: '260px' })
-              .setLngLat(e.lngLat)
-              .setHTML(html)
-              .addTo(map)
-          }
-          // MapLibre leaves the popup container pointer-events:none and its
-          // content auto, so the content element is the one that can be
-          // hovered. setHTML replaces that element's children, not the element,
-          // and addEventListener dedupes an identical listener — so re-arming
-          // on every open is a no-op after the first.
-          const content = firePopupRef.current
-            .getElement()
-            .querySelector('.maplibregl-popup-content')
-          content?.addEventListener('mouseenter', cancelFireClose)
-          content?.addEventListener('mouseleave', scheduleFireClose)
-        }
-        map.on('mouseenter', 'wildfire-fill', (e) => {
-          map.getCanvas().style.cursor = 'pointer'
-          showFirePopup(e)
-        })
-        map.on('mousemove', 'wildfire-fill', showFirePopup)
-        map.on('mouseleave', 'wildfire-fill', () => {
-          restCursor()
-          scheduleFireClose()
-        })
-
-        // ── Smoke popup ────────────────────────────────────────────────
-        // Click rather than hover, which is the one place the two polygon
-        // overlays deliberately behave differently. A fire is a small shape you
-        // point at; a plume routinely covers three states, so a hover popup
-        // would open the moment the cursor entered the map and follow it
-        // around. Clicking says which plume you meant.
-        function openSmokePopup(props: SmokeProps, at: maplibregl.LngLat, pinned: boolean) {
-          if (!pinned) closeAllPopups()
-          const popup = new maplibregl.Popup({ ...popupOptions(map), closeOnClick: false })
-            .setLngLat(at)
-            .setHTML(smokePopupHtml(props))
-            .addTo(map)
-          if (!pinned) poiPopupRef.current = popup
-          trackPopup(popup)
-        }
-
-        for (const layer of SMOKE_CLICK_ORDER) {
-          map.on('mouseenter', layer, () => {
-            if (!controller.inputs.drawing) map.getCanvas().style.cursor = 'pointer'
-          })
-          map.on('mouseleave', layer, restCursor)
+        // ── Overlays ───────────────────────────────────────────────────
+        // Mounted in the order their layers stack, lowest first: the forecast
+        // grid is the ground everything else is read against, then smoke,
+        // then the fire perimeters, and the drawing UI and result markers go
+        // on above all three below. The radar loop and the snow field are
+        // created when they are switched on, beneath the first smoke fill, so
+        // the chain comes out grid, snow, radar, smoke, fire, draw, results.
+        overlaysRef.current = {
+          grid: mountForecastGrid(map),
+          smoke: mountSmoke(map, { controller, restCursor, closeAllPopups, trackPopup }),
+          wildfires: mountWildfires(map, { restCursor }),
+          snow: mountSnow(map),
+          radar: mountRadar(map),
         }
 
         // ── Draw source + layers ───────────────────────────────────────
@@ -1393,7 +1082,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           ...POI_LAYERS,
           'results-circles',
           ...SMOKE_CLICK_ORDER,
-          'wildfire-fill',
+          WILDFIRE_FILL_LAYER,
           'draw-vertices',
           'draw-midpoints',
         ]
@@ -1406,7 +1095,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           const hits: MapClickHits = {
             drawing: controller.inputs.drawing,
             pinning: isPinning(e),
-            fire: hitLayers.has('wildfire-fill'),
+            fire: hitLayers.has(WILDFIRE_FILL_LAYER),
             result: hitLayers.has('results-circles'),
             poi: POI_LAYERS.some((id) => hitLayers.has(id)),
             vertex: hitLayers.has('draw-vertices') || hitLayers.has('draw-midpoints'),
@@ -1417,11 +1106,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
           const action = resolveMapClick(hits)
           if (action.kind === 'open-fire') {
-            window.open(
-              nifcFireUrl(e.lngLat.lng, e.lngLat.lat, Math.max(map.getZoom(), 10) + 1),
-              '_blank',
-              'noopener,noreferrer',
-            )
+            window.open(fireLinkAt(map, e.lngLat), '_blank', 'noopener,noreferrer')
             return
           }
           if (action.kind === 'add-vertex') {
@@ -1434,7 +1119,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
           if (action.kind === 'open-smoke') {
             const plume = under.find((f) => f.layer.id === action.layer)
             if (plume?.properties) {
-              openSmokePopup(plume.properties as SmokeProps, e.lngLat, hits.pinning)
+              overlaysRef.current?.smoke.openPopup(
+                plume.properties as SmokeProps,
+                e.lngLat,
+                hits.pinning,
+              )
             }
           }
         })
@@ -1467,8 +1156,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
         poiPopupRef.current = null
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
-        if (fireCloseTimerRef.current !== null) clearTimeout(fireCloseTimerRef.current)
-        firePopupRef.current = null
+        overlaysRef.current?.wildfires.dispose()
+        overlaysRef.current?.smoke.dispose()
+        overlaysRef.current?.radar.dispose()
+        overlaysRef.current = null
         map.remove()
         mapRef.current = null
       }
@@ -1526,39 +1217,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
       updateResults(mapRef.current, results, sortBy, playbackIndex)
     }, [results, sortBy, playbackIndex])
 
-    // The forecast field, on the same contract as the markers above: one
-    // re-render per scrub tick, recoloured from series the browser already
-    // holds and costing nothing upstream. What gets re-encoded is a ~25x24
-    // image, so this is cheaper than the marker path it sits beside — the
-    // expensive-looking part, magnifying it across the viewport, is the GPU's.
+    // The forecast field and its arrows, on the same contract as the markers
+    // above: one redraw per scrub tick, from series the browser already holds.
     useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-      map.setPaintProperty(
-        'forecast-grid-fill',
-        'raster-resampling',
-        gridStyle === 'smooth' ? 'linear' : 'nearest',
-      )
-      const source = map.getSource('forecast-grid') as maplibregl.ImageSource | undefined
-      if (!source) return
-      const raster = gridSpec && gridRaster(gridSpec, gridCells, sortBy, playbackIndex, gridStyle)
-      const image = gridSpec && raster ? rasterImage(raster) : null
-      if (!gridSpec || !image) {
-        map.setLayoutProperty('forecast-grid-fill', 'visibility', 'none')
-        return
-      }
-      source.updateImage({ image, coordinates: gridImageCoordinates(gridSpec) })
-      map.setLayoutProperty('forecast-grid-fill', 'visibility', 'visible')
+      if (!mapReady) return
+      overlaysRef.current?.grid.update({
+        spec: gridSpec,
+        cells: gridCells,
+        style: gridStyle,
+        sortBy,
+        playbackIndex,
+      })
     }, [gridSpec, gridCells, gridStyle, sortBy, playbackIndex, mapReady])
-
-    // The arrows, on their own point source for the reason given where it is
-    // declared. Empty at rest, which is what `gridArrowFeatures` returns when
-    // there is no hour under the playhead to have a direction.
-    useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-      setSource(map, 'forecast-grid-arrows', gridArrowFeatures(gridCells, playbackIndex))
-    }, [gridCells, playbackIndex, mapReady])
 
     // Arrows exist only where they mean something: a wind ranking, being
     // scrubbed. On any other metric they would be a second variable nobody
@@ -1610,284 +1280,25 @@ const MapView = forwardRef<MapViewHandle, Props>(
       setSource(map, 'pending-destinations', pendingFC(pending))
     }, [pending, mapReady])
 
-    // Toggle the NIFC wildfire overlay. On: fetch perimeters for the current
-    // viewport and re-fetch (debounced) as the user pans/zooms. Off: clear it.
-    // Best-effort — a failed fetch just leaves the overlay empty and never
-    // disrupts the map or an analysis. Depends on mapReady so a restored
-    // `fires=1` link enables it the moment the sources/layers exist.
+    // The overlay toggles. Each depends on mapReady so a restored link turns
+    // its overlay on the moment the load handler has mounted it. Snow is
+    // handed its prop before the radar so that, when a link turns both on at
+    // once, the field goes in first and the loop lands above it.
     useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-
-      if (!showWildfires) {
-        setSource(map, 'wildfires', emptyFC)
-        // Turning the overlay off outranks a pending grace close: cancel it, or
-        // the timer fires later against a popup that is already gone.
-        if (fireCloseTimerRef.current !== null) {
-          clearTimeout(fireCloseTimerRef.current)
-          fireCloseTimerRef.current = null
-        }
-        hoveredFireRef.current = null
-        firePopupRef.current?.remove()
-        firePopupRef.current = null
-        return
-      }
-
-      let disposed = false
-
-      async function refresh() {
-        if (!map) return
-        fireAbortRef.current?.abort()
-        const ac = new AbortController()
-        fireAbortRef.current = ac
-        const b = map.getBounds()
-        const bbox: BBox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]
-        // The server's coarse copy is simplified to ~56 m. Ask for it whenever
-        // that is finer than two screen pixels of longitude, which is every
-        // view wide enough to show a whole fire, and take the full-resolution
-        // shapes only when zoomed close enough to see the difference. Same
-        // trade the old per-request maxAllowableOffset made, expressed as a
-        // choice between two cached copies so no zoom level costs an upstream
-        // query.
-        const width = map.getCanvas().clientWidth || 1
-        const tol = ((b.getEast() - b.getWest()) / width) * 2
-        try {
-          const fc = await fetchWildfires(
-            bbox,
-            tol > COARSE_TOLERANCE_DEG ? 'coarse' : 'full',
-            ac.signal,
-          )
-          if (!disposed) setSource(map, 'wildfires', fc)
-        } catch (err) {
-          if ((err as Error).name !== 'AbortError') {
-            console.warn('Wildfire overlay fetch failed', err)
-          }
-        }
-      }
-
-      let debounce: ReturnType<typeof setTimeout> | undefined
-      const onMoveEnd = () => {
-        clearTimeout(debounce)
-        debounce = setTimeout(refresh, 400)
-      }
-
-      refresh()
-      map.on('moveend', onMoveEnd)
-
-      return () => {
-        disposed = true
-        clearTimeout(debounce)
-        fireAbortRef.current?.abort()
-        map.off('moveend', onMoveEnd)
-      }
+      if (mapReady) overlaysRef.current?.wildfires.update({ show: showWildfires })
     }, [showWildfires, mapReady])
 
-    // Toggle the NOAA smoke overlay. Fetched once per toggle and never on a
-    // pan: the whole national analysis is one small response, so unlike the
-    // fire overlay there is no viewport to re-ask about. Best-effort — a failed
-    // fetch leaves the layers empty and never disrupts the map or an analysis.
     useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-
-      if (!showSmoke) {
-        setSource(map, 'smoke', emptyFC)
-        return
-      }
-
-      const ac = new AbortController()
-      fetchSmoke(ac.signal)
-        .then((fc) => setSource(map, 'smoke', fc))
-        .catch((err) => {
-          if ((err as Error).name !== 'AbortError') {
-            console.warn('Smoke overlay fetch failed', err)
-          }
-        })
-      return () => ac.abort()
+      if (mapReady) overlaysRef.current?.smoke.update({ show: showSmoke })
     }, [showSmoke, mapReady])
 
-    // Toggle the NOHRSC snow depth field (#446). One raster source, created
-    // here and torn down on untoggle rather than declared at load, for the
-    // reason the radar loop is: a raster source starts fetching the moment a
-    // rendered layer names it, and every one of those tiles is a render NOAA
-    // performs on demand for somebody who never asked for the layer.
-    //
-    // It goes UNDER the radar, which is the one place in the chain it can be:
-    // snow is the ground state and rain is what is happening over it. The
-    // insertion point says that whichever order the two are switched on —
-    // beneath the loop's oldest frame where the loop is already up, and
-    // beneath the smoke fills otherwise, which is where the loop itself
-    // inserts and therefore leaves room above this.
     useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady || !showSnow) return
-
-      const underRadar = radarLayerId(RADAR_OLDEST_MIN)
-      const beneath = map.getLayer(underRadar) ? underRadar : smokeLayerId(SMOKE_DENSITIES[0])
-      if (!map.getSource(SNOW_SOURCE_ID)) {
-        map.addSource(SNOW_SOURCE_ID, {
-          type: 'raster',
-          tiles: [snowTileUrl()],
-          tileSize: SNOW_TILE_SIZE,
-          // The analysis covers the coterminous US and no further, so this is
-          // what stops a reader in the Alps paying for a screen of transparent
-          // renders: MapLibre requests no tile outside it.
-          bounds: SNOW_BOUNDS,
-          // Past this the tiles already hold every cell the 1 km analysis has,
-          // so a deeper zoom magnifies what is loaded instead of buying
-          // another round of renders.
-          maxzoom: SNOW_MAX_ZOOM,
-          // No `attribution`, for the reason the radar carries none: NOAA's
-          // credit is on this layer's own legend, beside the data, and a
-          // second copy in MapLibre's control pushes that control onto a
-          // second line on a phone.
-        })
-      }
-      if (!map.getLayer(SNOW_LAYER_ID)) {
-        map.addLayer(
-          {
-            id: SNOW_LAYER_ID,
-            type: 'raster',
-            source: SNOW_SOURCE_ID,
-            paint: { 'raster-opacity': SNOW_OPACITY },
-          },
-          map.getLayer(beneath) ? beneath : undefined,
-        )
-      }
-
-      return () => {
-        if (map.getLayer(SNOW_LAYER_ID)) map.removeLayer(SNOW_LAYER_ID)
-        if (map.getSource(SNOW_SOURCE_ID)) map.removeSource(SNOW_SOURCE_ID)
-      }
+      if (mapReady) overlaysRef.current?.snow.update({ show: showSnow })
     }, [showSnow, mapReady])
 
-    // Toggle the IEM radar loop. The frames are 12 raster sources created here
-    // and torn down on untoggle, rather than declared at load: a raster source
-    // starts fetching the moment a rendered layer names it, so leaving them in
-    // place would download radar tiles for everyone who never asked for any.
-    //
-    // Inserted before the smoke fills, which puts the whole loop under every
-    // polygon overlay and under the draw, result and label layers above them.
     useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady || !showRadar) return
-
-      const beneath = smokeLayerId(SMOKE_DENSITIES[0])
-      for (const offset of radarOffsets()) {
-        const id = radarLayerId(offset)
-        if (map.getSource(id)) continue
-        map.addSource(id, {
-          type: 'raster',
-          tiles: [radarTileUrl(offset)],
-          tileSize: 256,
-          // No `attribution` here on purpose. IEM's credit is on the radar
-          // legend, beside the data, which is where this app puts a
-          // provider's name (the NIFC and NOAA credits are the same shape).
-          // Adding it to MapLibre's attribution control as well would say it
-          // twice, and the second copy is the expensive one: it pushed that
-          // control onto a second line on a phone, straight under the
-          // timeline.
-        })
-        map.addLayer(
-          {
-            id,
-            type: 'raster',
-            source: id,
-            layout: {
-              // Every frame but the one on screen starts unrendered, and an
-              // unrendered raster layer fetches no tiles — so toggling the
-              // loop on costs one frame's tiles rather than twelve. The other
-              // eleven are armed a moment later by the warm-up effect below,
-              // which is what makes playback smooth rather than a slideshow of
-              // half-loaded frames.
-              visibility: 'none',
-            },
-            paint: {
-              'raster-opacity': RADAR_OPACITY,
-              // A frame change is an opacity flip between two layers, so the
-              // library's own cross-fade would fight it and leave both frames
-              // half-drawn for a moment, at 500 ms a frame.
-              'raster-fade-duration': 0,
-            },
-          },
-          map.getLayer(beneath) ? beneath : undefined,
-        )
-      }
-
-      return () => {
-        for (const offset of radarOffsets()) {
-          const id = radarLayerId(offset)
-          if (map.getLayer(id)) map.removeLayer(id)
-          if (map.getSource(id)) map.removeSource(id)
-        }
-      }
-    }, [showRadar, mapReady])
-
-    // Warm the loop's frames in the background, one every RADAR_WARM_MS.
-    //
-    // Arming on demand — a frame the first time the playhead reached it — is
-    // what made the loop strobe: an unrendered raster layer holds no tiles, so
-    // each frame's first turn on screen was a blank 500 ms while a fetch went
-    // out, and the whole first pass flashed.
-    //
-    // Two things rule out simply showing all twelve at once. It is 420 tile
-    // requests in a burst against a donated server that asks large applications
-    // to self-host, which is not the way to hold up our end. And it does not
-    // work: MapLibre schedules tile loading off style and transform changes, so
-    // one batch of twelve on a map nobody is touching dispatched six frames'
-    // worth of requests and then sat there — measured, at 7 of 12 frames after
-    // thirty seconds with every missing tile answering 200 to a direct fetch.
-    //
-    // Arming one at a time solves both: each layer's own style change is what
-    // gets its tiles fetched, and the requests arrive spread out. A frame the
-    // playhead reaches before the warm-up does is shown by the effect below
-    // regardless, so nothing waits on this.
-    //
-    // The loop runs until every source reports loaded rather than until the
-    // last frame is armed, and repaints on each tick, because being armed is
-    // not the same as being fetched: MapLibre services its tile queue during a
-    // render, so a map nobody is touching goes idle with the tail of the queue
-    // still outstanding. That is the measured failure — six frames loaded and
-    // six armed-but-empty, unchanged after thirty seconds, with every missing
-    // tile answering 200 to a direct fetch.
-    useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady || !showRadar) return
-      const queue = radarOffsets().slice()
-      const timer = setInterval(() => {
-        const offset = queue.shift()
-        if (offset !== undefined) {
-          const id = radarLayerId(offset)
-          if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'visible')
-        }
-        const armed = radarOffsets().filter((o) => map.getLayer(radarLayerId(o)))
-        if (queue.length === 0 && armed.every((o) => map.isSourceLoaded(radarLayerId(o)))) {
-          clearInterval(timer)
-          return
-        }
-        map.triggerRepaint()
-      }, RADAR_WARM_MS)
-      return () => clearInterval(timer)
-    }, [showRadar, mapReady])
-
-    // Which radar frame is on screen. Every armed frame is rendered at all
-    // times and only its opacity moves, so advancing is a flip between two
-    // layers that both already hold their tiles — no fetch, no fade, no gap.
-    useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady || !showRadar) return
-      const offsets = radarOffsets()
-      const active = offsets[Math.max(0, Math.min(offsets.length - 1, radarIndex))]
-      for (const offset of offsets) {
-        const id = radarLayerId(offset)
-        if (!map.getLayer(id)) continue
-        // A frame the warm-up has not reached yet still has to be shown when
-        // the playhead lands on it, or scrubbing in the first second after a
-        // toggle would land on nothing.
-        if (offset === active) map.setLayoutProperty(id, 'visibility', 'visible')
-        map.setPaintProperty(id, 'raster-opacity', offset === active ? RADAR_OPACITY : 0)
-      }
-    }, [radarIndex, showRadar, mapReady])
+      if (mapReady) overlaysRef.current?.radar.update({ show: showRadar, index: radarIndex })
+    }, [showRadar, radarIndex, mapReady])
 
     return <div ref={containerRef} className="absolute inset-0" />
   },
