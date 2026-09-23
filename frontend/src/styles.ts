@@ -1208,6 +1208,23 @@ export const LEGEND_TOP = {
   full: 'top-[132px] touch:top-[156px]',
 } as const
 
+/**
+ * On the legend stack: the box gives its empty area back to the map, and each
+ * section it holds takes pointer events again.
+ *
+ * The stack is a scroll box with a derived floor, so it spans the map's height
+ * whatever its sections hold, and the part under the last section is empty. A
+ * click there belongs to the map: a vertex in draw mode, a peak, a fire
+ * perimeter. On a phone that band is the map's whole left column, which is
+ * where a reader draws a ring.
+ *
+ * Written on the box with a child variant rather than as two roles, so a
+ * section added later yields nothing by accident. The wheel still scrolls the
+ * stack from over a section, because a wheel scrolls the scroll ancestors of
+ * the element it lands on; only the empty band now pans the map instead.
+ */
+export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
+
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
  * The same segmented control sized by the box it is placed in, for a row whose

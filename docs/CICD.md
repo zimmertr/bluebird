@@ -773,7 +773,8 @@ flowchart LR
   `npx playwright install --with-deps chromium` (the browser folder is cached
   under the exact Playwright version, since each release pins its own Chromium
   build), and runs the suite in **`frontend/e2e/`**: draw a ring and analyze,
-  open a share link, and run **axe** on the panel, the results, and the Layers
+  open a share link, click the map under the legend stack and scroll the
+  stack, and run **axe** on the panel, the results, and the Layers
   popover. Every third-party host is answered from fixtures, and a request that
   no handler claims fails the test, so the job spends no Open-Meteo quota and
   cannot go red on someone else's outage. Axe fails on serious and critical
