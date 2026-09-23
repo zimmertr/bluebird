@@ -83,6 +83,13 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // results header states it in place of the window caption while snow ranks,
   // and a report of rows that all fall outside the grid still has a date.
   snowAnalysisDate: string | null
+  // Whether every row carries the cloud column (#117), which an analysis
+  // fetches only when its ranking or a bound names a cloud metric. A data
+  // fact like the window, recorded for the same reason: a live knob can ask
+  // for a cloud metric afterwards, and the held field cannot answer it. The
+  // forecast grid reads it too, so a lattice is fetched with the cloud column
+  // exactly when the markers above it were.
+  cloudFetched: boolean
 }
 
 /**

@@ -12,6 +12,8 @@ import {
   UNIT,
   aggregateToken,
   familyOf,
+  ON_REQUEST_FAMILIES,
+  isOnRequestFamily,
   isSnapshotFamily,
   formatPrecipRate,
   formatPrecipTotal,
@@ -87,7 +89,7 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(17)
+    expect(RANKING_KEYS).toHaveLength(23)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
@@ -102,6 +104,10 @@ describe('the rankable keys', () => {
       freeze: 'freeze_min_ft',
       snow: 'snow_depth_in',
       aqi: 'aqi_avg',
+      // #117, TJ's defaults: the lowest base, because whether a summit ever
+      // stood in cloud is the question; the average cover.
+      cloud_base: 'cloud_base_min_ft',
+      cloud_cover: 'cloud_cover_avg_pct',
     })
     for (const family of RANKED_FAMILIES) {
       expect(FAMILY_KEYS[family]).toContain(DEFAULT_FAMILY_KEY[family])
@@ -129,7 +135,7 @@ describe('aggregateToken', () => {
       [AGGREGATE.maximum]: 'max',
     }
 
-    expect(RANKING_KEYS).toHaveLength(17)
+    expect(RANKING_KEYS).toHaveLength(23)
     for (const key of RANKING_KEYS) {
       const word = windowAggregate(key)
       // A snapshot key reduces nothing, so it has no token and no word. The
@@ -160,7 +166,16 @@ describe('aggregateToken', () => {
 
 describe('the vocabulary', () => {
   it('names every metric in full, with no short form', () => {
-    expect(Object.keys(NOUN).sort()).toEqual(['aqi', 'freeze', 'precip', 'snow', 'temp', 'wind'])
+    expect(Object.keys(NOUN).sort()).toEqual([
+      'aqi',
+      'cloud_base',
+      'cloud_cover',
+      'freeze',
+      'precip',
+      'snow',
+      'temp',
+      'wind',
+    ])
     expect(NOUN.precip).toBe('Precipitation')
     expect(NOUN.temp).toBe('Temperature')
     expect(NOUN.wind).toBe('Wind')
@@ -174,6 +189,27 @@ describe('the vocabulary', () => {
     // `us_aqi`, the EPA index combined across every pollutant, so naming one
     // of them understated what the number covers.
     expect(NOUN.aqi).toBe('AQI')
+    // The two nouns and units TJ approved for #117.
+    expect(NOUN.cloud_base).toBe('Cloud base')
+    expect(NOUN.cloud_cover).toBe('Cloud cover')
+    expect(UNIT.cloud_base).toBe('ft')
+    expect(UNIT.cloud_cover).toBe('%')
+  })
+
+  // The approved wire keys lead with `cloud` for both families, so a family is
+  // a whole prefix rather than the key's first word.
+  it('reads a family whose id holds an underscore', () => {
+    expect(familyOf('cloud_base_min_ft')).toBe('cloud_base')
+    expect(familyOf('cloud_cover_avg_pct')).toBe('cloud_cover')
+    expect(aggregateToken('cloud_base_max_ft')).toBe('max')
+    expect(aggregateToken('cloud_cover_min_pct')).toBe('min')
+    expect(() => familyOf('cloud_ceiling_ft')).toThrow(/cloud_ceiling_ft/)
+  })
+
+  it('names the cloud families as the ones fetched on request', () => {
+    expect([...ON_REQUEST_FAMILIES]).toEqual(['cloud_base', 'cloud_cover'])
+    expect(isOnRequestFamily('cloud_base')).toBe(true)
+    expect(isOnRequestFamily('freeze')).toBe(false)
   })
 
   // Nouns are identity and spell out; aggregates are modifiers and wear the

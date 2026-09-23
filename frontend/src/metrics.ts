@@ -1,10 +1,10 @@
 import { SortBy } from './types'
 
 /**
- * One vocabulary for the six things Bluebird Forecast measures.
+ * One vocabulary for the eight things Bluebird Forecast measures.
  *
  * Bluebird Forecast measures precipitation, temperature, wind, the freezing
- * level, snow depth and air quality, and names
+ * level, snow depth, air quality, the cloud base and the cloud cover, and names
  * them on six surfaces: the map legend, the ranking picker, the results header,
  * the results table, the forecast chart's radios, and a marker's popup. Before
  * this module each surface spelled them itself, so the same metric appeared as
@@ -29,16 +29,61 @@ import { SortBy } from './types'
  */
 
 /**
- * The six metrics, keyed the way the forecast chart already keyed them.
+ * The eight metrics, keyed the way the forecast chart already keyed them.
  *
  * Reusing those keys is what lets `chartData.ts` alias this type instead of
  * maintaining a parallel union and a mapping between the two.
  *
  * Every key a row carries leads with its family and `familyOf` reads that
  * prefix, so a family's name is also a reserved prefix: `freeze` can never be
- * the head of a key belonging to anything else.
+ * the head of a key belonging to anything else. A family id may hold an
+ * underscore (`cloud_base`), because the prefix is matched whole rather than
+ * split off at the first one.
  */
-export type MetricFamily = 'precip' | 'temp' | 'wind' | 'freeze' | 'snow' | 'aqi'
+export type MetricFamily =
+  | 'precip'
+  | 'temp'
+  | 'wind'
+  | 'freeze'
+  | 'snow'
+  | 'aqi'
+  | 'cloud_base'
+  | 'cloud_cover'
+
+/**
+ * Every family, in no order that means anything. `familyOf` matches a key
+ * against these as prefixes, which is what lets two families share a first
+ * word: the cloud families' keys (`cloud_base_min_ft`, `cloud_cover_avg_pct`)
+ * are the wire names TJ approved in #117, and both lead with `cloud`.
+ */
+const FAMILIES: readonly MetricFamily[] = [
+  'precip',
+  'temp',
+  'wind',
+  'freeze',
+  'snow',
+  'aqi',
+  'cloud_base',
+  'cloud_cover',
+]
+
+/**
+ * The families an analysis fetches only when asked (#117).
+ *
+ * Every other hourly variable rides the one weather request. The cloud column
+ * is twelve more variables, which would take the weighted price of every
+ * analysis from 1.5 to 2.7, so it is a second request over the held field,
+ * made only when the ranking or a bound names one of these. Whether a report
+ * carries them is therefore a property of the report (`cloudFetched` on the
+ * analyzed snapshot), and naming one over a report without them is a reason to
+ * analyze again rather than a live knob.
+ */
+export const ON_REQUEST_FAMILIES = ['cloud_base', 'cloud_cover'] as const
+export type OnRequestFamily = (typeof ON_REQUEST_FAMILIES)[number]
+
+export function isOnRequestFamily(family: MetricFamily): family is OnRequestFamily {
+  return (ON_REQUEST_FAMILIES as readonly MetricFamily[]).includes(family)
+}
 
 /**
  * The families that are a SNAPSHOT rather than a reduction over the window.
@@ -72,6 +117,8 @@ export function isSnapshotFamily(family: MetricFamily): family is SnapshotFamily
  */
 export const RANKED_FAMILIES: readonly MetricFamily[] = [
   'aqi',
+  'cloud_base',
+  'cloud_cover',
   'freeze',
   'precip',
   'snow',
@@ -95,6 +142,8 @@ export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
   // renders no dropdown for the same reason.
   snow: ['snow_depth_in'],
   aqi: ['aqi_avg', 'aqi_max', 'aqi_min'],
+  cloud_base: ['cloud_base_avg_ft', 'cloud_base_max_ft', 'cloud_base_min_ft'],
+  cloud_cover: ['cloud_cover_avg_pct', 'cloud_cover_max_pct', 'cloud_cover_min_pct'],
 }
 
 /**
@@ -114,6 +163,11 @@ export const DEFAULT_FAMILY_KEY: Record<MetricFamily, SortBy> = {
   freeze: 'freeze_min_ft',
   snow: 'snow_depth_in',
   aqi: 'aqi_avg',
+  // The lowest base is the question the metric exists for: whether a summit
+  // stood above the cloud at any hour means whether the base ever dropped
+  // under it (TJ, #117).
+  cloud_base: 'cloud_base_min_ft',
+  cloud_cover: 'cloud_cover_avg_pct',
 }
 
 /**
@@ -146,6 +200,8 @@ export const NOUN: Record<MetricFamily, string> = {
   // equivalent, or new snow since yesterday. The grid answers the first.
   snow: 'Snow depth',
   aqi: 'AQI',
+  cloud_base: 'Cloud base',
+  cloud_cover: 'Cloud cover',
 }
 
 /**
@@ -164,6 +220,10 @@ export const UNIT: Record<MetricFamily, string> = {
   freeze: 'ft',
   snow: 'in',
   aqi: '',
+  // Above sea level, like the freezing level and for its reason: the reading
+  // is the comparison against the elevation column.
+  cloud_base: 'ft',
+  cloud_cover: '%',
 }
 
 /**
@@ -242,16 +302,8 @@ export const SEP = '·'
  * of inventing a fallback that would ship a mislabelled column.
  */
 export function familyOf(key: string): MetricFamily {
-  const head = key.split('_')[0]
-  if (
-    head === 'precip' ||
-    head === 'temp' ||
-    head === 'wind' ||
-    head === 'freeze' ||
-    head === 'snow' ||
-    head === 'aqi'
-  )
-    return head
+  const family = FAMILIES.find((f) => key.startsWith(`${f}_`))
+  if (family !== undefined) return family
   throw new Error(`no metric family for "${key}"`)
 }
 
@@ -271,8 +323,9 @@ export function familyOf(key: string): MetricFamily {
  * throws, because that is a caller about to label something it cannot name.
  */
 export function aggregateToken(sortBy: SortBy): 'total' | 'avg' | 'min' | 'max' | null {
-  if (isSnapshotFamily(familyOf(sortBy))) return null
-  const token = sortBy.split('_')[1]
+  const family = familyOf(sortBy)
+  if (isSnapshotFamily(family)) return null
+  const token = sortBy.slice(family.length + 1).split('_')[0]
   if (token === 'total' || token === 'avg' || token === 'min' || token === 'max') return token
   throw new Error(`no aggregate in "${sortBy}"`)
 }

@@ -503,6 +503,8 @@ number or omitted, and they combine as an AND:
 | `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
 | `min_snow_depth_in` / `max_snow_depth_in` | its `snow_depth_in` is inside the range |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
+| `min_cloud_base_ft` / `max_cloud_base_ft` | its `cloud_base_min_ft` is at or above the floor **and** its `cloud_base_max_ft` at or below the ceiling |
+| `min_cloud_cover_pct` / `max_cloud_cover_pct` | its `cloud_cover_min_pct` is at or above the floor **and** its `cloud_cover_max_pct` at or below the ceiling |
 
 ```bash
 curl -s https://bluebirdforecast.com/api/analyze \
@@ -539,17 +541,21 @@ field: the window total, and the worst hour.
 ceiling returns the ten driest destinations that stay calm, not whichever of
 the ten driest happened to be calm.
 
-**A null passes every bound.** Two fields can be null. `aqi_max` is null
+**A null passes every bound.** Several fields can be null. `aqi_max` is null
 whenever the window outruns the air-quality horizon (`limits.aqi_forecast_days`
 in `GET /api/capabilities`) or the best-effort fetch failed. The three `freeze_*` fields are null under every
 model that publishes no freezing level, which is most of them. An absent
 number is not evidence of bad air, and a model that carries no freezing level
 says nothing about the weather, so those rows are kept, exactly as an untagged
-summit survives an elevation band.
+summit survives an elevation band. The cloud base is null for a destination
+with no known elevation and over archive hours, and it passes for the same
+reason.
 
 **An AQI bound costs more than the others.** Air quality is normally fetched
 only for the rows being returned. Bounding it forces the fetch for every
 candidate, since a bound cannot be applied to a value that was never fetched.
+A cloud bound does the same for the cloud variables, which are otherwise not
+fetched at all (see below).
 
 `total_matched` in the response is how many candidates satisfied the bounds
 before `limit` cut the list; `total_queried` stays what it always was, how many
@@ -615,6 +621,12 @@ curl -s https://bluebirdforecast.com/api/analyze \
     "aqi_min": 18,
     "aqi_max": 47,
     "snow_depth_in": 1290,
+    "cloud_base_min_ft": null,
+    "cloud_base_max_ft": null,
+    "cloud_base_avg_ft": null,
+    "cloud_cover_min_pct": null,
+    "cloud_cover_max_pct": null,
+    "cloud_cover_avg_pct": null,
     "series": null
   }
 }
@@ -635,6 +647,51 @@ no ranking fields returns the ten driest destinations.
 The response also carries an `error` field that is always null on this route. A
 failed analysis answers a `4xx` or `5xx` with a `detail` message instead; the
 field exists because the streaming endpoint reuses the shape.
+
+## Cloud base and cloud cover
+
+Six more fields describe the sky: `cloud_base_min_ft`, `cloud_base_max_ft` and
+`cloud_base_avg_ft` (the lowest height above the destination where the model's
+air is close to saturated, in feet above sea level), and `cloud_cover_min_pct`,
+`cloud_cover_max_pct` and `cloud_cover_avg_pct` (the model's total cloud cover,
+0 to 100). How the base is worked out, and what it cannot tell you, is in
+[DATA.md](DATA.md#cloud-base-and-cloud-cover).
+
+They cost a second upstream request per location, so they are null unless
+something asks for them. Three things do:
+
+| You send | The cloud variables are fetched for |
+| --- | --- |
+| a `sort_by` naming a cloud field | every candidate, before the ranking |
+| any cloud bound | every candidate, before the bounds |
+| `include_clouds: true` and neither of the above | the returned rows only, after the `limit` cut, the way air quality is |
+
+```bash
+curl -s https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
+  -d '{
+    "destination_types": [],
+    "forecast_mode": "window",
+    "start_datetime": "2026-08-01T14:00:00Z",
+    "end_datetime":   "2026-08-02T02:00:00Z",
+    "sort_by": "cloud_base_min_ft",
+    "sort_desc": true,
+    "max_cloud_cover_pct": 80,
+    "include_series": false,
+    "custom_destinations": [
+      { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
+      { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909 }
+    ]
+  }' | jq '[.results[] | {name, cloud_base_min_ft, cloud_cover_max_pct}]'
+```
+
+That ranks the destinations whose cloud came down least, among those never
+more than 80 % covered. With series on, each row's `series` also carries
+`cloud_base_ft` and `cloud_cover_pct`, aligned to `times`; on a row that was
+not asked for clouds both are null. The cloud request is priced by
+Open-Meteo like any other: twelve hourly variables at one model, a weight of
+1.2 per location against the weather request's 1.4.
 
 ## When a search finds too much
 

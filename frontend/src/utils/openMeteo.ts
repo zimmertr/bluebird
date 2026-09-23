@@ -15,11 +15,14 @@ import {
 } from './forecastWindow'
 import { NO_DATA, cacheGet, cacheKey, cachePut, resetForecastCache } from './forecastStore'
 import {
+  CLOUD_VARIABLES,
   FT_TO_M,
   HOURLY_VARIABLES,
   aqiMetrics,
   aqiSeries,
   at,
+  cloudMetrics,
+  cloudSeries,
   joinHours,
   parseTs,
   roundOrNull,
@@ -27,6 +30,8 @@ import {
   weatherSeries,
   type AqiAggregates,
   type AqiSeries,
+  type CloudAggregates,
+  type CloudSeries,
   type HourlyPayload,
   type WeatherAggregates,
   type WeatherSeries,
@@ -249,6 +254,7 @@ export interface Coordinate {
 
 export type WeatherResult = (WeatherAggregates & { series: WeatherSeries | null }) | null
 export type AqiResult = (AqiAggregates & { series: AqiSeries | null }) | null
+export type CloudResult = (CloudAggregates & { series: CloudSeries | null }) | null
 
 function chunked<T>(items: readonly T[], size: number): T[][] {
   const out: T[][] = []
@@ -632,6 +638,101 @@ export async function fetchWeather(
   })
   missIdx.forEach((i, j) => {
     results[i] = fetched[j]
+  })
+  return results
+}
+
+export type FetchCloudOptions = Pick<
+  FetchWeatherOptions,
+  'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation'
+>
+
+// The cloud column (#117): the weather fetch's twin over the same endpoints,
+// spans, pacer and cache, asking for the cloud variables alone. A request of
+// its own rather than twelve more variables on the weather one, because the
+// price of a request follows its variable count and only an analysis that
+// ranks or bounds by a cloud metric needs these.
+//
+// Fails the way the weather fetch fails: it is only ever called because the
+// reader asked for a cloud metric, and a ranking by cloud with no cloud in it
+// is not a ranking.
+export async function fetchCloud(
+  destinations: readonly Coordinate[],
+  startMs: number,
+  endMs: number,
+  {
+    signal,
+    onPace,
+    model,
+    nowMs = Date.now(),
+    windowLimits = FALLBACK_WINDOW_LIMITS,
+    terrainElevation = false,
+  }: FetchCloudOptions,
+): Promise<CloudResult[]> {
+  if (destinations.length === 0) return []
+  const source = windowSource(startMs, endMs, nowMs, windowLimits)
+  const spans = fetchSpans(startMs, endMs, nowMs, windowLimits)
+
+  const results: CloudResult[] = new Array(destinations.length).fill(null)
+  const missIdx: number[] = []
+  destinations.forEach((c, i) => {
+    const hit = cacheGet(cacheKey('cloud', c, startMs, endMs, model, terrainElevation, source))
+    if (hit === undefined) missIdx.push(i)
+    else results[i] = hit === NO_DATA ? null : (hit as CloudResult)
+  })
+  const misses = missIdx.map((i) => destinations[i])
+  if (misses.length === 0) return results
+
+  const tasks = chunked(misses, BATCH_SIZE).map((chunk) => async (): Promise<CloudResult[]> => {
+    const perSpan: HourlyPayload[][] = []
+    for (const span of spans) {
+      // Twelve variables at one model: factor 1.2, spent on the WEATHER
+      // budget, because Open-Meteo meters per service and this is the weather
+      // endpoint. Read off the list, for the reason the weather fetch reads its
+      // own count off `HOURLY_VARIABLES`.
+      await weatherBudget.acquire(
+        callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
+        signal,
+        onPace,
+      )
+      const data = await getJsonWithResume(
+        span.archive ? ARCHIVE_URL : FORECAST_URL,
+        {
+          ...coordParams(chunk),
+          ...(span.archive ? {} : { models: model }),
+          hourly: CLOUD_VARIABLES.join(','),
+          timeformat: 'unixtime',
+          // No temperature_unit: the 2 m pair arrives in Celsius, the unit
+          // Espy's rule is stated in.
+          start_hour: utcHour(span.startMs),
+          end_hour: utcHour(span.endMs),
+          timezone: 'UTC',
+        },
+        signal,
+        onPace,
+      )
+      const items = asItems(data)
+      if (items.length !== chunk.length) throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
+      perSpan.push(items)
+    }
+    return chunk.map((_c, j): CloudResult => {
+      const item = joinHours(
+        perSpan.map((items) => items[j]),
+        CLOUD_VARIABLES,
+      )
+      const elevationFt =
+        chunk[j].elevation_ft ??
+        (terrainElevation && typeof item.elevation === 'number' ? item.elevation / FT_TO_M : null)
+      const metrics = cloudMetrics(item, startMs, endMs, elevationFt)
+      if (metrics === null) return null
+      return { ...metrics, series: cloudSeries(item, startMs, endMs, elevationFt) }
+    })
+  })
+
+  const fetched = (await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)).flat()
+  fetched.forEach((r, j) => {
+    cachePut(cacheKey('cloud', misses[j], startMs, endMs, model, terrainElevation, source), r ?? NO_DATA)
+    results[missIdx[j]] = r
   })
   return results
 }

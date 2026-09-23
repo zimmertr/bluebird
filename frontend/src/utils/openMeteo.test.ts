@@ -4,11 +4,12 @@ import {
   FORECAST_URL,
   callWeight,
   fetchAqi,
+  fetchCloud,
   fetchSpans,
   fetchWeather,
   resetOpenMeteoState,
 } from './openMeteo'
-import { weatherMetrics, weatherSeries } from './openMeteoAggregate'
+import { CLOUD_VARIABLES, weatherMetrics, weatherSeries } from './openMeteoAggregate'
 import {
   BAD_BODY_MESSAGE,
   COVERAGE_PHRASE,
@@ -1128,5 +1129,66 @@ describe('the messages the Open-Meteo modules throw', () => {
     // backend/app/services/aggregation.py.
     expect(BAD_BODY_MESSAGE).toBe('Open-Meteo request failed. Try again later.')
     expect(throwingSources.split(BAD_BODY_MESSAGE)).toHaveLength(2)
+  })
+})
+
+// The cloud request (#117): a request of its own so an analysis that never
+// ranks by cloud never pays for it.
+describe('fetchCloud', () => {
+  const startMs = Date.parse('2026-07-21T00:00:00Z')
+  const endMs = Date.parse('2026-07-21T01:00:00Z')
+  const body = (n: number) =>
+    Array.from({ length: n }, () => ({
+      hourly: {
+        time: ['2026-07-21T00:00', '2026-07-21T01:00'],
+        cloud_cover: [40, 60],
+        relative_humidity_2m: [70, 70],
+        temperature_2m: [12, 12],
+        dew_point_2m: [4, 4],
+      },
+    }))
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetOpenMeteoState()
+  })
+
+  it('asks for the cloud variables alone, in Celsius', async () => {
+    const urls: URL[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(new URL(url))
+        return { ok: true, status: 200, json: async () => body(2) }
+      }),
+    )
+    const coords = [
+      { latitude: 1, longitude: 1, elevation_ft: 328 },
+      { latitude: 2, longitude: 2, elevation_ft: 328 },
+    ]
+    const out = await fetchCloud(coords, startMs, endMs, { model: 'gfs_seamless', nowMs: startMs })
+    expect(urls).toHaveLength(1)
+    expect(urls[0].searchParams.get('hourly')).toBe(CLOUD_VARIABLES.join(','))
+    // Espy's rule is stated in Celsius, so the pair must not arrive in °F.
+    expect(urls[0].searchParams.has('temperature_unit')).toBe(false)
+    expect(out[0]?.cloud_cover_avg_pct).toBe(50)
+    // No level answered, so no hour has a base: the column is null, not Espy's.
+    expect(out[0]?.cloud_base_min_ft).toBeNull()
+  })
+
+  it('answers a second ask from the cache', async () => {
+    const spy = vi.fn(async () => ({ ok: true, status: 200, json: async () => body(1) }))
+    vi.stubGlobal('fetch', spy)
+    const coords = [{ latitude: 1, longitude: 1, elevation_ft: 328 }]
+    await fetchCloud(coords, startMs, endMs, { model: 'gfs_seamless', nowMs: startMs })
+    await fetchCloud(coords, startMs, endMs, { model: 'gfs_seamless', nowMs: startMs })
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('costs 1.2 weighted calls a location, beside the weather request\'s 1.5', () => {
+    // 200 destinations over three days: 240 for the cloud column against 300
+    // for the weather it rides beside.
+    const three = 3 * 24 * 3600 * 1000
+    expect(callWeight(200, 0, three, CLOUD_VARIABLES.length, 1)).toBeCloseTo(240, 6)
   })
 })

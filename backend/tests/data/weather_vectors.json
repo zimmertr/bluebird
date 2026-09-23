@@ -2814,5 +2814,710 @@
         100
       ]
     }
+  ],
+  "cloud": [
+    {
+      "name": "in_cloud_at_2m_is_the_destination_elevation",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "elevation_ft": 5000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "cloud_cover": [
+            100,
+            95,
+            90
+          ],
+          "relative_humidity_2m": [
+            97.0,
+            95.0,
+            99.0
+          ],
+          "temperature_2m": [
+            2.0,
+            2.0,
+            2.0
+          ],
+          "dew_point_2m": [
+            1.5,
+            1.2,
+            1.9
+          ],
+          "relative_humidity_850hPa": [
+            40.0,
+            40.0,
+            40.0
+          ],
+          "relative_humidity_700hPa": [
+            30.0,
+            30.0,
+            30.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": 5000.0,
+        "cloud_base_max_ft": 5000.0,
+        "cloud_base_avg_ft": 5000.0,
+        "cloud_cover_min_pct": 90,
+        "cloud_cover_max_pct": 100,
+        "cloud_cover_avg_pct": 95.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "cloud_base_ft": [
+          5000.0,
+          5000.0,
+          5000.0
+        ],
+        "cloud_cover_pct": [
+          100,
+          95,
+          90
+        ]
+      }
+    },
+    {
+      "name": "interpolated_between_the_bracketing_levels",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "elevation_ft": 4000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "cloud_cover": [
+            80,
+            85.5,
+            72
+          ],
+          "relative_humidity_2m": [
+            70.0,
+            75.0,
+            72.0
+          ],
+          "temperature_2m": [
+            8.0,
+            8.0,
+            8.0
+          ],
+          "dew_point_2m": [
+            3.0,
+            3.0,
+            3.0
+          ],
+          "relative_humidity_1000hPa": [
+            20.0,
+            20.0,
+            20.0
+          ],
+          "relative_humidity_925hPa": [
+            20.0,
+            20.0,
+            20.0
+          ],
+          "relative_humidity_850hPa": [
+            80.0,
+            90.0,
+            94.0
+          ],
+          "relative_humidity_700hPa": [
+            99.0,
+            100.0,
+            95.0
+          ],
+          "relative_humidity_600hPa": [
+            100.0,
+            100.0,
+            100.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": 7331.0,
+        "cloud_base_max_ft": 9882.0,
+        "cloud_base_avg_ft": 8674.0,
+        "cloud_cover_min_pct": 72,
+        "cloud_cover_max_pct": 86.0,
+        "cloud_cover_avg_pct": 79.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "cloud_base_ft": [
+          8808.0,
+          7331.0,
+          9882.0
+        ],
+        "cloud_cover_pct": [
+          80,
+          86.0,
+          72
+        ]
+      }
+    },
+    {
+      "name": "levels_below_the_destination_are_skipped",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 8000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "cloud_cover": [
+            60,
+            65
+          ],
+          "relative_humidity_2m": [
+            50.0,
+            55.0
+          ],
+          "temperature_2m": [
+            -2.0,
+            -2.0
+          ],
+          "dew_point_2m": [
+            -9.0,
+            -9.0
+          ],
+          "relative_humidity_1000hPa": [
+            100.0,
+            100.0
+          ],
+          "relative_humidity_925hPa": [
+            100.0,
+            100.0
+          ],
+          "relative_humidity_850hPa": [
+            100.0,
+            100.0
+          ],
+          "relative_humidity_700hPa": [
+            60.0,
+            70.0
+          ],
+          "relative_humidity_600hPa": [
+            96.0,
+            98.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": 13379.0,
+        "cloud_base_max_ft": 13690.0,
+        "cloud_base_avg_ft": 13535.0,
+        "cloud_cover_min_pct": 60,
+        "cloud_cover_max_pct": 65,
+        "cloud_cover_avg_pct": 62.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "cloud_base_ft": [
+          13690.0,
+          13379.0
+        ],
+        "cloud_cover_pct": [
+          60,
+          65
+        ]
+      }
+    },
+    {
+      "name": "dry_column_falls_back_to_the_parcel_base",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "elevation_ft": 6000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "cloud_cover": [
+            0,
+            5,
+            10
+          ],
+          "relative_humidity_2m": [
+            60.0,
+            50.0,
+            90.0
+          ],
+          "temperature_2m": [
+            10.0,
+            15.0,
+            4.0
+          ],
+          "dew_point_2m": [
+            2.0,
+            2.5,
+            4.0
+          ],
+          "relative_humidity_1000hPa": [
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_925hPa": [
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_850hPa": [
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_700hPa": [
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_600hPa": [
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_500hPa": [
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_400hPa": [
+            30.0,
+            30.0,
+            30.0
+          ],
+          "relative_humidity_300hPa": [
+            30.0,
+            30.0,
+            30.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": 6000.0,
+        "cloud_base_max_ft": 11126.0,
+        "cloud_base_avg_ft": 8802.0,
+        "cloud_cover_min_pct": 0,
+        "cloud_cover_max_pct": 10,
+        "cloud_cover_avg_pct": 5.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "cloud_base_ft": [
+          9281.0,
+          11126.0,
+          6000.0
+        ],
+        "cloud_cover_pct": [
+          0,
+          5,
+          10
+        ]
+      }
+    },
+    {
+      "name": "no_level_answered_is_a_null_base",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "elevation_ft": 5000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "cloud_cover": [
+            40,
+            50,
+            70
+          ],
+          "relative_humidity_2m": [
+            99.0,
+            60.0,
+            60.0
+          ],
+          "temperature_2m": [
+            5.0,
+            5.0,
+            5.0
+          ],
+          "dew_point_2m": [
+            4.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": null,
+        "cloud_base_max_ft": null,
+        "cloud_base_avg_ft": null,
+        "cloud_cover_min_pct": 40,
+        "cloud_cover_max_pct": 70,
+        "cloud_cover_avg_pct": 53.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "cloud_base_ft": [
+          null,
+          null,
+          null
+        ],
+        "cloud_cover_pct": [
+          40,
+          50,
+          70
+        ]
+      }
+    },
+    {
+      "name": "archive_undefined_levels_null_base_cover_served",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "elevation_ft": 5000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "cloud_cover": [
+            20,
+            30
+          ],
+          "relative_humidity_2m": [
+            60.0,
+            60.0
+          ],
+          "temperature_2m": [
+            5.0,
+            5.0
+          ],
+          "dew_point_2m": [
+            1.0,
+            1.0
+          ],
+          "relative_humidity_1000hPa": [
+            null,
+            null
+          ],
+          "relative_humidity_925hPa": [
+            null,
+            null
+          ],
+          "relative_humidity_850hPa": [
+            null,
+            null
+          ],
+          "relative_humidity_700hPa": [
+            null,
+            null
+          ],
+          "relative_humidity_600hPa": [
+            null,
+            null
+          ],
+          "relative_humidity_500hPa": [
+            null,
+            null
+          ],
+          "relative_humidity_400hPa": [
+            null,
+            null
+          ],
+          "relative_humidity_300hPa": [
+            null,
+            null
+          ]
+        },
+        "hourly_units": {
+          "cloud_cover": "%",
+          "relative_humidity_2m": "%",
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C",
+          "relative_humidity_1000hPa": "undefined",
+          "relative_humidity_925hPa": "undefined",
+          "relative_humidity_850hPa": "undefined",
+          "relative_humidity_700hPa": "undefined",
+          "relative_humidity_600hPa": "undefined",
+          "relative_humidity_500hPa": "undefined",
+          "relative_humidity_400hPa": "undefined",
+          "relative_humidity_300hPa": "undefined"
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": null,
+        "cloud_base_max_ft": null,
+        "cloud_base_avg_ft": null,
+        "cloud_cover_min_pct": 20,
+        "cloud_cover_max_pct": 30,
+        "cloud_cover_avg_pct": 25.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "cloud_base_ft": [
+          null,
+          null
+        ],
+        "cloud_cover_pct": [
+          20,
+          30
+        ]
+      }
+    },
+    {
+      "name": "null_level_mid_column_is_spanned",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T00:00"
+      },
+      "elevation_ft": 3000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00"
+          ],
+          "cloud_cover": [
+            90
+          ],
+          "relative_humidity_2m": [
+            60.0
+          ],
+          "temperature_2m": [
+            6.0
+          ],
+          "dew_point_2m": [
+            0.0
+          ],
+          "relative_humidity_1000hPa": [
+            20.0
+          ],
+          "relative_humidity_925hPa": [
+            20.0
+          ],
+          "relative_humidity_850hPa": [
+            null
+          ],
+          "relative_humidity_700hPa": [
+            99.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": 9176.0,
+        "cloud_base_max_ft": 9176.0,
+        "cloud_base_avg_ft": 9176.0,
+        "cloud_cover_min_pct": 90,
+        "cloud_cover_max_pct": 90,
+        "cloud_cover_avg_pct": 90.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000
+        ],
+        "cloud_base_ft": [
+          9176.0
+        ],
+        "cloud_cover_pct": [
+          90
+        ]
+      }
+    },
+    {
+      "name": "no_elevation_is_a_null_base",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T01:00"
+      },
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00"
+          ],
+          "cloud_cover": [
+            10,
+            11
+          ],
+          "relative_humidity_2m": [
+            99.0,
+            99.0
+          ],
+          "temperature_2m": [
+            5.0,
+            5.0
+          ],
+          "dew_point_2m": [
+            5.0,
+            5.0
+          ],
+          "relative_humidity_850hPa": [
+            99.0,
+            99.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": null,
+        "cloud_base_max_ft": null,
+        "cloud_base_avg_ft": null,
+        "cloud_cover_min_pct": 10,
+        "cloud_cover_max_pct": 11,
+        "cloud_cover_avg_pct": 10.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000
+        ],
+        "cloud_base_ft": [
+          null,
+          null
+        ],
+        "cloud_cover_pct": [
+          10,
+          11
+        ]
+      }
+    },
+    {
+      "name": "each_quantity_drops_only_its_own_null_hours",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "elevation_ft": 2000.0,
+      "payload": {
+        "hourly": {
+          "time": [
+            "2026-07-21T00:00",
+            "2026-07-21T01:00",
+            "2026-07-21T02:00"
+          ],
+          "cloud_cover": [
+            25,
+            null,
+            75
+          ],
+          "relative_humidity_2m": [
+            null,
+            99.0,
+            50.0
+          ],
+          "temperature_2m": [
+            5.0,
+            5.0,
+            null
+          ],
+          "dew_point_2m": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "relative_humidity_925hPa": [
+            99.0,
+            50.0,
+            50.0
+          ],
+          "relative_humidity_850hPa": [
+            99.0,
+            50.0,
+            50.0
+          ]
+        }
+      },
+      "expected_metrics": {
+        "cloud_base_min_ft": 2000.0,
+        "cloud_base_max_ft": 2500.0,
+        "cloud_base_avg_ft": 2250.0,
+        "cloud_cover_min_pct": 25,
+        "cloud_cover_max_pct": 75,
+        "cloud_cover_avg_pct": 50.0
+      },
+      "expected_series": {
+        "times": [
+          1784592000000,
+          1784595600000,
+          1784599200000
+        ],
+        "cloud_base_ft": [
+          2500.0,
+          2000.0,
+          null
+        ],
+        "cloud_cover_pct": [
+          25,
+          null,
+          75
+        ]
+      }
+    },
+    {
+      "name": "empty_payload_is_null_null",
+      "window": {
+        "start": "2026-07-21T00:00",
+        "end": "2026-07-21T02:00"
+      },
+      "elevation_ft": 5000.0,
+      "payload": {
+        "hourly": {
+          "time": [],
+          "cloud_cover": [],
+          "relative_humidity_2m": [],
+          "temperature_2m": [],
+          "dew_point_2m": []
+        }
+      },
+      "expected_metrics": null,
+      "expected_series": null
+    }
   ]
 }

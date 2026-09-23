@@ -115,7 +115,7 @@ describe('resultPopupHtml mirrors the table', () => {
     expect(html).toContain(`${NOUN.temp} (°F)`)
     // One line per family plus the elevation, each a plain label/value pair.
     const pairs = html.match(/<div><span style="[^"]*">[^<>:]+<\/span>: /g) ?? []
-    expect(pairs).toHaveLength(7)
+    expect(pairs).toHaveLength(9)
   })
 
   it('leads with the family the report is ranked by', () => {
@@ -131,9 +131,9 @@ describe('resultPopupHtml mirrors the table', () => {
     // values line under it is the indented one.
     expect(html).toContain(`<span style="${LABEL_COLOR}">${NOUN.temp} (°F)</span></div>`)
     expect(html).toMatch(/<div style="padding-left:8px">/)
-    // All five families are parted from what sits above them. None is the
-    // first block here: the elevation leads, as a plain label/value line.
-    expect((html.match(/margin-top:4px/g) ?? []).length).toBe(5)
+    // All seven triplet families are parted from what sits above them. None is
+    // the first block here: the elevation leads, as a plain label/value line.
+    expect((html.match(/margin-top:4px/g) ?? []).length).toBe(7)
   })
 
   // Precipitation is the one family whose columns do not share a unit, so the
@@ -152,7 +152,7 @@ describe('resultPopupHtml mirrors the table', () => {
   it('never breaks a line inside one measurement', () => {
     const html = resultPopupHtml({ ...base })
     const lines = html.match(/<div style="padding-left:8px">.*/g) ?? []
-    expect(lines).toHaveLength(5)
+    expect(lines).toHaveLength(7)
     for (const line of lines) {
       const pairs = line.match(/<span style="white-space:nowrap">/g) ?? []
       const separators = line.match(/> \| </g) ?? []
@@ -194,8 +194,8 @@ describe('resultPopupHtml type', () => {
   it('sets values in a monospace face and labels in a stepped-back colour', () => {
     const html = resultPopupHtml({ ...base })
     const values = html.match(/<span style="font-family:ui-monospace[^"]*">[^<]*<\/span>/g) ?? []
-    // Seventeen metric values plus the elevation.
-    expect(values).toHaveLength(18)
+    // Twenty-three metric values plus the elevation.
+    expect(values).toHaveLength(24)
     // A label that wandered inside a value span would read as part of the
     // number and defeat the whole split.
     for (const value of values) {
@@ -315,10 +315,10 @@ describe('resultPopupHtml links out', () => {
     const warning: FireWarning = { miles: 1, name: 'Sourdough', latitude: 48.8, longitude: -121.1 }
     const html = resultPopupHtml({ ...linked, warning })
     const anchors = html.match(/<a /g) ?? []
-    // Sixteen metric values, the warning, and the title's link-out glyph.
-    expect(anchors.length).toBe(18)
-    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(18)
-    expect(html.match(/target="_blank"/g)?.length).toBe(18)
+    // Twenty-two metric values, the warning, and the title's link-out glyph.
+    expect(anchors.length).toBe(24)
+    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(24)
+    expect(html.match(/target="_blank"/g)?.length).toBe(24)
   })
 })
 

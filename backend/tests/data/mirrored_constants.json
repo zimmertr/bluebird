@@ -10,7 +10,44 @@
     "ARCHIVE_STRADDLE_DAYS": 1,
     "BATCH_SIZE": 50,
     "MAX_CONCURRENT_BATCHES": 4,
-    "SNOW_DEPTH_CEILING_IN": 1290.04
+    "SNOW_DEPTH_CEILING_IN": 1290.04,
+    "N_CLOUD_VARIABLES": 12,
+    "CLOUD_SATURATION_RH": 95.0,
+    "ESPY_M_PER_C": 125.0,
+    "ISA_HEIGHT_M": [
+      [
+        1000,
+        111.0
+      ],
+      [
+        925,
+        762.0
+      ],
+      [
+        850,
+        1457.0
+      ],
+      [
+        700,
+        3012.0
+      ],
+      [
+        600,
+        4206.0
+      ],
+      [
+        500,
+        5574.0
+      ],
+      [
+        400,
+        7185.0
+      ],
+      [
+        300,
+        9164.0
+      ]
+    ]
   },
   "strings": {
     "model_coverage_message": "{label} has no forecast coverage for this area. Switch to a different model and try again."

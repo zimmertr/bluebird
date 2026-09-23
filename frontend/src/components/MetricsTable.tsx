@@ -125,6 +125,23 @@ const BOUNDS: Record<
     lower: 'minSnowDepthIn',
     upper: 'maxSnowDepthIn',
   },
+  // The two cloud rows reuse the freezing level's sentences word for word,
+  // because they bound the same thing: a floor on the window's lowest hour and
+  // a ceiling on its highest (#117).
+  cloud_base: {
+    id: 'cloud-base',
+    step: 100,
+    hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
+    lower: 'minCloudBaseFt',
+    upper: 'maxCloudBaseFt',
+  },
+  cloud_cover: {
+    id: 'cloud-cover',
+    step: 1,
+    hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
+    lower: 'minCloudCoverPct',
+    upper: 'maxCloudCoverPct',
+  },
   aqi: {
     id: 'air-quality',
     note: 'Destinations with no air quality forecast are included.',
@@ -175,10 +192,11 @@ interface Props {
   // row's dropdown goes through setSortBy, which is what makes a dropdown
   // change activate its row the way the direction toggle always has.
   rowKeys: Record<MetricFamily, SortBy>
-  // Whether the window the report ranks is a single hourly stamp. The
-  // aggregate dropdowns hide then — min, average and maximum of one hour are
-  // the same number — the same way the calendar's Hours row hides under a
-  // selection that takes no hours.
+  // Whether the panel's When selection is a single hourly stamp. The aggregate
+  // dropdowns hide then, because min, average and maximum of one hour are the
+  // same number, the same way the calendar's Hours row hides under a selection
+  // that takes no hours. It reads the panel rather than the analyzed report, so
+  // the dropdowns follow a When switch before it is analyzed.
   pointSample: boolean
   constraints: Constraints
   setConstraints: (c: Constraints) => void

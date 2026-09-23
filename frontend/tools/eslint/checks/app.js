@@ -142,6 +142,35 @@ export const APP = [
     ],
   },
   {
+    // Two windows answer "is this one hour": the panel's When selection and
+    // the analyzed report. The Metrics table is a panel control, so its
+    // aggregate dropdowns read the selection and follow a switch at once
+    // (#485). The results table and the column-width reset read the report,
+    // because its rows were fetched for the analyzed window and a When switch
+    // alone fetches nothing.
+    name: 'app-panel-point-sample',
+    files: ['src/App.tsx'],
+    require: [
+      {
+        selector:
+          'VariableDeclarator[id.name="panelPointSample"] > CallExpression[callee.name="isPointSample"]' +
+          '[arguments.0.object.name="panelWindowMs"][arguments.1.object.name="panelWindowMs"]',
+        message: 'Derive panelPointSample from panelWindowMs.',
+      },
+      {
+        selector:
+          'JSXOpeningElement[name.name="ControlPanel"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="panelPointSample"]',
+        message: 'Hand ControlPanel panelPointSample, which follows the When selection.',
+      },
+      {
+        selector:
+          'JSXOpeningElement[name.name="ResultsTable"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="pointSample"]',
+        message: 'Hand ResultsTable pointSample, which reads the analyzed report.',
+      },
+      { selector: keyedOnlyOn('pointSample'), message: 'Reset the column widths on the report flag pointSample.' },
+    ],
+  },
+  {
     // The analysis publishes ranked rows as each batch lands, so the results
     // area opens before the await; after it, every row would stay hidden until
     // the end. The provisional count says "so far" and nothing else, and the

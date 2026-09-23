@@ -147,15 +147,24 @@ choose between and no hour it belongs to. Rank by it and the caption beside the
 results header says which day the analysis is from, `Snow depth as of Sep 22`,
 in place of the window it would otherwise name.
 
+**Cloud base and cloud cover cost a second request**, so an analysis fetches
+them only when you rank by one or bound one. Pick either row over a report
+analyzed without them and the line under the Analyze button asks for a new
+analysis; until you run it, the table shows no cloud numbers. Cloud base
+defaults to its minimum, the lowest the cloud came down, and cloud cover to its
+average. Ranking by Highest `Cloud base · Min` finds the destinations most
+likely to stay above the cloud. How the base is worked out, and how far to
+trust it, are in [DATA.md](DATA.md#cloud-base-and-cloud-cover).
+
 Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain — on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature carries the surface layer of a valley floor that cools by radiation on a clear night (Open-Meteo lapses it to the summit's own height, and the cold comes with it), which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). Destinations with no known elevation show the plain near-ground values.
 
 **No header says which method produced a number.** Every metric column reports at the destination's elevation: precipitation and air quality as the grid cell's surface values at that point, the freezing level as a height of its own, and the wind and temperature as above. A header that named the method on two of the five read as a difference in place, so the method lives in [DATA.md](DATA.md#open-meteo) instead. Over an archive window the pressure levels are not published and both families fall back to the near-ground value; the line under the Analyze button names the window.
 
 ### Bounds
 
-The Min and Max boxes say which destinations you would consider at all: on AQI, the freezing level, precipitation, snow depth, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** turns on as soon as any box holds a number, and it empties every one of them, the results cap included.
+The Min and Max boxes say which destinations you would consider at all: on AQI, cloud base, cloud cover, the freezing level, precipitation, snow depth, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** turns on as soon as any box holds a number, and it empties every one of them, the results cap included.
 
-**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For wind, temperature and the freezing level the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere. Snow depth is bounded on today's one number in both columns, there being no hours to reduce.
+**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For wind, temperature, the freezing level and both cloud metrics the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere. Snow depth is bounded on today's one number in both columns, there being no hours to reduce.
 
 **Destinations with unknown AQI, freezing level or snow depth are included.** Air quality is only forecast about five days out, most forecast models publish no freezing level at all, and the snow analysis covers the contiguous United States, southern Canada and northern Mexico and nothing else. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level or the snow analysis never covered the destination.
 
@@ -425,6 +434,8 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
 | Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `≥1,290` marks the source file's own ceiling, which is permanent ice rather than a measurement. `N/A` outside the analysis area |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
+| Cloud base · Min/Max/Avg (ft) | The lowest height above the destination where the model's air is close to saturated, in feet above sea level. Shown only when the report fetched it. Blank for a destination with no known elevation and over an archive window |
+| Cloud cover · Min/Max/Avg (%) | The model's total cloud cover over the window, every layer at once. Shown only when the report fetched it |
 
 A single-hour analysis ("now", or a chosen moment) collapses each of those
 groups to one column, because over one hour the average, the minimum and the
@@ -468,6 +479,12 @@ area reads `N/A`, which is not the same as zero. Ranking by it leaves the
 forecast player's markers on the one number they rank by, because today's depth
 has no hours to scrub through, and the forecast chart keeps whatever metric it
 was showing: there is no hourly series to draw.
+
+The cloud base columns wear the freezing level's shades too, low to high in
+even steps of 3,000 ft, because a cloud base is a height like it. The cloud
+cover columns are shaded in grey, light for a clear sky and darker as the cover
+thickens, the one scale in the app drawn in greys: a cover is a fact about
+the sky, not a verdict on it.
 
 The two per-hour precipitation columns are read on a rainfall-intensity scale
 rather than on the totals scale the markers and the map legend use, because

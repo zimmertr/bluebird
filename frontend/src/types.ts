@@ -36,6 +36,14 @@ export type SortBy =
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
+  // The cloud base and cloud cover (#117). Ranking by one is what makes an
+  // analysis fetch the cloud variables at all.
+  | 'cloud_base_min_ft'
+  | 'cloud_base_avg_ft'
+  | 'cloud_base_max_ft'
+  | 'cloud_cover_min_pct'
+  | 'cloud_cover_avg_pct'
+  | 'cloud_cover_max_pct'
 
 export interface GeoPolygon {
   type: 'Polygon'
@@ -95,6 +103,14 @@ export interface AnalyzeRequest {
   max_snow_depth_in?: number | null
   min_aqi?: number | null
   max_aqi?: number | null
+  min_cloud_base_ft?: number | null
+  max_cloud_base_ft?: number | null
+  min_cloud_cover_pct?: number | null
+  max_cloud_cover_pct?: number | null
+  // The server path's opt-in to the cloud fields on the returned rows. The
+  // browser never sends it: it fetches the cloud column when the ranking or a
+  // bound names a cloud metric, which it reads off the fields above.
+  include_clouds?: boolean
   // Explicit opt-in: an over-limit candidate set keeps its highest-elevation
   // rows up to the analysis cap instead of refusing. The response then says
   // truncated: true with the pre-cut count in total_found — never silent.
@@ -130,6 +146,10 @@ export interface HourlySeries {
   // publish the variable, which is five of the eight (#295).
   freeze_ft: (number | null)[]
   aqi: (number | null)[]
+  // Feet above sea level and percent (#117). Absent unless the analysis
+  // fetched the cloud column, which it does only when asked for a cloud metric.
+  cloud_base_ft?: (number | null)[] | null
+  cloud_cover_pct?: (number | null)[] | null
   // Wind bearing in degrees clockwise from north, the direction the wind blows
   // FROM. Client-populated only: the backend does not fetch it, because nothing
   // it computes uses it, so a report from the SSE fallback carries none and the
@@ -176,6 +196,16 @@ export interface DestinationResult {
   // a gap in the weather. Over permanent ice the model accumulates year over
   // year, so a glaciated summit reads over a thousand inches.
   snow_depth_in: number | null
+  // The cloud base in feet above sea level and the cloud cover in percent,
+  // each reduced over the window (#117). Null unless the analysis fetched the
+  // cloud column, for a destination with no known elevation (the base only),
+  // and for archive hours, which carry no pressure levels (the base only).
+  cloud_base_min_ft: number | null
+  cloud_base_avg_ft: number | null
+  cloud_base_max_ft: number | null
+  cloud_cover_min_pct: number | null
+  cloud_cover_avg_pct: number | null
+  cloud_cover_max_pct: number | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null
   // Timestamps for `series` when the row came from its own analyze response

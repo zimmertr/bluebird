@@ -11,8 +11,12 @@ from app import ratelimit, telemetry
 from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel, WindowSource
 from app.services import cache, http
 from app.services.aggregation import (
+    CLOUD_JOIN_KEYS,
+    CLOUD_VARIABLES,
     HOURLY_VARIABLES,
     PROVIDER,
+    _cloud_metrics,
+    _cloud_series,
     _join_hours,
     _weather_metrics,
     _weather_series,
@@ -49,6 +53,20 @@ CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
 # The five level temperatures (#443) are what took it over the floor of 10;
 # the five level winds and the freezing level before them rode inside it.
 N_VARIABLES = 14
+# The cloud request's own count (issue #117): cloud cover, the 2 m humidity,
+# temperature and dew point, and the humidity at eight levels. It is a second
+# request over the same locations, made only when a ranking or a bound names a
+# cloud metric, so its factor of 1.2 is spent on top of the weather's 1.4 and
+# never by an analysis that did not ask.
+N_CLOUD_VARIABLES = 12
+# The units every weather request is quoted in. The cloud request sends none of
+# them: it carries no wind and no precipitation, and its temperature pair is
+# read in the Celsius Espy's rule is stated in.
+_WEATHER_UNITS = {
+    "temperature_unit": "fahrenheit",
+    "wind_speed_unit": "mph",
+    "precipitation_unit": "inch",
+}
 
 
 def hour_param(dt: datetime) -> str:
@@ -209,6 +227,104 @@ async def fetch_weather_batch(
     )
 
 
+async def fetch_cloud_batch(
+    destinations: list[dict[str, Any]],
+    start_dt: datetime,
+    end_dt: datetime,
+    model: ForecastModel = DEFAULT_FORECAST_MODEL,
+    api_key: str | None = None,
+    source: WindowSource = "forecast",
+    boundary: datetime | None = None,
+) -> list[dict[str, Any] | None]:
+    """Each destination's windowed cloud base and cloud cover (issue #117).
+
+    The weather fetch's twin over the same endpoints, spans, pacer and cache,
+    with its own variable list and its own cache entries. It exists apart
+    rather than as more variables on the weather request because the price of
+    a request follows its variable count: twelve more on every analysis would
+    charge every caller for a metric few of them rank by.
+
+    `on_error="raise"` for the weather fetch's reason. The caller only asks for
+    it when a ranking or a bound needs it, or when the request asked for the
+    columns by name, and a ranking by cloud with no cloud in it is not one.
+    """
+    if not destinations:
+        return []
+
+    spans = _fetch_spans(source, start_dt, end_dt, boundary)
+
+    def key(dest: dict[str, Any]) -> tuple:
+        # The weather key's fields under a kind of its own: elevation is in it
+        # because the walk up the column starts at the destination's height,
+        # and `source` because the archive half answers no levels.
+        return cache.forecast_key(
+            "cloud",
+            dest["latitude"],
+            dest["longitude"],
+            start_dt.isoformat(),
+            end_dt.isoformat(),
+            model.value,
+            dest.get("elevation_ft") or "",
+            source,
+        )
+
+    def weights(chunk: list[dict[str, Any]]) -> list[float]:
+        return [
+            call_weight(
+                len(chunk),
+                span.start.date(),
+                span.end.date(),
+                N_CLOUD_VARIABLES,
+                n_models=1,
+            )
+            for span in spans
+        ]
+
+    return await fetch_batched(
+        destinations,
+        label="Open-Meteo cloud",
+        cache_key=key,
+        fetch_chunk=lambda chunk: _fetch_cloud_chunk(
+            chunk, start_dt, end_dt, spans, model, api_key
+        ),
+        slots=ratelimit.WEATHER_BUDGET,
+        # The weather quota, because it is the weather endpoint: Open-Meteo
+        # meters per service, and this request is billed to the same one.
+        pacing=None
+        if api_key is not None
+        else Pacing(ratelimit.WEATHER_WEIGHT, weights),
+        on_error="raise",
+    )
+
+
+async def _fetch_cloud_chunk(
+    destinations: list[dict[str, Any]],
+    start_dt: datetime,
+    end_dt: datetime,
+    spans: list[_Span],
+    model: ForecastModel = DEFAULT_FORECAST_MODEL,
+    api_key: str | None = None,
+) -> list[dict[str, Any] | None]:
+    """One batch of cloud columns, joined across spans and aggregated once."""
+    per_span = [
+        _as_items(
+            await _fetch_span(
+                destinations, span, model, api_key, hourly=CLOUD_VARIABLES, units={}
+            )
+        )
+        for span in spans
+    ]
+    results: list[dict[str, Any] | None] = []
+    for dest, parts in zip(destinations, zip(*per_span, strict=False), strict=False):
+        elevation_ft = dest.get("elevation_ft")
+        item = _join_hours(parts, CLOUD_JOIN_KEYS)
+        m = _cloud_metrics(item, start_dt, end_dt, elevation_ft)
+        if m is not None:
+            m = {**m, "series": _cloud_series(item, start_dt, end_dt, elevation_ft)}
+        results.append(m)
+    return results
+
+
 def _coverage_message(model: ForecastModel) -> str:
     """Why a regional model refused."""
     return (
@@ -264,8 +380,14 @@ async def _fetch_span(
     span: _Span,
     model: ForecastModel = DEFAULT_FORECAST_MODEL,
     api_key: str | None = None,
+    hourly: str = HOURLY_VARIABLES,
+    units: dict[str, str] | None = None,
 ) -> Any:
-    """One request: these locations, these hours, from the span's own endpoint."""
+    """One request: these locations, these hours, from the span's own endpoint.
+
+    `hourly` and `units` are the weather request's unless the caller names
+    others, which only the cloud fetch does.
+    """
     lats = ",".join(str(d["latitude"]) for d in destinations)
     lons = ",".join(str(d["longitude"]) for d in destinations)
     archive = span.archive
@@ -282,10 +404,8 @@ async def _fetch_span(
     params = {
         "latitude": lats,
         "longitude": lons,
-        "hourly": HOURLY_VARIABLES,
-        "temperature_unit": "fahrenheit",
-        "wind_speed_unit": "mph",
-        "precipitation_unit": "inch",
+        "hourly": hourly,
+        **(_WEATHER_UNITS if units is None else units),
         "start_hour": hour_param(start_dt),
         "end_hour": hour_param(end_dt),
         "timezone": "UTC",

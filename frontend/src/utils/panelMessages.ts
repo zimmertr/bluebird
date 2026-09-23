@@ -27,6 +27,9 @@ const COMMIT_CUE: Record<CommitReason, string> = {
   'polygon-changed': commitCue('search area'),
   'types-changed': commitCue('destination type'),
   'destination-added': commitCue('destination'),
+  // The one cue a presentation knob raises (#117): the cloud column is
+  // fetched only when a ranking or a bound asks for it.
+  'cloud-needed': commitCue('cloud metric'),
 }
 
 // The AQI info line's dismissal key (#253): a condition, not a message, like

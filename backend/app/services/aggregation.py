@@ -56,6 +56,26 @@ def _at(arr: list[Any], i: int) -> float | None:
 def _round_or_none(v: float | None, ndigits: int) -> float | None:
     return round(v, ndigits) if v is not None else None
 
+# The height of each standard pressure level in the ICAO standard atmosphere,
+# in metres. Every level-reading below takes its height from here rather than
+# from a geopotential it fetched: real level heights move a few percent with the
+# weather, and fetching them would double a request's variable count for a
+# correction smaller than the model's own grid error. The wind and temperature
+# read the five from 925 to 500 hPa; the cloud base reads all eight, because a
+# saturated layer can sit under the lowest summit (1000 hPa) and a clear column
+# has to be checked to the top of every summit on Earth (300 hPa, 30,100 ft).
+# Mirrored in the browser and pinned by `mirrored_constants.json`.
+ISA_HEIGHT_M: dict[int, float] = {
+    1000: 111.0,
+    925: 762.0,
+    850: 1457.0,
+    700: 3012.0,
+    600: 4206.0,
+    500: 5574.0,
+    400: 7185.0,
+    300: 9164.0,
+}
+
 # The wind the table ranks on is wind at the destination's OWN elevation
 # (issue #257). Open-Meteo's 10 m wind stands 10 m above the model's smoothed
 # terrain, inside the friction layer — measured at Rainier 2026-08-21, the
@@ -73,11 +93,7 @@ def _round_or_none(v: float | None, ndigits: int) -> float | None:
 # rather than each getting its own, and the aggregation stays the one the shared
 # vectors pin.
 _WIND_LEVELS: list[tuple[str, float]] = [
-    ("wind_speed_925hPa", 762.0),
-    ("wind_speed_850hPa", 1457.0),
-    ("wind_speed_700hPa", 3012.0),
-    ("wind_speed_600hPa", 4206.0),
-    ("wind_speed_500hPa", 5574.0),
+    (f"wind_speed_{p}hPa", ISA_HEIGHT_M[p]) for p in (925, 850, 700, 600, 500)
 ]
 _FT_TO_M = 0.3048
 # The temperature the table ranks on is the temperature at the destination's
@@ -106,11 +122,7 @@ _FT_TO_M = 0.3048
 # below already sends back to `temperature_2m` — so both endpoints are asked for
 # one variable list, exactly as the wind levels are.
 _TEMP_LEVELS: list[tuple[str, float]] = [
-    ("temperature_925hPa", 762.0),
-    ("temperature_850hPa", 1457.0),
-    ("temperature_700hPa", 3012.0),
-    ("temperature_600hPa", 4206.0),
-    ("temperature_500hPa", 5574.0),
+    (f"temperature_{p}hPa", ISA_HEIGHT_M[p]) for p in (925, 850, 700, 600, 500)
 ]
 # The height where the free-air temperature crosses freezing (issue #295).
 # Spring and winter travel turns on the overnight refreeze, and a destination's
@@ -140,6 +152,42 @@ HOURLY_VARIABLES = ",".join(
 
 
 _JOIN_KEYS: tuple[str, ...] = ("time", *HOURLY_VARIABLES.split(","))
+
+# The cloud base (issue #117): the lowest height in the air column over a
+# destination where the air is saturated, read off the relative humidity at the
+# destination's own 2 m point and at every standard level above it.
+#
+# Open-Meteo serves no cloud base of its own (`cloud_base` answers the unit
+# `undefined` and a column of nulls on all eight models and the archive,
+# measured 2026-09-22), and the destination's own temperature and dew point
+# cannot answer the question alone: Open-Meteo lapses that pair to the
+# destination's height, so a parcel base computed from it can only ever sit AT
+# or ABOVE the summit, never under it. Whether a summit stands above a deck is
+# a question about the column beneath it, so the column is what is read.
+#
+# 95 % rather than 100 %: a model's grid cell is tens of square kilometres, and
+# a cell whose mean humidity reaches the mid-90s is one where cloud is forming
+# in part of it. Pinned as a mirrored constant, and deliberately one number
+# rather than a tuned curve: it has not been fitted to observed ceilings.
+CLOUD_SATURATION_RH = 95.0
+# Espy's rule: an unsaturated parcel lifted from the surface condenses about
+# 125 m higher for every degree Celsius between its temperature and its dew
+# point. It is the fallback for a column with nothing saturated in it, so a
+# clear day reads a high base rather than no base at all.
+ESPY_M_PER_C = 125.0
+_CLOUD_LEVELS: list[tuple[str, float]] = [
+    (f"relative_humidity_{p}hPa", h) for p, h in ISA_HEIGHT_M.items()
+]
+# The cloud variables ride a request of their own, made only when a ranking or
+# a bound asks for a cloud metric: twelve more variables on every analysis
+# would take the weighted price of each from 1.5 to 2.7 (issue #117). The pair
+# at 2 m is fetched in Celsius, the unit Espy's rule is stated in, so the
+# request sends no `temperature_unit`.
+CLOUD_VARIABLES = ",".join(
+    ["cloud_cover", "relative_humidity_2m", "temperature_2m", "dew_point_2m"]
+    + [name for name, _ in _CLOUD_LEVELS]
+)
+CLOUD_JOIN_KEYS: tuple[str, ...] = ("time", *CLOUD_VARIABLES.split(","))
 
 
 # What the archive endpoint writes in `hourly_units` for a variable it does not
@@ -174,7 +222,9 @@ def _join_units(declared: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return joined
 
 
-def _join_hours(parts: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def _join_hours(
+    parts: Sequence[dict[str, Any]], keys: Sequence[str] = _JOIN_KEYS
+) -> dict[str, Any]:
     """One location's half-windows as a single hourly payload.
 
     The aggregation is pinned byte-for-byte against the browser port by the
@@ -195,13 +245,17 @@ def _join_hours(parts: Sequence[dict[str, Any]]) -> dict[str, Any]:
     "undefined" beside a column of nulls (measured 2026-09-13), where the
     forecast endpoint says "mp/h"; that is a column one side does not have, not
     a disagreement about what a number means.
+
+    `keys` names the arrays to keep parallel, which is the request's own
+    variable list: the weather request and the cloud request ask for
+    different ones.
     """
     if len(parts) == 1:
         return parts[0]
     declared = [part.get("hourly_units") or {} for part in parts]
     if not _units_agree(declared):
         return {}
-    joined: dict[str, list[Any]] = {key: [] for key in _JOIN_KEYS}
+    joined: dict[str, list[Any]] = {key: [] for key in keys}
     seen: set[Any] = set()
     for part in parts:
         hourly = part.get("hourly") or {}
@@ -210,7 +264,7 @@ def _join_hours(parts: Sequence[dict[str, Any]]) -> dict[str, Any]:
                 continue
             seen.add(ts)
             joined["time"].append(ts)
-            for key in _JOIN_KEYS[1:]:
+            for key in keys[1:]:
                 joined[key].append(_at(hourly.get(key) or [], i))
     return {**parts[0], "hourly_units": _join_units(declared), "hourly": joined}
 
@@ -579,4 +633,168 @@ def _aqi_series(
             return None
         return {"times": grid, "aqi": out}
     except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
+        return None
+
+
+def _cloud_base_m(
+    elevation_ft: float | None,
+    rh2m: float | None,
+    t2m: float | None,
+    td2m: float | None,
+    levels: list[float | None],
+) -> float | None:
+    """One hour's cloud base, in metres above sea level, or None.
+
+    The column is the destination's own 2 m point followed by every standard
+    level ABOVE the destination, walked upward. The first saturated point ends
+    the walk: at the 2 m point the destination itself is in cloud and the base
+    is its own elevation; higher up, the height is interpolated linearly in
+    relative humidity between the last dry point and this one, to where the
+    humidity crosses `CLOUD_SATURATION_RH`. A null point is skipped, so the
+    interpolation spans whatever gap it leaves.
+
+    A column that answered and is dry all the way up falls back to Espy's
+    parcel base over the destination, so a clear sky reads a high number. A
+    column that did not answer at all is None: the archive endpoint serves no
+    pressure levels, and a base read off the 2 m pair alone would be the
+    parcel's rather than the column's. No elevation is None too, because the
+    walk has nowhere to start.
+    """
+    if elevation_ft is None:
+        return None
+    elev_m = elevation_ft * _FT_TO_M
+    column: list[tuple[float, float | None]] = [(elev_m, rh2m)]
+    answered = False
+    for k in range(len(_CLOUD_LEVELS)):
+        height = _CLOUD_LEVELS[k][1]
+        if height <= elev_m:
+            continue
+        rh = levels[k] if k < len(levels) else None
+        if rh is not None:
+            answered = True
+        column.append((height, rh))
+    if not answered:
+        return None
+    prev: tuple[float, float] | None = None
+    for height, rh in column:
+        if rh is None:
+            continue
+        if rh >= CLOUD_SATURATION_RH:
+            if prev is None:
+                return height
+            lo_h, lo_rh = prev
+            return lo_h + (height - lo_h) * ((CLOUD_SATURATION_RH - lo_rh) / (rh - lo_rh))
+        prev = (height, rh)
+    if t2m is None or td2m is None:
+        return None
+    return elev_m + ESPY_M_PER_C * max(0.0, t2m - td2m)
+
+
+def _cloud_level_arrays(hourly: dict[str, Any]) -> list[list[Any]]:
+    return [hourly.get(name, []) for name, _ in _CLOUD_LEVELS]
+
+
+def _cloud_base_ft_at(
+    hourly: dict[str, Any],
+    i: int,
+    elevation_ft: float | None,
+    levels: list[list[Any]],
+) -> float | None:
+    base = _cloud_base_m(
+        elevation_ft,
+        _at(hourly.get("relative_humidity_2m", []), i),
+        _at(hourly.get("temperature_2m", []), i),
+        _at(hourly.get("dew_point_2m", []), i),
+        [_at(arr, i) for arr in levels],
+    )
+    return None if base is None else base / _FT_TO_M
+
+
+def _cloud_metrics(
+    data: dict[str, Any],
+    start_dt: datetime,
+    end_dt: datetime,
+    elevation_ft: float | None = None,
+) -> dict[str, Any] | None:
+    """The window's cloud base and cloud cover, each reduced on its own.
+
+    Times-driven rather than a zip, and each quantity drops only its own null
+    hours, which is the freezing level's rule for the freezing level's reason:
+    an archive hour has cloud cover and no base, and losing the cover with the
+    base would blank a column the archive does serve. None only when the window
+    holds no hours at all; a window with no base in it reports null base
+    aggregates beside whatever cover it has.
+    """
+    try:
+        hourly = data.get("hourly", {})
+        times = hourly.get("time", [])
+        cover = hourly.get("cloud_cover", [])
+        levels = _cloud_level_arrays(hourly)
+
+        start = _naive(start_dt)
+        end = _naive(end_dt)
+
+        hours = 0
+        bases: list[float] = []
+        covers: list[float] = []
+        for i, ts in enumerate(times):
+            parsed = _parse_ts(ts)
+            if parsed is None or not (start <= parsed <= end):
+                continue
+            hours += 1
+            c = _at(cover, i)
+            if c is not None:
+                covers.append(c)
+            base = _cloud_base_ft_at(hourly, i, elevation_ft, levels)
+            if base is not None:
+                bases.append(base)
+
+        if hours == 0:
+            return None
+        return {
+            # Whole feet, for the freezing level's reason: the levels are
+            # hundreds of metres apart, so a decimal is precision nothing
+            # measured.
+            "cloud_base_min_ft": round(min(bases), 0) if bases else None,
+            "cloud_base_max_ft": round(max(bases), 0) if bases else None,
+            "cloud_base_avg_ft": round(sum(bases) / len(bases), 0) if bases else None,
+            "cloud_cover_min_pct": round(min(covers), 0) if covers else None,
+            "cloud_cover_max_pct": round(max(covers), 0) if covers else None,
+            "cloud_cover_avg_pct": round(sum(covers) / len(covers), 0) if covers else None,
+        }
+    except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
+        return None
+
+
+def _cloud_series(
+    data: dict[str, Any],
+    start_dt: datetime,
+    end_dt: datetime,
+    elevation_ft: float | None = None,
+) -> dict[str, Any] | None:
+    """Per-hour cloud base and cloud cover over the window, nulls kept."""
+    try:
+        hourly = data.get("hourly", {})
+        times = hourly.get("time", [])
+        cover = hourly.get("cloud_cover", [])
+        levels = _cloud_level_arrays(hourly)
+
+        start = _naive(start_dt)
+        end = _naive(end_dt)
+
+        grid: list[int] = []
+        b_out: list[float | None] = []
+        c_out: list[float | None] = []
+        for i, ts in enumerate(times):
+            parsed = _parse_ts(ts)
+            if parsed is None or not (start <= parsed <= end):
+                continue
+            grid.append(_epoch_ms(parsed))
+            b_out.append(_round_or_none(_cloud_base_ft_at(hourly, i, elevation_ft, levels), 0))
+            c_out.append(_round_or_none(_at(cover, i), 0))
+
+        if not grid:
+            return None
+        return {"times": grid, "cloud_base_ft": b_out, "cloud_cover_pct": c_out}
+    except Exception:  # noqa: BLE001 — best-effort series degrades to None
         return None
