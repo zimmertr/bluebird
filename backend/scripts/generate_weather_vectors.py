@@ -1,6 +1,6 @@
 """Regenerate the shared weather/AQI aggregation test vectors.
 
-The TypeScript port in `frontend/src/utils/openMeteo.ts` must produce
+The TypeScript port in `frontend/src/utils/openMeteoAggregate.ts` must produce
 byte-identical aggregates to the backend, or the browser and the API would
 rank the same forecast differently. These vectors are the contract: inputs
 are authored here, expected outputs are computed by the backend
@@ -28,7 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.routes.analyze import _aligned_aqi
-from app.services import air_quality, weather
+from app.services import aggregation
 
 OUT = Path(__file__).parent.parent / "tests" / "data" / "weather_vectors.json"
 
@@ -593,10 +593,10 @@ def main() -> None:
         weather_cases.append(
             {
                 **case,
-                "expected_metrics": weather._metrics(
+                "expected_metrics": aggregation._weather_metrics(
                     case["payload"], start, end, elevation_ft
                 ),
-                "expected_series": weather._series(
+                "expected_series": aggregation._weather_series(
                     case["payload"], start, end, elevation_ft
                 ),
             }
@@ -608,8 +608,8 @@ def main() -> None:
         aqi_cases.append(
             {
                 **case,
-                "expected_metrics": air_quality._metrics(case["payload"], start, end),
-                "expected_series": air_quality._series(case["payload"], start, end),
+                "expected_metrics": aggregation._aqi_metrics(case["payload"], start, end),
+                "expected_series": aggregation._aqi_series(case["payload"], start, end),
             }
         )
 

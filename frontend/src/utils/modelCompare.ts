@@ -18,7 +18,8 @@ import {
   gridRemapper,
 } from './chartData'
 import { HOUR_MS } from './forecastWindow'
-import type { WeatherResult, WeatherSeries } from './openMeteo'
+import type { WeatherResult } from './openMeteo'
+import type { WeatherSeries } from './openMeteoAggregate'
 
 /**
  * Is this one of Open-Meteo's blended products?

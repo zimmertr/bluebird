@@ -9,12 +9,8 @@ import pytest
 from conftest import dest, fake_response
 
 from app.services import air_quality
-from app.services.air_quality import (
-    _metrics,
-    _parse_ts,
-    _series,
-    fetch_aqi_batch,
-)
+from app.services.aggregation import _aqi_metrics, _aqi_series, _parse_ts
+from app.services.air_quality import fetch_aqi_batch
 from app.services.errors import InvalidApiKeyError
 
 START = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
@@ -27,12 +23,12 @@ def _hourly(times, aqi):
 
 def test_metrics_avg_and_max():
     data = _hourly(["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"], [80, 90, 100])
-    assert _metrics(data, START, END) == {"aqi_avg": 90, "aqi_min": 80, "aqi_max": 100}
+    assert _aqi_metrics(data, START, END) == {"aqi_avg": 90, "aqi_min": 80, "aqi_max": 100}
 
 
 def test_metrics_skips_none_values():
     data = _hourly(["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"], [80, None, 100])
-    assert _metrics(data, START, END) == {"aqi_avg": 90, "aqi_min": 80, "aqi_max": 100}
+    assert _aqi_metrics(data, START, END) == {"aqi_avg": 90, "aqi_min": 80, "aqi_max": 100}
 
 
 def test_metrics_excludes_out_of_window():
@@ -40,28 +36,28 @@ def test_metrics_excludes_out_of_window():
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00", "2026-07-21T09:00"],
         [80, 90, 100, 500],
     )
-    assert _metrics(data, START, END)["aqi_max"] == 100
+    assert _aqi_metrics(data, START, END)["aqi_max"] == 100
 
 
 def test_metrics_empty_returns_none():
-    assert _metrics(_hourly([], []), START, END) is None
+    assert _aqi_metrics(_hourly([], []), START, END) is None
 
 
 def test_metrics_all_none_returns_none():
     data = _hourly(["2026-07-21T00:00", "2026-07-21T01:00"], [None, None])
-    assert _metrics(data, START, END) is None
+    assert _aqi_metrics(data, START, END) is None
 
 
 def test_metrics_result_is_integer_index():
     # US AQI is an integer index; averages are rounded to whole numbers.
     data = _hourly(["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"], [70, 80, 90])
-    m = _metrics(data, START, END)
+    m = _aqi_metrics(data, START, END)
     assert isinstance(m["aqi_avg"], int)
     assert m["aqi_avg"] == 80
 
 
 def test_metrics_malformed_payload_returns_none():
-    assert _metrics({"nope": 1}, START, END) is None
+    assert _aqi_metrics({"nope": 1}, START, END) is None
 
 
 def test_parse_ts_roundtrip():
@@ -115,14 +111,14 @@ async def test_the_horizon_clamp_ends_at_the_last_hour_of_the_cap_day(monkeypatc
 
 def test_series_keeps_hours_and_preserves_nulls():
     data = _hourly(["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"], [80, None, 100])
-    s = _series(data, START, END)
+    s = _aqi_series(data, START, END)
     assert s["aqi"] == [80, None, 100]
     assert len(s["times"]) == 3
 
 
 def test_series_times_are_utc_epoch_ms():
     data = _hourly(["2026-07-21T00:00"], [80])
-    s = _series(data, START, END)
+    s = _aqi_series(data, START, END)
     expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=UTC).timestamp() * 1000)
     assert s["times"] == [expected]
 
@@ -132,12 +128,12 @@ def test_series_excludes_out_of_window():
         ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00", "2026-07-21T09:00"],
         [80, 90, 100, 500],
     )
-    s = _series(data, START, END)
+    s = _aqi_series(data, START, END)
     assert s["aqi"] == [80, 90, 100]
 
 
 def test_series_empty_returns_none():
-    assert _series(_hourly([], []), START, END) is None
+    assert _aqi_series(_hourly([], []), START, END) is None
 
 
 # ── the 429 short-circuit ──────────────────────────────────────────────────
