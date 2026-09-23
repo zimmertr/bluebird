@@ -12,6 +12,7 @@ import {
   TEXT,
 } from '../styles'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { drawControls } from '../utils/drawControls'
 
 // Above this drawn area, an informational note warns that dense regions can
 // exceed the destination limit and searches slow down. Advisory only: the hard
@@ -35,7 +36,10 @@ interface Props {
   drawing: boolean
   onStartDrawing: () => void
   onFinishDrawing: () => void
+  // Leaves draw mode and puts back the ring the mode started with.
   onCancelDrawing: () => void
+  // Empties the ring and leaves the mode as it is.
+  onClearDrawing: () => void
   drawPointCount: number
   // The two readings the Analyze gate also takes, handed down rather than
   // derived again here so the counter and the gate cannot disagree.
@@ -77,6 +81,7 @@ export default function DestinationsSection({
   onStartDrawing,
   onFinishDrawing,
   onCancelDrawing,
+  onClearDrawing,
   drawPointCount,
   pointsNeeded,
   areaTooLarge,
@@ -176,33 +181,49 @@ export default function DestinationsSection({
               )}
           </div>
         )}
-        {/* The one control that switches the map between placing points
-            and everything else. Drawing has to be left before a click on
-            the map can mean anything but "another vertex", so this button
-            is the whole of #118 in the panel: Draw/Edit to enter, Done to
-            leave (Enter and Escape do the same on the map). */}
+        {/* The controls that switch the map between placing points and
+            everything else. Drawing has to be left before a click on the map
+            can mean anything but "another vertex", so this row is the whole
+            of #118 in the panel: Draw/Edit to enter, Done to keep the ring,
+            Cancel to put back the one the mode started with. Which of them
+            show, and in what order, is `drawControls`. */}
         <div className="flex flex-wrap gap-2">
-          {drawing ? (
-            // Disabled until the ring is a polygon: with two points there
-            // is nothing to be done WITH, and every path out of draw mode
-            // (this button, Enter on the map) shares the 3-point floor.
-            <button
-              onClick={onFinishDrawing}
-              disabled={drawPointCount < 3}
-              className={`${BUTTON_ACCENT} ${DISABLED}`}
-            >
-              Done
-            </button>
-          ) : (
-            <button onClick={onStartDrawing} className={BUTTON_SECONDARY}>
-              {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
-            </button>
-          )}
-          {drawPointCount > 0 && (
-            <button onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
-              Clear
-            </button>
-          )}
+          {drawControls(drawing, drawPointCount).map((control) => {
+            switch (control) {
+              case 'start':
+                return (
+                  <button key={control} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
+                    {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
+                  </button>
+                )
+              case 'done':
+                // Disabled until the ring is a polygon: with two points there
+                // is nothing to be done WITH, and both ways of finishing (this
+                // button, Enter on the map) share the 3-point floor.
+                return (
+                  <button
+                    key={control}
+                    onClick={onFinishDrawing}
+                    disabled={drawPointCount < 3}
+                    className={`${BUTTON_ACCENT} ${DISABLED}`}
+                  >
+                    Done
+                  </button>
+                )
+              case 'cancel':
+                return (
+                  <button key={control} onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
+                    Cancel
+                  </button>
+                )
+              case 'clear':
+                return (
+                  <button key={control} onClick={onClearDrawing} className={BUTTON_SECONDARY}>
+                    Clear
+                  </button>
+                )
+            }
+          })}
         </div>
         {/* Checkboxes, not radios: one polygon can look for several kinds
             at once, and they all come back from a single Overpass query,

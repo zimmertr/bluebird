@@ -4,8 +4,8 @@ import { fireEvent, screen } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
 
-// The section's own behavior: the draw counter beside the polygon, the button
-// that enters and leaves draw mode, the type set and the unnamed-peaks knob
+// The section's own behavior: the draw counter beside the polygon, the buttons
+// that enter and leave draw mode, the type set and the unnamed-peaks knob
 // that widens it, and the coordinates box that frames a paste but never a
 // keystroke.
 
@@ -18,6 +18,7 @@ function props(over: Partial<Props> = {}): Props {
     onStartDrawing: noop,
     onFinishDrawing: noop,
     onCancelDrawing: noop,
+    onClearDrawing: noop,
     drawPointCount: 0,
     pointsNeeded: 3,
     areaTooLarge: false,
@@ -74,14 +75,46 @@ describe('DestinationsSection', () => {
   describe('the draw button', () => {
     it('enters draw mode, and offers Edit and Clear once there is a ring', async () => {
       const onStartDrawing = vi.fn()
-      const onCancelDrawing = vi.fn()
+      const onClearDrawing = vi.fn()
       const { user, rerender } = render(<DestinationsSection {...props({ onStartDrawing })} />)
       await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
       expect(onStartDrawing).toHaveBeenCalledOnce()
-      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0, onCancelDrawing })} />)
+      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0, onClearDrawing })} />)
       expect(screen.getByRole('button', { name: 'Edit polygon' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
       await user.click(screen.getByRole('button', { name: 'Clear' }))
+      expect(onClearDrawing).toHaveBeenCalledOnce()
+    })
+
+    // A phone has no Escape key, so before the first point Cancel is its only
+    // way out of the mode.
+    it('offers Cancel beside a disabled Done before the first point', async () => {
+      const onCancelDrawing = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ drawing: true, onCancelDrawing })} />)
+      expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(onCancelDrawing).toHaveBeenCalledOnce()
+    })
+
+    it('reads Done, Cancel, Clear while drawing', () => {
+      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1 })} />)
+      const names = screen.getAllByRole('button').map((b) => b.textContent)
+      expect(names).toEqual(['Done', 'Cancel', 'Clear'])
+    })
+
+    // Clear starts the ring over; only Cancel leaves the mode.
+    it('clears inside draw mode without cancelling it', async () => {
+      const onCancelDrawing = vi.fn()
+      const onClearDrawing = vi.fn()
+      const { user } = render(
+        <DestinationsSection
+          {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1, onCancelDrawing, onClearDrawing })}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Clear' }))
+      expect(onClearDrawing).toHaveBeenCalledOnce()
+      expect(onCancelDrawing).not.toHaveBeenCalled()
     })
 
     it('leaves draw mode on Done, which waits for three points', async () => {
