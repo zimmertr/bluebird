@@ -253,8 +253,8 @@ export const DATA = [
     // and is served no-cache for that reason. Anything the app draws carries a
     // content hash instead.
     name: 'logo-hashed',
-    files: ['src/App.tsx', 'src/components/*.tsx'],
-    ignores: ['src/components/*.test.tsx'],
+    files: ['src/App.tsx', 'src/components/*.tsx', 'src/map/**/*.{ts,tsx}'],
+    ignores: ['src/components/*.test.tsx', 'src/map/**/*.test.{ts,tsx}'],
     ban: [{ selector: 'Literal[value="/icon.png"]', message: 'Draw the logo from the hashed asset, never /icon.png.' }],
   },
   {

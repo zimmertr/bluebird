@@ -45,6 +45,7 @@ import {
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { useIsDesktop } from '../hooks/useIsDesktop'
+import { createMapController, type MapInputs } from '../map/controller'
 import {
   STYLE,
   WIND_ARROW_IMAGE,
@@ -360,28 +361,36 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // repeated clicks replace it instead of stacking popups.
     const resultPopupRef = useRef<maplibregl.Popup | null>(null)
     const fireAbortRef = useRef<AbortController | null>(null)
-    // Latest fire warnings for the marker-click handler, which is registered once
-    // in the load effect and would otherwise close over an empty map. focusResult
-    // reads the live prop directly (its imperative handle re-runs every render).
-    const fireWarningsRef = useRef(fireWarnings)
-    // The three inputs a popup's Windy links need, read by the marker-click
-    // listener, which is registered once on map load and therefore cannot see
-    // a prop. The rows are here rather than on the features themselves because
-    // a link needs the whole HOURLY SERIES behind a cell, which is not
-    // something to encode into a GeoJSON property per marker.
-    const windyRef = useRef({ results, modelId, times, popupColumns, modelFallbackLabel })
-    // The sheet's share of the bottom edge, for the two framing calls that live
-    // inside the mount effect — the resize refit and the opening frame — which
-    // would otherwise hold the first render's value for the session. The
-    // imperative handle re-runs every render and reads the prop directly.
-    const cameraPadBottomRef = useRef(cameraPadBottomPx)
-    // The same once-registered-handler problem for draw mode and the POI
-    // popup: the click handlers below are installed on map load and would
-    // otherwise close over the first render's values forever.
-    const drawingRef = useRef(drawing)
-    const searchedPlacesRef = useRef(searchedPlaces)
-    const onAddPoiRef = useRef(onAddPoi)
-    const onRemovePoiRef = useRef(onRemovePoi)
+    // The props the handlers registered once on map load read at event time:
+    // draw mode, the rows and Windy inputs behind a result popup, the fire
+    // warnings, the POI inputs, and the sheet's share of the bottom edge for
+    // the framing calls inside the mount effect. The rows ride here rather than
+    // on the features because a Windy link needs the whole HOURLY SERIES behind
+    // a cell, which is not something to encode into a GeoJSON property. The
+    // imperative handle re-runs every render and reads the props directly.
+    const inputs: MapInputs = {
+      drawing,
+      results,
+      modelId,
+      times,
+      modelFallbackLabel,
+      popupColumns,
+      fireWarnings,
+      searchedPlaces,
+      onAddPoi,
+      onRemovePoi,
+      cameraPadBottomPx,
+    }
+    const [controller] = useState(() => createMapController(inputs))
+    // Declared before every other effect so it runs first in a commit, and any
+    // effect after it that reaches a handler sees this render's values. It runs
+    // on every render rather than on a dependency list: the component is
+    // memoized, so a render is already a prop change, and the write is one
+    // object.
+    useEffect(() => {
+      controller.update(inputs)
+    })
+
     // The single open basemap-POI popup, so a second click replaces it.
     const poiPopupRef = useRef<maplibregl.Popup | null>(null)
     // Every popup currently on the map, pinned ones included. `closeOnClick`
@@ -418,7 +427,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // something you move rather than something you mark.
     function restCursor() {
       const map = mapRef.current
-      if (map) map.getCanvas().style.cursor = drawingRef.current ? 'crosshair' : ''
+      if (map) map.getCanvas().style.cursor = controller.inputs.drawing ? 'crosshair' : ''
     }
 
     useImperativeHandle(ref, () => ({
@@ -624,7 +633,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
         if (bounds) {
           map.fitBounds(bounds, {
-            padding: framePadding(FIT_PADDING_PX, cameraPadBottomRef.current),
+            padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx),
             duration: 1500,
           })
         }
@@ -663,7 +672,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // Pull back one zoom level from the tight fit so the whole area
           // clears the viewport with margin — a snug fit can clip vertices
           // behind the controls drawer or browser chrome on small screens.
-          const pad = framePadding(60, cameraPadBottomRef.current)
+          const pad = framePadding(60, controller.inputs.cameraPadBottomPx)
           const camera = map.cameraForBounds(bounds, { padding: pad })
           if (camera?.zoom !== undefined) {
             map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
@@ -910,7 +919,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         for (const layer of SMOKE_CLICK_ORDER) {
           map.on('mouseenter', layer, () => {
-            if (!drawingRef.current) map.getCanvas().style.cursor = 'pointer'
+            if (!controller.inputs.drawing) map.getCanvas().style.cursor = 'pointer'
           })
           map.on('mouseleave', layer, restCursor)
         }
@@ -945,7 +954,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // dragged. That is the accidental-vertex-move half of #118 — a 6 px hit
         // target beside a finger reaching for the map — closed at the source
         // instead of guarded at each of the four handlers.
-        const handleVisibility = { visibility: drawingRef.current ? 'visible' : 'none' } as const
+        const handleVisibility = { visibility: controller.inputs.drawing ? 'visible' : 'none' } as const
         map.addLayer({
           id: 'draw-midpoints',
           type: 'circle',
@@ -1241,8 +1250,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // the exact coordinates the feature carries for the fire lookup above
           // rather than on an index, so a source that has re-rendered since the
           // ref last updated cannot pair a popup with the wrong row.
-          const live = windyRef.current
-          const row = live.results.find((r) => r.latitude === lat && r.longitude === lon) ?? null
+          const live = controller.inputs
+          const row = controller.resultAt(lat, lon)
           const pinned = isPinning(e)
           if (!pinned) closeAllPopups()
           // Never closeOnClick: it is fixed at construction, so an
@@ -1267,7 +1276,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 // number nobody fetched.
                 row: row ?? featureRow(p, lat, lon),
                 columns: live.popupColumns,
-                warning: fireWarningsRef.current.get(geoKey(lat, lon)) ?? null,
+                warning: controller.fireWarningAt(lat, lon),
                 modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
                 times: row?.series_times ?? live.times,
                 modelFallbackLabel: live.modelFallbackLabel,
@@ -1303,10 +1312,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
           trackPopup(popup)
 
           // Which registered place this POI is, or null. Held in the closure
-          // rather than re-read from searchedPlacesRef after each click: that
-          // ref only catches up on React's next render, and the button has to
+          // rather than re-read from the controller after each click: that
+          // only catches up on React's next render, and the button has to
           // flip on the click that caused it.
-          let registered = searchedPlacesRef.current.find((p) => samePoi(poi, p)) ?? null
+          let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
 
           function render() {
             popup.setHTML(poiPopupHtml(poi, registered !== null))
@@ -1320,11 +1329,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
                 ?.querySelector<HTMLButtonElement>(`[${POI_ACTION_ATTR}]`)
                 ?.addEventListener('click', () => {
                   if (registered) {
-                    onRemovePoiRef.current(registered.lat, registered.lon)
+                    controller.inputs.onRemovePoi(registered.lat, registered.lon)
                     registered = null
                   } else {
                     const place = poiToPlace(poi)
-                    onAddPoiRef.current(place)
+                    controller.inputs.onAddPoi(place)
                     registered = place
                   }
                   render()
@@ -1340,7 +1349,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
             // the ring. They are deliberately absent from the blocked list
             // below for the same reason, so a polygon corner can land on a
             // peak label.
-            if (drawingRef.current) return
+            if (controller.inputs.drawing) return
             // A basemap peak that has since been analyzed has a result marker
             // sitting on top of it, and both layers answer the same click —
             // which stacked two popups on one summit. The marker wins: it is
@@ -1368,7 +1377,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
             if (poi) openPoiPopup(poi, isPinning(e))
           })
           map.on('mouseenter', layer, () => {
-            if (!drawingRef.current) showPointer()
+            if (!controller.inputs.drawing) showPointer()
           })
           map.on('mouseleave', layer, showCrosshair)
         }
@@ -1395,7 +1404,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           })
           const hitLayers = new Set(under.map((f) => f.layer.id))
           const hits: MapClickHits = {
-            drawing: drawingRef.current,
+            drawing: controller.inputs.drawing,
             pinning: isPinning(e),
             fire: hitLayers.has('wildfire-fill'),
             result: hitLayers.has('results-circles'),
@@ -1441,7 +1450,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         }
         if (pendingSearchRef.current) {
           map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
-            padding: framePadding(40, cameraPadBottomRef.current),
+            padding: framePadding(40, controller.inputs.cameraPadBottomPx),
             duration: 1500,
           })
           pendingSearchRef.current = null
@@ -1565,28 +1574,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       }
     }, [playbackIndex, sortBy, mapReady])
 
-    // Keep the ref current so the once-registered marker-click popup reads live
-    // fire warnings (they arrive asynchronously, after a result set renders).
-    useEffect(() => {
-      fireWarningsRef.current = fireWarnings
-    }, [fireWarnings])
-
-    useEffect(() => {
-      windyRef.current = { results, modelId, times, popupColumns, modelFallbackLabel }
-    }, [results, modelId, times, popupColumns, modelFallbackLabel])
-
-    useEffect(() => {
-      cameraPadBottomRef.current = cameraPadBottomPx
-    }, [cameraPadBottomPx])
-
-    // Same contract for the POI handler's inputs, which are likewise read by
-    // listeners registered once on map load.
-    useEffect(() => {
-      searchedPlacesRef.current = searchedPlaces
-      onAddPoiRef.current = onAddPoi
-      onRemovePoiRef.current = onRemovePoi
-    }, [searchedPlaces, onAddPoi, onRemovePoi])
-
     // Light every clickable basemap feature while the panel points at them.
     useEffect(() => {
       const map = mapRef.current
@@ -1603,9 +1590,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // them. Leaving draw mode also drops any open vertex-delete popup, which
     // offers an edit the map no longer accepts.
     useEffect(() => {
-      drawingRef.current = drawing
-      restCursor()
       const map = mapRef.current
+      // `restCursor`'s rule, read off the prop this effect runs for.
+      if (map) map.getCanvas().style.cursor = drawing ? 'crosshair' : ''
       if (!map || !mapReady) return
       for (const id of ['draw-vertices', 'draw-midpoints']) {
         map.setLayoutProperty(id, 'visibility', drawing ? 'visible' : 'none')
