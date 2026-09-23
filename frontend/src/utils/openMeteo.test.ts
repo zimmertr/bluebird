@@ -24,7 +24,7 @@ import { archiveBoundaryMs, windowSource } from './forecastWindow'
 // `styles.test.ts` and `metrics.test.ts` use. Both surfaces that say the
 // model-coverage sentence compose it inside a React hook, which a node-env
 // test cannot run, and the text is the whole of what is shared.
-import useAnalyzeSource from '../hooks/useAnalyze.ts?raw'
+import analysisFailureSource from './analysisFailure.ts?raw'
 import useModelCompareSource from '../hooks/useModelCompare.ts?raw'
 // The text of the three modules that throw or spell an Open-Meteo failure, for
 // the same reason: the unreadable-reply sentence below is compared against the
@@ -1108,9 +1108,9 @@ describe('the model-coverage sentence', () => {
     // Four wordings of one sentence is what issue #391 found. A surface that
     // types it again cannot be caught by a comparison against the backend,
     // because the comparison reads the constant.
-    expect(useAnalyzeSource).not.toContain(COVERAGE_PHRASE)
+    expect(analysisFailureSource).not.toContain(COVERAGE_PHRASE)
     expect(useModelCompareSource).not.toContain(COVERAGE_PHRASE)
-    expect(useAnalyzeSource).toContain('COVERAGE_MESSAGE_TAIL')
+    expect(analysisFailureSource).toContain('COVERAGE_MESSAGE_TAIL')
     expect(useModelCompareSource).toContain('COVERAGE_PHRASE')
   })
 })

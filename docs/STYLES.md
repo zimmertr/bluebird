@@ -520,7 +520,7 @@ opacity and the number has to be taken again.
 
 ### Model coverage message
 
-The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` (`_coverage_message`). The browser spells it once, in `frontend/src/utils/openMeteoErrors.ts`: `COVERAGE_PHRASE` is the first sentence and `COVERAGE_MESSAGE_TAIL` adds the remedy. `useAnalyze.ts` composes the tail with the picker's label, `useModelCompare.ts` composes the phrase alone, and neither types the words. The `OpenMeteoModelCoverage` error carries no message at all, because only a catch site knows the label (#391).
+The one message mirrored between backend and frontend: "{label} has no forecast coverage for this area. Switch to a different model and try again." Defined in `backend/app/services/weather.py` (`_coverage_message`). The browser spells it once, in `frontend/src/utils/openMeteoErrors.ts`: `COVERAGE_PHRASE` is the first sentence and `COVERAGE_MESSAGE_TAIL` adds the remedy. `analysisFailure.ts` composes the tail with the picker's label, `useModelCompare.ts` composes the phrase alone, and neither types the words. The `OpenMeteoModelCoverage` error carries no message at all, because only a catch site knows the label (#391).
 
 ### Styling a native range input
 
