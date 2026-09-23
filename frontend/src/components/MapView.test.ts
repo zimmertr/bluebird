@@ -157,7 +157,7 @@ describe('MapView mirrors no prop in a ref', () => {
   })
 
   it('keeps no effect that only copies a value into a ref', () => {
-    expect(mapViewSource).not.toMatch(/useEffect\(\(\) => \{\s*(?:\w+Ref\.current = \w+\s*)+\}/)
+    expect(mapViewSource).not.toMatch(/useEffect\(\(\) => \{\s*(?:\w+Ref\.current = \w+\s+)+\}/)
   })
 
   it('writes the controller in one effect, and reads it rather than copying it', () => {
