@@ -39,9 +39,7 @@ const MOVED_TO_MAP = [
   'enhanceBasemap',
   'isPinning',
   'lakeAnchor',
-  'makeArrowImage',
   'popupOptions',
-  'rasterImage',
   'setSource',
   'updateResults',
 ]
@@ -165,5 +163,37 @@ describe('MapView mirrors no prop in a ref', () => {
     // A handler that copied the inputs when it was registered would hold the
     // first render's values, which is the bug the controller exists to fix.
     expect(mapViewSource).not.toMatch(/const \{[^}]*\} = controller\.inputs/)
+  })
+})
+
+/**
+ * The overlays are feature modules under `map/overlays/`, each owning its
+ * sources, layers, popups, fetches and timers. The load handler mounts them in
+ * stacking order and the toggle effects hand them props; nothing here builds
+ * an overlay layer or listens on one, or its teardown would be split again.
+ */
+describe('MapView mounts the overlays rather than wiring them', () => {
+  const at = mapViewSource.indexOf("map.on('load'")
+  const loadHandler = mapViewSource.slice(at)
+
+  it('mounts each overlay in the load handler, lowest first', () => {
+    const order = ['mountForecastGrid(', 'mountSmoke(', 'mountWildfires(', 'mountSnow(', 'mountRadar(']
+    const positions = order.map((call) => loadHandler.indexOf(call))
+    expect(positions.every((p) => p >= 0), 'every overlay is mounted on load').toBe(true)
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions)
+  })
+
+  it('adds no overlay source or layer of its own', () => {
+    for (const id of ['forecast-grid', 'forecast-grid-arrows', 'smoke', 'wildfires']) {
+      expect(mapViewSource).not.toContain(`addSource('${id}'`)
+    }
+    for (const builder of ['radarTileUrl', 'snowTileUrl', 'gridRaster(', 'fetchWildfires', 'fetchSmoke']) {
+      expect(mapViewSource, `${builder} belongs to its overlay module`).not.toContain(builder)
+    }
+  })
+
+  it('listens on no overlay layer', () => {
+    expect(mapViewSource).not.toMatch(/map\.on\('\w+', (?:WILDFIRE_FILL_LAYER|'wildfire-fill')/)
+    expect(mapViewSource).not.toMatch(/for \(const layer of SMOKE_CLICK_ORDER\)/)
   })
 })

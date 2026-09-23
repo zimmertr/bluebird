@@ -18,7 +18,6 @@ import type { FeatureCollection } from 'geojson'
 import { DestinationResult, SortBy } from '../types'
 import { LAKE_CLASS } from '../utils/basemapPoi'
 import { polygonsOf } from '../utils/drawGeometry'
-import type { GridRaster } from '../utils/forecastGrid'
 import { widestPole } from '../utils/polylabel'
 import { popupWidth } from '../utils/popupChrome'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
@@ -409,27 +408,6 @@ export function isPinning(e: { originalEvent?: MouseEvent | { shiftKey?: boolean
 /** The width option a popup opening on this map should take. */
 export function popupOptions(map: maplibregl.Map) {
   return { maxWidth: popupWidth(map.getCanvas().clientWidth) }
-}
-
-// The raster as something an image source will take: a decoded canvas, handed
-// straight to `updateImage` with no encode, no fetch and no decode in between.
-// A canvas is what carries the pixels, which is why this lives here rather
-// than in forecastGrid.ts: everything up to the buffer is pure and tested, and
-// this is the DOM the last step needs. Returns null where there is no canvas at
-// all (jsdom-less test environments), which simply leaves the field undrawn.
-export function rasterImage(raster: GridRaster): HTMLCanvasElement | null {
-  const canvas = document.createElement('canvas')
-  canvas.width = raster.width
-  canvas.height = raster.height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  // Copied into the canvas's own ImageData rather than constructing one around
-  // the buffer: TS types `ImageData`'s constructor against a plain ArrayBuffer,
-  // and a Uint8ClampedArray is not narrowed to one. The copy is 600 pixels.
-  const image = ctx.createImageData(raster.width, raster.height)
-  image.data.set(raster.rgba)
-  ctx.putImageData(image, 0, 0)
-  return canvas
 }
 
 export function updateResults(
