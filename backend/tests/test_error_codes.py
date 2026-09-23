@@ -112,7 +112,7 @@ def test_a_page_route_404_stays_outside_the_api_contract(tmp_path, monkeypatch):
 
 
 def _sources() -> list[Path]:
-    return sorted(ROUTES.glob("*.py")) + [APP_ROOT / "ratelimit.py"]
+    return sorted(ROUTES.glob("*.py")) + sorted((APP_ROOT / "ratelimit").glob("*.py"))
 
 
 def test_no_route_raises_an_uncoded_error():

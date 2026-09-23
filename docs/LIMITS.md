@@ -26,7 +26,7 @@ of these does not need a matching frontend build for the app to respect it.
 Overpass runs on donated hardware behind a shared dispatcher, and past a
 certain box size it stops answering and returns a "too busy" error instead of
 results. The ceiling was set by measuring where that begins against the
-production peaks query, and `backend/app/models.py` records those measurements
+production peaks query, and `backend/app/limits.py` records those measurements
 with their date so the next person tempted to raise it re-measures first. The
 sidebar shows the estimated area as you draw and disables Analyze past the cap;
 the backend validates it again and answers `422`, so a bypassed frontend gains

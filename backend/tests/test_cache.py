@@ -73,7 +73,7 @@ async def test_query_osm_serves_repeat_from_cache(monkeypatch):
             ]
         }
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     first = await osm.query_osm(_POLY, [DestinationType.peak])
     second = await osm.query_osm(_POLY, [DestinationType.peak])
     assert calls == 1
@@ -106,7 +106,7 @@ async def test_partial_results_are_never_cached(monkeypatch):
             ]
         }
 
-    monkeypatch.setattr(osm, "_post_with_fallback", flaky_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", flaky_post)
     with pytest.raises(PartialResultError):
         await osm.query_osm(_POLY, [DestinationType.peak])
     # The failure cached nothing: the retry really queries again.
