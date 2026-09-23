@@ -11,6 +11,9 @@ import {
 // copy per surface, which is what issue #152 was open about.
 import appSource from '../App.tsx?raw'
 import controlPanelSource from '../components/ControlPanel.tsx?raw'
+import destinationsSource from '../components/DestinationsSection.tsx?raw'
+import forecastSectionSource from '../components/ForecastSection.tsx?raw'
+import panelMessagesSource from '../utils/panelMessages.ts?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
 import basemapSource from '../map/basemap.ts?raw'
 import calendarSource from '../utils/calendar.ts?raw'
@@ -204,6 +207,10 @@ describe('the polygon-area cap has one source', () => {
   const surfaces = [
     ['App.tsx', appSource],
     ['ControlPanel.tsx', controlPanelSource],
+    // The section that prints the cap beside the area, and the sentence that
+    // names it under the button.
+    ['DestinationsSection.tsx', destinationsSource],
+    ['panelMessages.ts', panelMessagesSource],
     ['MapView.tsx', mapViewSource],
     ['map/basemap.ts', basemapSource],
   ] as const
@@ -234,6 +241,8 @@ describe('the archive reach has one source', () => {
     for (const [name, source] of [
       ['calendar.ts', calendarSource],
       ['ControlPanel.tsx', controlPanelSource],
+      ['ForecastSection.tsx', forecastSectionSource],
+      ['panelMessages.ts', panelMessagesSource],
     ] as const) {
       expect(source, `${name} must read the reach from /api/capabilities`).not.toMatch(
         /365/,
@@ -284,9 +293,11 @@ describe('the window bounds and the air-quality horizon have one source', () => 
   it('takes the air-quality horizon as an argument rather than a constant', () => {
     expect(calendarSource).toMatch(/aqiHorizon\(now: Date, aqiDays: number\)/)
     expect(calendarSource).toMatch(/aqiDays: number/)
-    expect(controlPanelSource, 'the panel must read the horizon from its props').not.toContain(
-      'AQI_LIMIT_DAYS',
-    )
+    for (const source of [controlPanelSource, forecastSectionSource, panelMessagesSource]) {
+      expect(source, 'the panel must read the horizon from its props').not.toContain(
+        'AQI_LIMIT_DAYS',
+      )
+    }
     // The fetch clamps to the same horizon the calendar dims by, so it has to
     // take it the same way. A fetch clamped at a compiled number under a
     // calendar drawn at a published one would empty a day drawn as covered.
