@@ -359,7 +359,7 @@ describe('every component', () => {
     // review). And the freezing-level cell: why it reads N/A, which is the
     // forecast model rather than the weather (TJ, 2026-09-12, asked for with
     // the metric itself in #295).
-    './components/ResultsTable.tsx': 2,
+    './components/ResultsTableRow.tsx': 2,
   }
 
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {

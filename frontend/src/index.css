@@ -157,7 +157,7 @@ input[type="number"]::-webkit-inner-spin-button:hover {
 }
 
 /* The per-row remove × swaps in for the rank number on row hover (see
-   ResultsTable's RankRemoveCell). Touch devices have no hover, so they show
+   ResultsTableRow's RankRemoveCell). Touch devices have no hover, so they show
    the number and the × side by side instead: the × leaves the grid cell it
    shares with the number for a second column. */
 @media (hover: none) {

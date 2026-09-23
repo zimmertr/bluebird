@@ -1,9 +1,9 @@
 import type { ComponentProps } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
 import { displayedColumns } from '../utils/tableColumns'
-import { resultRow } from '../testSupport/fixtures'
+import { resultRow, series } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 
 type Props = ComponentProps<typeof ResultsTable>
@@ -52,5 +52,55 @@ describe('rows', () => {
   it('says why the table is empty when nothing matched', () => {
     render(<ResultsTable {...props({ results: [], emptyReason: 'Nothing here.' })} />)
     expect(screen.getByText('Nothing here.')).toBeTruthy()
+  })
+})
+
+describe('the chart boxes', () => {
+  const CHARTED = [
+    resultRow({ name: 'Mount Rainier', latitude: 46.85, longitude: -121.76, series: series() }),
+    resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.49, series: series() }),
+    resultRow({ name: 'Mount Hood', latitude: 45.37, longitude: -121.7, series: series() }),
+  ]
+  const NONE = () => false
+
+  it('toggles the one row a plain click lands on', async () => {
+    const onToggleChart = vi.fn()
+    const onChartRange = vi.fn()
+    const { user } = render(
+      <ResultsTable {...props({ results: CHARTED, onToggleChart, onChartRange, isCharted: NONE })} />,
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Chart Mount Adams' }))
+    expect(onToggleChart).toHaveBeenCalledWith(CHARTED[1])
+    expect(onChartRange).not.toHaveBeenCalled()
+  })
+
+  it('selects every row between the anchor and a shift-click', async () => {
+    const onToggleChart = vi.fn()
+    const onChartRange = vi.fn()
+    const { user } = render(
+      <ResultsTable {...props({ results: CHARTED, onToggleChart, onChartRange, isCharted: NONE })} />,
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Chart Mount Rainier' }))
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByRole('checkbox', { name: 'Chart Mount Hood' }))
+    await user.keyboard('{/Shift}')
+    expect(onChartRange).toHaveBeenCalledWith(CHARTED, true)
+  })
+
+  it('tints a charted row with its line colour', () => {
+    render(
+      <ResultsTable
+        {...props({
+          results: CHARTED,
+          onToggleChart: () => {},
+          isCharted: (r) => r.name === 'Mount Hood',
+          chartColor: () => 'rgb(1, 2, 3)',
+        })}
+      />,
+    )
+    const box = screen.getByRole('checkbox', { name: 'Chart Mount Hood' }) as HTMLInputElement
+    expect(box.checked).toBe(true)
+    expect(box.style.accentColor).toBe('rgb(1, 2, 3)')
+    expect((screen.getByRole('checkbox', { name: 'Chart Mount Adams' }) as HTMLInputElement).style.accentColor).toBe('')
   })
 })

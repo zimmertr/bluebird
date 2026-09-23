@@ -223,7 +223,7 @@ export const DATA = [
     // The capped snow depth is marked by one module, so the three surfaces that
     // draw it cannot spell the mark or the ceiling a second way.
     name: 'snow-mark-shared',
-    files: ['src/components/ResultsTable.tsx', 'src/utils/popupRows.ts', 'src/utils/resultsCsv.ts'],
+    files: ['src/utils/resultsCells.ts', 'src/utils/popupRows.ts', 'src/utils/resultsCsv.ts'],
     ban: [
       { selector: text('≥'), message: 'Take the snow ceiling mark from snowCellText.' },
       { selector: spelled('1,?290'), message: 'Take the snow ceiling from snowCeiling.ts.' },
