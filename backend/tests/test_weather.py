@@ -1520,3 +1520,59 @@ async def test_fetch_weather_batch_fails_on_an_unreadable_unit(monkeypatch):
     _stub_openmeteo(monkeypatch, [[_rainier([2560.0], "furlongs")]])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(1), _RAINIER_START, _RAINIER_END)
+
+
+# ── fetch_cloud_batch (issue #117) ─────────────────────────────────────────
+
+
+def _cloud_location() -> dict[str, Any]:
+    """One location's cloud block: saturated at 700 hPa, dry below it."""
+    times = ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"]
+    hourly: dict[str, Any] = {
+        "time": times,
+        "cloud_cover": [80, 90, 100],
+        "relative_humidity_2m": [60.0, 60.0, 60.0],
+        "temperature_2m": [5.0, 5.0, 5.0],
+        "dew_point_2m": [0.0, 0.0, 0.0],
+    }
+    for p in aggregation.ISA_HEIGHT_M:
+        hourly[f"relative_humidity_{p}hPa"] = [100.0 if p <= 700 else 50.0] * 3
+    return {"hourly": hourly}
+
+
+async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
+    calls = _stub_openmeteo(monkeypatch, [[_cloud_location()]])
+    await weather.fetch_cloud_batch([dest(46.85, -121.76, elevation_ft=2000.0)], START, END)
+
+    hourly = calls[0]["hourly"].split(",")
+    assert hourly == aggregation.CLOUD_VARIABLES.split(",")
+    # Twelve variables is weight factor 1.2 on top of the weather's 1.4, which
+    # is the whole reason it is a request of its own (issue #117).
+    assert len(hourly) == weather.N_CLOUD_VARIABLES == 12
+    # Celsius: Espy's rule is stated per degree Celsius, so no unit is sent.
+    assert "temperature_unit" not in calls[0]
+    assert "precipitation_unit" not in calls[0]
+
+
+async def test_fetch_cloud_batch_reads_the_base_off_the_column(monkeypatch):
+    _stub_openmeteo(monkeypatch, [[_cloud_location()]])
+    [row] = await weather.fetch_cloud_batch(
+        [dest(46.85, -121.76, elevation_ft=2000.0)], START, END
+    )
+    assert row is not None
+    # 850 hPa (1457 m) at 50 % and 700 hPa (3012 m) at 100 %: 95 % is 90 % of
+    # the way up, 2856.5 m, which is 9,372 ft.
+    assert row["cloud_base_min_ft"] == 9372
+    assert row["cloud_cover_avg_pct"] == 90
+    assert row["series"]["cloud_base_ft"] == [9372, 9372, 9372]
+
+
+async def test_fetch_cloud_batch_is_cached_apart_from_the_weather(monkeypatch):
+    # The same coordinates and window, two kinds of answer: the cloud entry
+    # must never be served for a weather lookup, or the reverse.
+    calls = _stub_openmeteo(monkeypatch, [_payload([0.1]), [_cloud_location()]])
+    dests = [dest(40.0, -120.0)]
+    await fetch_weather_batch(dests, START, END)
+    await weather.fetch_cloud_batch(dests, START, END)
+    await weather.fetch_cloud_batch(dests, START, END)
+    assert len(calls) == 2

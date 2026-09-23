@@ -56,3 +56,17 @@ def test_aqi_reference_reproduces_vectors(case):
 @pytest.mark.parametrize("case", VECTORS["align"], ids=lambda c: c["name"])
 def test_align_reference_reproduces_vectors(case):
     assert _aligned_aqi(case["times_ms"], case["aqi_series"]) == case["expected"]
+
+
+@pytest.mark.parametrize("case", VECTORS["cloud"], ids=lambda c: c["name"])
+def test_cloud_reference_reproduces_vectors(case):
+    start, end = _window(case)
+    elevation_ft = case.get("elevation_ft")
+    assert (
+        aggregation._cloud_metrics(case["payload"], start, end, elevation_ft)
+        == case["expected_metrics"]
+    )
+    assert (
+        aggregation._cloud_series(case["payload"], start, end, elevation_ft)
+        == case["expected_series"]
+    )

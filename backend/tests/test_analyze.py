@@ -1768,3 +1768,119 @@ def test_analyze_reports_no_snow_while_no_grid_is_held(stub_upstreams):
     body = client.post("/api/analyze", json=_snow_request()).json()
     assert body["snow_analysis_date"] is None
     assert {r["snow_depth_in"] for r in body["results"]} == {None}
+
+
+# ── Cloud fields, fetched only when asked (issue #117) ──────────────────────
+
+
+def _cloud(base, cover=50.0):
+    """A cloud answer whose every aggregate is `base` / `cover`."""
+    return {
+        "cloud_base_min_ft": base, "cloud_base_avg_ft": base, "cloud_base_max_ft": base,
+        "cloud_cover_min_pct": cover, "cloud_cover_avg_pct": cover,
+        "cloud_cover_max_pct": cover, "series": None,
+    }
+
+
+@pytest.fixture
+def cloud_calls(monkeypatch, stub_upstreams):
+    """Stubbed cloud fetch: base = latitude x 1,000 ft. Records batch sizes."""
+    calls: list[int] = []
+
+    async def fake_cloud(
+        destinations, start, end, model=None, api_key=None, source="forecast",
+        boundary=None,
+    ):
+        calls.append(len(destinations))
+        return [_cloud(d["latitude"] * 1000) for d in destinations]
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_cloud_batch", fake_cloud)
+    return calls
+
+
+def _cloud_body(**extra):
+    start, end = _window()
+    return {
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "limit": 2, "custom_destinations": _five_dests(), **extra,
+    }
+
+
+def test_analyze_without_a_cloud_ask_makes_no_cloud_request(cloud_calls):
+    # The cost rule: an analysis that never names a cloud field spends
+    # exactly what it spent before the cloud fields existed.
+    resp = client.post("/api/analyze", json=_cloud_body())
+    assert resp.status_code == 200
+    assert cloud_calls == []
+    row = resp.json()["results"][0]
+    assert row["cloud_base_min_ft"] is None
+    assert row["cloud_cover_avg_pct"] is None
+
+
+def test_analyze_cloud_ranking_fetches_every_candidate(cloud_calls):
+    resp = client.post(
+        "/api/analyze", json=_cloud_body(sort_by="cloud_base_min_ft", sort_desc=True)
+    )
+    assert resp.status_code == 200
+    assert cloud_calls == [5]
+    assert [r["name"] for r in resp.json()["results"]] == ["e", "d"]
+
+
+def test_analyze_cloud_bound_fetches_every_candidate(cloud_calls):
+    resp = client.post("/api/analyze", json=_cloud_body(min_cloud_base_ft=3500))
+    assert resp.status_code == 200
+    assert cloud_calls == [5]
+    # Bases are 1,000 to 5,000 ft, so only d and e clear a 3,500 ft floor.
+    assert resp.json()["total_matched"] == 2
+
+
+def test_analyze_include_clouds_fetches_only_the_returned_rows(cloud_calls):
+    resp = client.post("/api/analyze", json=_cloud_body(include_clouds=True))
+    assert resp.status_code == 200
+    assert cloud_calls == [2]
+    rows = resp.json()["results"]
+    assert [r["cloud_base_min_ft"] for r in rows] == [1000.0, 2000.0]
+
+
+def test_analyze_cloud_failure_answers_like_a_weather_failure(monkeypatch, stub_upstreams):
+    async def refuse(*args, **kwargs):
+        raise UpstreamError("Open-Meteo request failed. Try again later.")
+
+    monkeypatch.setattr(analyze_mod.weather, "fetch_cloud_batch", refuse)
+    resp = client.post("/api/analyze", json=_cloud_body(sort_by="cloud_cover_avg_pct"))
+    assert resp.status_code == 502
+    assert resp.json()["error"]["code"] == "upstream_unavailable"
+    lazy = client.post("/api/analyze", json=_cloud_body(include_clouds=True))
+    assert lazy.status_code == 502
+
+
+def test_cloud_eager_reads_the_ranking_and_every_cloud_bound():
+    start, end = _window()
+    base = {"destination_types": [], "start_datetime": start, "end_datetime": end,
+            "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}]}
+    assert not analyze_mod._cloud_eager(AnalyzeRequest(**base))
+    assert not analyze_mod._cloud_eager(AnalyzeRequest(**base, include_clouds=True))
+    assert analyze_mod._cloud_eager(AnalyzeRequest(**base, sort_by="cloud_cover_max_pct"))
+    for bound in ("min_cloud_base_ft", "max_cloud_base_ft",
+                  "min_cloud_cover_pct", "max_cloud_cover_pct"):
+        assert analyze_mod._cloud_eager(AnalyzeRequest(**base, **{bound: 10}))
+    assert not analyze_mod._cloud_eager(AnalyzeRequest(**base, max_aqi=10))
+
+
+def test_aligned_cloud_maps_by_stamp_and_nulls_the_rest():
+    assert analyze_mod._aligned_cloud([1, 2, 3], None) == ([None] * 3, [None] * 3)
+    series = {"times": [2, 3], "cloud_base_ft": [9000.0, None], "cloud_cover_pct": [40, 60]}
+    assert analyze_mod._aligned_cloud([1, 2, 3], series) == (
+        [None, 9000.0, None],
+        [None, 40, 60],
+    )
+
+
+def test_summary_logs_the_clouds_opt_in():
+    start, end = _window()
+    req = AnalyzeRequest(
+        destination_types=[], start_datetime=start, end_datetime=end,
+        custom_destinations=[{"name": "a", "latitude": 1.0, "longitude": 2.0}],
+        include_clouds=True,
+    )
+    assert "clouds=on" in analyze_mod._summarize_request(req)

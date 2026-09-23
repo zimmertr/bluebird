@@ -38,10 +38,12 @@ from app.models import (
     PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
 )
+from app.services.aggregation import CLOUD_SATURATION_RH, ESPY_M_PER_C, ISA_HEIGHT_M
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.openmeteo_fetch import BATCH_SIZE, MAX_CONCURRENT_BATCHES
 from app.services.snodas import SNOW_DEPTH_CEILING_IN
 from app.services.weather import (
+    N_CLOUD_VARIABLES,
     N_VARIABLES,
     _coverage_message,
 )
@@ -80,6 +82,18 @@ def render() -> str:
             # The browser prints a depth at this number as "at least", so the
             # two sides must agree on where the source file stops counting.
             "SNOW_DEPTH_CEILING_IN": SNOW_DEPTH_CEILING_IN,
+            # The cloud request's own variable count, priced apart from the
+            # weather's (issue #117).
+            "N_CLOUD_VARIABLES": N_CLOUD_VARIABLES,
+            # The cloud base's two numbers. The vectors pin the walk that uses
+            # them; these pin the numbers themselves, so a retune on one side
+            # fails here by name rather than as a changed expectation.
+            "CLOUD_SATURATION_RH": CLOUD_SATURATION_RH,
+            "ESPY_M_PER_C": ESPY_M_PER_C,
+            # Level and height pairs, in the order the column is walked. A list
+            # rather than an object, because JSON would turn the levels into
+            # strings and an object's order is not a promise.
+            "ISA_HEIGHT_M": [[level, height] for level, height in ISA_HEIGHT_M.items()],
         },
         "strings": {"model_coverage_message": _coverage_template()},
     }
