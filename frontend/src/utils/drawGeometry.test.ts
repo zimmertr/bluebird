@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { GeoPolygon } from '../types'
-import { bboxAreaKm2, makeDrawData, polygonsOf, ringToPts } from './drawGeometry'
+import {
+  bboxAreaKm2,
+  insertOnSegment,
+  makeDrawData,
+  moveVertex,
+  polygonsOf,
+  removeVertex,
+  ringPolygon,
+  ringToPts,
+} from './drawGeometry'
 
 type Feature = { type: string; properties?: Record<string, unknown>; geometry: { type: string; coordinates: unknown } }
 const featuresOf = (data: object) => (data as { features: Feature[] }).features
@@ -260,5 +269,57 @@ describe('polygonsOf', () => {
       { geometry: { type: 'Polygon', coordinates: [[[0, 0, 12], [1, 0, 12], [1, 1, 12], [0, 0, 12]]] } },
     ])
     expect(rings[0][0][0]).toEqual([0, 0])
+  })
+})
+
+describe('the ring edits', () => {
+  const tri: [number, number][] = [
+    [0, 0],
+    [2, 0],
+    [1, 2],
+  ]
+
+  it('closes a ring of three or more back onto its first point', () => {
+    expect(ringPolygon(tri)).toEqual({ type: 'Polygon', coordinates: [[...tri, [0, 0]]] })
+  })
+
+  it('holds no polygon under three points', () => {
+    expect(ringPolygon(tri.slice(0, 2))).toBeNull()
+    expect(ringPolygon([])).toBeNull()
+  })
+
+  it('moves one vertex and leaves the others', () => {
+    expect(moveVertex(tri, 1, [3, 1])).toEqual([
+      [0, 0],
+      [3, 1],
+      [1, 2],
+    ])
+  })
+
+  it('removes one vertex', () => {
+    expect(removeVertex(tri, 0)).toEqual([
+      [2, 0],
+      [1, 2],
+    ])
+  })
+
+  // The drag that follows moves index segment + 1, so that is where it lands.
+  it('inserts a midpoint after the vertex its segment starts at', () => {
+    expect(insertOnSegment(tri, 0, [1, 0])).toEqual([
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [1, 2],
+    ])
+    // The closing segment runs from the last vertex back to the first.
+    expect(insertOnSegment(tri, 2, [0.5, 1])[3]).toEqual([0.5, 1])
+  })
+
+  it('never edits the ring it is handed', () => {
+    const copy = tri.map((p) => [...p])
+    moveVertex(tri, 0, [9, 9])
+    removeVertex(tri, 0)
+    insertOnSegment(tri, 0, [9, 9])
+    expect(tri).toEqual(copy)
   })
 })

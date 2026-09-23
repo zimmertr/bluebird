@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 // `metrics.test.ts`): the file is read as text, so this stays a node test with
 // no DOM — which is the whole reason the guard has to be written this way.
 import mapViewSource from './MapView.tsx?raw'
-import basemapSource from '../map/basemap.ts?raw'
 
 /**
  * MapView.tsx is the map's wiring and cannot be tested any other way.
@@ -44,9 +43,16 @@ const MOVED_TO_MAP = [
   'updateResults',
 ]
 
-// The component and the map module it imports, read as one: `polygonsOf` is
-// called by `lakeAnchor`, which moved, so it is imported there and not here.
-const wiringSource = mapViewSource + basemapSource
+// The component and every map module under `src/map/`, read as one: a helper
+// such as `polygonsOf` or `makeDrawData` is imported by whichever module took
+// its caller, and the rule is only that it is imported somewhere and declared
+// nowhere in the wiring.
+const mapModules = import.meta.glob(['../map/**/*.ts', '!../map/**/*.test.ts'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+const wiringSource = [mapViewSource, ...Object.values(mapModules)].join('\n')
 
 describe('MapView declares nothing the tests cannot reach', () => {
   it('declares only the helpers that need a map, a canvas or an event', () => {
@@ -195,5 +201,31 @@ describe('MapView mounts the overlays rather than wiring them', () => {
   it('listens on no overlay layer', () => {
     expect(mapViewSource).not.toMatch(/map\.on\('\w+', (?:WILDFIRE_FILL_LAYER|'wildfire-fill')/)
     expect(mapViewSource).not.toMatch(/for \(const layer of SMOKE_CLICK_ORDER\)/)
+  })
+})
+
+/**
+ * The drawn ring is `map/drawRing.ts`: its source and layers, the vertex and
+ * midpoint drags, and the remove-point popup. The component keeps the points,
+ * which exist before the map loads, and hands them to the module.
+ */
+describe('MapView mounts the drawn ring rather than wiring it', () => {
+  const at = mapViewSource.indexOf("map.on('load'")
+  const loadHandler = mapViewSource.slice(at)
+
+  it('mounts the ring on load, above the overlays and below the results', () => {
+    const overlays = loadHandler.indexOf('mountRadar(')
+    const ring = loadHandler.indexOf('mountDrawRing(')
+    const results = loadHandler.indexOf("addSource('results'")
+    expect(ring, 'the ring is mounted on load').toBeGreaterThan(-1)
+    expect(overlays).toBeLessThan(ring)
+    expect(ring).toBeLessThan(results)
+  })
+
+  it('adds no draw layer and listens on no handle', () => {
+    expect(mapViewSource).not.toContain("addSource('draw'")
+    expect(mapViewSource).not.toMatch(/map\.on\('\w+', 'draw-(?:vertices|midpoints)'/)
+    expect(mapViewSource).not.toContain('startVertexDrag')
+    expect(mapViewSource).not.toContain('DRAW_COLOR')
   })
 })
