@@ -175,10 +175,11 @@ interface Props {
   // row's dropdown goes through setSortBy, which is what makes a dropdown
   // change activate its row the way the direction toggle always has.
   rowKeys: Record<MetricFamily, SortBy>
-  // Whether the window the report ranks is a single hourly stamp. The
-  // aggregate dropdowns hide then — min, average and maximum of one hour are
-  // the same number — the same way the calendar's Hours row hides under a
-  // selection that takes no hours.
+  // Whether the panel's When selection is a single hourly stamp. The aggregate
+  // dropdowns hide then, because min, average and maximum of one hour are the
+  // same number, the same way the calendar's Hours row hides under a selection
+  // that takes no hours. It reads the panel rather than the analyzed report, so
+  // the dropdowns follow a When switch before it is analyzed.
   pointSample: boolean
   constraints: Constraints
   setConstraints: (c: Constraints) => void
