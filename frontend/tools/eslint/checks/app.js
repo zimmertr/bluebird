@@ -101,7 +101,7 @@ export const APP = [
   },
   {
     // React.memo is worth nothing if the parent hands a fresh value on every
-    // render. MapView's own memo is held by a test while the map moves.
+    // render. MapView's own memo is the `map-view-wiring` check in map.js.
     name: 'app-memoized',
     files: ['src/components/ResultsTable.tsx', 'src/components/TimeSeriesChart.tsx'],
     require: [

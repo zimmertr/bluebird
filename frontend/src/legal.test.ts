@@ -19,7 +19,6 @@ import privacyPage from './components/PrivacyPage.tsx?raw'
 import safetyNotice from './components/SafetyNotice.tsx?raw'
 import termsPage from './components/TermsPage.tsx?raw'
 import welcomeModal from './components/WelcomeModal.tsx?raw'
-import mapView from './components/MapView.tsx?raw'
 import wildfires from './utils/wildfires.ts?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
 
@@ -202,7 +201,8 @@ describe('the data licenses', () => {
 // The map CSS moved out of index.css into map.css, imported only by MapView,
 // so text pages don't download 70 KB of map styling they cannot use. Three
 // guards keep that split stable: index.css has no maplibre, map.css wraps it
-// in layer(base), and MapView imports map.css. A future PR that "simplifies"
+// in layer(base), and MapView imports map.css (the `map-view-wiring` check in
+// tools/eslint/checks/map.js). A future PR that "simplifies"
 // any of these three triggers a test failure rather than silently breaking the
 // cascade-layer protection against the historical map-collapse bug.
 describe('the map CSS split', () => {
@@ -212,10 +212,6 @@ describe('the map CSS split', () => {
 
   it('wraps the maplibre import in layer(base)', () => {
     expect(mapCss).toMatch(/layer\(base\)/)
-  })
-
-  it('is imported from MapView, not from TSX anywhere else', () => {
-    expect(mapView).toMatch(/import ['"]\.\.\/map\.css['"]/)
   })
 })
 
