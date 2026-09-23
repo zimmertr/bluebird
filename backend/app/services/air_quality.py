@@ -6,6 +6,7 @@ from typing import Any
 
 from app import ratelimit, telemetry
 from app.services import cache, http
+from app.services.aggregation import _aqi_metrics, _aqi_series
 from app.services.openmeteo_fetch import (
     DEGRADED,
     Pacing,
@@ -13,7 +14,7 @@ from app.services.openmeteo_fetch import (
     request_openmeteo,
 )
 from app.services.openmeteo_weight import call_weight
-from app.services.weather import _epoch_ms, _parse_ts, hour_param
+from app.services.weather import hour_param
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ async def fetch_aqi_batch(
     # the day MAX_FORECAST_DAYS names, which is where the whole-day request
     # this replaced already ended, so the clamp keeps its old reach exactly.
     # Wall clocks are read as UTC without converting, the same convention
-    # `_naive` uses in the weather service.
+    # `_naive` uses in the shared aggregation.
     end_cap = (
         datetime.now(UTC).replace(tzinfo=None)
         + timedelta(days=MAX_FORECAST_DAYS)
@@ -162,80 +163,10 @@ async def _fetch_chunk(
         return [None] * len(destinations)
     out: list[dict[str, Any] | None] = []
     for item in items:
-        m = _metrics(item, start_dt, end_dt)
+        m = _aqi_metrics(item, start_dt, end_dt)
         if m is not None:
             # Carry the hourly AQI alongside the avg/max so the route can align
             # it onto the weather grid for the chart — no second AQI fetch.
-            m = {**m, "series": _series(item, start_dt, end_dt)}
+            m = {**m, "series": _aqi_series(item, start_dt, end_dt)}
         out.append(m)
     return out
-
-
-def _metrics(
-    data: dict[str, Any],
-    start_dt: datetime,
-    end_dt: datetime,
-) -> dict[str, Any] | None:
-    try:
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
-        aqi = hourly.get("us_aqi", [])
-
-        start = start_dt.replace(tzinfo=None)
-        end = end_dt.replace(tzinfo=None)
-
-        vals = [
-            v
-            for ts, v in zip(times, aqi, strict=False)
-            if v is not None
-            and (parsed := _parse_ts(ts)) is not None
-            and start <= parsed <= end
-        ]
-
-        if not vals:
-            return None
-
-        # US AQI is an integer index by definition
-        return {
-            "aqi_avg": round(sum(vals) / len(vals)),
-            "aqi_min": round(min(vals)),
-            "aqi_max": round(max(vals)),
-        }
-    except Exception:  # noqa: BLE001 — best-effort AQI degrades to None, never fails the analysis
-        return None
-
-
-def _series(
-    data: dict[str, Any],
-    start_dt: datetime,
-    end_dt: datetime,
-) -> dict[str, Any] | None:
-    """Per-hour US AQI (combined) over the window, on its own grid.
-
-    The route aligns this onto the (longer) weather grid; hours past the ~5-day
-    AQI horizon aren't present here and become nulls there. Returns None when
-    the window contains no hours.
-    """
-    try:
-        hourly = data.get("hourly", {})
-        times = hourly.get("time", [])
-        aqi = hourly.get("us_aqi", [])
-
-        start = start_dt.replace(tzinfo=None)
-        end = end_dt.replace(tzinfo=None)
-
-        grid: list[int] = []
-        out: list[int | None] = []
-        for i, ts in enumerate(times):
-            parsed = _parse_ts(ts)
-            if parsed is None or not (start <= parsed <= end):
-                continue
-            grid.append(_epoch_ms(parsed))
-            v = aqi[i] if i < len(aqi) else None
-            out.append(round(v) if v is not None else None)
-
-        if not grid:
-            return None
-        return {"times": grid, "aqi": out}
-    except Exception:  # noqa: BLE001 — best-effort series degrades to None, never fails the analysis
-        return None

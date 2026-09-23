@@ -622,7 +622,7 @@ describe('pairCells', () => {
   })
 
   // The grid asks Open-Meteo for one set of variables and the freezing level is
-  // one of them (`HOURLY_VARIABLES` in openMeteo.ts), which is why ranking by it
+  // one of them (`HOURLY_VARIABLES` in openMeteoAggregate.ts), which is why ranking by it
   // paints the field with no second fetch and no key on `sortBy` here. The
   // sample carries the window aggregates AND the hourly series, so the field
   // paints at rest and follows the playhead.

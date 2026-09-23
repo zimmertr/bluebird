@@ -110,7 +110,7 @@ both counts).
 A third: any change to the weather or air-quality aggregation regenerates the
 shared test vectors. Change the backend first, then
 `cd backend && python scripts/generate_weather_vectors.py`, and mirror the
-change in the TypeScript port in `frontend/src/utils/openMeteo.ts`. Pytest
+change in the TypeScript port in `frontend/src/utils/openMeteoAggregate.ts`. Pytest
 fails on a stale `backend/tests/data/weather_vectors.json` and Vitest fails on
 a drifted port. Both suites read that one file, so there is no second copy to
 keep in step.
