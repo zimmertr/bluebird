@@ -115,6 +115,19 @@ export const APP = [
     ],
   },
   {
+    // The pending row is memoized like the ranked one, but exported by name
+    // rather than as the default, so app-memoized's selector cannot see it.
+    name: 'table-pending-row-memoized',
+    files: ['src/components/ResultsTableRow.tsx'],
+    require: [
+      {
+        selector: 'VariableDeclarator[id.name="PendingRow"] > CallExpression[callee.name="memo"]',
+        count: 1,
+        message: 'Export PendingRow as memo(PendingTableRow).',
+      },
+    ],
+  },
+  {
     // The three memoized children compare their props by identity, so an
     // inline function or a fresh empty literal re-renders a row per destination
     // on every overlay toggle. Wrap a function in useCallback, hoist a constant.

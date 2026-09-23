@@ -20,6 +20,32 @@ export interface FireWarning {
   longitude: number
 }
 
+/**
+ * Whether the lookup has an answer, and whether that answer can be trusted.
+ *
+ * This used to be a bare Map, and every way of failing produced the same empty
+ * one: an aborted request, a network error, and a truncated body all landed in
+ * one silent catch. So the feature's failure mode was indistinguishable from
+ * its all-clear mode, which for a safety warning is the wrong way round.
+ * `ready` with an empty map means the check ran and found nothing within the
+ * radius; `unavailable` means it could not run and the caller must not imply
+ * otherwise.
+ *
+ * `unavailable` is now rare by construction. Perimeters come from Bluebird Forecast's
+ * own cache rather than from NIFC directly, and that cache serves its last good
+ * snapshot rather than expiring into nothing, so only a server that has never
+ * completed a fetch has no answer at all (issue #203).
+ *
+ * `uncovered` names the geographic blind spot (#256): WFIGS is US-only, and
+ * a destination outside the coverage the server publishes was never checked,
+ * which used to be indistinguishable from its all-clear. It is a per-row
+ * set rather than a status, because one analysis can hold a Cascades row and
+ * a British Columbia row at once: both the table and the CSV write the no-data
+ * dash in an uncovered row's wildfire cell, while covered rows keep their
+ * real answers.
+ */
+export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
+
 // One degree of latitude ≈ 69 mi. Longitude is scaled by cos(lat). Good to a
 // fraction of a percent at the ~10 mi scale this warning cares about.
 const MI_PER_DEG_LAT = 69.0

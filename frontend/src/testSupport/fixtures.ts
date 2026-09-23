@@ -3,6 +3,8 @@ import type { ForecastModelOption } from '../hooks/useCapabilities'
 import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
 import type { CellBox, GridCell } from '../utils/forecastGridLattice'
+import type { FireWarning } from '../utils/fireProximity'
+import type { PendingDestination } from '../utils/customList'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -183,4 +185,21 @@ export function discovered(over: Partial<DiscoveredDestination> = {}): Discovere
     osm_id: 'node/1',
     ...over,
   }
+}
+
+/**
+ * One nearest-fire warning, as the fire lookup keys it to a row: a named fire
+ * a few miles off, centred close by.
+ */
+export function fireWarning(over: Partial<FireWarning> = {}): FireWarning {
+  return { miles: 3.2, name: 'Probe Fire', latitude: 46.3, longitude: -121.5, ...over }
+}
+
+/**
+ * One custom destination awaiting its first analysis. A searched place, so it
+ * carries the remove button a CSV row lacks; a suite that needs the CSV case
+ * overrides `source`.
+ */
+export function pendingDestination(over: Partial<PendingDestination> = {}): PendingDestination {
+  return { name: 'Probe Peak', latitude: 47.1, longitude: -121.2, elevation_ft: 6000, source: 'search', ...over }
 }
