@@ -73,7 +73,9 @@ import {
 export interface MapViewHandle {
   framePolygon: () => void
   finishDrawing: () => GeoPolygon | null
-  cancelDrawing: () => void
+  // Replace the ring outright: null empties it (Clear), a polygon puts back
+  // the one draw mode started with (Cancel, #478).
+  restoreRing: (ring: GeoPolygon | null) => void
   flyToPlace: (place: Place) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
   focusResult: (result: DestinationResult) => void
@@ -228,8 +230,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // The ring a `?poly=` link opened with. A ref rather than a mount-time
     // snapshot because the load handler frames, hydrates and counts it long
     // after mount — behind the welcome modal MapLibre can fire `load` late —
-    // and Clear may land first. `cancelDrawing` empties this, so the two paths
-    // read one value and a cleared ring cannot come back (#453).
+    // and Clear may land first. `restoreRing` writes this, so the two paths
+    // read one value and a cleared ring cannot come back (#453), while a
+    // canceled one does.
     const restoredPolygonRef = useRef(polygon)
     const pendingResultsRef = useRef<DestinationResult[]>([])
     const pendingSortByRef = useRef<SortBy>('precip_total_in')
@@ -383,15 +386,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
         if (geo) onPolygonChange(geo)
         return geo
       },
-      cancelDrawing() {
-        restoredPolygonRef.current = null
-        ptsRef.current = []
+      // Every edit is committed as it happens, so there is no pending ring to
+      // drop: undoing one means writing the old ring back through the same
+      // three places an edit reaches (the points, the drawn source, App).
+      restoreRing(ring) {
+        restoredPolygonRef.current = ring
+        ptsRef.current = ring ? ringToPts(ring) : []
         drawRingRef.current?.closePopup()
-        onDrawUpdate(0)
-        onPolygonChange(null)
-        if (mapRef.current && loadedRef.current) {
-          setSource(mapRef.current, 'draw', emptyFC)
-        }
+        onDrawUpdate(ptsRef.current.length)
+        onPolygonChange(ring)
+        // Null before `load` and after unmount, where the ring is not on the
+        // map yet and the load handler hydrates it from `restoredPolygonRef`.
+        drawRingRef.current?.redraw()
       },
       // Frame a searched place. Only the camera move — the place renders
       // declaratively as a pending dot until the next Analyze ranks it.
