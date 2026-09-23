@@ -57,8 +57,7 @@ function setup(drawing = false) {
   const deps = {
     controller,
     restCursor: vi.fn(),
-    closeAllPopups: vi.fn(),
-    trackPopup: vi.fn(),
+    popups: { closeAll: vi.fn(), track: vi.fn() },
   }
   const smoke = mountSmoke(stub.map, deps)
   return { stub, smoke, deps }
@@ -114,10 +113,10 @@ describe('mountSmoke', () => {
   it('opens a popup that clears the board unless it is pinned', () => {
     const { smoke, deps } = setup()
     smoke.openPopup({ density: 'Heavy' }, [0, 0], false)
-    expect(deps.closeAllPopups).toHaveBeenCalledTimes(1)
+    expect(deps.popups.closeAll).toHaveBeenCalledTimes(1)
     smoke.openPopup({ density: 'Light' }, [0, 0], true)
-    expect(deps.closeAllPopups).toHaveBeenCalledTimes(1)
-    expect(deps.trackPopup).toHaveBeenCalledTimes(2)
+    expect(deps.popups.closeAll).toHaveBeenCalledTimes(1)
+    expect(deps.popups.track).toHaveBeenCalledTimes(2)
     expect(opened).toHaveLength(2)
     expect(opened[0].options).toMatchObject({ closeOnClick: false })
   })

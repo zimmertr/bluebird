@@ -15,12 +15,9 @@ import type { FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
-import { DestinationResult, SortBy } from '../types'
 import { LAKE_CLASS } from '../utils/basemapPoi'
 import { polygonsOf } from '../utils/drawGeometry'
 import { widestPole } from '../utils/polylabel'
-import { popupWidth } from '../utils/popupChrome'
-import { resultsFeatureCollection } from '../utils/resultFeatures'
 
 // OpenFreeMap's Liberty style. `coldLoad.test.ts` reads this line to check the
 // entry document warms the same host.
@@ -102,49 +99,6 @@ function makeGlowImage(): ImageData | null {
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, POI_GLOW_PX, POI_GLOW_PX)
   return ctx.getImageData(0, 0, POI_GLOW_PX, POI_GLOW_PX)
-}
-
-/**
- * The wind arrow drawn beside a result marker during playback (#121).
- *
- * Generated on a canvas for the same reason the POI glow is: the basemap sprite
- * carries no SDF icons, so nothing shipped with the style can be tinted or
- * reshaped into this, and an asset pipeline for one triangle is not worth
- * having.
- *
- * The geometry is an arrow whose tail sits at the image's centre and whose tip
- * reaches the top edge, so rotating the icon swings it around the marker rather
- * than spinning it in place. It clears the 10px marker circle with room to
- * spare, which is what keeps it off the rank digit inside.
- *
- * White with a dark outline rather than a single colour, because it lands on
- * every hue the metric ramp produces — green through red — and neither a white
- * nor a dark arrow reads on all of them alone.
- */
-export const WIND_ARROW_IMAGE = 'result-wind-arrow'
-const WIND_ARROW_PX = 44
-
-export function makeArrowImage(): ImageData | null {
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = WIND_ARROW_PX
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  const mid = WIND_ARROW_PX / 2
-  ctx.beginPath()
-  ctx.moveTo(mid, 2) // tip
-  ctx.lineTo(mid - 5, 12)
-  ctx.lineTo(mid - 1.5, 12)
-  ctx.lineTo(mid - 1.5, mid - 2) // tail, stopping short of the marker
-  ctx.lineTo(mid + 1.5, mid - 2)
-  ctx.lineTo(mid + 1.5, 12)
-  ctx.lineTo(mid + 5, 12)
-  ctx.closePath()
-  ctx.fillStyle = 'rgba(255,255,255,0.95)'
-  ctx.strokeStyle = 'rgba(15,23,42,0.85)'
-  ctx.lineWidth = 1.5
-  ctx.fill()
-  ctx.stroke()
-  return ctx.getImageData(0, 0, WIND_ARROW_PX, WIND_ARROW_PX)
 }
 
 /**
@@ -386,35 +340,4 @@ export function enhanceBasemap(map: maplibregl.Map) {
     const notOurs: FilterSpecification = ['!=', ['get', 'class'], LAKE_CLASS]
     map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
   }
-}
-
-/**
- * Whether a click should keep the popups already open.
- *
- * One popup at a time is the right default — you are usually looking at one
- * destination — but comparing two is a real thing to want, and the map's own
- * `closeOnClick` plus a single ref made that impossible. Shift is the pinning
- * modifier here for the same reason it is in a file list: it means "and this
- * one too" everywhere else the user has met it.
- *
- * Popups opened while pinning stop being tracked in the single-popup ref, so
- * they survive until their own close button. That is deliberate: something the
- * user deliberately kept should not vanish because they clicked elsewhere.
- */
-export function isPinning(e: { originalEvent?: MouseEvent | { shiftKey?: boolean } }): boolean {
-  return Boolean((e.originalEvent as { shiftKey?: boolean } | undefined)?.shiftKey)
-}
-
-/** The width option a popup opening on this map should take. */
-export function popupOptions(map: maplibregl.Map) {
-  return { maxWidth: popupWidth(map.getCanvas().clientWidth) }
-}
-
-export function updateResults(
-  map: maplibregl.Map,
-  results: DestinationResult[],
-  sortBy: SortBy,
-  hourIndex: number | null,
-) {
-  setSource(map, 'results', resultsFeatureCollection(results, sortBy, true, hourIndex))
 }

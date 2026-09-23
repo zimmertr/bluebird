@@ -12,8 +12,9 @@
 import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
-import { emptyFC, popupOptions, setSource } from '../basemap'
+import { emptyFC, setSource } from '../basemap'
 import type { MapController } from '../controller'
+import { popupOptions, type PopupBoard } from '../popups'
 import {
   SMOKE_CLICK_ORDER,
   SMOKE_DENSITIES,
@@ -38,8 +39,7 @@ export function mountSmoke(
   deps: {
     controller: MapController
     restCursor: () => void
-    closeAllPopups: () => void
-    trackPopup: (popup: Popup) => void
+    popups: PopupBoard
   },
 ): SmokeOverlay {
   // One source, three fills, because opacity is the whole encoding and a single
@@ -108,12 +108,12 @@ export function mountSmoke(
     // moment the cursor entered the map and follow it around. Clicking says
     // which plume you meant.
     openPopup(props, at, pinned) {
-      if (!pinned) deps.closeAllPopups()
+      if (!pinned) deps.popups.closeAll()
       const popup = new Popup({ ...popupOptions(map), closeOnClick: false })
         .setLngLat(at)
         .setHTML(smokePopupHtml(props))
         .addTo(map)
-      deps.trackPopup(popup)
+      deps.popups.track(popup)
     },
     dispose() {
       abort?.abort()

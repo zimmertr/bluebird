@@ -14,9 +14,9 @@ import mapViewSource from './MapView.tsx?raw'
  * suite for as long as they lived there (#383).
  *
  * So this is the list of functions that file may declare at the top level, and
- * it is empty: a helper that needs a map, a canvas or an event goes to
- * `map/basemap.ts`, whose own test keeps the same list for that file, and one
- * that is plain data in and plain data out belongs in `utils/` with a test.
+ * it is empty: a helper that needs a map, a canvas or an event goes to a
+ * module under `map/`, whose own test keeps the same list for that file, and
+ * one that is plain data in and plain data out belongs in `utils/` with a test.
  */
 const ALLOWED: Record<string, string> = {}
 
@@ -32,16 +32,17 @@ const MOVED = [
   'ringToPts',
 ]
 
-// The map helpers that need a map, a canvas or an event, and live in
-// `map/basemap.ts` now. The component calls each of them, so each is imported.
-const MOVED_TO_MAP = [
-  'enhanceBasemap',
-  'isPinning',
-  'lakeAnchor',
-  'popupOptions',
-  'setSource',
-  'updateResults',
-]
+// The map helpers that need a map, a canvas or an event, and the module under
+// `src/map/` each one lives in now. One home each: a second copy anywhere in the
+// wiring is the drift this list exists to catch.
+const MOVED_TO_MAP: Record<string, string> = {
+  enhanceBasemap: 'basemap',
+  isPinning: 'popups',
+  lakeAnchor: 'basemap',
+  popupOptions: 'popups',
+  setSource: 'basemap',
+  updateResults: 'resultsLayer',
+}
 
 // The component and every map module under `src/map/`, read as one: a helper
 // such as `polygonsOf` or `makeDrawData` is imported by whichever module took
@@ -73,14 +74,16 @@ describe('MapView declares nothing the tests cannot reach', () => {
     }
   })
 
-  it('imports the map helpers from map/basemap.ts rather than declaring them again', () => {
-    for (const name of MOVED_TO_MAP) {
-      expect(mapViewSource, `${name} belongs in map/basemap.ts, not in MapView`).not.toMatch(
-        new RegExp(`function ${name}\\b`),
+  it('declares each map helper once, in its own module under src/map/', () => {
+    for (const [name, home] of Object.entries(MOVED_TO_MAP)) {
+      const declaration = new RegExp(`^(?:export )?function ${name}\\b`, 'gm')
+      expect(mapViewSource, `${name} belongs in map/${home}.ts, not in MapView`).not.toMatch(
+        declaration,
       )
-      expect(mapViewSource, `${name} should be imported`).toMatch(
-        new RegExp(`import \\{[^}]*\\b${name}\\b[^}]*\\} from '\\.\\./map/basemap'`),
-      )
+      const homes = Object.entries(mapModules)
+        .filter(([, text]) => (text.match(declaration) ?? []).length > 0)
+        .map(([path]) => path)
+      expect(homes, `${name} is declared once, in map/${home}.ts`).toEqual([`../map/${home}.ts`])
     }
   })
 
@@ -216,7 +219,7 @@ describe('MapView mounts the drawn ring rather than wiring it', () => {
   it('mounts the ring on load, above the overlays and below the results', () => {
     const overlays = loadHandler.indexOf('mountRadar(')
     const ring = loadHandler.indexOf('mountDrawRing(')
-    const results = loadHandler.indexOf("addSource('results'")
+    const results = loadHandler.indexOf('mountResultsLayer(')
     expect(ring, 'the ring is mounted on load').toBeGreaterThan(-1)
     expect(overlays).toBeLessThan(ring)
     expect(ring).toBeLessThan(results)
@@ -227,5 +230,38 @@ describe('MapView mounts the drawn ring rather than wiring it', () => {
     expect(mapViewSource).not.toMatch(/map\.on\('\w+', 'draw-(?:vertices|midpoints)'/)
     expect(mapViewSource).not.toContain('startVertexDrag')
     expect(mapViewSource).not.toContain('DRAW_COLOR')
+  })
+})
+
+/**
+ * The analysis's markers are `map/resultsLayer.ts` (the layers, the arrows,
+ * the pending dots and the forecast popup), and the basemap peaks and lakes are
+ * `map/poiPopup.ts`. Every popup goes on the one board in `map/popups.ts`, so
+ * the component holds no popup of its own.
+ */
+describe('MapView mounts the results and the POI popups rather than wiring them', () => {
+  const at = mapViewSource.indexOf("map.on('load'")
+  const loadHandler = mapViewSource.slice(at)
+
+  it('mounts the results above the ring, and the POI popups after them', () => {
+    const ring = loadHandler.indexOf('mountDrawRing(')
+    const results = loadHandler.indexOf('mountResultsLayer(')
+    const pois = loadHandler.indexOf('mountPoiPopups(')
+    expect(results, 'the results are mounted on load').toBeGreaterThan(-1)
+    expect(ring).toBeLessThan(results)
+    expect(results).toBeLessThan(pois)
+  })
+
+  it('adds no results layer and listens on no marker or basemap label', () => {
+    expect(mapViewSource).not.toContain("addSource('results'")
+    expect(mapViewSource).not.toContain("addSource('pending-destinations'")
+    expect(mapViewSource).not.toMatch(/map\.on\('\w+', (?:RESULT_MARKER_LAYER|'results-circles'|layer)\b/)
+    expect(mapViewSource).not.toContain('for (const layer of POI_LAYERS)')
+    expect(mapViewSource).not.toContain('WIND_ARROW_IMAGE')
+  })
+
+  it('opens no popup and keeps no popup ref of its own', () => {
+    expect(mapViewSource).not.toMatch(/new maplibregl\.Popup\(/)
+    expect(mapViewSource).not.toMatch(/\b(?:resultPopupRef|poiPopupRef|openPopupsRef)\b/)
   })
 })
