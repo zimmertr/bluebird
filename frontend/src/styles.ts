@@ -907,7 +907,7 @@ export const DRAG_GRIP_ACTIVE = 'text-slate-200'
  * The same 40 percent as `DISABLED` and deliberately not that role: `DISABLED`
  * promises a press will do nothing and carries `cursor-not-allowed` to say so,
  * where this column still sorts and still toggles the moment the drag ends, and
- * the pointer is already holding it. Not `MUTED` either, which is the 50 percent
+ * the pointer is already holding it. Not `MUTED` either, which is the 60 percent
  * of a control that works but is not the one in force; this one is not faded for
  * what it does, but for where it is.
  */
@@ -996,8 +996,13 @@ export const LIFTED_EDGE = 'border border-slate-400'
  * popover — under the 4.5:1 WCAG 1.4.3 asks of text. slate-300 is 6.97:1 on
  * the fill and 5.89:1 on a highlighted row (`bg-slate-600/50`), so it clears on
  * both grounds a result line is ever drawn on. Measured on the v4 oklch steps
- * 2026-09-14; the search dropdown is the only surface that needs it, and the
- * reason it does is that it moved from `SURFACE_FLOATING` to the popover.
+ * 2026-09-14. The search dropdown needs it because it moved from
+ * `SURFACE_FLOATING` to the popover.
+ *
+ * The results sheet's header bar is the second slate-700 fill a caption lands
+ * on: the window caption beside the ranked title. slate-400 is 3.93:1 there
+ * (axe measured it in the browser suite) and slate-300 is 6.97:1, so it takes
+ * this role rather than `TEXT.caption`, which stays on the panel's step.
  */
 export const CAPTION_LIFTED = 'text-xs text-slate-300'
 
@@ -1820,15 +1825,21 @@ export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
  * the clearest case: ticking it turns Peaks on. A `cursor-not-allowed` on any
  * of these would be a lie the pointer tells before the reader finds out.
  *
- * Quieter than nothing and louder than off: 50% against `DISABLED`'s 40%, and
+ * Quieter than nothing and louder than off: 60% against `DISABLED`'s 40%, and
  * unscoped rather than behind the `disabled:` variant, because none of these
  * elements is disabled and the variant would never fire.
+ *
+ * 60 is the lowest multiple of ten that keeps a muted label legible. WCAG exempts
+ * only INACTIVE controls from 1.4.3, and these still work, so their text owes
+ * 4.5:1. At 50% the slate-200 label measured 4.11:1 on the slate-800 panel
+ * (Include unnamed peaks), 4.58:1 on an idle metric row's select, and 4.22:1
+ * on an unplotted chart chip; at 60% the three are 5.25, 5.96 and 5.43.
  *
  * Three sites spelled it before it had a name (#390). No colour of its own,
  * for the same reason `DISABLED` carries none: it composes over whatever role
  * the control already wears instead of racing it by stylesheet order.
  */
-export const MUTED = 'opacity-50'
+export const MUTED = 'opacity-60'
 
 /**
  * Text that exists for assistive technology and takes no space on screen.

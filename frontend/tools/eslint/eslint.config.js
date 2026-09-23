@@ -122,7 +122,10 @@ export default [
   // `--config` file's patterns against the working directory, not against the
   // file's own folder, so `npm run lint` in frontend/ is the only invocation
   // these paths are correct for.
-  { ignores: ['dist/**', 'node_modules/**', 'tools/**', 'public/**'] },
+  // The browser suite is linted with the recommended set alone: none of the
+  // React rules below apply to it, and its Playwright fixtures call a
+  // parameter named `use` that the hooks rule would read as React's.
+  { ignores: ['dist/**', 'node_modules/**', 'tools/**', 'public/**', 'e2e/test-results/**', 'e2e/playwright-report/**'] },
 
   ...tseslint.configs.recommended,
 

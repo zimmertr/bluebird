@@ -62,6 +62,7 @@ import {
 import {
   ACCENT,
   BUTTON_FLOATING,
+  CAPTION_LIFTED,
   CHOICE_INPUT,
   CHOICE_ROW,
   BUTTON_SECONDARY,
@@ -3190,7 +3191,7 @@ export default function App() {
                     })`}
                   </span>
                   {windowTitle !== null && (
-                    <span className={`${TEXT.caption} truncate`}>
+                    <span className={`${CAPTION_LIFTED} truncate`}>
                       {windowTitle}
                     </span>
                   )}
