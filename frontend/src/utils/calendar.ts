@@ -2,12 +2,12 @@
 // over it, and the selection a click or a drag produces.
 //
 // Every function here is pure and local-time by construction, which is the
-// whole reason the module exists. Vitest runs in a bare node environment with
-// no DOM (`vitest.config.ts` collects only `src/**/*.test.ts`), so a component
-// cannot be rendered under test — anything about the calendar worth pinning has
-// to live outside `ForecastCalendar.tsx`. That includes the interaction rules:
-// what a click means given a pending anchor is the part most likely to regress,
-// so it is a reducer here rather than a handler there.
+// whole reason the module exists: a pure function of a day and a clock is
+// tested case by case with no render at all, so the calendar's rules live
+// outside `ForecastCalendar.tsx` and the component is left with the wiring.
+// That includes the interaction rules. What a click means given a pending
+// anchor is the part most likely to regress, so it is a reducer here rather
+// than a handler there.
 //
 // Local time is not incidental either. A calendar day is inherently local ("is
 // August 3rd dry?"), while the backend does no timezone conversion at all and
