@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 23, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 20, message: 'App.tsx runs its effects through useEffect.' },
       {
         // The panel still opens the moment a destination is named: the ban is
         // about how the effect is keyed, not about dropping it.
@@ -259,7 +259,7 @@ export const APP = [
     // cannot drift apart in look or behaviour. The geometry stays the caller's:
     // each grip trades against a different neighbour.
     name: 'app-resize-grips',
-    files: ['src/App.tsx'],
+    files: ['src/App.tsx', 'src/hooks/useResultsLayout.ts'],
     ban: [
       {
         selector: 'MemberExpression[object.name="TAP"][property.name="grip"]',
@@ -268,12 +268,13 @@ export const APP = [
       { selector: named('DOUBLE_PRESS_MS'), message: 'Leave the double-press clock to ResizeGrip.' },
     ],
     require: [
+    ],
+  },
+  {
+    name: 'app-resize-grip-count',
+    files: ['src/App.tsx'],
+    require: [
       { selector: 'JSXOpeningElement[name.name="ResizeGrip"]', count: 2, message: 'Draw both grips through ResizeGrip.' },
-      {
-        selector:
-          'CallExpression[callee.name="splitChartTable"][arguments.length=3][arguments.0.name="chartPanelPx"][arguments.1.name="tablePanelPx"][arguments.2.name="up"]',
-        message: 'Split the chart and table at the call site with splitChartTable.',
-      },
     ],
   },
   {
@@ -294,18 +295,7 @@ export const APP = [
       },
     ],
     require: [
-      {
-        selector:
-          'VariableDeclarator[id.name="resultsMode"] > CallExpression[callee.name="resolveResultsMode"][arguments.length=3]' +
-          '[arguments.0.name="modePref"][arguments.1.object.name="lastPanelRef"][arguments.1.property.name="current"][arguments.2.name="bothHasRoom"]',
-        message: 'Resolve resultsMode from the stored mode and the room.',
-      },
       { selector: BOTH_BUTTON, message: 'Keep the Both button in the segment.' },
-      {
-        selector: 'CallExpression[callee.name="writeViewPrefs"][arguments.0.properties.0.key.name="modeChosen"]',
-        count: 1,
-        message: 'Store the chosen mode in one write, inside the press handler.',
-      },
     ],
   },
   {
@@ -356,6 +346,29 @@ export const APP = [
     files: ['src/App.tsx'],
     require: [
       { selector: 'Literal[value="flex flex-shrink-0 flex-col bg-slate-800"]', message: 'Keep the desktop results panel classes verbatim.' },
+    ],
+  },
+  {
+    // The layout half of app-results-mode, app-resize-grips and
+    // app-docked-panels: the state, the floors and the default heights live
+    // in the hook, and the markup that reads them stays in App.tsx. The hook
+    // runs three effects that App.tsx used to (the viewport, the Both widening
+    // and the sheet observer), and one layout effect with no list, which is
+    // what catches every render's change of the sheet's height.
+    name: 'results-layout-hook',
+    files: ['src/hooks/useResultsLayout.ts'],
+    require: [
+      {
+        selector:
+          'VariableDeclarator[id.name="resultsMode"] > CallExpression[callee.name="resolveResultsMode"][arguments.length=3]' +
+          '[arguments.0.name="modePref"][arguments.1.object.name="lastPanelRef"][arguments.1.property.name="current"][arguments.2.name="bothHasRoom"]',
+        message: 'Resolve resultsMode from the stored mode and the room.',
+      },
+      {
+        selector: 'CallExpression[callee.name="writeViewPrefs"][arguments.0.properties.0.key.name="modeChosen"]',
+        count: 1,
+        message: 'Store the chosen mode in one write, inside the press handler.',
+      },
       {
         selector: 'CallExpression[callee.name="draggedMapFloorPx"][arguments.0.name="gripCount"]',
         message: 'Floor a drag at draggedMapFloorPx(gripCount).',
@@ -374,6 +387,17 @@ export const APP = [
       {
         selector: 'VariableDeclarator[id.name="DEFAULT_TABLE_HEIGHT"][init.name="DEFAULT_PANEL_HEIGHT"]',
         message: 'Open the table at DEFAULT_PANEL_HEIGHT.',
+      },
+      {
+        selector:
+          'CallExpression[callee.name="splitChartTable"][arguments.length=3][arguments.0.name="chartPanelPx"][arguments.1.name="tablePanelPx"][arguments.2.name="up"]',
+        message: 'Split the chart and table at the call site with splitChartTable.',
+      },
+      { selector: EFFECT, count: 3, message: 'useResultsLayout.ts runs its three effects through useEffect.' },
+      {
+        selector: 'CallExpression[callee.name="useLayoutEffect"][arguments.length=1]',
+        count: 1,
+        message: 'Measure the sheet in one useLayoutEffect with no dependency list.',
       },
     ],
   },
@@ -517,7 +541,7 @@ export const APP = [
     // Storage is viewPrefs.ts's business, or the migration and the guards go
     // back to being one call site's.
     name: 'app-no-storage',
-    files: ['src/App.tsx', 'src/hooks/useForecastSelection.ts', 'src/hooks/useRankingKnobs.ts'],
+    files: ['src/App.tsx', 'src/hooks/useForecastSelection.ts', 'src/hooks/useRankingKnobs.ts', 'src/hooks/useResultsLayout.ts'],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
     ],
