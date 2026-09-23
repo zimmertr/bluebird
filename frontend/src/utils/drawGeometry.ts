@@ -16,7 +16,7 @@ import type { Ring } from './polylabel'
 /**
  * Approximate area of a ring, as the box around it.
  *
- * A port of `bbox_area_km2` in `backend/app/models.py`, formula for formula,
+ * A port of `bbox_area_km2` in `backend/app/models/common.py`, formula for formula,
  * and that is the whole point of it: the browser blocks Analyze at the size the
  * server would refuse the request at, so the two have to measure a ring the
  * same way. The true area of the ring would be a better number and a worse

@@ -62,7 +62,7 @@ export interface Capabilities {
 // because nothing computes with it: it is only ever the stand-in until
 // /api/capabilities answers with what this deployment actually enforces. It
 // used to be a hand-synced mirror of MAX_POLYGON_AREA_KM2 in
-// backend/app/models.py, which is the duplication issue #152 set out to end.
+// backend/app/limits.py, which is the duplication issue #152 set out to end.
 // Sized to where Cascades-density terrain starts timing Overpass out
 // (measured: ~103k km2 answered in ~26s, ~151k km2 drew a 504).
 const FALLBACK_POLYGON_AREA_KM2 = 100_000
@@ -70,7 +70,7 @@ const FALLBACK_POLYGON_AREA_KM2 = 100_000
 // Fallback for the calendar's near edge, and the same kind of stand-in: nothing
 // computes with it, it only holds the band until /api/capabilities answers with
 // the reach this deployment actually validates. A year, matching
-// `ARCHIVE_DATA_DAYS` in backend/app/models.py — the archive holds decades, and
+// `ARCHIVE_DATA_DAYS` in backend/app/limits.py — the archive holds decades, and
 // the reach is a product choice about how far a calendar should page (#123).
 const FALLBACK_ARCHIVE_DAYS = 365
 
@@ -78,7 +78,7 @@ const FALLBACK_ARCHIVE_DAYS = 365
 // list: this stands in only for the moment before /api/capabilities answers,
 // and a stale list of models would be worse than a short one — picking a model
 // this deployment has since dropped fails the analysis, where picking the
-// default cannot. The hours are GFS's floor from backend/app/models.py.
+// default cannot. The hours are GFS's floor from backend/app/forecast_models.py.
 export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   id: 'gfs_seamless',
   label: 'NOAA GFS',
