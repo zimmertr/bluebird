@@ -223,13 +223,21 @@ describe('the reading tier', () => {
 // Every text-bearing source in the app, so a component added later is covered
 // by default rather than by remembering to list it. A component's test sits
 // beside it and is not a component: it renders the rules rather than breaking
-// them, and counting it would put its queries in the tallies below.
+// them, and counting it would put its queries in the tallies below. The map's
+// modules under `map/` are in it too: they were cut out of `MapView.tsx`, and
+// a folder of its own must not be a way out of the rules the component kept.
 const sources: Record<string, string> = {
-  ...(import.meta.glob(['./components/*.tsx', '!./components/*.test.tsx'], {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>),
+  ...(import.meta.glob(
+    [
+      './components/*.tsx',
+      './map/**/*.ts',
+      './map/**/*.tsx',
+      '!./components/*.test.tsx',
+      '!./map/**/*.test.ts',
+      '!./map/**/*.test.tsx',
+    ],
+    { query: '?raw', import: 'default', eager: true },
+  ) as Record<string, string>),
   './App.tsx': appSource,
 }
 
@@ -254,7 +262,15 @@ const POPOVER_MODULE = './components/Popover.tsx'
 // a second caller there would be as much of a second recipe as one here.
 const placementCallers: Record<string, string> = {
   ...(import.meta.glob(
-    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts', '!./**/*.test.tsx'],
+    [
+      './components/*.tsx',
+      './hooks/*.ts',
+      './map/**/*.ts',
+      './map/**/*.tsx',
+      './utils/*.ts',
+      '!./**/*.test.ts',
+      '!./**/*.test.tsx',
+    ],
     { query: '?raw', import: 'default', eager: true },
   ) as Record<string, string>),
   './App.tsx': appSource,
@@ -275,6 +291,12 @@ const roleImporters: Record<string, string> = import.meta.glob(
 describe('every component', () => {
   it('found the sources', () => {
     expect(Object.keys(sources).length).toBeGreaterThan(6)
+  })
+
+  // The glob is vacuous for the map's folder if it stops matching there.
+  it('reads the map modules beside the components', () => {
+    expect(sources['./map/basemap.ts']).toContain('export function enhanceBasemap(')
+    expect(Object.keys(sources).filter((path) => path.endsWith('.test.ts'))).toEqual([])
   })
 
   // The ESLint config and the fixtures beside it spell classes verbatim, which

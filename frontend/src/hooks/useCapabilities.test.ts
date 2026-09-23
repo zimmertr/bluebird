@@ -15,6 +15,7 @@ import destinationsSource from '../components/DestinationsSection.tsx?raw'
 import forecastSectionSource from '../components/ForecastSection.tsx?raw'
 import panelMessagesSource from '../utils/panelMessages.ts?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
+import basemapSource from '../map/basemap.ts?raw'
 import calendarSource from '../utils/calendar.ts?raw'
 import forecastWindowSource from '../utils/forecastWindow.ts?raw'
 import openMeteoSource from '../utils/openMeteo.ts?raw'
@@ -211,6 +212,7 @@ describe('the polygon-area cap has one source', () => {
     ['DestinationsSection.tsx', destinationsSource],
     ['panelMessages.ts', panelMessagesSource],
     ['MapView.tsx', mapViewSource],
+    ['map/basemap.ts', basemapSource],
   ] as const
 
   it('is not spelled out in any surface that gates on it', () => {
