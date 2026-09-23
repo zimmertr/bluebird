@@ -260,8 +260,22 @@ function ResultsTable({
             )}
           </FireClock>
         </tbody>
+        {partialNote && (
+          <tfoot>
+            <tr>
+              {/* A table row rather than a line after the table, for the
+                  empty-reason row's reason: the pinned block needs a cell as
+                  wide as the table to travel in. A block after the table is
+                  only as wide as the scroll box, so it scrolls out of view as
+                  soon as a wide comparison table is scrolled sideways, which
+                  every one on a phone is. */}
+              <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
+                <div className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>{partialNote}</div>
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
-      {partialNote && <p className={`px-3 py-1.5 ${TEXT.micro}`}>{partialNote}</p>}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { displayedColumns, WILDFIRE_COL } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
+import { TEXT } from '../styles'
 
 // Every ranked row the table draws, by name, in render order. The mock keeps
 // the real row and its real memo: it wraps the row's inner component in a
@@ -101,6 +102,16 @@ describe('a model that ends early', () => {
     // Elevation is the destination's, whatever model the row names.
     expect(within(short).getAllByRole('cell')[2].textContent).not.toMatch(/\*/)
     expect(screen.getAllByText(NOTE)).toHaveLength(1)
+  })
+
+  // A comparison table is wider than a phone, so the note has to stay on the
+  // visible left edge at any sideways scroll, the way the empty-reason row does.
+  it('pins the footnote to the visible left edge', () => {
+    render(<ResultsTable {...props({ results: SHORT, partialNote: NOTE })} />)
+    const note = screen.getByText(NOTE)
+    for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(note.classList).toContain(cls)
+    for (const cls of TEXT.micro.split(' ')) expect(note.classList).toContain(cls)
+    expect(note.closest('tfoot')).not.toBeNull()
   })
 
   it('prints no footnote when no row is short', () => {
