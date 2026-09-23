@@ -209,7 +209,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 |---|---|---|
 | Every text role is unique, and no recipe sets two competing colours | `styles.test.ts` | Uniqueness over `TEXT` and `PROSE`; a resting-colour count over every exported role |
 | No component invents a size | `eslint.config.js` | Ban a ramp step or an arbitrary size in a string or template in component sources |
-| No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails |
+| No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails. Component sources are `App.tsx`, `components/` and `map/`, and the self-test lints one hue at a path in each of the last two to prove the glob reaches them |
 | No component sizes a tap target | `eslint.config.js` | Ban `touch:` utilities in component sources |
 | No component sizes radio/checkbox | `eslint.config.js` | Covered by the hue ban, which reaches `accent-*` |
 | No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
@@ -237,14 +237,14 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `resultsSheet.test.ts` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
-| No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and in `App.tsx`, except `icons.tsx` |
+| No component draws its own glyph | `styles.test.ts` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
 | Nor does the map popup | `styles.test.ts` | Ban the same tag in `utils/popupChrome.ts`, which builds markup rather than elements, and pin its glyph size to the `inline` step |
 | No call site sizes an icon | `styles.test.ts` | Ban a height or width utility on any `<Icon…>` element; the four `ICON` steps are pinned by measured pixels, and the key set is pinned too |
 | Every glyph is hidden from assistive technology | `accessibility.test.ts` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
-| No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and in `App.tsx`, except `Popover.tsx` |
+| No component positions its own panel | `styles.test.ts` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `styles.test.ts` | `popoverBox` has exactly one caller, the `usePopover` hook |
-| No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
-| No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and in `App.tsx`; `DISABLED`, `MUTED` and `CARRIED` are the three fades |
+| No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
+| No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `CARRIED` are the three fades |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
 
 **NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
@@ -475,7 +475,7 @@ Never surface an exception type or HTTP status directly. Write a sentence instea
 
 ### Where the data hues live
 
-The no-hue lint is an ESLint rule and scans `components/` and `App.tsx`. The app's data colours, the
+The no-hue lint is an ESLint rule and scans `components/`, `map/` and `App.tsx`. The app's data colours, the
 band ramps a marker, a grid cell and the legend all read, are `METRIC_SCALE` in
 `frontend/src/utils/colors.ts`, one scale per metric family, the freezing level
 included since #295 was reversed (2026-09-14). That file is the one place

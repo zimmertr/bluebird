@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { LAKE_CLASS, POI_LAYERS, POI_MATCH_M, poiFromFeature, poiToPlace, samePoi } from './basemapPoi'
 import { isPeakKind } from './geocode'
-// `?raw` gives the component's text without executing it, so this stays a pure
+// `?raw` gives the map module's text without executing it, so this stays a pure
 // node test with no DOM and no MapLibre.
-import mapViewSource from '../components/MapView.tsx?raw'
+import basemapSource from '../map/basemap.ts?raw'
 
 const RAINIER: [number, number] = [-121.7604, 46.8529]
 
@@ -130,13 +130,14 @@ describe('poiToPlace', () => {
 })
 
 // The map is the other half of this module: it draws the layers whose features
-// arrive here. Vitest has no DOM and cannot instantiate MapLibre, so the pair
-// is checked by reading the component as text — the same `?raw` idiom
-// metrics.test.ts uses to keep a vocabulary from drifting out of its surfaces.
+// arrive here, in `map/basemap.ts`. Vitest has no DOM and cannot instantiate
+// MapLibre, so the pair is checked by reading that module as text, the same
+// `?raw` idiom metrics.test.ts uses to keep a vocabulary from drifting out of
+// its surfaces.
 describe('the layers this module reads', () => {
   it('are the ones the map actually adds', () => {
     for (const layer of POI_LAYERS) {
-      expect(mapViewSource).toContain(`id: '${layer}'`)
+      expect(basemapSource).toContain(`id: '${layer}'`)
     }
   })
 
@@ -144,9 +145,9 @@ describe('the layers this module reads', () => {
   // point, with only insertion order deciding which survives collision. One
   // class name governs both halves, so neither can move without the other.
   it('leave the style no chance to label a lake a second time', () => {
-    expect(mapViewSource).toContain(`['==', ['get', 'class'], LAKE_CLASS]`)
-    expect(mapViewSource).toContain(`['!=', ['get', 'class'], LAKE_CLASS]`)
-    expect(mapViewSource).toContain(`'water_name_point_label'`)
+    expect(basemapSource).toContain(`['==', ['get', 'class'], LAKE_CLASS]`)
+    expect(basemapSource).toContain(`['!=', ['get', 'class'], LAKE_CLASS]`)
+    expect(basemapSource).toContain(`'water_name_point_label'`)
   })
 
   // Lakes were added on the same terms as peaks (#119): one floor and one
@@ -154,19 +155,19 @@ describe('the layers this module reads', () => {
   // destination can quietly become clickable at a zoom the other is not, or
   // stop looking like the other.
   it('give lakes and peaks one floor and one look', () => {
-    expect(mapViewSource.match(/minzoom: POI_MINZOOM,/g) ?? []).toHaveLength(POI_LAYERS.length)
-    expect(mapViewSource.match(/paint: POI_LABEL_PAINT,/g) ?? []).toHaveLength(POI_LAYERS.length)
+    expect(basemapSource.match(/minzoom: POI_MINZOOM,/g) ?? []).toHaveLength(POI_LAYERS.length)
+    expect(basemapSource.match(/paint: POI_LABEL_PAINT,/g) ?? []).toHaveLength(POI_LAYERS.length)
     // Peaks build from the shared layout directly; the two lake layers share
     // one recipe between them, so it is spelled once and spread twice.
-    expect(mapViewSource.match(/poiLabelLayout\(/g) ?? []).toHaveLength(3)
+    expect(basemapSource.match(/poiLabelLayout\(/g) ?? []).toHaveLength(3)
   })
 
   // The long lakes only render at all because their layer places labels along
   // the line, and only look like the rest because it pins them upright.
   it('draw a line-labelled lake upright, like every other destination', () => {
-    expect(mapViewSource).toContain("'symbol-placement': 'line-center'")
-    expect(mapViewSource).toContain("'text-rotation-alignment': 'viewport'")
-    expect(mapViewSource).toContain("'icon-rotation-alignment': 'viewport'")
+    expect(basemapSource).toContain("'symbol-placement': 'line-center'")
+    expect(basemapSource).toContain("'text-rotation-alignment': 'viewport'")
+    expect(basemapSource).toContain("'icon-rotation-alignment': 'viewport'")
   })
 
   // Hovering the panel's "Specify by Click" section lights every feature a
@@ -174,18 +175,18 @@ describe('the layers this module reads', () => {
   // so the two cannot come to light different features — which would be worse
   // than no glow at all.
   it('give every clickable label a halo built from its own spec', () => {
-    expect(mapViewSource).toContain('glowTwin(layer)')
+    expect(basemapSource).toContain('glowTwin(layer)')
     // Derived from the layer it belongs to, never re-declared per layer.
-    expect(mapViewSource.match(/id: `\$\{layer\.id\}-glow`/g) ?? []).toHaveLength(1)
+    expect(basemapSource.match(/id: `\$\{layer\.id\}-glow`/g) ?? []).toHaveLength(1)
     for (const key of ['filter: layer.filter', 'minzoom: layer.minzoom']) {
-      expect(mapViewSource).toContain(key)
+      expect(basemapSource).toContain(key)
     }
   })
 
   // A halo that took part in collision would make hovering the panel *remove*
   // the labels it is pointing at.
   it('keep the halo out of label collision entirely', () => {
-    expect(mapViewSource).toContain("'icon-ignore-placement': true")
+    expect(basemapSource).toContain("'icon-ignore-placement': true")
   })
 
   // Line placement will not honour the shared `top` anchor, so the line layer
@@ -198,7 +199,7 @@ describe('the layers this module reads', () => {
     // carry offsets of their own and are not part of this pair.
     const offsetAfter = (marker: string) =>
       Number(
-        mapViewSource.match(new RegExp(`${marker}[\\s\\S]*?'text-offset': \\[0, ([\\d.]+)\\]`))![1],
+        basemapSource.match(new RegExp(`${marker}[\\s\\S]*?'text-offset': \\[0, ([\\d.]+)\\]`))![1],
       )
     expect(offsetAfter("id: 'ofm-lakes-line'") - offsetAfter('function poiLabelLayout')).toBeCloseTo(
       0.5,
@@ -208,8 +209,8 @@ describe('the layers this module reads', () => {
   // The one thing that legitimately differs, and only because the tiles differ:
   // `mountain_peak` carries `ele_ft`, `water_name` carries no elevation at all.
   it('let only peaks print an elevation', () => {
-    expect(mapViewSource).toContain("['has', 'ele_ft']")
-    expect(mapViewSource.match(/'icon-image': icon/g) ?? []).toHaveLength(1)
+    expect(basemapSource).toContain("['has', 'ele_ft']")
+    expect(basemapSource.match(/'icon-image': icon/g) ?? []).toHaveLength(1)
   })
 })
 
