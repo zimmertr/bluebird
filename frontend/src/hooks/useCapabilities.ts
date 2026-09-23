@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { apiJson } from '../utils/apiFetch'
 import { AQI_LIMIT_DAYS } from '../utils/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
@@ -232,8 +232,25 @@ export function parseCapabilities(body: unknown): Capabilities {
   }
 }
 
-export function useCapabilities(): Capabilities {
+/**
+ * The capabilities as the hook hands them over: the limits, plus whether the
+ * fetch has settled. `settled` is kept off `Capabilities` itself because that
+ * type is also what `parseCapabilities` returns and what tests build, and
+ * neither has a fetch to settle.
+ */
+export interface LiveCapabilities extends Capabilities {
+  /**
+   * True once `/api/capabilities` has answered or failed, and never false again.
+   * Before that the limits above are the compiled fallbacks. Something that
+   * must not act on a stand-in (a link that runs its analysis on open, whose
+   * restored window and model are clamped against the live limits) waits for it.
+   */
+  settled: boolean
+}
+
+export function useCapabilities(): LiveCapabilities {
   const [caps, setCaps] = useState<Capabilities>(FALLBACK)
+  const [settled, setSettled] = useState(false)
 
   useEffect(() => {
     // Aborted rather than flagged: an unmount should stop the request, not
@@ -241,15 +258,19 @@ export function useCapabilities(): Capabilities {
     const controller = new AbortController()
     apiJson<{ limits?: unknown }>('/api/capabilities', { signal: controller.signal })
       .then((body) => {
-        if (!body?.limits) return
-        setCaps(parseCapabilities(body))
+        // Set together with the limits, in one callback, so no render sees the
+        // flag raised over the fallback values it was meant to wait out.
+        if (body?.limits) setCaps(parseCapabilities(body))
+        setSettled(true)
       })
       .catch(() => {
-        // Metadata only: the fallback constants keep everything working.
-        // An abort lands here too, which is the same nothing.
+        // Metadata only: the fallback constants keep everything working, so a
+        // failure is as settled as an answer. An abort is not: it means the
+        // component is gone and nothing is left to tell.
+        if (!controller.signal.aborted) setSettled(true)
       })
     return () => controller.abort()
   }, [])
 
-  return caps
+  return useMemo(() => ({ ...caps, settled }), [caps, settled])
 }

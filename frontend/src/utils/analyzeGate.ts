@@ -120,3 +120,30 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
   }
   return blockers
 }
+
+/**
+ * Whether a link that asked for its analysis to run on open (`analyze=1`, #511)
+ * should run it now.
+ *
+ * A link the sender made on purpose is a request, which is the one thing that
+ * may cross the spend boundary without a click. It still crosses it only the
+ * way a click would: through the same gate the button reads, so an oversized
+ * polygon, an unservable window or a compare veto stops it here and the panel's
+ * blocker lines say why, exactly as they would for a reader who clicked.
+ *
+ * It waits for the live capabilities, because the restored window, model and
+ * results cap are clamped against them and a run against the fallbacks could
+ * buy a report the deployment would not have allowed. `fired` makes it once
+ * per page load: the gate closes while the analysis runs and opens again when
+ * it ends, and without it that reopening would run the link a second time.
+ */
+export interface AutoAnalyzeState {
+  requested: boolean
+  capabilitiesSettled: boolean
+  gateOpen: boolean
+  fired: boolean
+}
+
+export function shouldAutoAnalyze(s: AutoAnalyzeState): boolean {
+  return s.requested && s.capabilitiesSettled && s.gateOpen && !s.fired
+}

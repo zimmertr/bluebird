@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { analyzeBlockers, canAnalyze, AnalyzeGate } from './analyzeGate'
+import { analyzeBlockers, canAnalyze, shouldAutoAnalyze, AnalyzeGate, AutoAnalyzeState } from './analyzeGate'
 
 // A fully-ready polygon analysis: three points drawn, no vetoes.
 const READY_POLYGON: AnalyzeGate = {
@@ -250,5 +250,72 @@ describe('a model selection the ranking cannot use', () => {
         compareFreeze: true,
       }),
     ).toEqual(['compare-freeze', 'destinations'])
+  })
+})
+
+// A link's run on open (#511): the same gate a click reads, after the live
+// limits, and once.
+describe('shouldAutoAnalyze', () => {
+  const READY: AutoAnalyzeState = {
+    requested: true,
+    capabilitiesSettled: true,
+    gateOpen: true,
+    fired: false,
+  }
+
+  it('runs when the link asked, capabilities settled and the gate is open', () => {
+    expect(shouldAutoAnalyze(READY)).toBe(true)
+  })
+
+  it('does not run before capabilities settle', () => {
+    expect(shouldAutoAnalyze({ ...READY, capabilitiesSettled: false })).toBe(false)
+  })
+
+  it('does not run while the gate is closed', () => {
+    expect(shouldAutoAnalyze({ ...READY, gateOpen: false })).toBe(false)
+    // The gate it reads is the button's, so an incomplete input closes it.
+    const gateOpen = canAnalyze({ ...READY_POLYGON, polygonReady: false })
+    expect(shouldAutoAnalyze({ ...READY, gateOpen })).toBe(false)
+  })
+
+  it('does not run for a link that did not ask', () => {
+    expect(shouldAutoAnalyze({ ...READY, requested: false })).toBe(false)
+  })
+
+  it('does not run a second time', () => {
+    expect(shouldAutoAnalyze({ ...READY, fired: true })).toBe(false)
+  })
+
+  // The panel's effect, driven through a page load: capabilities land, the gate
+  // opens, the run closes it (loading) and the end reopens it. Only the first
+  // opening after settling may fire.
+  it('fires exactly once across a load', () => {
+    const steps: Array<Pick<AutoAnalyzeState, 'capabilitiesSettled' | 'gateOpen'>> = [
+      { capabilitiesSettled: false, gateOpen: false },
+      { capabilitiesSettled: false, gateOpen: true },
+      { capabilitiesSettled: true, gateOpen: true },
+      { capabilitiesSettled: true, gateOpen: false },
+      { capabilitiesSettled: true, gateOpen: true },
+      { capabilitiesSettled: true, gateOpen: true },
+    ]
+    let fired = false
+    const firedAt: number[] = []
+    steps.forEach((step, i) => {
+      if (shouldAutoAnalyze({ requested: true, fired, ...step })) {
+        fired = true
+        firedAt.push(i)
+      }
+    })
+    expect(firedAt).toEqual([2])
+  })
+
+  it('never fires across a load whose gate stays closed', () => {
+    let fired = false
+    for (const capabilitiesSettled of [false, true, true]) {
+      if (shouldAutoAnalyze({ requested: true, fired, capabilitiesSettled, gateOpen: false })) {
+        fired = true
+      }
+    }
+    expect(fired).toBe(false)
   })
 })

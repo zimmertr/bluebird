@@ -6,6 +6,7 @@ import {
   classifyWindow,
   classifyAqiCoverage,
   clampLimit,
+  decodeAutoAnalyze,
   ShareableState,
 } from './urlState'
 import {
@@ -18,6 +19,7 @@ import {
 import { GeoPolygon } from '../types'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { NO_CONSTRAINTS } from './clientAnalyze'
+import { urlNeedsSync } from './urlSync'
 
 const polygon: GeoPolygon = {
   type: 'Polygon',
@@ -1250,5 +1252,55 @@ describe('the forecast model in a link', () => {
     const end = '2026-07-20T23:59'
     expect(classifyWindow(start, end, now, LONG)).toBe('ok')
     expect(classifyWindow(start, end, now, { ...LONG, forecastHours: 42 })).toBe('future')
+  })
+})
+
+// `analyze=1` is a request a hand-made link carries (#511), not state: the
+// writer must never emit it, or a reader who copies the address bar after an
+// edit would pass on a link that spends on open.
+describe('the run-on-open param', () => {
+  it('is read only from analyze=1', () => {
+    expect(decodeAutoAnalyze('?analyze=1')).toBe(true)
+    expect(decodeAutoAnalyze('analyze=1&type=peak')).toBe(true)
+    expect(decodeAutoAnalyze('?type=peak&analyze=1')).toBe(true)
+    expect(decodeAutoAnalyze('?analyze=0')).toBe(false)
+    expect(decodeAutoAnalyze('?analyze=true')).toBe(false)
+    expect(decodeAutoAnalyze('?analyze')).toBe(false)
+    expect(decodeAutoAnalyze('')).toBe(false)
+  })
+
+  it('is never written by encodeState', () => {
+    for (const state of [base, pristine, { ...base, sortDesc: true, limit: 25 }]) {
+      const qs = encodeState(state, DEFAULT_MODEL)
+      expect(new URLSearchParams(qs).has('analyze')).toBe(false)
+      expect(decodeAutoAnalyze(qs)).toBe(false)
+    }
+  })
+
+  it('leaves the rest of the link restoring as it would without it', () => {
+    const qs = encodeState(base, DEFAULT_MODEL)
+    expect(decodeState(`?${qs}&analyze=1`)).toEqual(decodeState(`?${qs}`))
+    expect(decodeAutoAnalyze(`?${qs}&analyze=1`)).toBe(true)
+    // The flag alone restores nothing, which is why it is not on ShareableState.
+    expect(decodeState('?analyze=1')).toBeNull()
+  })
+
+  it('round-trips a flagged link as the same state, without the flag', () => {
+    const qs = encodeState(base, DEFAULT_MODEL)
+    const flagged = decodeState(`?analyze=1&${qs}`)
+    expect(flagged).toEqual(roundTrip(base))
+    expect(encodeState({ ...base, ...flagged! }, DEFAULT_MODEL)).toBe(qs)
+  })
+
+  // The strip rests on this: while the address bar carries the flag, the URL
+  // sync can never call it current, so a write without the flag is always
+  // done or queued, and App flushes a queued one when the run fires.
+  it('always leaves a flagged address bar needing a write', () => {
+    for (const state of [base, pristine]) {
+      const qs = encodeState(state, DEFAULT_MODEL)
+      const flagged = qs ? `?${qs}&analyze=1` : '?analyze=1'
+      expect(urlNeedsSync(qs, '/', flagged)).toBe(true)
+      expect(urlNeedsSync(qs, '/', qs ? `?${qs}` : '')).toBe(false)
+    }
   })
 })
