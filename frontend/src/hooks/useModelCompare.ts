@@ -10,8 +10,10 @@ import {
   compareEndMs,
   drawnModelIds,
   compareSeries,
+  modelEndLines,
   modelSeriesOnGrid,
   pairKey,
+  type ModelEndLine,
 } from '../utils/modelCompare'
 import { shownModels } from '../utils/modelVisibility'
 import { fetchWeather } from '../utils/openMeteo'
@@ -80,6 +82,12 @@ const NOTHING_FETCHED: Fetched = { results: {}, inFlight: {}, notes: {} }
 
 /** One identity for "nothing hidden", so a default does not re-run a memo. */
 const EMPTY_HIDDEN: ReadonlySet<string> = new Set()
+
+/**
+ * One identity for "no model ends early", so the chart, a `React.memo`
+ * boundary, is not handed a fresh empty array on every render.
+ */
+const NO_END_LINES: readonly ModelEndLine[] = []
 
 export interface ModelCompareOptions {
   /**
@@ -158,10 +166,13 @@ export function useModelCompare({
   // for minutes with no way to tell waiting from broken.
   const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
 
-  // "Now" is captured per analysis rather than read per render: it decides the
-  // clamp, and a value that moved every render would rebuild every line on
-  // every hover.
+  // "Now" is captured per analysis rather than read per render: it decides
+  // where each model ends, and a value that moved every render would rebuild
+  // every line on every hover. The ref is what the fetch effect reads, since an
+  // effect sees the render it was scheduled in; the state copy is what the
+  // memos below read, so the reset's own re-render hands them the new clock.
   const nowRef = useRef(Date.now())
+  const [nowMs, setNowMs] = useState(nowRef.current)
   const inFlightRef = useRef(new Map<string, AbortController>())
   // Every (model, destination) pair already asked for under this analysis, so a
   // re-render cannot buy the same forecast twice.
@@ -173,6 +184,7 @@ export function useModelCompare({
   // another field — so nothing bought for the last one survives it.
   useEffect(() => {
     nowRef.current = Date.now()
+    setNowMs(nowRef.current)
     for (const controller of inFlightRef.current.values()) controller.abort()
     inFlightRef.current.clear()
     requestedRef.current.clear()
@@ -250,10 +262,8 @@ export function useModelCompare({
         notes: { ...prev.notes, [id]: null },
       }))
 
-      // Asked for every hour this model has inside the window, not for the
-      // clamped window: the clamp is a drawing decision, so unticking a
-      // short-reach model has to give the other lines their hours back without
-      // buying them again.
+      // Asked for the hours this model has inside the window and no more:
+      // past its reach it answers nulls, and those still cost a weighted call.
       const endMs = compareEndMs(window_.endMs, [model.forecastHours], nowRef.current)
       fetchWeather(
         missing.map((d) => ({
@@ -333,41 +343,49 @@ export function useModelCompare({
 
   // The models actually drawn: everything on the chart the reader has not put
   // down. Everything below reads THIS rather than `compared`, so a hidden
-  // model draws no line, bounds no clamp and explains no absence — it is
+  // model draws no line, marks no end and explains no absence — it is
   // absent because it was asked to be.
   const shown: ComparedModel[] = useMemo(
     () => shownModels(compared, hidden),
     [compared, hidden],
   )
-  const shownIds = useMemo(
-    () => new Set(shown.map((m) => m.id)),
-    [shown],
-  )
 
   /**
-   * Where every line on the chart stops — the ranking model's lines included,
-   * since a held line running past the models beside it is the ragged
-   * comparison the clamp exists to prevent. Null when nothing is compared, or
-   * when every model reaches the window's end.
-   *
-   * Only the models actually DRAWN bound it. A model that came back uncovered
-   * contributes no line, so letting its reach cut the lines that did arrive
-   * would hide hours on behalf of a model nobody can see.
+   * Where each compared model ends, by id, for the models whose reach ends
+   * inside the window. The same instant the fetch asked each of them up to, so
+   * the table's asterisk and the chart's dashed line mark exactly the hours
+   * that were not bought. The ranking model is never here: the calendar clamps
+   * the window to its reach.
    */
-  const endMs = useMemo(() => {
-    if (!active || !window_ || !rankingModel) return null
-    if (!shownIds.has(rankingModel)) return null
-    const drew = drawnIds.filter(
-      (id) =>
-        shownIds.has(id) && destinations.some((d) => fetched.results[pairKey(id, d.key)]),
-    )
-    if (drew.length === 0) return null
-    const reaches = [rankingModel, ...drew].map(
-      (id) => models.find((m) => m.id === id)?.forecastHours ?? 0,
-    )
-    const end = compareEndMs(window_.endMs, reaches, nowRef.current)
-    return end < window_.endMs ? end : null
-  }, [active, destinations, drawnIds, fetched.results, models, rankingModel, shownIds, window_])
+  const reachEnds: Record<string, number> = useMemo(() => {
+    const ends: Record<string, number> = {}
+    if (!window_) return ends
+    for (const id of drawnIds) {
+      const model = models.find((m) => m.id === id)
+      if (!model) continue
+      const end = compareEndMs(window_.endMs, [model.forecastHours], nowMs)
+      if (end < window_.endMs) ends[id] = end
+    }
+    return ends
+  }, [drawnIds, models, nowMs, window_])
+
+  /**
+   * The chart's dashed lines: one per instant where a DRAWN model stops.
+   *
+   * Only a model that is shown and drew a line gets one. A model that came
+   * back uncovered, or that the reader has hidden, has no line to end, and a
+   * mark for it would point at nothing on the chart.
+   */
+  const endLines: readonly ModelEndLine[] = useMemo(() => {
+    if (!active) return NO_END_LINES
+    const ends = shown.flatMap((m) => {
+      const endMs = reachEnds[m.id]
+      if (endMs === undefined) return []
+      const drew = destinations.some((d) => fetched.results[pairKey(m.id, d.key)])
+      return drew ? [{ label: m.label, endMs }] : []
+    })
+    return ends.length > 0 ? modelEndLines(ends) : NO_END_LINES
+  }, [active, destinations, fetched.results, reachEnds, shown])
 
   const lines: ChartLine[] = useMemo(() => {
     if (!active || !rankingModel) return []
@@ -385,13 +403,12 @@ export function useModelCompare({
       }
     }
     const onChart: CompareModel[] = shown.map((m) => ({ id: m.id, label: m.label }))
-    return compareSeries(destinations, onChart, series, times, endMs, colors)
+    return compareSeries(destinations, onChart, series, colors)
   }, [
     active,
     colors,
     destinations,
     drawnIds,
-    endMs,
     fetched.results,
     heldSeries,
     rankingModel,
@@ -399,5 +416,14 @@ export function useModelCompare({
     times,
   ])
 
-  return { active, compared, shown, lines, endMs, results: fetched.results, paceRemainingS }
+  return {
+    active,
+    compared,
+    shown,
+    lines,
+    endLines,
+    reachEnds,
+    results: fetched.results,
+    paceRemainingS,
+  }
 }

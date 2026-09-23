@@ -356,7 +356,11 @@ The results table carries the comparison too. With models compared it grows a **
 
 **Model** is in the **Columns** picker like every other column, so you can show it on a report with no comparison, where every row names the model the analysis ran, or hide it on one with a comparison. It is the only column whose default depends on the report: off with one model, on with several. Tick or untick it once and your answer stands from then on, whatever the model count does.
 
-Every line on the chart stops at the shortest reach among the models on it, the analysis model's included, because ten days of one model beside three days of another compares nothing. A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric dropdown, which is never the same as drawing a flat one. A model you have hidden leaves no note, because its lines are missing by your own instruction.
+Every line on the chart runs to its own model's reach, so a model that stops before the analyzed window ends simply stops, and the other lines keep going. A dashed line in the axis color stands at the hour where it stops, labeled with the model's name, the same way the **Now** line is drawn. Two models that end on the same hour share one line, and its label names both. Hide a model and its dashed line goes with its lines.
+
+The results table marks the same thing. On the rows of a model that ends before the window does, every weather number is aggregated over fewer hours than the rows beside it, so each one carries an asterisk: `0.12*`. Air quality, snow depth and the cloud columns do not, because they are the same whatever model the row names. One line under the table says what the mark means, `* Partial model coverage. Data is aggregated over fewer hours.`, and the Model column on each marked row names the model. The model that ranks never carries the mark, because the calendar already shortens the window to its reach. The downloaded CSV keeps its numbers plain and states where each such model ends in its metadata block instead (see [Downloading the Table](#downloading-the-table)).
+
+A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric dropdown, which is never the same as drawing a flat one. A model you have hidden leaves no note, because its lines are missing by your own instruction.
 
 Three metrics cannot be compared at all, and **Analyze** says so rather than selling you a report that cannot answer the question. Ranking by **AQI** with more than one model selected blocks it: `AQI data is retrieved independently of the model and cannot be compared.` So does ranking by **Snow depth**, for the same reason and in the same words: `Snow depth is retrieved independently of the model and cannot be compared.` Ranking by **Freezing level** with any selected model that does not forecast one blocks it too, and names them: `Freezing level data is not available for ECMWF IFS.` Three of the eight models forecast a freezing level; the other five answer with nothing at all, which on a chart is indistinguishable from never having asked. Either way the remedy is yours to choose, rank on something else or change the models, so the message says what is wrong and leaves it there. See [Data Sources](DATA.md) for the rest of the caveats.
 
@@ -527,7 +531,19 @@ Forecast start,2026-09-18T00:00-07:00
 Forecast end,2026-09-21T23:59-07:00
 ```
 
-It is the same window the caption above the table states. The file name carries
+With models compared, one more row follows for every compared model whose
+forecast ends before the window does, in the picker's order, so a spreadsheet
+can work out the hours that model's numbers cover:
+
+```
+Forecast end (NOAA HRRR),2026-09-20T02:00-07:00
+```
+
+Two models that end on the same hour still get a row each. The numbers in the
+table above carry no asterisk in the file, because a mark inside a number would
+turn it into text.
+
+The window is the same one the caption above the table states. The file name carries
 the download time instead, so without these two rows a file opened a week later
 named no days at all. They are rows rather than columns because the window is
 the same for every destination: a value that does not vary by row is something

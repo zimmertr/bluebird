@@ -282,17 +282,14 @@ export const DATA = [
   },
   {
     // Both surfaces that reorder columns ask the shared gesture module when a
-    // press becomes a drag, where it lands and where the ghost sits, and both
-    // commit only a real move on release.
+    // press becomes a drag and where it lands, and both commit only a real move
+    // on release. The header's gesture is its hook, the picker's is inline.
     name: 'column-drag-shared',
-    files: DRAG_SURFACES,
+    files: ['src/components/ColumnsPicker.tsx', 'src/hooks/useColumnDrag.ts'],
     require: [
       { selector: calls('dragBegins'), message: 'Ask dragBegins when a press becomes a drag.' },
       { selector: calls('keyAtPosition'), message: 'Ask keyAtPosition which column is under the pointer.' },
       { selector: calls('dropEdge'), message: 'Ask dropEdge where the column would land.' },
-      { selector: calls('ghostLeft'), message: 'Ask ghostLeft where the ghost sits.' },
-      { selector: named('DRAG_GHOST'), message: 'Draw the ghost with DRAG_GHOST.' },
-      { selector: named('DRAG_INSERT'), message: 'Draw the insert line with DRAG_INSERT.' },
       {
         selector:
           'IfStatement[test.type="LogicalExpression"][test.right.operator="!=="][test.right.left.name="landing"][test.right.right.name="key"]' +
@@ -302,22 +299,51 @@ export const DATA = [
     ],
   },
   {
-    // The header's own half: the drag is tracked on document rather than on
-    // the cell, the resize handle never reaches the reorder, and a finger holds
-    // the gesture.
+    // Both surfaces draw a drag the same way: the ghost where the shared module
+    // puts it, and the insert line in the gap.
+    name: 'column-drag-draw',
+    files: DRAG_SURFACES,
+    require: [
+      { selector: calls('ghostLeft'), message: 'Ask ghostLeft where the ghost sits.' },
+      { selector: named('DRAG_GHOST'), message: 'Draw the ghost with DRAG_GHOST.' },
+      { selector: named('DRAG_INSERT'), message: 'Draw the insert line with DRAG_INSERT.' },
+    ],
+  },
+  {
+    // A finger holds the header's gesture rather than scrolling the page, and
+    // the header takes both gestures from their hooks, where the checks above
+    // hold them, rather than spelling one inline again.
     name: 'column-drag-header',
     files: ['src/components/ResultsTableHeader.tsx'],
     require: [
+      { selector: 'Literal[value="touch-none"]', message: 'Hold the touch gesture with touch-none.' },
+      { selector: calls('useColumnDrag'), message: 'Take the column drag from useColumnDrag.' },
+      { selector: calls('useColumnResize'), message: 'Take the column resize from useColumnResize.' },
+    ],
+  },
+  {
+    // Both header gestures are tracked on document rather than on the cell: a
+    // drag leaves the cell it started in on its first frame.
+    name: 'column-gesture-document',
+    files: ['src/hooks/useColumnDrag.ts', 'src/hooks/useColumnResize.ts'],
+    require: [
       {
         selector: 'CallExpression[callee.object.name="document"][callee.property.name="addEventListener"][arguments.0.value="pointermove"]',
-        message: 'Track the header drag on document.',
+        message: 'Track the header gesture on document.',
       },
+    ],
+  },
+  {
+    // The resize handle sits inside the header, so its press must never reach
+    // the reorder or the sort.
+    name: 'column-resize-handle',
+    files: ['src/hooks/useColumnResize.ts'],
+    require: [
       {
         selector:
-          'FunctionDeclaration[id.name="beginColumnResize"] CallExpression[callee.object.name="e"][callee.property.name="stopPropagation"]',
+          ':matches(FunctionDeclaration, FunctionExpression)[id.name="beginColumnResize"] CallExpression[callee.object.name="e"][callee.property.name="stopPropagation"]',
         message: 'Keep the resize handle from reaching the reorder.',
       },
-      { selector: 'Literal[value="touch-none"]', message: 'Hold the touch gesture with touch-none.' },
     ],
   },
   {

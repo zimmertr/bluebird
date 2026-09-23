@@ -1,7 +1,7 @@
 // Several models' answers over the charted destinations (issue #232).
 //
 // A drill-down rather than a knob: it changes nothing about the ranking, the
-// markers, the CSV or `present.ts`. Every charted destination is drawn under
+// markers, the CSV's numbers or `present.ts`. Every charted destination is drawn under
 // every picked model, so the chart holds one line per pair.
 //
 // Which models are picked is panel state, held beside the ranking model in the
@@ -11,13 +11,10 @@
 
 import { DestinationResult, HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
-import {
-  ChartLine,
-  comparedLineLabel,
-  cutSeriesAfter,
-  gridRemapper,
-} from './chartData'
+import { ChartLine, comparedLineLabel, gridRemapper } from './chartData'
 import { HOUR_MS } from './forecastWindow'
+import { FAMILY_KEYS } from '../metrics'
+import { listPhrase } from './notices'
 import type { WeatherResult } from './openMeteo'
 import type { WeatherSeries } from './openMeteoAggregate'
 
@@ -43,15 +40,17 @@ export function isBlend(
 }
 
 /**
- * Where every line on a comparison has to stop: the analyzed window's end, or
- * the nearest model's reach, whichever comes first.
+ * The last hour a model can answer inside the analyzed window: the window's
+ * end, or the nearest model's reach, whichever comes first.
  *
- * Aggregates over ragged windows are the dishonest half of this feature — an
- * "average wind" covering ten days for one model and three for another,
- * presented as one comparison — so the whole chart is clamped to the shortest
- * reach among the models on it, the analysis model included. Only the far end
- * moves: `forecast_hours` counts hours ahead of NOW, and a window in the past
- * is answered by every model alike.
+ * Two readers, and neither of them cuts a line (#493). The fetch asks each
+ * compared model only for the hours it has, which is a spend decision: past
+ * its reach a model answers nulls that still cost a weighted call. The chart
+ * and the table read the same instant to SAY where a model stops, with a
+ * dashed line and an asterisk, because hiding the longer models' hours to make
+ * the lines end together hid real data and left the table's ragged aggregates
+ * standing anyway. Only the far end moves: `forecast_hours` counts hours ahead
+ * of NOW, and a window in the past is answered by every model alike.
  */
 export function compareEndMs(
   windowEndMs: number,
@@ -182,7 +181,8 @@ export function drawnModelIds(
  * the analysis itself runs, reached through the same `fetchWeather` — so a
  * compared line and a re-analysis under that model cannot disagree about a
  * number. This only re-indexes them by timestamp, the way a pinned row is
- * re-indexed, since a clamped comparison covers fewer hours than the grid.
+ * re-indexed, since a model whose reach ends inside the window covers fewer
+ * hours than the grid.
  *
  * `aqi` is all nulls and that is not a gap: air quality comes from CAMS
  * whatever forecast model ranks the field, so there is no second answer to
@@ -231,8 +231,6 @@ export function compareSeries(
   destinations: readonly CompareDestination[],
   models: readonly CompareModel[],
   series: Readonly<Record<string, HourlySeries | null>>,
-  times: readonly number[],
-  endMs: number | null,
   colors: Readonly<Record<string, string>>,
 ): ChartLine[] {
   const lines: ChartLine[] = []
@@ -247,7 +245,7 @@ export function compareSeries(
         key: `model:${pair}`,
         label: comparedLineLabel(destination.rank, destination.name, model.label),
         color: pairColor(colors, model.id, destination.key, destination.color),
-        series: cutSeriesAfter(times, held, endMs),
+        series: held,
       })
     }
   }
@@ -275,6 +273,96 @@ export interface ModelRow extends DestinationResult {
    * places. The number is the destination's, so it repeats down its group.
    */
   rank: number
+  /**
+   * Where this model's forecast ends, set only when that is before the
+   * analyzed window's end. Its weather aggregates then cover fewer hours than
+   * the ranking model's row beside it, which the table marks with `*` and the
+   * file states in its metadata block. Absent on the ranking model's row: the
+   * calendar clamps the window to that model's reach, so it always covers it.
+   */
+  coverageEndMs?: number
+}
+
+/**
+ * The result fields a compared model's own fetch answers: every weather
+ * aggregate in `WeatherAggregates`. Only these can cover fewer hours on a
+ * short model's row. Air quality, snow depth and the cloud columns are copied
+ * from the report (see `modelRowsFor`), so they span the whole window
+ * whatever model the row names.
+ */
+const MODEL_AGGREGATE_KEYS: ReadonlySet<string> = new Set([
+  ...FAMILY_KEYS.precip,
+  ...FAMILY_KEYS.temp,
+  ...FAMILY_KEYS.wind,
+  ...FAMILY_KEYS.freeze,
+])
+
+/**
+ * Does this cell carry a number aggregated over fewer hours than the window?
+ * True for a model aggregate on a row whose model ends inside the window.
+ */
+export function isPartialCell(row: DestinationResult, key: string): boolean {
+  return (row as ModelRow).coverageEndMs !== undefined && MODEL_AGGREGATE_KEYS.has(key)
+}
+
+/**
+ * The line under the results table when a displayed row covers fewer hours.
+ * It names no model: the Model column on every marked row already does, so
+ * the note stays one fixed line whatever the model count.
+ */
+export const PARTIAL_COVERAGE_NOTE = '* Partial model coverage. Data is aggregated over fewer hours.'
+
+/** One compared model that ends inside the window, and where. */
+export interface ModelEnd {
+  label: string
+  endMs: number
+}
+
+/**
+ * The models that end early among the rows on display, in the order given.
+ *
+ * `order` is the picker's order, which is the order the footnote and the
+ * file's metadata rows name them in. Read off the rows rather than off the
+ * selection, so a model with no row on screen (hidden, or with no data at any
+ * displayed spot) is named by neither.
+ */
+export function partialModels(
+  order: readonly CompareModel[],
+  rows: readonly DestinationResult[],
+): ModelEnd[] {
+  const ends = new Map<string, number>()
+  for (const row of rows) {
+    const end = (row as ModelRow).coverageEndMs
+    if (end !== undefined) ends.set((row as ModelRow).modelId, end)
+  }
+  return order.flatMap((m) => {
+    const endMs = ends.get(m.id)
+    return endMs === undefined ? [] : [{ label: m.label, endMs }]
+  })
+}
+
+/** One dashed line on the chart, and the model names its label carries. */
+export interface ModelEndLine {
+  endMs: number
+  label: string
+}
+
+/**
+ * The chart's end lines: one per instant, not one per model.
+ *
+ * Two models with one reach end on the same hour, and two lines there would
+ * draw on top of each other with their labels overprinted. One line whose
+ * label names both says the same thing legibly. First-seen order, so the
+ * names read in the order given, which is the picker's.
+ */
+export function modelEndLines(ends: readonly ModelEnd[]): ModelEndLine[] {
+  const byEnd = new Map<number, string[]>()
+  for (const { label, endMs } of ends) {
+    const labels = byEnd.get(endMs)
+    if (labels) labels.push(label)
+    else byEnd.set(endMs, [label])
+  }
+  return [...byEnd].map(([endMs, labels]) => ({ endMs, label: listPhrase(labels) }))
 }
 
 /**
@@ -301,6 +389,9 @@ export interface ModelRow extends DestinationResult {
  * forecast of calm; the panel's own warning is what says a model came back
  * empty. So a destination need not appear once per model — it appears once
  * per model that answered.
+ *
+ * `ends` holds, by model id, where each compared model ends when that is
+ * inside the window. A row from such a model carries it as `coverageEndMs`.
  */
 export function modelRowsFor(
   rows: readonly DestinationResult[],
@@ -308,6 +399,7 @@ export function modelRowsFor(
   rankingId: string,
   fetched: Readonly<Record<string, WeatherResult>>,
   keyOf: (row: DestinationResult) => string,
+  ends: Readonly<Record<string, number>> = {},
 ): ModelRow[] {
   const out: ModelRow[] = []
   rows.forEach((row, at) => {
@@ -336,6 +428,7 @@ export function modelRowsFor(
         rank,
         modelId: model.id,
         modelLabel: model.label,
+        ...(ends[model.id] !== undefined ? { coverageEndMs: ends[model.id] } : {}),
       })
     }
   })

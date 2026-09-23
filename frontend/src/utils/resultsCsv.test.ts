@@ -726,6 +726,65 @@ describe('the forecast window in the file', () => {
       expect(csv).not.toContain("'2026-09-18")
     })
 
+    // A compared model that ends inside the window (#493): one row each, after
+    // the window's end, in the order given, with the numbers left plain.
+    describe('a model that ends early', () => {
+      // 02:00 in Los Angeles on 2026-09-20, inside WHOLE_DAYS.
+      const HRRR_END = Date.UTC(2026, 8, 20, 9, 0)
+      const IFS_END = Date.UTC(2026, 8, 21, 9, 0)
+
+      it('writes its end after the window end', () => {
+        const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, {
+          window: WHOLE_DAYS,
+          timeZone: LA,
+          modelEnds: [{ label: 'NOAA HRRR', endMs: HRRR_END }],
+        })
+        const all = lines(csv)
+        expect(all.slice(3, 6)).toEqual([
+          START_LINE,
+          END_LINE,
+          'Forecast end (NOAA HRRR),2026-09-20T02:00-07:00',
+        ])
+        expect(all[6]).toBe('')
+      })
+
+      // Two models that end together are still two rows: a reader looks a
+      // model up by its name.
+      it('writes one row per model in the order given, equal ends included', () => {
+        const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, {
+          window: WHOLE_DAYS,
+          timeZone: LA,
+          modelEnds: [
+            { label: 'NOAA HRRR', endMs: HRRR_END },
+            { label: 'ECMWF IFS', endMs: IFS_END },
+            { label: 'DWD ICON', endMs: HRRR_END },
+          ],
+        })
+        expect(lines(csv).slice(5, 8)).toEqual([
+          'Forecast end (NOAA HRRR),2026-09-20T02:00-07:00',
+          'Forecast end (ECMWF IFS),2026-09-21T02:00-07:00',
+          'Forecast end (DWD ICON),2026-09-20T02:00-07:00',
+        ])
+      })
+
+      // The table's `*` is a mark for a reader; in a file it would turn every
+      // marked number into text.
+      it('leaves every number plain', () => {
+        const short = { ...row({ precip_total_in: 0.25 }), modelId: 'gfs_hrrr', modelLabel: 'NOAA HRRR', rank: 1, coverageEndMs: HRRR_END }
+        const csv = buildResultsCsv([short], WINDOW_COLUMNS, NO_FIRES, {
+          window: WHOLE_DAYS,
+          timeZone: LA,
+          modelEnds: [{ label: 'NOAA HRRR', endMs: HRRR_END }],
+        })
+        expect(csv).not.toContain('*')
+      })
+
+      it('writes no model row when no model ends early', () => {
+        const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, { window: WHOLE_DAYS, timeZone: LA })
+        expect(csv).not.toContain('Forecast end (')
+      })
+    })
+
     it('leave the BOM and the line endings alone', () => {
       const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, {
         window: WHOLE_DAYS,
