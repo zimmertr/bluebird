@@ -10,8 +10,8 @@ import type { DestinationsRequest } from '../types'
  * surfaced in the banner in Chrome's words rather than in ours, against the
  * rule in docs/STYLES.md that no raw exception message reaches the reader
  * (issue #381). Closing it at the primitive is what keeps the next caller from
- * reintroducing it; `apiFetch.test.ts` pins that no file outside this one and
- * openMeteo.ts reaches for `fetch` at all.
+ * reintroducing it; the linter's `one-api-door` check fails any file outside
+ * this one and openMeteo.ts that reaches for `fetch` at all.
  *
  * Open-Meteo stays on its own stack in utils/openMeteo.ts. It is a different
  * service with a different error taxonomy (a quota, a model domain, a pacer),

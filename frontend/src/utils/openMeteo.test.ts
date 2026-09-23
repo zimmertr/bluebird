@@ -26,8 +26,9 @@ import { archiveBoundaryMs, windowSource } from './forecastWindow'
 import useAnalyzeSource from '../hooks/useAnalyze.ts?raw'
 import useModelCompareSource from '../hooks/useModelCompare.ts?raw'
 // The text of the three modules that throw or spell an Open-Meteo failure, for
-// the same reason: a message is copy the moment it is thrown, and the guard
-// below reads every throw in one pass.
+// the same reason: the unreadable-reply sentence below is compared against the
+// constant the modules export. Every other throw is held to the standing tail
+// by the linter (tools/eslint/checks), which reads the throw rather than text.
 import openMeteoSource from './openMeteo.ts?raw'
 import aggregateSource from './openMeteoAggregate.ts?raw'
 import errorsSource from './openMeteoErrors.ts?raw'
@@ -1120,24 +1121,8 @@ describe('the messages the Open-Meteo modules throw', () => {
   // `e.message` in the notice box unchanged, so a message thrown here is copy
   // the reader meets. `docs/STYLES.md` gives copy one shape: a sentence, no
   // raw exception text, and the standing `Try again later.` tail. #431 found
-  // a throw carrying two counts and no tail.
-  //
-  // A class name, a quote, then everything up to the matching quote: the
-  // messages here are one argument, and a `throw new X(CONST)` carries no
-  // literal to read, which is the point of a shared constant.
-  const THROWN_LITERAL = /throw new (\w+)\(\s*(['"`])((?:\\.|(?!\2)[\s\S])*)\2/g
-
-  it('end with the standing tail, and carry no counts', () => {
-    const thrown = [...throwingSources.matchAll(THROWN_LITERAL)]
-      // A cancel is the one throw nothing shows: `useAnalyze` returns on an
-      // AbortError rather than reporting it.
-      .filter(([, cls]) => cls !== 'DOMException')
-    expect(thrown.length).toBeGreaterThan(0)
-    for (const [, , , message] of thrown) {
-      expect(message).toMatch(/Try again later\.$/)
-    }
-  })
-
+  // a throw carrying two counts and no tail; the linter holds every throw to
+  // the tail now.
   it('give an unreadable reply one spelling', () => {
     // The sentence `_freeze_to_ft` and every other unusable body raises in
     // backend/app/services/aggregation.py.

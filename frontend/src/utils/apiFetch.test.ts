@@ -2,25 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DestinationsRequest } from '../types'
 import { API_UNREACHABLE_MESSAGE, ApiUnreachable, apiFetch, apiJson, postDestinations } from './apiFetch'
 
-// Every source file under src/, read as text through the `?raw` trick
-// branding.test.ts and useCapabilities.test.ts use. Nothing here executes a
-// module; this is a lint, not a run.
-const globbed = import.meta.glob('../**/*.{ts,tsx}', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>
-
-// Keys arrive relative to THIS file, so a sibling reads './x.ts' and everything
-// else '../dir/x.ts'. Re-spelled from src/ so one list of exceptions covers
-// both shapes and a path in a failure message says where the file actually is.
-const sources: Record<string, string> = Object.fromEntries(
-  Object.entries(globbed).map(([path, text]) => [
-    path.startsWith('../') ? path.slice(3) : `utils/${path.slice(2)}`,
-    text,
-  ]),
-)
-
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -106,33 +87,5 @@ describe('postDestinations', () => {
       body: JSON.stringify(body),
       signal: controller.signal,
     })
-  })
-})
-
-// The leak is closed at the primitive, which only holds while the primitive is
-// the only door. Open-Meteo keeps its own, because its taxonomy is about a
-// quota and a model domain rather than about our pod being up.
-describe('our API has one door', () => {
-  const ALLOWED = ['utils/apiFetch.ts', 'utils/openMeteo.ts']
-  // Spelled in pieces so this file's own text is not a match. No space before
-  // the paren: prose about a fetch (like this) is not a call.
-  const CALL = new RegExp('(?<![A-Za-z0-9_$])' + 'fetch' + '\\(')
-
-  it('is the only file under src that calls the browser primitive', () => {
-    const offenders: string[] = []
-    for (const [path, text] of Object.entries(sources)) {
-      if (/\.test\.tsx?$/.test(path) || ALLOWED.includes(path)) continue
-      const m = CALL.exec(text)
-      if (m) offenders.push(`${path}:${text.slice(0, m.index).split('\n').length}`)
-    }
-    expect(offenders, 'call apiFetch/apiJson from utils/apiFetch.ts instead').toEqual([])
-  })
-
-  it('reads the files it claims to lint, on both sides of its own folder', () => {
-    const paths = Object.keys(sources)
-    expect(paths).toContain('hooks/useAnalyze.ts')
-    expect(paths).toContain('utils/wildfires.ts')
-    expect(paths).toContain('utils/openMeteo.ts')
-    expect(paths).toContain('App.tsx')
   })
 })

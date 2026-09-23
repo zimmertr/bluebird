@@ -1,9 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-// `?raw` gives the file's text without executing it, the drift-guard idiom
-// styles.test.ts and metrics.test.ts already use: App.tsx is a component this
-// node-env suite cannot render, so the one rule about it is asserted against
-// its source.
-import appSource from '../App.tsx?raw'
 import { FAMILY_KEYS } from '../metrics'
 import { WILDFIRE_KEY } from './tableColumns'
 import { hasWelcomed, readViewPrefs, setWelcomed, writeViewPrefs } from './viewPrefs'
@@ -228,13 +223,5 @@ describe('a storage that will not answer', () => {
   it('yields the defaults on a stored value that is not JSON', () => {
     vi.stubGlobal('localStorage', fakeStorage({ [VIEW_KEY]: '{not json' }))
     expect(readViewPrefs().modeChosen).toBeNull()
-  })
-})
-
-// The point of the module: nothing else in the app reaches for storage itself,
-// or the migration and the guards go back to being one call site's business.
-describe('App.tsx', () => {
-  it('names no storage of its own', () => {
-    expect(appSource).not.toMatch(/localStorage/)
   })
 })

@@ -6,9 +6,8 @@ import { dirname, join } from 'path'
 // @ts-expect-error node builtin, untyped in this project
 import { fileURLToPath } from 'url'
 
-// Same `?raw` idiom legal.test.ts and styles.test.ts use: the files are read as
-// text, so this stays a pure node test with no DOM.
-import app from './App.tsx?raw'
+// Same `?raw` idiom legal.test.ts and styles.test.ts use: the map module is
+// read as text so the style's host can be compared with index.html.
 import basemap from './map/basemap.ts?raw'
 import { AIR_QUALITY_URL, FORECAST_URL } from './utils/openMeteo'
 
@@ -46,15 +45,6 @@ describe('preconnect hints', () => {
   })
 })
 
-describe('the chart is not in the entry chunk', () => {
-  it('imports TimeSeriesChart lazily', () => {
-    // recharts is ~105 KB gzip. The map is the first thing on screen and the
-    // chart is not, so a reader who never opens one must not pay for it.
-    expect(app).toContain("lazy(() => import('./components/TimeSeriesChart'))")
-    expect(app).not.toContain("import TimeSeriesChart from './components/TimeSeriesChart'")
-  })
-})
-
 // Byte budgets, not exact sizes: a re-export of an image is allowed to move a
 // few hundred bytes, and a rewrite that puts the 1.4 MB original back is not.
 // The numbers are the measured sizes plus room (issue #337).
@@ -74,25 +64,10 @@ describe('image budgets', () => {
     expect(statSync(repoFile(path)).size).toBeLessThanOrEqual(limit)
   })
 
-  it('draws the logo from the hashed asset, never from public/', () => {
-    // `public/icon.png` keeps a stable unhashed name so a scraper can find it,
-    // and the cache-header middleware answers `no-cache` for exactly that
-    // reason (#354). Anything the app draws should carry a content hash.
-    const sources = import.meta.glob([
-      './components/*.tsx',
-      './map/**/*.{ts,tsx}',
-      '!./components/*.test.tsx',
-      '!./map/**/*.test.{ts,tsx}',
-    ], {
-      query: '?raw',
-      import: 'default',
-      eager: true,
-    }) as Record<string, string>
-    // The map's modules draw too, so they are read with the components.
-    expect(Object.keys(sources)).toContain('./map/basemap.ts')
-    for (const [name, source] of Object.entries({ './App.tsx': app, ...sources })) {
-      expect(source, name).not.toContain('"/icon.png"')
-    }
+  // The components are held to the hashed asset by the linter
+  // (tools/eslint/checks); what is left is the other half, which the linter
+  // cannot read.
+  it('points the entry document at the unhashed icon', () => {
     // The entry documents are the exception: og:image needs an absolute URL.
     expect(indexHtml).toContain('href="/icon.png"')
   })

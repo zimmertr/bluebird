@@ -734,11 +734,13 @@ flowchart LR
   are typescript-eslint recommended, `react-hooks/rules-of-hooks` and
   `react-hooks/exhaustive-deps` as errors, and the syntactic class and metric
   bans that used to be regular expressions inside `styles.test.ts` and
-  `metrics.test.ts`. Warnings fail the job (`--max-warnings 0`), which is what
-  makes a suppression that silences nothing a build error. The script then runs
-  `tools/eslint/selftest.js`, which lints ten fixtures and fails unless each ban
-  reports its own violation and nothing else: a selector that matches nothing
-  otherwise reads as a clean tree.
+  `metrics.test.ts`, plus the per-file checks under `tools/eslint/checks/` that
+  used to be `?raw` text tests (issue #408). Warnings fail the job
+  (`--max-warnings 0`), which is what makes a suppression that silences nothing
+  a build error. The script then runs `tools/eslint/selftest.js`, which lints
+  the fixtures and fails unless each ban reports its own violation and nothing
+  else, and each per-file check reports every message it carries: a selector
+  that matches nothing otherwise reads as a clean tree.
 - `pr.yml`'s docker-build job loads the amd64 image into the runner and scans it
   with **Trivy** (`ignore-unfixed`: Debian/Alpine no-fix CVEs never gate). The
   report lands in the job step summary and as a **sticky PR comment** (matched by

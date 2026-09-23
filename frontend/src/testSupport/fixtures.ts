@@ -2,6 +2,7 @@ import type { DestinationResult, HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
+import type { CellBox, GridCell } from '../utils/forecastGridLattice'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -54,6 +55,35 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     snow_depth_in: null,
     ...over,
   }
+}
+
+/**
+ * One forecast-grid sample. A lattice point rather than a destination, so it
+ * carries the grid's own name and type, and a number on every metric the
+ * raster and the arrows colour by, where `resultRow` would leave AQI null.
+ */
+export function gridRow(over: Partial<DestinationResult> = {}): DestinationResult {
+  return resultRow({
+    name: 'Forecast grid cell',
+    type: 'grid',
+    latitude: 46.5,
+    longitude: -121.6,
+    temp_min_f: 44.2,
+    temp_max_f: 74.9,
+    temp_avg_f: 62.1,
+    wind_min_mph: 1,
+    wind_max_mph: 10,
+    wind_avg_mph: 6.4,
+    aqi_avg: 30,
+    aqi_min: 40,
+    aqi_max: 40,
+    ...over,
+  })
+}
+
+/** One sampled cell. `index` is the VIRTUAL lattice index, never an array position. */
+export function gridCell(box: CellBox, row: DestinationResult, index = 0): GridCell {
+  return { index, box, row }
 }
 
 // `WeatherResult` is nullable, because a batch answers null for a location the

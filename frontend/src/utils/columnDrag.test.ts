@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import resultsTableSource from '../components/ResultsTable.tsx?raw'
-import stylesSource from '../styles.ts?raw'
-import columnsPickerSource from '../components/ColumnsPicker.tsx?raw'
 import {
   DRAG_THRESHOLD_PX,
   LONG_PRESS_MS,
@@ -120,76 +117,5 @@ describe('where the ghost sits', () => {
 
   it('stays on screen even when neither side has room', () => {
     expect(ghostLeft(10, 120)).toBeGreaterThanOrEqual(4)
-  })
-})
-
-// The two surfaces and the traps between them. Asserted against the source
-// text, like every other guard over a component here, because Vitest has no
-// DOM to render either one into.
-describe('the two surfaces that reorder columns', () => {
-  it('reads both sources it claims to lint', () => {
-    expect(resultsTableSource.length).toBeGreaterThan(500)
-    expect(columnsPickerSource.length).toBeGreaterThan(500)
-  })
-
-  // Both ask this module rather than deciding for themselves, which is what
-  // keeps a mouse and a finger answering the same question on both surfaces.
-  it('asks this module when a press becomes a drag', () => {
-    expect(resultsTableSource).toContain('dragBegins(')
-    expect(columnsPickerSource).toContain('dragBegins(')
-    expect(resultsTableSource).toContain('keyAtPosition(')
-    expect(columnsPickerSource).toContain('keyAtPosition(')
-  })
-
-  // A drag leaves the cell it began in on its first frame, so a pointermove
-  // over a sibling never reaches that cell. The header listens on document for
-  // the same reason the resize drag above it does; losing this makes the
-  // header drag silently do nothing.
-  it('tracks the header drag on document, not on the cell', () => {
-    expect(resultsTableSource).toContain("document.addEventListener('pointermove'")
-  })
-
-  // A press on the resize handle must never also move the column. The handle
-  // stops its own pointerdown, and that is the whole guard.
-  it('keeps the resize handle from reaching the reorder', () => {
-    const resize = resultsTableSource.slice(
-      resultsTableSource.indexOf('function beginColumnResize'),
-      resultsTableSource.indexOf('function autoFitColumn'),
-    )
-    expect(resize).toContain('e.stopPropagation()')
-  })
-
-  // Both draw the same two pictures, and the move waits for the release: a
-  // reorder on every frame moves the list under the hand that is still
-  // choosing.
-  it('draws a ghost and a line on both surfaces, and commits on release', () => {
-    for (const source of [resultsTableSource, columnsPickerSource]) {
-      expect(source).toContain('DRAG_GHOST')
-      expect(source).toContain('DRAG_INSERT')
-      expect(source).toContain('dropEdge(')
-      expect(source).toContain('ghostLeft(')
-      // The one call that moves anything sits in the release handler.
-      expect(source).toContain('landing !== key) onColumnMove(key, landing)')
-    }
-  })
-
-  // The ghost follows the pointer, so anything it can be hit-tested through is
-  // a drag that cannot see the column underneath it.
-  it('never lets the ghost take the pointer', () => {
-    expect(stylesSource).toContain('pointer-events-none fixed')
-  })
-
-  // The browser claims an untouched gesture for scrolling, and the drag then
-  // gets no second pointer event on a phone.
-  it('holds the touch gesture on both surfaces', () => {
-    expect(resultsTableSource).toContain("'touch-none'")
-    expect(columnsPickerSource).toContain('DRAG_GRIP')
-  })
-
-  // A drag needs a pointer, so the grip carries the keyboard path. Losing it
-  // makes reordering unreachable without a mouse.
-  it('moves a column by the arrow keys too', () => {
-    expect(columnsPickerSource).toContain("e.key === 'ArrowUp'")
-    expect(columnsPickerSource).toContain("e.key === 'ArrowDown'")
   })
 })

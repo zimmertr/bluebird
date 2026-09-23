@@ -42,7 +42,7 @@ ARCHIVE_DATA_DAYS = 365
 
 # Open-Meteo serves a year of history (via the archive endpoint, see above)
 # through ~16 days ahead; the frontend blocks windows outside that band
-# (urlState.ts). These looser bounds are a backstop for direct API callers —
+# (calendarBand.ts). These looser bounds are a backstop for direct API callers —
 # enough slack that a legitimate edge window never gets a false 422, while an
 # egregious one (say, a year ahead) fails fast with a clear message instead of
 # an upstream 400.

@@ -46,7 +46,8 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
   // once per live knob change — so keying on the array ran this scan for a set
   // of destinations that had not changed at all (issue #185). `candidateSetKey`
   // is a value, so React compares it and the scan runs once per real change.
-  // `src/App.test.ts` fails any effect here that takes the rows again.
+  // The linter's `app-chart-selection` check fails any effect here that
+  // takes the rows again.
   //
   // Every destination the chart has NEVER seen — pending or analyzed — arrives
   // selected and colored, so the chart mirrors the table by default and a

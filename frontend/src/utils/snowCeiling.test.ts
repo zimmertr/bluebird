@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { SNOW_DEPTH_CEILING_IN, isSnowDepthKey, snowCellText } from './snowCeiling'
-import table from '../components/ResultsTable.tsx?raw'
-import popup from './popupRows.ts?raw'
-import csv from './resultsCsv.ts?raw'
 import { FAMILY_KEYS } from '../metrics'
 import { COLUMNS } from './tableColumns'
 
@@ -55,22 +52,5 @@ describe('snowCellText', () => {
   // the pod and the browser agree on where that file stops counting.
   it('is the ceiling the backend derives', () => {
     expect(SNOW_DEPTH_CEILING_IN).toBe(1290.04)
-  })
-})
-
-describe('the three surfaces that draw the mark', () => {
-  // `ResultsTable.tsx` cannot be tested any other way: Vitest runs node-env
-  // and the table needs a DOM. So the rule is read off the source instead,
-  // which also covers the two surfaces that could have spelled it again.
-  it('each read the one module rather than spelling the mark', () => {
-    for (const [name, source] of [
-      ['ResultsTable.tsx', table],
-      ['popupRows.ts', popup],
-      ['resultsCsv.ts', csv],
-    ] as const) {
-      expect(source, `${name} does not read snowCellText`).toContain('snowCellText')
-      expect(source, `${name} spells the mark itself`).not.toContain('\u2265')
-      expect(source, `${name} spells the ceiling itself`).not.toMatch(/1,?290/)
-    }
   })
 })

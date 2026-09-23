@@ -1,14 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { paceReducer, paceRemainingS, paceWaitLine } from './pacing'
-// `?raw` gives each file's text without executing it, the drift-guard idiom
-// metrics.test.ts and useCapabilities.test.ts already use. A hook needs a DOM
-// the node-env Vitest has not got, so the rule that every paced fetch reports
-// itself is asserted against the source.
-import analyzeSource from '../hooks/useAnalyze.ts?raw'
-import gridSource from '../hooks/useForecastGrid.ts?raw'
-import compareSource from '../hooks/useModelCompare.ts?raw'
-import compareSurfaceSource from '../components/ModelCompare.tsx?raw'
-import appSource from '../App.tsx?raw'
 
 // The countdown three fetches share (#394). The hook around it is wiring, so
 // everything decidable is decided here, where the node-env Vitest can reach it.
@@ -74,79 +65,5 @@ describe('the wait line', () => {
   it('says nothing when nothing is waiting', () => {
     expect(paceWaitLine(null)).toBeNull()
     expect(paceWaitLine(0)).toBeNull()
-  })
-})
-
-// The rule this module exists to hold (#394): a fetch that can be paced says
-// so. `useModelCompare` was the third caller of `fetchWeather` and the one
-// that passed no `onPace`, so a paced comparison showed the reader nothing and
-// read as a hung chart.
-describe('every caller of the shared budget', () => {
-  const callers: [string, string][] = [
-    ['useAnalyze', analyzeSource],
-    ['useForecastGrid', gridSource],
-    ['useModelCompare', compareSource],
-  ]
-
-  it.each(callers)('%s takes its countdown from usePacedFetch', (_name, source) => {
-    expect(source).toContain("from './usePacedFetch'")
-    expect(source).toContain('usePacedFetch()')
-  })
-
-  it.each(callers)('%s hands onPace to the fetch', (_name, source) => {
-    expect(source).toMatch(/onPace[,:]/)
-  })
-
-  it.each(callers)('%s keeps no deadline of its own', (_name, source) => {
-    // One module sets `paceEndMs`. A second copy is how the two that reported
-    // a wait drifted from the one that did not.
-    expect(source).not.toContain('paceEndMs')
-  })
-
-  it('shows the wait on the compare surface', () => {
-    expect(compareSurfaceSource).toContain('paceWaitLine')
-  })
-
-  // The comparison buys its forecasts for the results table as well as the
-  // chart, so the chart's line is not a surface it always has (#433): air
-  // quality ranked, nothing charted, or the table shown by itself all leave a
-  // paced fetch with a wait and nowhere to say it.
-  it('shows the wait under the results bar when the chart cannot', () => {
-    // And nowhere else while the chart has it: one wait said twice is what
-    // naming it in one module was meant to prevent.
-    expect(appSource).toContain(
-      'compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)',
-    )
-  })
-
-  // The grid's wait clears on EVERY chunk, not on the first (#432). A chunk in
-  // hand is a chunk the pacer let through, so there is no count to weigh and
-  // nothing pure to test — which is why the rule is read off the source the
-  // way the ones above are.
-  it('clears the grid wait on every chunk that lands', () => {
-    const chunkLoop = gridSource.match(/for \(let start = 0;[\s\S]*?\n {8}\}/)?.[0] ?? ''
-    expect(chunkLoop, 'the chunk loop was not found').toContain('await fetchWeather(')
-    expect(chunkLoop).toContain('clearPace()')
-    // The clear used to sit in the repaint behind a counter, where the air
-    // quality that repaints late reaches it too and only the first call ever
-    // fired.
-    const repaint = gridSource.match(/function repaint\(\) \{[\s\S]*?\n {4}\}/)?.[0] ?? ''
-    expect(repaint, 'the repaint was not found').toContain('pairCells(')
-    expect(repaint).not.toContain('clearPace()')
-  })
-
-  // And a chunk that paced and then THREW is not going to land either, so the
-  // failure path clears unconditionally — ahead of the gate that decides
-  // whether the layer withdraws, which asks a different question. The two used
-  // to be one branch, so a failure with something already painted left the
-  // countdown running to its deadline over a field that had stopped growing.
-  it('drops the grid wait when a paced chunk fails', () => {
-    const failure = gridSource.match(/\} catch \(err\) \{[\s\S]*?\n {6}\}/)?.[0] ?? ''
-    expect(failure, 'the failure path was not found').toContain('forecast grid fetch failed')
-    const cleared = failure.indexOf('clearPace()')
-    const gate = failure.indexOf('if (painted === 0)')
-    expect(cleared, 'the failure path clears no wait').toBeGreaterThan(-1)
-    expect(gate, 'the withdraw gate was not found').toBeGreaterThan(-1)
-    expect(cleared, 'the clear is back behind the painted gate').toBeLessThan(gate)
   })
 })

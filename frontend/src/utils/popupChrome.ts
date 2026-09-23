@@ -243,7 +243,8 @@ export function popupWidth(canvasWidthPx: number): string {
  * results table draws through `IconExternalLink` (#435). The shape was typed
  * out here until then, which made it the one icon in the app that could drift
  * without anything noticing: the component lint reads the React tree, and this
- * file has none. `styles.test.ts` now fails a glyph spelled here at all.
+ * file has none. The linter's `style-popup-glyph` check now fails a glyph
+ * spelled here at all.
  */
 export function linkIcon(url: string): string {
   return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`

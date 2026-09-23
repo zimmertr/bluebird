@@ -6,19 +6,11 @@ import {
   parseCapabilities,
   reachLabel,
 } from './useCapabilities'
-// `?raw` gives us each file's text without executing it, the same drift-guard
-// idiom metrics.test.ts uses. These assert a cap has one source rather than a
-// copy per surface, which is what issue #152 was open about.
-import appSource from '../App.tsx?raw'
-import controlPanelSource from '../components/ControlPanel.tsx?raw'
-import destinationsSource from '../components/DestinationsSection.tsx?raw'
-import forecastSectionSource from '../components/ForecastSection.tsx?raw'
-import panelMessagesSource from '../utils/panelMessages.ts?raw'
-import mapViewSource from '../components/MapView.tsx?raw'
-import basemapSource from '../map/basemap.ts?raw'
-import calendarSource from '../utils/calendar.ts?raw'
+// `?raw` gives the file's text without executing it. The one text check left
+// here compares forecastWindow.ts against the values the module exports, which
+// a lint rule could only do by copying the numbers. The rest of the rule that a
+// published limit has one source lives in the linter (tools/eslint/checks).
 import forecastWindowSource from '../utils/forecastWindow.ts?raw'
-import openMeteoSource from '../utils/openMeteo.ts?raw'
 import { AQI_LIMIT_DAYS } from '../utils/calendar'
 import {
   FALLBACK_WINDOW_LIMITS,
@@ -203,59 +195,6 @@ describe('parseCapabilities', () => {
   })
 })
 
-describe('the polygon-area cap has one source', () => {
-  const surfaces = [
-    ['App.tsx', appSource],
-    ['ControlPanel.tsx', controlPanelSource],
-    // The section that prints the cap beside the area, and the sentence that
-    // names it under the button.
-    ['DestinationsSection.tsx', destinationsSource],
-    ['panelMessages.ts', panelMessagesSource],
-    ['MapView.tsx', mapViewSource],
-    ['map/basemap.ts', basemapSource],
-  ] as const
-
-  it('is not spelled out in any surface that gates on it', () => {
-    for (const [name, source] of surfaces) {
-      expect(source, `${name} must read the cap from /api/capabilities`).not.toMatch(
-        /100[_,]?000/,
-      )
-    }
-  })
-
-  it('reaches the panel as a prop rather than an import from the map', () => {
-    expect(controlPanelSource).toMatch(/maxAreaKm2: number/)
-    for (const [name, source] of surfaces) {
-      expect(source, `${name} must not resurrect the mirrored constant`).not.toContain(
-        'MAX_AREA_KM2',
-      )
-    }
-  })
-})
-
-// The same rule one edge over (#123). The archive's reach is published, so the
-// calendar reads it off the band it is handed; a number compiled into the
-// calendar or the panel would be the mirrored constant #152 removed, reborn.
-describe('the archive reach has one source', () => {
-  it('is not spelled out in the calendar or in the panel', () => {
-    for (const [name, source] of [
-      ['calendar.ts', calendarSource],
-      ['ControlPanel.tsx', controlPanelSource],
-      ['ForecastSection.tsx', forecastSectionSource],
-      ['panelMessages.ts', panelMessagesSource],
-    ] as const) {
-      expect(source, `${name} must read the reach from /api/capabilities`).not.toMatch(
-        /365/,
-      )
-    }
-  })
-
-  it('reaches the panel as a prop, and the calendar as the band it draws', () => {
-    expect(controlPanelSource).toMatch(/archiveDays: number/)
-    expect(calendarSource).toMatch(/pastDays: number/)
-  })
-})
-
 // The same rule over the last four published limits (#393). `max_past_days`,
 // `max_future_days`, `past_data_days` and `aqi_forecast_days` were published
 // and ignored while the browser computed with copies of its own; now the copies
@@ -284,29 +223,6 @@ describe('the window bounds and the air-quality horizon have one source', () => 
         `forecastWindow.ts must take ${value} as an argument, not spell it`,
       ).not.toMatch(new RegExp(`(?<![\\d-])${value}(?![\\d-])`))
     }
-  })
-
-  // No literal check for the air-quality horizon: it is a single digit, and a
-  // test forbidding that in calendar.ts would fail on an array index. The
-  // guarantee is the shape instead — the day count arrives as an argument, so
-  // there is nowhere for a module-level one to be read from.
-  it('takes the air-quality horizon as an argument rather than a constant', () => {
-    expect(calendarSource).toMatch(/aqiHorizon\(now: Date, aqiDays: number\)/)
-    expect(calendarSource).toMatch(/aqiDays: number/)
-    for (const source of [controlPanelSource, forecastSectionSource, panelMessagesSource]) {
-      expect(source, 'the panel must read the horizon from its props').not.toContain(
-        'AQI_LIMIT_DAYS',
-      )
-    }
-    // The fetch clamps to the same horizon the calendar dims by, so it has to
-    // take it the same way. A fetch clamped at a compiled number under a
-    // calendar drawn at a published one would empty a day drawn as covered.
-    expect(openMeteoSource).toMatch(/aqiForecastDays\?: number/)
-  })
-
-  it('reaches the panel as props, like the two ceilings before it', () => {
-    expect(controlPanelSource).toMatch(/aqiForecastDays: number/)
-    expect(controlPanelSource).toMatch(/windowLimits: WindowLimits/)
   })
 
   // The moment before /api/capabilities answers must behave exactly as the app

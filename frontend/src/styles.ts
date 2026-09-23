@@ -208,8 +208,8 @@ export const RADIUS = {
  * time". A coarse-pointer padding on the ranking rows and nothing else is what
  * broke the panel's rhythm. So these compose into the shared recipes (BUTTON_*,
  * FIELD, CHOICE_ROW, SEGMENT_ITEM, ICON_BUTTON, DAY.cell) and a component
- * never writes one: `styles.test.ts` fails any source that spells a `touch:`
- * utility of its own.
+ * never writes one: the linter (`tools/eslint/eslint.config.js`) fails any
+ * source that spells a `touch:` utility of its own.
  *
  * `min-h` rather than padding, because padding has to be re-derived per font
  * size to land on the same number — which is how BUTTON_PRIMARY's `py-3` came
@@ -328,7 +328,7 @@ export const SURFACE_POPOVER =
  * Every one of these was spelled at a call site before, in fourteen places
  * across five files, which is how the fill and the button that wears it came to
  * disagree about their own contrast. The rule this section exists to make
- * enforceable is in `styles.test.ts`: **no component names a hue.** A component
+ * enforceable is in `tools/eslint/eslint.config.js`: **no component names a hue.** A component
  * says which job it is doing and the answer lives here.
  *
  * ## The fill is a custom shade, and it has to be (#167)
