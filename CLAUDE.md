@@ -107,6 +107,8 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 28 | Cloud onto the weather grid | `analyze._aligned_cloud` | `clientAnalyze.alignCloud` | comments, plus each side's own tests |
 | 29 | Whether a request needs the cloud column for every candidate | `analyze._cloud_eager` | `constraints.namesOnRequestMetric` | comments, plus each side's own tests |
 
+The cloud base detects saturation on relative humidity, and the level cloud fraction must not replace it: Open-Meteo's `cloud_cover_{p}hPa` is a fixed function of that same RH (measured 2026-09-22 on GFS and ECMWF), so it adds variables and no information. `docs/DATA.md` has the variants tested against METARs and why each was declined.
+
 Three things here are deliberately **not** mirrors and must not become ones. Row 23 is read at runtime rather than copied. `FUTURE_LIMIT_DAYS` in `calendar.ts` is Open-Meteo's own measured accept edge, which nothing publishes and the backend does not hold. And `wind_direction_10m` is the browser's alone, which is why row 8 is off by one rather than equal.
 
 ## Architecture

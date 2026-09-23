@@ -456,6 +456,35 @@ cumulus base. The column reached 95 % in 13 of the 59 hours. A lower threshold
 did not help: at 80 to 90 % the median error against the ceiling grew from
 1,976 ft to between 2,365 and 3,000 ft.
 
+The detector was chosen by testing its alternatives on the same hours, so do
+not run these again without new data:
+
+- **The model's own cloud fraction is not a second opinion.** Open-Meteo's
+  `cloud_cover_{p}hPa` is a fixed function of the relative humidity at that
+  level, the same on GFS and ECMWF: 0 % up to 77 % RH, 16 % at 84, 31 % at 89,
+  49 % at 94, 53 % at 95, 70 % at 98 and 100 % at 100. A cover threshold is an
+  RH threshold under another name.
+- **The mid-deck error is the model's dry column, not the detector.** Under
+  ceilings from 3,000 to 8,000 ft, GFS never saturated in 18 of 24 hours, so no
+  threshold or level set can find the deck. ECMWF, with the same detector,
+  missed by a median 756 ft there.
+- **Finer levels do not pay.** Twelve levels (adding 975, 950, 900 and 800 hPa)
+  raise the request from 12 to 16 variables, a third more weight. On GFS that
+  moved the 3,000 to 8,000 ft hits within 1,000 ft from 4 to 7 of 24 and left
+  the median where it was. ECMWF and JMA do not serve those levels at all.
+- **RH over ice finds cirrus but costs the low decks.** Converting RH to RH over
+  ice at 500 to 300 hPa put the base on the cirrus deck in 9 of 15 ECMWF hours,
+  against 3. It also replaced the low answer under a low deck with the cirrus
+  above it, and ECMWF hits under ceilings below 3,000 ft fell from 15 to 10 of
+  20 (within one level spacing). A low deck is the question a summit asks.
+- **Blanking the fallback under a high cover loses more than it saves.** Making
+  the base null when the column is dry and total cover is at or above 50, 70 or
+  90 % halved the GFS hits under ceilings below 3,000 ft, from 16 to 8 of 20.
+  Under a marine deck the fallback's low answer is often right.
+
+The sample is small: three lowland stations near Seattle, one 72-hour weather
+pattern and 59 ceiling hours.
+
 ## Nominatim
 
 The map search box queries only when you press Enter, and that is a policy
