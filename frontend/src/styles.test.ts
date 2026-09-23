@@ -93,6 +93,11 @@ import { EXTERNAL_LINK_PX } from './iconPaths'
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
 import controlPanelSource from './components/ControlPanel.tsx?raw'
+import destinationsSource from './components/DestinationsSection.tsx?raw'
+import forecastSectionSource from './components/ForecastSection.tsx?raw'
+import metricsTableSource from './components/MetricsTable.tsx?raw'
+import panelFooterSource from './components/PanelFooter.tsx?raw'
+import panelMessagesSource from './utils/panelMessages.ts?raw'
 import modelPickerSource from './components/ModelPicker.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
@@ -235,6 +240,16 @@ const sources: Record<string, string> = {
   ) as Record<string, string>),
   './App.tsx': appSource,
 }
+
+// The control panel's frame and every section it renders: the files that
+// together are what `ControlPanel.tsx` alone used to be.
+const PANEL_SOURCES = [
+  controlPanelSource,
+  destinationsSource,
+  forecastSectionSource,
+  metricsTableSource,
+  panelFooterSource,
+]
 
 // The one file allowed to draw an SVG.
 const ICON_MODULE = './components/icons.tsx'
@@ -421,11 +436,15 @@ describe('every component', () => {
     // The Light/Medium/Heavy chips in the map's layer legend, and why the
     // Forecast grid row is faded over a report carrying archive hours (#123).
     './App.tsx': 2,
+    // None. The panel's two tooltips are drawn by its Metrics section, below,
+    // and a zero here is pinned like every count: a tooltip arriving in the
+    // frame is a decision.
+    './components/ControlPanel.tsx': 0,
     // Max results (label + field), and the unknown-value note on the AQI row
     // (label + both boxes). Four `title=` in the source for those two
     // tooltips, because the AQI row is one of five the table maps and its
     // note is spelled once for the label and once for the mapped box.
-    './components/ControlPanel.tsx': 4,
+    './components/MetricsTable.tsx': 4,
     // What Hourly actually does to a multi-day window (label + segment).
     './components/ForecastCalendar.tsx': 2,
     // None. Why the control is faded for an archive window (#123) was a
@@ -522,11 +541,15 @@ describe('control panel sizing', () => {
       expect(source).not.toMatch(/ACCENT\.input\}? [^`"']*\bh-[\d.]+/)
     }
 
-    const rows = controlPanelSource.match(/CHOICE_ROW/g) ?? []
-    const boxes = controlPanelSource.match(/CHOICE_INPUT/g) ?? []
-
-    expect(rows.length).toBeGreaterThan(2)
-    expect(boxes.length).toBe(rows.length)
+    // Per file, because the panel's rows live in two of its sections.
+    let total = 0
+    for (const source of PANEL_SOURCES) {
+      const rows = source.match(/CHOICE_ROW/g) ?? []
+      const boxes = source.match(/CHOICE_INPUT/g) ?? []
+      expect(boxes.length).toBe(rows.length)
+      total += rows.length
+    }
+    expect(total).toBeGreaterThan(2)
   })
 })
 
@@ -1091,7 +1114,7 @@ describe('shared recipes', () => {
   it('sizes the fill segment by its container, never by the panel column', () => {
     expect(SEGMENT_FILL).toContain('w-full')
     expect(SEGMENT_FILL).not.toContain(CONTROL_W)
-    expect(controlPanelSource).toMatch(/\$\{SEGMENT_FILL\} col-span-2/)
+    expect(metricsTableSource).toMatch(/\$\{SEGMENT_FILL\} col-span-2/)
   })
 
   // What the column costs a segment half. Every segment in the panel is the
@@ -1118,15 +1141,15 @@ describe('shared recipes', () => {
   // is allowed to differ, and only between one box column and two: the cap is
   // a single number, so it spans the pair the way a bound spans one.
   it('builds every numeric box in the Metrics section from one shape', () => {
-    const inputs = controlPanelSource.match(/type="number"/g) ?? []
-    const boxed = controlPanelSource.match(/METRIC_BOX(_WIDE)?\}/g) ?? []
+    const inputs = metricsTableSource.match(/type="number"/g) ?? []
+    const boxed = metricsTableSource.match(/METRIC_BOX(_WIDE)?\}/g) ?? []
     expect(inputs.length).toBeGreaterThanOrEqual(2)
     expect(boxed.length).toBe(inputs.length)
-    expect(controlPanelSource).toMatch(/const METRIC_BOX = `\$\{METRIC_BOX_SHAPE\} \$\{METRIC_BOX_W\}`/)
-    expect(controlPanelSource).toMatch(/const METRIC_BOX_WIDE = `\$\{METRIC_BOX_SHAPE\} w-full`/)
+    expect(metricsTableSource).toMatch(/const METRIC_BOX = `\$\{METRIC_BOX_SHAPE\} \$\{METRIC_BOX_W\}`/)
+    expect(metricsTableSource).toMatch(/const METRIC_BOX_WIDE = `\$\{METRIC_BOX_SHAPE\} w-full`/)
     // The wide one spans the two box columns rather than spelling their sum,
     // which would be a second copy of METRIC_BOX_W and the grid gap.
-    expect(controlPanelSource).toMatch(/\$\{METRIC_BOX_WIDE\} col-span-2/)
+    expect(metricsTableSource).toMatch(/\$\{METRIC_BOX_WIDE\} col-span-2/)
   })
 
   // Nothing is drawn inside the Metrics table. A rule there reads as a break
@@ -1135,8 +1158,8 @@ describe('shared recipes', () => {
   // rejected as confusing (TJ, 2026-09-14). What separates the rows that rank
   // from the two that do not is the empty radio column, nothing drawn.
   it('draws no rule inside the Metrics table', () => {
-    const start = controlPanelSource.indexOf('METRICS_GRID}')
-    const grid = controlPanelSource.slice(start, controlPanelSource.indexOf('</section>', start))
+    const start = metricsTableSource.indexOf('METRICS_GRID}')
+    const grid = metricsTableSource.slice(start, metricsTableSource.indexOf('</section>', start))
 
     expect(start).toBeGreaterThan(-1)
     expect(grid).toContain('Rank by')
@@ -1148,7 +1171,7 @@ describe('shared recipes', () => {
   // box columns: both of its edges sit on the boxes it clears, which is what a
   // CONTROL_W button no longer lines up with now that the boxes are narrower.
   it('keeps the clear-filters button under the bound boxes', () => {
-    const button = controlPanelSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
+    const button = metricsTableSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
     expect(button).toContain('col-span-2')
     expect(button).toContain('col-start-3')
     expect(button).not.toContain('CONTROL_W')
@@ -1160,10 +1183,10 @@ describe('shared recipes', () => {
   // last saw it. The condition therefore reaches `disabled`, never a `&&`
   // around the element.
   it('always draws the clear-filters button and disables it instead', () => {
-    const button = controlPanelSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
+    const button = metricsTableSource.match(/onClick=\{onClearFilters\}[\s\S]*?>/)![0]
     expect(button).toContain('disabled={!filtersActive}')
     expect(button).toContain('${DISABLED}')
-    expect(controlPanelSource).not.toContain('{filtersActive && (')
+    expect(metricsTableSource).not.toContain('{filtersActive && (')
   })
 
   // The section's one deliberate break: space above the box headings, telling
@@ -1175,8 +1198,8 @@ describe('shared recipes', () => {
   it('spaces the Metrics headings off the controls above them', () => {
     expect(METRIC_HEAD_GAP).toMatch(/^pt-[\d.]+$/)
 
-    const start = controlPanelSource.indexOf('METRICS_GRID}')
-    const grid = controlPanelSource.slice(start, controlPanelSource.indexOf('</section>', start))
+    const start = metricsTableSource.indexOf('METRICS_GRID}')
+    const grid = metricsTableSource.slice(start, metricsTableSource.indexOf('</section>', start))
     // One per heading cell: the spacer spanning the label and dropdown
     // columns, plus the two headings the EDGES map draws.
     expect(grid.match(/METRIC_HEAD_GAP/g)).toHaveLength(2)
@@ -1269,10 +1292,10 @@ describe('shared recipes', () => {
     )
 
   it('renders every notice box below the Analyze button', () => {
-    const footerNotice = controlPanelSource.indexOf('function FooterNotice(')
-    const panel = controlPanelSource.indexOf('export default function ControlPanel(')
-    const rendered = [...controlPanelSource.matchAll(/<FooterNotice\b/g)]
-    const analyze = controlPanelSource.indexOf('onClick={onAnalyze}')
+    const footerNotice = panelFooterSource.indexOf('function FooterNotice(')
+    const panel = panelFooterSource.indexOf('export default function PanelFooter(')
+    const rendered = [...panelFooterSource.matchAll(/<FooterNotice\b/g)]
+    const analyze = panelFooterSource.indexOf('onClick={onAnalyze}')
 
     expect(footerNotice).toBeGreaterThan(-1)
     expect(analyze).toBeGreaterThan(-1)
@@ -1280,9 +1303,18 @@ describe('shared recipes', () => {
     // button. Two call sites would let a second block open anywhere.
     expect(rendered).toHaveLength(1)
     expect(rendered[0].index).toBeGreaterThan(analyze)
-    for (const at of roleUses(controlPanelSource, 'NOTICE')) {
+    for (const at of roleUses(panelFooterSource, 'NOTICE')) {
       expect(at, 'a NOTICE box outside FooterNotice').toBeGreaterThan(footerNotice)
       expect(at, 'a NOTICE box outside FooterNotice').toBeLessThan(panel)
+    }
+    // The footer is one file of several, so the rest of the panel is held to
+    // the same rule: no box of its own, and no second place the box renders.
+    for (const [path, source] of Object.entries(sources)) {
+      if (path === './components/PanelFooter.tsx') continue
+      expect(source, `${path} renders a notice box`).not.toMatch(/<FooterNotice\b/)
+    }
+    for (const source of PANEL_SOURCES.filter((s) => s !== panelFooterSource)) {
+      expect(roleUses(source, 'NOTICE'), 'a NOTICE box outside the footer').toEqual([])
     }
   })
 
@@ -1293,21 +1325,31 @@ describe('shared recipes', () => {
   it('says why the model control is faded in the message block, not on it', () => {
     const sentence = 'Archive data uses no forecast model.'
     expect(modelPickerSource).not.toContain(sentence)
-    expect(controlPanelSource).toContain(sentence)
-    const messages = controlPanelSource.indexOf('const windowMessages')
+    expect(panelMessagesSource).toContain(sentence)
+    const messages = panelMessagesSource.indexOf('const windowMessages')
     expect(messages).toBeGreaterThan(-1)
-    expect(controlPanelSource.indexOf(sentence)).toBeGreaterThan(messages)
+    expect(panelMessagesSource.indexOf(sentence)).toBeGreaterThan(messages)
   })
 
   it('colours nothing but a notice and the draw counter by status', () => {
-    const panel = controlPanelSource.indexOf('export default function ControlPanel(')
-    const outside = roleUses(controlPanelSource, 'STATUS').filter((at) => at > panel)
+    const section = destinationsSource.indexOf('export default function DestinationsSection(')
+    const outside = roleUses(destinationsSource, 'STATUS').filter((at) => at > section)
     // The one exception, pinned by count the way the tooltip list is: the
     // polygon's draw counter colours its captions by state (points placed, the
     // ring closed, the area over the cap, a large area). Those are a field's own
     // readout beside the field, not messages about the analysis — and a seventh
     // is a notice that has wandered out of the footer.
+    expect(section).toBeGreaterThan(-1)
     expect(outside).toHaveLength(6)
+    // The footer colours by status inside FooterNotice alone, which is
+    // declared above the footer's own body.
+    const footer = panelFooterSource.indexOf('export default function PanelFooter(')
+    expect(footer).toBeGreaterThan(-1)
+    expect(roleUses(panelFooterSource, 'STATUS').filter((at) => at > footer)).toEqual([])
+    // And the rest of the panel colours nothing by status at all.
+    for (const source of [controlPanelSource, forecastSectionSource, metricsTableSource]) {
+      expect(roleUses(source, 'STATUS')).toEqual([])
+    }
   })
 
   // Three rules, none redundant: Firefox reads the appearance property, WebKit
@@ -1996,8 +2038,10 @@ describe('status and notices', () => {
   // second joined it. Spelled from parts: v4 scans this file as raw text and
   // would emit the CSS for a marker class quoted here.
   it('gives the messages the whole text column', () => {
-    expect(controlPanelSource).not.toContain(['list', 'disc'].join('-'))
-    expect(controlPanelSource).not.toContain(['<', 'ul'].join(''))
+    for (const source of PANEL_SOURCES) {
+      expect(source).not.toContain(['list', 'disc'].join('-'))
+      expect(source).not.toContain(['<', 'ul'].join(''))
+    }
   })
 })
 
