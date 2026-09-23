@@ -678,7 +678,7 @@ flowchart LR
 
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
-        checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets"]
+        checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -762,7 +762,26 @@ flowchart LR
   OpenFreeMap is slow teaches everyone to ignore it), and the default mobile
   preset is used, whose throttling is a simulation and therefore reproducible to
   the millisecond. It reports as `Lighthouse Budgets`, and adding it to branch
-  protection is a manual step in the repository settings.
+  protection is a manual step in the repository settings. It also asserts the
+  **accessibility category** as an error, because that score is a set of pass
+  or fail markup checks rather than a timing curve.
+- `pr.yml`'s **Browser Smoke & Axe** job (issue #412) also runs after
+  `docker-build` and rebuilds the image from the same cache. It serves the
+  image on the runner, installs **Chromium alone** with
+  `npx playwright install --with-deps chromium` (the browser folder is cached
+  under the exact Playwright version, since each release pins its own Chromium
+  build), and runs the suite in **`frontend/e2e/`**: draw a ring and analyze,
+  open a share link, and run **axe** on the panel, the results, and the Layers
+  popover. Every third-party host is answered from fixtures, and a request that
+  no handler claims fails the test, so the job spends no Open-Meteo quota and
+  cannot go red on someone else's outage. Axe fails on serious and critical
+  violations only, and there are none today. A violation can only be accepted
+  by an entry in `KNOWN` in `accessibility.spec.ts`, and an entry that stops
+  occurring fails too. It becomes a required check when this job merges. On a
+  red run the HTML report, with a trace and a screenshot per failure, is
+  uploaded as the `playwright-report` artifact. The pinned
+  `mcr.microsoft.com/playwright` image is for local runs only
+  (`docs/DEVELOPMENT.md`); on a runner it would be a 956 MB pull every time.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`.

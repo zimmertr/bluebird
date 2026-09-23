@@ -61,7 +61,7 @@ class SnapshotCache[T]:
         retry_after_failure_s: float,
         describe: Callable[[T], str] = lambda _: "ok",
         clock: Callable[[], float] = time.monotonic,
-    ):
+    ) -> None:
         self._label = label
         self._fetch = fetch
         self._ttl_s = ttl_s

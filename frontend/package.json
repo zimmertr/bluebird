@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.build.json && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "lint": "npm --prefix tools/eslint ci && tools/eslint/node_modules/.bin/eslint --config tools/eslint/eslint.config.js --max-warnings 0 src && node tools/eslint/selftest.js",
+    "lint": "npm --prefix tools/eslint ci && tools/eslint/node_modules/.bin/eslint --config tools/eslint/eslint.config.js --max-warnings 0 src e2e && node tools/eslint/selftest.js",
     "generate:api": "npm --prefix tools/api-types ci && npm --prefix tools/api-types run generate",
     "check:api": "npm --prefix tools/api-types ci && npm --prefix tools/api-types run check"
   },
@@ -35,6 +35,6 @@
     "tailwindcss": "^4.3.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }

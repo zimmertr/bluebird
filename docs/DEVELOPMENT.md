@@ -48,8 +48,10 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 | `make check-api` | `npm run check:api`: the frontend API types still match the committed OpenAPI snapshot |
 | `make test-backend` | `pytest` |
 | `make check-openapi` | `python scripts/generate_openapi.py --check`: the committed snapshot still matches the app |
+| `make typecheck-backend` | `mypy app` at the version `requirements-dev.txt` pins, with the settings in `backend/mypy.ini` |
 | `make lint-backend` | `ruff check backend/` at the version CI pins |
 | `make lighthouse` | the cold-load audit below |
+| `make browser` | the browser suite below |
 
 The `Makefile` is the list of commands, and every target has the same shape.
 This is `make test-frontend`, typed out:
@@ -64,7 +66,7 @@ One Vitest run covers two projects, split by file extension: `node` runs every
 rendered in jsdom and driven with Testing Library). Add `-- --project dom` (or
 `node`) to the `npm test` above to run one of them.
 
-Four things that shape follows from:
+Five things that shape follows from:
 
 - **Every container mounts the repo root**, never `frontend/` or `backend/`
   alone. Two browser suites read the manifests the backend commits under
@@ -80,6 +82,10 @@ Four things that shape follows from:
 - **`lint-frontend` and `check-api` run no `npm ci`.** The linter and the type
   generator are packages apart, and each script installs its own (see the
   notes below).
+- **`typecheck-backend` installs the app's own dependencies**, not mypy
+  alone. The pydantic plugin and the FastAPI and Starlette signatures it
+  checks against come from them, and without them those calls read as `Any`
+  and hide real errors.
 - **`lint-backend` runs from the repo root**, which is what CI does. The rules
   live in `backend/ruff.toml`, and `known-first-party = ["app"]` there is what
   makes the import order the same from either working directory. Ruff is
@@ -99,6 +105,38 @@ The budgets themselves, and why the audit blocks every third-party host, are in
 CI run keeps the same files as a workflow artifact. Measure before and after
 whenever a change could touch what the first screen loads, and put both numbers
 on the PR.
+
+### The browser suite
+
+CI also operates the built image in a browser (issue #412): Playwright draws a
+ring and analyzes, opens a share link, and runs axe on the panel, the results,
+and the Layers popover. Every third-party host is answered from fixtures in
+`frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
+`make browser` runs it locally: it builds the image, serves it on a docker
+network, and runs the suite from the pinned Playwright image with the repo
+root mounted (the fixtures read `backend/tests/data/weather_vectors.json`). A
+failed run leaves the served container running, and `docker rm -f e2e-target`
+clears it.
+
+The image tag, `PLAYWRIGHT_IMAGE` in the `Makefile`, must match the
+`@playwright/test` version in `frontend/e2e/package.json`: each Playwright
+release pins its own browser build, and the image carries the build for its
+own version only. When Dependabot bumps the package, move the tag in the same
+PR. The image brings its own Node, so this is the one container `.node-version`
+does not pick. CI does not use
+the image; it installs Chromium alone on the runner.
+
+The suite is a package apart from `frontend/package.json`, like the two under
+`frontend/tools/`, but for a different reason: Playwright does not fight
+TypeScript 7 (it strips the types itself and carries no TypeScript peer), but a
+devDependency of the app would be downloaded by every `npm ci` the image build
+and the Frontend job run, and neither uses it. `npm run lint` covers
+`frontend/e2e/` without installing it, because the lint reads no types.
+
+Axe fails the run on serious and critical violations only, and the app has
+none today. To accept one for a while, add it to `KNOWN` in
+`frontend/e2e/accessibility.spec.ts` with its issue; an entry that stops
+occurring fails the run.
 
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model

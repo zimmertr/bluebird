@@ -1,0 +1,15 @@
+{
+  "name": "bluebird-forecast-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "description": "The browser smoke suite and the axe audit, run against the built image. A package of its own so the image build's `npm ci` and the Frontend job's never download Playwright, and so the pinned version here is the one tag the Docker image for local runs must match. It carries no TypeScript: Playwright strips the types itself.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0"
+  }
+}

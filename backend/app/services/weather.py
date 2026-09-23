@@ -148,7 +148,7 @@ async def fetch_weather_batch(
 
     spans = _fetch_spans(source, start_dt, end_dt, boundary)
 
-    def key(dest: dict[str, Any]) -> str:
+    def key(dest: dict[str, Any]) -> tuple:
         # `api_key` is deliberately NOT part of the key. The two hosts answer
         # the same model the same way for the same location and window, so
         # keying on the key would split one cache into a copy per caller and buy

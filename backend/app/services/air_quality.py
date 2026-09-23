@@ -70,7 +70,7 @@ async def fetch_aqi_batch(
         log.info("AQI window starts beyond the ~%dd forecast horizon — skipping fetch", MAX_FORECAST_DAYS)
         return [None] * len(destinations)
 
-    def key(dest: dict[str, Any]) -> str:
+    def key(dest: dict[str, Any]) -> tuple:
         # Keyed on the caller's window rather than the clamped one, so an entry
         # answers the question that was asked. `api_key` is left out for the
         # reason the weather service leaves it out: the two hosts answer the
