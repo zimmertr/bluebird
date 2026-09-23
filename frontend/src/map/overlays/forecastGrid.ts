@@ -12,7 +12,9 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import type { SortBy } from '../../types'
-import { WIND_ARROW_IMAGE, emptyFC, makeArrowImage, setSource } from '../basemap'
+import { emptyFC, setSource } from '../basemap'
+import { WIND_ARROW_IMAGE, makeArrowImage } from '../resultsLayer'
+import { windArrowsShowing } from '../../utils/resultFeatures'
 import {
   gridArrowFeatures,
   gridImageCoordinates,
@@ -195,6 +197,7 @@ export function mountForecastGrid(map: maplibregl.Map): ForecastGridOverlay {
   }
 
   let drawn: GridDrawing | null = null
+  let arrowsShowing = false
   return {
     update(next) {
       const { field, arrows } = gridRedraws(drawn, next)
@@ -204,6 +207,12 @@ export function mountForecastGrid(map: maplibregl.Map): ForecastGridOverlay {
       // no hour under the playhead to have a direction.
       if (arrows) {
         setSource(map, 'forecast-grid-arrows', gridArrowFeatures(next.cells, next.playbackIndex))
+      }
+      // The markers' arrows answer to the same rule in `map/resultsLayer.ts`.
+      const showing = windArrowsShowing(next.sortBy, next.playbackIndex)
+      if (showing !== arrowsShowing) {
+        map.setLayoutProperty('forecast-grid-wind', 'visibility', showing ? 'visible' : 'none')
+        arrowsShowing = showing
       }
     },
   }
