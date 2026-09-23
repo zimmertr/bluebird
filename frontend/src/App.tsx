@@ -36,7 +36,7 @@ import {
   modelRowsFor,
   pairColor,
   pairKey,
-  partialCoverageNote,
+  PARTIAL_COVERAGE_NOTE,
   partialModels,
   type ModelEnd,
 } from './utils/modelCompare'
@@ -2029,7 +2029,7 @@ export default function App() {
     [comparedTableRows, compare.shown],
   )
   // A string rather than the list, so the memoized table compares it by value.
-  const partialNote = partial.length > 0 ? partialCoverageNote(partial.map((m) => m.label)) : null
+  const partialNote = partial.length > 0 ? PARTIAL_COVERAGE_NOTE : null
 
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>

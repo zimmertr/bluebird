@@ -16,7 +16,7 @@ import {
   isPartialCell,
   modelEndLines,
   modelRowsFor,
-  partialCoverageNote,
+  PARTIAL_COVERAGE_NOTE,
   partialModels,
   modelSeriesOnGrid,
   pairColor,
@@ -541,24 +541,9 @@ describe('a model that ends early', () => {
     })
   })
 
-  describe('partialCoverageNote', () => {
-    it('names one model', () => {
-      expect(partialCoverageNote(['NOAA HRRR'])).toBe(
-        '* Partial coverage for NOAA HRRR. Data is aggregated over fewer hours.',
-      )
-    })
-
-    it('names two models', () => {
-      expect(partialCoverageNote(['NOAA HRRR', 'DWD ICON'])).toBe(
-        '* Partial coverage for NOAA HRRR and DWD ICON. Data is aggregated over fewer hours.',
-      )
-    })
-
-    it('names three models with no Oxford comma', () => {
-      expect(partialCoverageNote(['NOAA HRRR', 'ECMWF IFS', 'DWD ICON'])).toBe(
-        '* Partial coverage for NOAA HRRR, ECMWF IFS and DWD ICON. Data is aggregated over fewer hours.',
-      )
-    })
+  // Approved verbatim. It names no model, because the Model column does.
+  it('says what the mark means in one fixed line', () => {
+    expect(PARTIAL_COVERAGE_NOTE).toBe('* Partial model coverage. Data is aggregated over fewer hours.')
   })
 
   describe('partialModels', () => {

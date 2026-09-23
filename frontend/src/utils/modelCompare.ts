@@ -307,11 +307,10 @@ export function isPartialCell(row: DestinationResult, key: string): boolean {
 
 /**
  * The line under the results table when a displayed row covers fewer hours.
- * The model list grows in the picker's order and the sentence does not change.
+ * It names no model: the Model column on every marked row already does, so
+ * the note stays one fixed line whatever the model count.
  */
-export function partialCoverageNote(labels: readonly string[]): string {
-  return `* Partial coverage for ${listPhrase(labels)}. Data is aggregated over fewer hours.`
-}
+export const PARTIAL_COVERAGE_NOTE = '* Partial model coverage. Data is aggregated over fewer hours.'
 
 /** One compared model that ends inside the window, and where. */
 export interface ModelEnd {

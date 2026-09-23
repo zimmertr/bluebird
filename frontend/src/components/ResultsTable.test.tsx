@@ -80,7 +80,7 @@ describe('rows', () => {
 // A compared model that ends inside the window (#493): an asterisk on each of
 // its aggregates and one line under the table that says what it means.
 describe('a model that ends early', () => {
-  const NOTE = '* Partial coverage for NOAA HRRR. Data is aggregated over fewer hours.'
+  const NOTE = '* Partial model coverage. Data is aggregated over fewer hours.'
   const SHORT = [
     { ...ROWS[0], precip_total_in: 0.25, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 1 },
     {
@@ -116,7 +116,7 @@ describe('a model that ends early', () => {
 
   it('prints no footnote when no row is short', () => {
     render(<ResultsTable {...props()} />)
-    expect(screen.queryByText(/Partial coverage/)).toBeNull()
+    expect(screen.queryByText(/Partial model coverage/)).toBeNull()
   })
 })
 

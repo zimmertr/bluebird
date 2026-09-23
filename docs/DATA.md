@@ -342,7 +342,7 @@ not one comparison. Nothing is cut to hide that: each model is fetched for the
 hours it has inside the window, every line on the chart runs to its own reach,
 and a dashed line labeled with the model's name marks where a shorter one ends.
 In the results table every weather aggregate on that model's rows carries an
-asterisk, one footnote under the table names the model, and the downloaded CSV
+asterisk, one footnote under the table says what the mark means, and the downloaded CSV
 states its end as a `Forecast end (<model>)` row. The ranking model always covers
 the window, because the calendar shortens the window to its reach.
 
