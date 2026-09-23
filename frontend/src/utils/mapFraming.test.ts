@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { framePadding, pointsWithinView } from './mapFraming'
+import { place } from '../testSupport/fixtures'
+import { framePadding, pointsWithinView, restoredFramePoints } from './mapFraming'
 
 const W = 800
 const H = 600
@@ -60,5 +61,43 @@ describe('framePadding', () => {
   // half of a map that has room for it in the middle.
   it('adds the sheet lift to the bottom edge alone', () => {
     expect(framePadding(INSET, 220)).toEqual({ top: 60, right: 60, bottom: 280, left: 60 })
+  })
+})
+
+describe('restoredFramePoints', () => {
+  const baker = place()
+  const rainier = place({ label: 'Mount Rainier', lat: 46.8523, lon: -121.7603 })
+
+  it('answers nothing for a link with no list and no pins', () => {
+    expect(restoredFramePoints('', [])).toEqual([])
+  })
+
+  // The case #502 found: a link carrying only searched places opened on the
+  // default camera because the frame never saw them.
+  it('frames the searched places a link carries alone', () => {
+    expect(restoredFramePoints('', [baker, rainier])).toEqual([
+      { latitude: 48.7768, longitude: -121.8144 },
+      { latitude: 46.8523, longitude: -121.7603 },
+    ])
+  })
+
+  it('frames a pasted list alone as it did before', () => {
+    expect(restoredFramePoints('47.5,-121.2,Mount Si\n48.1,-120.9', [])).toEqual([
+      { latitude: 47.5, longitude: -121.2 },
+      { latitude: 48.1, longitude: -120.9 },
+    ])
+  })
+
+  it('unions the list and the pins, list rows first', () => {
+    expect(restoredFramePoints('47.5,-121.2,Mount Si', [baker])).toEqual([
+      { latitude: 47.5, longitude: -121.2 },
+      { latitude: 48.7768, longitude: -121.8144 },
+    ])
+  })
+
+  it('keeps the pins when the list parses to nothing', () => {
+    expect(restoredFramePoints('# a comment\nnot a row\n\n', [baker])).toEqual([
+      { latitude: 48.7768, longitude: -121.8144 },
+    ])
   })
 })
