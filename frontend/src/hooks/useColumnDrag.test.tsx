@@ -102,6 +102,11 @@ describe('useColumnDrag', () => {
     expect(result.current.carry).toBeNull()
   })
 
+  it('returns the names the header reads, in order', () => {
+    const { result } = renderHook(() => useColumnDrag(COLUMNS, vi.fn()))
+    expect(Object.keys(result.current)).toEqual(['begin', 'endedDrag', 'carry', 'insert'])
+  })
+
   it('hands back the same callbacks across renders', () => {
     const onColumnMove = vi.fn()
     const { result, rerender } = renderHook(() => useColumnDrag(COLUMNS, onColumnMove))

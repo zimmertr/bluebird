@@ -83,6 +83,12 @@ describe('useColumnResize', () => {
     expect(e.stopPropagation).not.toHaveBeenCalled()
   })
 
+  it('returns the names the header reads, in order', () => {
+    const { tableRef } = handle()
+    const { result } = renderHook(() => useColumnResize({}, vi.fn(), tableRef))
+    expect(Object.keys(result.current)).toEqual(['begin', 'fit'])
+  })
+
   it('hands back the same callbacks across renders', () => {
     const onChange = vi.fn()
     const { tableRef } = handle()
