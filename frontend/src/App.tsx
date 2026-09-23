@@ -23,8 +23,10 @@ import PreviewBanner from './components/PreviewBanner'
 import TimelineTransport from './components/TimelineTransport'
 import ModelCompare from './components/ModelCompare'
 import { useAnalyze } from './hooks/useAnalyze'
-import { modelForecastHours, useCapabilities } from './hooks/useCapabilities'
+import { useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
+import { useForecastSelection } from './hooks/useForecastSelection'
+import { useRankingKnobs } from './hooks/useRankingKnobs'
 import { useModelCompare } from './hooks/useModelCompare'
 import { allocateColors } from './utils/chartColors'
 import {
@@ -46,7 +48,6 @@ import {
   DiscoveryType,
   GeoPolygon,
   HourlySeries,
-  SortBy,
 } from './types'
 import { alignRowToGrid, chartKey } from './utils/chartData'
 import { logoUrl } from './logo'
@@ -111,8 +112,6 @@ import {
   YIELD_EMPTY,
 } from './styles'
 import {
-  DEFAULT_FAMILY_KEY,
-  MetricFamily,
   NOUN,
   familyOf,
   isSnapshotFamily,
@@ -153,9 +152,7 @@ import {
   resolveAxis,
 } from './utils/timeline'
 import {
-  Constraints,
   DiscoveryRecord,
-  NO_CONSTRAINTS,
   constraintFields,
   namesOnRequestMetric,
   discoveryBase,
@@ -193,28 +190,17 @@ import { composeOverlay } from './utils/analyzeOverlay'
 import { paceWaitLine } from './utils/pacing'
 import { Place, isPeakKind } from './utils/geocode'
 import {
-  DEFAULT_LIMIT,
-  DEFAULT_SORT,
   encodeState,
   decodeState,
-  classifyWindow,
-  clampLimit,
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
-  DAY_END,
-  DAY_START,
-  DEFAULT_SELECTION,
-  ForecastSelection,
-  clampSelection,
-  dayKey,
   selectionLocalWindow,
   snapshotCaption,
   windowCaption,
 } from './utils/calendar'
 import { isPointSample, normalizeWindow } from './utils/forecastWindow'
 import {
-  PresentationKnobs,
   cloudNeeded,
   commitNeeded,
   discoveryChanges,
@@ -552,120 +538,32 @@ export default function App() {
   const [destinationTypes, setDestinationTypes] = useState<DiscoveryType[]>(
     () => restored?.destinationTypes ?? [],
   )
-  // What Analyze asks about: the current hour, or days off the calendar (#166).
-  // One value where there used to be four — a mode plus three sets of
-  // timestamps, two of them always dormant. Defaults to the current hour: the
-  // first question most people arrive with is "where is it clear right now", and
-  // it needs no date input, so a fresh load can Analyze without touching Step 2.
-  const [selection, setSelection] = useState<ForecastSelection>(
-    () => restored?.selection ?? DEFAULT_SELECTION,
-  )
-  // 200 rather than 100 because the pasted lists people bring are themselves
-  // often 100 long (peakbagger exports, the examples/ CSVs). At 100 a list plus
-  // anything else — one searched peak, a polygon — spills over the cut on its
-  // first analysis, which is what made #205 visible.
-  const [limit, setLimit] = useState(() =>
-    clampLimit(restored?.limit ?? DEFAULT_LIMIT, caps.maxLimit),
-  )
-  // The initializer above clamps against the compiled fallback, because at
-  // first render that is all useCapabilities has. Re-clamp once the real
-  // ceiling lands so a deployment that publishes a lower one is honored on a
-  // restored link too. Only ever lowers, so it cannot fight the knob.
-  useEffect(() => {
-    setLimit((prev) => clampLimit(prev, caps.maxLimit))
-  }, [caps.maxLimit])
-  // Which model answers. Restored from the link when one names a model, else
-  // the deployment's default. Old links carry no `model=` and inherit it, which
-  // can change their numbers: they were computed under Open-Meteo's
-  // `best_match` blend. That is a release note rather than something to migrate
-  // around — the blend never reported which model it picked, so there is no
-  // honest way to reproduce those numbers. The named default is the closest
-  // thing to a continuation: `best_match` resolved to GFS at Rainier.
-  const [forecastModel, setForecastModel] = useState(
-    () => restored?.forecastModel ?? caps.defaultForecastModel,
-  )
-  // Same shape as the limit re-clamp above: the initializer runs against the
-  // compiled fallback, so adopt the real default once capabilities land — but
-  // only when the link named nothing and the user has not chosen, or this would
-  // overwrite a deliberate pick a moment after it was made.
-  const untouchedModelRef = useRef(restored?.forecastModel === undefined)
-  useEffect(() => {
-    if (!untouchedModelRef.current) return
-    setForecastModel(caps.defaultForecastModel)
-  }, [caps.defaultForecastModel])
-  // The extra models the chart draws beside the ranking one (#232), in the
-  // published order — the picker normalizes it, so this never holds the
-  // ranking model and never holds a duplicate. Panel state rather than chart
-  // state: the model picker is where it is chosen, and a comparison is bought
-  // by the next Analyze like every other model decision, never on load.
-  const [comparedModels, setComparedModels] = useState<string[]>(
-    () => restored?.compareModels ?? [],
-  )
-  // The last model change trimmed the forecast window to fit the new model's
-  // reach. Held rather than derived because a clamp leaves no trace: afterwards
-  // the selection simply is inside the band, and nothing distinguishes a window
-  // that was shortened from one that always fitted.
-  const [modelClamped, setModelClamped] = useState(false)
-  // Both edges of the servable band, from /api/capabilities: the selected
-  // model's reach ahead, and the archive's reach back (#123).
-  const band = {
-    forecastHours: modelForecastHours(caps.forecastModels, forecastModel),
-    pastDays: caps.archiveDays,
-    aqiDays: caps.aqiForecastDays,
-  }
-
-  // The window a model clamp took away, held so switching back to a model
-  // that can serve it restores it (#242 review). A clamp is the picker
-  // editing the user's dates on its own authority; this is the undo. Cleared
-  // whenever the user edits the window themselves (their choice supersedes
-  // the memory) and once an analysis runs (the report pins the window that
-  // was actually asked, and restoring a pre-clamp range after it would
-  // silently disagree with what is on screen).
-  const preClampSelectionRef = useRef<ForecastSelection | null>(null)
-
-  // Every model change reconsiders the window, because the far edge moves with
-  // it — by twelve days between ECMWF and HRRR. Clamping rather than refusing:
-  // the alternative rejects the model over a window chosen before the user knew
-  // the model bounded it, and leaves them to guess by how much to shorten it.
-  function changeForecastModel(id: string) {
-    untouchedModelRef.current = false
-    // The compared set is not touched here. A model is on the chart once
-    // whichever way it got there, and which models are selected is the
-    // picker's own answer (`utils/modelSelection.ts`), handed over beside this
-    // call rather than recomputed from a state this function cannot see.
-    const hours = modelForecastHours(caps.forecastModels, id)
-    // A remembered pre-clamp window comes back the moment a model can serve
-    // it whole (clampSelection returns null for "fits unchanged").
-    const remembered = preClampSelectionRef.current
-    // The band as the NEW model leaves it: only the far edge moves with a model.
-    const nextBand = { ...band, forecastHours: hours }
-    if (remembered && clampSelection(remembered, new Date(), nextBand) === null) {
-      preClampSelectionRef.current = null
-      setSelection(remembered)
-      setModelClamped(false)
-      setForecastModel(id)
-      return
-    }
-    const clamped = clampSelection(selection, new Date(), nextBand)
-    if (clamped) {
-      // Remember the FIRST window in a clamp chain: stepping HRRR → ICON →
-      // GFS should restore the range the user picked, not the wreckage of
-      // the intermediate clamp.
-      if (preClampSelectionRef.current === null) preClampSelectionRef.current = selection
-      setSelection(clamped)
-    }
-    setModelClamped(clamped !== null)
-    setForecastModel(id)
-  }
-
-  // Any deliberate move of the window retires the clamp notice — it describes
-  // one past edit, and leaving it up would attribute the user's own choice to
-  // the model picker — and the pre-clamp memory with it, for the same reason.
-  function changeSelection(next: ForecastSelection) {
-    preClampSelectionRef.current = null
-    setModelClamped(false)
-    setSelection(next)
-  }
+  const {
+    selection,
+    changeSelection,
+    forecastModel,
+    changeForecastModel,
+    comparedModels,
+    setComparedModels,
+    modelClamped,
+    panelWindowMs,
+    panelPointSample,
+    windowWarning,
+    forgetPreClamp,
+  } = useForecastSelection(restored, caps)
+  const {
+    sortBy,
+    setSortBy,
+    sortDesc,
+    setSortDesc,
+    rowKeys,
+    constraints,
+    setConstraints,
+    limit,
+    setLimit,
+    clearFilters,
+    liveKnobs,
+  } = useRankingKnobs(restored, caps.maxLimit)
 
   const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
   // Parsed once per edit and shared by the pending markers and the Analyze
@@ -677,27 +575,6 @@ export default function App() {
   const destinationScope = useMemo(
     () => authoredScope(destinationTypes, customCsv),
     [destinationTypes, customCsv],
-  )
-  const [sortBy, setSortByRaw] = useState<SortBy>(() => restored?.sortBy ?? DEFAULT_SORT)
-  const [sortDesc, setSortDesc] = useState(() => restored?.sortDesc ?? false)
-  // What each metric row's aggregate dropdown holds (#291), the active row's
-  // entry always equal to sortBy. One state for every row because a
-  // dropdown choice IS a ranking choice — picking an aggregate activates its
-  // row, the same one-click contract the direction toggle has always kept —
-  // so the two could only ever disagree by a missed update.
-  const [rowKeys, setRowKeys] = useState<Record<MetricFamily, SortBy>>(
-    () => restored?.rowKeys ?? { ...DEFAULT_FAMILY_KEY },
-  )
-  const setSortBy = useCallback((key: SortBy) => {
-    setSortByRaw(key)
-    setRowKeys((rows) => (rows[familyOf(key)] === key ? rows : { ...rows, [familyOf(key)]: key }))
-  }, [])
-  // The forecast bounds (#115). None of them can gate a fetch — nothing knows
-  // a destination's precipitation before it has
-  // been fetched — so they are pure presentation and every one of them applies
-  // live, loosening as well as tightening.
-  const [constraints, setConstraints] = useState<Constraints>(
-    () => restored?.constraints ?? NO_CONSTRAINTS,
   )
   // A live map overlay, not part of the analyze request, but persisted to the
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
@@ -1013,23 +890,7 @@ export default function App() {
     if (destinationNamed) setShowResults(true)
   }, [destinationNamed])
 
-  // The selection resolved to the datetime-local pair the rest of the app reads:
-  // the horizon and air-quality warnings, the staleness comparison below, and the
-  // ISO conversion in handleAnalyze. Recomputed per render rather than memoized,
-  // since for the current-hour selection it moves with the clock.
-  const panelWindow = selectionLocalWindow(selection, new Date())
-  // A dateless Dates arm has no window (Analyze is blocked on it), but the
-  // display still needs a shape — column regime, captions — so it borrows a
-  // whole-day span. Never analyzed: handleAnalyze re-reads the selection and
-  // refuses a null window.
-  const panelWindowMs = panelWindow
-    ? { startMs: Date.parse(panelWindow.start), endMs: Date.parse(panelWindow.end) }
-    : {
-        startMs: Date.parse(`${dayKey(new Date())}T${DAY_START}`),
-        endMs: Date.parse(`${dayKey(new Date())}T${DAY_END}`),
-      }
-
-  // The knobs the displayed report is rendered under: markers, legend, results
+  // What the displayed report is rendered under: markers, legend, results
   // header, and table column order all read from here.
   //
   // With a field held, the panel's ranking IS the displayed ranking — the rows
@@ -1038,15 +899,6 @@ export default function App() {
   // from the snapshot either way: it is a data knob, and a point sample cannot
   // become a range without a new analysis. Before the first analysis there is
   // no field and nothing to disagree with.
-  const liveKnobs: PresentationKnobs = useMemo(
-    () => ({
-      sortBy,
-      sortDesc,
-      limit,
-      constraints,
-    }),
-    [sortBy, sortDesc, limit, constraints],
-  )
   const view =
     analyzed !== null
       ? { sortBy, sortDesc, kind: analyzed.kind, window: analyzed.window }
@@ -1062,12 +914,6 @@ export default function App() {
   // name, so "a day narrowed to one hour" is recognized as the point sample it
   // is (#166).
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
-  // The same question asked of the panel's When selection. The Metrics table
-  // is a panel control, so its aggregate dropdowns must follow a When switch at
-  // once, before the switch is analyzed; reading the report's flag froze them to
-  // the last analysis (#485). Everything that draws the report keeps the flag
-  // above, since the rows it draws were fetched for the analyzed window.
-  const panelPointSample = isPointSample(panelWindowMs.startMs, panelWindowMs.endMs)
   // A point-sample flip relabels the metric columns under the SAME keys —
   // the collapsed bare-noun header and the windowed aggregate header both
   // live at one key — so a width fitted under one regime clips the other
@@ -1219,18 +1065,6 @@ export default function App() {
   // sync effect above must not flush, or the debounce collapses nothing.
   useEffect(() => () => writeUrl.flush(), [writeUrl])
 
-  // Warn when the selection falls outside Open-Meteo's servable range, or its
-  // narrowed hours run backwards. Blocks Analyze (in ControlPanel): Open-Meteo
-  // rejects out-of-range dates outright, so submitting would only produce an
-  // upstream error. The calendar cannot pick an unservable day, so a horizon
-  // warning now means a shared or hand-edited link brought one in.
-  const windowStatus = panelWindow
-    ? classifyWindow(panelWindow.start, panelWindow.end, new Date(), band)
-    : // No dates picked yet: nothing to warn about, the dates blocker owns it.
-      'ok'
-  const windowWarning =
-    selection.kind === 'now' || windowStatus === 'ok' ? null : windowStatus
-
   const handleDrawUpdate = useCallback((count: number) => {
     setDrawPointCount(count)
   }, [])
@@ -1277,9 +1111,7 @@ export default function App() {
     // back in the state #118 describes — reading a result and panning around
     // it while every click still adds a vertex.
     setDrawing(false)
-    // The report pins the window that was actually asked; a pre-clamp range
-    // restored after this would silently disagree with it.
-    preClampSelectionRef.current = null
+    forgetPreClamp()
 
     // The one conversion from a local selection to the UTC instants the API
     // takes. Equal timestamps are how a point sample travels — the current hour,
@@ -2592,14 +2424,7 @@ export default function App() {
           pointSample={panelPointSample}
           constraints={constraints}
           setConstraints={setConstraints}
-          // Every knob the Metrics table's boxes hold, back to its default.
-          // The results cap is one of them (#341): it bounds nothing, but it is
-          // typed into the same column and the button that clears that column
-          // cannot skip one box.
-          onClearFilters={() => {
-            setConstraints(NO_CONSTRAINTS)
-            setLimit(DEFAULT_LIMIT)
-          }}
+          onClearFilters={clearFilters}
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}

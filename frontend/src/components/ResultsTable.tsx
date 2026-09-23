@@ -1,16 +1,16 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
-import { chartKey, rowsBetween, selectionState } from '../utils/chartData'
+import { selectionState } from '../utils/chartData'
 import { SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
-import { FireWarning, fireLoadingFrame } from '../utils/fireProximity'
-import type { FireProximityStatus } from '../hooks/useFireProximity'
+import type { FireProximityStatus, FireWarning } from '../utils/fireProximity'
 import type { PendingDestination } from '../utils/customList'
 import { geoKey } from '../utils/points'
-import { pendingChartRow, rankText } from '../utils/resultsCells'
+import { pendingChartRow, rankText, rowKeys } from '../utils/resultsCells'
+import { useChartBox } from '../hooks/useChartBox'
 import { TEXT } from '../styles'
 import ResultsTableHeader from './ResultsTableHeader'
-import ResultsTableRow, { PendingRow, type ChartBox } from './ResultsTableRow'
+import ResultsTableRow, { FireClock, PendingRow } from './ResultsTableRow'
 
 // Hoisted so a table with no widths set hands every row the same empty map,
 // which is what lets a memoized row skip.
@@ -143,19 +143,9 @@ function ResultsTable({
     [columns, pointSample, sortBy],
   )
 
-  // The wildfire cells' shared clock while the fire check is in flight. One
-  // ticking state for the whole table rather than per cell, so every cell
-  // shows the same frame; the interval exists only while there is something
-  // to wait for, and 'idle' animates too because it is what the hook reports
-  // for the one render before its effect has run.
+  // 'idle' animates too, because it is what the hook reports for the one
+  // render before its effect has run.
   const fireLoading = fireStatus === 'idle' || fireStatus === 'loading'
-  const [fireTick, setFireTick] = useState(0)
-  useEffect(() => {
-    if (!fireLoading) return
-    const id = setInterval(() => setFireTick((t) => t + 1), 400)
-    return () => clearInterval(id)
-  }, [fireLoading])
-  const fireFrame = fireLoading ? fireLoadingFrame(fireTick) : null
 
   // The leading checkbox column only appears once an analysis has returned
   // series to chart; rows without series (e.g. pinned search forecasts) render
@@ -166,7 +156,7 @@ function ResultsTable({
   // box. Its state (all/some/none) drives both the checked mark and the
   // indeterminate dash.
   // Memoized, with the columns above, because the header is memoized on them:
-  // a fresh array on every tick of the wildfire clock would redraw it.
+  // a fresh array on every render of the table would redraw it.
   const chartableRows = useMemo(
     () => (showChartCol ? results.filter((r) => r.series) : []),
     [showChartCol, results],
@@ -177,6 +167,9 @@ function ResultsTable({
   const widths = columnWidths ?? NO_WIDTHS
   const tableRef = useRef<HTMLTableElement>(null)
   const chartBox = useChartBox({ results, isCharted, onChartRange, onToggleChart })
+  // Memoized with the rows: a key per destination, so a sort moves rows
+  // rather than handing each position a different destination.
+  const keys = useMemo(() => rowKeys(results), [results])
 
   return (
     // No overflow here — the panel's scroll container in App.tsx owns both
@@ -200,114 +193,71 @@ function ResultsTable({
           onChartRange={onChartRange}
         />
         <tbody>
-          {pending?.map((d) => {
-            const charted = showChartCol && (isCharted?.(pendingChartRow(d)) ?? false)
-            return (
-              <PendingRow
-                key={`pending-${d.latitude},${d.longitude}`}
-                destination={d}
-                columns={orderedColumns}
-                widths={widths}
-                chartBox={showChartCol ? chartBox : undefined}
-                charted={charted}
-                chartColor={charted ? chartColor?.(pendingChartRow(d)) : undefined}
-                onRemovePending={onRemovePending}
-                onFocusPending={onFocusPending}
-              />
-            )
-          })}
-          {results.map((row, i) => {
-            const at = geoKey(row.latitude, row.longitude)
-            const charted = showChartCol && (isCharted?.(row) ?? false)
-            return (
-              <ResultsTableRow
-                key={`${row.name}-${i}`}
-                row={row}
-                rank={rankText(row, i)}
-                leaving={leavingRowKeys.has(at)}
-                columns={orderedColumns}
-                widths={widths}
-                coloredGroup={coloredGroup}
-                pointSample={pointSample}
-                modelFallbackLabel={modelFallbackLabel}
-                modelId={modelId}
-                times={times}
-                fireStatus={fireStatus}
-                fireFrame={fireFrame}
-                fireWarning={fireWarnings.get(at)}
-                fireUncovered={fireUncovered.has(at)}
-                chartBox={showChartCol ? chartBox : undefined}
-                charted={charted}
-                chartColor={charted ? chartColor?.(row) : undefined}
-                onRemove={onRemove}
-                onFocusResult={onFocusResult}
-              />
-            )
-          })}
-          {emptyReason && results.length === 0 && (pending?.length ?? 0) === 0 && (
-            <tr>
-              {/* The cell spans the table, which is wider than the panel once
-                  the columns overflow, so centring inside it would push the
-                  sentence off the right edge behind a sideways scroll through
-                  columns of nothing. The inner block is pinned to the scroll
-                  container's left edge and sized to its VISIBLE width in
-                  container units, so it stays centred on what the reader can
-                  see at any scroll offset. */}
-              <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
-                <div className={`sticky left-0 w-[100cqi] px-4 py-3 text-center ${TEXT.helper}`}>
-                  {emptyReason}
-                </div>
-              </td>
-            </tr>
-          )}
+          <FireClock running={fireLoading}>
+            {pending?.map((d) => {
+              const charted = showChartCol && (isCharted?.(pendingChartRow(d)) ?? false)
+              return (
+                <PendingRow
+                  key={`pending-${d.latitude},${d.longitude}`}
+                  destination={d}
+                  columns={orderedColumns}
+                  widths={widths}
+                  chartBox={showChartCol ? chartBox : undefined}
+                  charted={charted}
+                  chartColor={charted ? chartColor?.(pendingChartRow(d)) : undefined}
+                  onRemovePending={onRemovePending}
+                  onFocusPending={onFocusPending}
+                />
+              )
+            })}
+            {results.map((row, i) => {
+              const at = geoKey(row.latitude, row.longitude)
+              const charted = showChartCol && (isCharted?.(row) ?? false)
+              return (
+                <ResultsTableRow
+                  key={keys[i]}
+                  row={row}
+                  rank={rankText(row, i)}
+                  leaving={leavingRowKeys.has(at)}
+                  columns={orderedColumns}
+                  widths={widths}
+                  coloredGroup={coloredGroup}
+                  pointSample={pointSample}
+                  modelFallbackLabel={modelFallbackLabel}
+                  modelId={modelId}
+                  times={times}
+                  fireStatus={fireStatus}
+                  fireWarning={fireWarnings.get(at)}
+                  fireUncovered={fireUncovered.has(at)}
+                  chartBox={showChartCol ? chartBox : undefined}
+                  charted={charted}
+                  chartColor={charted ? chartColor?.(row) : undefined}
+                  onRemove={onRemove}
+                  onFocusResult={onFocusResult}
+                />
+              )
+            })}
+            {emptyReason && results.length === 0 && (pending?.length ?? 0) === 0 && (
+              <tr>
+                {/* The cell spans the table, which is wider than the panel once
+                    the columns overflow, so centring inside it would push the
+                    sentence off the right edge behind a sideways scroll through
+                    columns of nothing. The inner block is pinned to the scroll
+                    container's left edge and sized to its VISIBLE width in
+                    container units, so it stays centred on what the reader can
+                    see at any scroll offset. */}
+                <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
+                  <div className={`sticky left-0 w-[100cqi] px-4 py-3 text-center ${TEXT.helper}`}>
+                    {emptyReason}
+                  </div>
+                </td>
+              </tr>
+            )}
+          </FireClock>
         </tbody>
       </table>
     </div>
   )
-}
-
-interface ChartInputs {
-  results: DestinationResult[]
-  isCharted?: (row: DestinationResult) => boolean
-  onChartRange?: (rows: DestinationResult[], selected: boolean) => void
-  onToggleChart?: (row: DestinationResult) => void
-}
-
-// The chart checkbox's two handlers, with an identity that never changes. They
-// read the latest rows and callbacks through a ref, because every row is
-// memoized on them: handlers keyed on the selection would redraw every row
-// for a click that changes one row's box.
-function useChartBox(inputs: ChartInputs): ChartBox {
-  const latest = useRef(inputs)
-  useLayoutEffect(() => {
-    latest.current = inputs
-  })
-  // Shift-click range select: the checkbox last interacted with is the anchor;
-  // a shift-held click extends (de)selection to every chartable row between.
-  const shiftHeldRef = useRef(false)
-  const anchorRef = useRef<string | null>(null)
-  const onShift = useCallback((shift: boolean) => {
-    shiftHeldRef.current = shift
-  }, [])
-  const onToggle = useCallback((row: DestinationResult) => {
-    const { results, isCharted, onChartRange, onToggleChart } = latest.current
-    const shift = shiftHeldRef.current
-    shiftHeldRef.current = false
-    const anchor = anchorRef.current
-    anchorRef.current = chartKey(row)
-
-    if (shift && anchor && onChartRange) {
-      // Apply the state this click produces (select or clear) to the whole run,
-      // in the current display order: what the user sees between the two boxes.
-      const range = rowsBetween(results, anchor, chartKey(row)).filter((r) => r.series)
-      if (range.length > 0) {
-        onChartRange(range, !(isCharted?.(row) ?? false))
-        return
-      }
-    }
-    onToggleChart?.(row)
-  }, [])
-  return useMemo(() => ({ onShift, onToggle }), [onShift, onToggle])
 }
 
 // Memoized because App.tsx re-renders on any of its 50-odd pieces of state, and

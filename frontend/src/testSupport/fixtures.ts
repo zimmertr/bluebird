@@ -1,8 +1,11 @@
-import type { DestinationResult, HourlySeries } from '../types'
-import type { ForecastModelOption } from '../hooks/useCapabilities'
+import type { DestinationResult, DiscoveredDestination, HourlySeries } from '../types'
+import type { Capabilities, ForecastModelOption } from '../hooks/useCapabilities'
+import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
 import type { CellBox, GridCell } from '../utils/forecastGridLattice'
+import type { FireWarning } from '../utils/fireProximity'
+import type { PendingDestination } from '../utils/customList'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -142,6 +145,25 @@ export function forecastModel(over: Partial<ForecastModelOption> = {}): Forecast
 }
 
 /**
+ * What `/api/capabilities` answers, as `useCapabilities` hands it over: one
+ * model with a sixteen-day reach, and limits wide enough that nothing a test
+ * does runs into them unless it asks to.
+ */
+export function capabilities(over: Partial<Capabilities> = {}): Capabilities {
+  return {
+    maxDestinations: 1500,
+    maxLimit: 1500,
+    maxPolygonAreaKm2: 100_000,
+    archiveDays: 365,
+    aqiForecastDays: 5,
+    windowLimits: FALLBACK_WINDOW_LIMITS,
+    forecastModels: [forecastModel()],
+    defaultForecastModel: 'gfs_seamless',
+    ...over,
+  }
+}
+
+/**
  * One place the geocoder found, as the search box receives it. A peak with no
  * extent, elevation or OSM reference, which are the optional fields a pin reads
  * and the box itself never does.
@@ -155,4 +177,49 @@ export function place(over: Partial<Place> = {}): Place {
     lon: -121.8144,
     ...over,
   }
+}
+
+/**
+ * The answer a fetch stub hands back where the network would.
+ *
+ * A real `Response` rather than an object literal, for the reason the
+ * backend's `fake_response` is a real httpx one: the code reads `.ok`,
+ * `.status` and `.json()` off it, and a hand-rolled double with `ok: true`
+ * beside a 400 would make an error answer look healthy. A payload is sent as
+ * JSON; `{ raw }` sends the text as it is, for a body that must not parse.
+ */
+export function fakeResponse(payload: unknown, status = 200): Response {
+  const raw = typeof payload === 'object' && payload !== null && 'raw' in payload
+  const body = raw ? String((payload as { raw: unknown }).raw) : JSON.stringify(payload)
+  return new Response(body, { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+/** One destination as `POST /api/destinations` answers it. */
+export function discovered(over: Partial<DiscoveredDestination> = {}): DiscoveredDestination {
+  return {
+    name: 'Probe',
+    type: 'peak',
+    latitude: 47.45,
+    longitude: -121.8,
+    elevation_ft: 5000,
+    osm_id: 'node/1',
+    ...over,
+  }
+}
+
+/**
+ * One nearest-fire warning, as the fire lookup keys it to a row: a named fire
+ * a few miles off, centred close by.
+ */
+export function fireWarning(over: Partial<FireWarning> = {}): FireWarning {
+  return { miles: 3.2, name: 'Probe Fire', latitude: 46.3, longitude: -121.5, ...over }
+}
+
+/**
+ * One custom destination awaiting its first analysis. A searched place, so it
+ * carries the remove button a CSV row lacks; a suite that needs the CSV case
+ * overrides `source`.
+ */
+export function pendingDestination(over: Partial<PendingDestination> = {}): PendingDestination {
+  return { name: 'Probe Peak', latitude: 47.1, longitude: -121.2, elevation_ft: 6000, source: 'search', ...over }
 }

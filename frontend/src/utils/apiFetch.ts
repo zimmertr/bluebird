@@ -86,7 +86,7 @@ export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
  * `POST /api/destinations`, the SPA's one per-analysis server call.
  *
  * Shared because two modules make it and neither can own it: the polygon
- * discovery runs in hooks/useAnalyze.ts and the custom-list resolution in
+ * discovery runs in utils/analysisPipeline.ts and the custom-list resolution in
  * utils/clientAnalyze.ts. The two read the answer differently (one parses a
  * refusal body, the other returns the rows it already holds), so only the
  * request is shared.

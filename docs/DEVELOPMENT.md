@@ -203,6 +203,22 @@ none today. To accept one for a while, add it to `KNOWN` in
 `frontend/e2e/accessibility.spec.ts` with its issue; an entry that stops
 occurring fails the run.
 
+### The render probe
+
+`make perf` measures what the memo rule in the root `CLAUDE.md` protects: the
+synchronous work an overlay toggle and a keystroke in the coordinates box cost
+with 946 destinations displayed in the table, the chart and the map (issue
+#409). It serves the built image the way `make browser` does and runs
+`frontend/e2e/perf/renderCost.spec.ts` from the same Playwright image, with the
+same fixtures, so it spends no quota either. The spec times each interaction
+inside the page, from the dispatch through two task yields, seven times, and
+prints the medians on a `render cost:` line. It takes a few minutes, because
+the client pacer spaces the 946-location fetch, which is why the smoke suite's
+config ignores `perf/` and CI never runs it. Run it on `main` and on your branch
+on the same machine, and put both lines in the PR: the numbers compare with
+each other, not with a measurement taken on other hardware. A failed run leaves
+the served container running, and `docker rm -f perf-target` clears it.
+
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
 regenerates the committed OpenAPI snapshot with

@@ -10,9 +10,10 @@ import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSER
 
 // The results table's header row and everything a press on it can do: sort,
 // move a column, resize one, and fit one to its content. Apart from the body
-// because none of it reads a row, so it is memoized on its own and the body's
-// re-renders (the wildfire cells tick while the fire check is in flight) do not
-// redraw it. The two gestures are hooks (useColumnDrag, useColumnResize) and
+// because none of it reads a row, so it is memoized on its own and a re-render
+// of the body (a new row set, a chart toggle) does not redraw it. The wildfire
+// cells' clock never reaches this far: FireClock in ResultsTableRow.tsx sends
+// each frame to those cells through a context. The two gestures are hooks (useColumnDrag, useColumnResize) and
 // what they measure is utils/columnMeasure.ts; this file draws.
 
 // Every data cell renders inside this wrapper. Sized, it pins the cell's

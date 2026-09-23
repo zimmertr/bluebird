@@ -185,7 +185,7 @@ export type ConfigResponseCarriesThePreview = Assert<
 >
 
 // ---------------------------------------------------------------------------
-// Error bodies. `readErrorBody` in useAnalyze.ts reads three shapes off one
+// Error bodies. `readErrorBody` in utils/analysisPipeline.ts reads three shapes off one
 // response: a hand-raised error's string `detail`, a validation error's array
 // of per-field objects, and the structured refusal fields that ride on an
 // over-limit 400.

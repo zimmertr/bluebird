@@ -54,7 +54,9 @@ export const APP = [
     ],
     require: [
       // Vacuous if the effects stop being written as useEffect calls.
-      { selector: EFFECT, min: 11, message: 'App.tsx runs its effects through useEffect.' },
+      // The floor is what App.tsx keeps. An effect that moves into a hook is
+      // counted by that hook's own check, so the sum never drops.
+      { selector: EFFECT, min: 23, message: 'App.tsx runs its effects through useEffect.' },
       {
         // The panel still opens the moment a destination is named: the ban is
         // about how the effect is keyed, not about dropping it.
@@ -116,6 +118,19 @@ export const APP = [
           'ExportDefaultDeclaration > CallExpression[callee.name="memo"] > Identifier[name=/^(ResultsTable|ResultsTableRow|ResultsTableHeader|TimeSeriesChart)$/]',
         count: 1,
         message: 'Export the component as memo(Component).',
+      },
+    ],
+  },
+  {
+    // The pending row is memoized like the ranked one, but exported by name
+    // rather than as the default, so app-memoized's selector cannot see it.
+    name: 'table-pending-row-memoized',
+    files: ['src/components/ResultsTableRow.tsx'],
+    require: [
+      {
+        selector: 'VariableDeclarator[id.name="PendingRow"] > CallExpression[callee.name="memo"]',
+        count: 1,
+        message: 'Export PendingRow as memo(PendingTableRow).',
       },
     ],
   },
@@ -186,12 +201,6 @@ export const APP = [
     require: [
       {
         selector:
-          'VariableDeclarator[id.name="panelPointSample"] > CallExpression[callee.name="isPointSample"]' +
-          '[arguments.0.object.name="panelWindowMs"][arguments.1.object.name="panelWindowMs"]',
-        message: 'Derive panelPointSample from panelWindowMs.',
-      },
-      {
-        selector:
           'JSXOpeningElement[name.name="ControlPanel"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="panelPointSample"]',
         message: 'Hand ControlPanel panelPointSample, which follows the When selection.',
       },
@@ -201,6 +210,30 @@ export const APP = [
         message: 'Hand ResultsTable pointSample, which reads the analyzed report.',
       },
       { selector: keyedOnlyOn('pointSample'), message: 'Reset the column widths on the report flag pointSample.' },
+    ],
+  },
+  {
+    // The panel half of app-panel-point-sample: the flag the Metrics table
+    // reads is derived where the When selection lives. The default-model
+    // adoption is the one effect the hook took from App.tsx.
+    name: 'forecast-selection-hook',
+    files: ['src/hooks/useForecastSelection.ts'],
+    require: [
+      {
+        selector:
+          'VariableDeclarator[id.name="panelPointSample"] > CallExpression[callee.name="isPointSample"]' +
+          '[arguments.0.object.name="panelWindowMs"][arguments.1.object.name="panelWindowMs"]',
+        message: 'Derive panelPointSample from panelWindowMs.',
+      },
+      { selector: EFFECT, count: 1, message: 'useForecastSelection.ts adopts the default model in one useEffect.' },
+    ],
+  },
+  {
+    // The limit re-clamp is the one effect this hook took from App.tsx.
+    name: 'ranking-knobs-hook',
+    files: ['src/hooks/useRankingKnobs.ts'],
+    require: [
+      { selector: EFFECT, count: 1, message: 'useRankingKnobs.ts re-clamps the limit in one useEffect.' },
     ],
   },
   {
@@ -409,7 +442,7 @@ export const APP = [
     // passed no onPace, and a paced comparison read as a hung chart. One module
     // keeps the deadline; a second copy is how the callers drifted.
     name: 'app-paced-fetch',
-    files: ['src/hooks/useAnalyze.ts', 'src/hooks/useForecastGrid.ts', 'src/hooks/useModelCompare.ts'],
+    files: ['src/hooks/useAnalysisRun.ts', 'src/hooks/useForecastGrid.ts', 'src/hooks/useModelCompare.ts'],
     ban: [
       { selector: `${named('paceEndMs')}, ${text('paceEndMs')}`, message: 'Keep no pace deadline outside usePacedFetch.' },
     ],
@@ -489,7 +522,7 @@ export const APP = [
     // Storage is viewPrefs.ts's business, or the migration and the guards go
     // back to being one call site's.
     name: 'app-no-storage',
-    files: ['src/App.tsx'],
+    files: ['src/App.tsx', 'src/hooks/useForecastSelection.ts', 'src/hooks/useRankingKnobs.ts'],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
     ],
