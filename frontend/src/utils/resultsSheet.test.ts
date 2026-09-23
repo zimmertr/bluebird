@@ -29,10 +29,10 @@ import {
 // `?raw` reads the sources as text, so the offsets the anchors here mirror can be
 // asserted without a DOM. The classes quoted below are already in the bundle
 // because styles.ts spells them; quoting one that is NOT would emit its CSS,
-// which is the trap `styles.test.ts` documents. What App.tsx and
-// TimelineTransport.tsx spell is held by the `app-` checks in
+// which is the trap `styles.test.ts` documents. What App.tsx,
+// useResultsLayout.ts and TimelineTransport.tsx spell is held by the `app-` checks in
 // tools/eslint/checks/app.js.
-import appSource from '../App.tsx?raw'
+import layoutSource from '../hooks/useResultsLayout.ts?raw'
 import stylesSource from '../styles.ts?raw'
 
 describe('sheetHeightPx', () => {
@@ -321,7 +321,7 @@ describe('the camera padding', () => {
   })
 })
 
-/** What `App.tsx` opens both panels at; asserted against the source below. */
+/** What `useResultsLayout.ts` opens both panels at; asserted against the source below. */
 const DEFAULT_PANEL_PX = 220
 
 // The desktop half of the same question: the results are docked below the map
@@ -371,9 +371,9 @@ describe('dockedMapFloorPx', () => {
 // than restated: they are one number now, and the number is what Both mode can
 // spend on a 1000px window under the floor above.
 describe('the default panel heights', () => {
-  // That both panels read DEFAULT_PANEL_HEIGHT is the `app-docked-panels` check.
+  // That both panels read DEFAULT_PANEL_HEIGHT is the `results-layout-hook` check.
   it('open at the number measured here', () => {
-    expect(appSource).toContain(`const DEFAULT_PANEL_HEIGHT = ${DEFAULT_PANEL_PX}`)
+    expect(layoutSource).toContain(`const DEFAULT_PANEL_HEIGHT = ${DEFAULT_PANEL_PX}`)
   })
 
   it('fit inside the docked floor on the window they were measured at', () => {
