@@ -32,6 +32,7 @@ import metricsTableSource from './components/MetricsTable.tsx?raw'
 import panelFooterSource from './components/PanelFooter.tsx?raw'
 import panelMessagesSource from './utils/panelMessages.ts?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
+import resultsTableHeaderSource from './components/ResultsTableHeader.tsx?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 import timelineTransportSource from './components/TimelineTransport.tsx?raw'
 import chartDataSource from './utils/chartData.ts?raw'
@@ -390,6 +391,8 @@ const CONSUMERS: [string, string][] = [
   ['PanelFooter.tsx', panelFooterSource],
   ['panelMessages.ts', panelMessagesSource],
   ['ResultsTable.tsx', resultsTableSource],
+  // The table's header row, which draws every column's label.
+  ['ResultsTableHeader.tsx', resultsTableHeaderSource],
   ['TimeSeriesChart.tsx', timeSeriesChartSource],
   ['TimelineTransport.tsx', timelineTransportSource],
   ['chartData.ts', chartDataSource],

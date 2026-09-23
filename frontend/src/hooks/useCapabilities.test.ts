@@ -16,7 +16,14 @@ import forecastSectionSource from '../components/ForecastSection.tsx?raw'
 import panelMessagesSource from '../utils/panelMessages.ts?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
 import basemapSource from '../map/basemap.ts?raw'
-import calendarSource from '../utils/calendar.ts?raw'
+// The calendar is five sibling modules, read as one text.
+const calendarSource = Object.values(
+  import.meta.glob(['../utils/calendar*.ts', '!../utils/calendar*.test.ts'], {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>,
+).join('\n')
 import forecastWindowSource from '../utils/forecastWindow.ts?raw'
 import openMeteoSource from '../utils/openMeteo.ts?raw'
 import { AQI_LIMIT_DAYS } from '../utils/calendar'
