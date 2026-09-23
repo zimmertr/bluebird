@@ -28,6 +28,12 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     aqi_avg: 31,
     aqi_min: 44,
     aqi_max: 44,
+    cloud_base_min_ft: 4200,
+    cloud_base_max_ft: 9800,
+    cloud_base_avg_ft: 6500,
+    cloud_cover_min_pct: 12,
+    cloud_cover_max_pct: 96,
+    cloud_cover_avg_pct: 58,
     ...over,
   })
 }

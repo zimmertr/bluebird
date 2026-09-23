@@ -128,6 +128,10 @@ const CONSTRAINT_PARAMS = [
   ['maxsnow', 'maxSnowDepthIn'],
   ['minaqi', 'minAqi'],
   ['maxaqi', 'maxAqi'],
+  ['mincloudbase', 'minCloudBaseFt'],
+  ['maxcloudbase', 'maxCloudBaseFt'],
+  ['mincloudcover', 'minCloudCoverPct'],
+  ['maxcloudcover', 'maxCloudCoverPct'],
 ] as const satisfies readonly (readonly [string, keyof Constraints])[]
 
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift

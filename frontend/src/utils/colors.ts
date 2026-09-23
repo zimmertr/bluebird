@@ -186,6 +186,39 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     colors: ['#67e8f9', '#38bdf8', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe'],
     unit: UNIT.snow,
   },
+  // The freezing level's six shades in the freezing level's order, purple at
+  // the bottom to cyan at the top (#117), because both encode a height in the
+  // air column over the destination and neither is a verdict: a low base is
+  // the summit in cloud to a hiker and the undercast a photographer drove up
+  // for. 3,000 ft steps from 3,000 to 15,000, which is the band the summits of
+  // the contiguous US stand in, so a deck at a summit's own height lands in
+  // the middle of the ramp rather than at one end. A clear sky's parcel base
+  // reads past the top and takes the top band, which is what it should say.
+  //
+  // The contrast is the freezing level's, measured shade for shade, because the
+  // shades are the same six (pinned in `colors.test.ts`).
+  cloud_base: {
+    thresholds: [3000, 6000, 9000, 12000, 15000],
+    colors: ['#d8b4fe', '#c4b5fd', '#a5b4fc', '#93c5fd', '#38bdf8', '#67e8f9'],
+    unit: UNIT.cloud_base,
+  },
+  // Slate, pale at 0 % to dark at 100 % (TJ, #117): grey is what cloud is, and
+  // a hue here would claim a verdict the number does not make. 20 % steps
+  // starting at 0, so both ends are exact: a clear sky is the palest band and
+  // an overcast one the darkest, with nothing extrapolated past either.
+  //
+  // THE DARK END STOPS AT A MID GREY, and that is the contrast floor rather
+  // than a taste. `cellStyle` paints the band as the cell's text over its own
+  // 20 % tint on the slate-800 panel, and text owes 4.5:1: slate-400 measures
+  // 3.92 there. So the last three shades are mixes of slate-300 toward
+  // slate-400 (25, 45 and 65 % of the way), the darkest being the last that
+  // clears 4.5 with a margin (4.55, measured 2026-09-22). Staying that light
+  // is also what keeps an overcast marker apart from the grey no-value fill.
+  cloud_cover: {
+    thresholds: [0, 20, 40, 60, 80],
+    colors: ['#f8fafc', '#e2e8f0', '#cad5e2', '#bcc8d8', '#b0bed0', '#a4b3c7'],
+    unit: UNIT.cloud_cover,
+  },
   // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
   // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
   // bands exist so an AQI of 250 and one of 350 never look the same.

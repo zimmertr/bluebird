@@ -170,8 +170,35 @@ export interface HourlyPayload {
     temperature_600hPa?: (number | null)[]
     temperature_500hPa?: (number | null)[]
     us_aqi?: (number | null)[]
+    // The cloud request's own variables (#117). The level humidities are read
+    // by name through `CLOUD_LEVELS`, so they are covered by the index
+    // signature rather than spelled eight times here.
+    cloud_cover?: (number | null)[]
+    relative_humidity_2m?: (number | null)[]
+    dew_point_2m?: (number | null)[]
+    [level: `relative_humidity_${number}hPa`]: (number | null)[] | undefined
   }
 }
+
+// Port of aggregation.ISA_HEIGHT_M: each standard pressure level's height in
+// the ICAO standard atmosphere, in metres, bottom to top. The wind and the
+// temperature read the five from 925 to 500 hPa; the cloud base walks all
+// eight (#117). Exported because `mirroredConstants.test.ts` holds it to the
+// backend's table.
+export const ISA_HEIGHT_M = {
+  1000: 111,
+  925: 762,
+  850: 1457,
+  700: 3012,
+  600: 4206,
+  500: 5574,
+  400: 7185,
+  300: 9164,
+} as const
+// The levels in the order the column is walked, which is what an object keyed
+// by number cannot promise: JavaScript enumerates integer keys ascending, and
+// 300 would come first.
+const ISA_LEVELS = [1000, 925, 850, 700, 600, 500, 400, 300] as const
 
 // Port of aggregation._WIND_LEVELS: the five free-air winds each hour also
 // carries, and the ISA standard-atmosphere height of each level. The wind the
@@ -180,11 +207,11 @@ export interface HourlyPayload {
 // at the friction-slowed 10 m value. Fixed heights rather than fetched
 // geopotentials, for the reason aggregation.py records.
 const WIND_LEVELS = [
-  ['wind_speed_925hPa', 762],
-  ['wind_speed_850hPa', 1457],
-  ['wind_speed_700hPa', 3012],
-  ['wind_speed_600hPa', 4206],
-  ['wind_speed_500hPa', 5574],
+  ['wind_speed_925hPa', ISA_HEIGHT_M[925]],
+  ['wind_speed_850hPa', ISA_HEIGHT_M[850]],
+  ['wind_speed_700hPa', ISA_HEIGHT_M[700]],
+  ['wind_speed_600hPa', ISA_HEIGHT_M[600]],
+  ['wind_speed_500hPa', ISA_HEIGHT_M[500]],
 ] as const
 // Port of aggregation._TEMP_LEVELS: the same five levels and the same ISA heights,
 // read for the free-air TEMPERATURE each hour also carries (issue #443).
@@ -201,11 +228,11 @@ const WIND_LEVELS = [
 // its 10 m value, the temperature is not), and a shared table would suggest
 // they are the same rule.
 const TEMP_LEVELS = [
-  ['temperature_925hPa', 762],
-  ['temperature_850hPa', 1457],
-  ['temperature_700hPa', 3012],
-  ['temperature_600hPa', 4206],
-  ['temperature_500hPa', 5574],
+  ['temperature_925hPa', ISA_HEIGHT_M[925]],
+  ['temperature_850hPa', ISA_HEIGHT_M[850]],
+  ['temperature_700hPa', ISA_HEIGHT_M[700]],
+  ['temperature_600hPa', ISA_HEIGHT_M[600]],
+  ['temperature_500hPa', ISA_HEIGHT_M[500]],
 ] as const
 export const FT_TO_M = 0.3048
 
@@ -231,6 +258,28 @@ export const HOURLY_VARIABLES = [
   FREEZING_LEVEL,
   ...WIND_LEVELS.map(([name]) => name),
   ...TEMP_LEVELS.map(([name]) => name),
+] as const
+
+// Port of aggregation.CLOUD_SATURATION_RH (#117): the relative humidity at or
+// above which a point in the column counts as in cloud. The reasons for 95
+// rather than 100 are in aggregation.py; the value is pinned to the backend's
+// through `mirrored_constants.json`.
+export const CLOUD_SATURATION_RH = 95
+// Port of aggregation.ESPY_M_PER_C: the parcel base rises about 125 m per
+// degree Celsius of spread between temperature and dew point.
+export const ESPY_M_PER_C = 125
+const CLOUD_LEVELS = ISA_LEVELS.map((p) => [`relative_humidity_${p}hPa`, ISA_HEIGHT_M[p]] as const)
+// The cloud request's variables (#117), a request of its own rather than more
+// variables on the weather one, because the price of a request follows its
+// variable count and most analyses never rank by cloud. Exported for the
+// weight, which reads its length, and for the join, which keeps these arrays
+// parallel.
+export const CLOUD_VARIABLES = [
+  'cloud_cover',
+  'relative_humidity_2m',
+  'temperature_2m',
+  'dew_point_2m',
+  ...CLOUD_LEVELS.map(([name]) => name),
 ] as const
 
 // What the archive endpoint writes in `hourly_units` for a variable it does not
@@ -287,12 +336,15 @@ function joinUnits(declared: readonly Record<string, string>[]): Record<string, 
   return joined
 }
 
-export function joinHours(parts: readonly HourlyPayload[]): HourlyPayload {
+export function joinHours(
+  parts: readonly HourlyPayload[],
+  names: readonly string[] = HOURLY_VARIABLES,
+): HourlyPayload {
   if (parts.length === 1) return parts[0]
   const declared = parts.map((p) => p?.hourly_units ?? {})
   if (!unitsAgree(declared)) return {}
   const joined: Record<string, unknown[]> = { time: [] }
-  for (const name of HOURLY_VARIABLES) joined[name] = []
+  for (const name of names) joined[name] = []
   const seen = new Set<unknown>()
   for (const part of parts) {
     const hourly = (part?.hourly ?? {}) as Record<string, unknown[] | undefined>
@@ -301,7 +353,7 @@ export function joinHours(parts: readonly HourlyPayload[]): HourlyPayload {
       if (seen.has(times[i])) continue
       seen.add(times[i])
       joined.time.push(times[i])
-      for (const name of HOURLY_VARIABLES) {
+      for (const name of names) {
         joined[name].push(at(hourly[name] ?? [], i))
       }
     }
@@ -661,6 +713,172 @@ export function aqiSeries(
     }
     if (grid.length === 0) return null
     return { times: grid, aqi: out }
+  } catch {
+    return null
+  }
+}
+
+// ── The cloud column (#117) ────────────────────────────────────────────────
+
+export interface CloudAggregates {
+  cloud_base_min_ft: number | null
+  cloud_base_max_ft: number | null
+  cloud_base_avg_ft: number | null
+  cloud_cover_min_pct: number | null
+  cloud_cover_max_pct: number | null
+  cloud_cover_avg_pct: number | null
+}
+
+export interface CloudSeries {
+  times: number[]
+  cloud_base_ft: (number | null)[]
+  cloud_cover_pct: (number | null)[]
+}
+
+// Port of aggregation._cloud_base_m: one hour's base in metres above sea level,
+// walked up from the destination's 2 m point through every level above it. The
+// first saturated point ends the walk (the destination itself, or a height
+// interpolated in humidity from the last dry point); a dry column that answered
+// falls back to Espy's parcel base; a column that did not answer, or a
+// destination with no elevation, is null.
+export function cloudBaseM(
+  elevationFt: number | null | undefined,
+  rh2m: number | null,
+  t2m: number | null,
+  td2m: number | null,
+  levels: readonly (number | null)[],
+): number | null {
+  if (elevationFt == null) return null
+  const elevM = elevationFt * FT_TO_M
+  const column: Array<[number, number | null]> = [[elevM, rh2m]]
+  let answered = false
+  for (let k = 0; k < CLOUD_LEVELS.length; k++) {
+    const height = CLOUD_LEVELS[k][1]
+    if (height <= elevM) continue
+    const rh = k < levels.length ? (levels[k] ?? null) : null
+    if (rh != null) answered = true
+    column.push([height, rh])
+  }
+  if (!answered) return null
+  let prev: [number, number] | null = null
+  for (const [height, rh] of column) {
+    if (rh == null) continue
+    if (rh >= CLOUD_SATURATION_RH) {
+      if (prev === null) return height
+      const [loH, loRh] = prev
+      return loH + (height - loH) * ((CLOUD_SATURATION_RH - loRh) / (rh - loRh))
+    }
+    prev = [height, rh]
+  }
+  if (t2m == null || td2m == null) return null
+  return elevM + ESPY_M_PER_C * Math.max(0, t2m - td2m)
+}
+
+function cloudLevelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | null)[][] {
+  return CLOUD_LEVELS.map(([name]) => hourly[name] ?? [])
+}
+
+// Port of aggregation._cloud_base_ft_at.
+function cloudBaseFtAt(
+  hourly: NonNullable<HourlyPayload['hourly']>,
+  i: number,
+  elevationFt: number | null | undefined,
+  levels: readonly (number | null)[][],
+): number | null {
+  const base = cloudBaseM(
+    elevationFt,
+    at(hourly.relative_humidity_2m ?? [], i),
+    at(hourly.temperature_2m ?? [], i),
+    at(hourly.dew_point_2m ?? [], i),
+    levels.map((arr) => at(arr, i)),
+  )
+  return base === null ? null : base / FT_TO_M
+}
+
+// Port of aggregation._cloud_metrics: times-driven, each quantity dropping only
+// its own null hours, so an archive hour keeps its cover without a base. Null
+// only for a window holding no hours at all.
+export function cloudMetrics(
+  payload: HourlyPayload,
+  startMs: number,
+  endMs: number,
+  elevationFt: number | null = null,
+): CloudAggregates | null {
+  try {
+    const hourly = payload?.hourly ?? {}
+    const times = hourly.time ?? []
+    const cover = hourly.cloud_cover ?? []
+    const levels = cloudLevelArrays(hourly)
+
+    let hours = 0
+    const bases: number[] = []
+    const covers: number[] = []
+    for (let i = 0; i < times.length; i++) {
+      const t = parseTs(times[i])
+      if (t === null || t < startMs || t > endMs) continue
+      hours += 1
+      const c = at(cover, i)
+      if (c != null) covers.push(c)
+      const base = cloudBaseFtAt(hourly, i, elevationFt, levels)
+      if (base !== null) bases.push(base)
+    }
+    if (hours === 0) return null
+    // Left-to-right passes in input order, matching Python's sum(), min() and
+    // max() exactly, the way `weatherMetrics` reduces its own columns.
+    let bSum = 0
+    let bMin = Infinity
+    let bMax = -Infinity
+    for (const b of bases) {
+      bSum += b
+      if (b < bMin) bMin = b
+      if (b > bMax) bMax = b
+    }
+    let cSum = 0
+    let cMin = Infinity
+    let cMax = -Infinity
+    for (const c of covers) {
+      cSum += c
+      if (c < cMin) cMin = c
+      if (c > cMax) cMax = c
+    }
+    return {
+      cloud_base_min_ft: bases.length === 0 ? null : roundHalfEven(bMin, 0),
+      cloud_base_max_ft: bases.length === 0 ? null : roundHalfEven(bMax, 0),
+      cloud_base_avg_ft: bases.length === 0 ? null : roundHalfEven(bSum / bases.length, 0),
+      cloud_cover_min_pct: covers.length === 0 ? null : roundHalfEven(cMin, 0),
+      cloud_cover_max_pct: covers.length === 0 ? null : roundHalfEven(cMax, 0),
+      cloud_cover_avg_pct: covers.length === 0 ? null : roundHalfEven(cSum / covers.length, 0),
+    }
+  } catch {
+    return null
+  }
+}
+
+// Port of aggregation._cloud_series: every in-window hour, nulls kept.
+export function cloudSeries(
+  payload: HourlyPayload,
+  startMs: number,
+  endMs: number,
+  elevationFt: number | null = null,
+): CloudSeries | null {
+  try {
+    const hourly = payload?.hourly ?? {}
+    const times = hourly.time ?? []
+    const cover = hourly.cloud_cover ?? []
+    const levels = cloudLevelArrays(hourly)
+
+    const grid: number[] = []
+    const bOut: (number | null)[] = []
+    const cOut: (number | null)[] = []
+    for (let i = 0; i < times.length; i++) {
+      const t = parseTs(times[i])
+      if (t === null || t < startMs || t > endMs) continue
+      grid.push(t)
+      bOut.push(roundOrNull(cloudBaseFtAt(hourly, i, elevationFt, levels), 0))
+      cOut.push(roundOrNull(at(cover, i), 0))
+    }
+    if (grid.length === 0) return null
+    return { times: grid, cloud_base_ft: bOut, cloud_cover_pct: cOut }
   } catch {
     return null
   }

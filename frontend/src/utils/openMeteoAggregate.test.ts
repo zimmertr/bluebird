@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   aqiMetrics,
   aqiSeries,
+  cloudBaseM,
+  cloudMetrics,
+  cloudSeries,
   parseTs,
   roundHalfEven,
   tempAtElevation,
@@ -60,6 +63,56 @@ describe('aqi vectors', () => {
       expect(aqiSeries(c.payload, startMs, endMs)).toEqual(c.expected_series)
     })
   }
+})
+
+describe('cloud vectors', () => {
+  for (const c of (vectors as unknown as { cloud: VectorCase[] }).cloud) {
+    it(c.name, () => {
+      const [startMs, endMs] = windowMs(c)
+      const elevationFt = c.elevation_ft ?? null
+      expect(cloudMetrics(c.payload, startMs, endMs, elevationFt)).toEqual(c.expected_metrics)
+      expect(cloudSeries(c.payload, startMs, endMs, elevationFt)).toEqual(c.expected_series)
+    })
+  }
+})
+
+// #117. The vectors pin the walk as a number at the end; these state its rules
+// one at a time. Levels are 1000 to 300 hPa, bottom to top; elevations in feet.
+describe('cloudBaseM', () => {
+  const DRY = [30, 30, 30, 30, 30, 30, 30, 30]
+
+  it('is the destination itself when its own air is saturated', () => {
+    expect(cloudBaseM(5000, 95, 2, 2, DRY)).toBeCloseTo(5000 * 0.3048, 9)
+  })
+
+  it('interpolates in humidity between the last dry point and the first wet one', () => {
+    // 850 hPa at 80 % (1457 m), 700 hPa at 100 % (3012 m): 95 % is three
+    // quarters of the way up.
+    const levels = [20, 20, 80, 100, 100, 100, 100, 100]
+    expect(cloudBaseM(4000, 50, 5, 0, levels)).toBeCloseTo(1457 + 0.75 * (3012 - 1457), 9)
+  })
+
+  it('ignores a saturated level below the destination', () => {
+    const fog = [100, 100, 100, 30, 30, 30, 30, 30]
+    // Dry above 8,000 ft, so the parcel base: 125 m per degree of spread.
+    expect(cloudBaseM(8000, 50, 10, 2, fog)).toBeCloseTo(8000 * 0.3048 + 1000, 9)
+  })
+
+  it('is null when no level above the destination answered', () => {
+    const archive = [null, null, null, null, null, null, null, null]
+    expect(cloudBaseM(5000, 99, 5, 5, archive)).toBeNull()
+    expect(cloudBaseM(5000, 99, 5, 5, [])).toBeNull()
+  })
+
+  it('is null with no elevation to start from', () => {
+    expect(cloudBaseM(null, 99, 5, 5, DRY)).toBeNull()
+  })
+
+  it('never puts the parcel base under the destination', () => {
+    // A dew point above the temperature is not physical, and the spread is
+    // floored rather than read as a negative height.
+    expect(cloudBaseM(5000, 50, 2, 4, DRY)).toBeCloseTo(5000 * 0.3048, 9)
+  })
 })
 
 // ── Parity primitives ──────────────────────────────────────────────────────

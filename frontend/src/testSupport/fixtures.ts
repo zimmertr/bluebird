@@ -53,6 +53,12 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     aqi_min: null,
     aqi_max: null,
     snow_depth_in: null,
+    cloud_base_min_ft: null,
+    cloud_base_avg_ft: null,
+    cloud_base_max_ft: null,
+    cloud_cover_min_pct: null,
+    cloud_cover_avg_pct: null,
+    cloud_cover_max_pct: null,
     ...over,
   }
 }

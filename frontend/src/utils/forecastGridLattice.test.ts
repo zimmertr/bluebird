@@ -15,7 +15,7 @@ import {
   type GridSpec,
 } from './forecastGridLattice'
 import { NO_VALUE, fillColor } from './resultFeatures'
-import type { AqiResult, WeatherResult } from './openMeteo'
+import type { AqiResult, CloudResult, WeatherResult } from './openMeteo'
 import { gridRow, weatherResult } from '../testSupport/fixtures'
 
 // A field of destinations, as coordinates — the only part of a result the
@@ -406,6 +406,29 @@ describe('pairCells', () => {
     // its old stamps would be corrupted by a second alignment.
     const cells = pairCells(spec, [0, 1], [wx([0.1, 0.2]), null], noAqi, [1000, 2000])
     expect(cells[0].row.series_times).toBeUndefined()
+  })
+
+  // The grid fetches the cloud column only when the report holds one (#117),
+  // and a cell then paints it on the same hours as every other metric.
+  it('lays a cloud answer onto the cell when one is given', () => {
+    const cloud: CloudResult = {
+      cloud_base_min_ft: 4000,
+      cloud_base_avg_ft: 4500,
+      cloud_base_max_ft: 5000,
+      cloud_cover_min_pct: 20,
+      cloud_cover_avg_pct: 55,
+      cloud_cover_max_pct: 90,
+      series: { times: [1000, 2000], cloud_base_ft: [4000, 5000], cloud_cover_pct: [20, 90] },
+    }
+    const cells = pairCells(spec, [0], [wx([0.1, 0.2])], [null], [1000, 2000], [cloud])
+    expect(cells[0].row.cloud_base_min_ft).toBe(4000)
+    expect(cells[0].row.series?.cloud_cover_pct).toEqual([20, 90])
+  })
+
+  it('carries no cloud column when none was fetched', () => {
+    const cells = pairCells(spec, [0], [wx([0.1, 0.2])], [null], [1000, 2000])
+    expect(cells[0].row.cloud_base_min_ft).toBeNull()
+    expect(cells[0].row.series).not.toHaveProperty('cloud_base_ft')
   })
 })
 

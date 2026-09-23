@@ -156,6 +156,7 @@ import {
   DiscoveryRecord,
   NO_CONSTRAINTS,
   constraintFields,
+  namesOnRequestMetric,
   discoveryBase,
   isDiscoveryRefresh,
   refreshEchoRows,
@@ -213,6 +214,7 @@ import {
 import { isPointSample, normalizeWindow } from './utils/forecastWindow'
 import {
   PresentationKnobs,
+  cloudNeeded,
   commitNeeded,
   discoveryChanges,
   discoveryKeys,
@@ -234,6 +236,7 @@ import {
   WILDFIRE_KEY,
   applyColumnOrder,
   displayedColumns,
+  keepUnlistedChoices,
   moveColumn,
   visibleColumns,
   withModelColumn,
@@ -1556,9 +1559,12 @@ export default function App() {
   // a pasted list numbered 1..100 reads in order. See compareValues. The
   // wildfire column's key is virtual: its value is the warning's mileage, so a
   // clear row and an uncovered row are both null and land last either way.
+  // Whether the report carries the cloud column (#117). Before any report,
+  // nothing does, which leaves the cloud columns out of an empty table too.
+  const cloudHeld = analyzed?.cloudFetched ?? false
   const csvColumns = useMemo(
-    () => displayedColumns(pointSample, view.sortBy),
-    [pointSample, view.sortBy],
+    () => displayedColumns(pointSample, view.sortBy, cloudHeld),
+    [pointSample, view.sortBy, cloudHeld],
   )
   // Every column is on by default — the table scrolls sideways rather than
   // opening narrowed (TJ's call in the #242 review). A stored choice from the
@@ -1684,6 +1690,7 @@ export default function App() {
           polygon: discoveryMoved.polygon,
           types: discoveryMoved.types,
           destinationAdded: pending.length > 0,
+          cloud: cloudNeeded(analyzed, namesOnRequestMetric(sortBy, constraints)),
         })
       : []
   // The table bar's row count: shown, of what the knobs admit, and — only when
@@ -1943,6 +1950,7 @@ export default function App() {
     analysisSeq,
     windowLimits: caps.windowLimits,
     aqiForecastDays: caps.aqiForecastDays,
+    cloud: analyzed?.cloudFetched ?? false,
   })
   // The pitch the slider's kilometres read from: the analyzed model once a
   // report is held (what the grid actually draws), the panel's pick before
@@ -2220,7 +2228,9 @@ export default function App() {
     if (wanted !== modelColumnOn) setModelColumn(wanted)
     const rest = new Set(keys)
     rest.delete(MODEL_KEY)
-    setColumnVisibility(rest)
+    setColumnVisibility(
+      keepUnlistedChoices(rest, new Set(allColumns.map((c) => c.key as string)), columnVisibility),
+    )
   }
 
   // The ranking pulls its own metric group to the front, and the maintainer
@@ -2282,13 +2292,14 @@ export default function App() {
   // the check answered AND the column is shown, because a file's columns
   // must not disagree with the screen's.
   const tableColumns = useMemo(() => {
-    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys)
+    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys, cloudHeld)
     const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
     return applyColumnOrder(withModelColumn(withFire, modelColumnOn), columnOrder)
   }, [
     pointSample,
     view.sortBy,
     effectiveVisibleKeys,
+    cloudHeld,
     modelColumnOn,
     columnOrder,
   ])
