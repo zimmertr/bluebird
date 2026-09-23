@@ -11,9 +11,11 @@ import {
   discoveryChanges,
   discoveryKeys,
   fieldHasValue,
+  panelCommitCues,
+  type PanelState,
   presentResults,
 } from './present'
-import { resultRow } from '../testSupport/fixtures'
+import { analyzedSnapshot, resultRow } from '../testSupport/fixtures'
 
 // Rows differing only in the fields under test, so an assertion on names reads
 // as an assertion on ordering and membership.
@@ -193,6 +195,74 @@ describe('cloudNeeded', () => {
   it('is quiet when no cloud metric is named, and before any report exists', () => {
     expect(cloudNeeded({ cloudFetched: false }, false)).toBe(false)
     expect(cloudNeeded(null, true)).toBe(false)
+  })
+})
+
+// ── panelCommitCues ────────────────────────────────────────────────────────
+
+describe('panelCommitCues', () => {
+  const RING = { coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+  const WINDOW = { startMs: Date.UTC(2026, 6, 20, 6), endMs: Date.UTC(2026, 6, 20, 18) }
+  // A report of peaks inside RING, and a panel that still says exactly that.
+  const report = analyzedSnapshot({ window: WINDOW, ...discoveryKeys(RING, ['peak'], false) })
+  const panel = (over: Partial<PanelState> = {}): PanelState => ({
+    settled: true,
+    selectionKind: 'days',
+    windowMs: WINDOW,
+    forecastModel: report.forecastModel,
+    comparedModels: [],
+    polygon: RING,
+    destinationTypes: ['peak'],
+    includeUnnamedPeaks: false,
+    pendingCount: 0,
+    sortBy: 'precip_total_in',
+    constraints: NO_CONSTRAINTS,
+    ...over,
+  })
+
+  it('is silent when the panel matches the report, mid-run, and before any report', () => {
+    expect(panelCommitCues(report, panel())).toEqual([])
+    expect(panelCommitCues(report, panel({ settled: false, forecastModel: 'ecmwf_ifs025' }))).toEqual([])
+    expect(panelCommitCues(null, panel({ forecastModel: 'ecmwf_ifs025' }))).toEqual([])
+  })
+
+  it('feeds each panel input to its own cue, in commitNeeded order', () => {
+    const all = panel({
+      windowMs: { ...WINDOW, endMs: WINDOW.endMs + 3_600_000 },
+      forecastModel: 'ecmwf_ifs025',
+      polygon: { coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] },
+      destinationTypes: ['peak', 'lake'],
+      pendingCount: 1,
+      sortBy: 'cloud_cover_max_pct',
+    })
+    expect(panelCommitCues(report, all)).toEqual([
+      'model-changed',
+      'window-changed',
+      'polygon-changed',
+      'types-changed',
+      'destination-added',
+      'cloud-needed',
+    ])
+  })
+
+  // The current hour moves with the clock, so its window alone never cues;
+  // switching arms does.
+  it('exempts the current hour from the window cue, but not a switch of arms', () => {
+    const now = analyzedSnapshot({ ...report, kind: 'now' })
+    expect(panelCommitCues(now, panel({ selectionKind: 'now', windowMs: { startMs: 1, endMs: 1 } }))).toEqual([])
+    expect(panelCommitCues(report, panel({ selectionKind: 'now' }))).toEqual(['window-changed'])
+  })
+
+  // Ticking a model the report never bought is a model change; unticking one
+  // is drawn from numbers already held.
+  it('cues a newly ticked comparison and not an unticked one', () => {
+    expect(panelCommitCues(report, panel({ comparedModels: ['icon_seamless'] }))).toEqual(['model-changed'])
+    const compared = analyzedSnapshot({ ...report, compareModels: ['icon_seamless'] })
+    expect(panelCommitCues(compared, panel())).toEqual([])
+  })
+
+  it('reads the unnamed-peaks switch as a change of types', () => {
+    expect(panelCommitCues(report, panel({ includeUnnamedPeaks: true }))).toEqual(['types-changed'])
   })
 })
 

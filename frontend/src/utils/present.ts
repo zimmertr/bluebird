@@ -13,7 +13,10 @@
 // of M" count cannot drift from each other.
 
 import { DestinationResult, SortBy } from '../types'
+import type { AnalyzedView } from '../hooks/analyzeTypes'
 import { Constraints, filterConstraints, rankComparator } from './clientAnalyze'
+import { namesOnRequestMetric } from './constraints'
+import { compareAdded } from './modelCompare'
 import { geoKey } from './points'
 
 /**
@@ -210,6 +213,69 @@ export function commitNeeded(
   if (changed.destinationAdded) reasons.push('destination-added')
   if (changed.cloud) reasons.push('cloud-needed')
   return reasons
+}
+
+/** The panel as `panelCommitCues` compares it against the report. */
+export interface PanelState {
+  /** False while a run is in flight or before any report: no cue speaks then. */
+  settled: boolean
+  selectionKind: AnalyzedView['kind']
+  windowMs: { startMs: number; endMs: number }
+  forecastModel: string
+  comparedModels: readonly string[]
+  polygon: { coordinates: number[][][] } | null
+  destinationTypes: readonly string[]
+  includeUnnamedPeaks: boolean
+  /** How many named destinations no analysis has covered (`pendingDestinations`). */
+  pendingCount: number
+  sortBy: SortBy
+  constraints: Constraints
+}
+
+/**
+ * Every commit cue the panel shows, read off the panel and the report.
+ *
+ * `commitNeeded` above decides the order and the wording's reasons; this is
+ * which panel state feeds each one, so that choice is testable too rather
+ * than left inline in `App.tsx`.
+ */
+export function panelCommitCues(analyzed: AnalyzedView | null, panel: PanelState): CommitReason[] {
+  // Mid-run the report is about to change, and before any report there is
+  // nothing to be out of date with.
+  if (!panel.settled || analyzed === null) return []
+  // The forecast window is a data knob: the browser holds no forecasts for
+  // days it never fetched, so a calendar change cannot re-present anything.
+  // The current hour is exempt, since its window moves with the clock and a
+  // cue that never cleared would ask for an Analyze whose answer is already
+  // on screen. Switching between the two arms still counts.
+  const window =
+    analyzed.kind !== panel.selectionKind ||
+    (panel.selectionKind === 'days' &&
+      (analyzed.window.startMs !== panel.windowMs.startMs ||
+        analyzed.window.endMs !== panel.windowMs.endMs))
+  // A model change is a data knob for a stronger reason than the window: every
+  // number in the held rows came from a model the panel no longer names. A
+  // newly ticked comparison is the same disagreement, since the browser holds
+  // no forecasts for a model it never bought. Unticking one is not: its line
+  // is drawn from numbers already in hand, so it stops at once.
+  const model =
+    analyzed.forecastModel !== panel.forecastModel ||
+    compareAdded(analyzed.compareModels, panel.comparedModels)
+  const discovery = discoveryChanges(
+    analyzed,
+    discoveryKeys(panel.polygon, panel.destinationTypes, panel.includeUnnamedPeaks),
+    panel.polygon !== null,
+  )
+  return commitNeeded(analyzed, {
+    window,
+    model,
+    polygon: discovery.polygon,
+    types: discovery.types,
+    // The same set behind the map's pending dots, so the cue and the dots
+    // cannot disagree about what an analysis has not covered.
+    destinationAdded: panel.pendingCount > 0,
+    cloud: cloudNeeded(analyzed, namesOnRequestMetric(panel.sortBy, panel.constraints)),
+  })
 }
 
 export interface Presentation {
