@@ -1,11 +1,12 @@
 import { memo } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DestinationResult } from '../types'
 import type { SortDir, SortKey, ColDef } from '../utils/tableColumns'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
+import { sized } from './sizedCell'
 import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, TABLE } from '../styles'
 
 // The results table's header row and everything a press on it can do: sort,
@@ -15,42 +16,6 @@ import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSER
 // cells' clock never reaches this far: FireClock in ResultsTableRow.tsx sends
 // each frame to those cells through a context. The two gestures are hooks (useColumnDrag, useColumnResize) and
 // what they measure is utils/columnMeasure.ts; this file draws.
-
-// Every data cell renders inside this wrapper. Sized, it pins the cell's
-// content box to the chosen width; unsized it is inert — but it must exist
-// either way, because it is what auto-fit measures. Measuring the cell
-// itself reads the STRETCHED box (auto layout hands min-w-full's spare
-// space to every column), which made the first double-click widen columns
-// that already fit their content.
-//
-// The clipping classes ride ONLY with a width. On an unsized column a
-// truncatable block stops defending its content in auto table layout — the
-// column can be dealt less than its own header, which then renders
-// pre-clipped and makes the first fit look like it widened the column when
-// it merely un-clipped it.
-export function sized(
-  widths: Record<string, number>,
-  key: string,
-  content: ReactNode,
-  display: 'block' | 'inline' = 'block',
-): ReactNode {
-  const w = widths[key]
-  const clip = w !== undefined ? 'overflow-hidden text-ellipsis' : ''
-  // Inline for headers: the sort arrow renders BESIDE this wrapper, outside
-  // any pinned width, so a column fitted before it was ranked does not clip
-  // its own label when the arrow arrives — the column grows by the arrow.
-  const flow = display === 'inline' ? 'inline-block align-bottom' : ''
-  const className = `${clip} ${flow}`.trim()
-  return (
-    <div
-      data-col-inner
-      className={className || undefined}
-      style={w !== undefined ? { width: w } : undefined}
-    >
-      {content}
-    </div>
-  )
-}
 
 interface Props {
   // The columns in the order the table draws them.
