@@ -216,9 +216,11 @@ describe('the reading tier', () => {
 })
 
 // Every text-bearing source in the app, so a component added later is covered
-// by default rather than by remembering to list it.
+// by default rather than by remembering to list it. A component's test sits
+// beside it and is not a component: it renders the rules rather than breaking
+// them, and counting it would put its queries in the tallies below.
 const sources: Record<string, string> = {
-  ...(import.meta.glob('./components/*.tsx', {
+  ...(import.meta.glob(['./components/*.tsx', '!./components/*.test.tsx'], {
     query: '?raw',
     import: 'default',
     eager: true,
@@ -237,7 +239,7 @@ const POPOVER_MODULE = './components/Popover.tsx'
 // a second caller there would be as much of a second recipe as one here.
 const placementCallers: Record<string, string> = {
   ...(import.meta.glob(
-    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts'],
+    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts', '!./**/*.test.tsx'],
     { query: '?raw', import: 'default', eager: true },
   ) as Record<string, string>),
   './App.tsx': appSource,
@@ -267,6 +269,12 @@ describe('every component', () => {
   // bundle. A build is the only thing that would otherwise notice.
   it('keeps the linter fixtures out of Tailwind\'s reach', () => {
     expect(indexCss).toMatch(/@source not ["']\.\.\/tools["']/)
+  })
+
+  // The same hazard one directory in: a component test may quote a class to
+  // find what it asserts on, and nothing it quotes is drawn by the app.
+  it('keeps the component tests out of Tailwind\'s reach', () => {
+    expect(indexCss).toMatch(/@source not ["']\.\/\*\*\/\*\.test\.tsx["']/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility

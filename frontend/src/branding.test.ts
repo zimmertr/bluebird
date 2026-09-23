@@ -27,7 +27,7 @@ describe('branding', () => {
   it('no source file spells a pre-rename identifier', () => {
     const violations: string[] = []
     for (const [path, text] of Object.entries(sources)) {
-      if (path.endsWith('.test.ts')) continue
+      if (/\.test\.tsx?$/.test(path)) continue
       for (const [what, pattern] of Object.entries(BANNED)) {
         const m = pattern.exec(text)
         if (m) {
