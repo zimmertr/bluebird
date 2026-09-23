@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url'
 // Same `?raw` idiom legal.test.ts and styles.test.ts use: the files are read as
 // text, so this stays a pure node test with no DOM.
 import app from './App.tsx?raw'
-import mapView from './components/MapView.tsx?raw'
+import basemap from './map/basemap.ts?raw'
 import { AIR_QUALITY_URL, FORECAST_URL } from './utils/openMeteo'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -19,7 +19,7 @@ const indexHtml = readFileSync(repoFile('index.html'), 'utf-8')
 // What the entry document promises to warm. Pulled out of the sources rather
 // than spelled here, so moving an endpoint fails this test instead of quietly
 // leaving a hint pointed at a host nothing calls (issue #337, finding 1).
-const styleUrl = /const STYLE = '([^']+)'/.exec(mapView)?.[1]
+const styleUrl = /const STYLE = '([^']+)'/.exec(basemap)?.[1]
 
 describe('preconnect hints', () => {
   it('warms every host the first screen and the first analysis need', () => {

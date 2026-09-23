@@ -25,6 +25,7 @@ import {
 // tree the node-env Vitest cannot mount, so what it wires is asserted as source.
 import appSource from '../App.tsx?raw'
 import mapViewSource from '../components/MapView.tsx?raw'
+import basemapSource from '../map/basemap.ts?raw'
 import { NO_VALUE, fillColor, resultsFeatureCollection } from './resultFeatures'
 import type { DestinationResult } from '../types'
 import type { AqiResult, WeatherResult } from './openMeteo'
@@ -458,9 +459,13 @@ describe('the grid layer reads that decision rather than re-deriving one', () =>
 // `?raw` idiom the block above uses on App.tsx.
 describe('how the grid layer leaves the map', () => {
   it('hands the source decoded pixels, never a url', () => {
-    // An encoded image anywhere in this file is a decode waiting to fail.
-    expect(mapViewSource).not.toContain('data:image/png;base64')
-    expect(mapViewSource).not.toMatch(/updateImage\(\{\s*url/)
+    // An encoded image anywhere in the map's code is a decode waiting to fail.
+    // `rasterImage`, which builds the pixels, lives in map/basemap.ts.
+    for (const source of [mapViewSource, basemapSource]) {
+      expect(source).not.toContain('data:image/png;base64')
+      expect(source).not.toMatch(/updateImage\(\{\s*url/)
+    }
+    expect(basemapSource).toContain('export function rasterImage(')
   })
 
   it('clears the field by hiding the layer', () => {
