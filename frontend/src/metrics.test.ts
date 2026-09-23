@@ -41,7 +41,9 @@ import popupRowsSource from './utils/popupRows.ts?raw'
 import resultsCsvSource from './utils/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
 import freezingLevelSource from './utils/freezingLevel.ts?raw'
-import openMeteoSource from './utils/openMeteo.ts?raw'
+import openMeteoClientSource from './utils/openMeteo.ts?raw'
+import openMeteoAggregateSource from './utils/openMeteoAggregate.ts?raw'
+import openMeteoErrorsSource from './utils/openMeteoErrors.ts?raw'
 import presentSource from './utils/present.ts?raw'
 
 const SORTS: SortBy[] = [
@@ -452,6 +454,14 @@ describe('no surface picks its own precipitation precision', () => {
 })
 
 describe('copy lints', () => {
+  // The Open-Meteo client spells its failures across three modules, so the
+  // lints read all three as one.
+  const openMeteoSource = [
+    openMeteoClientSource,
+    openMeteoAggregateSource,
+    openMeteoErrorsSource,
+  ].join('\n')
+
   // L3: No "the weather service" in frontend sources. Use "Open-Meteo" or
   // restructure to avoid the phrase.
   it('keeps "the weather service" phrase out of frontend', () => {

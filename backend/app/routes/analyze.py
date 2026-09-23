@@ -2,10 +2,11 @@ import asyncio
 import json
 import logging
 import math
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -73,13 +74,14 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     and the two are joined per location before the aggregation runs.
     """
     now = datetime.now(UTC)
+    start, end = request.resolved_window()
     return (
-        window_source(request.start_datetime, request.end_datetime, now),
+        window_source(start, end, now),
         archive_boundary(now),
     )
 
 
-def _filter_elevation(destinations, min_ft, max_ft):
+def _filter_elevation(destinations, min_ft, max_ft) -> list[dict]:
     """Drop candidates outside the requested elevation band.
 
     Unknown elevations pass through — many OSM peaks lack the tag and
@@ -303,11 +305,11 @@ def _refusal_body(
     return body.model_dump(mode="json")
 
 
-def _sort_key(sort_field: str, descending: bool = False):
+def _sort_key(sort_field: str, descending: bool = False) -> Callable[[DestinationResult], tuple[int, float]]:
     # AQI fields are nullable (short forecast horizon / best-effort fetch);
     # None sorts after every real value in either direction so it never wins
     # a ranking — hence negating values rather than sort(reverse=True).
-    def key(r: DestinationResult):
+    def key(r: DestinationResult) -> tuple[int, float]:
         v = getattr(r, sort_field)
         if v is None:
             return (1, 0.0)
@@ -550,7 +552,7 @@ def _render_sse(event: AnalyzeEvent) -> str:
 _STREAM_DONE = object()
 
 
-async def _drain(queue: asyncio.Queue):
+async def _drain(queue: asyncio.Queue) -> AsyncIterator[Any]:
     """Yield items from `queue` until the done sentinel.
 
     Lets the analysis interleave progress with a coroutine it runs on a
@@ -570,7 +572,7 @@ async def _drain(queue: asyncio.Queue):
 KEEPALIVE_INTERVAL_S = 25.0
 
 
-async def _with_keepalive(source, interval_s: float = KEEPALIVE_INTERVAL_S):
+async def _with_keepalive(source, interval_s: float = KEEPALIVE_INTERVAL_S) -> AsyncIterator[str]:
     """Re-yield `source`, inserting a `keepalive` event during silences.
 
     Consumers that switch on the event `type` ignore it by construction; its
@@ -707,7 +709,7 @@ def _assemble(
 
 async def _run_analysis(
     request: AnalyzeRequest, api_key: str | None
-) -> AsyncIterator[AnalyzeEvent]:
+) -> AsyncGenerator[AnalyzeEvent]:
     """Run one analysis, reporting what happens as it happens.
 
     Ends with exactly one terminal event — `Failure`, `Refusal` or `Result` —
@@ -715,7 +717,8 @@ async def _run_analysis(
     generator on the terminal event, so the `finally` blocks that cancel
     in-flight upstream tasks run promptly instead of at collection.
     """
-    if request.start_datetime >= request.end_datetime:
+    start, end = request.resolved_window()
+    if start >= end:
         yield Failure(
             ApiError(
                 status_code=400,
@@ -745,7 +748,8 @@ async def _run_analysis(
             return
         destinations = await _resolve_custom(request.custom_destinations)
     else:
-        if not request.polygon:
+        polygon = request.polygon
+        if not polygon:
             yield Failure(
                 ApiError(
                     status_code=400,
@@ -761,16 +765,16 @@ async def _run_analysis(
         # status lines promptly via the queue.
         osm_queue: asyncio.Queue = asyncio.Queue()
 
-        async def on_status(detail):
+        async def on_status(detail) -> None:
             # Mirror failover ("Trying backup map server 2 of 3…") rides the
             # optional `detail` field; `message` stays the stable phase
             # heading the overlay keys on.
             await osm_queue.put(Status("Searching for Destinations…", detail))
 
-        async def run_osm():
+        async def run_osm() -> list[dict]:
             try:
                 return await discover(
-                    request.polygon,
+                    polygon,
                     request.destination_types,
                     include_unnamed_peaks=request.include_unnamed_peaks,
                     on_status=on_status,
@@ -839,7 +843,7 @@ async def _run_analysis(
     # queue, so progress events interleave with the await.
     progress_queue: asyncio.Queue = asyncio.Queue()
 
-    async def on_progress(processed, total, batches_done, total_batches):
+    async def on_progress(processed, total, batches_done, total_batches) -> None:
         percent = round(processed / total * 100) if total else 100
         await progress_queue.put(
             Progress(
@@ -852,7 +856,7 @@ async def _run_analysis(
             )
         )
 
-    async def on_pace(seconds: int):
+    async def on_pace(seconds: int) -> None:
         # A pace wait is silence the user would otherwise read as a hang; the
         # detail line narrates it under the phase heading.
         await progress_queue.put(
@@ -862,12 +866,12 @@ async def _run_analysis(
             )
         )
 
-    async def run_fetch():
+    async def run_fetch() -> list[dict[str, Any] | None]:
         try:
             return await weather.fetch_weather_batch(
                 destinations,
-                request.start_datetime,
-                request.end_datetime,
+                start,
+                end,
                 on_progress,
                 on_pace,
                 request.forecast_model,
@@ -890,8 +894,8 @@ async def _run_analysis(
         asyncio.create_task(
             air_quality.fetch_aqi_batch(
                 destinations,
-                request.start_datetime,
-                request.end_datetime,
+                start,
+                end,
                 api_key=api_key,
             )
         )
@@ -984,7 +988,7 @@ async def _run_analysis(
     if not aqi_eager:
         try:
             await _attach_aqi(
-                results, times, request.start_datetime, request.end_datetime, api_key
+                results, times, start, end, api_key
             )
         except InvalidApiKeyError as e:
             # Reachable when the weather half answered entirely from cache, so
@@ -1104,8 +1108,8 @@ async def _run_analysis(
 async def analyze_stream(
     request: AnalyzeRequest,
     api_key: str | None = Security(open_meteo_key),
-):
-    async def generate():
+) -> StreamingResponse:
+    async def generate() -> AsyncIterator[str]:
         log.info("Analyze request (stream): %s", _summarize_request(request))
         try:
             async with aclosing(_run_analysis(request, api_key)) as events:
@@ -1190,7 +1194,7 @@ async def analyze_stream(
 async def analyze(
     request: AnalyzeRequest,
     api_key: str | None = Security(open_meteo_key),
-) -> AnalyzeResponse:
+) -> AnalyzeResponse | JSONResponse:
     log.info("Analyze request: %s", _summarize_request(request))
 
     terminal: AnalyzeEvent | None = None

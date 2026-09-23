@@ -67,7 +67,7 @@ export const AQI_LIMIT_DAYS = 5
 /** Whole-day bounds, in the `HH:MM` shape the narrow-hours inputs speak. */
 export const DAY_START = '00:00'
 // 23:59 rather than the next day's 00:00. The hourly filter is inclusive on
-// both ends (`weather.py` `_metrics`), so midnight-to-midnight catches 25
+// both ends (`aggregation.py` `_weather_metrics`), so midnight-to-midnight catches 25
 // stamps and double-counts the boundary hour into the precipitation total;
 // 23:59 catches exactly the day's 24.
 export const DAY_END = '23:59'

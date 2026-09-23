@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from app.routes.analyze import _aligned_aqi
-from app.services import air_quality, weather
+from app.services import aggregation
 
 VECTORS = json.loads(
     (Path(__file__).parent / "data" / "weather_vectors.json").read_text()
@@ -37,11 +37,11 @@ def test_weather_reference_reproduces_vectors(case):
     start, end = _window(case)
     elevation_ft = case.get("elevation_ft")
     assert (
-        weather._metrics(case["payload"], start, end, elevation_ft)
+        aggregation._weather_metrics(case["payload"], start, end, elevation_ft)
         == case["expected_metrics"]
     )
     assert (
-        weather._series(case["payload"], start, end, elevation_ft)
+        aggregation._weather_series(case["payload"], start, end, elevation_ft)
         == case["expected_series"]
     )
 
@@ -49,8 +49,8 @@ def test_weather_reference_reproduces_vectors(case):
 @pytest.mark.parametrize("case", VECTORS["aqi"], ids=lambda c: c["name"])
 def test_aqi_reference_reproduces_vectors(case):
     start, end = _window(case)
-    assert air_quality._metrics(case["payload"], start, end) == case["expected_metrics"]
-    assert air_quality._series(case["payload"], start, end) == case["expected_series"]
+    assert aggregation._aqi_metrics(case["payload"], start, end) == case["expected_metrics"]
+    assert aggregation._aqi_series(case["payload"], start, end) == case["expected_series"]
 
 
 @pytest.mark.parametrize("case", VECTORS["align"], ids=lambda c: c["name"])

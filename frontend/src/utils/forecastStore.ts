@@ -1,7 +1,8 @@
 /**
- * The per-location forecast cache, across a reload (issue #337, finding 3).
+ * The per-location forecast cache, in memory and across a reload (issue #337,
+ * finding 3).
  *
- * `openMeteo.ts` holds forecasts in a module `Map` for 15 minutes, which is the
+ * The module `Map` below holds forecasts for 15 minutes, which is the
  * same freshness the pod's own cache keeps and the same window `useAnalyze.ts`
  * will reuse a held field inside. A reload emptied it, so a visitor who
  * refreshed the page re-spent their own Open-Meteo quota on coordinates the
@@ -26,12 +27,14 @@
  * moment of the write plus the milliseconds that were left, so the reader can
  * subtract however long the page was away.
  *
- * Everything here is pure except `loadSnapshot`/`saveSnapshot`, which are the
+ * The snapshot half is pure except `loadSnapshot`/`saveSnapshot`, which are the
  * only two functions that touch storage and which swallow every failure. A
  * private window, cleared site data, and a full quota all present as an
  * exception from an ordinary-looking property access, and none of them is a
  * reason to fail an analysis.
  */
+
+import type { AqiResult, Coordinate, WeatherResult } from './openMeteo'
 
 export const STORAGE_KEY = 'bluebird_forecast_cache_v1'
 
@@ -148,4 +151,114 @@ export function saveSnapshot(snapshot: StoredSnapshot): void {
       /* nothing left to try */
     }
   }
+}
+
+// ── Per-location result cache ──────────────────────────────────────────────
+
+// Repeat clicks on an unchanged polygon and window cost zero upstream calls.
+// Keys are exact coordinates on purpose: Open-Meteo interpolates per
+// coordinate (including elevation downscaling), so a rounded key would serve
+// one peak its neighbor's forecast and silently change displayed values.
+// TTL sits under Open-Meteo's roughly hourly model-update cadence.
+const CACHE_TTL_MS = 15 * 60_000
+const CACHE_MAX_ENTRIES = 5_000
+// "No data for this window" is a real cached answer, distinct from a miss.
+export const NO_DATA = 'NO_DATA'
+
+type CacheEntry = { expires: number; value: WeatherResult | AqiResult | typeof NO_DATA }
+const forecastCache = new Map<string, CacheEntry>()
+
+// `model` is part of the key for the same reason the coordinates are: two
+// models answering the same question disagree, which is the whole point of
+// being able to choose one. Empty for air quality, which has a single model.
+export function cacheKey(
+  service: 'weather' | 'aqi',
+  c: Coordinate,
+  startMs: number,
+  endMs: number,
+  model = '',
+  terrainElevation = false,
+  source = '',
+): string {
+  // Elevation joins the weather key for the reason the model does: the stored
+  // aggregates were computed AT that elevation (issue #257), so the same
+  // coordinates claimed at a different height are a different question. A
+  // grid sample adjusting to the MODEL's terrain height is a third answer at
+  // the same coordinates, distinct from both a claimed elevation and none —
+  // without its own key, a destination with no elevation and the grid cell
+  // over it would poison each other's entries.
+  const elevation =
+    service === 'weather' ? (c.elevation_ft ?? (terrainElevation ? 'model' : '')) : ''
+  // `source` is which endpoint answered (#123). The archive carries no
+  // pressure-level winds, so its rows hold the 10 m wind where the forecast
+  // endpoint's hold wind at elevation, and the boundary between the two moves
+  // with the clock — so an entry is only ever read back for the endpoint that
+  // produced it. A window crossing the boundary keys on 'spanning', because its
+  // joined series is a third answer at the same coordinates and window rather
+  // than either half.
+  return `${service}|${c.latitude}|${c.longitude}|${startMs}|${endMs}|${model}|${elevation}|${source}`
+}
+
+export function cacheGet(key: string): CacheEntry['value'] | undefined {
+  const entry = forecastCache.get(key)
+  if (!entry) return undefined
+  if (performance.now() >= entry.expires) {
+    forecastCache.delete(key)
+    return undefined
+  }
+  return entry.value
+}
+
+export function cachePut(key: string, value: CacheEntry['value']): void {
+  forecastCache.set(key, { expires: performance.now() + CACHE_TTL_MS, value })
+  cacheDirty = true
+  if (forecastCache.size > CACHE_MAX_ENTRIES) {
+    for (const oldest of forecastCache.keys()) {
+      forecastCache.delete(oldest)
+      if (forecastCache.size <= CACHE_MAX_ENTRIES) break
+    }
+  }
+}
+
+// ── Surviving a reload ─────────────────────────────────────────────────────
+
+// The cache above dies with the page, so a reload re-spends the visitor's own
+// Open-Meteo quota on coordinates the browser already paid for (#337, finding
+// 3). The snapshot functions above mirror what fits into `sessionStorage`: one
+// entry measures about 10.5 KB, storage holds about 5 MB, so it is a budget of
+// the newest entries rather than a mirror of all of them. Every decision and
+// every measurement is in this file's header; this is the wiring.
+//
+// The write happens on the way out of the page rather than after each batch,
+// because serializing the budget costs about 6 ms and nothing about an
+// in-flight analysis needs it done sooner. `pagehide` is the event that
+// survives the back/forward cache; `visibilitychange` covers a phone whose
+// browser is backgrounded and then killed.
+let cacheDirty = false
+
+function persistForecastCache(): void {
+  if (!cacheDirty) return
+  cacheDirty = false
+  saveSnapshot(buildSnapshot(forecastCache, performance.now(), Date.now()))
+}
+
+function hydrateForecastCache(): void {
+  for (const [key, entry] of readSnapshot(loadSnapshot(), performance.now(), Date.now())) {
+    forecastCache.set(key, entry as CacheEntry)
+  }
+}
+
+if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+  hydrateForecastCache()
+  window.addEventListener('pagehide', persistForecastCache)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persistForecastCache()
+  })
+}
+
+// Test hook: the cache is module state that must not leak between unit tests.
+// `resetOpenMeteoState` calls it beside resetting the pacing budgets.
+export function resetForecastCache(): void {
+  cacheDirty = false
+  forecastCache.clear()
 }

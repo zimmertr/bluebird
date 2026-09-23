@@ -10,22 +10,22 @@ from conftest import dest, fake_response
 
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
-from app.services import weather
+from app.services import aggregation, weather
+from app.services.aggregation import (
+    _naive,
+    _parse_ts,
+    _temp_at_elevation,
+    _weather_metrics,
+    _weather_series,
+    _wind_at_elevation,
+)
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
     UpstreamError,
     UpstreamRateLimited,
 )
-from app.services.weather import (
-    _metrics,
-    _naive,
-    _parse_ts,
-    _series,
-    _temp_at_elevation,
-    _wind_at_elevation,
-    fetch_weather_batch,
-)
+from app.services.weather import fetch_weather_batch
 
 
 def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m"):
@@ -60,7 +60,7 @@ def test_metrics_aggregates_full_window():
         [50.0, 52.0, 54.0],
         [5.0, 7.0, 9.0],
     )
-    m = _metrics(data, START, END)
+    m = _weather_metrics(data, START, END)
     assert m == {
         "precip_total_in": 0.3,
         "precip_avg_in_hr": 0.1,
@@ -88,7 +88,7 @@ def test_metrics_excludes_timestamps_outside_window():
         [50.0, 52.0, 54.0, 99.0],
         [5.0, 7.0, 9.0, 99.0],
     )
-    m = _metrics(data, START, END)
+    m = _weather_metrics(data, START, END)
     assert m["precip_max_in_hr"] == 0.2
     assert m["temp_max_f"] == 54.0
 
@@ -106,7 +106,7 @@ def test_metrics_point_sample_window_hits_exactly_one_hour():
     )
     start = datetime(2026, 7, 21, 1, 0)  # noqa: DTZ001 — matches the API's naive stamps
     end = datetime(2026, 7, 21, 1, 1)  # noqa: DTZ001
-    m = _metrics(data, start, end)
+    m = _weather_metrics(data, start, end)
     assert m["precip_total_in"] == 0.2
     assert m["temp_min_f"] == m["temp_avg_f"] == m["temp_max_f"] == 52.0
     assert m["wind_min_mph"] == m["wind_avg_mph"] == m["wind_max_mph"] == 7.0
@@ -120,7 +120,7 @@ def test_metrics_skips_hours_with_missing_values():
         [50.0, 52.0, 54.0],
         [5.0, 7.0, 9.0],
     )
-    m = _metrics(data, START, END)
+    m = _weather_metrics(data, START, END)
     assert m["precip_total_in"] == 0.4  # 0.1 + 0.3, the None hour excluded
     assert m["temp_min_f"] == 50.0
     assert m["temp_max_f"] == 54.0
@@ -128,12 +128,12 @@ def test_metrics_skips_hours_with_missing_values():
 
 def test_metrics_empty_window_returns_none():
     data = _hourly([], [], [], [])
-    assert _metrics(data, START, END) is None
+    assert _weather_metrics(data, START, END) is None
 
 
 def test_metrics_all_out_of_range_returns_none():
     data = _hourly(["2020-01-01T00:00"], [0.1], [50.0], [5.0])
-    assert _metrics(data, START, END) is None
+    assert _weather_metrics(data, START, END) is None
 
 
 def test_metrics_rounding_precision():
@@ -146,7 +146,7 @@ def test_metrics_rounding_precision():
         [50.123456, 51.987654],
         [5.111111, 7.999999],
     )
-    m = _metrics(data, START, END)
+    m = _weather_metrics(data, START, END)
     assert m["precip_total_in"] == round(m["precip_total_in"], 4)
     assert m["precip_avg_in_hr"] == round(m["precip_avg_in_hr"], 4)
     assert m["temp_avg_f"] == round(m["temp_avg_f"], 1)
@@ -157,7 +157,7 @@ def test_metrics_rounding_precision():
 
 def test_metrics_malformed_payload_returns_none():
     # A completely unexpected shape is swallowed to None, never raised.
-    assert _metrics({"unexpected": True}, START, END) is None
+    assert _weather_metrics({"unexpected": True}, START, END) is None
 
 
 # ── Freezing level (issue #295) ────────────────────────────────────────────
@@ -175,7 +175,7 @@ def test_metrics_converts_the_freezing_level_to_whole_feet():
         _TIMES_3H, [0.0, 0.0, 0.0], [30.0, 31.0, 32.0], [5.0, 5.0, 5.0],
         freeze=[3000.0, 3100.0, 3050.0],
     )
-    m = _metrics(data, START, END)
+    m = _weather_metrics(data, START, END)
     assert m["freeze_min_ft"] == round(3000.0 / 0.3048, 0)
     assert m["freeze_max_ft"] == round(3100.0 / 0.3048, 0)
     assert m["freeze_avg_ft"] == round(3050.0 / 0.3048, 0)
@@ -185,8 +185,8 @@ def test_metrics_all_null_freezing_level_leaves_the_other_aggregates():
     # The five-model response shape: identical payloads but for the freezing
     # level, and every other figure must come out identical too.
     args = (_TIMES_3H, [0.1, 0.2, 0.0], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
-    nulled = _metrics(_hourly(*args, freeze=[None, None, None]), START, END)
-    absent = _metrics(_hourly(*args), START, END)
+    nulled = _weather_metrics(_hourly(*args, freeze=[None, None, None]), START, END)
+    absent = _weather_metrics(_hourly(*args), START, END)
 
     assert nulled == absent
     assert nulled["freeze_avg_ft"] is None
@@ -202,7 +202,7 @@ def test_metrics_skips_a_null_freezing_hour_without_dropping_it():
         _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
         freeze=[2000.0, None, 2200.0],
     )
-    m = _metrics(data, START, END)
+    m = _weather_metrics(data, START, END)
     assert m["precip_total_in"] == 0.6
     assert m["freeze_min_ft"] == round(2000.0 / 0.3048, 0)
     assert m["freeze_max_ft"] == round(2200.0 / 0.3048, 0)
@@ -213,7 +213,7 @@ def test_metrics_freezing_level_zero_is_a_value_not_a_gap():
     data = _hourly(
         ["2026-07-21T00:00"], [0.0], [10.0], [5.0], freeze=[0.0]
     )
-    m = _metrics(data, START, END)
+    m = _weather_metrics(data, START, END)
     assert m["freeze_min_ft"] == 0.0
     assert m["freeze_avg_ft"] == 0.0
     assert m["freeze_max_ft"] == 0.0
@@ -224,13 +224,13 @@ def test_series_carries_the_freezing_level_and_its_gaps():
         _TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0],
         freeze=[3000.0, None, 3100.0],
     )
-    s = _series(data, START, END)
+    s = _weather_series(data, START, END)
     assert s["freeze_ft"] == [round(3000.0 / 0.3048, 0), None, round(3100.0 / 0.3048, 0)]
 
 
 def test_series_freezing_level_is_all_nulls_when_the_model_omits_it():
     data = _hourly(_TIMES_3H, [0.1, 0.2, 0.3], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
-    s = _series(data, START, END)
+    s = _weather_series(data, START, END)
     assert s["freeze_ft"] == [None, None, None]
     assert s["precip_in"] == [0.1, 0.2, 0.3]
 
@@ -254,8 +254,8 @@ def _rainier(freeze, freeze_unit="m"):
 
 
 def test_metrics_reads_the_unit_the_response_declares():
-    meters = _metrics(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
-    feet = _metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    meters = _weather_metrics(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
+    feet = _weather_metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
     assert meters["freeze_min_ft"] == 8399.0
     assert feet["freeze_min_ft"] == 8399.0
     assert feet == meters
@@ -264,36 +264,36 @@ def test_metrics_reads_the_unit_the_response_declares():
 def test_metrics_does_not_convert_a_response_already_in_feet():
     # The whole failure this guards: dividing feet by 0.3048 reads 27,556 ft
     # over a 14,409 ft summit, which looks like a forecast rather than a fault.
-    m = _metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    m = _weather_metrics(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
     assert m["freeze_max_ft"] == 8399.0
 
 
 def test_series_reads_the_unit_the_response_declares():
-    meters = _series(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
-    feet = _series(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
+    meters = _weather_series(_rainier([2560.0]), _RAINIER_START, _RAINIER_END)
+    feet = _weather_series(_rainier([8398.95], "ft"), _RAINIER_START, _RAINIER_END)
     assert meters["freeze_ft"] == [8399.0]
     assert feet["freeze_ft"] == [8399.0]
 
 
 def test_metrics_unknown_unit_fails_instead_of_guessing():
     with pytest.raises(UpstreamError):
-        _metrics(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
+        _weather_metrics(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
 
 
 def test_series_unknown_unit_fails_instead_of_guessing():
     with pytest.raises(UpstreamError):
-        _series(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
+        _weather_series(_rainier([2560.0], "furlongs"), _RAINIER_START, _RAINIER_END)
 
 
 def test_metrics_missing_unit_fails_when_the_column_carries_numbers():
     with pytest.raises(UpstreamError):
-        _metrics(_rainier([2560.0], None), _RAINIER_START, _RAINIER_END)
+        _weather_metrics(_rainier([2560.0], None), _RAINIER_START, _RAINIER_END)
 
 
 def test_metrics_missing_unit_is_harmless_when_the_column_is_all_null():
     # The five models that publish no freezing level need no unit, and a
     # response that declares none for an empty column is not malformed.
-    m = _metrics(_rainier([None], None), _RAINIER_START, _RAINIER_END)
+    m = _weather_metrics(_rainier([None], None), _RAINIER_START, _RAINIER_END)
     assert m["freeze_min_ft"] is None
     assert m["temp_min_f"] == 3.3
 
@@ -415,7 +415,7 @@ def test_series_keeps_every_hour_and_preserves_nulls_per_metric():
         [50.0, 52.0, None],
         [5.0, 7.0, 9.0],
     )
-    s = _series(data, START, END)
+    s = _weather_series(data, START, END)
     assert s["precip_in"] == [0.1, None, 0.3]
     assert s["temp_f"] == [50.0, 52.0, None]
     assert s["wind_mph"] == [5.0, 7.0, 9.0]
@@ -424,7 +424,7 @@ def test_series_keeps_every_hour_and_preserves_nulls_per_metric():
 
 def test_series_times_are_utc_epoch_ms():
     data = _hourly(["2026-07-21T00:00"], [0.0], [50.0], [5.0])
-    s = _series(data, START, END)
+    s = _weather_series(data, START, END)
     expected = int(datetime(2026, 7, 21, 0, 0, tzinfo=UTC).timestamp() * 1000)
     assert s["times"] == [expected]
 
@@ -436,25 +436,25 @@ def test_series_excludes_out_of_window():
         [50.0, 51.0, 52.0, 99.0],
         [5.0, 6.0, 7.0, 99.0],
     )
-    s = _series(data, START, END)
+    s = _weather_series(data, START, END)
     assert len(s["times"]) == 3
     assert s["precip_in"] == [0.1, 0.2, 0.3]
 
 
 def test_series_rounds_like_metrics():
     data = _hourly(["2026-07-21T00:00"], [0.1234567], [50.123456], [5.111111])
-    s = _series(data, START, END)
+    s = _weather_series(data, START, END)
     assert s["precip_in"] == [round(0.1234567, 4)]
     assert s["temp_f"] == [round(50.123456, 1)]
     assert s["wind_mph"] == [round(5.111111, 1)]
 
 
 def test_series_empty_window_returns_none():
-    assert _series(_hourly([], [], [], []), START, END) is None
+    assert _weather_series(_hourly([], [], [], []), START, END) is None
 
 
 def test_series_malformed_payload_returns_none():
-    assert _series({"unexpected": True}, START, END) is None
+    assert _weather_series({"unexpected": True}, START, END) is None
 
 
 # ── fetch_weather_batch (the fetch path itself) ────────────────────────────
@@ -598,11 +598,11 @@ async def test_fetch_weather_batch_requests_the_level_winds_and_temperatures(
     await fetch_weather_batch(_dests(1), START, END)
 
     hourly = calls[0]["hourly"].split(",")
-    for name, _ in weather._WIND_LEVELS:
+    for name, _ in aggregation._WIND_LEVELS:
         assert name in hourly
-    for name, _ in weather._TEMP_LEVELS:
+    for name, _ in aggregation._TEMP_LEVELS:
         assert name in hourly
-    assert weather._FREEZING_LEVEL in hourly
+    assert aggregation._FREEZING_LEVEL in hourly
     # 14 variables at one model is weight factor 1.4: max(1, vars x models/10).
     # The five level temperatures (#443) are what took the request over the
     # floor of 1; every set before them rode inside it.
@@ -969,15 +969,15 @@ def _whole_day(day: str, count: int = 25):
 def test_metrics_counts_a_whole_day_as_24_hours():
     day = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     end = datetime(2026, 7, 21, 23, 59)  # noqa: DTZ001 — same
-    m = _metrics(_whole_day("2026-07-21"), day, end)
+    m = _weather_metrics(_whole_day("2026-07-21"), day, end)
     assert m["precip_total_in"] == round(24 * 0.1, 4)
-    assert len(_series(_whole_day("2026-07-21"), day, end)["times"]) == 24
+    assert len(_weather_series(_whole_day("2026-07-21"), day, end)["times"]) == 24
 
 
 def test_metrics_counts_midnight_to_midnight_as_25_hours():
     day = datetime(2026, 7, 21, 0, 0)  # noqa: DTZ001 — Open-Meteo timestamps are naive local
     next_midnight = datetime(2026, 7, 22, 0, 0)  # noqa: DTZ001 — same
-    m = _metrics(_whole_day("2026-07-21"), day, next_midnight)
+    m = _weather_metrics(_whole_day("2026-07-21"), day, next_midnight)
     assert m["precip_total_in"] == round(25 * 0.1, 4)
 
 
@@ -1287,7 +1287,7 @@ async def test_an_archive_payload_with_no_level_winds_keeps_every_hour(monkeypat
     # — and, crucially, drops no hour doing it: the aggregation zips the four
     # core arrays, so a null level can only ever change a wind number.
     block = _one_location()
-    block["hourly"].update({name: [None] * 3 for name, _ in weather._WIND_LEVELS})
+    block["hourly"].update({name: [None] * 3 for name, _ in aggregation._WIND_LEVELS})
     _stub_openmeteo(monkeypatch, [[block]])
     dests = _dests(1)
     dests[0]["elevation_ft"] = 14000.0
@@ -1319,7 +1319,7 @@ def _half(times, precip):
         [50.0] * len(times),
         [5.0] * len(times),
     )
-    block["hourly"].update({name: [None] * len(times) for name, _ in weather._WIND_LEVELS})
+    block["hourly"].update({name: [None] * len(times) for name, _ in aggregation._WIND_LEVELS})
     block["hourly_units"] = {"precipitation": "inch"}
     return [block]
 
@@ -1418,11 +1418,11 @@ async def test_a_spanning_window_reads_the_freezing_level_in_the_served_unit(
     # declare the served unit, or the reader refuses the forecast half's numbers
     # and the row has no weather at all.
     archive = _archive_half()
-    archive[0]["hourly_units"] = {"precipitation": "inch", weather._FREEZING_LEVEL: "undefined"}
-    archive[0]["hourly"][weather._FREEZING_LEVEL] = [None, None]
+    archive[0]["hourly_units"] = {"precipitation": "inch", aggregation._FREEZING_LEVEL: "undefined"}
+    archive[0]["hourly"][aggregation._FREEZING_LEVEL] = [None, None]
     forecast = _forecast_half()
-    forecast[0]["hourly_units"] = {"precipitation": "inch", weather._FREEZING_LEVEL: "ft"}
-    forecast[0]["hourly"][weather._FREEZING_LEVEL] = [8000.0, 9000.0]
+    forecast[0]["hourly_units"] = {"precipitation": "inch", aggregation._FREEZING_LEVEL: "ft"}
+    forecast[0]["hourly"][aggregation._FREEZING_LEVEL] = [8000.0, 9000.0]
     _stub_openmeteo(monkeypatch, [archive, forecast])
     results = await fetch_weather_batch(
         _dests(1), SPAN_START, SPAN_END, source="spanning", boundary=SEAM
