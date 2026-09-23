@@ -115,6 +115,8 @@ const METRIC_SURFACES_IN_COMPONENTS = [
   'src/App.tsx',
   ...PANEL_FILES,
   'src/components/ResultsTable.tsx',
+  // The table's header row, which draws every column's label.
+  'src/components/ResultsTableHeader.tsx',
   'src/components/TimeSeriesChart.tsx',
   'src/components/TimelineTransport.tsx',
 ]

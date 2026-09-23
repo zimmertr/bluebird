@@ -16,18 +16,20 @@ import {
 import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecastGrid'
 import {
-  type BandLimits,
   DAY_END,
   DAY_START,
   ForecastSelection,
-  aqiHorizon,
-  bandEnd,
-  bandStart,
   isDayKey,
   isTimeOfDay,
+  isValidDatetimeLocal,
   orderDays,
 } from './calendar'
 import { Place } from './geocode'
+
+// The two window classifiers read the calendar band and live beside it. They
+// are re-exported here because the panel, App.tsx and this module's own suite
+// import them by this name.
+export { classifyAqiCoverage, classifyWindow } from './calendar'
 
 // Fields that fully describe an analysis. Results are deliberately excluded —
 // they're re-fetched fresh so a shared link never replays stale forecasts.
@@ -241,12 +243,6 @@ function decodePins(raw: string): Place[] {
     })
   }
   return out
-}
-
-// datetime-local strings only — reject anything Date can't parse so a garbled
-// value doesn't silently become "Invalid Date" downstream.
-function isValidDatetimeLocal(s: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) && !Number.isNaN(Date.parse(s))
 }
 
 /**
@@ -619,92 +615,4 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   }
 
   return Object.keys(out).length > 0 ? out : null
-}
-
-/**
- * Classify a forecast window against Open-Meteo's servable range. `now` is
- * injected for deterministic testing. The whole window must fit inside the
- * servable band: Open-Meteo rejects requests whose dates fall outside it, so
- * even a partial overhang would fail upstream. Returns 'order' when the end is
- * before the start, 'past' when the window starts before the history horizon,
- * and 'future' when it ends beyond the forecast horizon.
- *
- * Crossing the archive boundary is NOT one of these (#123). Both endpoints
- * answer such a window, split at the seam, so nothing about it blocks an
- * analysis — the panel names where the join falls instead (`archiveSeamPhrase`).
- *
- * Bounded by whole days rather than by an instant `now + N * 24h`, because that
- * is the granularity of everything it is standing in for: the API states its own
- * far limit as a UTC date, and the calendar offers whole days. Measuring from the
- * instant made the last day of the band unusable — a window ending at its 23:59
- * always overshot `now + 15 days` unless you happened to be looking at 23:59 —
- * so the calendar's own far edge failed the check that is supposed to guard it.
- *
- * The calendar cannot produce an out-of-band day — those cells are drawn
- * disabled — so the horizon cases now only reach a user through a shared or
- * hand-edited link, which is precisely why they still have to be caught. 'order'
- * is reachable directly: it is a narrow-hours pair set end-before-start on a
- * single day.
- *
- * A zero-length window is no longer a status of its own. It used to be, because
- * two of the three pickers owned zero-length analyses and the warning's job was
- * to send the user to one of them. Under the calendar, equal narrow hours *are*
- * the way to ask for a single hour, so flagging them would refuse the thing the
- * control is for.
- */
-export function classifyWindow(
-  startDatetime: string,
-  endDatetime: string,
-  now: Date,
-  band: BandLimits,
-): 'ok' | 'order' | 'past' | 'future' {
-  if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
-    return 'ok' // incomplete window — nothing to warn about yet
-  }
-  const start = new Date(startDatetime).getTime()
-  const end = new Date(endDatetime).getTime()
-  const earliest = Date.parse(`${bandStart(now, band)}T${DAY_START}`)
-  // Reads the same band the calendar draws, so a window the grid shows as
-  // unpickable and a window this calls 'future' can never be different sets —
-  // which is why the model's reach has to reach this function rather than only
-  // the grid.
-  const latest = Date.parse(`${bandEnd(now, band)}T${DAY_END}`)
-
-  // A reversed window is a user error, not a horizon problem — flag it first so
-  // the message is about the hours the user just set, not the servable range.
-  if (end < start) return 'order'
-  if (start < earliest) return 'past'
-  if (end > latest) return 'future'
-  return 'ok'
-}
-
-/**
- * Classify how much of a forecast window the air-quality horizon covers.
- * 'full' means AQI data should span the whole window, 'partial' means only its
- * start, 'none' means the window begins beyond the horizon entirely. Purely
- * informational — analysis still runs, with missing AQI rendered as "—".
- *
- * Whole days again, and for a second reason beyond matching the API: the backend
- * clamps its own request to `min(end.date(), today + aqi_forecast_days)`
- * (`air_quality.py`), so coverage really does run to the end of the horizon day.
- * Measuring from an instant called a window ending that evening 'partial' while
- * the calendar drew the same day as fully covered, and one of the two had to be
- * wrong.
- */
-export function classifyAqiCoverage(
-  startDatetime: string,
-  endDatetime: string,
-  now: Date,
-  aqiDays: number,
-): 'full' | 'partial' | 'none' {
-  if (!isValidDatetimeLocal(startDatetime) || !isValidDatetimeLocal(endDatetime)) {
-    return 'full' // incomplete window — nothing to warn about yet
-  }
-  const start = new Date(startDatetime).getTime()
-  const end = new Date(endDatetime).getTime()
-  const horizon = Date.parse(`${aqiHorizon(now, aqiDays)}T${DAY_END}`)
-
-  if (start > horizon) return 'none'
-  if (end > horizon) return 'partial'
-  return 'full'
 }

@@ -21,7 +21,7 @@ const AREA_SURFACES = [
 
 const OPEN_METEO = ['src/utils/openMeteo.ts', 'src/utils/openMeteoAggregate.ts', 'src/utils/openMeteoErrors.ts']
 
-const DRAG_SURFACES = ['src/components/ResultsTable.tsx', 'src/components/ColumnsPicker.tsx']
+const DRAG_SURFACES = ['src/components/ResultsTableHeader.tsx', 'src/components/ColumnsPicker.tsx']
 
 export const DATA = [
   {
@@ -98,12 +98,16 @@ export const DATA = [
     // The archive's reach is published too, so the calendar reads it off the
     // band it is handed and the panel takes it as a prop.
     name: 'archive-reach-published',
+    // The calendar is a barrel over sibling modules, and the reach must not
+    // appear in any of them.
     files: [
-      'src/utils/calendar.ts',
+      'src/utils/calendar*.ts',
       'src/components/ControlPanel.tsx',
       'src/components/ForecastSection.tsx',
       'src/utils/panelMessages.ts',
     ],
+    ignores: ['src/utils/*.test.ts'],
+    probe: 'src/utils/calendarBand.ts',
     ban: [
       {
         selector: spelled('365'),
@@ -147,7 +151,7 @@ export const DATA = [
     // calendar.ts without failing an array index, so the guarantee is the
     // shape: there is nowhere for a module-level count to be read from.
     name: 'calendar-limit-args',
-    files: ['src/utils/calendar.ts'],
+    files: ['src/utils/calendarBand.ts'],
     require: [
       { selector: member('pastDays', 'TSNumberKeyword'), message: 'The band carries pastDays as a number.' },
       {
@@ -301,7 +305,7 @@ export const DATA = [
     // the cell, the resize handle never reaches the reorder, and a finger holds
     // the gesture.
     name: 'column-drag-header',
-    files: ['src/components/ResultsTable.tsx'],
+    files: ['src/components/ResultsTableHeader.tsx'],
     require: [
       {
         selector: 'CallExpression[callee.object.name="document"][callee.property.name="addEventListener"][arguments.0.value="pointermove"]',
