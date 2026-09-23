@@ -12,6 +12,7 @@ const member = (name, type, optional = false) =>
 // folder is in by glob, so the rule follows the map's code wherever it moves.
 const AREA_SURFACES = [
   'src/App.tsx',
+  'src/hooks/useDestinationInputs.ts',
   'src/components/ControlPanel.tsx',
   'src/components/DestinationsSection.tsx',
   'src/utils/panelMessages.ts',

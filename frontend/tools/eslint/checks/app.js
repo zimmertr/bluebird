@@ -56,7 +56,21 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 20, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 18, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
+    ],
+  },
+  {
+    // The inputs half of app-effect-keys: the fact the results panel opens on
+    // is derived where the inputs live, and no effect there may key on the
+    // per-keystroke rows either. The pin restore is the one effect the hook
+    // took from App.tsx.
+    name: 'destination-inputs-hook',
+    files: ['src/hooks/useDestinationInputs.ts'],
+    ban: [
+      { selector: keyedOn('csvRows'), message: 'Key no effect on csvRows here either.' },
+    ],
+    require: [
       {
         // The panel still opens the moment a destination is named: the ban is
         // about how the effect is keyed, not about dropping it.
@@ -66,7 +80,16 @@ export const APP = [
           hasAny('right', (p) => `[${p}.name="csvRows"]`),
         message: 'Derive destinationNamed from searched.places and csvRows lengths.',
       },
-      { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
+      { selector: EFFECT, count: 1, message: 'useDestinationInputs.ts restores the pins in one useEffect.' },
+    ],
+  },
+  {
+    // The Enter and Escape listener is the one effect this hook took from
+    // App.tsx.
+    name: 'draw-mode-hook',
+    files: ['src/hooks/useDrawMode.ts'],
+    require: [
+      { selector: EFFECT, count: 1, message: 'useDrawMode.ts listens for Enter and Escape in one useEffect.' },
     ],
   },
   {
@@ -541,7 +564,14 @@ export const APP = [
     // Storage is viewPrefs.ts's business, or the migration and the guards go
     // back to being one call site's.
     name: 'app-no-storage',
-    files: ['src/App.tsx', 'src/hooks/useForecastSelection.ts', 'src/hooks/useRankingKnobs.ts', 'src/hooks/useResultsLayout.ts'],
+    files: [
+      'src/App.tsx',
+      'src/hooks/useForecastSelection.ts',
+      'src/hooks/useRankingKnobs.ts',
+      'src/hooks/useResultsLayout.ts',
+      'src/hooks/useDestinationInputs.ts',
+      'src/hooks/useDrawMode.ts',
+    ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
     ],

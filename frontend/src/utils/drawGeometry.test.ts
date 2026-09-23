@@ -78,8 +78,8 @@ describe('bboxAreaKm2', () => {
     expect(bboxAreaKm2(closed)).toBeCloseTo(bboxAreaKm2(ring)!, 9)
   })
 
-  // What the panel's area line now reads, both ways round (#429): `App.tsx`
-  // measures whatever ring it holds, and a ring restored from a link arrives as
+  // What the panel's area line now reads, both ways round (#429):
+  // `useDestinationInputs` measures whatever ring it holds, and a ring restored from a link arrives as
   // a closed GeoPolygon where a drawn one is the editable point list. One area
   // for one shape, with no edit needed to produce it.
   it('measures a restored ring and a drawn one as the same area', () => {
