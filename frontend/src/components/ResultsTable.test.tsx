@@ -76,6 +76,39 @@ describe('rows', () => {
   })
 })
 
+// A compared model that ends inside the window (#493): an asterisk on each of
+// its aggregates and one line under the table that says what it means.
+describe('a model that ends early', () => {
+  const NOTE = '* Partial coverage for NOAA HRRR. Data is aggregated over fewer hours.'
+  const SHORT = [
+    { ...ROWS[0], precip_total_in: 0.25, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 1 },
+    {
+      ...ROWS[0],
+      precip_total_in: 0.25,
+      modelId: 'gfs_hrrr',
+      modelLabel: 'NOAA HRRR',
+      rank: 1,
+      coverageEndMs: Date.UTC(2026, 8, 26, 9),
+    },
+  ]
+
+  it('marks the short row aggregate and prints the footnote once', () => {
+    render(<ResultsTable {...props({ results: SHORT, partialNote: NOTE })} />)
+    const [full, short] = screen.getAllByRole('row').slice(1)
+    const metric = (row: HTMLElement) => within(row).getAllByRole('cell')[3].textContent
+    expect(metric(short)).toMatch(/\*$/)
+    expect(metric(full)).not.toMatch(/\*/)
+    // Elevation is the destination's, whatever model the row names.
+    expect(within(short).getAllByRole('cell')[2].textContent).not.toMatch(/\*/)
+    expect(screen.getAllByText(NOTE)).toHaveLength(1)
+  })
+
+  it('prints no footnote when no row is short', () => {
+    render(<ResultsTable {...props()} />)
+    expect(screen.queryByText(/Partial coverage/)).toBeNull()
+  })
+})
+
 describe('the chart boxes', () => {
   const CHARTED = [
     resultRow({ name: 'Mount Rainier', latitude: 46.85, longitude: -121.76, series: series() }),

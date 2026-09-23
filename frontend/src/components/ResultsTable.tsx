@@ -101,6 +101,10 @@ interface Props {
   // map keeps its natural width — see utils/columnResize.ts for the model.
   columnWidths?: Record<string, number>
   onColumnWidthsChange?: (widths: Record<string, number>) => void
+  // The one line under the table that says what a `*` in a cell means: a
+  // compared model ends inside the window, so its aggregates cover fewer hours
+  // (#493). Null when no row on display is short.
+  partialNote?: string | null
 }
 
 function ResultsTable({
@@ -131,6 +135,7 @@ function ResultsTable({
   onChartRange,
   columnWidths,
   onColumnWidthsChange,
+  partialNote = null,
 }: Props) {
   // Memoized because every row is memoized on it.
   const coloredGroup = useMemo(() => new Set<string>(FAMILY_KEYS[familyOf(sortBy)]), [sortBy])
@@ -256,6 +261,7 @@ function ResultsTable({
           </FireClock>
         </tbody>
       </table>
+      {partialNote && <p className={`px-3 py-1.5 ${TEXT.micro}`}>{partialNote}</p>}
     </div>
   )
 }

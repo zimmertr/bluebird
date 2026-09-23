@@ -14,7 +14,7 @@
 
 import { DestinationResult } from '../types'
 import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
-import type { ModelRow } from './modelCompare'
+import type { ModelEnd, ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
 import type { ResolvedWindow } from './forecastWindow'
@@ -55,6 +55,15 @@ const FIRE_HEADER = WILDFIRE_COL.label
  */
 const WINDOW_START_LABEL = 'Forecast start'
 const WINDOW_END_LABEL = 'Forecast end'
+
+/**
+ * Where one compared model's forecast ends, when that is inside the window
+ * (#493). The row above's noun with the model named after it, so a spreadsheet
+ * reads it as the same kind of value and can compute the hours the model's
+ * aggregates cover. The table marks those cells with `*` instead; a mark inside
+ * a number would turn the cell into text.
+ */
+const modelEndLabel = (modelLabel: string) => `${WINDOW_END_LABEL} (${modelLabel})`
 
 /**
  * Byte-order mark.
@@ -273,7 +282,13 @@ export interface CsvOptions {
    * deliberately left out of it, having no forecast at all.
    */
   modelLabel?: string | null
-  /** The zone the two window rows are written in; the reader's own by default. */
+  /**
+   * The compared models that end inside the window, in the picker's order.
+   * Each gets its own row after the window's end, even two that end together:
+   * one row per model is what a reader looking up that model expects to find.
+   */
+  modelEnds?: readonly ModelEnd[]
+  /** The zone the window rows are written in; the reader's own by default. */
   timeZone?: string
 }
 
@@ -310,6 +325,7 @@ export function buildResultsCsv(
     pendingRows = [],
     fireUncovered = new Set<string>(),
     modelLabel = null,
+    modelEnds = [],
     timeZone,
   } = options
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
@@ -323,6 +339,7 @@ export function buildResultsCsv(
         [''],
         [WINDOW_START_LABEL, isoLocalMinute(window.startMs, timeZone)],
         [WINDOW_END_LABEL, isoLocalMinute(window.endMs, timeZone)],
+        ...modelEnds.map((m) => [modelEndLabel(m.label), isoLocalMinute(m.endMs, timeZone)]),
       ]
     : []
   // Pending rows first with an empty Rank, mirroring the table, which draws

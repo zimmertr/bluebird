@@ -336,11 +336,15 @@ single line can change model partway along. `GET /api/capabilities` publishes a
 name, and each model's summary in the picker says what it blends. Only ECMWF IFS and NOAA HRRR are one model for
 their whole length.
 
-**Reaches are ragged, so the chart clamps.** The models stop at different hours,
-and an average over ten days of one model beside three days of another compares
-nothing. Every line on a comparison therefore stops at the shortest reach among
-the models on it, the analysis model's included, so a model whose reach falls
-short of the analyzed window shortens every line beside it.
+**Reaches are ragged, and the report says where.** The models stop at different
+hours, and an average over ten days of one model beside three days of another is
+not one comparison. Nothing is cut to hide that: each model is fetched for the
+hours it has inside the window, every line on the chart runs to its own reach,
+and a dashed line labeled with the model's name marks where a shorter one ends.
+In the results table every weather aggregate on that model's rows carries an
+asterisk, one footnote under the table names the model, and the downloaded CSV
+states its end as a `Forecast end (<model>)` row. The ranking model always covers
+the window, because the calendar shortens the window to its reach.
 
 **A model with nothing there says so.** Asked about one model, Open-Meteo
 answers HTTP 400 and names the problem, so a regional model outside its domain is

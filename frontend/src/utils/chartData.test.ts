@@ -6,7 +6,6 @@ import {
   alignRowToGrid,
   axisTimeLabel,
   comparedLineLabel,
-  cutSeriesAfter,
   gridRemapper,
   nowWithinGrid,
   tracksCursor,
@@ -29,7 +28,6 @@ import {
   tooltipCapacity,
 } from './chartData'
 import { MetricFamily, RANKING_KEYS, familyOf, isSnapshotFamily } from '../metrics'
-// Aliased: the cutSeriesAfter block below binds `series` to a fixture of its own.
 import { resultRow, series as seriesOf } from '../testSupport/fixtures'
 
 function row(name: string, lat: number, over: Partial<HourlySeries>): DestinationResult {
@@ -123,38 +121,6 @@ describe('gridRemapper', () => {
   it('keeps the first position when a timestamp repeats', () => {
     const remap = gridRemapper([2000, 2000], [2000])
     expect(remap([1, 9])).toEqual([1])
-  })
-})
-
-describe('cutSeriesAfter', () => {
-  const times = [1000, 2000, 3000]
-  const series: HourlySeries = {
-    precip_in: [0.1, 0.2, 0.3],
-    temp_f: [30, 31, 32],
-    wind_mph: [5, 6, 7],
-    freeze_ft: [8000, 8100, 8200],
-    aqi: [10, 11, 12],
-    wind_dir_deg: [90, 180, 270],
-  }
-
-  it('nulls every hour past the cut and keeps the array length', () => {
-    const cut = cutSeriesAfter(times, series, 2000)!
-    expect(cut.precip_in).toEqual([0.1, 0.2, null])
-    expect(cut.temp_f).toEqual([30, 31, null])
-    expect(cut.wind_mph).toEqual([5, 6, null])
-    expect(cut.aqi).toEqual([10, 11, null])
-    expect(cut.wind_dir_deg).toEqual([90, 180, null])
-  })
-
-  it('returns the series untouched when the cut is past the grid or absent', () => {
-    expect(cutSeriesAfter(times, series, 3000)).toBe(series)
-    expect(cutSeriesAfter(times, series, null)).toBe(series)
-    expect(cutSeriesAfter(times, null, 2000)).toBeNull()
-  })
-
-  it('carries no bearing key for a series that had none', () => {
-    const bare: HourlySeries = { precip_in: [1, 2, 3], temp_f: [], wind_mph: [], freeze_ft: [], aqi: [] }
-    expect(cutSeriesAfter(times, bare, 1000)).not.toHaveProperty('wind_dir_deg')
   })
 })
 
