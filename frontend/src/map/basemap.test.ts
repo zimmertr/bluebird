@@ -3,22 +3,15 @@ import type * as maplibregl from 'maplibre-gl'
 import {
   enhanceBasemap,
   glowTwin,
-  isPinning,
   lakeAnchor,
-  makeArrowImage,
   poiLabelLayout,
   POI_GLOW_IMAGE,
-  popupOptions,
   setSource,
-  updateResults,
 } from './basemap'
 // The `?raw` idiom `MapView.test.ts` uses, for the one rule here that is about
 // the file rather than about what its functions return.
 import basemapSource from './basemap.ts?raw'
 import { POI_LAYERS, LAKE_CLASS } from '../utils/basemapPoi'
-import { popupWidth } from '../utils/popupChrome'
-import { resultsFeatureCollection } from '../utils/resultFeatures'
-import { resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
 
 /**
@@ -33,12 +26,8 @@ const ALLOWED: Record<string, string> = {
   enhanceBasemap: 'patches the loaded style',
   lakeAnchor: 'queries what the map has drawn',
   setSource: 'sets a source on the map',
-  popupOptions: 'measures the canvas',
-  updateResults: 'sets a source on the map',
   // Build an image, or read a browser event.
   makeGlowImage: 'draws on a canvas',
-  makeArrowImage: 'draws on a canvas',
-  isPinning: 'reads the modifier off a DOM event',
   // Return a MapLibre style spec: a declaration of how a layer draws, which
   // belongs beside the `addLayer` call that takes it rather than in a module of
   // its own.
@@ -182,38 +171,13 @@ describe('poiLabelLayout', () => {
   })
 })
 
-describe('isPinning', () => {
-  it('pins on shift and on nothing else', () => {
-    expect(isPinning({ originalEvent: { shiftKey: true } })).toBe(true)
-    expect(isPinning({ originalEvent: { shiftKey: false } })).toBe(false)
-    expect(isPinning({})).toBe(false)
-  })
-})
-
-describe('popupOptions', () => {
-  it('sizes a popup from the canvas it opens on', () => {
-    for (const width of [320, 1280]) {
-      const { map } = stubMap({ canvasWidth: width })
-      expect(popupOptions(map)).toEqual({ maxWidth: popupWidth(width) })
-    }
-  })
-})
-
-describe('setSource and updateResults', () => {
+describe('setSource', () => {
   it('sets data on a source that exists and ignores one that does not', () => {
     const setData = vi.fn()
     const { map } = stubMap({ sources: { draw: { setData } } })
     setSource(map, 'draw', { type: 'FeatureCollection', features: [] })
     setSource(map, 'missing', { type: 'FeatureCollection', features: [] })
     expect(setData).toHaveBeenCalledTimes(1)
-  })
-
-  it('draws the ranked markers the results table ranks', () => {
-    const setData = vi.fn()
-    const { map } = stubMap({ sources: { results: { setData } } })
-    const rows = [resultRow(), resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.5 })]
-    updateResults(map, rows, 'precip_total_in', 2)
-    expect(setData).toHaveBeenCalledWith(resultsFeatureCollection(rows, 'precip_total_in', true, 2))
   })
 })
 
@@ -251,12 +215,5 @@ describe('lakeAnchor', () => {
     const [lon, lat] = lakeAnchor(map, click, fallback)
     expect(lon).toBeCloseTo(1, 1)
     expect(lat).toBeCloseTo(1, 1)
-  })
-})
-
-describe('the canvas images', () => {
-  // Null rather than a throw: the caller skips the image and the map draws on.
-  it('return null where the canvas has no 2D context', () => {
-    expect(makeArrowImage()).toBeNull()
   })
 })
