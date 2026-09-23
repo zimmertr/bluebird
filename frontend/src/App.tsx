@@ -98,6 +98,7 @@ import {
   SURFACE_CARD,
   SURFACE_DIVIDER,
   SURFACE_FLOATING,
+  SURFACE_PAGE,
   SURFACE_POPOVER,
   SURFACE_SHEET,
   SWATCH_CHIP,
@@ -2489,7 +2490,7 @@ export default function App() {
         })
 
   return (
-    <div className="flex flex-col h-dvh w-screen overflow-hidden bg-slate-900">
+    <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}

@@ -307,6 +307,22 @@ describe('every component', () => {
     expect(source).not.toMatch(/border-slate-[7]00/)
   })
 
+  // The page ground is named for the same reason: the error boundary's
+  // fallback replaces the tree it guards, so it cannot inherit the ground from
+  // App or the page frame, and a fourth spelling is how the grounds would part.
+  // Only the bare fill is caught; a translucent scrim over the map is a
+  // different thing that happens to share the step. Character class for the
+  // same Tailwind reason as above.
+  it.each(Object.entries(sources))('%s spells no page ground of its own', (_path, source) => {
+    expect(source).not.toMatch(/bg-slate-[9]00(?![/\w-])/)
+  })
+
+  it('stands every full page on the one ground', () => {
+    for (const path of ['./App.tsx', './components/PageShell.tsx', './components/ErrorBoundary.tsx']) {
+      expect(sources[path], path).toContain('${SURFACE_PAGE}')
+    }
+  })
+
   // How faded a thing is says WHY it is faded — 40 percent is out of reach or
   // out of the room, 50 percent is working but not in force — so it is the
   // design system's answer, the way a hue is. Spelling the number at the call
