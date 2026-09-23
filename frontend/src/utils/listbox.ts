@@ -3,9 +3,9 @@
  * would have got right for free: where the panel lands, and where the arrow
  * keys go.
  *
- * Both live here rather than in the component because Vitest runs with no DOM,
- * so anything left inside `ModelPicker.tsx` is untestable by construction. The
- * component keeps only the wiring: measure, call these, apply.
+ * Both live here rather than in the component so the node test project can
+ * check every placement and every key without a page. The component keeps
+ * only the wiring: measure, call these, apply.
  */
 
 /** Just the parts of a DOMRect the placement math reads. */

@@ -61,7 +61,7 @@ describe('user-facing copy', () => {
 // aria-label, title, placeholder or alt is a sentence read aloud or shown as a
 // hint, so a dash in one is always prose. That is exactly where the instance
 // #175 missed was hiding, in a screen-reader label nobody reads by eye.
-const componentSources = import.meta.glob('./components/*.tsx', {
+const componentSources = import.meta.glob(['./components/*.tsx', '!./components/*.test.tsx'], {
   query: '?raw',
   import: 'default',
   eager: true,

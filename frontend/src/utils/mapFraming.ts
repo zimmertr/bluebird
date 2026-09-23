@@ -2,8 +2,8 @@
  * The two decisions behind a framing move: whether to make one at all, and how
  * much of the container the camera has to leave empty.
  *
- * Split out of `MapView` because that component has no test at all: Vitest runs
- * with no DOM here and MapLibre needs a canvas, so the only way either gets
+ * Split out of `MapView` because that component has no test at all: MapLibre
+ * needs a WebGL canvas, which jsdom does not provide, so the only way either gets
  * covered is by taking the projection and the measurements as input rather than
  * reading them off a map.
  */
