@@ -1,5 +1,2 @@
-// Must trip: the results area opened after the analysis await.
-export async function run(willRank: boolean) {
-  await analyze({})
-  if (willRank) setShowResults(true)
-}
+// Must trip: the arriving flag taken from somewhere other than useAnalyze.
+export const { arriving } = useReport()

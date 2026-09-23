@@ -27,6 +27,7 @@ import { useChartSelection } from './hooks/useChartSelection'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
 import { useDestinationInputs } from './hooks/useDestinationInputs'
+import { useAnalyzeCommand } from './hooks/useAnalyzeCommand'
 import { useDrawMode } from './hooks/useDrawMode'
 import { usePresentedReport } from './hooks/usePresentedReport'
 import { useRemovals } from './hooks/useRemovals'
@@ -35,7 +36,6 @@ import { useModelCompare } from './hooks/useModelCompare'
 import { allocateColors } from './utils/chartColors'
 import {
   ModelRow,
-  compareAdded,
   drawnModelIds,
   modelRowsFor,
   pairColor,
@@ -155,15 +155,6 @@ import {
   resolveAxis,
 } from './utils/timeline'
 import {
-  DiscoveryRecord,
-  constraintFields,
-  namesOnRequestMetric,
-  discoveryBase,
-  isDiscoveryRefresh,
-  refreshEchoRows,
-} from './utils/clientAnalyze'
-import {
-  buildCustomList,
   pendingAsResult,
 } from './utils/customList'
 import { geoKey } from './utils/points'
@@ -179,16 +170,10 @@ import {
   decodeState,
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
-import {
-  selectionLocalWindow,
-} from './utils/calendar'
 import { isPointSample, normalizeWindow } from './utils/forecastWindow'
 import {
-  cloudNeeded,
-  commitNeeded,
-  discoveryChanges,
-  discoveryKeys,
   fieldHasValue,
+  panelCommitCues,
 } from './utils/present'
 import {
   MODEL_KEY,
@@ -384,11 +369,6 @@ export default function App() {
   const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
 
-  // The discovery inputs behind the results currently on screen, as
-  // `isDiscoveryRefresh` reads them: `base` covers the user-authored inputs
-  // (polygon + types + unnamed peaks + CSV rows) and `searchedKeys` the
-  // searched places that competed.
-  const discoveryRef = useRef<DiscoveryRecord | null>(null)
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
   // dependency change, which is every keystroke, so the burst it exists to
@@ -729,32 +709,6 @@ export default function App() {
       ),
     )
   }, [pointSample])
-  // The forecast window is a data knob: the browser holds no forecasts for days
-  // it never fetched, so a calendar change cannot re-present anything. Comparing
-  // it at all is new with the calendar, and is the reason to: picking days is a
-  // click now, so a report can go stale while the panel looks settled, where
-  // before it took typing two datetimes.
-  //
-  // The current hour is exempt, since its window moves with the clock and a cue
-  // that never cleared would ask for an Analyze whose answer is already on
-  // screen. Switching between the two arms still counts.
-  const windowChanged =
-    analyzed !== null &&
-    (analyzed.kind !== selection.kind ||
-      (selection.kind === 'days' &&
-        (analyzed.window.startMs !== panelWindowMs.startMs ||
-          analyzed.window.endMs !== panelWindowMs.endMs)))
-  // A model change is a data knob for a stronger reason than the window: the
-  // held rows are not missing days, every number in them came from a model the
-  // panel no longer names.
-  // A newly ticked comparison rides the same reason: it is the model row of the
-  // panel disagreeing with the model behind the rows, and the browser holds no
-  // forecasts for a model it never bought. Unticking one is not a change of this
-  // kind — its line is drawn from numbers already in hand, so it stops at once.
-  const modelChanged =
-    analyzed !== null &&
-    (analyzed.forecastModel !== forecastModel ||
-      compareAdded(analyzed.compareModels, comparedModels))
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -867,162 +821,6 @@ export default function App() {
   // sync effect above must not flush, or the debounce collapses nothing.
   useEffect(() => () => writeUrl.flush(), [writeUrl])
 
-  async function handleAnalyze() {
-    // Analyzing is the end of drawing. Leaving the mode on would put the map
-    // back in the state #118 describes — reading a result and panning around
-    // it while every click still adds a vertex.
-    finishDrawing()
-    forgetPreClamp()
-
-    // The one conversion from a local selection to the UTC instants the API
-    // takes. Equal timestamps are how a point sample travels — the current hour,
-    // or a day narrowed to a single hour — and the backend normalizes them to
-    // the hour containing the moment.
-    const kind = selection.kind
-    const local = selectionLocalWindow(selection, new Date())
-    // Unreachable through the UI (the dates blocker disables Analyze), kept as
-    // the honest backstop: a dateless selection has nothing to fetch.
-    if (local === null) return
-    const start = new Date(local.start).toISOString()
-    const end = new Date(local.end).toISOString()
-
-    // Every bound the request carries. They stay on it because it is the same
-    // shape POST /api/analyze documents for direct callers, but the browser
-    // holds the field and applies them live, so they go unused here. The
-    // elevation band is the one the app no longer sends at all (#341); the API
-    // still accepts it from a direct caller.
-    const bounds = constraintFields(constraints)
-
-    // Resolve the ranked inputs first. The custom side of the analysis is the
-    // pasted CSV ∪ the searched places — with a *complete* polygon (>= 3
-    // points) the backend unions discovery in too. An incomplete ring is
-    // ignored so a mid-draw Analyze doesn't fire a bogus discovery.
-    // finishDrawing() snapshots the map's always-editable ring synchronously
-    // (and closes it), falling back to the restored polygon before the map has
-    // loaded.
-    const custom = buildCustomList(csvRows, places)
-    const resolvedPolygon =
-      drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
-
-    // Reset the removal set only when the user changed a discovery input —
-    // searched places are deliberately absent (their list shrinks on removal).
-    //
-    // A re-analysis extends the held field rather than rebuilding it, so the
-    // rows a user struck out stay struck out. Losing them to anything short of
-    // a genuine discovery change would be an unexplained edit of their work.
-    const removalScope = JSON.stringify({
-      ring: resolvedPolygon?.coordinates[0] ?? null,
-      // The ring is this comparison's alone: it resolves only here, and it
-      // never names a pending destination, which is what the shared scope
-      // serves.
-      authored: destinationScope,
-    })
-    clearRemovalsForScope(removalScope)
-
-    // A polygon run whose base inputs are unchanged, with results still on
-    // screen, is a pure refresh: skip Overpass and refetch just those
-    // destinations' weather through the custom path. A SHRUNK searched list is
-    // refresh-compatible too — the departed rows are already gone from the
-    // displayed report the refresh echoes. Any base change or NEW searched
-    // place (which must compete against the full candidate field) falls
-    // through to a fresh discovery.
-    const base = discoveryBase(resolvedPolygon, csvRows, destinationTypes, includeUnnamedPeaks)
-    const searchedKeys = places.map((p) => geoKey(p.lat, p.lon))
-    // The polygon guard stays here rather than inside the predicate: a run with
-    // no ring is not a polygon discovery at all, whatever the recorded inputs
-    // say.
-    const isRefresh =
-      resolvedPolygon !== null &&
-      isDiscoveryRefresh(
-        discoveryRef.current,
-        base,
-        searchedKeys,
-        response !== null && response.results.length > 0,
-      )
-
-    const willRank = resolvedPolygon !== null || custom.length > 0
-
-    // Before the await, not after it. The analysis now publishes ranked rows
-    // as each batch lands (#337, finding 2), and a results area that opens
-    // only once the whole run returns would hide every one of them until the
-    // end, which is the thing that change exists to fix.
-    if (willRank) setShowResults(true)
-
-    if (isRefresh && response) {
-      // Refresh: weather-only over the known destinations (no Overpass). They
-      // come back as type "custom" with no osm_id; the results memo restores
-      // each row's real identity by coordinate.
-      //
-      // The echo is the FULL analyzed field, not the displayed rows. A window
-      // change lands here (discoveryBase deliberately omits the window), and
-      // re-ranking only the last cut's survivors ranked 10 of 851 candidates:
-      // fast, silent, and wrong (#177). Exactness costs a real refetch of the
-      // whole field at the new window — the same price the first Analyze paid,
-      // minus Overpass — which the progress bar and pace countdown narrate.
-      // Record the shrunk searched list so re-adding one of these places later
-      // reads as an addition (fresh run), not a refresh that would skip it.
-      discoveryRef.current = { base, searchedKeys }
-      await analyze({
-        destination_types: [],
-        start_datetime: start,
-        end_datetime: end,
-        forecast_model: forecastModel,
-        limit,
-        sort_by: sortBy,
-        sort_desc: sortDesc,
-        custom_destinations: refreshEchoRows(universe, results, removedKeys),
-        ...bounds,
-      // The identity this refresh answers for is the polygon discovery it
-      // echoes, not the custom-shaped request it rides on: derived from the
-      // request, the snapshot would say "no ring searched" and the panel's
-      // unchanged polygon would falsely cue as new.
-      }, kind, {
-        discovery: discoveryKeys(resolvedPolygon, destinationTypes, includeUnnamedPeaks),
-        compareModels: comparedModels,
-      })
-    } else if (resolvedPolygon) {
-      // Discovery — with the custom list riding along so the backend ranks the
-      // polygon ∪ CSV union as one report.
-      await analyze({
-        polygon: resolvedPolygon,
-        destination_types: destinationTypes,
-        include_unnamed_peaks: includeUnnamedPeaks,
-        start_datetime: start,
-        end_datetime: end,
-        forecast_model: forecastModel,
-        limit,
-        sort_by: sortBy,
-        sort_desc: sortDesc,
-        ...(custom.length > 0 ? { custom_destinations: custom } : {}),
-        ...bounds,
-      }, kind, { compareModels: comparedModels })
-      // Remember these discovery inputs so the next compatible Analyze refreshes.
-      discoveryRef.current = { base, searchedKeys }
-    } else if (custom.length > 0) {
-      // Custom-only (CSV and/or searched places). Not a refreshable polygon
-      // discovery — clear the record so a later identical polygon Analyze
-      // can't mistake these rows for that polygon's discovered set.
-      discoveryRef.current = null
-      await analyze({
-        destination_types: [],
-        start_datetime: start,
-        end_datetime: end,
-        forecast_model: forecastModel,
-        limit,
-        sort_by: sortBy,
-        sort_desc: sortDesc,
-        custom_destinations: custom,
-        ...bounds,
-      }, kind, { compareModels: comparedModels })
-    }
-
-    // Nothing to rank (unreachable through the gate, which requires an input,
-    // but kept as a safety net): drop any stale report.
-    if (!willRank) reset()
-
-    setShowResults(true)
-  }
-
   const {
     results,
     windowTitle,
@@ -1092,32 +890,50 @@ export default function App() {
     [],
   )
 
-  // Which discovery inputs the panel has moved since the analysis, in the
-  // spelling the snapshot records. The comparison itself is `present.ts`'s, so
-  // it can be tested; what belongs here is only which panel state feeds it.
-  const discoveryMoved = discoveryChanges(
-    analyzed,
-    discoveryKeys(polygon, destinationTypes, includeUnnamedPeaks),
-    polygon !== null,
-  )
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
-  // controls never feel dead, and showing one when the knobs are in fact live
-  // would ask for an Analyze that changes nothing. Declared here rather than
-  // beside windowChanged/modelChanged above because the destination cue reads
-  // `pending` — the same set behind the map's pending dots, so the cue and
-  // the dots cannot disagree about what an analysis has not covered.
-  const commitReasons =
-    !loading && response !== null
-      ? commitNeeded(analyzed, {
-          window: windowChanged,
-          model: modelChanged,
-          polygon: discoveryMoved.polygon,
-          types: discoveryMoved.types,
-          destinationAdded: pending.length > 0,
-          cloud: cloudNeeded(analyzed, namesOnRequestMetric(sortBy, constraints)),
-        })
-      : []
+  // controls never feel dead.
+  const commitReasons = panelCommitCues(analyzed, {
+    settled: !loading && response !== null,
+    selectionKind: selection.kind,
+    windowMs: panelWindowMs,
+    forecastModel,
+    comparedModels,
+    polygon,
+    destinationTypes,
+    includeUnnamedPeaks,
+    pendingCount: pending.length,
+    sortBy,
+    constraints,
+  })
+
+  const { handleAnalyze } = useAnalyzeCommand({
+    selection,
+    polygon,
+    drawPointCount,
+    mapRef,
+    destinationTypes,
+    includeUnnamedPeaks,
+    csvRows,
+    places,
+    destinationScope,
+    forecastModel,
+    comparedModels,
+    limit,
+    sortBy,
+    sortDesc,
+    constraints,
+    universe,
+    results,
+    removedKeys,
+    hasResults: response !== null && response.results.length > 0,
+    analyze,
+    reset,
+    finishDrawing,
+    forgetPreClamp,
+    clearRemovalsForScope,
+    setShowResults,
+  })
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
   //
