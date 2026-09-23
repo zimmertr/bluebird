@@ -91,9 +91,10 @@ export const MAP = [
       },
       {
         // The map can only report an area once it has loaded, so a ring
-        // restored from a link had none. App.tsx derives it from the polygon.
+        // restored from a link had none. useDestinationInputs derives it from
+        // the polygon.
         selector: named('bboxAreaKm2'),
-        message: 'Leave the area of the ring to App.tsx.',
+        message: 'Leave the area of the ring to useDestinationInputs.',
       },
       {
         // A handler registered once on load closes over the first render's

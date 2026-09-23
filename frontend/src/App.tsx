@@ -26,6 +26,8 @@ import { useCapabilities } from './hooks/useCapabilities'
 import { useChartSelection } from './hooks/useChartSelection'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
+import { useDestinationInputs } from './hooks/useDestinationInputs'
+import { useDrawMode } from './hooks/useDrawMode'
 import { useResultsLayout } from './hooks/useResultsLayout'
 import { useModelCompare } from './hooks/useModelCompare'
 import { allocateColors } from './utils/chartColors'
@@ -43,13 +45,10 @@ import {
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useForecastGrid } from './hooks/useForecastGrid'
-import { useSearchedPlaces } from './hooks/useSearchedPlaces'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
   DestinationResult,
-  DiscoveryType,
-  GeoPolygon,
   HourlySeries,
 } from './types'
 import { alignRowToGrid, chartKey } from './utils/chartData'
@@ -162,14 +161,11 @@ import {
   isDiscoveryRefresh,
   refreshEchoRows,
 } from './utils/clientAnalyze'
-import { parseCustomCsv } from './utils/customDestinations'
-import { restoredFramePoints } from './utils/mapFraming'
 import {
   buildCustomList,
   pendingAsResult,
   pendingDestinations,
 } from './utils/customList'
-import { bboxAreaKm2, ringToPts } from './utils/drawGeometry'
 import { geoKey } from './utils/points'
 import {
   legendBottomPx,
@@ -200,7 +196,6 @@ import {
 import {
   RemovedEntry,
   activeRemovals,
-  authoredScope,
   recordRemoval,
   restorePlace,
 } from './utils/removals'
@@ -456,41 +451,24 @@ export default function App() {
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
 
-  // Every point destination the URL restores (CSV rows and searched places),
-  // built once so the memoized MapView frames them on load beside the ring.
-  const restoredPoints = useMemo(
-    () => restoredFramePoints(restored?.customCsv ?? '', restored?.pins ?? []),
-    [restored],
-  )
-
-  const [polygon, setPolygon] = useState<GeoPolygon | null>(() => restored?.polygon ?? null)
-  // Draw mode (#118). The map used to be permanently in it, which is why a
-  // pan could move a vertex and why a click could only ever mean "polygon
-  // corner". Every session — including one restored from a link with a ring
-  // already in it — starts out of it: the common case is looking at the map,
-  // not editing it, and leaving the gesture free is what lets a basemap peak
-  // be clickable at all (#119).
-  const [drawing, setDrawing] = useState(false)
-  // A restored polygon seeds the count so Analyze unlocks before the map loads
-  // (MapView re-emits the authoritative count once its points hydrate).
-  const [drawPointCount, setDrawPointCount] = useState(
-    () => Math.max(0, (restored?.polygon?.coordinates[0]?.length ?? 1) - 1),
-  )
-  // Read off the ring rather than reported by the map, because the map can only
-  // report an area once it has loaded: a ring restored from a link printed its
-  // point count beside a blank area line until the reader edited it (#429). A
-  // derived value cannot lag the ring it describes.
-  const polygonAreaKm2 = useMemo(
-    () => (polygon ? bboxAreaKm2(ringToPts(polygon)) : null),
-    [polygon],
-  )
-  // Which kinds the polygon looks for, as a set — several are found in one
-  // Overpass query. Nothing is checked by default: discovery is the input
-  // that needs a polygon and costs an upstream query, so a fresh session
-  // asks for none of it until the user says so.
-  const [destinationTypes, setDestinationTypes] = useState<DiscoveryType[]>(
-    () => restored?.destinationTypes ?? [],
-  )
+  const {
+    restoredPoints,
+    polygon,
+    setPolygon,
+    polygonAreaKm2,
+    destinationTypes,
+    setDestinationTypes,
+    includeUnnamedPeaks,
+    setIncludeUnnamedPeaks,
+    customCsv,
+    setCustomCsv,
+    csvRows,
+    destinationScope,
+    places,
+    addPlace,
+    removePlace,
+    destinationNamed,
+  } = useDestinationInputs(restored)
   const {
     selection,
     changeSelection,
@@ -518,17 +496,6 @@ export default function App() {
     liveKnobs,
   } = useRankingKnobs(restored, caps.maxLimit)
 
-  const [customCsv, setCustomCsv] = useState(() => restored?.customCsv ?? '')
-  // Parsed once per edit and shared by the pending markers and the Analyze
-  // request, so what the map shows and what gets ranked can't drift apart.
-  const csvRows = useMemo(() => parseCustomCsv(customCsv), [customCsv])
-  // The destination inputs the user authored, in one spelling: the removal
-  // reset reads it (folding the polygon ring in) and so does every removal
-  // recorded while these inputs stand, so the two cannot drift apart.
-  const destinationScope = useMemo(
-    () => authoredScope(destinationTypes, customCsv),
-    [destinationTypes, customCsv],
-  )
   // A live map overlay, not part of the analyze request, but persisted to the
   // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
   // the current viewport.
@@ -606,12 +573,6 @@ export default function App() {
       setGridReachDraft(null)
     }
   }, [gridReachDraft])
-  // Summits OSM knows only by their height. Off by default: measured over one
-  // 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so
-  // this roughly triples what an analysis costs and how often it refuses.
-  const [includeUnnamedPeaks, setIncludeUnnamedPeaks] = useState(
-    () => restored?.includeUnnamedPeaks ?? false,
-  )
   const [showResults, setShowResults] = useState(false)
   // Every stored view preference comes out of one read, held for the mount:
   // several initializers each parsing the same stored string is what
@@ -683,6 +644,22 @@ export default function App() {
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
+  const closeDrawer = useCallback(() => setSidebarOpen(false), [])
+  const {
+    drawing,
+    drawPointCount,
+    handleDrawUpdate,
+    startDrawing,
+    finishDrawing,
+    handleCancelDrawing,
+    handleClearDrawing,
+  } = useDrawMode({
+    mapRef,
+    polygon,
+    restoredPolygon: restored?.polygon,
+    isDesktop,
+    closeDrawer,
+  })
   // Whether the player is on the map: the reader's decision where they have made
   // one, this device's default otherwise.
   const playerShown = showPlayer ?? isDesktop
@@ -716,24 +693,6 @@ export default function App() {
     caps.windowLimits,
     caps.aqiForecastDays,
   )
-
-  // Places searched by name — the third destination input. Searching registers
-  // the place (map dot + URL persistence); its forecast joins the next Analyze,
-  // where the list folds into the ranked request alongside the CSV.
-  const searched = useSearchedPlaces()
-  // The callbacks are taken by name because they are stable and the object
-  // holding them is not, so a dependency list may hold one of these where
-  // `searched` would change it on every render. `restore` is renamed on the way
-  // out to stay clear of `restorePlace`, which undoes a row removal (#241).
-  const { addPlace, removePlace, restore: restoreSearched } = searched
-
-  // Repopulate searched places restored from the URL, once at mount. They show
-  // as pending dots until the user runs an Analyze — nothing fetches on load.
-  // Both dependencies hold for the life of the component — `restored` is a
-  // ref's value and the hook's callbacks are stable — so this runs once.
-  useEffect(() => {
-    if (restored?.pins?.length) restoreSearched(restored.pins)
-  }, [restored, restoreSearched])
 
   // Registering a destination the user named, however they named it: by
   // searching, or by clicking a labeled peak or lake on the basemap (#119).
@@ -772,20 +731,8 @@ export default function App() {
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
-  // before any analysis runs. Read off the inputs rather than the derived
-  // `pending` list, which is declared further down.
-  //
-  // The DEPENDENCY is the fact, never the two lists. `csvRows` is a fresh array
-  // per keystroke, so an effect keyed on it runs per character and calls
-  // setShowResults(true) against a panel that is already open. React skips a
-  // same-value setState only while the fiber has no work pending, which a
-  // typing hand never leaves it, so each of those no-op calls schedules a real
-  // update from inside a passive effect. Fifty in a row is React error #185,
-  // which is what a pasted coordinate list used to produce (issue #185;
-  // measured at the 61st character, the first ten being the row yet to parse).
-  // The linter's `app-effect-keys` check fails any effect here that takes
-  // `csvRows` again.
-  const destinationNamed = searched.places.length > 0 || csvRows.length > 0
+  // before any analysis runs. Keyed on the fact, never on the lists behind it,
+  // for the reason `destinationNamed` states in useDestinationInputs.
   useEffect(() => {
     if (destinationNamed) setShowResults(true)
   }, [destinationNamed])
@@ -916,7 +863,7 @@ export default function App() {
       showPlayer,
       gridStyle,
       gridReachFrac,
-      pins: searched.places,
+      pins: places,
     }, caps.defaultForecastModel)
 
     // Nothing to write, and just as importantly, drop anything already queued.
@@ -956,7 +903,7 @@ export default function App() {
     showPlayer,
     gridStyle,
     gridReachFrac,
-    searched.places,
+    places,
     writeUrl,
   ])
 
@@ -965,52 +912,11 @@ export default function App() {
   // sync effect above must not flush, or the debounce collapses nothing.
   useEffect(() => () => writeUrl.flush(), [writeUrl])
 
-  const handleDrawUpdate = useCallback((count: number) => {
-    setDrawPointCount(count)
-  }, [])
-
-  // The ring as it stood when Draw polygon or Edit polygon was pressed. Every
-  // edit reaches the polygon and the URL as it happens, so this is the only
-  // copy of the ring a Cancel can put back (#478).
-  const drawStartRingRef = useRef<GeoPolygon | null>(null)
-
-  const handleCancelDrawing = useCallback(() => {
-    mapRef.current?.restoreRing(drawStartRingRef.current)
-    setDrawing(false)
-  }, [])
-
-  // Clear changes the ring and nothing else: inside draw mode it starts the
-  // ring over, and outside it there is no mode to leave.
-  const handleClearDrawing = useCallback(() => {
-    mapRef.current?.restoreRing(null)
-  }, [])
-
-  // Enter and Escape are Done and Cancel for a hand already on the keyboard.
-  // Enter shares Done's 3-point floor, because it means "the ring is
-  // finished", which two points cannot be. Escape is what a hand reaches for
-  // to back out of a mode, so it backs out the way Cancel does, and puts the
-  // ring back rather than leaving a half-edited one with no handles to fix it.
-  useEffect(() => {
-    if (!drawing) return
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Enter' && e.key !== 'Escape') return
-      // Not while the user is in the CSV box or a number field, where Enter
-      // and Escape belong to the control they are typing into.
-      const el = document.activeElement
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
-      if (e.key === 'Escape') handleCancelDrawing()
-      else if (drawPointCount >= 3) setDrawing(false)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [drawing, drawPointCount, handleCancelDrawing])
-
-
   async function handleAnalyze() {
     // Analyzing is the end of drawing. Leaving the mode on would put the map
     // back in the state #118 describes — reading a result and panning around
     // it while every click still adds a vertex.
-    setDrawing(false)
+    finishDrawing()
     forgetPreClamp()
 
     // The one conversion from a local selection to the UTC instants the API
@@ -1039,7 +945,7 @@ export default function App() {
     // finishDrawing() snapshots the map's always-editable ring synchronously
     // (and closes it), falling back to the restored polygon before the map has
     // loaded.
-    const custom = buildCustomList(csvRows, searched.places)
+    const custom = buildCustomList(csvRows, places)
     const resolvedPolygon =
       drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? polygon : null
 
@@ -1069,7 +975,7 @@ export default function App() {
     // place (which must compete against the full candidate field) falls
     // through to a fresh discovery.
     const base = discoveryBase(resolvedPolygon, csvRows, destinationTypes, includeUnnamedPeaks)
-    const searchedKeys = searched.places.map((p) => geoKey(p.lat, p.lon))
+    const searchedKeys = places.map((p) => geoKey(p.lat, p.lon))
     // The polygon guard stays here rather than inside the predicate: a run with
     // no ring is not a polygon discovery at all, whatever the recorded inputs
     // say.
@@ -1185,7 +1091,7 @@ export default function App() {
   // kind (peak vs not) and OSM id. Seed those identities so their ranked rows
   // link where the feature belongs.
   useEffect(() => {
-    for (const p of searched.places) {
+    for (const p of places) {
       identityMapRef.current.set(geoKey(p.lat, p.lon), {
         // The geocoder's own word for the thing, so the table's Type column
         // says what a place actually is — a searched city reads "City" rather
@@ -1198,7 +1104,7 @@ export default function App() {
         osm_id: p.osmId ?? null,
       })
     }
-  }, [searched.places])
+  }, [places])
 
   // The displayed report, re-derived from the held field on every knob change
   // (#188). presentResults owns the whole decision — band, removals, ranking,
@@ -1344,10 +1250,10 @@ export default function App() {
 
   const handleRemoveResult = useCallback(
     (row: DestinationResult) => {
-      setRemoved((prev) => recordRemoval(prev, row, searched.places, destinationScope))
+      setRemoved((prev) => recordRemoval(prev, row, places, destinationScope))
       removePlace(row.latitude, row.longitude)
     },
-    [destinationScope, removePlace, searched.places],
+    [destinationScope, removePlace, places],
   )
 
   // What the browser still holds a forecast row for — the field on the client
@@ -1407,11 +1313,11 @@ export default function App() {
     () =>
       pendingDestinations(
         csvRows,
-        searched.places,
+        places,
         analyzed?.customKeys ?? NO_CUSTOM,
         activeRemovedKeys,
       ),
-    [csvRows, searched.places, analyzed, activeRemovedKeys],
+    [csvRows, places, analyzed, activeRemovedKeys],
   )
   // Which discovery inputs the panel has moved since the analysis, in the
   // spelling the snapshot records. The comparison itself is `present.ts`'s, so
@@ -2171,19 +2077,8 @@ export default function App() {
         </button>
         <ControlPanel
           drawing={drawing}
-          onStartDrawing={() => {
-            drawStartRingRef.current = polygon
-            setDrawing(true)
-            // Editing a shape that has scrolled off screen is the one thing
-            // the draw/idle split made easy to do by accident.
-            mapRef.current?.framePolygon()
-            // On a phone the panel is an off-canvas drawer covering the map,
-            // so entering draw mode behind it leaves nothing to draw on. On
-            // desktop it is docked beside the map and closing it would be
-            // taking away the Done button you are about to need.
-            if (!isDesktop) setSidebarOpen(false)
-          }}
-          onFinishDrawing={() => setDrawing(false)}
+          onStartDrawing={startDrawing}
+          onFinishDrawing={finishDrawing}
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
           onCancelDrawing={handleCancelDrawing}
@@ -2213,7 +2108,7 @@ export default function App() {
           includeUnnamedPeaks={includeUnnamedPeaks}
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           windowWarning={windowWarning}
-          hasPins={searched.places.length > 0}
+          hasPins={places.length > 0}
           // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
           // in the pin-refresh flag to disable the button (and show "Analyzing…")
           // while it runs. Searches don't announce, so this stays false for them.
@@ -2360,7 +2255,7 @@ export default function App() {
             gridStyle={gridStyle}
             playbackIndex={playbackIndex}
             pending={pending}
-            searchedPlaces={searched.places}
+            searchedPlaces={places}
             onAddPoi={handleAddPoi}
             onRemovePoi={handleRemovePoi}
             cameraPadBottomPx={cameraPadBottomPx}
