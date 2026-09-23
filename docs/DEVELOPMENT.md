@@ -35,68 +35,64 @@ docker compose logs -f
 
 ## Tests and Checks
 
-CI runs all of these on every PR, so run the ones your change touches first:
+CI runs all of these on every PR, so run the ones your change touches first.
+Each is one `make` target at the repo root, and each target runs its check
+inside Docker, so nothing needs installing on the host beyond Docker and
+`make`:
+
+| Target | What it runs |
+|---|---|
+| `make typecheck` | `npx tsc --noEmit` over the frontend |
+| `make lint-frontend` | `npm run lint` (ESLint), then the self-test that proves the rules are not vacuous |
+| `make test-frontend` | `npm ci && npm test` (Vitest) |
+| `make check-api` | `npm run check:api`: the frontend API types still match the committed OpenAPI snapshot |
+| `make test-backend` | `pytest` |
+| `make check-openapi` | `python scripts/generate_openapi.py --check`: the committed snapshot still matches the app |
+| `make lint-backend` | `ruff check backend/` at the version CI pins |
+| `make lighthouse` | the cold-load audit below |
+
+The `Makefile` is the list of commands, and every target has the same shape.
+This is `make test-frontend`, typed out:
 
 ```bash
-# Frontend typecheck
-cd frontend && npx tsc --noEmit
-
-# Frontend lint (ESLint), then the self-test that proves the rules are not
-# vacuous. The linter installs itself, so this needs no `npm ci` of its own.
-# See the note below for why it is a package apart.
-docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
-  sh -c "npm run lint"
-
-# Frontend unit tests (Vitest). Mounts the repo root, because two suites read
-# the manifests the backend commits under backend/tests/data/. One run covers
-# two projects, split by file extension: `node` runs every `*.test.ts` (pure
-# logic, no DOM) and `dom` runs every `*.test.tsx` (a component rendered in
-# jsdom and driven with Testing Library). Add `-- --project dom` (or `node`)
-# to run one of them.
-docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
+docker run --rm -v "$PWD":/repo -w /repo/frontend node:$(cat .node-version)-alpine \
   sh -c "npm ci && npm test"
-
-# Frontend API types still match the committed OpenAPI snapshot
-# (`npm run generate:api` rewrites them instead of checking them).
-# Mounts the repo root, because the generator reads backend/openapi.json.
-# The script installs the generator first, so this needs no `npm ci` of its own.
-docker run --rm -v "$PWD":/repo -w /repo/frontend node:22-alpine \
-  sh -c "npm run check:api"
-
-# Backend unit tests (pytest). The whole repository is mounted, not backend/
-# alone: one test reads frontend/src to check the CSP allowlist against the
-# hosts the browser actually fetches, and it skips where it cannot see them.
-docker run --rm -v "$PWD":/repo -w /repo/backend python:3.14-slim \
-  sh -c "pip install -r requirements-dev.txt && pytest"
-
-# Backend lint, at the version CI pins: ruff's default rule set changes between
-# releases. Run it from the REPO ROOT, which is what CI does. The rules live in
-# backend/ruff.toml, and `known-first-party = ["app"]` there is what makes the
-# import order the same from either working directory.
-docker run --rm -v "$PWD":/repo -w /repo python:3.14-slim \
-  sh -c "pip install ruff==0.16.0 && ruff check backend/"
 ```
+
+One Vitest run covers two projects, split by file extension: `node` runs every
+`*.test.ts` (pure logic, no DOM) and `dom` runs every `*.test.tsx` (a component
+rendered in jsdom and driven with Testing Library). Add `-- --project dom` (or
+`node`) to the `npm test` above to run one of them.
+
+Four things that shape follows from:
+
+- **Every container mounts the repo root**, never `frontend/` or `backend/`
+  alone. Two browser suites read the manifests the backend commits under
+  `backend/tests/data/`, the API type check reads `backend/openapi.json`, one
+  backend test reads `frontend/src` to check the CSP allowlist against the
+  hosts the browser actually fetches (it skips where it cannot see them), and
+  a bare `frontend/` mount lets Tailwind scan a stale `dist/`.
+- **The Node major lives in `.node-version` alone.** The Makefile reads it for
+  every container and CI reads it through `setup-node`, so the checks run on
+  the runtime the image builds the app with. The `Dockerfile` cannot read a
+  file in a `FROM` line, so it keeps a literal tag, and
+  `backend/tests/test_node_version.py` fails when the two disagree.
+- **`lint-frontend` and `check-api` run no `npm ci`.** The linter and the type
+  generator are packages apart, and each script installs its own (see the
+  notes below).
+- **`lint-backend` runs from the repo root**, which is what CI does. The rules
+  live in `backend/ruff.toml`, and `known-first-party = ["app"]` there is what
+  makes the import order the same from either working directory. Ruff is
+  pinned because its default rule set changes between releases.
 
 ### The cold-load budgets
 
 CI audits the first screen with Lighthouse and fails the PR when a byte or
-timing budget is crossed (issue #337). To run the same audit locally, build the
-image, serve it on a docker network, and point Lighthouse CI at it from a
-container that already carries Chromium:
-
-```bash
-docker build -t bluebird:lh .
-docker network create lh-net 2>/dev/null || true
-docker run -d --rm --name lh-target --network lh-net bluebird:lh
-
-docker run --rm --network lh-net -v "$PWD":/repo -w /repo \
-  -e CHROME_PATH=/usr/bin/chromium-browser \
-  --entrypoint sh zenika/alpine-chrome:with-node -c \
-  "npx -y @lhci/cli@0.15.x autorun --config=.github/lighthouserc.js \
-     --collect.url=http://lh-target:8000/"
-
-docker rm -f lh-target
-```
+timing budget is crossed (issue #337). `make lighthouse` runs the same audit
+locally: it builds the image, serves it on a docker network, and points
+Lighthouse CI at it from a container that already carries Chromium. A failed
+audit leaves the served container running, and `docker rm -f lh-target`
+clears it.
 
 The budgets themselves, and why the audit blocks every third-party host, are in
 `.github/lighthouserc.js`. Reports land in `.lighthouseci/` (git-ignored); the
