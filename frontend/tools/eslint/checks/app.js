@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 18, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 14, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
     ],
   },
@@ -90,6 +90,30 @@ export const APP = [
     files: ['src/hooks/useDrawMode.ts'],
     require: [
       { selector: EFFECT, count: 1, message: 'useDrawMode.ts listens for Enter and Escape in one useEffect.' },
+    ],
+  },
+  {
+    // The removals and the report both take the pasted rows, and neither may
+    // key an effect on them, for app-effect-keys' reason.
+    name: 'report-csv-rows-keys',
+    files: ['src/hooks/usePresentedReport.ts', 'src/hooks/useRemovals.ts'],
+    ban: [
+      { selector: keyedOn('csvRows'), message: 'Key no effect on csvRows in the removals or the report.' },
+    ],
+  },
+  {
+    // The two identity effects, the leaving rows and the detail-sort follow
+    // are the four effects this hook took from App.tsx. The provisional count
+    // is built here too, so its "so far" is checked here.
+    name: 'presented-report-hook',
+    files: ['src/hooks/usePresentedReport.ts'],
+    require: [
+      {
+        selector:
+          'VariableDeclarator[id.name="tail"] > ConditionalExpression[test.name="arriving"][consequent.value=" so far"][alternate.value=""]',
+        message: 'Mark the arriving count with the tail " so far".',
+      },
+      { selector: EFFECT, count: 4, message: 'usePresentedReport.ts runs its four effects through useEffect.' },
     ],
   },
   {
@@ -262,19 +286,14 @@ export const APP = [
   {
     // The analysis publishes ranked rows as each batch lands, so the results
     // area opens before the await; after it, every row would stay hidden until
-    // the end. The provisional count says "so far" and nothing else, and the
-    // flag is the hook's `arriving`, true once rows exist, not `loading`.
+    // the end. The flag is the hook's `arriving`, true once rows exist, not
+    // `loading`; presented-report-hook checks the count it marks.
     name: 'app-arriving-field',
     files: ['src/App.tsx'],
     ban: [
       { selector: `${AWAITS_ANALYSIS} ~ ${OPEN_RESULTS}`, message: 'Open the results area before awaiting the analysis, not after.' },
     ],
     require: [
-      {
-        selector:
-          'VariableDeclarator[id.name="tail"] > ConditionalExpression[test.name="arriving"][consequent.value=" so far"][alternate.value=""]',
-        message: 'Mark the arriving count with the tail " so far".',
-      },
       { selector: `${OPEN_RESULTS} ~ ${AWAITS_ANALYSIS}`, message: 'Open the results area with willRank ahead of the analysis await.' },
       {
         selector: 'VariableDeclarator[init.callee.name="useAnalyze"] > ObjectPattern > Property[key.name="arriving"][shorthand=true]',
@@ -576,6 +595,8 @@ export const APP = [
       'src/hooks/useResultsLayout.ts',
       'src/hooks/useDestinationInputs.ts',
       'src/hooks/useDrawMode.ts',
+      'src/hooks/useRemovals.ts',
+      'src/hooks/usePresentedReport.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },

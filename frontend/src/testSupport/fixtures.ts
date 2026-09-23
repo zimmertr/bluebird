@@ -1,5 +1,7 @@
 import type { DestinationResult, DiscoveredDestination, HourlySeries } from '../types'
+import type { AnalyzedView } from '../hooks/analyzeTypes'
 import type { Capabilities, ForecastModelOption } from '../hooks/useCapabilities'
+import { NO_CONSTRAINTS } from '../utils/constraints'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
@@ -222,4 +224,26 @@ export function fireWarning(over: Partial<FireWarning> = {}): FireWarning {
  */
 export function pendingDestination(over: Partial<PendingDestination> = {}): PendingDestination {
   return { name: 'Probe Peak', latitude: 47.1, longitude: -121.2, elevation_ft: 6000, source: 'search', ...over }
+}
+
+/** The snapshot of one committed report: days from 6:00 to 18:00 UTC on
+ * 2026-07-20, ranked by precipitation, with nothing custom covered. */
+export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView {
+  return {
+    sortBy: 'precip_total_in',
+    sortDesc: false,
+    limit: 200,
+    constraints: NO_CONSTRAINTS,
+    kind: 'days',
+    window: { startMs: Date.UTC(2026, 6, 20, 6), endMs: Date.UTC(2026, 6, 20, 18) },
+    windowSource: 'forecast',
+    customKeys: new Set(),
+    forecastModel: 'gfs_seamless',
+    polygonKey: '',
+    typesKey: '',
+    compareModels: [],
+    snowAnalysisDate: null,
+    cloudFetched: false,
+    ...over,
+  }
 }

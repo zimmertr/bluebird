@@ -28,6 +28,8 @@ import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
 import { useDestinationInputs } from './hooks/useDestinationInputs'
 import { useDrawMode } from './hooks/useDrawMode'
+import { usePresentedReport } from './hooks/usePresentedReport'
+import { useRemovals } from './hooks/useRemovals'
 import { useResultsLayout } from './hooks/useResultsLayout'
 import { useModelCompare } from './hooks/useModelCompare'
 import { allocateColors } from './utils/chartColors'
@@ -116,7 +118,6 @@ import {
 import {
   NOUN,
   familyOf,
-  isSnapshotFamily,
   metricLabel,
   rankedNoun,
 } from './metrics'
@@ -164,7 +165,6 @@ import {
 import {
   buildCustomList,
   pendingAsResult,
-  pendingDestinations,
 } from './utils/customList'
 import { geoKey } from './utils/points'
 import {
@@ -173,7 +173,7 @@ import {
 } from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
 import { paceWaitLine } from './utils/pacing'
-import { Place, isPeakKind } from './utils/geocode'
+import { Place } from './utils/geocode'
 import {
   encodeState,
   decodeState,
@@ -181,8 +181,6 @@ import {
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import {
   selectionLocalWindow,
-  snapshotCaption,
-  windowCaption,
 } from './utils/calendar'
 import { isPointSample, normalizeWindow } from './utils/forecastWindow'
 import {
@@ -191,18 +189,9 @@ import {
   discoveryChanges,
   discoveryKeys,
   fieldHasValue,
-  presentResults,
 } from './utils/present'
 import {
-  RemovedEntry,
-  activeRemovals,
-  recordRemoval,
-  restorePlace,
-} from './utils/removals'
-import {
   MODEL_KEY,
-  SortDir,
-  SortKey,
   WILDFIRE_COL,
   WILDFIRE_KEY,
   applyColumnOrder,
@@ -380,11 +369,6 @@ function legendSection({
   )
 }
 
-// Stands in for the analysis snapshot's covered set before the first analysis.
-// A module constant rather than an inline `new Set()`, which would be a fresh
-// identity on every render and rebuild the pending list underneath the map.
-const NO_CUSTOM: ReadonlySet<string> = new Set()
-
 // What the chart draws for its rows while a model comparison is up: nothing,
 // because the comparison composes every line itself. A module constant so the
 // chart's line memo is not rebuilt by a fresh empty array on every render.
@@ -405,30 +389,6 @@ export default function App() {
   // (polygon + types + unnamed peaks + CSV rows) and `searchedKeys` the
   // searched places that competed.
   const discoveryRef = useRef<DiscoveryRecord | null>(null)
-  // Remembers each row's real identity (type + osm_id) by coordinate — from
-  // discovered rows (which carry an osm_id) and from searched places (whose
-  // geocoding knew their kind and OSM id). Rows echoed through the custom path
-  // come back as type "custom" with no osm_id; this map restores them so a
-  // peak still links to Peakbagger and shows the right badge.
-  const identityMapRef = useRef<Map<string, { type: string; osm_id: string | null }>>(new Map())
-  // Rows leaving the display due to a live presentation knob: fade them out.
-  // Keyed by coordinate. Only populated when the same analysis has rows
-  // disappearing — not on initial render or a fresh analysis.
-  const [leavingRowKeys, setLeavingRowKeys] = useState<Set<string>>(new Set())
-  const lastAnalyzedResultsRef = useRef<DestinationResult[] | null>(null)
-  // Rows the user ×-removed from the current report, keyed by coordinate and
-  // carrying what a restore needs (#241 — see utils/removals.ts). Scoped
-  // to the user-authored discovery inputs (removalScopeRef): removing a row —
-  // even a searched place, which shrinks the custom list — must not count as
-  // changing them. Only a polygon/type/CSV edit starts a clean slate
-  // where removed destinations may legitimately return. Each entry also records
-  // the authored scope it was made under, which is what lets the live pending
-  // preview expire one between analyses while the report keeps its snapshot.
-  const [removed, setRemoved] = useState<Map<string, RemovedEntry>>(new Map())
-  // Every key, for the two snapshot consumers: the displayed report and the
-  // refresh echo. The preview reads `activeRemovedKeys` instead.
-  const removedKeys = useMemo(() => new Set(removed.keys()), [removed])
-  const removalScopeRef = useRef<string | null>(null)
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
   // dependency change, which is every keystroke, so the burst it exists to
@@ -694,21 +654,16 @@ export default function App() {
     caps.aqiForecastDays,
   )
 
-  // Registering a destination the user named, however they named it: by
-  // searching, or by clicking a labeled peak or lake on the basemap (#119).
-  // Both land in the same list, so both go through here.
-  const registerPlace = useCallback((place: Place) => {
-    addPlace(place)
-    // Re-naming a previously ×-removed spot is an explicit re-request — drop
-    // the stale removal so the place isn't filtered out of its next report.
-    setRemoved((prev) => {
-      const key = geoKey(place.lat, place.lon)
-      if (!prev.has(key)) return prev
-      const next = new Map(prev)
-      next.delete(key)
-      return next
-    })
-  }, [addPlace])
+  const {
+    removed,
+    removedKeys,
+    activeRemovedKeys,
+    clearForScope: clearRemovalsForScope,
+    registerPlace,
+    removeResult: handleRemoveResult,
+    restoreRemoved: handleRestoreRemoved,
+    restoreAllRemoved: handleRestoreAllRemoved,
+  } = useRemovals({ places, addPlace, removePlace, destinationScope, csvRows, universe, response })
 
   function handleSearchSelect(place: Place) {
     mapRef.current?.flyToPlace(place)
@@ -962,10 +917,7 @@ export default function App() {
       // serves.
       authored: destinationScope,
     })
-    if (removalScopeRef.current !== removalScope) {
-      removalScopeRef.current = removalScope
-      setRemoved(new Map())
-    }
+    clearRemovalsForScope(removalScope)
 
     // A polygon run whose base inputs are unchanged, with results still on
     // screen, is a pure refresh: skip Overpass and refetch just those
@@ -1071,130 +1023,29 @@ export default function App() {
     setShowResults(true)
   }
 
-  // Record every discovered row's OSM identity (rows that carry an osm_id) so a
-  // later refresh — which comes back through the custom path with osm_id null —
-  // can have its identity restored below. Runs after each response lands.
-  //
-  // Registers the whole analyzed field, not only the displayed rows: the refresh
-  // echoes the universe (#177), so a destination that ranked below the last cut
-  // can surface in the next report and would otherwise come back permanently
-  // identity-less (no peak link, wrong marker type).
-  useEffect(() => {
-    const rows = universe ?? response?.results
-    if (!rows) return
-    for (const r of rows) {
-      if (r.osm_id) identityMapRef.current.set(geoKey(r.latitude, r.longitude), { type: r.type, osm_id: r.osm_id })
-    }
-  }, [response, universe])
-
-  // Searched places know more than the custom echo carries: their geocoded
-  // kind (peak vs not) and OSM id. Seed those identities so their ranked rows
-  // link where the feature belongs.
-  useEffect(() => {
-    for (const p of places) {
-      identityMapRef.current.set(geoKey(p.lat, p.lon), {
-        // The geocoder's own word for the thing, so the table's Type column
-        // says what a place actually is — a searched city reads "City" rather
-        // than "Custom", which is a statement about how it got here rather
-        // than about what it is. Peaks normalize (OSM says "volcano" for
-        // several) because the Peakbagger link keys on that one value;
-        // everything else is carried through. "custom" stays the fallback for
-        // a pasted coordinate, which genuinely has no kind.
-        type: isPeakKind(p.kind) ? 'peak' : p.kind || 'custom',
-        osm_id: p.osmId ?? null,
-      })
-    }
-  }, [places])
-
-  // The displayed report, re-derived from the held field on every knob change
-  // (#188). presentResults owns the whole decision — band, removals, ranking,
-  // cut — so the table, the markers, and the count cannot disagree about which
-  // rows are on screen.
-  //
-  // Rows returned without an osm_id (a refresh's custom echo) are re-tagged from
-  // the remembered discovery identities by coordinate; genuine custom-CSV rows
-  // simply have no match and pass through unchanged.
-  const presented = useMemo(
-    () => presentResults(universe, liveKnobs, removedKeys),
-    [universe, liveKnobs, removedKeys],
-  )
-  const results = useMemo(
-    () =>
-      presented.rows.map((r) => {
-        if (r.osm_id) return r
-        const id = identityMapRef.current.get(geoKey(r.latitude, r.longitude))
-        return id ? { ...r, type: id.type, osm_id: id.osm_id } : r
-      }),
-    [presented],
-  )
-
-  // The window the displayed rows describe, or null when nothing is displayed.
-  // Lifted out of the header's JSX because the same string is both the line and
-  // its own tooltip: a narrow panel ellipsizes it, and a truncated date range
-  // that cannot be recovered is worse than no date range at all.
-  const windowTitle =
-    results.length > 0 && analyzed !== null
-      ? isSnapshotFamily(familyOf(view.sortBy))
-        ? // A snapshot ranking is not a reading of the window at all (#449), so
-          // the caption names the day its grid is from instead. Null where the
-          // report carries no date, which is the same report whose rows all
-          // read N/A: there is nothing to be "as of".
-          analyzed.snowAnalysisDate === null
-          ? null
-          : snapshotCaption(NOUN[familyOf(view.sortBy)], analyzed.snowAnalysisDate)
-        : windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
-      : null
-
-  // Detect rows leaving display via live presentation knobs (not fresh analysis).
-  // Only fires when analyzed is stable and results change — i.e., a live knob
-  // hid rows. No animation on initial render or fresh analysis.
-  useEffect(() => {
-    if (analyzed === null) {
-      setLeavingRowKeys(new Set())
-      return
-    }
-    const prevKeys = new Set(
-      (lastAnalyzedResultsRef.current ?? []).map((r) => geoKey(r.latitude, r.longitude)),
-    )
-    const currKeys = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
-    const leaving = new Set<string>()
-    for (const key of prevKeys) {
-      if (!currKeys.has(key)) leaving.add(key)
-    }
-    setLeavingRowKeys(leaving)
-    lastAnalyzedResultsRef.current = results
-  }, [results, analyzed])
-
-  // The detail-column sort, held here rather than inside ResultsTable (#125).
-  //
-  // Clicking one of the ranking columns re-cuts the whole field through
-  // the panel knob and is already answered by `results` above. Clicking any
-  // other column is a reading aid: it reorders the rows on screen without
-  // changing which rows they are. That order used to be private to the table,
-  // which made the table the only thing that knew what it was showing —
-  // tolerable while nothing else needed the answer, and wrong the moment a
-  // download had to leave in the order on screen.
-  //
-  // The pair below is therefore two arrays, not one, and the difference
-  // matters: `results` stays in ranking order for the markers, the legend, the
-  // fire lookup and the chart's default selection, while `tableRows` is what
-  // the table draws and what the CSV writes. Handing `tableRows` to the map
-  // would quietly make the markers follow a detail sort, and the types would
-  // not complain.
-  const [detailSort, setDetailSort] = useState<{ key: SortKey; dir: SortDir }>({
-    key: sortBy,
-    dir: sortDesc ? 'desc' : 'asc',
+  const {
+    results,
+    windowTitle,
+    leavingRowKeys,
+    detailSort,
+    sortDetail: handleDetailSort,
+    pending,
+    rowCount,
+    emptyReason,
+  } = usePresentedReport({
+    universe,
+    response,
+    analyzed,
+    analysisSeq,
+    arriving,
+    liveKnobs,
+    view,
+    pointSample,
+    removedKeys,
+    activeRemovedKeys,
+    places,
+    csvRows,
   })
-
-  // Follow the ranking: on a new report, and on a live ranking change, drop any
-  // detail-column sort and read in the order the rows arrived in.
-  //
-  // Keyed on the report rather than on the rows, which are a new array on every
-  // live cap or bound change and would otherwise throw away a sort the
-  // user just asked for.
-  useEffect(() => {
-    setDetailSort({ key: view.sortBy, dir: view.sortDesc ? 'desc' : 'asc' })
-  }, [view.sortBy, view.sortDesc, analysisSeq])
 
   // Flags destinations within 10 mi of an active US wildfire; independent of the
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
@@ -1226,15 +1077,8 @@ export default function App() {
     return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY])
   }, [columnVisibility, csvColumns])
 
-  // × on a table row. Removing a searched place also deregisters it — else the
-  // next analysis would simply rediscover it from the searched list. The
-  // backing place is captured first, so a restore can re-register it.
   // Stable identities for the table's callbacks, for the reason `NO_TIMES`
   // exists: an inline arrow is a new prop on every render.
-  const handleDetailSort = useCallback(
-    (key: SortKey, dir: SortDir) => setDetailSort({ key, dir }),
-    [],
-  )
   const handleRemovePending = useCallback(
     (d: { latitude: number; longitude: number }) => removePlace(d.latitude, d.longitude),
     [removePlace],
@@ -1248,77 +1092,6 @@ export default function App() {
     [],
   )
 
-  const handleRemoveResult = useCallback(
-    (row: DestinationResult) => {
-      setRemoved((prev) => recordRemoval(prev, row, places, destinationScope))
-      removePlace(row.latitude, row.longitude)
-    },
-    [destinationScope, removePlace, places],
-  )
-
-  // What the browser still holds a forecast row for — the field on the client
-  // path, the trimmed rows on the server path. Decides whether a restore is a
-  // pure unhide or must re-register a place (see restorePlace).
-  const heldKeys = useMemo(
-    () =>
-      new Set((universe ?? response?.results ?? []).map((r) => geoKey(r.latitude, r.longitude))),
-    [universe, response],
-  )
-  const csvKeys = useMemo(
-    () => new Set(csvRows.map((r) => geoKey(r.latitude, r.longitude))),
-    [csvRows],
-  )
-
-  // Undo for the × (#241): drop the removal, and re-register the place when
-  // nothing held can re-present the row. Never fetches — a restored row not in
-  // the held field reappears as a pending row and rejoins the next Analyze.
-  function handleRestoreRemoved(key: string) {
-    const entry = removed.get(key)
-    if (!entry) return
-    const place = restorePlace(entry, heldKeys, csvKeys)
-    setRemoved((prev) => {
-      const next = new Map(prev)
-      next.delete(key)
-      return next
-    })
-    if (place) addPlace(place)
-  }
-
-  function handleRestoreAllRemoved() {
-    for (const entry of removed.values()) {
-      const place = restorePlace(entry, heldKeys, csvKeys)
-      if (place) addPlace(place)
-    }
-    setRemoved(new Map())
-  }
-
-  // Custom destinations no analysis has covered yet — drawn as neutral pending
-  // dots and un-forecasted rows. Pasted CSV rows count: a list should show up
-  // the moment it's pasted, not only once an analysis returns.
-  //
-  // Measured against the analysis snapshot, never against `results`: those are
-  // the top-`limit` rows, so asking them turned every added destination below
-  // the cut back into an un-forecasted row (#205). Before the first analysis
-  // there is no snapshot, so everything named is pending, which is the point.
-  //
-  // Reads the ACTIVE removals rather than the whole map (#158). The report and
-  // the refresh echo are snapshots of one analysis and keep the full map; this
-  // preview is live over a list the user is still typing, so a × made against
-  // an earlier list must stop hiding a line that is still pasted.
-  const activeRemovedKeys = useMemo(
-    () => activeRemovals(removed, destinationScope),
-    [removed, destinationScope],
-  )
-  const pending = useMemo(
-    () =>
-      pendingDestinations(
-        csvRows,
-        places,
-        analyzed?.customKeys ?? NO_CUSTOM,
-        activeRemovedKeys,
-      ),
-    [csvRows, places, analyzed, activeRemovedKeys],
-  )
   // Which discovery inputs the panel has moved since the analysis, in the
   // spelling the snapshot records. The comparison itself is `present.ts`'s, so
   // it can be tested; what belongs here is only which panel state feeds it.
@@ -1345,49 +1118,6 @@ export default function App() {
           cloud: cloudNeeded(analyzed, namesOnRequestMetric(sortBy, constraints)),
         })
       : []
-  // The table bar's row count: shown, of what the knobs admit, and — only when
-  // a forecast bound is hiding some — of what was analyzed. An elected top-N
-  // cut appends what it left out, since "of 1,500" would otherwise read as the
-  // whole area. Null before a report exists, so the bar carries no count for
-  // the pending-rows-only case.
-  const rowCount = useMemo(() => {
-    if (response === null) return null
-    // "so far" while the field is still arriving (#337): the rows are real and
-    // ranked, but both numbers are a floor and the order moves as the rest of
-    // the batches land. Two words on the count that is already there, rather
-    // than a second line or a box, because the count is the thing that is
-    // provisional.
-    const tail = arriving ? ' so far' : ''
-    const shown = `${results.length.toLocaleString()} of ${presented.eligible.toLocaleString()}${tail}`
-    // Comma-joined rather than parenthesized: the bar already wraps the whole
-    // thing in parentheses, and a nested pair reads as a typo.
-    if (presented.excluded > 0) {
-      const analyzed = (presented.eligible + presented.excluded).toLocaleString()
-      return `${shown} matching, ${analyzed} analyzed`
-    }
-    if (response.truncated && response.total_found != null) {
-      return `${shown}, ${response.total_found.toLocaleString()} found`
-    }
-    return shown
-  }, [response, results.length, presented.eligible, presented.excluded, arriving])
-
-  // Why the table is empty, when it is. Three ways to get here and three
-  // different next moves, and the newest one is the most easily mistaken for a
-  // failed analysis: the destinations were found and forecast, the filters
-  // simply admit none of them.
-  const emptyReason = useMemo(() => {
-    if (response === null || results.length > 0) return null
-    if (presented.excluded > 0 && presented.eligible === 0) {
-      return `No destinations match these filters. ${(
-        presented.eligible + presented.excluded
-      ).toLocaleString()} were analyzed.`
-    }
-    if (removedKeys.size > 0) {
-      return 'All rows have been removed from this analysis. Use Removed above to restore them.'
-    }
-    return 'No destinations found. Try a larger area.'
-  }, [response, results.length, presented.eligible, presented.excluded, removedKeys])
-
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
   //
