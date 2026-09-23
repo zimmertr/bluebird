@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
 import { Refusal } from '../hooks/useAnalyze'
 import DestinationsSection from './DestinationsSection'
@@ -10,7 +10,7 @@ import { PANEL_EDGE, PANEL_RULE, TEXT } from '../styles'
 import { MetricFamily, familyOf } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
-import { analyzeBlockers, canAnalyze } from '../utils/analyzeGate'
+import { analyzeBlockers, canAnalyze, shouldAutoAnalyze } from '../utils/analyzeGate'
 import { modelsWithoutFreeze } from '../utils/freezingLevel'
 import { selectedIds } from '../utils/modelSelection'
 import { panelMessages } from '../utils/panelMessages'
@@ -103,6 +103,14 @@ interface Props {
   // re-buys the same 10-40s map query for the same answer.
   refusal: Refusal | null
   onAnalyze: () => void
+  // The link asked for its analysis to run on open (`analyze=1`) and has not
+  // run it yet. Held by App, which owns the URL; fired from here, which owns
+  // the gate. `onAutoAnalyze` is the click plus the URL cleanup.
+  autoAnalyze: boolean
+  // Whether /api/capabilities has settled AND the limits it clamps have been
+  // applied, so the gate below reads the deployment's numbers.
+  capabilitiesSettled: boolean
+  onAutoAnalyze: () => void
   onRetry: () => void
   maxLimit: number
   // Live polygon-area gate from /api/capabilities, same contract as maxLimit
@@ -174,6 +182,9 @@ export default function ControlPanel({
   error,
   refusal,
   onAnalyze,
+  autoAnalyze,
+  capabilitiesSettled,
+  onAutoAnalyze,
   onRetry,
   maxLimit,
   maxAreaKm2,
@@ -238,6 +249,27 @@ export default function ControlPanel({
     compareSnow,
   }
   const analyzeEnabled = canAnalyze(gate)
+
+  // A link's run on open fires from here rather than from App because the gate
+  // is computed here: lifting it into a hook both could read would move a dozen
+  // inputs for one boolean. The ref keeps it to once per panel even if a
+  // render lands before App has cleared `autoAnalyze`.
+  const autoFiredRef = useRef(false)
+  useEffect(() => {
+    const fire = shouldAutoAnalyze({
+      requested: autoAnalyze,
+      capabilitiesSettled,
+      gateOpen: analyzeEnabled,
+      fired: autoFiredRef.current,
+    })
+    if (!fire) return
+    autoFiredRef.current = true
+    onAutoAnalyze()
+    // `onAutoAnalyze` is left out on purpose: it is a new function on every
+    // App render, and listing it would re-run this on every render for nothing.
+    // The flags above are what can change the answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAnalyze, capabilitiesSettled, analyzeEnabled])
   const blockers = analyzeBlockers({ ...gate, drawPointCount })
 
   // The selection as the datetime pair the warnings read. The calendar marks
