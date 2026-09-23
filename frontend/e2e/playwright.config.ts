@@ -4,6 +4,8 @@ import { defineConfig } from '@playwright/test'
 // and a retry would hide exactly the flake this job is meant to show.
 export default defineConfig({
   testDir: '.',
+  // The render probe runs on request (`make perf`), never in CI.
+  testIgnore: ['perf/**'],
   timeout: 90_000,
   expect: { timeout: 15_000 },
   workers: 1,

@@ -14,7 +14,7 @@ RUFF_VERSION := 0.16.0
 # its own Chromium build, and the image carries the build for its own version.
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.63.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lighthouse browser
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lighthouse browser perf
 
 typecheck:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci && npx tsc --noEmit"
@@ -63,3 +63,14 @@ browser:
 	docker run -d --rm --name e2e-target --network e2e-net bluebird:e2e
 	docker run --rm --network e2e-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci && npx playwright test"
 	docker rm -f e2e-target
+
+# The render probe (issue #409): the same served image, one 946-destination
+# analysis, and the median cost of an overlay toggle and a coordinates
+# keystroke. Minutes long, because the client pacer spaces the fetch. A failed
+# run leaves perf-target running; `docker rm -f perf-target` clears it.
+perf:
+	docker build -t bluebird:perf .
+	-docker network create perf-net
+	docker run -d --rm --name perf-target --network perf-net bluebird:perf
+	docker run --rm --network perf-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://perf-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci && npx playwright test --config perf/playwright.config.ts"
+	docker rm -f perf-target
