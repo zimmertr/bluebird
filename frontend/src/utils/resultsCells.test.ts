@@ -7,6 +7,7 @@ import {
   pendingChartRow,
   pendingLinkRow,
   rankText,
+  rowKeys,
   unavailableCell,
   windyCellUrl,
 } from './resultsCells'
@@ -17,10 +18,9 @@ import { cellStyle, scaleFor } from './colors'
 import { displayedColumns, type ColDef } from './tableColumns'
 import { windyUrl } from './windy'
 import type { ModelRow } from './modelCompare'
-import type { PendingDestination } from './customList'
-import { resultRow } from '../testSupport/fixtures'
+import { fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 
-const WARNING = { miles: 3.2, name: 'Probe Fire', latitude: 47, longitude: -121 }
+const WARNING = fireWarning()
 const column = (key: string): ColDef => {
   const found = displayedColumns(false, 'precip_total_in').find((c) => c.key === key)
   if (!found) throw new Error(`no column ${key}`)
@@ -102,18 +102,18 @@ describe('cellColor', () => {
 })
 
 describe('windyCellUrl', () => {
-  const col = column('precip_total_in')
+  const KEY = 'precip_total_in'
 
   it('opens the analysis model when the row names none', () => {
     const row = resultRow({ latitude: 46.85, longitude: -121.76 })
-    expect(windyCellUrl(row, col, 'gfs_seamless', [])).toBe(
+    expect(windyCellUrl(row, KEY, 'rain', 'gfs_seamless', [])).toBe(
       windyUrl({ latitude: 46.85, longitude: -121.76, layer: 'rain', modelId: 'gfs_seamless', atMs: null }),
     )
   })
 
   it('opens a compared row on its own model', () => {
     const row = compared({ latitude: 46.85, longitude: -121.76 })
-    expect(windyCellUrl(row, col, 'gfs_seamless', [])).toBe(
+    expect(windyCellUrl(row, KEY, 'rain', 'gfs_seamless', [])).toBe(
       windyUrl({ latitude: 46.85, longitude: -121.76, layer: 'rain', modelId: 'icon_seamless', atMs: null }),
     )
   })
@@ -126,16 +126,28 @@ describe('rankText', () => {
   })
 })
 
+describe('rowKeys', () => {
+  const a = resultRow({ name: 'A', latitude: 46.1, longitude: -121.1 })
+  const b = resultRow({ name: 'B', latitude: 46.2, longitude: -121.2 })
+
+  it('gives a destination the same key wherever a sort puts it', () => {
+    const [ka, kb] = rowKeys([a, b])
+    expect(rowKeys([b, a])).toEqual([kb, ka])
+  })
+
+  it('tells one destination under two models apart', () => {
+    const keys = rowKeys([compared({ ...a, modelId: 'gfs_seamless' }), compared({ ...a, modelId: 'icon_seamless' })])
+    expect(new Set(keys).size).toBe(2)
+  })
+
+  it('never repeats a key, even for two rows at one coordinate', () => {
+    const keys = rowKeys([a, { ...a, name: 'A twin' }, b])
+    expect(new Set(keys).size).toBe(3)
+  })
+})
+
 describe('pending rows', () => {
-  const pending: PendingDestination = {
-    name: 'Probe Peak',
-    latitude: 47.1,
-    longitude: -121.2,
-    elevation_ft: 6000,
-    kind: 'peak',
-    osmId: 'node/9',
-    source: 'search',
-  }
+  const pending = pendingDestination({ kind: 'peak', osmId: 'node/9' })
 
   it('keys the chart on the coordinate', () => {
     expect(pendingChartRow(pending)).toEqual({ name: 'Probe Peak', latitude: 47.1, longitude: -121.2 })

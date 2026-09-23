@@ -14,6 +14,7 @@ import {
   FIRE_WARN_MILES,
 } from './fireProximity'
 import { geoKey } from './points'
+import { fireWarning } from '../testSupport/fixtures'
 
 // A ~0.1° square fire near (40, -120): west edge -120.0, east edge -119.9.
 const square: FeatureCollection = {
@@ -40,12 +41,12 @@ const square: FeatureCollection = {
 
 describe('fireWarningText', () => {
   it('phrases an inside hit', () => {
-    expect(fireWarningText({ miles: 0, name: 'Beehive', latitude: 0, longitude: 0 })).toBe(
+    expect(fireWarningText(fireWarning({ miles: 0, name: 'Beehive' }))).toBe(
       'Inside an active wildfire perimeter (Beehive)',
     )
   })
   it('phrases a nearby hit to one decimal', () => {
-    expect(fireWarningText({ miles: 3.24, name: 'P-L Gulch', latitude: 0, longitude: 0 })).toBe(
+    expect(fireWarningText(fireWarning({ miles: 3.24, name: 'P-L Gulch' }))).toBe(
       '3.2 mi from an active wildfire (P-L Gulch)',
     )
   })
@@ -288,7 +289,7 @@ describe('uncoveredKeys', () => {
 
 describe('fireCellText', () => {
   it('carries the flag beside the mileage for a warned row', () => {
-    expect(fireCellText({ miles: 4.23, name: 'Sourdough Fire', latitude: 0, longitude: 0 }, false)).toBe('⚠️ 4.2')
+    expect(fireCellText(fireWarning({ miles: 4.23, name: 'Sourdough Fire' }), false)).toBe('⚠️ 4.2')
   })
 
   it('is the dash for a row the check cleared, never blank', () => {
@@ -304,7 +305,7 @@ describe('fireCellText', () => {
   it('lets a real warning win over the uncovered mark', () => {
     // The hook never produces both, but the cell must not blank a warning
     // if it ever did.
-    expect(fireCellText({ miles: 0, name: 'x', latitude: 0, longitude: 0 }, true)).toBe('⚠️ 0.0')
+    expect(fireCellText(fireWarning({ miles: 0, name: 'x' }), true)).toBe('⚠️ 0.0')
   })
 })
 

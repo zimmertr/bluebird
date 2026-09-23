@@ -1,9 +1,9 @@
-import { memo } from 'react'
+import { createContext, memo, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DestinationResult } from '../types'
 import { MODEL_KEY, WILDFIRE_KEY, type ColDef } from '../utils/tableColumns'
-import type { FireWarning } from '../utils/fireProximity'
-import type { FireProximityStatus } from '../hooks/useFireProximity'
+import { fireLoadingFrame, type FireProximityStatus, type FireWarning } from '../utils/fireProximity'
+import type { ChartBox } from '../hooks/useChartBox'
 import { destinationUrl } from '../utils/destinationUrl'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
@@ -53,13 +53,6 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
   )
 }
 
-/** What a row's chart checkbox needs from the table. */
-export interface ChartBox {
-  // Records whether Shift was held, on the click that precedes the change.
-  onShift: (shift: boolean) => void
-  onToggle: (row: DestinationResult) => void
-}
-
 // Rendered for every row, series or not: a pending row's box pre-selects it
 // (and shows its sticky color) so the line appears the moment an analysis
 // gives it data. Only the shift-range path insists on series rows.
@@ -79,26 +72,45 @@ function ChartToggle({ row, on, color, box }: { row: DestinationResult; on: bool
   )
 }
 
+// The wildfire cells' shared clock while the fire check is in flight: one
+// ticking state for the whole table rather than per cell, so every cell shows
+// the same frame, and an interval only while there is something to wait for.
+// The frame reaches the cells through a context rather than a row prop,
+// because it ticks every 400 ms: as a prop it would redraw every cell of every
+// row per tick, where a context redraws only the wildfire cells that read it.
+// Null once the check has answered.
+const FireFrame = createContext<string | null>(null)
+
+export function FireClock({ running, children }: { running: boolean; children: ReactNode }) {
+  const [tick, setTick] = useState(0)
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(() => setTick((t) => t + 1), 400)
+    return () => clearInterval(id)
+  }, [running])
+  return <FireFrame.Provider value={running ? fireLoadingFrame(tick) : null}>{children}</FireFrame.Provider>
+}
+
 // A destination's name: the fly-to button and the external map link. `label`
 // is the printed text and `name` the one the accessible labels read.
-interface NameCell {
+interface NameTdProps {
   cellClass: string
   widths: Record<string, number>
   label: string
   name: string
-  onFocus: () => void
+  onCenter: () => void
   href: string
 }
 
-function nameCell({ cellClass, widths, label, name, onFocus, href }: NameCell) {
+function NameTd({ cellClass, widths, label, name, onCenter, href }: NameTdProps) {
   return (
-    <td key="name" className={cellClass}>
+    <td className={cellClass}>
       {sized(
         widths,
         'name',
         <span className="flex min-w-0 items-center gap-1.5">
           <button
-            onClick={onFocus}
+            onClick={onCenter}
             aria-label={`Center map on ${name}`}
             className={`${LINK_ACTION} min-w-0 cursor-pointer truncate text-left`}
           >
@@ -127,12 +139,10 @@ interface CellContext {
   modelId?: string | null
   times?: readonly number[]
   fireStatus: FireProximityStatus
-  // The shared frame of the waiting dots while the fire check is in flight,
-  // and null once it has answered.
-  fireFrame: string | null
   fireWarning?: FireWarning
   fireUncovered: boolean
-  onFocus: () => void
+  // Centres the map on the row: the name button's fly-to.
+  onCenter: () => void
 }
 
 // The wildfire column's key is virtual, its value living in the fire lookup
@@ -140,18 +150,19 @@ interface CellContext {
 // shared dots, muted to caption type so a whole column of them reads as
 // waiting rather than data. A warned cell carries the fire's name: this is the
 // flag's only home, so the label lives here rather than beside the row's name.
-function fireTd(key: string, ctx: CellContext) {
+function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
+  const frame = useContext(FireFrame)
   const warning = ctx.fireWarning
   const { text, note } = fireCell(ctx.fireStatus, warning, ctx.fireUncovered)
   let body: ReactNode = text
-  if (ctx.fireFrame !== null) {
-    body = <span className={TEXT.caption}>{ctx.fireFrame}</span>
+  if (frame !== null) {
+    body = <span className={TEXT.caption}>{frame}</span>
   } else if (warning) {
     // A warned cell links to the fire it is warning about, the same NIFC map a
-    // clicked fire on the map opens. The link is the better answer to "what is
-    // this", and a tooltip does not exist on touch anyway. The cell reads
-    // "⚠️ 3.2", which unlabelled announces as "link, warning three point two",
-    // so the label names the fire and where it goes.
+    // clicked fire on the map opens (TJ, 2026-09-14). The link is the better
+    // answer to "what is this", and a tooltip does not exist on touch anyway.
+    // The cell reads "⚠️ 3.2", which unlabelled announces as "link, warning
+    // three point two", so the label names the fire and where it goes.
     body = (
       <a
         href={nifcFireUrl(warning.longitude, warning.latitude, FIRE_LINK_ZOOM)}
@@ -173,21 +184,18 @@ function fireTd(key: string, ctx: CellContext) {
       </span>
     )
   }
-  return (
-    <td key={key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
-      {sized(ctx.widths, key, body)}
-    </td>
-  )
+  return <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
 }
 
-// Everything after the rank cell for one column of a ranked row.
-function metricTd(col: ColDef, row: DestinationResult, ctx: CellContext) {
+// One body cell of a ranked row: every column after the rank, the name, Model
+// and Wildfire columns included.
+function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: CellContext }) {
   const key = col.key as string
-  if (col.key === WILDFIRE_KEY) return fireTd(key, ctx)
+  if (col.key === WILDFIRE_KEY) return <FireTd colKey={key} ctx={ctx} />
   // Virtual like the wildfire column: the value rides beside the row.
   if (col.key === MODEL_KEY) {
     return (
-      <td key={key} className={`${TABLE.cell} whitespace-nowrap`}>
+      <td className={`${TABLE.cell} whitespace-nowrap`}>
         {sized(ctx.widths, key, modelCellText(row, ctx.modelFallbackLabel))}
       </td>
     )
@@ -198,7 +206,7 @@ function metricTd(col: ColDef, row: DestinationResult, ctx: CellContext) {
   const missing = unavailableCell(key, raw)
   if (missing !== null) {
     return (
-      <td key={key} className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
         {sized(
           ctx.widths,
           key,
@@ -215,17 +223,17 @@ function metricTd(col: ColDef, row: DestinationResult, ctx: CellContext) {
   const cellClass = `${TABLE.cell} whitespace-nowrap ${key === 'name' ? 'font-sans font-medium' : 'font-mono'}`
   if (key === 'name') {
     const href = destinationUrl(row)
-    return nameCell({ cellClass, widths: ctx.widths, label: display, name: row.name, onFocus: ctx.onFocus, href })
+    return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} href={href} />
   }
   const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
   if (col.windyLayer) {
     return (
-      <td key={key} className={cellClass} style={colorSty}>
+      <td className={cellClass} style={colorSty}>
         {sized(
           ctx.widths,
           key,
           <a
-            href={windyCellUrl(row, col, ctx.modelId, ctx.times)}
+            href={windyCellUrl(row, key, col.windyLayer, ctx.modelId, ctx.times)}
             target="_blank"
             rel="noopener noreferrer"
             // The link text is the measurement itself, so unlabelled this
@@ -242,7 +250,7 @@ function metricTd(col: ColDef, row: DestinationResult, ctx: CellContext) {
     )
   }
   return (
-    <td key={key} className={cellClass} style={colorSty}>
+    <td className={cellClass} style={colorSty}>
       {sized(ctx.widths, key, display)}
     </td>
   )
@@ -260,7 +268,6 @@ interface RowProps {
   modelId?: string | null
   times?: readonly number[]
   fireStatus: FireProximityStatus
-  fireFrame: string | null
   fireWarning?: FireWarning
   fireUncovered: boolean
   // Absent when the table has no chart column.
@@ -271,14 +278,45 @@ interface RowProps {
   onFocusResult?: (row: DestinationResult) => void
 }
 
-function ResultsTableRow(props: RowProps) {
-  const { row, rank, leaving, columns, chartBox, onRemove, onFocusResult } = props
-  const ctx: CellContext = { ...props, onFocus: () => onFocusResult?.(row) }
+function ResultsTableRow({
+  row,
+  rank,
+  leaving,
+  columns,
+  widths,
+  coloredGroup,
+  pointSample,
+  modelFallbackLabel,
+  modelId,
+  times,
+  fireStatus,
+  fireWarning,
+  fireUncovered,
+  chartBox,
+  charted,
+  chartColor,
+  onRemove,
+  onFocusResult,
+}: RowProps) {
+  const ctx: CellContext = {
+    widths,
+    coloredGroup,
+    pointSample,
+    modelFallbackLabel,
+    modelId,
+    times,
+    fireStatus,
+    fireWarning,
+    fireUncovered,
+    onCenter: () => onFocusResult?.(row),
+  }
   return (
     <tr className={`${TABLE.row} ${leaving ? 'animate-remove-row' : ''}`}>
-      {chartBox && <ChartToggle row={row} on={props.charted} color={props.chartColor} box={chartBox} />}
+      {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
-      {columns.map((col) => metricTd(col, row, ctx))}
+      {columns.map((col) => (
+        <BodyTd key={col.key as string} col={col} row={row} ctx={ctx} />
+      ))}
       <td aria-hidden="true" className="p-0" />
     </tr>
   )
@@ -311,10 +349,10 @@ function PendingTableRow({
 }: PendingProps) {
   // The same fly-to a ranked row's name gives, and for the same reason: the
   // dot is already on the map, so there is nothing an analysis adds to the
-  // ability to look at it. No popup follows it, unlike a ranked row's: a popup
+  // ability to look at it (TJ, 2026-09-14). No popup follows it, unlike a ranked row's: a popup
   // here would be a forecast card with no forecast in it, and clicking the dot
   // already says what is known.
-  const focus = () => onFocusPending?.({ latitude: d.latitude, longitude: d.longitude })
+  const center = () => onFocusPending?.({ latitude: d.latitude, longitude: d.longitude })
   return (
     <tr className={TABLE.row}>
       {chartBox && <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} />}
@@ -328,7 +366,7 @@ function PendingTableRow({
         if (key === 'name') {
           const cellClass = `${TABLE.cell} whitespace-nowrap font-sans font-medium`
           const href = destinationUrl(pendingLinkRow(d))
-          return nameCell({ cellClass, widths, label: d.name, name: d.name, onFocus: focus, href })
+          return <NameTd key={key} cellClass={cellClass} widths={widths} label={d.name} name={d.name} onCenter={center} href={href} />
         }
         if (key === 'elevation_ft') {
           return (
