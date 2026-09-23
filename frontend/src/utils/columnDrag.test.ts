@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import resultsTableSource from '../components/ResultsTable.tsx?raw'
+// The results table's header row, which owns the table's drag and resize.
+import resultsTableSource from '../components/ResultsTableHeader.tsx?raw'
 import stylesSource from '../styles.ts?raw'
 import columnsPickerSource from '../components/ColumnsPicker.tsx?raw'
 import {
