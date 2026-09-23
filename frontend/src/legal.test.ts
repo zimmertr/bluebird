@@ -61,7 +61,12 @@ describe('user-facing copy', () => {
 // aria-label, title, placeholder or alt is a sentence read aloud or shown as a
 // hint, so a dash in one is always prose. That is exactly where the instance
 // #175 missed was hiding, in a screen-reader label nobody reads by eye.
-const componentSources = import.meta.glob(['./components/*.tsx', '!./components/*.test.tsx'], {
+const componentSources = import.meta.glob([
+  './components/*.tsx',
+  './map/**/*.{ts,tsx}',
+  '!./components/*.test.tsx',
+  '!./map/**/*.test.{ts,tsx}',
+], {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -70,6 +75,8 @@ const componentSources = import.meta.glob(['./components/*.tsx', '!./components/
 describe('attribute copy', () => {
   it('found the components', () => {
     expect(Object.keys(componentSources).length).toBeGreaterThan(6)
+    // The map's modules build popups too, so they are read with the components.
+    expect(Object.keys(componentSources)).toContain('./map/basemap.ts')
   })
 
   it.each(Object.entries(componentSources))('%s uses no dash in a label', (_path, source) => {

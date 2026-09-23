@@ -127,3 +127,43 @@ describe('MapView reads the restored ring when the map loads', () => {
     )
   })
 })
+
+/**
+ * A handler MapLibre registers once, on load, closes over the first render's
+ * props for the session. The component used to answer that with one mirror ref
+ * per prop, kept current by four effects that did nothing else. Those props now
+ * live in `map/controller.ts`, written by one effect and read at event time, so
+ * a fifth mirror is a sign the controller was missed.
+ */
+describe('MapView mirrors no prop in a ref', () => {
+  const props = (() => {
+    const open = mapViewSource.indexOf('forwardRef<MapViewHandle, Props>(')
+    const list = mapViewSource.slice(open, mapViewSource.indexOf('ref,', open))
+    return [...list.matchAll(/^\s+(\w+),$/gm)].map((m) => m[1])
+  })()
+
+  it('found the props', () => {
+    expect(props.length, 'the destructured prop list was not found').toBeGreaterThan(20)
+    expect(props).toContain('cameraPadBottomPx')
+  })
+
+  // The restored ring is the one ref seeded from a prop, and it is not a
+  // mirror: nothing keeps it current, and Clear empties it (see above).
+  it('seeds no ref from a prop but the restored ring', () => {
+    const seeded = [...mapViewSource.matchAll(/useRef(?:<[^>]*>)?\((\w+)\)/g)]
+      .map((m) => m[1])
+      .filter((name) => props.includes(name))
+    expect(seeded).toEqual(['polygon'])
+  })
+
+  it('keeps no effect that only copies a value into a ref', () => {
+    expect(mapViewSource).not.toMatch(/useEffect\(\(\) => \{\s*(?:\w+Ref\.current = \w+\s*)+\}/)
+  })
+
+  it('writes the controller in one effect, and reads it rather than copying it', () => {
+    expect(mapViewSource.match(/controller\.update\(/g)).toHaveLength(1)
+    // A handler that copied the inputs when it was registered would hold the
+    // first render's values, which is the bug the controller exists to fix.
+    expect(mapViewSource).not.toMatch(/const \{[^}]*\} = controller\.inputs/)
+  })
+})

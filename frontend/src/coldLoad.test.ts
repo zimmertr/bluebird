@@ -78,11 +78,18 @@ describe('image budgets', () => {
     // `public/icon.png` keeps a stable unhashed name so a scraper can find it,
     // and the cache-header middleware answers `no-cache` for exactly that
     // reason (#354). Anything the app draws should carry a content hash.
-    const sources = import.meta.glob(['./components/*.tsx', '!./components/*.test.tsx'], {
+    const sources = import.meta.glob([
+      './components/*.tsx',
+      './map/**/*.{ts,tsx}',
+      '!./components/*.test.tsx',
+      '!./map/**/*.test.{ts,tsx}',
+    ], {
       query: '?raw',
       import: 'default',
       eager: true,
     }) as Record<string, string>
+    // The map's modules draw too, so they are read with the components.
+    expect(Object.keys(sources)).toContain('./map/basemap.ts')
     for (const [name, source] of Object.entries({ './App.tsx': app, ...sources })) {
       expect(source, name).not.toContain('"/icon.png"')
     }
