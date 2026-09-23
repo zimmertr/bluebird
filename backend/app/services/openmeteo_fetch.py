@@ -147,7 +147,7 @@ async def fetch_batched(
     destinations: list[dict[str, Any]],
     *,
     label: str,
-    cache_key: Callable[[dict[str, Any]], str],
+    cache_key: Callable[[dict[str, Any]], tuple],
     fetch_chunk: Callable[
         [list[dict[str, Any]]], Awaitable[list[dict[str, Any] | None]]
     ],
@@ -175,7 +175,7 @@ async def fetch_batched(
     total = len(destinations)
     results: list[dict[str, Any] | None] = [None] * total
     miss_indices: list[int] = []
-    miss_keys: list[str] = []
+    miss_keys: list[tuple] = []
     for i, dest in enumerate(destinations):
         key = cache_key(dest)
         hit = cache.FORECAST_CACHE.get(key)

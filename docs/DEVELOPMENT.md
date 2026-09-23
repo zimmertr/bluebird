@@ -48,6 +48,7 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 | `make check-api` | `npm run check:api`: the frontend API types still match the committed OpenAPI snapshot |
 | `make test-backend` | `pytest` |
 | `make check-openapi` | `python scripts/generate_openapi.py --check`: the committed snapshot still matches the app |
+| `make typecheck-backend` | `mypy app` at the version `requirements-dev.txt` pins, with the settings in `backend/mypy.ini` |
 | `make lint-backend` | `ruff check backend/` at the version CI pins |
 | `make lighthouse` | the cold-load audit below |
 | `make browser` | the browser suite below |
@@ -65,7 +66,7 @@ One Vitest run covers two projects, split by file extension: `node` runs every
 rendered in jsdom and driven with Testing Library). Add `-- --project dom` (or
 `node`) to the `npm test` above to run one of them.
 
-Four things that shape follows from:
+Five things that shape follows from:
 
 - **Every container mounts the repo root**, never `frontend/` or `backend/`
   alone. Two browser suites read the manifests the backend commits under
@@ -81,6 +82,10 @@ Four things that shape follows from:
 - **`lint-frontend` and `check-api` run no `npm ci`.** The linter and the type
   generator are packages apart, and each script installs its own (see the
   notes below).
+- **`typecheck-backend` installs the app's own dependencies**, not mypy
+  alone. The pydantic plugin and the FastAPI and Starlette signatures it
+  checks against come from them, and without them those calls read as `Any`
+  and hide real errors.
 - **`lint-backend` runs from the repo root**, which is what CI does. The rules
   live in `backend/ruff.toml`, and `known-first-party = ["app"]` there is what
   makes the import order the same from either working directory. Ruff is

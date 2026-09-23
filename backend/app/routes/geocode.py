@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, Query
@@ -37,6 +38,10 @@ PROVIDER = "Nominatim (place search)"
         "search action rather than on every keystroke."
     ),
     response_description="Matching places, in Nominatim's `jsonv2` format.",
+    # Explicit, because FastAPI otherwise builds a response model from the
+    # return annotation. The body is Nominatim's own JSON forwarded as is, so
+    # there is no model of ours to validate it against or to publish.
+    response_model=None,
     responses={
         429: {
             "model": ErrorResponse,
@@ -68,7 +73,7 @@ async def geocode(
         description="Place name to search for, such as `Mount Rainier`.",
     ),
     limit: int = Query(5, ge=1, le=10, description="Maximum places to return."),
-):
+) -> list[Any]:
     log.info("Geocode query: %r", q)
     # Pace the shared egress IP to Nominatim's ~1 req/s policy before opening
     # a connection; a full queue sheds here rather than piling onto them.

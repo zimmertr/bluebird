@@ -14,7 +14,7 @@ RUFF_VERSION := 0.16.0
 # its own Chromium build, and the image carries the build for its own version.
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.63.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi lint-backend lighthouse browser
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lighthouse browser
 
 typecheck:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci && npx tsc --noEmit"
@@ -33,6 +33,11 @@ test-backend:
 
 check-openapi:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && python scripts/generate_openapi.py --check"
+
+# The app's dependencies install too: the pydantic plugin and the FastAPI
+# signatures mypy checks against come from them.
+typecheck-backend:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && mypy app"
 
 # From the repo root, which is what CI does; backend/ruff.toml makes the
 # import order the same from either directory.
