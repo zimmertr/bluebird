@@ -24,11 +24,10 @@ import { geoKey } from '../utils/points'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { framePadding, pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
-import { addVertex } from '../utils/polygonEdit'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
 // (#383). `MapView.test.ts` fails a new one that lands in this file.
-import { makeDrawData, ringToPts } from '../utils/drawGeometry'
+import { ringPolygon, ringToPts } from '../utils/drawGeometry'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
 import {
   dismissesPopups,
@@ -45,6 +44,7 @@ import {
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { useIsDesktop } from '../hooks/useIsDesktop'
+import { mountDrawRing, type DrawRing } from '../map/drawRing'
 import { createMapController, type MapInputs } from '../map/controller'
 import {
   STYLE,
@@ -185,8 +185,6 @@ const SEARCH_VIEW_MILES = 10
 const FIT_PADDING_PX = 60
 const REFIT_WINDOW_MS = 1_000
 
-const DRAW_COLOR = '#38bdf8'
-
 const MapView = forwardRef<MapViewHandle, Props>(
   (
     {
@@ -252,8 +250,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // search, CSV fit, result focus). A late geolocation grant checks this so
     // it can't yank the camera away from a frame the user asked for.
     const cameraCommittedRef = useRef(false)
-    const vertexPopupRef = useRef<maplibregl.Popup | null>(null)
-    const draggingVertexRef = useRef<number | null>(null)
+    // The drawn ring's layers, handles and drags, mounted on load. The ring's
+    // points stay in `ptsRef`, because they exist before the map does.
+    const drawRingRef = useRef<DrawRing | null>(null)
     // The single popup opened by focusResult (table-rank click), tracked so
     // repeated clicks replace it instead of stacking popups.
     const resultPopupRef = useRef<maplibregl.Popup | null>(null)
@@ -380,17 +379,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
       // the user iterates by dragging vertices and clicking Analyze again.
       finishDrawing() {
-        const pts = ptsRef.current
-        if (pts.length < 3) return null
-        const geo: GeoPolygon = { type: 'Polygon', coordinates: [[...pts, pts[0]]] }
-        onPolygonChange(geo)
+        const geo = ringPolygon(ptsRef.current)
+        if (geo) onPolygonChange(geo)
         return geo
       },
       cancelDrawing() {
         restoredPolygonRef.current = null
         ptsRef.current = []
-        vertexPopupRef.current?.remove()
-        vertexPopupRef.current = null
+        drawRingRef.current?.closePopup()
         onDrawUpdate(0)
         onPolygonChange(null)
         if (mapRef.current && loadedRef.current) {
@@ -613,64 +609,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
           radar: mountRadar(map),
         }
 
-        // ── Draw source + layers ───────────────────────────────────────
-        map.addSource('draw', {
-          type: 'geojson',
-          data: (ptsRef.current.length > 0
-            ? makeDrawData(ptsRef.current)
-            : emptyFC) as FeatureCollection,
+        // ── Drawn ring ─────────────────────────────────────────────────
+        // Above the overlays and below the results, so a marker is never under
+        // the outline of the area it was found in.
+        const drawRing = mountDrawRing(map, {
+          ring: ptsRef,
+          controller,
+          restCursor,
+          onPolygonChange,
+          onDrawUpdate,
         })
-
-        map.addLayer({
-          id: 'draw-fill',
-          type: 'fill',
-          source: 'draw',
-          filter: ['==', ['get', 'kind'], 'polygon'],
-          paint: { 'fill-color': DRAW_COLOR, 'fill-opacity': 0.12 },
-        })
-        map.addLayer({
-          id: 'draw-line',
-          type: 'line',
-          source: 'draw',
-          paint: { 'line-color': DRAW_COLOR, 'line-width': 2 },
-        })
-        // Midpoints render below vertices so vertices are always on top.
-        //
-        // Both handle layers are hidden outside draw mode, and hiding them is
-        // what makes the mode real rather than cosmetic: MapLibre resolves
-        // layer-scoped events through queryRenderedFeatures, which skips
-        // invisible layers, so a hidden handle fires no mousedown and cannot be
-        // dragged. That is the accidental-vertex-move half of #118 — a 6 px hit
-        // target beside a finger reaching for the map — closed at the source
-        // instead of guarded at each of the four handlers.
-        const handleVisibility = { visibility: controller.inputs.drawing ? 'visible' : 'none' } as const
-        map.addLayer({
-          id: 'draw-midpoints',
-          type: 'circle',
-          source: 'draw',
-          filter: ['==', ['get', 'kind'], 'midpoint'],
-          layout: handleVisibility,
-          paint: {
-            'circle-radius': 5,
-            'circle-color': '#fff',
-            'circle-stroke-color': DRAW_COLOR,
-            'circle-stroke-width': 2,
-            'circle-opacity': 0.85,
-          },
-        })
-        map.addLayer({
-          id: 'draw-vertices',
-          type: 'circle',
-          source: 'draw',
-          filter: ['==', ['get', 'kind'], 'vertex'],
-          layout: handleVisibility,
-          paint: {
-            'circle-radius': 6,
-            'circle-color': DRAW_COLOR,
-            'circle-stroke-color': '#fff',
-            'circle-stroke-width': 2,
-          },
-        })
+        drawRingRef.current = drawRing
 
         // ── Results source + layers ────────────────────────────────────
         map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
@@ -774,146 +723,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
             'text-halo-color': '#0f172a',
             'text-halo-width': 1.5,
           },
-        })
-
-        // ── Commit the ring to React state ─────────────────────────────
-        // Called at every discrete edit (point add, drag end, midpoint
-        // insert, vertex delete) — never during pointermove — so App can
-        // live-sync the URL without thrashing replaceState mid-drag.
-        // Under 3 points there's no polygon yet, so commit null.
-        function commitRing() {
-          const pts = ptsRef.current
-          onDrawUpdate(pts.length)
-          onPolygonChange(
-            pts.length >= 3 ? { type: 'Polygon', coordinates: [[...pts, pts[0]]] } : null,
-          )
-        }
-
-        // ── Shared vertex drag ─────────────────────────────────────────
-        // Called from both the vertex mousedown and midpoint mousedown handlers.
-        function startVertexDrag(vertexIdx: number) {
-          draggingVertexRef.current = vertexIdx
-          map.dragPan.disable()
-          map.getCanvas().style.cursor = 'grabbing'
-
-          const canvas = map.getCanvas()
-
-          function moveTo(clientX: number, clientY: number) {
-            const i = draggingVertexRef.current
-            if (i === null) return
-            const rect = canvas.getBoundingClientRect()
-            const lngLat = map.unproject([clientX - rect.left, clientY - rect.top])
-            ptsRef.current = ptsRef.current.map((p, j) =>
-              j === i ? ([lngLat.lng, lngLat.lat] as [number, number]) : p,
-            )
-            setSource(map, 'draw', makeDrawData(ptsRef.current))
-          }
-
-          function onMouseMove(me: MouseEvent) {
-            moveTo(me.clientX, me.clientY)
-          }
-
-          // Touch drag: track the single active finger and preventDefault so the
-          // browser doesn't scroll/zoom the page while dragging the vertex.
-          function onTouchMove(te: TouchEvent) {
-            if (te.touches.length !== 1) return
-            te.preventDefault()
-            moveTo(te.touches[0].clientX, te.touches[0].clientY)
-          }
-
-          function onUp() {
-            draggingVertexRef.current = null
-            map.dragPan.enable()
-            restCursor()
-            commitRing()
-            document.removeEventListener('mousemove', onMouseMove)
-            document.removeEventListener('mouseup', onUp)
-            document.removeEventListener('touchmove', onTouchMove)
-            document.removeEventListener('touchend', onUp)
-            document.removeEventListener('touchcancel', onUp)
-          }
-
-          document.addEventListener('mousemove', onMouseMove)
-          document.addEventListener('mouseup', onUp)
-          document.addEventListener('touchmove', onTouchMove, { passive: false })
-          document.addEventListener('touchend', onUp)
-          document.addEventListener('touchcancel', onUp)
-        }
-
-        // ── Vertex: mousedown / touchstart starts drag ─────────────────
-        // MapLibre doesn't synthesize mouse events from touches, so touch needs
-        // its own handler. preventDefault stops the map's pan handler starting.
-        map.on('mousedown', 'draw-vertices', (e) => {
-          e.preventDefault() // prevents MapLibre's DragPanHandler from starting
-          startVertexDrag(Number(e.features?.[0]?.properties?.index))
-        })
-        map.on('touchstart', 'draw-vertices', (e) => {
-          e.preventDefault()
-          startVertexDrag(Number(e.features?.[0]?.properties?.index))
-        })
-
-        // ── Vertex: click (mouse didn't move) → delete popup ───────────
-        map.on('click', 'draw-vertices', (e) => {
-          const props = e.features?.[0]?.properties
-          if (props == null) return
-          const idx = Number(props.index)
-
-          vertexPopupRef.current?.remove()
-          const popup = new maplibregl.Popup({ offset: [0, -8], closeButton: false })
-            .setLngLat(e.lngLat)
-            .setHTML(
-              '<button data-rm style="background:#ef4444;color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:sans-serif;font-weight:600">✕ Remove point</button>',
-            )
-            .addTo(map)
-          vertexPopupRef.current = popup
-
-          setTimeout(() => {
-            popup
-              .getElement()
-              ?.querySelector<HTMLButtonElement>('[data-rm]')
-              ?.addEventListener('click', () => {
-                ptsRef.current = ptsRef.current.filter((_, i) => i !== idx)
-                setSource(map, 'draw', makeDrawData(ptsRef.current))
-                commitRing()
-                popup.remove()
-                vertexPopupRef.current = null
-              })
-          }, 0)
-        })
-
-        map.on('mouseenter', 'draw-vertices', () => {
-          map.getCanvas().style.cursor = 'grab'
-        })
-        map.on('mouseleave', 'draw-vertices', () => {
-          if (draggingVertexRef.current === null) restCursor()
-        })
-
-        // ── Midpoint: mousedown / touchstart inserts vertex then drags ─
-        function startMidpointDrag(e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent) {
-          e.preventDefault()
-          const segIdx = Number(e.features?.[0]?.properties?.segment)
-          const newPt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
-          ptsRef.current = [
-            ...ptsRef.current.slice(0, segIdx + 1),
-            newPt,
-            ...ptsRef.current.slice(segIdx + 1),
-          ]
-          setSource(map, 'draw', makeDrawData(ptsRef.current))
-          commitRing()
-          startVertexDrag(segIdx + 1)
-        }
-        map.on('mousedown', 'draw-midpoints', (e) => {
-          startMidpointDrag(e)
-        })
-        map.on('touchstart', 'draw-midpoints', (e) => {
-          startMidpointDrag(e)
-        })
-
-        map.on('mouseenter', 'draw-midpoints', () => {
-          map.getCanvas().style.cursor = 'grab'
-        })
-        map.on('mouseleave', 'draw-midpoints', () => {
-          if (draggingVertexRef.current === null) restCursor()
         })
 
         // ── Results & searched destinations: popup + cursor ────────────
@@ -1110,10 +919,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
             return
           }
           if (action.kind === 'add-vertex') {
-            const pt: [number, number] = [e.lngLat.lng, e.lngLat.lat]
-            ptsRef.current = addVertex(ptsRef.current, pt)
-            setSource(map, 'draw', makeDrawData(ptsRef.current))
-            commitRing()
+            drawRing.addPoint([e.lngLat.lng, e.lngLat.lat])
             return
           }
           if (action.kind === 'open-smoke') {
@@ -1152,7 +958,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
       return () => {
         loadedRef.current = false
-        vertexPopupRef.current = null
+        drawRingRef.current = null
         poiPopupRef.current = null
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
@@ -1263,14 +1069,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const map = mapRef.current
       // `restCursor`'s rule, read off the prop this effect runs for.
       if (map) map.getCanvas().style.cursor = drawing ? 'crosshair' : ''
-      if (!map || !mapReady) return
-      for (const id of ['draw-vertices', 'draw-midpoints']) {
-        map.setLayoutProperty(id, 'visibility', drawing ? 'visible' : 'none')
-      }
-      if (!drawing) {
-        vertexPopupRef.current?.remove()
-        vertexPopupRef.current = null
-      }
+      if (mapReady) drawRingRef.current?.setDrawing(drawing)
     }, [drawing, mapReady])
 
     // Neutral blue dot per custom destination not yet in the displayed analysis.
