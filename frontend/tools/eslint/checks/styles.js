@@ -574,7 +574,7 @@ export const STYLES = [
     // one grid cell, so the column never grows on hover. And both kinds of
     // body row come off one recipe, whose group is what the cross hangs on.
     name: 'style-rank-cell',
-    files: ['src/components/ResultsTable.tsx'],
+    files: ['src/components/ResultsTableRow.tsx'],
     ban: [
       {
         selector: text('group-hover:(hidden|inline|block|flex)\\b'),

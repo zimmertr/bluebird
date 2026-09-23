@@ -13,6 +13,7 @@ const hasAny = (side, object) =>
   `[${side}.operator=">"][${side}.right.value=0][${side}.left.property.name="length"]${object(`${side}.left.object`)}`
 
 const MEMOIZED = 'JSXOpeningElement[name.name=/^(ResultsTable|TimeSeriesChart|MapView)$/] > JSXAttribute'
+const MEMOIZED_ROWS = 'JSXOpeningElement[name.name=/^(ResultsTableRow|PendingRow)$/] > JSXAttribute'
 
 // The bottom edge is measured in resultsSheet.ts and applied as a style. The
 // sheet itself is `bottom-0` and stands on the edge, so zero is let through.
@@ -103,11 +104,11 @@ export const APP = [
     // React.memo is worth nothing if the parent hands a fresh value on every
     // render. MapView's own memo is the `map-view-wiring` check in map.js.
     name: 'app-memoized',
-    files: ['src/components/ResultsTable.tsx', 'src/components/TimeSeriesChart.tsx'],
+    files: ['src/components/ResultsTable.tsx', 'src/components/ResultsTableRow.tsx', 'src/components/TimeSeriesChart.tsx'],
     require: [
       {
         selector:
-          'ExportDefaultDeclaration > CallExpression[callee.name="memo"] > Identifier[name=/^(ResultsTable|TimeSeriesChart)$/]',
+          'ExportDefaultDeclaration > CallExpression[callee.name="memo"] > Identifier[name=/^(ResultsTable|ResultsTableRow|TimeSeriesChart)$/]',
         count: 1,
         message: 'Export the component as memo(Component).',
       },
@@ -139,6 +140,33 @@ export const APP = [
       { selector: 'JSXOpeningElement[name.name="ResultsTable"]', message: 'App.tsx renders ResultsTable.' },
       { selector: 'JSXOpeningElement[name.name="TimeSeriesChart"]', message: 'App.tsx renders TimeSeriesChart.' },
       { selector: 'JSXOpeningElement[name.name="MapView"]', message: 'App.tsx renders MapView.' },
+    ],
+  },
+  {
+    // The results table draws one memoized row per destination, so the same
+    // rule holds one level down: a fresh value on a row's props redraws every
+    // row the table holds.
+    name: 'table-row-memo-props',
+    files: ['src/components/ResultsTable.tsx'],
+    ban: [
+      {
+        selector: `${MEMOIZED_ROWS} :matches(ArrowFunctionExpression, FunctionExpression)`,
+        message: 'Hand a table row a stable callback, not an inline function.',
+      },
+      {
+        selector: `${MEMOIZED_ROWS} > JSXExpressionContainer > ArrayExpression[elements.length=0]`,
+        message: 'Hand a table row a hoisted empty array, not a literal one.',
+      },
+      {
+        selector:
+          `${MEMOIZED_ROWS} LogicalExpression[operator="??"]` +
+          ':matches([right.type="ArrayExpression"][right.elements.length=0], [right.type="ObjectExpression"][right.properties.length=0])',
+        message: 'Hand a table row a hoisted fallback, not a fresh ?? literal.',
+      },
+    ],
+    require: [
+      { selector: 'JSXOpeningElement[name.name="ResultsTableRow"]', message: 'ResultsTable.tsx renders ResultsTableRow.' },
+      { selector: 'JSXOpeningElement[name.name="PendingRow"]', message: 'ResultsTable.tsx renders PendingRow.' },
     ],
   },
   {

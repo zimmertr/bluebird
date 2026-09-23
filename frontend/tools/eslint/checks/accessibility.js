@@ -54,7 +54,7 @@ export const ACCESSIBILITY = [
     // two of the table's links fail that on their text alone. The label is the
     // whole answer, and it also warns about the new tab.
     name: 'new-tab-anchors-named',
-    files: ['src/components/ResultsTable.tsx'],
+    files: ['src/components/ResultsTableRow.tsx'],
     ban: [
       {
         selector:
@@ -63,7 +63,7 @@ export const ACCESSIBILITY = [
         message: 'Give a new-tab anchor an aria-label ending "Opens in a new tab."',
       },
     ],
-    require: [{ selector: newTab, min: 3, message: 'ResultsTable.tsx carries the new-tab anchors.' }],
+    require: [{ selector: newTab, min: 3, message: 'ResultsTableRow.tsx carries the new-tab anchors.' }],
   },
   {
     name: 'model-picker-roles',
