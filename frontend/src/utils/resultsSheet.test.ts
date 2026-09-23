@@ -34,7 +34,6 @@ import {
 // tools/eslint/checks/app.js.
 import appSource from '../App.tsx?raw'
 import stylesSource from '../styles.ts?raw'
-import mapViewSource from '../components/MapView.tsx?raw'
 
 describe('sheetHeightPx', () => {
   it('is the header alone while the results are collapsed', () => {
@@ -148,17 +147,6 @@ describe('mapCornerLiftPx', () => {
     // The band between the results and the bar is the transport's own gap, and
     // the corner sits inside it rather than taking a step of its own.
     expect(transportBottomPx(392) - mapCornerLiftPx(392)).toBe(TRANSPORT_GAP_PX)
-  })
-
-  // maplibre-gl adds a compact attribution open and folds it on the first
-  // drag, so the phone's (i) is a licence line until the reader pans. The map
-  // folds it as soon as it is added, with the class the library's own toggle
-  // removes.
-  it('folds the compact attribution on add', () => {
-    const add = mapViewSource.indexOf("map.addControl(control, 'bottom-right')")
-    expect(add).toBeGreaterThan(-1)
-    const after = mapViewSource.slice(add, add + 800)
-    expect(after).toContain("classList.remove('maplibregl-compact-show')")
   })
 })
 

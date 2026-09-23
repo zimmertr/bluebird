@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GRID_OPACITY, gridRedraws, mountForecastGrid, rasterImage, type GridDrawing } from './forecastGrid'
 import { stubMap } from '../../testSupport/stubMap'
-// The `?raw` idiom `MapView.test.ts` uses, for the rule about the file itself.
-import source from './forecastGrid.ts?raw'
 
 // No DOM in the node project: a canvas with no 2D context is what a browser
 // without one hands back, and it is the branch the image builder must survive.
@@ -20,14 +18,6 @@ const base: GridDrawing = {
   sortBy: 'precip_total_in',
   playbackIndex: null,
 }
-
-describe('the functions this file may declare', () => {
-  // Carried from the list MapView.test.ts kept: each needs a map or a canvas.
-  it('declares only what needs a map or a canvas, plus the redraw rule', () => {
-    const declared = [...source.matchAll(/^(?:export )?function (\w+)/gm)].map((m) => m[1]).sort()
-    expect(declared).toEqual(['gridRedraws', 'mountForecastGrid', 'rasterImage'])
-  })
-})
 
 describe('gridRedraws', () => {
   it('draws both halves the first time', () => {

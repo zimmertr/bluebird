@@ -3,6 +3,7 @@
 import { ACCESSIBILITY } from './accessibility.js'
 import { APP } from './app.js'
 import { DATA } from './data.js'
+import { MAP } from './map.js'
 import { STYLES } from './styles.js'
 
-export const CHECKS = [...ACCESSIBILITY, ...APP, ...DATA, ...STYLES]
+export const CHECKS = [...ACCESSIBILITY, ...APP, ...DATA, ...MAP, ...STYLES]
