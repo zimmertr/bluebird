@@ -1,5 +1,6 @@
 import type { DestinationResult, DiscoveredDestination, HourlySeries } from '../types'
-import type { ForecastModelOption } from '../hooks/useCapabilities'
+import type { Capabilities, ForecastModelOption } from '../hooks/useCapabilities'
+import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
 import type { CellBox, GridCell } from '../utils/forecastGridLattice'
@@ -139,6 +140,25 @@ export function forecastModel(over: Partial<ForecastModelOption> = {}): Forecast
     forecastHours: 384,
     regional: false,
     blend: false,
+    ...over,
+  }
+}
+
+/**
+ * What `/api/capabilities` answers, as `useCapabilities` hands it over: one
+ * model with a sixteen-day reach, and limits wide enough that nothing a test
+ * does runs into them unless it asks to.
+ */
+export function capabilities(over: Partial<Capabilities> = {}): Capabilities {
+  return {
+    maxDestinations: 1500,
+    maxLimit: 1500,
+    maxPolygonAreaKm2: 100_000,
+    archiveDays: 365,
+    aqiForecastDays: 5,
+    windowLimits: FALLBACK_WINDOW_LIMITS,
+    forecastModels: [forecastModel()],
+    defaultForecastModel: 'gfs_seamless',
     ...over,
   }
 }
