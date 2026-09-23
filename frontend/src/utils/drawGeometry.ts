@@ -103,3 +103,39 @@ export function polygonsOf(features: { geometry: Geometry }[]): Ring[][] {
   }
   return out
 }
+
+/**
+ * The ring as the polygon the app holds, closed back onto its first point, or
+ * null under three points, where there is no polygon yet. One spelling for the
+ * two places a ring leaves the map: every committed edit, and Done.
+ */
+export function ringPolygon(pts: [number, number][]): GeoPolygon | null {
+  return pts.length >= 3 ? { type: 'Polygon', coordinates: [[...pts, pts[0]]] } : null
+}
+
+/** The ring with one vertex moved, the others untouched. */
+export function moveVertex(
+  pts: [number, number][],
+  index: number,
+  to: [number, number],
+): [number, number][] {
+  return pts.map((p, j) => (j === index ? to : p))
+}
+
+/** The ring without one vertex. */
+export function removeVertex(pts: [number, number][], index: number): [number, number][] {
+  return pts.filter((_, i) => i !== index)
+}
+
+/**
+ * The ring with a point inserted on a segment, where a midpoint handle sits.
+ * Segment `n` runs from vertex `n` to vertex `n + 1`, so the new point lands at
+ * index `n + 1` and is the vertex the drag then moves.
+ */
+export function insertOnSegment(
+  pts: [number, number][],
+  segment: number,
+  pt: [number, number],
+): [number, number][] {
+  return [...pts.slice(0, segment + 1), pt, ...pts.slice(segment + 1)]
+}

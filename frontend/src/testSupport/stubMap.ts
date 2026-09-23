@@ -45,7 +45,12 @@ export function stubMap(opts: StubMapOptions = {}) {
   const layout: Record<string, Record<string, unknown>> = {}
   const paint: Record<string, Record<string, unknown>> = {}
   const handlers: { type: string; layer?: string; fn: Handler }[] = []
-  const canvas = { clientWidth: opts.canvasWidth ?? 0, style: { cursor: '' } }
+  const canvas = {
+    clientWidth: opts.canvasWidth ?? 0,
+    style: { cursor: '' },
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+  }
+  const dragPan = { enabled: true, disable: () => (dragPan.enabled = false), enable: () => (dragPan.enabled = true) }
   const b = opts.bounds ?? { west: -122, south: 47, east: -121, north: 48 }
 
   const map = {
@@ -113,6 +118,10 @@ export function stubMap(opts: StubMapOptions = {}) {
     }),
     isSourceLoaded: (id: string) => opts.sourceLoaded?.(id) ?? true,
     triggerRepaint: () => calls.push(['triggerRepaint']),
+    dragPan,
+    // Screen pixels read back as degrees one to one, so a drag to (x, y)
+    // leaves the vertex at [x, y] and a test can say where it went.
+    unproject: ([x, y]: [number, number]) => ({ lng: x, lat: y }),
   }
 
   return {
@@ -121,6 +130,7 @@ export function stubMap(opts: StubMapOptions = {}) {
     /** The layer ids in draw order, bottom first. */
     stack,
     sources,
+    dragPan,
     layout,
     paint,
     canvas,
