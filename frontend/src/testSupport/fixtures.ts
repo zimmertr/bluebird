@@ -156,3 +156,15 @@ export function place(over: Partial<Place> = {}): Place {
     ...over,
   }
 }
+
+/**
+ * The answer a fetch stub hands back where the network would.
+ *
+ * A real `Response` rather than an object literal, for the reason the
+ * backend's `fake_response` is a real httpx one: the code reads `.ok`,
+ * `.status` and `.json()` off it, and a hand-rolled double with `ok: true`
+ * beside a 400 would make an error answer look healthy.
+ */
+export function fakeResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } })
+}

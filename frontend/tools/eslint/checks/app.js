@@ -404,7 +404,7 @@ export const APP = [
     // passed no onPace, and a paced comparison read as a hung chart. One module
     // keeps the deadline; a second copy is how the callers drifted.
     name: 'app-paced-fetch',
-    files: ['src/hooks/useAnalyze.ts', 'src/hooks/useForecastGrid.ts', 'src/hooks/useModelCompare.ts'],
+    files: ['src/hooks/useAnalysisRun.ts', 'src/hooks/useForecastGrid.ts', 'src/hooks/useModelCompare.ts'],
     ban: [
       { selector: `${named('paceEndMs')}, ${text('paceEndMs')}`, message: 'Keep no pace deadline outside usePacedFetch.' },
     ],
