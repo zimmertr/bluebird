@@ -61,10 +61,10 @@ interface Props {
   // still has somewhere to point. Mirrors the ring the search box gets.
   pointedPois: boolean
   polygon: GeoPolygon | null // initial ring (e.g. restored from the URL)
-  // Custom CSV destinations restored from the URL, parsed once at mount. Like
-  // a restored polygon they suppress geolocation and are framed on load, so a
-  // shared list link opens on the list, not on the visitor's hometown.
-  restoredCustomPoints: { latitude: number; longitude: number }[]
+  // Every point destination restored from the URL (CSV rows and searched
+  // places), built once at mount. Like a restored polygon they are framed on
+  // load, so a shared link opens on what it carries, not on the default view.
+  restoredPoints: { latitude: number; longitude: number }[]
   onPolygonChange: (polygon: GeoPolygon | null) => void
   // The count alone: the ring's area is derived from the polygon in `App.tsx`,
   // so that a link's ring has one before this component has loaded (#429).
@@ -153,7 +153,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       drawing,
       pointedPois,
       polygon,
-      restoredCustomPoints,
+      restoredPoints,
       onPolygonChange,
       onDrawUpdate,
       results,
@@ -253,10 +253,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // ring as a Clear or a Cancel has left it.
     function frameOpening(map: maplibregl.Map) {
       // One opening frame for everything the session starts with: a restored
-      // polygon ring, restored CSV destinations, and any list pasted while
-      // the map was still loading — their union, so a link carrying both a
-      // polygon and a CSV shows the whole analysis area. Geolocation is only
-      // the fallback when none of these exist.
+      // polygon ring, the restored CSV rows and searched places, and any list
+      // pasted while the map was still loading — their union, so a link
+      // carrying a polygon, a CSV and pins shows the whole analysis area.
+      // When none of these exist, the default camera stands.
       const corners: [number, number][] = []
       if (restoredPolygonRef.current) {
         const ring = restoredPolygonRef.current.coordinates[0] ?? []
@@ -265,7 +265,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       const pastedEarly = pendingFitPointsRef.current ?? []
       pendingFitPointsRef.current = null
       const pointBounds = boundsForPoints(
-        [...restoredCustomPoints, ...pastedEarly],
+        [...restoredPoints, ...pastedEarly],
         SEARCH_VIEW_MILES,
       )
       if (pointBounds) corners.push(...pointBounds)
@@ -451,10 +451,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
       })
       resizeObserver.observe(containerRef.current)
 
-      // A polygon or custom CSV list restored from the URL takes precedence
-      // over any default framing — don't scroll the user away from the area
-      // their link points at. The default camera is [ -120.5, 47.5 ], zoom 7,
-      // which the geolocation control can refine to the user's location on demand.
+      // A polygon, custom CSV list or searched places restored from the URL
+      // take precedence over any default framing — don't scroll the user away
+      // from the area their link points at. The default camera is
+      // [ -120.5, 47.5 ], zoom 7, which the geolocation control can refine to
+      // the user's location on demand.
       map.on('load', () => {
         loadedRef.current = true
         frameOpening(map)

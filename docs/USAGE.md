@@ -366,7 +366,7 @@ Three metrics cannot be compared at all, and **Analyze** says so rather than sel
 
 The comparison travels in the link as `compare=`, a comma-separated list of model ids in the picker's own order, so the same set of models always reads the same way whoever built the link. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load.
 
-The rest of the panel travels the same way. A shared link carries the destination types and the unnamed-peaks toggle, the polygon, a pasted list (compressed), the forecast window, the model and its comparison, the ranking, its direction and the results cap, every bound, the layer switches, the coverage slider, the forecast player once you have set it, and pinned destinations. It does not carry column order or widths, hidden models, or anything else that is one reader's view of the report rather than the report.
+The rest of the panel travels the same way. A shared link carries the destination types and the unnamed-peaks toggle, the polygon, a pasted list (compressed), the forecast window, the model and its comparison, the ranking, its direction and the results cap, every bound, the layer switches, the coverage slider, the forecast player once you have set it, and pinned destinations. It does not carry column order or widths, hidden models, or anything else that is one reader's view of the report rather than the report. A shared link opens the map on every destination it carries: the polygon, a pasted list, and searched places.
 
 ## Analyze
 
