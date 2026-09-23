@@ -56,6 +56,9 @@ interface Props {
   sortDesc: boolean
   setSortDesc: (d: boolean) => void
   rowKeys: Record<MetricFamily, SortBy>
+  // Whether the panel's When selection is one hourly stamp, handed through to
+  // the Metrics table. It reads the selection and not the analyzed report,
+  // because the table's dropdowns must follow a When switch before Analyze.
   pointSample: boolean
   constraints: Constraints
   setConstraints: (c: Constraints) => void

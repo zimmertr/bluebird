@@ -1058,6 +1058,12 @@ export default function App() {
   // name, so "a day narrowed to one hour" is recognized as the point sample it
   // is (#166).
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
+  // The same question asked of the panel's When selection. The Metrics table
+  // is a panel control, so its aggregate dropdowns must follow a When switch at
+  // once, before the switch is analyzed; reading the report's flag froze them to
+  // the last analysis (#485). Everything that draws the report keeps the flag
+  // above, since the rows it draws were fetched for the analyzed window.
+  const panelPointSample = isPointSample(panelWindowMs.startMs, panelWindowMs.endMs)
   // A point-sample flip relabels the metric columns under the SAME keys —
   // the collapsed bare-noun header and the windowed aggregate header both
   // live at one key — so a width fitted under one regime clips the other
@@ -2571,7 +2577,7 @@ export default function App() {
           sortDesc={sortDesc}
           setSortDesc={setSortDesc}
           rowKeys={rowKeys}
-          pointSample={pointSample}
+          pointSample={panelPointSample}
           constraints={constraints}
           setConstraints={setConstraints}
           // Every knob the Metrics table's boxes hold, back to its default.
