@@ -13,7 +13,11 @@ import {
   compareEndMs,
   compareSeries,
   isBlend,
+  isPartialCell,
+  modelEndLines,
   modelRowsFor,
+  PARTIAL_COVERAGE_NOTE,
+  partialModels,
   modelSeriesOnGrid,
   pairColor,
   pairKey,
@@ -104,7 +108,7 @@ describe('isBlend', () => {
 })
 
 describe('compareEndMs', () => {
-  it('stops at the shortest reach among the models on the chart', () => {
+  it('stops at the shortest reach among the models given', () => {
     const end = NOW + 10 * DAY
     expect(compareEndMs(end, [384, 42], NOW)).toBe(NOW + 42 * HOUR)
   })
@@ -186,8 +190,6 @@ describe('modelSeriesOnGrid', () => {
 })
 
 describe('compareSeries', () => {
-  const TIMES = [1000, 2000, 3000]
-
   function destination(
     key: string,
     rank: number,
@@ -224,7 +226,7 @@ describe('compareSeries', () => {
     return { ...allocateColors(seeded, keys), ...seeded }
   }
 
-  function series(values: number[]) {
+  function series(values: (number | null)[]) {
     return {
       precip_in: values,
       temp_f: values,
@@ -245,7 +247,7 @@ describe('compareSeries', () => {
   }
 
   it('draws one line per destination and model', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     expect(lines).toHaveLength(9)
     expect(new Set(lines.map((l) => l.key)).size).toBe(9)
   })
@@ -253,7 +255,7 @@ describe('compareSeries', () => {
   // Rank, destination, model, on every entry including the ranking model's, so
   // a reader tells two lines apart by reading the same three things each time.
   it('names every line the same way', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     expect(lines[0].label).toBe('1. Mount Rainier (NOAA GFS)')
     expect(lines.map((l) => l.label)).toContain('1. Mount Rainier (ECMWF IFS)')
     expect(lines.map((l) => l.label)).toContain('3. Mount Adams (NOAA HRRR)')
@@ -263,7 +265,7 @@ describe('compareSeries', () => {
   // wears its own destination's colour — the hue the marker and the table
   // checkbox already give it — and a chart with nothing compared is unchanged.
   it('colours the ranking model’s lines by destination', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     for (const d of DESTINATIONS) {
       const mine = lines.filter((l) => l.label === `${d.rank}. ${d.name} (NOAA GFS)`)
       expect(mine).toHaveLength(1)
@@ -275,7 +277,7 @@ describe('compareSeries', () => {
   // is nine lines and nine colours, so no two lines on the chart can be
   // mistaken for each other.
   it('gives every destination-and-model pair its own colour', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     expect(lines).toHaveLength(DESTINATIONS.length * ON_CHART.length)
     expect(new Set(lines.map((l) => l.color)).size).toBe(lines.length)
   })
@@ -283,7 +285,7 @@ describe('compareSeries', () => {
   // A compared model's lines are told apart from each other the way any two
   // lines are: by colour and by the name in the hover box.
   it('gives one model’s lines different colours at different destinations', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     const mine = lines.filter((l) => l.label.endsWith('(NOAA HRRR)'))
     expect(mine).toHaveLength(3)
     expect(new Set(mine.map((l) => l.color)).size).toBe(3)
@@ -293,8 +295,8 @@ describe('compareSeries', () => {
   // is what the session allocator is for.
   it('keeps a pair’s colour when another model joins the chart', () => {
     const two = ON_CHART.slice(0, 2)
-    const before = compareSeries(DESTINATIONS, two, everyPair(), TIMES, null, pairColors(two))
-    const after = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const before = compareSeries(DESTINATIONS, two, everyPair(), pairColors(two))
+    const after = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     for (const line of before) {
       const same = after.find((l) => l.key === line.key)
       expect(same?.color, line.label).toBe(line.color)
@@ -304,14 +306,14 @@ describe('compareSeries', () => {
   // Every line is solid now: colour is the only channel, so nothing here may
   // grow a second one back.
   it('gives no line a style of its own', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     for (const line of lines) expect('dash' in line).toBe(false)
   })
 
   // The chips read ranking model first, and the lines leave in that order so
   // the key and the chart agree about which is which.
   it('leads with the ranking model’s lines', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     expect(lines.slice(0, 3).map((l) => l.label)).toEqual([
       '1. Mount Rainier (NOAA GFS)',
       '2. Mount Shuksan (NOAA GFS)',
@@ -327,7 +329,7 @@ describe('compareSeries', () => {
     for (const model of many) {
       for (const d of DESTINATIONS) held[pairKey(model.id, d.key)] = series([1, 2, 3])
     }
-    expect(compareSeries(DESTINATIONS, many, held, TIMES, null, pairColors(many))).toHaveLength(
+    expect(compareSeries(DESTINATIONS, many, held, pairColors(many))).toHaveLength(
       MODELS.length * DESTINATIONS.length,
     )
   })
@@ -338,27 +340,32 @@ describe('compareSeries', () => {
     const held = everyPair() as Record<string, ReturnType<typeof series> | null>
     held[pairKey('gfs_hrrr', DESTINATIONS[0].key)] = null
     delete held[pairKey('ecmwf_ifs025', DESTINATIONS[1].key)]
-    const lines = compareSeries(DESTINATIONS, ON_CHART, held, TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, held, pairColors())
     expect(lines).toHaveLength(7)
     expect(lines.map((l) => l.label)).not.toContain('1. Mount Rainier (NOAA HRRR)')
     expect(lines.map((l) => l.label)).toContain('1. Mount Rainier (ECMWF IFS)')
   })
 
-  // Every line stops together or their shapes are not answers to one question.
-  it('clamps every line to the shortest reach on the chart', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, 2000, pairColors())
-    for (const line of lines) expect(line.series!.precip_in).toEqual([1, 2, null])
+  // Each line runs to its own model's reach (#493): the chart marks where a
+  // shorter model ends rather than cutting the longer models' hours to match.
+  it('cuts no line to another model reach', () => {
+    const held = everyPair() as Record<string, ReturnType<typeof series> | null>
+    held[pairKey('gfs_hrrr', DESTINATIONS[0].key)] = series([1, null, null])
+    const lines = compareSeries(DESTINATIONS, ON_CHART, held, pairColors())
+    const byLabel = new Map(lines.map((l) => [l.label, l.series!.precip_in]))
+    expect(byLabel.get('1. Mount Rainier (NOAA HRRR)')).toEqual([1, null, null])
+    expect(byLabel.get('1. Mount Rainier (NOAA GFS)')).toEqual([1, 2, 3])
   })
 
   // A destination's key is a coordinate pair, so a pair's key has to be
   // namespaced or a line could shadow one.
   it('keys a pair where no destination can', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), TIMES, null, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
     for (const line of lines) expect(line.key.startsWith('model:')).toBe(true)
   })
 
   it('draws nothing when no model is on the chart', () => {
-    expect(compareSeries(DESTINATIONS, [], everyPair(), TIMES, null, pairColors())).toEqual([])
+    expect(compareSeries(DESTINATIONS, [], everyPair(), pairColors())).toEqual([])
   })
 
 })
@@ -479,6 +486,105 @@ describe('one table row per model', () => {
   it('leaves a single-model report one row per destination', () => {
     const out = modelRowsFor([ROW], MODELS.slice(0, 1), 'gfs_seamless', {}, keyOf)
     expect(out).toHaveLength(1)
+  })
+
+  // A model that ends inside the window says so on its own rows, and on no
+  // other: the ranking model's row always covers the window.
+  it('marks a compared row whose model ends inside the window', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer() }
+    const ends = { ecmwf_ifs025: NOW + 42 * HOUR }
+    const [ranked, compared] = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf, ends)
+    expect(compared.coverageEndMs).toBe(NOW + 42 * HOUR)
+    expect(ranked.coverageEndMs).toBeUndefined()
+  })
+
+  it('leaves a compared row that covers the window unmarked', () => {
+    const held = { [pairKey('ecmwf_ifs025', keyOf(ROW))]: answer() }
+    const [, compared] = modelRowsFor([ROW], MODELS, 'gfs_seamless', held, keyOf, {})
+    expect(compared).not.toHaveProperty('coverageEndMs')
+  })
+})
+
+// Where a compared model's forecast ends inside the window (#493): the chart's
+// dashed line, the table's asterisk and footnote, and the file's metadata rows.
+describe('a model that ends early', () => {
+  const HRRR = { id: 'gfs_hrrr', label: 'NOAA HRRR' }
+  const IFS = { id: 'ecmwf_ifs025', label: 'ECMWF IFS' }
+  const ICON = { id: 'icon_seamless', label: 'DWD ICON' }
+  const short = (model: { id: string; label: string }, endMs: number) =>
+    ({ ...resultRow(), modelId: model.id, modelLabel: model.label, rank: 1, coverageEndMs: endMs }) as DestinationResult
+  const full = (model: { id: string; label: string }) =>
+    ({ ...resultRow(), modelId: model.id, modelLabel: model.label, rank: 1 }) as DestinationResult
+
+  describe('modelEndLines', () => {
+    it('draws one line per model end', () => {
+      expect(modelEndLines([{ label: 'NOAA HRRR', endMs: 1000 }])).toEqual([
+        { endMs: 1000, label: 'NOAA HRRR' },
+      ])
+    })
+
+    // Two lines on one instant would overprint their labels.
+    it('shares one line between models with one end, naming both', () => {
+      const lines = modelEndLines([
+        { label: 'NOAA HRRR', endMs: 1000 },
+        { label: 'ECMWF IFS', endMs: 2000 },
+        { label: 'DWD ICON', endMs: 1000 },
+      ])
+      expect(lines).toEqual([
+        { endMs: 1000, label: 'NOAA HRRR and DWD ICON' },
+        { endMs: 2000, label: 'ECMWF IFS' },
+      ])
+    })
+
+    it('draws nothing when no model ends early', () => {
+      expect(modelEndLines([])).toEqual([])
+    })
+  })
+
+  // Approved verbatim. It names no model, because the Model column does.
+  it('says what the mark means in one fixed line', () => {
+    expect(PARTIAL_COVERAGE_NOTE).toBe('* Partial model coverage. Data is aggregated over fewer hours.')
+  })
+
+  describe('partialModels', () => {
+    // The picker's order, whatever order a detail sort put the rows in.
+    it('lists the short models in the order given', () => {
+      const rows = [short(ICON, 3000), full(IFS), short(HRRR, 1000)]
+      expect(partialModels([HRRR, IFS, ICON], rows)).toEqual([
+        { label: 'NOAA HRRR', endMs: 1000 },
+        { label: 'DWD ICON', endMs: 3000 },
+      ])
+    })
+
+    // A model with no row on display is named by neither the footnote nor
+    // the file.
+    it('names no model without a short row on display', () => {
+      expect(partialModels([HRRR, IFS], [full(HRRR), full(IFS)])).toEqual([])
+      expect(partialModels([HRRR], [])).toEqual([])
+    })
+  })
+
+  describe('isPartialCell', () => {
+    it('marks every weather aggregate on a short row', () => {
+      const row = short(HRRR, 1000)
+      for (const key of ['precip_total_in', 'temp_avg_f', 'wind_max_mph', 'freeze_min_ft']) {
+        expect(isPartialCell(row, key), key).toBe(true)
+      }
+    })
+
+    // Air quality, snow depth and the cloud columns are the report's own on
+    // every row, and the identity columns are no aggregate at all.
+    it('leaves the columns no model fetch answers unmarked', () => {
+      const row = short(HRRR, 1000)
+      for (const key of ['aqi_avg', 'snow_depth_in', 'cloud_base_min_ft', 'cloud_cover_avg_pct', 'name', 'elevation_ft']) {
+        expect(isPartialCell(row, key), key).toBe(false)
+      }
+    })
+
+    it('leaves a row that covers the window unmarked', () => {
+      expect(isPartialCell(full(HRRR), 'precip_total_in')).toBe(false)
+      expect(isPartialCell(resultRow(), 'precip_total_in')).toBe(false)
+    })
   })
 })
 

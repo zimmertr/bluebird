@@ -22,7 +22,6 @@ import {
   buildChartData,
   chartKey,
   computeYDomain,
-  cutSeriesAfter,
   formatMetricValue,
   nearestKey,
   pixelToValue,
@@ -30,6 +29,7 @@ import {
   valueAt,
   tooltipCapacity,
 } from '../utils/chartData'
+import type { ModelEndLine } from '../utils/modelCompare'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -57,7 +57,7 @@ interface Props {
   /**
    * Lines that are not plain destinations: one per (destination, model) pair
    * while a comparison is up (#232). They arrive ready to draw — aligned to
-   * `times`, coloured, named and already clamped — because what a comparison
+   * `times`, coloured and named, because what a comparison
    * covers is a decision about spend rather than about drawing. Every line is
    * solid: colour is the one channel, the destination's on the ranking model's
    * lines and the model's on every other, and `chartColors.ts` is what keeps
@@ -69,11 +69,11 @@ interface Props {
    */
   extraLines?: readonly ChartLine[]
   /**
-   * Where every line on the chart stops, `rows` included. Null unless a
-   * comparison has clamped it: lines running to different hours cannot be read
-   * against each other, so the shortest reach on the chart bounds all of them.
+   * Where a compared model's forecast ends inside the window, one entry per
+   * instant (#493). Every line runs to its own model's reach, so a shorter
+   * model's lines simply stop; this is what says where and why.
    */
-  cutAfterMs?: number | null
+  modelEnds?: readonly ModelEndLine[]
   /** The comparison control, rendered beside the metric select. */
   controls?: ReactNode
 }
@@ -81,6 +81,7 @@ interface Props {
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
 // with it every path Recharts strokes, on every hover.
 const NO_EXTRA_LINES: readonly ChartLine[] = []
+const NO_MODEL_ENDS: readonly ModelEndLine[] = []
 
 function TimeSeriesChart({
   times,
@@ -91,7 +92,7 @@ function TimeSeriesChart({
   playheadMs = null,
   onPlayheadChange,
   extraLines = NO_EXTRA_LINES,
-  cutAfterMs = null,
+  modelEnds = NO_MODEL_ENDS,
   controls,
 }: Props) {
   const plotRef = useRef<HTMLDivElement>(null)
@@ -99,17 +100,8 @@ function TimeSeriesChart({
   const [cursorValue, setCursorValue] = useState<number | null>(null)
 
   // Align each series onto the active grid by timestamp — a no-op for ranked
-  // rows; a pinned row may have been fetched for a different window — then stop
-  // it wherever a comparison says every line stops.
-  const aligned = useMemo(
-    () =>
-      rows.map((r) => {
-        const onGrid = alignRowToGrid(r, times)
-        if (cutAfterMs === null) return onGrid
-        return { ...onGrid, series: cutSeriesAfter(times, onGrid.series, cutAfterMs) }
-      }),
-    [rows, times, cutAfterMs],
-  )
+  // rows; a pinned row may have been fetched for a different window.
+  const aligned = useMemo(() => rows.map((r) => alignRowToGrid(r, times)), [rows, times])
 
   // Everything plotted, as lines rather than rows: under a comparison a line is
   // a destination AND a model (#232), and nothing below this point has any
@@ -278,6 +270,20 @@ function TimeSeriesChart({
                 label={{ value: 'Now', position: 'insideTopLeft', fill: '#94a3b8', fontSize: 10 }}
               />
             )}
+            {/* Where a compared model's forecast ends. Chrome marking where
+                one model's data stops, not a warning, so it wears the axis
+                colour and the "Now" seam's dash rather than a status hue: a
+                shorter reach is a fact about the model, not a fault. The label
+                is the whole signal, which is why there is no hover entry. */}
+            {modelEnds.map((end) => (
+              <ReferenceLine
+                key={end.endMs}
+                x={end.endMs}
+                stroke="#94a3b8"
+                strokeDasharray="4 3"
+                label={{ value: end.label, position: 'insideTopLeft', fill: '#94a3b8', fontSize: 10 }}
+              />
+            ))}
             {/* The map's playhead. Solid and in the accent where the "Now"
                 seam above is dashed and in the axis colour, because this one
                 is a control's position and that one is a fact about the data.

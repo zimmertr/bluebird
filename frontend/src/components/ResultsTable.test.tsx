@@ -6,6 +6,7 @@ import { displayedColumns, WILDFIRE_COL } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
+import { TEXT } from '../styles'
 
 // Every ranked row the table draws, by name, in render order. The mock keeps
 // the real row and its real memo: it wraps the row's inner component in a
@@ -73,6 +74,49 @@ describe('rows', () => {
   it('says why the table is empty when nothing matched', () => {
     render(<ResultsTable {...props({ results: [], emptyReason: 'Nothing here.' })} />)
     expect(screen.getByText('Nothing here.')).toBeTruthy()
+  })
+})
+
+// A compared model that ends inside the window (#493): an asterisk on each of
+// its aggregates and one line under the table that says what it means.
+describe('a model that ends early', () => {
+  const NOTE = '* Partial model coverage. Data is aggregated over fewer hours.'
+  const SHORT = [
+    { ...ROWS[0], precip_total_in: 0.25, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 1 },
+    {
+      ...ROWS[0],
+      precip_total_in: 0.25,
+      modelId: 'gfs_hrrr',
+      modelLabel: 'NOAA HRRR',
+      rank: 1,
+      coverageEndMs: Date.UTC(2026, 8, 26, 9),
+    },
+  ]
+
+  it('marks the short row aggregate and prints the footnote once', () => {
+    render(<ResultsTable {...props({ results: SHORT, partialNote: NOTE })} />)
+    const [full, short] = screen.getAllByRole('row').slice(1)
+    const metric = (row: HTMLElement) => within(row).getAllByRole('cell')[3].textContent
+    expect(metric(short)).toMatch(/\*$/)
+    expect(metric(full)).not.toMatch(/\*/)
+    // Elevation is the destination's, whatever model the row names.
+    expect(within(short).getAllByRole('cell')[2].textContent).not.toMatch(/\*/)
+    expect(screen.getAllByText(NOTE)).toHaveLength(1)
+  })
+
+  // A comparison table is wider than a phone, so the note has to stay on the
+  // visible left edge at any sideways scroll, the way the empty-reason row does.
+  it('pins the footnote to the visible left edge', () => {
+    render(<ResultsTable {...props({ results: SHORT, partialNote: NOTE })} />)
+    const note = screen.getByText(NOTE)
+    for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(note.classList).toContain(cls)
+    for (const cls of TEXT.micro.split(' ')) expect(note.classList).toContain(cls)
+    expect(note.closest('tfoot')).not.toBeNull()
+  })
+
+  it('prints no footnote when no row is short', () => {
+    render(<ResultsTable {...props()} />)
+    expect(screen.queryByText(/Partial model coverage/)).toBeNull()
   })
 })
 
