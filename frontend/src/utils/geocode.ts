@@ -125,7 +125,7 @@ interface NominatimRow {
   extratags?: Record<string, string> | null // raw OSM tags (extratags=1)
 }
 
-// OSM `ele` is meters; mirror osm.py's parsing (plain float × 3.28084,
+// OSM `ele` is meters; mirror osm/query.py's parsing (plain float × 3.28084,
 // rounded) so a pinned peak and an Overpass row can't disagree.
 function elevationFtFromEle(ele: string | undefined): number | undefined {
   if (!ele) return undefined

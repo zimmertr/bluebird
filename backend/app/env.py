@@ -1,8 +1,8 @@
 """Reading a numeric knob out of the environment, for every layer of the app.
 
 Deliberately imports nothing from ``app``, so the lowest modules can use it
-without a cycle. That is what this module is for: ``ratelimit.py`` imports
-``telemetry.py``, so ``telemetry.py`` can import nothing of ``ratelimit.py``,
+without a cycle. That is what this module is for: ``ratelimit`` imports
+``telemetry.py``, so ``telemetry.py`` can import nothing of ``ratelimit``,
 and the four modules that read env knobs each carried their own copy of this
 reader rather than share one across that edge.
 

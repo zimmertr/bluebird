@@ -345,16 +345,16 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
             # Read from the live limiter instances, not the env constants, so
             # what this publishes is what enforcement actually counts.
             rate=RateLimits(
-                analyze_per_minute=ratelimit.ANALYZE_LIMITER.per_minute,
-                analyze_burst=ratelimit.ANALYZE_LIMITER.burst,
-                destinations_per_minute=ratelimit.DESTINATIONS_LIMITER.per_minute,
-                destinations_burst=ratelimit.DESTINATIONS_LIMITER.burst,
-                geocode_per_minute=ratelimit.GEOCODE_LIMITER.per_minute,
-                geocode_burst=ratelimit.GEOCODE_LIMITER.burst,
-                wildfires_per_minute=ratelimit.WILDFIRES_LIMITER.per_minute,
-                wildfires_burst=ratelimit.WILDFIRES_LIMITER.burst,
-                smoke_per_minute=ratelimit.SMOKE_LIMITER.per_minute,
-                smoke_burst=ratelimit.SMOKE_LIMITER.burst,
+                analyze_per_minute=ratelimit.client.ANALYZE_LIMITER.per_minute,
+                analyze_burst=ratelimit.client.ANALYZE_LIMITER.burst,
+                destinations_per_minute=ratelimit.client.DESTINATIONS_LIMITER.per_minute,
+                destinations_burst=ratelimit.client.DESTINATIONS_LIMITER.burst,
+                geocode_per_minute=ratelimit.client.GEOCODE_LIMITER.per_minute,
+                geocode_burst=ratelimit.client.GEOCODE_LIMITER.burst,
+                wildfires_per_minute=ratelimit.client.WILDFIRES_LIMITER.per_minute,
+                wildfires_burst=ratelimit.client.WILDFIRES_LIMITER.burst,
+                smoke_per_minute=ratelimit.client.SMOKE_LIMITER.per_minute,
+                smoke_burst=ratelimit.client.SMOKE_LIMITER.burst,
             ),
         ),
         data_sources=[

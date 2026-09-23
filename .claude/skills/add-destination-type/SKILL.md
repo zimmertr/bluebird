@@ -5,8 +5,8 @@ description: Add a new destination type (the OSM feature kinds Bluebird Forecast
 
 # Adding a new destination type
 
-1. Add the type to the `DestinationType` enum in `backend/app/models.py`.
-2. Add its Overpass QL clauses to `_CLAUSES` in `backend/app/services/osm.py`. These
+1. Add the type to the `DestinationType` enum in `backend/app/models/common.py`.
+2. Add its Overpass QL clauses to `_CLAUSES` in `backend/app/services/osm/query.py`. These
    are clause **fragments**, not a whole query: they are unioned with whatever else
    was asked for, because `destination_types` is a set and Overpass is donated, so an
    analysis is one request no matter how many types it names. Then teach `_classify`

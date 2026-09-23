@@ -191,7 +191,7 @@ def test_client_key_dash_without_peer():
 
 
 def test_analyze_429_after_burst(monkeypatch):
-    monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
+    monkeypatch.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
     assert client.post("/api/analyze", json=_analyze_payload()).status_code == 400
     resp = client.post("/api/analyze", json=_analyze_payload())
     assert resp.status_code == 429
@@ -201,7 +201,7 @@ def test_analyze_429_after_burst(monkeypatch):
 
 
 def test_stream_shares_analyze_bucket_and_429_is_plain_http(monkeypatch):
-    monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
+    monkeypatch.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
     assert client.post("/api/analyze", json=_analyze_payload()).status_code == 400
     # The second request lands on the stream endpoint: same bucket, and the
     # refusal is a plain 429 JSON response, not an SSE error event.
@@ -215,8 +215,8 @@ def test_stream_shares_analyze_bucket_and_429_is_plain_http(monkeypatch):
 
 
 def test_geocode_bucket_independent_of_analyze(monkeypatch):
-    monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
-    monkeypatch.setattr(ratelimit, "GEOCODE_LIMITER", ratelimit.RateLimiter(60, 1))
+    monkeypatch.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
+    monkeypatch.setattr(ratelimit.client, "GEOCODE_LIMITER", ratelimit.RateLimiter(60, 1))
 
     class _FakeClient:
         async def __aenter__(self):
@@ -424,11 +424,11 @@ def test_gate_zero_interval_is_a_noop():
 
 
 def test_capabilities_publishes_live_limiter_values(monkeypatch):
-    monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(12, 6))
-    monkeypatch.setattr(ratelimit, "DESTINATIONS_LIMITER", ratelimit.RateLimiter(30, 10))
-    monkeypatch.setattr(ratelimit, "GEOCODE_LIMITER", ratelimit.RateLimiter(30, 10))
-    monkeypatch.setattr(ratelimit, "WILDFIRES_LIMITER", ratelimit.RateLimiter(90, 30))
-    monkeypatch.setattr(ratelimit, "SMOKE_LIMITER", ratelimit.RateLimiter(90, 30))
+    monkeypatch.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(12, 6))
+    monkeypatch.setattr(ratelimit.client, "DESTINATIONS_LIMITER", ratelimit.RateLimiter(30, 10))
+    monkeypatch.setattr(ratelimit.client, "GEOCODE_LIMITER", ratelimit.RateLimiter(30, 10))
+    monkeypatch.setattr(ratelimit.client, "WILDFIRES_LIMITER", ratelimit.RateLimiter(90, 30))
+    monkeypatch.setattr(ratelimit.client, "SMOKE_LIMITER", ratelimit.RateLimiter(90, 30))
     rate = client.get("/api/capabilities").json()["limits"]["rate"]
     assert rate == {
         "analyze_per_minute": 12,
@@ -447,15 +447,23 @@ def test_capabilities_publishes_live_limiter_values(monkeypatch):
 # ── Env config ─────────────────────────────────────────────────────────────
 
 
+def _reload_ratelimit() -> None:
+    # The knobs are read where they are defined, so each half re-reads its env
+    # vars on its own reload, and the package reloads last to re-export them.
+    importlib.reload(ratelimit.client)
+    importlib.reload(ratelimit.upstream)
+    importlib.reload(ratelimit)
+
+
 def test_env_overrides_and_bad_values_fall_back(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_ANALYZE_PER_MINUTE", "99")
     monkeypatch.setenv("UPSTREAM_CONCURRENCY_OVERPASS", "not-a-number")
     try:
-        importlib.reload(ratelimit)
+        _reload_ratelimit()
         assert ratelimit.RATE_LIMIT_ANALYZE_PER_MINUTE == 99
-        assert ratelimit.ANALYZE_LIMITER.per_minute == 99
+        assert ratelimit.client.ANALYZE_LIMITER.per_minute == 99
         assert ratelimit.UPSTREAM_CONCURRENCY_OVERPASS == 2  # default kept
     finally:
         monkeypatch.delenv("RATE_LIMIT_ANALYZE_PER_MINUTE", raising=False)
         monkeypatch.delenv("UPSTREAM_CONCURRENCY_OVERPASS", raising=False)
-        importlib.reload(ratelimit)
+        _reload_ratelimit()

@@ -29,7 +29,7 @@ def _sleep_recorder(monkeypatch):
     async def fake_sleep(seconds: float) -> None:
         slept.append(seconds)
 
-    monkeypatch.setattr(ratelimit.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(ratelimit.upstream.asyncio, "sleep", fake_sleep)
     return slept
 
 

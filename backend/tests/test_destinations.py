@@ -148,8 +148,8 @@ def test_budget_exhaustion_maps_to_503_with_retry_after(monkeypatch):
 def test_has_its_own_rate_limit_bucket(monkeypatch):
     # Split from the analyze bucket in issue #180: discovery is one cheap map
     # query, and burning the analyze budget on it starved real analyses.
-    monkeypatch.setattr(ratelimit, "DESTINATIONS_LIMITER", ratelimit.RateLimiter(60, 1))
-    monkeypatch.setattr(ratelimit, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
+    monkeypatch.setattr(ratelimit.client, "DESTINATIONS_LIMITER", ratelimit.RateLimiter(60, 1))
+    monkeypatch.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(60, 1))
     _stub_osm(monkeypatch, [])
     assert client.post("/api/destinations", json=_payload()).status_code == 200
     resp = client.post("/api/destinations", json=_payload())
@@ -157,7 +157,7 @@ def test_has_its_own_rate_limit_bucket(monkeypatch):
     assert resp.headers["retry-after"]
     assert resp.json()["error"] == {"code": "rate_limited", "retryable": True}
     # The analyze bucket was never touched by either discovery request.
-    assert ratelimit.ANALYZE_LIMITER.check("client")[0]
+    assert ratelimit.client.ANALYZE_LIMITER.check("client")[0]
 
 
 # ── Resolving caller-supplied destinations (issue #207) ───────────────────────

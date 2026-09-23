@@ -190,7 +190,7 @@ describe('placeFromNominatimRow', () => {
 
   it('converts the extratags ele tag from meters to feet', () => {
     const place = placeFromNominatimRow({ ...row, extratags: { ele: '4421' } })
-    expect(place.elevationFt).toBe(14505) // matches osm.py: round(m × 3.28084)
+    expect(place.elevationFt).toBe(14505) // matches osm/query.py: round(m × 3.28084)
   })
 
   it('leaves elevation unset without extratags or with a non-numeric ele', () => {
