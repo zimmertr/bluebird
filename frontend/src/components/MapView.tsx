@@ -256,7 +256,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // polygon ring, the restored CSV rows and searched places, and any list
       // pasted while the map was still loading — their union, so a link
       // carrying a polygon, a CSV and pins shows the whole analysis area.
-      // Geolocation is only the fallback when none of these exist.
+      // When none of these exist, the default camera stands.
       const corners: [number, number][] = []
       if (restoredPolygonRef.current) {
         const ring = restoredPolygonRef.current.coordinates[0] ?? []
@@ -451,9 +451,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       })
       resizeObserver.observe(containerRef.current)
 
-      // A polygon or custom CSV list restored from the URL takes precedence
-      // over any default framing — don't scroll the user away from the area
-      // their link points at. The default camera is [ -120.5, 47.5 ], zoom 7,
+      // A polygon, custom CSV list or searched places restored from the URL
+      // take precedence over any default framing — don't scroll the user away
+      // from the area their link points at. The default camera is [ -120.5, 47.5 ], zoom 7,
       // which the geolocation control can refine to the user's location on demand.
       map.on('load', () => {
         loadedRef.current = true
