@@ -45,7 +45,6 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { mountPoiPopups } from './poiPopup'
-import source from './poiPopup.ts?raw'
 import { createMapController, type MapInputs } from './controller'
 import { createPopupBoard } from './popups'
 import { POI_LAYERS, poiFromFeature, poiToPlace } from '../utils/basemapPoi'
@@ -105,13 +104,6 @@ function peakClick(shiftKey = false) {
     features: [{ geometry: { type: 'Point', coordinates: SUMMIT }, properties: PEAK_PROPS }],
   }
 }
-
-describe('the functions this file may declare', () => {
-  it('declares the mount alone', () => {
-    const declared = [...source.matchAll(/^(?:export )?function (\w+)/gm)].map((m) => m[1])
-    expect(declared).toEqual(['mountPoiPopups'])
-  })
-})
 
 describe('mountPoiPopups', () => {
   it('listens for a click and the cursor on every clickable basemap layer', () => {

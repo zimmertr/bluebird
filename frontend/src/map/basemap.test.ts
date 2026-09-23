@@ -8,41 +8,8 @@ import {
   POI_GLOW_IMAGE,
   setSource,
 } from './basemap'
-// The `?raw` idiom `MapView.test.ts` uses, for the one rule here that is about
-// the file rather than about what its functions return.
-import basemapSource from './basemap.ts?raw'
 import { POI_LAYERS, LAKE_CLASS } from '../utils/basemapPoi'
 import { stubMap } from '../testSupport/stubMap'
-
-/**
- * The functions this file may declare at the top level, carried over from the
- * list `MapView.test.ts` kept while they lived in the component. Each earns its
- * place by needing a map, a canvas or an event. A new name here is the question
- * "can this be plain data in and plain data out?" If it can, it belongs in
- * `utils/` with a test, not in the map's module.
- */
-const ALLOWED: Record<string, string> = {
-  // Read or drive the map itself.
-  enhanceBasemap: 'patches the loaded style',
-  lakeAnchor: 'queries what the map has drawn',
-  setSource: 'sets a source on the map',
-  // Build an image, or read a browser event.
-  makeGlowImage: 'draws on a canvas',
-  // Return a MapLibre style spec: a declaration of how a layer draws, which
-  // belongs beside the `addLayer` call that takes it rather than in a module of
-  // its own.
-  poiLabelLayout: 'builds a layer layout',
-  glowTwin: 'builds a layer spec from another layer spec',
-}
-
-describe('map/basemap.ts declares only what needs a map, a canvas or an event', () => {
-  it('declares exactly the allowed helpers', () => {
-    const declared = [...basemapSource.matchAll(/^(?:export )?(?:async )?function (\w+)/gm)]
-      .map((m) => m[1])
-      .sort()
-    expect(declared).toEqual(Object.keys(ALLOWED).sort())
-  })
-})
 
 // The node project has no DOM. A canvas with no 2D context is what a browser
 // without one hands back, and it is the branch every image builder here has to

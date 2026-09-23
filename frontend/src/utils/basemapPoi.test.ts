@@ -133,60 +133,14 @@ describe('poiToPlace', () => {
 // arrive here, in `map/basemap.ts`. Vitest has no DOM and cannot instantiate
 // MapLibre, so the pair is checked by reading that module as text, the same
 // `?raw` idiom metrics.test.ts uses to keep a vocabulary from drifting out of
-// its surfaces.
+// its surfaces. What the file must say on its own is the `map-basemap-layers`
+// check in tools/eslint/checks/map.js; what stays here compares it with this
+// module's exports, or measures it.
 describe('the layers this module reads', () => {
   it('are the ones the map actually adds', () => {
     for (const layer of POI_LAYERS) {
       expect(basemapSource).toContain(`id: '${layer}'`)
     }
-  })
-
-  // A lake drawn by our layer AND by the style's would put two labels on one
-  // point, with only insertion order deciding which survives collision. One
-  // class name governs both halves, so neither can move without the other.
-  it('leave the style no chance to label a lake a second time', () => {
-    expect(basemapSource).toContain(`['==', ['get', 'class'], LAKE_CLASS]`)
-    expect(basemapSource).toContain(`['!=', ['get', 'class'], LAKE_CLASS]`)
-    expect(basemapSource).toContain(`'water_name_point_label'`)
-  })
-
-  // Lakes were added on the same terms as peaks (#119): one floor and one
-  // label recipe, both named rather than spelled twice, so neither kind of
-  // destination can quietly become clickable at a zoom the other is not, or
-  // stop looking like the other.
-  it('give lakes and peaks one floor and one look', () => {
-    expect(basemapSource.match(/minzoom: POI_MINZOOM,/g) ?? []).toHaveLength(POI_LAYERS.length)
-    expect(basemapSource.match(/paint: POI_LABEL_PAINT,/g) ?? []).toHaveLength(POI_LAYERS.length)
-    // Peaks build from the shared layout directly; the two lake layers share
-    // one recipe between them, so it is spelled once and spread twice.
-    expect(basemapSource.match(/poiLabelLayout\(/g) ?? []).toHaveLength(3)
-  })
-
-  // The long lakes only render at all because their layer places labels along
-  // the line, and only look like the rest because it pins them upright.
-  it('draw a line-labelled lake upright, like every other destination', () => {
-    expect(basemapSource).toContain("'symbol-placement': 'line-center'")
-    expect(basemapSource).toContain("'text-rotation-alignment': 'viewport'")
-    expect(basemapSource).toContain("'icon-rotation-alignment': 'viewport'")
-  })
-
-  // Hovering the panel's "Specify by Click" section lights every feature a
-  // click could add. Each label's halo is generated from that label's own spec,
-  // so the two cannot come to light different features — which would be worse
-  // than no glow at all.
-  it('give every clickable label a halo built from its own spec', () => {
-    expect(basemapSource).toContain('glowTwin(layer)')
-    // Derived from the layer it belongs to, never re-declared per layer.
-    expect(basemapSource.match(/id: `\$\{layer\.id\}-glow`/g) ?? []).toHaveLength(1)
-    for (const key of ['filter: layer.filter', 'minzoom: layer.minzoom']) {
-      expect(basemapSource).toContain(key)
-    }
-  })
-
-  // A halo that took part in collision would make hovering the panel *remove*
-  // the labels it is pointing at.
-  it('keep the halo out of label collision entirely', () => {
-    expect(basemapSource).toContain("'icon-ignore-placement': true")
   })
 
   // Line placement will not honour the shared `top` anchor, so the line layer
@@ -204,13 +158,6 @@ describe('the layers this module reads', () => {
     expect(offsetAfter("id: 'ofm-lakes-line'") - offsetAfter('function poiLabelLayout')).toBeCloseTo(
       0.5,
     )
-  })
-
-  // The one thing that legitimately differs, and only because the tiles differ:
-  // `mountain_peak` carries `ele_ft`, `water_name` carries no elevation at all.
-  it('let only peaks print an elevation', () => {
-    expect(basemapSource).toContain("['has', 'ele_ft']")
-    expect(basemapSource.match(/'icon-image': icon/g) ?? []).toHaveLength(1)
   })
 })
 

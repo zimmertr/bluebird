@@ -20,33 +20,15 @@ import { framePadding, pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
-// (#383). `MapView.test.ts` fails a new one that lands in this file.
+// (#383). The `map-view-wiring` check fails a new one that lands in this file.
 import { ringPolygon, ringToPts } from '../utils/drawGeometry'
-import {
-  dismissesPopups,
-  resolveMapClick,
-  type MapClickHits,
-} from '../utils/mapClick'
-import { POI_LAYERS } from '../utils/basemapPoi'
 import { useIsDesktop } from '../hooks/useIsDesktop'
-import { mountDrawRing, type DrawRing } from '../map/drawRing'
 import { createMapController, type MapInputs } from '../map/controller'
-import { STYLE, enhanceBasemap } from '../map/basemap'
-import { createPopupBoard, isPinning } from '../map/popups'
-import { mountPoiPopups, type PoiPopups } from '../map/poiPopup'
-import { RESULT_MARKER_LAYER, mountResultsLayer, type ResultsLayer } from '../map/resultsLayer'
-import { SMOKE_CLICK_ORDER, type SmokeProps } from '../utils/smoke'
+import { STYLE } from '../map/basemap'
+import { addAttribution, addControls } from '../map/controls'
+import { mountFeatures, type MapFeatures } from '../map/features'
+import { createPopupBoard } from '../map/popups'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
-import { mountForecastGrid, type ForecastGridOverlay } from '../map/overlays/forecastGrid'
-import { mountRadar, type RadarOverlay } from '../map/overlays/radar'
-import { mountSmoke, type SmokeOverlay } from '../map/overlays/smoke'
-import { mountSnow, type SnowOverlay } from '../map/overlays/snow'
-import {
-  WILDFIRE_FILL_LAYER,
-  fireLinkAt,
-  mountWildfires,
-  type WildfireOverlay,
-} from '../map/overlays/wildfires'
 
 export interface MapViewHandle {
   framePolygon: () => void
@@ -224,24 +206,11 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // the resize observer re-applies the fit instead.
     const refitPointsRef = useRef<{ latitude: number; longitude: number }[] | null>(null)
     const refitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    // True once anything has deliberately framed the view (restored-state fit,
-    // search, CSV fit, result focus). A late geolocation grant checks this so
-    // it can't yank the camera away from a frame the user asked for.
-    const cameraCommittedRef = useRef(false)
-    // The drawn ring's layers, handles and drags, mounted on load. The ring's
-    // points stay in `ptsRef`, because they exist before the map does.
-    const drawRingRef = useRef<DrawRing | null>(null)
-    // The overlays the load handler mounts. Each owns its sources, layers,
-    // popups and fetches, and the toggle effects below only hand them props.
-    const overlaysRef = useRef<{
-      grid: ForecastGridOverlay
-      smoke: SmokeOverlay
-      wildfires: WildfireOverlay
-      snow: SnowOverlay
-      radar: RadarOverlay
-    } | null>(null)
-    // The analysis's markers and the basemap POIs' popups, mounted on load.
-    const layersRef = useRef<{ results: ResultsLayer; pois: PoiPopups } | null>(null)
+    // Every feature on the map, mounted on load (`map/features.ts`). Each owns
+    // its sources, layers, handlers and popups, and the effects below only
+    // hand them props. The ring's points stay in `ptsRef`, because they exist
+    // before the map does.
+    const featuresRef = useRef<MapFeatures | null>(null)
     // The props the handlers registered once on map load read at event time:
     // draw mode, the rows and Windy inputs behind a result popup, the fire
     // warnings, the POI inputs, and the sheet's share of the bottom edge for
@@ -280,13 +249,42 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // link turn the overlay on as soon as the map is ready.
     const [mapReady, setMapReady] = useState(false)
 
-    // The cursor the map falls back to with nothing interactive under the
-    // pointer. A crosshair means the next click places a point, so it belongs
-    // to draw mode alone; outside it the default hand says the map is
-    // something you move rather than something you mark.
-    function restCursor() {
-      const map = mapRef.current
-      if (map) map.getCanvas().style.cursor = controller.inputs.drawing ? 'crosshair' : ''
+    // Called by the load handler and nowhere else, so it reads the restored
+    // ring as a Clear or a Cancel has left it.
+    function frameOpening(map: maplibregl.Map) {
+      // One opening frame for everything the session starts with: a restored
+      // polygon ring, restored CSV destinations, and any list pasted while
+      // the map was still loading — their union, so a link carrying both a
+      // polygon and a CSV shows the whole analysis area. Geolocation is only
+      // the fallback when none of these exist.
+      const corners: [number, number][] = []
+      if (restoredPolygonRef.current) {
+        const ring = restoredPolygonRef.current.coordinates[0] ?? []
+        if (ring.length >= 3) for (const [lng, lat] of ring) corners.push([lng, lat])
+      }
+      const pastedEarly = pendingFitPointsRef.current ?? []
+      pendingFitPointsRef.current = null
+      const pointBounds = boundsForPoints(
+        [...restoredCustomPoints, ...pastedEarly],
+        SEARCH_VIEW_MILES,
+      )
+      if (pointBounds) corners.push(...pointBounds)
+      if (corners.length > 0) {
+        const bounds = corners.reduce(
+          (b, c) => b.extend(c),
+          new maplibregl.LngLatBounds(corners[0], corners[0]),
+        )
+        // Pull back one zoom level from the tight fit so the whole area
+        // clears the viewport with margin — a snug fit can clip vertices
+        // behind the controls drawer or browser chrome on small screens.
+        const pad = framePadding(60, controller.inputs.cameraPadBottomPx)
+        const camera = map.cameraForBounds(bounds, { padding: pad })
+        if (camera?.zoom !== undefined) {
+          map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
+        } else {
+          map.fitBounds(bounds, { padding: pad, duration: 0 })
+        }
+      }
     }
 
     useImperativeHandle(ref, () => ({
@@ -324,7 +322,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
           (b, p) => b.extend(p),
           new maplibregl.LngLatBounds(pts[0], pts[0]),
         )
-        cameraCommittedRef.current = true
         map.fitBounds(bounds, {
           padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
           duration: 600,
@@ -344,17 +341,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
       restoreRing(ring) {
         restoredPolygonRef.current = ring
         ptsRef.current = ring ? ringToPts(ring) : []
-        drawRingRef.current?.closePopup()
+        featuresRef.current?.drawRing.closePopup()
         onDrawUpdate(ptsRef.current.length)
         onPolygonChange(ring)
         // Null before `load` and after unmount, where the ring is not on the
         // map yet and the load handler hydrates it from `restoredPolygonRef`.
-        drawRingRef.current?.redraw()
+        featuresRef.current?.drawRing.redraw()
       },
       // Frame a searched place. Only the camera move — the place renders
       // declaratively as a pending dot until the next Analyze ranks it.
       flyToPlace(place: Place) {
-        cameraCommittedRef.current = true
         const map = mapRef.current
         if (!map || !loadedRef.current) {
           pendingSearchRef.current = place
@@ -371,7 +367,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       fitToPoints(points: { latitude: number; longitude: number }[]) {
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
         if (!bounds) return
-        cameraCommittedRef.current = true
         const map = mapRef.current
         if (!map || !loadedRef.current) {
           pendingFitPointsRef.current = points
@@ -388,7 +383,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        cameraCommittedRef.current = true
         map.flyTo({
           center: [at.longitude, at.latitude],
           zoom: Math.max(map.getZoom(), 10),
@@ -404,7 +398,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusResult(result: DestinationResult) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        cameraCommittedRef.current = true
         map.flyTo({
           center: [result.longitude, result.latitude],
           zoom: Math.max(map.getZoom(), 10),
@@ -417,7 +410,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // map the reader can see.
           offset: [0, -cameraPadBottomPx / 2],
         })
-        layersRef.current?.results.openPopup(result)
+        featuresRef.current?.results.openPopup(result)
       },
     }))
 
@@ -436,30 +429,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         attributionControl: false,
       })
       mapRef.current = map
-      // Shift is the pinning modifier for popups (`isPinning` in map/popups.ts), and
-      // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
-      // shift+mousedown and swallows the click that would have opened one. Box
-      // zoom has no affordance and no discoverability; the scroll wheel, the
-      // +/- buttons and a pinch all do the same job, so the modifier is better
-      // spent on something the panel actually tells you about.
-      map.boxZoom.disable()
-      map.addControl(new maplibregl.NavigationControl(), 'top-right')
-      // MapLibre's own geolocate button, not a hand-rolled control: it wears
-      // the same chrome as the zoom and compass buttons above it, and its
-      // permission/error/busy states come with the library instead of being
-      // re-implemented badly. Nothing asks for location until it is pressed.
-      map.addControl(
-        new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
-        'top-right',
-      )
-      // A corner each, which is what lets both sit in the one band the map's
-      // bottom chrome reserves (`TRANSPORT_GAP_PX` in `utils/resultsSheet.ts`)
-      // rather than stacking into two. The scale takes the left, under the
-      // legend stack; the attribution takes the right, where the library puts
-      // it by default and where the OpenStreetMap guideline expects it. They
-      // shared the right corner before, the scale floating above the licence
-      // line, which made the pair as tall as both together.
-      map.addControl(new maplibregl.ScaleControl(), 'bottom-left')
+      addControls(map)
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
       // resizes, but our container also changes size when the results panel
@@ -487,42 +457,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // which the geolocation control can refine to the user's location on demand.
       map.on('load', () => {
         loadedRef.current = true
-        // One opening frame for everything the session starts with: a restored
-        // polygon ring, restored CSV destinations, and any list pasted while
-        // the map was still loading — their union, so a link carrying both a
-        // polygon and a CSV shows the whole analysis area. Geolocation is only
-        // the fallback when none of these exist.
-        const corners: [number, number][] = []
-        if (restoredPolygonRef.current) {
-          const ring = restoredPolygonRef.current.coordinates[0] ?? []
-          if (ring.length >= 3) for (const [lng, lat] of ring) corners.push([lng, lat])
-        }
-        const pastedEarly = pendingFitPointsRef.current ?? []
-        pendingFitPointsRef.current = null
-        const pointBounds = boundsForPoints(
-          [...restoredCustomPoints, ...pastedEarly],
-          SEARCH_VIEW_MILES,
-        )
-        if (pointBounds) corners.push(...pointBounds)
-        if (corners.length > 0) {
-          cameraCommittedRef.current = true
-          const bounds = corners.reduce(
-            (b, c) => b.extend(c),
-            new maplibregl.LngLatBounds(corners[0], corners[0]),
-          )
-          // Pull back one zoom level from the tight fit so the whole area
-          // clears the viewport with margin — a snug fit can clip vertices
-          // behind the controls drawer or browser chrome on small screens.
-          const pad = framePadding(60, controller.inputs.cameraPadBottomPx)
-          const camera = map.cameraForBounds(bounds, { padding: pad })
-          if (camera?.zoom !== undefined) {
-            map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
-          } else {
-            map.fitBounds(bounds, { padding: pad, duration: 0 })
-          }
-        }
-
-        enhanceBasemap(map)
+        frameOpening(map)
 
         // A restored polygon hydrates the same points array the draw handlers
         // edit, so a shared link is adjustable the moment Edit polygon is
@@ -532,95 +467,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           ptsRef.current = ringToPts(restoredPolygonRef.current)
           onDrawUpdate(ptsRef.current.length)
         }
-        restCursor()
-
-        // ── Overlays ───────────────────────────────────────────────────
-        // Mounted in the order their layers stack, lowest first: the forecast
-        // grid is the ground everything else is read against, then smoke,
-        // then the fire perimeters, and the drawing UI and result markers go
-        // on above all three below. The radar loop and the snow field are
-        // created when they are switched on, beneath the first smoke fill, so
-        // the chain comes out grid, snow, radar, smoke, fire, draw, results.
-        overlaysRef.current = {
-          grid: mountForecastGrid(map),
-          smoke: mountSmoke(map, { controller, restCursor, popups }),
-          wildfires: mountWildfires(map, { restCursor }),
-          snow: mountSnow(map),
-          radar: mountRadar(map),
-        }
-
-        // ── Drawn ring ─────────────────────────────────────────────────
-        // Above the overlays and below the results, so a marker is never under
-        // the outline of the area it was found in.
-        const drawRing = mountDrawRing(map, {
-          ring: ptsRef,
+        featuresRef.current = mountFeatures(map, {
           controller,
-          restCursor,
+          popups,
+          ring: ptsRef,
           onPolygonChange,
           onDrawUpdate,
-        })
-        drawRingRef.current = drawRing
-
-        // ── Results and basemap POIs ───────────────────────────────────
-        // The markers above the ring, the pending dots above the markers, and
-        // then the popups a click on a basemap peak or lake opens.
-        layersRef.current = {
-          results: mountResultsLayer(map, { controller, popups, restCursor }),
-          pois: mountPoiPopups(map, { controller, popups, restCursor }),
-        }
-
-        // ── General click → whatever is under it ───────────────────────
-        // Every layer a click can land on, asked in one query, because the rule
-        // that decides between them (`utils/mapClick.ts`) reads the whole set
-        // rather than a series of answers. The draw handles are in the list so
-        // that grabbing one cannot also drop a vertex; they are hidden outside
-        // draw mode and MapLibre does not query a hidden layer, which is what
-        // keeps a click outside that mode from being a vertex at all (#119).
-        const clickLayers = [
-          ...POI_LAYERS,
-          RESULT_MARKER_LAYER,
-          ...SMOKE_CLICK_ORDER,
-          WILDFIRE_FILL_LAYER,
-          'draw-vertices',
-          'draw-midpoints',
-        ]
-
-        map.on('click', (e) => {
-          const under = map.queryRenderedFeatures(e.point, {
-            layers: clickLayers.filter((id) => map.getLayer(id)),
-          })
-          const hitLayers = new Set(under.map((f) => f.layer.id))
-          const hits: MapClickHits = {
-            drawing: controller.inputs.drawing,
-            pinning: isPinning(e),
-            fire: hitLayers.has(WILDFIRE_FILL_LAYER),
-            result: hitLayers.has(RESULT_MARKER_LAYER),
-            poi: POI_LAYERS.some((id) => hitLayers.has(id)),
-            vertex: hitLayers.has('draw-vertices') || hitLayers.has('draw-midpoints'),
-            smoke: SMOKE_CLICK_ORDER.filter((id) => hitLayers.has(id)),
-          }
-
-          if (dismissesPopups(hits)) popups.closeAll()
-
-          const action = resolveMapClick(hits)
-          if (action.kind === 'open-fire') {
-            window.open(fireLinkAt(map, e.lngLat), '_blank', 'noopener,noreferrer')
-            return
-          }
-          if (action.kind === 'add-vertex') {
-            drawRing.addPoint([e.lngLat.lng, e.lngLat.lat])
-            return
-          }
-          if (action.kind === 'open-smoke') {
-            const plume = under.find((f) => f.layer.id === action.layer)
-            if (plume?.properties) {
-              overlaysRef.current?.smoke.openPopup(
-                plume.properties as SmokeProps,
-                e.lngLat,
-                hits.pinning,
-              )
-            }
-          }
         })
 
         if (pendingSearchRef.current) {
@@ -638,14 +490,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
       return () => {
         loadedRef.current = false
-        drawRingRef.current = null
-        layersRef.current = null
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
-        overlaysRef.current?.wildfires.dispose()
-        overlaysRef.current?.smoke.dispose()
-        overlaysRef.current?.radar.dispose()
-        overlaysRef.current = null
+        featuresRef.current?.wildfires.dispose()
+        featuresRef.current?.smoke.dispose()
+        featuresRef.current?.radar.dispose()
+        featuresRef.current = null
         map.remove()
         mapRef.current = null
       }
@@ -654,34 +504,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // The attribution, collapsed behind the library's own (i) on a phone and
-    // spelled out at a desk. Both are what the OpenStreetMap attribution
-    // guideline allows, and which one a width gets is the sheet's own
-    // breakpoint rather than the library's 640px: between the two the map is
-    // wide enough for the line but the layout is the phone's, where the band
-    // this sits in is the one the results sheet and the forecast player leave.
-    //
-    // Re-added rather than updated, because `compact` is read once when the
-    // control is constructed.
+    // The attribution at the sheet's own breakpoint rather than the library's
+    // 640px: between the two the map is wide enough for the line but the
+    // layout is the phone's, where the band it sits in is the one the results
+    // sheet and the forecast player leave. Re-added rather than updated,
+    // because `compact` is read once when the control is constructed.
     useEffect(() => {
       const map = mapRef.current
       if (!map) return
-      // The library's own defaults, with only `compact` decided here: its
-      // option object also carries the MapLibre credit, and constructing one
-      // with a bare `{compact}` would drop that credit rather than restate it.
-      const { options } = new maplibregl.AttributionControl()
-      const control = new maplibregl.AttributionControl({ ...options, compact: !isDesktop })
-      map.addControl(control, 'bottom-right')
-      // The library adds a compact attribution OPEN and folds it on the first
-      // drag (maplibre-gl 6.8, `_updateCompact` and `_updateCompactMinimize`
-      // in attribution_control.ts), so until the reader moved the map the
-      // whole licence line ran across the band the (i) exists to keep small.
-      // Fold it on add. This is the library's own folded state: the class is
-      // the one its toggle removes, and `open` stays set as its toggle leaves
-      // it, so the (i) opens and closes it exactly as before.
-      map.getContainer()
-        .querySelector('.maplibregl-ctrl-attrib.maplibregl-compact-show')
-        ?.classList.remove('maplibregl-compact-show')
+      const control = addAttribution(map, !isDesktop)
       return () => {
         if (mapRef.current === map) map.removeControl(control)
       }
@@ -694,7 +525,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // feature-state (the arrows could not read it anyway — see resultFeatures).
     // Rows that arrive before the map loads are drawn when `mapReady` flips.
     useEffect(() => {
-      if (mapReady) layersRef.current?.results.update({ results, sortBy, playbackIndex })
+      if (mapReady) featuresRef.current?.results.update({ results, sortBy, playbackIndex })
     }, [results, sortBy, playbackIndex, mapReady])
 
     // The forecast field and its arrows, on the same contract as the markers
@@ -703,7 +534,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // (`windArrowsShowing`), so the two cannot disagree.
     useEffect(() => {
       if (!mapReady) return
-      overlaysRef.current?.grid.update({
+      featuresRef.current?.grid.update({
         spec: gridSpec,
         cells: gridCells,
         style: gridStyle,
@@ -714,7 +545,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
     // Light every clickable basemap feature while the panel points at them.
     useEffect(() => {
-      if (mapReady) layersRef.current?.pois.setPointed(pointedPois)
+      if (mapReady) featuresRef.current?.pois.setPointed(pointedPois)
     }, [pointedPois, mapReady])
 
     // Draw mode: show or hide the editing handles, and move the cursor with
@@ -722,14 +553,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // offers an edit the map no longer accepts.
     useEffect(() => {
       const map = mapRef.current
-      // `restCursor`'s rule, read off the prop this effect runs for.
+      // The rest cursor's rule in `map/features.ts`, read off the prop.
       if (map) map.getCanvas().style.cursor = drawing ? 'crosshair' : ''
-      if (mapReady) drawRingRef.current?.setDrawing(drawing)
+      if (mapReady) featuresRef.current?.drawRing.setDrawing(drawing)
     }, [drawing, mapReady])
 
     // Neutral blue dot per custom destination not yet in the displayed analysis.
     useEffect(() => {
-      if (mapReady) layersRef.current?.results.setPending(pending)
+      if (mapReady) featuresRef.current?.results.setPending(pending)
     }, [pending, mapReady])
 
     // The overlay toggles. Each depends on mapReady so a restored link turns
@@ -737,19 +568,19 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // handed its prop before the radar so that, when a link turns both on at
     // once, the field goes in first and the loop lands above it.
     useEffect(() => {
-      if (mapReady) overlaysRef.current?.wildfires.update({ show: showWildfires })
+      if (mapReady) featuresRef.current?.wildfires.update({ show: showWildfires })
     }, [showWildfires, mapReady])
 
     useEffect(() => {
-      if (mapReady) overlaysRef.current?.smoke.update({ show: showSmoke })
+      if (mapReady) featuresRef.current?.smoke.update({ show: showSmoke })
     }, [showSmoke, mapReady])
 
     useEffect(() => {
-      if (mapReady) overlaysRef.current?.snow.update({ show: showSnow })
+      if (mapReady) featuresRef.current?.snow.update({ show: showSnow })
     }, [showSnow, mapReady])
 
     useEffect(() => {
-      if (mapReady) overlaysRef.current?.radar.update({ show: showRadar, index: radarIndex })
+      if (mapReady) featuresRef.current?.radar.update({ show: showRadar, index: radarIndex })
     }, [showRadar, radarIndex, mapReady])
 
     return <div ref={containerRef} className="absolute inset-0" />

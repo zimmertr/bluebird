@@ -37,7 +37,6 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { makeArrowImage, mountResultsLayer, RESULT_MARKER_LAYER } from './resultsLayer'
-import source from './resultsLayer.ts?raw'
 import { createMapController, type MapInputs } from './controller'
 import { createPopupBoard } from './popups'
 import { pendingFC } from '../utils/mapFeatures'
@@ -96,13 +95,6 @@ function markerClick(row: typeof ADAMS, rank: number, shiftKey = false) {
     ],
   }
 }
-
-describe('the functions this file may declare', () => {
-  it('declares the mount, the source setter and the arrow image', () => {
-    const declared = [...source.matchAll(/^(?:export )?function (\w+)/gm)].map((m) => m[1]).sort()
-    expect(declared).toEqual(['makeArrowImage', 'mountResultsLayer', 'updateResults'])
-  })
-})
 
 describe('mountResultsLayer', () => {
   it('adds the markers and then the pending dots, arrows hidden', () => {
