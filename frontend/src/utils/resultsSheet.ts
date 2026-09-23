@@ -5,9 +5,9 @@
 // a share of the column, so the map keeps its full height and the legend stack,
 // the timeline and the map's attribution measure from the sheet's top edge
 // rather than from the bottom of the screen. Every number the anchors need is
-// derived here rather than in `App.tsx`, because a component is untestable under
-// the node-env Vitest and these are the numbers that decide whether a legend is
-// on screen at all.
+// derived here rather than in `App.tsx`, because `App.tsx` renders the map,
+// which no Vitest project can stand up, and these are the numbers that decide
+// whether a legend is on screen at all.
 //
 // Desktop is mostly unaffected: the panel is docked below the map there,
 // nothing is covered, and every lift here is 0. The one number it does take is

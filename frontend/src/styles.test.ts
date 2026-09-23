@@ -216,9 +216,11 @@ describe('the reading tier', () => {
 })
 
 // Every text-bearing source in the app, so a component added later is covered
-// by default rather than by remembering to list it.
+// by default rather than by remembering to list it. A component's test sits
+// beside it and is not a component: it renders the rules rather than breaking
+// them, and counting it would put its queries in the tallies below.
 const sources: Record<string, string> = {
-  ...(import.meta.glob('./components/*.tsx', {
+  ...(import.meta.glob(['./components/*.tsx', '!./components/*.test.tsx'], {
     query: '?raw',
     import: 'default',
     eager: true,
@@ -237,7 +239,7 @@ const POPOVER_MODULE = './components/Popover.tsx'
 // a second caller there would be as much of a second recipe as one here.
 const placementCallers: Record<string, string> = {
   ...(import.meta.glob(
-    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts'],
+    ['./components/*.tsx', './hooks/*.ts', './utils/*.ts', '!./**/*.test.ts', '!./**/*.test.tsx'],
     { query: '?raw', import: 'default', eager: true },
   ) as Record<string, string>),
   './App.tsx': appSource,
@@ -267,6 +269,12 @@ describe('every component', () => {
   // bundle. A build is the only thing that would otherwise notice.
   it('keeps the linter fixtures out of Tailwind\'s reach', () => {
     expect(indexCss).toMatch(/@source not ["']\.\.\/tools["']/)
+  })
+
+  // The same hazard one directory in: a component test may quote a class to
+  // find what it asserts on, and nothing it quotes is drawn by the app.
+  it('keeps the component tests out of Tailwind\'s reach', () => {
+    expect(indexCss).toMatch(/@source not ["']\.\/\*\*\/\*\.test\.tsx["']/)
   })
 
   // Derived from the scale rather than blocking a list of names, so a utility
@@ -912,10 +920,27 @@ describe('shared recipes', () => {
   // disabled. Louder than off and quieter than in force, which is the whole
   // claim. Colourless for the same reason DISABLED is.
   it('quiets a control that still works, without the disabled claim', () => {
-    expect(MUTED).toBe('opacity-50')
+    expect(MUTED).toBe('opacity-60')
     expect(MUTED).not.toContain('cursor')
     expect(MUTED).not.toContain('disabled:')
     expect(MUTED).not.toMatch(/text-|bg-|border-/)
+  })
+
+  // WCAG exempts only inactive controls from 1.4.3, and a muted control still
+  // works, so its text owes 4.5:1. The slate-200 label composited at the
+  // role's opacity, measured on each surface it lands on: the panel (Include
+  // unnamed peaks), an idle metric row's select, and an unplotted chart chip.
+  // 50% failed two of the three, which is what axe found in the browser suite.
+  it('keeps a muted label above the text floor on every surface it fades on', () => {
+    const MEASURED = {
+      at60: { panel: 5.25, select: 5.96, chip: 5.43 },
+      at50: { panel: 4.11, select: 4.58, chip: 4.22 },
+    }
+    expect(MUTED).toBe('opacity-60')
+    expect(Math.min(...Object.values(MEASURED.at60))).toBeGreaterThanOrEqual(4.5)
+    expect(Math.min(...Object.values(MEASURED.at50))).toBeLessThan(4.5)
+    // Louder than off, still: the whole claim that separates it from DISABLED.
+    expect(Number(MUTED.match(/opacity-(\d+)/)![1])).toBeGreaterThan(Number(DISABLED.match(/opacity-(\d+)/)![1]))
   })
 
   // The third fade, and the one that reads as neither of the two above: a
@@ -1429,6 +1454,10 @@ describe('shared recipes', () => {
     expect(searchBoxSource).toContain('${SURFACE_POPOVER}')
     expect(searchBoxSource).toContain('${CAPTION_LIFTED}')
     // slate-400 is 3.94:1 on that fill, under the 4.5:1 AA asks of text.
+    // The results bar is the same slate-700, and its window caption measured
+    // 3.93:1 on the caption tier; slate-300 is 6.97:1 there.
+    expect(appSource).toMatch(/\$\{CAPTION_LIFTED\} truncate`}>\s*\{windowTitle\}/)
+    expect(appSource).not.toMatch(/\$\{TEXT\.caption\} truncate`}>\s*\{windowTitle\}/)
     expect(CAPTION_LIFTED).not.toContain('slate-400')
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
   })

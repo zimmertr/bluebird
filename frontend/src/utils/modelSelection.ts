@@ -3,9 +3,9 @@
  *
  * The picker holds two facts about one set: every model the chart draws, and
  * the one among them whose numbers ARE the report. The rules that move between
- * those two facts live here rather than in `ModelPicker.tsx`, because Vitest
- * runs with no DOM and anything left in the component is untestable by
- * construction.
+ * those two facts live here rather than in `ModelPicker.tsx`, so the node test
+ * project can check every case of them without a page. The picker's own suite
+ * then only has to show that each gesture reaches the right rule.
  *
  * Three invariants hold over every function below, and the picker leans on all
  * three: the selected set is never empty, the ranking model is always in it,
@@ -66,8 +66,12 @@ export function selectedIds(
   ]
 }
 
-/** The same order, minus the ranking model: what `compare=` carries. */
-export function orderCompared(
+/**
+ * The same order, minus the ranking model: what `compare=` carries. Module
+ * private, because the two rules below are its only callers and their suites,
+ * with the picker's, pin the order it produces.
+ */
+function orderCompared(
   models: readonly OrderedModel[],
   ranking: string,
   compared: readonly string[],

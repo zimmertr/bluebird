@@ -3,9 +3,9 @@
 // cell can be empty because of the model rather than because of the weather.
 //
 // Pure, and here rather than in the table, for the reason the fire warnings
-// are pure and in fireProximity.ts: Vitest runs this repo in the node
-// environment, so anything left inside a component is untestable by
-// construction. The table is wiring.
+// are pure and in fireProximity.ts: the node test project checks a function
+// against every case without a page, where a component test has to render
+// one. The table is wiring.
 
 import { FAMILY_KEYS, NOUN } from '../metrics'
 

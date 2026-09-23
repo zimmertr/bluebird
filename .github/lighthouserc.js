@@ -10,8 +10,8 @@
  *
  * Two deliberate choices make this a gate rather than a weather report:
  *
- * 1. **Every third-party host is blocked.** The map tiles, both Open-Meteo
- *    services and Nominatim are someone else's servers on someone else's day,
+ * 1. **Every third-party host is blocked.** The map tiles, the Open-Meteo
+ *    services, the radar and snow tiles and Nominatim are someone else's servers on someone else's day,
  *    and a gate that fails when OpenFreeMap is slow teaches everyone to ignore
  *    it. What is left is exactly what this repository ships.
  * 2. **The default mobile preset, not desktop.** Lighthouse's throttling is a
@@ -40,6 +40,7 @@ module.exports = {
           '*open-meteo.com*',
           '*nominatim.openstreetmap.org*',
           '*agron.iastate.edu*',
+          '*mapservices.weather.noaa.gov*',
         ],
       },
     },
@@ -71,6 +72,14 @@ module.exports = {
         // The score moves with Lighthouse's own scoring curve, which changes
         // between versions, so it informs rather than gates.
         'categories:performance': ['warn', { minScore: 0.75 }],
+
+        // Unlike performance, this one gates. Its audits are pass or fail
+        // checks on the page's markup rather than a curve over timings, so the
+        // score moves only when the page does. Measured at 1.0 on the first
+        // screen in three of three runs. Lighthouse weights its audits 1, 3, 7
+        // and 10, so at 0.99 any failure of weight 3 or more turns this red;
+        // only a weight-1 audit fits in the margin.
+        'categories:accessibility': ['error', { minScore: 0.99 }],
       },
     },
     upload: {

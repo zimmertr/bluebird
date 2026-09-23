@@ -1,4 +1,6 @@
 import type { DestinationResult, HourlySeries } from '../types'
+import type { ForecastModelOption } from '../hooks/useCapabilities'
+import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
@@ -10,8 +12,10 @@ import type { WeatherResult } from '../utils/openMeteo'
 // typed against DestinationResult rather than cast, so a missing column fails
 // this file alone.
 //
-// Vitest runs node-env with no DOM, so this module holds data and the types it
-// is checked against and reaches into nothing else — no component, no hook.
+// Both Vitest projects read it, the node one included, so this module holds
+// data and the types it is checked against and reaches into nothing else: no
+// component, no hook. Rendering helpers live in `render.tsx`, which only the
+// DOM project loads.
 
 /** Every hourly array, so a caller spells only the series it charts. */
 export function series(over: Partial<HourlySeries> = {}): HourlySeries {
@@ -79,6 +83,40 @@ export function weatherResult(over: Partial<PresentWeather> = {}): PresentWeathe
     freeze_max_ft: null,
     freeze_avg_ft: null,
     series: null,
+    ...over,
+  }
+}
+
+/**
+ * One model the picker offers, as `/api/capabilities` publishes it. A global
+ * model with no summary and no figures, so a suite names only the fields its
+ * assertions read; `id` and `label` are the ones every caller overrides.
+ */
+export function forecastModel(over: Partial<ForecastModelOption> = {}): ForecastModelOption {
+  return {
+    id: 'gfs_seamless',
+    label: 'NOAA GFS',
+    summary: '',
+    finestGridKm: 0,
+    forecastHours: 384,
+    regional: false,
+    blend: false,
+    ...over,
+  }
+}
+
+/**
+ * One place the geocoder found, as the search box receives it. A peak with no
+ * extent, elevation or OSM reference, which are the optional fields a pin reads
+ * and the box itself never does.
+ */
+export function place(over: Partial<Place> = {}): Place {
+  return {
+    label: 'Mount Baker',
+    description: 'Mount Baker, Whatcom County, Washington, United States',
+    kind: 'peak',
+    lat: 48.7768,
+    lon: -121.8144,
     ...over,
   }
 }

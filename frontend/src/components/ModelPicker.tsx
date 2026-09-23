@@ -93,8 +93,8 @@ interface Props {
  * reader's hand.
  *
  * Which models are selected lives in `App.tsx` and the link; the rules that
- * move between the two facts live in `utils/modelSelection.ts`, because Vitest
- * has no DOM and a decision left in this file is untestable by construction.
+ * move between the two facts live in `utils/modelSelection.ts`, where the node
+ * test project checks every case without a page.
  */
 export default function ModelPicker({
   models,
@@ -176,20 +176,27 @@ export default function ModelPicker({
     toggle(id)
   }
 
+  // The panel is on screen only once `usePopover` has placed it, and on the
+  // first open that is a render after `open` turns true (a later open starts
+  // from the previous box). So the two effects below key on the panel being
+  // drawn: keyed on `open`, the first open would look for a list that does not
+  // exist yet and leave the keyboard on the trigger.
+  const shown = open && box !== null
+
   // Focus the list itself rather than an option, so `aria-activedescendant`
   // names the highlighted row and the arrow keys stay on one element. The list
   // rather than the chip row, because the list is what an opened picker is for;
   // Shift+Tab reaches the chips above it.
   useEffect(() => {
-    if (open) listRef.current?.focus()
-  }, [open])
+    if (shown) listRef.current?.focus()
+  }, [shown])
 
   useEffect(() => {
-    if (!open) return
+    if (!shown) return
     listRef.current
       ?.querySelector(`[data-index="${active}"]`)
       ?.scrollIntoView({ block: 'nearest' })
-  }, [open, active])
+  }, [shown, active])
 
   // A removed chip takes the keyboard with it unless focus is placed again
   // after the row re-renders, which is why this waits for the render rather

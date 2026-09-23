@@ -51,6 +51,7 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 | `make typecheck-backend` | `mypy app` at the version `requirements-dev.txt` pins, with the settings in `backend/mypy.ini` |
 | `make lint-backend` | `ruff check backend/` at the version CI pins |
 | `make lighthouse` | the cold-load audit below |
+| `make browser` | the browser suite below |
 
 The `Makefile` is the list of commands, and every target has the same shape.
 This is `make test-frontend`, typed out:
@@ -59,6 +60,11 @@ This is `make test-frontend`, typed out:
 docker run --rm -v "$PWD":/repo -w /repo/frontend node:$(cat .node-version)-alpine \
   sh -c "npm ci && npm test"
 ```
+
+One Vitest run covers two projects, split by file extension: `node` runs every
+`*.test.ts` (pure logic, no DOM) and `dom` runs every `*.test.tsx` (a component
+rendered in jsdom and driven with Testing Library). Add `-- --project dom` (or
+`node`) to the `npm test` above to run one of them.
 
 Five things that shape follows from:
 
@@ -99,6 +105,38 @@ The budgets themselves, and why the audit blocks every third-party host, are in
 CI run keeps the same files as a workflow artifact. Measure before and after
 whenever a change could touch what the first screen loads, and put both numbers
 on the PR.
+
+### The browser suite
+
+CI also operates the built image in a browser (issue #412): Playwright draws a
+ring and analyzes, opens a share link, and runs axe on the panel, the results,
+and the Layers popover. Every third-party host is answered from fixtures in
+`frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
+`make browser` runs it locally: it builds the image, serves it on a docker
+network, and runs the suite from the pinned Playwright image with the repo
+root mounted (the fixtures read `backend/tests/data/weather_vectors.json`). A
+failed run leaves the served container running, and `docker rm -f e2e-target`
+clears it.
+
+The image tag, `PLAYWRIGHT_IMAGE` in the `Makefile`, must match the
+`@playwright/test` version in `frontend/e2e/package.json`: each Playwright
+release pins its own browser build, and the image carries the build for its
+own version only. When Dependabot bumps the package, move the tag in the same
+PR. The image brings its own Node, so this is the one container `.node-version`
+does not pick. CI does not use
+the image; it installs Chromium alone on the runner.
+
+The suite is a package apart from `frontend/package.json`, like the two under
+`frontend/tools/`, but for a different reason: Playwright does not fight
+TypeScript 7 (it strips the types itself and carries no TypeScript peer), but a
+devDependency of the app would be downloaded by every `npm ci` the image build
+and the Frontend job run, and neither uses it. `npm run lint` covers
+`frontend/e2e/` without installing it, because the lint reads no types.
+
+Axe fails the run on serious and critical violations only, and the app has
+none today. To accept one for a while, add it to `KNOWN` in
+`frontend/e2e/accessibility.spec.ts` with its issue; an entry that stops
+occurring fails the run.
 
 Two rules worth knowing before you send a change: any behavior change ships with
 a matching test in the same PR, and any change to a route or Pydantic model
