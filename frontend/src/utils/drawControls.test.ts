@@ -10,9 +10,11 @@ describe('drawControls', () => {
     expect(drawControls(false, 3)).toEqual(['start', 'clear'])
   })
 
-  // A phone has no Escape key, so Cancel is its only exit before a point lands.
-  it('offers Cancel beside Done before the first point', () => {
-    expect(drawControls(true, 0)).toEqual(['done', 'cancel'])
+  // A phone has no Escape key, so Cancel is its only exit before a point
+  // lands. Clear is there too, disabled by the panel, so the row does not
+  // change shape on the first point.
+  it('reads Done, Cancel, Clear before the first point', () => {
+    expect(drawControls(true, 0)).toEqual(['done', 'cancel', 'clear'])
   })
 
   it('reads Done, Cancel, Clear once a point is placed', () => {

@@ -88,11 +88,12 @@ describe('DestinationsSection', () => {
 
     // A phone has no Escape key, so before the first point Cancel is its only
     // way out of the mode.
-    it('offers Cancel beside a disabled Done before the first point', async () => {
+    it('offers Cancel beside a disabled Done and Clear before the first point', async () => {
       const onCancelDrawing = vi.fn()
       const { user } = render(<DestinationsSection {...props({ drawing: true, onCancelDrawing })} />)
       expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
-      expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+      expect((screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Done', 'Cancel', 'Clear'])
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(onCancelDrawing).toHaveBeenCalledOnce()
     })

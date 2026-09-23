@@ -11,13 +11,14 @@
  * - `cancel` leaves it and puts back the ring the mode started with, so it
  *   shows at every count, zero included: it is the one exit with no floor.
  * - `clear` empties the ring and changes nothing else, so inside the mode it
- *   starts over and outside it throws the ring away. It shows only when there
- *   is a point to throw away.
+ *   starts over and outside it throws the ring away. Inside the mode it shows
+ *   at every count, and the panel disables it at zero the way it disables Done
+ *   under three, so the row keeps one shape while points come and go. Outside
+ *   the mode it shows only over a ring, beside Edit polygon.
  */
 export type DrawControl = 'start' | 'done' | 'cancel' | 'clear'
 
 export function drawControls(drawing: boolean, pointCount: number): DrawControl[] {
-  const controls: DrawControl[] = drawing ? ['done', 'cancel'] : ['start']
-  if (pointCount > 0) controls.push('clear')
-  return controls
+  if (drawing) return ['done', 'cancel', 'clear']
+  return pointCount > 0 ? ['start', 'clear'] : ['start']
 }

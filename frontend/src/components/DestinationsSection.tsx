@@ -217,8 +217,17 @@ export default function DestinationsSection({
                   </button>
                 )
               case 'clear':
+                // Disabled rather than absent at zero points, like Done under
+                // three: a button that pops in on the first click moves the
+                // row under the reader's eye. Outside the mode it only shows
+                // over a ring, so the floor never fires there.
                 return (
-                  <button key={control} onClick={onClearDrawing} className={BUTTON_SECONDARY}>
+                  <button
+                    key={control}
+                    onClick={onClearDrawing}
+                    disabled={drawPointCount === 0}
+                    className={`${BUTTON_SECONDARY} ${DISABLED}`}
+                  >
                     Clear
                   </button>
                 )
