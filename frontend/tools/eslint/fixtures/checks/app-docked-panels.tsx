@@ -1,2 +1,2 @@
-// Must trip: every requirement, since none of the docked layout is here.
+// Must trip: the desktop panel classes are not the verbatim ones.
 export const Panels = () => <div className="flex flex-col" />
