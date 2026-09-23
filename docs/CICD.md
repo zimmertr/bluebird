@@ -506,6 +506,13 @@ The frontend job grew 5 s on 2026-09-15 when ESLint joined it (issue #379):
 2 s to install the linter's own package and 3 s to lint 57 sources. It is not on
 the critical path, so the whole run is unchanged.
 
+The frontend job moved from Node 22 to Node 26 on 2026-09-22, when it began to
+read `.node-version` (issue #401). Over four runs it measured a 31 s median
+(26 to 43 s) against 29 s (25 to 35 s) for the twelve runs before. `setup-node`
+now takes 5 to 6 s where it took under 1 s, because the runner image carries
+Node 22 in its tool cache and downloads 26. Lint and Vitest ran no slower on 26.
+The job is still off the critical path.
+
 **The critical path is two jobs long**, and only two. Four jobs start within
 about 3 s of each other; three of them finish while `Docker Build` is still
 building. `Lighthouse Budgets` `needs` it, so it starts at about 63 s and adds
@@ -705,6 +712,13 @@ flowchart LR
   scripts/generate_openapi.py`. The script pins `APP_VERSION` to `dev` before
   importing the app, so `info.version` stays deterministic and a released build
   never reads as drift.
+- `pr.yml`'s frontend job runs on the Node major named in `.node-version`,
+  which `setup-node` reads through `node-version-file`. That file is the one
+  place the major is written: the root `Makefile` reads it for every local
+  check, and the `Dockerfile` keeps a literal `node:<major>-alpine` tag, because
+  a `FROM` line reads no file and a build argument would hide the tag from
+  Dependabot. `backend/tests/test_node_version.py` fails when that tag and the
+  file disagree, so CI always tests the runtime the image builds with.
 - `pr.yml`'s frontend job runs `npm run check:api` before the typecheck. The
   SPA's wire types are hand-written, and `frontend/src/api-schema.d.ts` —
   generated from the committed snapshot above — is what the typecheck holds them
@@ -884,7 +898,9 @@ actions (hadolint, trivy-action, lighthouse-ci-action) whose patch bumps do
 auto-merge: every other GitHub Action is major-pinned (`@v7`, `@v4`, `@v3`), so
 Dependabot raises them as *major* bumps that wait for review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
 `node:26-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
-also wait for review — base-OS *patch* fixes arrive without any PR, picked up
+also wait for review. A Node major bump also fails `Backend Tests` until the
+same PR moves `.node-version` to match, which is what keeps CI on the image's
+runtime. Base-OS *patch* fixes arrive without any PR, picked up
 by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests
 (not `Workflows`), so a workflow-file edit is not something it can land on its
 own, and those three actions' patch bumps still wait for a person even though

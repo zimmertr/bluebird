@@ -36,9 +36,11 @@ jobs:
       # entries and 2.80 GB, one ~56 MB copy per branch, in a repository cache
       # already over GitHub's 10 GB limit and evicting the Docker layers that
       # do pay for themselves (issue #368).
+      # The Node major lives in .node-version alone, so these checks run on
+      # the runtime the image builds the app with.
       - uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version-file: .node-version
       - run: npm ci
         working-directory: frontend
       # src/api-schema.d.ts is generated from the committed OpenAPI snapshot,

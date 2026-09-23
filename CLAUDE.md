@@ -40,11 +40,16 @@ Three conventions hold across every page:
 
 ## Development commands
 
-The dev servers, the typecheck, both test invocations, and the lint command live in
-[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Two things that page does not say, and
-that a standard invocation would get wrong: **both test suites run inside Docker,
-never on the local machine**, and `ruff check backend/` runs **from the repo root**,
-which is what CI does. Since #379 the rules live in `backend/ruff.toml` (E, F, I, B,
+Every check CI runs is a target in the root `Makefile` (`make test-frontend`,
+`make test-backend`, `make typecheck`, `make lint-frontend`, `make lint-backend`,
+`make check-api`, `make check-openapi`, `make lighthouse`), and
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) names them beside the dev servers. Use
+the targets rather than a standard invocation, which gets two things wrong: **both
+test suites run inside Docker, never on the local machine**, with the repo root
+mounted, and `ruff check backend/` runs **from the repo root**, which is what CI
+does. The Node major lives in `.node-version` alone; CI reads it through
+`setup-node`, and `backend/tests/test_node_version.py` holds the `Dockerfile`'s tag
+to it. Since #379 the rules live in `backend/ruff.toml` (E, F, I, B,
 UP) and `known-first-party = ["app"]` there makes the import order the same from
 either working directory; without it isort reads `app` as third-party from the root
 and first-party from inside `backend/`.
