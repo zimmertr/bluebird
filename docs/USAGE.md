@@ -358,7 +358,7 @@ The results table carries the comparison too. With models compared it grows a **
 
 Every line on the chart runs to its own model's reach, so a model that stops before the analyzed window ends simply stops, and the other lines keep going. A dashed line in the axis color stands at the hour where it stops, labeled with the model's name, the same way the **Now** line is drawn. Two models that end on the same hour share one line, and its label names both. Hide a model and its dashed line goes with its lines.
 
-The results table marks the same thing. On the rows of a model that ends before the window does, every weather number is aggregated over fewer hours than the rows beside it, so each one carries an asterisk: `0.12*`. Air quality, snow depth and the cloud columns do not, because they are the same whatever model the row names. One line under the table says what the mark means, `* Partial model coverage. Data is aggregated over fewer hours.`, and the Model column on each marked row names the model. The model that ranks never carries the mark, because the calendar already shortens the window to its reach. The downloaded CSV keeps its numbers plain and states where each such model ends in its metadata block instead (see [Downloading the Table](#downloading-the-table)).
+The results table marks the same thing. On the rows of a model that ends before the window does, every weather number is aggregated over fewer hours than the rows beside it, so the row's **Model** cell carries a raised asterisk after the model's name. The mark is on the name, once per row, and never on a number. Air quality, snow depth and the cloud columns on those rows still cover the whole window, because they are the same whatever model the row names. One line under the table says what the mark means: `* Data is aggregated over a subset of the forecast window due to the model's limited range.` The model that ranks never carries the mark, because the calendar already shortens the window to its reach. The mark rides the **Model** column, so hiding that column in the **Columns** picker hides the marks and the line under the table together. The downloaded CSV carries the same mark and the same line (see [Downloading the Table](#downloading-the-table)).
 
 A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric dropdown, which is never the same as drawing a flat one. A model you have hidden leaves no note, because its lines are missing by your own instruction.
 
@@ -539,9 +539,17 @@ can work out the hours that model's numbers cover:
 Forecast end (NOAA HRRR),2026-09-20T02:00-07:00
 ```
 
-Two models that end on the same hour still get a row each. The numbers in the
-table above carry no asterisk in the file, because a mark inside a number would
-turn it into text.
+Two models that end on the same hour still get a row each. The mark from the
+table goes on the Model column, as `NOAA HRRR*`, and never on a number, because
+a mark inside a number would turn it into text that a spreadsheet cannot sort
+or average. When the file carries the Model column and at least one marked row,
+the footnote follows the model rows behind one blank row:
+
+```
+Forecast end (NOAA HRRR),2026-09-20T02:00-07:00
+
+* Data is aggregated over a subset of the forecast window due to the model's limited range.
+```
 
 The window is the same one the caption above the table states. The file name carries
 the download time instead, so without these two rows a file opened a week later

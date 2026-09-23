@@ -2,7 +2,7 @@ import { memo, useMemo, useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { selectionState } from '../utils/chartData'
-import { SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
+import { MODEL_KEY, SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
 import type { FireProximityStatus, FireWarning } from '../utils/fireProximity'
 import type { PendingDestination } from '../utils/customList'
 import { geoKey } from '../utils/points'
@@ -101,9 +101,10 @@ interface Props {
   // map keeps its natural width — see utils/columnResize.ts for the model.
   columnWidths?: Record<string, number>
   onColumnWidthsChange?: (widths: Record<string, number>) => void
-  // The one line under the table that says what a `*` in a cell means: a
-  // compared model ends inside the window, so its aggregates cover fewer hours
-  // (#493). Null when no row on display is short.
+  // The one line under the table that says what the `*` on a Model cell means:
+  // a compared model ends inside the window, so its aggregates cover fewer
+  // hours (#493, #508). Null when no row on display is short. Drawn only while
+  // the Model column is, since the marks it explains ride that column.
   partialNote?: string | null
 }
 
@@ -167,6 +168,8 @@ function ResultsTable({
     [showChartCol, results],
   )
   const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
+
+  const footnote = orderedColumns.some((c) => c.key === MODEL_KEY) ? partialNote : null
 
   // Every data cell is sized by the same widths the header resizes.
   const widths = columnWidths ?? NO_WIDTHS
@@ -260,7 +263,7 @@ function ResultsTable({
             )}
           </FireClock>
         </tbody>
-        {partialNote && (
+        {footnote && (
           <tfoot>
             <tr>
               {/* A table row rather than a line after the table, for the
@@ -270,7 +273,7 @@ function ResultsTable({
                   soon as a wide comparison table is scrolled sideways, which
                   every one on a phone is. */}
               <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
-                <div className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>{partialNote}</div>
+                <div className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>{footnote}</div>
               </td>
             </tr>
           </tfoot>
