@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 14, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 11, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
     ],
   },
@@ -281,6 +281,24 @@ export const APP = [
     files: ['src/hooks/useRankingKnobs.ts'],
     require: [
       { selector: EFFECT, count: 1, message: 'useRankingKnobs.ts re-clamps the limit in one useEffect.' },
+    ],
+  },
+  {
+    // The playhead reset, the stop when the bar goes and the playback timer
+    // are the three effects this hook took from App.tsx. The reset keys on the
+    // report alone: the times array is a new reference on every live knob
+    // change, and keying on it would move the playhead under a reader who only
+    // re-sorted. The grid is memoized so the memoized map and chart get one
+    // identity for it.
+    name: 'timeline-hook',
+    files: ['src/hooks/useTimeline.ts'],
+    require: [
+      { selector: EFFECT, count: 3, message: 'useTimeline.ts runs its three effects through useEffect.' },
+      { selector: keyedOnlyOn('analysisSeq'), message: 'Reset the forecast playhead in an effect keyed on analysisSeq alone.' },
+      {
+        selector: 'VariableDeclarator[id.name="forecastTimes"] > CallExpression[callee.name="useMemo"]',
+        message: 'Memoize forecastTimes for its identity.',
+      },
     ],
   },
   {
@@ -611,6 +629,8 @@ export const APP = [
       'src/hooks/useRemovals.ts',
       'src/hooks/usePresentedReport.ts',
       'src/hooks/useAnalyzeCommand.ts',
+      'src/hooks/useMapOverlays.ts',
+      'src/hooks/useTimeline.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
