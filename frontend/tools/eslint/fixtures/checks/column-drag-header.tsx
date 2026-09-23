@@ -1,5 +1,2 @@
-// Must trip: a header drag tracked on the cell, a resize that reaches the
-// reorder, and no touch hold.
-export function beginColumnResize(e: PointerEvent, cell: HTMLElement) {
-  cell.addEventListener('pointermove', () => e.preventDefault())
-}
+// Must trip: a header that lets a finger scroll the page mid-gesture.
+export const Head = () => <th className="cursor-pointer" />
