@@ -93,12 +93,23 @@ export const METRIC_BAN = ban(
 // The text-bearing sources, where a class list can be written.
 const COMPONENTS = ['src/App.tsx', 'src/components/*.tsx']
 
+// The control panel, the frame and every section it renders. The panel bans
+// are about the panel as a reader sees it, so they follow its code into
+// whichever file draws a part of it.
+const PANEL_FILES = [
+  'src/components/ControlPanel.tsx',
+  'src/components/DestinationsSection.tsx',
+  'src/components/ForecastSection.tsx',
+  'src/components/MetricsTable.tsx',
+  'src/components/PanelFooter.tsx',
+]
+
 // Every surface that puts a metric's name in front of a reader. metrics.ts
 // itself is absent on purpose: its comments quote these abbreviations to
 // explain what went wrong, which is the one place naming them is the point.
 const METRIC_SURFACES_IN_COMPONENTS = [
   'src/App.tsx',
-  'src/components/ControlPanel.tsx',
+  ...PANEL_FILES,
   'src/components/ResultsTable.tsx',
   'src/components/TimeSeriesChart.tsx',
   'src/components/TimelineTransport.tsx',
@@ -108,6 +119,9 @@ const METRIC_SURFACES_ELSEWHERE = [
   'src/utils/colors.ts',
   // The one file that writes a whole SENTENCE about a metric (#295).
   'src/utils/freezingLevel.ts',
+  // The panel's messages, which name metrics in whole sentences for the same
+  // reason.
+  'src/utils/panelMessages.ts',
   'src/utils/popupRows.ts',
   'src/utils/resultPopup.ts',
   // A downloaded file is read in a spreadsheet, where nothing around it says
@@ -166,7 +180,7 @@ export default [
     rules: { 'no-restricted-syntax': ['error', ...CLASS_BANS, METRIC_BAN] },
   },
   {
-    files: ['src/components/ControlPanel.tsx'],
+    files: PANEL_FILES,
     rules: { 'no-restricted-syntax': ['error', ...CLASS_BANS, METRIC_BAN, ...PANEL_BANS] },
   },
 

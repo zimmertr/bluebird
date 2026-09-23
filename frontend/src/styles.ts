@@ -1450,7 +1450,7 @@ export const ACCENT_RING = 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248
  * as centred amber text directly above a blocker in an amber box, saying the
  * same kind of thing in two shapes for no reason a reader could act on. Every
  * message under the Analyze button is one of these three now, and severity is
- * the only thing that varies (`FooterNotice` in `ControlPanel.tsx`).
+ * the only thing that varies (`FooterNotice` in `PanelFooter.tsx`).
  *
  * Four boxes, and before this they were four recipes. Three had settled on a
  * `-950/40` fill with a `-800/60` border and the fourth — the error, the one

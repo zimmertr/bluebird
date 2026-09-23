@@ -215,8 +215,8 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No component re-widths a segment | `styles.test.ts` | Check for `w-*` inside `SEGMENT` composition |
 | No component sets a slate text colour | `eslint.config.js` | Slate is the surface system, already covered by `TEXT`, `SURFACE_*` and `FIELD` |
 | No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
-| The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` |
-| A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in `ControlPanel.tsx` |
+| The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` and the section files it renders (`PANEL_FILES`) |
+| A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in the same files |
 | The map's edges are one inset | `styles.test.ts` | Ban a top or left inset at the map's chrome, in `App.tsx` and `map.css` alike |
 | No component dims a placeholder | `eslint.config.js` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts` | Check `CHOICE_INPUT` composition |

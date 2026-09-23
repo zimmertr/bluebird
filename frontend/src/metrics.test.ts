@@ -26,6 +26,11 @@ import { SortBy } from './types'
 // below stay a pure node test with no DOM.
 import appSource from './App.tsx?raw'
 import controlPanelSource from './components/ControlPanel.tsx?raw'
+import destinationsSource from './components/DestinationsSection.tsx?raw'
+import forecastSectionSource from './components/ForecastSection.tsx?raw'
+import metricsTableSource from './components/MetricsTable.tsx?raw'
+import panelFooterSource from './components/PanelFooter.tsx?raw'
+import panelMessagesSource from './utils/panelMessages.ts?raw'
 import resultsTableSource from './components/ResultsTable.tsx?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 import timelineTransportSource from './components/TimelineTransport.tsx?raw'
@@ -375,6 +380,13 @@ describe('precipitation formatting', () => {
 const CONSUMERS: [string, string][] = [
   ['App.tsx', appSource],
   ['ControlPanel.tsx', controlPanelSource],
+  // The panel's sections and the sentences under its button, which were one
+  // file with it until the panel was split.
+  ['DestinationsSection.tsx', destinationsSource],
+  ['ForecastSection.tsx', forecastSectionSource],
+  ['MetricsTable.tsx', metricsTableSource],
+  ['PanelFooter.tsx', panelFooterSource],
+  ['panelMessages.ts', panelMessagesSource],
   ['ResultsTable.tsx', resultsTableSource],
   ['TimeSeriesChart.tsx', timeSeriesChartSource],
   ['TimelineTransport.tsx', timelineTransportSource],
