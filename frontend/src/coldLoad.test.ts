@@ -78,7 +78,7 @@ describe('image budgets', () => {
     // `public/icon.png` keeps a stable unhashed name so a scraper can find it,
     // and the cache-header middleware answers `no-cache` for exactly that
     // reason (#354). Anything the app draws should carry a content hash.
-    const sources = import.meta.glob('./components/*.tsx', {
+    const sources = import.meta.glob(['./components/*.tsx', '!./components/*.test.tsx'], {
       query: '?raw',
       import: 'default',
       eager: true,
