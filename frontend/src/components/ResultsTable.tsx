@@ -309,7 +309,8 @@ function ResultsTable({
                   // The cell reads "⚠️ 3.2", which unlabelled announces as
                   // "link, warning three point two". The label names the fire
                   // and where it goes, in the shape every other link in this
-                  // table uses (accessibility.test.ts pins the tail).
+                  // table uses (the linter's new-tab-anchors-named check pins
+                  // the tail).
                   aria-label={`Open ${warning.name} on the NIFC map. Opens in a new tab.`}
                   className="hover:underline cursor-pointer"
                 >
@@ -444,7 +445,7 @@ function ResultsTable({
                 // The link text is the measurement itself, so unlabelled this
                 // announces as "link, 0.0000". The label names the destination
                 // and the site, never the layer: a layer name would be a metric
-                // spelled at a call site, which metrics.test.ts forbids.
+                // spelled at a call site, which the linter's metric-name ban forbids.
                 aria-label={`Open ${row.name} on Windy. Opens in a new tab.`}
                 className={"hover:underline cursor-pointer"}
               >

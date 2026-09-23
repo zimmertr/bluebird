@@ -13,9 +13,9 @@ import { SortBy } from './types'
  *
  * The rule is that a surface never writes a metric's name. It composes one from
  * here, the same way it composes its type from `styles.ts` rather than picking
- * a size. `metrics.test.ts` reads the consuming files as text and fails on a
- * literal "Precip", "Temp" or "Avg", so the next drift is a red test rather
- * than something you notice on the map months later.
+ * a size. The linter's metric-name ban reads the consuming files and fails on
+ * a literal "Precip", "Temp" or "Avg", so the next drift is a red underline
+ * rather than something you notice on the map months later.
  *
  * Two things deliberately live outside this module. Ranking *direction*
  * ("Highest" / "Lowest") is not a name, it is the second axis of the sort, and
@@ -212,8 +212,8 @@ export function formatPrecipRate(v: unknown): string {
  * these wear their universal short forms because they are modifiers, and
  * spreadsheets and weather UIs long ago taught everyone to read them. What
  * keeps the surfaces consistent is not the length of these strings but their
- * address: they exist only here, and the source lint in metrics.test.ts fails
- * any consumer that writes one by hand.
+ * address: they exist only here, and the linter's metric-name ban fails any
+ * consumer that writes one by hand.
  */
 export const AGGREGATE = {
   total: 'Total',

@@ -22,8 +22,8 @@ import {
 import { COLUMNS } from './utils/tableColumns'
 import { formatMetricValue } from './utils/chartData'
 import { SortBy } from './types'
-// `?raw` gives us each file's text without executing it, so the copy lints
-// below stay a pure node test with no DOM.
+// `?raw` gives us each file's text without executing it, so the precision
+// guard below stays a pure node test with no DOM.
 import appSource from './App.tsx?raw'
 import controlPanelSource from './components/ControlPanel.tsx?raw'
 import destinationsSource from './components/DestinationsSection.tsx?raw'
@@ -42,10 +42,6 @@ import popupRowsSource from './utils/popupRows.ts?raw'
 import resultsCsvSource from './utils/resultsCsv.ts?raw'
 import tableColumnsSource from './utils/tableColumns.ts?raw'
 import freezingLevelSource from './utils/freezingLevel.ts?raw'
-import openMeteoClientSource from './utils/openMeteo.ts?raw'
-import openMeteoAggregateSource from './utils/openMeteoAggregate.ts?raw'
-import openMeteoErrorsSource from './utils/openMeteoErrors.ts?raw'
-import presentSource from './utils/present.ts?raw'
 
 const SORTS: SortBy[] = [
   'precip_total_in',
@@ -455,42 +451,3 @@ describe('no surface picks its own precipitation precision', () => {
     expect(chart).toMatch(OWN_PRECISION)
   })
 })
-
-describe('copy lints', () => {
-  // The Open-Meteo client spells its failures across three modules, so the
-  // lints read all three as one.
-  const openMeteoSource = [
-    openMeteoClientSource,
-    openMeteoAggregateSource,
-    openMeteoErrorsSource,
-  ].join('\n')
-
-  // L3: No "the weather service" in frontend sources. Use "Open-Meteo" or
-  // restructure to avoid the phrase.
-  it('keeps "the weather service" phrase out of frontend', () => {
-    expect(openMeteoSource.match(/\bthe weather service\b/i)).toBeNull()
-    expect(presentSource.match(/\bthe weather service\b/i)).toBeNull()
-  })
-
-  // L4: No raw interpolation after "failed" in error messages. Pattern
-  // /failed: \$\{/ catches string templates that insert values without context.
-  it('wraps all error details in sentences', () => {
-    expect(openMeteoSource).not.toMatch(/failed:\s*\$\{/)
-    expect(presentSource).not.toMatch(/failed:\s*\$\{/)
-  })
-
-  // L5: No "analyze a smaller area" or "draw a smaller area" in frontend
-  // user strings. The defect-2 remedy has been replaced.
-  it('removes the defect-2 remedy phrases from frontend', () => {
-    expect(openMeteoSource).not.toMatch(/(?:analyze|draw) a smaller area/i)
-    expect(presentSource).not.toMatch(/(?:analyze|draw) a smaller area/i)
-  })
-
-  // L7: No "Please try again" or "Try again shortly" in user-facing strings.
-  // Use the standing tail instead: "Try again later."
-  it('replaces generic retry prompts with the standing tail', () => {
-    expect(openMeteoSource).not.toMatch(/Please try again|Try again shortly/i)
-    expect(presentSource).not.toMatch(/Please try again|Try again shortly/i)
-  })
-})
-

@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { debounceUrlWrite, urlNeedsSync } from './urlSync'
-// `?raw` reads the file's text without executing it, the drift-guard idiom
-// metrics.test.ts uses.
-import appSource from '../App.tsx?raw'
 
 describe('urlNeedsSync', () => {
   it('returns false when the encoded query string matches the current search', () => {
@@ -126,16 +123,5 @@ describe('debounceUrlWrite', () => {
     queue('?a=2')
     vi.advanceTimersByTime(400)
     expect(write).toHaveBeenCalledExactlyOnceWith('?a=2')
-  })
-
-  it('is the only thing in App that writes history', () => {
-    // The bug this guards: a replaceState call inside the sync effect's
-    // cleanup fires on every dependency change, not just unmount, so it
-    // writes once per keystroke and the debounce collapses nothing. One call
-    // site, handed to debounceUrlWrite, is what keeps that from returning.
-    // Matched on the qualified call, not the bare word: the surrounding
-    // comments name replaceState several times explaining why it is debounced.
-    expect(appSource.match(/window\.history\.replaceState\(/g)).toHaveLength(1)
-    expect(appSource).toMatch(/debounceUrlWrite\(\(url\) => window\.history\.replaceState/)
   })
 })

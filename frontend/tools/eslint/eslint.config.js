@@ -1,5 +1,7 @@
 import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
+import { CHECKS } from './checks/index.js'
+import { checksPlugin } from './plugin.js'
 
 // The syntactic half of what styles.test.ts and metrics.test.ts used to do by
 // reading their own sources as text (issue #379). A regex over a file's bytes
@@ -113,6 +115,8 @@ const METRIC_SURFACES_IN_COMPONENTS = [
   'src/App.tsx',
   ...PANEL_FILES,
   'src/components/ResultsTable.tsx',
+  // The table's header row, which draws every column's label.
+  'src/components/ResultsTableHeader.tsx',
   'src/components/TimeSeriesChart.tsx',
   'src/components/TimelineTransport.tsx',
 ]
@@ -185,6 +189,10 @@ export default [
     files: PANEL_FILES,
     rules: { 'no-restricted-syntax': ['error', ...CLASS_BANS, METRIC_BAN, ...PANEL_BANS] },
   },
+
+  // The per-file checks: one rule each, handed only to the files it is about.
+  // See plugin.js for their shape and checks/ for the checks themselves.
+  ...checksPlugin(CHECKS).blocks,
 
   {
     // Recharts hands its chart callbacks internal state objects, and the types
