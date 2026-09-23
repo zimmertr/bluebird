@@ -105,7 +105,7 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 26 | The cloud base's saturation threshold, Espy's rate and the ISA level heights (the wind and temperature read the same table) | `aggregation.CLOUD_SATURATION_RH`/`ESPY_M_PER_C`/`ISA_HEIGHT_M` | the same three names in `openMeteoAggregate.ts` | `mirrored_constants.json` |
 | 27 | Hourly variables the cloud request asks for | `weather.N_CLOUD_VARIABLES` | `openMeteoAggregate.CLOUD_VARIABLES` | `mirrored_constants.json` |
 | 28 | Cloud onto the weather grid | `analyze._aligned_cloud` | `clientAnalyze.alignCloud` | comments, plus each side's own tests |
-| 29 | Whether a request needs the cloud column for every candidate | `analyze._cloud_eager` | `clientAnalyze.namesOnRequestMetric` | comments, plus each side's own tests |
+| 29 | Whether a request needs the cloud column for every candidate | `analyze._cloud_eager` | `constraints.namesOnRequestMetric` | comments, plus each side's own tests |
 
 Three things here are deliberately **not** mirrors and must not become ones. Row 23 is read at runtime rather than copied. `FUTURE_LIMIT_DAYS` in `calendar.ts` is Open-Meteo's own measured accept edge, which nothing publishes and the backend does not hold. And `wind_direction_10m` is the browser's alone, which is why row 8 is off by one rather than equal.
 
