@@ -30,3 +30,7 @@ venv/
 
 # Lighthouse CI report output, written by a local audit run (#337).
 .lighthouseci/
+
+# Playwright output from a local run of the browser suite (#412).
+frontend/e2e/test-results/
+frontend/e2e/playwright-report/
