@@ -36,6 +36,9 @@ import {
   modelRowsFor,
   pairColor,
   pairKey,
+  PARTIAL_COVERAGE_NOTE,
+  partialModels,
+  type ModelEnd,
 } from './utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
@@ -160,6 +163,7 @@ import {
   refreshEchoRows,
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
+import { restoredFramePoints } from './utils/mapFraming'
 import {
   buildCustomList,
   pendingAsResult,
@@ -390,6 +394,9 @@ const NO_CUSTOM: ReadonlySet<string> = new Set()
 // because the comparison composes every line itself. A module constant so the
 // chart's line memo is not rebuilt by a fresh empty array on every render.
 const NO_CHART_ROWS: DestinationResult[] = []
+// No compared model ends early: one identity, so the memo below hands the same
+// empty list on every render where nothing is short.
+const NO_PARTIAL_MODELS: readonly ModelEnd[] = []
 
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
@@ -449,10 +456,10 @@ export default function App() {
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
 
-  // Custom CSV points restored from the URL, parsed once — MapView frames them
-  // on load instead of geolocating, mirroring the restored-polygon behavior.
-  const restoredCustomPoints = useMemo(
-    () => (restored?.customCsv ? parseCustomCsv(restored.customCsv) : []),
+  // Every point destination the URL restores (CSV rows and searched places),
+  // built once so the memoized MapView frames them on load beside the ring.
+  const restoredPoints = useMemo(
+    () => restoredFramePoints(restored?.customCsv ?? '', restored?.pins ?? []),
     [restored],
   )
 
@@ -1760,6 +1767,9 @@ export default function App() {
         pendingRows: pending.map(pendingAsResult),
         fireUncovered: fire.uncovered,
         modelLabel: analysisModelLabel,
+        // The file states where each short model ends, where the screen marks
+        // the cells: a spreadsheet can compute the covered hours from a date.
+        modelEnds: partial,
       },
     )
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
@@ -2008,8 +2018,19 @@ export default function App() {
       forecastModel,
       compare.results,
       chartKey,
+      compare.reachEnds,
     )
-  }, [comparingRows, results, compare.shown, compare.results, forecastModel])
+  }, [comparingRows, results, compare.shown, compare.results, compare.reachEnds, forecastModel])
+
+  // The compared models whose rows on display cover fewer hours than the
+  // window, in the picker's order. One derivation for the table's footnote and
+  // the file's metadata rows, so the two cannot name different models.
+  const partial = useMemo(
+    () => (comparedTableRows ? partialModels(compare.shown, comparedTableRows) : NO_PARTIAL_MODELS),
+    [comparedTableRows, compare.shown],
+  )
+  // A string rather than the list, so the memoized table compares it by value.
+  const partialNote = partial.length > 0 ? PARTIAL_COVERAGE_NOTE : null
 
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
@@ -2319,7 +2340,7 @@ export default function App() {
             drawing={drawing}
             pointedPois={poisPointed}
             polygon={polygon}
-            restoredCustomPoints={restoredCustomPoints}
+            restoredPoints={restoredPoints}
             onPolygonChange={setPolygon}
             onDrawUpdate={handleDrawUpdate}
             results={results}
@@ -2983,7 +3004,7 @@ export default function App() {
                               timelineAxes.includes('forecast') ? movePlayheadTo : undefined
                             }
                             extraLines={compare.lines}
-                            cutAfterMs={compare.endMs}
+                            modelEnds={compare.endLines}
                             controls={
                               compare.active ? (
                                 <ModelCompare
@@ -3082,6 +3103,7 @@ export default function App() {
                         isCharted={chart.isSelected}
                         chartColor={rowChartColor}
                         onChartRange={chart.setRange}
+                        partialNote={partialNote}
                       />
                     </div>
                   </>

@@ -1,12 +1,37 @@
 /**
- * The two decisions behind a framing move: whether to make one at all, and how
- * much of the container the camera has to leave empty.
+ * The decisions behind a framing move: what a link's opening frame covers,
+ * whether to make a move at all, and how much of the container the camera has
+ * to leave empty.
  *
  * Split out of `MapView` because that component has no test at all: MapLibre
  * needs a WebGL canvas, which jsdom does not provide, so the only way either gets
  * covered is by taking the projection and the measurements as input rather than
  * reading them off a map.
  */
+
+import type { Place } from './geocode'
+import { parseCustomCsv } from './customDestinations'
+
+/**
+ * Every point destination a shared link restores, as one list for the opening
+ * frame: the pasted CSV rows first, then the searched places, in URL order.
+ *
+ * The opening frame must union every restored input, or a link carrying only
+ * one kind opens on the default camera (#502, where searched places were
+ * skipped). The union lives here rather than in `MapView` because that
+ * component cannot be tested, and this is the part that can be wrong. The
+ * polygon is not in it: `MapView` reads the ring from `restoredPolygonRef`,
+ * which a Clear pressed before `load` can empty (#453).
+ */
+export function restoredFramePoints(
+  customCsv: string,
+  pins: Place[],
+): { latitude: number; longitude: number }[] {
+  return [
+    ...parseCustomCsv(customCsv).map(({ latitude, longitude }) => ({ latitude, longitude })),
+    ...pins.map(({ lat, lon }) => ({ latitude: lat, longitude: lon })),
+  ]
+}
 
 /**
  * Is every one of these already-projected points comfortably inside the canvas?

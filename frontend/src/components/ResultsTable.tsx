@@ -101,6 +101,10 @@ interface Props {
   // map keeps its natural width — see utils/columnResize.ts for the model.
   columnWidths?: Record<string, number>
   onColumnWidthsChange?: (widths: Record<string, number>) => void
+  // The one line under the table that says what a `*` in a cell means: a
+  // compared model ends inside the window, so its aggregates cover fewer hours
+  // (#493). Null when no row on display is short.
+  partialNote?: string | null
 }
 
 function ResultsTable({
@@ -131,6 +135,7 @@ function ResultsTable({
   onChartRange,
   columnWidths,
   onColumnWidthsChange,
+  partialNote = null,
 }: Props) {
   // Memoized because every row is memoized on it.
   const coloredGroup = useMemo(() => new Set<string>(FAMILY_KEYS[familyOf(sortBy)]), [sortBy])
@@ -255,6 +260,21 @@ function ResultsTable({
             )}
           </FireClock>
         </tbody>
+        {partialNote && (
+          <tfoot>
+            <tr>
+              {/* A table row rather than a line after the table, for the
+                  empty-reason row's reason: the pinned block needs a cell as
+                  wide as the table to travel in. A block after the table is
+                  only as wide as the scroll box, so it scrolls out of view as
+                  soon as a wide comparison table is scrolled sideways, which
+                  every one on a phone is. */}
+              <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
+                <div className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>{partialNote}</div>
+              </td>
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   )

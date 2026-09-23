@@ -9,11 +9,11 @@ import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
 import {
   cellColor,
-  cellText,
   fireCell,
   modelCellText,
   pendingChartRow,
   pendingLinkRow,
+  rowCellText,
   unavailableCell,
   windyCellUrl,
 } from '../utils/resultsCells'
@@ -217,7 +217,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
       </td>
     )
   }
-  const display = cellText(col, raw)
+  const display = rowCellText(row, col, raw)
   // Color comes from the table's own base, or inline for a ranked column: an
   // inline color beats the inherited one either way.
   const cellClass = `${TABLE.cell} whitespace-nowrap ${key === 'name' ? 'font-sans font-medium' : 'font-mono'}`

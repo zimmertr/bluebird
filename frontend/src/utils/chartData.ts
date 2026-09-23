@@ -243,38 +243,6 @@ export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): numb
 }
 
 /**
- * The same series with every hour after `endMs` dropped.
- *
- * What a model comparison's clamp is made of (#232): the lines have to stop
- * together or their shapes are not answers to one question. Null rather than a
- * shorter array, so every line stays index-aligned to the chart's grid and the
- * x-axis keeps its full extent — the empty stretch on the right IS the statement
- * that the comparison stops there.
- */
-export function cutSeriesAfter(
-  times: readonly number[],
-  series: HourlySeries | null | undefined,
-  endMs: number | null,
-): HourlySeries | null {
-  if (!series) return null
-  if (endMs === null || times.length === 0 || times[times.length - 1] <= endMs) {
-    return series
-  }
-  const keep = (values: readonly (number | null)[]): (number | null)[] =>
-    times.map((t, i) => (t > endMs ? null : values[i] ?? null))
-  return {
-    precip_in: keep(series.precip_in),
-    temp_f: keep(series.temp_f),
-    wind_mph: keep(series.wind_mph),
-    freeze_ft: keep(series.freeze_ft),
-    aqi: keep(series.aqi),
-    ...(series.cloud_base_ft ? { cloud_base_ft: keep(series.cloud_base_ft) } : {}),
-    ...(series.cloud_cover_pct ? { cloud_cover_pct: keep(series.cloud_cover_pct) } : {}),
-    ...(series.wind_dir_deg ? { wind_dir_deg: keep(series.wind_dir_deg) } : {}),
-  }
-}
-
-/**
  * One plotted hour, as the tooltip prints it.
  *
  * A point on this chart is a single hour's value, which is the number the
