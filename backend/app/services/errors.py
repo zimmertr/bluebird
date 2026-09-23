@@ -15,7 +15,7 @@ class UpstreamError(Exception):
     ``ReadTimeout('')``.
     """
 
-    def __init__(self, message: str):
+    def __init__(self, message: str) -> None:
         super().__init__(message)
         self.message = message
 
@@ -36,7 +36,7 @@ class UpstreamRateLimited(UpstreamError):
         scope: str | None,
         retry_after_s: int,
         message: str,
-    ):
+    ) -> None:
         super().__init__(message)
         self.provider = provider
         self.scope = scope  # "minutely" | "hourly" | "daily" | None
@@ -66,7 +66,7 @@ class ModelCoverageError(UpstreamError):
     than waiting or drawing smaller.
     """
 
-    def __init__(self, model: str, message: str):
+    def __init__(self, model: str, message: str) -> None:
         super().__init__(message)
         self.model = model
 

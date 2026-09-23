@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -156,7 +157,7 @@ _TAGS = [
 ]
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Metrics live on their own port (METRICS_PORT, default 9464), never on
     # this app: the public gateway allowlist filters /api/* only, so a
     # /metrics route here would be a public one (see telemetry.py).

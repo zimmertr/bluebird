@@ -33,7 +33,7 @@ import asyncio
 import logging
 import math
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import Request
@@ -163,7 +163,7 @@ def client_key(request: Request) -> str:
 class _TokenBucket:
     __slots__ = ("capacity", "rate_per_s", "tokens", "updated")
 
-    def __init__(self, capacity: float, rate_per_s: float, now: float):
+    def __init__(self, capacity: float, rate_per_s: float, now: float) -> None:
         self.capacity = capacity
         self.rate_per_s = rate_per_s
         self.tokens = capacity
@@ -219,7 +219,7 @@ class RateLimiter:
         name: str = "",
         max_keys: int = 10_000,
         clock: Callable[[], float] = time.monotonic,
-    ):
+    ) -> None:
         self._per_minute = per_minute
         self._burst = max(1, burst)
         # The bucket's name in the throttle metric; keyword-only so the many
@@ -280,7 +280,7 @@ class BudgetExhausted(Exception):
     under load, not a bug.
     """
 
-    def __init__(self, provider: str, retry_after_s: int = SHED_RETRY_AFTER_S):
+    def __init__(self, provider: str, retry_after_s: int = SHED_RETRY_AFTER_S) -> None:
         self.provider = provider
         self.retry_after_s = retry_after_s
         self.message = "Bluebird Forecast is busy. Try again later."
@@ -294,14 +294,14 @@ class UpstreamBudget:
     that long sheds with ``BudgetExhausted`` instead of stacking waiters.
     """
 
-    def __init__(self, provider: str, capacity: int, *, wait_s: float | None = None):
+    def __init__(self, provider: str, capacity: int, *, wait_s: float | None = None) -> None:
         self.provider = provider
         self.capacity = max(1, capacity)
         self._wait_s = float(UPSTREAM_BUDGET_WAIT_S if wait_s is None else wait_s)
         self._sem = asyncio.Semaphore(self.capacity)
 
     @asynccontextmanager
-    async def slot(self):
+    async def slot(self) -> AsyncIterator[None]:
         queued_from = time.perf_counter()
         try:
             await asyncio.wait_for(self._sem.acquire(), timeout=self._wait_s)
@@ -341,7 +341,7 @@ class MinIntervalGate:
         *,
         max_wait_s: float = 5.0,
         clock: Callable[[], float] = time.monotonic,
-    ):
+    ) -> None:
         self.provider = provider
         self._interval = max(0.0, interval_s)
         self._max_wait = max_wait_s
@@ -396,7 +396,7 @@ class WeightedBudget:
         *,
         max_wait_s: float | None = None,
         clock: Callable[[], float] = time.monotonic,
-    ):
+    ) -> None:
         self.provider = provider
         self.per_minute = per_minute
         self._rate = per_minute / 60.0

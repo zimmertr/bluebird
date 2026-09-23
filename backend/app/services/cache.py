@@ -66,7 +66,7 @@ class TTLCache:
         ttl_s: float,
         *,
         clock: Callable[[], float] = time.monotonic,
-    ):
+    ) -> None:
         self._max = max(1, max_entries)
         self._ttl = ttl_s
         self._clock = clock
