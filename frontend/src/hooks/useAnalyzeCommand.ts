@@ -70,13 +70,31 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
     // synchronously (and closes it), falling back to the app's polygon before
     // the map has loaded.
     const polygon = drawPointCount >= 3 ? mapRef.current?.finishDrawing() ?? inputs.polygon : null
-    const plan = planAnalysis({
-      ...inputs,
+    // Every field named, never the input bag spread: a spread skips the
+    // excess-property check, and the planner must not receive the refs and
+    // setters it has no business with. `satisfies` keeps the literal exact.
+    const planned = {
       kind: selection.kind,
       window: { start: new Date(local.start).toISOString(), end: new Date(local.end).toISOString() },
       polygon,
+      destinationTypes: inputs.destinationTypes,
+      includeUnnamedPeaks: inputs.includeUnnamedPeaks,
+      csvRows: inputs.csvRows,
+      places: inputs.places,
+      destinationScope: inputs.destinationScope,
+      forecastModel: inputs.forecastModel,
+      comparedModels: inputs.comparedModels,
+      limit: inputs.limit,
+      sortBy: inputs.sortBy,
+      sortDesc: inputs.sortDesc,
+      constraints: inputs.constraints,
+      universe: inputs.universe,
+      results: inputs.results,
+      removedKeys: inputs.removedKeys,
+      hasResults: inputs.hasResults,
       previous: discoveryRef.current,
-    })
+    } satisfies AnalyzeInputs
+    const plan = planAnalysis(planned)
 
     clearRemovalsForScope(plan.removalScope)
 

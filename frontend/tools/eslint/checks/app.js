@@ -292,6 +292,12 @@ export const APP = [
     files: ['src/hooks/useAnalyzeCommand.ts'],
     ban: [
       { selector: `${AWAITS_ANALYSIS} ~ ${OPEN_RESULTS}`, message: 'Open the results area before awaiting the analysis, not after.' },
+      {
+        // A spread skips TypeScript's excess-property check, so the pure
+        // planner would receive the refs and setters the bag also carries.
+        selector: 'ObjectExpression > SpreadElement[argument.name="inputs"]',
+        message: 'Name each planAnalysis field rather than spreading the input bag.',
+      },
     ],
     require: [
       { selector: `${OPEN_RESULTS} ~ ${AWAITS_ANALYSIS}`, message: 'Open the results area with willRank ahead of the analysis await.' },

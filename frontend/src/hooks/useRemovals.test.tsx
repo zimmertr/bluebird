@@ -85,4 +85,30 @@ describe('useRemovals', () => {
     act(() => result.current.clearForScope('b'))
     expect(result.current.removed.size).toBe(0)
   })
+
+  // A row the browser still holds comes back by unhiding alone: on the server
+  // path the trimmed response rows are what it holds, and a pasted line is
+  // held by the textarea, whose text survives the ×.
+  it('unhides a row held by the response rows or the pasted list, with no place', () => {
+    const key = geoKey(RAINIER_ROW.latitude, RAINIER_ROW.longitude)
+    const response = { results: [RAINIER_ROW], total_queried: 1, total_matched: 1 }
+    const pasted = [{ name: 'Rainier', latitude: RAINIER_ROW.latitude, longitude: RAINIER_ROW.longitude }]
+    for (const over of [{ universe: null, response }, { universe: null, csvRows: pasted }]) {
+      const addPlace = vi.fn()
+      const { result } = renderHook(() => useRemovals(inputs({ addPlace, ...over })))
+      act(() => result.current.removeResult(RAINIER_ROW))
+      act(() => result.current.restoreRemoved(key))
+      expect(result.current.removed.size).toBe(0)
+      expect(addPlace).not.toHaveBeenCalled()
+    }
+  })
+
+  // The control: with nothing holding the row, a restore re-registers a place.
+  it('re-registers a place when nothing holds the row', () => {
+    const addPlace = vi.fn()
+    const { result } = renderHook(() => useRemovals(inputs({ addPlace, universe: null })))
+    act(() => result.current.removeResult(RAINIER_ROW))
+    act(() => result.current.restoreRemoved(geoKey(RAINIER_ROW.latitude, RAINIER_ROW.longitude)))
+    expect(addPlace).toHaveBeenCalledTimes(1)
+  })
 })

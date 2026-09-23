@@ -138,4 +138,32 @@ describe('useResultsLayout', () => {
     expect(result.current.chooseResultsMode).toBe(before.chooseResultsMode)
     expect(result.current.toggleCollapsed).toBe(before.toggleCollapsed)
   })
+
+  // The sheet's MEASURED height is what the map's bottom chrome rides on a
+  // phone. The measurement runs after every render on purpose (no deps), so a
+  // height that changes without any input changing is still caught.
+  it('lifts the map chrome by the measured sheet on a phone, after every render', () => {
+    setDesktopQuery(false)
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    let height = 321
+    const sheet = document.createElement('div')
+    sheet.getBoundingClientRect = () => ({ height }) as DOMRect
+    const phone = { ...DESKTOP, isDesktop: false }
+    const { result, rerender } = renderHook(() => useResultsLayout(phone))
+    act(() => {
+      result.current.sheetRef.current = sheet
+    })
+    rerender()
+    expect(result.current.sheetLiftPx).toBe(321)
+    expect(result.current.mapCornerLift).toBe(321)
+    height = 400
+    rerender()
+    expect(result.current.sheetLiftPx).toBe(400)
+  })
 })

@@ -17,6 +17,7 @@ const NO_KEYS: ReadonlySet<string> = new Set()
 function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
   const calls: string[] = []
   const requests: AnalyzeRequest[] = []
+  const scopes: string[] = []
   const waiting: (() => void)[] = []
   const map = { finishDrawing: vi.fn(() => RING) }
   const inputs: AnalyzeCommandInputs = {
@@ -49,11 +50,14 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
     reset: () => calls.push('reset'),
     finishDrawing: () => calls.push('finishDrawing'),
     forgetPreClamp: () => calls.push('forgetPreClamp'),
-    clearRemovalsForScope: () => calls.push('clearRemovals'),
+    clearRemovalsForScope: (scope) => {
+      calls.push('clearRemovals')
+      scopes.push(scope)
+    },
     setShowResults: (show) => calls.push(`showResults:${show}`),
     ...over,
   }
-  return { inputs, calls, requests, finish: () => act(async () => waiting.splice(0).forEach((resolve) => resolve())) }
+  return { inputs, calls, requests, scopes, finish: () => act(async () => waiting.splice(0).forEach((resolve) => resolve())) }
 }
 
 describe('useAnalyzeCommand', () => {
@@ -130,5 +134,18 @@ describe('useAnalyzeCommand', () => {
     const { result } = renderHook(() => useAnalyzeCommand(r.inputs))
     await act(() => result.current.handleAnalyze())
     expect(r.calls).toEqual(['finishDrawing', 'forgetPreClamp', 'clearRemovals', 'reset', 'showResults:true'])
+  })
+
+  // Before the map loads there is no handle to snapshot, and the ring the app
+  // holds (a restored link's) is the one that goes out. The removal scope is
+  // that ring plus the authored inputs.
+  it('falls back to the held ring before the map loads, and scopes removals to it', async () => {
+    const r = recorder({ mapRef: { current: null }, universe: null, results: [], hasResults: false })
+    const { result } = renderHook(() => useAnalyzeCommand(r.inputs))
+    const run = result.current.handleAnalyze()
+    await r.finish()
+    await act(() => run)
+    expect(r.requests[0].polygon).toEqual(RING)
+    expect(r.scopes).toEqual([JSON.stringify({ ring: RING.coordinates[0], authored: 'scope' })])
   })
 })
