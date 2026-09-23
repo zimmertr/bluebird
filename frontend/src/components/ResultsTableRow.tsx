@@ -19,7 +19,7 @@ import {
 } from '../utils/resultsCells'
 import { CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
-import { sized } from './ResultsTableHeader'
+import { sized } from './sizedCell'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to

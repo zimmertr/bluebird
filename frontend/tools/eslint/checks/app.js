@@ -106,11 +106,16 @@ export const APP = [
     // React.memo is worth nothing if the parent hands a fresh value on every
     // render. MapView's own memo is the `map-view-wiring` check in map.js.
     name: 'app-memoized',
-    files: ['src/components/ResultsTable.tsx', 'src/components/ResultsTableRow.tsx', 'src/components/TimeSeriesChart.tsx'],
+    files: [
+      'src/components/ResultsTable.tsx',
+      'src/components/ResultsTableRow.tsx',
+      'src/components/ResultsTableHeader.tsx',
+      'src/components/TimeSeriesChart.tsx',
+    ],
     require: [
       {
         selector:
-          'ExportDefaultDeclaration > CallExpression[callee.name="memo"] > Identifier[name=/^(ResultsTable|ResultsTableRow|TimeSeriesChart)$/]',
+          'ExportDefaultDeclaration > CallExpression[callee.name="memo"] > Identifier[name=/^(ResultsTable|ResultsTableRow|ResultsTableHeader|TimeSeriesChart)$/]',
         count: 1,
         message: 'Export the component as memo(Component).',
       },

@@ -5,6 +5,7 @@ import ResultsTableHeader from './ResultsTableHeader'
 import { displayedColumns } from '../utils/tableColumns'
 import { DRAG_THRESHOLD_PX } from '../utils/columnDrag'
 import { placeAt, render } from '../testSupport/render'
+import { resultRow } from '../testSupport/fixtures'
 
 type Props = ComponentProps<typeof ResultsTableHeader>
 
@@ -104,5 +105,76 @@ describe('moving a column', () => {
     fireEvent.click(from)
     expect(onColumnMove).not.toHaveBeenCalled()
     expect(onDetailSort).toHaveBeenCalledWith('name', 'desc')
+  })
+})
+
+describe('a drag that ends away from its header', () => {
+  it('lets the next real click sort', async () => {
+    const onDetailSort = vi.fn()
+    renderHeader(props({ onColumnMove: vi.fn(), onDetailSort }))
+    COLUMNS.forEach((col, i) => {
+      placeAt(document.querySelector(`th[data-col="${col.key as string}"]`)!, { left: i * 100, top: 0, width: 100, height: 24 })
+    })
+    fireEvent.pointerDown(header(/^Name/), { clientX: 50, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'mouse' })
+    // Released over another header: a browser fires no click for it.
+    fireEvent.pointerUp(document)
+    await new Promise((r) => setTimeout(r, 0))
+    fireEvent.click(header(/^Elevation/))
+    expect(onDetailSort).toHaveBeenCalledWith('elevation_ft', 'asc')
+  })
+})
+
+describe('the resize handle', () => {
+  it('neither sorts nor starts a column move', () => {
+    const onDetailSort = vi.fn()
+    const onColumnMove = vi.fn()
+    const onColumnWidthsChange = vi.fn()
+    renderHeader(props({ onDetailSort, onColumnMove, onColumnWidthsChange, columnWidths: { name: 100 } }))
+    const grip = header(/^Name/).querySelector('[aria-hidden="true"]')!
+    fireEvent.pointerDown(grip, { clientX: 100, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerMove(document, { clientX: 300, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerUp(document)
+    fireEvent.click(grip)
+    expect(onColumnWidthsChange).toHaveBeenCalled()
+    expect(onColumnMove).not.toHaveBeenCalled()
+    expect(onDetailSort).not.toHaveBeenCalled()
+  })
+
+  it('fits the column on a double-click, without sorting', () => {
+    const onDetailSort = vi.fn()
+    const onColumnWidthsChange = vi.fn()
+    const tableRef = { current: null as HTMLTableElement | null }
+    const { container } = renderHeader(props({ onDetailSort, onColumnWidthsChange, columnWidths: {}, tableRef }))
+    tableRef.current = container.querySelector('table')
+    const grip = header(/^Name/).querySelector('[aria-hidden="true"]')!
+    fireEvent.doubleClick(grip)
+    expect(onColumnWidthsChange).toHaveBeenCalledWith({ name: expect.any(Number) })
+    expect(onDetailSort).not.toHaveBeenCalled()
+  })
+})
+
+describe('the chart-all box', () => {
+  const ROWS = [resultRow({ name: 'A' }), resultRow({ name: 'B', latitude: 47 })]
+
+  it('reads some as a dash and selects every row', async () => {
+    const onChartRange = vi.fn()
+    const { user } = renderHeader(props({ showChartCol: true, chartableRows: ROWS, headState: 'some', onChartRange }))
+    const box = screen.getByRole('checkbox', { name: 'Chart all destinations' }) as HTMLInputElement
+    expect(box.indeterminate).toBe(true)
+    await user.click(box)
+    expect(onChartRange).toHaveBeenCalledWith(ROWS, true)
+  })
+
+  it('clears every row when all are charted', async () => {
+    const onChartRange = vi.fn()
+    const { user } = renderHeader(props({ showChartCol: true, chartableRows: ROWS, headState: 'all', onChartRange }))
+    await user.click(screen.getByRole('checkbox', { name: 'Chart all destinations' }))
+    expect(onChartRange).toHaveBeenCalledWith(ROWS, false)
+  })
+
+  it('is absent while there is nothing to chart', () => {
+    renderHeader(props({ showChartCol: true, onChartRange: vi.fn() }))
+    expect(screen.queryByRole('checkbox')).toBeNull()
   })
 })

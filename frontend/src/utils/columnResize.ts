@@ -1,9 +1,10 @@
 // Column-width arithmetic for the results table (#242 review).
 //
-// The DOM work — measuring headers, tracking a drag, reading a column's
-// cells — stays in ResultsTable; everything that decides a NUMBER lives here,
-// because Vitest runs with no DOM and logic left in the component is
-// untestable by construction (the listbox/calendar split, applied again).
+// The DOM work (measuring headers and reading a column's cells) is
+// columnMeasure.ts, and tracking a drag is useColumnResize; everything that
+// decides a NUMBER lives here, because Vitest runs with no DOM and logic left
+// in the component is untestable by construction (the listbox/calendar split,
+// applied again).
 //
 // The width model: `columnWidths` holds only columns someone has decided —
 // a drag, a double-click auto-fit, or the automatic Name narrowing below.
