@@ -3,7 +3,7 @@
  * finding 3).
  *
  * The module `Map` below holds forecasts for 15 minutes, which is the
- * same freshness the pod's own cache keeps and the same window `useAnalyze.ts`
+ * same freshness the pod's own cache keeps and the same window `forecastReuse.ts`
  * will reuse a held field inside. A reload emptied it, so a visitor who
  * refreshed the page re-spent their own Open-Meteo quota on coordinates the
  * browser had already paid for. Quota is the scarcest thing this app spends.

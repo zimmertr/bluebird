@@ -366,7 +366,7 @@ export interface ClientAnalysisCallbacks {
   //
   // The CALLER owns the question of whether reuse is legal — identical window
   // and model, and recent enough — because it is the only layer that knows
-  // when the held rows were fetched (`FORECAST_REUSE_MS` in useAnalyze.ts).
+  // when the held rows were fetched (`FORECAST_REUSE_MS` in forecastReuse.ts).
   // Passing rows from a different window here would silently mix two
   // forecasts into one report.
   reuse?: { rows: readonly DestinationResult[]; times: readonly number[] } | null

@@ -113,7 +113,8 @@ export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetr
   // The dismissal ledger (#253): every footer message is dismissable, each
   // alone. `pruneDismissals` retires a dismissal the moment its key stops
   // being active, which is what makes an identical error return after the
-  // next Analyze (`useAnalyze` nulls both event states before it fetches)
+  // next Analyze (`useAnalysisRun.clearEvents` nulls both event states
+  // before it fetches)
   // and a cleared-then-retriggered warning return — while panning, sorting
   // and knob twiddling, which change no key, resurface nothing. Local state
   // on purpose: the panel stays mounted while closed, and a dismissal is
