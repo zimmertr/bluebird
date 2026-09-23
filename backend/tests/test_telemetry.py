@@ -527,7 +527,7 @@ def test_overpass_failure_counts_fallback_and_success_counts_mirror(monkeypatch)
                 raise httpx.ConnectTimeout("slow", request=httpx.Request("POST", url))
             return fake_response({"elements": []})
 
-    monkeypatch.setattr(osm_mod.httpx, "AsyncClient", _Client)
+    monkeypatch.setattr(osm_mod.mirrors.httpx, "AsyncClient", _Client)
 
     fallback_before = _value("bluebird_forecast_overpass_fallback_total", {"mirror": first})
     timeout_before = _value(

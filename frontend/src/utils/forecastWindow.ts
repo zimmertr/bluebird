@@ -1,5 +1,5 @@
 // The client-side twin of the backend's window normalization
-// (models.py `window_within_servable_range`). Only the branches the SPA can
+// (models/analyze.py `window_within_servable_range`). Only the branches the SPA can
 // reach are ported: the app always sends BOTH timestamps (point modes send
 // start == end), so the forecast_mode inference for missing timestamps is
 // server-only territory and deliberately not duplicated here.
@@ -36,7 +36,7 @@ const DAY_MS = 86_400_000
 // fallback and the published value agree by test rather than by luck.
 
 // Mirror of `ARCHIVE_DATA_DAYS` + its slack and `FUTURE_LIMIT_SLACK_DAYS` in
-// `backend/app/models.py`. The past bound follows the ARCHIVE's reach rather
+// `backend/app/limits.py`. The past bound follows the ARCHIVE's reach rather
 // than the forecast endpoint's, because a window older than the forecast
 // endpoint's own data is answered from the archive (see `windowSource`).
 export const PAST_LIMIT_SLACK_DAYS = 375
@@ -44,7 +44,7 @@ export const FUTURE_LIMIT_SLACK_DAYS = 17
 
 // Where the forecast endpoint's own data stops, and therefore the boundary
 // between the two endpoints. Mirror of `PAST_DATA_DAYS` in
-// `backend/app/models.py`, which carries the per-model measurements behind it:
+// `backend/app/limits.py`, which carries the per-model measurements behind it:
 // past roughly two months every model answers 200 with an hourly array of
 // nulls, and this is one conservative floor for all of them.
 export const PAST_DATA_DAYS = 55
@@ -55,7 +55,7 @@ export const PAST_DATA_DAYS = 55
 // draws can straddle the boundary by up to 14 hours. Without the tolerance that
 // one day would be split across two datasets and joined at a seam 14 hours into
 // it, although the forecast endpoint holds the whole of it. Mirror of
-// `ARCHIVE_STRADDLE_DAYS` in `backend/app/models.py`.
+// `ARCHIVE_STRADDLE_DAYS` in `backend/app/limits.py`.
 export const ARCHIVE_STRADDLE_DAYS = 1
 
 /**
@@ -102,7 +102,7 @@ export type WindowSource = 'forecast' | 'archive' | 'spanning'
  * panel names the two days it falls between. A second spelling could put the
  * seam an hour from where the classification believed it was.
  *
- * Mirror of `archive_boundary` in `backend/app/models.py`.
+ * Mirror of `archive_boundary` in `backend/app/limits.py`.
  */
 export function archiveBoundaryMs(
   nowMs: number = Date.now(),
@@ -124,7 +124,7 @@ export function archiveBoundaryMs(
  * opens resolves to the archive, which holds every hour in it rather than
  * relying on the forecast endpoint's ragged tail.
  *
- * Mirror of `window_source` in `backend/app/models.py`, with the same example
+ * Mirror of `window_source` in `backend/app/limits.py`, with the same example
  * table in both test suites.
  */
 export function windowSource(

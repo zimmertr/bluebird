@@ -37,7 +37,7 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
     async def fake_post(query, on_status=None):
         return canned
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     results = await osm.query_osm(POLY, [DestinationType.peak])
 
     names = [r["name"] for r in results]
@@ -53,7 +53,7 @@ async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
     async def fake_post(query, on_status=None):
         return canned
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     results = await osm.query_osm(POLY, [DestinationType.peak])
     # 1000 m * 3.28084 ft/m, rounded to whole feet.
     assert results[0]["elevation_ft"] == 3281.0
@@ -65,7 +65,7 @@ async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
     async def fake_post(query, on_status=None):
         return canned
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     results = await osm.query_osm(POLY, [DestinationType.peak])
     assert results[0]["elevation_ft"] is None
 
@@ -79,7 +79,7 @@ async def test_query_osm_peak_query_includes_volcanoes(monkeypatch):
         captured["query"] = query
         return {"elements": []}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     await osm.query_osm(POLY, [DestinationType.peak])
     assert 'node["natural"="peak"]["name"]' in captured["query"]
     assert 'node["natural"="volcano"]["name"]' in captured["query"]
@@ -102,7 +102,7 @@ async def test_several_types_are_one_query_not_one_each(monkeypatch):
         calls.append(query)
         return {"elements": []}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     await osm.query_osm(POLY, [DestinationType.peak, DestinationType.lake])
 
     assert len(calls) == 1
@@ -131,7 +131,7 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
     async def fake_post(query, on_status=None):
         return canned
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     results = await osm.query_osm(
         POLY, [DestinationType.peak, DestinationType.lake, DestinationType.trailhead]
     )
@@ -148,7 +148,7 @@ async def test_type_order_does_not_change_the_query_or_the_cache_key(monkeypatch
         queries.append(query)
         return {"elements": []}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     await osm.query_osm(POLY, [DestinationType.lake, DestinationType.peak])
     # A second ask in the other order is served from the first one's cache.
     await osm.query_osm(POLY, [DestinationType.peak, DestinationType.lake])
@@ -163,7 +163,7 @@ async def test_no_types_asks_nothing(monkeypatch):
     async def fake_post(query, on_status=None):
         raise AssertionError("no types requested, so Overpass must not be called")
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     assert await osm.query_osm(POLY, []) == []
 
 
@@ -201,7 +201,7 @@ def test_mirror_order_and_timeouts_match_measurements():
     # Guard for issue #177 (measured 2026-07-28): overpass-api.de 12-17s,
     # mail.ru 38.8s, kumi 77-108s. Reordering or retuning this table should
     # come with fresh measurements (or #77 telemetry) in hand — update the
-    # dated comment in osm.py alongside this test.
+    # dated comment in osm/mirrors.py alongside this test.
     assert [m.url for m in osm.OVERPASS_MIRRORS] == [
         "https://overpass-api.de/api/interpreter",
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
@@ -219,7 +219,7 @@ async def test_post_with_fallback_recovers_on_second_endpoint(monkeypatch):
         statuses.append(msg)
 
     fake = _FakeClient([httpx.ConnectError("down"), fake_response({"elements": []})])
-    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     result = await osm._post_with_fallback("q", on_status)
     assert result == {"elements": []}
@@ -230,7 +230,7 @@ async def test_post_with_fallback_recovers_on_second_endpoint(monkeypatch):
 
 async def test_post_with_fallback_all_endpoints_fail(monkeypatch):
     fake = _FakeClient([httpx.ConnectError("a"), httpx.ConnectError("b"), httpx.ConnectError("c")])
-    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     with pytest.raises(UpstreamError):
         await osm._post_with_fallback("q")
@@ -248,7 +248,7 @@ async def test_post_with_fallback_skips_saturated_mirror(monkeypatch):
         dataclasses.replace(osm.OVERPASS_MIRRORS[0], budget=saturated),
         *osm.OVERPASS_MIRRORS[1:],
     ]
-    monkeypatch.setattr(osm, "OVERPASS_MIRRORS", mirrors)
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
 
     statuses: list[str] = []
 
@@ -256,7 +256,7 @@ async def test_post_with_fallback_skips_saturated_mirror(monkeypatch):
         statuses.append(msg)
 
     fake = _FakeClient([fake_response({"elements": []})])
-    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     result = await osm._post_with_fallback("q", on_status)
     assert result == {"elements": []}
@@ -273,10 +273,10 @@ async def test_post_with_fallback_all_mirrors_saturated_raises(monkeypatch):
         budget = ratelimit.UpstreamBudget("test (saturated)", 1, wait_s=0.01)
         await budget._sem.acquire()
         mirrors.append(dataclasses.replace(m, budget=budget))
-    monkeypatch.setattr(osm, "OVERPASS_MIRRORS", mirrors)
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
 
     fake = _FakeClient([])
-    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     with pytest.raises(ratelimit.BudgetExhausted):
         await osm._post_with_fallback("q")
@@ -290,7 +290,7 @@ async def test_post_with_fallback_rejects_partial_remark(monkeypatch):
     partial = fake_response({"remark": "runtime error: Query timed out in 'query'", "elements": [{"type": "node"}]})
     clean = fake_response({"elements": []})
     fake = _FakeClient([partial, clean])
-    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     result = await osm._post_with_fallback("q")
     assert result == {"elements": []}
@@ -300,7 +300,7 @@ async def test_post_with_fallback_rejects_partial_remark(monkeypatch):
 async def test_post_with_fallback_all_partial_raises(monkeypatch):
     partial = {"remark": "runtime error: Query timed out", "elements": []}
     fake = _FakeClient([fake_response(partial), fake_response(partial), fake_response(partial)])
-    monkeypatch.setattr(osm.httpx, "AsyncClient", lambda *a, **k: fake)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     with pytest.raises(UpstreamError) as excinfo:
         await osm._post_with_fallback("q")
@@ -349,7 +349,7 @@ def _stub_overpass(monkeypatch, elements, spy: list | None = None):
             spy.append(query)
         return {"elements": elements}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
 
 
 async def test_enrich_custom_fills_elevation_and_identity(monkeypatch):
@@ -404,7 +404,7 @@ async def test_enrich_custom_returns_rows_unchanged_when_overpass_fails(monkeypa
     async def boom(query, on_status=None):
         raise UpstreamError("Every Overpass mirror failed")
 
-    monkeypatch.setattr(osm, "_post_with_fallback", boom)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", boom)
     [row] = await _enrich_custom([_row(47.0, -121.0)])
     assert row["elevation_ft"] is None
     assert row["name"] == "Row"
@@ -416,7 +416,7 @@ async def test_enrich_custom_degrades_rather_than_raising_on_budget_exhaustion(m
     async def saturated(query, on_status=None):
         raise ratelimit.BudgetExhausted("OpenStreetMap (Overpass)")
 
-    monkeypatch.setattr(osm, "_post_with_fallback", saturated)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", saturated)
     [row] = await _enrich_custom([_row(47.0, -121.0)])
     assert row["elevation_ft"] is None
 
@@ -469,7 +469,7 @@ async def test_enrich_custom_queries_peaks_and_volcanoes_within_the_radius(monke
 def test_custom_match_radius_is_the_measured_150_m():
     # 150 m is a measurement, not a round number someone liked: 97/100 of the
     # bundled Smoot list matched at it, 50 m lost four more, 300 m reached
-    # further for one. The note in osm.py says re-measure before changing —
+    # further for one. The note in osm/enrich.py says re-measure before changing —
     # this is what makes that instruction enforceable.
     assert osm.CUSTOM_MATCH_RADIUS_M == 150.0
 
@@ -513,7 +513,7 @@ async def test_unnamed_peaks_are_skipped_unless_asked_for(monkeypatch):
         assert '["ele"]' not in query
         return {"elements": [_unnamed(1, "1000")]}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     assert await osm.query_osm(POLY, [DestinationType.peak]) == []
 
 
@@ -522,7 +522,7 @@ async def test_unnamed_peaks_are_named_for_their_height(monkeypatch):
         assert '["ele"]' in query
         return {"elements": [_unnamed(1, "1817.2")]}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
 
     # 1817.2 m is 5,962 ft. Unpunctuated: an identifier, not a measurement, and
@@ -537,7 +537,7 @@ async def test_two_unnamed_peaks_at_one_height_are_two_destinations(monkeypatch)
     async def fake_post(query, on_status=None):
         return {"elements": [_unnamed(1, "1000", 47.5), _unnamed(2, "1000", 47.6)]}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     rows = await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
 
     assert len(rows) == 2
@@ -548,7 +548,7 @@ async def test_an_unnamed_peak_with_no_height_has_nothing_to_be_called(monkeypat
     async def fake_post(query, on_status=None):
         return {"elements": [{"type": "node", "id": 9, "lat": 47.5, "lon": -121.5, "tags": {"natural": "peak"}}]}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     assert await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True) == []
 
 
@@ -559,7 +559,7 @@ async def test_the_two_questions_do_not_share_a_cache_entry(monkeypatch):
         queries.append(query)
         return {"elements": []}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     await osm.query_osm(POLY, [DestinationType.peak])
     await osm.query_osm(POLY, [DestinationType.peak], include_unnamed_peaks=True)
     assert len(queries) == 2
@@ -570,5 +570,5 @@ async def test_the_flag_is_ignored_when_peaks_were_not_asked_for(monkeypatch):
         assert "natural" not in query or '"peak"' not in query
         return {"elements": []}
 
-    monkeypatch.setattr(osm, "_post_with_fallback", fake_post)
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     await osm.query_osm(POLY, [DestinationType.lake], include_unnamed_peaks=True)

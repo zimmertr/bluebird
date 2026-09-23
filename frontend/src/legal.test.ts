@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url'
 import app from './App.tsx?raw'
 import contactBody from './components/ContactBody.tsx?raw'
 import controlPanel from './components/ControlPanel.tsx?raw'
+import panelFooter from './components/PanelFooter.tsx?raw'
 import dataSourceList from './components/DataSourceList.tsx?raw'
 import notFoundPage from './components/NotFoundPage.tsx?raw'
 import privacyPage from './components/PrivacyPage.tsx?raw'
@@ -90,14 +91,15 @@ describe('attribute copy', () => {
 // it pointed at the privacy page anyway.
 describe('the document pages', () => {
   it('are both reachable from the control panel footer', () => {
-    expect(controlPanel).toMatch(/href="\/privacy"/)
-    expect(controlPanel).toMatch(/href="\/terms"/)
+    expect(panelFooter).toMatch(/href="\/privacy"/)
+    expect(panelFooter).toMatch(/href="\/terms"/)
   })
 
   // The failure this replaces: a label that says one thing and navigates
   // somewhere else. A button here means a dialog came back.
   it('are links, not a dialog the app has to hold state for', () => {
     expect(controlPanel).not.toMatch(/onShowPrivacy/)
+    expect(panelFooter).not.toMatch(/onShowPrivacy/)
     expect(app).not.toMatch(/PrivacyModal|showPrivacy/)
     expect(Object.keys(componentSources)).not.toContain('./components/PrivacyModal.tsx')
     expect(Object.keys(componentSources)).not.toContain('./components/PrivacyBody.tsx')
@@ -143,6 +145,7 @@ describe('the document pages', () => {
 describe('the provider credits', () => {
   it('stay off the panel footer, which offers only the document pages', () => {
     expect(controlPanel).not.toMatch(/dataSources|DATA_SOURCES/)
+    expect(panelFooter).not.toMatch(/dataSources|DATA_SOURCES/)
   })
 
   // CC BY 3.0 asks for this one wherever the fire data is drawn, which is the

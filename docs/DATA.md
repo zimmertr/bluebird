@@ -74,7 +74,7 @@ overwritten by this.
 Overpass is the query service in front of OSM, run by volunteers on donated
 hardware, and its operators publish a per-address concurrency policy that
 Bluebird Forecast holds itself to separately for each mirror. Three public mirrors are
-tried in order, and the order is not arbitrary: `backend/app/services/osm.py`
+tried in order, and the order is not arbitrary: `backend/app/services/osm/mirrors.py`
 carries a dated table of measured response times behind it, giving the fastest
 mirror a tight timeout and the slower fallbacks a looser one, so a healthy
 primary is never held up waiting on the patience a last resort needs. Discovery

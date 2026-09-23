@@ -38,7 +38,7 @@ of a regex.
 
 None of the external APIs need a key. The three on the analysis path:
 
-- **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru`, then `overpass.kumi.systems` (ordered by measured latency; see the dated table in `osm.py`).
+- **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru`, then `overpass.kumi.systems` (ordered by measured latency; see the dated table in `osm/mirrors.py`).
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
 
@@ -66,7 +66,7 @@ in [TRAFFIC.md](TRAFFIC.md#security-response-headers).
 
 ## Metrics
 
-The service emits Prometheus metrics (issue #77): request rate, errors, and duration per route template; per-mirror Overpass latency and failover counts; Open-Meteo batch latency, 429s by quota scope, weighted-call spend, pace waits, and sheds; cache hits and misses; per-bucket throttle counts; degraded-AQI batches; and the size distributions of the analyses people actually run. The counters wrap what the code already counts — the pacers in `app/ratelimit.py`, the hit/miss tallies on `TTLCache` — rather than keeping parallel books. Labels are bounded by construction (route templates, mirror hosts, closed outcome sets) and never carry coordinates or client identity; `backend/tests/test_telemetry.py` fails any sample that grows a label outside the allowlist.
+The service emits Prometheus metrics (issue #77): request rate, errors, and duration per route template; per-mirror Overpass latency and failover counts; Open-Meteo batch latency, 429s by quota scope, weighted-call spend, pace waits, and sheds; cache hits and misses; per-bucket throttle counts; degraded-AQI batches; and the size distributions of the analyses people actually run. The counters wrap what the code already counts — the pacers in `app/ratelimit/upstream.py`, the hit/miss tallies on `TTLCache` — rather than keeping parallel books. Labels are bounded by construction (route templates, mirror hosts, closed outcome sets) and never carry coordinates or client identity; `backend/tests/test_telemetry.py` fails any sample that grows a label outside the allowlist.
 
 The registry is served on its own port (`METRICS_PORT`, default 9464), never as a route on the app. That placement is a security boundary, not a convenience: the production gateway publishes `/api/*` by allowlist but passes non-API paths through to the pod, so a `/metrics` route on port 8000 would be publicly readable. The second port is unreachable through the gateway entirely, and the OpenAPI document stays unchanged. In Kubernetes the chart's PodMonitor scrapes the pod port directly — the Service never exposes it — and the cluster side (kube-prometheus-stack, Grafana, the bluebird dashboard) lives in `Kubernetes-Manifests` under `observability/`.
 

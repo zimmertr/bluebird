@@ -15,7 +15,7 @@ twice within minutes:
   time against a 600/minute budget.
 
 Both caches are per pod and in-memory on purpose, like everything in
-ratelimit.py: the goal is absorbing repeats, not exactness across replicas.
+ratelimit: the goal is absorbing repeats, not exactness across replicas.
 Entries expire by TTL (Overpass data drifts on a human timescale; Open-Meteo
 model runs update roughly hourly, so 15 minutes is conservative) and the
 stores are LRU-bounded so an adversary drawing endless polygons cannot grow
@@ -58,7 +58,7 @@ FORECAST_MAX_ENTRIES = 5_000
 
 class TTLCache:
     """LRU-bounded TTL map. Synchronous by design: every access happens on
-    the single event loop, the same no-lock argument ratelimit.py makes."""
+    the single event loop, the same no-lock argument ratelimit makes."""
 
     def __init__(
         self,

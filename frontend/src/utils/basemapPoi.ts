@@ -51,7 +51,7 @@ function isLakeLayer(layerId: string): boolean {
  */
 export const LAKE_CLASS = 'lake'
 
-// The server's own metres→feet factor (`_ele_ft` in osm.py), used here rather
+// The server's own metres→feet factor (`_ele_ft` in osm/query.py), used here rather
 // than its reciprocal so both sides round identically. This matters more than
 // it looks: an unnamed summit is NAMED from its elevation, so a one-foot
 // disagreement makes `Peak 5961` and `Peak 5962` two destinations for one

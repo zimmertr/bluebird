@@ -1,30 +1,7 @@
-"""Per-client rate limits and pod-wide upstream budgets (issue #75).
+"""Pod-wide caps on in-flight upstream calls, call spacing, and weighted spend.
 
-Every analysis fans out to shared free APIs (Overpass, Open-Meteo) and the
-search box proxies Nominatim, all from one egress IP. These guards bound how
-fast any one client can spend that shared quota and how much can be in flight
-upstream at once, so an abusive client or an organic spike degrades into
-clear 429/503 responses instead of getting the egress IP banned and breaking
-the site for everyone.
-
-Two mechanisms:
-
-- ``RateLimiter``: per-client-address token buckets, enforced as route
-  dependencies on the expensive endpoints only. Over the limit: 429 with a
-  ``Retry-After`` header.
-- ``UpstreamBudget`` / ``MinIntervalGate``: pod-wide caps on in-flight calls
-  (or call spacing) per upstream operator, shared by every concurrent
-  request in the pod. Overpass gets one budget per mirror (built in osm.py
-  next to the mirror table, since each mirror is a separate operator with
-  its own per-IP policy). Saturation queues briefly, then sheds with
-  ``BudgetExhausted`` (surfaced as 503, or degraded to null for best-effort
-  air quality).
-
-Both are in-memory and per-pod on purpose: with R replicas the effective
-ceiling is about R times the configured value, and a restart forgets
-history. The goal is a bound, not precision; the shared datastore planned in
-#65 can make them exact later. Every knob reads its env var once at import,
-mirroring how LOG_LEVEL works.
+Apart from the per-client buckets because every concurrent request in the pod
+shares these, and the services acquire them rather than the routes.
 """
 
 from __future__ import annotations
@@ -36,45 +13,15 @@ import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import Request
-
 from app import telemetry
 from app.env import env_int
-from app.error_codes import ApiError, ErrorCode
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
 
 
-# Per-client limits. A per-minute value of 0 disables that limiter outright
-# (the dev/preview escape hatch). Defaults are generous for a human iterating
-# on a map and hostile to a hammering script. Destinations (one Overpass
-# query, no forecasts) is far cheaper than a full analysis, so it gets its own
-# bucket instead of starving analyses from the shared one (issue #180).
-RATE_LIMIT_ANALYZE_PER_MINUTE = env_int("RATE_LIMIT_ANALYZE_PER_MINUTE", 12)
-RATE_LIMIT_ANALYZE_BURST = env_int("RATE_LIMIT_ANALYZE_BURST", 6)
-RATE_LIMIT_DESTINATIONS_PER_MINUTE = env_int("RATE_LIMIT_DESTINATIONS_PER_MINUTE", 30)
-RATE_LIMIT_DESTINATIONS_BURST = env_int("RATE_LIMIT_DESTINATIONS_BURST", 10)
-RATE_LIMIT_GEOCODE_PER_MINUTE = env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 30)
-RATE_LIMIT_GEOCODE_BURST = env_int("RATE_LIMIT_GEOCODE_BURST", 10)
-# Wildfire perimeters are the loosest bucket because they are the cheapest
-# request the API serves: it answers from a national snapshot this pod already
-# holds and never touches NIFC on the request path. The overlay refetches on
-# every map pan (debounced 400 ms), so a user dragging across a state legitimately
-# spends a request per second, and throttling that would only make the map
-# stutter while saving nothing upstream (issue #203).
-RATE_LIMIT_WILDFIRES_PER_MINUTE = env_int("RATE_LIMIT_WILDFIRES_PER_MINUTE", 90)
-RATE_LIMIT_WILDFIRES_BURST = env_int("RATE_LIMIT_WILDFIRES_BURST", 30)
-# Smoke is the same kind of request as wildfires — a filter over a national
-# snapshot this pod already holds — so it gets the same looseness. Its own
-# bucket rather than a shared one because the two overlays toggle
-# independently, and a user turning both on should not spend one budget twice
-# (issue #121).
-RATE_LIMIT_SMOKE_PER_MINUTE = env_int("RATE_LIMIT_SMOKE_PER_MINUTE", 90)
-RATE_LIMIT_SMOKE_BURST = env_int("RATE_LIMIT_SMOKE_BURST", 30)
-
 # Pod-wide upstream caps. Weather/AQI count in-flight Open-Meteo batches
 # across every concurrent analysis; the Overpass value is applied PER MIRROR
-# (osm.py builds one budget per endpoint from it), since ~2-slots-per-IP is
+# (osm/mirrors.py builds one budget per endpoint from it), since ~2-slots-per-IP is
 # each operator's own policy, not a shared pool across operators; the
 # Nominatim spacing honors their absolute ~1 req/s policy (3.5s per pod x 3
 # replicas ≈ 0.86/s aggregate from our one IP; the previous 2s x 3 ≈ 1.5/s
@@ -131,142 +78,6 @@ UPSTREAM_WEIGHT_MAX_WAIT_S = env_int("UPSTREAM_WEIGHT_MAX_WAIT_S", 120)
 # stacking unbounded waiters.
 UPSTREAM_BUDGET_WAIT_S = env_int("UPSTREAM_BUDGET_WAIT_S", 30)
 SHED_RETRY_AFTER_S = 15
-
-
-# ── Client identity ───────────────────────────────────────────────────────────
-
-
-def client_key(request: Request) -> str:
-    """The client identity rate limiting keys on (and the access log prints).
-
-    ``CF-Connecting-IP`` wins when present: Cloudflare overwrites it, so
-    traffic that really came through Cloudflare cannot forge it. Otherwise
-    the rightmost ``X-Forwarded-For`` hop: every proxy appends to the right,
-    so the rightmost entry is the peer our own edge actually saw, while the
-    leftmost is whatever the client typed (rotating it must not mint a fresh
-    bucket per request). Direct-to-origin traffic can still forge both
-    headers until #148 puts the origin behind Cloudflare Tunnel; the
-    upstream budgets bound what a spoofer gains in the meantime.
-    """
-    cf = request.headers.get("cf-connecting-ip")
-    if cf:
-        return cf.strip()
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.rsplit(",", 1)[-1].strip()
-    return request.client.host if request.client else "-"
-
-
-# ── Per-client token buckets ──────────────────────────────────────────────────
-
-
-class _TokenBucket:
-    __slots__ = ("capacity", "rate_per_s", "tokens", "updated")
-
-    def __init__(self, capacity: float, rate_per_s: float, now: float) -> None:
-        self.capacity = capacity
-        self.rate_per_s = rate_per_s
-        self.tokens = capacity
-        self.updated = now
-
-    def _refill(self, now: float) -> None:
-        # Elapsed time is clamped at zero: the production clock is monotonic,
-        # but a clock that ever ran backwards would otherwise DRAIN tokens and
-        # punish clients for time that never passed.
-        self.tokens = min(
-            self.capacity, self.tokens + max(0.0, now - self.updated) * self.rate_per_s
-        )
-        self.updated = now
-
-    def try_acquire(self, now: float) -> bool:
-        self._refill(now)
-        if self.tokens >= 1.0:
-            self.tokens -= 1.0
-            return True
-        return False
-
-    def retry_after_s(self, now: float) -> float:
-        """Seconds until a full token is available again."""
-        self._refill(now)
-        if self.tokens >= 1.0:
-            return 0.0
-        return (1.0 - self.tokens) / self.rate_per_s
-
-    def is_full(self, now: float) -> bool:
-        self._refill(now)
-        return self.tokens >= self.capacity
-
-
-class RateLimiter:
-    """Token buckets keyed by client address; in-memory, bounded in size.
-
-    The bucket dict is capped at ``max_keys`` so an attacker cycling spoofed
-    addresses cannot grow memory without bound. Eviction drops full buckets
-    first: a full bucket is indistinguishable from a brand-new one, so
-    dropping it loses no enforcement state. Only when every bucket is
-    mid-refill (uniformly hostile traffic) does it fall back to dropping the
-    longest-untouched half.
-
-    No locking: mutation is synchronous within one event-loop callback, and
-    uvicorn runs a single loop per process.
-    """
-
-    def __init__(
-        self,
-        per_minute: int,
-        burst: int,
-        *,
-        name: str = "",
-        max_keys: int = 10_000,
-        clock: Callable[[], float] = time.monotonic,
-    ) -> None:
-        self._per_minute = per_minute
-        self._burst = max(1, burst)
-        # The bucket's name in the throttle metric; keyword-only so the many
-        # anonymous instances tests build stay valid.
-        self.name = name
-        self._max_keys = max(1, max_keys)
-        self._clock = clock
-        self._buckets: dict[str, _TokenBucket] = {}
-
-    @property
-    def per_minute(self) -> int:
-        return self._per_minute
-
-    @property
-    def burst(self) -> int:
-        return self._burst
-
-    @property
-    def enabled(self) -> bool:
-        return self._per_minute > 0
-
-    def check(self, key: str) -> tuple[bool, float]:
-        """Spend one token for ``key``. Returns ``(allowed, retry_after_s)``."""
-        if not self.enabled:
-            return True, 0.0
-        now = self._clock()
-        bucket = self._buckets.get(key)
-        if bucket is None:
-            if len(self._buckets) >= self._max_keys:
-                self._evict(now)
-            bucket = _TokenBucket(self._burst, self._per_minute / 60.0, now)
-            self._buckets[key] = bucket
-        if bucket.try_acquire(now):
-            return True, 0.0
-        return False, bucket.retry_after_s(now)
-
-    def reset(self) -> None:
-        self._buckets.clear()
-
-    def _evict(self, now: float) -> None:
-        for key in [k for k, b in self._buckets.items() if b.is_full(now)]:
-            del self._buckets[key]
-        if len(self._buckets) < self._max_keys:
-            return
-        oldest_first = sorted(self._buckets, key=lambda k: self._buckets[k].updated)
-        for key in oldest_first[: max(1, len(oldest_first) // 2)]:
-            del self._buckets[key]
 
 
 # ── Pod-wide upstream budgets ─────────────────────────────────────────────────
@@ -467,80 +278,12 @@ class WeightedBudget:
 
 # ── Instances ─────────────────────────────────────────────────────────────────
 
-ANALYZE_LIMITER = RateLimiter(
-    RATE_LIMIT_ANALYZE_PER_MINUTE, RATE_LIMIT_ANALYZE_BURST, name="analyze"
-)
-DESTINATIONS_LIMITER = RateLimiter(
-    RATE_LIMIT_DESTINATIONS_PER_MINUTE, RATE_LIMIT_DESTINATIONS_BURST, name="destinations"
-)
-GEOCODE_LIMITER = RateLimiter(
-    RATE_LIMIT_GEOCODE_PER_MINUTE, RATE_LIMIT_GEOCODE_BURST, name="geocode"
-)
-WILDFIRES_LIMITER = RateLimiter(
-    RATE_LIMIT_WILDFIRES_PER_MINUTE, RATE_LIMIT_WILDFIRES_BURST, name="wildfires"
-)
-SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST, name="smoke")
-
 WEATHER_BUDGET = UpstreamBudget("Open-Meteo", UPSTREAM_CONCURRENCY_WEATHER)
 AQI_BUDGET = UpstreamBudget("Open-Meteo (air quality)", UPSTREAM_CONCURRENCY_AQI)
 WEATHER_WEIGHT = WeightedBudget(
     "Open-Meteo", UPSTREAM_WEIGHT_PER_MINUTE_WEATHER
 )
 AQI_WEIGHT = WeightedBudget("Open-Meteo (air quality)", UPSTREAM_WEIGHT_PER_MINUTE_AQI)
-# Overpass budgets are per mirror and live in osm.py's OVERPASS_MIRRORS table,
+# Overpass budgets are per mirror and live in osm/mirrors.py's OVERPASS_MIRRORS table,
 # built from UPSTREAM_CONCURRENCY_OVERPASS above.
 NOMINATIM_GATE = MinIntervalGate("Nominatim (place search)", NOMINATIM_MIN_INTERVAL_MS / 1000.0)
-
-
-# ── Route dependencies ────────────────────────────────────────────────────────
-
-
-def _throttle(limiter: RateLimiter, request: Request) -> None:
-    key = client_key(request)
-    allowed, retry_after = limiter.check(key)
-    if allowed:
-        return
-    seconds = max(1, math.ceil(retry_after))
-    telemetry.THROTTLED.labels(bucket=limiter.name or "unnamed").inc()
-    log.warning(
-        "event=rate_limited path=%s client=%s retry_after_s=%d",
-        request.url.path,
-        key,
-        seconds,
-    )
-    raise ApiError(
-        status_code=429,
-        detail="Too many requests from this connection. Try again later.",
-        code=ErrorCode.rate_limited,
-        headers={"Retry-After": str(seconds)},
-    )
-
-
-async def analyze_rate_limit(request: Request) -> None:
-    """Route dependency: one shared per-address bucket for both analyze endpoints."""
-    _throttle(ANALYZE_LIMITER, request)
-
-
-async def destinations_rate_limit(request: Request) -> None:
-    """Route dependency: the discovery bucket, independent of analyze.
-
-    Discovery is one Overpass query with no forecasts attached, so the
-    browser flow (discover, then fetch Open-Meteo itself) should never eat
-    the analyze budget of someone running full server-side analyses.
-    """
-    _throttle(DESTINATIONS_LIMITER, request)
-
-
-async def geocode_rate_limit(request: Request) -> None:
-    """Route dependency: the geocode bucket, independent of analyze."""
-    _throttle(GEOCODE_LIMITER, request)
-
-
-async def wildfires_rate_limit(request: Request) -> None:
-    """Route dependency: the wildfire-overlay bucket, independent of analyze."""
-    _throttle(WILDFIRES_LIMITER, request)
-
-
-async def smoke_rate_limit(request: Request) -> None:
-    """Route dependency: the smoke-overlay bucket, independent of wildfires."""
-    _throttle(SMOKE_LIMITER, request)
