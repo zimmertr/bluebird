@@ -7,7 +7,6 @@ import {
   pendingChartRow,
   pendingLinkRow,
   rankText,
-  rowCellText,
   rowKeys,
   unavailableCell,
   windyCellUrl,
@@ -84,34 +83,6 @@ describe('cellText', () => {
     expect(cellText(col, 21.26)).toBe(col.format!(21.26))
     expect(cellText({ key: 'name', label: 'Name' } as ColDef, null)).toBe('—')
     expect(cellText({ key: 'name', label: 'Name' } as ColDef, 'Mount Adams')).toBe('Mount Adams')
-  })
-})
-
-// A compared model that ends inside the window marks its own aggregates, and
-// nothing else (#493).
-describe('rowCellText', () => {
-  const short = compared({ coverageEndMs: Date.UTC(2026, 8, 26, 9), temp_min_f: 21.26, aqi_avg: 30 })
-
-  it('marks a weather aggregate on a short row', () => {
-    const col = column('temp_min_f')
-    expect(rowCellText(short, col, 21.26)).toBe(`${col.format!(21.26)}*`)
-  })
-
-  it('leaves air quality and the name unmarked', () => {
-    const aqi = column('aqi_avg')
-    expect(rowCellText(short, aqi, 30)).toBe(cellText(aqi, 30))
-    expect(rowCellText(short, column('name'), short.name)).toBe(cellText(column('name'), short.name))
-  })
-
-  it('leaves a row that covers the window unmarked', () => {
-    const col = column('temp_min_f')
-    const covered = compared({ temp_min_f: 21.26 })
-    expect(rowCellText(covered, col, 21.26)).toBe(col.format!(21.26))
-  })
-
-  it('puts no mark on a missing value', () => {
-    const col = column('temp_min_f')
-    expect(rowCellText(compared({ coverageEndMs: 1 }), col, null)).toBe(cellText(col, null))
   })
 })
 

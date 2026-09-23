@@ -1645,6 +1645,39 @@ describe('the results table rank cell', () => {
   })
 })
 
+// The `*` on a Model cell whose model ends inside the window (#508). A footnote
+// reference, so it must not move the row it sits in: a comparison would
+// otherwise draw its marked rows taller than their unmarked neighbours.
+describe('the results table cell mark', () => {
+  // Tailwind's own reset, read off the disk for the reason indexCss is: it is
+  // what raises a sup, and the raise is only free if it is an offset.
+  const preflight: string = readFileSync(
+    new URL('../node_modules/tailwindcss/preflight.css', import.meta.url),
+    'utf8',
+  )
+
+  it('wears the footnote line\'s own size and color', () => {
+    expect(STYLES.TABLE.mark).toContain(TEXT.micro)
+  })
+
+  it('adds no height to the row it marks', () => {
+    // Raised by a relative offset from the baseline, which moves the glyph and
+    // leaves the line box where it was.
+    const sup = preflight.match(/sub,\s*sup\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(sup).toMatch(/line-height:\s*0;/)
+    expect(sup).toMatch(/position:\s*relative;/)
+    expect(sup).toMatch(/vertical-align:\s*baseline;/)
+    // Zero line height of its own too, so a size step that carries leading
+    // cannot put one back over preflight's.
+    expect(STYLES.TABLE.mark.split(' ')).toContain('leading-0')
+    // And no taller than the cell text it follows: the table sets 12px text
+    // (text-xs), and the mark's glyph must fit inside that line.
+    const markPx = Number(STYLES.TABLE.mark.match(/text-\[(\d+)px\]/)![1])
+    expect(TEXT.control.split(' ')).toContain('text-xs')
+    expect(markPx).toBeLessThan(12)
+  })
+})
+
 // One vocabulary for both surfaces that reorder columns, so the same gesture
 // looks the same in the table header and in the Columns picker.
 describe('moving a column', () => {

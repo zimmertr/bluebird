@@ -2,11 +2,11 @@ import { Profiler, type ComponentProps, type ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
-import { displayedColumns, WILDFIRE_COL } from '../utils/tableColumns'
+import { displayedColumns, WILDFIRE_COL, withModelColumn } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
-import { TEXT } from '../styles'
+import { TABLE, TEXT } from '../styles'
 
 // Every ranked row the table draws, by name, in render order. The mock keeps
 // the real row and its real memo: it wraps the row's inner component in a
@@ -77,10 +77,11 @@ describe('rows', () => {
   })
 })
 
-// A compared model that ends inside the window (#493): an asterisk on each of
-// its aggregates and one line under the table that says what it means.
+// A compared model that ends inside the window (#493): one raised mark on its
+// Model cell (#508), and one line under the table that says what it means.
 describe('a model that ends early', () => {
-  const NOTE = '* Partial model coverage. Data is aggregated over fewer hours.'
+  const NOTE = "* Data is aggregated over a subset of the forecast window due to the model's limited range."
+  const MODEL_COLUMNS = withModelColumn(COLUMNS, true)
   const SHORT = [
     { ...ROWS[0], precip_total_in: 0.25, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 1 },
     {
@@ -92,22 +93,37 @@ describe('a model that ends early', () => {
       coverageEndMs: Date.UTC(2026, 8, 26, 9),
     },
   ]
+  // The cell under a header, by the header's label, so a column added to the
+  // fixture cannot shift what a test reads.
+  const cellUnder = (row: HTMLElement, label: string) => {
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent ?? '')
+    return within(row).getAllByRole('cell')[heads.findIndex((t) => t.startsWith(label))]
+  }
 
-  it('marks the short row aggregate and prints the footnote once', () => {
-    render(<ResultsTable {...props({ results: SHORT, partialNote: NOTE })} />)
-    const [full, short] = screen.getAllByRole('row').slice(1)
-    const metric = (row: HTMLElement) => within(row).getAllByRole('cell')[3].textContent
-    expect(metric(short)).toMatch(/\*$/)
-    expect(metric(full)).not.toMatch(/\*/)
-    // Elevation is the destination's, whatever model the row names.
-    expect(within(short).getAllByRole('cell')[2].textContent).not.toMatch(/\*/)
+  it('marks the short row once, on its Model cell, and prints the footnote once', () => {
+    render(<ResultsTable {...props({ results: SHORT, columns: MODEL_COLUMNS, partialNote: NOTE })} />)
+    const [full, short] = screen.getAllByRole('row').slice(1, 3)
+    const model = cellUnder(short, 'Model')
+    expect(model.textContent).toBe('NOAA HRRR*')
+    const mark = model.querySelector('sup')
+    expect(mark?.textContent).toBe('*')
+    expect(mark?.className).toBe(TABLE.mark)
+    expect(cellUnder(full, 'Model').textContent).toBe('NOAA GFS')
+    expect(cellUnder(full, 'Model').querySelector('sup')).toBeNull()
+    // No number carries a mark, on the short row or beside it.
+    for (const row of [full, short]) {
+      const marked = within(row)
+        .getAllByRole('cell')
+        .filter((c) => c !== model && c.textContent?.includes('*'))
+      expect(marked).toEqual([])
+    }
     expect(screen.getAllByText(NOTE)).toHaveLength(1)
   })
 
   // A comparison table is wider than a phone, so the note has to stay on the
   // visible left edge at any sideways scroll, the way the empty-reason row does.
   it('pins the footnote to the visible left edge', () => {
-    render(<ResultsTable {...props({ results: SHORT, partialNote: NOTE })} />)
+    render(<ResultsTable {...props({ results: SHORT, columns: MODEL_COLUMNS, partialNote: NOTE })} />)
     const note = screen.getByText(NOTE)
     for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(note.classList).toContain(cls)
     for (const cls of TEXT.micro.split(' ')) expect(note.classList).toContain(cls)
@@ -115,8 +131,17 @@ describe('a model that ends early', () => {
   })
 
   it('prints no footnote when no row is short', () => {
-    render(<ResultsTable {...props()} />)
-    expect(screen.queryByText(/Partial model coverage/)).toBeNull()
+    render(<ResultsTable {...props({ columns: MODEL_COLUMNS })} />)
+    expect(screen.queryByText(NOTE)).toBeNull()
+  })
+
+  // The marks ride the Model column, so hiding it in the Columns picker takes
+  // the marks and the note away together.
+  it('prints neither mark nor footnote without the Model column', () => {
+    render(<ResultsTable {...props({ results: SHORT, partialNote: NOTE })} />)
+    expect(screen.queryByText(NOTE)).toBeNull()
+    expect(document.querySelector('sup')).toBeNull()
+    expect(screen.queryByText(/\*/)).toBeNull()
   })
 })
 

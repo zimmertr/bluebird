@@ -13,7 +13,6 @@ import { DestinationResult, HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { ChartLine, comparedLineLabel, gridRemapper } from './chartData'
 import { HOUR_MS } from './forecastWindow'
-import { FAMILY_KEYS } from '../metrics'
 import { listPhrase } from './notices'
 import type { WeatherResult } from './openMeteo'
 import type { WeatherSeries } from './openMeteoAggregate'
@@ -47,9 +46,9 @@ export function isBlend(
  * compared model only for the hours it has, which is a spend decision: past
  * its reach a model answers nulls that still cost a weighted call. The chart
  * and the table read the same instant to SAY where a model stops, with a
- * dashed line and an asterisk, because hiding the longer models' hours to make
- * the lines end together hid real data and left the table's ragged aggregates
- * standing anyway. Only the far end moves: `forecast_hours` counts hours ahead
+ * dashed line and a mark on the Model cell, because hiding the longer models'
+ * hours to make the lines end together hid real data and left the table's
+ * ragged aggregates standing anyway. Only the far end moves: `forecast_hours` counts hours ahead
  * of NOW, and a window in the past is answered by every model alike.
  */
 export function compareEndMs(
@@ -276,41 +275,32 @@ export interface ModelRow extends DestinationResult {
   /**
    * Where this model's forecast ends, set only when that is before the
    * analyzed window's end. Its weather aggregates then cover fewer hours than
-   * the ranking model's row beside it, which the table marks with `*` and the
-   * file states in its metadata block. Absent on the ranking model's row: the
-   * calendar clamps the window to that model's reach, so it always covers it.
+   * the ranking model's row beside it, which the table and the file mark with
+   * `*` on the row's Model cell, and the file dates in its metadata block.
+   * Absent on the ranking model's row: the calendar clamps the window to that
+   * model's reach, so it always covers it.
    */
   coverageEndMs?: number
 }
 
 /**
- * The result fields a compared model's own fetch answers: every weather
- * aggregate in `WeatherAggregates`. Only these can cover fewer hours on a
- * short model's row. Air quality, snow depth and the cloud columns are copied
- * from the report (see `modelRowsFor`), so they span the whole window
- * whatever model the row names.
+ * Does this row's model end inside the window? Then its weather aggregates
+ * cover fewer hours than the ranking model's row beside it. The mark goes on
+ * the row's Model cell rather than on each number: one mark per row names the
+ * model it is about, and a number stays a number, on screen and in the file.
  */
-const MODEL_AGGREGATE_KEYS: ReadonlySet<string> = new Set([
-  ...FAMILY_KEYS.precip,
-  ...FAMILY_KEYS.temp,
-  ...FAMILY_KEYS.wind,
-  ...FAMILY_KEYS.freeze,
-])
-
-/**
- * Does this cell carry a number aggregated over fewer hours than the window?
- * True for a model aggregate on a row whose model ends inside the window.
- */
-export function isPartialCell(row: DestinationResult, key: string): boolean {
-  return (row as ModelRow).coverageEndMs !== undefined && MODEL_AGGREGATE_KEYS.has(key)
+export function isPartialRow(row: DestinationResult): boolean {
+  return (row as ModelRow).coverageEndMs !== undefined
 }
 
 /**
- * The line under the results table when a displayed row covers fewer hours.
- * It names no model: the Model column on every marked row already does, so
- * the note stays one fixed line whatever the model count.
+ * The line under the results table, and the row in the file's metadata block,
+ * when a displayed row is marked. It names no model: the Model cell of every
+ * marked row already does, so the note stays one fixed line whatever the
+ * model count. It states the cause rather than the effect, because "fewer
+ * hours" left the reader to guess why.
  */
-export const PARTIAL_COVERAGE_NOTE = '* Partial model coverage. Data is aggregated over fewer hours.'
+export const PARTIAL_COVERAGE_NOTE = "* Data is aggregated over a subset of the forecast window due to the model's limited range."
 
 /** One compared model that ends inside the window, and where. */
 export interface ModelEnd {

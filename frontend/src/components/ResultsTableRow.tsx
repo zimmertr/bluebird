@@ -7,13 +7,14 @@ import type { ChartBox } from '../hooks/useChartBox'
 import { destinationUrl } from '../utils/destinationUrl'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
 import type { PendingDestination } from '../utils/customList'
+import { isPartialRow } from '../utils/modelCompare'
 import {
   cellColor,
+  cellText,
   fireCell,
   modelCellText,
   pendingChartRow,
   pendingLinkRow,
-  rowCellText,
   unavailableCell,
   windyCellUrl,
 } from '../utils/resultsCells'
@@ -192,11 +193,26 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
 function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: CellContext }) {
   const key = col.key as string
   if (col.key === WILDFIRE_KEY) return <FireTd colKey={key} ctx={ctx} />
-  // Virtual like the wildfire column: the value rides beside the row.
+  // Virtual like the wildfire column: the value rides beside the row. A model
+  // that ends inside the window is marked here, once, rather than on each of
+  // its numbers (#508): the mark is about the model, and a number with a mark
+  // beside it read as a longer number.
   if (col.key === MODEL_KEY) {
+    const label = modelCellText(row, ctx.modelFallbackLabel)
     return (
       <td className={`${TABLE.cell} whitespace-nowrap`}>
-        {sized(ctx.widths, key, modelCellText(row, ctx.modelFallbackLabel))}
+        {sized(
+          ctx.widths,
+          key,
+          isPartialRow(row) ? (
+            <>
+              {label}
+              <sup className={TABLE.mark}>*</sup>
+            </>
+          ) : (
+            label
+          ),
+        )}
       </td>
     )
   }
@@ -217,7 +233,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
       </td>
     )
   }
-  const display = rowCellText(row, col, raw)
+  const display = cellText(col, raw)
   // Color comes from the table's own base, or inline for a ranked column: an
   // inline color beats the inherited one either way.
   const cellClass = `${TABLE.cell} whitespace-nowrap ${key === 'name' ? 'font-sans font-medium' : 'font-mono'}`
