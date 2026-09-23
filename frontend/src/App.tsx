@@ -1228,20 +1228,27 @@ export default function App() {
     setDrawPointCount(count)
   }, [])
 
-  function handleCancelDrawing() {
-    mapRef.current?.cancelDrawing()
-    setDrawing(false)
-    // cancelDrawing fires onDrawUpdate(0) to reset the count
-  }
+  // The ring as it stood when Draw polygon or Edit polygon was pressed. Every
+  // edit reaches the polygon and the URL as it happens, so this is the only
+  // copy of the ring a Cancel can put back (#478).
+  const drawStartRingRef = useRef<GeoPolygon | null>(null)
 
-  // Enter and Escape both leave draw mode. Neither discards anything: every
-  // edit is already committed to the polygon (and to the URL) as it happens,
-  // so there is no pending state for a cancel to roll back — Clear is the
-  // control that throws a ring away. Escape is here because it is what a hand
-  // reaches for to get out of a mode, not because it means something different
-  // from Done. Enter shares Done's 3-point floor — it means "the ring is
-  // finished", which two points cannot be — while Escape stays an
-  // unconditional way out of the mode.
+  const handleCancelDrawing = useCallback(() => {
+    mapRef.current?.restoreRing(drawStartRingRef.current)
+    setDrawing(false)
+  }, [])
+
+  // Clear changes the ring and nothing else: inside draw mode it starts the
+  // ring over, and outside it there is no mode to leave.
+  const handleClearDrawing = useCallback(() => {
+    mapRef.current?.restoreRing(null)
+  }, [])
+
+  // Enter and Escape are Done and Cancel for a hand already on the keyboard.
+  // Enter shares Done's 3-point floor, because it means "the ring is
+  // finished", which two points cannot be. Escape is what a hand reaches for
+  // to back out of a mode, so it backs out the way Cancel does, and puts the
+  // ring back rather than leaving a half-edited one with no handles to fix it.
   useEffect(() => {
     if (!drawing) return
     function onKeyDown(e: KeyboardEvent) {
@@ -1250,12 +1257,12 @@ export default function App() {
       // and Escape belong to the control they are typing into.
       const el = document.activeElement
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return
-      if (e.key === 'Enter' && drawPointCount < 3) return
-      setDrawing(false)
+      if (e.key === 'Escape') handleCancelDrawing()
+      else if (drawPointCount >= 3) setDrawing(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [drawing, drawPointCount])
+  }, [drawing, drawPointCount, handleCancelDrawing])
 
 
   async function handleAnalyze() {
@@ -2541,6 +2548,7 @@ export default function App() {
         <ControlPanel
           drawing={drawing}
           onStartDrawing={() => {
+            drawStartRingRef.current = polygon
             setDrawing(true)
             // Editing a shape that has scrolled off screen is the one thing
             // the draw/idle split made easy to do by accident.
@@ -2555,6 +2563,7 @@ export default function App() {
           drawPointCount={drawPointCount}
           polygonAreaKm2={polygonAreaKm2}
           onCancelDrawing={handleCancelDrawing}
+          onClearDrawing={handleClearDrawing}
           onPointAtSearch={setSearchPointed}
           wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
           onPointAtMapPois={setPoisPointed}

@@ -34,8 +34,10 @@ Press **Draw polygon** to start. While drawing, each click on the map drops a po
 - The estimated bounding-box area is shown in km² while you draw, and for a polygon a shared link brings in.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.
 - Once the shape is closed, a click lands on the edge nearest to it rather than at the end of the outline, so clicking across the polygon widens the side you pointed at instead of folding the shape over itself.
-- Press **Done**, or the Enter or Escape key, to finish. Analyze finishes for you.
-- Press **Edit polygon** to pick the shape back up, and **Clear** to throw it away and start over.
+- Press **Done**, or the Enter key, to finish. Analyze finishes for you.
+- Press **Cancel**, or the Escape key, to leave without keeping your changes. A new polygon is dropped, and an edited one goes back to the shape it had when you pressed **Edit polygon**.
+- While drawing, **Clear** removes every point and keeps you drawing, so you can start over.
+- Press **Edit polygon** to pick the shape back up, and **Clear** to throw it away.
 
 Outside draw mode the polygon stays on the map but has no handles, so panning and zooming around your results can't nudge a corner, and a click belongs to whatever sits under it.
 
