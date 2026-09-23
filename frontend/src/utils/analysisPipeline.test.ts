@@ -4,7 +4,7 @@ import { discoverCandidates, readErrorBody, runAnalysisPipeline, type PipelineOp
 import { AnalysisRefusalError, runClientAnalysis } from './clientAnalyze'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { FORECAST_REUSE_MS, type HeldForecasts } from './forecastReuse'
-import { fakeResponse, resultRow } from '../testSupport/fixtures'
+import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
 
 // The ranking itself is clientAnalyze.ts's, pinned by its own suite. Here it is
 // a spy, so each test sees exactly what the pipeline hands it and returns.
@@ -25,7 +25,7 @@ const REQUEST: AnalyzeRequest = {
   forecast_model: 'gfs_seamless',
   limit: 1,
 }
-const CANDIDATE = { name: 'Probe', type: 'peak', latitude: 47.45, longitude: -121.8, elevation_ft: 5000, osm_id: 'node/1' }
+const CANDIDATE = discovered()
 const ROWS: DestinationResult[] = [
   resultRow({ name: 'A', latitude: 47.45, longitude: -121.8 }),
   resultRow({ name: 'B', latitude: 47.5, longitude: -121.75 }),
@@ -75,7 +75,7 @@ describe('readErrorBody', () => {
   })
 
   it('falls back to the status when the body says nothing', async () => {
-    expect((await readErrorBody(new Response('not json', { status: 502 }))).message).toBe('HTTP 502')
+    expect((await readErrorBody(fakeResponse({ raw: 'not json' }, 502))).message).toBe('HTTP 502')
   })
 })
 
@@ -103,7 +103,7 @@ describe('discoverCandidates', () => {
 
   it('resolves a custom list without a ring, and reports no date when none came', async () => {
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
-    stubDestinations({ destinations: [{ ...CANDIDATE, name: 'Mine' }], total: 1 })
+    stubDestinations({ destinations: [discovered({ name: 'Mine' })], total: 1 })
     const found = await discoverCandidates({ ...REQUEST, polygon: undefined, custom_destinations: custom }, signal)
     expect(found.candidates.map((c) => c.name)).toEqual(['Mine'])
     expect(found).toMatchObject({ totalFound: null, truncated: false, snowAnalysisDate: null })

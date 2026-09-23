@@ -1,4 +1,4 @@
-import type { DestinationResult, HourlySeries } from '../types'
+import type { DestinationResult, DiscoveredDestination, HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
 import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
@@ -163,8 +163,24 @@ export function place(over: Partial<Place> = {}): Place {
  * A real `Response` rather than an object literal, for the reason the
  * backend's `fake_response` is a real httpx one: the code reads `.ok`,
  * `.status` and `.json()` off it, and a hand-rolled double with `ok: true`
- * beside a 400 would make an error answer look healthy.
+ * beside a 400 would make an error answer look healthy. A payload is sent as
+ * JSON; `{ raw }` sends the text as it is, for a body that must not parse.
  */
 export function fakeResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), { status, headers: { 'Content-Type': 'application/json' } })
+  const raw = typeof payload === 'object' && payload !== null && 'raw' in payload
+  const body = raw ? String((payload as { raw: unknown }).raw) : JSON.stringify(payload)
+  return new Response(body, { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+/** One destination as `POST /api/destinations` answers it. */
+export function discovered(over: Partial<DiscoveredDestination> = {}): DiscoveredDestination {
+  return {
+    name: 'Probe',
+    type: 'peak',
+    latitude: 47.45,
+    longitude: -121.8,
+    elevation_ft: 5000,
+    osm_id: 'node/1',
+    ...over,
+  }
 }

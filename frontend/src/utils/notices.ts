@@ -19,7 +19,8 @@
  * as long as its key is continuously active, and is pruned the moment the
  * key goes inactive. Panning, sorting and knob twiddling change no key, so
  * they resurface nothing; a condition that clears and later re-triggers
- * shows again; `useAnalyze` nulls both event states before every fetch, so
+ * shows again; `useAnalysisRun.clearEvents` nulls both event states before
+ * every fetch, so
  * an identical error from the next Analyze shows again.
  */
 

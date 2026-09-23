@@ -4,7 +4,8 @@ import type { AnalyzeRequest, DestinationResult } from '../types'
 import { useAnalyze } from './useAnalyze'
 import { runClientAnalysis } from '../utils/clientAnalyze'
 import { discoveryKeys } from '../utils/present'
-import { fakeResponse, resultRow } from '../testSupport/fixtures'
+import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
+import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 
 // The ranking is clientAnalyze.ts's and has its own suite. A spy here shows
 // what the hook hands it: above all, whether a held field rides along.
@@ -32,7 +33,7 @@ const DATA = { results: ROWS, total_queried: 1, total_matched: 1, times: [1] }
 function stubResolve(snowDate: string | null = null) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => fakeResponse({ destinations: [{ ...PROBE, type: 'custom' }], total: 1, snow_analysis_date: snowDate })),
+    vi.fn(async () => fakeResponse({ destinations: [discovered({ ...PROBE, type: 'custom' })], total: 1, snow_analysis_date: snowDate })),
   )
 }
 
@@ -129,6 +130,51 @@ describe('one analysis', () => {
     await vi.waitFor(() => expect(result.current.analysisSeq).toBe(1))
     expect(result.current.analyzed).toMatchObject({ ...discovery, compareModels: ['icon_seamless'] })
     expect(result.current.error).toBeNull()
+  })
+})
+
+describe('what the reader sees', () => {
+  it('opens a ring on the search label and a custom list on retrieval', async () => {
+    const ring = { type: 'Polygon' as const, coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+    const cases: [AnalyzeRequest, string][] = [
+      [{ ...REQUEST, polygon: ring, destination_types: ['peak'] }, SEARCHING_MESSAGE],
+      [REQUEST, 'Retrieving Forecasts…'],
+    ]
+    for (const [request, seed] of cases) {
+      // The server holds its answer, so the label the run opened on is on screen.
+      let answer!: (r: Response) => void
+      vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => (answer = r))))
+      const { result } = renderHook(() => useAnalyze())
+      let done!: Promise<void>
+      act(() => {
+        done = result.current.analyze(request)
+      })
+      expect(result.current.statusMessage).toBe(seed)
+      await act(async () => {
+        answer(fakeResponse({ destinations: [discovered({ ...PROBE })], total: 1 }))
+        await done
+      })
+    }
+  })
+
+  it('clears the error and the refusal on reset', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    ranked.mockRejectedValueOnce(new Error('Broken.'))
+    await analyzeAt(result, T0)
+    expect(result.current.error).toBe('Broken.')
+    act(() => result.current.reset())
+    expect(result.current).toMatchObject({ error: null, refusal: null, response: null, universe: null, analyzed: null })
+  })
+
+  it('leaves the rows that arrived on screen, no longer arriving, when the run fails', async () => {
+    const partial = { results: ROWS, total_queried: 1, total_matched: 1, times: [1] }
+    ranked.mockImplementationOnce(async (_r, _c, _s, _e, cb) => {
+      cb!.onPartial!(ROWS, [1])
+      throw new Error('Broken.')
+    })
+    const { result } = renderHook(() => useAnalyze())
+    await analyzeAt(result, T0)
+    expect(result.current).toMatchObject({ response: partial, universe: ROWS, arriving: false, analysisSeq: 0, error: 'Broken.' })
   })
 })
 
