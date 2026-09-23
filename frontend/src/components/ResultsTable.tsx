@@ -169,9 +169,6 @@ function ResultsTable({
   )
   const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
 
-  // The marks ride the Model column, so hiding it in the Columns picker takes
-  // the footnote with it: a note for a mark the reader cannot see explains
-  // nothing.
   const footnote = orderedColumns.some((c) => c.key === MODEL_KEY) ? partialNote : null
 
   // Every data cell is sized by the same widths the header resizes.
