@@ -160,6 +160,7 @@ import {
   refreshEchoRows,
 } from './utils/clientAnalyze'
 import { parseCustomCsv } from './utils/customDestinations'
+import { restoredFramePoints } from './utils/mapFraming'
 import {
   buildCustomList,
   pendingAsResult,
@@ -503,10 +504,10 @@ export default function App() {
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
 
-  // Custom CSV points restored from the URL, parsed once — MapView frames them
-  // on load instead of geolocating, mirroring the restored-polygon behavior.
-  const restoredCustomPoints = useMemo(
-    () => (restored?.customCsv ? parseCustomCsv(restored.customCsv) : []),
+  // Every point destination the URL restores (CSV rows and searched places),
+  // built once so the memoized MapView frames them on load beside the ring.
+  const restoredPoints = useMemo(
+    () => restoredFramePoints(restored?.customCsv ?? '', restored?.pins ?? []),
     [restored],
   )
 
@@ -2555,7 +2556,7 @@ export default function App() {
             drawing={drawing}
             pointedPois={poisPointed}
             polygon={polygon}
-            restoredCustomPoints={restoredCustomPoints}
+            restoredPoints={restoredPoints}
             onPolygonChange={setPolygon}
             onDrawUpdate={handleDrawUpdate}
             results={results}
