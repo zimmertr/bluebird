@@ -86,6 +86,7 @@ import {
   SWATCH_RAMP_TICK,
   TAP,
   TEXT,
+  YIELD_EMPTY,
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
@@ -1780,6 +1781,23 @@ describe('the map legend sections', () => {
   it('builds every section from the one recipe', () => {
     expect((box.match(/legendSection\(section\)/g) ?? []).length).toBe(1)
     expect((box.match(/\bramp: \{/g) ?? []).length).toBe(2)
+  })
+})
+
+// The stack spans the map's height to its derived floor whatever it holds, so
+// the band under the last section is empty and a click there belongs to the
+// map. The box yields; the sections it holds take the pointer back.
+describe('the legend stack', () => {
+  // The scroll box itself: the one element that wears the legend's top inset.
+  const stack = appSource.match(/className=\{`absolute \$\{MAP_EDGE\.left\}[^`]*LEGEND_TOP[^`]*`\}/)?.[0] ?? ''
+
+  it('found the stack', () => {
+    expect(stack).toContain('overflow-y-auto')
+  })
+
+  it('gives its empty area to the map and keeps it for its sections', () => {
+    expect(YIELD_EMPTY.split(' ')).toEqual(['pointer-events-none', '[&>*]:pointer-events-auto'])
+    expect(stack).toContain('${YIELD_EMPTY}')
   })
 })
 

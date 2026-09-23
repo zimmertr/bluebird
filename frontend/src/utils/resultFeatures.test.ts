@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { NO_VALUE, fillColor, resultsFeatureCollection } from './resultFeatures'
+import { NO_VALUE, fillColor, resultsFeatureCollection, windArrowsShowing } from './resultFeatures'
 import { markerColor } from './colors'
 import type { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
@@ -174,5 +174,14 @@ describe('fillColor under a snapshot ranking', () => {
     const outside = result({ snow_depth_in: null, series: null })
     expect(fillColor(outside, 'snow_depth_in', null)).toBe(NO_VALUE)
     expect(fillColor(outside, 'snow_depth_in', 3)).toBe(NO_VALUE)
+  })
+})
+
+describe('windArrowsShowing', () => {
+  it('draws arrows for a wind ranking under the playhead and at no other time', () => {
+    expect(windArrowsShowing('wind_avg_mph', 3)).toBe(true)
+    expect(windArrowsShowing('wind_avg_mph', 0)).toBe(true)
+    expect(windArrowsShowing('wind_avg_mph', null)).toBe(false)
+    expect(windArrowsShowing('precip_total_in', 3)).toBe(false)
   })
 })

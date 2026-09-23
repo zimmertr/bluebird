@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-// One worker and no retries. The suite is three tests against one container,
+// One worker and no retries. The suite is a few tests against one container,
 // and a retry would hide exactly the flake this job is meant to show.
 export default defineConfig({
   testDir: '.',

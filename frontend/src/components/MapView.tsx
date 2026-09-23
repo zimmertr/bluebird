@@ -7,20 +7,14 @@ import * as maplibregl from 'maplibre-gl'
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl)
-// TS 7 no longer resolves @types/geojson's UMD global namespace from module
-// files, so the types must be imported explicitly.
-import type { FeatureCollection, Point } from 'geojson'
 // All maplibre CSS enters through map.css, which wraps the vendor stylesheet
 // in layer(base) — see the comment there before "simplifying" this to a direct
 // vendor import. Importing it here rather than in index.css is what keeps map
 // styling out of the text-page entries.
 import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
-import { resultPopupHtml } from '../utils/resultPopup'
 import { ColDef } from '../utils/tableColumns'
-import type { ModelRow } from '../utils/modelCompare'
 import { FireWarning } from '../utils/fireProximity'
-import { geoKey } from '../utils/points'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { framePadding, pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
@@ -28,35 +22,19 @@ import type { PendingDestination } from '../utils/customList'
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
 // (#383). `MapView.test.ts` fails a new one that lands in this file.
 import { ringPolygon, ringToPts } from '../utils/drawGeometry'
-import { featureRow, pendingFC } from '../utils/mapFeatures'
 import {
   dismissesPopups,
   resolveMapClick,
   type MapClickHits,
 } from '../utils/mapClick'
-import {
-  BasemapPoi,
-  LAKE_LAYERS,
-  POI_LAYERS,
-  poiFromFeature,
-  poiToPlace,
-  samePoi,
-} from '../utils/basemapPoi'
-import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
+import { POI_LAYERS } from '../utils/basemapPoi'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import { mountDrawRing, type DrawRing } from '../map/drawRing'
 import { createMapController, type MapInputs } from '../map/controller'
-import {
-  STYLE,
-  WIND_ARROW_IMAGE,
-  emptyFC,
-  enhanceBasemap,
-  isPinning,
-  lakeAnchor,
-  popupOptions,
-  setSource,
-  updateResults,
-} from '../map/basemap'
+import { STYLE, enhanceBasemap } from '../map/basemap'
+import { createPopupBoard, isPinning } from '../map/popups'
+import { mountPoiPopups, type PoiPopups } from '../map/poiPopup'
+import { RESULT_MARKER_LAYER, mountResultsLayer, type ResultsLayer } from '../map/resultsLayer'
 import { SMOKE_CLICK_ORDER, type SmokeProps } from '../utils/smoke'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 import { mountForecastGrid, type ForecastGridOverlay } from '../map/overlays/forecastGrid'
@@ -234,9 +212,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // read one value and a cleared ring cannot come back (#453), while a
     // canceled one does.
     const restoredPolygonRef = useRef(polygon)
-    const pendingResultsRef = useRef<DestinationResult[]>([])
-    const pendingSortByRef = useRef<SortBy>('precip_total_in')
-    const pendingPlaybackRef = useRef<number | null>(null)
     const pendingSearchRef = useRef<Place | null>(null)
     // CSV list pasted before the map finished loading — folded into the load
     // handler's opening frame, mirroring pendingSearchRef.
@@ -256,9 +231,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // The drawn ring's layers, handles and drags, mounted on load. The ring's
     // points stay in `ptsRef`, because they exist before the map does.
     const drawRingRef = useRef<DrawRing | null>(null)
-    // The single popup opened by focusResult (table-rank click), tracked so
-    // repeated clicks replace it instead of stacking popups.
-    const resultPopupRef = useRef<maplibregl.Popup | null>(null)
     // The overlays the load handler mounts. Each owns its sources, layers,
     // popups and fetches, and the toggle effects below only hand them props.
     const overlaysRef = useRef<{
@@ -268,6 +240,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       snow: SnowOverlay
       radar: RadarOverlay
     } | null>(null)
+    // The analysis's markers and the basemap POIs' popups, mounted on load.
+    const layersRef = useRef<{ results: ResultsLayer; pois: PoiPopups } | null>(null)
     // The props the handlers registered once on map load read at event time:
     // draw mode, the rows and Windy inputs behind a result popup, the fire
     // warnings, the POI inputs, and the sheet's share of the bottom edge for
@@ -298,31 +272,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       controller.update(inputs)
     })
 
-    // The single open basemap-POI popup, so a second click replaces it.
-    const poiPopupRef = useRef<maplibregl.Popup | null>(null)
-    // Every popup currently on the map, pinned ones included. `closeOnClick`
-    // and the single refs above cannot reach a pinned popup by design — that
-    // is what pinning means — so an unmodified click needs its own way to
-    // clear the board. Without this, once you shift-clicked anything the only
-    // way back to a clean map was closing each card by hand.
-    const openPopupsRef = useRef<maplibregl.Popup[]>([])
-
-    // Called before every popup that is not itself pinned.
-    function closeAllPopups() {
-      for (const popup of openPopupsRef.current) popup.remove()
-      openPopupsRef.current = []
-      resultPopupRef.current = null
-      poiPopupRef.current = null
-    }
-
-    function trackPopup(popup: maplibregl.Popup) {
-      openPopupsRef.current.push(popup)
-      // MapLibre fires this for its own close button and for closeOnClick, so
-      // the list drains itself rather than growing for the session.
-      popup.on('close', () => {
-        openPopupsRef.current = openPopupsRef.current.filter((p) => p !== popup)
-      })
-    }
+    // Every popup on the map, pinned ones included, so an unmodified click
+    // can clear them all (`map/popups.ts`).
+    const [popups] = useState(createPopupBoard)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
@@ -433,9 +385,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
           duration: 1500,
         })
       },
-      // Center on a result (clicked from its rank in the table) and open the
-      // same popup a marker click gives. Rank is the analyzed order the markers
-      // are labeled with, so the popup matches the marker it lands on.
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
@@ -448,15 +397,16 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // is interpolated onto the transform and stays there.
           offset: [0, -cameraPadBottomPx / 2],
         })
-        closeAllPopups()
+        popups.closeAll()
       },
+      // Center on a result (clicked from its rank in the table) and open the
+      // same popup a marker click gives.
       focusResult(result: DestinationResult) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
         cameraCommittedRef.current = true
-        const center: [number, number] = [result.longitude, result.latitude]
         map.flyTo({
-          center,
+          center: [result.longitude, result.latitude],
           zoom: Math.max(map.getZoom(), 10),
           duration: 800,
           // The one framing call that centres rather than fits, so it clears
@@ -467,23 +417,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // map the reader can see.
           offset: [0, -cameraPadBottomPx / 2],
         })
-        closeAllPopups()
-        resultPopupRef.current = new maplibregl.Popup(popupOptions(map))
-          .setLngLat(center)
-          .setHTML(
-            resultPopupHtml({
-              rank: results.indexOf(result) + 1,
-              row: result,
-              columns: popupColumns,
-              warning: fireWarnings.get(geoKey(result.latitude, result.longitude)) ?? null,
-              // A per-model row names its own model; a single-model report has
-              // one for every row. Same rule as the table's cells.
-              modelId: (result as ModelRow).modelId ?? modelId,
-              times: result.series_times ?? times,
-              modelFallbackLabel,
-            }),
-          )
-          .addTo(map)
+        layersRef.current?.results.openPopup(result)
       },
     }))
 
@@ -502,7 +436,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         attributionControl: false,
       })
       mapRef.current = map
-      // Shift is the pinning modifier for popups (`isPinning` in map/basemap.ts), and
+      // Shift is the pinning modifier for popups (`isPinning` in map/popups.ts), and
       // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
       // shift+mousedown and swallows the click that would have opened one. Box
       // zoom has no affordance and no discoverability; the scroll wheel, the
@@ -609,7 +543,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // the chain comes out grid, snow, radar, smoke, fire, draw, results.
         overlaysRef.current = {
           grid: mountForecastGrid(map),
-          smoke: mountSmoke(map, { controller, restCursor, closeAllPopups, trackPopup }),
+          smoke: mountSmoke(map, { controller, restCursor, popups }),
           wildfires: mountWildfires(map, { restCursor }),
           snow: mountSnow(map),
           radar: mountRadar(map),
@@ -627,263 +561,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
         drawRingRef.current = drawRing
 
-        // ── Results source + layers ────────────────────────────────────
-        map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
-
-        map.addLayer({
-          id: 'results-circles',
-          type: 'circle',
-          source: 'results',
-          paint: {
-            'circle-radius': 10,
-            'circle-color': ['get', 'color'],
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
-            'circle-opacity': 0.9,
-          },
-        })
-        // Wind arrows, shown only while playback is scrubbing a wind ranking.
-        // On the same source as the circles, so a scrub sets one lot of GeoJSON
-        // and the arrow can never be pointing at an hour the colour is not.
-        // `filter: ['has','bearing']` is what makes a row with no direction —
-        // the SSE fallback never fetches it — draw nothing rather than draw
-        // north. (The icon itself is registered with the forecast-grid layers
-        // above, which are now the first to name it.)
-        map.addLayer({
-          id: 'results-wind',
-          type: 'symbol',
-          source: 'results',
-          filter: ['has', 'bearing'],
-          layout: {
-            'icon-image': WIND_ARROW_IMAGE,
-            'icon-rotate': ['get', 'bearing'],
-            // Rotate with the map, not with the screen: this is a compass
-            // bearing, so it has to keep pointing at the same piece of ground
-            // when the map is rotated.
-            'icon-rotation-alignment': 'map',
-            'icon-allow-overlap': true,
-            'icon-ignore-placement': true,
-            visibility: 'none',
-          },
-        })
-        map.addLayer({
-          id: 'results-rank',
-          type: 'symbol',
-          source: 'results',
-          layout: { 'text-field': ['get', 'rank'], 'text-size': 10, 'text-font': ['Noto Sans Bold'] },
-          paint: { 'text-color': '#fff' },
-        })
-        map.addLayer({
-          id: 'results-labels',
-          type: 'symbol',
-          source: 'results',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-offset': [0, 1.6],
-            'text-size': 11,
-            'text-anchor': 'top',
-            'text-font': ['Noto Sans Regular'],
-          },
-          paint: {
-            'text-color': '#f8fafc',
-            'text-halo-color': '#0f172a',
-            'text-halo-width': 1.5,
-          },
-        })
-
-        // ── Pending custom destinations ────────────────────────────────
-        // A pasted CSV row or searched place not yet in the displayed analysis:
-        // a neutral bluebird-forecast-blue dot so the point never vanishes, no forecast
-        // popup yet. Absent from the blocked-click list on purpose — a pending
-        // dot must never swallow a polygon click while you draw around a
-        // just-added spot; it starts blocking (opening a popup) once it ranks in.
-        map.addSource('pending-destinations', {
-          type: 'geojson',
-          data: emptyFC as FeatureCollection,
-        })
-        map.addLayer({
-          id: 'pending-destinations-circles',
-          type: 'circle',
-          source: 'pending-destinations',
-          paint: {
-            'circle-radius': 10,
-            'circle-color': '#3b82f6',
-            'circle-stroke-width': 2,
-            'circle-stroke-color': '#fff',
-            'circle-opacity': 0.9,
-          },
-        })
-        map.addLayer({
-          id: 'pending-destinations-labels',
-          type: 'symbol',
-          source: 'pending-destinations',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-offset': [0, 1.6],
-            'text-size': 11,
-            'text-anchor': 'top',
-            'text-font': ['Noto Sans Regular'],
-          },
-          paint: {
-            'text-color': '#f8fafc',
-            'text-halo-color': '#0f172a',
-            'text-halo-width': 1.5,
-          },
-        })
-
-        // ── Results & searched destinations: popup + cursor ────────────
-        // Both layers share one handler — a searched destination opens the same
-        // forecast popup as a ranked result (its feature just carries an empty
-        // rank, so the popup title drops the "#N").
-        const openResultPopup = (e: maplibregl.MapLayerMouseEvent) => {
-          const f = e.features?.[0]
-          if (!f?.properties) return
-          const p = f.properties
-          // Anchor the popup at the rendered geometry, but take the exact
-          // coordinates from properties for the readout and the geoKey lookup —
-          // a clicked feature's geometry is snapped to the tile grid, so it won't
-          // reliably match the warning map keyed on exact coordinates.
-          const anchor = (f.geometry as Point).coordinates as [number, number]
-          const lon = p.lon as number
-          const lat = p.lat as number
-          // Track this popup in the same ref focusResult uses so only one result
-          // popup is ever open. Marker→marker already dismisses via the map's
-          // closeOnClick, but a table-name click (focusResult) fires no map click,
-          // so without a shared ref the marker popup would linger beside it.
-          // The row behind this marker, for the popup's Windy links. Matched on
-          // the exact coordinates the feature carries for the fire lookup above
-          // rather than on an index, so a source that has re-rendered since the
-          // ref last updated cannot pair a popup with the wrong row.
-          const live = controller.inputs
-          const row = controller.resultAt(lat, lon)
-          const pinned = isPinning(e)
-          if (!pinned) closeAllPopups()
-          // Never closeOnClick: it is fixed at construction, so an
-          // already-open popup could not be told to survive the click that
-          // pins a second one — the first shift-click always lost the card it
-          // was meant to keep. Dismissal is ours now (closeAllPopups).
-          const resultPopup = new maplibregl.Popup({
-            ...popupOptions(map),
-            closeOnClick: false,
-          })
-          if (!pinned) resultPopupRef.current = resultPopup
-          trackPopup(resultPopup)
-          resultPopup
-            .setLngLat(anchor)
-            .setHTML(
-              resultPopupHtml({
-                rank: p.rank,
-                // The matched row is the popup's subject. The feature's own
-                // properties are the fallback for the case the match cannot
-                // happen — they carry no aggregates, so those columns draw the
-                // dash a missing value draws anywhere else rather than a
-                // number nobody fetched.
-                row: row ?? featureRow(p, lat, lon),
-                columns: live.popupColumns,
-                warning: controller.fireWarningAt(lat, lon),
-                modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
-                times: row?.series_times ?? live.times,
-                modelFallbackLabel: live.modelFallbackLabel,
-              }),
-            )
-            .addTo(map)
-        }
-        const showPointer = () => {
-          map.getCanvas().style.cursor = 'pointer'
-        }
-        const showCrosshair = () => {
-          restCursor()
-        }
-        for (const layer of ['results-circles']) {
-          map.on('click', layer, openResultPopup)
-          map.on('mouseenter', layer, showPointer)
-          map.on('mouseleave', layer, showCrosshair)
-        }
-
-        // ── Basemap POIs: click a labeled peak or lake to add it ────────
-        // The map already draws these features from the OpenMapTiles source,
-        // so the click costs no lookup — the name and elevation are in the
-        // feature's own properties. Adding one registers it exactly as a
-        // search by name does, which is why this needs no pipeline of its
-        // own: it lands in the same list, the same URL param, and the same
-        // `custom_destinations` on the next Analyze.
-        function openPoiPopup(poi: BasemapPoi, pinned: boolean) {
-          if (!pinned) closeAllPopups()
-          const popup = new maplibregl.Popup({ ...popupOptions(map), closeOnClick: false })
-            .setLngLat([poi.lon, poi.lat])
-            .addTo(map)
-          if (!pinned) poiPopupRef.current = popup
-          trackPopup(popup)
-
-          // Which registered place this POI is, or null. Held in the closure
-          // rather than re-read from the controller after each click: that
-          // only catches up on React's next render, and the button has to
-          // flip on the click that caused it.
-          let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
-
-          function render() {
-            popup.setHTML(poiPopupHtml(poi, registered !== null))
-            // setHTML replaces the content element's children, so the button is
-            // a new node every time and its listener has to be re-armed. The
-            // timeout lets MapLibre attach the markup first, matching the
-            // vertex popup above.
-            setTimeout(() => {
-              popup
-                .getElement()
-                ?.querySelector<HTMLButtonElement>(`[${POI_ACTION_ATTR}]`)
-                ?.addEventListener('click', () => {
-                  if (registered) {
-                    controller.inputs.onRemovePoi(registered.lat, registered.lon)
-                    registered = null
-                  } else {
-                    const place = poiToPlace(poi)
-                    controller.inputs.onAddPoi(place)
-                    registered = place
-                  }
-                  render()
-                })
-            }, 0)
-          }
-          render()
-        }
-
-        for (const layer of POI_LAYERS) {
-          map.on('click', layer, (e) => {
-            // While drawing, these features are scenery: the click belongs to
-            // the ring. They are deliberately absent from the blocked list
-            // below for the same reason, so a polygon corner can land on a
-            // peak label.
-            if (controller.inputs.drawing) return
-            // A basemap peak that has since been analyzed has a result marker
-            // sitting on top of it, and both layers answer the same click —
-            // which stacked two popups on one summit. The marker wins: it is
-            // the newer, more specific thing, and its popup carries the
-            // forecast this one could only offer to fetch. A fire perimeter
-            // wins for the same reason, having already opened a tab.
-            const claimed = map.queryRenderedFeatures(e.point, {
-              layers: ['results-circles', 'wildfire-fill'],
-            })
-            if (claimed.length > 0) return
-            const f = e.features?.[0]
-            if (!f?.properties) return
-            // A peak labels its own summit. A lake's label geometry is a tile
-            // artifact — a point for a compact one, a line for a long one — so
-            // it is resolved against the water itself; the click point is the
-            // fallback, and it is on the lake because that is what was clicked.
-            const clicked: [number, number] = [e.lngLat.lng, e.lngLat.lat]
-            const anchor =
-              (LAKE_LAYERS as readonly string[]).includes(layer)
-                ? lakeAnchor(map, e.point, clicked)
-                : f.geometry.type === 'Point'
-                  ? ((f.geometry as Point).coordinates as [number, number])
-                  : clicked
-            const poi = poiFromFeature(layer, f.properties, anchor)
-            if (poi) openPoiPopup(poi, isPinning(e))
-          })
-          map.on('mouseenter', layer, () => {
-            if (!controller.inputs.drawing) showPointer()
-          })
-          map.on('mouseleave', layer, showCrosshair)
+        // ── Results and basemap POIs ───────────────────────────────────
+        // The markers above the ring, the pending dots above the markers, and
+        // then the popups a click on a basemap peak or lake opens.
+        layersRef.current = {
+          results: mountResultsLayer(map, { controller, popups, restCursor }),
+          pois: mountPoiPopups(map, { controller, popups, restCursor }),
         }
 
         // ── General click → whatever is under it ───────────────────────
@@ -895,7 +578,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // keeps a click outside that mode from being a vertex at all (#119).
         const clickLayers = [
           ...POI_LAYERS,
-          'results-circles',
+          RESULT_MARKER_LAYER,
           ...SMOKE_CLICK_ORDER,
           WILDFIRE_FILL_LAYER,
           'draw-vertices',
@@ -911,13 +594,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
             drawing: controller.inputs.drawing,
             pinning: isPinning(e),
             fire: hitLayers.has(WILDFIRE_FILL_LAYER),
-            result: hitLayers.has('results-circles'),
+            result: hitLayers.has(RESULT_MARKER_LAYER),
             poi: POI_LAYERS.some((id) => hitLayers.has(id)),
             vertex: hitLayers.has('draw-vertices') || hitLayers.has('draw-midpoints'),
             smoke: SMOKE_CLICK_ORDER.filter((id) => hitLayers.has(id)),
           }
 
-          if (dismissesPopups(hits)) closeAllPopups()
+          if (dismissesPopups(hits)) popups.closeAll()
 
           const action = resolveMapClick(hits)
           if (action.kind === 'open-fire') {
@@ -940,15 +623,6 @@ const MapView = forwardRef<MapViewHandle, Props>(
           }
         })
 
-        if (pendingResultsRef.current.length > 0) {
-          updateResults(
-            map,
-            pendingResultsRef.current,
-            pendingSortByRef.current,
-            pendingPlaybackRef.current,
-          )
-          pendingResultsRef.current = []
-        }
         if (pendingSearchRef.current) {
           map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
             padding: framePadding(40, controller.inputs.cameraPadBottomPx),
@@ -965,7 +639,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       return () => {
         loadedRef.current = false
         drawRingRef.current = null
-        poiPopupRef.current = null
+        layersRef.current = null
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         overlaysRef.current?.wildfires.dispose()
@@ -1018,19 +692,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // it sets the same source the re-rank path does, which at 1,500 points and
     // two frames a second is cheap, and which is why nothing here reaches for
     // feature-state (the arrows could not read it anyway — see resultFeatures).
+    // Rows that arrive before the map loads are drawn when `mapReady` flips.
     useEffect(() => {
-      if (!mapRef.current || !loadedRef.current) {
-        pendingResultsRef.current = results
-        pendingSortByRef.current = sortBy
-        pendingPlaybackRef.current = playbackIndex
-        return
-      }
-      pendingResultsRef.current = []
-      updateResults(mapRef.current, results, sortBy, playbackIndex)
-    }, [results, sortBy, playbackIndex])
+      if (mapReady) layersRef.current?.results.update({ results, sortBy, playbackIndex })
+    }, [results, sortBy, playbackIndex, mapReady])
 
     // The forecast field and its arrows, on the same contract as the markers
     // above: one redraw per scrub tick, from series the browser already holds.
+    // The grid's arrows show on the rule the markers' arrows follow
+    // (`windArrowsShowing`), so the two cannot disagree.
     useEffect(() => {
       if (!mapReady) return
       overlaysRef.current?.grid.update({
@@ -1042,30 +712,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       })
     }, [gridSpec, gridCells, gridStyle, sortBy, playbackIndex, mapReady])
 
-    // Arrows exist only where they mean something: a wind ranking, being
-    // scrubbed. On any other metric they would be a second variable nobody
-    // asked about, drawn over the one they did. Both arrow layers answer to
-    // this one condition, so the cells and the markers can never disagree
-    // about whether wind has a direction worth drawing.
-    useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-      const showing = playbackIndex !== null && sortBy === 'wind_avg_mph'
-      for (const id of ['results-wind', 'forecast-grid-wind']) {
-        map.setLayoutProperty(id, 'visibility', showing ? 'visible' : 'none')
-      }
-    }, [playbackIndex, sortBy, mapReady])
-
     // Light every clickable basemap feature while the panel points at them.
     useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-      for (const id of POI_LAYERS) {
-        const glow = `${id}-glow`
-        if (map.getLayer(glow)) {
-          map.setLayoutProperty(glow, 'visibility', pointedPois ? 'visible' : 'none')
-        }
-      }
+      if (mapReady) layersRef.current?.pois.setPointed(pointedPois)
     }, [pointedPois, mapReady])
 
     // Draw mode: show or hide the editing handles, and move the cursor with
@@ -1080,9 +729,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
     // Neutral blue dot per custom destination not yet in the displayed analysis.
     useEffect(() => {
-      const map = mapRef.current
-      if (!map || !mapReady) return
-      setSource(map, 'pending-destinations', pendingFC(pending))
+      if (mapReady) layersRef.current?.results.setPending(pending)
     }, [pending, mapReady])
 
     // The overlay toggles. Each depends on mapReady so a restored link turns

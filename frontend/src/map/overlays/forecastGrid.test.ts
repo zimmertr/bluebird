@@ -93,6 +93,22 @@ describe('mountForecastGrid', () => {
     grid.update({ ...base, style: 'blocks', playbackIndex: 0 })
     expect(setData()).toBe(2)
   })
+
+  // The same rule the markers' arrows follow, set only when its answer moves,
+  // because a scrub calls this twice a second.
+  it('shows its arrows for a wind ranking under the playhead', () => {
+    const stub = stubMap()
+    const grid = mountForecastGrid(stub.map)
+    const visibility = () =>
+      stub.calls
+        .filter((c) => c[0] === 'setLayoutProperty' && c[1] === 'forecast-grid-wind')
+        .map((c) => c[3])
+    grid.update({ ...base, playbackIndex: 1 })
+    grid.update({ ...base, sortBy: 'wind_avg_mph', playbackIndex: 1 })
+    grid.update({ ...base, sortBy: 'wind_avg_mph', playbackIndex: 2 })
+    grid.update({ ...base, sortBy: 'wind_avg_mph', playbackIndex: null })
+    expect(visibility()).toEqual(['visible', 'none'])
+  })
 })
 
 describe('rasterImage', () => {

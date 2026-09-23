@@ -151,7 +151,7 @@ The text tests that stay, and why:
 | `utils/openMeteo.test.ts` | the two hooks, the three Open-Meteo modules | The coverage sentence and the unreadable-body sentence against the constants the modules export |
 | `utils/openMeteoAggregate.test.ts` | `openMeteoAggregate.ts`, `aggregation.py` | The TypeScript port against the Python it mirrors |
 | `utils/resultsSheet.test.ts` | `App.tsx`, `styles.ts`, `MapView.tsx` | The `LEGEND_TOP` classes and the panel default against the numbers the arithmetic uses; the attribution fold is in `MapView.tsx` |
-| `utils/basemapPoi.test.ts`, `map/basemap.test.ts`, `map/overlays/forecastGrid.test.ts`, `components/MapView.test.ts`, `utils/forecastGrid.test.ts`, `App.test.ts` | `MapView.tsx`, `map/basemap.ts`, `map/overlays/forecastGrid.ts` | Presence checks on the map's wiring, which the MapView split (#410) is moving into `src/map/`; they move with it |
+| `utils/basemapPoi.test.ts`, `map/basemap.test.ts`, `map/overlays/forecastGrid.test.ts`, `components/MapView.test.ts`, `utils/forecastGrid.test.ts`, `App.test.ts` | `MapView.tsx`, every module under `map/` | Presence checks on the map's wiring, which the MapView split (#410) is moving into `src/map/`; they move with it |
 
 ### The cold-load budgets
 
@@ -171,7 +171,8 @@ on the PR.
 ### The browser suite
 
 CI also operates the built image in a browser (issue #412): Playwright draws a
-ring and analyzes, opens a share link, and runs axe on the panel, the results,
+ring and analyzes, opens a share link, clicks the map under the legend stack
+and scrolls the stack, and runs axe on the panel, the results,
 and the Layers popover. Every third-party host is answered from fixtures in
 `frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
 `make browser` runs it locally: it builds the image, serves it on a docker

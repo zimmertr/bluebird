@@ -108,6 +108,7 @@ import {
   SWATCH_RAMP_TICK,
   TAP,
   TEXT,
+  YIELD_EMPTY,
 } from './styles'
 import {
   DEFAULT_FAMILY_KEY,
@@ -2810,7 +2811,7 @@ export default function App() {
               // screen.
               className={`absolute ${MAP_EDGE.left} ${
                 sidebarOpen ? LEGEND_TOP.compact : LEGEND_TOP.full
-              } z-10 flex flex-col ${MAP_COL_GAP} overflow-y-auto [&>*]:flex-shrink-0`}
+              } z-10 flex flex-col ${MAP_COL_GAP} overflow-y-auto [&>*]:flex-shrink-0 ${YIELD_EMPTY}`}
               // The floor of the scroll box, derived rather than chosen: the
               // transport's whole band while the bar is on screen and a plain
               // gap otherwise, measured from whatever stands on the map's
