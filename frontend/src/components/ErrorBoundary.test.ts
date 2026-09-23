@@ -11,9 +11,10 @@ import termsSource from '../terms.tsx?raw'
 import notFoundSource from '../notfound.tsx?raw'
 
 // The server renderer rethrows a render error rather than handing it to a
-// boundary, so the catch itself is React's to prove. What is tested here is
-// every part the boundary decides: the state a caught error moves it to, what
-// it logs, what it draws in each state, and what the button resets.
+// boundary, so the catch itself is proved under jsdom in
+// `ErrorBoundary.test.tsx`. What is tested here is every part the boundary
+// decides: the state a caught error moves it to, what it logs, what it draws in
+// each state, and what the button resets.
 function boundary(): ErrorBoundary {
   return new ErrorBoundary({ children: createElement('p', null, 'healthy') })
 }
