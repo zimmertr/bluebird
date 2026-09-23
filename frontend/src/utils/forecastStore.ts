@@ -34,7 +34,7 @@
  * reason to fail an analysis.
  */
 
-import type { AqiResult, Coordinate, WeatherResult } from './openMeteo'
+import type { AqiResult, CloudResult, Coordinate, WeatherResult } from './openMeteo'
 
 export const STORAGE_KEY = 'bluebird_forecast_cache_v1'
 
@@ -165,14 +165,17 @@ const CACHE_MAX_ENTRIES = 5_000
 // "No data for this window" is a real cached answer, distinct from a miss.
 export const NO_DATA = 'NO_DATA'
 
-type CacheEntry = { expires: number; value: WeatherResult | AqiResult | typeof NO_DATA }
+type CacheEntry = {
+  expires: number
+  value: WeatherResult | AqiResult | CloudResult | typeof NO_DATA
+}
 const forecastCache = new Map<string, CacheEntry>()
 
 // `model` is part of the key for the same reason the coordinates are: two
 // models answering the same question disagree, which is the whole point of
 // being able to choose one. Empty for air quality, which has a single model.
 export function cacheKey(
-  service: 'weather' | 'aqi',
+  service: 'weather' | 'aqi' | 'cloud',
   c: Coordinate,
   startMs: number,
   endMs: number,
@@ -187,8 +190,10 @@ export function cacheKey(
   // the same coordinates, distinct from both a claimed elevation and none —
   // without its own key, a destination with no elevation and the grid cell
   // over it would poison each other's entries.
+  // The cloud column (#117) keys on it for the same reason: its walk up the
+  // column starts at that height.
   const elevation =
-    service === 'weather' ? (c.elevation_ft ?? (terrainElevation ? 'model' : '')) : ''
+    service === 'aqi' ? '' : (c.elevation_ft ?? (terrainElevation ? 'model' : ''))
   // `source` is which endpoint answered (#123). The archive carries no
   // pressure-level winds, so its rows hold the 10 m wind where the forecast
   // endpoint's hold wind at elevation, and the boundary between the two moves

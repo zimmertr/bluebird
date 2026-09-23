@@ -10,6 +10,7 @@ import {
 } from './colors'
 import { COLUMNS } from './tableColumns'
 import { scaleTicks } from './legendRamp'
+import { NO_VALUE } from './resultFeatures'
 import { LabelledScale } from './colors'
 import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
 
@@ -240,6 +241,8 @@ describe('METRIC_SCALE', () => {
   it('exposes every metric family', () => {
     expect(Object.keys(METRIC_SCALE).sort()).toEqual([
       'aqi',
+      'cloud_base',
+      'cloud_cover',
       'freeze',
       'precip',
       'snow',
@@ -694,3 +697,95 @@ function toRgb(hex: string): number[] {
 function round2(v: number): number {
   return Math.round(v * 100) / 100
 }
+
+describe('the cloud base ramp', () => {
+  // The freezing level's six shades in its own order (TJ, #117): both are a
+  // height in the air column over the destination, and neither is a verdict.
+  // The shades are the same six, so the freezing level's contrast table above
+  // is this ramp's too, and it clears 4.5:1 as cell text at every band.
+  it('is the freezing level\'s six shades, low to high', () => {
+    expect(METRIC_SCALE.cloud_base.colors).toEqual(METRIC_SCALE.freeze.colors)
+    expect(METRIC_SCALE.cloud_base.unit).toBe('ft')
+  })
+
+  // 3,000 ft steps over the band the contiguous US's summits stand in, so a
+  // deck at a summit's own height lands mid-ramp.
+  it('bands on summit heights and prints three of them', () => {
+    expect(METRIC_SCALE.cloud_base.thresholds).toEqual([3000, 6000, 9000, 12000, 15000])
+    expect(labelsOf(METRIC_SCALE.cloud_base)).toEqual(['3,000', '9,000', '15,000'])
+  })
+
+  it('scores every aggregate on the one scale, hour and window alike', () => {
+    for (const key of FAMILY_KEYS.cloud_base) {
+      expect(rankedScale(key)).toBe(METRIC_SCALE.cloud_base)
+      expect(hourlyScale(key)).toBe(METRIC_SCALE.cloud_base)
+    }
+  })
+})
+
+describe('the cloud cover ramp', () => {
+  // Slate, pale at 0 % to dark at 100 % (TJ, #117). 20 % steps from 0, so both
+  // ends are exact rather than extrapolated: clear is the first anchor and
+  // overcast the last.
+  it('runs from the palest band at 0 % to the darkest at 100 %', () => {
+    const [b0, , , , , b5] = METRIC_SCALE.cloud_cover.colors
+    expect(METRIC_SCALE.cloud_cover.thresholds).toEqual([0, 20, 40, 60, 80])
+    expect(markerColor(0, 'cloud_cover_avg_pct')).toBe(b0)
+    expect(markerColor(100, 'cloud_cover_avg_pct')).toBe(b5)
+    expect(labelsOf(METRIC_SCALE.cloud_cover)).toEqual(['0', '40', '80'])
+    expect(METRIC_SCALE.cloud_cover.unit).toBe('%')
+  })
+
+  it('darkens monotonically, band by band', () => {
+    const steps = METRIC_SCALE.cloud_cover.colors.map(relativeLuminance)
+    for (let i = 1; i < steps.length; i++) expect(steps[i]).toBeLessThan(steps[i - 1])
+  })
+
+  // Measured 2026-09-22 against the three surfaces the freezing level's table
+  // names, and pinned the same way: recomputed from the constants, so a shade
+  // that moves fails here. The dark end stops at a mid grey because slate-400
+  // measures 3.92 as cell text; the last three shades are slate-300 mixed 25,
+  // 45 and 65 % of the way toward slate-400, the last being the darkest that
+  // clears 4.5:1 with a margin. The ring reading is low across the whole ramp
+  // for the reason the freezing level's pale end is: a pale fill inside a
+  // white stroke reads against the map rather than against the stroke.
+  const SLATE_800 = '#1d293d'
+  const MEASURED = [
+    { color: '#f8fafc', cellText: 7.43, markerRing: 1.05, legendSwatch: 13.97 },
+    { color: '#e2e8f0', cellText: 6.72, markerRing: 1.23, legendSwatch: 11.86 },
+    { color: '#cad5e2', cellText: 5.92, markerRing: 1.49, legendSwatch: 9.83 },
+    { color: '#bcc8d8', cellText: 5.37, markerRing: 1.69, legendSwatch: 8.62 },
+    { color: '#b0bed0', cellText: 4.99, markerRing: 1.89, legendSwatch: 7.74 },
+    { color: '#a4b3c7', cellText: 4.55, markerRing: 2.13, legendSwatch: 6.86 },
+  ]
+
+  it('still measures what the comment above says it measures', () => {
+    expect(MEASURED.map((m) => m.color)).toEqual(METRIC_SCALE.cloud_cover.colors)
+    for (const m of MEASURED) {
+      const tinted = mixOver(m.color, SLATE_800, 0.2)
+      expect(round2(contrast(m.color, tinted)), `${m.color} cell text`).toBe(m.cellText)
+      expect(round2(contrast(m.color, '#ffffff')), `${m.color} marker ring`).toBe(m.markerRing)
+      expect(round2(contrast(m.color, SLATE_800)), `${m.color} legend swatch`).toBe(m.legendSwatch)
+    }
+  })
+
+  it('clears 4.5:1 for the number printed in a shaded cell, at every band', () => {
+    for (const m of MEASURED) {
+      expect(m.cellText, `${m.color} cell text`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('keeps every legend swatch well clear of the box it sits on', () => {
+    for (const m of MEASURED) {
+      expect(m.legendSwatch, `${m.color} swatch`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  // The no-value fill is a grey too. The contrast floor keeps the darkest band
+  // well lighter than it, which is what lets an overcast marker and a marker
+  // with no number be told apart.
+  it('stays well clear of the no-value grey', () => {
+    const darkest = METRIC_SCALE.cloud_cover.colors[5]
+    expect(contrast(darkest, NO_VALUE)).toBeGreaterThan(2)
+  })
+})

@@ -103,6 +103,21 @@ class AnalyzeRequest(_DiscoveryFields):
             "always saw."
         ),
     )
+    include_clouds: bool = Field(
+        default=False,
+        description=(
+            "Send the six cloud fields (`cloud_base_*_ft`, `cloud_cover_*_pct`) "
+            "and their hourly series on the returned rows. Off by default "
+            "because the cloud variables are a second upstream request per "
+            "location: they are fetched only for the rows this response "
+            "returns, after the ranking and the `limit` cut, the way air "
+            "quality is.\n\n"
+            "Not needed to rank or bound by a cloud field. A `sort_by` naming "
+            "one, or any cloud bound, fetches the cloud variables for every "
+            "candidate before the ranking, whatever this is set to. With none "
+            "of the three, the six fields are null."
+        ),
+    )
     # Forecast bounds, applied after aggregation and BEFORE the ranking and the
     # `limit` cut, so "the top N matching destinations" is literally true rather
     # than "whichever of the top N happened to match".
@@ -198,6 +213,38 @@ class AnalyzeRequest(_DiscoveryFields):
         default=None,
         ge=0,
         description="Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.",
+    )
+    min_cloud_base_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `cloud_base_min_ft` is below this, i.e. keep only "
+            "destinations whose cloud base never fell below it during the "
+            "window. Setting any cloud bound fetches the cloud variables for "
+            "every candidate. A row with a null cloud base passes either bound."
+        ),
+    )
+    max_cloud_base_ft: float | None = Field(
+        default=None,
+        description=(
+            "Drop rows whose `cloud_base_max_ft` is above this. Nulls pass, "
+            "under the same terms."
+        ),
+    )
+    min_cloud_cover_pct: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Drop rows whose `cloud_cover_min_pct` is below this. Nulls pass."
+        ),
+    )
+    max_cloud_cover_pct: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Drop rows whose `cloud_cover_max_pct` is above this, i.e. keep "
+            "only destinations that stay at or under it for the whole window. "
+            "Nulls pass."
+        ),
     )
     min_aqi: float | None = Field(
         default=None,
@@ -372,6 +419,20 @@ class HourlySeries(BaseModel):
         )
     )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
+    cloud_base_ft: list[float | None] | None = Field(
+        default=None,
+        description=(
+            "Cloud base, feet above sea level; see `cloud_base_min_ft` on the "
+            "result. Null as a whole unless the cloud variables were fetched."
+        ),
+    )
+    cloud_cover_pct: list[float | None] | None = Field(
+        default=None,
+        description=(
+            "Total cloud cover, percent. Null as a whole unless the cloud "
+            "variables were fetched."
+        ),
+    )
 
 
 class DestinationResult(BaseModel):
@@ -460,6 +521,49 @@ class DestinationResult(BaseModel):
     )
     snow_depth_in: float | None = Field(
         default=None, description=_SNOW_DEPTH_DESCRIPTION
+    )
+    cloud_base_min_ft: float | None = Field(
+        default=None,
+        description=(
+            "Lowest cloud base in the window, feet above sea level. Each hour "
+            "is the lowest height in the model's air column over the "
+            "destination where the relative humidity reaches 95 %, read from "
+            "the destination's own 2 m air and the standard pressure levels "
+            "above it and interpolated between the two that bracket it. "
+            "Read against `elevation_ft`: at or below it, the destination "
+            "was in cloud. When nothing in the column is saturated the hour "
+            "reads the destination's own parcel base, about 125 m above it "
+            "per degree Celsius between its temperature and dew point, so a "
+            "clear sky reads a high number rather than null.\n\n"
+            "Null unless the cloud variables were fetched (a cloud `sort_by`, "
+            "a cloud bound, or `include_clouds`), for a destination with no "
+            "known elevation, and for archive hours, which carry no pressure "
+            "levels to read."
+        ),
+    )
+    cloud_base_avg_ft: float | None = Field(
+        default=None,
+        description="Mean cloud base across the window. Null under the same terms.",
+    )
+    cloud_base_max_ft: float | None = Field(
+        default=None,
+        description="Highest cloud base in the window. Null under the same terms.",
+    )
+    cloud_cover_min_pct: float | None = Field(
+        default=None,
+        description=(
+            "Clearest hour's total cloud cover, percent. Null unless the "
+            "cloud variables were fetched. Unlike the cloud base, archive "
+            "windows carry it."
+        ),
+    )
+    cloud_cover_avg_pct: float | None = Field(
+        default=None,
+        description="Mean cloud cover across the window. Null under the same terms.",
+    )
+    cloud_cover_max_pct: float | None = Field(
+        default=None,
+        description="Cloudiest hour's cloud cover. Null under the same terms.",
     )
     series: HourlySeries | None = Field(
         default=None,

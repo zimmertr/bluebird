@@ -22,17 +22,20 @@ import {
   GeoPolygon,
   HourlySeries,
 } from '../types'
-import { familyOf } from '../metrics'
+import { familyOf, isOnRequestFamily } from '../metrics'
 import { postDestinations } from './apiFetch'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
 import {
   AqiResult,
+  CloudResult,
   Coordinate,
   WeatherResult,
   fetchAqi,
+  fetchCloud,
   fetchWeather,
 } from './openMeteo'
+import type { CloudSeries } from './openMeteoAggregate'
 import { nullsLast } from './sortResults'
 
 // The forecast bounds live in constraints.ts. They are re-exported here because
@@ -43,6 +46,7 @@ export {
   constraintsFromRequest,
   filterConstraints,
   hasConstraints,
+  namesOnRequestMetric,
   type Constraints,
 } from './constraints'
 
@@ -183,6 +187,71 @@ export function alignAqi(
   return timesMs.map((t) => lookup.get(t) ?? null)
 }
 
+// Port of _aligned_cloud: the cloud series onto the weather grid by stamp, or
+// no arrays at all when the cloud column was never fetched for the row.
+export function alignCloud(
+  timesMs: readonly number[],
+  cloudSeries: CloudSeries | null,
+): { base: (number | null)[] | null; cover: (number | null)[] | null } {
+  if (!cloudSeries) return { base: null, cover: null }
+  const base = new Map<number, number | null>()
+  const cover = new Map<number, number | null>()
+  cloudSeries.times.forEach((t, i) => {
+    base.set(t, cloudSeries.cloud_base_ft[i] ?? null)
+    cover.set(t, cloudSeries.cloud_cover_pct[i] ?? null)
+  })
+  return {
+    base: timesMs.map((t) => base.get(t) ?? null),
+    cover: timesMs.map((t) => cover.get(t) ?? null),
+  }
+}
+
+/** A row's cloud aggregates and hourly arrays, or their absence. */
+function cloudFields(
+  cloud: CloudResult,
+): Pick<
+  DestinationResult,
+  | 'cloud_base_min_ft'
+  | 'cloud_base_avg_ft'
+  | 'cloud_base_max_ft'
+  | 'cloud_cover_min_pct'
+  | 'cloud_cover_avg_pct'
+  | 'cloud_cover_max_pct'
+> {
+  return {
+    cloud_base_min_ft: cloud?.cloud_base_min_ft ?? null,
+    cloud_base_avg_ft: cloud?.cloud_base_avg_ft ?? null,
+    cloud_base_max_ft: cloud?.cloud_base_max_ft ?? null,
+    cloud_cover_min_pct: cloud?.cloud_cover_min_pct ?? null,
+    cloud_cover_avg_pct: cloud?.cloud_cover_avg_pct ?? null,
+    cloud_cover_max_pct: cloud?.cloud_cover_max_pct ?? null,
+  }
+}
+
+/**
+ * The same row with its cloud answer laid over it, or with none.
+ *
+ * A held row can carry a cloud answer its new report did not ask for. Stripping
+ * it keeps the rule that a report carries the cloud column exactly when its
+ * snapshot says it does, so a ranking can never read half a column.
+ */
+export function withCloud(
+  row: DestinationResult,
+  cloud: CloudResult,
+  times: readonly number[],
+): DestinationResult {
+  const next: DestinationResult = { ...row, ...cloudFields(cloud) }
+  if (row.series) {
+    const { cloud_base_ft: _b, cloud_cover_pct: _c, ...rest } = row.series
+    const aligned = alignCloud(times, cloud?.series ?? null)
+    next.series =
+      aligned.base === null
+        ? rest
+        : { ...rest, cloud_base_ft: aligned.base, cloud_cover_pct: aligned.cover }
+  }
+  return next
+}
+
 // Port of _canonical_times: the shared hourly grid is identical across
 // destinations for one window, so the first row carrying a series defines it.
 export function canonicalTimes(wxList: readonly WeatherResult[]): number[] {
@@ -218,6 +287,7 @@ export function assemble(
   destinations: readonly DiscoveredDestination[],
   wxList: readonly WeatherResult[],
   aqiList: readonly AqiResult[],
+  cloudList: readonly CloudResult[] | null = null,
 ): { results: DestinationResult[]; times: number[] } {
   const times = canonicalTimes(wxList)
   const results: DestinationResult[] = []
@@ -226,15 +296,22 @@ export function assemble(
     const wx = wxList[i]
     if (!wx) continue
     const aqi = aqiList[i] ?? null
+    const cloud = cloudList?.[i] ?? null
     const { series: wxSeries, ...aggregates } = wx
     let series: HourlySeries | null = null
     if (wxSeries) {
+      const aligned = alignCloud(wxSeries.times, cloud?.series ?? null)
       series = {
         precip_in: wxSeries.precip_in,
         temp_f: wxSeries.temp_f,
         wind_mph: wxSeries.wind_mph,
         freeze_ft: wxSeries.freeze_ft,
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
+        // Absent rather than a column of nulls when the cloud column was
+        // never fetched, which is the server's shape too.
+        ...(aligned.base !== null
+          ? { cloud_base_ft: aligned.base, cloud_cover_pct: aligned.cover }
+          : {}),
         // Present only on the browser path, which is the only one that asks
         // Open-Meteo for it. Spread rather than assigned so a row from a
         // response without it carries no key at all, rather than an explicit
@@ -257,6 +334,7 @@ export function assemble(
       aqi_avg: aqi?.aqi_avg ?? null,
       aqi_min: aqi?.aqi_min ?? null,
       aqi_max: aqi?.aqi_max ?? null,
+      ...cloudFields(cloud),
       series,
     })
   }
@@ -307,6 +385,15 @@ export interface ClientAnalysisCallbacks {
    * would be ranked on nulls.
    */
   onPartial?: (rows: DestinationResult[], times: number[]) => void
+  /**
+   * Fetch the cloud column for the whole field (#117). The caller decides,
+   * from the ranking and the bounds (`namesOnRequestMetric`), because this is
+   * the one request an analysis makes only when asked. Held rows are covered
+   * too: their weather is reused, but a report either carries the column for
+   * every row or for none, and the per-location cache makes a row that already
+   * has it cost nothing. Off, every row comes back without it.
+   */
+  cloud?: boolean
 }
 
 export interface ClientAnalysis {
@@ -347,6 +434,7 @@ export async function runClientAnalysis(
     windowLimits,
     aqiForecastDays,
     reuse,
+    cloud = false,
   }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
   if (destinations.length === 0) {
@@ -411,9 +499,39 @@ export async function runClientAnalysis(
   const onCallerAbort = () => internal.abort()
   if (signal?.aborted) internal.abort()
   signal?.addEventListener('abort', onCallerAbort, { once: true })
+  // A cloud failure aborts the weather fetch through `internal`, which then
+  // rejects with an AbortError. That error must not be what the caller sees,
+  // since an AbortError reads as the reader's own cancel.
+  let cloudFailure: unknown = null
 
   try {
     const sortBy = request.sort_by ?? 'precip_total_in'
+
+    // The cloud column rides beside the weather over every candidate, reused
+    // ones included, and only when asked (#117). Started first so its batches
+    // overlap the weather's rather than trailing them; it spends the same
+    // weather budget, so the pacer still sees one analysis's worth of spend.
+    const cloudCoords: Coordinate[] = [
+      ...reused.map((r) => ({
+        latitude: r.latitude,
+        longitude: r.longitude,
+        elevation_ft: r.elevation_ft,
+      })),
+      ...coords,
+    ]
+    const cloudPending: Promise<CloudResult[] | null> = cloud
+      ? fetchCloud(cloudCoords, startMs, endMs, {
+          signal: internal.signal,
+          onPace,
+          model: request.forecast_model,
+          nowMs,
+          windowLimits,
+        }).catch((e: unknown) => {
+          if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
+          internal.abort()
+          return null
+        })
+      : Promise.resolve(null)
 
     // AQI rides ALONGSIDE weather for the whole field rather than trailing the
     // ranking for the displayed rows. Open-Meteo bills weighted calls per
@@ -444,7 +562,11 @@ export async function runClientAnalysis(
       // is invisible for a weather ranking (the column fills in when the
       // analysis commits) and meaningless for an air-quality one, which would
       // be ranking nulls. So the announcements simply do not happen there.
-      const partialsWanted = onPartial != null && familyOf(sortBy) !== 'aqi'
+      // The cloud column resolves at the end too, so the same holds for a
+      // cloud ranking.
+      const rankFamily = familyOf(sortBy)
+      const partialsWanted =
+        onPartial != null && rankFamily !== 'aqi' && !isOnRequestFamily(rankFamily)
       const wxList = await fetchWeather(coords, startMs, endMs, {
         signal: internal.signal,
         onPace,
@@ -486,7 +608,14 @@ export async function runClientAnalysis(
           ),
       })
       const aqiList = await aqiPending
-      const assembled = assemble(unforecast, wxList, aqiList)
+      const cloudList = await cloudPending
+      if (cloudFailure !== null) throw cloudFailure
+      const assembled = assemble(
+        unforecast,
+        wxList,
+        aqiList,
+        cloudList && cloudList.slice(reused.length),
+      )
       fetched = assembled.results
       times = assembled.times
     }
@@ -496,7 +625,12 @@ export async function runClientAnalysis(
     // analysis fetched nothing, and the two are the same grid either way.
     if (times.length === 0) times = [...(reuse?.times ?? [])]
 
-    const results = [...reused, ...fetched]
+    const heldCloud = await cloudPending
+    if (cloudFailure !== null) throw cloudFailure
+    const results = [
+      ...reused.map((r, i) => withCloud(r, heldCloud?.[i] ?? null, times)),
+      ...fetched,
+    ]
     results.sort(rankComparator(sortBy, request.sort_desc ?? false))
     const top = results.slice(0, request.limit)
 
@@ -517,7 +651,7 @@ export async function runClientAnalysis(
     }
   } catch (e) {
     internal.abort()
-    throw e
+    throw cloudFailure ?? e
   } finally {
     signal?.removeEventListener('abort', onCallerAbort)
   }

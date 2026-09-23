@@ -428,6 +428,10 @@ describe('encodeState', () => {
       maxSnowDepthIn: 60,
       minAqi: 10,
       maxAqi: 100,
+      minCloudBaseFt: 5000,
+      maxCloudBaseFt: 14000,
+      minCloudCoverPct: 0,
+      maxCloudCoverPct: 40,
     }
     const qs = encodeState({ ...base, constraints }, DEFAULT_MODEL)
     // Plain numbers under names you can guess, which is the whole convention:
@@ -436,6 +440,8 @@ describe('encodeState', () => {
     expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
     expect(new URLSearchParams(qs).get('minsnow')).toBe('2')
+    expect(new URLSearchParams(qs).get('mincloudbase')).toBe('5000')
+    expect(new URLSearchParams(qs).get('maxcloudcover')).toBe('40')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
   })
 
@@ -621,7 +627,12 @@ describe('decodeState tolerance', () => {
       const out = roundTrip({
         ...base,
         sortBy: 'precip_total_in',
-        rowKeys: { ...DEFAULT_FAMILY_KEY, wind: 'wind_max_mph', temp: 'temp_min_f' },
+        rowKeys: {
+          ...DEFAULT_FAMILY_KEY,
+          wind: 'wind_max_mph',
+          temp: 'temp_min_f',
+          cloud_cover: 'cloud_cover_max_pct',
+        },
       })
       expect(out!.rowKeys).toEqual({
         precip: 'precip_total_in',
@@ -630,6 +641,8 @@ describe('decodeState tolerance', () => {
         freeze: 'freeze_min_ft',
         snow: 'snow_depth_in',
         aqi: 'aqi_avg',
+        cloud_base: 'cloud_base_min_ft',
+        cloud_cover: 'cloud_cover_max_pct',
       })
       expect(out!.sortBy).toBe('precip_total_in')
     })

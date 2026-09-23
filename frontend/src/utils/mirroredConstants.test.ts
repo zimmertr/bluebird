@@ -15,7 +15,13 @@
 import { describe, expect, it } from 'vitest'
 import manifest from '../../../backend/tests/data/mirrored_constants.json'
 import { BATCH_SIZE, MAX_CONCURRENT_BATCHES } from './openMeteo'
-import { HOURLY_VARIABLES } from './openMeteoAggregate'
+import {
+  CLOUD_SATURATION_RH,
+  CLOUD_VARIABLES,
+  ESPY_M_PER_C,
+  HOURLY_VARIABLES,
+  ISA_HEIGHT_M,
+} from './openMeteoAggregate'
 import { COVERAGE_MESSAGE_TAIL, COVERAGE_PHRASE } from './openMeteoErrors'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
@@ -75,6 +81,26 @@ describe('the constants the backend publishes for this side to match', () => {
     // holds the two together.
     expect(PAST_LIMIT_SLACK_DAYS).toBe(constants.PAST_LIMIT_SLACK_DAYS)
     expect(FUTURE_LIMIT_SLACK_DAYS).toBe(constants.FUTURE_LIMIT_SLACK_DAYS)
+  })
+})
+
+describe('the cloud base both sides compute (#117)', () => {
+  it('prices a cloud request on the variables the backend asks for', () => {
+    // No wind bearing here: the cloud request is the same list on both sides.
+    expect(CLOUD_VARIABLES.length).toBe(constants.N_CLOUD_VARIABLES)
+  })
+
+  it('calls a level saturated where the backend does', () => {
+    expect(CLOUD_SATURATION_RH).toBe(constants.CLOUD_SATURATION_RH)
+    expect(ESPY_M_PER_C).toBe(constants.ESPY_M_PER_C)
+  })
+
+  it('stands every pressure level at the backend\'s height', () => {
+    // The wind, the temperature and the cloud base all read this one table,
+    // so a height moved on one side would move three columns at once.
+    const browser = Object.entries(ISA_HEIGHT_M).map(([p, m]) => [Number(p), m])
+    const sort = (pairs: number[][]) => [...pairs].sort((a, b) => b[0] - a[0])
+    expect(sort(browser)).toEqual(sort(constants.ISA_HEIGHT_M))
   })
 })
 

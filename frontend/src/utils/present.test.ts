@@ -6,6 +6,7 @@ import {
   AnalyzedSnapshot,
   CommitChanges,
   PresentationKnobs,
+  cloudNeeded,
   commitNeeded,
   discoveryChanges,
   discoveryKeys,
@@ -46,6 +47,7 @@ const changed = (over: Partial<CommitChanges> = {}): CommitChanges => ({
   polygon: false,
   types: false,
   destinationAdded: false,
+  cloud: false,
   ...over,
 })
 
@@ -152,7 +154,14 @@ describe('commitNeeded', () => {
     expect(
       commitNeeded(
         analyzed,
-        changed({ window: true, model: true, polygon: true, types: true, destinationAdded: true }),
+        changed({
+          window: true,
+          model: true,
+          polygon: true,
+          types: true,
+          destinationAdded: true,
+          cloud: true,
+        }),
       ),
     ).toEqual([
       'model-changed',
@@ -160,7 +169,30 @@ describe('commitNeeded', () => {
       'polygon-changed',
       'types-changed',
       'destination-added',
+      'cloud-needed',
     ])
+  })
+
+  // #117: the one reason a presentation knob raises.
+  it('asks for an analysis when a cloud metric is named over a report without it', () => {
+    expect(commitNeeded({ ...ANALYZED }, changed({ cloud: true }))).toEqual(['cloud-needed'])
+  })
+})
+
+describe('cloudNeeded', () => {
+  it('is raised by a cloud metric over a report analyzed without the column', () => {
+    expect(cloudNeeded({ cloudFetched: false }, true)).toBe(true)
+  })
+
+  it('is quiet once the report carries the column, whatever its rows hold', () => {
+    // An archive report fetched the column and holds a null base at every
+    // hour; asking again would buy the same nulls.
+    expect(cloudNeeded({ cloudFetched: true }, true)).toBe(false)
+  })
+
+  it('is quiet when no cloud metric is named, and before any report exists', () => {
+    expect(cloudNeeded({ cloudFetched: false }, false)).toBe(false)
+    expect(cloudNeeded(null, true)).toBe(false)
   })
 })
 

@@ -5,7 +5,7 @@
 // it.
 
 import { DestinationResult, DiscoveredDestination } from '../types'
-import type { Coordinate, WeatherResult, AqiResult } from './openMeteo'
+import type { Coordinate, WeatherResult, AqiResult, CloudResult } from './openMeteo'
 import { assemble } from './clientAnalyze'
 import { alignRowToGrid } from './chartData'
 import type { WindowSource } from './forecastWindow'
@@ -450,6 +450,7 @@ export function pairCells(
   wxList: readonly WeatherResult[],
   aqiList: readonly AqiResult[],
   times: readonly number[],
+  cloudList: readonly CloudResult[] | null = null,
 ): GridCell[] {
   const cells: GridCell[] = []
   for (let i = 0; i < indices.length; i++) {
@@ -460,7 +461,12 @@ export function pairCells(
     // is `spec.indices[pos]`; conflating the two only worked while the
     // lattice was dense and every position WAS its virtual index.
     const pos = indices[i]
-    const built = assemble([cellDestination(spec.points[pos])], [wx], [aqiList[i] ?? null])
+    const built = assemble(
+      [cellDestination(spec.points[pos])],
+      [wx],
+      [aqiList[i] ?? null],
+      cloudList && [cloudList[i] ?? null],
+    )
     const row = built.results[0]
     if (!row) continue
     cells.push({

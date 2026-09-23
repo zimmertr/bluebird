@@ -91,6 +91,7 @@ describe('panelMessages', () => {
       ['polygon-changed', 'A new search area requires a new analysis.'],
       ['types-changed', 'A new destination type requires a new analysis.'],
       ['destination-added', 'A new destination requires a new analysis.'],
+      ['cloud-needed', 'A new cloud metric requires a new analysis.'],
     ]
 
     it.each(CUES)('warns %s with its own sentence', (reason, text) => {

@@ -122,6 +122,8 @@ _LOWER_BOUNDS = (
     ("min_freeze_ft", "freeze_min_ft"),
     ("min_snow_depth_in", "snow_depth_in"),
     ("min_aqi", "aqi_max"),
+    ("min_cloud_base_ft", "cloud_base_min_ft"),
+    ("min_cloud_cover_pct", "cloud_cover_min_pct"),
 )
 _UPPER_BOUNDS = (
     ("max_precip_total_in", "precip_total_in"),
@@ -130,7 +132,14 @@ _UPPER_BOUNDS = (
     ("max_freeze_ft", "freeze_max_ft"),
     ("max_snow_depth_in", "snow_depth_in"),
     ("max_aqi", "aqi_max"),
+    ("max_cloud_base_ft", "cloud_base_max_ft"),
+    ("max_cloud_cover_pct", "cloud_cover_max_pct"),
 )
+
+# Every cloud field leads with this, which is how a ranking key or a bound's
+# field is recognized as one the cloud request must answer.
+_CLOUD_PREFIX = "cloud_"
+
 
 
 def _aqi_bounded(request: AnalyzeRequest) -> bool:
@@ -143,6 +152,24 @@ def _aqi_bounded(request: AnalyzeRequest) -> bool:
     that asked for it.
     """
     return request.min_aqi is not None or request.max_aqi is not None
+
+
+def _cloud_eager(request: AnalyzeRequest) -> bool:
+    """Does the ranking or a bound need the cloud fields for every candidate?
+
+    The same question `_aqi_bounded` asks, for the same reason, with the ranking
+    folded in: the cloud variables are a second request per location (issue
+    #117), so they are fetched for the whole field only when the order or the
+    filter cannot be known without them. A bound on a value never fetched
+    would drop nothing, since nulls pass.
+    """
+    if request.sort_by.value.startswith(_CLOUD_PREFIX):
+        return True
+    return any(
+        getattr(request, attr) is not None
+        for attr, field in (*_LOWER_BOUNDS, *_UPPER_BOUNDS)
+        if field.startswith(_CLOUD_PREFIX)
+    )
 
 
 def _filter_constraints(
@@ -360,6 +387,8 @@ def _summarize_request(request: AnalyzeRequest) -> str:
     # the same analysis yesterday is traceable to the request that asked for it.
     if not request.include_series:
         parts.append("series=off")
+    if request.include_clouds:
+        parts.append("clouds=on")
     if request.min_elevation_ft is not None:
         parts.append(f"min_elev_ft={request.min_elevation_ft:.0f}")
     if request.max_elevation_ft is not None:
@@ -626,6 +655,62 @@ async def _attach_aqi(
             row.series.aqi = _aligned_aqi(times, aqi.get("series"))
 
 
+async def _attach_cloud(
+    results: list[DestinationResult],
+    times: list[int],
+    start_dt,
+    end_dt,
+    request: AnalyzeRequest,
+    api_key: str | None,
+    source: WindowSource,
+    boundary: datetime,
+) -> None:
+    """Fetch the cloud fields for exactly the rows being returned.
+
+    The lazy half, for a caller who asked for the columns (`include_clouds`)
+    without ranking or bounding by them: the fields are display data for the
+    returned rows, so fetching them for every candidate would spend a second
+    request per location on rows nobody sees. Raises like the weather fetch,
+    because the caller asked for these by name.
+    """
+    if not results:
+        return
+    dests = [
+        {"latitude": r.latitude, "longitude": r.longitude, "elevation_ft": r.elevation_ft}
+        for r in results
+    ]
+    cloud_list = await weather.fetch_cloud_batch(
+        dests,
+        start_dt,
+        end_dt,
+        request.forecast_model,
+        api_key=api_key,
+        source=source,
+        boundary=boundary,
+    )
+    for row, cloud in zip(results, cloud_list, strict=False):
+        if not cloud:
+            continue
+        for field in _CLOUD_FIELDS:
+            setattr(row, field, cloud.get(field))
+        if row.series is not None:
+            row.series.cloud_base_ft, row.series.cloud_cover_pct = _aligned_cloud(
+                times, cloud.get("series")
+            )
+
+
+# The six aggregate fields a cloud answer carries, in the order the result
+# model declares them.
+_CLOUD_FIELDS = (
+    "cloud_base_min_ft",
+    "cloud_base_avg_ft",
+    "cloud_base_max_ft",
+    "cloud_cover_min_pct",
+    "cloud_cover_avg_pct",
+    "cloud_cover_max_pct",
+)
+
+
 def _canonical_times(wx_list: list) -> list[int]:
     """The shared hourly grid for the response. It is identical across
     destinations for one window, so the first row carrying a series defines it."""
@@ -647,6 +732,24 @@ def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | Non
     return [lookup.get(t) for t in times_ms]
 
 
+def _aligned_cloud(
+    times_ms: list[int], cloud_series: dict | None
+) -> tuple[list[float | None] | None, list[float | None] | None]:
+    """Cloud base and cloud cover aligned onto the weather grid, null where absent.
+
+    The two requests ask for the same hours, so the grids agree whenever both
+    answered; aligning by stamp rather than by index is what keeps a short or
+    missing answer from sliding a value onto the wrong hour. No series at all
+    is no arrays at all, which is what a row whose analysis never asked for
+    the cloud fields carries: a column of nulls would be bytes that say less.
+    """
+    if not cloud_series:
+        return None, None
+    base = dict(zip(cloud_series["times"], cloud_series["cloud_base_ft"], strict=False))
+    cover = dict(zip(cloud_series["times"], cloud_series["cloud_cover_pct"], strict=False))
+    return [base.get(t) for t in times_ms], [cover.get(t) for t in times_ms]
+
+
 def _assemble(
     destinations: list,
     wx_list: list,
@@ -654,6 +757,7 @@ def _assemble(
     type_value: str,
     *,
     include_series: bool = True,
+    cloud_list: list | None = None,
 ) -> tuple[list[DestinationResult], list[int]]:
     """Zip destinations with their weather + AQI results into rows, baking the
     hourly series (AQI aligned onto the weather grid) into each.
@@ -670,22 +774,28 @@ def _assemble(
     mixes discovered and custom rows — falling back to the request-level value.
     """
     times = _canonical_times(wx_list)
+    clouds = cloud_list if cloud_list is not None else [None] * len(destinations)
     results: list[DestinationResult] = []
-    for dest, wx, aqi in zip(destinations, wx_list, aqi_list, strict=False):
+    for dest, wx, aqi, cloud in zip(destinations, wx_list, aqi_list, clouds, strict=False):
         if wx is None:
             continue
         aqi = aqi or {}
+        cloud = cloud or {}
         wx_series = wx.get("series")
         agg = {k: v for k, v in wx.items() if k != "series"}
         aqi_stats = {k: v for k, v in aqi.items() if k != "series"}
+        cloud_stats = {k: v for k, v in cloud.items() if k != "series"}
         series = None
         if wx_series and include_series:
+            cloud_base, cloud_cover = _aligned_cloud(wx_series["times"], cloud.get("series"))
             series = HourlySeries(
                 precip_in=wx_series["precip_in"],
                 temp_f=wx_series["temp_f"],
                 wind_mph=wx_series["wind_mph"],
                 freeze_ft=wx_series["freeze_ft"],
                 aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
+                cloud_base_ft=cloud_base,
+                cloud_cover_pct=cloud_cover,
             )
         results.append(
             DestinationResult(
@@ -701,10 +811,70 @@ def _assemble(
                 snow_depth_in=dest.get("snow_depth_in"),
                 **agg,
                 **aqi_stats,
+                **cloud_stats,
                 series=series,
             )
         )
     return results, times
+
+
+def _upstream_failure(e: Exception) -> Failure:
+    """What a failed forecast fetch answers, one arm per cause.
+
+    One ladder for every fetch that can fail the analysis, the weather and the
+    cloud request alike, so the two cannot answer the same upstream fault with
+    two statuses.
+    """
+    if isinstance(e, ratelimit.BudgetExhausted):
+        return Failure(
+            ApiError(
+                status_code=503,
+                detail=e.message,
+                code=ErrorCode.busy,
+                headers={"Retry-After": str(e.retry_after_s)},
+            )
+        )
+    if isinstance(e, InvalidApiKeyError):
+        # 401, and tested ahead of its UpstreamError base for the same reason
+        # ModelCoverageError below is a 400: the upstream is healthy and only
+        # the caller can fix the request.
+        return Failure(
+            ApiError(status_code=401, detail=e.message, code=ErrorCode.invalid_api_key)
+        )
+    if isinstance(e, UpstreamRateLimited):
+        # A response says how long to wait in `Retry-After` and names no
+        # scope at all. An event has no headers, so both ride it as members.
+        return Failure(
+            ApiError(
+                status_code=429,
+                detail=e.message,
+                code=ErrorCode.upstream_rate_limited,
+                headers={"Retry-After": str(e.retry_after_s)},
+            ),
+            extra={"scope": e.scope, "retry_after_s": e.retry_after_s},
+        )
+    if isinstance(e, ModelCoverageError):
+        # 400, not the 502 its UpstreamError base would otherwise give: the
+        # upstream is healthy and answered correctly. The request asked a
+        # regional model about somewhere it does not model, and only the
+        # caller can fix that.
+        return Failure(
+            ApiError(status_code=400, detail=e.message, code=ErrorCode.model_coverage)
+        )
+    if isinstance(e, UpstreamError):
+        return Failure(
+            ApiError(
+                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
+            )
+        )
+    log.exception("Weather fetch failed", exc_info=e)
+    return Failure(
+        ApiError(
+            status_code=502,
+            detail="The weather search failed. Try again later.",
+            code=ErrorCode.upstream_unavailable,
+        )
+    )
 
 
 async def _run_analysis(
@@ -902,6 +1072,26 @@ async def _run_analysis(
         if aqi_eager
         else None
     )
+    # The cloud variables are the same question one step further: a second
+    # request per location that the ranking or a bound can depend on (issue
+    # #117). Fetched eagerly for every candidate only then, alongside the
+    # weather; a caller who only asked to SEE them gets them after the cut.
+    cloud_eager = _cloud_eager(request)
+    cloud_task = (
+        asyncio.create_task(
+            weather.fetch_cloud_batch(
+                destinations,
+                start,
+                end,
+                request.forecast_model,
+                api_key=api_key,
+                source=source,
+                boundary=boundary,
+            )
+        )
+        if cloud_eager
+        else None
+    )
     fetch_task = asyncio.create_task(run_fetch())
     try:
         async for event in _drain(progress_queue):
@@ -909,67 +1099,14 @@ async def _run_analysis(
 
         wx_list = await fetch_task
         aqi_list = await aqi_task if aqi_task is not None else [None] * len(destinations)
-    except ratelimit.BudgetExhausted as e:
-        yield Failure(
-            ApiError(
-                status_code=503,
-                detail=e.message,
-                code=ErrorCode.busy,
-                headers={"Retry-After": str(e.retry_after_s)},
-            )
-        )
-        return
-    except InvalidApiKeyError as e:
-        # 401, and caught ahead of its UpstreamError base for the same reason
-        # ModelCoverageError below is a 400: the upstream is healthy and only
-        # the caller can fix the request.
-        yield Failure(
-            ApiError(status_code=401, detail=e.message, code=ErrorCode.invalid_api_key)
-        )
-        return
-    except UpstreamRateLimited as e:
-        # A response says how long to wait in `Retry-After` and names no
-        # scope at all. An event has no headers, so both ride it as members.
-        yield Failure(
-            ApiError(
-                status_code=429,
-                detail=e.message,
-                code=ErrorCode.upstream_rate_limited,
-                headers={"Retry-After": str(e.retry_after_s)},
-            ),
-            extra={"scope": e.scope, "retry_after_s": e.retry_after_s},
-        )
-        return
-    except ModelCoverageError as e:
-        # 400, not the 502 its UpstreamError base would otherwise give: the
-        # upstream is healthy and answered correctly. The request asked a
-        # regional model about somewhere it does not model, and only the
-        # caller can fix that.
-        yield Failure(
-            ApiError(status_code=400, detail=e.message, code=ErrorCode.model_coverage)
-        )
-        return
-    except UpstreamError as e:
-        yield Failure(
-            ApiError(
-                status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-            )
-        )
-        return
-    except Exception:
-        log.exception("Weather fetch failed")
-        yield Failure(
-            ApiError(
-                status_code=502,
-                detail="The weather search failed. Try again later.",
-                code=ErrorCode.upstream_unavailable,
-            )
-        )
+        cloud_list = await cloud_task if cloud_task is not None else None
+    except Exception as e:
+        yield _upstream_failure(e)
         return
     finally:
         # If the consumer went away (generator torn down) before the fetch
         # finished, don't leave the request running in the background.
-        for task in (fetch_task, aqi_task):
+        for task in (fetch_task, aqi_task, cloud_task):
             if task is not None and not task.done():
                 task.cancel()
 
@@ -979,6 +1116,7 @@ async def _run_analysis(
         aqi_list,
         DestinationType.custom.value,
         include_series=request.include_series,
+        cloud_list=cloud_list,
     )
     results = _filter_constraints(results, request)
     total_matched = len(results)
@@ -998,6 +1136,14 @@ async def _run_analysis(
                     status_code=401, detail=e.message, code=ErrorCode.invalid_api_key
                 )
             )
+            return
+    if request.include_clouds and not cloud_eager:
+        try:
+            await _attach_cloud(
+                results, times, start, end, request, api_key, source, boundary
+            )
+        except Exception as e:
+            yield _upstream_failure(e)
             return
 
     def _fmt(r: DestinationResult) -> str:

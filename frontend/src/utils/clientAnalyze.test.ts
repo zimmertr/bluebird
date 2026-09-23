@@ -3,6 +3,7 @@ import { AnalyzeRequest, DestinationResult, DiscoveredDestination, GeoPolygon } 
 import {
   MAX_ANALYZE_DESTINATIONS,
   alignAqi,
+  alignCloud,
   analysisNoun,
   assemble,
   canonicalTimes,
@@ -15,6 +16,7 @@ import {
   resolveCustomOnly,
   runClientAnalysis,
   truncateTopElevation,
+  withCloud,
 } from './clientAnalyze'
 import { geoKey } from './points'
 import { WeatherResult, resetOpenMeteoState } from './openMeteo'
@@ -716,6 +718,204 @@ describe('runClientAnalysis', () => {
       response: { results: [], total_queried: 0, total_matched: 0 },
       universe: [],
     })
+  })
+})
+
+// ── The cloud column, fetched only on request (#117) ───────────────────────
+
+// One cloud body per location: saturated at 850 hPa (1457 m) every hour, so a
+// destination at sea level reads a base between the 925 and 850 levels, and a
+// cover that differs per location so a ranking has something to order.
+function cloudBody(covers: number[]) {
+  return covers.map((c) => ({
+    hourly: {
+      time: ['2026-07-21T00:00', '2026-07-21T01:00'],
+      cloud_cover: [c, c],
+      relative_humidity_2m: [70, 70],
+      temperature_2m: [12, 12],
+      dew_point_2m: [6, 6],
+      relative_humidity_1000hPa: [72, 72],
+      relative_humidity_925hPa: [80, 80],
+      relative_humidity_850hPa: [100, 100],
+      relative_humidity_700hPa: [60, 60],
+      relative_humidity_600hPa: [50, 50],
+      relative_humidity_500hPa: [40, 40],
+      relative_humidity_400hPa: [30, 30],
+      relative_humidity_300hPa: [20, 20],
+    },
+  }))
+}
+
+// The cloud request goes to the weather host too, so it is told apart by what
+// it asks for rather than where it goes.
+function isCloudRequest(url: string) {
+  return (new URL(url).searchParams.get('hourly') ?? '').includes('relative_humidity_2m')
+}
+
+function stubWithCloud(precips: number[], covers: number[], cloudCounts: number[] = []) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const host = new URL(url).hostname
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      let body: unknown
+      if (host !== 'api.open-meteo.com') {
+        body = Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))
+      } else if (isCloudRequest(url)) {
+        cloudCounts.push(count)
+        body = cloudBody(covers.slice(0, count))
+      } else {
+        body = weatherBody(precips.slice(0, count))
+      }
+      return { ok: true, status: 200, json: async () => body }
+    }),
+  )
+}
+
+describe('alignCloud', () => {
+  it('lays each hour on its own stamp and leaves a missing one null', () => {
+    const out = alignCloud([1, 2, 3], { times: [1, 3], cloud_base_ft: [4000, 5000], cloud_cover_pct: [20, 90] })
+    expect(out).toEqual({ base: [4000, null, 5000], cover: [20, null, 90] })
+  })
+
+  it('carries no arrays at all for a row never asked for clouds', () => {
+    expect(alignCloud([1, 2], null)).toEqual({ base: null, cover: null })
+  })
+})
+
+describe('withCloud', () => {
+  const cloud = {
+    cloud_base_min_ft: 4000,
+    cloud_base_avg_ft: 4500,
+    cloud_base_max_ft: 5000,
+    cloud_cover_min_pct: 20,
+    cloud_cover_avg_pct: 55,
+    cloud_cover_max_pct: 90,
+    series: { times: [1, 2], cloud_base_ft: [4000, 5000], cloud_cover_pct: [20, 90] },
+  }
+
+  it('lays a cloud answer over a held row', () => {
+    const row = resultRow({ series: { precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], aqi: [null, null] } })
+    const out = withCloud(row, cloud, [1, 2])
+    expect(out.cloud_base_min_ft).toBe(4000)
+    expect(out.cloud_cover_avg_pct).toBe(55)
+    expect(out.series?.cloud_base_ft).toEqual([4000, 5000])
+    expect(out.series?.cloud_cover_pct).toEqual([20, 90])
+  })
+
+  // A report carries the column for every row or for none, so a row held from
+  // a cloud analysis loses it when the next analysis did not ask.
+  it('strips a cloud answer the new report did not ask for', () => {
+    const held = withCloud(
+      resultRow({ series: { precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], aqi: [null, null] } }),
+      cloud,
+      [1, 2],
+    )
+    const out = withCloud(held, null, [1, 2])
+    expect(out.cloud_base_min_ft).toBeNull()
+    expect(out.cloud_cover_max_pct).toBeNull()
+    expect(out.series).not.toHaveProperty('cloud_base_ft')
+    expect(out.series).not.toHaveProperty('cloud_cover_pct')
+    expect(out.series?.precip_in).toEqual([0, 0])
+  })
+})
+
+describe('runClientAnalysis and the cloud column', () => {
+  const startMs = Date.parse('2026-07-21T00:00:00Z')
+  const endMs = Date.parse('2026-07-21T02:00:00Z')
+
+  it('asks for no cloud column unless told to', async () => {
+    const cloudCounts: number[] = []
+    stubWithCloud(THREE_PRECIPS, [10, 50, 90], cloudCounts)
+    const out = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs })
+    expect(cloudCounts).toEqual([])
+    expect(out.universe.every((r) => r.cloud_base_min_ft === null && r.cloud_cover_avg_pct === null)).toBe(true)
+    expect(out.universe.every((r) => r.series && !('cloud_base_ft' in r.series))).toBe(true)
+  })
+
+  it('fetches it for every candidate and ranks on it when told to', async () => {
+    const cloudCounts: number[] = []
+    stubWithCloud(THREE_PRECIPS, [90, 10, 50], cloudCounts)
+    // The walk starts at the destination, so a row needs an elevation to
+    // have a base at all. 328 ft is 100 m, under the 1000 hPa level.
+    const dests = customRows(THREE).map((d) => ({ ...d, elevation_ft: 328 }))
+    const out = await runClientAnalysis(
+      { ...REQUEST, sort_by: 'cloud_cover_avg_pct' },
+      dests,
+      startMs,
+      endMs,
+      { nowMs: startMs, cloud: true },
+    )
+    expect(cloudCounts).toEqual([3])
+    // Wet 90%, Dry 10%, Mid 50%: ascending cover is Dry, Mid, Wet.
+    expect(out.universe.map((r) => r.name)).toEqual(['Dry', 'Mid', 'Wet'])
+    expect(out.universe[0].cloud_cover_avg_pct).toBe(10)
+    // 80% at 762 m and 100% at 1457 m put 95% three quarters of the way up:
+    // 1283.25 m, which is 4210 ft.
+    expect(out.universe[0].cloud_base_min_ft).toBe(4210)
+    expect(out.universe[0].series?.cloud_cover_pct).toEqual([10, 10])
+  })
+
+  it('announces no partial field under a cloud ranking', async () => {
+    stubWithCloud(THREE_PRECIPS, [90, 10, 50])
+    const rounds: number[] = []
+    await runClientAnalysis(
+      { ...REQUEST, sort_by: 'cloud_base_min_ft' },
+      customRows(THREE),
+      startMs,
+      endMs,
+      { nowMs: startMs, cloud: true, onPartial: (rows) => rounds.push(rows.length) },
+    )
+    expect(rounds).toEqual([])
+  })
+
+  it('covers held rows too, so the column is whole', async () => {
+    stubWithCloud(THREE_PRECIPS, [90, 10, 50])
+    const first = await runClientAnalysis({ ...REQUEST, limit: 10 }, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+    })
+    resetOpenMeteoState()
+    const cloudCounts: number[] = []
+    stubWithCloud(THREE_PRECIPS, [90, 10, 50], cloudCounts)
+    const out = await runClientAnalysis(
+      { ...REQUEST, limit: 10, sort_by: 'cloud_cover_avg_pct' },
+      customRows(THREE),
+      startMs,
+      endMs,
+      { nowMs: startMs, cloud: true, reuse: { rows: first.universe, times: first.response.times ?? [] } },
+    )
+    expect(cloudCounts).toEqual([3])
+    expect(out.universe.map((r) => r.cloud_cover_avg_pct)).toEqual([10, 50, 90])
+  })
+
+  // The cloud failure aborts the weather fetch, and the weather fetch then
+  // rejects with an AbortError, which reads as the reader's own cancel.
+  it('fails with the cloud error rather than the abort it causes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        if (isCloudRequest(url)) return { ok: false, status: 500, json: async () => ({ reason: 'x' }), text: async () => '' }
+        const host = new URL(url).hostname
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            host === 'api.open-meteo.com'
+              ? weatherBody(THREE_PRECIPS.slice(0, count))
+              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        }
+      }),
+    )
+    const err = await runClientAnalysis(
+      { ...REQUEST, sort_by: 'cloud_base_min_ft' },
+      customRows(THREE),
+      startMs,
+      endMs,
+      { nowMs: startMs, cloud: true },
+    ).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(Error)
+    expect((err as Error).name).not.toBe('AbortError')
   })
 })
 

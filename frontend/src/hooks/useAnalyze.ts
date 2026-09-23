@@ -19,6 +19,7 @@ import {
   AnalysisRefusalError,
   MAX_ANALYZE_DESTINATIONS,
   constraintsFromRequest,
+  namesOnRequestMetric,
   resolveCustomOnly,
   runClientAnalysis,
 } from '../utils/clientAnalyze'
@@ -63,6 +64,16 @@ async function readErrorBody(
       : ''
   const refusal = body.found != null ? body : null
   return { message: message || `HTTP ${res.status}`, refusal }
+}
+
+// Whether an analysis fetches the cloud column (#117): only when its ranking
+// or one of its bounds names a cloud metric. Read off the request, so the
+// fetch and the snapshot that records it cannot disagree.
+function requestsCloud(request: AnalyzeRequest): boolean {
+  return namesOnRequestMetric(
+    request.sort_by ?? 'precip_total_in',
+    constraintsFromRequest(request),
+  )
 }
 
 export function useAnalyze(
@@ -232,6 +243,7 @@ export function useAnalyze(
       typesKey: pendingDiscoveryRef.current.typesKey,
       compareModels: pendingCompareRef.current,
       snowAnalysisDate: pendingSnowDateRef.current,
+      cloudFetched: requestsCloud(request),
     })
   }
 
@@ -341,6 +353,7 @@ export function useAnalyze(
         windowLimits,
         aqiForecastDays,
         reuse: reuse && { rows: reuse.rows, times: reuse.times },
+        cloud: requestsCloud(request),
         onPace,
         // Each batch, ranked and on screen as it lands, instead of a
         // percentage and an empty table until the thirtieth one returns. The

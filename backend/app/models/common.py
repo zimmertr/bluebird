@@ -76,6 +76,14 @@ class SortBy(str, Enum):
     aqi_avg = "aqi_avg"
     aqi_min = "aqi_min"
     aqi_max = "aqi_max"
+    # The cloud base and cloud cover (issue #117). Ranking by either one makes
+    # the analysis fetch the cloud variables, which it otherwise skips.
+    cloud_base_min = "cloud_base_min_ft"
+    cloud_base_avg = "cloud_base_avg_ft"
+    cloud_base_max = "cloud_base_max_ft"
+    cloud_cover_min = "cloud_cover_min_pct"
+    cloud_cover_avg = "cloud_cover_avg_pct"
+    cloud_cover_max = "cloud_cover_max_pct"
     # The one key that is not a window aggregate: snow depth is today's number
     # whatever window was analyzed, so the family has one member rather than
     # three (issue #449).

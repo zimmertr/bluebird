@@ -4,10 +4,11 @@
 // fetches anything: every bound re-reads rows already in hand, which is what
 // makes each one a live knob rather than another Analyze.
 
-import type { AnalyzeRequest, DestinationResult } from '../types'
+import type { AnalyzeRequest, DestinationResult, SortBy } from '../types'
+import { familyOf, isOnRequestFamily } from '../metrics'
 
 /**
- * The forecast bounds an analysis is narrowed by, mirroring the ten optional
+ * The forecast bounds an analysis is narrowed by, mirroring the sixteen optional
  * fields on `AnalyzeRequest`.
  *
  * Elevation is deliberately NOT in here, and the app sends no elevation bound
@@ -30,6 +31,10 @@ export interface Constraints {
   maxSnowDepthIn: number | null
   minAqi: number | null
   maxAqi: number | null
+  minCloudBaseFt: number | null
+  maxCloudBaseFt: number | null
+  minCloudCoverPct: number | null
+  maxCloudCoverPct: number | null
 }
 
 export const NO_CONSTRAINTS: Constraints = {
@@ -45,6 +50,10 @@ export const NO_CONSTRAINTS: Constraints = {
   maxSnowDepthIn: null,
   minAqi: null,
   maxAqi: null,
+  minCloudBaseFt: null,
+  maxCloudBaseFt: null,
+  minCloudCoverPct: null,
+  maxCloudCoverPct: null,
 }
 
 // Which result field each bound compares — the port of _LOWER_BOUNDS and
@@ -69,6 +78,8 @@ const LOWER_BOUNDS = [
   ['minFreezeFt', 'freeze_min_ft'],
   ['minSnowDepthIn', 'snow_depth_in'],
   ['minAqi', 'aqi_max'],
+  ['minCloudBaseFt', 'cloud_base_min_ft'],
+  ['minCloudCoverPct', 'cloud_cover_min_pct'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
 
 const UPPER_BOUNDS = [
@@ -78,6 +89,8 @@ const UPPER_BOUNDS = [
   ['maxFreezeFt', 'freeze_max_ft'],
   ['maxSnowDepthIn', 'snow_depth_in'],
   ['maxAqi', 'aqi_max'],
+  ['maxCloudBaseFt', 'cloud_base_max_ft'],
+  ['maxCloudCoverPct', 'cloud_cover_max_pct'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
 
 /** Is any bound set? Decides whether the count line mentions matching at all. */
@@ -100,6 +113,10 @@ export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
     maxSnowDepthIn: request.max_snow_depth_in ?? null,
     minAqi: request.min_aqi ?? null,
     maxAqi: request.max_aqi ?? null,
+    minCloudBaseFt: request.min_cloud_base_ft ?? null,
+    maxCloudBaseFt: request.max_cloud_base_ft ?? null,
+    minCloudCoverPct: request.min_cloud_cover_pct ?? null,
+    maxCloudCoverPct: request.max_cloud_cover_pct ?? null,
   }
 }
 
@@ -118,7 +135,25 @@ export function constraintFields(c: Constraints) {
     max_snow_depth_in: c.maxSnowDepthIn,
     min_aqi: c.minAqi,
     max_aqi: c.maxAqi,
+    min_cloud_base_ft: c.minCloudBaseFt,
+    max_cloud_base_ft: c.maxCloudBaseFt,
+    min_cloud_cover_pct: c.minCloudCoverPct,
+    max_cloud_cover_pct: c.maxCloudCoverPct,
   }
+}
+
+/**
+ * Does the ranking or any bound name a metric the analysis fetches only on
+ * request (#117)? The browser's half of the backend's `_cloud_eager`: the
+ * answer decides whether an Analyze fetches the cloud column, and, read against
+ * a report's snapshot, whether a live knob has asked for data the report does
+ * not hold.
+ */
+export function namesOnRequestMetric(sortBy: SortBy, c: Constraints): boolean {
+  if (isOnRequestFamily(familyOf(sortBy))) return true
+  return [...LOWER_BOUNDS, ...UPPER_BOUNDS].some(
+    ([k, field]) => c[k] !== null && isOnRequestFamily(familyOf(field)),
+  )
 }
 
 /**
