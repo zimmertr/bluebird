@@ -5,17 +5,18 @@ import type { ModelRow } from './modelCompare'
 import {
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
+  type FireProximityStatus,
   type FireWarning,
   fireCellText,
   fireWarningText,
 } from './fireProximity'
-import type { FireProximityStatus } from '../hooks/useFireProximity'
 import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from './freezingLevel'
 import { isUnavailableKey, unavailableCellText } from './unavailableCell'
 import { isSnowDepthKey, snowCellText } from './snowCeiling'
 import { extremeHourMs, windyUrl } from './windy'
 import { isPeakKind } from './geocode'
 import type { PendingDestination } from './customList'
+import { geoKey } from './points'
 
 // What a results-table cell SAYS, apart from how it is drawn. The row
 // component in ResultsTableRow.tsx is the markup; every decision about which
@@ -59,7 +60,7 @@ export function modelCellText(row: DestinationResult, fallback: string | null | 
  *
  * Only the freezing level carries hover text, because only its cause is one a
  * reader can act on: the model is a control in the panel, where a
- * destination's place on the map is not.
+ * destination's place on the map is not (TJ, 2026-09-22).
  */
 export function unavailableCell(key: string, raw: unknown): { text: string; cause?: string } | null {
   const text = isUnavailableKey(key) ? unavailableCellText(raw) : null
@@ -96,19 +97,21 @@ export function cellColor(
 /**
  * Where a metric cell's Windy link goes: this row's model and the hour this
  * cell's number came from. A compared row names its own model, which is the
- * whole point of the Model column beside it.
+ * whole point of the Model column beside it. `layer` is the column's Windy
+ * layer, which the caller has checked the column has.
  */
 export function windyCellUrl(
   row: DestinationResult,
-  col: ColDef,
+  key: string,
+  layer: string,
   modelId: string | null | undefined,
   times: readonly number[] | undefined,
 ): string {
-  const at = extremeHourMs(col.key as string, row.series, row.series_times ?? times ?? [])
+  const at = extremeHourMs(key, row.series, row.series_times ?? times ?? [])
   return windyUrl({
     latitude: row.latitude,
     longitude: row.longitude,
-    layer: col.windyLayer!,
+    layer,
     modelId: (row as ModelRow).modelId ?? modelId,
     atMs: at,
   })
@@ -121,6 +124,24 @@ export function windyCellUrl(
  */
 export function rankText(row: DestinationResult, index: number): string {
   return String((row as ModelRow).rank ?? index + 1)
+}
+
+/**
+ * One React key per displayed row, the same for a destination wherever a sort
+ * puts it. Keyed by position, a sort would hand every row a new key, and React
+ * would rebuild the whole body where it can move the rows it already has. A
+ * comparison repeats a destination once per model, so the model joins the
+ * key; a second row at one coordinate and model gets a counter, so no two keys
+ * are ever the same.
+ */
+export function rowKeys(rows: readonly DestinationResult[]): string[] {
+  const seen = new Map<string, number>()
+  return rows.map((row) => {
+    const base = `${geoKey(row.latitude, row.longitude)}|${(row as ModelRow).modelId ?? ''}`
+    const n = seen.get(base) ?? 0
+    seen.set(base, n + 1)
+    return n === 0 ? base : `${base}#${n}`
+  })
 }
 
 /**
