@@ -1,12 +1,14 @@
 import type { ComponentProps, ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
-import ResultsTableRow, { PendingRow, type ChartBox } from './ResultsTableRow'
-import { displayedColumns, WILDFIRE_COL } from '../utils/tableColumns'
-import { FIRE_UNCOVERED_NOTE } from '../utils/fireProximity'
-import { resultRow } from '../testSupport/fixtures'
+import ResultsTableRow, { FireClock, PendingRow } from './ResultsTableRow'
+import type { ChartBox } from '../hooks/useChartBox'
+import { displayedColumns, MODEL_COL, WILDFIRE_COL, type ColDef } from '../utils/tableColumns'
+import { FIRE_UNCOVERED_NOTE, fireLoadingFrame } from '../utils/fireProximity'
+import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
+import { pendingChartRow } from '../utils/resultsCells'
+import { fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
-import type { PendingDestination } from '../utils/customList'
 
 type Props = ComponentProps<typeof ResultsTableRow>
 
@@ -20,7 +22,7 @@ const COLUMNS = [
 const NO_WIDTHS = {}
 const GROUP = new Set([SORT_BY])
 const ROW = resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.49, elevation_ft: 12281 })
-const WARNING = { miles: 3.2, name: 'Probe Fire', latitude: 46.3, longitude: -121.5 }
+const WARNING = fireWarning()
 
 const inTable = (ui: ReactElement) =>
   render(
@@ -39,7 +41,6 @@ function props(over: Partial<Props> = {}): Props {
     coloredGroup: GROUP,
     pointSample: false,
     fireStatus: 'ready',
-    fireFrame: null,
     fireUncovered: false,
     charted: false,
     ...over,
@@ -81,8 +82,12 @@ describe('a ranked row', () => {
   })
 
   it('ticks the shared frame in the wildfire cell while the check runs', () => {
-    inTable(<ResultsTableRow {...props({ fireStatus: 'loading', fireFrame: '··', fireWarning: WARNING })} />)
-    expect(screen.getByText('··')).toBeTruthy()
+    inTable(
+      <FireClock running>
+        <ResultsTableRow {...props({ fireStatus: 'loading', fireWarning: WARNING })} />
+      </FireClock>,
+    )
+    expect(screen.getByText(fireLoadingFrame(0))).toBeTruthy()
     expect(screen.queryByRole('link', { name: /NIFC/ })).toBeNull()
   })
 
@@ -99,6 +104,18 @@ describe('a ranked row', () => {
     expect(fire.querySelector('[title]')!.getAttribute('title')).toBe(FIRE_UNCOVERED_NOTE)
   })
 
+  it('reads the analysis model in the Model column for a row no comparison tagged', () => {
+    inTable(<ResultsTableRow {...props({ columns: [MODEL_COL], modelFallbackLabel: 'NOAA GFS' })} />)
+    expect(within(screen.getByRole('row')).getByText('NOAA GFS')).toBeTruthy()
+  })
+
+  it('explains a freezing level the model does not publish on hover', () => {
+    const freeze = displayedColumns(false, 'freeze_min_ft').find((c) => c.key === 'freeze_min_ft') as ColDef
+    inTable(<ResultsTableRow {...props({ columns: [freeze], row: { ...ROW, freeze_min_ft: null } })} />)
+    const cell = within(screen.getByRole('row')).getByText('N/A')
+    expect(cell.getAttribute('title')).toBe(FREEZE_UNAVAILABLE_NOTE)
+  })
+
   it('links a metric cell to Windy under the row name', () => {
     inTable(<ResultsTableRow {...props()} />)
     expect(screen.getByRole('link', { name: 'Open Mount Adams on Windy. Opens in a new tab.' })).toBeTruthy()
@@ -106,13 +123,7 @@ describe('a ranked row', () => {
 })
 
 describe('a pending row', () => {
-  const PENDING: PendingDestination = {
-    name: 'Probe Peak',
-    latitude: 47.1,
-    longitude: -121.2,
-    elevation_ft: 6000,
-    source: 'search',
-  }
+  const PENDING = pendingDestination()
   const pendingProps = (over: Partial<ComponentProps<typeof PendingRow>> = {}) => ({
     destination: PENDING,
     columns: COLUMNS,
@@ -139,8 +150,18 @@ describe('a pending row', () => {
     expect(onFocusPending).toHaveBeenCalledWith({ latitude: 47.1, longitude: -121.2 })
   })
 
+  it('pre-selects a charted pending row in its line colour, and toggles it by coordinate', async () => {
+    const box: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
+    const { user } = inTable(<PendingRow {...pendingProps({ chartBox: box, charted: true, chartColor: 'rgb(1, 2, 3)' })} />)
+    const check = screen.getByRole('checkbox', { name: 'Chart Probe Peak' }) as HTMLInputElement
+    expect(check.checked).toBe(true)
+    expect(check.style.accentColor).toBe('rgb(1, 2, 3)')
+    await user.click(check)
+    expect(box.onToggle).toHaveBeenCalledWith(pendingChartRow(PENDING))
+  })
+
   it('offers no remove button on a CSV row, whose truth is the textarea', () => {
-    inTable(<PendingRow {...pendingProps({ destination: { ...PENDING, source: 'csv' }, onRemovePending: vi.fn() })} />)
+    inTable(<PendingRow {...pendingProps({ destination: pendingDestination({ source: 'csv' }), onRemovePending: vi.fn() })} />)
     expect(screen.queryByRole('button', { name: 'Remove Probe Peak' })).toBeNull()
   })
 })

@@ -1,10 +1,27 @@
-import type { ComponentProps } from 'react'
-import { describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { Profiler, type ComponentProps, type ReactElement } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
-import { displayedColumns } from '../utils/tableColumns'
+import { displayedColumns, WILDFIRE_COL } from '../utils/tableColumns'
+import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
+
+// Every ranked row the table draws, by name, in render order. The mock keeps
+// the real row and its real memo: it wraps the row's inner component in a
+// counter and memoizes that exactly as the module does, so a count here is a
+// render the real table would have made.
+const drawn = vi.hoisted(() => ({ rows: [] as string[] }))
+vi.mock('./ResultsTableRow', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./ResultsTableRow')>()
+  const { createElement, memo } = await import('react')
+  const Row = actual.default.type
+  function CountedRow(props: ComponentProps<typeof Row>) {
+    drawn.rows.push(props.row.name)
+    return createElement(Row, props)
+  }
+  return { ...actual, default: memo(CountedRow) }
+})
 
 type Props = ComponentProps<typeof ResultsTable>
 
@@ -40,6 +57,10 @@ function props(over: Partial<Props> = {}): Props {
     ...over,
   }
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('rows', () => {
   it('draws one row per result, ranked in the order given', () => {
@@ -87,6 +108,22 @@ describe('the chart boxes', () => {
     expect(onChartRange).toHaveBeenCalledWith(CHARTED, true)
   })
 
+  it('reads a shift range in the order the rows are drawn after a sort', async () => {
+    const onToggleChart = vi.fn()
+    const onChartRange = vi.fn()
+    const table = (results: typeof CHARTED) => (
+      <ResultsTable {...props({ results, onToggleChart, onChartRange, isCharted: NONE })} />
+    )
+    const { user, rerender } = render(table(CHARTED))
+    await user.click(screen.getByRole('checkbox', { name: 'Chart Mount Rainier' }))
+    const sorted = [CHARTED[0], CHARTED[2], CHARTED[1]]
+    rerender(table(sorted))
+    await user.keyboard('{Shift>}')
+    await user.click(screen.getByRole('checkbox', { name: 'Chart Mount Hood' }))
+    await user.keyboard('{/Shift}')
+    expect(onChartRange).toHaveBeenCalledWith([CHARTED[0], CHARTED[2]], true)
+  })
+
   it('tints a charted row with its line colour', () => {
     render(
       <ResultsTable
@@ -102,5 +139,65 @@ describe('the chart boxes', () => {
     expect(box.checked).toBe(true)
     expect(box.style.accentColor).toBe('rgb(1, 2, 3)')
     expect((screen.getByRole('checkbox', { name: 'Chart Mount Adams' }) as HTMLInputElement).style.accentColor).toBe('')
+  })
+})
+
+describe('what a render redraws', () => {
+  const CHARTED = [
+    resultRow({ name: 'Mount Rainier', latitude: 46.85, longitude: -121.76, series: series() }),
+    resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.49, series: series() }),
+    resultRow({ name: 'Mount Hood', latitude: 45.37, longitude: -121.7, series: series() }),
+  ]
+  const TOGGLE = () => {}
+  const NONE = () => false
+
+  it('redraws only the row whose chart box changed', () => {
+    const table = (isCharted: (r: (typeof CHARTED)[number]) => boolean) => (
+      <ResultsTable {...props({ results: CHARTED, onToggleChart: TOGGLE, isCharted })} />
+    )
+    const { rerender } = render(table(NONE))
+    drawn.rows.length = 0
+    rerender(table((r) => r.name === 'Mount Adams'))
+    expect(drawn.rows).toEqual(['Mount Adams'])
+  })
+
+  it('skips every row on a parent render that changes nothing a row reads', () => {
+    const commits = vi.fn()
+    const table = (detailSortDir: Props['detailSortDir']): ReactElement => (
+      <Profiler id="table" onRender={commits}>
+        <ResultsTable {...props({ results: CHARTED, detailSortDir })} />
+      </Profiler>
+    )
+    const { rerender } = render(table('asc'))
+    drawn.rows.length = 0
+    commits.mockClear()
+    rerender(table('desc'))
+    expect(commits).toHaveBeenCalled()
+    expect(drawn.rows).toEqual([])
+  })
+
+  it('moves a row on a sort rather than drawing another destination into it', () => {
+    const { rerender } = render(<ResultsTable {...props({ results: CHARTED })} />)
+    const hood = screen.getByRole('button', { name: 'Center map on Mount Hood' }).closest('tr')
+    rerender(<ResultsTable {...props({ results: [...CHARTED].reverse() })} />)
+    expect(screen.getByRole('button', { name: 'Center map on Mount Hood' }).closest('tr')).toBe(hood)
+  })
+
+  it('ticks the wildfire cells without redrawing a row, and stops once the check answers', () => {
+    vi.useFakeTimers()
+    const table = (fireStatus: Props['fireStatus']) => (
+      <ResultsTable {...props({ results: CHARTED, columns: [...COLUMNS, WILDFIRE_COL], fireStatus })} />
+    )
+    const { rerender } = render(table('loading'))
+    expect(screen.getAllByText(fireLoadingFrame(0))).toHaveLength(3)
+    drawn.rows.length = 0
+    act(() => {
+      vi.advanceTimersByTime(400)
+    })
+    expect(screen.getAllByText(fireLoadingFrame(1))).toHaveLength(3)
+    expect(drawn.rows).toEqual([])
+    rerender(table('ready'))
+    expect(vi.getTimerCount()).toBe(0)
+    expect(screen.queryByText(fireLoadingFrame(1))).toBeNull()
   })
 })
