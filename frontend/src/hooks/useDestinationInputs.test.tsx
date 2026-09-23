@@ -26,7 +26,7 @@ describe('useDestinationInputs', () => {
     expect(result.current.polygon).toBe(RING)
     expect(result.current.destinationTypes).toEqual(['peak'])
     expect(result.current.includeUnnamedPeaks).toBe(true)
-    expect(result.current.restoredCustomPoints).toHaveLength(1)
+    expect(result.current.restoredPoints).toHaveLength(2)
     expect(result.current.places).toEqual([baker])
     expect(result.current.destinationNamed).toBe(true)
   })
@@ -82,7 +82,7 @@ describe('useDestinationInputs', () => {
     const before = result.current
     rerender()
     expect(result.current.csvRows).toBe(before.csvRows)
-    expect(result.current.restoredCustomPoints).toBe(before.restoredCustomPoints)
+    expect(result.current.restoredPoints).toBe(before.restoredPoints)
     expect(result.current.places).toBe(before.places)
     expect(result.current.setPolygon).toBe(before.setPolygon)
     expect(result.current.addPlace).toBe(before.addPlace)

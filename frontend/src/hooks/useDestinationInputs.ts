@@ -3,6 +3,7 @@ import { useSearchedPlaces } from './useSearchedPlaces'
 import type { DiscoveryType, GeoPolygon } from '../types'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { bboxAreaKm2, ringToPts } from '../utils/drawGeometry'
+import { restoredFramePoints } from '../utils/mapFraming'
 import { authoredScope } from '../utils/removals'
 import type { ShareableState } from '../utils/urlState'
 
@@ -16,10 +17,10 @@ import type { ShareableState } from '../utils/urlState'
  * Analyze, which is where the spend boundary is.
  */
 export function useDestinationInputs(restored: Partial<ShareableState> | null) {
-  // Custom CSV points restored from the URL, parsed once — MapView frames them
-  // on load instead of geolocating, mirroring the restored-polygon behavior.
-  const restoredCustomPoints = useMemo(
-    () => (restored?.customCsv ? parseCustomCsv(restored.customCsv) : []),
+  // Every point destination the URL restores (CSV rows and searched places),
+  // built once so the memoized MapView frames them on load beside the ring.
+  const restoredPoints = useMemo(
+    () => restoredFramePoints(restored?.customCsv ?? '', restored?.pins ?? []),
     [restored],
   )
 
@@ -93,7 +94,7 @@ export function useDestinationInputs(restored: Partial<ShareableState> | null) {
   const destinationNamed = searched.places.length > 0 || csvRows.length > 0
 
   return {
-    restoredCustomPoints,
+    restoredPoints,
     polygon,
     setPolygon,
     polygonAreaKm2,

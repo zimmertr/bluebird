@@ -446,7 +446,7 @@ export default function App() {
   const restored = restoredRef.current
 
   const {
-    restoredCustomPoints,
+    restoredPoints,
     polygon,
     setPolygon,
     polygonAreaKm2,
@@ -2215,7 +2215,7 @@ export default function App() {
             drawing={drawing}
             pointedPois={poisPointed}
             polygon={polygon}
-            restoredCustomPoints={restoredCustomPoints}
+            restoredPoints={restoredPoints}
             onPolygonChange={setPolygon}
             onDrawUpdate={handleDrawUpdate}
             results={results}
