@@ -543,9 +543,11 @@ Two models that end on the same hour still get a row each. The mark from the
 table goes on the Model column, as `NOAA HRRR*`, and never on a number, because
 a mark inside a number would turn it into text that a spreadsheet cannot sort
 or average. When the file carries the Model column and at least one marked row,
-the footnote follows the model rows as a row of its own:
+the footnote follows the model rows behind one blank row:
 
 ```
+Forecast end (NOAA HRRR),2026-09-20T02:00-07:00
+
 * Data is aggregated over a subset of the forecast window due to the model's limited range.
 ```
 

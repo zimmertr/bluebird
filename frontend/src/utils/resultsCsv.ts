@@ -315,7 +315,8 @@ export interface CsvOptions {
  * nothing, which is the honest thing to say when nothing is known.
  *
  * Below the data the file speaks about itself: the forecast window behind one
- * blank row, then the supplier credits behind another (see creditRows above
+ * blank row, the partial-coverage footnote behind another when a row carries
+ * the mark, then the supplier credits behind another (see creditRows above
  * for why those are in the file at all). The columns are therefore exactly the
  * ones a reader already knows, and a row copied out of the file carries no
  * repeated value pretending to be a measurement.
@@ -350,7 +351,8 @@ export function buildResultsCsv(
         [WINDOW_START_LABEL, isoLocalMinute(window.startMs, timeZone)],
         [WINDOW_END_LABEL, isoLocalMinute(window.endMs, timeZone)],
         ...modelEnds.map((m) => [modelEndLabel(m.label), isoLocalMinute(m.endMs, timeZone)]),
-        ...(marked ? [[PARTIAL_COVERAGE_NOTE]] : []),
+        // Behind its own blank row, so the note reads apart from the dates.
+        ...(marked ? [[''], [PARTIAL_COVERAGE_NOTE]] : []),
       ]
     : []
   // Pending rows first with an empty Rank, mirroring the table, which draws

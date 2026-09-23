@@ -795,13 +795,19 @@ describe('the forecast window in the file', () => {
           const all = lines(build([full, short]))
           const end = all.indexOf('Forecast end (NOAA HRRR),2026-09-20T02:00-07:00')
           expect(end).toBeGreaterThan(0)
-          expect(all[end + 1]).toBe(PARTIAL_COVERAGE_NOTE)
-          expect(all[end + 2]).toBe('')
+          expect(all[end + 1]).toBe('')
+          expect(all[end + 2]).toBe(PARTIAL_COVERAGE_NOTE)
+          expect(all[end + 3]).toBe('')
           expect(all.filter((l) => l === PARTIAL_COVERAGE_NOTE)).toHaveLength(1)
         })
 
+        // No footnote, and no blank row left where it would have stood.
         it('writes no footnote when no row is short', () => {
-          expect(build([full])).not.toContain(PARTIAL_COVERAGE_NOTE)
+          const all = lines(build([full]))
+          expect(all).not.toContain(PARTIAL_COVERAGE_NOTE)
+          const end = all.indexOf('Forecast end (NOAA HRRR),2026-09-20T02:00-07:00')
+          expect(all[end + 1]).toBe('')
+          expect(all[end + 2]).not.toBe('')
         })
 
         // The footnote explains the marks, and the marks ride the Model
