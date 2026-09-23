@@ -286,15 +286,22 @@ export const APP = [
   {
     // The analysis publishes ranked rows as each batch lands, so the results
     // area opens before the await; after it, every row would stay hidden until
-    // the end. The flag is the hook's `arriving`, true once rows exist, not
-    // `loading`; presented-report-hook checks the count it marks.
-    name: 'app-arriving-field',
-    files: ['src/App.tsx'],
+    // the end. The Analyze click runs in useAnalyzeCommand.ts;
+    // presented-report-hook checks the count the flag marks.
+    name: 'analyze-command-hook',
+    files: ['src/hooks/useAnalyzeCommand.ts'],
     ban: [
       { selector: `${AWAITS_ANALYSIS} ~ ${OPEN_RESULTS}`, message: 'Open the results area before awaiting the analysis, not after.' },
     ],
     require: [
       { selector: `${OPEN_RESULTS} ~ ${AWAITS_ANALYSIS}`, message: 'Open the results area with willRank ahead of the analysis await.' },
+    ],
+  },
+  {
+    // The flag is the hook's `arriving`, true once rows exist, not `loading`.
+    name: 'app-arriving-field',
+    files: ['src/App.tsx'],
+    require: [
       {
         selector: 'VariableDeclarator[init.callee.name="useAnalyze"] > ObjectPattern > Property[key.name="arriving"][shorthand=true]',
         message: 'Take arriving from useAnalyze.',
@@ -597,6 +604,7 @@ export const APP = [
       'src/hooks/useDrawMode.ts',
       'src/hooks/useRemovals.ts',
       'src/hooks/usePresentedReport.ts',
+      'src/hooks/useAnalyzeCommand.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
