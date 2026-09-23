@@ -4,7 +4,7 @@
 // an empty `?raw` import, and the port would have lost the guard. Each fixture
 // must trip exactly the bans named below, and clean.tsx must trip none — it
 // carries the words the metric ban's negative lookaheads have to let through.
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ESLint } from 'eslint'
 import tseslint from 'typescript-eslint'
@@ -58,9 +58,29 @@ for (const result of results) {
   if (!hit) failures.push(`${name}: expected ${JSON.stringify(want)}, got ${JSON.stringify(got)}`)
 }
 
+// The fixtures prove each ban fires; they cannot prove the real config hands
+// the bans to the right files, because they run under a config of their own.
+// So one hue is linted under the real config at three paths: the two folders
+// the class bans cover must reject it, and a folder outside them must not,
+// which is what shows the glob rather than the rule is being tested.
+const real = new ESLint({
+  cwd: join(here, '..', '..'),
+  overrideConfigFile: join(here, 'eslint.config.js'),
+})
+const PROBE = "export const probe = 'text-fuchsia-300'\n"
+const PROBES = { 'src/components/Probe.tsx': true, 'src/map/probe.ts': true, 'src/utils/probe.ts': false }
+for (const [path, banned] of Object.entries(PROBES)) {
+  const [result] = await real.lintText(PROBE, { filePath: join(here, '..', '..', path) })
+  const hit = result.messages.some((m) => m.message.startsWith('A hue carries meaning'))
+  if (hit !== banned) failures.push(`${path}: hue ban ${banned ? 'missing' : 'unexpected'}`)
+}
+
 if (failures.length > 0) {
   console.error('eslint self-test FAILED:')
   for (const f of failures) console.error('  ' + f)
   process.exit(1)
 }
-console.log(`eslint self-test: ${results.length} fixtures, every ban fires and only its own`)
+console.log(
+  `eslint self-test: ${results.length} fixtures, every ban fires and only its own; ` +
+    `the hue ban covers ${Object.keys(PROBES).filter((p) => PROBES[p]).join(' and ')}`,
+)

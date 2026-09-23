@@ -90,8 +90,10 @@ export const METRIC_BAN = ban(
   'Compose a metric name from src/metrics.ts rather than spelling it here.',
 )
 
-// The text-bearing sources, where a class list can be written.
-const COMPONENTS = ['src/App.tsx', 'src/components/*.tsx']
+// The text-bearing sources, where a class list can be written. The map's
+// modules count: they were cut out of MapView.tsx, and a folder of their own
+// must not be a way out of the bans the component was under.
+export const COMPONENTS = ['src/App.tsx', 'src/components/*.tsx', 'src/map/**/*.{ts,tsx}']
 
 // Every surface that puts a metric's name in front of a reader. metrics.ts
 // itself is absent on purpose: its comments quote these abbreviations to
