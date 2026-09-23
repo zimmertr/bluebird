@@ -453,8 +453,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
       // A polygon, custom CSV list or searched places restored from the URL
       // take precedence over any default framing — don't scroll the user away
-      // from the area their link points at. The default camera is [ -120.5, 47.5 ], zoom 7,
-      // which the geolocation control can refine to the user's location on demand.
+      // from the area their link points at. The default camera is
+      // [ -120.5, 47.5 ], zoom 7, which the geolocation control can refine to
+      // the user's location on demand.
       map.on('load', () => {
         loadedRef.current = true
         frameOpening(map)
