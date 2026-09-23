@@ -6,6 +6,7 @@ import type { SortDir, SortKey, ColDef } from '../utils/tableColumns'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
+import type { InsertLine } from '../utils/columnMeasure'
 import { sized } from './sizedCell'
 import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, TABLE } from '../styles'
 
@@ -71,7 +72,7 @@ function SelectAllCell({
 // Both drawn into the body rather than into the table: they are placed in
 // viewport coordinates, and the table is inside a scroll container that would
 // otherwise clip them and offset their maths.
-function DragOverlay({ carry, insert }: { carry: Carry; insert: { x: number; top: number; height: number } | null }) {
+function DragOverlay({ carry, insert }: { carry: Carry; insert: InsertLine | null }) {
   return createPortal(
     <>
       <div
@@ -107,7 +108,7 @@ function ResultsTableHeader({
   const resize = useColumnResize(columnWidths, onColumnWidthsChange, tableRef)
 
   // Every header click is a reading aid: it sorts the displayed rows in place
-  // and changes NOTHING else — not the ranking, not the column order, not the
+  // and changes NOTHING else: not the ranking, not the column order, not the
   // cell shading. Four of these columns are also ranking keys, and a click
   // here used to re-rank the whole field through the panel knob; TJ overruled
   // that in the #242 review, because only four of the fourteen headers doing

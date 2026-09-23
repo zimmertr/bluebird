@@ -1,8 +1,8 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ColDef } from '../utils/tableColumns'
 import { dragBegins, dropEdge, keyAtPosition, travel } from '../utils/columnDrag'
-import { headerSpans, insertLine } from '../utils/columnMeasure'
+import { headerSpans, insertLine, type InsertLine } from '../utils/columnMeasure'
 
 // A press on a results-table header that becomes a column move. Apart from the
 // resize because the two share no state: this one changes the column ORDER,
@@ -24,7 +24,7 @@ export function useColumnDrag(columns: ColDef[], onColumnMove?: (fromKey: string
   // choosing, which on a wide table is a lot of movement to read; the ghost and
   // the line say the same thing without moving anything until it is decided.
   const [carry, setCarry] = useState<Carry | null>(null)
-  const [insert, setInsert] = useState<{ x: number; top: number; height: number } | null>(null)
+  const [insert, setInsert] = useState<InsertLine | null>(null)
   // Set while a drag is ending, and read by the click that may follow it: a
   // pointerup on the cell the press began in still fires a click, and without
   // this a reorder would sort the table as well as move the column.
@@ -34,6 +34,11 @@ export function useColumnDrag(columns: ColDef[], onColumnMove?: (fromKey: string
   // ended anywhere else fires none, and a flag waiting to be consumed would sit
   // there and swallow the reader's next real click instead.
   const draggedRef = useRef(false)
+  // Removes the listeners of the gesture in flight, if one is. The table can
+  // unmount mid-drag (a new analysis, the results sheet closing), and listeners
+  // left on document would keep calling into a header that is gone.
+  const detachRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => detachRef.current?.(), [])
 
   // A press on a header. It is a sort until it has travelled far enough (a
   // mouse) or been held long enough (a finger); `columnDrag.ts` owns which
@@ -65,10 +70,14 @@ export function useColumnDrag(columns: ColDef[], onColumnMove?: (fromKey: string
         if (line) setInsert(line)
       }
 
-      const end = () => {
+      const detach = () => {
         document.removeEventListener('pointermove', move)
         document.removeEventListener('pointerup', end)
         document.removeEventListener('pointercancel', end)
+        detachRef.current = null
+      }
+      const end = () => {
+        detach()
         if (live) {
           window.setTimeout(() => (draggedRef.current = false), 0)
           if (landing && landing !== key) onColumnMove(key, landing)
@@ -85,6 +94,7 @@ export function useColumnDrag(columns: ColDef[], onColumnMove?: (fromKey: string
       document.addEventListener('pointermove', move)
       document.addEventListener('pointerup', end)
       document.addEventListener('pointercancel', end)
+      detachRef.current = detach
     },
     [columns, onColumnMove],
   )

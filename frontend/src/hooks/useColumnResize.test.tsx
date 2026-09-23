@@ -51,6 +51,29 @@ describe('useColumnResize', () => {
     expect(onChange).toHaveBeenLastCalledWith({ name: dragWidth(100, 30), elevation_ft: 70 })
   })
 
+  it('starts from the header content box when the column has no width yet', () => {
+    const onChange = vi.fn()
+    const { span, tableRef } = handle()
+    const th = span.closest('th')!
+    th.style.padding = '0 8px'
+    Object.defineProperty(th, 'clientWidth', { value: 116 })
+    const { result } = renderHook(() => useColumnResize({}, onChange, tableRef))
+    act(() => result.current.begin(pointer(span, 200), 'name'))
+    fireEvent.pointerMove(document, { clientX: 210 })
+    expect(onChange).toHaveBeenLastCalledWith({ name: dragWidth(100, 10) })
+    fireEvent.pointerUp(document)
+  })
+
+  it('lets go of the document when the header unmounts mid-resize', () => {
+    const onChange = vi.fn()
+    const { span, tableRef } = handle()
+    const { result, unmount } = renderHook(() => useColumnResize({ name: 100 }, onChange, tableRef))
+    act(() => result.current.begin(pointer(span, 200), 'name'))
+    unmount()
+    fireEvent.pointerMove(document, { clientX: 260 })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('stops listening once the press ends, by release or by cancel', () => {
     for (const end of ['pointerUp', 'pointerCancel'] as const) {
       const onChange = vi.fn()

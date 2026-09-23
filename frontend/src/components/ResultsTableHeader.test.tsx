@@ -140,6 +140,18 @@ describe('the resize handle', () => {
     expect(onColumnMove).not.toHaveBeenCalled()
     expect(onDetailSort).not.toHaveBeenCalled()
   })
+
+  it('fits the column on a double-click, without sorting', () => {
+    const onDetailSort = vi.fn()
+    const onColumnWidthsChange = vi.fn()
+    const tableRef = { current: null as HTMLTableElement | null }
+    const { container } = renderHeader(props({ onDetailSort, onColumnWidthsChange, columnWidths: {}, tableRef }))
+    tableRef.current = container.querySelector('table')
+    const grip = header(/^Name/).querySelector('[aria-hidden="true"]')!
+    fireEvent.doubleClick(grip)
+    expect(onColumnWidthsChange).toHaveBeenCalledWith({ name: expect.any(Number) })
+    expect(onDetailSort).not.toHaveBeenCalled()
+  })
 })
 
 describe('the chart-all box', () => {

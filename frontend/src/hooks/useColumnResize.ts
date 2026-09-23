@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { autoFitWidth, dragWidth } from '../utils/columnResize'
 import { contentWidth, fitContents } from '../utils/columnMeasure'
@@ -19,6 +19,10 @@ export function useColumnResize(
   useLayoutEffect(() => {
     widthsRef.current = columnWidths ?? {}
   }, [columnWidths])
+  // Removes the listeners of the resize in flight, if one is, for the reason
+  // useColumnDrag keeps one: the table can unmount mid-gesture.
+  const detachRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => detachRef.current?.(), [])
 
   const begin = useCallback(
     function beginColumnResize(e: React.PointerEvent, key: string) {
@@ -35,10 +39,12 @@ export function useColumnResize(
         document.removeEventListener('pointermove', onMove)
         document.removeEventListener('pointerup', onUp)
         document.removeEventListener('pointercancel', onUp)
+        detachRef.current = null
       }
       document.addEventListener('pointermove', onMove)
       document.addEventListener('pointerup', onUp)
       document.addEventListener('pointercancel', onUp)
+      detachRef.current = onUp
     },
     [onColumnWidthsChange],
   )

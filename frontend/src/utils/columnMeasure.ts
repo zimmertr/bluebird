@@ -23,11 +23,15 @@ export function headerSpans(row: Element | null): ColumnSpan[] {
   })
 }
 
-/** The insert line for a drop edge, in viewport coordinates, or null. */
-export function insertLine(
-  row: Element | null,
-  edge: DropEdge | null,
-): { x: number; top: number; height: number } | null {
+/** Where a drag's insert line stands, in viewport coordinates. */
+export interface InsertLine {
+  x: number
+  top: number
+  height: number
+}
+
+/** The insert line for a drop edge, or null. */
+export function insertLine(row: Element | null, edge: DropEdge | null): InsertLine | null {
   const cell = edge && row?.querySelector(`th[data-col="${edge.key}"]`)
   if (!edge || !cell) return null
   const rect = cell.getBoundingClientRect()

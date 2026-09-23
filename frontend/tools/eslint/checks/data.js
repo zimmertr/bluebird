@@ -309,10 +309,16 @@ export const DATA = [
     ],
   },
   {
-    // A finger holds the header's gesture rather than scrolling the page.
+    // A finger holds the header's gesture rather than scrolling the page, and
+    // the header takes both gestures from their hooks, where the checks above
+    // hold them, rather than spelling one inline again.
     name: 'column-drag-header',
     files: ['src/components/ResultsTableHeader.tsx'],
-    require: [{ selector: 'Literal[value="touch-none"]', message: 'Hold the touch gesture with touch-none.' }],
+    require: [
+      { selector: 'Literal[value="touch-none"]', message: 'Hold the touch gesture with touch-none.' },
+      { selector: calls('useColumnDrag'), message: 'Take the column drag from useColumnDrag.' },
+      { selector: calls('useColumnResize'), message: 'Take the column resize from useColumnResize.' },
+    ],
   },
   {
     // Both header gestures are tracked on document rather than on the cell: a

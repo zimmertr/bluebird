@@ -3,6 +3,7 @@ import { act, fireEvent, render, renderHook } from '@testing-library/react'
 import { useColumnDrag } from './useColumnDrag'
 import { displayedColumns } from '../utils/tableColumns'
 import { placeAt } from '../testSupport/render'
+import { LONG_PRESS_MS } from '../utils/columnDrag'
 
 const COLUMNS = displayedColumns(false, 'precip_total_in').filter((c) =>
   ['name', 'elevation_ft', 'precip_total_in'].includes(c.key as string),
@@ -29,7 +30,10 @@ function headerRow() {
 const press = (th: Element, x: number, pointerType = 'mouse') =>
   ({ currentTarget: th, clientX: x, clientY: 12, pointerType }) as unknown as React.PointerEvent
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('useColumnDrag', () => {
   it('carries the column, draws the line, and moves it on release', () => {
@@ -66,6 +70,32 @@ describe('useColumnDrag', () => {
     act(() => void fireEvent.pointerUp(document))
     expect(onColumnMove).not.toHaveBeenCalled()
     expect(result.current.endedDrag()).toBe(false)
+  })
+
+  it('drags a finger once it has held long enough', () => {
+    const onColumnMove = vi.fn()
+    const ths = headerRow()
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(1000)
+    const { result } = renderHook(() => useColumnDrag(COLUMNS, onColumnMove))
+    act(() => result.current.begin(press(ths[0], 50, 'touch'), 'name'))
+    clock.mockReturnValue(1000 + LONG_PRESS_MS)
+    act(() => void fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'touch' }))
+    expect(result.current.carry).toMatchObject({ key: 'name' })
+    act(() => void fireEvent.pointerUp(document))
+    expect(onColumnMove).toHaveBeenCalledWith('name', 'precip_total_in')
+  })
+
+  it('lets go of the document when the header unmounts mid-drag', () => {
+    const onColumnMove = vi.fn()
+    const ths = headerRow()
+    const { result, unmount } = renderHook(() => useColumnDrag(COLUMNS, onColumnMove))
+    act(() => result.current.begin(press(ths[0], 50), 'name'))
+    const removed = vi.spyOn(document, 'removeEventListener')
+    unmount()
+    expect(removed.mock.calls.map((c) => c[0])).toEqual(['pointermove', 'pointerup', 'pointercancel'])
+    fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerUp(document)
+    expect(onColumnMove).not.toHaveBeenCalled()
   })
 
   it('swallows the click that ends a drag, and only until the next tick', () => {
