@@ -152,7 +152,7 @@ The text tests that stay, and why:
 | `hooks/useCapabilities.test.ts` | `forecastWindow.ts` | Each window bound against the value the module exports |
 | `utils/openMeteo.test.ts` | the two hooks, the three Open-Meteo modules | The coverage sentence and the unreadable-body sentence against the constants the modules export |
 | `utils/openMeteoAggregate.test.ts` | `openMeteoAggregate.ts`, `aggregation.py` | The TypeScript port against the Python it mirrors |
-| `utils/resultsSheet.test.ts` | `App.tsx`, `styles.ts` | The `LEGEND_TOP` classes and the panel default against the numbers the arithmetic uses |
+| `utils/resultsSheet.test.ts` | `hooks/useResultsLayout.ts`, `styles.ts` | The `LEGEND_TOP` classes and the panel default against the numbers the arithmetic uses |
 | `utils/basemapPoi.test.ts` | `map/basemap.ts` | The clickable layers against the ids `POI_LAYERS` exports, and the line-placed lake's label offset against the peak's: a comparison with a module's own constants, and a measurement |
 
 ### The cold-load budgets
