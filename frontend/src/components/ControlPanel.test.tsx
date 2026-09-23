@@ -34,6 +34,7 @@ function props(over: Partial<Props> = {}): Props {
     drawPointCount: 0,
     polygonAreaKm2: null,
     onCancelDrawing: noop,
+    onClearDrawing: noop,
     onPointAtSearch: noop,
     onPointAtMapPois: noop,
     destinationTypes: ['peak'],

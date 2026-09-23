@@ -107,7 +107,7 @@ describe('MapView declares nothing the tests cannot reach', () => {
  * camera framed a ring the reader had removed (#453).
  *
  * So the rule is that one ref carries it, nothing reads that ref before `load`,
- * and `cancelDrawing` is what empties it.
+ * and `restoreRing` is what writes it: empty for Clear, the old ring for Cancel.
  */
 describe('MapView reads the restored ring when the map loads', () => {
   const at = mapViewSource.indexOf("map.on('load'")
@@ -128,9 +128,9 @@ describe('MapView reads the restored ring when the map loads', () => {
     )
   })
 
-  it('empties the ring when the drawing is cancelled', () => {
-    expect(mapViewSource, 'cancelDrawing clears the restored ring').toMatch(
-      /cancelDrawing\(\)\s*\{\s*restoredPolygonRef\.current = null/,
+  it('carries whatever ring a Clear or a Cancel writes back', () => {
+    expect(mapViewSource, 'restoreRing writes the restored ring').toMatch(
+      /restoreRing\(ring\)\s*\{\s*restoredPolygonRef\.current = ring/,
     )
   })
 })

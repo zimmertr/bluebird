@@ -34,6 +34,7 @@ interface Props {
   drawPointCount: number
   polygonAreaKm2: number | null
   onCancelDrawing: () => void
+  onClearDrawing: () => void
   onPointAtSearch: (on: boolean) => void
   onPointAtMapPois: (on: boolean) => void
   // A set: one polygon can look for several kinds at once, and none checked
@@ -133,6 +134,7 @@ export default function ControlPanel({
   drawPointCount,
   polygonAreaKm2,
   onCancelDrawing,
+  onClearDrawing,
   onPointAtSearch,
   onPointAtMapPois,
   destinationTypes,
@@ -322,6 +324,7 @@ export default function ControlPanel({
           onStartDrawing={onStartDrawing}
           onFinishDrawing={onFinishDrawing}
           onCancelDrawing={onCancelDrawing}
+          onClearDrawing={onClearDrawing}
           drawPointCount={drawPointCount}
           pointsNeeded={pointsNeeded}
           areaTooLarge={areaTooLarge}
