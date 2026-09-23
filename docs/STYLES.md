@@ -35,6 +35,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 
 | Role | Purpose |
 |---|---|
+| `SURFACE_PAGE` | The ground a full page stands on: the app's root, the standalone pages' frame, and the error boundary's fallback, which replaces the tree it guards and so cannot borrow a ground from it |
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, the legend, chart tooltip, the forecast player's transport bar |
 | `RECESSED_FILL` / `RECESSED_EDGE` | The well every recessed surface composes: slate-900 fill and a slate-500 border, which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
@@ -225,6 +226,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Precipitation precision is centralized | `metrics.test.ts` | Ban a `toFixed` on a precipitation value in the same twelve files, read as text; `formatPrecipTotal` / `formatPrecipRate` decide |
 | Tooltips match the approved list, count for count | `styles.test.ts` | `title=` occurrences per component file |
 | No unsafe error message patterns | `metrics.test.ts` | Ban `failed: ${...}` and unsafe response copies |
+| Every full page stands on one ground | `styles.test.ts` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
 | Every notice renders in one block below Analyze | `styles.test.ts` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
 | A disabled control's reason has a hidden twin | `accessibility.test.ts` | Every `aria-describedby` in `App.tsx` matches a `SR_ONLY` element |

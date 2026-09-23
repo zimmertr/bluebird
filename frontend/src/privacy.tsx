@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import PrivacyPage from './components/PrivacyPage'
+import ErrorBoundary from './components/ErrorBoundary'
 import './index.css'
 
 // A separate Vite entry rather than a route inside App: this page is text, and
@@ -8,6 +9,8 @@ import './index.css'
 // Nothing here may import from the App tree, directly or transitively.
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <PrivacyPage />
+    <ErrorBoundary>
+      <PrivacyPage />
+    </ErrorBoundary>
   </React.StrictMode>,
 )
