@@ -14,7 +14,7 @@
 
 import { DestinationResult } from '../types'
 import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
-import type { ModelEnd, ModelRow } from './modelCompare'
+import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
 import type { ResolvedWindow } from './forecastWindow'
@@ -60,8 +60,9 @@ const WINDOW_END_LABEL = 'Forecast end'
  * Where one compared model's forecast ends, when that is inside the window
  * (#493). The row above's noun with the model named after it, so a spreadsheet
  * reads it as the same kind of value and can compute the hours the model's
- * aggregates cover. The table marks those cells with `*` instead; a mark inside
- * a number would turn the cell into text.
+ * aggregates cover. The `*` that points at the footnote sits on the Model cell
+ * rather than on those aggregates (#508): a mark inside a number would turn
+ * the cell into text and stop the column sorting and averaging.
  */
 const modelEndLabel = (modelLabel: string) => `${WINDOW_END_LABEL} (${modelLabel})`
 
@@ -119,7 +120,12 @@ function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null
   // rather than on it. A file carries it whenever the screen does, because a
   // file of eight rows per destination that did not say which was which would
   // be unreadable detached from the app.
-  if (col.key === MODEL_KEY) return (row as ModelRow).modelLabel ?? modelFallback ?? ''
+  // A model that ends inside the window carries the table's mark here, on the
+  // one text cell of the row that names it, so every number stays a number.
+  if (col.key === MODEL_KEY) {
+    const label = (row as ModelRow).modelLabel ?? modelFallback ?? ''
+    return isPartialRow(row) ? `${label}*` : label
+  }
   const raw = row[col.key]
   if (raw == null) return col.csvNull ?? ''
   // A depth at the source file's ceiling says so here too, ungrouped like
@@ -334,12 +340,17 @@ export function buildResultsCsv(
   // at all. Nothing is what a file with no committed analysis writes: every
   // row in it is pending, no forecast covers any of them, and a label over an
   // empty cell would be the file asking a question rather than answering one.
+  // The footnote follows the marks, and the marks ride the Model column: a
+  // file without that column, or without a marked row, has nothing for the
+  // note to explain.
+  const marked = columns.some((c) => c.key === MODEL_KEY) && rows.some(isPartialRow)
   const windowRows = window
     ? [
         [''],
         [WINDOW_START_LABEL, isoLocalMinute(window.startMs, timeZone)],
         [WINDOW_END_LABEL, isoLocalMinute(window.endMs, timeZone)],
         ...modelEnds.map((m) => [modelEndLabel(m.label), isoLocalMinute(m.endMs, timeZone)]),
+        ...(marked ? [[PARTIAL_COVERAGE_NOTE]] : []),
       ]
     : []
   // Pending rows first with an empty Rank, mirroring the table, which draws

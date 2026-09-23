@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
+import { PARTIAL_COVERAGE_NOTE } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
 import { FireWarning } from './fireProximity'
@@ -767,16 +768,49 @@ describe('the forecast window in the file', () => {
         ])
       })
 
-      // The table's `*` is a mark for a reader; in a file it would turn every
-      // marked number into text.
-      it('leaves every number plain', () => {
-        const short = { ...row({ precip_total_in: 0.25 }), modelId: 'gfs_hrrr', modelLabel: 'NOAA HRRR', rank: 1, coverageEndMs: HRRR_END }
-        const csv = buildResultsCsv([short], WINDOW_COLUMNS, NO_FIRES, {
-          window: WHOLE_DAYS,
-          timeZone: LA,
-          modelEnds: [{ label: 'NOAA HRRR', endMs: HRRR_END }],
+      // The mark sits on the Model cell, once per row, as it does on screen
+      // (#508). A mark inside a number would turn the column into text, so
+      // no spreadsheet could sort or average it.
+      describe('the mark and its footnote', () => {
+        const MODEL_COLUMNS = withModelColumn(WINDOW_COLUMNS, true)
+        const MODEL_AT = ['Rank', ...MODEL_COLUMNS.map((c) => c.label)].indexOf('Model')
+        const PRECIP_AT = ['Rank', ...MODEL_COLUMNS.map((c) => c.label)].indexOf(
+          MODEL_COLUMNS.find((c) => c.key === 'precip_total_in')!.label,
+        )
+        const full = { ...row({ precip_total_in: 0.25 }), modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 1 }
+        const short = { ...full, modelId: 'gfs_hrrr', modelLabel: 'NOAA HRRR', coverageEndMs: HRRR_END }
+        const ENDS = [{ label: 'NOAA HRRR', endMs: HRRR_END }]
+        const build = (rows: DestinationResult[], columns = MODEL_COLUMNS) =>
+          buildResultsCsv(rows, columns, NO_FIRES, { window: WHOLE_DAYS, timeZone: LA, modelEnds: ENDS })
+
+        it('marks the Model cell of a short row and leaves its numbers plain', () => {
+          const [fullRow, shortRow] = lines(build([full, short])).slice(1, 3).map(cells)
+          expect(shortRow[MODEL_AT]).toBe('NOAA HRRR*')
+          expect(fullRow[MODEL_AT]).toBe('NOAA GFS')
+          expect(shortRow[PRECIP_AT]).toBe(fullRow[PRECIP_AT])
+          expect(shortRow.filter((c, i) => i !== MODEL_AT && c.includes('*'))).toEqual([])
         })
-        expect(csv).not.toContain('*')
+
+        it('writes the footnote after the model end rows', () => {
+          const all = lines(build([full, short]))
+          const end = all.indexOf('Forecast end (NOAA HRRR),2026-09-20T02:00-07:00')
+          expect(end).toBeGreaterThan(0)
+          expect(all[end + 1]).toBe(PARTIAL_COVERAGE_NOTE)
+          expect(all[end + 2]).toBe('')
+          expect(all.filter((l) => l === PARTIAL_COVERAGE_NOTE)).toHaveLength(1)
+        })
+
+        it('writes no footnote when no row is short', () => {
+          expect(build([full])).not.toContain(PARTIAL_COVERAGE_NOTE)
+        })
+
+        // The footnote explains the marks, and the marks ride the Model
+        // column: a file without it has nothing for the note to explain.
+        it('writes neither mark nor footnote without the Model column', () => {
+          const csv = build([full, short], WINDOW_COLUMNS)
+          expect(csv).not.toContain('*')
+          expect(csv).toContain('Forecast end (NOAA HRRR)')
+        })
       })
 
       it('writes no model row when no model ends early', () => {

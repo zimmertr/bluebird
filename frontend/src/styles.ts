@@ -2072,4 +2072,17 @@ export const TABLE = {
    */
   rankStack: 'inline-grid items-center justify-items-center',
   rankFace: 'col-start-1 row-start-1',
+  /**
+   * A footnote reference on a cell: the `*` a Model cell carries when its
+   * model ends inside the window (#508), pointing at the line under the table.
+   * Raised and muted so it reads as a pointer to that line rather than as part
+   * of the label beside it, in the footnote's own size and color.
+   *
+   * It must add no row height, or a comparison's marked rows would sit taller
+   * than their neighbours. Preflight raises a `sup` by a relative offset, which
+   * moves the glyph and not the line box, and `leading-0` states the zero line
+   * height preflight also gives it, so a size step that carries its own
+   * leading cannot put one back. `styles.test.ts` holds both.
+   */
+  mark: `${TEXT.micro} leading-0`,
 } as const

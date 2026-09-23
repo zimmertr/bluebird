@@ -1,7 +1,7 @@
 import type { DestinationResult } from '../types'
 import { cellStyle, scaleFor } from './colors'
 import type { ColDef } from './tableColumns'
-import { isPartialCell, type ModelRow } from './modelCompare'
+import type { ModelRow } from './modelCompare'
 import {
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
@@ -76,17 +76,6 @@ export function unavailableCell(key: string, raw: unknown): { text: string; caus
 export function cellText(col: ColDef, raw: unknown): string {
   const key = col.key as string
   return (isSnowDepthKey(key) ? snowCellText(raw) : null) ?? (col.format ? col.format(raw) : String(raw ?? '—'))
-}
-
-/**
- * The printed value on a ranked row, with `*` on a number that covers fewer
- * hours than the window: a compared model whose forecast ends inside it
- * (#493). The footnote under the table says what the mark means. A missing
- * value carries no mark, because there is no number to qualify.
- */
-export function rowCellText(row: DestinationResult, col: ColDef, raw: unknown): string {
-  const text = cellText(col, raw)
-  return raw != null && isPartialCell(row, col.key as string) ? `${text}*` : text
 }
 
 /**

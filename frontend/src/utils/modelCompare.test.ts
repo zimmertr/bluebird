@@ -13,7 +13,7 @@ import {
   compareEndMs,
   compareSeries,
   isBlend,
-  isPartialCell,
+  isPartialRow,
   modelEndLines,
   modelRowsFor,
   PARTIAL_COVERAGE_NOTE,
@@ -506,7 +506,7 @@ describe('one table row per model', () => {
 })
 
 // Where a compared model's forecast ends inside the window (#493): the chart's
-// dashed line, the table's asterisk and footnote, and the file's metadata rows.
+// dashed line, the Model cell's mark and the footnote, and the file's metadata rows.
 describe('a model that ends early', () => {
   const HRRR = { id: 'gfs_hrrr', label: 'NOAA HRRR' }
   const IFS = { id: 'ecmwf_ifs025', label: 'ECMWF IFS' }
@@ -541,9 +541,12 @@ describe('a model that ends early', () => {
     })
   })
 
-  // Approved verbatim. It names no model, because the Model column does.
+  // Approved verbatim (#508). It names no model, because the Model cell does,
+  // and it states the cause rather than the effect.
   it('says what the mark means in one fixed line', () => {
-    expect(PARTIAL_COVERAGE_NOTE).toBe('* Partial model coverage. Data is aggregated over fewer hours.')
+    expect(PARTIAL_COVERAGE_NOTE).toBe(
+      "* Data is aggregated over a subset of the forecast window due to the model's limited range.",
+    )
   })
 
   describe('partialModels', () => {
@@ -564,26 +567,16 @@ describe('a model that ends early', () => {
     })
   })
 
-  describe('isPartialCell', () => {
-    it('marks every weather aggregate on a short row', () => {
-      const row = short(HRRR, 1000)
-      for (const key of ['precip_total_in', 'temp_avg_f', 'wind_max_mph', 'freeze_min_ft']) {
-        expect(isPartialCell(row, key), key).toBe(true)
-      }
-    })
-
-    // Air quality, snow depth and the cloud columns are the report's own on
-    // every row, and the identity columns are no aggregate at all.
-    it('leaves the columns no model fetch answers unmarked', () => {
-      const row = short(HRRR, 1000)
-      for (const key of ['aqi_avg', 'snow_depth_in', 'cloud_base_min_ft', 'cloud_cover_avg_pct', 'name', 'elevation_ft']) {
-        expect(isPartialCell(row, key), key).toBe(false)
-      }
+  // One mark per row, on the Model cell (#508), so the predicate reads the
+  // row and never a column.
+  describe('isPartialRow', () => {
+    it('marks a row whose model ends inside the window', () => {
+      expect(isPartialRow(short(HRRR, 1000))).toBe(true)
     })
 
     it('leaves a row that covers the window unmarked', () => {
-      expect(isPartialCell(full(HRRR), 'precip_total_in')).toBe(false)
-      expect(isPartialCell(resultRow(), 'precip_total_in')).toBe(false)
+      expect(isPartialRow(full(HRRR))).toBe(false)
+      expect(isPartialRow(resultRow())).toBe(false)
     })
   })
 })

@@ -353,7 +353,7 @@ export function useModelCompare({
   /**
    * Where each compared model ends, by id, for the models whose reach ends
    * inside the window. The same instant the fetch asked each of them up to, so
-   * the table's asterisk and the chart's dashed line mark exactly the hours
+   * the Model cell's mark and the chart's dashed line mark exactly the hours
    * that were not bought. The ranking model is never here: the calendar clamps
    * the window to its reach.
    */
