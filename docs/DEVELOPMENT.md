@@ -50,6 +50,7 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 | `make check-openapi` | `python scripts/generate_openapi.py --check`: the committed snapshot still matches the app |
 | `make lint-backend` | `ruff check backend/` at the version CI pins |
 | `make lighthouse` | the cold-load audit below |
+| `make browser` | the browser suite below |
 
 The `Makefile` is the list of commands, and every target has the same shape.
 This is `make test-frontend`, typed out:
@@ -100,28 +101,19 @@ on the PR.
 CI also operates the built image in a browser (issue #412): Playwright draws a
 ring and analyzes, opens a share link, and runs axe on the panel, the results,
 and the Layers popover. Every third-party host is answered from fixtures in
-`frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota. Locally, run
-it from the pinned Playwright image against the image served on a docker
-network. Mount the repo root: the fixtures read
-`backend/tests/data/weather_vectors.json`.
+`frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
+`make browser` runs it locally: it builds the image, serves it on a docker
+network, and runs the suite from the pinned Playwright image with the repo
+root mounted (the fixtures read `backend/tests/data/weather_vectors.json`). A
+failed run leaves the served container running, and `docker rm -f e2e-target`
+clears it.
 
-```bash
-docker build -t bluebird:e2e .
-docker network create e2e-net 2>/dev/null || true
-docker run -d --rm --name e2e-target --network e2e-net bluebird:e2e
-
-docker run --rm --network e2e-net --ipc=host -v "$PWD":/repo \
-  -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 \
-  mcr.microsoft.com/playwright:v1.63.0-noble \
-  sh -c "npm ci && npx playwright test"
-
-docker rm -f e2e-target
-```
-
-The image tag must match the `@playwright/test` version in
-`frontend/e2e/package.json`: each Playwright release pins its own browser
-build, and the image carries the build for its own version only. When
-Dependabot bumps the package, move the tag here in the same PR. CI does not use
+The image tag, `PLAYWRIGHT_IMAGE` in the `Makefile`, must match the
+`@playwright/test` version in `frontend/e2e/package.json`: each Playwright
+release pins its own browser build, and the image carries the build for its
+own version only. When Dependabot bumps the package, move the tag in the same
+PR. The image brings its own Node, so this is the one container `.node-version`
+does not pick. CI does not use
 the image; it installs Chromium alone on the runner.
 
 The suite is a package apart from `frontend/package.json`, like the two under

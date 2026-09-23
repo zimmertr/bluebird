@@ -44,7 +44,7 @@ updates:
 
   # The browser suite (#412), a package apart so the app's `npm ci` never
   # downloads Playwright. A bump of @playwright/test must also move the local
-  # image tag in docs/DEVELOPMENT.md; CI installs the matching Chromium itself.
+  # image tag, PLAYWRIGHT_IMAGE in the Makefile; CI installs the matching Chromium itself.
   - package-ecosystem: npm
     directory: /frontend/e2e
     schedule:

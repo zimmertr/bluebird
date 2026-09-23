@@ -10,8 +10,11 @@ NODE_IMAGE := node:$(shell cat .node-version)-alpine
 PYTHON_IMAGE := python:3.14-slim
 # Pinned because ruff's default rule set changes between releases.
 RUFF_VERSION := 0.16.0
+# Must match @playwright/test in frontend/e2e/package.json: each release pins
+# its own Chromium build, and the image carries the build for its own version.
+PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.63.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi lint-backend lighthouse
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi lint-backend lighthouse browser
 
 typecheck:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci && npx tsc --noEmit"
@@ -45,3 +48,13 @@ lighthouse:
 	docker run -d --rm --name lh-target --network lh-net bluebird:lh
 	docker run --rm --network lh-net -v "$(CURDIR)":/repo -w /repo -e CHROME_PATH=/usr/bin/chromium-browser --entrypoint sh zenika/alpine-chrome:with-node -c "npx -y @lhci/cli@0.15.x autorun --config=.github/lighthouserc.js --collect.url=http://lh-target:8000/"
 	docker rm -f lh-target
+
+# The browser suite, shaped like the audit above: the built image serving on a
+# network, and the pinned Playwright image driving it. A failed run leaves
+# e2e-target running; `docker rm -f e2e-target` clears it.
+browser:
+	docker build -t bluebird:e2e .
+	-docker network create e2e-net
+	docker run -d --rm --name e2e-target --network e2e-net bluebird:e2e
+	docker run --rm --network e2e-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci && npx playwright test"
+	docker rm -f e2e-target
