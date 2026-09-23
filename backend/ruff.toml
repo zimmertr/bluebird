@@ -39,4 +39,4 @@ known-first-party = ["app"]
 "tests/test_hms.py" = ["E501"]
 # The HTTPException ban above holds where a request is answered, and nowhere
 # else: error_codes.py subclasses it, and main.py raises one for a missing page.
-"!app/{routes/**,ratelimit.py,ratelimit/**}" = ["TID251"]
+"!app/{routes,ratelimit}/**" = ["TID251"]

@@ -35,7 +35,7 @@ import {
 } from './openMeteo'
 import { nullsLast } from './sortResults'
 
-// Mirror of MAX_ANALYZE_PEAKS in backend/app/models.py — keep them in sync
+// Mirror of MAX_ANALYZE_PEAKS in backend/app/limits.py — keep them in sync
 // (the MAX_POLYGON_AREA_KM2 precedent). The server enforces it on
 // /api/destinations and /api/analyze; this copy covers the analyses that
 // never touch the server at all (custom CSV / pins refresh) and is the

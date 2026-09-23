@@ -4,9 +4,9 @@ One module owns every metric family, so the label vocabulary stays in one
 place and the cardinality test can police it. Two label vocabularies name the
 upstreams, on purpose:
 
-- The fetch layers (``osm.py``, ``weather.py``, ``air_quality.py``) use short
+- The fetch layers (``osm``, ``weather.py``, ``air_quality.py``) use short
   slugs: ``service`` is ``weather``/``aqi``, ``mirror`` is the Overpass host.
-- The pacing layer (``ratelimit.py``) uses each budget's ``provider`` string
+- The pacing layer (``ratelimit``) uses each budget's ``provider`` string
   verbatim ("Open-Meteo (air quality)", …). Those strings already uniquely
   name every budget instance, and mapping them to slugs here would be a
   parallel table that drifts the first time a display name changes.
@@ -106,7 +106,7 @@ OVERPASS_REQUESTS = Counter(
     ["mirror", "outcome"],
 )
 # Reaches past the slowest mirror's 45s client timeout, because the point of
-# this family (per the mirror-table comment in osm.py) is re-tuning those
+# this family (per the mirror-table comment in osm/mirrors.py) is re-tuning those
 # timeouts from measurement instead of a one-day sample.
 OVERPASS_DURATION = Histogram(
     "bluebird_forecast_overpass_request_duration_seconds",
@@ -149,7 +149,7 @@ AQI_DEGRADED = Counter(
     ["reason"],
 )
 
-# ── Pacing, budgets, and per-client limits (ratelimit.py wires these) ────────
+# ── Pacing, budgets, and per-client limits (ratelimit wires these) ───────────
 
 THROTTLED = Counter(
     "bluebird_forecast_ratelimit_throttled_total",
