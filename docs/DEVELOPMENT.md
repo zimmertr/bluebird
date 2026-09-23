@@ -60,6 +60,11 @@ docker run --rm -v "$PWD":/repo -w /repo/frontend node:$(cat .node-version)-alpi
   sh -c "npm ci && npm test"
 ```
 
+One Vitest run covers two projects, split by file extension: `node` runs every
+`*.test.ts` (pure logic, no DOM) and `dom` runs every `*.test.tsx` (a component
+rendered in jsdom and driven with Testing Library). Add `-- --project dom` (or
+`node`) to the `npm test` above to run one of them.
+
 Four things that shape follows from:
 
 - **Every container mounts the repo root**, never `frontend/` or `backend/`

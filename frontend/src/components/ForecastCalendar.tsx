@@ -76,9 +76,10 @@ interface Drag {
  *
  * One click picks a whole day, a second click extends to a range, and dragging
  * either end adjusts it. The interaction rules themselves live in
- * `utils/calendar.ts` as pure reducers, because Vitest runs with no DOM and a
- * component test would be silently uncollected — so this file is deliberately
- * only wiring: events in, reducer, `onChange` out.
+ * `utils/calendar.ts` as pure reducers, where the node test project checks
+ * every case without a page. So this file is deliberately only wiring: events
+ * in, reducer, `onChange` out, which is all `ForecastCalendar.test.tsx` has to
+ * show.
  *
  * Drag works for a mouse and is a no-op for a finger, without a branch on
  * pointer type: touch gets implicit pointer capture, so `pointerenter` never

@@ -53,9 +53,10 @@ interface Props {
  *
  * Wiring only. Every decision it looks like it is making — which axis is
  * available, where a new axis starts, how long a frame is held, what a position
- * reads as — is `utils/timeline.ts`'s, because Vitest here has no DOM and
- * anything left in a component is untestable by construction. The same split
- * `ForecastCalendar` makes for the same reason.
+ * reads as — is `utils/timeline.ts`'s, where the node test project checks every
+ * case without a page, and the component's own suite only has to show that
+ * each control reports. The same split `ForecastCalendar` makes for the same
+ * reason.
  *
  * Bottom-centre rather than in a corner: the corners are spoken for (the
  * legends bottom-left, the scale control bottom-right, the map controls

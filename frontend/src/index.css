@@ -16,6 +16,10 @@
    document no browser loads. The same hazard as tools/ above, one directory
    closer to the stylesheet. */
 @source not "./CLAUDE.md";
+/* The component tests sit beside the components, and v4 reads them as source
+   like any other file: a class one quotes to find an element would emit its
+   CSS into the app's stylesheet although no page draws it. */
+@source not "./**/*.test.tsx";
 
 /* Roomier tap targets belong to coarse pointers, not narrow windows. The
    controls panel is 320px wide at every breakpoint (max-w-xs below lg,
