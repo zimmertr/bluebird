@@ -11,7 +11,7 @@ The guide is the `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, 
 - Take the date and the decider from the guide text when it names them. When it does not, use the merge date and the author of the pull request that shipped the decision, and say that git is the source.
 - Give every number the date it was measured. A limit that `GET /api/capabilities` publishes is dated history in a record: say what it was, and point at the endpoint for today's value.
 - `Cited in code as` lists the issue and PR numbers that source comments cite for the decision, so a search for `#457` finds the record and the code together. Source comments keep their own provenance.
-- Add a link to the record at the end of its guide paragraph, on the same line. Do not remove a word from the paragraph.
+- Link the record from its guide paragraph as ` Record: [NNNN](path)`, right after the sentence that states the decision. In a paragraph that holds one decision, that is the end of the paragraph. Change nothing else on the line: removing the link must give back the original line byte for byte.
 
 ## Supersede a record
 
