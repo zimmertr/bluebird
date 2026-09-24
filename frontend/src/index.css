@@ -10,12 +10,14 @@
    must never reach the stylesheet. This is also what lets eslint.config.js
    spell a class verbatim where styles.test.ts may not. */
 @source not "../tools";
-/* The frontend module layout lives in `frontend/src/CLAUDE.md`, and v4 scans
-   source as raw text, so every class name that file quotes — `top-[92px]`,
-   `pr-6`, `touch:top-[156px]` and the rest — would emit its CSS from a
-   document no browser loads. The same hazard as tools/ above, one directory
-   closer to the stylesheet. */
-@source not "./CLAUDE.md";
+/* The frontend module layout lives in `frontend/src/CLAUDE.md` and in one
+   `CLAUDE.md` per directory under it, and v4 scans source as raw text, so
+   every class name those files quote (`top-[92px]`, `pr-6`,
+   `touch:top-[156px]` and the rest) would emit its CSS from a document no
+   browser loads. The same hazard as tools/ above, one directory closer to the
+   stylesheet. The glob covers every depth, so a guide added in a new
+   directory is out of reach without an edit here. */
+@source not "./**/CLAUDE.md";
 /* The component tests sit beside the components, and v4 reads them as source
    like any other file: a class one quotes to find an element would emit its
    CSS into the app's stylesheet although no page draws it. */
