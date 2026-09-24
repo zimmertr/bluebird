@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   FALLBACK_PITCH_KM,
+  modelPitchKm,
   GRID_REACH_DEFAULT_FRAC,
   GRID_REACH_MAX_X,
   GRID_REACH_MIN_X,
@@ -16,7 +17,7 @@ import {
 } from './forecastGridLattice'
 import { NO_VALUE, fillColor } from './resultFeatures'
 import type { AqiResult, CloudResult, WeatherResult } from './openMeteo'
-import { gridRow, weatherResult } from '../testSupport/fixtures'
+import { forecastModel, gridRow, weatherResult } from '../testSupport/fixtures'
 
 // A field of destinations, as coordinates — the only part of a result the
 // lattice reads.
@@ -248,6 +249,20 @@ describe('buildGrid', () => {
     // other 340 degrees of the planet. Out of scope by decision, and declining
     // is how that decision is expressed — the alternative paints the Atlantic.
     expect(buildGrid(field([51.9, 179.5], [51.8, -179.5]), 13)).toBeNull()
+  })
+})
+
+describe('modelPitchKm', () => {
+  const MODELS = [forecastModel({ id: 'gfs_seamless', finestGridKm: 3 }), forecastModel({ id: 'raw', finestGridKm: 0 })]
+  it("reads the named model's published grid, and falls back for any other", () => {
+    expect(modelPitchKm(MODELS, 'gfs_seamless')).toBe(3)
+    expect(modelPitchKm(MODELS, 'unknown')).toBe(FALLBACK_PITCH_KM)
+    expect(modelPitchKm(MODELS, undefined)).toBe(FALLBACK_PITCH_KM)
+  })
+  // A published 0 means "not sent"; buildGrid and reachKmFor are what read it
+  // as the fallback, so it passes through here unchanged.
+  it('passes a published 0 through', () => {
+    expect(modelPitchKm(MODELS, 'raw')).toBe(0)
   })
 })
 

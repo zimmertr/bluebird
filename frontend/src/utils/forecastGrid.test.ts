@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
-// Through the barrel, as App.tsx imports them, so this file also proves the
-// barrel still carries the names the wiring reads.
+// Through the barrel, as App.tsx and useGridLayer.ts import them, so this file
+// also proves the barrel still carries the names the wiring reads.
 import { GRID_STYLES, isGridStyle } from './forecastGrid'
 // What the layer the field draws into wires is the `map-grid-layer` check in
 // tools/eslint/checks/map.js, and its behavior is `map/overlays/forecastGrid.test.ts`.
-// What App.tsx wires is the `app-grid-gate` check in tools/eslint/checks/app.js.
+// What useGridLayer.ts wires is the `grid-layer-hook` check, and the Layers row
+// App.tsx keeps is `app-grid-gate`, both in tools/eslint/checks/app.js.
 
 // One drawing for every scale on the map (TJ, 2026-09-22). The grid painted a
 // hard rectangle per sample while `blocks` was the default, where the markers

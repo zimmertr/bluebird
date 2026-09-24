@@ -48,7 +48,7 @@ import {
 } from './utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
-import { useForecastGrid } from './hooks/useForecastGrid'
+import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
@@ -125,10 +125,6 @@ import {
 } from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
-  FALLBACK_PITCH_KM,
-  GRID_REACH_DEFAULT_FRAC,
-  gridAllowed,
-  gridLegendLine,
   pitchLabel,
   reachKmFor,
   type GridStyle,
@@ -457,29 +453,6 @@ export default function App() {
       document.removeEventListener('keydown', onKey)
     }
   }, [layersOpen])
-  // Which drawing the grid's samples get. Blocks by default: it is the style
-  // that cannot overstate what was sampled, since one square is one forecast
-  // and a reader can count them. Purely presentation over held samples, so
-  // switching costs one re-render and nothing upstream.
-  const [gridStyle, setGridStyle] = useState<GridStyle>(() => restored?.gridStyle ?? 'smooth')
-  // The coverage slider's committed BAR POSITION in [0, 1] — the kilometres
-  // derive from the model's pitch, so the position means the same thing on
-  // every model. Changing it re-grids on its own — the layer fetches for
-  // itself the way toggling it on does — so this is an overlay property,
-  // never a knob: commitNeeded does not know it exists.
-  const [gridReachFrac, setGridReachFrac] = useState<number>(
-    () => restored?.gridReachFrac ?? GRID_REACH_DEFAULT_FRAC,
-  )
-  // The slider's live position while a drag is in flight, or null at rest.
-  // Displaying the draft and committing on release is what keeps a drag from
-  // refetching the lattice per pixel.
-  const [gridReachDraft, setGridReachDraft] = useState<number | null>(null)
-  const commitGridReach = useCallback(() => {
-    if (gridReachDraft !== null) {
-      setGridReachFrac(gridReachDraft)
-      setGridReachDraft(null)
-    }
-  }, [gridReachDraft])
   const [showResults, setShowResults] = useState(false)
   // Every stored view preference comes out of one read, held for the mount:
   // several initializers each parsing the same stored string is what
@@ -612,6 +585,54 @@ export default function App() {
     caps.windowLimits,
     caps.aqiForecastDays,
   )
+
+  // ── The map timeline (#121) ───────────────────────────────────────────────
+  const {
+    forecastTimes,
+    timelineAxes,
+    timelineAxis,
+    setChosenAxis,
+    playerOffered,
+    radarIndex,
+    frameIndex,
+    frameCount,
+    setFrameIndex,
+    playing,
+    setPlaying,
+    playbackIndex,
+    timelineReadout,
+    timelineScale,
+    movePlayheadTo,
+  } = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
+
+  // ── The forecast grid (#246) ──────────────────────────────────────────────
+  const {
+    gridStyle,
+    setGridStyle,
+    gridReachFrac,
+    gridReachDraft,
+    setGridReachDraft,
+    commitGridReach,
+    gridAvailable,
+    gridOn,
+    grid,
+    gridReachPitchKm,
+    gridPainted,
+    gridCued,
+    gridFailed,
+    gridLegend,
+  } = useGridLayer({
+    restored,
+    showGrid,
+    analyzed,
+    universe,
+    forecastModel,
+    forecastModels: caps.forecastModels,
+    forecastTimes,
+    analysisSeq,
+    windowLimits: caps.windowLimits,
+    aqiForecastDays: caps.aqiForecastDays,
+  })
 
   const {
     removed,
@@ -929,24 +950,6 @@ export default function App() {
     void handleAnalyze()
   }
 
-  // ── The map timeline (#121) ───────────────────────────────────────────────
-  const {
-    forecastTimes,
-    timelineAxes,
-    timelineAxis,
-    setChosenAxis,
-    playerOffered,
-    radarIndex,
-    frameIndex,
-    frameCount,
-    setFrameIndex,
-    playing,
-    setPlaying,
-    playbackIndex,
-    timelineReadout,
-    timelineScale,
-    movePlayheadTo,
-  } = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
@@ -990,27 +993,6 @@ export default function App() {
   // it is.
   const showTable = showResults && (response !== null || pending.length > 0)
 
-  // The forecast grid (#246): the ranked metric as model-resolution cells under
-  // the markers, scrubbed by the same playhead.
-  //
-  // Every input comes from the `analyzed` snapshot rather than from the panel.
-  // The calendar, the model picker and the ranking can all move while a report
-  // sits on screen, and a grid built from panel state would paint a window the
-  // markers above it never saw. The pitch is the ANALYZED model's finest grid
-  // for the same reason.
-  //
-  // A report carrying archive hours is the one it cannot draw over: those hours
-  // name no model, so there is no pitch the lattice could honestly be sampled at
-  // (`gridAllowed`, #123). The layer is switched out of play rather than
-  // switched off — the reader's preference survives, and the next forecast
-  // analysis grids itself the way it always did. The row says why, since a
-  // disabled checkbox beside three live ones reads as broken.
-  const gridAvailable = gridAllowed(analyzed)
-  // The layer as it actually stands, which is what every surface below reads:
-  // the checkbox holds a preference, and this is whether that preference is in
-  // effect. One flag rather than a pair repeated per surface, so the fetch, the
-  // sub-choices and the legend box cannot answer differently.
-  const gridOn = showGrid && gridAvailable
   // Alphabetical by label, which is the only order a list of unrelated switches
   // can be scanned in: these five have no ranking between them — no cost, no
   // severity, no dependency — so any other order is one the reader has to
@@ -1049,52 +1031,6 @@ export default function App() {
     { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
     { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
   ]
-  const grid = useForecastGrid({
-    enabled: gridOn,
-    field: universe,
-    window: analyzed?.window ?? null,
-    model: analyzed?.forecastModel ?? forecastModel,
-    times: forecastTimes,
-    pitchKm:
-      caps.forecastModels.find((m) => m.id === analyzed?.forecastModel)?.finestGridKm ??
-      FALLBACK_PITCH_KM,
-    reachFrac: gridReachFrac,
-    // The live thumb position while dragging: the held field re-cuts to it in
-    // real time, and only a committed value can fetch.
-    displayReachFrac: gridReachDraft ?? gridReachFrac,
-    analysisSeq,
-    windowLimits: caps.windowLimits,
-    aqiForecastDays: caps.aqiForecastDays,
-    cloud: analyzed?.cloudFetched ?? false,
-  })
-  // The pitch the slider's kilometres read from: the analyzed model once a
-  // report is held (what the grid actually draws), the panel's pick before
-  // one exists — so the control never quotes the 13 km fallback at a reader
-  // who has GFS selected.
-  const gridReachPitchKm =
-    caps.forecastModels.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))
-      ?.finestGridKm ?? FALLBACK_PITCH_KM
-  // Something is painted, which is what a legend can be keyed to. A field still
-  // filling in has some, so the legend arrives with the first chunk rather than
-  // with the last — a key to an empty map would be noise, but a key to a
-  // quarter-painted one is exactly what a reader needs.
-  const gridPainted = gridOn && grid.cells.length > 0
-  // The legend also opens while the grid is still fetching, so its one line can
-  // say the field is coming. That gap is the whole reason the cue exists: the
-  // grid inherits the quota debt of the analysis that just ran, so after a big
-  // one it is minutes before the first samples land.
-  const gridCued = gridOn && grid.status === 'loading'
-  // The layer is on and could not draw. Said out loud for the same reason the
-  // loading line exists: a switched-on layer with nothing under it and nothing
-  // said reads as a broken app rather than as a failed fetch.
-  const gridFailed = gridOn && grid.status === 'failed'
-  const gridLegend = gridLegendLine(
-    gridPainted,
-    grid.pitchKm,
-    grid.paceRemainingS,
-    gridFailed,
-    grid.complete,
-  )
 
   // Download the displayed report (#125). Everything that decides what the file
   // contains is already resolved above, so this only has to hand settled values
