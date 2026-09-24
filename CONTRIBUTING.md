@@ -12,3 +12,4 @@ If you send a change:
 - Frontend styling composes the roles in `frontend/src/styles.ts`. No component names its own color.
 - A change to a route or a Pydantic model regenerates `backend/openapi.json` (`cd backend && python scripts/generate_openapi.py`) and the frontend types read off it (`cd frontend && npm run generate:api`). CI fails the PR otherwise.
 - A new source file under `frontend/src` or `backend/app` gets a line in the layout list beside it (the `CLAUDE.md` in its own directory under `frontend/src`, or `backend/CLAUDE.md`), saying what it owns and why it is separate.
+- A change that makes or reverses a design decision adds or supersedes a record in `docs/decisions/` and links it from the guide paragraph beside it.
