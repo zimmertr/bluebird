@@ -127,7 +127,7 @@ export interface ModelCompareOptions {
   /**
    * One colour per (destination, model) PAIR, by `pairKey`, seeded with the
    * ranking model's pairs pointing at their destinations' own colours.
-   * Allocated by `App.tsx` off the one session allocator the destinations
+   * Allocated by `useChartCompare.ts` off the one session allocator the destinations
    * themselves draw on (`allocateColors`), and passed in rather than derived
    * here, because a second allocator could hand a line the colour a
    * destination beside it is already wearing.

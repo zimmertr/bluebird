@@ -23,7 +23,6 @@ import TimelineTransport from './components/TimelineTransport'
 import ModelCompare from './components/ModelCompare'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useCapabilities } from './hooks/useCapabilities'
-import { useChartSelection } from './hooks/useChartSelection'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
 import { useDestinationInputs } from './hooks/useDestinationInputs'
@@ -34,29 +33,23 @@ import { useTimeline } from './hooks/useTimeline'
 import { usePresentedReport } from './hooks/usePresentedReport'
 import { useRemovals } from './hooks/useRemovals'
 import { useResultsLayout } from './hooks/useResultsLayout'
-import { useModelCompare } from './hooks/useModelCompare'
-import { allocateColors } from './utils/chartColors'
+import { useChartCompare } from './hooks/useChartCompare'
 import {
   ModelRow,
-  drawnModelIds,
   legendEntries,
   modelRowsFor,
-  pairColor,
-  pairKey,
   PARTIAL_COVERAGE_NOTE,
   partialModels,
   type ModelEnd,
 } from './utils/modelCompare'
-import { modelRows, pruneHidden, shownModels, toggleHidden } from './utils/modelVisibility'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
   DestinationResult,
-  HourlySeries,
 } from './types'
-import { alignRowToGrid, chartKey } from './utils/chartData'
+import { chartKey } from './utils/chartData'
 import { logoUrl } from './logo'
 import {
   IconChart,
@@ -144,7 +137,6 @@ import {
   TRANSPORT_GAP_PX,
 } from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
-import { paceWaitLine } from './utils/pacing'
 import { Place } from './utils/geocode'
 import {
   encodeState,
@@ -500,11 +492,6 @@ export default function App() {
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
-  // Models whose lines the reader has put down (#232). Presentation and
-  // nothing else: the forecasts behind them are bought either way, so this
-  // rides in no link and no storage, and a reload comes back showing
-  // everything the comparison paid for.
-  const [hiddenModels, setHiddenModels] = useState<ReadonlySet<string>>(() => new Set())
   const [removedOpen, setRemovedOpen] = useState(false)
   // Column widths the user has set (px by key). Held here rather than in the
   // table so a mode switch or the collapse chevron — both of which unmount
@@ -993,6 +980,59 @@ export default function App() {
   // it is.
   const showTable = showResults && (response !== null || pending.length > 0)
 
+  // Space below the map that a resize must leave alone: the preview banner (when
+  // present) sits above the map, so the map + chart + table share the rest.
+  const bannerPx = preview.enabled ? 32 : 0
+  const {
+    sheetRef,
+    isDragging,
+    resultsCollapsed,
+    toggleCollapsed,
+    resultsMode,
+    chooseResultsMode,
+    bothHasRoom,
+    chartShowing,
+    chartPanelPx,
+    tablePanelPx,
+    sheetLiftPx,
+    mapCornerLift,
+    cameraPadBottomPx,
+    chartGrip,
+    tableGrip,
+  } = useResultsLayout({
+    modeChosen: storedView.modeChosen,
+    isDesktop,
+    bannerPx,
+    showTable,
+    response,
+    analysisSeq,
+  })
+
+  // ── The comparison chart (#232) ───────────────────────────────────────────
+  const {
+    chart,
+    compare,
+    pendingRows,
+    selectedModelRows,
+    hiddenModels,
+    toggleHiddenModel,
+    rowChartColor,
+    comparingRows,
+    compareWait,
+  } = useChartCompare({
+    results,
+    pending,
+    sortBy: view.sortBy,
+    analyzed,
+    analysisSeq,
+    models: caps.forecastModels,
+    forecastModel,
+    comparedModels,
+    times: forecastTimes,
+    windowLimits: caps.windowLimits,
+    chartShowing,
+  })
+
   // Alphabetical by label, which is the only order a list of unrelated switches
   // can be scanned in: these five have no ranking between them — no cost, no
   // severity, no dependency — so any other order is one the reader has to
@@ -1085,181 +1125,6 @@ export default function App() {
     requestAnimationFrame(() => URL.revokeObjectURL(url))
   }
 
-  // Comparison-chart selection (checkboxes in the table → lines in the chart).
-  // Every row shares the analysis's hourly grid. A point-sample analysis charts
-  // too: its single-instant grid renders as one dot per destination — still a
-  // cross-destination comparison, same default-select-all.
-  // Memoized for its identity, like `forecastTimes` above: `chartedSeries`
-  // below depends on it, and a fresh empty array per render rebuilt that memo
-  // on every render before an analysis.
-  const chartTimes = useMemo(() => response?.times ?? [], [response?.times])
-  // Everything the chart tracks: the displayed rows plus the pending
-  // destinations no analysis has covered. Pending rows ride along as
-  // series-less pseudo-rows so a searched place is colored and selected the
-  // moment it appears — and since colors stick to the coordinate key, the hue
-  // it wears before the analysis is the hue its line draws in after.
-  const pendingRows = useMemo(() => {
-    const have = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
-    return pending
-      .filter((d) => !have.has(geoKey(d.latitude, d.longitude)))
-      .map(pendingAsResult)
-  }, [results, pending])
-  const chartCandidates = useMemo(() => [...results, ...pendingRows], [results, pendingRows])
-  const chart = useChartSelection(chartCandidates, view.sortBy)
-
-  // Comparing models across the charted destinations (#232). A drill-down rather
-  // than a knob: it touches nothing the ranking reads. Never on air quality,
-  // which comes from CAMS whatever forecast model ranked the field, so a
-  // comparison there could only draw the same line twice.
-  //
-  // The rank comes from `results`, which is the ranking order the markers and
-  // the legend already read — not from `tableRows`, whose numbering follows a
-  // detail-column sort that reorders the rows on screen without changing which
-  // rows they are.
-  // Every DISPLAYED row as a point the comparison can fetch for. Wider than
-  // the charted set: the results table shows one row per model for everything
-  // on screen, so the numbers are bought for everything on screen. Keyed by
-  // `chartKey` like the charted ones, so one pair key serves both readers.
-  const comparePoints = useMemo(
-    () =>
-      results.map((r) => ({
-        key: chartKey(r),
-        latitude: r.latitude,
-        longitude: r.longitude,
-        elevationFt: r.elevation_ft,
-      })),
-    [results],
-  )
-
-  const chartedDestinations = useMemo(() => {
-    const rankByKey = new Map(results.map((r, i) => [chartKey(r), i + 1]))
-    return chart.selectedRows
-      .filter((r) => rankByKey.has(chartKey(r)))
-      .map((r) => ({
-        key: chartKey(r),
-        rank: rankByKey.get(chartKey(r)) as number,
-        name: r.name,
-        latitude: r.latitude,
-        longitude: r.longitude,
-        elevationFt: r.elevation_ft,
-        // The colour it already wears in the table and on the map. A compared
-        // chart says two things at once, and this is the one it has always
-        // said; the model is the line style.
-        color: chart.colorFor(r),
-      }))
-    // Kept: the rule asks for the whole `chart` object, which useChartSelection
-    // rebuilds every render. `colorFor` cannot answer differently for a row
-    // that has not changed, so the two listed values are the real inputs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart.selectedRows, results])
-  // The ranking model's own numbers per destination, on the chart's grid: a
-  // pinned row carries its own stamps, so the alignment the chart does for its
-  // rows has to happen here too or a pin would compare against the wrong hours.
-  const chartedSeries = useMemo(() => {
-    const out: Record<string, HourlySeries | null> = {}
-    for (const row of chart.selectedRows) {
-      out[chartKey(row)] = alignRowToGrid(row, chartTimes).series ?? null
-    }
-    return out
-  }, [chart.selectedRows, chartTimes])
-  // Every model the panel has selected, ranking first: the Models popover's
-  // rows. The SELECTION rather than the chart, so a model ticked before the
-  // next Analyze already has a row.
-  const selectedModelRows = useMemo(
-    () => modelRows(caps.forecastModels, forecastModel, comparedModels),
-    [caps.forecastModels, comparedModels, forecastModel],
-  )
-
-  // A colour per LINE, which under a comparison means a colour per
-  // (destination, model) PAIR (#232). Three destinations under three models is
-  // nine lines and nine colours.
-  //
-  // The pairs for the ranking model are seeded with their destinations' own
-  // colours — the hue the marker and the table checkbox already wear — so a
-  // chart with nothing compared draws exactly as it always did. Every other
-  // pair takes the next colour from the ONE session allocator the destinations
-  // themselves draw on, which is what stops a line being handed the colour of
-  // a destination standing beside it.
-  //
-  // Allocated here rather than inside `useModelCompare` because the allocation
-  // has to happen BEFORE the lines are composed, and `drawnModelIds` is what
-  // lets both places agree about which pairs exist without the hook having to
-  // answer first.
-  const chartedPairKeys = useMemo(() => {
-    const drawn = shownModels(
-      drawnModelIds(
-        comparedModels,
-        analyzed?.compareModels ?? [],
-        caps.forecastModels,
-        analyzed?.forecastModel ?? null,
-      ).map((id) => ({ id })),
-      hiddenModels,
-    )
-    return drawn.flatMap((m) => chartedDestinations.map((d) => pairKey(m.id, d.key)))
-  }, [analyzed, caps.forecastModels, chartedDestinations, comparedModels, hiddenModels])
-  const chartedPairColors = useMemo(() => {
-    const allocated = allocateColors(chart.colorByKey, chartedPairKeys)
-    const seeded: Record<string, string> = { ...allocated }
-    const ranking = analyzed?.forecastModel
-    if (ranking) {
-      for (const d of chartedDestinations) seeded[pairKey(ranking, d.key)] = d.color
-    }
-    return seeded
-  }, [analyzed, chart.colorByKey, chartedDestinations, chartedPairKeys])
-  // The allocation above is for the frame that draws the lines; this is what
-  // makes it stick, so a pair hidden and shown again comes back the colour it
-  // was rather than taking the next one off the end.
-  const chartedPairsKey = chartedPairKeys.join('|')
-  useEffect(() => {
-    chart.rememberColors(chartedPairKeys)
-    // Kept: `chartedPairsKey` is the joined VALUE of `chartedPairKeys`, which
-    // is a new array whenever anything above it re-derives. Listing the array
-    // and the hook object would re-run this on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartedPairsKey])
-  const compare = useModelCompare({
-    enabled: chart.metric !== 'aqi',
-    destinations: chartedDestinations,
-    rows: comparePoints,
-    heldSeries: chartedSeries,
-    analyzed,
-    analysisSeq,
-    models: caps.forecastModels,
-    picked: comparedModels,
-    fetchable: analyzed?.compareModels ?? [],
-    hidden: hiddenModels,
-    colors: chartedPairColors,
-    times: chartTimes,
-    windowLimits: caps.windowLimits,
-  })
-
-  // What colour a table row's chart checkbox wears.
-  //
-  // A colour identifies a LINE, and with a comparison up a line is a
-  // (destination, model) PAIR: two rows for one place draw two lines in two
-  // colours, so their checkboxes have to say which is which. Keyed off the same
-  // `chartedPairColors` the chart itself reads, so the swatch beside a row and
-  // the line it puts on the chart cannot be different colours.
-  //
-  // Falls back to the destination's own colour, which is the right answer
-  // everywhere a pair has none: a single-model report, and any row nobody has
-  // charted (whose swatch is uncoloured anyway until it is).
-  const rowChartColor = useCallback(
-    (row: DestinationResult) => {
-      return pairColor(
-        chartedPairColors,
-        (row as ModelRow).modelId,
-        chartKey(row),
-        chart.colorFor(row),
-      )
-    },
-    [chartedPairColors, chart],
-  )
-
-  // Whether the table shows one row per model. A single selected model is the
-  // report as it always was: every row would carry the same model name, which
-  // is a column that says nothing.
-  const comparingRows = compare.shown.length > 1
 
   // Whether the Model column is drawn: the reader's answer if they gave one,
   // and otherwise the model count. See `modelColumn` above for why the switch
@@ -1398,51 +1263,7 @@ export default function App() {
     [allColumns],
   )
 
-  // A model put down and later selected again comes back DRAWN, so a flag
-  // outlives its model by exactly nothing. Keyed on the panel's selection
-  // rather than on the chart's, because that is where a model leaves.
-  const selectedModelsKey = [forecastModel, ...comparedModels].join(',')
-  useEffect(() => {
-    setHiddenModels((prev) => pruneHidden(prev, selectedModelsKey.split(',')) ?? prev)
-  }, [selectedModelsKey])
 
-  // Space below the map that a resize must leave alone: the preview banner (when
-  // present) sits above the map, so the map + chart + table share the rest.
-  const bannerPx = preview.enabled ? 32 : 0
-  const {
-    sheetRef,
-    isDragging,
-    resultsCollapsed,
-    toggleCollapsed,
-    resultsMode,
-    chooseResultsMode,
-    bothHasRoom,
-    chartShowing,
-    chartPanelPx,
-    tablePanelPx,
-    sheetLiftPx,
-    mapCornerLift,
-    cameraPadBottomPx,
-    chartGrip,
-    tableGrip,
-  } = useResultsLayout({
-    modeChosen: storedView.modeChosen,
-    isDesktop,
-    bannerPx,
-    showTable,
-    response,
-    analysisSeq,
-  })
-  // The comparison's wait, on the one surface that is always here (#433).
-  //
-  // The forecasts behind the table's per-model rows are bought as soon as a
-  // second model is selected, where `ModelCompare` draws the same line only
-  // while the CHART draws a comparison — so air quality ranked, nothing
-  // charted, or the table shown by itself each left a paced fetch waiting with
-  // nowhere to say so. Null while the chart has it, because one wait said
-  // twice is the reason it was put in one module.
-  const compareWait =
-    compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
@@ -2292,7 +2113,7 @@ export default function App() {
                       <div className="min-h-0 flex-1">
                         <Suspense fallback={null}>
                           <TimeSeriesChart
-                            times={chartTimes}
+                            times={forecastTimes}
                             // While a comparison is up every line on the chart is
                             // a (destination, model) pair, composed once by the
                             // hook so each one is named and coloured the same
@@ -2303,7 +2124,7 @@ export default function App() {
                             metric={chart.metric}
                             onMetricChange={chart.setMetric}
                             colorFor={chart.colorFor}
-                            playheadMs={playbackIndex !== null ? chartTimes[playbackIndex] ?? null : null}
+                            playheadMs={playbackIndex !== null ? forecastTimes[playbackIndex] ?? null : null}
                             onPlayheadChange={
                               timelineAxes.includes('forecast') ? movePlayheadTo : undefined
                             }
@@ -2446,7 +2267,7 @@ export default function App() {
           onOpenChange={setModelsOpen}
           models={selectedModelRows}
           hidden={hiddenModels}
-          onToggle={(id) => setHiddenModels((prev) => toggleHidden(prev, id))}
+          onToggle={toggleHiddenModel}
           triggerRef={modelsButtonRef}
         />
 

@@ -18,6 +18,8 @@ import {
   type LegendEntry,
   type ModelRow,
   modelEndLines,
+  pairKeysFor,
+  seedPairColors,
   modelRowsFor,
   PARTIAL_COVERAGE_NOTE,
   partialModels,
@@ -686,5 +688,25 @@ describe('legendEntries', () => {
       'Amphitheater Mountain',
     ])
     expect(out[2].key).toBe(keyOf(PENDING))
+  })
+})
+
+describe('pairKeysFor', () => {
+  it('lists every pair model by model, in the order given', () => {
+    expect(pairKeysFor(['a', 'b'], ['x', 'y'])).toEqual(['a|x', 'a|y', 'b|x', 'b|y'])
+    expect(pairKeysFor([], ['x'])).toEqual([])
+  })
+})
+
+describe('seedPairColors', () => {
+  const ALLOCATED = { 'gfs|x': '#111', 'icon|x': '#222' }
+  it("gives the ranking model's pairs their destinations' own colours", () => {
+    const seeded = seedPairColors(ALLOCATED, 'gfs', [{ key: 'x', color: '#abc' }])
+    expect(seeded).toEqual({ 'gfs|x': '#abc', 'icon|x': '#222' })
+    // The allocation it was handed is left alone.
+    expect(ALLOCATED['gfs|x']).toBe('#111')
+  })
+  it('keeps the allocation as it is before any report', () => {
+    expect(seedPairColors(ALLOCATED, undefined, [{ key: 'x', color: '#abc' }])).toEqual(ALLOCATED)
   })
 })
