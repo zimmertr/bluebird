@@ -6,6 +6,7 @@ import {
   alignRowToGrid,
   axisTimeLabel,
   comparedLineLabel,
+  modelNamed,
   gridRemapper,
   nowWithinGrid,
   tracksCursor,
@@ -485,6 +486,20 @@ describe('comparedLineLabel', () => {
   it('distinguishes two models at one destination', () => {
     expect(comparedLineLabel(1, 'Mount Rainier', 'ECMWF IFS')).toBe(
       '1. Mount Rainier (ECMWF IFS)',
+    )
+  })
+})
+
+describe('modelNamed', () => {
+  // The legend chip's form: the hover box's name without the rank.
+  it('reads destination, then model', () => {
+    expect(modelNamed('Cathedral Peak', 'ECMWF IFS')).toBe('Cathedral Peak (ECMWF IFS)')
+  })
+
+  // One spelling for both, so the chip and the hover box cannot drift apart.
+  it('is the compared line label without its rank', () => {
+    expect(comparedLineLabel(3, 'Cathedral Peak', 'ECMWF IFS')).toBe(
+      `3. ${modelNamed('Cathedral Peak', 'ECMWF IFS')}`,
     )
   })
 })

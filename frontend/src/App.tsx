@@ -37,6 +37,7 @@ import { allocateColors } from './utils/chartColors'
 import {
   ModelRow,
   drawnModelIds,
+  legendEntries,
   modelRowsFor,
   pairColor,
   pairKey,
@@ -1278,13 +1279,13 @@ export default function App() {
   // series-less pseudo-rows so a searched place is colored and selected the
   // moment it appears — and since colors stick to the coordinate key, the hue
   // it wears before the analysis is the hue its line draws in after.
-  const chartCandidates = useMemo(() => {
+  const pendingRows = useMemo(() => {
     const have = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
-    const extras = pending
+    return pending
       .filter((d) => !have.has(geoKey(d.latitude, d.longitude)))
       .map(pendingAsResult)
-    return [...results, ...extras]
   }, [results, pending])
+  const chartCandidates = useMemo(() => [...results, ...pendingRows], [results, pendingRows])
   const chart = useChartSelection(chartCandidates, view.sortBy)
 
   // Comparing models across the charted destinations (#232). A drill-down rather
@@ -1516,6 +1517,13 @@ export default function App() {
   )
   // A string rather than the list, so the memoized table compares it by value.
   const partialNote = partial.length > 0 ? PARTIAL_COVERAGE_NOTE : null
+
+  // The chart-only legend's chips: the rows the table would show, so a chip is
+  // a line whenever models are compared. `legendEntries` owns the rules.
+  const legend = useMemo(
+    () => legendEntries(comparedTableRows ?? results, pendingRows, comparingRows),
+    [comparedTableRows, results, pendingRows, comparingRows],
+  )
 
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
@@ -2496,19 +2504,20 @@ export default function App() {
                       {/* Chart-only legend. In Both mode the table's checkbox
                           column is the series picker and this would be a
                           second copy of it, so it exists exactly where that
-                          column does not. Each chip toggles its line; the ×
+                          column does not, and lists the rows that column
+                          would. Each chip toggles its destination; the ×
                           is the same removal as the table row's and obeys the
                           same rules (searched places deregister, removals
                           survive live knobs). Two chip rows at most —
                           26px chips + the 6px gap = 58px — then it scrolls. */}
-                      {resultsMode === 'chart' && chartCandidates.length > 0 && (
+                      {resultsMode === 'chart' && legend.length > 0 && (
                         <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
                           <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
-                            {chartCandidates.map((row) => {
+                            {legend.map(({ key, row, label }) => {
                               const plotted = chart.isSelected(row)
                               return (
                                 <span
-                                  key={`${row.latitude},${row.longitude}`}
+                                  key={key}
                                   className={`inline-flex max-w-56 items-center ${RADIUS.control} ${
                                     plotted ? 'bg-slate-700' : 'bg-slate-800/50'
                                   }`}
@@ -2521,10 +2530,10 @@ export default function App() {
                                   >
                                     <span
                                       className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
-                                      style={{ backgroundColor: chart.colorFor(row) }}
+                                      style={{ backgroundColor: rowChartColor(row) }}
                                     />
                                     <span className={`truncate ${plotted ? '' : MUTED}`}>
-                                      {row.name}
+                                      {label}
                                     </span>
                                   </button>
                                   <button

@@ -233,7 +233,18 @@ export interface ChartLine extends SeriesHolder {
  * and anything later cannot spell it three ways.
  */
 export function comparedLineLabel(rank: number, name: string, modelLabel: string): string {
-  return `${rank}. ${name} (${modelLabel})`
+  return `${rank}. ${modelNamed(name, modelLabel)}`
+}
+
+/**
+ * A destination named with the model its line came from: `Mount Rainier
+ * (NOAA GFS)`. The hover box's name without the rank, for the chart-only
+ * legend: its chips already stand in ranking order, and a chip truncates at a
+ * fixed width, so a rank would spend that width on what the position says.
+ * `comparedLineLabel` composes through this so the two cannot drift apart.
+ */
+export function modelNamed(name: string, modelLabel: string): string {
+  return `${name} (${modelLabel})`
 }
 
 export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): number | null {
