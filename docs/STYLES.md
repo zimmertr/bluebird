@@ -98,6 +98,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `ACCENT.edgeHover` | Border reaching for accent on hover |
 | `ACCENT.edgeFocus` | Border on focus-within |
 | `FOCUS_RING` | Visible keyboard-focus outline |
+| `FOCUS_RING_INSET` | The same outline drawn inside the edge: the results table's sticky headers, where an outer ring is clipped by the scroll box and lands on the first row (sky-400 is 4.74:1 on the slate-700 bar) |
 | `ACCENT_RING` | Ring pointing at a control from across the screen |
 | `BADGE_ACCENT` | Word marking a row: "Recommended" badge |
 | `CHIP.rest` | A selected member of a set that is not the one in force: a compared forecast model |
