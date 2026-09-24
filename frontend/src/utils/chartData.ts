@@ -407,6 +407,22 @@ export function computeYDomain(
   return [floor, max + (max - floor) * 0.05]
 }
 
+// Map a pixel X within the plot area to an instant (left = tMin, right = tMax),
+// the x mirror of pixelToValue below. A touch tap reaches the chart's click
+// handler with no hover before it, so Recharts has no active label to hand
+// over and the only place the tap names is the pixel it landed on.
+export function pixelToTime(
+  x: number,
+  plotLeft: number,
+  plotWidth: number,
+  tMin: number,
+  tMax: number,
+): number {
+  if (plotWidth <= 0) return tMin
+  const frac = Math.max(0, Math.min(1, (x - plotLeft) / plotWidth))
+  return tMin + frac * (tMax - tMin)
+}
+
 // Map a pixel Y within the plot area to a data value (top = yMax, bottom = yMin).
 export function pixelToValue(
   y: number,

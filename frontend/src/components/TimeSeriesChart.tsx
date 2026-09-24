@@ -24,17 +24,22 @@ import {
   computeYDomain,
   formatMetricValue,
   nearestKey,
+  pixelToTime,
   pixelToValue,
   tracksCursor,
   valueAt,
   tooltipCapacity,
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
+import { nearestIndex } from '../utils/timeline'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
 const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
 const X_AXIS_HEIGHT = 22
+// Named rather than spelled on the YAxis alone, because a click is inverted to an
+// hour through the plotting band's left edge, which sits after this strip.
+const Y_AXIS_WIDTH = 44
 
 // Which rows are plotted is the table's job: the checkbox column is the one
 // series picker (#242 review dropped the chart's own legend strip), so this
@@ -187,11 +192,32 @@ function TimeSeriesChart({
   // A click puts the map's playhead on the hour under the pointer. The chart
   // and the map are two views of one hourly grid, so a reader who has found the
   // bad afternoon on the chart should be able to see it on the map without
-  // hunting for it again on a 200px scrubber. `activeLabel` is Recharts' own
-  // name for the x value the tooltip is tracking, which is the timestamp.
-  function handleClick(state: any) {
+  // hunting for it again on a 200px scrubber.
+  //
+  // The hour is read from the click's own `clientX`, inverted through the
+  // plotting band and snapped to the grid, which is the hour a hover at that
+  // pixel names. Recharts' `activeLabel` is not trusted first because it comes
+  // from the hover state: a touch tap sends no hover before its click, so the
+  // first tap carries no label, and each later tap carries the hour the tap
+  // BEFORE it left behind. The label stays as the fallback for a click that
+  // arrives with no position.
+  function handleClick(state: any, event?: { clientX?: unknown }) {
+    if (!onPlayheadChange) return
+    const x = event?.clientX
+    const el = plotRef.current
+    if (typeof x === 'number' && el && times.length > 0) {
+      const box = el.getBoundingClientRect()
+      const plotLeft = MARGIN.left + Y_AXIS_WIDTH
+      const plotWidth = box.width - plotLeft - MARGIN.right
+      if (plotWidth > 0) {
+        const ms = pixelToTime(x - box.left, plotLeft, plotWidth, times[0], times[times.length - 1])
+        const i = nearestIndex(times, ms)
+        if (i !== null) onPlayheadChange(times[i])
+        return
+      }
+    }
     const t = state?.activeLabel
-    if (onPlayheadChange && typeof t === 'number') onPlayheadChange(t)
+    if (typeof t === 'number') onPlayheadChange(t)
   }
 
   return (
@@ -254,7 +280,7 @@ function TimeSeriesChart({
             />
             <YAxis
               domain={[yMin, yMax]}
-              width={44}
+              width={Y_AXIS_WIDTH}
               stroke="#94a3b8"
               tick={{ fontSize: 10 }}
               tickFormatter={(v: any) => formatMetricValue(v, metric)}
