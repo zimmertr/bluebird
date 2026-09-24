@@ -463,6 +463,42 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   },
 ]
 
+// Which params carry each field of the shared state. Typed against every key
+// of `ShareableState`, so a new field fails the typecheck here until someone
+// decides which param carries it: a field with no param is a session that a
+// shared link silently drops, and nothing else would notice. The suite checks
+// that each key named here is a row of the table.
+export const FIELD_PARAMS = {
+  polygon: ['poly'],
+  destinationTypes: ['type'],
+  includeUnnamedPeaks: ['unnamed'],
+  // Read back by `decodeSelection` together with the legacy `at`/`start`/`end`.
+  selection: ['mode', 'd1', 'd2', 'h1', 'h2'],
+  forecastModel: ['model'],
+  compareModels: ['compare'],
+  sortBy: ['sort'],
+  sortDesc: ['desc'],
+  rowKeys: ['sort', ...RANKED_FAMILIES.filter((family) => !isSnapshotFamily(family))],
+  constraints: [
+    'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
+    'minfreeze', 'maxfreeze', 'minsnow', 'maxsnow', 'minaqi', 'maxaqi',
+    'mincloudbase', 'maxcloudbase', 'mincloudcover', 'maxcloudcover',
+  ],
+  limit: ['limit'],
+  // `custom` is the legacy reader of the same field.
+  customCsv: ['customz', 'custom'],
+  showWildfires: ['fires'],
+  showRadar: ['radar'],
+  showSmoke: ['smoke'],
+  showSnow: ['snow'],
+  showGrid: ['grid'],
+  // The style rides the toggle's own param rather than one of its own.
+  gridStyle: ['grid'],
+  showPlayer: ['player'],
+  gridReachFrac: ['reach'],
+  pins: ['pins'],
+} satisfies Record<keyof ShareableState, readonly string[]>
+
 /**
  * Read the forecast selection out of a query string, translating the three
  * pre-calendar shapes forward.

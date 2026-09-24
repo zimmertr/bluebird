@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { decodeState, encodeState, type ShareableState } from './urlState'
-import { URL_PARAMS } from './urlParams'
+import { FIELD_PARAMS, URL_PARAMS } from './urlParams'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 import { place } from '../testSupport/fixtures'
@@ -210,5 +210,13 @@ describe('the codec table', () => {
       'unnamed',
       'pins',
     ])
+  })
+
+  // The typecheck fails a field missing from FIELD_PARAMS; this fails a name
+  // there that no row answers to, and a row no field claims.
+  it('gives every field of the state a param, and every param a field', () => {
+    const rows = URL_PARAMS.map((row) => row.key).sort()
+    const claimed = [...new Set(Object.values(FIELD_PARAMS).flat())].sort()
+    expect(claimed).toEqual(rows)
   })
 })
