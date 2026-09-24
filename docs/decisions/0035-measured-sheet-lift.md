@@ -1,7 +1,28 @@
 # 0035. The sheet lift is measured, not derived
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-14 (git: the merge of #335)
+- Decider: TJ (git: author and merger of #335)
+- Issues and PRs: #249, #335
+- Cited in code as: #249
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet, from "That lift is MEASURED, not derived"
 
-## From `frontend/src/CLAUDE.md`, line 74
+## Context
 
-**That lift is MEASURED, not derived** (`resolveSheetLift`, fed by a `ResizeObserver` on the sheet in `hooks/useResultsLayout.ts`): adding up a header, its grips and the panel heights is an estimate, and the estimate was 20px long on the header and 16px short on each grip, so the four results states sat 44.5, 44.5, 28.5 and 60.5px clear of the player instead of one number (#249 review). The derived `sheetHeightPx` survives for the two jobs an estimate is right for — the resting reserve the clamp takes and the camera padding — both of which must answer the same before and after a drag.
+Every piece of the map's bottom chrome measures from one lift: the sheet's top edge.
+
+## Decision
+
+The lift is measured: `resolveSheetLift`, fed by a `ResizeObserver` on the sheet in `hooks/useResultsLayout.ts`. The derived `sheetHeightPx` stays for the two jobs an estimate is right for, the resting reserve and the camera padding, which must answer the same before and after a drag.
+
+## Evidence
+
+The estimate was 20px long on the header and 16px short on each grip, so the four results states sat 44.5, 44.5, 28.5 and 60.5px clear of the player instead of one number (#249 review).
+
+## Alternatives rejected
+
+- A lift summed from the header, its grips and the panel heights.
+
+## Consequences
+
+The offsets on that edge are styles derived in one place, not classes.

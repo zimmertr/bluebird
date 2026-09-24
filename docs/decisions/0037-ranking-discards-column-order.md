@@ -1,7 +1,29 @@
 # 0037. A change to Rank by discards the reader's column order
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-14 (the guide: "TJ chose to let ranking win (2026-09-14)"; git: shipped in #358)
+- Decider: TJ, as the guide records
+- Issues and PRs: #358
+- Cited in code as: none
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/tableColumns.ts` bullet, from "`applyColumnOrder`"
 
-## From `frontend/src/CLAUDE.md`, line 37
+## Context
 
-`applyColumnOrder`/`moveColumn`/`stepColumn` lay the reader's own order over that derivation: it is stored under `bluebird_forecast_view.columnOrder`, it is deliberately NOT in the URL (a shared link opens in the standard order), the CSV follows the screen, and **a change to `Rank by` discards it** — ranking lifts its own metric group to the front and TJ chose to let ranking win (2026-09-14). The discard is guarded by a `rankedOnce` ref in `App.tsx`, because the effect that watches `sortBy` also fires on mount and was wiping a stored order on every page load.
+A reader can reorder the results columns. A ranking lifts its own metric group to the front.
+
+## Decision
+
+A change to Rank by discards the reader's column order. The order is stored under `bluebird_forecast_view.columnOrder` and is not in the URL. The CSV follows the screen.
+
+## Evidence
+
+No measurement.
+
+## Alternatives rejected
+
+- Keeping the reader's order over a new ranking: TJ chose to let ranking win.
+- The order in the URL: a shared link opens in the standard order.
+
+## Consequences
+
+A `rankedOnce` ref guards the discard, because the effect that watches `sortBy` also fires on mount and was wiping a stored order on every page load.

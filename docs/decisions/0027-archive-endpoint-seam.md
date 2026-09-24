@@ -1,7 +1,31 @@
 # 0027. A window older than the forecast data goes to the archive endpoint, split at one seam
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-13 (git: the merge of #334)
+- Decider: TJ (git: author and merger of #334)
+- Issues and PRs: #123, #334
+- Cited in code as: #123
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the paragraph "Key constraints shared between frontend and backend", from "Since #123 that number is a boundary rather than a wall"
 
-## From `CLAUDE.md`, line 138
+## Context
 
-Since #123 that number is a **boundary rather than a wall**: a window older than it goes to Open-Meteo's archive endpoint (`archive-api.open-meteo.com`), the calendar reaches back a year, and the reach IS published — `/api/capabilities` under `limits.archive_days`, since it is a product choice about how far a calendar should page rather than an API edge. `windowSource` (`forecastWindow.ts` ↔ `window_source` in `limits.py`, a seventh mirrored pair, pinned by one example table in both suites) is the only thing that classifies a window, and `archiveBoundaryMs` ↔ `archive_boundary` is the only thing that says where the seam is. A window that **spans** the boundary is **served by two fetches, one per endpoint**, split at that seam and joined per location in time order BEFORE the aggregation runs (`fetchSpans`/`joinHours` ↔ `_fetch_spans`/`_join_hours`), so `weather_vectors.json` never learns that some windows arrive in halves; halves that disagree on `hourly_units`, and a stamp that arrives on both sides, are dropped rather than mixed. The routes classify ONCE and pass both the source and the boundary down, because that instant moves with the clock and a service that worked one out for itself could cut a window where the classification never saw a seam. The pacer is acquired per span, each priced on its own hours, and the joined series keys the per-location cache as `spanning` so it can never be served from either half. On screen the seam is named rather than hidden: one info line below Analyze, `Archive data to {date}, {model} from {date}.` from `archiveSeamPhrase` in `calendar.ts`, whose two dates are the archive's last full LOCAL day and the forecast endpoint's first (consecutive, because `ARCHIVE_STRADDLE_DAYS` makes the day the instant lands in wholly the forecast endpoint's). An archive window sends **no** `models=`: the archive's default is a reanalysis, one dataset at every location, and it answers an unknown `models=` with a 200 and plausible data, so the picker is disabled while such a window is selected rather than forwarded and ignored. Its pressure levels and its freezing level answer null under the unit `undefined` (measured 2026-09-13), so archive rows carry the 10 m wind, the 2 m temperature and no freezing level, and a unit one half declares unserved is not a disagreement between halves.
+Past the data edge every model answers nulls (see [0013](0013-accept-edge-not-data-edge.md)). Open-Meteo has an archive endpoint for older hours.
+
+## Decision
+
+`PAST_DATA_DAYS` is a boundary, not a wall. A window older than it goes to `archive-api.open-meteo.com`, and the calendar reaches back a year. `windowSource` and `window_source` are the only classifier, and `archiveBoundaryMs` and `archive_boundary` the only seam. A window that spans the seam is two fetches, one per endpoint, joined per location in time order before the aggregation runs. The routes classify once and pass the source and the boundary down. The pacer is acquired per span, and the joined series caches as `spanning`. The seam is named on screen in one info line. An archive window sends no `models=`.
+
+## Evidence
+
+Measured 2026-09-13: the archive's pressure levels and freezing level answer null under the unit `undefined`, so archive rows carry the 10 m wind, the 2 m temperature and no freezing level. The archive answers an unknown `models=` with a 200 and plausible data. `GET /api/capabilities` publishes the reach as `limits.archive_days`.
+
+## Alternatives rejected
+
+- A wall at the data edge: the earlier state.
+- Forwarding a model the archive ignores: it answers with plausible data for the wrong question.
+- A service that works out the boundary for itself: the instant moves with the clock, so it could cut a window where the classification saw no seam.
+- Mixing halves that disagree on `hourly_units`, or a stamp that arrives on both sides: dropped instead.
+
+## Consequences
+
+The reach is a product choice, so it is published. The classifier and the straddle day are mirror rows 11 and 12. `weather_vectors.json` never learns that some windows arrive in halves. The model picker is disabled for an archive window ([0029](0029-archive-disables-picker.md)), and the forecast grid is out of play over any archive hours ([0016](0016-overlays-not-knobs.md)).

@@ -1,7 +1,30 @@
 # 0040. CONTROL_W is 118px, set by the Metrics grid
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-14 (git: the merge of #358). The rule that a control never picks its own width came with #237 on 2026-08-02.
+- Decider: TJ (git: author and merger of #358)
+- Issues and PRs: #237, #341, #358
+- Cited in code as: #341
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Rules for every change, "A control sits beside its label, not beneath it, and never picks its own width"
 
-## From `CLAUDE.md`, line 65
+## Context
 
-- **A control sits beside its label, not beneath it, and never picks its own width.** Every panel control composes the same row: the label takes the free space, the control wears `CONTROL_W` from `styles.ts`, and the two share a baseline. The panel is 360px docked on desktop and 100vw − 2rem capped at 360px on phones, so the control column lines up on both edges. **`CONTROL_W` is 118px, and that number comes from the Metrics table rather than from this rule**: it is 2 × `METRIC_BOX_W` + the grid's `gap-x-1.5`, so the Forecast section's controls stand on exactly the edges the bound boxes do and the whole panel is one column (measured at 225 and 343). It was 144px, set by the widest segment label, until the metric row's label budget (`Freezing level` beside a dropdown and two boxes at 327px of content) forced the narrower boxes and left the two sections 26px apart. Two things paid for the move and both are written where they land: `SELECT` reserves `pr-6` rather than `pr-8` — 24px is `ICON_ADORNMENT`'s 16px glyph at its 8px offset and nothing more — which is what keeps `UK Met Office` (79.7px) inside the model picker's 84px of label, and there is now ONE `SEGMENT_ITEM` inset (4px) because an 8px one clips `Current` and `Highest` alike in a 57.5px half. The Metrics grid still sizes nothing by the token: its boxes wear `METRIC_BOX_W` and its three wide controls (the direction segment on `SEGMENT_FILL`, the results cap, and Clear filters) span the two box columns, because a fixed width in a grid cell states a number the tracks already decide. `CHART_METRIC_W` (144px) is the one control that did NOT follow the column down: it lives in the results sheet, lines up with nothing above it, and its labels carry units (`Freezing level (ft)`, 99.3px). `styles.test.ts` does both sums against the measured words rather than trusting a comment. It also fails any width `ControlPanel.tsx` spells for itself in the range a control would plausibly pick. A control too wide to sit inline (the CSV textarea, the calendar) is the exception that keeps its own block.
+Every panel control sits beside its label, wears `CONTROL_W`, and shares a baseline. The panel is 360px docked on a desktop and 100vw minus 2rem, capped at 360px, on a phone.
+
+## Decision
+
+`CONTROL_W` is 118px: 2 × `METRIC_BOX_W` plus the grid's `gap-x-1.5`, so the Forecast section's controls stand on the same edges as the Metrics bound boxes and the panel is one column. `SELECT` reserves `pr-6`, and there is one `SEGMENT_ITEM` inset of 4px. `CHART_METRIC_W` stays at 144px, because it lives in the results sheet and its labels carry units.
+
+## Evidence
+
+The column edges measure at 225 and 343. `CONTROL_W` was 144px, set by the widest segment label, until the metric row's label budget (`Freezing level` beside a dropdown and two boxes, in 327px of content) forced narrower boxes and left the two sections 26px apart. `UK Met Office` is 79.7px in the model picker's 84px of label. An 8px segment inset clips `Current` and `Highest` in a 57.5px half. `Freezing level (ft)` is 99.3px.
+
+## Alternatives rejected
+
+- 144px: the two sections stood 26px apart.
+- `pr-8` on `SELECT`: 24px is the 16px glyph at its 8px offset and nothing more.
+- An 8px segment inset: it clips two labels.
+
+## Consequences
+
+`styles.test.ts` does both sums against the measured words and fails any width `ControlPanel.tsx` spells for itself. The Metrics grid sizes nothing by the token. A control too wide to sit inline (the CSV textarea, the calendar) keeps its own block.

@@ -1,11 +1,32 @@
 # 0033. Each compared line wears its own colour and a full name, with no key and no model cap
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-14 (git: the merge of #333)
+- Decider: TJ, in the #232 review (the key was removed in round four); git: author and merger of #333
+- Issues and PRs: #232, #333, #513, #514
+- Cited in code as: #232
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/modelCompare.ts` bullet
 
-## From `frontend/src/CLAUDE.md`, line 58
+## Context
 
-There is **no cap**: the #232 review removed `MAX_COMPARE_MODELS` because the ceiling hid the control that set it, and the spend is bounded by the Analyze click that buys it. **Every line is solid and COLOUR is the only channel.** A line style for the model is not an option here: `styles.ts` carries no stroke pattern table, and a chart whose point-sample window draws dots could not wear one anyway. **Every (destination, model) pair wears its OWN colour**, because a colour is what identifies a LINE and a model draws one line per destination: colouring by model put two lines of one model on screen in one hue, which is the ambiguity the encoding exists to remove. The pair (destination, RANKING model) keeps the DESTINATION's colour, the hue the marker and the table's checkbox already give it, so a chart with nothing compared draws exactly as it always did. Every other pair takes the next colour from `allocateColors` in `chartColors.ts` the first time it appears and keeps it for the session, however the list changes afterwards. That is the app's ONE allocator and the same one `useChartSelection` hands destinations their colours from: one counter over one palette is what stops a compared line and the destination standing beside it from being handed the same hue. `useChartCompare.ts` computes the pair map during render (allocation is deterministic, so the memo and the effect that persists it agree and no line flashes) and passes it into `useModelCompare`. Nothing else on the chart may pick a hue. The name carries both anyway (`comparedLineLabel` in `chartData.ts`, `1. Mount Rainier (NOAA GFS)`, rank then destination then model on EVERY entry, the ranking model's own lines included — a key that named the destination on one line and the model on the next was the review's second finding).
+A comparison draws one line per destination and model: three destinations under three models is nine lines.
 
-## From `frontend/src/CLAUDE.md`, line 58
+## Decision
 
-`components/ModelCompare.tsx` carries NO key: a row of chips naming each model in its colour was built and removed (TJ, #232 review, round four), because the hover box already names rank, destination and model on every entry and the chips listed the models the picker already lists.
+There is no cap on compared models. Every line is solid, and colour is the only channel. Every destination and model pair wears its own colour from the app's one allocator, `allocateColors`; the pair of a destination and the ranking model keeps the destination's colour. Every entry is named rank, then destination, then model. `ModelCompare.tsx` carries no key.
+
+## Evidence
+
+No measurement. The calls came from the #232 review.
+
+## Alternatives rejected
+
+- `MAX_COMPARE_MODELS`: removed in the #232 review, because the ceiling hid the control that set it; the Analyze click bounds the spend.
+- A line style for each model: `styles.ts` has no stroke pattern table, and a point-sample window draws dots.
+- A colour for each model: two lines of one model would share a hue.
+- A key that named the destination on one line and the model on the next: the review's second finding.
+- A row of chips naming each model in its colour: built and removed (TJ, #232 review, round four), because the hover box already names every entry and the chips repeated the picker.
+
+## Consequences
+
+The linter's `compare-notes-no-control` check keeps `ModelCompare.tsx` free of controls. The chart-only legend reads the same pairs (#513).

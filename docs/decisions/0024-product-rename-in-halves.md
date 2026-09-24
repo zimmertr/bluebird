@@ -1,7 +1,28 @@
 # 0024. The product is Bluebird Forecast, renamed in halves
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-11 (git: the merges of #318, #319 and #321)
+- Decider: TJ (git: author and merger of #319)
+- Issues and PRs: #111, #311, #312, #313, #314, #315, #318, #319, #321
+- Cited in code as: #111, #311, #312, #313, #315
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Rules for every change, "The product is Bluebird Forecast, and every new identifier says so"
 
-## From `CLAUDE.md`, line 71
+## Context
 
-- **The product is Bluebird Forecast, and every new identifier says so.** The rename shipped in two halves and the third is still open, so the rule has a today side and a later side. Today (#312, #313, v0.61.0 and v0.62.0): every user-facing string says "Bluebird Forecast" (the one idiom kept is "Bluebird day"; "Bluebird blue" became "Bluebird Forecast blue"), metric families are `bluebird_forecast_*`, loggers are `bluebird_forecast.*`, localStorage keys are `bluebird_forecast_*`, the CSV download is `bluebird-forecast-results-...`, the User-Agent is `BluebirdForecast/1.0 (...)`, the package is `bluebird-forecast`, and the container user is `bluebirdforecast`. `backend/tests/test_branding.py` and `frontend/src/branding.test.ts` read the sources as text and fail the old spellings, so a name copied from an older issue or dashboard cannot ship. Later, and **deliberately still old until their issue closes**: the repositories `zimmertr/bluebird` and `zimmertr/bluebird-helm` (#311 moves them to `Bluebird-Forecast/bluebird-forecast` and `bluebird-forecast-helm`), the images `zimmertr/bluebird` and `zimmertr/bluebird-pr` (#111 moves them to `ghcr.io/bluebird-forecast/...`), and the chart `bluebird-helm`, its `bluebird.*` helpers, the namespace `bluebird-system`, the container name and the Argo apps (#315 renames them, and #314 moves the manifests to `Bluebird-Forecast/infrastructure`). Check those three before writing a new manifest, workflow, or doc link: if one has shipped, use its new names throughout. A metric rename also has a silent consumer, the canary error-rate gate in `Kubernetes-Manifests`, which passes on an empty result rather than failing.
+The product became Bluebird Forecast. Some names live only in this repository. Others are repositories, images, a chart and cluster objects that other systems read.
+
+## Decision
+
+Today every user-facing string says "Bluebird Forecast" (the one idiom kept is "Bluebird day"), and every identifier says it too: `bluebird_forecast_*` metrics, loggers and localStorage keys, the `bluebird-forecast` package, the `BluebirdForecast/1.0` User-Agent, and the `bluebirdforecast` container user. The repositories, the images, the chart, its helpers, the namespace and the Argo apps keep their old names until their issues close: #311, #111, #315 and #314.
+
+## Evidence
+
+Shipped as v0.61.0 and v0.62.0 (#312, #313).
+
+## Alternatives rejected
+
+- Renaming everything at once: the external names wait on their own issues.
+
+## Consequences
+
+`backend/tests/test_branding.py` and `frontend/src/branding.test.ts` fail the old spellings (#321). Check those issues before a new manifest, workflow or doc link. A metric rename has a silent consumer: the canary error-rate gate in `Kubernetes-Manifests` passes on an empty result.

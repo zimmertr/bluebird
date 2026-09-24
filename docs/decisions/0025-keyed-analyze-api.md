@@ -1,7 +1,29 @@
 # 0025. The analyze routes are public only to a caller with an Open-Meteo key
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-11 (git: the merge of #320)
+- Decider: TJ (git: author and merger of #320)
+- Issues and PRs: #240, #317, #320
+- Cited in code as: #240, #317
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the bullet "The browser path is the only path", from "`POST /api/analyze` and `/api/analyze/stream` still exist"
 
-## From `CLAUDE.md`, line 134
+## Context
 
-`POST /api/analyze` and `/api/analyze/stream` still exist, and #317 made them public again **on one condition**: the production gateway publishes the API by allowlist (the chart's `ingress.publicApiPrefixes`) and the analyze routes ride a second, narrower rule (`ingress.keyedApiPrefixes`) that matches only a request carrying the `X-Open-Meteo-Key` header — without it they still answer the app's JSON-404 shape from the edge. That header is a caller's own Open-Meteo key, which `weather.py`/`air_quality.py` forward to the customer hosts (`customer-api`/`customer-archive-api`/`customer-air-quality-api`) so the fan-out spends the caller's quota and skips the pod's weighted pacer, which exists to protect the pod's quota alone; the in-flight budget and the per-address bucket still apply. The header is **optional in the code** (`APIKeyHeader(..., auto_error=False)`, its one spelling being `API_KEY_HEADER` in `routes/analyze.py`, which `/api/capabilities` publishes as `api_key_header`), because the gate is the edge: the Argo Rollouts release probe, PR previews, a port-forward and every self-hosted instance keep the unkeyed free-tier path, and `analysisTemplate-apiTest.yml` does not change. The key joins no cache key — both hosts answer the same numbers for the same location, window and model — and it must never reach a log line, a metric label or a message: `redacted_params`/`redacted_error` in `openmeteo_fetch.py` are why, the second because `raise_for_status` builds its text out of the request URL. Open-Meteo refuses a bad key with a **400** whose reason names it, so `is_invalid_api_key` recognizes it and `InvalidApiKeyError` answers 401 rather than letting `classify_http_error` report a transient 502.
+After #240 the analyze routes answered a JSON 404 at the edge, so an API caller could not get a forecast (#317).
+
+## Decision
+
+The production gateway publishes the API by allowlist, and the analyze routes ride a narrower rule that matches only a request with the `X-Open-Meteo-Key` header. The header carries the caller's own Open-Meteo key, which the pod forwards to the customer hosts, so the fan-out spends the caller's quota and skips the pod's weighted pacer. The in-flight budget and the per-address bucket still apply. The header is optional in the code, because the gate is the edge.
+
+## Evidence
+
+Open-Meteo refuses a bad key with a 400 whose reason names it.
+
+## Alternatives rejected
+
+- A required header in the code: the Argo Rollouts release probe, PR previews, a port-forward and every self-hosted instance use the unkeyed free-tier path.
+- Letting a bad key surface as a transient 502: `InvalidApiKeyError` answers 401.
+
+## Consequences
+
+The key joins no cache key, since both hosts answer the same numbers, and it must never reach a log line, a metric label or a message (`redacted_params` and `redacted_error` in `openmeteo_fetch.py`). `GET /api/capabilities` publishes the header's name as `api_key_header`.

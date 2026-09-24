@@ -1,7 +1,29 @@
 # 0053. A snow depth at the file's ceiling prints as a bound, not a number
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-22 (git: shipped in #463)
+- Decider: TJ (git: author and merger of #463)
+- Issues and PRs: #449, #463
+- Cited in code as: #449
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/snowCeiling.ts` bullet
 
-## From `frontend/src/CLAUDE.md`, line 123
+## Context
 
-- `src/utils/snowCeiling.ts` — where the snow depth column stops counting, and the mark a cell wears there (#449). SNODAS carries depth as int16 millimetres, so 32,767 mm is all the file can hold and the header declares it; through the `Meters / 1000` divisor that is `SNOW_DEPTH_CEILING_IN = 1290.04`. The MODEL holds more over deep ice and the file clips it (NOAA's own map service reported 68.62 m at Rainier's summit on 2026-09-16 where the tar read 32.77 m; 86 cells sat on the ceiling on 2026-09-22, Rainier, Baker and Adams among them), so a row there is not a measurement and `snowCellText` prints `≥1,290` rather than the number it was clipped to — ungrouped in the downloaded file, whose other numbers carry no separator. Everything else about the cell is unchanged: its colour band, its Windy link and its rank, which still sorts on the number and ties the ceiling rows together. A sibling of `unavailableCell.ts` rather than part of it, because that module owns the mark for a number that was never AVAILABLE and this one owns the mark for a number that was clipped. The constant is a mirror of `snodas.SNOW_DEPTH_CEILING_IN` pinned by `mirrored_constants.json` (the mark is only honest while both sides agree where the file stops), and the API answers the plain number either way
+SNODAS stores depth as int16 millimetres, so 32,767 mm is all the file can hold. The model holds more over deep ice, and the file clips it.
+
+## Decision
+
+A depth at the ceiling, `SNOW_DEPTH_CEILING_IN = 1290.04`, prints as `≥1,290`, without a group separator in the downloaded file. The cell keeps its colour band, its Windy link and its rank, and ceiling rows tie. The API answers the plain number.
+
+## Evidence
+
+NOAA's own map service reported 68.62 m at Rainier's summit on 2026-09-16, where the tar read 32.77 m. 86 cells sat on the ceiling on 2026-09-22, Rainier, Baker and Adams among them.
+
+## Alternatives rejected
+
+- Printing the clipped number: a row there is not a measurement.
+- Folding the mark into `unavailableCell.ts`: that module owns a number that was never available, and this one owns a number that was clipped.
+
+## Consequences
+
+The constant mirrors `snodas.SNOW_DEPTH_CEILING_IN` and is pinned by `mirrored_constants.json` (mirror row 24): the mark is honest only while both sides agree where the file stops.

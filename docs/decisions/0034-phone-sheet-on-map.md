@@ -1,11 +1,29 @@
 # 0034. On a phone the results are a sheet standing on the map
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-14 (git: the merge of #335)
+- Decider: TJ (git: author and merger of #335)
+- Issues and PRs: #249, #335, #422, #430, #454, #459
+- Cited in code as: #249, #430, #454
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/resultsSheet.ts` bullet, and the `src/utils/forecastGrid.ts` bullet from "What was too short is fixed at the cause"
 
-## From `frontend/src/CLAUDE.md`, line 73
+## Context
 
-- `src/utils/resultsSheet.ts` — the phone results sheet's arithmetic (#249): the sheet's height, the map floor it rests above, and the one lift every piece of the map's bottom chrome measures from. On a phone the results stand ON the map instead of taking a share of the column, so the legend stack, the timeline and MapLibre's own bottom-right corner all clear the sheet's top edge rather than the screen's — same gaps, new datum. The resting floor counts the timeline's band whether or not a bar is on screen, because a map overlay must never resize the results. `SHEET_HEADER_PX` is the one measured number and it is also the collapsed height: round it UP if it is re-measured, since an over-estimate leaves a gap where an under-estimate hides a legend row. **Two floors, not one.** The resting floor holds until the reader takes a grip; `draggedMapFloorPx`/`maxSheetPx` hold however far they pull, and they keep only the timeline's band plus the coarse-pointer inset the map's button column ends at (`LEGEND_TOP_PX`) — a sheet dragged past that pushes the transport THROUGH the Layers button and MapLibre's zoom stack, which is what it did before the cap. `restingLiftPx` is a third number and belongs to the camera: `fitBounds` and `flyTo` frame into the whole container, which on a phone runs on behind the sheet, so every framing call in `MapView` takes it as a bottom padding. It is derived from the DEFAULT panel heights, so a drag never re-frames the map under the hand that is dragging it. Pure because `App.tsx` renders the map, which no Vitest project can stand up, and these are the numbers that decide whether a legend is on screen at all. **Two panels need room for two**: `bothFits` in `layout.ts` measures the space below the map against the drag floor plus two panel floors, and under that line — 672px of viewport at 360px wide, measured 2026-09-16 against `draggedMapFloorPx(2)` — the results bar disables Both and the sheet draws the one panel the reader last chose instead (#430, `resolveResultsMode`), because two panels pinned at their floor leave both grips with nothing to move; the stored preference is never rewritten by that fallback, so a taller viewport gives Both back with no press.
+On a phone the results took a share of the map column, and the map was left too short for the legend stack.
 
-## From `frontend/src/CLAUDE.md`, line 74
+## Decision
 
-What was too short is fixed at the cause (#249): on a phone the results are a **sheet standing on the map's bottom edge** rather than a flex sibling shrinking it, so the map keeps the whole column and the sheet rests low enough for the whole stack — 182px measured 2026-09-17 at 402x874, with every layer on and a metric key held — to sit above it, scrolling where it no longer fits. That number was 265 with four layer rows and a six-band key (2026-09-14) and 313 once the snow layer's section joined them; #454 merged the two boxes into one and drew both scale keys as a strip, first with the numbers under it (196) and then with them inside it (182). At 182 the camera padding changes hands as well: a default-height table wants 408px and the reserve now leaves 412, so the table stands at its own default on a 402x874 phone instead of being clamped to 398.
+On a phone the results are a sheet standing on the map's bottom edge. The map keeps the whole column, and the legend stack, the timeline and MapLibre's bottom-right corner clear the sheet's top edge. The resting floor counts the timeline's band whether or not a bar is on screen, because an overlay must never resize the results. There are two floors: the resting one until the reader takes a grip, and a drag floor that keeps only the timeline's band and the button column's inset. Framing calls take a resting lift as bottom padding. Where the viewport is too short for two panels, the results bar disables Both and the sheet draws the one panel last chosen (#430), without rewriting the stored preference.
+
+## Evidence
+
+The legend stack needed 265px with four layer rows and a six-band key (2026-09-14), 313px once the snow section joined, and 182px measured 2026-09-17 at 402x874 after #454. At 182px a default-height table (408px) fits the 412px reserve instead of being clamped to 398. Two panels need 672px of viewport at 360px wide, measured 2026-09-16 against `draggedMapFloorPx(2)`.
+
+## Alternatives rejected
+
+- The results as a flex sibling that shrinks the map.
+- A drag with no cap: the sheet pushed the transport through the Layers button and MapLibre's zoom stack.
+
+## Consequences
+
+`SHEET_HEADER_PX` is the one measured number; round it up if it is measured again. `resultsSheet.ts` is pure because `App.tsx` renders the map, which no Vitest project can stand up. A drag far enough closes the legends' box to nothing: the accepted limit of a sheet the reader pulls over the map.

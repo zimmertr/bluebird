@@ -1,7 +1,28 @@
 # 0006. The browser reads its limits from /api/capabilities, and its compiled numbers are only fallbacks
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-07-31 (git: the merge of #215). #426 extended it to every limit on 2026-09-17.
+- Decider: TJ (git: author and merger of #215)
+- Issues and PRs: #152, #215, #393, #426
+- Cited in code as: #152, #393
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the paragraph "Key constraints shared between frontend and backend", its opening sentences
 
-## From `CLAUDE.md`, line 138
+## Context
 
-**Key constraints shared between frontend and backend:** the limits the browser enforces come from `GET /api/capabilities` through `frontend/src/hooks/useCapabilities.ts`, whose compiled constants are only the fallback for the moment before the fetch answers, or a deployment where it fails (issue #152). Since #393 that hook carries EVERY published limit the browser acts on: the analysis cap, the results ceiling, the polygon area, the archive's reach, the air-quality horizon (`limits.aqi_forecast_days`, which reaches the calendar as `BandLimits.aqiDays` and the browser's own AQI fetch as its clamp, so the day the grid dims and the hour the fetch stops at are one number), and the three window bounds as one `WindowLimits` value (`limits.max_past_days`, `limits.max_future_days`, `limits.past_data_days`). The compiled numbers behind those four are FALLBACKS and nothing else — the modules that used to compute with them now take them as arguments, and `useCapabilities.test.ts` reads `forecastWindow.ts` as text so a bound cannot be spelled anywhere but its own fallback declaration. `MAX_ANALYZE_PEAKS = 1_500` is still mirrored as `MAX_ANALYZE_DESTINATIONS` in `frontend/src/utils/clientAnalyze.ts` and must be kept in sync, because the browser enforces it for analyses that never touch the server. The polygon-area cap no longer has a mirror: its fallback lives in the hook, and the linter's `area-cap-published` check (`frontend/tools/eslint/checks/data.js`) fails the number in the map and panel sources so it cannot reappear in either.
+The browser enforced limits from compiled copies of the server's constants. A deployment with other limits, or a changed default, left the browser out of step with the server it talks to (#152).
+
+## Decision
+
+The browser reads every limit it acts on from `GET /api/capabilities` through `useCapabilities.ts`. The compiled numbers are only the fallback for the moment before the fetch answers, or for a deployment where it fails. Since #393 that covers the analysis cap, the results ceiling, the polygon area, the archive reach, the air-quality horizon, and the three window bounds as one `WindowLimits` value. The modules that computed with compiled numbers now take them as arguments.
+
+## Evidence
+
+No dated measurement. At 971fede the candidate cap was `MAX_ANALYZE_PEAKS = 1_500`; `GET /api/capabilities` publishes the current value.
+
+## Alternatives rejected
+
+- A compiled mirror of every limit: mirrors drift. The candidate cap keeps its mirror, `MAX_ANALYZE_DESTINATIONS`, only because the browser enforces it for analyses that never touch the server.
+
+## Consequences
+
+`useCapabilities.test.ts` reads `forecastWindow.ts` as text, so a bound can be spelled only in its own fallback declaration. The linter's `area-cap-published` check fails the polygon cap's number in the map and panel sources. Mirror row 23 lists this as not a mirror by design. `FUTURE_LIMIT_DAYS` is the one limit nothing publishes: see [0013](0013-accept-edge-not-data-edge.md).

@@ -1,11 +1,28 @@
 # 0042. Each shared fixture is one file that both test suites read
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-17 (git: the merge of #398)
+- Decider: TJ (git: author and merger of #398)
+- Issues and PRs: #380, #398, #434
+- Cited in code as: #380, #434
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Rules for every change, "Keep the aggregation vectors in lockstep" and "Keep the mirrored constants in lockstep"
 
-## From `CLAUDE.md`, line 69
+## Context
 
-- **Keep the aggregation vectors in lockstep.** The browser reimplements the backend's weather/AQI aggregation (`frontend/src/utils/openMeteoAggregate.ts` ↔ `backend/app/services/aggregation.py`; `openMeteoAggregate.test.ts` holds them to the same functions in the same order), pinned by shared vectors. Any semantic change there: change the backend first, run `cd backend && python scripts/generate_weather_vectors.py`, and mirror the change in the TypeScript port. Pytest fails on a stale `backend/tests/data/weather_vectors.json` and Vitest fails on a drifted port. **There is ONE file, not a copy per side** — the browser's suite imports it by relative path out of `backend/tests/data/`, so nothing can drift and no CI job diffs anything. What that costs is a mount: the Vitest container takes the repo root rather than `frontend/` alone (`docs/DEVELOPMENT.md`), and `npm run build` typechecks through `frontend/tsconfig.build.json`, which leaves the test files out because the image's build context carries `frontend/` and not the fixture.
+The browser reimplements the backend's aggregation and shares numbers and one sentence with it. `N_VARIABLES` and the browser's variable list disagreed for a release, and each side read correctly on its own (#380, in the guide's mirrors section).
 
-## From `CLAUDE.md`, line 70
+## Decision
 
-- **Keep the mirrored constants in lockstep.** A vector pins an aggregation; it cannot pin a bare number or a shared sentence. Those ride `backend/tests/data/mirrored_constants.json`, written by `backend/scripts/generate_mirrored_constants.py` and read by both suites from there, the way the vectors are. Change a listed value on the backend, then run `cd backend && python scripts/generate_mirrored_constants.py` and move the browser's half. `test_mirrored_constants.py` fails on a stale manifest and `mirroredConstants.test.ts` fails on a browser value that no longer matches it. Adding a mirrored value means adding it to the script and to that test, and adding its row to the table below. The manifest holds values and the one shared sentence only: a formula belongs in the vectors, which exercise it (#380).
+Each shared fixture is one file under `backend/tests/data/` that both suites read: `weather_vectors.json` for the aggregation, and `mirrored_constants.json` for bare numbers and the one shared sentence. The browser's suite imports them by relative path. A formula belongs in the vectors, which exercise it.
+
+## Evidence
+
+The #380 drift. No dated measurement.
+
+## Alternatives rejected
+
+- A copy for each side, diffed by a CI job.
+
+## Consequences
+
+The Vitest container mounts the repo root, not `frontend/` alone. `npm run build` typechecks through `frontend/tsconfig.build.json`, which leaves the tests out, because the image's build context does not carry the fixture. Pytest fails a stale file, and Vitest fails a drifted port or value.

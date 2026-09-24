@@ -1,7 +1,30 @@
 # 0026. The freezing level is reduced on its own, read in its declared unit, and colored like every metric
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-13 (git: the merge of #332)
+- Decider: TJ (git: author and merger of #332)
+- Issues and PRs: #295, #332, #391, #416, #449
+- Cited in code as: #295, #391, #449
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the paragraph "Key constraints shared between frontend and backend", from "An eighth is the freezing level"
 
-## From `CLAUDE.md`, line 138
+## Context
 
-An eighth is the freezing level (#295): `_FREEZING_LEVEL`/`_freeze_ft_in_window` in `aggregation.py` ↔ `FREEZING_LEVEL`/`freezeFtInWindow` in `openMeteoAggregate.ts`. It is part of the vector-pinned aggregation, and its one rule is that it is reduced OUTSIDE the precip/temp/wind zip: Open-Meteo serves the variable on three of the eight models (`gfs_seamless`, `gfs_hrrr`, `icon_seamless`, measured 2026-09-12) and answers the other five with a column of nulls, so an hour dropped for a missing freezing level would empty every other number on five models' rows. Its three aggregates are independently nullable for the same reason, it is reported in whole feet above sea level, and 0 is a reading (the whole column below freezing) rather than a gap. **The unit Open-Meteo sends it in follows `precipitation_unit`** — `inch`, which every request here carries, answers in FEET and says `"ft"` in `hourly_units`, where omitting the parameter answers in meters and says `"m"` (measured 2026-09-13 at Rainier: 2560 m is the same hour as 8398.95 ft) — so both ports read the declared unit per response and convert only from meters, and an unknown or absent unit over a column of numbers fails the batch the way any unusable body does rather than guessing at a factor of 3.28. Both sides then say the same sentence, "Open-Meteo request failed. Try again later.", which the browser throws as `OpenMeteoBadBody` — its own class because the body ARRIVED, where `OpenMeteoUnreachable` would blame a network the reader can see working (#391). Both branches are pinned by the vectors. It carries a color scale of its own since 2026-09-14, when #295's exclusion was reversed: `METRIC_SCALE` in `colors.ts` gives it six bands of blues running cold to warm, encoding the air column's height rather than a verdict, so `ColoredFamily` is the whole `MetricFamily` union and the freezing level ranks, colors markers, paints grid cells and prints a band legend like the rest. Snow depth wears those same six shades in the opposite order (#449), which is what makes the two cold ramps read as one family seen from either end.
+Open-Meteo serves the freezing level on three of the eight models and answers the other five with a column of nulls.
+
+## Decision
+
+The freezing level is reduced outside the precipitation, temperature and wind zip. Its three aggregates are independently nullable, it is reported in whole feet above sea level, and 0 is a reading. Both ports read the unit each response declares and convert only from meters; an unknown or absent unit over a column of numbers fails the batch like any unusable body, with "Open-Meteo request failed. Try again later." (`OpenMeteoBadBody` in the browser, #391). Since 2026-09-14 it ranks, colours markers, paints grid cells and prints a band legend: six blues from cold to warm, encoding the height of the air column rather than a verdict.
+
+## Evidence
+
+Measured 2026-09-12: the variable is served on `gfs_seamless`, `gfs_hrrr` and `icon_seamless`. Measured 2026-09-13 at Rainier: with `precipitation_unit=inch`, which every request here carries, the API answers in feet and says `"ft"`; without it, meters and `"m"` (2560 m is the same hour as 8398.95 ft).
+
+## Alternatives rejected
+
+- Dropping an hour that has no freezing level: it would empty every other number on five models' rows.
+- Guessing a factor of 3.28 for an unknown unit.
+- Leaving it out of the ranking and the colour scales: #295's first call, reversed on 2026-09-14.
+
+## Consequences
+
+It is part of the vector-pinned aggregation (mirror row 6), and both branches of the unit rule are in the vectors. A bound on it passes nulls, or the table would empty under five models. Snow depth wears the same six shades in the opposite order (#449).

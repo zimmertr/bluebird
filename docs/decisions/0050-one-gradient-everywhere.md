@@ -1,15 +1,30 @@
 # 0050. Every scale on the map is drawn as one gradient
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-22 (the guide: "TJ, 2026-09-22"; git: the merge of #461)
+- Decider: TJ, as the guide records
+- Issues and PRs: #121, #460, #461
+- Cited in code as: #121, #460
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet from "Two styles over one set of samples", the paragraph after the forecast grid bullets from "Blocks shows where the samples are", and the `src/utils/legendRamp.ts` bullet from "Every strip blends"
 
-## From `frontend/src/CLAUDE.md`, line 74
+## Context
 
-**Two styles over one set of samples** (`GridStyle`, `blocks` | `smooth`, **smooth by default since #460**), which are ONE raster layer under two magnification filters — `raster-resampling` is `nearest` for blocks and `linear` for smooth, so the whole switch is a paint property and there is no second layer to keep in step.
+The forecast grid had two styles over one set of samples, blocks and smooth, with blocks the default. The snow legend strip was hard-stopped. Markers take a continuous colour from `interpolateRgb`.
 
-## From `frontend/src/CLAUDE.md`, line 80
+## Decision
 
-Blocks shows *where the samples are* and overstates only its edges; smooth shows the field and hides how few samples are under it. Blocks was the default on that reasoning until #460, when TJ chose the field: a map whose markers take a continuous colour from `interpolateRgb` and whose grid paints a hard rectangle per sample reads as two encodings of one scale, and the honesty the blocks view carried is carried by the pitch the legend states instead. The segment and the `grid=` parameter both stay, so the sample view is one press away and a shared `grid=blocks` link still opens what it named. **Smoothing is between MODEL GRID POINTS, which is what makes it legitimate where #121's rejected raster was not**: Open-Meteo answers a coordinate with its containing grid cell's value, so sampling at the model's pitch means neighbouring samples are neighbouring grid cells and the blend between them is one the model already treats as continuous. #121's objection was to interpolating between *destinations* across a valley, and it still stands.
+Every scale on the map is one gradient. The grid is smooth by default: one raster layer, with `raster-resampling` `nearest` for blocks and `linear` for smooth, so the switch is a paint property. Every legend strip blends, at equal width per band. The blocks style and the `grid=` parameter stay, so the sample view is one press away and a `grid=blocks` link still opens it.
 
-## From `frontend/src/CLAUDE.md`, line 86
+## Evidence
 
-**Every strip blends** (#460) and every strip is equal-width per band, never to scale, because 0.39 to 787 inches to scale is ten bands in two pixels. The snow strip was hard-stopped until then, on the grounds that NOAA's bands are a classification and a gradient shows depths NOAA never assigned a colour to; that is still true and is the accepted cost, because one legend box holding a strip of blocks beside a strip of gradient reads as two systems and the reader meets the box long before the distinction (TJ, 2026-09-22).
+Strips are never to scale: 0.39 to 787 inches to scale is ten bands in two pixels.
+
+## Alternatives rejected
+
+- Blocks as the default: blocks shows where the samples are and smooth hides how few there are. That reasoning held until #460, when TJ chose the field, because hard rectangles under continuously coloured markers read as two encodings of one scale.
+- A hard-stopped snow strip: NOAA's bands are a classification, and a gradient shows depths NOAA never gave a colour. That is still true and is the accepted cost, because a strip of blocks beside a strip of gradient reads as two systems (TJ, 2026-09-22).
+- #121's rejected raster, which interpolated between destinations across a valley: still rejected.
+
+## Consequences
+
+Smoothing is between model grid points, which the model already treats as continuous, and the legend states the pitch, so the honesty the blocks view carried rides on the pitch now. In a blended strip colour `i` lands at boundary `i + 1`.

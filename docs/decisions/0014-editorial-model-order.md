@@ -1,7 +1,29 @@
 # 0014. Forecast models are listed in an editorial order, and gfs_seamless is the default
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-08-01 (git: the merge of #231)
+- Decider: TJ (git: author and merger of #231)
+- Issues and PRs: #230, #231
+- Cited in code as: #230
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the paragraph "Key constraints shared between frontend and backend", from "The same split governs the far end per model"
 
-## From `CLAUDE.md`, line 138
+## Context
 
-The same split governs the far end per model: `forecast_model` bounds the band inside `FUTURE_LIMIT_DAYS`, and unlike it the model edge is soft — asking past it returns nulls, not an error. That per-model reach IS published, by `/api/capabilities` under `forecast_models[].forecast_hours`, so the calendar reads it rather than compiling it; `FUTURE_LIMIT_DAYS` remains the one edge nothing publishes. **`forecast_models` is published in `MODEL_INFO`'s declaration order and must be rendered as given**: that order is an editorial ranking for mountain terrain (grid spacing over the Cascades weighted above forecast length) and is roughly the *reverse* of sorting by reach, so a client that re-sorts undoes it. `DEFAULT_FORECAST_MODEL` is `gfs_seamless` because it is measurably two models — HRRR's 3 km grid to hour 45, GFS's out to sixteen days — with no coverage cliff, which raw `gfs_hrrr` cannot offer.
+The eight forecast models differ in grid spacing and in reach. A list sorted by reach puts the coarse global models first.
+
+## Decision
+
+`GET /api/capabilities` publishes `forecast_models` in `MODEL_INFO`'s declaration order, and a client renders it as given. That order is an editorial ranking for mountain terrain: grid spacing over the Cascades weighs more than forecast length. Each model's reach is published as `forecast_models[].forecast_hours`, and the calendar reads it. `DEFAULT_FORECAST_MODEL` is `gfs_seamless`.
+
+## Evidence
+
+`gfs_seamless` is measurably two models: HRRR's 3 km grid to hour 45, then GFS out to sixteen days, with no coverage cliff. A model's far edge is soft: asking past it returns nulls, not an error.
+
+## Alternatives rejected
+
+- Sorting by reach: roughly the reverse of the editorial order, so it undoes the ranking.
+- Raw `gfs_hrrr` as the default: it has a coverage cliff.
+
+## Consequences
+
+The model picker and its chips show the published order: see [0031](0031-model-picker-listbox.md).

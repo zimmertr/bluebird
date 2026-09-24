@@ -1,7 +1,35 @@
 # 0016. A map overlay is never a knob
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-08-04 (git: the merge of #245)
+- Decider: TJ (git: author and merger of #245)
+- Issues and PRs: #121, #123, #245, #246, #248, #249, #295, #334
+- Cited in code as: #121, #123, #245, #246, #249, #295
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the bullet "A map overlay is never a knob at all"
 
-## From `CLAUDE.md`, line 135
+## Context
 
-- **A map overlay is never a knob at all.** Wildfires, rain radar, smoke, snow depth and the forecast grid draw beside the ranking and are no part of it, so none of them touches `commitNeeded` and none of them can make a report stale. The same holds for the map timeline: playback recolors markers to one hour of a grid the analysis already fetched, so it costs nothing upstream and changes nothing about which rows are displayed, how they rank, or what the `analyzed` snapshot says. The timeline is itself switchable, by a **`Forecast player`** row last in the Layers popover, and that switch is no more a knob than the overlays above it: `availableAxes` answers with NO axes while it is off, so there is no bar, no playhead, and the markers keep the window aggregate colour they rank by. Its state is `boolean | null` where null means the DEVICE default — on at a desktop width, off on a phone, where the bar is a band across a map the results sheet already stands on — and only a reader's decision reaches the URL (`player=1`/`player=0`, written either way round, because the default is the device's and a link must keep meaning what it said). The one thing it does move is the legend's *bands*, because precipitation ranks on a window total and plays back as an hourly rate (`hourlyScale` in `colors.ts`); the metric's name does not change, so neither does the legend's title. The **forecast grid** (#246) is the one overlay whose toggle spends, and it is still not a knob: turning it on fetches a lattice of forecasts over the analyzed field's bbox and draws them as a continuous field, *after* the ranked report has committed, and nothing it draws is an input to anything. Its inputs come from the `analyzed` snapshot rather than from panel state — window, model, the window's source, and the model's `finestGridKm` — so a grid can never paint hours or a model the markers above it never saw. The source is what takes the layer out of play over a report carrying **any archive hours** (`gridAllowed` in `forecastGrid.ts`, #123 — the test is `=== 'forecast'`, so a window that CROSSES the boundary is out too): those hours name no model, the archive answers from a reanalysis on a coarser grid than any model's finest figure, and the lattice would therefore paint real numbers at a pitch nothing produced them at — with the legend stating that pitch. One stated pitch cannot be honest about half a report either, which is why the crossing case joins the archive one although its model picker stays live. The checkbox is disabled and the row's `title` says why (with the same sentence in a hidden twin `aria-describedby` names, since a tooltip does not exist on touch). Being metric-agnostic is what keeps it that way: one fetch covers every weather variable plus AQI, so a live ranking switch recolors the held cells with zero further calls. **Never key that fetch on `sortBy`.** Every ranking draws, the freezing level included since #295's exclusion was reversed (2026-09-14); a sample with no number answers `NO_VALUE` and that cell alone is skipped.
+Wildfires, rain radar, smoke, snow depth and the forecast grid draw beside the ranking. Timeline playback recolours markers to one hour of a grid the analysis already fetched.
+
+## Decision
+
+No overlay and no timeline action is a knob. None touches `commitNeeded` or the `analyzed` snapshot, and none changes which rows show or how they rank.
+
+- The Forecast player is a row in the Layers popover and draws nothing. Its state is `boolean | null`, where null is the device default: on at a desktop width, off on a phone. Only a reader's own choice reaches the URL, as `player=1` or `player=0`.
+- The forecast grid is the one overlay whose toggle spends. It fetches after the report commits, takes its window, model, source and pitch from the snapshot, and is metric-agnostic: one fetch covers every weather variable and AQI, so its fetch is never keyed on `sortBy`.
+- The grid is out of play over a report with any archive hours (`gridAllowed`, #123), a window that crosses the boundary included.
+
+## Evidence
+
+No dated measurement. The archive answers from a reanalysis on a coarser grid than any model's finest figure, so a lattice over archive hours would paint real numbers at a pitch nothing produced them at, and the legend would state that pitch.
+
+## Alternatives rejected
+
+- A grid over archive hours: a false pitch on the legend.
+- A grid over a window that crosses the archive boundary: one stated pitch cannot be honest about half a report.
+- A grid fetch keyed on the ranking: a ranking switch would fetch again, where one fetch already holds every metric.
+- Leaving the freezing level off the grid: #295 excluded it, and the exclusion was reversed on 2026-09-14. A sample with no number is skipped alone.
+
+## Consequences
+
+Playback changes the legend's bands, not its title, because precipitation ranks on a window total and plays back as an hourly rate (`hourlyScale` in `colors.ts`). The disabled grid row says why in its `title`, with the same sentence in a hidden twin that `aria-describedby` names, since a tooltip does not exist on touch.

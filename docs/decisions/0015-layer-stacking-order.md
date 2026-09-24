@@ -1,7 +1,28 @@
 # 0015. Stacking order is one named table, LAYER
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-08-02 (git: the merge of #235)
+- Decider: TJ (git: author and merger of #235)
+- Issues and PRs: #235
+- Cited in code as: none
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/styles.ts` bullet
 
-## From `frontend/src/CLAUDE.md`, line 63
+## Context
 
-- `src/styles.ts` — the type ramp plus the surface/button/field roles, and `LAYER`, which names the stacking order; components compose these instead of picking sizes, colors and z-indexes at the call site (`src/styles.test.ts` enforces it). `LAYER` exists because the model picker shipped *behind* the mobile drawer that contains it, the two values having been chosen in different files and never compared
+The model picker shipped behind the mobile drawer that contains it. The two z-index values had been chosen in different files and never compared.
+
+## Decision
+
+`LAYER` in `styles.ts` names the stacking order. Components take their z-index from it instead of choosing one at the call site.
+
+## Evidence
+
+The bug above. No measurement.
+
+## Alternatives rejected
+
+- A z-index chosen at each call site: how the picker ended up behind its own drawer.
+
+## Consequences
+
+`styles.test.ts` enforces that components compose the `styles.ts` roles.

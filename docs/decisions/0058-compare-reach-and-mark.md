@@ -1,7 +1,29 @@
 # 0058. A compared line runs to its own model's reach, with one mark per short row
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-23 (git: the merge of #500). #509 moved the mark the same day.
+- Decider: TJ (git: author and merger of #500)
+- Issues and PRs: #232, #493, #500, #508, #509
+- Cited in code as: #232, #493, #508
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/modelCompare.ts` bullet, from "Nothing cuts a line to another model's reach"
 
-## From `frontend/src/CLAUDE.md`, line 58
+## Context
 
-**Nothing cuts a line to another model's reach** (#493, reversing #232's clamp, which hid the longer models' hours and left the table's ragged aggregates standing anyway). `compareEndMs` is a SPEND decision at the `fetchWeather` call — each model is asked only for the hours it has — and the same instant is what the report states: `useModelCompare` returns `reachEnds` (by model id, only where the end is inside the window) and `endLines` (one per instant for the shown models that drew, grouped by `modelEndLines` so two models with one end share one label), and the chart draws each as a dashed `ReferenceLine` in the axis colour like the Now seam, never red, with no hover entry. `modelRowsFor` copies the end onto a compared row as `coverageEndMs`, and `isPartialRow` reads it: **one mark per row, on the Model cell** (#508, replacing #493's `*` after every weather aggregate, which read as part of a monospace number and put up to twelve marks on one row). The table raises it in a `<sup>` wearing `TABLE.mark`, and the file writes it as `NOAA HRRR*`; every number stays plain on both. `partialModels` reads the short models off the rows on display in the picker's order, one derivation for whether the table shows its footnote (`PARTIAL_COVERAGE_NOTE`, one fixed line that names no model because the marked Model cell does, passed to the memoized table as a string) and the CSV's `Forecast end (<model>)` rows (`CsvOptions.modelEnds`). The footnote follows the Model column on both surfaces: hidden in the Columns picker, the column takes the marks and the note with it. The ranking model never carries it, because the calendar clamps the window to its reach. Only the far end moves, because `forecast_hours` counts hours ahead of now and history is not model-limited.
+Compared models reach different distances ahead. #232 clamped every line to the shortest reach.
+
+## Decision
+
+Nothing cuts a line to another model's reach. `compareEndMs` is a spend decision: each model is asked only for the hours it has. The chart draws each end inside the window as a dashed `ReferenceLine` in the axis colour, never red, with no hover entry. A compared row that ends inside the window carries one mark, on its Model cell (`NOAA HRRR*` in the file), and one fixed footnote that names no model. The ranking model never carries it, because the calendar clamps the window to its reach.
+
+## Evidence
+
+No dated measurement.
+
+## Alternatives rejected
+
+- #232's clamp: it hid the longer models' hours and left the table's ragged aggregates standing anyway. Reversed by #493.
+- #493's `*` after every weather aggregate: it read as part of a monospace number and put up to twelve marks on one row. Replaced by #508.
+
+## Consequences
+
+The footnote follows the Model column on both surfaces: hide the column and its marks and note go too. The CSV writes `Forecast end (<model>)` rows in its metadata block. Only the far end moves, because `forecast_hours` counts hours ahead of now and history is not model-limited.

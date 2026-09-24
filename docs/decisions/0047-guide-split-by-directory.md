@@ -1,11 +1,28 @@
 # 0047. The module layouts live in nested guide files beside the code
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-09-17 (git: the merge of #458)
+- Decider: TJ (git: author and merger of #458)
+- Issues and PRs: #392, #428, #458
+- Cited in code as: none
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, "The module layouts live beside the code they describe", and the Documentation convention on nested `CLAUDE.md` files
 
-## From `CLAUDE.md`, line 140
+## Context
 
-**The module layouts live beside the code they describe**, one nested `CLAUDE.md` per side: [`backend/CLAUDE.md`](backend/CLAUDE.md) and [`frontend/src/CLAUDE.md`](frontend/src/CLAUDE.md). Each names every module in its own tree, what that module OWNS and why it is separate. They are not in this file because together they were 109k of its 165k characters, and a session needs one only when it edits that tree — Claude Code loads a nested file when a session touches its directory, so a backend change does not carry the frontend's list and a docs change carries neither.
+The root `CLAUDE.md` had grown past the size the harness reads it under. The two module layout lists (#392, shipped as #428) were most of it.
 
-## From `CLAUDE.md`, line 39
+## Decision
 
-- **The table above is the list of nested `CLAUDE.md` files, and adding or removing one updates it in the same PR.** Each nested file sits at the tightest directory that contains every path it names, so Claude Code loads it for the whole of one side and for nothing else: `backend/CLAUDE.md` covers `app/` and `scripts/`, `frontend/src/CLAUDE.md` covers `src/`. Nothing enforces this either, and an unlisted one is a file no session knows to update.
+The module layouts live in nested `CLAUDE.md` files beside the code they describe. Each sits at the tightest directory that contains every path it names, so Claude Code loads it for the tree a session edits and for nothing else. The Documentation table in the root file lists every nested file.
+
+## Evidence
+
+The two lists were 109k of the root file's 165k characters. At 971fede the root file was 62.4k characters.
+
+## Alternatives rejected
+
+- One root file: over the harness's limit, and every session loaded both lists.
+
+## Consequences
+
+Adding or removing a nested file updates the Documentation table in the same pull request; nothing enforces it. A new source module gets its bullet in the nested file beside it. Tailwind v4 reads a markdown file under `frontend/src/` as raw text, so each one there needs an `@source not` line in `frontend/src/index.css`.
