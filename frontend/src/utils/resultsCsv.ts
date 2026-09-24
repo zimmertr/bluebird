@@ -5,12 +5,12 @@
 // fetches or re-derives: the caller hands over the rows already in display
 // order and the columns for the file (the full analyzed set), and this turns
 // them into text. That split is deliberate. What the table shows and what the
-// file carries are answered in exactly one place (App.tsx), and a formatter
+// file carries are answered in exactly one place (`useTableView`), and a formatter
 // that recomputed either would be a second answer that could disagree.
 //
 // It is also deliberately DOM-free. Vitest runs this repo in the node
 // environment with no jsdom, so a module reaching for Blob or document could
-// not be unit-tested at all; the download itself is seven lines in App.tsx.
+// not be unit-tested at all; the download itself is `downloadCsv` in exportCsv.ts.
 
 import { DestinationResult } from '../types'
 import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
