@@ -49,10 +49,6 @@ export interface UrlSyncInputs {
  * write when the shared state changes, and a flush on unmount. Returns the
  * writer, whose `flush` a link's run on open uses to strip its flag now
  * rather than a debounce later.
- *
- * The effect's dependency list and its suppression moved as they were. The
- * list leaves out `forecastModel` and `defaultForecastModel`, which is issue
- * #292's bug to fix, not this split's.
  */
 export function useUrlSync({
   polygon,
@@ -137,15 +133,12 @@ export function useUrlSync({
     // No cleanup here on purpose: flushing once per effect run would write on
     // every keystroke and collapse nothing, which is the trap debounceUrlWrite
     // documents. Unmount is handled by its own effect below.
-    // Suppressed rather than fixed: the rule is right that `forecastModel` and
-    // `defaultForecastModel` are missing, and the bug that causes is
-    // issue #292's to fix, not this file's.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     polygon,
     destinationTypes,
     includeUnnamedPeaks,
     selection,
+    forecastModel,
     comparedModels,
     sortBy,
     sortDesc,
@@ -162,6 +155,7 @@ export function useUrlSync({
     gridStyle,
     gridReachFrac,
     places,
+    defaultForecastModel,
     writeUrl,
   ])
 

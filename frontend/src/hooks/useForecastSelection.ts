@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { type Capabilities, modelForecastHours } from './useCapabilities'
+import { type Capabilities, modelForecastHours, publishesModels } from './useCapabilities'
 import { DEFAULT_SELECTION, type ForecastSelection, selectionLocalWindow } from '../utils/calendar'
 import { isPointSample } from '../utils/forecastWindow'
 import { panelWindowMs as toWindowMs, planModelChange, windowWarningFor } from '../utils/forecastSelection'
@@ -35,15 +35,7 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
   const [forecastModel, setForecastModel] = useState(
     () => restored?.forecastModel ?? caps.defaultForecastModel,
   )
-  // The initializer above runs against the compiled fallback, so adopt the
-  // real default once capabilities land — but only when the link named nothing
-  // and the user has not chosen, or this would overwrite a deliberate pick a
-  // moment after it was made.
   const untouchedModelRef = useRef(restored?.forecastModel === undefined)
-  useEffect(() => {
-    if (!untouchedModelRef.current) return
-    setForecastModel(caps.defaultForecastModel)
-  }, [caps.defaultForecastModel])
   // The extra models the chart draws beside the ranking one (#232), in the
   // published order — the picker normalizes it, so this never holds the
   // ranking model and never holds a duplicate. Panel state rather than chart
@@ -52,6 +44,27 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
   const [comparedModels, setComparedModels] = useState<string[]>(
     () => restored?.compareModels ?? [],
   )
+  // The initializers above run against the compiled fallback. Once
+  // capabilities land, adopt the real default when the link named nothing and
+  // the user has not chosen, or this would overwrite a deliberate pick a moment
+  // after it was made. And once the deployment's own list is in, a model or a
+  // compared id the link named that the list does not offer is dropped
+  // silently: the ranking falls back to the default, and the next URL write
+  // carries it. Never against the fallback list, which holds one model only
+  // because the real list has not answered, or never will.
+  useEffect(() => {
+    const models = caps.forecastModels
+    const offered = (id: string) => models.some((m) => m.id === id)
+    const known = publishesModels(models)
+    const ranking =
+      untouchedModelRef.current || (known && !offered(forecastModel))
+        ? caps.defaultForecastModel
+        : forecastModel
+    if (ranking !== forecastModel) setForecastModel(ranking)
+    if (!known) return
+    const kept = comparedModels.filter((id) => offered(id) && id !== ranking)
+    if (kept.length !== comparedModels.length) setComparedModels(kept)
+  }, [caps.defaultForecastModel, caps.forecastModels, forecastModel, comparedModels])
   // The last model change trimmed the forecast window to fit the new model's
   // reach. Held rather than derived because a clamp leaves no trace: afterwards
   // the selection simply is inside the band, and nothing distinguishes a window
