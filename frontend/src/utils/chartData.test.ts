@@ -19,6 +19,7 @@ import {
   formatMetricValue,
   metricForSort,
   nearestKey,
+  pixelToTime,
   pixelToValue,
   rowsBetween,
   selectionState,
@@ -158,6 +159,23 @@ describe('pixelToValue', () => {
   it('clamps a cursor outside the plot area', () => {
     expect(pixelToValue(-20, 0, 100, 0, 10)).toBe(10)
     expect(pixelToValue(200, 0, 100, 0, 10)).toBe(0)
+  })
+})
+
+describe('pixelToTime', () => {
+  it('maps the plot left edge to tMin and the right edge to tMax', () => {
+    expect(pixelToTime(52, 52, 292, 1000, 2000)).toBe(1000)
+    expect(pixelToTime(344, 52, 292, 1000, 2000)).toBe(2000)
+    expect(pixelToTime(198, 52, 292, 1000, 2000)).toBe(1500)
+  })
+
+  it('clamps a tap outside the plot area', () => {
+    expect(pixelToTime(10, 52, 292, 1000, 2000)).toBe(1000)
+    expect(pixelToTime(400, 52, 292, 1000, 2000)).toBe(2000)
+  })
+
+  it('answers tMin for a plot with no width', () => {
+    expect(pixelToTime(100, 52, 0, 1000, 2000)).toBe(1000)
   })
 })
 
