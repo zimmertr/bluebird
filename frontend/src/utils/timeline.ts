@@ -148,6 +148,22 @@ export function initialIndex(axis: TimelineAxis, count: number): number {
 }
 
 /**
+ * The hourly stamp nearest an instant, or null on an empty grid.
+ *
+ * The nearest rather than an exact match, because a chart hands back the x
+ * value under the pointer, which on a wide chart is an interpolated instant
+ * between two hourly points. The earlier stamp wins a tie.
+ */
+export function nearestIndex(times: readonly number[], ms: number): number | null {
+  if (times.length === 0) return null
+  let nearest = 0
+  for (let i = 1; i < times.length; i++) {
+    if (Math.abs(times[i] - ms) < Math.abs(times[nearest] - ms)) nearest = i
+  }
+  return nearest
+}
+
+/**
  * Does a paused playhead follow the newest radar frame as the window slides?
  *
  * Radar's frames are offsets from *now*, so every five minutes the whole set

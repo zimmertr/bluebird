@@ -29,6 +29,8 @@ import { useRankingKnobs } from './hooks/useRankingKnobs'
 import { useDestinationInputs } from './hooks/useDestinationInputs'
 import { useAnalyzeCommand } from './hooks/useAnalyzeCommand'
 import { useDrawMode } from './hooks/useDrawMode'
+import { useMapOverlays } from './hooks/useMapOverlays'
+import { useTimeline } from './hooks/useTimeline'
 import { usePresentedReport } from './hooks/usePresentedReport'
 import { useRemovals } from './hooks/useRemovals'
 import { useResultsLayout } from './hooks/useResultsLayout'
@@ -132,29 +134,11 @@ import {
   reachKmFor,
   type GridStyle,
 } from './utils/forecastGrid'
-import {
-  RADAR_FRAME_COUNT,
-  IEM_HREF,
-  radarOffsetLabel,
-  radarOffsets,
-  radarScaleEnds,
-} from './utils/radar'
+import { IEM_HREF } from './utils/radar'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from './utils/snowDepth'
 import { NIFC_HREF } from './utils/wildfires'
 import { RampTick, scaleRampCss, scaleTicks } from './utils/legendRamp'
-import {
-  TimelineAxis,
-  availableAxes,
-  clampIndex,
-  forecastScaleMarks,
-  forecastStampLabel,
-  frameHoldMs,
-  initialIndex,
-  nextFrame,
-  playerAvailable,
-  resolveAxis,
-} from './utils/timeline'
 import {
   pendingAsResult,
 } from './utils/customList'
@@ -197,11 +181,6 @@ import {
 import { NAME_DEFAULT_PX } from './utils/columnResize'
 import { compareValues } from './utils/sortResults'
 import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
-
-// The empty case of `response?.times`, hoisted. `?? []` inside JSX hands a
-// memoized child a new array on every render, which is enough to re-render it
-// for a state change that has nothing to do with it (#337, finding 8).
-const NO_TIMES: number[] = []
 
 // Lazy, because `recharts` is the one large library the first screen does not
 // need: the map mounts before any chart exists, and a reader who never opens
@@ -455,36 +434,6 @@ export default function App() {
     liveKnobs,
   } = useRankingKnobs(restored, caps.maxLimit)
 
-  // A live map overlay, not part of the analyze request, but persisted to the
-  // URL so a shared link reproduces it. Defaults off; toggling queries NIFC for
-  // the current viewport.
-  const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
-  // The two overlays #121 adds, on the same contract: live, off by default,
-  // persisted to the URL, and never an input to the ranking. Radar is raster
-  // tiles the browser fetches straight from IEM; smoke is one national GeoJSON
-  // from the pod.
-  const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
-  const [showSmoke, setShowSmoke] = useState(() => restored?.showSmoke ?? false)
-  // The snow analysis (#446), the fourth on that contract. NOAA renders each
-  // tile on request, so like the radar it is the browser that fetches them and
-  // like the radar it draws nothing the ranking ever reads.
-  const [showSnow, setShowSnow] = useState(() => restored?.showSnow ?? false)
-  // The forecast grid (#246), on the same contract as the three above with one
-  // difference worth naming: this toggle is a spend boundary. Turning it on is
-  // what fetches a lattice of forecasts over the analyzed field, and leaving it
-  // on is standing consent for the next analysis to do the same. It still
-  // changes nothing about the ranking, so it never touches `commitNeeded`.
-  const [showGrid, setShowGrid] = useState(() => restored?.showGrid ?? false)
-  // Whether the forecast player is on the map. `null` means "this device's
-  // default": on at a desktop width, off on a phone, where the bar is a band
-  // across a map that can be a third of the screen. A boolean means the reader
-  // has decided, and only a decision reaches the URL — in either direction, so
-  // a link can carry the player onto a phone or off a desktop.
-  //
-  // Not a knob. Switching it changes what is looked at and nothing about what
-  // was asked for: no ranking moves, nothing is fetched, and `commitNeeded`
-  // does not know it exists.
-  const [showPlayer, setShowPlayer] = useState<boolean | null>(() => restored?.showPlayer ?? null)
   // The map's own Layers popover, closed on load. Not persisted: it is a
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
@@ -603,6 +552,21 @@ export default function App() {
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
+  const {
+    showWildfires,
+    setShowWildfires,
+    showRadar,
+    setShowRadar,
+    showSmoke,
+    setShowSmoke,
+    showSnow,
+    setShowSnow,
+    showGrid,
+    setShowGrid,
+    showPlayer,
+    setShowPlayer,
+    playerShown,
+  } = useMapOverlays(restored, isDesktop)
   const closeDrawer = useCallback(() => setSidebarOpen(false), [])
   const {
     drawing,
@@ -619,9 +583,6 @@ export default function App() {
     isDesktop,
     closeDrawer,
   })
-  // Whether the player is on the map: the reader's decision where they have made
-  // one, this device's default otherwise.
-  const playerShown = showPlayer ?? isDesktop
 
   function dismissWelcome() {
     setWelcomed()
@@ -970,41 +931,23 @@ export default function App() {
   }
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
-  //
-  // Two things span time and share one bar: radar's last 55 minutes of observed
-  // rain, and the analyzed window's own hourly grid. Every reducer behind it is
-  // in `utils/timeline.ts`; what lives here is the state and the interval.
-  //
-  // Each axis keeps its own playhead, so scrubbing radar back half an hour and
-  // then switching to the forecast does not land the forecast half an hour in.
-  const [chosenAxis, setChosenAxis] = useState<TimelineAxis | null>(null)
-  const [radarIndex, setRadarIndex] = useState(() => initialIndex('radar', RADAR_FRAME_COUNT))
-  const [forecastIndex, setForecastIndex] = useState(0)
-  const [playing, setPlaying] = useState(false)
-
-  // The report's own hourly grid, which is what the forecast axis plays. It
-  // comes back on both analysis paths, so the axis does not care which one ran
-  // — unlike the live presentation knobs, which need the held field.
-  // Memoized for its IDENTITY rather than its cost: the empty fallback was a
-  // fresh array on every render before an analysis, which gave `movePlayheadTo`
-  // below a new identity per render and re-rendered the chart that holds it.
-  const forecastTimes = useMemo(() => response?.times ?? [], [response?.times])
-  const timelineAxes = availableAxes(playerShown, showRadar, forecastTimes.length)
-  const timelineAxis = resolveAxis(timelineAxes, chosenAxis)
-  // Whether the player has anything to play: radar contributes a past axis and
-  // a multi-hour report a forecast one, so with neither there is nothing for a
-  // transport to span. The row is then not in the popover at all, because a
-  // checkbox that switches nothing on is a control the reader has to test to
-  // learn is empty. `showPlayer` is untouched by that: the reader's own
-  // decision survives the row being absent, so turning radar off and on again
-  // never turns the player back on.
-  const playerOffered = playerAvailable(showRadar, forecastTimes.length)
-  const frameCount = timelineAxis === 'radar' ? RADAR_FRAME_COUNT : forecastTimes.length
-  const frameIndex = clampIndex(
-    timelineAxis === 'radar' ? radarIndex : forecastIndex,
+  const {
+    forecastTimes,
+    timelineAxes,
+    timelineAxis,
+    setChosenAxis,
+    playerOffered,
+    radarIndex,
+    frameIndex,
     frameCount,
-  )
-  const setFrameIndex = timelineAxis === 'radar' ? setRadarIndex : setForecastIndex
+    setFrameIndex,
+    playing,
+    setPlaying,
+    playbackIndex,
+    timelineReadout,
+    timelineScale,
+    movePlayheadTo,
+  } = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
@@ -1023,65 +966,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
-  // A new report is a new grid, so the forecast playhead goes back to the start
-  // of it. Keyed on the analysis rather than on the times array, which is a new
-  // reference on every live knob change and would otherwise reset the playhead
-  // under a reader who only re-sorted.
-  useEffect(() => {
-    setForecastIndex(initialIndex('forecast', 0))
-  }, [analysisSeq])
-
-  // Playback stops when the bar goes away, so switching an overlay off cannot
-  // leave an interval running against an axis that no longer exists.
-  useEffect(() => {
-    if (timelineAxis === null) setPlaying(false)
-  }, [timelineAxis])
-
-  useEffect(() => {
-    if (!playing || timelineAxis === null || frameCount < 2) return
-    const id = setTimeout(
-      () => setFrameIndex((i) => nextFrame(clampIndex(i, frameCount), frameCount)),
-      frameHoldMs(frameIndex, frameCount),
-    )
-    return () => clearTimeout(id)
-  }, [playing, timelineAxis, frameCount, frameIndex, setFrameIndex])
-
-  // The hour the markers are colored for, or null to color them by the window
-  // aggregate the ranking used. Playback is marker PRESENTATION and nothing
-  // else: which rows are displayed, how they rank, what the table says and what
-  // the legend's bins are all stay where the analysis left them, and the
-  // `analyzed` snapshot stays authoritative.
-  const playbackIndex = timelineAxis === 'forecast' ? clampIndex(forecastIndex, frameCount) : null
-
-  // What the transport reads out, composed by whichever axis owns the
-  // vocabulary — relative minutes for radar, a weekday and hour for the
-  // forecast. The bar itself formats nothing.
-  const timelineReadout =
-    timelineAxis === 'radar'
-      ? radarOffsetLabel(radarOffsets()[frameIndex] ?? 0)
-      : forecastStampLabel(forecastTimes[frameIndex] ?? forecastTimes[0] ?? Date.now())
-  const timelineScale =
-    timelineAxis === 'radar' ? radarScaleEnds() : forecastScaleMarks(forecastTimes)
-
-
-  // Clicking the chart moves the map's playhead to that hour, and takes the
-  // transport to the forecast axis if it was showing radar — the reader just
-  // pointed at a forecast hour, so leaving the bar on the past would answer a
-  // question they did not ask. The nearest stamp rather than an exact match:
-  // Recharts hands back the x value under the pointer, which on a wide chart is
-  // an interpolated instant between two hourly points.
-  const movePlayheadTo = useCallback(
-    (ms: number) => {
-      if (forecastTimes.length === 0) return
-      let nearest = 0
-      for (let i = 1; i < forecastTimes.length; i++) {
-        if (Math.abs(forecastTimes[i] - ms) < Math.abs(forecastTimes[nearest] - ms)) nearest = i
-      }
-      setForecastIndex(nearest)
-      setChosenAxis('forecast')
-    },
-    [forecastTimes],
-  )
 
   // The bands the markers are actually colored on, which playback moves.
   // Precipitation is the reason it has to: the ranking bins a window total and
@@ -1831,7 +1715,7 @@ export default function App() {
             results={results}
             sortBy={view.sortBy}
             modelId={analyzed?.forecastModel ?? forecastModel}
-            times={response?.times ?? NO_TIMES}
+            times={forecastTimes}
             popupColumns={tableColumns}
             modelFallbackLabel={analysisModelLabel}
             fireWarnings={fire.warnings}
@@ -2592,7 +2476,7 @@ export default function App() {
                         onFocusResult={handleFocusResult}
                         onFocusPending={handleFocusPending}
                         modelId={analyzed?.forecastModel ?? forecastModel}
-                        times={response?.times ?? NO_TIMES}
+                        times={forecastTimes}
                         onToggleChart={chart.toggle}
                         isCharted={chart.isSelected}
                         chartColor={rowChartColor}
