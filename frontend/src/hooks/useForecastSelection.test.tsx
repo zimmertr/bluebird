@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useForecastSelection } from './useForecastSelection'
+import { FALLBACK_FORECAST_MODELS } from './useCapabilities'
 import { capabilities, forecastModel } from '../testSupport/fixtures'
 import { type ForecastSelection, addDays, dayKey } from '../utils/calendar'
 
@@ -59,7 +60,7 @@ describe('useForecastSelection', () => {
   })
 
   it('adopts the published default only while nothing chose a model', () => {
-    const fallback = capabilities({ defaultForecastModel: 'best_match' })
+    const fallback = capabilities({ forecastModels: FALLBACK_FORECAST_MODELS, defaultForecastModel: 'best_match' })
     const blank = renderHook(({ caps }) => useForecastSelection(null, caps), {
       initialProps: { caps: fallback },
     })
@@ -78,6 +79,49 @@ describe('useForecastSelection', () => {
     act(() => picked.result.current.changeForecastModel('gfs_hrrr'))
     picked.rerender({ caps: CAPS })
     expect(picked.result.current.forecastModel).toBe('gfs_hrrr')
+  })
+
+  // A link can name a model this deployment does not offer. Only the
+  // deployment's own list can say so: the fallback holds one model because
+  // nothing better is known yet.
+  describe('a model the link named and the deployment does not offer', () => {
+    const FALLBACK_CAPS = capabilities({ forecastModels: FALLBACK_FORECAST_MODELS })
+    const linked = { forecastModel: 'not_a_model', compareModels: ['also_not', 'gfs_hrrr'] }
+
+    it('is kept until the list arrives, then falls to the default', () => {
+      const { result, rerender } = renderHook(({ caps }) => useForecastSelection(linked, caps), {
+        initialProps: { caps: FALLBACK_CAPS },
+      })
+      expect(result.current.forecastModel).toBe('not_a_model')
+      expect(result.current.comparedModels).toEqual(['also_not', 'gfs_hrrr'])
+      rerender({ caps: CAPS })
+      expect(result.current.forecastModel).toBe('gfs_seamless')
+      expect(result.current.comparedModels).toEqual(['gfs_hrrr'])
+    })
+
+    // A failed fetch, or a build that publishes no list, leaves the fallback
+    // in place for good. That is still not a list that can refuse a model.
+    it('is kept when the deployment never publishes a list', () => {
+      const { result } = renderHook(() => useForecastSelection(linked, FALLBACK_CAPS))
+      expect(result.current.forecastModel).toBe('not_a_model')
+      expect(result.current.comparedModels).toEqual(['also_not', 'gfs_hrrr'])
+    })
+
+    it('drops a compared model the fallback made the ranking one', () => {
+      const { result } = renderHook(() =>
+        useForecastSelection({ forecastModel: 'not_a_model', compareModels: ['gfs_seamless'] }, CAPS),
+      )
+      expect(result.current.forecastModel).toBe('gfs_seamless')
+      expect(result.current.comparedModels).toEqual([])
+    })
+
+    it('leaves a model the list offers alone', () => {
+      const { result } = renderHook(() =>
+        useForecastSelection({ forecastModel: 'gfs_hrrr', compareModels: ['gfs_seamless'] }, CAPS),
+      )
+      expect(result.current.forecastModel).toBe('gfs_hrrr')
+      expect(result.current.comparedModels).toEqual(['gfs_seamless'])
+    })
   })
 
   it('answers the point-sample question of the panel, not of a report', () => {

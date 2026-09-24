@@ -78,3 +78,23 @@ test('the address bar keeps the readable link the app writes, and writes it once
   await page.waitForTimeout(1500)
   expect(await writes()).toBe(settled)
 })
+
+test('a model the deployment does not offer falls back to the default, in the panel and the link', async ({
+  page,
+  request,
+}) => {
+  const caps = (await (await request.get('/api/capabilities')).json()) as {
+    forecast_models: { id: string; label: string; default?: boolean }[]
+  }
+  const fallback = caps.forecast_models.find((m) => m.default) ?? caps.forecast_models[0]
+  const compared = caps.forecast_models.find((m) => m.id !== fallback.id)!
+  const d1 = isoDay(1)
+  await page.goto(
+    `/?type=peak&model=not_a_model&compare=also_not,${compared.id}&mode=days&d1=${d1}` +
+      '&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55',
+  )
+
+  await expect(page.getByRole('button', { name: `Forecast model: ${fallback.label} +1`, exact: true })).toBeVisible()
+  await expect.poll(() => new URL(page.url()).searchParams.get('model')).toBe(fallback.id)
+  await expect.poll(() => new URL(page.url()).searchParams.get('compare')).toBe(compared.id)
+})

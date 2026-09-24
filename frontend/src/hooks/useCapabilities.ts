@@ -91,6 +91,11 @@ export const FALLBACK_FORECAST_MODEL: ForecastModelOption = {
   blend: true,
 }
 
+// One array, held by identity: the list before `/api/capabilities` answers,
+// and the list when the body published none. `publishesModels` reads the
+// identity, so a copy of this array would pass for a published list.
+export const FALLBACK_FORECAST_MODELS: readonly ForecastModelOption[] = [FALLBACK_FORECAST_MODEL]
+
 const FALLBACK: Capabilities = {
   maxDestinations: MAX_ANALYZE_DESTINATIONS,
   maxLimit: MAX_ANALYZE_DESTINATIONS,
@@ -104,8 +109,19 @@ const FALLBACK: Capabilities = {
   // `/api/capabilities` answers, rather than the value the app computes with.
   aqiForecastDays: AQI_LIMIT_DAYS,
   windowLimits: FALLBACK_WINDOW_LIMITS,
-  forecastModels: [FALLBACK_FORECAST_MODEL],
+  forecastModels: FALLBACK_FORECAST_MODELS,
   defaultForecastModel: FALLBACK_FORECAST_MODEL.id,
+}
+
+/**
+ * Whether a model list is the deployment's own, rather than the stand-in held
+ * until `/api/capabilities` answers, or kept when it fails or publishes no
+ * list. Only the deployment's own list can say a model is not offered: the
+ * stand-in holds one model because nothing better is known yet, not because
+ * the others are gone.
+ */
+export function publishesModels(models: readonly ForecastModelOption[]): boolean {
+  return models !== FALLBACK_FORECAST_MODELS
 }
 
 /**
