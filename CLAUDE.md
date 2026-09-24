@@ -26,6 +26,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`docs/TRAFFIC.md`](docs/TRAFFIC.md) | How requests reach the pod and what the pod calls out to: Cloudflare, rate limits, upstream budgets |
 | [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
 | [`docs/STYLES.md`](docs/STYLES.md) | The design system: roles, enforcement, measured numbers; keep it current like CICD.md |
+| [`docs/decisions/`](docs/decisions/README.md) | One file per design decision: context, decision, evidence, date, decider. The README is the index |
 | [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How the project accepts work, at the repo root so GitHub surfaces it on new PRs: one maintainer, an issue before code, and the short list of rules a change must meet |
 | [`backend/CLAUDE.md`](backend/CLAUDE.md) | Every module under `backend/`: what it owns and why it is separate |
