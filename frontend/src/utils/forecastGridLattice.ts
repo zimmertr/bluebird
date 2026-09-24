@@ -143,6 +143,18 @@ export const MAX_IMAGE_DIM = 2048
 export const FALLBACK_PITCH_KM = 13
 
 /**
+ * A model's finest grid as `/api/capabilities` published it, or the fallback
+ * when the model is not in the list (or no model is named). A published 0 is
+ * passed through: `buildGrid` and `reachKmFor` treat it as unpublished.
+ */
+export function modelPitchKm(
+  models: readonly { id: string; finestGridKm: number }[],
+  modelId: string | undefined,
+): number {
+  return models.find((m) => m.id === modelId)?.finestGridKm ?? FALLBACK_PITCH_KM
+}
+
+/**
  * May this report be gridded at all?
  *
  * The pitch is the whole of what the picture claims: the legend states it, and

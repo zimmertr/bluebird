@@ -482,15 +482,16 @@ export const APP = [
   {
     // The grid opens as a field, like the markers on it. Whether it may draw
     // at all is gridAllowed's answer, asked once, of the analyzed snapshot and
-    // never of the calendar, and the checkbox, the fetch and every surface hang
-    // off the one composed flag.
-    name: 'app-grid-gate',
-    files: ['src/App.tsx'],
+    // never of the calendar, and the fetch and every surface hang off the one
+    // composed flag. The layer's state lives in useGridLayer.ts.
+    name: 'grid-layer-hook',
+    files: ['src/hooks/useGridLayer.ts'],
     ban: [
       {
         selector: 'CallExpression[callee.name="gridAllowed"]:not([arguments.length=1][arguments.0.name="analyzed"])',
         message: 'Ask gridAllowed of the analyzed snapshot.',
       },
+      { selector: EFFECT, message: 'useGridLayer.ts runs no effect of its own; the fetch is useForecastGrid.ts.' },
     ],
     require: [
       {
@@ -504,11 +505,6 @@ export const APP = [
         selector: 'VariableDeclarator[id.name="gridAvailable"][init.callee.name="gridAllowed"]',
         message: 'Hold the answer as gridAvailable.',
       },
-      { selector: 'Property[key.name="key"][value.value="grid"]', message: 'Keep the grid row in the layers list.' },
-      {
-        selector: 'Property[key.name="disabled"] > UnaryExpression[operator="!"][argument.name="gridAvailable"]',
-        message: 'Disable the grid row on !gridAvailable.',
-      },
       {
         selector: 'VariableDeclarator[id.name="gridOn"] > LogicalExpression[operator="&&"][left.name="showGrid"][right.name="gridAvailable"]',
         message: 'Compose gridOn as showGrid && gridAvailable.',
@@ -517,6 +513,22 @@ export const APP = [
       offGridOn('gridPainted'),
       offGridOn('gridCued'),
       offGridOn('gridFailed'),
+    ],
+  },
+  {
+    // The Layers list stays in App.tsx, and its grid row reads the hook's
+    // answer rather than asking again.
+    name: 'app-grid-gate',
+    files: ['src/App.tsx'],
+    ban: [
+      { selector: 'CallExpression[callee.name="gridAllowed"]', message: 'Take gridAvailable from useGridLayer.' },
+    ],
+    require: [
+      { selector: 'Property[key.name="key"][value.value="grid"]', message: 'Keep the grid row in the layers list.' },
+      {
+        selector: 'Property[key.name="disabled"] > UnaryExpression[operator="!"][argument.name="gridAvailable"]',
+        message: 'Disable the grid row on !gridAvailable.',
+      },
     ],
   },
   {
@@ -631,6 +643,7 @@ export const APP = [
       'src/hooks/useAnalyzeCommand.ts',
       'src/hooks/useMapOverlays.ts',
       'src/hooks/useTimeline.ts',
+      'src/hooks/useGridLayer.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
