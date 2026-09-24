@@ -1,12 +1,18 @@
+import { useEffect, useState } from 'react'
 import { logoUrl } from '../logo'
+import type { Progress } from '../hooks/useAnalyze'
 import { ACCENT, BUTTON_SECONDARY, LAYER, PROSE, RADIUS, SURFACE_CARD, TEXT } from '../styles'
-import type { OverlayView } from '../utils/analyzeOverlay'
+import { composeOverlay } from '../utils/analyzeOverlay'
 
 interface AnalysisOverlayProps {
-  /** What the card says and how far the run has got (`composeOverlay`). */
-  overlay: OverlayView
-  /** Whole seconds in a phase with no countable progress. */
-  elapsed: number
+  /** Whether an analysis is in flight; the card shows exactly while it is. */
+  loading: boolean
+  /** The run's latest phase line. */
+  statusMessage: string | null
+  /** The weather batches done and in all, once the total is known. */
+  progress: Progress | null
+  /** Seconds until the client pacer spends quota again, while it sleeps. */
+  paceRemainingS: number | null
   /** Stops the analysis in flight. */
   onCancel: () => void
 }
@@ -21,7 +27,38 @@ interface AnalysisOverlayProps {
  * clears the drawer rather than the one that sits under it. On
  * desktop nothing moves: there is no drawer for it to clear.
  */
-export default function AnalysisOverlay({ overlay, elapsed, onCancel }: AnalysisOverlayProps) {
+export default function AnalysisOverlay({
+  loading,
+  statusMessage,
+  progress,
+  paceRemainingS,
+  onCancel,
+}: AnalysisOverlayProps) {
+  // Elapsed-time counter for phases with no countable progress (the OSM
+  // search). It lives here, beside the one card that shows it, so its 250 ms
+  // tick re-renders the card rather than the whole page. The composition
+  // reads it to stage the "Still searching…" reassurance line.
+  const [elapsed, setElapsed] = useState(0)
+  const overlay = composeOverlay({
+    analyzeLoading: loading,
+    statusMessage,
+    elapsedS: elapsed,
+    rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
+    // Live countdown while the client pacer sleeps off a quota deficit;
+    // `usePacedFetch` ticks it, and the 250ms elapsed ticker below re-reads it.
+    paceRemainingS,
+  })
+
+  useEffect(() => {
+    if (!overlay.visible) {
+      setElapsed(0)
+      return
+    }
+    const start = Date.now()
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250)
+    return () => clearInterval(id)
+  }, [overlay.visible])
+
   if (!overlay.visible) return null
   return (
     <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>

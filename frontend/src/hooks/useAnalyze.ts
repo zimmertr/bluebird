@@ -135,3 +135,5 @@ export function useAnalyze(
     paceRemainingS: run.paceRemainingS,
   }
 }
+
+export type Analysis = ReturnType<typeof useAnalyze>

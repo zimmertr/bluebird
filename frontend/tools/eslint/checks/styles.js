@@ -290,9 +290,10 @@ export const STYLES = [
     // The map column's members are four files now (#409); each carries its
     // share of the roles, and the counts add up to what App.tsx held: four
     // MAP_COL_W, two MAP_COL_GAP, one MAP_COL_GAP_T and two MAP_EDGE.left.
-    // Everything inside the wrapper inherits the one number.
+    // Everything inside the wrapper, which MapStage draws, inherits the one
+    // number.
     name: 'style-map-wrapper',
-    files: ['src/App.tsx'],
+    files: ['src/components/MapStage.tsx'],
     require: [
       { selector: role('MAP_EDGE') + '[property.name="publish"]', message: 'The map wrapper publishes MAP_EDGE.publish.' },
     ],
@@ -346,11 +347,11 @@ export const STYLES = [
     ],
   },
   {
-    // The rest of App.tsx keeps the results bar's rule: nothing it draws is
-    // text that is present but never first.
+    // App.tsx and the map column keep the results bar's rule: nothing they
+    // draw is text that is present but never first.
     name: 'style-app-micro',
-    files: ['src/App.tsx'],
-    ban: [{ selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in App.tsx.' }],
+    files: ['src/App.tsx', 'src/components/MapStage.tsx'],
+    ban: [{ selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in App.tsx or MapStage.tsx.' }],
   },
   {
     // The legend's scale key: one strip, drawn from the roles, edged from one

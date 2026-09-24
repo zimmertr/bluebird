@@ -40,6 +40,7 @@ import resultsCellsSource from './utils/resultsCells.ts?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 import timelineTransportSource from './components/TimelineTransport.tsx?raw'
 import mapLegendSource from './components/MapLegend.tsx?raw'
+import mapStageSource from './components/MapStage.tsx?raw'
 import resultsBarSource from './components/ResultsBar.tsx?raw'
 import chartDataSource from './utils/chartData.ts?raw'
 import colorsSource from './utils/colors.ts?raw'
@@ -436,6 +437,8 @@ const CONSUMERS: [string, string][] = [
   ['TimelineTransport.tsx', timelineTransportSource],
   // The legend box, whose metric key names the ranked metric.
   ['MapLegend.tsx', mapLegendSource],
+  // The map column, whose forecast player names the ranked metric.
+  ['MapStage.tsx', mapStageSource],
   // The results bar, whose title names the ranked metric.
   ['ResultsBar.tsx', resultsBarSource],
   ['chartData.ts', chartDataSource],

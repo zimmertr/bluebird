@@ -341,6 +341,8 @@ describe('every component', () => {
   const APPROVED_TOOLTIPS: Record<string, number> = {
     // None since #409: the map's two moved with the chrome that carries them.
     './App.tsx': 0,
+    // None: the map column's tooltips are its children's.
+    './components/MapStage.tsx': 0,
     // The Light/Medium/Heavy chips in the map's layer legend.
     './components/MapLegend.tsx': 1,
     // Why the Forecast grid row is faded over a report carrying archive hours

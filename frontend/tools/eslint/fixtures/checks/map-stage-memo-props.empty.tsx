@@ -1,2 +1,2 @@
 // Must trip: MapView is not rendered.
-export const App = () => <main />
+export const Stage = () => <main />

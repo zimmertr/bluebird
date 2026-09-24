@@ -113,6 +113,8 @@ const PANEL_FILES = [
 // explain what went wrong, which is the one place naming them is the point.
 const METRIC_SURFACES_IN_COMPONENTS = [
   'src/App.tsx',
+  // The map column, whose forecast player names the ranked metric.
+  'src/components/MapStage.tsx',
   // The legend box, whose metric key names the ranked metric.
   'src/components/MapLegend.tsx',
   // The results bar, whose title names the ranked metric.

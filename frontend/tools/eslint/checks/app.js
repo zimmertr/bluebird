@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 4, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 3, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
       // The drawer closes when a report commits, and the report is App's.
       { selector: keyedOnlyOn('analysisSeq'), message: 'Close the drawer in an effect keyed on analysisSeq alone.' },
@@ -187,11 +187,21 @@ export const APP = [
     // The three memoized children compare their props by identity, so an
     // inline function or a fresh empty literal re-renders a row per destination
     // on every overlay toggle. Wrap a function in useCallback, hoist a constant.
-    name: 'app-memo-props',
-    files: ['src/App.tsx'],
-    // ResultsTable and TimeSeriesChart are ResultsPanels' children now
-    // (results-panels-memo-props); MapView is still App's.
+    // MapView is MapStage's child, and ResultsTable and TimeSeriesChart are
+    // ResultsPanels' (results-panels-memo-props). MapStage passes on members
+    // of the hook results it is handed, so an object, an array or a spread
+    // built here would be a new prop on every render of the page.
+    name: 'map-stage-memo-props',
+    files: ['src/components/MapStage.tsx'],
     ban: [
+      {
+        selector: `${MEMOIZED} > JSXExpressionContainer > :matches(ObjectExpression, ArrayExpression)`,
+        message: 'Hand a memoized child a member of an input, not an object or array built here.',
+      },
+      {
+        selector: 'JSXOpeningElement[name.name=/^(ResultsTable|TimeSeriesChart|MapView)$/] > JSXSpreadAttribute',
+        message: 'Name each prop of a memoized child; spread none.',
+      },
       {
         selector: `${MEMOIZED} :matches(ArrowFunctionExpression, FunctionExpression)`,
         message: 'Hand a memoized child a useCallback, not an inline function.',
@@ -208,7 +218,59 @@ export const APP = [
       },
     ],
     require: [
-      { selector: 'JSXOpeningElement[name.name="MapView"]', message: 'App.tsx renders MapView.' },
+      { selector: 'JSXOpeningElement[name.name="MapView"]', count: 1, message: 'MapStage.tsx renders MapView once.' },
+    ],
+  },
+  {
+    // The map column is one component, and App hands it the hook results it
+    // already holds rather than an object built for the call.
+    name: 'app-map-stage',
+    files: ['src/App.tsx'],
+    ban: [
+      {
+        selector: 'JSXOpeningElement[name.name="MapStage"] > JSXAttribute > JSXExpressionContainer > :matches(ObjectExpression, ArrayExpression, ArrowFunctionExpression)',
+        message: 'Hand MapStage a hook result or a stable value, not one built in the render.',
+      },
+      { selector: 'JSXOpeningElement[name.name="MapView"]', message: 'Render MapView through MapStage.' },
+    ],
+    require: [
+      { selector: 'JSXOpeningElement[name.name="MapStage"]', count: 1, message: 'App.tsx renders MapStage once.' },
+    ],
+  },
+  {
+    // The map column draws what it is handed and runs no effect; the loading
+    // card's clock is the card's own (analysis-overlay-clock). The legend
+    // renders before the button column because paint order is DOM order at
+    // one layer, and the Layers popover must open over the legend.
+    name: 'map-stage',
+    files: ['src/components/MapStage.tsx'],
+    ban: [{ selector: EFFECT, message: 'Run no effect in MapStage.' }],
+    require: [
+      ...['AnalysisOverlay', 'MapLegend', 'MapButtonColumn', 'LayersPopover', 'TimelineTransport'].map((name) => ({
+        selector: `JSXOpeningElement[name.name="${name}"]`,
+        count: 1,
+        message: `MapStage.tsx renders ${name} once.`,
+      })),
+      {
+        selector:
+          'JSXElement:has(> JSXOpeningElement[name.name="MapLegend"]) ~ JSXElement:has(> JSXOpeningElement[name.name="MapButtonColumn"])',
+        message: 'Render MapLegend before MapButtonColumn, so the Layers popover paints over the legend.',
+      },
+    ],
+  },
+  {
+    // The elapsed clock ticks four times a second while a run shows no
+    // countable progress. It lives in the card that shows it, so a tick
+    // re-renders the card and not the page.
+    name: 'analysis-overlay-clock',
+    files: ['src/components/AnalysisOverlay.tsx'],
+    require: [
+      { selector: EFFECT, count: 1, message: 'AnalysisOverlay.tsx runs its clock in one useEffect.' },
+      {
+        selector: `${EFFECT} > ArrayExpression[elements.length=1] > MemberExpression[object.name="overlay"][property.name="visible"]`,
+        message: 'Key the clock on overlay.visible alone.',
+      },
+      { selector: 'CallExpression[callee.name="composeOverlay"]', message: 'Compose the card with composeOverlay.' },
     ],
   },
   {
@@ -377,8 +439,12 @@ export const APP = [
     files: ['src/App.tsx'],
     require: [
       {
-        selector: 'VariableDeclarator[init.callee.name="useAnalyze"] > ObjectPattern > Property[key.name="arriving"][shorthand=true]',
+        selector: 'VariableDeclarator[init.name="analysis"] > ObjectPattern > Property[key.name="arriving"][shorthand=true]',
         message: 'Take arriving from useAnalyze.',
+      },
+      {
+        selector: 'VariableDeclarator[id.name="analysis"] > CallExpression[callee.name="useAnalyze"]',
+        message: 'Hold the useAnalyze result as analysis.',
       },
     ],
   },
@@ -425,9 +491,10 @@ export const APP = [
     // the bottom overflows past its start, where it cannot be reached. Every
     // offset on the bottom edge is derived in resultsSheet.ts, and the corner
     // band is published under the names map.css reads. The map wrapper that
-    // publishes the band is App's; the stack is MapLegend's (map-legend-anchors).
-    name: 'app-legend-anchors',
-    files: ['src/App.tsx'],
+    // publishes the band is MapStage's; the stack is MapLegend's
+    // (map-legend-anchors).
+    name: 'map-stage-anchors',
+    files: ['src/components/MapStage.tsx'],
     ban: [
       { selector: text('\\bm[tb]-(?:auto)\\b'), message: 'Anchor the legend stack at the top, not with an auto margin.' },
       { selector: text('\\bjustify-(?:end)\\b'), message: 'Anchor the legend stack at the top, not by justifying to the end.' },
@@ -443,7 +510,7 @@ export const APP = [
     ],
   },
   {
-    // The stack half of app-legend-anchors: the top inset clears the button
+    // The stack half of map-stage-anchors: the top inset clears the button
     // column in both of its heights, and the floor is derived.
     name: 'map-legend-anchors',
     files: ['src/components/MapLegend.tsx'],
@@ -756,6 +823,7 @@ export const APP = [
       'src/hooks/useTableView.ts',
       'src/utils/exportCsv.ts',
       'src/hooks/useUrlSync.ts',
+      'src/components/MapStage.tsx',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
