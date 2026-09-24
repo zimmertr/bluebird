@@ -8,7 +8,7 @@ const NOOP = () => {}
 const QUARTER: Progress = { processed: 1, total: 4, percent: 25 }
 const IDLE = { loading: false, statusMessage: null, progress: null, paceRemainingS: null, onCancel: NOOP }
 const SEARCHING = { ...IDLE, loading: true, statusMessage: 'Searching' }
-const FETCHING = { ...IDLE, loading: true, progress: QUARTER }
+const FETCHING = { ...IDLE, loading: true, progress: QUARTER, paceRemainingS: 45 }
 
 describe('AnalysisOverlay', () => {
   it('draws nothing while no analysis runs', () => {
@@ -22,9 +22,12 @@ describe('AnalysisOverlay', () => {
     expect(screen.getByText('Elapsed 0s')).toBeTruthy()
   })
 
-  it('shows the batch percentage instead of the clock', () => {
+  // While the pacer sleeps, the detail line under the heading counts down to
+  // when the quota is spent again.
+  it('shows the batch percentage and the quota line instead of the clock', () => {
     render(<AnalysisOverlay {...FETCHING} />)
-    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 Forecasts…')
+    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 Forecasts…Open-Meteo quota: resuming in 45s')
+    expect(screen.getByText('Open-Meteo quota: resuming in 45s')).toBeTruthy()
     expect(screen.getByText('25%')).toBeTruthy()
     expect(screen.queryByText(/^Elapsed/)).toBeNull()
   })

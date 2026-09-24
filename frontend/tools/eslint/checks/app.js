@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 3, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 2, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
       // The drawer closes when a report commits, and the report is App's.
       { selector: keyedOnlyOn('analysisSeq'), message: 'Close the drawer in an effect keyed on analysisSeq alone.' },
@@ -282,6 +282,10 @@ export const APP = [
     files: ['src/components/ResultsPanels.tsx'],
     ban: [
       {
+        selector: `${MEMOIZED} JSXElement`,
+        message: 'Hand a memoized child an element memoized on its inputs, not one built in the render.',
+      },
+      {
         selector: `${MEMOIZED} :matches(ArrowFunctionExpression, FunctionExpression)`,
         message: 'Hand a memoized child a useCallback, not an inline function.',
       },
@@ -351,10 +355,61 @@ export const APP = [
         message: 'Hand ResultsSheet pointSample, which reads the analyzed report.',
       },
       {
+        selector: 'CallExpression[callee.name="useResultsView"] > ObjectExpression > Property[key.name="pointSample"][value.name="pointSample"]',
+        message: 'Hand useResultsView pointSample, which reads the analyzed report.',
+      },
+      {
+        selector: 'VariableDeclarator[init.callee.name="reportView"] > ObjectPattern > Property[key.name="pointSample"]',
+        message: 'Take pointSample from reportView.',
+      },
+    ],
+  },
+  {
+    // The results sheet's hooks in App.tsx's order: the chart hears whether
+    // the layout shows it, and the table hears the chart's comparison and the
+    // report's one-hour flag. The table's callbacks reach the map, so each
+    // keeps one identity for the memoized rows.
+    name: 'results-view-hook',
+    files: ['src/hooks/useResultsView.ts'],
+    ban: [{ selector: EFFECT, message: 'Run no effect in useResultsView; the hooks it calls own theirs.' }],
+    require: [
+      {
+        selector: 'CallExpression[callee.name="useChartCompare"] > ObjectExpression > Property[key.name="chartShowing"] > MemberExpression[object.name="layout"][property.name="chartShowing"]',
+        message: 'Hand useChartCompare the layout\'s chartShowing.',
+      },
+      {
         selector: 'CallExpression[callee.name="useTableView"] > ObjectExpression > Property[key.name="pointSample"][value.name="pointSample"]',
         message: 'Hand useTableView pointSample, which reads the analyzed report.',
       },
+      {
+        selector: 'VariableDeclarator[id.name=/^on(RemovePending|FocusResult|FocusPending)$/] > CallExpression[callee.name="useCallback"]',
+        count: 3,
+        message: 'Wrap the three table callbacks in useCallback.',
+      },
     ],
+  },
+  {
+    // The link's run on open waits one commit past the live limits, so the
+    // run reads the clamped model and cap, and it empties the address bar of
+    // the flag before it spends.
+    name: 'run-on-open-hook',
+    files: ['src/hooks/useRunOnOpen.ts'],
+    require: [
+      { selector: EFFECT, count: 1, message: 'useRunOnOpen.ts runs one useEffect.' },
+      { selector: keyedOnlyOn('settled'), message: 'Raise capsApplied in an effect keyed on settled alone.' },
+      {
+        selector:
+          'FunctionDeclaration[id.name="runAutoAnalyze"] ExpressionStatement:has(CallExpression[callee.name="flushUrl"]) ~ ExpressionStatement:has(CallExpression[callee.name="analyze"])',
+        message: 'Flush the address before the run.',
+      },
+    ],
+  },
+  {
+    // App reads the run-on-open flag through the hook alone.
+    name: 'app-run-on-open',
+    files: ['src/App.tsx'],
+    ban: [{ selector: 'CallExpression[callee.name="decodeAutoAnalyze"]', message: 'Read the run-on-open flag through useRunOnOpen.' }],
+    require: [{ selector: 'CallExpression[callee.name="useRunOnOpen"]', count: 1, message: 'App.tsx calls useRunOnOpen once.' }],
   },
   {
     // The drawer draws what it is told: the panel's own flag goes to the
@@ -845,6 +900,8 @@ export const APP = [
       'src/utils/exportCsv.ts',
       'src/hooks/useUrlSync.ts',
       'src/components/MapStage.tsx',
+      'src/hooks/useResultsView.ts',
+      'src/hooks/useRunOnOpen.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },

@@ -14,6 +14,7 @@ import {
   panelCommitCues,
   type PanelState,
   presentResults,
+  reportView,
 } from './present'
 import { analyzedSnapshot, resultRow } from '../testSupport/fixtures'
 
@@ -543,5 +544,32 @@ describe('fieldHasValue', () => {
   // report the app is built to find: a dry window.
   it('counts a zero as a value', () => {
     expect(fieldHasValue([row('A', { precip_total_in: 0 })], 'precip_total_in')).toBe(true)
+  })
+})
+
+describe('reportView', () => {
+  const PANEL_WINDOW = { startMs: Date.UTC(2026, 6, 21, 0), endMs: Date.UTC(2026, 6, 23, 0) }
+
+  // With a field held the panel's ranking is the one displayed, and the
+  // window stays the snapshot's: it is a data knob.
+  it('ranks by the panel and keeps the window of the held field', () => {
+    const held = analyzedSnapshot({ sortBy: 'precip_total_in', kind: 'days' })
+    const { view, pointSample } = reportView(held, 'temp_avg_f', true, 'now', PANEL_WINDOW)
+    expect(view).toEqual({ sortBy: 'temp_avg_f', sortDesc: true, kind: 'days', window: held.window })
+    expect(pointSample).toBe(false)
+  })
+
+  it('reads the panel before the first analysis', () => {
+    const { view } = reportView(null, 'temp_avg_f', false, 'days', PANEL_WINDOW)
+    expect(view).toEqual({ sortBy: 'temp_avg_f', sortDesc: false, kind: 'days', window: PANEL_WINDOW })
+  })
+
+  // Counted off the window, so a day narrowed to one hour is a point sample
+  // whatever its kind says (#166).
+  it('calls a one-hour window a point sample', () => {
+    const hour = Date.UTC(2026, 6, 20, 6)
+    const held = analyzedSnapshot({ kind: 'days', window: { startMs: hour, endMs: hour } })
+    expect(reportView(held, 'temp_avg_f', false, 'days', PANEL_WINDOW).pointSample).toBe(true)
+    expect(reportView(null, 'temp_avg_f', false, 'now', { startMs: hour, endMs: hour }).pointSample).toBe(true)
   })
 })

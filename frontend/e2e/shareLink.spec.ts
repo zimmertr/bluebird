@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect, DESTINATION_NAMES } from './fixtures'
 
 function isoDay(offset: number): string {
   const d = new Date()
@@ -27,4 +27,15 @@ test('a share link restores the ring, the types, the window and the model', asyn
   await expect.poll(() => new URL(page.url()).searchParams.get('d2')).toBe(d2)
   await expect.poll(() => new URL(page.url()).searchParams.get('model')).toBe(model.id)
   await expect(page.getByRole('button', { name: 'Analyze' })).toBeEnabled()
+})
+
+test('a link that runs on open fills the table and drops its flag', async ({ page }) => {
+  // The run waits for the live limits, then the address bar loses the flag,
+  // so a reload is an ordinary restore rather than a second spend (#511).
+  const d1 = isoDay(1)
+  await page.goto(`/?mode=days&d1=${d1}&d2=${d1}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&analyze=1`)
+
+  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect.poll(() => new URL(page.url()).searchParams.has('analyze')).toBe(false)
+  await expect.poll(() => new URL(page.url()).searchParams.get('d1')).toBe(d1)
 })

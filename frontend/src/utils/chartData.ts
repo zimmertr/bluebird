@@ -71,7 +71,7 @@ export function chartKey(row: DestinationResult): string {
 // Identity of the SET of destinations the chart tracks, order-independent.
 //
 // useChartSelection's debut effect keys on this string, never on the array that
-// holds the rows. `chartCandidates` in App.tsx is a fresh array whenever the
+// holds the rows. `chartCandidates` in useChartCompare is a fresh array whenever the
 // displayed rows or the pending list are re-derived, which is once per keystroke
 // in the coordinates box and once per live knob change, so an effect keyed on
 // the reference scanned for debuts over a set that had not changed at all.

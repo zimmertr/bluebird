@@ -195,7 +195,7 @@ export default function MapLegend({
   // is that the stack sits one of the column's own 8px gaps below
   // whichever it is. Anything shorter collides — at 76 the first rows
   // paint behind the Layers button, which is opaque and paints after
-  // the legends (see the ordering note where `App.tsx` renders this) —
+  // the legends (see the ordering note where `MapStage.tsx` renders this) —
   // and anything taller is
   // dead map.
   //
