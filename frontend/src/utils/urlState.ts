@@ -458,6 +458,26 @@ function decodeSelection(params: URLSearchParams): ForecastSelection | undefined
   }
 }
 
+// The one param a link may carry that is a request rather than state: open
+// the link and run its analysis (#511). It lives outside ShareableState on
+// purpose. That type is what `encodeState` writes, so a field there would be a
+// field the writer had to remember to skip, and the rule is that the writer can
+// never emit it: a reader who edits the panel and copies the address bar must
+// not pass on a link that spends on open. It is also why `decodeState` does not
+// return it: that function answers null for a link with nothing to restore, and
+// `?analyze=1` alone is exactly that.
+const AUTO_ANALYZE_PARAM = 'analyze'
+
+/** Whether a link asks for its analysis to run on open. Only `analyze=1` does. */
+export function decodeAutoAnalyze(search: string): boolean {
+  try {
+    return new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+      .get(AUTO_ANALYZE_PARAM) === '1'
+  } catch {
+    return false
+  }
+}
+
 /**
  * Parse a location.search string back into a partial state. Tolerant by design:
  * unknown or malformed values are dropped rather than throwing, so a user

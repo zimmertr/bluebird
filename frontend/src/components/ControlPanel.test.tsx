@@ -70,6 +70,9 @@ function props(over: Partial<Props> = {}): Props {
     error: null,
     refusal: null,
     onAnalyze: noop,
+    autoAnalyze: false,
+    capabilitiesSettled: false,
+    onAutoAnalyze: noop,
     onRetry: noop,
     maxLimit: 1500,
     maxAreaKm2: 100_000,
@@ -145,6 +148,49 @@ describe('the Analyze button', () => {
     expect((analyze() as HTMLButtonElement).disabled).toBe(true)
     // Busy is the button's own news; there is no reason to act on.
     expect(notices()).toEqual([])
+  })
+})
+
+// A link carrying `analyze=1` (#511). The decision is `shouldAutoAnalyze`'s and
+// its suite pins it; this pins that the panel feeds it the button's own gate
+// and fires the run once.
+describe('the run on open', () => {
+  const ready = { hasPins: true, autoAnalyze: true, capabilitiesSettled: true }
+
+  it('runs once when the link asked and the gate is open', () => {
+    const onAutoAnalyze = vi.fn()
+    const onAnalyze = vi.fn()
+    const { rerender } = render(<ControlPanel {...props({ ...ready, onAutoAnalyze, onAnalyze })} />)
+    expect(onAutoAnalyze).toHaveBeenCalledOnce()
+    // The run closes the gate and its end reopens it, and neither is a second
+    // request, even while the flag is still up.
+    rerender(<ControlPanel {...props({ ...ready, onAutoAnalyze, loading: true })} />)
+    rerender(<ControlPanel {...props({ ...ready, onAutoAnalyze })} />)
+    expect(onAutoAnalyze).toHaveBeenCalledOnce()
+    expect(onAnalyze).not.toHaveBeenCalled()
+  })
+
+  it('waits for the capabilities to settle', () => {
+    const onAutoAnalyze = vi.fn()
+    const { rerender } = render(
+      <ControlPanel {...props({ ...ready, capabilitiesSettled: false, onAutoAnalyze })} />,
+    )
+    expect(onAutoAnalyze).not.toHaveBeenCalled()
+    rerender(<ControlPanel {...props({ ...ready, onAutoAnalyze })} />)
+    expect(onAutoAnalyze).toHaveBeenCalledOnce()
+  })
+
+  it('runs nothing while the gate is closed, and says why as usual', () => {
+    const onAutoAnalyze = vi.fn()
+    render(<ControlPanel {...props({ ...ready, hasPins: false, onAutoAnalyze })} />)
+    expect(onAutoAnalyze).not.toHaveBeenCalled()
+    expect(messages().join(' ')).toMatch(/at least one destination/)
+  })
+
+  it('runs nothing for a link that did not ask', () => {
+    const onAutoAnalyze = vi.fn()
+    render(<ControlPanel {...props({ ...ready, autoAnalyze: false, onAutoAnalyze })} />)
+    expect(onAutoAnalyze).not.toHaveBeenCalled()
   })
 })
 

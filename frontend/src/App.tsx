@@ -152,6 +152,7 @@ import { Place } from './utils/geocode'
 import {
   encodeState,
   decodeState,
+  decodeAutoAnalyze,
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
 import { isPointSample, normalizeWindow } from './utils/forecastWindow'
@@ -369,6 +370,23 @@ export default function App() {
   // the initial render, not a post-mount setState.
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
+
+  // A link that asks to run its analysis on open (`analyze=1`, #511). Read once
+  // at mount like the rest of the link, and cleared the moment it fires, so
+  // nothing but this first load can act on it. The URL writer below is what
+  // takes it out of the address bar, and it can never put it back:
+  // `encodeState` cannot write it.
+  const [autoAnalyze, setAutoAnalyze] = useState(() => decodeAutoAnalyze(window.location.search))
+  // One commit behind `caps.settled` on purpose. The render where the live
+  // limits land is the render where the hooks above re-clamp the restored
+  // model and results cap, in effects whose state reaches the NEXT render. A
+  // run fired in that first commit would read the pre-clamp values; this flag
+  // is set by an effect in the same commit, so it rises in the render that
+  // holds the clamped ones.
+  const [capsApplied, setCapsApplied] = useState(false)
+  useEffect(() => {
+    if (caps.settled) setCapsApplied(true)
+  }, [caps.settled])
 
   const {
     restoredPoints,
@@ -895,6 +913,21 @@ export default function App() {
     clearRemovalsForScope,
     setShowResults,
   })
+
+  // The link's run on open: the click, plus making sure the address bar no
+  // longer carries the flag, so a reload is an ordinary restore rather than a
+  // second spend. The flush is the whole strip. `encodeState` never writes the
+  // param, so while the address bar still carries it the URL sync effect above
+  // can never find it current: a write without it is either already done or
+  // still queued, and flushing lands a queued one now instead of up to a
+  // debounce later. Going through the
+  // writer rather than a history call of its own also keeps any edit already
+  // queued, which a direct write of the stripped address would overwrite.
+  function runAutoAnalyze() {
+    setAutoAnalyze(false)
+    writeUrl.flush()
+    void handleAnalyze()
+  }
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
   const {
@@ -1563,6 +1596,9 @@ export default function App() {
             results.every((r) => r.aqi_avg == null)
           }
           onAnalyze={handleAnalyze}
+          autoAnalyze={autoAnalyze}
+          capabilitiesSettled={capsApplied}
+          onAutoAnalyze={runAutoAnalyze}
           onRetry={retry}
           resultCount={response ? results.length : undefined}
           // What the current bounds admit, not what the analysis fetched:
