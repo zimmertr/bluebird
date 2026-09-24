@@ -102,8 +102,8 @@ export const APP = [
     ],
   },
   {
-    // The two identity effects, the leaving rows and the detail-sort follow
-    // are the four effects this hook took from App.tsx. The provisional count
+    // The two identity effects and the detail-sort follow are the three
+    // effects this hook took from App.tsx. The provisional count
     // is built here too, so its "so far" is checked here.
     name: 'presented-report-hook',
     files: ['src/hooks/usePresentedReport.ts'],
@@ -113,7 +113,7 @@ export const APP = [
           'VariableDeclarator[id.name="tail"] > ConditionalExpression[test.name="arriving"][consequent.value=" so far"][alternate.value=""]',
         message: 'Mark the arriving count with the tail " so far".',
       },
-      { selector: EFFECT, count: 4, message: 'usePresentedReport.ts runs its four effects through useEffect.' },
+      { selector: EFFECT, count: 3, message: 'usePresentedReport.ts runs its three effects through useEffect.' },
     ],
   },
   {

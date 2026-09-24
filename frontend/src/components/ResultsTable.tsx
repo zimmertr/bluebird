@@ -20,9 +20,6 @@ interface Props {
   // Already in display order: App applies the detail-column sort below before
   // handing these over, so the rows arrive as they are drawn.
   results: DestinationResult[]
-  // Rows that are leaving the display via a live presentation knob, to be
-  // faded out rather than removed instantly. Empty when not animating.
-  leavingRowKeys: Set<string>
   // Why the table has no rows, when it has none. Rendered as a row under the
   // headers rather than above the table, so an empty report still reads as a
   // table that found nothing rather than as a notice with a table beneath it.
@@ -110,7 +107,6 @@ interface Props {
 
 function ResultsTable({
   results,
-  leavingRowKeys,
   emptyReason,
   sortBy,
   detailSortKey,
@@ -226,7 +222,6 @@ function ResultsTable({
                   key={keys[i]}
                   row={row}
                   rank={rankText(row, i)}
-                  leaving={leavingRowKeys.has(at)}
                   columns={orderedColumns}
                   widths={widths}
                   coloredGroup={coloredGroup}

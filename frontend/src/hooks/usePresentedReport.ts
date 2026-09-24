@@ -132,28 +132,6 @@ export function usePresentedReport({
         : windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
       : null
 
-  // Rows leaving the display due to a live presentation knob: fade them out.
-  // Keyed by coordinate. Only populated when the same analysis has rows
-  // disappearing, never on initial render or a fresh analysis.
-  const [leavingRowKeys, setLeavingRowKeys] = useState<Set<string>>(new Set())
-  const lastResultsRef = useRef<DestinationResult[] | null>(null)
-  useEffect(() => {
-    if (analyzed === null) {
-      setLeavingRowKeys(new Set())
-      return
-    }
-    const prevKeys = new Set(
-      (lastResultsRef.current ?? []).map((r) => geoKey(r.latitude, r.longitude)),
-    )
-    const currKeys = new Set(results.map((r) => geoKey(r.latitude, r.longitude)))
-    const leaving = new Set<string>()
-    for (const key of prevKeys) {
-      if (!currKeys.has(key)) leaving.add(key)
-    }
-    setLeavingRowKeys(leaving)
-    lastResultsRef.current = results
-  }, [results, analyzed])
-
   // The detail-column sort, held here rather than inside ResultsTable (#125).
   //
   // Clicking one of the ranking columns re-cuts the whole field through
@@ -254,7 +232,6 @@ export function usePresentedReport({
   return {
     results,
     windowTitle,
-    leavingRowKeys,
     detailSort,
     sortDetail,
     pending,
