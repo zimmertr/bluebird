@@ -65,12 +65,12 @@ test('the address bar keeps the readable link the app writes, and writes it once
   )
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
 
-  const readable = new RegExp(
-    `^\\?type=peak&model=[a-z0-9_]+&mode=days&d1=${d1}` +
-      `&poly=-121\\.9,47\\.4;-121\\.7,47\\.4;-121\\.7,47\\.55&pins=${pin.replace(/[.+]/g, '\\$&')}$`,
-  )
-  await expect.poll(() => page.evaluate(() => location.search)).toMatch(readable)
-  expect(new URL(page.url()).search).toMatch(readable)
+  // The model is the deployment's default, whatever it is today, so it is
+  // read as a shape and the rest of the query compared exactly.
+  const readable = `?type=peak&model=M&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&pins=${pin}`
+  const shape = (search: string) => search.replace(/model=[a-z0-9_]+/, 'model=M')
+  await expect.poll(async () => shape(await page.evaluate(() => location.search))).toBe(readable)
+  expect(shape(new URL(page.url()).search)).toBe(readable)
 
   // Settled: the debounce is 400 ms, so a second write would land well inside
   // this wait if the bar and the writer disagreed.
