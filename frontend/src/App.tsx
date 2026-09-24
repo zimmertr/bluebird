@@ -825,7 +825,6 @@ export default function App() {
   const {
     results,
     windowTitle,
-    leavingRowKeys,
     detailSort,
     sortDetail: handleDetailSort,
     pending,
@@ -2393,7 +2392,6 @@ export default function App() {
                       <ResultsTable
                         emptyReason={emptyReason}
                         results={tableRows}
-                        leavingRowKeys={leavingRowKeys}
                         sortBy={view.sortBy}
                         detailSortKey={detailSort.key}
                         detailSortDir={detailSort.dir}

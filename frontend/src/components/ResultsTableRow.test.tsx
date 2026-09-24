@@ -35,7 +35,6 @@ function props(over: Partial<Props> = {}): Props {
   return {
     row: ROW,
     rank: '2',
-    leaving: false,
     columns: COLUMNS,
     widths: NO_WIDTHS,
     coloredGroup: GROUP,
@@ -61,11 +60,6 @@ describe('a ranked row', () => {
     const { user } = inTable(<ResultsTableRow {...props({ onFocusResult })} />)
     await user.click(screen.getByRole('button', { name: 'Center map on Mount Adams' }))
     expect(onFocusResult).toHaveBeenCalledWith(ROW)
-  })
-
-  it('fades out while it leaves the display', () => {
-    inTable(<ResultsTableRow {...props({ leaving: true })} />)
-    expect(screen.getByRole('row').className).toContain('animate-remove-row')
   })
 
   it('reports the shift state, then the toggle, from its chart box', async () => {

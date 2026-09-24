@@ -84,17 +84,6 @@ describe('usePresentedReport', () => {
     )
   })
 
-  it('fades the rows a live knob cut, and none on the first report', () => {
-    let knobs = KNOBS
-    const { result, rerender } = renderHook(() => usePresentedReport(inputs({ liveKnobs: knobs })))
-    expect(result.current.leavingRowKeys.size).toBe(0)
-    knobs = { ...KNOBS, limit: 1 }
-    rerender()
-    expect([...result.current.leavingRowKeys].sort()).toEqual(
-      [ECHO, WET].map((r) => geoKey(r.latitude, r.longitude)).sort(),
-    )
-  })
-
   it('drops a detail sort when a new report lands', () => {
     let seq = 1
     const { result, rerender } = renderHook(() => usePresentedReport(inputs({ analysisSeq: seq })))

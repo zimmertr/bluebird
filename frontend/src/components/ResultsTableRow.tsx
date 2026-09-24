@@ -275,7 +275,6 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
 interface RowProps {
   row: DestinationResult
   rank: string
-  leaving: boolean
   columns: ColDef[]
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
@@ -297,7 +296,6 @@ interface RowProps {
 function ResultsTableRow({
   row,
   rank,
-  leaving,
   columns,
   widths,
   coloredGroup,
@@ -327,7 +325,7 @@ function ResultsTableRow({
     onCenter: () => onFocusResult?.(row),
   }
   return (
-    <tr className={`${TABLE.row} ${leaving ? 'animate-remove-row' : ''}`}>
+    <tr className={TABLE.row}>
       {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
       {columns.map((col) => (
