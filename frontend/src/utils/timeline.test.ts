@@ -10,6 +10,7 @@ import {
   forecastStampLabel,
   frameHoldMs,
   initialIndex,
+  nearestIndex,
   nextFrame,
   playerAvailable,
   resolveAxis,
@@ -141,6 +142,18 @@ describe('initialIndex', () => {
 
   it('survives an empty axis', () => {
     expect(initialIndex('radar', 0)).toBe(0)
+  })
+})
+
+describe('nearestIndex', () => {
+  const HOURS = [0, 3_600_000, 7_200_000]
+  it('finds the stamp nearest an interpolated instant', () => {
+    expect(nearestIndex(HOURS, 3_000_000)).toBe(1)
+    expect(nearestIndex(HOURS, 99_000_000)).toBe(2)
+  })
+  it('keeps the earlier stamp on a tie, and answers null on an empty grid', () => {
+    expect(nearestIndex(HOURS, 1_800_000)).toBe(0)
+    expect(nearestIndex([], 5)).toBeNull()
   })
 })
 
