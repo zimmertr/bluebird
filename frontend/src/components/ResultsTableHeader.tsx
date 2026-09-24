@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useId } from 'react'
 import type { KeyboardEvent, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DestinationResult } from '../types'
@@ -8,7 +8,7 @@ import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
 import type { InsertLine } from '../utils/columnMeasure'
 import { sized } from './sizedCell'
-import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, FOCUS_RING_INSET, TABLE } from '../styles'
+import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, FOCUS_RING_INSET, SR_ONLY, TABLE } from '../styles'
 
 // The results table's header row and everything a press on it can do: sort
 // (by pointer or by key), move a column, resize one, and fit one to its content. Apart from the body
@@ -106,6 +106,7 @@ function ResultsTableHeader({
   const widths = columnWidths ?? {}
   const drag = useColumnDrag(orderedColumns, onColumnMove)
   const resize = useColumnResize(columnWidths, onColumnWidthsChange, tableRef)
+  const sortHintId = useId()
 
   // Every header click is a reading aid: it sorts the displayed rows in place
   // and changes NOTHING else: not the ranking, not the column order, not the
@@ -157,6 +158,7 @@ function ResultsTableHeader({
               onClick={() => handleSort(col.key)}
               tabIndex={0}
               onKeyDown={(e) => handleSortKey(e, col.key)}
+              aria-describedby={sortHintId}
               className={`${TABLE.head} ${FOCUS_RING_INSET} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
                 onColumnMove ? 'touch-none' : ''
               } ${drag.carry?.key === col.key ? `${CARRIED} ${DRAG_GRIP_ACTIVE}` : ''}`}
@@ -183,7 +185,16 @@ function ResultsTableHeader({
               it auto layout deals that space to every column, so a fitted
               or dragged column renders wider than the width it was given
               and a first double-click reads as "the column grew". */}
-          <th aria-hidden="true" className="w-full p-0" />
+          {/* It also holds the one copy of the sort hint every sortable
+              header points at: a cell of its own would be a column, and a
+              span beside the thead is not valid table markup. A reference
+              resolves through aria-hidden, so the hint still reaches the
+              headers while the filler stays out of the tree. */}
+          <th aria-hidden="true" className="w-full p-0">
+            <span id={sortHintId} className={SR_ONLY}>
+              Press Enter or Space to sort.
+            </span>
+          </th>
         </tr>
       </thead>
       {drag.carry && <DragOverlay carry={drag.carry} insert={drag.insert} />}

@@ -39,6 +39,8 @@ for (const viewport of [
     await page.locator('body').focus()
     await tabTo(page, 'name')
     await expect(name).toBeFocused()
+    await expect(name).toHaveAccessibleName('Name')
+    await expect(name).toHaveAccessibleDescription('Press Enter or Space to sort.')
     // Keyboard focus shows the ring.
     expect(await name.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
 

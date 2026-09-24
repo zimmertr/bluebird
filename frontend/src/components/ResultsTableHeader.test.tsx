@@ -137,6 +137,23 @@ describe('sorting from the keyboard', () => {
     expect(onDetailSort).toHaveBeenCalledWith('elevation_ft', 'asc')
   })
 
+  it('describes every sortable header with the one key hint', () => {
+    renderHeader(props())
+    // The description a reader hears is the text of the element named.
+    const description = (el: Element) =>
+      (el.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .filter(Boolean)
+        .map((id) => document.getElementById(id)?.textContent?.trim())
+        .join(' ')
+    for (const label of [/^Name/, /^Elevation/, /^Precip/]) {
+      expect(description(header(label))).toBe('Press Enter or Space to sort.')
+    }
+    // One copy of the sentence, however many headers point at it.
+    expect(screen.getAllByText('Press Enter or Space to sort.', { ignore: false })).toHaveLength(1)
+    expect(description(screen.getByRole('columnheader', { name: '#' }))).toBe('')
+  })
+
   it('keeps the column label as the name and the rank header out of the tab order', () => {
     renderHeader(props())
     expect(header(/^Name/).getAttribute('tabindex')).toBe('0')
