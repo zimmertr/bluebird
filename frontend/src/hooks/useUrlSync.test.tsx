@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { type UrlSyncInputs, useUrlSync } from './useUrlSync'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { DEFAULT_SELECTION } from '../utils/calendar'
@@ -9,6 +9,7 @@ import { DEFAULT_LIMIT, DEFAULT_SORT } from '../utils/urlState'
 const NO_TYPES: UrlSyncInputs['destinationTypes'] = []
 const NO_MODELS: UrlSyncInputs['comparedModels'] = []
 const NO_PLACES: UrlSyncInputs['places'] = []
+const NO_KEYS: UrlSyncInputs['removedKeys'] = new Set()
 const DEBOUNCE_MS = 400
 
 // Every input at its default, so the link is the bare path.
@@ -36,6 +37,9 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     gridReachFrac: 0.5,
     places: NO_PLACES,
     defaultForecastModel: 'gfs_seamless',
+    removedKeys: NO_KEYS,
+    tableSort: null,
+    restoredView: null,
     ...over,
   }
 }
@@ -119,7 +123,77 @@ describe('useUrlSync', () => {
     const writer = result.current
     rerender(inputs({ limit: 50 }))
     expect(result.current).toBe(writer)
-    result.current.flush()
+    result.current.writeUrl.flush()
     expect(replace).toHaveBeenCalledOnce()
+  })
+})
+
+describe('the camera in the link', () => {
+  const VIEW = { lng: -121.7601, lat: 46.8529, zoom: 10.5 }
+  const params = () => new URLSearchParams(window.location.search)
+
+  // TJ's rule: a pan or a zoom alone makes a link.
+  it('writes a link for a reader move alone', () => {
+    const { result } = renderHook(() => useUrlSync(inputs()))
+    act(() => result.current.reportView(VIEW, true))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  // The opening camera and every app fit keep the camera current and nothing more.
+  it('writes nothing for an app move alone', () => {
+    const { result } = renderHook(() => useUrlSync(inputs()))
+    act(() => result.current.reportView(VIEW, false))
+    vi.advanceTimersByTime(DEBOUNCE_MS * 2)
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  // The camera writes outside the sync effect, so it must write with the
+  // state as it is now, not as it was when the callback was made.
+  it('carries the latest state beside a pan made after a change', () => {
+    const { result, rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), { initialProps: inputs() })
+    const reportView = result.current.reportView
+    rerender(inputs({ showRadar: true }))
+    act(() => reportView(VIEW, false))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().get('radar')).toBe('1')
+    expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  // A link's camera is the sender's own move, so it makes the link by itself.
+  it('keeps a link that carries a camera alone', () => {
+    window.history.replaceState(null, '', '/?view=-121.7601,46.8529,10.5')
+    renderHook(() => useUrlSync(inputs({ restoredView: VIEW })))
+    vi.advanceTimersByTime(DEBOUNCE_MS * 2)
+    expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  it('keeps a link\'s camera when its other reason goes', () => {
+    const { rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), {
+      initialProps: inputs({ showRadar: true, restoredView: VIEW }),
+    })
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().get('radar')).toBe('1')
+    rerender(inputs({ restoredView: VIEW }))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().has('radar')).toBe(false)
+    expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  it('flushes a pending camera write on unmount', () => {
+    const { result, unmount } = renderHook(() => useUrlSync(inputs()))
+    act(() => result.current.reportView(VIEW, true))
+    unmount()
+    expect(replace).toHaveBeenCalledOnce()
+    expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  it('writes the removals and the header sort it is handed', () => {
+    const { rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), { initialProps: inputs() })
+    rerender(inputs({ removedKeys: new Set(['46.85289,-121.76041']), tableSort: { key: 'name', desc: true } }))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().get('removed')).toBe('-121.76041,46.85289')
+    expect(params().get('tsort')).toBe('name')
+    expect(params().get('tdesc')).toBe('1')
   })
 })

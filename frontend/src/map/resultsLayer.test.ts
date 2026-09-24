@@ -74,6 +74,7 @@ function setup(results = [ADAMS, RAINIER]) {
     onAddPoi: vi.fn(),
     onRemovePoi: vi.fn(),
     cameraPadBottomPx: 0,
+    onCameraMove: () => {},
   }
   const controller = createMapController(inputs)
   const board = createPopupBoard()

@@ -15,6 +15,7 @@ import type { DestinationResult } from '../types'
 import type { FireWarning } from '../utils/fireProximity'
 import type { Place } from '../utils/geocode'
 import { geoKey } from '../utils/points'
+import type { CameraView } from '../utils/mapView'
 import type { ColDef } from '../utils/tableColumns'
 
 export interface MapInputs {
@@ -30,6 +31,9 @@ export interface MapInputs {
   onAddPoi: (place: Place) => void
   onRemovePoi: (latitude: number, longitude: number) => void
   cameraPadBottomPx: number
+  // Where the settled camera goes, and whether the reader moved it
+  // (`map/camera.ts`). The share link's writer, which never renders.
+  onCameraMove: (view: CameraView, readerMove: boolean) => void
 }
 
 export interface MapController {

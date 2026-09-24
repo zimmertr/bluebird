@@ -17,6 +17,7 @@ function inputs(over: Partial<MapInputs> = {}): MapInputs {
     onAddPoi: () => {},
     onRemovePoi: () => {},
     cameraPadBottomPx: 0,
+    onCameraMove: () => {},
     ...over,
   }
 }

@@ -79,6 +79,7 @@ const ANALYSIS: MapStageProps['analysis'] = {
 const DRAW: MapStageProps['drawMode'] = { drawing: false, handleDrawUpdate: NOOP }
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP }
 const MAP_REF = createRef<MapViewHandle>()
+const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
 
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
@@ -98,6 +99,8 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     modelId: 'gfs_seamless',
     showResults: true,
     sidebarOpen: true,
+    urlSync: URL_SYNC,
+    restoredView: null,
     onOpenControls: NOOP,
     searchPointed: false,
     poisPointed: false,

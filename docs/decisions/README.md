@@ -85,3 +85,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0062](0062-analyze-blockers-every-reason.md) | Analyze names every reason it is blocked, not the first | 2026-07-31 | Accepted | Frontend: `analyzeGate.ts` |
 | [0063](0063-smoke-no-bbox.md) | The smoke endpoint answers for all of North America, with no bbox | 2026-08-04 | Accepted | Backend: `routes/smoke.py` |
 | [0064](0064-tooltips-and-strings-need-approval.md) | A tooltip or a user-facing string needs the maintainer's approval | 2026-08-05 | Accepted | Root: Style through the design system |
+| [0065](0065-link-carries-camera-removals-order.md) | The share link carries the map camera, the removed rows and the table's header sort | 2026-08-22 | Accepted | Frontend: `urlParams.ts`; `mapView.ts` |

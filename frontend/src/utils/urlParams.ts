@@ -20,6 +20,9 @@ import { type Constraints, NO_CONSTRAINTS } from './constraints'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid'
 import { type ForecastSelection, isDayKey, isTimeOfDay, orderDays } from './calendar'
 import type { Place } from './geocode'
+import { decodeView, encodeView } from './mapView'
+import { geoKey } from './points'
+import { isSortKey } from './tableColumns'
 import type { ShareableState } from './urlState'
 
 /**
@@ -289,6 +292,13 @@ function bound(key: string, field: keyof Constraints): ParamCodec {
   }
 }
 
+// A `geoKey` (`lat,lon`, five decimals) as the link writes it: `lng,lat`,
+// with the trailing zeros `toFixed` padded dropped.
+function removedPair(key: string): string {
+  const [lat, lon] = key.split(',')
+  return `${Number(lon)},${Number(lat)}`
+}
+
 /**
  * Every parameter, in the order a link writes them. The order is part of the
  * link's text, so moving a row changes every link shared after the move.
@@ -538,6 +548,53 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (decoded.length > 0) out.pins = decoded
     },
   },
+  // `lng,lat` per removed row, `;`-joined, in the order they were removed:
+  // the `geoKey` identity `useRemovals` holds, written in GeoJSON order like
+  // `poly`. No cap: a long list is a long report pruned by hand, and a link
+  // that dropped some would share a different report.
+  {
+    key: 'removed',
+    encode: (state) => (state.removed.length > 0 ? state.removed.map(removedPair).join(';') : null),
+    decode: (raw, out) => {
+      const keys: string[] = []
+      for (const pair of raw.split(';')) {
+        const [lngStr, latStr, extra] = pair.split(',')
+        if (extra !== undefined || !lngStr || !latStr) continue
+        const lng = Number(lngStr)
+        const lat = Number(latStr)
+        if (!Number.isFinite(lng) || !Number.isFinite(lat) || Math.abs(lat) > 90 || Math.abs(lng) > 180) continue
+        const key = geoKey(lat, lng)
+        if (!keys.includes(key)) keys.push(key)
+      }
+      if (keys.length > 0) out.removed = keys
+    },
+  },
+  // The table's header sort, in the shape `sort`/`desc` use: the column key,
+  // and `1` for highest first. Written only while it differs from the
+  // ranking, which is what the table shows when nobody clicked a header.
+  {
+    key: 'tsort',
+    encode: (state) => state.tableSort?.key ?? null,
+    decode: (raw, out) => {
+      if (isSortKey(raw)) out.tableSort = { key: raw, desc: false }
+    },
+  },
+  {
+    key: 'tdesc',
+    encode: (state) => (state.tableSort?.desc ? '1' : null),
+    decode: (raw, out) => {
+      if (raw === '1' && out.tableSort) out.tableSort = { ...out.tableSort, desc: true }
+    },
+  },
+  // Last, because it is the value that changes most: every pan rewrites it.
+  {
+    key: 'view',
+    encode: (state) => (state.view ? encodeView(state.view) : null),
+    decode: (raw, out) => {
+      const view = decodeView(raw)
+      if (view) out.view = view
+    },
+  },
 ]
 
 // Which params carry each field of the shared state. Typed against every key
@@ -574,6 +631,9 @@ export const FIELD_PARAMS = {
   showPlayer: ['player'],
   gridReachFrac: ['reach'],
   pins: ['pins'],
+  removed: ['removed'],
+  tableSort: ['tsort', 'tdesc'],
+  view: ['view'],
 } satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 
 /**

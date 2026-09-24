@@ -53,6 +53,7 @@ function setup(drawing = false) {
     onAddPoi: () => {},
     onRemovePoi: () => {},
     cameraPadBottomPx: 0,
+    onCameraMove: () => {},
   })
   const deps = {
     controller,
