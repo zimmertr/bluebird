@@ -314,8 +314,8 @@ It has up to two axes, and a switch to pick between them when both exist:
   than a handful of points.
 
 The chart below the map draws the same playhead as a vertical line, and clicking
-the chart moves it. The two are one grid seen twice, so finding the bad afternoon
-on the chart puts it on the map.
+or tapping the chart moves it. The two are one grid seen twice, so finding the bad
+afternoon on the chart puts it on the map.
 
 Playback costs nothing upstream. Every destination's hourly series is already in
 hand from the analysis; the timeline is a position in it.
