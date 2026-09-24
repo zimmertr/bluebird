@@ -14,6 +14,7 @@ const SCOPE = authoredScope(['peak'], '')
 const PLACES = [BAKER]
 const FIELD = [RAINIER_ROW]
 const NO_ROWS: RemovalInputs['csvRows'] = []
+const NO_PLACES: RemovalInputs['places'] = []
 
 function inputs(over: Partial<RemovalInputs> = {}): RemovalInputs {
   return {
@@ -155,6 +156,30 @@ describe('removals a link carried', () => {
     act(() => all.result.current.removeResult(BAKER_ROW))
     act(() => all.result.current.restoreAllRemoved())
     expect(all.result.current.removedKeys.size).toBe(0)
+  })
+
+  // A key the landed field does not hold hides nothing and cannot be listed or
+  // restored, so it leaves the set and every later link.
+  it('drops a linked key the landed field does not hold', () => {
+    const ORPHAN = '1.00000,2.00000'
+    const { result, rerender } = renderHook((p: RemovalInputs) => useRemovals(p), {
+      initialProps: inputs({ universe: null, restoredRemoved: [ORPHAN, KEY], restoredScope: LINK_SCOPE }),
+    })
+    expect([...result.current.removedKeys]).toEqual([ORPHAN, KEY])
+    rerender(inputs({ universe: FIELD, restoredRemoved: [ORPHAN, KEY], restoredScope: LINK_SCOPE }))
+    expect([...result.current.removedKeys]).toEqual([KEY])
+    expect([...result.current.activeRemovedKeys]).toEqual([KEY])
+  })
+
+  // × on a searched place deregisters it, so the sender's link carries the
+  // removal and no pin: the reopened field never holds the row.
+  it('drops the removal of a searched place the link carries no pin for', () => {
+    const PIN_KEY = geoKey(BAKER.lat, BAKER.lon)
+    const { result } = renderHook(() =>
+      useRemovals(inputs({ places: NO_PLACES, universe: FIELD, restoredRemoved: [PIN_KEY], restoredScope: LINK_SCOPE })),
+    )
+    expect(result.current.removedKeys.size).toBe(0)
+    expect(result.current.removed.size).toBe(0)
   })
 
   // A later list is a new list: the link's removals stop hiding its pending lines.

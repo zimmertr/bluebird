@@ -160,9 +160,23 @@ describe('the camera in the link', () => {
     expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
   })
 
-  it('keeps a link\'s camera until the map reports its own', () => {
-    renderHook(() => useUrlSync(inputs({ showRadar: true, restoredView: VIEW })))
+  // A link's camera is the sender's own move, so it makes the link by itself.
+  it('keeps a link that carries a camera alone', () => {
+    window.history.replaceState(null, '', '/?view=-121.7601,46.8529,10.5')
+    renderHook(() => useUrlSync(inputs({ restoredView: VIEW })))
+    vi.advanceTimersByTime(DEBOUNCE_MS * 2)
+    expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  it('keeps a link\'s camera when its other reason goes', () => {
+    const { rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), {
+      initialProps: inputs({ showRadar: true, restoredView: VIEW }),
+    })
     vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().get('radar')).toBe('1')
+    rerender(inputs({ restoredView: VIEW }))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().has('radar')).toBe(false)
     expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
   })
 

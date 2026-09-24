@@ -11,6 +11,9 @@
  * It also reports once when it mounts. The opening frame (`frameOpening` in
  * `MapView.tsx`) runs before the features mount, so its `moveend` has no
  * listener yet, and a link that exists must still carry where it now is.
+ *
+ * It mounts on `load`, so a pan made before the map has loaded is reported as
+ * the camera the load finds, an app move, and makes no link by itself.
  */
 import type * as maplibregl from 'maplibre-gl'
 import type { MapController } from './controller'

@@ -54,8 +54,9 @@ export function initialCamera(restored: CameraView | null): CameraView {
 
 /**
  * Whether a settled move was the reader's own. MapLibre hands a `moveend` the
- * DOM event behind a drag, a wheel, a touch, a key, a box zoom or a press of
- * the zoom buttons, and marks the geolocate button's move `geolocateSource`.
+ * DOM event behind a drag, a wheel, a touch, a key or a press of the zoom
+ * buttons, and marks the geolocate button's move `geolocateSource`. Box zoom
+ * would carry neither, and the app turns it off (`map/controls.ts`).
  * The app's own camera calls (the opening fit, a search, a click on a rank)
  * carry neither. A move of the reader's own makes a link by itself; an app move
  * only keeps the camera current in a link that exists for another reason.

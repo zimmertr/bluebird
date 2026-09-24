@@ -55,6 +55,13 @@ export function useRemovals({
   // The field the browser holds rows for: the client path's, or the server
   // path's trimmed rows.
   const held = universe ?? response?.results ?? null
+  // What the browser still holds a forecast row for. Decides whether a restore
+  // is a pure unhide or must re-register a place (see restorePlace), and which
+  // linked keys are still worth holding.
+  const heldKeys = useMemo(
+    () => new Set((held ?? []).map((r) => geoKey(r.latitude, r.longitude))),
+    [held],
+  )
   // Every removal with its row, for the restore list and the restore itself.
   // A linked key joins once the held field has its row; derived rather than
   // copied in an effect, so it follows every report without a render of its
@@ -69,19 +76,28 @@ export function useRemovals({
     for (const [key, entry] of own) merged.set(key, entry)
     return merged
   }, [own, linked, held, linkedScope])
+  // The linked keys still worth holding. Before a field lands, all of them:
+  // they hide pending dots. Once one lands, only those it holds, because a key
+  // the field lacks hides nothing, cannot be listed or restored, and would
+  // otherwise ride every later link. The case is real: × on a searched place
+  // deregisters it, so a link can carry its removal and no pin for it.
+  const liveLinked = useMemo(
+    () => (held === null ? linked : new Set([...linked].filter((key) => heldKeys.has(key)))),
+    [linked, held, heldKeys],
+  )
   // Every key, for the two snapshot consumers: the displayed report and the
   // refresh echo. The preview reads `activeRemovedKeys` instead. Linked keys
   // first, in the link's order, so a reopened link writes them back unchanged.
-  const removedKeys = useMemo(() => new Set([...linked, ...own.keys()]), [linked, own])
+  const removedKeys = useMemo(() => new Set([...liveLinked, ...own.keys()]), [liveLinked, own])
   // Reads the ACTIVE removals rather than the whole map (#158). The report and
   // the refresh echo are snapshots of one analysis and keep the full map; the
   // pending preview is live over a list the user is still typing, so a × made
   // against an earlier list must stop hiding a line that is still pasted.
   const activeRemovedKeys = useMemo(() => {
     const active = activeRemovals(own, destinationScope)
-    if (destinationScope === linkedScope) for (const key of linked) active.add(key)
+    if (destinationScope === linkedScope) for (const key of liveLinked) active.add(key)
     return active
-  }, [own, linked, linkedScope, destinationScope])
+  }, [own, liveLinked, linkedScope, destinationScope])
 
   // The discovery scope the set was last cleared under. Only an Analyze reads
   // it, so a ref: nothing renders from it. A link that carried removals seeds
@@ -127,13 +143,6 @@ export function useRemovals({
     [destinationScope, removePlace, places],
   )
 
-  // What the browser still holds a forecast row for: the field on the client
-  // path, the trimmed rows on the server path. Decides whether a restore is a
-  // pure unhide or must re-register a place (see restorePlace).
-  const heldKeys = useMemo(
-    () => new Set((held ?? []).map((r) => geoKey(r.latitude, r.longitude))),
-    [held],
-  )
   const csvKeys = useMemo(
     () => new Set(csvRows.map((r) => geoKey(r.latitude, r.longitude))),
     [csvRows],

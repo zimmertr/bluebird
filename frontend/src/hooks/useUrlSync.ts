@@ -110,7 +110,10 @@ export function useUrlSync({
   // the state the sync effect last encoded, held in `latestRef`: a camera
   // write from a closure would carry the state of the render that made it.
   const viewRef = useRef<CameraView | null>(restoredView)
-  const cameraMovedRef = useRef(false)
+  // A link's camera is the sender's own move, so it keeps making the link on
+  // its own: a `?view=` link must not be stripped to the bare path, nor lose
+  // its camera when the other reason for the link goes.
+  const cameraMovedRef = useRef(restoredView !== null)
   const latestRef = useRef<{ state: Omit<ShareableState, 'view'>; defaultModel: string } | null>(null)
   const sync = useCallback(() => {
     const latest = latestRef.current
