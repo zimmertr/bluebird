@@ -4,6 +4,7 @@ import {
   gridLabel,
   modelForecastHours,
   parseCapabilities,
+  publishesModels,
   reachLabel,
 } from './useCapabilities'
 // `?raw` gives the file's text without executing it. The one text check left
@@ -112,6 +113,18 @@ describe('parseCapabilities', () => {
     expect(older.maxLimit).toBe(800)
     expect(older.maxDestinations).toBe(900)
     expect(older.forecastModels).toEqual([FALLBACK_FORECAST_MODEL])
+  })
+
+  // Only a published list can refuse a link's model, so the stand-in must be
+  // told apart from it: before the answer, and when the body has no list.
+  it('tells a published model list from the stand-in', () => {
+    expect(publishesModels(parseCapabilities({ limits: {} }).forecastModels)).toBe(false)
+    expect(publishesModels(parseCapabilities(null).forecastModels)).toBe(false)
+    const published = parseCapabilities({
+      limits: {},
+      forecast_models: [{ id: 'gfs_seamless', forecast_hours: 384, default: true }],
+    })
+    expect(publishesModels(published.forecastModels)).toBe(true)
   })
 
   it('drops model entries missing the fields that make one usable', () => {

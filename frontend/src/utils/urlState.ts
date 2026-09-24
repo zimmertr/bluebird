@@ -9,7 +9,16 @@ import { Constraints, hasConstraints } from './constraints'
 import { type GridStyle } from './forecastGrid'
 import { ForecastSelection } from './calendar'
 import { Place } from './geocode'
-import { URL_PARAMS, decodeSelection, hasCustomCsv, hasPolygon } from './urlParams'
+import {
+  DEFAULT_LIMIT,
+  DEFAULT_SORT,
+  URL_PARAMS,
+  decodeSelection,
+  escapeQueryText,
+  hasCustomCsv,
+  hasPolygon,
+  unescapeQueryText,
+} from './urlParams'
 
 // The two window classifiers read the calendar band and live beside it. They
 // are re-exported here because the panel, App.tsx and this module's own suite
@@ -90,19 +99,12 @@ export interface ShareableState {
 // Control defaults: they must mirror the initial useState values in the hooks
 // that hold the panel's state (`useRankingKnobs`, `useDestinationInputs`). Used to
 // decide whether the user has changed anything worth persisting to the URL.
-//
-// The ranking opens on the FIRST row of the Metrics table, so the selected
-// radio is the one a reader's eye lands on rather than one four rows down
-// (TJ, 2026-09-14). The table is alphabetical, which is what puts AQI there.
-export const DEFAULT_SORT: SortBy = 'aqi_avg'
+// The ranking and the results cap live beside the rows that write them.
+export { DEFAULT_LIMIT, DEFAULT_SORT }
 // Nothing is checked by default. Discovery is the expensive input and the
 // one that needs a polygon, so a fresh session asks for none of it until the
 // user says otherwise.
 const DEFAULT_TYPES: DiscoveryType[] = []
-// Exported because the panel now shows it as a PLACEHOLDER rather than a
-// value, so three files needed the same number and two of them were spelling
-// it themselves.
-export const DEFAULT_LIMIT = 200
 
 // Hold a row count inside what the running service will accept. The ceiling is
 // a deployment's answer, not this module's: /api/capabilities publishes it and
@@ -158,12 +160,28 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
   if (!hasPolygon(state) && !hasCustomCsv(state) && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
-  const p = new URLSearchParams()
-  for (const { key, encode } of URL_PARAMS) {
+  // Written by hand rather than by URLSearchParams, which would encode the
+  // `,` `;` `:` `/` the readable fields are built from (`escapeQueryText`).
+  const parts: string[] = []
+  for (const { key, escaped, encode } of URL_PARAMS) {
     const value = encode?.(state) ?? null
-    if (value !== null) p.set(key, value)
+    if (value !== null) parts.push(`${key}=${escaped ? value : escapeQueryText(value)}`)
   }
-  return p.toString()
+  return parts.join('&')
+}
+
+// Each key's first value as raw query text, before any percent-decoding, for
+// the rows that split their value on delimiters an escaped field may also hold
+// (`escaped` in `ParamCodec`). First, because that is the value
+// URLSearchParams.get answers for every other row.
+function rawQueryValues(query: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const part of query.split('&')) {
+    const eq = part.indexOf('=')
+    const key = unescapeQueryText(eq < 0 ? part : part.slice(0, eq))
+    if (key !== null && !out.has(key)) out.set(key, eq < 0 ? '' : part.slice(eq + 1))
+  }
+  return out
 }
 
 // The one param a link may carry that is a request rather than state: open
@@ -193,17 +211,19 @@ export function decodeAutoAnalyze(search: string): boolean {
  * null when nothing usable was found.
  */
 export function decodeState(search: string): Partial<ShareableState> | null {
+  const query = search.startsWith('?') ? search.slice(1) : search
   let params: URLSearchParams
   try {
-    params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+    params = new URLSearchParams(query)
   } catch {
     return null
   }
+  const rawValues = rawQueryValues(query)
 
   const out: Partial<ShareableState> = {}
-  for (const { key, decode } of URL_PARAMS) {
-    const raw = params.get(key)
-    if (raw !== null) decode?.(raw, out, params)
+  for (const { key, escaped, decode } of URL_PARAMS) {
+    const value = escaped ? rawValues.get(key) : params.get(key)
+    if (value !== undefined && value !== null) decode?.(value, out)
   }
   const selection = decodeSelection(params)
   if (selection) out.selection = selection

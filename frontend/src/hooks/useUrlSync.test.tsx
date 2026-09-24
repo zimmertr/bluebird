@@ -85,6 +85,33 @@ describe('useUrlSync', () => {
     expect(replace).toHaveBeenCalledOnce()
   })
 
+  // The model is part of what the numbers mean, so a link copied straight
+  // after a model change must carry the new one, with no other edit to help.
+  it('writes a model change alone', () => {
+    const { rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), {
+      initialProps: inputs({ showRadar: true }),
+    })
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(new URLSearchParams(window.location.search).get('model')).toBe('gfs_seamless')
+    rerender(inputs({ showRadar: true, forecastModel: 'ecmwf_ifs025' }))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(new URLSearchParams(window.location.search).get('model')).toBe('ecmwf_ifs025')
+  })
+
+  // The deployment's default arrives from /api/capabilities after the first
+  // render. A panel model that was the compiled default and is not the
+  // published one is a real choice, and the link must appear for it.
+  it('writes when the published default model moves off the panel model', () => {
+    const { rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), {
+      initialProps: inputs({ forecastModel: 'ecmwf_ifs025', defaultForecastModel: 'ecmwf_ifs025' }),
+    })
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(window.location.search).toBe('')
+    rerender(inputs({ forecastModel: 'ecmwf_ifs025', defaultForecastModel: 'gfs_seamless' }))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(new URLSearchParams(window.location.search).get('model')).toBe('ecmwf_ifs025')
+  })
+
   // The writer outlives every render: a new one per render would drop the
   // timer the debounce is counting down.
   it('hands back the same writer on every render, and its flush writes now', () => {

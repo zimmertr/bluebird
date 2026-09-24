@@ -18,15 +18,7 @@ import {
 } from '../metrics'
 import { type Constraints, NO_CONSTRAINTS } from './constraints'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid'
-import {
-  DAY_END,
-  DAY_START,
-  type ForecastSelection,
-  isDayKey,
-  isTimeOfDay,
-  isValidDatetimeLocal,
-  orderDays,
-} from './calendar'
+import { type ForecastSelection, isDayKey, isTimeOfDay, orderDays } from './calendar'
 import type { Place } from './geocode'
 import type { ShareableState } from './urlState'
 
@@ -36,14 +28,76 @@ import type { ShareableState } from './urlState'
  * `encode` answers the value to write, or null to leave the key out. `decode`
  * runs only when the link carries the key, and folds its value into the state
  * being built; it may read what an EARLIER row decoded, which is why the table's
- * order is a contract for reading as well as for writing. Either half may be
- * absent: a legacy key is read and never written, and the window's keys are
- * written here but read together by `decodeSelection`.
+ * order is a contract for reading as well as for writing. The window's keys
+ * have no `decode`: they are written here but read together by
+ * `decodeSelection`.
+ *
+ * `escaped` marks a row that does its own escaping: `encode` answers query text
+ * the writer copies as it is, and `decode` is handed the raw query text rather
+ * than the percent-decoded value. Every other row deals in plain text and the
+ * writer escapes it with `escapeQueryText`.
  */
 export interface ParamCodec {
   key: string
+  escaped?: true
   encode?: (state: ShareableState) => string | null
-  decode?: (raw: string, out: Partial<ShareableState>, params: URLSearchParams) => void
+  decode?: (raw: string, out: Partial<ShareableState>) => void
+}
+
+// Control defaults: they must mirror the initial useState values in the hooks
+// that hold the panel's state (`useRankingKnobs`). The two rows below write
+// only off them, and `urlState.ts` re-exports both under the names the panel
+// already imports.
+//
+// The ranking opens on the FIRST row of the Metrics table, so the selected
+// radio is the one a reader's eye lands on rather than one four rows down
+// (TJ, 2026-09-14). The table is alphabetical, which is what puts AQI there.
+export const DEFAULT_SORT: SortBy = 'aqi_avg'
+// Exported because the panel now shows it as a PLACEHOLDER rather than a
+// value, so three files needed the same number and two of them were spelling
+// it themselves.
+export const DEFAULT_LIMIT = 200
+
+// What a query value may carry as itself: the unreserved characters, plus the
+// four delimiters the readable fields are built from (`type=peak,lake`,
+// `poly=lng,lat;lng,lat`, `h1=06:00`, an OSM id's `node/123`). RFC 3986 allows
+// all of them in a query, and a browser keeps them as written, so the address
+// bar shows the link this module wrote. `URLSearchParams` would encode all
+// four, which is why the writer does not use it.
+const QUERY_SAFE = /%(2C|3B|3A|2F)/g
+const QUERY_SAFE_CHARS: Record<string, string> = { '2C': ',', '3B': ';', '3A': ':', '2F': '/' }
+// encodeURIComponent leaves these raw. A browser encodes `'` in a query itself,
+// which would leave the address bar different from what was written, and the
+// brackets end a link early in some chat and Markdown renderers.
+const QUERY_UNSAFE_MARKS = /[!'()*]/g
+// encodeURIComponent throws on half a surrogate pair. URLSearchParams writes
+// U+FFFD for one, and so does this.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/**
+ * Escape plain text for a query value: a space as `+`, the readable delimiters
+ * as themselves, and everything else percent-encoded once. `&`, `=`, `#`, `%`
+ * and a literal `+` are always encoded, so the value cannot end early or read
+ * back as something else.
+ */
+export function escapeQueryText(text: string): string {
+  return encodeURIComponent(text.replace(LONE_SURROGATE, '\uFFFD'))
+    .replace(QUERY_UNSAFE_MARKS, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
+    .replace(/%20/g, '+')
+    .replace(QUERY_SAFE, (_, hex: string) => QUERY_SAFE_CHARS[hex])
+}
+
+/**
+ * Read a query value back to plain text: `+` as a space, then one layer of
+ * percent-decoding. Null for a malformed escape, so the caller drops the value
+ * rather than throwing.
+ */
+export function unescapeQueryText(raw: string): string | null {
+  try {
+    return decodeURIComponent(raw.replace(/\+/g, ' '))
+  } catch {
+    return null
+  }
 }
 
 const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
@@ -103,11 +157,17 @@ function decodePolygon(raw: string): GeoPolygon | null {
   return { type: 'Polygon', coordinates: [[...pts, pts[0]]] }
 }
 
-// Encode pinned places as "lat,lon,kind,elev,osmId,label" per pin, ';'-joined.
-// Each field is percent-encoded so a label containing ',' or ';' can't collide
-// with the delimiters (URLSearchParams decodes the outer layer on read, then
-// decodePins splits and unescapes each field). Coords are rounded like the
-// polygon ring to keep the URL short. Missing elevation/osmId encode as empty.
+// Escape one pin field. On top of the value escape, a field encodes the two
+// delimiters the list is built from, so a label holding `,` or `;` cannot split
+// a pin. That is still the ONE layer of encoding: `East+Tiger+Mountain` and
+// `node/349018340` read in the address bar as they are.
+function escapePinField(field: string): string {
+  return escapeQueryText(field).replace(/,/g, '%2C').replace(/;/g, '%3B')
+}
+
+// Encode pinned places as "lon,lat,kind,elev,osmId,label" per pin, ';'-joined,
+// as query text (the row is `escaped`). Coords are rounded like the polygon
+// ring to keep the URL short. Missing elevation/osmId encode as empty.
 function encodePins(places: Place[]): string {
   return places
     .map((p) => {
@@ -119,21 +179,36 @@ function encodePins(places: Place[]): string {
         p.osmId ?? '',
         p.label,
       ]
-      return fields.map((f) => encodeURIComponent(f)).join(',')
+      return fields.map(escapePinField).join(',')
     })
     .join(';')
 }
 
-// Parse the pins param back into Places. Tolerant like the rest of decodeState:
-// an entry without a finite lon/lat is skipped rather than failing the whole
-// list. `description`/`bbox` aren't persisted — a restored pin doesn't need the
-// disambiguation line or the fly-to extent — so they come back empty/absent.
+// Parse the pins param back into Places. It reads the RAW query text: the
+// delimiters are split first, while a label's own `,` and `;` are still
+// escaped, and each field is then decoded once. Tolerant like the rest of
+// decodeState: an entry without a finite lon/lat, or with a malformed escape,
+// is skipped rather than failing the whole list. A restored pin has no
+// `description` or `bbox`: it needs neither the disambiguation line nor the
+// fly-to extent, so a link does not carry them.
+//
+// A mail or chat client can re-encode the delimiters (`,` as `%2C`), and the
+// raw split then finds one field and no pin. When it finds none, the list is
+// read again with those two escapes taken as delimiters. Only those two, so a
+// `+` or a `%` in a label is still decoded once. A label's own comma then
+// splits it and that pin drops, which is the cost for a link that was
+// re-encoded on the way.
 function decodePins(raw: string): Place[] {
+  const pins = decodePinList(raw)
+  return pins.length > 0 ? pins : decodePinList(raw.replace(/%2C/gi, ',').replace(/%3B/gi, ';'))
+}
+
+function decodePinList(raw: string): Place[] {
   const out: Place[] = []
   for (const entry of raw.split(';')) {
-    const parts = entry.split(',').map((f) => decodeURIComponent(f))
-    if (parts.length < 6) continue
-    const [lonStr, latStr, kind, elevStr, osmId, label] = parts
+    const parts = entry.split(',').map(unescapeQueryText)
+    if (parts.length < 6 || parts.some((f) => f === null)) continue
+    const [lonStr, latStr, kind, elevStr, osmId, label] = parts as string[]
     const lon = Number(lonStr)
     const lat = Number(latStr)
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue
@@ -185,8 +260,10 @@ function aggregateRow(family: MetricFamily): ParamCodec {
     decode: (raw, out) => {
       const key = FAMILY_KEYS[family].find((k) => aggregateToken(k) === raw)
       if (key === undefined || key === DEFAULT_FAMILY_KEY[family]) return
-      const sortBy = out.sortBy
-      const active = sortBy !== undefined && familyOf(sortBy) === family
+      // No `sort` means the default ranking, since `sort` is written only off
+      // it, so the default's family is the active one then.
+      const sortBy = out.sortBy ?? DEFAULT_SORT
+      const active = familyOf(sortBy) === family
       out.rowKeys = { ...(out.rowKeys ?? DEFAULT_FAMILY_KEY), [family]: active ? sortBy : key }
     },
   }
@@ -234,7 +311,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
       if (types.length > 0) out.destinationTypes = [...new Set(types)]
     },
   },
-  // Always written once the link exists. No legacy sort map: the aggregate keys
+  // Written only off the default, so a link carries what the reader changed and
+  // an absent key reads as the default. No legacy sort map: the aggregate keys
   // it used to fold into their metric's representative one (`wind_max_mph` to
   // `wind_avg_mph`) are first-class RANKING_KEYS since #291, so an old link
   // restores as exactly the ranking it named. The active family's dropdown
@@ -242,7 +320,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // choice a reload must keep.
   {
     key: 'sort',
-    encode: (state) => state.sortBy,
+    encode: (state) => (state.sortBy !== DEFAULT_SORT ? state.sortBy : null),
     decode: (raw, out) => {
       if (!(RANKING_KEYS as readonly string[]).includes(raw)) return
       const sortBy = raw as SortBy
@@ -261,10 +339,10 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // allows gets clamped down by the caller, never discarded. Dropping it here
   // is what made a shared `limit=500` open silently at the default instead of
   // at the maximum (issue #191), and the 200 that used to live here was a copy
-  // of a cap that moved in #181.
+  // of a cap that moved in #181. Written only off the default, like `sort`.
   {
     key: 'limit',
-    encode: (state) => String(state.limit),
+    encode: (state) => (state.limit !== DEFAULT_LIMIT ? String(state.limit) : null),
     decode: (raw, out) => {
       const n = Number(raw)
       if (Number.isInteger(n) && n >= 1) out.limit = n
@@ -311,8 +389,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   // The window's five keys are read together by `decodeSelection`, because
-  // what `h1` means depends on `mode` and `d1`, and three legacy keys (`at`,
-  // `start`, `end`) share the answer.
+  // what `h1` means depends on `mode` and `d1`.
   //
   // `mode` is always written, even at its default. Links used to leave it out
   // for the then-default window mode and let the reader infer it; that made
@@ -381,25 +458,24 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   },
   // A 100-row CSV is ~13 KB raw; compressing keeps the shared link ~1-2 KB (and
   // off Firefox's address-bar / ingress limits). Only this field is opaque:
-  // every other param stays plain text and hand-editable. Written under a
-  // distinct `customz` key so a reader can tell it apart from legacy raw
-  // `custom=` links. decompress returns null on a garbled value, which is
-  // dropped.
+  // every other param stays plain text and hand-editable. decompress returns
+  // null on a garbled value, which is dropped.
+  //
+  // Written as lz-string's own output, six bits a character from
+  // `A-Za-z0-9+-`, all legal in a query. The `+` is the one an escape would
+  // touch: escaped it costs two bytes more, and read back unescaped it arrives
+  // as a space, which decompressFromEncodedURIComponent turns back into `+`
+  // before it decodes. Read through the ordinary unescape, so a link written
+  // with `%2B` opens the same.
   {
     key: 'customz',
+    escaped: true,
     encode: (state) => (hasCustomCsv(state) ? compressToEncodedURIComponent(state.customCsv) : null),
     decode: (raw, out) => {
-      if (!raw) return
-      const decoded = decompressFromEncodedURIComponent(raw)
+      const text = unescapeQueryText(raw)
+      if (!text) return
+      const decoded = decompressFromEncodedURIComponent(text)
       if (decoded) out.customCsv = decoded
-    },
-  },
-  // Read only, so links shared before compression still open. The compressed
-  // field is preferred whenever a link carries one, even a garbled one.
-  {
-    key: 'custom',
-    decode: (raw, out, params) => {
-      if (!params.get('customz') && raw) out.customCsv = raw
     },
   },
   flag('fires', 'showWildfires'),
@@ -454,6 +530,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   flag('unnamed', 'includeUnnamedPeaks'),
   {
     key: 'pins',
+    escaped: true,
     encode: (state) => (state.pins.length > 0 ? encodePins(state.pins) : null),
     decode: (raw, out) => {
       if (!raw) return
@@ -473,7 +550,7 @@ export const FIELD_PARAMS = {
   polygon: ['poly'],
   destinationTypes: ['type'],
   includeUnnamedPeaks: ['unnamed'],
-  // Read back by `decodeSelection` together with the legacy `at`/`start`/`end`.
+  // Read back together by `decodeSelection`.
   selection: ['mode', 'd1', 'd2', 'h1', 'h2'],
   forecastModel: ['model'],
   compareModels: ['compare'],
@@ -486,8 +563,7 @@ export const FIELD_PARAMS = {
     'mincloudbase', 'maxcloudbase', 'mincloudcover', 'maxcloudcover',
   ],
   limit: ['limit'],
-  // `custom` is the legacy reader of the same field.
-  customCsv: ['customz', 'custom'],
+  customCsv: ['customz'],
   showWildfires: ['fires'],
   showRadar: ['radar'],
   showSmoke: ['smoke'],
@@ -501,24 +577,9 @@ export const FIELD_PARAMS = {
 } satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 
 /**
- * Read the forecast selection out of a query string, translating the three
- * pre-calendar shapes forward.
- *
- * The old readers are kept rather than replaced, the same way `custom` survives
- * alongside `customz`: every link ever shared carries one of them, and a link
- * that silently restored as the wrong window would be worse than one that
- * failed. What each translates to:
- *
- * - `mode=now` is unchanged, and the only shape that already fit.
- * - `mode=at&at=<moment>` becomes that single day narrowed to that one hour.
- *   Equal hours are how a point sample travels: the backend floors them to the
- *   hour containing the moment, which is exactly what `at` meant.
- * - `mode=window&start&end` becomes the day range the window spanned, keeping
- *   its times as the narrow-hours refinement rather than rounding them away. A
- *   window that already ran midnight to 23:59 restores as plain whole days.
- * - A bare `start`/`end` pair with no `mode` at all predates `mode` being
- *   written; it read as a window then and still does. One timestamp alone
- *   carries no span, so it restores as that whole day rather than a guess.
+ * Read the forecast selection out of a query string: `mode=now`, or a day
+ * selection from `d1`/`d2` with an optional `h1`/`h2` narrowing. A link that
+ * carries neither shape restores no selection, and the panel keeps its own.
  */
 export function decodeSelection(params: URLSearchParams): ForecastSelection | undefined {
   const mode = params.get('mode')
@@ -549,25 +610,5 @@ export function decodeSelection(params: URLSearchParams): ForecastSelection | un
     }
   }
 
-  const at = params.get('at')
-  if (mode === 'at' && at && isValidDatetimeLocal(at)) {
-    const [date, time] = at.split('T')
-    return { kind: 'days', startDate: date, endDate: date, hours: { start: time, end: time } }
-  }
-
-  const start = params.get('start')
-  const end = params.get('end')
-  const from = start && isValidDatetimeLocal(start) ? start : null
-  const to = end && isValidDatetimeLocal(end) ? end : null
-  if (from === null && to === null) return undefined
-  const [startDate, startTime] = (from ?? (to as string)).split('T')
-  const [endDate, endTime] = (to ?? (from as string)).split('T')
-  const days = orderDays(startDate, endDate)
-  const wholeDays =
-    (from === null || to === null) || (startTime === DAY_START && endTime === DAY_END)
-  return {
-    kind: 'days',
-    ...days,
-    ...(wholeDays ? {} : { hours: { start: startTime, end: endTime } }),
-  }
+  return undefined
 }
