@@ -1,0 +1,480 @@
+{
+  "full": {
+    "destinationTypes": [
+      "peak",
+      "lake"
+    ],
+    "sortBy": "wind_max_mph",
+    "sortDesc": true,
+    "rowKeys": {
+      "precip": "precip_avg_in_hr",
+      "wind": "wind_max_mph",
+      "temp": "temp_max_f",
+      "freeze": "freeze_min_ft",
+      "snow": "snow_depth_in",
+      "aqi": "aqi_max",
+      "cloud_base": "cloud_base_min_ft",
+      "cloud_cover": "cloud_cover_min_pct"
+    },
+    "limit": 50,
+    "selection": {
+      "kind": "days",
+      "startDate": "2026-07-04",
+      "endDate": "2026-07-07",
+      "hours": {
+        "start": "06:00",
+        "end": "18:30"
+      }
+    },
+    "forecastModel": "gfs_hrrr",
+    "compareModels": [
+      "icon_seamless",
+      "ecmwf_ifs025"
+    ],
+    "constraints": {
+      "minPrecipTotalIn": 0,
+      "maxPrecipTotalIn": 0.25,
+      "minTempF": -10,
+      "maxTempF": 85.5,
+      "minWindMph": 1,
+      "maxWindMph": 30,
+      "minFreezeFt": 4000,
+      "maxFreezeFt": 12000,
+      "minSnowDepthIn": 2,
+      "maxSnowDepthIn": 80,
+      "minAqi": 0,
+      "maxAqi": 50,
+      "minCloudBaseFt": 3000,
+      "maxCloudBaseFt": 15000,
+      "minCloudCoverPct": 5,
+      "maxCloudCoverPct": 60
+    },
+    "polygon": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -121.76041,
+            46.85289
+          ],
+          [
+            -121.49094,
+            46.20241
+          ],
+          [
+            -121.11391,
+            48.11223
+          ],
+          [
+            -121.76041,
+            46.85289
+          ]
+        ]
+      ]
+    },
+    "customCsv": "Name,Lat,Lon\nA peak,46.85,-121.76\n",
+    "showWildfires": true,
+    "showRadar": true,
+    "showSmoke": true,
+    "showSnow": true,
+    "showGrid": true,
+    "gridStyle": "smooth",
+    "gridReachFrac": 0.4,
+    "showPlayer": false,
+    "includeUnnamedPeaks": true,
+    "pins": [
+      {
+        "label": "Tricky, name; & co %",
+        "description": "",
+        "kind": "peak",
+        "lat": 48.7768,
+        "lon": -121.8144,
+        "elevationFt": 14505,
+        "osmId": "node/123"
+      },
+      {
+        "label": "36.12346, -118.20000",
+        "description": "",
+        "kind": "coordinates",
+        "lat": 36.12346,
+        "lon": -118.2
+      }
+    ]
+  },
+  "nowOnly": {
+    "sortBy": "aqi_avg",
+    "limit": 200,
+    "selection": {
+      "kind": "now"
+    },
+    "forecastModel": "icon_seamless",
+    "constraints": {
+      "minPrecipTotalIn": null,
+      "maxPrecipTotalIn": null,
+      "minTempF": null,
+      "maxTempF": null,
+      "minWindMph": null,
+      "maxWindMph": null,
+      "minFreezeFt": null,
+      "maxFreezeFt": null,
+      "minSnowDepthIn": null,
+      "maxSnowDepthIn": null,
+      "minAqi": null,
+      "maxAqi": null,
+      "minCloudBaseFt": null,
+      "maxCloudBaseFt": null,
+      "minCloudCoverPct": null,
+      "maxCloudCoverPct": 60
+    },
+    "showPlayer": true
+  },
+  "dateless": {
+    "sortBy": "temp_min_f",
+    "rowKeys": {
+      "precip": "precip_total_in",
+      "wind": "wind_avg_mph",
+      "temp": "temp_min_f",
+      "freeze": "freeze_min_ft",
+      "snow": "snow_depth_in",
+      "aqi": "aqi_avg",
+      "cloud_base": "cloud_base_min_ft",
+      "cloud_cover": "cloud_cover_avg_pct"
+    },
+    "limit": 200,
+    "selection": {
+      "kind": "days",
+      "startDate": null,
+      "endDate": null,
+      "hours": {
+        "start": "00:00",
+        "end": "23:59"
+      }
+    },
+    "forecastModel": "ecmwf_ifs025",
+    "showGrid": true,
+    "gridStyle": "blocks"
+  },
+  "links": [
+    {
+      "q": "mode=at&at=2026-07-04T09:30&custom=A%2C1%2C2&sort=temp_avg_f&temp=max&wind=max&grid=blocks&reach=250&player=1&minel=1000",
+      "dec": {
+        "sortBy": "temp_avg_f",
+        "rowKeys": {
+          "precip": "precip_total_in",
+          "wind": "wind_max_mph",
+          "temp": "temp_avg_f",
+          "freeze": "freeze_min_ft",
+          "snow": "snow_depth_in",
+          "aqi": "aqi_avg",
+          "cloud_base": "cloud_base_min_ft",
+          "cloud_cover": "cloud_cover_avg_pct"
+        },
+        "selection": {
+          "kind": "days",
+          "startDate": "2026-07-04",
+          "endDate": "2026-07-04",
+          "hours": {
+            "start": "09:30",
+            "end": "09:30"
+          }
+        },
+        "customCsv": "A,1,2",
+        "showGrid": true,
+        "gridStyle": "blocks",
+        "gridReachFrac": 1,
+        "showPlayer": true
+      }
+    },
+    {
+      "q": "?start=2026-07-05T08:00&end=2026-07-04T17:00&customz=garbage&custom=x&type=custom,peak,peak&limit=0&model=Bad-Model&compare=a,a,B,b",
+      "dec": {
+        "destinationTypes": [
+          "peak"
+        ],
+        "selection": {
+          "kind": "days",
+          "startDate": "2026-07-04",
+          "endDate": "2026-07-05",
+          "hours": {
+            "start": "08:00",
+            "end": "17:00"
+          }
+        },
+        "compareModels": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "q": "customz=&custom=raw&end=2026-07-04T00:00&reach=10&player=2&desc=0&minaqi=abc&maxaqi=12&poly=1,2;3,4",
+      "dec": {
+        "selection": {
+          "kind": "days",
+          "startDate": "2026-07-04",
+          "endDate": "2026-07-04"
+        },
+        "constraints": {
+          "minPrecipTotalIn": null,
+          "maxPrecipTotalIn": null,
+          "minTempF": null,
+          "maxTempF": null,
+          "minWindMph": null,
+          "maxWindMph": null,
+          "minFreezeFt": null,
+          "maxFreezeFt": null,
+          "minSnowDepthIn": null,
+          "maxSnowDepthIn": null,
+          "minAqi": null,
+          "maxAqi": 12,
+          "minCloudBaseFt": null,
+          "maxCloudBaseFt": null,
+          "minCloudCoverPct": null,
+          "maxCloudCoverPct": null
+        },
+        "customCsv": "raw"
+      }
+    },
+    {
+      "q": "mode=window&start=2026-07-04T00:00&end=2026-07-06T23:59&d2=2026-07-09&h1=01:00",
+      "dec": {
+        "selection": {
+          "kind": "days",
+          "startDate": "2026-07-04",
+          "endDate": "2026-07-06"
+        }
+      }
+    },
+    {
+      "q": "d1=2026-07-09&d2=2026-07-04&h1=07:00&h2=09:00&sort=freeze_max_ft&freeze=avg&snow=depth&analyze=1",
+      "dec": {
+        "sortBy": "freeze_max_ft",
+        "rowKeys": {
+          "precip": "precip_total_in",
+          "wind": "wind_avg_mph",
+          "temp": "temp_avg_f",
+          "freeze": "freeze_max_ft",
+          "snow": "snow_depth_in",
+          "aqi": "aqi_avg",
+          "cloud_base": "cloud_base_min_ft",
+          "cloud_cover": "cloud_cover_avg_pct"
+        },
+        "selection": {
+          "kind": "days",
+          "startDate": "2026-07-04",
+          "endDate": "2026-07-09",
+          "hours": {
+            "start": "07:00",
+            "end": "09:00"
+          }
+        }
+      }
+    },
+    {
+      "q": "mode=days&h1=07:00&pins=-118.2,36.1,coordinates,,,A;notanum,36.1,,,,B",
+      "dec": {
+        "selection": {
+          "kind": "days",
+          "startDate": null,
+          "endDate": null
+        },
+        "pins": [
+          {
+            "label": "A",
+            "description": "",
+            "kind": "coordinates",
+            "lat": 36.1,
+            "lon": -118.2
+          }
+        ]
+      }
+    },
+    {
+      "q": "",
+      "dec": null
+    },
+    {
+      "q": "mode=bogus",
+      "dec": null
+    },
+    {
+      "q": "sort=aqi_avg&aqi=max",
+      "dec": {
+        "sortBy": "aqi_avg",
+        "rowKeys": {
+          "precip": "precip_total_in",
+          "wind": "wind_avg_mph",
+          "temp": "temp_avg_f",
+          "freeze": "freeze_min_ft",
+          "snow": "snow_depth_in",
+          "aqi": "aqi_avg",
+          "cloud_base": "cloud_base_min_ft",
+          "cloud_cover": "cloud_cover_avg_pct"
+        }
+      }
+    },
+    {
+      "q": "sort=bogus&aqi=max&wind=total&precip=avg",
+      "dec": {
+        "rowKeys": {
+          "precip": "precip_avg_in_hr",
+          "wind": "wind_avg_mph",
+          "temp": "temp_avg_f",
+          "freeze": "freeze_min_ft",
+          "snow": "snow_depth_in",
+          "aqi": "aqi_max",
+          "cloud_base": "cloud_base_min_ft",
+          "cloud_cover": "cloud_cover_avg_pct"
+        }
+      }
+    },
+    {
+      "q": "sort=temp_max_f&temp=min&precip=total",
+      "dec": {
+        "sortBy": "temp_max_f",
+        "rowKeys": {
+          "precip": "precip_total_in",
+          "wind": "wind_avg_mph",
+          "temp": "temp_max_f",
+          "freeze": "freeze_min_ft",
+          "snow": "snow_depth_in",
+          "aqi": "aqi_avg",
+          "cloud_base": "cloud_base_min_ft",
+          "cloud_cover": "cloud_cover_avg_pct"
+        }
+      }
+    },
+    {
+      "q": "sort=temp_avg_f&sort=wind_max_mph&limit=2.5",
+      "dec": {
+        "sortBy": "temp_avg_f"
+      }
+    },
+    {
+      "q": "grid=nope&reach=50",
+      "dec": null
+    },
+    {
+      "q": "grid=smooth&reach=",
+      "dec": {
+        "showGrid": true,
+        "gridStyle": "smooth",
+        "gridReachFrac": 0
+      }
+    },
+    {
+      "q": "grid=blocks&reach=-5",
+      "dec": {
+        "showGrid": true,
+        "gridStyle": "blocks",
+        "gridReachFrac": 0
+      }
+    },
+    {
+      "q": "reach=50",
+      "dec": null
+    },
+    {
+      "q": "customz=garbage",
+      "dec": null
+    },
+    {
+      "q": "customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g&custom=raw",
+      "dec": {
+        "customCsv": "Name,Lat,Lon\nA peak,46.85,-121.76\n"
+      }
+    },
+    {
+      "q": "poly=&type=&pins=&compare=&model=&custom=",
+      "dec": null
+    },
+    {
+      "q": "poly=1,2;3,4;5,x",
+      "dec": null
+    },
+    {
+      "q": "poly=1,2;3,4;5,6&limit=7&desc=1&unnamed=1&fires=1&radar=0&smoke=true&snow=1&player=0",
+      "dec": {
+        "sortDesc": true,
+        "limit": 7,
+        "polygon": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ],
+              [
+                1,
+                2
+              ]
+            ]
+          ]
+        },
+        "showWildfires": true,
+        "showSnow": true,
+        "showPlayer": false,
+        "includeUnnamedPeaks": true
+      }
+    },
+    {
+      "q": "minprecip=1e2&maxtemp=Infinity&mintemp=&maxwind=-5",
+      "dec": {
+        "constraints": {
+          "minPrecipTotalIn": 100,
+          "maxPrecipTotalIn": null,
+          "minTempF": 0,
+          "maxTempF": null,
+          "minWindMph": null,
+          "maxWindMph": -5,
+          "minFreezeFt": null,
+          "maxFreezeFt": null,
+          "minSnowDepthIn": null,
+          "maxSnowDepthIn": null,
+          "minAqi": null,
+          "maxAqi": null,
+          "minCloudBaseFt": null,
+          "maxCloudBaseFt": null,
+          "minCloudCoverPct": null,
+          "maxCloudCoverPct": null
+        }
+      }
+    },
+    {
+      "q": "pins=a%2Cb;1,2,peak,notnum,,Label%20X;3,4,peak,12,way%2F9",
+      "dec": {
+        "pins": [
+          {
+            "label": "Label X",
+            "description": "",
+            "kind": "peak",
+            "lat": 2,
+            "lon": 1
+          }
+        ]
+      }
+    },
+    {
+      "q": "type=lake,%20trailhead,peak&mode=now&d1=2026-07-04",
+      "dec": {
+        "destinationTypes": [
+          "lake",
+          "trailhead",
+          "peak"
+        ],
+        "selection": {
+          "kind": "now"
+        }
+      }
+    }
+  ]
+}
