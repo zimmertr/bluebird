@@ -81,6 +81,9 @@ const full: ShareableState = {
     place({ label: 'Tricky, name; & co %', elevationFt: 14505, osmId: 'node/123' }),
     place({ label: '', kind: 'coordinates', lat: 36.123456, lon: -118.2 }),
   ],
+  removed: ['46.85289,-121.76041', '48.10000,-121.11391'],
+  tableSort: { key: 'elevation_ft', desc: true },
+  view: { lng: -121.612345, lat: 47.1, zoom: 9.456 },
 }
 
 // The Current arm with only the model, one bound and the player decided.
@@ -105,6 +108,9 @@ const nowOnly: ShareableState = {
   showGrid: false,
   showPlayer: true,
   pins: [],
+  removed: [],
+  tableSort: null,
+  view: null,
 }
 
 // The dateless Dates arm with its hours open, and the grid at its default reach.
@@ -133,7 +139,8 @@ describe('the codec table against the links it wrote before', () => {
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
         '&fires=1&radar=1&smoke=1&snow=1&grid=smooth&reach=40&player=0&unnamed=1' +
         '&pins=-121.8144,48.7768,peak,14505,node/123,Tricky%2C+name%3B+%26+co+%25' +
-        ';-118.2,36.12346,coordinates,,,',
+        ';-118.2,36.12346,coordinates,,,' +
+        '&removed=-121.76041,46.85289;-121.11391,48.1&tsort=elevation_ft&tdesc=1&view=-121.6123,47.1,9.46',
     )
     expect(encodeState(nowOnly, DEFAULT_MODEL)).toBe('model=icon_seamless&mode=now&maxcloudcover=60&player=1')
     expect(encodeState(dateless, DEFAULT_MODEL)).toBe(
@@ -209,6 +216,10 @@ describe('the codec table', () => {
       'player',
       'unnamed',
       'pins',
+      'removed',
+      'tsort',
+      'tdesc',
+      'view',
     ])
   })
 

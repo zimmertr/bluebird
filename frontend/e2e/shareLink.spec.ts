@@ -65,10 +65,12 @@ test('the address bar keeps the readable link the app writes, and writes it once
   )
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
 
-  // The model is the deployment's default, whatever it is today, so it is
-  // read as a shape and the rest of the query compared exactly.
-  const readable = `?type=peak&model=M&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&pins=${pin}`
-  const shape = (search: string) => search.replace(/model=[a-z0-9_]+/, 'model=M')
+  // The model is the deployment's default, whatever it is today, and the
+  // camera is where the opening fit left it, so both are read as a shape and
+  // the rest of the query compared exactly.
+  const readable = `?type=peak&model=M&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&pins=${pin}&view=V`
+  const shape = (search: string) =>
+    search.replace(/model=[a-z0-9_]+/, 'model=M').replace(/&view=-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+(\.\d+)?$/, '&view=V')
   await expect.poll(async () => shape(await page.evaluate(() => location.search))).toBe(readable)
   expect(shape(new URL(page.url()).search)).toBe(readable)
 
@@ -97,4 +99,47 @@ test('a model the deployment does not offer falls back to the default, in the pa
   await expect(page.getByRole('button', { name: `Forecast model: ${fallback.label} +1`, exact: true })).toBeVisible()
   await expect.poll(() => new URL(page.url()).searchParams.get('model')).toBe(fallback.id)
   await expect.poll(() => new URL(page.url()).searchParams.get('compare')).toBe(compared.id)
+})
+
+test('a link reopens at its camera, with its removals and its table order', async ({ page }) => {
+  // The fixture places its five destinations around the ring's centroid; the
+  // third, Gamma Butte, stands at (-121.792, 47.4375) for this ring.
+  const d1 = isoDay(1)
+  const view = '-121.75,47.45,10.25'
+  await page.goto(
+    `/?type=peak&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55` +
+      `&removed=-121.792,47.4375&tsort=name&tdesc=1&view=${view}&analyze=1`,
+  )
+
+  // The removal survives the link's own first Analyze, and the header sort
+  // survives the report it arrives with.
+  const rows = page.locator('table tbody tr')
+  await expect(rows).toHaveCount(DESTINATION_NAMES.length - 1)
+  const names = [...DESTINATION_NAMES].filter((n) => n !== 'Gamma Butte').sort().reverse()
+  for (const [i, name] of names.entries()) await expect(rows.nth(i)).toContainText(name)
+
+  // The map opened on the link's camera rather than fitting the ring, so the
+  // camera it reports once loaded is the one the link named.
+  const search = () => new URL(page.url()).searchParams
+  await expect.poll(() => search().has('analyze')).toBe(false)
+  expect(search().get('view')).toBe(view)
+  expect(search().get('removed')).toBe('-121.792,47.4375')
+  expect(search().get('tsort')).toBe('name')
+  expect(search().get('tdesc')).toBe('1')
+})
+
+test('a fresh session writes no link until the reader moves the map', async ({ page }) => {
+  await page.goto('/')
+  const canvas = page.locator('.maplibregl-canvas')
+  await expect(canvas).toBeVisible()
+  // The opening camera settles and the debounce runs out with nothing written.
+  await page.waitForTimeout(1000)
+  expect(new URL(page.url()).search).toBe('')
+
+  const box = (await canvas.boundingBox())!
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2 - 60, { steps: 8 })
+  await page.mouse.up()
+  await expect.poll(() => new URL(page.url()).searchParams.get('view')).toMatch(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+(\.\d+)?$/)
 })

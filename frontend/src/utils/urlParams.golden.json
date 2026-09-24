@@ -99,7 +99,20 @@
         "lat": 36.12346,
         "lon": -118.2
       }
-    ]
+    ],
+    "removed": [
+      "46.85289,-121.76041",
+      "48.10000,-121.11391"
+    ],
+    "tableSort": {
+      "key": "elevation_ft",
+      "desc": true
+    },
+    "view": {
+      "lng": -121.6123,
+      "lat": 47.1,
+      "zoom": 9.46
+    }
   },
   "nowOnly": {
     "selection": {

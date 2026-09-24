@@ -30,6 +30,7 @@ export interface StubMapOptions {
   rendered?: (arg: unknown, opts?: unknown) => unknown[]
   canvasWidth?: number
   zoom?: number
+  center?: { lng: number; lat: number }
   bounds?: { west: number; south: number; east: number; north: number }
   /** Whether a source reports its tiles loaded. Everything is, by default. */
   sourceLoaded?: (id: string) => boolean
@@ -110,6 +111,7 @@ export function stubMap(opts: StubMapOptions = {}) {
     queryRenderedFeatures: (arg: unknown, o?: unknown) => opts.rendered?.(arg, o) ?? [],
     getCanvas: () => canvas,
     getZoom: () => opts.zoom ?? 8,
+    getCenter: () => opts.center ?? { lng: -121.5, lat: 47.5 },
     getBounds: () => ({
       getWest: () => b.west,
       getSouth: () => b.south,

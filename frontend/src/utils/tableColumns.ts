@@ -214,6 +214,16 @@ export const COLUMNS: ColDef[] = [
   { key: 'cloud_cover_avg_pct', unit: UNIT.cloud_cover, label: metricLabel('cloud_cover', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'clouds' },
 ]
 
+// Every key a header click can sort on: the table's columns and the two
+// virtual ones. A link's `tsort` is checked against it, so a hand-edited key
+// the table has no column for is dropped rather than sorting by nothing.
+const SORT_KEYS: ReadonlySet<string> = new Set([...COLUMNS.map((c) => c.key), WILDFIRE_KEY, MODEL_KEY])
+
+/** Whether a string names a column the table can sort on. */
+export function isSortKey(key: string): key is SortKey {
+  return SORT_KEYS.has(key)
+}
+
 /**
  * Order the table's columns so the ranked metric's group comes right after the
  * identity columns — an AQI ranking leads with both AQI columns straight after

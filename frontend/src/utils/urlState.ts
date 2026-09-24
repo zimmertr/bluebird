@@ -9,6 +9,8 @@ import { Constraints, hasConstraints } from './constraints'
 import { type GridStyle } from './forecastGrid'
 import { ForecastSelection } from './calendar'
 import { Place } from './geocode'
+import { type CameraView } from './mapView'
+import { type SortKey } from './tableColumns'
 import {
   DEFAULT_LIMIT,
   DEFAULT_SORT,
@@ -94,6 +96,24 @@ export interface ShareableState {
   // shared link repopulates them (and refetches their forecasts). Only the
   // fields needed to recreate the pin and its identity link are stored.
   pins: Place[]
+  // The rows the reader ×-removed, as `geoKey` coordinates (`utils/points.ts`),
+  // the identity `useRemovals` keys them by. A coordinate survives the
+  // refetch a shared link makes, where a row index would not.
+  removed: string[]
+  // The results table's header sort, or null while it follows the ranking.
+  // The link carries it because the order on screen is part of what a shared
+  // report says; `usePresentedReport` owns when it is set.
+  tableSort: { key: SortKey; desc: boolean } | null
+  // The map camera, or null before the map has reported one. It is written
+  // only in a link that exists: an app move never makes a link by itself, and
+  // a reader's own move does through `EncodeOptions.cameraMoved`.
+  view: CameraView | null
+}
+
+/** What the writer needs to know about the state that is not in it. */
+export interface EncodeOptions {
+  /** The reader has moved the camera themselves, so a camera alone makes a link. */
+  cameraMoved?: boolean
 }
 
 // Control defaults: they must mirror the initial useState values in the hooks
@@ -135,7 +155,11 @@ export function clampLimit(value: number, maxLimit: number): number {
 // into this module would be the mirrored-constant problem issue #152 exists to
 // stop, and it is only needed to answer one question: has the user moved off
 // the default, and does this state therefore deserve a URL at all.
-export function encodeState(state: ShareableState, defaultForecastModel: string): string {
+export function encodeState(
+  state: ShareableState,
+  defaultForecastModel: string,
+  options: EncodeOptions = {},
+): string {
   const hasConstraint = hasConstraints(state.constraints)
   const hasPins = state.pins.length > 0
   const nonDefaultControls =
@@ -156,7 +180,13 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     // Ticking a model onto the chart is a real edit, like choosing the model
     // beside it: the one thing that differs from a fresh session must not share
     // as a fresh session.
-    state.compareModels.length > 0
+    state.compareModels.length > 0 ||
+    state.removed.length > 0 ||
+    state.tableSort !== null ||
+    // TJ's rule (2026-09-24): a pan or a zoom alone makes a link. Only the
+    // reader's own move counts, or the opening camera of a fresh session would
+    // write one before anyone touched the map.
+    (options.cameraMoved === true && state.view !== null)
   if (!hasPolygon(state) && !hasCustomCsv(state) && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 

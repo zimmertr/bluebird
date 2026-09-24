@@ -79,6 +79,7 @@ function setup(points: Pts = TRI, drawing = true) {
     onAddPoi: () => {},
     onRemovePoi: () => {},
     cameraPadBottomPx: 0,
+    onCameraMove: () => {},
   }
   const ring = { current: points }
   const deps = {

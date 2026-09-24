@@ -18,6 +18,7 @@
 import type * as maplibregl from 'maplibre-gl'
 import type { GeoPolygon } from '../types'
 import { enhanceBasemap } from './basemap'
+import { mountCamera } from './camera'
 import { mountMapClick } from './click'
 import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
@@ -79,5 +80,8 @@ export function mountFeatures(
   const results = mountResultsLayer(map, { controller, popups, restCursor })
   const pois = mountPoiPopups(map, { controller, popups, restCursor })
   mountMapClick(map, { controller, popups, drawRing, smoke })
+  // Last: it adds no layer, and its first report is the camera the opening
+  // frame left.
+  mountCamera(map, { controller })
   return { grid, smoke, wildfires, snow, radar, drawRing, results, pois }
 }

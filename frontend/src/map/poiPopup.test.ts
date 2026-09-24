@@ -89,6 +89,7 @@ function setup({
     onAddPoi: vi.fn(),
     onRemovePoi: vi.fn(),
     cameraPadBottomPx: 0,
+    onCameraMove: () => {},
   }
   const controller = createMapController(inputs)
   const restCursor = vi.fn()

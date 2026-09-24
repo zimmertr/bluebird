@@ -36,6 +36,7 @@ import {
 import {
   decodeState,
 } from './utils/urlState'
+import { removalScopeFor } from './utils/analyzeRequest'
 import {
   panelCommitCues,
   reportView,
@@ -60,6 +61,8 @@ export default function App() {
   // the initial render, not a post-mount setState.
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
+  // The camera a link names: stable for the session, like `restored`.
+  const restoredView = restored?.view ?? null
 
   const destinationInputs = useDestinationInputs(restored)
   const {
@@ -74,6 +77,10 @@ export default function App() {
     removePlace,
     destinationNamed,
   } = destinationInputs
+  // The removal scope of the link's own ring and list, so the removals it
+  // carried survive its first Analyze (`useRemovals`). Measured once: the
+  // scope is the link's, not whatever the panel holds later.
+  const [restoredRemovalScope] = useState(() => removalScopeFor(polygon, destinationScope))
   const forecastSelection = useForecastSelection(restored, caps)
   const {
     selection,
@@ -187,7 +194,17 @@ export default function App() {
     gridReachFrac,
   } = gridLayer
 
-  const removals = useRemovals({ places, addPlace, removePlace, destinationScope, csvRows, universe, response })
+  const removals = useRemovals({
+    places,
+    addPlace,
+    removePlace,
+    destinationScope,
+    csvRows,
+    universe,
+    response,
+    restoredRemoved: restored?.removed,
+    restoredScope: restoredRemovalScope,
+  })
   const {
     removedKeys,
     activeRemovedKeys,
@@ -206,8 +223,30 @@ export default function App() {
   const { view, pointSample } = reportView(analyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
   const preview = usePreview()
 
+  const report = usePresentedReport({
+    universe,
+    response,
+    analyzed,
+    analysisSeq,
+    arriving,
+    liveKnobs,
+    view,
+    pointSample,
+    removedKeys,
+    activeRemovedKeys,
+    places,
+    csvRows,
+    restoredTableSort: restored?.tableSort ?? null,
+  })
+  const {
+    results,
+    detailSort,
+    tableSort,
+    pending,
+  } = report
+
   // The address bar mirrors the panel and the map's layers (useUrlSync).
-  const writeUrl = useUrlSync({
+  const urlSync = useUrlSync({
     polygon,
     destinationTypes,
     includeUnnamedPeaks,
@@ -230,27 +269,11 @@ export default function App() {
     gridReachFrac,
     places,
     defaultForecastModel: caps.defaultForecastModel,
-  })
-
-  const report = usePresentedReport({
-    universe,
-    response,
-    analyzed,
-    analysisSeq,
-    arriving,
-    liveKnobs,
-    view,
-    pointSample,
     removedKeys,
-    activeRemovedKeys,
-    places,
-    csvRows,
+    tableSort,
+    restoredView,
   })
-  const {
-    results,
-    detailSort,
-    pending,
-  } = report
+  const { writeUrl } = urlSync
 
   // Flags destinations within 10 mi of an active US wildfire; independent of the
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
@@ -419,6 +442,8 @@ export default function App() {
           onOpenControls={openDrawer}
           searchPointed={searchPointed}
           poisPointed={poisPointed}
+          urlSync={urlSync}
+          restoredView={restoredView}
         />
 
         <ResultsSheet

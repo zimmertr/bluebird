@@ -82,6 +82,9 @@ const base: ShareableState = {
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
   pins: [],
+  removed: [],
+  tableSort: null,
+  view: null,
 }
 
 // A truly untouched session: no polygon, no custom CSV, all controls at their
@@ -111,6 +114,9 @@ const pristine: ShareableState = {
   gridReachFrac: 0.5,
   includeUnnamedPeaks: false,
   pins: [],
+  removed: [],
+  tableSort: null,
+  view: null,
 }
 
 // Round-trip helper: encode, then decode the resulting query string.
@@ -1441,5 +1447,64 @@ describe('the run-on-open param', () => {
       expect(urlNeedsSync(qs, '/', flagged)).toBe(true)
       expect(urlNeedsSync(qs, '/', qs ? `?${qs}` : '')).toBe(false)
     }
+  })
+})
+
+// Decision 4 of #292: the link carries the camera, the removed rows and the
+// table's header sort.
+describe('the camera, the removals and the table order in a link', () => {
+  const view = { lng: -121.7601, lat: 46.8529, zoom: 10.5 }
+
+  it('round-trips all three', () => {
+    const state: ShareableState = {
+      ...base,
+      removed: ['46.85289,-121.76041', '47.10000,-121.50000'],
+      tableSort: { key: 'name', desc: true },
+      view,
+    }
+    const qs = encodeState(state, DEFAULT_MODEL)
+    expect(qs).toContain('&removed=-121.76041,46.85289;-121.5,47.1&tsort=name&tdesc=1&view=-121.7601,46.8529,10.5')
+    const out = decodeState(qs)!
+    expect(out.removed).toEqual(state.removed)
+    expect(out.tableSort).toEqual(state.tableSort)
+    expect(out.view).toEqual(view)
+  })
+
+  it('writes an ascending header sort as its key alone', () => {
+    const qs = encodeState({ ...base, tableSort: { key: 'elevation_ft', desc: false } }, DEFAULT_MODEL)
+    expect(new URLSearchParams(qs).get('tsort')).toBe('elevation_ft')
+    expect(new URLSearchParams(qs).has('tdesc')).toBe(false)
+    expect(decodeState(qs)!.tableSort).toEqual({ key: 'elevation_ft', desc: false })
+  })
+
+  // A removal or a header sort is an edit of the report, like a bound.
+  it('makes a link for a removal alone, and for a header sort alone', () => {
+    expect(encodeState({ ...pristine, removed: ['46.85289,-121.76041'] }, DEFAULT_MODEL)).toBe(
+      'model=ecmwf_ifs025&mode=now&removed=-121.76041,46.85289',
+    )
+    expect(encodeState({ ...pristine, tableSort: { key: 'name', desc: false } }, DEFAULT_MODEL)).toBe(
+      'model=ecmwf_ifs025&mode=now&tsort=name',
+    )
+  })
+
+  // TJ's rule: a pan or a zoom alone makes a link, and only the reader's own.
+  it('makes a link for a camera alone only when the reader moved it', () => {
+    expect(encodeState({ ...pristine, view }, DEFAULT_MODEL)).toBe('')
+    expect(encodeState({ ...pristine, view }, DEFAULT_MODEL, { cameraMoved: true })).toBe(
+      'model=ecmwf_ifs025&mode=now&view=-121.7601,46.8529,10.5',
+    )
+  })
+
+  it('carries the current camera in a link that exists for another reason', () => {
+    const qs = encodeState({ ...base, view }, DEFAULT_MODEL)
+    expect(new URLSearchParams(qs).get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  it('drops what it cannot read, and keeps the rest', () => {
+    expect(decodeState('removed=1,2,3;x,4;-121.5,47.1;-121.5,47.1;500,1')!.removed).toEqual(['47.10000,-121.50000'])
+    expect(decodeState('tsort=not_a_column&tdesc=1')).toBeNull()
+    expect(decodeState('tdesc=1')).toBeNull()
+    expect(decodeState('view=1,2&type=peak')).toEqual({ destinationTypes: ['peak'] })
+    expect(decodeState('tsort=wildfire_mi')!.tableSort).toEqual({ key: 'wildfire_mi', desc: false })
   })
 })
