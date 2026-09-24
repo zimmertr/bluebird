@@ -167,6 +167,7 @@ export default function MapStage({
     // map area keeps the whole column, so the canvas runs on behind the
     // sheet and its ResizeObserver sees no change on a drag.
     <div
+      data-tour="map"
       className={`flex-1 relative ${MAP_EDGE.publish}`}
       style={
         {

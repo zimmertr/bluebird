@@ -145,7 +145,7 @@ export default function DestinationsSection({
       {/* Polygon — bare noun, not "Search by polygon": beside Map and
           Coordinates, a Draw polygon button says the rest, and the verb
           phrase restated its own helper line. */}
-      <div className="mb-3">
+      <div data-tour="polygon" className="mb-3">
         <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
         {drawPointCount > 0 && (
           <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
@@ -288,7 +288,7 @@ export default function DestinationsSection({
           gesture at all: the three above are things you do to the map,
           and this is a list you bring to it. No helper line; the format
           states itself in the textarea placeholder. */}
-      <div>
+      <div data-tour="coordinates">
         <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinates</h3>
         <textarea
           aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"

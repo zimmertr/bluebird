@@ -14,7 +14,7 @@ RUFF_VERSION := 0.16.0
 # its own Chromium build, and the image carries the build for its own version.
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.63.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lighthouse browser perf
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lighthouse browser perf capture-tour-demo
 
 typecheck:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci && npx tsc --noEmit"
@@ -74,3 +74,9 @@ perf:
 	docker run -d --rm --name perf-target --network perf-net bluebird:perf
 	docker run --rm --network perf-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://perf-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci && npx playwright test --config perf/playwright.config.ts"
 	docker rm -f perf-target
+
+# Not a check: re-records the tutorial's demo analysis (#536) from the live
+# discovery endpoint and Open-Meteo. tsx rather than node because the app's
+# imports are extensionless; it is fetched for the run and never installed.
+capture-tour-demo:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci && npx --yes tsx tools/tour-demo/capture.ts"

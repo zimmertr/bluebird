@@ -67,7 +67,7 @@ export default function ForecastSection({
           whose effect is the next control down belongs beside it. A data
           knob either way — sort, limit and the bounds re-present held
           rows, while a different model is different numbers. Ordered longest-reach-first by the server. */}
-      <div className="mb-3 flex items-center gap-2">
+      <div data-tour="model" className="mb-3 flex items-center gap-2">
         {/* Label beside its control, like every other row in the panel.
             The trigger is a button carrying its own aria-label, not an
             input, so this is a span with nothing to point `htmlFor` at.
@@ -108,7 +108,11 @@ export default function ForecastSection({
       {/* Nothing between the model and the calendar, and nothing under it:
           every message this section has to make lives in the one block
           below the Analyze button (`utils/panelMessages.ts`). */}
-      <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
+      {/* A box around the calendar only so the tutorial has one element to
+          light: the calendar itself renders a fragment. */}
+      <div data-tour="calendar">
+        <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
+      </div>
     </section>
   )
 }

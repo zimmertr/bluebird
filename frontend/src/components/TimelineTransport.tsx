@@ -85,6 +85,7 @@ export default function TimelineTransport({
   const axisLabel = (a: TimelineAxis) => (a === 'radar' ? 'Radar' : forecastLabel)
   return (
     <div
+      data-tour="player"
       // Sits directly above the attribution control, which is a licence term
       // and cannot be covered.
       //

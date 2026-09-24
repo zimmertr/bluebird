@@ -2102,3 +2102,47 @@ export const TABLE = {
    */
   mark: `${TEXT.micro} leading-0`,
 } as const
+
+/**
+ * The tutorial (#536). Driver.js builds the card and the dimmed stage around
+ * the lit target, and `tour/runTour.ts` puts these classes on its elements from
+ * `onPopoverRender`. Driver's own stylesheet sits in a cascade layer under
+ * Tailwind's (`tour.css`), so wherever the two disagree these win.
+ *
+ * The card is the dialog card the welcome dialog wears, since the tutorial is
+ * started from it. `w-80` is the widest card a 360px phone holds inside the
+ * same 16px gutter the panel keeps, and the cap keeps it there on anything
+ * narrower. The title leaves room on its right for the close button. The card
+ * names `font-sans` because Driver's rule for it starts with `all: unset` and
+ * then sets a font stack of its own, so the app's font is not inherited.
+ *
+ * Its arrow is hidden (`tour.css`) rather than recoloured. Driver draws the
+ * arrow from four border colours, one of them the card's and three transparent,
+ * and a colour utility sets all four at once; the lit cut-out already says what
+ * the card is about.
+ *
+ * The two buttons are the panel's inline pair (Clear beside Done): the
+ * secondary fill for going back, the accent for the step forward. `ml-0`
+ * cancels the 4px Driver puts between two buttons, so the gap is `gap-2` alone.
+ */
+export const TOUR = {
+  card: `${SURFACE_CARD} font-sans p-4 w-80 max-w-[calc(100vw-2rem)]`,
+  title: `${PROSE.heading} pr-8`,
+  text: `${PROSE.body} mt-1`,
+  footer: 'mt-3 flex items-center gap-2',
+  progress: `${TEXT.caption} mr-auto`,
+  buttons: 'flex gap-2',
+  previous: `${BUTTON_SECONDARY} ${DISABLED}`,
+  next: `${BUTTON_ACCENT} ml-0`,
+  close: `${ICON_BUTTON} absolute top-3 right-3 flex items-center justify-center`,
+} as const
+
+/**
+ * The tutorial's stage, as Driver's config rather than classes, because Driver
+ * draws it in SVG. The dim is the welcome dialog's backdrop, black at 60
+ * percent; the cut-out stands 6px clear of its target, with `RADIUS.surface`'s
+ * 8px corner. Numbers apart from `TOUR`, which holds class recipes only.
+ */
+export const TOUR_DIM = 0.6
+export const TOUR_STAGE_PAD_PX = 6
+export const TOUR_STAGE_RADIUS_PX = 8

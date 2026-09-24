@@ -226,7 +226,7 @@ export default function ResultsPanels({
             onDrag={tableGrip.onDrag}
             onDragEnd={tableGrip.onDragEnd}
           />
-          <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
+          <div data-tour="results" className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
             <ResultsTable
               emptyReason={emptyReason}
               results={tableRows}

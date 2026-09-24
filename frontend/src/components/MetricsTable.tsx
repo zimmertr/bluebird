@@ -257,7 +257,7 @@ export default function MetricsTable({
   // then METRIC_HEAD_GAP above the two box headings, then the table
   // of the five bounds the ranking can use.
   return (
-    <section>
+    <section data-tour="metrics">
       <h2 className={`${TEXT.section} mb-2.5`}>
         Metrics
       </h2>

@@ -6,7 +6,8 @@ import type { FooterMessage } from '../utils/notices'
 import { render } from '../testSupport/render'
 
 // The footer draws what `panelMessages` decided: the button, then one box per
-// severity with each message dismissable alone, then the two document links.
+// severity with each message dismissable alone, then the Tutorial button and
+// the two document links.
 // Which messages exist is that module's suite; this one is where they land.
 
 type Props = ComponentProps<typeof PanelFooter>
@@ -18,6 +19,8 @@ function props(over: Partial<Props> = {}): Props {
     onAnalyze: () => {},
     onRetry: () => {},
     messages: [],
+    onStartTour: () => {},
+    tourBlocked: false,
     ...over,
   }
 }
@@ -101,5 +104,17 @@ describe('PanelFooter', () => {
       expect(link.getAttribute('href')).toBe(href)
       expect(link.getAttribute('target')).toBe('_blank')
     }
+  })
+
+  it('starts the tutorial from the Tutorial button', () => {
+    const onStartTour = vi.fn()
+    render(<PanelFooter {...props({ onStartTour })} />)
+    screen.getByRole('button', { name: 'Tutorial' }).click()
+    expect(onStartTour).toHaveBeenCalledTimes(1)
+  })
+
+  it('holds the Tutorial button while an analysis runs or a ring is drawn', () => {
+    render(<PanelFooter {...props({ tourBlocked: true })} />)
+    expect(screen.getByRole('button', { name: 'Tutorial' })).toHaveProperty('disabled', true)
   })
 })

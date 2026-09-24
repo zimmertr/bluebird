@@ -44,6 +44,18 @@ export interface MapViewHandle {
   // this destination has no forecast. Clicking the dot still says what is
   // known about it (TJ, 2026-09-14).
   focusPoint: (at: { latitude: number; longitude: number }) => void
+  // The camera as it stands, and a move back to one. The tutorial (#536)
+  // frames its demo analysis and has to leave the reader's view where it
+  // found it. Null before the map loads, when there is no view to keep.
+  getCamera: () => MapCamera | null
+  setCamera: (camera: MapCamera) => void
+}
+
+export interface MapCamera {
+  center: [number, number]
+  zoom: number
+  bearing: number
+  pitch: number
 }
 
 interface Props {
@@ -411,6 +423,17 @@ const MapView = forwardRef<MapViewHandle, Props>(
           offset: [0, -cameraPadBottomPx / 2],
         })
         featuresRef.current?.results.openPopup(result)
+      },
+      getCamera() {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return null
+        const { lng, lat } = map.getCenter()
+        return { center: [lng, lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
+      },
+      setCamera(camera: MapCamera) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return
+        map.easeTo({ ...camera, duration: 800 })
       },
     }))
 

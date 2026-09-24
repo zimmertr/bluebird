@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -29,13 +30,17 @@ import { useFireProximity } from './hooks/useFireProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
+import { useTour } from './hooks/useTour'
 import {
   LAYER,
   SURFACE_PAGE,
 } from './styles'
 import {
+  DEFAULT_LIMIT,
   decodeState,
 } from './utils/urlState'
+import { NO_CONSTRAINTS } from './utils/constraints'
+import type { PresentationKnobs } from './utils/present'
 import {
   panelCommitCues,
   reportView,
@@ -46,6 +51,18 @@ import {
   setWelcomed,
 } from './utils/viewPrefs'
 
+// Hoisted, so the tutorial's demo hands the memoized surfaces the same empty
+// value on every render rather than a fresh one.
+const NO_KEYS: ReadonlySet<string> = new Set()
+const NO_ROWS: never[] = []
+const NO_REMOVED = new Map<string, never>()
+const NO_MODELS: readonly string[] = []
+const NO_REASONS: ReturnType<typeof panelCommitCues> = []
+// The demo's own report counter. Negative, so it can never equal one of the
+// reader's, and constant, so the surfaces that reset per report reset once as
+// the demo arrives and once as it leaves.
+const TOUR_SEQ = -1
+
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
 
@@ -54,6 +71,13 @@ export default function App() {
   // the UI without a frontend release. Read before the state block below
   // because the restored limit is clamped against it on the way in.
   const caps = useCapabilities()
+
+  // The tutorial (#536). While its demo analysis is on screen, `scene` is what
+  // the table, the chart, the markers and the timeline read in place of the
+  // reader's own report; nothing of the reader's is written, so ending it
+  // puts every one of them back.
+  const tour = useTour({ mapRef, windowLimits: caps.windowLimits })
+  const { scene } = tour
 
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
@@ -160,8 +184,25 @@ export default function App() {
     universe,
   } = analysis
 
+  // What the report's display surfaces read: the tutorial's demo while it is
+  // on screen, the reader's own report otherwise. The grid, the wildfire check,
+  // the removals, the Analyze command and the address bar keep the reader's,
+  // so the tutorial fetches nothing and writes nothing.
+  const shownResponse = scene ? scene.response : response
+  const shownUniverse = scene ? scene.universe : universe
+  const shownAnalyzed = scene ? scene.analyzed : analyzed
+  const shownSeq = scene ? TOUR_SEQ : analysisSeq
+  const shownArriving = scene ? false : arriving
+
   // ── The map timeline (#121) ───────────────────────────────────────────────
-  const timeline = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
+  // The demo shows the player whatever the reader's Layers switch says, and
+  // says so here rather than through the switch, which is a stored choice.
+  const timeline = useTimeline({
+    times: shownResponse?.times,
+    analysisSeq: shownSeq,
+    playerShown: scene !== null || playerShown,
+    showRadar,
+  })
   const {
     forecastTimes,
     timelineAxes,
@@ -203,7 +244,7 @@ export default function App() {
   }, [destinationNamed])
 
   // What the displayed report is rendered under, and whether it is one hour.
-  const { view, pointSample } = reportView(analyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
+  const { view, pointSample } = reportView(shownAnalyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
   const preview = usePreview()
 
   // The address bar mirrors the panel and the map's layers (useUrlSync).
@@ -232,19 +273,26 @@ export default function App() {
     defaultForecastModel: caps.defaultForecastModel,
   })
 
+  // The demo ranks by the reader's own sort, but under no bound and at the
+  // default cap, since a bound the reader set for their own field could empty
+  // the demo's table before it is explained.
+  const tourKnobs: PresentationKnobs = useMemo(
+    () => ({ sortBy, sortDesc, limit: DEFAULT_LIMIT, constraints: NO_CONSTRAINTS }),
+    [sortBy, sortDesc],
+  )
   const report = usePresentedReport({
-    universe,
-    response,
-    analyzed,
-    analysisSeq,
-    arriving,
-    liveKnobs,
+    universe: shownUniverse,
+    response: shownResponse,
+    analyzed: shownAnalyzed,
+    analysisSeq: shownSeq,
+    arriving: shownArriving,
+    liveKnobs: scene ? tourKnobs : liveKnobs,
     view,
     pointSample,
-    removedKeys,
-    activeRemovedKeys,
-    places,
-    csvRows,
+    removedKeys: scene ? NO_KEYS : removedKeys,
+    activeRemovedKeys: scene ? NO_KEYS : activeRemovedKeys,
+    places: scene ? NO_ROWS : places,
+    csvRows: scene ? NO_ROWS : csvRows,
   })
   const {
     results,
@@ -261,12 +309,15 @@ export default function App() {
   // knobs re-present rows without re-querying NIFC. (Called here, above the
   // table view, because the wildfire column sorts and renders out of its
   // maps.)
-  const fire = useFireProximity(fireField ?? universe ?? results, fireSeq)
+  // The demo's rows are never the fallback: checking them would be a NIFC
+  // lookup the reader did not ask for.
+  const fireFallback: { latitude: number; longitude: number }[] = scene ? NO_ROWS : results
+  const fire = useFireProximity(fireField ?? universe ?? fireFallback, fireSeq)
 
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
   // controls never feel dead.
-  const commitReasons = panelCommitCues(analyzed, {
+  const commitReasons = scene ? NO_REASONS : panelCommitCues(analyzed, {
     settled: !loading && response !== null,
     selectionKind: selection.kind,
     windowMs: panelWindowMs,
@@ -339,20 +390,20 @@ export default function App() {
   // shape and file, and the table's callbacks (useResultsView).
   const resultsView = useResultsView({
     showResults,
-    response,
+    response: shownResponse,
     results,
     pending,
     detailSort,
     storedView,
     isDesktop,
     bannerPx,
-    analysisSeq,
+    analysisSeq: shownSeq,
     sortBy: view.sortBy,
     pointSample,
-    analyzed,
+    analyzed: shownAnalyzed,
     models: caps.forecastModels,
-    forecastModel,
-    comparedModels,
+    forecastModel: scene ? scene.analyzed.forecastModel : forecastModel,
+    comparedModels: scene ? NO_MODELS : comparedModels,
     times: forecastTimes,
     windowLimits: caps.windowLimits,
     fire,
@@ -360,12 +411,34 @@ export default function App() {
     removePlace,
   })
   const { layout, tableView } = resultsView
+  // The screen state the tutorial moves and puts back, read when a step moves.
+  // Kept current in a layout effect rather than written during the render.
+  const { uiRef: tourUi } = tour
+  const { resultsCollapsed, toggleCollapsed } = layout
+  useLayoutEffect(() => {
+    tourUi.current = { isDesktop, sidebarOpen, setSidebarOpen, showResults, setShowResults, resultsCollapsed, toggleCollapsed }
+  }, [tourUi, isDesktop, sidebarOpen, showResults, resultsCollapsed, toggleCollapsed])
+  // The Removed picker lists the reader's removals, which have no row in the
+  // demo.
+  const shownRemovals = useMemo(() => (scene ? { ...removals, removed: NO_REMOVED } : removals), [scene, removals])
+  const modelId = shownAnalyzed?.forecastModel ?? forecastModel
+  // Started from the welcome dialog or the panel's footer, never by itself.
+  // The welcome dialog closes first: it sits inside the app root, which the
+  // tutorial makes inert.
+  const { start: startTour } = tour
+  const startTutorial = useCallback(() => {
+    if (showWelcome) {
+      setWelcomed()
+      setShowWelcome(false)
+    }
+    void startTour()
+  }, [showWelcome, startTour])
 
   return (
-    <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
+    <div inert={tour.active} className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
+      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} onStartTour={startTutorial} />}
       {layout.isDragging && (
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
@@ -390,9 +463,10 @@ export default function App() {
         error={error}
         refusal={refusal}
         onRetry={retry}
-        response={response}
+        response={shownResponse}
         results={results}
         fireStatus={fire.status}
+        onStartTour={startTutorial}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand
@@ -413,7 +487,7 @@ export default function App() {
           layout={layout}
           analysis={analysis}
           sortBy={view.sortBy}
-          modelId={analyzed?.forecastModel ?? forecastModel}
+          modelId={modelId}
           showResults={showResults}
           sidebarOpen={sidebarOpen}
           onOpenControls={openDrawer}
@@ -426,7 +500,7 @@ export default function App() {
           showResults={showResults}
           isDesktop={isDesktop}
           report={report}
-          removals={removals}
+          removals={shownRemovals}
           sortBy={view.sortBy}
           sortDesc={view.sortDesc}
           pointSample={pointSample}
@@ -435,7 +509,7 @@ export default function App() {
           timelineAxes={timelineAxes}
           movePlayheadTo={movePlayheadTo}
           fire={fire}
-          modelId={analyzed?.forecastModel ?? forecastModel}
+          modelId={modelId}
         />
       </div>
       </div>

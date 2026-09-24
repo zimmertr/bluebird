@@ -2,6 +2,14 @@
 
 Bluebird Forecast is not a recommendation engine. It does not decide what weather is "good" or "bad." It attaches objective forecast data to geographic features and lets you sort the results however you like. A typical question it answers: it's Thursday, the weekend looks wet across Washington, so which peaks in the North Cascades see the least total precipitation from Saturday morning through Sunday evening?
 
+## Tutorial
+
+The app can walk you through itself. Start the tutorial from **Take the tutorial** in the welcome dialog, or at any time from **Tutorial** in the panel's footer, beside Privacy and Terms. It never starts on its own.
+
+It lights one part of the screen at a time and explains it on a card: the four ways to add destinations, the model and the forecast window, the Metrics table, Analyze, then the results table and its controls, the colored markers and their legend, the forecast player, and the map layers. **Next** and **Previous** (or the arrow keys) move between steps, and the **X** at the top right of the card (or Escape) ends it at once.
+
+The results steps show an example analysis of peaks in the North Cascades. It is recorded, not fetched, so the tutorial spends none of your Open-Meteo quota, and its window is moved to start within the next day. Nothing you had on screen is changed: when the tutorial ends, your own polygon, results, address bar and map view are back where they were. The controls it lights are for looking at while it runs; they respond again once it ends. The Tutorial link waits while an analysis is running or a polygon is being drawn.
+
 ## Destinations
 
 One analysis ranks a single set of destinations, which you define using one or all of the following methods. The first two live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
