@@ -31,6 +31,20 @@ function watchRequests(page: Page): string[] {
   return seen
 }
 
+// The address bar once the app has finished writing it: unchanged for longer
+// than its write debounce.
+async function settledUrl(page: Page): Promise<string> {
+  let last = page.url()
+  for (let quiet = 0; quiet < 1000; quiet += 250) {
+    await page.waitForTimeout(250)
+    if (page.url() !== last) {
+      last = page.url()
+      quiet = -250
+    }
+  }
+  return last
+}
+
 async function storage(page: Page) {
   return page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage } }))
 }
@@ -51,7 +65,7 @@ test('the welcome dialog starts a tutorial that acts out every step and leaves n
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Take the tutorial' }).click()
-  const url = page.url()
+  const url = await settledUrl(page)
   // Starting the tutorial counts as having been welcomed; everything after
   // that is the demo's and must leave storage alone.
   expect(await page.evaluate(() => localStorage.getItem('bluebird_forecast_welcomed'))).not.toBeNull()
@@ -94,7 +108,7 @@ test('on a phone, a step left early or stepped back to stands as a walk would le
   const rows = page.locator('#root table tbody tr')
   await expect(rows).toHaveCount(DESTINATION_NAMES.length)
   await expect.poll(() => new URL(page.url()).searchParams.has('analyze')).toBe(false)
-  const url = page.url()
+  const url = await settledUrl(page)
   const spent = OPEN_METEO.map((host) => traffic.answered[host] ?? 0)
 
   await page.getByRole('button', { name: 'Open controls' }).click()

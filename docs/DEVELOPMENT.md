@@ -52,7 +52,7 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 | `make lint-backend` | `ruff check backend/` at the version CI pins |
 | `make lighthouse` | the cold-load audit below |
 | `make browser` | the browser suite below |
-| `make capture-tour-demo` | not a check: re-records the tutorial's demo analysis from the live discovery endpoint and Open-Meteo (`frontend/tools/tour-demo/capture.ts`), when a column is added to the report |
+| `make capture-tour-demo` | not a check: re-records the tutorial's data (the deployment's limits, the place search, discovery, and Open-Meteo's hourly weather for 22 peaks) from the live site and Open-Meteo (`frontend/tools/tour-demo/capture.ts`), when a variable or a column is added to the report |
 
 The `Makefile` is the list of commands, and every target has the same shape.
 This is `make test-frontend`, typed out:

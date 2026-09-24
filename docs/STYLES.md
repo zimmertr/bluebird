@@ -182,6 +182,9 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Role | Purpose |
 |---|---|
 | `TOUR` | The tutorial's card and its parts, which `tour/runTour.ts` adds to the elements Driver.js builds: the dialog card, a heading and body line, the progress caption, the panel's inline button pair (secondary back, accent forward), and `ICON_BUTTON` for the close. Driver's own stylesheet sits under Tailwind's in `tour.css`, so these win wherever the two disagree |
+| `TOUR.sandbox` | The box the demo copy of the app stands in, over the whole screen while the reader's app is hidden under it. No z-index, so the demo's layers and its portaled panels stack against each other as the reader's do |
+| `TOUR.frame` | The clear box Driver lights, which the run keeps over the union of a step's targets, because one action spans a control and the panel it opens |
+| `TOUR.pointer`, `TOUR.pointerArrow`, `TOUR.pointerPress` | The drawn pointer that acts each step out: one layer above Driver's dim and under its card, a white arrow with a slate edge (the one pair that reads over both the dim and the map, and no hue, since the pointer is no control of the app's), and the white ring a press sends out. It glides only where motion is welcome |
 | `TOUR_DIM`, `TOUR_STAGE_PAD_PX`, `TOUR_STAGE_RADIUS_PX` | The dim around the lit target and the cut-out's clearance and corner, as numbers rather than classes because Driver draws the stage in SVG. The dim is the welcome dialog's backdrop, and the corner is `RADIUS.surface` |
 
 **Calendar days**
