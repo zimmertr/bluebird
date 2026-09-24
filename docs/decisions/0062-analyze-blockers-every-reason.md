@@ -1,7 +1,28 @@
 # 0062. Analyze names every reason it is blocked, not the first
 
-Verbatim guide text at 971fede, copied before the edit to the template.
+- Status: Accepted
+- Date: 2026-07-31 (git: `analyzeBlockers` first appears in #225)
+- Decider: TJ (git: author and merger of #225)
+- Issues and PRs: #225
+- Cited in code as: none
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/analyzeGate.ts` bullet
 
-## From `frontend/src/CLAUDE.md`, line 125
+## Context
 
-- `src/utils/analyzeGate.ts` — whether Analyze is enabled, and every reason it is not. The three ways to give it something to do are additive (a drawn polygon with a type checked, a pasted list, a pinned search) and the shared guards veto all of them. `analyzeBlockers` returns EVERY blocker rather than the first: the guards are independent, so a reader with both an oversized polygon and an unservable window used to fix the polygon and be met by a second sentence that had been true the whole time. Its postcondition is that it is non-empty exactly when `canAnalyze` is false, over every combination of the flags including ones the panel cannot produce, so the button can never go dead without saying why. The one exception is mid-analysis, where it returns nothing because the button already says it is busy.
+Several independent guards can block Analyze, among them an oversized polygon and a window the models cannot serve.
+
+## Decision
+
+`analyzeBlockers` returns every blocker, not the first. It is non-empty exactly when `canAnalyze` is false, over every combination of the flags, including ones the panel cannot produce, so the button can never go dead without saying why. Mid-analysis it returns nothing, because the button already says it is busy.
+
+## Evidence
+
+No measurement. A reader with both an oversized polygon and an unservable window fixed the polygon and was then met by a second sentence that had been true the whole time.
+
+## Alternatives rejected
+
+- Returning the first blocker: the guards are independent, so a second reason stayed hidden until the first was fixed.
+
+## Consequences
+
+Every blocker renders in the one notice block below the button (see [0028](0028-notices-below-analyze.md)). `commitNeeded` follows the same rule for a stale report: every reason, one bullet each (see [0003](0003-analyze-is-spend-boundary.md)).

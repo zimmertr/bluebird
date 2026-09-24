@@ -4,7 +4,7 @@
 - Date: 2026-09-14 (git: the merge of #358). The rule that a control never picks its own width came with #237 on 2026-08-02.
 - Decider: TJ (git: author and merger of #358)
 - Issues and PRs: #237, #341, #348, #351, #358
-- Cited in code as: #341
+- Cited in code as: #341, #348
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Rules for every change, "A control sits beside its label, not beneath it, and never picks its own width"
 
 ## Context

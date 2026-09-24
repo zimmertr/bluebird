@@ -6,7 +6,7 @@ The guide is the `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, 
 
 ## Write a record
 
-- Copy [`0000-template.md`](0000-template.md) to `NNNN-slug.md` with the next free number. Numbers have four digits and are never reused. The first batch is numbered in the order the decisions were made.
+- Copy [`0000-template.md`](0000-template.md) to `NNNN-slug.md` with the next free number. Numbers have four digits and are never reused. The first batch, 0001 to 0058, is numbered in the order the decisions were made; later records take the next free number whatever their date.
 - The title is the decision, as one sentence.
 - Take the date and the decider from the guide text when it names them. When it does not, use the merge date and the author of the pull request that shipped the decision, and say that git is the source.
 - Give every number the date it was measured. A limit that `GET /api/capabilities` publishes is dated history in a record: say what it was, and point at the endpoint for today's value.
@@ -79,3 +79,9 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0056](0056-cloud-base-from-rh.md) | Cloud base is detected on relative humidity, not on level cloud fraction | 2026-09-23 | Accepted | Root: The Python and TypeScript mirrors |
 | [0057](0057-cloud-fetched-on-request.md) | The cloud column is fetched only when a ranking or a bound names it | 2026-09-23 | Accepted | Root: The cloud column |
 | [0058](0058-compare-reach-and-mark.md) | A compared line runs to its own model's reach, with one mark per short row | 2026-09-23 | Accepted | Frontend: `modelCompare.ts` |
+| [0059](0059-not-found-page-no-explanation.md) | The 404 page explains nothing | 2026-07-28 | Accepted | Frontend: `NotFoundPage.tsx` |
+| [0060](0060-overlay-reassurance-tiers.md) | The discovery wait is narrated in tiers set by measured mirror times, with no promised ceiling | 2026-07-29 | Accepted | Frontend: `analyzeOverlay.ts` |
+| [0061](0061-custom-match-radius-150m.md) | A pasted coordinate takes the elevation of the peak within 150 m | 2026-07-30 | Accepted | Backend: `app/services/osm/` |
+| [0062](0062-analyze-blockers-every-reason.md) | Analyze names every reason it is blocked, not the first | 2026-07-31 | Accepted | Frontend: `analyzeGate.ts` |
+| [0063](0063-smoke-no-bbox.md) | The smoke endpoint answers for all of North America, with no bbox | 2026-08-04 | Accepted | Backend: `routes/smoke.py` |
+| [0064](0064-tooltips-and-strings-need-approval.md) | A tooltip or a user-facing string needs the maintainer's approval | 2026-08-05 | Accepted | Root: Style through the design system |

@@ -4,7 +4,7 @@
 - Date: 2026-07-29 (git: the merge of #189)
 - Decider: TJ (git: author and merger of #189)
 - Issues and PRs: #166, #188, #189, #213, #230, #231, #449
-- Cited in code as: #166, #188, #230
+- Cited in code as: #166, #188, #230, #449
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, "The interaction model: the Analyze button is a spend boundary, not ceremony" and its bullets on data knobs, presentation knobs, the data snapshot, and re-analysis
 
 ## Context
