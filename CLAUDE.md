@@ -29,7 +29,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How the project accepts work, at the repo root so GitHub surfaces it on new PRs: one maintainer, an issue before code, and the short list of rules a change must meet |
 | [`backend/CLAUDE.md`](backend/CLAUDE.md) | Every module under `backend/`: what it owns and why it is separate |
-| [`frontend/src/CLAUDE.md`](frontend/src/CLAUDE.md) | The same for the modules directly in `frontend/src/` and in `src/testSupport/` |
+| [`frontend/src/CLAUDE.md`](frontend/src/CLAUDE.md) | The same for the modules directly in `frontend/src/` and in `src/testSupport/`, and for each bullet that names modules in two directories under it |
 | [`frontend/src/components/CLAUDE.md`](frontend/src/components/CLAUDE.md) | The same for every module under `frontend/src/components/` |
 | [`frontend/src/hooks/CLAUDE.md`](frontend/src/hooks/CLAUDE.md) | The same for every module under `frontend/src/hooks/` |
 | [`frontend/src/map/CLAUDE.md`](frontend/src/map/CLAUDE.md) | The same for every module under `frontend/src/map/`, `overlays/` included |
@@ -40,7 +40,7 @@ Three conventions hold across every page:
 
 - **Never restate a numeric limit that `GET /api/capabilities` publishes.** Describe the shape and the reasoning, and point at the endpoint for the value. Prose copies drift: the split found three that already had (polygon cap, max results, CAMS grid). This is the whole point of issue #113.
 - **A doc change ships in the PR that causes it.** Nothing here is CI-enforced, so these are the artifacts that rot silently.
-- **The table above is the list of nested `CLAUDE.md` files, and adding or removing one updates it in the same PR.** Each nested file sits at the tightest directory that contains every path it names, so Claude Code loads it for the tree it describes and for nothing else: `backend/CLAUDE.md` covers `app/` and `scripts/`, `frontend/src/CLAUDE.md` covers the files directly in `src/` and `src/testSupport/`, and `components/`, `hooks/`, `map/` and `utils/` under it each have their own, because the one frontend file grew past the 150k-character limit the root file was split for (#458, #533). A bullet whose lead names modules in two of those directories sits in the file for the first one it names. Nothing enforces this either, and an unlisted one is a file no session knows to update.
+- **The table above is the list of nested `CLAUDE.md` files, and adding or removing one updates it in the same PR.** Each nested file sits at the tightest directory that contains every path it names, so Claude Code loads it for the tree it describes and for nothing else: `backend/CLAUDE.md` covers `app/` and `scripts/`, `frontend/src/CLAUDE.md` covers the files directly in `src/`, `src/testSupport/` and every bullet that names two directories under `src/`, and `components/`, `hooks/`, `map/` and `utils/` under it each have their own, because the one frontend file grew past the 150k-character limit the root file was split for (#458, #533). Nothing enforces this either, and an unlisted one is a file no session knows to update.
 
 ## Development commands
 
