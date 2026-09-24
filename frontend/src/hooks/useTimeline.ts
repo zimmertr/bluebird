@@ -134,3 +134,5 @@ export function useTimeline({ times, analysisSeq, playerShown, showRadar }: Time
     movePlayheadTo,
   }
 }
+
+export type Timeline = ReturnType<typeof useTimeline>

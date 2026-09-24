@@ -5,17 +5,12 @@ import {
   useRef,
   useState,
 } from 'react'
-import MapView, { MapViewHandle } from './components/MapView'
+import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
-import type { SearchBoxHandle } from './components/SearchBox'
+import MapStage from './components/MapStage'
 import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
-import TimelineTransport from './components/TimelineTransport'
-import AnalysisOverlay from './components/AnalysisOverlay'
-import LayersPopover from './components/LayersPopover'
-import MapButtonColumn from './components/MapButtonColumn'
-import MapLegend from './components/MapLegend'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
@@ -40,26 +35,14 @@ import {
 } from './types'
 import {
   LAYER,
-  MAP_EDGE,
   SURFACE_PAGE,
 } from './styles'
-import {
-  NOUN,
-  familyOf,
-} from './metrics'
-import { hourlyScale, rankedScale } from './utils/colors'
-import {
-  TRANSPORT_GAP_PX,
-} from './utils/resultsSheet'
-import { composeOverlay } from './utils/analyzeOverlay'
-import { Place } from './utils/geocode'
 import {
   decodeState,
   decodeAutoAnalyze,
 } from './utils/urlState'
 import { isPointSample } from './utils/forecastWindow'
 import {
-  fieldHasValue,
   panelCommitCues,
 } from './utils/present'
 import {
@@ -70,7 +53,6 @@ import {
 
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
-  const searchBoxRef = useRef<SearchBoxHandle>(null)
 
   // Live limits from /api/capabilities: the analysis cap gates the client-side
   // paths and the results knob's ceiling, so a server recalibration reaches
@@ -103,9 +85,7 @@ export default function App() {
 
   const destinationInputs = useDestinationInputs(restored)
   const {
-    restoredPoints,
     polygon,
-    setPolygon,
     destinationTypes,
     includeUnnamedPeaks,
     customCsv,
@@ -162,6 +142,7 @@ export default function App() {
     playerShown,
   } = overlays
   const closeDrawer = useCallback(() => setSidebarOpen(false), [])
+  const openDrawer = useCallback(() => setSidebarOpen(true), [])
   const drawMode = useDrawMode({
     mapRef,
     polygon,
@@ -170,9 +151,7 @@ export default function App() {
     closeDrawer,
   })
   const {
-    drawing,
     drawPointCount,
-    handleDrawUpdate,
     finishDrawing,
   } = drawMode
 
@@ -181,9 +160,14 @@ export default function App() {
     setShowWelcome(false)
   }
 
+  const analysis = useAnalyze(
+    caps.maxDestinations,
+    caps.forecastModels,
+    caps.windowLimits,
+    caps.aqiForecastDays,
+  )
   const {
     analyze,
-    cancel,
     retry,
     reset,
     analyzed,
@@ -196,34 +180,16 @@ export default function App() {
     refusal,
     response,
     universe,
-    statusMessage,
-    progress,
-    paceRemainingS,
-  } = useAnalyze(
-    caps.maxDestinations,
-    caps.forecastModels,
-    caps.windowLimits,
-    caps.aqiForecastDays,
-  )
+  } = analysis
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
+  const timeline = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
   const {
     forecastTimes,
     timelineAxes,
-    timelineAxis,
-    setChosenAxis,
-    playerOffered,
-    radarIndex,
-    frameIndex,
-    frameCount,
-    setFrameIndex,
-    playing,
-    setPlaying,
     playbackIndex,
-    timelineReadout,
-    timelineScale,
     movePlayheadTo,
-  } = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
+  } = timeline
 
   // ── The forecast grid (#246) ──────────────────────────────────────────────
   const gridLayer = useGridLayer({
@@ -241,7 +207,6 @@ export default function App() {
   const {
     gridStyle,
     gridReachFrac,
-    grid,
   } = gridLayer
 
   const removals = useRemovals({ places, addPlace, removePlace, destinationScope, csvRows, universe, response })
@@ -249,27 +214,7 @@ export default function App() {
     removedKeys,
     activeRemovedKeys,
     clearForScope: clearRemovalsForScope,
-    registerPlace,
   } = removals
-
-  function handleSearchSelect(place: Place) {
-    mapRef.current?.flyToPlace(place)
-    registerPlace(place)
-  }
-
-  // A clicked basemap feature registers without a camera move: you are already
-  // looking straight at it, and flying to it would answer a question nobody
-  // asked.
-  const handleAddPoi = useCallback(
-    (place: Place) => {
-      registerPlace(place)
-    },
-    [registerPlace],
-  )
-  const handleRemovePoi = useCallback(
-    (latitude: number, longitude: number) => removePlace(latitude, longitude),
-    [removePlace],
-  )
 
   // Naming a destination — by search or by pasting CSV — opens the results
   // panel immediately: it appears as an un-forecasted row, so there's feedback
@@ -304,34 +249,6 @@ export default function App() {
   // is (#166).
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
   const preview = usePreview()
-
-  // Elapsed-time counter for phases with no countable progress (the OSM search,
-  // and the pins-only refresh). Declared before the overlay composition, which
-  // reads it to stage the "Still searching…" reassurance line.
-  const [elapsed, setElapsed] = useState(0)
-
-  // The loading overlay for the one ranked analysis — searched places ride
-  // inside it as custom destinations, so there is no separate pin refresh to
-  // fold in anymore.
-  const overlay = composeOverlay({
-    analyzeLoading: loading,
-    statusMessage,
-    elapsedS: elapsed,
-    rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
-    // Live countdown while the client pacer sleeps off a quota deficit;
-    // `usePacedFetch` ticks it, and the 250ms elapsed ticker below re-reads it.
-    paceRemainingS,
-  })
-
-  useEffect(() => {
-    if (!overlay.visible) {
-      setElapsed(0)
-      return
-    }
-    const start = Date.now()
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 250)
-    return () => clearInterval(id)
-  }, [overlay.visible])
 
   // The address bar mirrors the panel and the map's layers (useUrlSync).
   const writeUrl = useUrlSync({
@@ -482,24 +399,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
-  // The bands the markers are actually colored on, which playback moves.
-  // Precipitation is the reason it has to: the ranking bins a window total and
-  // one hour of it is a rate, so a legend still reading in inches beside
-  // markers scored in inches per hour would be quietly wrong. The metric's NAME
-  // does not change, so the legend's title does not either.
-  // Every metric has bands now, so this is null only if a ranking key ever
-  // arrives without a scale. The key below has its own reason to stay away
-  // (`fieldHasValue`): a box of bands over a field of N/A explains
-  // nothing.
-  const markerScale = playbackIndex !== null ? hourlyScale(view.sortBy) : rankedScale(view.sortBy)
-
-  const hasColoredMarkers = showResults && results.length > 0
-  // Whether the ranked metric has anything to colour AT ALL on the rows shown.
-  // False for a freezing-level ranking under one of the five models that
-  // publish no freezing level: every marker is then the neutral no-value fill,
-  // every cell reads N/A, and a key of six height bands beside them would be
-  // the only thing on screen claiming the field was measured.
-  const rankedFieldHasValue = fieldHasValue(results, view.sortBy)
   // A report stays on screen even when the knobs admit none of it. Collapsing
   // the panels would answer "why is nothing listed?" by removing the place the
   // answer goes, and the table's own empty row says which of the three reasons
@@ -520,9 +419,6 @@ export default function App() {
   const {
     isDragging,
     chartShowing,
-    sheetLiftPx,
-    mapCornerLift,
-    cameraPadBottomPx,
   } = layout
 
   // ── The comparison chart (#232) ───────────────────────────────────────────
@@ -563,10 +459,6 @@ export default function App() {
     pendingRows,
     fire,
   })
-  const {
-    tableColumns,
-    analysisModelLabel,
-  } = tableView
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
@@ -606,104 +498,27 @@ export default function App() {
           on the map as a sheet, so the column is what positions them; on
           desktop nothing is positioned and the class list is the one it was. */}
       <div className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
-        {/* `--map-corner-lift` and `--map-corner-band` are read by map.css:
-            how far MapLibre's own bottom controls rise off the container's
-            bottom edge, and the height of the band they are centred in. Both
-            controls have a reason to rise: the attribution is a licence term
-            that cannot be covered by the phone sheet, and the scale bar reads
-            against the map rather than against the forecast player centred over
-            the same edge. One number for the corner rather than an offset per
-            control, derived beside every other anchor in `resultsSheet.ts`. The
-            map area keeps the whole column, so the canvas runs on behind the
-            sheet and its ResizeObserver sees no change on a drag. */}
-        <div
-          className={`flex-1 relative ${MAP_EDGE.publish}`}
-          style={
-            {
-              '--map-corner-lift': `${mapCornerLift}px`,
-              '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
-            } as React.CSSProperties
-          }
-        >
-          <AnalysisOverlay overlay={overlay} elapsed={elapsed} onCancel={cancel} />
-          <MapView
-            ref={mapRef}
-            drawing={drawing}
-            pointedPois={poisPointed}
-            polygon={polygon}
-            restoredPoints={restoredPoints}
-            onPolygonChange={setPolygon}
-            onDrawUpdate={handleDrawUpdate}
-            results={results}
-            sortBy={view.sortBy}
-            modelId={analyzed?.forecastModel ?? forecastModel}
-            times={forecastTimes}
-            popupColumns={tableColumns}
-            modelFallbackLabel={analysisModelLabel}
-            fireWarnings={fire.warnings}
-            showWildfires={showWildfires}
-            showRadar={showRadar}
-            showSmoke={showSmoke}
-            showSnow={showSnow}
-            radarIndex={radarIndex}
-            gridSpec={grid.spec}
-            gridCells={grid.cells}
-            gridStyle={gridStyle}
-            playbackIndex={playbackIndex}
-            pending={pending}
-            searchedPlaces={places}
-            onAddPoi={handleAddPoi}
-            onRemovePoi={handleRemovePoi}
-            cameraPadBottomPx={cameraPadBottomPx}
-          />
-      {/* The legends render BEFORE the button column below on purpose.
-          Both are map chrome at the same layer, so paint order is DOM
-          order, and the one that has to win is the one you can click:
-          the Layers popover opens downward into exactly this space, and
-          with the legends last it opened underneath them. Pushing the
-          legends further down instead only moved the collision, since a
-          popover is as tall as its contents. */}
-          <MapLegend
-            sortBy={view.sortBy}
-            markerScale={markerScale}
-            hasColoredMarkers={hasColoredMarkers}
-            rankedFieldHasValue={rankedFieldHasValue}
-            overlays={overlays}
-            grid={gridLayer}
-            sidebarOpen={sidebarOpen}
-            sheetLiftPx={sheetLiftPx}
-            timelineShown={timelineAxis !== null}
-          />
-          <MapButtonColumn
-            searchBoxRef={searchBoxRef}
-            onSearchSelect={handleSearchSelect}
-            searchPointed={searchPointed}
-            sidebarOpen={sidebarOpen}
-            onOpenControls={() => setSidebarOpen(true)}
-          >
-            <LayersPopover overlays={overlays} grid={gridLayer} playerOffered={playerOffered} />
-          </MapButtonColumn>
-          {/* The timeline, present exactly while something spans time: radar
-              contributes a past axis, a multi-hour report a forecast one, and
-              a smoke analysis contributes neither (two passes a day is not an
-              animation). */}
-          {timelineAxis !== null && (
-            <TimelineTransport
-              axis={timelineAxis}
-              axes={timelineAxes}
-              onAxisChange={setChosenAxis}
-              index={frameIndex}
-              frameCount={frameCount}
-              onIndexChange={(i) => setFrameIndex(i)}
-              playing={playing}
-              onPlayingChange={setPlaying}
-              readout={timelineReadout}
-              scale={timelineScale}
-              forecastLabel={NOUN[familyOf(view.sortBy)]}
-              liftPx={sheetLiftPx}
-            />
-          )}
-        </div>
+        <MapStage
+          mapRef={mapRef}
+          drawMode={drawMode}
+          destinationInputs={destinationInputs}
+          removals={removals}
+          overlays={overlays}
+          grid={gridLayer}
+          timeline={timeline}
+          report={report}
+          tableView={tableView}
+          fire={fire}
+          layout={layout}
+          analysis={analysis}
+          sortBy={view.sortBy}
+          modelId={analyzed?.forecastModel ?? forecastModel}
+          showResults={showResults}
+          sidebarOpen={sidebarOpen}
+          onOpenControls={openDrawer}
+          searchPointed={searchPointed}
+          poisPointed={poisPointed}
+        />
 
         <ResultsSheet
           showTable={showTable}
