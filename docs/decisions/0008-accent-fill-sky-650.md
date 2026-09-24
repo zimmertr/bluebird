@@ -1,0 +1,7 @@
+# 0008. The accent fill is the custom shade sky-650
+
+Verbatim guide text at 971fede, copied before the edit to the template.
+
+## From `CLAUDE.md`, line 63
+
+Colors must clear WCAG AA on the surface they actually land on (4.5:1 for text and placeholders, 3:1 for icons and UI boundaries; the measured slate-vs-background table lives in issue #165). An accent **fill** owes both at once — 4.5:1 for the label on it (1.4.3) and 3:1 for the fill against what sits beside it (1.4.11) — and those bound it from opposite sides. On this palette the surviving window is 0.0067 of relative luminance wide and **no Tailwind sky step is inside it**, which is why the accent fill is the custom token `--color-sky-650`, defined and derived in `frontend/src/index.css` (white 4.57:1; 3.21:1 on the panel, 3.04:1 on `DAY.range`, 3.91:1 on the segment track). Do not "simplify" it back onto a scale step: sky-600 fails the label at 4.02:1 and sky-700 fails the calendar at 2.37:1, where the ends of a selected range sink into the band between them. The binding edge is `DAY.range`, so **changing that fill moves the floor and the shade must be re-derived**. The hover (`sky-600`, 4.02:1) is the one state still under AA and is deliberate: with a white label every lightening costs contrast, so a conformant hover would have to darken. All of these numbers are pinned in `styles.test.ts` so a change forces a re-measurement rather than inheriting a stale claim, which is exactly how #167 shipped (the old comment said 4.6:1 when the truth was 4.02).

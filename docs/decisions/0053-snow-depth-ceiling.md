@@ -1,0 +1,7 @@
+# 0053. A snow depth at the file's ceiling prints as a bound, not a number
+
+Verbatim guide text at 971fede, copied before the edit to the template.
+
+## From `frontend/src/CLAUDE.md`, line 123
+
+- `src/utils/snowCeiling.ts` — where the snow depth column stops counting, and the mark a cell wears there (#449). SNODAS carries depth as int16 millimetres, so 32,767 mm is all the file can hold and the header declares it; through the `Meters / 1000` divisor that is `SNOW_DEPTH_CEILING_IN = 1290.04`. The MODEL holds more over deep ice and the file clips it (NOAA's own map service reported 68.62 m at Rainier's summit on 2026-09-16 where the tar read 32.77 m; 86 cells sat on the ceiling on 2026-09-22, Rainier, Baker and Adams among them), so a row there is not a measurement and `snowCellText` prints `≥1,290` rather than the number it was clipped to — ungrouped in the downloaded file, whose other numbers carry no separator. Everything else about the cell is unchanged: its colour band, its Windy link and its rank, which still sorts on the number and ties the ceiling rows together. A sibling of `unavailableCell.ts` rather than part of it, because that module owns the mark for a number that was never AVAILABLE and this one owns the mark for a number that was clipped. The constant is a mirror of `snodas.SNOW_DEPTH_CEILING_IN` pinned by `mirrored_constants.json` (the mark is only honest while both sides agree where the file stops), and the API answers the plain number either way

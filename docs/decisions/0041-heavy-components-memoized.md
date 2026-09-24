@@ -1,0 +1,7 @@
+# 0041. The three heavy components are memoized
+
+Verbatim guide text at 971fede, copied before the edit to the template.
+
+## From `CLAUDE.md`, line 62
+
+- **The three heavy components are memoized, and their props must stay stable.** `ResultsTable`, `TimeSeriesChart` and `MapView` are wrapped in `React.memo` (#337). `App.tsx` holds ~50 pieces of state and most of them cannot change what those three draw, so without it every popover, overlay toggle and timeline tick re-rendered a row per destination and a chart line per destination. Measured 2026-09-14 on a 946-destination analysis: an overlay toggle cost 1,982 ms of synchronous React work and now costs 277 ms; at the default limit of 200 it went from 349 ms to 57 ms. A memo is worth nothing if the parent hands it a fresh value, so an inline arrow or a `?? []` in those three elements puts the whole cost back. The linter's `map-stage-memo-props` check (`frontend/tools/eslint/checks/app.js`) reads `MapView`'s element in `components/MapStage.tsx`, and `results-panels-memo-props` reads the table's and the chart's in `components/ResultsPanels.tsx`; each of those two files passes on only the members it is handed; either fails either one; the empty times array is the hoisted `NO_TIMES` behind `useTimeline`'s `forecastTimes`, and every function prop is a `useCallback` at the call site or in its hook. The remaining cost of a coordinates keystroke is recharts drawing one `<Line>` per displayed row, which is the chart's own design (it mirrors the table by default) and is #185's cascade rather than this rule.
