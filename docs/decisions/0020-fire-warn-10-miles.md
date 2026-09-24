@@ -1,9 +1,9 @@
 # 0020. A destination within 10 miles of an active fire is flagged, and an unchecked one is never shown as clear
 
 - Status: Accepted
-- Date: 2026-08-17 (git: the merge of #275)
+- Date: 2026-08-17 (git: the merge of #275). #49 set the 10-mile threshold on 2026-07-20 (git: f86e3fc); #275 rejected 25 miles and added the uncovered half.
 - Decider: TJ (git: author and merger of #275)
-- Issues and PRs: #203, #256, #275
+- Issues and PRs: #49, #203, #256, #275
 - Cited in code as: #203, #256, #275
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/fireProximity.ts` bullet
 
@@ -17,7 +17,7 @@ A destination within 10 miles of an active fire perimeter is flagged (`FIRE_WARN
 
 ## Evidence
 
-25 miles was tried in the #275 review and rejected as too wide. The coarse copy's ~56 m of simplification is 0.035 mi against the 10-mile threshold shown at 0.1 mi, at a thirteenth of the bytes.
+25 miles was tried in the #275 review and rejected as too wide. The coarse copy's ~56 m of simplification is 0.035 mi against the 10-mile threshold shown at 0.1 mi, at a thirteenth of the bytes (the guide's figures, not dated; git: first written in #275, 2026-08-17).
 
 ## Alternatives rejected
 

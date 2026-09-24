@@ -17,7 +17,7 @@ All five overlay toggles live in a Layers popover on the map, not in the panel, 
 
 ## Evidence
 
-The first placement, under MapLibre's zoom, compass and geolocate stack on the right at a measured offset, clipped the geolocate button: that stack is two control groups with a margin between them, so any offset that clears it is a guess. MapLibre ships a 10px margin, which started its buttons a step above the Layers button; both columns now read one inset, `--map-edge-inset` (12px).
+The first placement (git: #248, 2026-08-05), under MapLibre's zoom, compass and geolocate stack on the right at a measured offset, clipped the geolocate button: that stack is two control groups with a margin between them, so any offset that clears it is a guess. MapLibre ships a 10px margin, which started its buttons a step above the Layers button; both columns now read one inset, `--map-edge-inset` (12px) (git: #335, 2026-09-14).
 
 ## Alternatives rejected
 
@@ -29,4 +29,4 @@ The first placement, under MapLibre's zoom, compass and geolocate stack on the r
 
 ## Consequences
 
-The linter's `style-map-column` check fails an inset spelled at a call site, and `styles.test.ts` does the same for `map.css`. A `?raw` test in `styles.test.ts` keeps the rows alphabetical. `LIFTED_EDGE` exists because slate-500 has only 2.17:1 against the popover surface.
+The linter's `style-map-column` check fails an inset spelled at a call site, and `styles.test.ts` does the same for `map.css`. A `?raw` test in `styles.test.ts` keeps the rows alphabetical. `LIFTED_EDGE` exists because slate-500 has only 2.17:1 against the popover surface (git: #335, 2026-09-14).

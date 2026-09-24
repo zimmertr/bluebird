@@ -17,7 +17,7 @@ The calendar is bounded by what the API answers with data. `FUTURE_LIMIT_DAYS = 
 
 ## Evidence
 
-Measured against the API rather than read off its docs (#230): "16 days" counts today, so today + 16 is a 400. The backward accept edge is 93 days, but past about 58 days every model answers 200 with an hourly array of nulls. `GET /api/capabilities` publishes the data edge as `limits.past_data_days` and the slack pair as `limits.max_past_days` and `limits.max_future_days`.
+Measured against the API rather than read off its docs (#230; git: #231, 2026-08-01): "16 days" counts today, so today + 16 is a 400. The backward accept edge is 93 days, but past about 58 days every model answers 200 with an hourly array of nulls. `GET /api/capabilities` publishes the data edge as `limits.past_data_days` and the slack pair as `limits.max_past_days` and `limits.max_future_days`.
 
 ## Alternatives rejected
 

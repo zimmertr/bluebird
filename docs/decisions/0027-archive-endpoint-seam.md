@@ -13,7 +13,7 @@ Past the data edge every model answers nulls (see [0013](0013-accept-edge-not-da
 
 ## Decision
 
-`PAST_DATA_DAYS` is a boundary, not a wall. A window older than it goes to `archive-api.open-meteo.com`, and the calendar reaches back a year. `windowSource` and `window_source` are the only classifier, and `archiveBoundaryMs` and `archive_boundary` the only seam. A window that spans the seam is two fetches, one per endpoint, joined per location in time order before the aggregation runs. The routes classify once and pass the source and the boundary down. The pacer is acquired per span, and the joined series caches as `spanning`. The seam is named on screen in one info line. An archive window sends no `models=`.
+`PAST_DATA_DAYS` is a boundary, not a wall. A window older than it goes to `archive-api.open-meteo.com`. At 971fede the calendar reached back a year; `GET /api/capabilities` publishes today's reach as `limits.archive_days`. `windowSource` and `window_source` are the only classifier, and `archiveBoundaryMs` and `archive_boundary` the only seam. A window that spans the seam is two fetches, one per endpoint, joined per location in time order before the aggregation runs. The routes classify once and pass the source and the boundary down. The pacer is acquired per span, and the joined series caches as `spanning`. The seam is named on screen in one info line. An archive window sends no `models=`.
 
 ## Evidence
 

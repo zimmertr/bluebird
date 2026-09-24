@@ -17,7 +17,7 @@ The map legend is one box. It gains and loses sections as layers toggle and as t
 
 ## Evidence
 
-Merging the last two boxes took the stack from 313px to 182px (measured 2026-09-17 at 402px wide, every layer on). Numbers inside the strip save 14px a section over two sections. The button column ends at 92 and 108 (measured 2026-09-14). A column pushed to its end edge overflows past its start and is unreachable (measured at 402x874 with four of five boxes).
+Merging the last two boxes took the stack from 313px to 182px (measured 2026-09-17 at 402px wide, every layer on). The button column ends at 92 and 108 (measured 2026-09-14), and `LEGEND_TOP` is 132 and 156 while the Controls button is in the column. Numbers inside the strip save 14px a section over two sections (git: #459, 2026-09-17). A column pushed to its end edge overflows past its start and is unreachable (measured at 402x874 with four of five boxes; git: first written in #248, 2026-08-05).
 
 ## Alternatives rejected
 

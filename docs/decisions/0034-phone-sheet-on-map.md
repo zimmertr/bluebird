@@ -17,7 +17,7 @@ On a phone the results are a sheet standing on the map's bottom edge. The map ke
 
 ## Evidence
 
-The legend stack needed 265px with four layer rows and a six-band key (2026-09-14), 313px once the snow section joined, and 182px measured 2026-09-17 at 402x874 after #454. At 182px a default-height table (408px) fits the 412px reserve instead of being clamped to 398. Two panels need 672px of viewport at 360px wide, measured 2026-09-16 against `draggedMapFloorPx(2)`.
+The legend stack needed 265px with four layer rows and a six-band key (2026-09-14), 313px once the snow section joined, then 196px when #454 merged the boxes with the numbers under each strip, and 182px measured 2026-09-17 at 402x874 once the numbers moved inside it. At 182px a default-height table (408px) fits the 412px reserve instead of being clamped to 398 (git: #459, 2026-09-17). Two panels need 672px of viewport at 360px wide, measured 2026-09-16 against `draggedMapFloorPx(2)`.
 
 ## Alternatives rejected
 

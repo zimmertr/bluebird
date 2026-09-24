@@ -17,7 +17,7 @@ No metric column header names the elevation method. `metricLabel` takes no quali
 
 ## Evidence
 
-Measured for #457: Open-Meteo lapses `temperature_2m` to the coordinate's 90 m DEM height by default on both endpoints, within 12 to 155 m of four Cascade summits, where the grid-cell means sat 700 to 900 m under. `precipitation_925hPa` and `pm2_5_925hPa` both answer 400: precipitation and air quality are the cell's surface values at the destination, and the freezing level is a height of its own. So every metric column stands at the destination's elevation.
+Measured for #457 (git: #462, 2026-09-22): Open-Meteo lapses `temperature_2m` to the coordinate's 90 m DEM height by default on both endpoints, within 12 to 155 m of four Cascade summits, where the grid-cell means sat 700 to 900 m under. `precipitation_925hPa` and `pm2_5_925hPa` both answer 400: precipitation and air quality are the cell's surface values at the destination, and the freezing level is a height of its own. So every metric column stands at the destination's elevation.
 
 ## Alternatives rejected
 

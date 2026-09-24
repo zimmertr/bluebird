@@ -17,7 +17,7 @@ The accent fill is the custom token `--color-sky-650`, defined and derived in `f
 
 ## Evidence
 
-On this palette the window that meets both contrasts is 0.0067 of relative luminance wide, and no Tailwind sky step is inside it. `sky-650` gives the white label 4.57:1, and the fill 3.21:1 on the panel, 3.04:1 on `DAY.range` and 3.91:1 on the segment track. `sky-600` fails the label at 4.02:1. `sky-700` fails the calendar at 2.37:1, where the ends of a selected range sink into the band between them. The measured slate-against-background table is in #165.
+Measured for #221 (git: 2026-07-31). On this palette the window that meets both contrasts is 0.0067 of relative luminance wide, and no Tailwind sky step is inside it. `sky-650` gives the white label 4.57:1, and the fill 3.21:1 on the panel, 3.04:1 on `DAY.range` and 3.91:1 on the segment track. `sky-600` fails the label at 4.02:1. `sky-700` fails the calendar at 2.37:1, where the ends of a selected range sink into the band between them. The measured slate-against-background table is in #165.
 
 ## Alternatives rejected
 

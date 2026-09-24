@@ -17,7 +17,7 @@ The model picker is a button that opens a listbox of every model, in the app's o
 
 ## Evidence
 
-The shortest summary needs 303px of label where the control has 245px.
+The shortest summary needs 303px of label where the control has 245px (the guide's figure, not dated; git: first written in #235, 2026-08-02).
 
 ## Alternatives rejected
 

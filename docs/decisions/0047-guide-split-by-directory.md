@@ -17,7 +17,7 @@ The module layouts live in nested `CLAUDE.md` files beside the code they describ
 
 ## Evidence
 
-The two lists were 109k of the root file's 165k characters. At 971fede the root file was 62.4k characters.
+The two lists were 109k of the root file's 165k characters (git: #458, 2026-09-17). At 971fede the root file was 62.4k characters.
 
 ## Alternatives rejected
 

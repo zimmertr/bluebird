@@ -17,7 +17,7 @@ Every scale on the map is one gradient. The grid is smooth by default: one raste
 
 ## Evidence
 
-Strips are never to scale: 0.39 to 787 inches to scale is ten bands in two pixels.
+Strips are never to scale: 0.39 to 787 inches to scale is ten bands in two pixels (the guide's figure, not dated; git: first written in #459, 2026-09-17).
 
 ## Alternatives rejected
 

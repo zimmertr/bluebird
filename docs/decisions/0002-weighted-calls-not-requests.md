@@ -17,7 +17,7 @@ All capacity math is written in weighted calls, never in HTTP requests. `openmet
 
 ## Evidence
 
-The 2026-07-29 incident (#180) was a unit error: spend priced in requests. The batch of 50 and the 4 in flight were measured, not chosen (#182). Since #443 the variables factor is 1.5 in the browser and 1.4 on the pod, where every variable set before the five level temperatures stayed inside 1. The worst-case 50-location 16-day batch went from 57.1 to 80.0 weighted calls.
+The 2026-07-29 incident (#180) was a unit error: spend priced in requests. The batch of 50 and the 4 in flight were measured, not chosen (#182). Since #443 the variables factor is 1.5 in the browser and 1.4 on the pod, where every variable set before the five level temperatures stayed inside 1. The worst-case 50-location 16-day batch went from 57.1 to 80.0 weighted calls (git: #451, 2026-09-17).
 
 ## Alternatives rejected
 

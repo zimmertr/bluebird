@@ -17,7 +17,7 @@ The lift is measured: `resolveSheetLift`, fed by a `ResizeObserver` on the sheet
 
 ## Evidence
 
-The estimate was 20px long on the header and 16px short on each grip, so the four results states sat 44.5, 44.5, 28.5 and 60.5px clear of the player instead of one number (#249 review).
+The estimate was 20px long on the header and 16px short on each grip, so the four results states sat 44.5, 44.5, 28.5 and 60.5px clear of the player instead of one number (#249 review; git: #335, 2026-09-14).
 
 ## Alternatives rejected
 

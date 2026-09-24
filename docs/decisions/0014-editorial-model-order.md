@@ -17,7 +17,7 @@ The eight forecast models differ in grid spacing and in reach. A list sorted by 
 
 ## Evidence
 
-`gfs_seamless` is measurably two models: HRRR's 3 km grid to hour 45, then GFS out to sixteen days, with no coverage cliff. A model's far edge is soft: asking past it returns nulls, not an error.
+The guide at 971fede: `gfs_seamless` is measurably two models, HRRR's 3 km grid to hour 45 and then GFS out to sixteen days, with no coverage cliff. The comment above `DEFAULT_FORECAST_MODEL` in `forecast_models.py` dates that measurement 2026-08-01 at Mount Rainier: `gfs_seamless` is byte-identical to `gfs_hrrr` for hours 0 to 45. The guide's hour 45 and the published reach differ: `GET /api/capabilities` publishes each model's reach as `forecast_models[].forecast_hours`, and at 971fede that was 42 for `gfs_hrrr`, a floor under its measured 49 and 42. A model's far edge is soft: asking past it returns nulls, not an error.
 
 ## Alternatives rejected
 

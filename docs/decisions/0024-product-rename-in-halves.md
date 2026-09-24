@@ -13,7 +13,7 @@ The product became Bluebird Forecast. Some names live only in this repository. O
 
 ## Decision
 
-Today every user-facing string says "Bluebird Forecast" (the one idiom kept is "Bluebird day"), and every identifier says it too: `bluebird_forecast_*` metrics, loggers and localStorage keys, the `bluebird-forecast` package, the `BluebirdForecast/1.0` User-Agent, and the `bluebirdforecast` container user. The repositories, the images, the chart, its helpers, the namespace and the Argo apps keep their old names until their issues close: #311, #111, #315 and #314.
+Today every user-facing string says "Bluebird Forecast" (the one idiom kept is "Bluebird day", and "Bluebird blue" became "Bluebird Forecast blue"), and every identifier says it too: `bluebird_forecast_*` metrics, loggers and localStorage keys, the `bluebird-forecast` package, the `BluebirdForecast/1.0` User-Agent, and the `bluebirdforecast` container user. The repositories, the images, the chart, its helpers, the namespace and the Argo apps keep their old names until their issues close: #311, #111, #315 and #314.
 
 ## Evidence
 

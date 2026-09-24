@@ -17,7 +17,7 @@ Every glyph is one component in `components/icons.tsx`. The module owns the path
 
 ## Evidence
 
-The search magnifier folded into `control`: a 15px box centres on a half pixel in a 36 or 44px row whose other two glyphs sit at 16. The two chips' remove crosses folded into one `chip` step at 12: both chips measure exactly 24px tall, and the 24-unit viewBox halves onto whole pixels at 12 and not at 10.
+Measured for #436 (git: #417, 2026-09-17). The search magnifier folded into `control`: a 15px box centres on a half pixel in a 36 or 44px row whose other two glyphs sit at 16. The two chips' remove crosses folded into one `chip` step at 12: both chips measure exactly 24px tall, and the 24-unit viewBox halves onto whole pixels at 12 and not at 10.
 
 ## Alternatives rejected
 
