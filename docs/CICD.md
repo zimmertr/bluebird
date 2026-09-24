@@ -306,7 +306,7 @@ The moving parts ("KM" = `Kubernetes-Manifests/public/bluebird/`):
 | `VirtualService bluebird` | chart | the three weighted routes `bluebird-stable`, `bluebird-api-public` and `bluebird-api-keyed`, whose destination weights the controller owns |
 | `AnalysisTemplate version-check` | KM `resources/analysisTemplate-versionCheck.yml` | identity gate — the canary must serve the exact image being rolled out |
 | `AnalysisTemplate api-test` | KM `resources/analysisTemplate-apiTest.yml` | functional gate — a real `/api/analyze` through Overpass and Open-Meteo |
-| `AnalysisTemplate error-rate` | KM `resources/analysisTemplate-errorRate.yml` | soak gate — the canary's 5xx share read from Prometheus, three times a minute apart, starting 150 s after the step begins |
+| `AnalysisTemplate error-rate` | KM `resources/analysisTemplate-errorRate.yml` | soak gate — the canary's 5xx share read from Prometheus, three times a minute apart |
 
 The first two gates are Argo `web` providers and the third is a `prometheus`
 provider, so the controller makes every call itself: a release starts no Job
@@ -363,7 +363,7 @@ flowchart TD
         scale["setCanaryScale: replicas 1<br/>one new-version pod behind Service bluebird-canary<br/>VirtualService still 100/0"]
         vc["AnalysisRun version-check (web provider)<br/>GET canary /api/version<br/>must match the image tag being rolled out"]
         at["AnalysisRun api-test (web provider)<br/>POST canary /api/analyze<br/>must return at least one ranked peak"]
-        er["AnalysisRun error-rate (prometheus provider)<br/>canary 5xx share below 5%<br/>initialDelay 150s, then count 3, interval 60s — 270 s of wall clock"]
+        er["AnalysisRun error-rate (prometheus provider)<br/>canary 5xx share below 5%<br/>count 3, interval 60s — 120 s of wall clock"]
     end
 
     done["Promoted — canary ReplicaSet scales to 3 and becomes stable,<br/>Service bluebird repointed at it, old ReplicaSet scaled down"]
@@ -418,32 +418,30 @@ canary pods' 5xx share —
 `bluebird_forecast_http_requests_total{role="canary",status=~"5.."}` over the
 same series without the status filter, both as a 2-minute rate — and requires
 it below `0.05`. `count: 3`, `interval: 60s`, `failureLimit: 1`: three readings
-a minute apart, of which one may fail. **With the delay below this is 270 s of
-wall clock and the single largest segment of the whole merge-to-live path** (see
-[Where the time goes](#where-the-time-goes)).
+a minute apart, of which one may fail. **This is 120 s of wall clock and the
+single largest segment of the whole merge-to-live path** (see [Where the time
+goes](#where-the-time-goes)).
 
-The probe's own 5xx must not count twice (#519). Argo Rollouts retries a
-`web` provider error up to `consecutiveErrorLimit` (default 4) before it counts
-a failure, so `api-test` retries a failed POST until it passes, and each 502 it
-received is also a 5xx in the pod's counter. Two constants keep those retries
-out of this ratio:
+One 5xx must not abort a release (#519). The canary's 2-minute window holds
+about sixteen requests, so one 5xx is over the 0.05 threshold on its own, and
+one `api-test` retry after an upstream 502 would fail two readings in a row.
+The query therefore answers `0` in two cases, and the true ratio otherwise:
 
-- **`initialDelay: 150s`.** 150 s is the 2-minute rate window plus one 30 s
-  scrape interval. This step starts only after `api-test` passes, so every 5xx
-  its retries caused was recorded before the step began, and a window that ends
-  150 s later opens 30 s after that. Measured on #519: the last probe 502 left
-  the window 88 s into the step.
-- **A minimum of 10 requests.** A window with fewer than 10 requests answers
-  `0`. The kubelet probes alone send 16 per window (readiness every 10 s,
-  liveness every 30 s; the measured median over 40 pods). A window under 10 is
-  one that a pod start or stop cuts short (measured 6.0 to 9.4), where one 5xx
-  weighs more than 10 percent. 10 stays under 16, so a canary that runs
-  normally is always judged.
+- **Fewer than two 5xx in the window** (a `>= bool 2` factor on the 5xx
+  `increase()`). Two is the smallest count that one retry cannot reach:
+  `increase()` of a single 5xx reads at most 1.33 after extrapolation
+  (measured on the 2026-09-23 canary). A real outage gives many 5xx in two
+  minutes and still fails; two 5xx in sixteen requests is 0.125.
+- **Fewer than 10 requests in the window.** The kubelet probes alone send 16
+  per window (readiness every 10 s, liveness every 30 s; the measured median
+  over 40 pods), and a window under 10 is one that a pod start or stop cuts
+  short. 10 stays under 16, so a canary that runs normally is always judged.
 
-A probe that never passes still fails its own gate.
+Every term keeps `or vector(0)`, so an empty series answers 0 and never errors
+the measurement.
 
 Two things about it are worth stating plainly, because they bound what the
-270 s buys. The `role` label is real — it reaches Prometheus through the
+120 s buys. The `role` label is real — it reaches Prometheus through the
 Rollout's `canaryMetadata`, verified against the live series — so the query is
 not silently scoped to nothing. But the canary sits at **0% user traffic** for
 the entire gate, so the only requests in that window are the two analysis
@@ -659,14 +657,14 @@ sources named in the last column.
 | canary pod up (`setCanaryScale`) | 21 s | 21 s | Rollout step 0 → 1 (revisions 206, 207) |
 | `version-check` | 1 s | — | Rollout step 1 → 2 (revision 206) |
 | `api-test` | 13 s | 13–55 s | Rollout step 2 → 3 (revisions 206, 207) |
-| `error-rate` | **270 s** | fixed | Rollout step 3 → 4 (revisions 206, 207, measured at 120 s before #519 added the 150 s `initialDelay`) |
+| `error-rate` | **120 s** | fixed | Rollout step 3 → 4 (revisions 206, 207) |
 | promotion + service cutover | 23 s | 21–25 s | step 4 → `RolloutCompleted` |
 | stable scale-up, old ReplicaSet down | 30 s | 30–31 s | `RolloutCompleted` → `RolloutHealthy` |
-| **total** | **~9 min 20 s** | | |
+| **total** | **~6 min 50 s** | | |
 
 Two segments are larger than anything else and neither is a workflow:
 
-- **`error-rate`, 270 s.** `initialDelay: 150s` + `count: 3 × interval: 60s`, fixed by the template.
+- **`error-rate`, 120 s.** `count: 3 × interval: 60s`, fixed by the template.
   It is the biggest single segment of the path and it is a deliberate gate, not
   a knob. Its limits are written up under [Step 3](#the-four-steps).
 - **Argo CD detection, 0–182 s.** There is **no webhook**: the Argo CD server is
@@ -676,7 +674,7 @@ Two segments are larger than anything else and neither is a workflow:
   `timeout.reconciliation.jitter: 60s`, which is exactly the 0–180 s window the
   nine observations fall in. Shortening the interval shortens the segment
   proportionally and a webhook would cut it to about a second, but both are
-  cluster changes rather than workflow ones, and 43 s sits next to the 270 s
+  cluster changes rather than workflow ones, and 43 s sits next to the 120 s
   gate that follows it. Left at the chart defaults deliberately (TJ,
   2026-09-15).
 
