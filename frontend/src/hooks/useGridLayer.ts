@@ -138,3 +138,6 @@ export function useGridLayer({
     gridLegend,
   }
 }
+
+/** What `useGridLayer` hands its callers: the Layers popover and the legend read it whole. */
+export type GridLayer = ReturnType<typeof useGridLayer>

@@ -259,7 +259,13 @@ export const STYLES = [
     // A width, gap or height spelled beside the role moves the column without
     // moving what is derived from the role.
     name: 'style-map-column',
-    files: ['src/App.tsx'],
+    files: [
+      'src/App.tsx',
+      'src/components/AnalysisOverlay.tsx',
+      'src/components/LayersPopover.tsx',
+      'src/components/MapButtonColumn.tsx',
+      'src/components/MapLegend.tsx',
+    ],
     ban: [
       { selector: ride('MAP_COL_W', String.raw`(^|\s)w-\S`), message: 'Spell no width beside MAP_COL_W.' },
       {
@@ -279,19 +285,49 @@ export const STYLES = [
       { selector: text(String.raw`\btop-3\b`), message: 'Take the top inset from MAP_EDGE.top.' },
       { selector: text(String.raw`\bleft-(2|3)\b|\bleft-\[`), message: 'Take the left inset from MAP_EDGE.left.' },
     ],
+  },
+  {
+    // The map column's members are four files now (#409); each carries its
+    // share of the roles, and the counts add up to what App.tsx held: four
+    // MAP_COL_W, two MAP_COL_GAP, one MAP_COL_GAP_T and two MAP_EDGE.left.
+    // Everything inside the wrapper inherits the one number.
+    name: 'style-map-wrapper',
+    files: ['src/App.tsx'],
     require: [
-      // The legend, the popover and both buttons.
-      { selector: interp('MAP_COL_W'), count: 4, message: 'Four members of the map column wear MAP_COL_W.' },
-      // The cluster and the legend stack, and the popover that hangs.
-      { selector: interp('MAP_COL_GAP'), count: 2, message: 'Two stacks space by MAP_COL_GAP.' },
-      { selector: interp('MAP_COL_GAP_T'), count: 1, message: 'The hanging popover spaces by MAP_COL_GAP_T.' },
-      // A stacking context orders only its own children, so the layer is
-      // useless unless the cluster itself wears it.
-      { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The map controls cluster wears LAYER.mapControls.' },
-      // Everything inside the wrapper inherits the one number.
       { selector: role('MAP_EDGE') + '[property.name="publish"]', message: 'The map wrapper publishes MAP_EDGE.publish.' },
+    ],
+  },
+  {
+    // The legend box and the stack it scrolls in.
+    name: 'style-map-legend-column',
+    files: ['src/components/MapLegend.tsx'],
+    require: [
+      { selector: interp('MAP_COL_W'), count: 1, message: 'The legend box wears MAP_COL_W.' },
+      { selector: interp('MAP_COL_GAP'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.' },
+      { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
+    ],
+  },
+  {
+    // The button cluster and the Controls button it holds while the panel is
+    // closed. A stacking context orders only its own children, so the layer
+    // is useless unless the cluster itself wears it.
+    name: 'style-map-button-column',
+    files: ['src/components/MapButtonColumn.tsx'],
+    require: [
+      { selector: interp('MAP_COL_W'), count: 1, message: 'The Controls button wears MAP_COL_W.' },
+      { selector: interp('MAP_COL_GAP'), count: 1, message: 'The cluster spaces by MAP_COL_GAP.' },
+      { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The map controls cluster wears LAYER.mapControls.' },
       { selector: interp('MAP_EDGE.top'), message: 'The column stands off the top by MAP_EDGE.top.' },
-      { selector: interp('MAP_EDGE.left'), count: 2, message: 'Two stacks stand off the left by MAP_EDGE.left.' },
+      { selector: interp('MAP_EDGE.left'), count: 1, message: 'The cluster stands off the left by MAP_EDGE.left.' },
+    ],
+  },
+  {
+    // The Layers button and the popover that hangs from it.
+    name: 'style-map-layers-column',
+    files: ['src/components/LayersPopover.tsx'],
+    require: [
+      { selector: interp('MAP_COL_W'), count: 2, message: 'The Layers button and its popover wear MAP_COL_W.' },
+      { selector: interp('MAP_COL_GAP_T'), count: 1, message: 'The hanging popover spaces by MAP_COL_GAP_T.' },
     ],
   },
   {
@@ -313,7 +349,7 @@ export const STYLES = [
     // The legend's scale key: one strip, drawn from the roles, edged from one
     // place, and not hidden now that it holds its numbers.
     name: 'style-legend-ramp',
-    files: ['src/App.tsx'],
+    files: ['src/components/MapLegend.tsx'],
     ban: [
       { selector: 'Literal[value="#475569"]', message: 'Edge a swatch with SWATCH_EDGE, not a hex.' },
       {
@@ -330,7 +366,7 @@ export const STYLES = [
     // Every layer row is in the list every time, so switching one layer never
     // moves the rows under it. A row out of play greys and says nothing else.
     name: 'style-layer-rows',
-    files: ['src/App.tsx'],
+    files: ['src/components/LayersPopover.tsx'],
     ban: [
       {
         selector: 'VariableDeclarator[id.name="MAP_LAYERS"] SpreadElement',

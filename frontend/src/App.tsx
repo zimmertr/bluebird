@@ -1,6 +1,4 @@
 import {
-  Fragment,
-  type ReactNode,
   Suspense,
   lazy,
   useCallback,
@@ -11,7 +9,7 @@ import {
 } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
-import SearchBox, { type SearchBoxHandle } from './components/SearchBox'
+import type { SearchBoxHandle } from './components/SearchBox'
 import ResultsTable from './components/ResultsTable'
 import ColumnsPicker from './components/ColumnsPicker'
 import ModelsPicker from './components/ModelsPicker'
@@ -20,6 +18,10 @@ import ResizeGrip from './components/ResizeGrip'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import TimelineTransport from './components/TimelineTransport'
+import AnalysisOverlay from './components/AnalysisOverlay'
+import LayersPopover from './components/LayersPopover'
+import MapButtonColumn from './components/MapButtonColumn'
+import MapLegend from './components/MapLegend'
 import ModelCompare from './components/ModelCompare'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useCapabilities } from './hooks/useCapabilities'
@@ -42,86 +44,44 @@ import { useIsDesktop } from './hooks/useIsDesktop'
 import {
   DestinationResult,
 } from './types'
-import { logoUrl } from './logo'
 import {
   IconChart,
   IconChartTable,
   IconChevron,
   IconClose,
-  IconLayers,
-  IconMenu,
   IconTable,
 } from './components/icons'
 import {
   ACCENT,
-  BUTTON_FLOATING,
   CAPTION_LIFTED,
-  CHOICE_INPUT,
-  CHOICE_ROW,
-  BUTTON_SECONDARY,
   DISABLED,
   FOCUS_RING,
   ICON_ACTION,
   ICON_BUTTON,
   LAYER,
-  LEGEND_TOP,
   LINK,
-  MAP_COL_GAP,
-  MAP_COL_GAP_T,
-  MAP_COL_W,
   MAP_EDGE,
-  MAP_ROW_H,
   MUTED,
-  PROSE,
   RADIUS,
-  LIFTED_EDGE,
-  RECESSED_FILL,
   SEGMENT_FLUID,
-  SEGMENT_FLUID_LIFTED,
   CONTROL_SIZE,
-  SLIDER_IDLE,
   STATUS,
-  SLIDER_OVERLAY,
-  SLIDER_VALUE,
-  SLIDER_WORDMARK,
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
-  SR_ONLY,
-  SURFACE_CARD,
   SURFACE_DIVIDER,
-  SURFACE_FLOATING,
   SURFACE_PAGE,
-  SURFACE_POPOVER,
   SURFACE_SHEET,
-  SWATCH_CHIP,
-  SWATCH_EDGE,
-  SWATCH_RAMP,
-  SWATCH_RAMP_SCRIM,
-  SWATCH_RAMP_TICK,
   TAP,
   TEXT,
-  YIELD_EMPTY,
 } from './styles'
 import {
   NOUN,
   familyOf,
-  metricLabel,
   rankedNoun,
 } from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
-  pitchLabel,
-  reachKmFor,
-  type GridStyle,
-} from './utils/forecastGrid'
-import { IEM_HREF } from './utils/radar'
-import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from './utils/smoke'
-import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from './utils/snowDepth'
-import { NIFC_HREF } from './utils/wildfires'
-import { RampTick, scaleRampCss, scaleTicks } from './utils/legendRamp'
-import {
-  legendBottomPx,
   TRANSPORT_GAP_PX,
 } from './utils/resultsSheet'
 import { composeOverlay } from './utils/analyzeOverlay'
@@ -150,151 +110,6 @@ import {
 // during the fetch either way, and a word there would be a new string for a
 // wait measured in a hundred milliseconds off an already warm connection.
 const TimeSeriesChart = lazy(() => import('./components/TimeSeriesChart'))
-
-// One row of the Layers popover: a checkbox and what it switches. The four
-// overlays and the forecast player share it, because they are the same kind of
-// choice — about what the map shows, never about what the analysis asks for.
-function layerRow({
-  key,
-  label,
-  checked,
-  onChange,
-  disabled,
-  note,
-}: {
-  key: string
-  label: string
-  checked: boolean
-  onChange: (on: boolean) => void
-  /** Out of play for this report; `note` says why, as the row's `title` and as
-   *  the hidden text its checkbox points at, since a tooltip does not exist on
-   *  touch or to a screen reader. */
-  disabled?: boolean
-  note?: string
-}) {
-  return (
-    <label key={key} className={CHOICE_ROW} title={disabled && note ? note : undefined}>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
-        onChange={(e) => onChange(e.target.checked)}
-        className={CHOICE_INPUT}
-      />
-      <span>{label}</span>
-      {disabled && note && (
-        <span id={`layer-${key}-note`} className={SR_ONLY}>
-          {note}
-        </span>
-      )}
-    </label>
-  )
-}
-
-/**
- * One section of the map's legend box: what it keys, who it came from, and the
- * key itself (#454).
- *
- * Two shapes, and the difference is the DATA's rather than the section's. A key
- * on a single value is a ROW — its label on the left, its swatch on the right.
- * A key on a SCALE is the strip across the box with its numbers INSIDE it,
- * because six bands of temperature and eleven of depth are not things a 14px
- * chip can say, and a row per band is seven lines and eleven on a map that can
- * be 161px tall. Inside rather than under, so the whole key is one line: a
- * scale section is 40px where two of them under their strips were 54 apiece
- * (TJ, 2026-09-17).
- *
- * One function for both, and one for the metric key and the layers alike,
- * because the sections are sorted by their labels at the call site: a shape
- * that could only be built inline could not take its place in that order. They
- * had already drifted into two shapes once, six swatch rows against a strip.
- *
- * `credit` is what the data licences ask for, and it is a section's own rather
- * than a list somewhere else so a credit stands beside the thing it describes.
- */
-function legendSection({
-  label,
-  credit,
-  swatch,
-  ramp,
-}: {
-  label: string
-  credit?: { href: string; name: string }
-  /** What sits at the right of a single-value row. */
-  swatch?: ReactNode
-  /** The strip and its numbers, for a section keyed on a scale. */
-  ramp?: { css: string; ticks: RampTick[]; bands: number }
-}) {
-  const name = (
-    <span className={TEXT.control}>
-      {label}
-      {credit && (
-        <>
-          {' ('}
-          <a href={credit.href} target="_blank" rel="noopener noreferrer" className={LINK}>
-            {credit.name}
-          </a>
-          {')'}
-        </>
-      )}
-    </span>
-  )
-  if (!ramp) {
-    return (
-      <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-        {name}
-        {swatch}
-      </div>
-    )
-  }
-  return (
-    <div className="flex flex-col gap-1">
-      {name}
-      {/* The strip IS the grid its numbers sit in, so the whole key is one
-          line: a band per column, so a tick lands on the boundary it names
-          however wide the box is. `minmax(0,1fr)` rather than `1fr` — the last
-          label is wider than a band, and a plain fr track would grow to fit it
-          and shift every tick left of it.
-
-          A boundary is a column EDGE, not a column, so a centred tick spans
-          the two columns that meet on it and centres across the pair — grid
-          has no way to centre one item on a track's edge. The other two
-          alignments sit in one column each and hang from the edge that is the
-          boundary: `start` in the column that begins there, `end` in the one
-          that ends at the strip's own right edge.
-
-          Not `aria-hidden`, which the strip carried while its numbers were
-          outside it: they are the strip's own children now, and hiding it
-          would take the scale off a screen reader with them. */}
-      <span
-        className={SWATCH_RAMP}
-        style={{
-          backgroundImage: ramp.css,
-          borderColor: SWATCH_EDGE,
-          gridTemplateColumns: `repeat(${ramp.bands}, minmax(0, 1fr))`,
-        }}
-      >
-        <span className={SWATCH_RAMP_SCRIM} aria-hidden="true" />
-        {ramp.ticks.map((tick) => (
-          <span
-            key={tick.label}
-            className={SWATCH_RAMP_TICK}
-            style={{
-              gridColumn:
-                tick.align === 'center'
-                  ? `${tick.at} / ${tick.at + 2}`
-                  : `${tick.at + 1} / span 1`,
-              justifySelf: tick.align,
-            }}
-          >
-            {tick.label}
-          </span>
-        ))}
-      </span>
-    </div>
-  )
-}
 
 // What the chart draws for its rows while a model comparison is up: nothing,
 // because the comparison composes every line itself. A module constant so the
@@ -392,30 +207,6 @@ export default function App() {
     liveKnobs,
   } = useRankingKnobs(restored, caps.maxLimit)
 
-  // The map's own Layers popover, closed on load. Not persisted: it is a
-  // disclosure, not a setting, and a link that reopened it would be sharing a
-  // gesture rather than a picture.
-  const [layersOpen, setLayersOpen] = useState(false)
-  const layersRef = useRef<HTMLDivElement>(null)
-  // Both ways out of a popover a reader expects: click away, or press Escape.
-  // `pointerdown` rather than `click` so a press that starts outside dismisses
-  // even if the pointer travels before release, and so it lands before the
-  // map's own handlers get a chance to treat the same press as a map gesture.
-  useEffect(() => {
-    if (!layersOpen) return
-    function onDown(e: PointerEvent) {
-      if (!layersRef.current?.contains(e.target as Node)) setLayersOpen(false)
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setLayersOpen(false)
-    }
-    document.addEventListener('pointerdown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [layersOpen])
   const [showResults, setShowResults] = useState(false)
   // Every stored view preference comes out of one read, held for the mount:
   // several initializers each parsing the same stored string is what
@@ -437,21 +228,16 @@ export default function App() {
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
   const isDesktop = useIsDesktop()
+  const overlays = useMapOverlays(restored, isDesktop)
   const {
     showWildfires,
-    setShowWildfires,
     showRadar,
-    setShowRadar,
     showSmoke,
-    setShowSmoke,
     showSnow,
-    setShowSnow,
     showGrid,
-    setShowGrid,
     showPlayer,
-    setShowPlayer,
     playerShown,
-  } = useMapOverlays(restored, isDesktop)
+  } = overlays
   const closeDrawer = useCallback(() => setSidebarOpen(false), [])
   const {
     drawing,
@@ -519,22 +305,7 @@ export default function App() {
   } = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
 
   // ── The forecast grid (#246) ──────────────────────────────────────────────
-  const {
-    gridStyle,
-    setGridStyle,
-    gridReachFrac,
-    gridReachDraft,
-    setGridReachDraft,
-    commitGridReach,
-    gridAvailable,
-    gridOn,
-    grid,
-    gridReachPitchKm,
-    gridPainted,
-    gridCued,
-    gridFailed,
-    gridLegend,
-  } = useGridLayer({
+  const gridLayer = useGridLayer({
     restored,
     showGrid,
     analyzed,
@@ -546,6 +317,11 @@ export default function App() {
     windowLimits: caps.windowLimits,
     aqiForecastDays: caps.aqiForecastDays,
   })
+  const {
+    gridStyle,
+    gridReachFrac,
+    grid,
+  } = gridLayer
 
   const {
     removed,
@@ -958,44 +734,6 @@ export default function App() {
     fire,
   })
 
-  // Alphabetical by label, which is the only order a list of unrelated switches
-  // can be scanned in: these five have no ranking between them — no cost, no
-  // severity, no dependency — so any other order is one the reader has to
-  // learn. The grid's own segment and slider still render under its row,
-  // because they are that row's sub-choices rather than list members.
-  //
-  // The player is a list member like the other four even though it switches
-  // something OFF the map rather than a picture onto it: it answers the same
-  // question — what is on the map — and nothing about the report follows it,
-  // so it is no more a knob than the overlays beside it.
-  const MAP_LAYERS = [
-    {
-      key: 'grid',
-      label: 'Forecast grid',
-      checked: showGrid,
-      onChange: setShowGrid,
-      disabled: !gridAvailable,
-      // Mounted twice, as the row's `title` and as the hidden text its checkbox
-      // points at: a tooltip does not exist on touch or to a screen reader.
-      note: 'The forecast grid is not available for archival data.',
-    },
-    // Always in the list, gray when nothing spans time (#460). It used to join
-    // and leave the list on the radar toggle, which moved every row under it.
-    // `CHOICE_ROW` fades the label with its checkbox, and there is no `note`:
-    // the gray row is the whole message, where a sentence about a control
-    // would be a tooltip by another name (TJ, 2026-09-22).
-    {
-      key: 'player',
-      label: 'Forecast player',
-      checked: playerShown,
-      onChange: setShowPlayer,
-      disabled: !playerOffered,
-    },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
-  ]
 
 
 
@@ -1131,72 +869,7 @@ export default function App() {
             } as React.CSSProperties
           }
         >
-          {/* Above the drawer, not under it. The drawer now stays open for the
-              length of a run, and an analysis with no visible progress is the
-              thing this overlay exists to prevent — so it takes the layer that
-              clears the drawer rather than the one that sits under it. On
-              desktop nothing moves: there is no drawer for it to clear. */}
-          {overlay.visible && (
-            <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>
-              <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
-                <img
-                  src={logoUrl}
-                  width={256}
-                  height={256}
-                  alt=""
-                  className={`w-12 h-12 ${RADIUS.surface} object-cover mx-auto mb-3 animate-pulse`}
-                />
-                {/* role=status + aria-live: without it, the analysis phase is
-                    the one moment the app goes completely silent for screen
-                    readers — announce each status line as it changes. The
-                    wrapper covers the detail line too, so failover news
-                    ("Trying backup map server…") is announced as well. */}
-                <div role="status" aria-live="polite">
-                  <p className={`${PROSE.heading} leading-snug`}>{overlay.message}</p>
-                  {overlay.detail && (
-                    <p className={`${TEXT.caption} mt-1 leading-snug`}>{overlay.detail}</p>
-                  )}
-                </div>
-                {overlay.progress ? (
-                  // Weather phase — countable batch progress (the union count is
-                  // already in the "(x/y)" headline, so the bar just visualizes it).
-                  <div className="mt-3">
-                    <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
-                      <div
-                        className={`h-full ${ACCENT.mark} transition-all duration-300 ease-out`}
-                        style={{ width: `${overlay.progress.percent}%` }}
-                      />
-                    </div>
-                    <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
-                      {overlay.progress.percent}%
-                    </p>
-                  </div>
-                ) : (
-                  // Search / analyzing phase — no countable progress; show activity.
-                  <div className="mt-3">
-                    <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
-                      <div className={`h-full w-1/3 ${RADIUS.pill} ${ACCENT.mark} animate-indeterminate`} />
-                    </div>
-                    <p className={`mt-1.5 ${TEXT.caption} font-mono`}>
-                      Elapsed {elapsed}s
-                    </p>
-                  </div>
-                )}
-                <button
-                  onClick={cancel}
-                  // `w-fit mx-auto` rather than leaning on the card's text
-                  // alignment: TAP.action makes every button a flex container,
-                  // which is block-level and fills its parent, so the label
-                  // centres inside a full-width box and the box itself has no
-                  // alignment left to inherit. Shrinking it to its content is
-                  // what gives `mx-auto` something to centre.
-                  className={`${BUTTON_SECONDARY} mt-4 w-fit mx-auto`}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+          <AnalysisOverlay overlay={overlay} elapsed={elapsed} onCancel={cancel} />
           <MapView
             ref={mapRef}
             drawing={drawing}
@@ -1227,412 +900,33 @@ export default function App() {
             onRemovePoi={handleRemovePoi}
             cameraPadBottomPx={cameraPadBottomPx}
           />
-          {/* The legends render BEFORE the button column below on purpose.
-              Both are map chrome at the same layer, so paint order is DOM
-              order, and the one that has to win is the one you can click:
-              the Layers popover opens downward into exactly this space, and
-              with the legends last it opened underneath them. Pushing the
-              legends further down instead only moved the collision, since a
-              popover is as tall as its contents. */}
-          {/* Top-anchored legends: they hang one gap under the Layers button
-              (`LEGEND_TOP`) and grow downward, at EVERY width.
-
-              A key belongs where the reader last looked for it. Anchored to
-              the bottom instead, the stack rode up and down with every panel
-              drag and every results mode, so a box that had said nothing new
-              appeared to be moving on its own — and on a phone the last box
-              ended up under the forecast player. Anchored here it is a fixed
-              landmark under the button that switches the layers it explains,
-              and what gives when the map runs short is the tail of the stack
-              rather than its position.
-
-              The inset is what clears the Controls/search/Layers column above,
-              and it is two numbers rather than one because that column is two
-              heights: `TAP` floors the search row and the Layers button at 44
-              for a finger, so the column ends at 92 under a pointer and 108
-              under a finger. The role holds both with the arithmetic; the rule
-              is that the stack sits one of the column's own 8px gaps below
-              whichever it is. Anything shorter collides — at 76 the first rows
-              paint behind the Layers button, which is opaque and paints after
-              the legends (see the ordering note above) — and anything taller is
-              dead map.
-
-              It used to lift at `lg`, on the reasoning that a desktop map has
-              room to spare — but "top-auto" does not mean "as tall as it
-              likes", it means the box starts wherever its content puts it,
-              which on a wide map was 54px: straight through the Layers button
-              at 54-92. Same collision, reached from the other side.
-
-              The `bottom` offset is a ceiling on the scroll box, not an
-              anchor: it stops the stack above the timeline's band while the
-              bar is on screen, and above the sheet's top edge on a phone, so
-              no box is ever half under a control. Overflow leaves through the
-              bottom, which is the edge a scroll can follow — a stack that
-              overflowed its START edge would put boxes at negative
-              coordinates with `scrollTop` pinned at 0 and no way to reach
-              them, which is measured and is why the bottom anchoring is not
-              coming back. A sheet dragged tall closes the box to nothing, and
-              a double press on its grip brings the legends back with the rest
-              of the default. */}
-          {(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar || showSnow) && (
-            <div
-              // The inset clears the button column above, which is one row
-              // taller while the panel is collapsed and the Controls button
-              // stands in it. `LEGEND_TOP` carries both heights; picking
-              // between them here is the only thing that knows which one is on
-              // screen.
-              className={`absolute ${MAP_EDGE.left} ${
-                sidebarOpen ? LEGEND_TOP.compact : LEGEND_TOP.full
-              } z-10 flex flex-col ${MAP_COL_GAP} overflow-y-auto [&>*]:flex-shrink-0 ${YIELD_EMPTY}`}
-              // The floor of the scroll box, derived rather than chosen: the
-              // transport's whole band while the bar is on screen and a plain
-              // gap otherwise, measured from whatever stands on the map's
-              // bottom edge — the edge itself where the results are docked, the
-              // top of the sheet where they cover it (#249).
-              style={{ bottom: legendBottomPx(sheetLiftPx, timelineAxis !== null) }}
-            >
-              {/* ONE box, gaining and losing sections as the report and the
-                  layers change (#454). It was two — the layer rows in one, the
-                  six-row metric key in another — which cost a border, a gap and
-                  a second backdrop on a map that can be 161px tall on a phone.
-
-                  **Alphabetical by the label each section READS**, the metric
-                  key included (TJ, 2026-09-17). Nothing ranks these against
-                  each other — no cost, no severity, no dependency — so any
-                  other order is one the reader has to learn, and a key that is
-                  a list member cannot be a headline above the list. It costs
-                  the metric key a fixed position: a temperature ranking sorts
-                  last and an AQI one first. That is the order working rather
-                  than the key moving on its own, and it is the same rule that
-                  moved `Active wildfire` off the bottom, where it had been
-                  sorting under the Layers popover's own name for it.
-
-                  Sorted here rather than written in order, because one of the
-                  labels is the ranked metric's and changes under the reader.
-                  Every label is spelled once, as the sort key AND as what the
-                  section renders, so the two cannot disagree. */}
-              <div className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}>
-                {[
-                  // Keyed to the markers OR to the grid, because either can be
-                  // the only colored thing on screen: a live filter can empty
-                  // the table while the field still paints, and colors without
-                  // their key are noise. One section serves both — they are
-                  // scored on the same scale by construction (#246), which is
-                  // also why the grid has no swatch of its own in its row.
-                  //
-                  // The strip follows `markerScale`, so playback's swap to an
-                  // hourly precipitation scale moves the bands and the numbers
-                  // with the markers. The bare metric is all the label says:
-                  // which hour or window the colors describe, how it was
-                  // reduced, and — for wind — which datum produced it (#361)
-                  // are all stated by the results header and the table's own
-                  // column headers.
-                  ...(markerScale !== null &&
-                  rankedFieldHasValue &&
-                  (hasColoredMarkers || gridPainted || gridCued)
-                    ? [
-                        {
-                          // `Temperature (°F)`, by the same composer the table
-                          // headers use, reading the SCALE's unit so playback's
-                          // swap to the hourly rate relabels the strip with its
-                          // bands. No aggregate and no qualifier: which hour or
-                          // window the colours describe, how it was reduced,
-                          // and — for the wind and the temperature — which
-                          // datum produced it (#361, #443) are all stated by
-                          // the results header and the table's own column
-                          // headers. AQI reads as the bare noun, its index
-                          // having no unit.
-                          label: metricLabel(
-                            familyOf(view.sortBy),
-                            undefined,
-                            markerScale.unit,
-                          ),
-                          ramp: {
-                            css: scaleRampCss(markerScale),
-                            ticks: scaleTicks(markerScale),
-                            bands: markerScale.colors.length,
-                          },
-                        },
-                      ]
-                    : []),
-                  // CC BY 3.0 wants the credit wherever the fire data is drawn,
-                  // and section 4(b) lets it be "implemented in any reasonable
-                  // manner" — so it is the section's own label. The licence URI
-                  // section 4(a) asks for lives in DataSourceList, which both
-                  // document pages render.
-                  ...(showWildfires
-                    ? [
-                        {
-                          label: 'Active wildfire',
-                          credit: { href: NIFC_HREF, name: 'NIFC' },
-                          swatch: (
-                            <span
-                              className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                              style={{
-                                backgroundColor: 'rgba(220,38,38,0.35)',
-                                borderColor: '#b91c1c',
-                              }}
-                            />
-                          ),
-                        },
-                      ]
-                    : []),
-                  // No swatch: the grid's colours are the metric key's, which
-                  // the markers share. What this row adds is the one thing that
-                  // IS the grid's own — how far apart the samples are, or why
-                  // it is not there yet. Every state right-justifies its value
-                  // like every other row, statuses included: one row breaking
-                  // the column reads as a fault rather than as a distinction.
-                  ...(gridPainted || gridCued || gridFailed
-                    ? [
-                        {
-                          label: gridLegend.label,
-                          swatch: (
-                            // Colored by state (TJ, 2026-08-21): amber while
-                            // the grid is waiting or loading so a stall catches
-                            // the eye, red when it failed, and the accent once
-                            // the pitch is real. The size is the colorless
-                            // CONTROL_SIZE because a color beside
-                            // TEXT.control's own would resolve by stylesheet
-                            // order.
-                            <span
-                              className={`${CONTROL_SIZE} ${
-                                gridLegend.kind === 'pitch'
-                                  ? ACCENT.text
-                                  : gridLegend.kind === 'error'
-                                    ? STATUS.error
-                                    : STATUS.warn
-                              } flex-shrink-0`}
-                            >
-                              {gridLegend.value}
-                            </span>
-                          ),
-                        },
-                      ]
-                    : []),
-                  ...(showRadar
-                    ? [
-                        {
-                          label: 'Rain radar',
-                          credit: { href: IEM_HREF, name: 'IEM' },
-                          // A gradient rather than banded swatches: NEXRAD's
-                          // own reflectivity ramp is continuous, and a legend
-                          // that invented boundaries would assert thresholds
-                          // Bluebird Forecast does not know.
-                          swatch: (
-                            <span
-                              className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                              style={{
-                                backgroundImage:
-                                  'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
-                                borderColor: SWATCH_EDGE,
-                              }}
-                            />
-                          ),
-                        },
-                      ]
-                    : []),
-                  ...(showSmoke
-                    ? [
-                        {
-                          label: 'Smoke',
-                          credit: { href: HMS_HREF, name: 'NOAA' },
-                          // One lettered chip per density rather than three
-                          // rows. Opacity is the whole encoding here, so the
-                          // three chips also read as a ramp side by side,
-                          // which they could not do stacked. The letter is
-                          // what keeps them nameable at 14px.
-                          swatch: (
-                            <span className="flex flex-shrink-0 gap-0.5">
-                              {SMOKE_DENSITIES.map((density) => (
-                                <span
-                                  key={density}
-                                  className={SWATCH_CHIP}
-                                  style={{
-                                    backgroundColor: smokeSwatch(density),
-                                    borderColor: SMOKE_EDGE,
-                                  }}
-                                  // A letter is not nameable on sight. The word
-                                  // it stands for is the same one the plume
-                                  // popup and the layer use, so this names it
-                                  // rather than introducing a second
-                                  // vocabulary.
-                                  title={density}
-                                >
-                                  {density[0]}
-                                </span>
-                              ))}
-                            </span>
-                          ),
-                        },
-                      ]
-                    : []),
-                  // Hard-stopped between bands where the metric strip blends,
-                  // because those boundaries are NOAA's own classification —
-                  // the picture and its key have to agree, which is why both
-                  // read `snowDepth.ts`.
-                  ...(showSnow
-                    ? [
-                        {
-                          label: SNOW_LABEL,
-                          credit: { href: NOHRSC_HREF, name: 'NOHRSC' },
-                          ramp: {
-                            css: snowRampCss(),
-                            ticks: snowTicks(),
-                            bands: SNOW_RAMP.length,
-                          },
-                        },
-                      ]
-                    : []),
-                ]
-                  .sort((a, b) => a.label.localeCompare(b.label))
-                  .map((section) => (
-                    <Fragment key={section.label}>{legendSection(section)}</Fragment>
-                  ))}
-              </div>
-            </div>
-          )}
-          {/* Top-left map cluster — reopen-controls button (only while the
-              panel is collapsed) + place search + Layers. It takes its own
-              layer: what these buttons open hangs down across the map's bottom
-              chrome and across the sheet, and the layer has to sit on the
-              cluster rather than on the popover inside it (see LAYER). It stays
-              under the loading overlay and the mobile drawer backdrop. */}
-          <div className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start ${MAP_COL_GAP}`}>
-            {/* The search field is the column's first row rather than a
-                neighbour of the Controls button (TJ, 2026-09-14). Beside it,
-                the two of them at the column's shared width needed 400px of a
-                390px phone; above it, every member of the column is one row
-                wide and the column reads as one object at every width.
-
-                Raised above its later siblings so its results paint over the
-                buttons below — they are siblings in one cluster, and DOM order
-                alone put the buttons on top (#288 review). */}
-            <div className="relative z-10">
-              <SearchBox ref={searchBoxRef} onSelect={handleSearchSelect} pointed={searchPointed} />
-            </div>
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                aria-label="Open controls"
-                className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex flex-shrink-0 items-center gap-2 px-2.5`}
-              >
-                <IconMenu />
-                Controls
-              </button>
-            )}
-            {/* Layers, under the search box rather than beside MapLibre's own
-                controls on the right. Two reasons it moved: the library's stack
-                is two control GROUPS with a margin between them, so any offset
-                that clears it is a guess that was already wrong once — and the
-                left column is where the app's own map controls live, which
-                makes the split legible. Left is ours, right is the library's. */}
-            <div ref={layersRef} className="relative">
-              <button
-                onClick={() => setLayersOpen((o) => !o)}
-                aria-expanded={layersOpen}
-                className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
-              >
-                <IconLayers />
-                Layers
-              </button>
-              {/* Zero from the button it hangs under, which is the same edge
-                  as `MAP_EDGE.left`: the popover's offset parent is the column,
-                  so an inset of its own would be that inset twice and the box
-                  would hang a step right of the legends it hangs over. */}
-              {layersOpen && (
-                <div className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}>
-                  {MAP_LAYERS.map((layer) => (
-                    <Fragment key={layer.key}>
-                      {layerRow(layer)}
-                      {/* The grid's sub-choices, revealed by its own checkbox
-                          and rendered under the row they belong to rather than
-                          after the list, so the alphabetical order above holds
-                          whatever is open. The popover is as wide as the legend
-                          boxes below it (`MAP_COL_W`), so these take the fluid
-                          segment rather than the panel's fixed 144px column —
-                          the same reason the results bar's mode switch does.
-
-                          They are ONE block, set off from the list by the same
-                          gap on both sides: `mt-1.5` under the checkbox row it
-                          belongs to, and `mb-1.5` under the last of them. The
-                          slider used to end flush against the next layer's row,
-                          so the block read as belonging to that row as much as
-                          to the grid's — a group is bounded by its gaps, and
-                          one gap bounds nothing. */}
-                      {layer.key === 'grid' && gridOn && (
-                        <>
-                          <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
-                            {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                              <button
-                                key={value}
-                                type="button"
-                                aria-pressed={gridStyle === value}
-                                onClick={() => setGridStyle(value)}
-                                className={`${SEGMENT_ITEM} ${
-                                  gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                                } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                              >
-                                {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                              </button>
-                            ))}
-                          </div>
-                          {/* The coverage slider: how far from each destination
-                              the grid reaches. The value and wordmark render
-                              TWICE — muted on the well, white inside the accent
-                              fill — with the top copy clipped to the fill, so the
-                              line stays readable at any position without a color
-                              racing another. Drag previews live (`gridReachDraft`)
-                              and commits on release, because each committed value
-                              is a refetch and a drag must not fetch per pixel. */}
-                          <div
-                            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
-                          >
-                            {(() => {
-                              const shown = gridReachDraft ?? gridReachFrac
-                              const pct = shown * 100
-                              const line = (
-                                <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                                  <span className={SLIDER_VALUE}>
-                                    {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
-                                  </span>
-                                  <span className={SLIDER_WORDMARK}>Coverage</span>
-                                </div>
-                              )
-                              return (
-                                <>
-                                  <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
-                                  <div
-                                    className={`absolute inset-0 ${ACCENT.fill}`}
-                                    style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
-                                  >
-                                    {line}
-                                  </div>
-                                </>
-                              )
-                            })()}
-                            <input
-                              type="range"
-                              aria-label="Coverage"
-                              min={0}
-                              max={100}
-                              step={5}
-                              value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
-                              onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
-                              onPointerUp={commitGridReach}
-                              onKeyUp={commitGridReach}
-                              onBlur={commitGridReach}
-                              className={SLIDER_OVERLAY}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </Fragment>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+      {/* The legends render BEFORE the button column below on purpose.
+          Both are map chrome at the same layer, so paint order is DOM
+          order, and the one that has to win is the one you can click:
+          the Layers popover opens downward into exactly this space, and
+          with the legends last it opened underneath them. Pushing the
+          legends further down instead only moved the collision, since a
+          popover is as tall as its contents. */}
+          <MapLegend
+            sortBy={view.sortBy}
+            markerScale={markerScale}
+            hasColoredMarkers={hasColoredMarkers}
+            rankedFieldHasValue={rankedFieldHasValue}
+            overlays={overlays}
+            grid={gridLayer}
+            sidebarOpen={sidebarOpen}
+            sheetLiftPx={sheetLiftPx}
+            timelineShown={timelineAxis !== null}
+          />
+          <MapButtonColumn
+            searchBoxRef={searchBoxRef}
+            onSearchSelect={handleSearchSelect}
+            searchPointed={searchPointed}
+            sidebarOpen={sidebarOpen}
+            onOpenControls={() => setSidebarOpen(true)}
+          >
+            <LayersPopover overlays={overlays} grid={gridLayer} playerOffered={playerOffered} />
+          </MapButtonColumn>
           {/* The timeline, present exactly while something spans time: radar
               contributes a past axis, a multi-hour report a forecast one, and
               a smoke analysis contributes neither (two passes a day is not an
