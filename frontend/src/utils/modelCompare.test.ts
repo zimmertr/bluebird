@@ -15,6 +15,8 @@ import {
   isBlend,
   isPartialRow,
   legendEntries,
+  type LegendEntry,
+  type ModelRow,
   modelEndLines,
   modelRowsFor,
   PARTIAL_COVERAGE_NOTE,
@@ -23,6 +25,7 @@ import {
   pairColor,
   pairKey,
 } from './modelCompare'
+import { modelNamed } from './chartData'
 import { resultRow, weatherResult } from '../testSupport/fixtures'
 
 const HOUR = 3_600_000
@@ -608,6 +611,8 @@ describe('legendEntries', () => {
     { id: 'gfs_hrrr', label: 'NOAA HRRR' },
   ]
   const keyOf = (r: DestinationResult) => `${r.latitude},${r.longitude}`
+  // What the chip reads: its two spans, side by side.
+  const label = (e: LegendEntry) => e.row.name + (e.suffix ?? '')
   const bothAnswered = {
     [pairKey('gfs_hrrr', keyOf(A))]: weatherResult(),
     [pairKey('gfs_hrrr', keyOf(B))]: weatherResult(),
@@ -616,14 +621,14 @@ describe('legendEntries', () => {
   // With one model the legend is what it always was: one chip per place.
   it('gives one bare-named entry per destination with one model', () => {
     const out = legendEntries([A, B], [], false)
-    expect(out.map((e) => e.label)).toEqual(['Cathedral Peak', 'Remmel Mountain'])
+    expect(out.map((e) => label(e))).toEqual(['Cathedral Peak', 'Remmel Mountain'])
     expect(out.map((e) => e.key)).toEqual([keyOf(A), keyOf(B)])
   })
 
   it('gives one entry per line, named with its model, when comparing', () => {
     const rows = modelRowsFor([A, B], MODELS, 'ecmwf_ifs025', bothAnswered, keyOf)
     const out = legendEntries(rows, [], true)
-    expect(out.map((e) => e.label)).toEqual([
+    expect(out.map((e) => label(e))).toEqual([
       'Cathedral Peak (ECMWF IFS)',
       'Cathedral Peak (NOAA HRRR)',
       'Remmel Mountain (ECMWF IFS)',
@@ -631,11 +636,21 @@ describe('legendEntries', () => {
     ])
   })
 
+  // The chip splits the label so the name can truncate and the model cannot,
+  // and the two halves must still read as the one spelling the hover box uses.
+  it('splits a pair label into the name and the model suffix of modelNamed', () => {
+    const rows = modelRowsFor([A], MODELS, 'ecmwf_ifs025', bothAnswered, keyOf)
+    for (const entry of legendEntries(rows, [], true)) {
+      expect(entry.suffix).not.toBeNull()
+      expect(label(entry)).toBe(modelNamed(A.name, (entry.row as ModelRow).modelLabel))
+    }
+  })
+
   // A model that drew nothing at a place has no line there, so no chip.
   it('gives no entry for a pair that did not answer', () => {
     const held = { [pairKey('gfs_hrrr', keyOf(A))]: weatherResult() }
     const rows = modelRowsFor([A, B], MODELS, 'ecmwf_ifs025', held, keyOf)
-    expect(legendEntries(rows, [], true).map((e) => e.label)).toEqual([
+    expect(legendEntries(rows, [], true).map((e) => label(e))).toEqual([
       'Cathedral Peak (ECMWF IFS)',
       'Cathedral Peak (NOAA HRRR)',
       'Remmel Mountain (ECMWF IFS)',
@@ -665,7 +680,7 @@ describe('legendEntries', () => {
   it('lists a pending destination once, last, with no model', () => {
     const rows = modelRowsFor([A], MODELS, 'ecmwf_ifs025', bothAnswered, keyOf)
     const out = legendEntries(rows, [PENDING], true)
-    expect(out.map((e) => e.label)).toEqual([
+    expect(out.map((e) => label(e))).toEqual([
       'Cathedral Peak (ECMWF IFS)',
       'Cathedral Peak (NOAA HRRR)',
       'Amphitheater Mountain',

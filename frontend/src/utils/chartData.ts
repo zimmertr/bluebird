@@ -244,7 +244,16 @@ export function comparedLineLabel(rank: number, name: string, modelLabel: string
  * `comparedLineLabel` composes through this so the two cannot drift apart.
  */
 export function modelNamed(name: string, modelLabel: string): string {
-  return `${name} (${modelLabel})`
+  return `${name}${modelSuffix(modelLabel)}`
+}
+
+/**
+ * The model half of `modelNamed`, on its own. The legend chip draws it in a
+ * span that never shrinks beside a name that truncates, because the model is
+ * the part of the label that tells two chips of one destination apart.
+ */
+export function modelSuffix(modelLabel: string): string {
+  return ` (${modelLabel})`
 }
 
 export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): number | null {

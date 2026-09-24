@@ -2513,7 +2513,7 @@ export default function App() {
                       {resultsMode === 'chart' && legend.length > 0 && (
                         <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
                           <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
-                            {legend.map(({ key, row, label }) => {
+                            {legend.map(({ key, row, suffix }) => {
                               const plotted = chart.isSelected(row)
                               return (
                                 <span
@@ -2532,8 +2532,11 @@ export default function App() {
                                       className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
                                       style={{ backgroundColor: rowChartColor(row) }}
                                     />
-                                    <span className={`truncate ${plotted ? '' : MUTED}`}>
-                                      {label}
+                                    <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
+                                      <span className="truncate">{row.name}</span>
+                                      {suffix && (
+                                        <span className="flex-shrink-0 whitespace-pre">{suffix}</span>
+                                      )}
                                     </span>
                                   </button>
                                   <button

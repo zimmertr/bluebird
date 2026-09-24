@@ -11,7 +11,7 @@
 
 import { DestinationResult, HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { ChartLine, chartKey, comparedLineLabel, gridRemapper, modelNamed } from './chartData'
+import { ChartLine, chartKey, comparedLineLabel, gridRemapper, modelSuffix } from './chartData'
 import { HOUR_MS } from './forecastWindow'
 import { listPhrase } from './notices'
 import type { WeatherResult } from './openMeteo'
@@ -438,12 +438,20 @@ export function modelRowsFor(
 export interface LegendEntry {
   key: string
   row: DestinationResult
-  label: string
+  /**
+   * The model half of the label, or null for a chip that names no model. It
+   * rides apart from `row.name` because the chip truncates the name and never
+   * the model; the two concatenate to `modelNamed(name, modelLabel)`.
+   */
+  suffix: string | null
 }
 
 /**
- * The chart-only legend: one chip per row the table would show in Both, in the
- * table's order, then the pending destinations no analysis has covered.
+ * The chart-only legend: one chip per row the table would show in Both, then
+ * the pending destinations no analysis has covered. The rows come in
+ * `modelRowsFor`'s order (ranking order, grouped by destination, the ranking
+ * model's row first in each group) rather than the table's, which follows a
+ * detail sort the chart has no use for.
  *
  * The legend stands in for the table's checkbox column where that column is
  * not drawn, so it lists what that column lists. The chart draws one line per
@@ -467,10 +475,10 @@ export function legendEntries(
       return {
         key: `model:${pairKey(modelId, chartKey(row))}`,
         row,
-        label: modelNamed(row.name, modelLabel),
+        suffix: modelSuffix(modelLabel),
       }
     }
-    return { key: chartKey(row), row, label: row.name }
+    return { key: chartKey(row), row, suffix: null }
   })
-  return [...entries, ...pending.map((row) => ({ key: chartKey(row), row, label: row.name }))]
+  return [...entries, ...pending.map((row) => ({ key: chartKey(row), row, suffix: null }))]
 }

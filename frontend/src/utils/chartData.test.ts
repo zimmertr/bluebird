@@ -7,6 +7,7 @@ import {
   axisTimeLabel,
   comparedLineLabel,
   modelNamed,
+  modelSuffix,
   gridRemapper,
   nowWithinGrid,
   tracksCursor,
@@ -494,6 +495,10 @@ describe('modelNamed', () => {
   // The legend chip's form: the hover box's name without the rank.
   it('reads destination, then model', () => {
     expect(modelNamed('Cathedral Peak', 'ECMWF IFS')).toBe('Cathedral Peak (ECMWF IFS)')
+  })
+
+  it('ends in the model suffix the legend chip draws apart', () => {
+    expect(modelNamed('Cathedral Peak', 'ECMWF IFS')).toBe(`Cathedral Peak${modelSuffix('ECMWF IFS')}`)
   })
 
   // One spelling for both, so the chip and the hover box cannot drift apart.
