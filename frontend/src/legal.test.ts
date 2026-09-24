@@ -21,6 +21,7 @@ import termsPage from './components/TermsPage.tsx?raw'
 import welcomeModal from './components/WelcomeModal.tsx?raw'
 import wildfires from './utils/wildfires.ts?raw'
 import mapLegend from './components/MapLegend.tsx?raw'
+import resultsBar from './components/ResultsBar.tsx?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
 
 // CSS files: vitest stubs CSS imports to empty strings, so read them from the
@@ -172,7 +173,7 @@ describe('the provider credits', () => {
   // does require is that the link be beside the data, which is the docked
   // results bar.
   it('keep Open-Meteo beside the forecasts', () => {
-    expect(app).toMatch(/https:\/\/open-meteo\.com/)
+    expect(resultsBar).toMatch(/https:\/\/open-meteo\.com/)
   })
 })
 

@@ -235,17 +235,31 @@ export const DATA = [
     // recharts is about 105 KB gzip, and a reader who never opens the chart
     // must not pay for it.
     name: 'chart-lazy',
-    files: ['src/App.tsx'],
+    files: ['src/components/ResultsPanels.tsx'],
     ban: [
       {
-        selector: 'ImportDeclaration[source.value="./components/TimeSeriesChart"]',
+        selector: 'ImportDeclaration[source.value="./TimeSeriesChart"]',
         message: 'Import TimeSeriesChart lazily, never statically.',
       },
     ],
     require: [
       {
-        selector: 'CallExpression[callee.name="lazy"] ImportExpression[source.value="./components/TimeSeriesChart"]',
+        selector: 'CallExpression[callee.name="lazy"] ImportExpression[source.value="./TimeSeriesChart"]',
         message: 'Load TimeSeriesChart through lazy().',
+      },
+    ],
+  },
+  {
+    // The lazy import only keeps recharts out of the entry chunk while nothing
+    // else imports the chart statically. Its own tests do, and are not shipped.
+    name: 'chart-never-static',
+    files: ['src/App.tsx', 'src/components/*.tsx'],
+    ignores: ['src/components/*.test.tsx'],
+    probe: 'src/App.tsx',
+    ban: [
+      {
+        selector: 'ImportDeclaration[importKind="value"][source.value=/TimeSeriesChart$/]',
+        message: 'Import TimeSeriesChart only through the lazy() in ResultsPanels.',
       },
     ],
   },

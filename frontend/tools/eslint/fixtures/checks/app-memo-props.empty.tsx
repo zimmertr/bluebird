@@ -1,2 +1,2 @@
-// Must trip: none of the memoized children is rendered.
+// Must trip: MapView is not rendered.
 export const App = () => <main />

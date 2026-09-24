@@ -2,6 +2,6 @@
 export const App = ({ pointSample, panelPointSample }: { pointSample: boolean; panelPointSample: boolean }) => (
   <main>
     <ControlPanel pointSample={pointSample} />
-    <ResultsTable pointSample={panelPointSample} />
+    <ResultsSheet pointSample={panelPointSample} />
   </main>
 )

@@ -369,3 +369,6 @@ export function useResultsLayout({
     tableGrip,
   }
 }
+
+/** What `useResultsLayout` hands its callers; the results sheet reads it whole. */
+export type ResultsLayout = ReturnType<typeof useResultsLayout>

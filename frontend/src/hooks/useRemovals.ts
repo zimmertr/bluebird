@@ -140,3 +140,6 @@ export function useRemovals({
     restoreAllRemoved,
   }
 }
+
+/** What `useRemovals` hands its callers; the results sheet reads it whole. */
+export type Removals = ReturnType<typeof useRemovals>

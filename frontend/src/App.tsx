@@ -1,6 +1,4 @@
 import {
-  Suspense,
-  lazy,
   useCallback,
   useEffect,
   useMemo,
@@ -10,11 +8,7 @@ import {
 import MapView, { MapViewHandle } from './components/MapView'
 import ControlPanel from './components/ControlPanel'
 import type { SearchBoxHandle } from './components/SearchBox'
-import ResultsTable from './components/ResultsTable'
-import ColumnsPicker from './components/ColumnsPicker'
-import ModelsPicker from './components/ModelsPicker'
-import RemovedPicker from './components/RemovedPicker'
-import ResizeGrip from './components/ResizeGrip'
+import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
 import PreviewBanner from './components/PreviewBanner'
 import TimelineTransport from './components/TimelineTransport'
@@ -22,7 +16,6 @@ import AnalysisOverlay from './components/AnalysisOverlay'
 import LayersPopover from './components/LayersPopover'
 import MapButtonColumn from './components/MapButtonColumn'
 import MapLegend from './components/MapLegend'
-import ModelCompare from './components/ModelCompare'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
@@ -45,40 +38,20 @@ import {
   DestinationResult,
 } from './types'
 import {
-  IconChart,
-  IconChartTable,
-  IconChevron,
   IconClose,
-  IconTable,
 } from './components/icons'
 import {
-  ACCENT,
-  CAPTION_LIFTED,
-  DISABLED,
-  FOCUS_RING,
-  ICON_ACTION,
-  ICON_BUTTON,
   LAYER,
-  LINK,
   MAP_EDGE,
-  MUTED,
   RADIUS,
-  SEGMENT_FLUID,
-  CONTROL_SIZE,
-  STATUS,
-  SEGMENT_DIVIDER,
-  SEGMENT_IDLE,
-  SEGMENT_ITEM,
   SURFACE_DIVIDER,
   SURFACE_PAGE,
-  SURFACE_SHEET,
   TAP,
   TEXT,
 } from './styles'
 import {
   NOUN,
   familyOf,
-  rankedNoun,
 } from './metrics'
 import { hourlyScale, rankedScale } from './utils/colors'
 import {
@@ -103,25 +76,9 @@ import {
   setWelcomed,
 } from './utils/viewPrefs'
 
-// Lazy, because `recharts` is the one large library the first screen does not
-// need: the map mounts before any chart exists, and a reader who never opens
-// one paid for it anyway. The fallback is `null` on purpose — the chart panel
-// already reserves its height, so an empty box is what the reader would see
-// during the fetch either way, and a word there would be a new string for a
-// wait measured in a hundred milliseconds off an already warm connection.
-const TimeSeriesChart = lazy(() => import('./components/TimeSeriesChart'))
-
-// What the chart draws for its rows while a model comparison is up: nothing,
-// because the comparison composes every line itself. A module constant so the
-// chart's line memo is not rebuilt by a fresh empty array on every render.
-const NO_CHART_ROWS: DestinationResult[] = []
-
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
   const searchBoxRef = useRef<SearchBoxHandle>(null)
-  const columnsButtonRef = useRef<HTMLButtonElement>(null)
-  const modelsButtonRef = useRef<HTMLButtonElement>(null)
-  const removedButtonRef = useRef<HTMLButtonElement>(null)
 
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
@@ -213,10 +170,6 @@ export default function App() {
   // `viewPrefs.ts` exists to stop. The results layout takes the mode; the
   // table takes the rest.
   const storedView = useMemo(readViewPrefs, [])
-  // Column picker popover open/closed
-  const [columnsOpen, setColumnsOpen] = useState(false)
-  const [modelsOpen, setModelsOpen] = useState(false)
-  const [removedOpen, setRemovedOpen] = useState(false)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
@@ -323,16 +276,13 @@ export default function App() {
     grid,
   } = gridLayer
 
+  const removals = useRemovals({ places, addPlace, removePlace, destinationScope, csvRows, universe, response })
   const {
-    removed,
     removedKeys,
     activeRemovedKeys,
     clearForScope: clearRemovalsForScope,
     registerPlace,
-    removeResult: handleRemoveResult,
-    restoreRemoved: handleRestoreRemoved,
-    restoreAllRemoved: handleRestoreAllRemoved,
-  } = useRemovals({ places, addPlace, removePlace, destinationScope, csvRows, universe, response })
+  } = removals
 
   function handleSearchSelect(place: Place) {
     mapRef.current?.flyToPlace(place)
@@ -497,15 +447,7 @@ export default function App() {
   // sync effect above must not flush, or the debounce collapses nothing.
   useEffect(() => () => writeUrl.flush(), [writeUrl])
 
-  const {
-    results,
-    windowTitle,
-    detailSort,
-    sortDetail: handleDetailSort,
-    pending,
-    rowCount,
-    emptyReason,
-  } = usePresentedReport({
+  const report = usePresentedReport({
     universe,
     response,
     analyzed,
@@ -519,6 +461,11 @@ export default function App() {
     places,
     csvRows,
   })
+  const {
+    results,
+    detailSort,
+    pending,
+  } = report
 
   // Flags destinations within 10 mi of an active US wildfire; independent of the
   // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
@@ -652,23 +599,7 @@ export default function App() {
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
   const bannerPx = preview.enabled ? 32 : 0
-  const {
-    sheetRef,
-    isDragging,
-    resultsCollapsed,
-    toggleCollapsed,
-    resultsMode,
-    chooseResultsMode,
-    bothHasRoom,
-    chartShowing,
-    chartPanelPx,
-    tablePanelPx,
-    sheetLiftPx,
-    mapCornerLift,
-    cameraPadBottomPx,
-    chartGrip,
-    tableGrip,
-  } = useResultsLayout({
+  const layout = useResultsLayout({
     modeChosen: storedView.modeChosen,
     isDesktop,
     bannerPx,
@@ -676,19 +607,16 @@ export default function App() {
     response,
     analysisSeq,
   })
+  const {
+    isDragging,
+    chartShowing,
+    sheetLiftPx,
+    mapCornerLift,
+    cameraPadBottomPx,
+  } = layout
 
   // ── The comparison chart (#232) ───────────────────────────────────────────
-  const {
-    chart,
-    compare,
-    pendingRows,
-    selectedModelRows,
-    hiddenModels,
-    toggleHiddenModel,
-    rowChartColor,
-    comparingRows,
-    compareWait,
-  } = useChartCompare({
+  const charts = useChartCompare({
     results,
     pending,
     sortBy: view.sortBy,
@@ -701,22 +629,14 @@ export default function App() {
     windowLimits: caps.windowLimits,
     chartShowing,
   })
+  const {
+    compare,
+    pendingRows,
+    comparingRows,
+  } = charts
 
   // ── The table's shape and its file ──────────────────────────────────────────
-  const {
-    tableRows,
-    tableColumns,
-    allColumns,
-    pickerVisibleKeys,
-    tableColWidths,
-    setTableColWidths,
-    analysisModelLabel,
-    partialNote,
-    legend,
-    handleColumnMove,
-    handleVisibilityChange,
-    handleDownloadCsv,
-  } = useTableView({
+  const tableView = useTableView({
     storedView,
     results,
     detailSort,
@@ -733,12 +653,10 @@ export default function App() {
     pendingRows,
     fire,
   })
-
-
-
-
-
-
+  const {
+    tableColumns,
+    analysisModelLabel,
+  } = tableView
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
@@ -949,367 +867,27 @@ export default function App() {
           )}
         </div>
 
-        {showTable && (
-          // Docked below the map on desktop; on a phone the same results stand
-          // on the map's bottom edge as a sheet, so the map keeps its full
-          // height and its legends keep their room (#249). One surface either
-          // way — only where it sits changes.
-          <div
-            ref={sheetRef}
-            className={
-              isDesktop
-                ? 'flex flex-shrink-0 flex-col bg-slate-800'
-                : `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${LAYER.sheet}`
-            }
-          >
-            {/* Shared header bar for all results views. A container query, not
-                a viewport one: the bar's width is the viewport minus the docked
-                sidebar, so a viewport breakpoint would fold it on a window that
-                never changed size. Wide, everything sits on one line; narrow,
-                it folds to exactly two — the title row (which keeps the
-                collapse chevron) and the actions row — never a vertical stack
-                (#242 review). The fold sits at the 896px container step;
-                re-measure if a member joins or leaves. */}
-            <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
-              <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
-                <div className="flex min-w-0 flex-1 items-baseline gap-2">
-                  {/* Before the first analysis the title is the same ranked
-                      phrase the sidebar has selected, with a zero count —
-                      "Lowest Total Precipitation (0 of 2)" — so the bar reads
-                      the same before and after and the zero says nothing has
-                      been ranked yet. The window timestamp joins once a
-                      report exists (windowTitle below). */}
-                  <span className={`${TEXT.subheading} min-w-0 truncate`}>
-                    {`${view.sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(view.sortBy, pointSample)} (${
-                      rowCount ?? `0 of ${pending.length}`
-                    })`}
-                  </span>
-                  {windowTitle !== null && (
-                    <span className={`${CAPTION_LIFTED} truncate`}>
-                      {windowTitle}
-                    </span>
-                  )}
-                  {/* The chevron rides the title row when the bar is folded so
-                      collapsing never needs the second row; its wide twin sits
-                      at the end of the actions row below. */}
-                  <button
-                    onClick={toggleCollapsed}
-                    aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-                    className={`${ICON_BUTTON} ml-auto @4xl:hidden`}
-                  >
-                    <IconChevron up={resultsCollapsed} />
-                  </button>
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  {/* Mode switch: table, chart, or both — fluid width, since
-                      three icon-plus-label halves cannot fit the panel's
-                      144px column (SEGMENT_FLUID exists because this shipped
-                      clipped). */}
-                  {showResults && (
-                    <div className={SEGMENT_FLUID}>
-                      <button
-                        onClick={() => chooseResultsMode('table')}
-                        className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
-                        aria-pressed={resultsMode === 'table'}
-                        aria-label="Show table only"
-                      >
-                        <IconTable className="flex-shrink-0" />
-                        <span className="hidden sm:inline">Table</span>
-                      </button>
-                      <div className={SEGMENT_DIVIDER} />
-                      <button
-                        onClick={() => chooseResultsMode('chart')}
-                        className={`${SEGMENT_ITEM} ${resultsMode === 'chart' ? ACCENT.fill : SEGMENT_IDLE}`}
-                        aria-pressed={resultsMode === 'chart'}
-                        aria-label="Show chart only"
-                      >
-                        <IconChart className="flex-shrink-0" />
-                        <span className="hidden sm:inline">Chart</span>
-                      </button>
-                      <div className={SEGMENT_DIVIDER} />
-                      {/* Disabled rather than removed where the viewport
-                          cannot hold two panels (#430): a member that comes
-                          and goes moves the two beside it and has to be found
-                          again, which is the same call Clear filters made. */}
-                      <button
-                        onClick={() => chooseResultsMode('both')}
-                        disabled={!bothHasRoom}
-                        className={`${SEGMENT_ITEM} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
-                        aria-pressed={resultsMode === 'both'}
-                        aria-label="Show chart and table"
-                      >
-                        <IconChartTable className="flex-shrink-0" />
-                        <span className="hidden sm:inline">Both</span>
-                      </button>
-                    </div>
-                  )}
-                  {/* Columns button opens picker popover. Present from the
-                      first pending row, not only once a report exists: the
-                      bar keeping its full membership is what makes it read
-                      as one control surface (#242 review).
-
-                      This and the three beside it read at `TEXT.control`, the
-                      size of every other control in the app. The micro step is
-                      for text that is present but never first — a credit, a
-                      timestamp, an overflow count — and these are buttons the
-                      reader is meant to press. */}
-                  {showTable && (
-                    <button
-                      ref={columnsButtonRef}
-                      onClick={() => setColumnsOpen(!columnsOpen)}
-                      aria-label="Choose which columns to display"
-                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
-                    >
-                      Columns
-                    </button>
-                  )}
-                  {/* Which of the selected models the chart draws (#232). A
-                      bar member rather than a control on the chart, for the
-                      reason every other comparison control is in one place:
-                      the chart is read, not operated. Standing, under exactly
-                      the condition Columns stands under, because a bar that
-                      gains and loses members is a bar a reader has to look for
-                      (#242 review) — and the question it asks is about the
-                      panel's selection, which does not wait on a fetch. */}
-                  {showTable && (
-                    <button
-                      ref={modelsButtonRef}
-                      onClick={() => setModelsOpen(!modelsOpen)}
-                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
-                    >
-                      Models
-                    </button>
-                  )}
-                  {/* Removed rows (#241): a removal's only undo, so it is a
-                      standing bar member rather than a transient toast —
-                      removals persist across live knobs and refreshes, and so
-                      does the way back. Hidden at zero: nothing to restore. */}
-                  {removed.size > 0 && (
-                    <button
-                      ref={removedButtonRef}
-                      onClick={() => setRemovedOpen(!removedOpen)}
-                      aria-label={`Restore removed rows (${removed.size} removed)`}
-                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
-                    >
-                      Removed ({removed.size})
-                    </button>
-                  )}
-                  {(results.length > 0 || pending.length > 0) && (
-                    <button
-                      onClick={handleDownloadCsv}
-                      aria-label="Download these results as a CSV file"
-                      className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
-                    >
-                      Download CSV
-                    </button>
-                  )}
-                  <a
-                    href="https://open-meteo.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`${TEXT.control} ${LINK} whitespace-nowrap`}
-                  >
-                    Open-Meteo.com
-                  </a>
-                  <button
-                    onClick={toggleCollapsed}
-                    aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-                    className={`${ICON_BUTTON} hidden @4xl:flex`}
-                  >
-                    <IconChevron up={resultsCollapsed} />
-                  </button>
-                </div>
-              </div>
-              {/* One line under the bar, never beside a control in it: the
-                  wait is about the whole comparison, where every member of the
-                  row above is about one thing the reader can press. */}
-              {compareWait !== null && (
-                <div className={`mt-1 ${CONTROL_SIZE} ${STATUS.warn}`}>{compareWait}</div>
-              )}
-            </div>
-            {!resultsCollapsed && (
-              <>
-                {resultsMode !== 'table' && (
-                  <>
-                    <ResizeGrip
-                      onReset={chartGrip.onReset}
-                      onDragStart={chartGrip.onDragStart}
-                      onDrag={chartGrip.onDrag}
-                      onDragEnd={chartGrip.onDragEnd}
-                    />
-                    <div
-                      className="flex min-h-0 flex-shrink-0 flex-col"
-                      style={{ height: `${chartPanelPx}px` }}
-                    >
-                      <div className="min-h-0 flex-1">
-                        <Suspense fallback={null}>
-                          <TimeSeriesChart
-                            times={forecastTimes}
-                            // While a comparison is up every line on the chart is
-                            // a (destination, model) pair, composed once by the
-                            // hook so each one is named and coloured the same
-                            // way; the chart has no plain destination rows to
-                            // draw. With nothing compared it is the row list it
-                            // has always been.
-                            rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
-                            metric={chart.metric}
-                            onMetricChange={chart.setMetric}
-                            colorFor={chart.colorFor}
-                            playheadMs={playbackIndex !== null ? forecastTimes[playbackIndex] ?? null : null}
-                            onPlayheadChange={
-                              timelineAxes.includes('forecast') ? movePlayheadTo : undefined
-                            }
-                            extraLines={compare.lines}
-                            modelEnds={compare.endLines}
-                            controls={
-                              compare.active ? (
-                                <ModelCompare
-                                  compared={compare.shown}
-                                  paceRemainingS={compare.paceRemainingS}
-                                />
-                              ) : undefined
-                            }
-                          />
-                        </Suspense>
-                      </div>
-                      {/* Chart-only legend. In Both mode the table's checkbox
-                          column is the series picker and this would be a
-                          second copy of it, so it exists exactly where that
-                          column does not, and lists the rows that column
-                          would. Each chip toggles its destination; the ×
-                          is the same removal as the table row's and obeys the
-                          same rules (searched places deregister, removals
-                          survive live knobs). The NAME keeps a fixed budget
-                          (max-w-44) and truncates; the model suffix beside it
-                          never truncates, so a compared chip is wider by its
-                          suffix. max-w-full keeps a chip inside the legend
-                          row, so on a phone a wide chip wraps to its own row
-                          and shrinks its name rather than overflowing. Two
-                          chip rows at most — 26px chips + the 6px gap =
-                          58px — then it scrolls. */}
-                      {resultsMode === 'chart' && legend.length > 0 && (
-                        <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
-                          <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
-                            {legend.map(({ key, row, suffix }) => {
-                              const plotted = chart.isSelected(row)
-                              return (
-                                <span
-                                  key={key}
-                                  className={`inline-flex max-w-full items-center ${RADIUS.control} ${
-                                    plotted ? 'bg-slate-700' : 'bg-slate-800/50'
-                                  }`}
-                                >
-                                  <button
-                                    onClick={() => chart.toggle(row)}
-                                    aria-pressed={plotted}
-                                    aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
-                                    className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
-                                  >
-                                    <span
-                                      className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
-                                      style={{ backgroundColor: rowChartColor(row) }}
-                                    />
-                                    <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
-                                      <span className="min-w-0 max-w-44 truncate">{row.name}</span>
-                                      {suffix && (
-                                        <span className="flex-shrink-0 whitespace-pre">{suffix}</span>
-                                      )}
-                                    </span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleRemoveResult(row)}
-                                    aria-label={`Remove ${row.name}`}
-                                    className={`${ICON_ACTION} ${FOCUS_RING} cursor-pointer py-1 pl-1 pr-2 leading-none`}
-                                  >
-                                    <IconClose size="chip" />
-                                  </button>
-                                </span>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-                {resultsMode !== 'chart' && (
-                  <>
-                    <ResizeGrip
-                      onReset={tableGrip.onReset}
-                      onDragStart={tableGrip.onDragStart}
-                      onDrag={tableGrip.onDrag}
-                      onDragEnd={tableGrip.onDragEnd}
-                    />
-                    <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
-                      <ResultsTable
-                        emptyReason={emptyReason}
-                        results={tableRows}
-                        sortBy={view.sortBy}
-                        detailSortKey={detailSort.key}
-                        detailSortDir={detailSort.dir}
-                        onDetailSort={handleDetailSort}
-                        pointSample={pointSample}
-                        columns={tableColumns}
-                        columnWidths={tableColWidths}
-                        onColumnWidthsChange={setTableColWidths}
-                        modelFallbackLabel={analysisModelLabel}
-                        onColumnMove={handleColumnMove}
-                        fireWarnings={fire.warnings}
-                        fireUncovered={fire.uncovered}
-                        fireStatus={fire.status}
-                        pending={pending}
-                        onRemove={handleRemoveResult}
-                        onRemovePending={handleRemovePending}
-                        onFocusResult={handleFocusResult}
-                        onFocusPending={handleFocusPending}
-                        modelId={analyzed?.forecastModel ?? forecastModel}
-                        times={forecastTimes}
-                        onToggleChart={chart.toggle}
-                        isCharted={chart.isSelected}
-                        chartColor={rowChartColor}
-                        onChartRange={chart.setRange}
-                        partialNote={partialNote}
-                      />
-                    </div>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Columns picker popover */}
-        <ColumnsPicker
-          open={columnsOpen}
-          onOpenChange={setColumnsOpen}
-          // Model is always offered, whatever the report holds: a column a
-          // reader can never see is a column they cannot ask for.
-          columns={allColumns}
+        <ResultsSheet
+          showTable={showTable}
+          showResults={showResults}
+          isDesktop={isDesktop}
+          layout={layout}
+          report={report}
+          charts={charts}
+          tableView={tableView}
+          removals={removals}
           sortBy={view.sortBy}
-          visibleKeys={pickerVisibleKeys}
-          onVisibilityChange={handleVisibilityChange}
-          onColumnMove={handleColumnMove}
-          triggerRef={columnsButtonRef}
-        />
-
-        {/* Model visibility popover */}
-        <ModelsPicker
-          open={modelsOpen}
-          onOpenChange={setModelsOpen}
-          models={selectedModelRows}
-          hidden={hiddenModels}
-          onToggle={toggleHiddenModel}
-          triggerRef={modelsButtonRef}
-        />
-
-        {/* Removed rows popover */}
-        <RemovedPicker
-          open={removedOpen}
-          onOpenChange={setRemovedOpen}
-          entries={[...removed.entries()]}
-          onRestore={handleRestoreRemoved}
-          onRestoreAll={handleRestoreAllRemoved}
-          triggerRef={removedButtonRef}
+          sortDesc={view.sortDesc}
+          pointSample={pointSample}
+          forecastTimes={forecastTimes}
+          playbackIndex={playbackIndex}
+          timelineAxes={timelineAxes}
+          movePlayheadTo={movePlayheadTo}
+          fire={fire}
+          modelId={analyzed?.forecastModel ?? forecastModel}
+          onRemovePending={handleRemovePending}
+          onFocusResult={handleFocusResult}
+          onFocusPending={handleFocusPending}
         />
       </div>
       </div>

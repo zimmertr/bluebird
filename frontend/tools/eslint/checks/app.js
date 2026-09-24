@@ -187,6 +187,8 @@ export const APP = [
     // on every overlay toggle. Wrap a function in useCallback, hoist a constant.
     name: 'app-memo-props',
     files: ['src/App.tsx'],
+    // ResultsTable and TimeSeriesChart are ResultsPanels' children now
+    // (results-panels-memo-props); MapView is still App's.
     ban: [
       {
         selector: `${MEMOIZED} :matches(ArrowFunctionExpression, FunctionExpression)`,
@@ -204,9 +206,41 @@ export const APP = [
       },
     ],
     require: [
-      { selector: 'JSXOpeningElement[name.name="ResultsTable"]', message: 'App.tsx renders ResultsTable.' },
-      { selector: 'JSXOpeningElement[name.name="TimeSeriesChart"]', message: 'App.tsx renders TimeSeriesChart.' },
       { selector: 'JSXOpeningElement[name.name="MapView"]', message: 'App.tsx renders MapView.' },
+    ],
+  },
+  {
+    // The same rule where the table and the chart are rendered now. The panels
+    // pass on members they are handed, so a value built here is a new prop on
+    // every render of the page. The table reads the report's flag, not the
+    // panel's.
+    name: 'results-panels-memo-props',
+    files: ['src/components/ResultsPanels.tsx'],
+    ban: [
+      {
+        selector: `${MEMOIZED} :matches(ArrowFunctionExpression, FunctionExpression)`,
+        message: 'Hand a memoized child a useCallback, not an inline function.',
+      },
+      {
+        selector: `${MEMOIZED} > JSXExpressionContainer > ArrayExpression[elements.length=0]`,
+        message: 'Hand a memoized child a hoisted empty array, not a literal one.',
+      },
+      {
+        selector:
+          `${MEMOIZED} LogicalExpression[operator="??"]` +
+          ':matches([right.type="ArrayExpression"][right.elements.length=0], [right.type="ObjectExpression"][right.properties.length=0])',
+        message: 'Hand a memoized child a hoisted fallback, not a fresh ?? literal.',
+      },
+    ],
+    require: [
+      { selector: 'JSXOpeningElement[name.name="ResultsTable"]', message: 'ResultsPanels.tsx renders ResultsTable.' },
+      { selector: 'JSXOpeningElement[name.name="TimeSeriesChart"]', message: 'ResultsPanels.tsx renders TimeSeriesChart.' },
+      {
+        selector:
+          'JSXOpeningElement[name.name="ResultsTable"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="pointSample"]',
+        message: 'Hand ResultsTable pointSample, which reads the analyzed report.',
+      },
+      { selector: 'JSXOpeningElement[name.name="ResizeGrip"]', count: 2, message: 'Draw both grips through ResizeGrip.' },
     ],
   },
   {
@@ -253,8 +287,8 @@ export const APP = [
       },
       {
         selector:
-          'JSXOpeningElement[name.name="ResultsTable"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="pointSample"]',
-        message: 'Hand ResultsTable pointSample, which reads the analyzed report.',
+          'JSXOpeningElement[name.name="ResultsSheet"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="pointSample"]',
+        message: 'Hand ResultsSheet pointSample, which reads the analyzed report.',
       },
       {
         selector: 'CallExpression[callee.name="useTableView"] > ObjectExpression > Property[key.name="pointSample"][value.name="pointSample"]',
@@ -352,19 +386,12 @@ export const APP = [
     ],
   },
   {
-    name: 'app-resize-grip-count',
-    files: ['src/App.tsx'],
-    require: [
-      { selector: 'JSXOpeningElement[name.name="ResizeGrip"]', count: 2, message: 'Draw both grips through ResizeGrip.' },
-    ],
-  },
-  {
     // Under two panel floors plus the map's, the sheet draws one panel, and
     // which one is layout.ts's answer. Both is disabled rather than removed, so
     // its neighbours do not move, and only a press is stored: a window that
     // grows back gives Both back with no press.
     name: 'app-results-mode',
-    files: ['src/App.tsx'],
+    files: ['src/components/ResultsBar.tsx'],
     ban: [
       {
         selector: `${BOTH_BUTTON}:not(:has(JSXAttribute[name.name="disabled"] > JSXExpressionContainer > UnaryExpression[operator="!"][argument.name="bothHasRoom"]))`,
@@ -457,7 +484,7 @@ export const APP = [
     // floor; the chart and table divider keeps the pair's sum and takes none.
     // The camera reads the default heights, so it does not move under a drag.
     name: 'app-docked-panels',
-    files: ['src/App.tsx'],
+    files: ['src/components/ResultsSheet.tsx'],
     require: [
       { selector: 'Literal[value="flex flex-shrink-0 flex-col bg-slate-800"]', message: 'Keep the desktop results panel classes verbatim.' },
     ],

@@ -359,3 +359,6 @@ export function useTableView({
     handleDownloadCsv,
   }
 }
+
+/** What `useTableView` hands its callers; the results sheet reads it whole. */
+export type TableView = ReturnType<typeof useTableView>
