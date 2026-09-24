@@ -15,7 +15,10 @@ import {
 } from '../utils/timeline'
 
 // The forecast axis before any report. Hoisted so the empty grid is one
-// identity, which the memoized map and chart receive as `forecastTimes`.
+// identity, which the memoized map and chart receive as `forecastTimes`:
+// `?? []` hands a memoized child a new array on every render, which is enough
+// to re-render it for a state change that has nothing to do with it (#337,
+// finding 8).
 const NO_TIMES: number[] = []
 
 export interface TimelineInputs {

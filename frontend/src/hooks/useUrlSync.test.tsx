@@ -32,7 +32,7 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     showSnow: false,
     showGrid: false,
     showPlayer: null,
-    gridStyle: 'blocks',
+    gridStyle: 'smooth',
     gridReachFrac: 0.5,
     places: NO_PLACES,
     defaultForecastModel: 'gfs_seamless',
