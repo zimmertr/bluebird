@@ -34,8 +34,6 @@ import {
   DestinationResult,
 } from './types'
 import {
-} from './components/icons'
-import {
   LAYER,
   SURFACE_PAGE,
 } from './styles'
@@ -384,7 +382,6 @@ export default function App() {
     void handleAnalyze()
   }
 
-
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
   // meant a failure was invisible: the drawer slid away, the overlay finished,
@@ -401,7 +398,6 @@ export default function App() {
     // the breakpoint, which is a resize rather than a committed report.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
-
 
   // A report stays on screen even when the knobs admit none of it. Collapsing
   // the panels would answer "why is nothing listed?" by removing the place the

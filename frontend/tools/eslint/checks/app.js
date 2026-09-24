@@ -672,6 +672,27 @@ export const APP = [
     ],
   },
   {
+    // The ban app-legend-anchors held over the whole of App.tsx, kept over the
+    // chrome that left it (#409): every offset on the bottom edge is derived
+    // in resultsSheet.ts, so no component spells one as a class. `bottom-0`
+    // stands on the edge and is let through. MapStage and MapLegend carry the
+    // same ban in their anchor checks.
+    name: 'chrome-bottom-offsets',
+    files: [
+      'src/App.tsx',
+      'src/components/MapStage.tsx',
+      'src/components/LayersPopover.tsx',
+      'src/components/MapButtonColumn.tsx',
+      'src/components/AnalysisOverlay.tsx',
+      'src/components/ResultsSheet.tsx',
+      'src/components/ResultsBar.tsx',
+      'src/components/ResultsPanels.tsx',
+      'src/components/AppDrawer.tsx',
+    ],
+    probe: 'src/App.tsx',
+    ban: [BOTTOM_OFFSET],
+  },
+  {
     // useGridLayer asks whether the grid is allowed, once. Nothing that draws
     // the map's chrome asks again.
     name: 'app-grid-asked-once',
