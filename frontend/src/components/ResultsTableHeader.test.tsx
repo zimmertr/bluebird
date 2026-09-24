@@ -69,6 +69,98 @@ describe('sorting', () => {
   })
 })
 
+describe('sorting from the keyboard', () => {
+  it('reaches every sortable header with Tab, in the order the table draws them', async () => {
+    const { user } = renderHeader(props())
+    for (const label of [/^Name/, /^Elevation/, /^Precip/]) {
+      await user.tab()
+      expect(document.activeElement).toBe(header(label))
+    }
+  })
+
+  it('sorts on Enter and flips on Space, as a click would', async () => {
+    const onDetailSort = vi.fn()
+    const { user } = renderHeader(props({ onDetailSort }))
+    await user.tab()
+    await user.tab()
+    await user.keyboard('{Enter}')
+    expect(onDetailSort).toHaveBeenLastCalledWith('elevation_ft', 'asc')
+    await user.tab({ shift: true })
+    await user.keyboard(' ')
+    expect(onDetailSort).toHaveBeenLastCalledWith('name', 'desc')
+    expect(onDetailSort).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps Space from scrolling the sheet', () => {
+    renderHeader(props())
+    // fireEvent answers false when a handler prevented the default.
+    expect(fireEvent.keyDown(header(/^Name/), { key: ' ' })).toBe(false)
+  })
+
+  it('sorts once for a held key and ignores every other key', () => {
+    const onDetailSort = vi.fn()
+    renderHeader(props({ onDetailSort }))
+    fireEvent.keyDown(header(/^Name/), { key: 'Enter' })
+    fireEvent.keyDown(header(/^Name/), { key: 'Enter', repeat: true })
+    fireEvent.keyDown(header(/^Name/), { key: 'a' })
+    fireEvent.keyDown(header(/^Name/), { key: 'ArrowRight' })
+    expect(onDetailSort).toHaveBeenCalledTimes(1)
+  })
+
+  it('never starts a column move', () => {
+    const onColumnMove = vi.fn()
+    const onDetailSort = vi.fn()
+    renderHeader(props({ onColumnMove, onDetailSort }))
+    COLUMNS.forEach((col, i) => {
+      placeAt(document.querySelector(`th[data-col="${col.key as string}"]`)!, { left: i * 100, top: 0, width: 100, height: 24 })
+    })
+    fireEvent.keyDown(header(/^Name/), { key: 'Enter' })
+    // A pointer that then travels and lifts, with no press on a header, must
+    // find no gesture to continue.
+    fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerUp(document)
+    expect(onColumnMove).not.toHaveBeenCalled()
+    expect(onDetailSort).toHaveBeenCalledTimes(1)
+  })
+
+  it('sorts even while the tail of a drag is still being swallowed', () => {
+    const onDetailSort = vi.fn()
+    renderHeader(props({ onColumnMove: vi.fn(), onDetailSort }))
+    COLUMNS.forEach((col, i) => {
+      placeAt(document.querySelector(`th[data-col="${col.key as string}"]`)!, { left: i * 100, top: 0, width: 100, height: 24 })
+    })
+    fireEvent.pointerDown(header(/^Name/), { clientX: 50, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerMove(document, { clientX: 250, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerUp(document)
+    // The click guard is still set here; a key is not a click and passes it.
+    fireEvent.keyDown(header(/^Elevation/), { key: 'Enter' })
+    expect(onDetailSort).toHaveBeenCalledWith('elevation_ft', 'asc')
+  })
+
+  it('describes every sortable header with the one key hint', () => {
+    renderHeader(props())
+    // The description a reader hears is the text of the element named.
+    const description = (el: Element) =>
+      (el.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .filter(Boolean)
+        .map((id) => document.getElementById(id)?.textContent?.trim())
+        .join(' ')
+    for (const label of [/^Name/, /^Elevation/, /^Precip/]) {
+      expect(description(header(label))).toBe('Press Enter or Space to sort.')
+    }
+    // One copy of the sentence, however many headers point at it.
+    expect(screen.getAllByText('Press Enter or Space to sort.', { ignore: false })).toHaveLength(1)
+    expect(description(screen.getByRole('columnheader', { name: '#' }))).toBe('')
+  })
+
+  it('keeps the column label as the name and the rank header out of the tab order', () => {
+    renderHeader(props())
+    expect(header(/^Name/).getAttribute('tabindex')).toBe('0')
+    expect(screen.getByRole('columnheader', { name: '#' }).hasAttribute('tabindex')).toBe(false)
+  })
+})
+
 describe('moving a column', () => {
   // Three headers side by side, 100px each, in the order the table draws them.
   function lay() {

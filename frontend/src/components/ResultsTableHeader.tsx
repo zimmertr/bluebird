@@ -1,5 +1,5 @@
-import { memo } from 'react'
-import type { RefObject } from 'react'
+import { memo, useId } from 'react'
+import type { KeyboardEvent, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DestinationResult } from '../types'
 import type { SortDir, SortKey, ColDef } from '../utils/tableColumns'
@@ -8,10 +8,10 @@ import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
 import type { InsertLine } from '../utils/columnMeasure'
 import { sized } from './sizedCell'
-import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, TABLE } from '../styles'
+import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, FOCUS_RING_INSET, SR_ONLY, TABLE } from '../styles'
 
-// The results table's header row and everything a press on it can do: sort,
-// move a column, resize one, and fit one to its content. Apart from the body
+// The results table's header row and everything a press on it can do: sort
+// (by pointer or by key), move a column, resize one, and fit one to its content. Apart from the body
 // because none of it reads a row, so it is memoized on its own and a re-render
 // of the body (a new row set, a chart toggle) does not redraw it. The wildfire
 // cells' clock never reaches this far: FireClock in ResultsTableRow.tsx sends
@@ -106,6 +106,7 @@ function ResultsTableHeader({
   const widths = columnWidths ?? {}
   const drag = useColumnDrag(orderedColumns, onColumnMove)
   const resize = useColumnResize(columnWidths, onColumnWidthsChange, tableRef)
+  const sortHintId = useId()
 
   // Every header click is a reading aid: it sorts the displayed rows in place
   // and changes NOTHING else: not the ranking, not the column order, not the
@@ -115,10 +116,30 @@ function ResultsTableHeader({
   // it read as a bug, and a header click that reshuffles the columns pulls
   // the table out from under the cursor. The Ranking control in the panel is
   // the one thing that re-ranks, reorders the groups, and moves the shading.
+  function sortBy(key: SortKey) {
+    onDetailSort(key, key === detailSortKey && detailSortDir === 'asc' ? 'desc' : 'asc')
+  }
+
   function handleSort(key: SortKey) {
     // The click that ends a drag is not a sort.
     if (drag.endedDrag()) return
-    onDetailSort(key, key === detailSortKey && detailSortDir === 'asc' ? 'desc' : 'asc')
+    sortBy(key)
+  }
+
+  // The keyboard route to the same sort, on the cell itself rather than on a
+  // button inside it: the three pointer gestures are wired to this cell and
+  // read its DOM (the drag measures the cell's row, auto-fit the wrapper
+  // directly under it), so a key handler beside them leaves every one of them
+  // untouched. Enter and Space act as a button's would. A key press goes
+  // straight to the sort and never through the drag's click guard, since no
+  // key starts a drag. A held key sorts once rather than flipping the order
+  // on every repeat.
+  function handleSortKey(e: KeyboardEvent<HTMLTableCellElement>, key: SortKey) {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    // Space would otherwise scroll the sheet under the reader.
+    e.preventDefault()
+    if (e.repeat) return
+    sortBy(key)
   }
 
   return (
@@ -135,7 +156,10 @@ function ResultsTableHeader({
               aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
               onPointerDown={(e) => drag.begin(e, col.key as string)}
               onClick={() => handleSort(col.key)}
-              className={`${TABLE.head} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
+              tabIndex={0}
+              onKeyDown={(e) => handleSortKey(e, col.key)}
+              aria-describedby={sortHintId}
+              className={`${TABLE.head} ${FOCUS_RING_INSET} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
                 onColumnMove ? 'touch-none' : ''
               } ${drag.carry?.key === col.key ? `${CARRIED} ${DRAG_GRIP_ACTIVE}` : ''}`}
             >
@@ -161,7 +185,16 @@ function ResultsTableHeader({
               it auto layout deals that space to every column, so a fitted
               or dragged column renders wider than the width it was given
               and a first double-click reads as "the column grew". */}
-          <th aria-hidden="true" className="w-full p-0" />
+          {/* It also holds the one copy of the sort hint every sortable
+              header points at: a cell of its own would be a column, and a
+              span beside the thead is not valid table markup. A reference
+              resolves through aria-hidden, so the hint still reaches the
+              headers while the filler stays out of the tree. */}
+          <th aria-hidden="true" className="w-full p-0">
+            <span id={sortHintId} className={SR_ONLY}>
+              Press Enter or Space to sort.
+            </span>
+          </th>
         </tr>
       </thead>
       {drag.carry && <DragOverlay carry={drag.carry} insert={drag.insert} />}
