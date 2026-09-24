@@ -18,6 +18,8 @@ import { Constraints, filterConstraints, rankComparator } from './clientAnalyze'
 import { namesOnRequestMetric } from './constraints'
 import { compareAdded } from './modelCompare'
 import { geoKey } from './points'
+import { isPointSample } from './forecastWindow'
+import type { SelectionKind } from './calendarSelection'
 
 /**
  * The knobs that decide presentation rather than what gets fetched.
@@ -367,4 +369,41 @@ export function fieldHasValue(
   sortBy: SortBy,
 ): boolean {
   return rows.some((row) => row[sortBy] != null)
+}
+
+/** What the displayed report is rendered under, and whether it is one hour. */
+export interface ReportView {
+  view: { sortBy: SortBy; sortDesc: boolean; kind: SelectionKind; window: { startMs: number; endMs: number } }
+  pointSample: boolean
+}
+
+/**
+ * What the displayed report is rendered under: markers, legend, results
+ * header, and table column order all read from here.
+ *
+ * With a field held, the panel's ranking IS the displayed ranking: the rows
+ * are re-derived from it on every change, so reading the snapshot's would show
+ * a legend that disagreed with the table. The window stays the snapshot's
+ * either way: it is a data knob, and a point sample cannot become a range
+ * without a new analysis. Before the first analysis there is no field and
+ * nothing to disagree with, so the panel's selection answers.
+ *
+ * `pointSample` says whether the report's aggregates are one value three
+ * times, which collapses the table's columns and drops the aggregate from the
+ * ranking's name. It is counted off the window rather than read off a mode
+ * name, so "a day narrowed to one hour" is recognized as the point sample it
+ * is (#166).
+ */
+export function reportView(
+  analyzed: AnalyzedView | null,
+  sortBy: SortBy,
+  sortDesc: boolean,
+  selectionKind: SelectionKind,
+  panelWindowMs: { startMs: number; endMs: number },
+): ReportView {
+  const view =
+    analyzed !== null
+      ? { sortBy, sortDesc, kind: analyzed.kind, window: analyzed.window }
+      : { sortBy, sortDesc, kind: selectionKind, window: panelWindowMs }
+  return { view, pointSample: isPointSample(view.window.startMs, view.window.endMs) }
 }

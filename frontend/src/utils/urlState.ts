@@ -1,7 +1,7 @@
 // Serialize the full set of analysis inputs to/from the URL query string so a
 // Bluebird Forecast session can be copied out of the address bar and reopened later.
 // These functions are intentionally pure (no React, no DOM) so they're trivial
-// to unit-test — App.tsx reads location once at mount, and `useUrlSync` writes it.
+// to unit-test — App.tsx and `useRunOnOpen` read location once at mount, and `useUrlSync` writes it.
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
