@@ -239,6 +239,11 @@
     {
       "q": "mode=days&h1=07:00&pins=-118.2,36.1,coordinates,,,A;notanum,36.1,,,,B",
       "dec": {
+        "selection": {
+          "kind": "days",
+          "startDate": null,
+          "endDate": null
+        },
         "pins": [
           {
             "label": "A",
@@ -247,12 +252,7 @@
             "lat": 36.1,
             "lon": -118.2
           }
-        ],
-        "selection": {
-          "kind": "days",
-          "startDate": null,
-          "endDate": null
-        }
+        ]
       }
     },
     {

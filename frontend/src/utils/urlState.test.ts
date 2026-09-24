@@ -610,13 +610,33 @@ describe('pins encoded once', () => {
     expect(decodeState(encodeState(pinned([pin]), 'gfs_seamless'))?.pins).toEqual([pin])
   })
 
+  // A mail or chat client can re-encode the delimiters. Every other param
+  // restores from such a link, so the pins must too.
+  it('reads a pin list whose delimiters arrive encoded', () => {
+    const second = place({ label: 'Cabin', description: '', lat: 47.5, lon: -121.5, osmId: 'way/7' })
+    const written = encodeState(pinned([tiger, second]), 'gfs_seamless')
+    const reencoded = written.replace(/pins=.*$/, (pins) => pins.replace(/,/g, '%2C').replace(/;/g, '%3B'))
+    expect(reencoded).toContain('%2CEast+Tiger+Mountain%3B')
+    expect(() => decodeState(reencoded)).not.toThrow()
+    expect(decodeState(reencoded)?.pins).toEqual([tiger, second])
+  })
+
   // Links from before carried each field encoded twice. They need not restore
-  // (decision 1), but they must not throw.
-  it('drops a pin link from before, without throwing', () => {
+  // exactly (decision 1), but they must not throw, and the fallback above
+  // still finds the pin at its coordinates.
+  it('reads a pin link from before without throwing', () => {
     const old =
       'pins=-121.94734%2C47.48844%2Cpeak%2C2995%2Cnode%252F349018340%2CEast%2520Tiger%2520Mountain'
     expect(() => decodeState(old)).not.toThrow()
-    expect(decodeState(old)).toBeNull()
+    const pins = decodeState(old)?.pins
+    expect(pins).toHaveLength(1)
+    expect(pins?.[0]).toMatchObject({ lat: 47.48844, lon: -121.94734, kind: 'peak', elevationFt: 2995 })
+  })
+
+  it('never throws on a garbled pin list', () => {
+    for (const q of ['pins=%2C%3B%2C', 'pins=%E0%A4%A%2C1', 'pins=;;;,,,', 'pins=%2', 'pins=1%2C2%2Cp%2C%2C%2C%E0']) {
+      expect(() => decodeState(q)).not.toThrow()
+    }
   })
 
   it('drops a pin with a malformed escape and keeps the rest', () => {
@@ -1197,6 +1217,11 @@ describe('retired keys', () => {
   ])('restores nothing from "%s"', (q) => {
     expect(() => decodeState(q)).not.toThrow()
     expect(decodeState(q)).toBeNull()
+  })
+
+  it('infers no selection from a link with no calendar keys', () => {
+    expect(decodeState('type=peak&limit=10')?.selection).toBeUndefined()
+    expect(decodeState('type=peak&end=teatime')?.selection).toBeUndefined()
   })
 
   it('restores the rest of a link that carries a retired key beside it', () => {

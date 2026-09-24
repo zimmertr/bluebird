@@ -188,12 +188,22 @@ function encodePins(places: Place[]): string {
 // delimiters are split first, while a label's own `,` and `;` are still
 // escaped, and each field is then decoded once. Tolerant like the rest of
 // decodeState: an entry without a finite lon/lat, or with a malformed escape,
-// is skipped rather than failing the whole list. A link from before the pins
-// encoded once carries its delimiters escaped, reads as one field, and is
-// skipped the same way. `description`/`bbox` aren't persisted — a restored pin
-// doesn't need the disambiguation line or the fly-to extent — so they come
-// back empty/absent.
+// is skipped rather than failing the whole list. A restored pin has no
+// `description` or `bbox`: it needs neither the disambiguation line nor the
+// fly-to extent, so a link does not carry them.
+//
+// A mail or chat client can re-encode the delimiters (`,` as `%2C`), and the
+// raw split then finds one field and no pin. When it finds none, the list is
+// read again with those two escapes taken as delimiters. Only those two, so a
+// `+` or a `%` in a label is still decoded once. A label's own comma then
+// splits it and that pin drops, which is the cost for a link that was
+// re-encoded on the way.
 function decodePins(raw: string): Place[] {
+  const pins = decodePinList(raw)
+  return pins.length > 0 ? pins : decodePinList(raw.replace(/%2C/gi, ',').replace(/%3B/gi, ';'))
+}
+
+function decodePinList(raw: string): Place[] {
   const out: Place[] = []
   for (const entry of raw.split(';')) {
     const parts = entry.split(',').map(unescapeQueryText)

@@ -148,9 +148,9 @@ describe('the codec table against the links it wrote before', () => {
   })
 
   // Hand-edited, retired and malformed links: `custom`, `at`, `start` and
-  // `end`, which nothing reads since the legacy readers left, a `sort` that
-  // outranks its own family's param, a reach without a grid, and values each
-  // reader must drop.
+  // `end`, which have no reader and restore nothing, a `sort` that outranks
+  // its own family's param, a reach without a grid, and values each reader
+  // must drop.
   it.each(golden.links)('reads "$q" as it did', ({ q, dec }) => {
     expect(decodeState(q)).toEqual(dec)
   })
