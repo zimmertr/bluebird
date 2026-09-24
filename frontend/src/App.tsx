@@ -6,7 +6,7 @@ import {
   useState,
 } from 'react'
 import MapView, { MapViewHandle } from './components/MapView'
-import ControlPanel from './components/ControlPanel'
+import AppDrawer from './components/AppDrawer'
 import type { SearchBoxHandle } from './components/SearchBox'
 import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
@@ -38,16 +38,11 @@ import {
   DestinationResult,
 } from './types'
 import {
-  IconClose,
 } from './components/icons'
 import {
   LAYER,
   MAP_EDGE,
-  RADIUS,
-  SURFACE_DIVIDER,
   SURFACE_PAGE,
-  TAP,
-  TEXT,
 } from './styles'
 import {
   NOUN,
@@ -119,50 +114,38 @@ export default function App() {
     if (caps.settled) setCapsApplied(true)
   }, [caps.settled])
 
+  const destinationInputs = useDestinationInputs(restored)
   const {
     restoredPoints,
     polygon,
     setPolygon,
-    polygonAreaKm2,
     destinationTypes,
-    setDestinationTypes,
     includeUnnamedPeaks,
-    setIncludeUnnamedPeaks,
     customCsv,
-    setCustomCsv,
     csvRows,
     destinationScope,
     places,
     addPlace,
     removePlace,
     destinationNamed,
-  } = useDestinationInputs(restored)
+  } = destinationInputs
+  const forecastSelection = useForecastSelection(restored, caps)
   const {
     selection,
-    changeSelection,
     forecastModel,
-    changeForecastModel,
     comparedModels,
-    setComparedModels,
-    modelClamped,
     panelWindowMs,
-    panelPointSample,
-    windowWarning,
     forgetPreClamp,
-  } = useForecastSelection(restored, caps)
+  } = forecastSelection
+  const rankingKnobs = useRankingKnobs(restored, caps.maxLimit)
   const {
     sortBy,
-    setSortBy,
     sortDesc,
-    setSortDesc,
     rowKeys,
     constraints,
-    setConstraints,
     limit,
-    setLimit,
-    clearFilters,
     liveKnobs,
-  } = useRankingKnobs(restored, caps.maxLimit)
+  } = rankingKnobs
 
   const [showResults, setShowResults] = useState(false)
   // Every stored view preference comes out of one read, held for the mount:
@@ -192,21 +175,19 @@ export default function App() {
     playerShown,
   } = overlays
   const closeDrawer = useCallback(() => setSidebarOpen(false), [])
-  const {
-    drawing,
-    drawPointCount,
-    handleDrawUpdate,
-    startDrawing,
-    finishDrawing,
-    handleCancelDrawing,
-    handleClearDrawing,
-  } = useDrawMode({
+  const drawMode = useDrawMode({
     mapRef,
     polygon,
     restoredPolygon: restored?.polygon,
     isDesktop,
     closeDrawer,
   })
+  const {
+    drawing,
+    drawPointCount,
+    handleDrawUpdate,
+    finishDrawing,
+  } = drawMode
 
   function dismissWelcome() {
     setWelcomed()
@@ -667,102 +648,30 @@ export default function App() {
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
 
-      {/* Mobile: dim backdrop behind the open drawer */}
-      {sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          className={`lg:hidden absolute inset-0 ${LAYER.scrim} bg-black/50`}
-        />
-      )}
-
-      {/* Controls panel — docked on desktop when open, off-canvas otherwise.
-          When closed it stays absolute + translated off-screen so it leaves the
-          layout and the map fills the full width on every breakpoint. */}
-      <aside
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${SURFACE_DIVIDER} ${
-          sidebarOpen
-            ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
-            : '-translate-x-full'
-        }`}
-      >
-        {/* Close button — collapses the panel on both mobile and desktop */}
-        <button
-          onClick={() => setSidebarOpen(false)}
-          aria-label="Close controls"
-          // Flex centres the drawn cross in the circle; why the cross is drawn
-          // rather than typed is `IconClose`'s own comment.
-          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} bg-slate-700/80 transition-colors hover:bg-slate-600 active:bg-slate-600`}
-        >
-          <IconClose />
-        </button>
-        <ControlPanel
-          drawing={drawing}
-          onStartDrawing={startDrawing}
-          onFinishDrawing={finishDrawing}
-          drawPointCount={drawPointCount}
-          polygonAreaKm2={polygonAreaKm2}
-          onCancelDrawing={handleCancelDrawing}
-          onClearDrawing={handleClearDrawing}
-          onPointAtSearch={setSearchPointed}
-          wildfireCheckFailed={fire.status === 'unavailable' && results.length > 0}
-          onPointAtMapPois={setPoisPointed}
-          destinationTypes={destinationTypes}
-          setDestinationTypes={setDestinationTypes}
-          selection={selection}
-          setSelection={changeSelection}
-          limit={limit}
-          setLimit={setLimit}
-          customCsv={customCsv}
-          setCustomCsv={setCustomCsv}
-          onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-          commitReasons={commitReasons}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          sortDesc={sortDesc}
-          setSortDesc={setSortDesc}
-          rowKeys={rowKeys}
-          pointSample={panelPointSample}
-          constraints={constraints}
-          setConstraints={setConstraints}
-          onClearFilters={clearFilters}
-          includeUnnamedPeaks={includeUnnamedPeaks}
-          setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
-          windowWarning={windowWarning}
-          hasPins={places.length > 0}
-          // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
-          // in the pin-refresh flag to disable the button (and show "Analyzing…")
-          // while it runs. Searches don't announce, so this stays false for them.
-          loading={loading}
-          error={error}
-          refusal={refusal}
-          forecastModel={forecastModel}
-          comparedModels={comparedModels}
-          setComparedModels={setComparedModels}
-          setForecastModel={changeForecastModel}
-          forecastModels={caps.forecastModels}
-          defaultForecastModel={caps.defaultForecastModel}
-          modelClamped={modelClamped}
-          maxLimit={caps.maxLimit}
-          maxAreaKm2={caps.maxPolygonAreaKm2}
-          archiveDays={caps.archiveDays}
-          aqiForecastDays={caps.aqiForecastDays}
-          windowLimits={caps.windowLimits}
-          aqiAllNull={
-            response !== null &&
-            results.length > 0 &&
-            results.every((r) => r.aqi_avg == null)
-          }
-          onAnalyze={handleAnalyze}
-          autoAnalyze={autoAnalyze}
-          capabilitiesSettled={capsApplied}
-          onAutoAnalyze={runAutoAnalyze}
-          onRetry={retry}
-          resultCount={response ? results.length : undefined}
-          // What the current bounds admit, not what the analysis fetched:
-          // a bound applies live, so it has to move the "of M" or the count
-          // describes a field the table no longer shows.
-        />
-      </aside>
+      <AppDrawer
+        open={sidebarOpen}
+        onClose={closeDrawer}
+        drawMode={drawMode}
+        destinationInputs={destinationInputs}
+        forecastSelection={forecastSelection}
+        rankingKnobs={rankingKnobs}
+        caps={caps}
+        mapRef={mapRef}
+        onPointAtSearch={setSearchPointed}
+        onPointAtMapPois={setPoisPointed}
+        commitReasons={commitReasons}
+        onAnalyze={handleAnalyze}
+        autoAnalyze={autoAnalyze}
+        capabilitiesSettled={capsApplied}
+        onAutoAnalyze={runAutoAnalyze}
+        loading={loading}
+        error={error}
+        refusal={refusal}
+        onRetry={retry}
+        response={response}
+        results={results}
+        fireStatus={fire.status}
+      />
 
       {/* Map + results column. On a phone the results leave the flow and stand
           on the map as a sheet, so the column is what positions them; on

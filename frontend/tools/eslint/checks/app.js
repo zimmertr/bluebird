@@ -58,6 +58,8 @@ export const APP = [
       // counted by that hook's own check, so the sum never drops.
       { selector: EFFECT, min: 6, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
+      // The drawer closes when a report commits, and the report is App's.
+      { selector: keyedOnlyOn('analysisSeq'), message: 'Close the drawer in an effect keyed on analysisSeq alone.' },
     ],
   },
   {
@@ -274,17 +276,13 @@ export const APP = [
     // Two windows answer "is this one hour": the panel's When selection and
     // the analyzed report. The Metrics table is a panel control, so its
     // aggregate dropdowns read the selection and follow a switch at once
-    // (#485). The results table and the table view's column-width reset read
-    // the report, because its rows were fetched for the analyzed window and a When switch
+    // (#485); app-drawer holds that half where ControlPanel renders. The
+    // results table and the table view's column-width reset read the report,
+    // because its rows were fetched for the analyzed window and a When switch
     // alone fetches nothing.
     name: 'app-panel-point-sample',
     files: ['src/App.tsx'],
     require: [
-      {
-        selector:
-          'JSXOpeningElement[name.name="ControlPanel"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="panelPointSample"]',
-        message: 'Hand ControlPanel panelPointSample, which follows the When selection.',
-      },
       {
         selector:
           'JSXOpeningElement[name.name="ResultsSheet"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="pointSample"]',
@@ -293,6 +291,21 @@ export const APP = [
       {
         selector: 'CallExpression[callee.name="useTableView"] > ObjectExpression > Property[key.name="pointSample"][value.name="pointSample"]',
         message: 'Hand useTableView pointSample, which reads the analyzed report.',
+      },
+    ],
+  },
+  {
+    // The drawer draws what it is told: the panel's own flag goes to the
+    // Metrics table, and whether it is open is App's to decide on a committed
+    // report (app-effect-keys), so the drawer runs no effect of its own.
+    name: 'app-drawer',
+    files: ['src/components/AppDrawer.tsx'],
+    ban: [{ selector: EFFECT, message: 'Run no effect in AppDrawer; App closes the drawer on a committed report.' }],
+    require: [
+      {
+        selector:
+          'JSXOpeningElement[name.name="ControlPanel"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="panelPointSample"]',
+        message: 'Hand ControlPanel panelPointSample, which follows the When selection.',
       },
     ],
   },

@@ -79,3 +79,6 @@ export function useRankingKnobs(restored: Partial<ShareableState> | null, maxLim
     liveKnobs,
   }
 }
+
+/** What `useRankingKnobs` hands its callers; the controls drawer reads it whole. */
+export type RankingKnobs = ReturnType<typeof useRankingKnobs>

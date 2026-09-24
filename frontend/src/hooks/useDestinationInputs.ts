@@ -112,3 +112,6 @@ export function useDestinationInputs(restored: Partial<ShareableState> | null) {
     destinationNamed,
   }
 }
+
+/** What `useDestinationInputs` hands its callers; the controls drawer reads it whole. */
+export type DestinationInputs = ReturnType<typeof useDestinationInputs>

@@ -137,3 +137,6 @@ export function useForecastSelection(restored: Partial<ShareableState> | null, c
     forgetPreClamp,
   }
 }
+
+/** What `useForecastSelection` hands its callers; the controls drawer reads it whole. */
+export type ForecastSelectionState = ReturnType<typeof useForecastSelection>

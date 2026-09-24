@@ -102,3 +102,6 @@ export function useDrawMode({ mapRef, polygon, restoredPolygon, isDesktop, close
     handleClearDrawing,
   }
 }
+
+/** What `useDrawMode` hands its callers; the controls drawer reads it whole. */
+export type DrawMode = ReturnType<typeof useDrawMode>
