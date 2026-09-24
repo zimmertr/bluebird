@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #463)
 - Issues and PRs: #449, #463
 - Cited in code as: #449
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/snowCeiling.ts` bullet
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/snowCeiling.ts` bullet
 
 ## Context
 

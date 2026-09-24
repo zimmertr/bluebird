@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #275)
 - Issues and PRs: #203, #256, #275
 - Cited in code as: #203, #256, #275
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/fireProximity.ts` bullet
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/fireProximity.ts` bullet
 
 ## Context
 

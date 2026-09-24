@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #335)
 - Issues and PRs: #249, #335, #422, #430, #454, #459
 - Cited in code as: #249, #430, #454
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/resultsSheet.ts` bullet, and the `src/utils/forecastGrid.ts` bullet from "What was too short is fixed at the cause"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/resultsSheet.ts` bullet, and the `src/utils/forecastGrid.ts` bullet from "What was too short is fixed at the cause"
 
 ## Context
 

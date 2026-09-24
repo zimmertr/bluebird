@@ -5,7 +5,7 @@
 - Decider: TJ, as the guide records (2026-08-04 for the placement; 2026-09-22 for the greyed row)
 - Issues and PRs: #246, #248, #249, #460, #461
 - Cited in code as: #246, #249, #460
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet from "The style segment lives beside the layer's checkbox", and the paragraph after the forecast grid bullets that opens "The popover hangs off a button"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet from "The style segment lives beside the layer's checkbox"; and [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the paragraph that opens "The popover hangs off a button"
 
 ## Context
 

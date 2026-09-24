@@ -5,7 +5,7 @@
 - Decider: TJ, as the guide records
 - Issues and PRs: #121, #460, #461
 - Cited in code as: #121, #460
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet from "Two styles over one set of samples", the paragraph after the forecast grid bullets from "Blocks shows where the samples are", and the `src/utils/legendRamp.ts` bullet from "Every strip blends"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet from "Two styles over one set of samples" and the `src/utils/legendRamp.ts` bullet from "Every strip blends"; and [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the paragraph that opens "The popover hangs off a button", from "Blocks shows where the samples are"
 
 ## Context
 

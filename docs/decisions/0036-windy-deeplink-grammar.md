@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #358)
 - Issues and PRs: #358, #449
 - Cited in code as: #449
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/windy.ts` bullet
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/windy.ts` bullet
 
 ## Context
 

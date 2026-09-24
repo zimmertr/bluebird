@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #333)
 - Issues and PRs: #232, #333
 - Cited in code as: #232
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/modelCompare.ts` bullet, from "`hooks/useModelCompare.ts` is the spend"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/modelCompare.ts` bullet, from "`hooks/useModelCompare.ts` is the spend"
 
 ## Context
 

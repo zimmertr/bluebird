@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #334)
 - Issues and PRs: #123, #334
 - Cited in code as: #123
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/components/ModelPicker.tsx` bullet, from "It takes a `disabled` prop"
+- Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `src/components/ModelPicker.tsx` bullet, from "It takes a `disabled` prop"
 
 ## Context
 

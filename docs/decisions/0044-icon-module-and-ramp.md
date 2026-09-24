@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #417)
 - Issues and PRs: #386, #417, #435, #436
 - Cited in code as: #386, #435, #436
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/components/icons.tsx` bullet
+- Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `src/components/icons.tsx` bullet
 
 ## Context
 

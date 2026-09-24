@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #500)
 - Issues and PRs: #232, #493, #500, #508, #509
 - Cited in code as: #232, #493, #508
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/modelCompare.ts` bullet, from "Nothing cuts a line to another model's reach"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/modelCompare.ts` bullet, from "Nothing cuts a line to another model's reach"
 
 ## Context
 

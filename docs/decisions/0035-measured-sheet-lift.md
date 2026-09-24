@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #335)
 - Issues and PRs: #249, #335
 - Cited in code as: #249
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet, from "That lift is MEASURED, not derived"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet, from "That lift is MEASURED, not derived"
 
 ## Context
 

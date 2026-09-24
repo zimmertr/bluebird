@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #452)
 - Issues and PRs: #446, #452
 - Cited in code as: #446
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/snowDepth.ts` bullet
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/snowDepth.ts` bullet
 
 ## Context
 

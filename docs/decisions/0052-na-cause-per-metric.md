@@ -5,7 +5,7 @@
 - Decider: TJ, as the guide records
 - Issues and PRs: #295, #449, #463
 - Cited in code as: #295, #449
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/unavailableCell.ts` bullet
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/unavailableCell.ts` bullet
 
 ## Context
 

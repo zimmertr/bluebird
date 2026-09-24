@@ -2,7 +2,7 @@
 
 One file for each design decision: what was decided, when, who decided, and the evidence that settled it. A record sits beside the guide paragraph that states the rule today and does not replace it. The guide tells a session what to do. The record keeps why, and since when.
 
-The guide is the three `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, [`backend/CLAUDE.md`](../../backend/CLAUDE.md) and [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md). Each guide paragraph that a record explains ends with a link to it.
+The guide is the `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, [`backend/CLAUDE.md`](../../backend/CLAUDE.md), [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), and one for each of [`utils/`](../../frontend/src/utils/CLAUDE.md), [`components/`](../../frontend/src/components/CLAUDE.md), [`hooks/`](../../frontend/src/hooks/CLAUDE.md) and [`map/`](../../frontend/src/map/CLAUDE.md) under it. Each guide paragraph that a record explains ends with a link to it.
 
 ## Write a record
 

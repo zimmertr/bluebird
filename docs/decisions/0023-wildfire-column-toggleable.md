@@ -5,7 +5,7 @@
 - Decider: TJ, as the guide records
 - Issues and PRs: #256, #275, #288
 - Cited in code as: #256, #275, #288
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/fireProximity.ts` bullet, from "The screen column is shown by default"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/fireProximity.ts` bullet, from "The screen column is shown by default"
 
 ## Context
 

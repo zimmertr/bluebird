@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #333)
 - Issues and PRs: #232, #333
 - Cited in code as: #232
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/components/ModelPicker.tsx` bullet
+- Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `src/components/ModelPicker.tsx` bullet
 
 ## Context
 

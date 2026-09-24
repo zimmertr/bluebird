@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-17 (git: the merge of #458)
 - Decider: TJ (git: author and merger of #458)
-- Issues and PRs: #392, #428, #458
+- Issues and PRs: #392, #428, #458, #533, #534
 - Cited in code as: none
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, "The module layouts live beside the code they describe", and the Documentation convention on nested `CLAUDE.md` files
 
@@ -25,4 +25,4 @@ The two lists were 109k of the root file's 165k characters. At 971fede the root 
 
 ## Consequences
 
-Adding or removing a nested file updates the Documentation table in the same pull request; nothing enforces it. A new source module gets its bullet in the nested file beside it. Tailwind v4 reads a markdown file under `frontend/src/` as raw text, so each one there needs an `@source not` line in `frontend/src/index.css`.
+Adding or removing a nested file updates the Documentation table in the same pull request; nothing enforces it. A new source module gets its bullet in the nested file beside it. On 2026-09-24 #534 split the frontend guide the same way (#533), into `frontend/src/CLAUDE.md` and one file each for `utils/`, `components/`, `hooks/` and `map/`. Tailwind v4 reads a markdown file under `frontend/src/` as raw text, so `frontend/src/index.css` excludes them all with `@source not "./**/CLAUDE.md"`.

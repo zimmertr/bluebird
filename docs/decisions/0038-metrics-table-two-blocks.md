@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #358)
 - Issues and PRs: #341, #358, #449
 - Cited in code as: #341, #449
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the paragraph after the forecast grid bullets, from "The `Options` panel section is gone"
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the paragraph that opens "The popover hangs off a button", from "The `Options` panel section is gone"
 
 ## Context
 

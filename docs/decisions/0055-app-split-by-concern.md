@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #475)
 - Issues and PRs: #409, #410, #475, #492, #497, #531
 - Cited in code as: #409, #410
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the second `src/components/MapView.tsx` bullet and the hook bullets marked "cut out of `App.tsx`"
+- Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the second `src/components/MapView.tsx` bullet; and [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), the hook bullets marked "cut out of `App.tsx`"
 
 ## Context
 

@@ -5,7 +5,7 @@
 - Decider: TJ, as the guide records
 - Issues and PRs: #454, #459
 - Cited in code as: #454
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/legendRamp.ts` bullet, from "`scaleTicks` prints THREE"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/legendRamp.ts` bullet, from "`scaleTicks` prints THREE"
 
 ## Context
 

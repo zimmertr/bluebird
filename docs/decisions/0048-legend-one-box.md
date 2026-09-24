@@ -5,7 +5,7 @@
 - Decider: TJ (git: author and merger of #459); the section order and the in-strip numbers are TJ's, 2026-09-17
 - Issues and PRs: #249, #446, #454, #459
 - Cited in code as: #249, #446, #454
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet, from "The map's legend is ONE box"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/forecastGrid.ts` bullet, from "The map's legend is ONE box"
 
 ## Context
 

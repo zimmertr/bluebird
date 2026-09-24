@@ -5,7 +5,7 @@
 - Decider: TJ, in the #232 review (the key was removed in round four); git: author and merger of #333
 - Issues and PRs: #232, #333, #513, #514
 - Cited in code as: #232
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/modelCompare.ts` bullet
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/modelCompare.ts` bullet
 
 ## Context
 

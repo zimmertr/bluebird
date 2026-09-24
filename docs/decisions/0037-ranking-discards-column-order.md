@@ -5,7 +5,7 @@
 - Decider: TJ, as the guide records
 - Issues and PRs: #358
 - Cited in code as: none
-- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `src/utils/tableColumns.ts` bullet, from "`applyColumnOrder`"
+- Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `src/utils/tableColumns.ts` bullet, from "`applyColumnOrder`"
 
 ## Context
 
