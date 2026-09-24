@@ -41,6 +41,7 @@ function inputs(over: Partial<PresentedReportInputs> = {}): PresentedReportInput
     activeRemovedKeys: NONE,
     places: NO_PLACES,
     csvRows: NO_ROWS,
+    restoredTableSort: null,
     ...over,
   }
 }
@@ -138,5 +139,44 @@ describe('usePresentedReport', () => {
     expect(withDate.result.current.windowTitle).toBe(snapshotCaption(NOUN.snow, '2026-07-19'))
     const undated = renderHook(() => usePresentedReport(inputs({ view })))
     expect(undated.result.current.windowTitle).toBeNull()
+  })
+})
+
+// A link's header sort is for the report the link reopens (#292).
+describe('a header sort a link carried', () => {
+  const LINKED = { key: 'name' as const, desc: true }
+
+  it('holds through the first report, and follows the ranking after', () => {
+    let seq = 0
+    const { result, rerender } = renderHook(() =>
+      usePresentedReport(inputs({ analysisSeq: seq, restoredTableSort: LINKED })),
+    )
+    expect(result.current.detailSort).toEqual({ key: 'name', dir: 'desc' })
+    seq = 1
+    rerender()
+    expect(result.current.detailSort).toEqual({ key: 'name', dir: 'desc' })
+    expect(result.current.tableSort).toEqual(LINKED)
+    seq = 2
+    rerender()
+    expect(result.current.detailSort).toEqual({ key: 'precip_total_in', dir: 'asc' })
+    expect(result.current.tableSort).toBeNull()
+  })
+
+  it('drops on a Rank-by change, like any header sort', () => {
+    let view = VIEW
+    const { result, rerender } = renderHook(() =>
+      usePresentedReport(inputs({ analysisSeq: 0, view, restoredTableSort: LINKED })),
+    )
+    view = { sortBy: 'wind_avg_mph', sortDesc: false }
+    rerender()
+    expect(result.current.detailSort).toEqual({ key: 'wind_avg_mph', dir: 'asc' })
+    expect(result.current.tableSort).toBeNull()
+  })
+
+  it('writes nothing while the table follows the ranking', () => {
+    const { result } = renderHook(() => usePresentedReport(inputs()))
+    expect(result.current.tableSort).toBeNull()
+    act(() => result.current.sortDetail('elevation_ft', 'asc'))
+    expect(result.current.tableSort).toEqual({ key: 'elevation_ft', desc: false })
   })
 })

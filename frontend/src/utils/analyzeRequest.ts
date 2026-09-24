@@ -56,6 +56,21 @@ export interface AnalyzeInputs {
 
 export type AnalyzeBranch = 'refresh' | 'discovery' | 'custom' | 'nothing'
 
+/**
+ * The discovery scope removals are kept under: the ring and the authored list.
+ * Exported because a link that carries removals seeds `useRemovals` with the
+ * scope of its own ring and list, so its first Analyze keeps them.
+ */
+export function removalScopeFor(polygon: GeoPolygon | null, destinationScope: string): string {
+  return JSON.stringify({
+    ring: polygon?.coordinates[0] ?? null,
+    // The ring is this comparison's alone: it resolves only at the click, and
+    // it never names a pending destination, which is what the shared scope
+    // serves.
+    authored: destinationScope,
+  })
+}
+
 export interface AnalyzePlan {
   branch: AnalyzeBranch
   /** The discovery scope removals are kept under. */
@@ -119,13 +134,7 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
   // A re-analysis extends the held field rather than rebuilding it, so the
   // rows a user struck out stay struck out. Losing them to anything short of
   // a genuine discovery change would be an unexplained edit of their work.
-  const removalScope = JSON.stringify({
-    ring: polygon?.coordinates[0] ?? null,
-    // The ring is this comparison's alone: it resolves only at the click, and
-    // it never names a pending destination, which is what the shared scope
-    // serves.
-    authored: inputs.destinationScope,
-  })
+  const removalScope = removalScopeFor(polygon, inputs.destinationScope)
 
   // A SHRUNK searched list is refresh-compatible: the departed rows are
   // already gone from the report the refresh echoes. Any base change or NEW

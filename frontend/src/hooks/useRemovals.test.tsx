@@ -14,6 +14,7 @@ const SCOPE = authoredScope(['peak'], '')
 const PLACES = [BAKER]
 const FIELD = [RAINIER_ROW]
 const NO_ROWS: RemovalInputs['csvRows'] = []
+const NO_PLACES: RemovalInputs['places'] = []
 
 function inputs(over: Partial<RemovalInputs> = {}): RemovalInputs {
   return {
@@ -24,6 +25,8 @@ function inputs(over: Partial<RemovalInputs> = {}): RemovalInputs {
     csvRows: NO_ROWS,
     universe: FIELD,
     response: null,
+    restoredRemoved: undefined,
+    restoredScope: SCOPE,
     ...over,
   }
 }
@@ -110,5 +113,83 @@ describe('useRemovals', () => {
     act(() => result.current.removeResult(RAINIER_ROW))
     act(() => result.current.restoreRemoved(geoKey(RAINIER_ROW.latitude, RAINIER_ROW.longitude)))
     expect(addPlace).toHaveBeenCalledTimes(1)
+  })
+})
+
+// A link carries removals as coordinates alone (#292).
+describe('removals a link carried', () => {
+  const KEY = geoKey(RAINIER_ROW.latitude, RAINIER_ROW.longitude)
+  const LINK_SCOPE = 'the link scope'
+
+  it('hides its rows from the first render, before any field is held', () => {
+    const { result } = renderHook(() =>
+      useRemovals(inputs({ universe: null, restoredRemoved: [KEY], restoredScope: LINK_SCOPE })),
+    )
+    expect([...result.current.removedKeys]).toEqual([KEY])
+    expect([...result.current.activeRemovedKeys]).toEqual([KEY])
+    expect(result.current.removed.size).toBe(0)
+  })
+
+  it('lists a removal with its row once the field holds it', () => {
+    const { result, rerender } = renderHook((p: RemovalInputs) => useRemovals(p), {
+      initialProps: inputs({ universe: null, restoredRemoved: [KEY], restoredScope: LINK_SCOPE }),
+    })
+    rerender(inputs({ universe: FIELD, restoredRemoved: [KEY], restoredScope: LINK_SCOPE }))
+    expect(result.current.removed.get(KEY)?.row).toBe(RAINIER_ROW)
+  })
+
+  // The first Analyze of a link runs under the link's own ring and list.
+  it('survives the link\'s own first Analyze, and clears on a real change', () => {
+    const { result } = renderHook(() => useRemovals(inputs({ restoredRemoved: [KEY], restoredScope: LINK_SCOPE })))
+    act(() => result.current.clearForScope(LINK_SCOPE))
+    expect([...result.current.removedKeys]).toEqual([KEY])
+    act(() => result.current.clearForScope('another scope'))
+    expect(result.current.removedKeys.size).toBe(0)
+  })
+
+  it('leaves the link on restore, alone or with the rest', () => {
+    const { result } = renderHook(() => useRemovals(inputs({ restoredRemoved: [KEY], restoredScope: LINK_SCOPE })))
+    act(() => result.current.restoreRemoved(KEY))
+    expect(result.current.removedKeys.size).toBe(0)
+
+    const all = renderHook(() => useRemovals(inputs({ restoredRemoved: [KEY], restoredScope: LINK_SCOPE })))
+    act(() => all.result.current.removeResult(BAKER_ROW))
+    act(() => all.result.current.restoreAllRemoved())
+    expect(all.result.current.removedKeys.size).toBe(0)
+  })
+
+  // A key the landed field does not hold hides nothing and cannot be listed or
+  // restored, so it leaves the set and every later link.
+  it('drops a linked key the landed field does not hold', () => {
+    const ORPHAN = '1.00000,2.00000'
+    const { result, rerender } = renderHook((p: RemovalInputs) => useRemovals(p), {
+      initialProps: inputs({ universe: null, restoredRemoved: [ORPHAN, KEY], restoredScope: LINK_SCOPE }),
+    })
+    expect([...result.current.removedKeys]).toEqual([ORPHAN, KEY])
+    rerender(inputs({ universe: FIELD, restoredRemoved: [ORPHAN, KEY], restoredScope: LINK_SCOPE }))
+    expect([...result.current.removedKeys]).toEqual([KEY])
+    expect([...result.current.activeRemovedKeys]).toEqual([KEY])
+  })
+
+  // × on a searched place deregisters it, so the sender's link carries the
+  // removal and no pin: the reopened field never holds the row.
+  it('drops the removal of a searched place the link carries no pin for', () => {
+    const PIN_KEY = geoKey(BAKER.lat, BAKER.lon)
+    const { result } = renderHook(() =>
+      useRemovals(inputs({ places: NO_PLACES, universe: FIELD, restoredRemoved: [PIN_KEY], restoredScope: LINK_SCOPE })),
+    )
+    expect(result.current.removedKeys.size).toBe(0)
+    expect(result.current.removed.size).toBe(0)
+  })
+
+  // A later list is a new list: the link's removals stop hiding its pending lines.
+  it('stops hiding pending lines once the list is rewritten', () => {
+    const { result, rerender } = renderHook((p: RemovalInputs) => useRemovals(p), {
+      initialProps: inputs({ restoredRemoved: [KEY], restoredScope: LINK_SCOPE }),
+    })
+    expect([...result.current.activeRemovedKeys]).toEqual([KEY])
+    rerender(inputs({ destinationScope: 'rewritten', restoredRemoved: [KEY], restoredScope: LINK_SCOPE }))
+    expect([...result.current.removedKeys]).toEqual([KEY])
+    expect(result.current.activeRemovedKeys.size).toBe(0)
   })
 })

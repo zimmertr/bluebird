@@ -30,7 +30,7 @@ const STYLE_LAYERS = [
 
 function setup(drawing = false) {
   const stub = stubMap({ styleLayers: STYLE_LAYERS })
-  const controller = createMapController({ drawing } as MapInputs)
+  const controller = createMapController({ drawing, onCameraMove: vi.fn() } as unknown as MapInputs)
   const features = mountFeatures(stub.map, {
     controller,
     popups: createPopupBoard(),

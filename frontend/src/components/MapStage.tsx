@@ -24,6 +24,8 @@ import { hourlyScale, rankedScale } from '../utils/colors'
 import { TRANSPORT_GAP_PX } from '../utils/resultsSheet'
 import type { Place } from '../utils/geocode'
 import { fieldHasValue } from '../utils/present'
+import type { CameraView } from '../utils/mapView'
+import type { UrlSync } from '../hooks/useUrlSync'
 
 export interface MapStageProps {
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
@@ -82,6 +84,10 @@ export interface MapStageProps {
   searchPointed: boolean
   /** The same hover, so every clickable feature on the map glows. */
   poisPointed: boolean
+  /** The share link's camera callback, which writes without rendering. */
+  urlSync: Pick<UrlSync, 'reportView'>
+  /** The camera a link opened on, which wins over the opening fit. */
+  restoredView: CameraView | null
 }
 
 /**
@@ -110,6 +116,8 @@ export default function MapStage({
   onOpenControls,
   searchPointed,
   poisPointed,
+  urlSync,
+  restoredView,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   const { registerPlace } = removals
@@ -212,6 +220,8 @@ export default function MapStage({
         onAddPoi={handleAddPoi}
         onRemovePoi={handleRemovePoi}
         cameraPadBottomPx={layout.cameraPadBottomPx}
+        restoredView={restoredView}
+        onCameraMove={urlSync.reportView}
       />
       {/* The legends render BEFORE the button column below on purpose.
           Both are map chrome at the same layer, so paint order is DOM

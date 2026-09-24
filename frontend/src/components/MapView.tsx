@@ -18,6 +18,7 @@ import { FireWarning } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { POI_LAYERS, poiFromFeature } from '../utils/basemapPoi'
 import { framePadding, pointsWithinView } from '../utils/mapFraming'
+import { type CameraView, initialCamera } from '../utils/mapView'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
@@ -144,6 +145,13 @@ interface Props {
   // results are docked beside the map and nothing is covered. It is the sheet's
   // RESTING lift, so a drag never re-frames the camera under the reader's hand.
   cameraPadBottomPx: number
+  // The camera a `?view=` link opened on, or null. Read once, when the map is
+  // built: it wins over the opening fit to the ring, the list and the pins,
+  // because it is where the person who shared the link was looking.
+  restoredView: CameraView | null
+  // Where each settled camera goes (`map/camera.ts`). Stable, and it writes the
+  // link without rendering anything, so a pan costs no React work.
+  onCameraMove: (view: CameraView, readerMove: boolean) => void
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -187,6 +195,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onAddPoi,
       onRemovePoi,
       cameraPadBottomPx,
+      restoredView,
+      onCameraMove,
     },
     ref,
   ) => {
@@ -240,6 +250,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onAddPoi,
       onRemovePoi,
       cameraPadBottomPx,
+      onCameraMove,
     }
     const [controller] = useState(() => createMapController(inputs))
     // Declared before every other effect so it runs first in a commit, and any
@@ -267,15 +278,19 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // pasted while the map was still loading — their union, so a link
       // carrying a polygon, a CSV and pins shows the whole analysis area.
       // When none of these exist, the default camera stands.
+      //
+      // A link's own camera wins over all of it but a list pasted while the map
+      // was loading: that paste is the reader's own act, where the rest is the
+      // app framing what the link carried.
       const corners: [number, number][] = []
-      if (restoredPolygonRef.current) {
+      if (restoredPolygonRef.current && !restoredView) {
         const ring = restoredPolygonRef.current.coordinates[0] ?? []
         if (ring.length >= 3) for (const [lng, lat] of ring) corners.push([lng, lat])
       }
       const pastedEarly = pendingFitPointsRef.current ?? []
       pendingFitPointsRef.current = null
       const pointBounds = boundsForPoints(
-        [...restoredPoints, ...pastedEarly],
+        restoredView ? pastedEarly : [...restoredPoints, ...pastedEarly],
         SEARCH_VIEW_MILES,
       )
       if (pointBounds) corners.push(...pointBounds)
@@ -466,11 +481,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (!containerRef.current || mapRef.current) return
 
+      const opening = initialCamera(restoredView)
       const map = new maplibregl.Map({
         container: containerRef.current,
         style: STYLE,
-        center: [-120.5, 47.5],
-        zoom: 7,
+        center: [opening.lng, opening.lat],
+        zoom: opening.zoom,
         // The library adds its own attribution unless told not to, and the
         // only way to decide `compact` is to construct the control. The effect
         // below does, at the app's own breakpoint rather than the library's
@@ -501,10 +517,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       resizeObserver.observe(containerRef.current)
 
       // A polygon, custom CSV list or searched places restored from the URL
-      // take precedence over any default framing — don't scroll the user away
-      // from the area their link points at. The default camera is
-      // [ -120.5, 47.5 ], zoom 7, which the geolocation control can refine to
-      // the user's location on demand.
+      // take precedence over the default framing, and a link's own camera over
+      // both (`initialCamera`). The default camera is `DEFAULT_CAMERA`, which
+      // the geolocation control can refine to the user's location on demand.
       map.on('load', () => {
         loadedRef.current = true
         frameOpening(map)

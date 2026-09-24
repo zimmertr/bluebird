@@ -216,7 +216,11 @@ direction, a cut of the results cap to 100, and its restore (issue #409). It ser
 `frontend/e2e/perf/renderCost.spec.ts` from the same Playwright image, with the
 same fixtures, so it spends no quota either. The spec times each interaction
 inside the page, from the dispatch through two task yields, seven times, and
-prints the medians on a `render cost:` line. It takes a few minutes, because
+prints the medians on a `render cost:` line. After those, and apart from
+them, it pans the map with a mouse drag seven times and reports the React
+commits a pan causes (`panCommits`, which should be 0: the camera reaches the
+share link without React state) and the script time Chrome counts over the
+drag and its settle (`panScriptMs`). It takes a few minutes, because
 the client pacer spaces the 946-location fetch, which is why the smoke suite's
 config ignores `perf/` and CI never runs it. Run it on `main` and on your branch
 on the same machine, and put both lines in the PR: the numbers compare with

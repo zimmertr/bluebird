@@ -15,6 +15,15 @@ import type { Page } from '@playwright/test'
 // that span, and a render an effect schedules lands in the first yield, so the
 // span is the synchronous work the reader waits through. The overhead of the
 // yields themselves is well under a millisecond.
+//
+// After them, and apart so it cannot disturb them, a pan of the map (#292): a
+// real mouse drag, which is what makes a share link's `view`. A pan should
+// cost React nothing, because the camera goes to the link's writer without
+// passing through state. So the probe counts React commits across the drag
+// and the settle after it, through the DevTools hook React reports every
+// commit to, and times the main thread's script work over the same span
+// through Chrome's own counters, since a drag's work is spread over animation
+// frames rather than inside one dispatch.
 
 const DESTINATIONS = 946
 const SAMPLES = 7
@@ -83,7 +92,30 @@ function timeIn(
 
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)]
 
+// Long enough for the drag's easing to settle and the link's 400 ms debounce
+// to write.
+const PAN_SETTLE_MS = 1_000
+const PAN_PX = 150
+
 test('render cost of an overlay toggle, a keystroke and the live knobs at 946 destinations', async ({ page }, testInfo) => {
+  // A stand-in for the React DevTools hook, installed before React loads,
+  // which counts the commits React reports to it.
+  await page.addInitScript(() => {
+    const counted = window as unknown as { reactCommits: number; __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown }
+    counted.reactCommits = 0
+    counted.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+      isDisabled: false,
+      supportsFiber: true,
+      renderers: new Map(),
+      inject: () => 1,
+      onCommitFiberRoot: () => {
+        counted.reactCommits += 1
+      },
+      onCommitFiberUnmount: () => {},
+      onPostCommitFiberRoot: () => {},
+      checkDCE: () => {},
+    }
+  })
   const destinations = field()
   await page.route('**/api/destinations', (r) =>
     r.fulfill({
@@ -132,6 +164,38 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
   }
   // Each knob moved: the last restore brought every row back.
   await expect(page.locator('table tbody tr')).toHaveCount(DESTINATIONS)
+
+  // The pan, after the loop. The Layers popover closes on Escape, so the drag
+  // lands on the map.
+  await page.keyboard.press('Escape')
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Performance.enable')
+  const scriptSeconds = async () => {
+    const { metrics } = (await cdp.send('Performance.getMetrics')) as { metrics: { name: string; value: number }[] }
+    return metrics.find((m) => m.name === 'ScriptDuration')?.value ?? 0
+  }
+  const commits = () => page.evaluate(() => (window as unknown as { reactCommits: number }).reactCommits)
+  const canvas = (await page.locator('.maplibregl-canvas').boundingBox())!
+  const cx = canvas.x + canvas.width / 2
+  const cy = canvas.y + canvas.height / 3
+  const pan: number[] = []
+  const panCommits: number[] = []
+  for (let i = 0; i < SAMPLES; i++) {
+    const dx = i % 2 === 0 ? PAN_PX : -PAN_PX
+    const c0 = await commits()
+    const s0 = await scriptSeconds()
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    await page.mouse.move(cx + dx, cy, { steps: 10 })
+    await page.mouse.up()
+    await page.waitForTimeout(PAN_SETTLE_MS)
+    pan.push((await scriptSeconds() - s0) * 1000)
+    panCommits.push((await commits()) - c0)
+  }
+  // Whether the build under test wrote the camera to the link: a build from
+  // before `view` existed runs the same probe and says no.
+  const panWroteView = new URL(page.url()).searchParams.has('view')
+
   const result = {
     destinations: DESTINATIONS,
     overlayToggleMs: Math.round(median(overlay)),
@@ -139,11 +203,16 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
     sortFlipMs: Math.round(median(sortFlip)),
     limitCutMs: Math.round(median(limitCut)),
     limitRestoreMs: Math.round(median(limitRestore)),
+    panScriptMs: Math.round(median(pan)),
+    panCommits: median(panCommits),
+    panWroteView,
     overlaySamples: overlay.map(Math.round),
     keystrokeSamples: keystroke.map(Math.round),
     sortFlipSamples: sortFlip.map(Math.round),
     limitCutSamples: limitCut.map(Math.round),
     limitRestoreSamples: limitRestore.map(Math.round),
+    panScriptSamples: pan.map(Math.round),
+    panCommitSamples: panCommits,
   }
   console.log(`render cost: ${JSON.stringify(result)}`)
   testInfo.annotations.push({ type: 'render cost', description: JSON.stringify(result) })

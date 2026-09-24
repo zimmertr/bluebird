@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import type { CameraView } from '../utils/mapView'
 import { type ShareableState, encodeState } from '../utils/urlState'
 import { type UrlWriter, debounceUrlWrite, urlNeedsSync } from '../utils/urlSync'
 
@@ -41,8 +42,25 @@ export interface UrlSyncInputs {
   places: ShareableState['pins']
   /** The deployment's default model, which a link leaves out (`/api/capabilities`). */
   defaultForecastModel: string
+  /** The ×-removed rows, by `geoKey`. */
+  removedKeys: ReadonlySet<string>
+  /** The table's header sort, or null while it follows the ranking. */
+  tableSort: ShareableState['tableSort']
+  /** The camera the link opened on, held until the map reports its own. */
+  restoredView: CameraView | null
   /** The tutorial's copy of the app (#536), whose state is no link's to carry. */
   sandboxed?: boolean
+}
+
+export interface UrlSync {
+  /** The debounced writer; a link's run on open flushes it. */
+  writeUrl: UrlWriter
+  /**
+   * The map's settled camera, and whether the reader moved it. Stable, and
+   * outside React state: a pan must not render the page, so the camera goes
+   * straight to the writer instead of through the sync effect.
+   */
+  reportView: (view: CameraView, readerMove: boolean) => void
 }
 
 /**
@@ -50,7 +68,7 @@ export interface UrlSyncInputs {
  * debounced writer for the component's lifetime, the effect that queues a
  * write when the shared state changes, and a flush on unmount. Returns the
  * writer, whose `flush` a link's run on open uses to strip its flag now
- * rather than a debounce later.
+ * rather than a debounce later, and `reportView`, the map camera's way in.
  */
 export function useUrlSync({
   polygon,
@@ -75,8 +93,11 @@ export function useUrlSync({
   gridReachFrac,
   places,
   defaultForecastModel,
+  removedKeys,
+  tableSort,
+  restoredView,
   sandboxed = false,
-}: UrlSyncInputs): UrlWriter {
+}: UrlSyncInputs): UrlSync {
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
   // dependency change, which is every keystroke, so the burst it exists to
@@ -86,6 +107,45 @@ export function useUrlSync({
     urlWriterRef.current = debounceUrlWrite((url) => window.history.replaceState(null, '', url))
   }
   const writeUrl = urlWriterRef.current
+
+  // The camera lives here rather than in state, so a pan renders nothing. The
+  // sync effect below reads it on every write, and `reportView` writes with
+  // the state the sync effect last encoded, held in `latestRef`: a camera
+  // write from a closure would carry the state of the render that made it.
+  const viewRef = useRef<CameraView | null>(restoredView)
+  // A link's camera is the sender's own move, so it keeps making the link on
+  // its own: a `?view=` link must not be stripped to the bare path, nor lose
+  // its camera when the other reason for the link goes.
+  const cameraMovedRef = useRef(restoredView !== null)
+  const latestRef = useRef<{ state: Omit<ShareableState, 'view'>; defaultModel: string } | null>(null)
+  const sync = useCallback(() => {
+    const latest = latestRef.current
+    // The tutorial's copy writes nothing, so the address bar keeps the
+    // reader's own link however far the demo goes, and the flushes find
+    // nothing queued.
+    if (!latest || sandboxed) return
+    const qs = encodeState({ ...latest.state, view: viewRef.current }, latest.defaultModel, {
+      cameraMoved: cameraMovedRef.current,
+    })
+    // Nothing to write, and just as importantly, drop anything already queued.
+    // An edit that lands back on the state the address bar already shows must
+    // not be followed a moment later by a write of a state it merely passed
+    // through on the way.
+    if (!urlNeedsSync(qs, window.location.pathname, window.location.search)) {
+      writeUrl.cancel()
+      return
+    }
+    writeUrl(qs ? `?${qs}` : window.location.pathname)
+  }, [writeUrl, sandboxed])
+
+  const reportView = useCallback(
+    (view: CameraView, readerMove: boolean) => {
+      viewRef.current = view
+      if (readerMove) cameraMovedRef.current = true
+      sync()
+    },
+    [sync],
+  )
 
   // Live-sync all analysis inputs into the address bar so the URL is always
   // copy-pasteable. replaceState (not pushState) keeps the back button clean;
@@ -99,44 +159,35 @@ export function useUrlSync({
   // any pending write is flushed so the last state reaches the URL before the
   // component exits.
   useEffect(() => {
-    // The tutorial's copy queues nothing, so the address bar keeps the reader's
-    // own link however far the demo goes, and the flushes below find nothing
-    // to write.
-    if (sandboxed) return
-    const qs = encodeState({
-      polygon,
-      destinationTypes,
-      includeUnnamedPeaks,
-      selection,
-      forecastModel,
-      compareModels: comparedModels,
-      sortBy,
-      sortDesc,
-      rowKeys,
-      constraints,
-      limit,
-      customCsv,
-      showWildfires,
-      showRadar,
-      showSmoke,
-      showSnow,
-      showGrid,
-      showPlayer,
-      gridStyle,
-      gridReachFrac,
-      pins: places,
-    }, defaultForecastModel)
-
-    // Nothing to write, and just as importantly, drop anything already queued.
-    // An edit that lands back on the state the address bar already shows must
-    // not be followed a moment later by a write of a state it merely passed
-    // through on the way.
-    if (!urlNeedsSync(qs, window.location.pathname, window.location.search)) {
-      writeUrl.cancel()
-      return
+    latestRef.current = {
+      state: {
+        polygon,
+        destinationTypes,
+        includeUnnamedPeaks,
+        selection,
+        forecastModel,
+        compareModels: comparedModels,
+        sortBy,
+        sortDesc,
+        rowKeys,
+        constraints,
+        limit,
+        customCsv,
+        showWildfires,
+        showRadar,
+        showSmoke,
+        showSnow,
+        showGrid,
+        showPlayer,
+        gridStyle,
+        gridReachFrac,
+        pins: places,
+        removed: [...removedKeys],
+        tableSort,
+      },
+      defaultModel: defaultForecastModel,
     }
-
-    writeUrl(qs ? `?${qs}` : window.location.pathname)
+    sync()
     // No cleanup here on purpose: flushing once per effect run would write on
     // every keystroke and collapse nothing, which is the trap debounceUrlWrite
     // documents. Unmount is handled by its own effect below.
@@ -163,8 +214,9 @@ export function useUrlSync({
     gridReachFrac,
     places,
     defaultForecastModel,
-    sandboxed,
-    writeUrl,
+    removedKeys,
+    tableSort,
+    sync,
   ])
 
   // Unmount is the one moment a queued write cannot wait out its delay, so it
@@ -172,5 +224,5 @@ export function useUrlSync({
   // sync effect above must not flush, or the debounce collapses nothing.
   useEffect(() => () => writeUrl.flush(), [writeUrl])
 
-  return writeUrl
+  return useMemo(() => ({ writeUrl, reportView }), [writeUrl, reportView])
 }
