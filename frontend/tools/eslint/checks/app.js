@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 7, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 6, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
     ],
   },
@@ -384,9 +384,29 @@ export const APP = [
     // overflow leaves through the edge a scroll can follow; a stack pushed to
     // the bottom overflows past its start, where it cannot be reached. Every
     // offset on the bottom edge is derived in resultsSheet.ts, and the corner
-    // band is published under the names map.css reads.
+    // band is published under the names map.css reads. The map wrapper that
+    // publishes the band is App's; the stack is MapLegend's (map-legend-anchors).
     name: 'app-legend-anchors',
     files: ['src/App.tsx'],
+    ban: [
+      { selector: text('\\bm[tb]-(?:auto)\\b'), message: 'Anchor the legend stack at the top, not with an auto margin.' },
+      { selector: text('\\bjustify-(?:end)\\b'), message: 'Anchor the legend stack at the top, not by justifying to the end.' },
+      BOTTOM_OFFSET,
+    ],
+    require: [
+      { selector: 'Property[key.value="--map-corner-lift"]', message: 'Publish --map-corner-lift.' },
+      {
+        selector:
+          'Property[key.value="--map-corner-band"] > TemplateLiteral[quasis.length=2][quasis.0.value.raw=""][quasis.1.value.raw="px"] > Identifier[name="TRANSPORT_GAP_PX"]',
+        message: 'Publish --map-corner-band as TRANSPORT_GAP_PX in px.',
+      },
+    ],
+  },
+  {
+    // The stack half of app-legend-anchors: the top inset clears the button
+    // column in both of its heights, and the floor is derived.
+    name: 'map-legend-anchors',
+    files: ['src/components/MapLegend.tsx'],
     ban: [
       { selector: text('\\bm[tb]-(?:auto)\\b'), message: 'Anchor the legend stack at the top, not with an auto margin.' },
       { selector: text('\\bjustify-(?:end)\\b'), message: 'Anchor the legend stack at the top, not by justifying to the end.' },
@@ -399,11 +419,24 @@ export const APP = [
         selector: 'CallExpression[callee.name="legendBottomPx"][arguments.0.name="sheetLiftPx"]',
         message: 'Place the legend with legendBottomPx(sheetLiftPx, ...).',
       },
-      { selector: 'Property[key.value="--map-corner-lift"]', message: 'Publish --map-corner-lift.' },
+    ],
+  },
+  {
+    // A popover a reader cannot leave is a trap: click away or Escape closes
+    // it. The listeners are attached only while it is open, so the one effect
+    // keys on the open flag alone.
+    name: 'layers-popover-dismiss',
+    files: ['src/components/LayersPopover.tsx'],
+    require: [
+      { selector: EFFECT, count: 1, message: 'LayersPopover.tsx runs its one effect through useEffect.' },
+      { selector: keyedOnlyOn('layersOpen'), message: 'Attach the dismiss listeners in an effect keyed on layersOpen alone.' },
       {
-        selector:
-          'Property[key.value="--map-corner-band"] > TemplateLiteral[quasis.length=2][quasis.0.value.raw=""][quasis.1.value.raw="px"] > Identifier[name="TRANSPORT_GAP_PX"]',
-        message: 'Publish --map-corner-band as TRANSPORT_GAP_PX in px.',
+        selector: 'CallExpression[callee.property.name="addEventListener"][arguments.0.value="pointerdown"]',
+        message: 'Close the popover on a pointerdown outside it.',
+      },
+      {
+        selector: 'IfStatement[test.left.object.name="e"][test.left.property.name="key"][test.right.value="Escape"]',
+        message: 'Close the popover on Escape.',
       },
     ],
   },
@@ -519,19 +552,27 @@ export const APP = [
     ],
   },
   {
-    // The Layers list stays in App.tsx, and its grid row reads the hook's
+    // The Layers list is LayersPopover's, and its grid row reads the hook's
     // answer rather than asking again.
     name: 'app-grid-gate',
-    files: ['src/App.tsx'],
-    ban: [
-      { selector: 'CallExpression[callee.name="gridAllowed"]', message: 'Take gridAvailable from useGridLayer.' },
-    ],
+    files: ['src/components/LayersPopover.tsx'],
     require: [
       { selector: 'Property[key.name="key"][value.value="grid"]', message: 'Keep the grid row in the layers list.' },
       {
         selector: 'Property[key.name="disabled"] > UnaryExpression[operator="!"][argument.name="gridAvailable"]',
         message: 'Disable the grid row on !gridAvailable.',
       },
+    ],
+  },
+  {
+    // useGridLayer asks whether the grid is allowed, once. Nothing that draws
+    // the map's chrome asks again.
+    name: 'app-grid-asked-once',
+    files: ['src/App.tsx', 'src/components/*.tsx'],
+    ignores: ['src/components/*.test.tsx'],
+    probe: 'src/App.tsx',
+    ban: [
+      { selector: 'CallExpression[callee.name="gridAllowed"]', message: 'Take gridAvailable from useGridLayer.' },
     ],
   },
   {

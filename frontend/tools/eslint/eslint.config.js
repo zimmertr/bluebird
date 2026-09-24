@@ -113,6 +113,8 @@ const PANEL_FILES = [
 // explain what went wrong, which is the one place naming them is the point.
 const METRIC_SURFACES_IN_COMPONENTS = [
   'src/App.tsx',
+  // The legend box, whose metric key names the ranked metric.
+  'src/components/MapLegend.tsx',
   ...PANEL_FILES,
   'src/components/ResultsTable.tsx',
   // The table's body rows, which draw every cell.

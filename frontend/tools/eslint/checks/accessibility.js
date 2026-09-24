@@ -136,7 +136,7 @@ export const ACCESSIBILITY = [
     // reaches. Every aria-describedby must have its hidden text to point at,
     // and the results header's sort hint is held to the same pairing.
     name: 'disabled-reason-twin',
-    files: ['src/App.tsx', 'src/components/ResultsTableHeader.tsx'],
+    files: ['src/components/LayersPopover.tsx', 'src/components/ResultsTableHeader.tsx'],
     balance: [
       {
         selectors: [attr('aria-describedby'), `${attr('className')} > JSXExpressionContainer > Identifier[name="SR_ONLY"]`],

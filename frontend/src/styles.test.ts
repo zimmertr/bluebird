@@ -101,6 +101,9 @@ import metricsTableSource from './components/MetricsTable.tsx?raw'
 import panelFooterSource from './components/PanelFooter.tsx?raw'
 import appSource from './App.tsx?raw'
 import searchBoxSource from './components/SearchBox.tsx?raw'
+import layersPopoverSource from './components/LayersPopover.tsx?raw'
+import mapButtonColumnSource from './components/MapButtonColumn.tsx?raw'
+import mapLegendSource from './components/MapLegend.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -336,9 +339,13 @@ describe('every component', () => {
   // The count is the point: a tooltip does not exist on touch, so each one is
   // a decision someone made and can defend, not a habit.
   const APPROVED_TOOLTIPS: Record<string, number> = {
-    // The Light/Medium/Heavy chips in the map's layer legend, and why the
-    // Forecast grid row is faded over a report carrying archive hours (#123).
-    './App.tsx': 2,
+    // None since #409: the map's two moved with the chrome that carries them.
+    './App.tsx': 0,
+    // The Light/Medium/Heavy chips in the map's layer legend.
+    './components/MapLegend.tsx': 1,
+    // Why the Forecast grid row is faded over a report carrying archive hours
+    // (#123).
+    './components/LayersPopover.tsx': 1,
     // None. The panel's two tooltips are drawn by its Metrics section, below,
     // and a zero here is pinned like every count: a tooltip arriving in the
     // frame is a decision.
@@ -1147,10 +1154,11 @@ describe('shared recipes', () => {
   it('gives every row in that column one height', () => {
     expect(MAP_ROW_H).toBe('h-9 touch:h-11')
     const rows = [
-      ...(appSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
+      ...(mapButtonColumnSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
+      ...(layersPopoverSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
       ...(searchBoxSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
     ]
-    // Both buttons and the search field, counted across the two files. A row
+    // Both buttons and the search field, counted across the three files. A row
     // that sets its own height beside the role is the style-map-column check.
     expect(rows).toHaveLength(3)
   })
@@ -1757,7 +1765,7 @@ describe('the map layer rows', () => {
   // other check here is: Vitest has no DOM, and the order is a property of the
   // literal the popover maps over.
   const labels = (() => {
-    const block = appSource.match(/const MAP_LAYERS = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
+    const block = layersPopoverSource.match(/const MAP_LAYERS = \[[\s\S]*?\n {2}\]/)?.[0] ?? ''
     return [...block.matchAll(/label: '([^']+)'/g)].map((m) => m[1])
   })()
 
@@ -1780,9 +1788,8 @@ describe('the map legend sections', () => {
   // The whole box, metric key included — it is one box now, where the key used
   // to be a second one below the layer rows.
   const box = (() => {
-    const from = appSource.indexOf('ONE box, gaining and losing sections')
-    const to = appSource.indexOf('Top-left map cluster')
-    return from >= 0 && to > from ? appSource.slice(from, to) : ''
+    const from = mapLegendSource.indexOf('ONE box, gaining and losing sections')
+    return from >= 0 ? mapLegendSource.slice(from) : ''
   })()
 
   // Every section's label as the box RENDERS it. The metric key's is the ranked
@@ -1836,7 +1843,7 @@ describe('the map legend sections', () => {
 // map. The box yields; the sections it holds take the pointer back.
 describe('the legend stack', () => {
   // The scroll box itself: the one element that wears the legend's top inset.
-  const stack = appSource.match(/className=\{`absolute \$\{MAP_EDGE\.left\}[^`]*LEGEND_TOP[^`]*`\}/)?.[0] ?? ''
+  const stack = mapLegendSource.match(/className=\{`absolute \$\{MAP_EDGE\.left\}[^`]*LEGEND_TOP[^`]*`\}/)?.[0] ?? ''
 
   it('found the stack', () => {
     expect(stack).toContain('overflow-y-auto')

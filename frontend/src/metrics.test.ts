@@ -39,6 +39,7 @@ import resultsTableRowSource from './components/ResultsTableRow.tsx?raw'
 import resultsCellsSource from './utils/resultsCells.ts?raw'
 import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 import timelineTransportSource from './components/TimelineTransport.tsx?raw'
+import mapLegendSource from './components/MapLegend.tsx?raw'
 import chartDataSource from './utils/chartData.ts?raw'
 import colorsSource from './utils/colors.ts?raw'
 import resultPopupSource from './utils/resultPopup.ts?raw'
@@ -432,6 +433,8 @@ const CONSUMERS: [string, string][] = [
   ['ResultsTableHeader.tsx', resultsTableHeaderSource],
   ['TimeSeriesChart.tsx', timeSeriesChartSource],
   ['TimelineTransport.tsx', timelineTransportSource],
+  // The legend box, whose metric key names the ranked metric.
+  ['MapLegend.tsx', mapLegendSource],
   ['chartData.ts', chartDataSource],
   ['colors.ts', colorsSource],
   ['resultPopup.ts', resultPopupSource],

@@ -57,3 +57,6 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
     playerShown,
   }
 }
+
+/** What `useMapOverlays` hands its callers: the Layers popover and the legend read it whole. */
+export type MapOverlays = ReturnType<typeof useMapOverlays>

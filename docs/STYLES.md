@@ -218,7 +218,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
 | The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` and the section files it renders (`PANEL_FILES`) |
 | A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in the same files |
-| The map's edges are one inset | `checks/styles.js`, `styles.test.ts` | `style-map-column` bans a top or left inset at the map's chrome in `App.tsx`; the test does the same for `map.css`, which ESLint does not read |
+| The map's edges are one inset | `checks/styles.js`, `styles.test.ts` | `style-map-column` bans a top or left inset at the map's chrome in `App.tsx` and the four map components (`MapLegend`, `LayersPopover`, `MapButtonColumn`, `AnalysisOverlay`); the test does the same for `map.css`, which ESLint does not read |
 | No component dims a placeholder | `eslint.config.js` | Ban placeholder utilities below AA contrast |
 | Every radio/checkbox uses the shared recipe | `styles.test.ts`, `checks/styles.js` | The test checks `CHOICE_INPUT` composition and counts one per `CHOICE_ROW` in each panel file; `style-call-site-classes` bans a size after `ACCENT.input` |
 | Every focus-able control has focus ring | `styles.test.ts` | List per control type |
@@ -230,13 +230,13 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
 | Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
-| A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `App.tsx` matches a `SR_ONLY` element |
+| A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx` and `ResultsTableHeader.tsx` matches a `SR_ONLY` element |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The map column is one width, gap, height and type size | `styles.test.ts`, `checks/styles.js` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
-| No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
+| No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
 | No component draws its own glyph | `checks/styles.js` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
 | Nor does the map popup | `checks/styles.js`, `styles.test.ts` | `style-popup-glyph` bans the same tag in `utils/popupChrome.ts`, which builds markup rather than elements; the test pins its glyph size to the `inline` step |
@@ -450,8 +450,8 @@ only thing explaining a state, the same text is also mounted in a visually hidde
 element that `aria-describedby` names (`SR_ONLY` in `styles.ts`), because the
 touch argument above applies to a screen reader as well: a `title` is a pointer's
 affordance and is not promised to anything else. The linter's
-`disabled-reason-twin` check fails an `aria-describedby` in `App.tsx` with no
-`SR_ONLY` twin.
+`disabled-reason-twin` check fails an `aria-describedby` in `LayersPopover.tsx`
+or `ResultsTableHeader.tsx` with no `SR_ONLY` twin.
 
 ### Sentence case
 

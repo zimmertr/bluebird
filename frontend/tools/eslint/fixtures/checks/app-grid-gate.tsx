@@ -1,2 +1,2 @@
-// Must trip: the gate asked again in App, and no grid row in the list.
-export const gridAvailable = gridAllowed(analyzed)
+// Must trip: no grid row in the list, and none disabled on the hook's answer.
+export const layers = [{ key: 'radar', label: 'Rain radar' }]
