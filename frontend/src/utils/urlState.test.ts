@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  DEFAULT_LIMIT,
   DEFAULT_SORT,
   encodeState,
   decodeState,
@@ -20,6 +21,9 @@ import { GeoPolygon } from '../types'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
 import { NO_CONSTRAINTS } from './clientAnalyze'
 import { urlNeedsSync } from './urlSync'
+import { escapeQueryText, unescapeQueryText } from './urlParams'
+import { compressToEncodedURIComponent } from 'lz-string'
+import { place } from '../testSupport/fixtures'
 
 const polygon: GeoPolygon = {
   type: 'Polygon',
@@ -120,7 +124,9 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out).not.toBeNull()
     expect(out!.destinationTypes).toEqual(['peak'])
     expect(out!.selection).toEqual(DAYS)
-    expect(out!.sortBy).toBe(DEFAULT_SORT)
+    // The default ranking writes no `sort`, and the panel reads an absent one
+    // as the default.
+    expect(out!.sortBy).toBeUndefined()
     expect(out!.limit).toBe(10)
     // Polygon ring is rebuilt closed with the same vertices.
     const ring = out!.polygon!.coordinates[0]
@@ -145,14 +151,14 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out).not.toBeNull()
     expect(Object.keys(out!)).not.toContain('minElevationFt')
     expect(Object.keys(out!)).not.toContain('maxElevationFt')
-    expect(out!.sortBy).toBe(base.sortBy)
+    expect(out!.destinationTypes).toEqual(base.destinationTypes)
   })
 
   // Read off RANKING_KEYS rather than a list here, so a new ranking key cannot
   // be offered in the picker and refused by the address bar.
   it('restores every sortable metric', () => {
     for (const key of RANKING_KEYS) {
-      expect(roundTrip({ ...base, sortBy: key })!.sortBy, key).toBe(key)
+      expect(roundTrip({ ...base, sortBy: key })!.sortBy ?? DEFAULT_SORT, key).toBe(key)
     }
   })
 
@@ -338,7 +344,6 @@ describe('encodeState / decodeState round-trip', () => {
     const csv = Array.from({ length: 100 }, (_, i) => `47.${i}, -121.${i}, Peak ${i}`).join('\n')
     const qs = encodeState({ ...base, polygon: null, customCsv: csv }, DEFAULT_MODEL)
     const params = new URLSearchParams(qs)
-    expect(params.get('custom')).toBeNull() // legacy raw key is not written
     const customz = params.get('customz')!
     expect(customz).toBeTruthy()
     expect(customz.length).toBeLessThan(csv.length * 0.6)
@@ -560,6 +565,177 @@ describe('pins in the URL', () => {
   })
 })
 
+describe('pins encoded once', () => {
+  // A link carries no description, so the pin is built without one.
+  const tiger = place({
+    label: 'East Tiger Mountain',
+    description: '',
+    lat: 47.48844,
+    lon: -121.94734,
+    elevationFt: 2995,
+    osmId: 'node/349018340',
+  })
+  const pinned = (pins: ShareableState['pins']): ShareableState => ({
+    ...pristine,
+    forecastModel: 'gfs_seamless',
+    pins,
+  })
+
+  // The issue's own example: the label and the OSM id read as themselves.
+  it('writes a pin the address bar shows as it is', () => {
+    expect(encodeState(pinned([tiger]), 'gfs_seamless')).toBe(
+      'model=gfs_seamless&mode=now&pins=-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain',
+    )
+  })
+
+  it.each([
+    'Cabin, mile 3; near creek',
+    'A+B',
+    '100% & more = #1',
+    'Mont Blanc, Aiguille du Goûter',
+    '日本の山',
+    "St. Helen's (south)!",
+    'a%2Cb%3B',
+    '  spaced  ',
+  ])('round-trips the label %j', (label) => {
+    const pin = { ...tiger, label }
+    const qs = encodeState(pinned([pin, tiger]), 'gfs_seamless')
+    expect(decodeState(qs)?.pins).toEqual([pin, tiger])
+    // And through the parser a browser uses for location.search.
+    expect(decodeState(new URL(`https://bluebirdforecast.com/?${qs}`).search)?.pins).toEqual([pin, tiger])
+  })
+
+  it('round-trips an id holding the delimiters', () => {
+    const pin = { ...tiger, osmId: 'way/1,2;3&x=%' }
+    expect(decodeState(encodeState(pinned([pin]), 'gfs_seamless'))?.pins).toEqual([pin])
+  })
+
+  // Links from before carried each field encoded twice. They need not restore
+  // (decision 1), but they must not throw.
+  it('drops a pin link from before, without throwing', () => {
+    const old =
+      'pins=-121.94734%2C47.48844%2Cpeak%2C2995%2Cnode%252F349018340%2CEast%2520Tiger%2520Mountain'
+    expect(() => decodeState(old)).not.toThrow()
+    expect(decodeState(old)).toBeNull()
+  })
+
+  it('drops a pin with a malformed escape and keeps the rest', () => {
+    const out = decodeState('pins=1,2,peak,,,Bad%E0%A4%A;3,4,peak,,,Good')
+    expect(out?.pins?.map((p) => p.label)).toEqual(['Good'])
+  })
+})
+
+describe('sort and limit at their defaults', () => {
+  it('writes neither key at the default ranking and results cap', () => {
+    const params = new URLSearchParams(encodeState({ ...base, limit: DEFAULT_LIMIT }, DEFAULT_MODEL))
+    expect(params.has('sort')).toBe(false)
+    expect(params.has('limit')).toBe(false)
+  })
+
+  it('writes each key once it is off its default', () => {
+    const sorted = new URLSearchParams(
+      encodeState({ ...base, sortBy: 'wind_avg_mph', limit: DEFAULT_LIMIT }, DEFAULT_MODEL),
+    )
+    expect(sorted.get('sort')).toBe('wind_avg_mph')
+    expect(sorted.has('limit')).toBe(false)
+    const capped = new URLSearchParams(encodeState({ ...base, limit: 50 }, DEFAULT_MODEL))
+    expect(capped.has('sort')).toBe(false)
+    expect(capped.get('limit')).toBe('50')
+  })
+
+  it('reads an absent key as no answer, which the panel fills with the default', () => {
+    const out = decodeState(encodeState({ ...base, limit: DEFAULT_LIMIT }, DEFAULT_MODEL))
+    expect(out).not.toBeNull()
+    expect(out!.sortBy).toBeUndefined()
+    expect(out!.limit).toBeUndefined()
+  })
+
+  // With no `sort`, the default ranking is the active one, so its own
+  // family's param cannot move the active row off it.
+  it('holds the default ranking\'s row when a link carries no sort', () => {
+    expect(decodeState('aqi=max&wind=max')!.rowKeys).toEqual({
+      ...DEFAULT_FAMILY_KEY,
+      wind: 'wind_max_mph',
+    })
+  })
+})
+
+describe('the query text', () => {
+  it('leaves the readable delimiters as they are', () => {
+    const qs = encodeState(
+      {
+        ...base,
+        destinationTypes: ['peak', 'lake'],
+        selection: { ...DAYS, hours: { start: '06:00', end: '18:30' } },
+      },
+      DEFAULT_MODEL,
+    )
+    expect(qs).toContain('type=peak,lake')
+    expect(qs).toContain('h1=06:00&h2=18:30')
+    expect(qs).toContain('poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223')
+    expect(qs).not.toMatch(/%2C|%3B|%3A|%2F/i)
+  })
+
+  it.each([
+    ['a b', 'a+b'],
+    ['a+b', 'a%2Bb'],
+    ['a&b=c#d%e', 'a%26b%3Dc%23d%25e'],
+    [',;:/', ',;:/'],
+    ["it's (x)!*", 'it%27s+%28x%29%21%2A'],
+    ['é', '%C3%A9'],
+    ['-._~', '-._~'],
+  ])('escapes %j as %j and reads it back', (text, escaped) => {
+    expect(escapeQueryText(text)).toBe(escaped)
+    expect(unescapeQueryText(escaped)).toBe(text)
+    expect(new URLSearchParams(`k=${escaped}`).get('k')).toBe(text)
+  })
+
+  it('writes half a surrogate pair as U+FFFD rather than throwing', () => {
+    expect(escapeQueryText('a\uD800b')).toBe('a%EF%BF%BDb')
+  })
+
+  it('answers null for a malformed escape rather than throwing', () => {
+    expect(unescapeQueryText('%E0%A4%A')).toBeNull()
+  })
+
+  // The WHATWG URL parser is what a browser runs on replaceState. If it
+  // rewrote the query, the address bar would never match the written link and
+  // every render would queue another write.
+  it('is kept as written by the URL parser, so the address bar reads current', () => {
+    const qs = encodeState(
+      {
+        ...base,
+        destinationTypes: ['peak', 'lake'],
+        customCsv: Array.from({ length: 100 }, (_, i) => `47.${i}, -121.${i}, Peak ${i}`).join('\n'),
+        pins: [place({ label: "O'Neil, Peak; 100% (east)", osmId: 'node/1' })],
+      },
+      DEFAULT_MODEL,
+    )
+    const search = new URL(`https://bluebirdforecast.com/?${qs}`).search
+    expect(search).toBe(`?${qs}`)
+    expect(urlNeedsSync(qs, '/', search)).toBe(false)
+  })
+})
+
+describe('the compressed list', () => {
+  const csv = Array.from({ length: 100 }, (_, i) => `4${i % 9}.${i}1234, -12${i % 3}.${i}5678, Peak ${i}`).join('\n')
+
+  it('writes lz-string\'s own output, + included, and reads it back', () => {
+    const qs = encodeState({ ...base, polygon: null, customCsv: csv }, DEFAULT_MODEL)
+    const written = qs.split('&').find((part) => part.startsWith('customz='))!.slice('customz='.length)
+    expect(written).toBe(compressToEncodedURIComponent(csv))
+    // This list's compression carries a `+`, so the test is not vacuous.
+    expect(written).toContain('+')
+    expect(decodeState(qs)!.customCsv).toBe(csv)
+    expect(decodeState(new URL(`https://bluebirdforecast.com/?${qs}`).search)!.customCsv).toBe(csv)
+  })
+
+  it('reads a list written with its + escaped', () => {
+    const escaped = compressToEncodedURIComponent(csv).replace(/\+/g, '%2B')
+    expect(decodeState(`customz=${escaped}`)!.customCsv).toBe(csv)
+  })
+})
+
 describe('decodeState tolerance', () => {
   it('returns null for empty input', () => {
     expect(decodeState('')).toBeNull()
@@ -709,18 +885,6 @@ describe('decodeState tolerance', () => {
       expect(decodeState('wind=total')).toBeNull()
       expect(decodeState('temp=total')).toBeNull()
     })
-  })
-
-  it('rejects a malformed datetime', () => {
-    expect(decodeState('start=yesterday')).toBeNull()
-  })
-
-  it('still decodes a legacy raw custom= link (shared before compression)', () => {
-    const raw = '46.8529,-121.7604\n46.2024,-121.4909'
-    const out = decodeState('type=custom&custom=' + encodeURIComponent(raw))
-    expect(out!.customCsv).toBe(raw)
-    // type=custom predates additive CSV — the picker falls back to its default.
-    expect(out!.destinationTypes).toBeUndefined()
   })
 
   it('restores the CSV from a legacy type=custom&customz= link', () => {
@@ -1018,82 +1182,32 @@ describe('a day selection (mode=days)', () => {
   })
 })
 
-// Every link ever shared carries one of the three pre-calendar shapes. The old
-// readers survive as a translation layer, the same way `custom` survives
-// alongside `customz`: a link that silently restored as the wrong window would be
-// worse than one that failed.
-describe('links minted before the calendar', () => {
-  it('translates a whole-day window into plain days', () => {
-    expect(
-      decodeState('mode=window&start=2026-07-04T00:00&end=2026-07-07T23:59')!.selection,
-    ).toEqual(DAYS)
+// Links from before 1.0 need no compatibility (#292, decision 1): the raw
+// `custom` list and the pre-calendar `at`, `start` and `end` keys have no
+// reader. A link that carries only those keys restores nothing, and never
+// throws.
+describe('retired keys', () => {
+  it.each([
+    'custom=46.8529%2C-121.7604',
+    'mode=at&at=2026-07-06T15:00',
+    'mode=window&start=2026-07-04T00:00&end=2026-07-07T23:59',
+    'start=2026-07-04T06:00&end=2026-07-07T18:00',
+    'start=yesterday',
+    'end=2026-07-07T18:00&custom=raw',
+  ])('restores nothing from "%s"', (q) => {
+    expect(() => decodeState(q)).not.toThrow()
+    expect(decodeState(q)).toBeNull()
   })
 
-  it('keeps a legacy window\'s times as the narrow-hours refinement', () => {
-    expect(
-      decodeState('mode=window&start=2026-07-04T06:00&end=2026-07-07T18:00')!.selection,
-    ).toEqual({ ...DAYS, hours: { start: '06:00', end: '18:00' } })
-  })
-
-  it('translates a single moment into that day narrowed to that hour', () => {
-    // Equal hours are how a point sample travels: the backend floors them to the
-    // hour containing the moment, which is exactly what `at` meant.
-    expect(decodeState('mode=at&at=2026-07-06T15:00')!.selection).toEqual({
-      kind: 'days',
-      startDate: '2026-07-06',
-      endDate: '2026-07-06',
-      hours: { start: '15:00', end: '15:00' },
-    })
-  })
-
-  // Links shared before `mode` was written at all encoded the window as a bare
-  // start/end pair. Falling through to today's default would turn someone's saved
-  // three-day window into a snapshot of the moment they opened it.
-  it('reads a bare start/end pair as the days it spanned', () => {
-    expect(
-      decodeState(
-        'type=peak&sort=precip_total_in&limit=10&start=2026-07-04T00:00&end=2026-07-07T23:59',
-      )!.selection,
-    ).toEqual(DAYS)
-  })
-
-  it('reads one timestamp alone as that whole day, since it carries no span', () => {
-    expect(decodeState('start=2026-07-04T06:00')!.selection).toEqual({
-      kind: 'days',
-      startDate: '2026-07-04',
-      endDate: '2026-07-04',
-    })
-    expect(decodeState('end=2026-07-07T18:00')!.selection).toEqual({
-      kind: 'days',
-      startDate: '2026-07-07',
-      endDate: '2026-07-07',
-    })
-  })
-
-  it('infers nothing from a legacy link with no dates at all', () => {
-    expect(decodeState('type=peak&limit=10')?.selection).toBeUndefined()
-  })
-
-  // Keyed off the parsed dates, not the raw params, so a garbled date stays
-  // dropped instead of conjuring a selection out of nothing usable.
-  it('infers nothing from a malformed date', () => {
-    expect(decodeState('start=yesterday')).toBeNull()
-    expect(decodeState('type=peak&end=teatime')?.selection).toBeUndefined()
+  it('restores the rest of a link that carries a retired key beside it', () => {
+    const out = decodeState('type=peak&start=2026-07-04T00:00&end=2026-07-07T23:59&custom=raw')
+    expect(out).toEqual({ destinationTypes: ['peak'] })
   })
 
   // An explicit mode still wins: a "now" link that happens to carry stray dates
   // (hand-edited, or a truncated paste) must stay a "now" link.
   it('lets an explicit mode=now override any dates riding along', () => {
-    expect(decodeState('mode=now&start=2026-07-04T06:00')!.selection).toEqual({ kind: 'now' })
     expect(decodeState('mode=now&d1=2026-07-04')!.selection).toEqual({ kind: 'now' })
-  })
-
-  // The new params win over the old ones, so a link carrying both (a legacy link
-  // reshared through the app, then hand-edited back) restores what the app wrote.
-  it('prefers the calendar params when a link carries both shapes', () => {
-    expect(
-      decodeState('mode=days&d1=2026-07-04&d2=2026-07-07&at=2026-07-06T15:00')!.selection,
-    ).toEqual(DAYS)
   })
 })
 
@@ -1123,7 +1237,7 @@ describe('clampLimit', () => {
 describe('several destination types in one link', () => {
   it('round-trips a set, comma-joined and readable', () => {
     const qs = encodeState({ ...base, destinationTypes: ['peak', 'lake'] }, DEFAULT_MODEL)
-    expect(qs).toContain('type=peak%2Clake')
+    expect(qs).toContain('type=peak,lake')
     expect(decodeState(qs)!.destinationTypes).toEqual(['peak', 'lake'])
   })
 
@@ -1172,7 +1286,7 @@ describe('the compared models in a link', () => {
   it('keeps the order rather than sorting it', () => {
     expect(
       encodeState({ ...base, compareModels: ['ecmwf_ifs025', 'gfs_hrrr'] }, DEFAULT_MODEL),
-    ).toContain('compare=ecmwf_ifs025%2Cgfs_hrrr')
+    ).toContain('compare=ecmwf_ifs025,gfs_hrrr')
   })
 
   // Unlike `model`, absent is the ordinary case: most links are of a chart

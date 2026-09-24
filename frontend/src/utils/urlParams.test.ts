@@ -4,9 +4,11 @@ import { FIELD_PARAMS, URL_PARAMS } from './urlParams'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from './constraints'
 import { place } from '../testSupport/fixtures'
-// What `decodeState` answered for each state and link below before the codec
-// was a table. A share link is text someone already sent, so this pins the
-// codec to the answers it gave then rather than to what it gives now.
+// What `decodeState` answers for each state and link below, captured before
+// the codec was a table. A share link is text someone already sent, so this
+// pins the codec to those answers. Only a settled decision moves one: the
+// retired keys read as nothing, and a default ranking or results cap is not
+// written (#292).
 import golden from './urlParams.golden.json'
 
 const DEFAULT_MODEL = 'ecmwf_ifs025'
@@ -121,23 +123,21 @@ const dateless: ShareableState = {
 describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
-      'type=peak%2Clake&sort=wind_max_mph&desc=1&aqi=max&cloud_cover=min&precip=avg&temp=max' +
-        '&limit=50&model=gfs_hrrr&compare=icon_seamless%2Cecmwf_ifs025' +
-        '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06%3A00&h2=18%3A30' +
+      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_cover=min&precip=avg&temp=max' +
+        '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025' +
+        '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
         '&minfreeze=4000&maxfreeze=12000&minsnow=2&maxsnow=80&minaqi=0&maxaqi=50' +
         '&mincloudbase=3000&maxcloudbase=15000&mincloudcover=5&maxcloudcover=60' +
-        '&poly=-121.76041%2C46.85289%3B-121.49094%2C46.20241%3B-121.11391%2C48.11223' +
+        '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
         '&fires=1&radar=1&smoke=1&snow=1&grid=smooth&reach=40&player=0&unnamed=1' +
-        '&pins=-121.8144%2C48.7768%2Cpeak%2C14505%2Cnode%252F123%2CTricky%252C%2520name%253B%2520%2526%2520co%2520%2525' +
-        '%3B-118.2%2C36.12346%2Ccoordinates%2C%2C%2C',
+        '&pins=-121.8144,48.7768,peak,14505,node/123,Tricky%2C+name%3B+%26+co+%25' +
+        ';-118.2,36.12346,coordinates,,,',
     )
-    expect(encodeState(nowOnly, DEFAULT_MODEL)).toBe(
-      'sort=aqi_avg&limit=200&model=icon_seamless&mode=now&maxcloudcover=60&player=1',
-    )
+    expect(encodeState(nowOnly, DEFAULT_MODEL)).toBe('model=icon_seamless&mode=now&maxcloudcover=60&player=1')
     expect(encodeState(dateless, DEFAULT_MODEL)).toBe(
-      'sort=temp_min_f&limit=200&model=ecmwf_ifs025&mode=days&h1=00%3A00&h2=23%3A59&grid=blocks',
+      'sort=temp_min_f&model=ecmwf_ifs025&mode=days&h1=00:00&h2=23:59&grid=blocks',
     )
   })
 
@@ -147,9 +147,10 @@ describe('the codec table against the links it wrote before', () => {
     expect(decodeState(encodeState(dateless, DEFAULT_MODEL))).toEqual(golden.dateless)
   })
 
-  // Hand-edited, legacy and malformed links: the readers for `custom`, `at`,
-  // `start` and `end`, a `sort` that outranks its own family's param, a reach
-  // without a grid, and values each reader must drop.
+  // Hand-edited, retired and malformed links: `custom`, `at`, `start` and
+  // `end`, which nothing reads since the legacy readers left, a `sort` that
+  // outranks its own family's param, a reach without a grid, and values each
+  // reader must drop.
   it.each(golden.links)('reads "$q" as it did', ({ q, dec }) => {
     expect(decodeState(q)).toEqual(dec)
   })
@@ -199,7 +200,6 @@ describe('the codec table', () => {
       'maxcloudcover',
       'poly',
       'customz',
-      'custom',
       'fires',
       'radar',
       'smoke',

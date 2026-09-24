@@ -39,3 +39,42 @@ test('a link that runs on open fills the table and drops its flag', async ({ pag
   await expect.poll(() => new URL(page.url()).searchParams.has('analyze')).toBe(false)
   await expect.poll(() => new URL(page.url()).searchParams.get('d1')).toBe(d1)
 })
+
+test('the address bar keeps the readable link the app writes, and writes it once', async ({ page }) => {
+  // Count every history write, so a query the browser rewrote on its own
+  // (and the sync effect then chased forever) shows as writes that keep coming.
+  await page.addInitScript(() => {
+    const counted = window as unknown as { urlWrites: number }
+    counted.urlWrites = 0
+    const replace = history.replaceState.bind(history)
+    history.replaceState = (...args: Parameters<History['replaceState']>) => {
+      counted.urlWrites += 1
+      replace(...args)
+    }
+  })
+  const writes = () => page.evaluate(() => (window as unknown as { urlWrites: number }).urlWrites)
+
+  // Opened in the fully escaped form URLSearchParams used to write, with a
+  // default ranking and results cap spelled out, so the app has one rewrite
+  // to make: the delimiters readable, the defaults dropped.
+  const d1 = isoDay(1)
+  const pin = '-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain'
+  await page.goto(
+    `/?type=peak&sort=aqi_avg&limit=200&mode=days&d1=${d1}` +
+      `&poly=-121.9%2C47.4%3B-121.7%2C47.4%3B-121.7%2C47.55&pins=${pin}`,
+  )
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+
+  const readable = new RegExp(
+    `^\\?type=peak&model=[a-z0-9_]+&mode=days&d1=${d1}` +
+      `&poly=-121\\.9,47\\.4;-121\\.7,47\\.4;-121\\.7,47\\.55&pins=${pin.replace(/[.+]/g, '\\$&')}$`,
+  )
+  await expect.poll(() => page.evaluate(() => location.search)).toMatch(readable)
+  expect(new URL(page.url()).search).toMatch(readable)
+
+  // Settled: the debounce is 400 ms, so a second write would land well inside
+  // this wait if the bar and the writer disagreed.
+  const settled = await writes()
+  await page.waitForTimeout(1500)
+  expect(await writes()).toBe(settled)
+})
