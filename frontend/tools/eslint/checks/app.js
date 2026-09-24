@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 10, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 7, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
     ],
   },
@@ -240,8 +240,8 @@ export const APP = [
     // Two windows answer "is this one hour": the panel's When selection and
     // the analyzed report. The Metrics table is a panel control, so its
     // aggregate dropdowns read the selection and follow a switch at once
-    // (#485). The results table and the column-width reset read the report,
-    // because its rows were fetched for the analyzed window and a When switch
+    // (#485). The results table and the table view's column-width reset read
+    // the report, because its rows were fetched for the analyzed window and a When switch
     // alone fetches nothing.
     name: 'app-panel-point-sample',
     files: ['src/App.tsx'],
@@ -256,7 +256,10 @@ export const APP = [
           'JSXOpeningElement[name.name="ResultsTable"] > JSXAttribute[name.name="pointSample"] > JSXExpressionContainer > Identifier[name="pointSample"]',
         message: 'Hand ResultsTable pointSample, which reads the analyzed report.',
       },
-      { selector: keyedOnlyOn('pointSample'), message: 'Reset the column widths on the report flag pointSample.' },
+      {
+        selector: 'CallExpression[callee.name="useTableView"] > ObjectExpression > Property[key.name="pointSample"][value.name="pointSample"]',
+        message: 'Hand useTableView pointSample, which reads the analyzed report.',
+      },
     ],
   },
   {
@@ -645,6 +648,8 @@ export const APP = [
       'src/hooks/useTimeline.ts',
       'src/hooks/useGridLayer.ts',
       'src/hooks/useChartCompare.ts',
+      'src/hooks/useTableView.ts',
+      'src/utils/exportCsv.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
@@ -716,6 +721,54 @@ export const APP = [
       {
         selector: 'VariableDeclarator[id.name="rowChartColor"] > CallExpression[callee.name="useCallback"]',
         message: 'Hand the table rowChartColor as a useCallback.',
+      },
+    ],
+  },
+  {
+    // The stored shape, the width reset and the dropped order are the three
+    // effects this hook took from App.tsx. The order is dropped when the
+    // ranking changes and never on mount, or a reload discards the order it
+    // just read back; the ref and the effect are one mechanism, so they are
+    // checked together.
+    name: 'table-view-hook',
+    files: ['src/hooks/useTableView.ts'],
+    ban: [
+      { selector: 'CallExpression[callee.name="buildResultsCsv"]', message: 'Build the file through reportCsv, not buildResultsCsv.' },
+    ],
+    require: [
+      { selector: EFFECT, count: 3, message: 'useTableView.ts runs its three effects through useEffect.' },
+      {
+        selector:
+          `${EFFECT}:has(> ArrayExpression[elements.length=1][elements.0.name="sortBy"])` +
+          ':has(IfStatement[test.operator="!"][test.argument.object.name="rankedOnce"][test.argument.property.name="current"])',
+        message: 'Drop the dragged order in an effect keyed on sortBy alone, skipped once by rankedOnce.',
+      },
+      { selector: keyedOnlyOn('pointSample'), message: 'Reset the metric widths in an effect keyed on pointSample alone.' },
+      {
+        selector: `${EFFECT}:has(> ArrayExpression[elements.length=3]):has(CallExpression[callee.name="writeViewPrefs"])`,
+        count: 1,
+        message: 'Store the table shape in one effect over its three answers.',
+      },
+      {
+        selector: 'VariableDeclarator[id.name="handleColumnMove"] > CallExpression[callee.name="useCallback"]',
+        message: 'Hand the table handleColumnMove as a useCallback.',
+      },
+      { selector: 'CallExpression[callee.name="reportCsv"]', count: 1, message: 'Build the file through reportCsv.' },
+    ],
+  },
+  {
+    // A file is read once, away from the app, so a wildfire column there
+    // claims the check ran. It goes over only when the check answered and the
+    // column is on screen.
+    name: 'export-csv-fire-gate',
+    files: ['src/utils/exportCsv.ts'],
+    require: [
+      {
+        selector:
+          'ConditionalExpression[test.operator="&&"][test.left.left.name="fireStatus"][test.left.right.value="ready"]' +
+          '[test.right.callee.object.name="visibleKeys"][test.right.arguments.0.name="WILDFIRE_KEY"]' +
+          '[consequent.name="fireWarnings"][alternate.raw="null"]',
+        message: 'Send the wildfire column only when the check is ready and the column is shown.',
       },
     ],
   },

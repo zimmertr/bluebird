@@ -34,14 +34,7 @@ import { usePresentedReport } from './hooks/usePresentedReport'
 import { useRemovals } from './hooks/useRemovals'
 import { useResultsLayout } from './hooks/useResultsLayout'
 import { useChartCompare } from './hooks/useChartCompare'
-import {
-  ModelRow,
-  legendEntries,
-  modelRowsFor,
-  PARTIAL_COVERAGE_NOTE,
-  partialModels,
-  type ModelEnd,
-} from './utils/modelCompare'
+import { useTableView } from './hooks/useTableView'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
@@ -49,7 +42,6 @@ import { useIsDesktop } from './hooks/useIsDesktop'
 import {
   DestinationResult,
 } from './types'
-import { chartKey } from './utils/chartData'
 import { logoUrl } from './logo'
 import {
   IconChart,
@@ -129,10 +121,6 @@ import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from './ut
 import { NIFC_HREF } from './utils/wildfires'
 import { RampTick, scaleRampCss, scaleTicks } from './utils/legendRamp'
 import {
-  pendingAsResult,
-} from './utils/customList'
-import { geoKey } from './utils/points'
-import {
   legendBottomPx,
   TRANSPORT_GAP_PX,
 } from './utils/resultsSheet'
@@ -144,31 +132,16 @@ import {
   decodeAutoAnalyze,
 } from './utils/urlState'
 import { UrlWriter, debounceUrlWrite, urlNeedsSync } from './utils/urlSync'
-import { isPointSample, normalizeWindow } from './utils/forecastWindow'
+import { isPointSample } from './utils/forecastWindow'
 import {
   fieldHasValue,
   panelCommitCues,
 } from './utils/present'
 import {
-  MODEL_KEY,
-  WILDFIRE_COL,
-  WILDFIRE_KEY,
-  applyColumnOrder,
-  displayedColumns,
-  keepUnlistedChoices,
-  moveColumn,
-  visibleColumns,
-  withModelColumn,
-} from './utils/tableColumns'
-import {
   hasWelcomed,
   readViewPrefs,
   setWelcomed,
-  writeViewPrefs,
 } from './utils/viewPrefs'
-import { NAME_DEFAULT_PX } from './utils/columnResize'
-import { compareValues } from './utils/sortResults'
-import { buildResultsCsv, csvFilename } from './utils/resultsCsv'
 
 // Lazy, because `recharts` is the one large library the first screen does not
 // need: the map mounts before any chart exists, and a reader who never opens
@@ -327,9 +300,6 @@ function legendSection({
 // because the comparison composes every line itself. A module constant so the
 // chart's line memo is not rebuilt by a fresh empty array on every render.
 const NO_CHART_ROWS: DestinationResult[] = []
-// No compared model ends early: one identity, so the memo below hands the same
-// empty list on every render where nothing is short.
-const NO_PARTIAL_MODELS: readonly ModelEnd[] = []
 
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
@@ -452,55 +422,10 @@ export default function App() {
   // `viewPrefs.ts` exists to stop. The results layout takes the mode; the
   // table takes the rest.
   const storedView = useMemo(readViewPrefs, [])
-  // Which columns the table displays (null = use default narrowed set, Set = user choice).
-  // The CSV export always gets the full displayedColumns set regardless.
-  const [columnVisibility, setColumnVisibility] = useState<Set<string> | null>(
-    () => storedView.columns,
-  )
-  // The Model column's own switch, which is three-valued rather than two.
-  //
-  // It is in the Columns picker like every other column (TJ, 2026-09-14), but
-  // unlike every other column its DEFAULT depends on the report: with one model
-  // every row would carry the same name, and with several the column is what
-  // tells a destination's rows apart. So `null` means "follow the model count"
-  // and a boolean is the reader's own answer, which then stands whatever the
-  // count does. Folding it into `columnVisibility` instead would freeze the
-  // default the first time the reader touched ANY column, and a later
-  // comparison would then come up without the column that explains it.
-  const [modelColumn, setModelColumn] = useState<boolean | null>(() => storedView.modelColumn)
-
-  // The order the reader dragged the columns into, or null for the automatic
-  // one (#360). A list of keys rather than positions, so a column the list
-  // predates keeps its place instead of vanishing; `applyColumnOrder` owns that
-  // rule.
-  //
-  // It is discarded whenever the ranking changes (TJ, 2026-09-14): `Rank by`
-  // pulls the ranked metric group to the front, and the maintainer chose to let
-  // it win rather than have a stored order suppress the one thing the ranking
-  // does to the columns.
-  const [columnOrder, setColumnOrder] = useState<readonly string[] | null>(
-    () => storedView.columnOrder,
-  )
-
-  // Persist the table's shape whenever it changes. One write for all three:
-  // they are read back together, and `writeViewPrefs` drops a null rather than
-  // storing one, so "the reader has not answered" survives a reload as the
-  // absence it is and the report still decides.
-  useEffect(() => {
-    writeViewPrefs({ columns: columnVisibility, modelColumn, columnOrder })
-  }, [columnVisibility, modelColumn, columnOrder])
   // Column picker popover open/closed
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
   const [removedOpen, setRemovedOpen] = useState(false)
-  // Column widths the user has set (px by key). Held here rather than in the
-  // table so a mode switch or the collapse chevron — both of which unmount
-  // the table — cannot reset them. Session-only by design: a width is a
-  // reading posture, not a preference. Name opens at the measured
-  // 25-character width and everything else natural.
-  const [tableColWidths, setTableColWidths] = useState<Record<string, number>>({
-    name: NAME_DEFAULT_PX,
-  })
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
@@ -684,19 +609,6 @@ export default function App() {
   // name, so "a day narrowed to one hour" is recognized as the point sample it
   // is (#166).
   const pointSample = isPointSample(view.window.startMs, view.window.endMs)
-  // A point-sample flip relabels the metric columns under the SAME keys —
-  // the collapsed bare-noun header and the windowed aggregate header both
-  // live at one key — so a width fitted under one regime clips the other
-  // regime's longer header. The metric columns re-open at their natural width
-  // when the regime changes; the identity columns keep theirs, since their
-  // labels never change.
-  useEffect(() => {
-    setTableColWidths((w) =>
-      Object.fromEntries(
-        Object.entries(w).filter(([k]) => k === 'name' || k === 'type' || k === 'elevation_ft'),
-      ),
-    )
-  }, [pointSample])
   const preview = usePreview()
 
   // Elapsed-time counter for phases with no countable progress (the OSM search,
@@ -839,28 +751,9 @@ export default function App() {
   // universe answers when no candidate field exists (a failed run, the server
   // path), and the displayed rows when there is no universe either. Live
   // knobs re-present rows without re-querying NIFC. (Called here, above the
-  // table derivations, because the wildfire column sorts and renders out of
-  // its maps.)
+  // table view, because the wildfire column sorts and renders out of its
+  // maps.)
   const fire = useFireProximity(fireField ?? universe ?? results, fireSeq)
-
-  // Nulls sort last in both directions; string columns use numeric collation so
-  // a pasted list numbered 1..100 reads in order. See compareValues. The
-  // wildfire column's key is virtual: its value is the warning's mileage, so a
-  // clear row and an uncovered row are both null and land last either way.
-  // Whether the report carries the cloud column (#117). Before any report,
-  // nothing does, which leaves the cloud columns out of an empty table too.
-  const cloudHeld = analyzed?.cloudFetched ?? false
-  const csvColumns = useMemo(
-    () => displayedColumns(pointSample, view.sortBy, cloudHeld),
-    [pointSample, view.sortBy, cloudHeld],
-  )
-  // Every column is on by default — the table scrolls sideways rather than
-  // opening narrowed (TJ's call in the #242 review). A stored choice from the
-  // Columns picker still wins; null means "all of them".
-  const effectiveVisibleKeys = useMemo(() => {
-    if (columnVisibility !== null) return columnVisibility
-    return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY])
-  }, [columnVisibility, csvColumns])
 
   // Stable identities for the table's callbacks, for the reason `NO_TIMES`
   // exists: an inline arrow is a new prop on every render.
@@ -1033,6 +926,38 @@ export default function App() {
     chartShowing,
   })
 
+  // ── The table's shape and its file ──────────────────────────────────────────
+  const {
+    tableRows,
+    tableColumns,
+    allColumns,
+    pickerVisibleKeys,
+    tableColWidths,
+    setTableColWidths,
+    analysisModelLabel,
+    partialNote,
+    legend,
+    handleColumnMove,
+    handleVisibilityChange,
+    handleDownloadCsv,
+  } = useTableView({
+    storedView,
+    results,
+    detailSort,
+    sortBy: view.sortBy,
+    pointSample,
+    analyzed,
+    models: caps.forecastModels,
+    forecastModel,
+    comparingRows,
+    shownModels: compare.shown,
+    compareResults: compare.results,
+    compareReachEnds: compare.reachEnds,
+    pending,
+    pendingRows,
+    fire,
+  })
+
   // Alphabetical by label, which is the only order a list of unrelated switches
   // can be scanned in: these five have no ranking between them — no cost, no
   // severity, no dependency — so any other order is one the reader has to
@@ -1072,196 +997,8 @@ export default function App() {
     { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
   ]
 
-  // Download the displayed report (#125). Everything that decides what the file
-  // contains is already resolved above, so this only has to hand settled values
-  // to the formatter and hang the result off an anchor.
-  //
-  // The warnings go over only when the lookup actually produced them. Anything
-  // else is `null`, which drops the wildfire column from the file rather than
-  // filling it with blanks that would read as "checked, nothing near".
-  //
-  // The object URL is revoked on the next frame rather than immediately:
-  // click() only queues the download, and Safari has historically cancelled it
-  // if the URL is released in the same task.
-  function handleDownloadCsv() {
-    const csv = buildResultsCsv(
-      tableRows,
-      // The same insertion the table makes. The file is given the same rows,
-      // so without it a comparison writes each destination once per model with
-      // nothing saying which model each line is.
-      // The same columns the table shows, in the same order: the file leaves
-      // in the order that is on screen (#125), and a reader's reorder is no
-      // different from a sort in that respect.
-      applyColumnOrder(withModelColumn(csvColumns, modelColumnOn), columnOrder),
-      // Null also when the column is hidden: buildResultsCsv drops the
-      // wildfire column on null, and a file must not carry a column the
-      // screen does not show.
-      fire.status === 'ready' && effectiveVisibleKeys.has(WILDFIRE_KEY) ? fire.warnings : null,
-      {
-        // The window the numbers in the file describe (#444), taken from the
-        // analysis snapshot rather than from the panel: the calendar can have
-        // moved on since the report committed, and the file must name the days
-        // that were fetched. Resolved first, because the snapshot records the
-        // request's raw timestamps and a Current analysis is `start === end`
-        // there: the file writes the hour that was sampled, not a window of no
-        // width at all.
-        window: analyzed ? normalizeWindow(analyzed.window.startMs, analyzed.window.endMs) : null,
-        // The table draws pending (un-analyzed) rows above the ranked ones, so
-        // the file carries them too — identity columns filled, Rank and every
-        // metric blank. Before the first analysis this is the whole file.
-        pendingRows: pending.map(pendingAsResult),
-        fireUncovered: fire.uncovered,
-        modelLabel: analysisModelLabel,
-        // The file states where each short model ends, where the screen marks
-        // the cells: a spreadsheet can compute the covered hours from a date.
-        modelEnds: partial,
-      },
-    )
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-    const link = document.createElement('a')
-    link.href = url
-    link.download = csvFilename(new Date())
-    link.click()
-    requestAnimationFrame(() => URL.revokeObjectURL(url))
-  }
 
 
-  // Whether the Model column is drawn: the reader's answer if they gave one,
-  // and otherwise the model count. See `modelColumn` above for why the switch
-  // has three values rather than two.
-  const modelColumnOn = modelColumn ?? comparingRows
-  // What the Columns picker shows ticked. The Model column rides beside the
-  // visibility set rather than inside it, so it is added here, at the one place
-  // that draws the picker.
-  const pickerVisibleKeys = useMemo(() => {
-    const keys = new Set(effectiveVisibleKeys)
-    if (modelColumnOn) keys.add(MODEL_KEY)
-    else keys.delete(MODEL_KEY)
-    return keys
-  }, [effectiveVisibleKeys, modelColumnOn])
-
-  // The picker hands back one set for every column. The Model column's answer
-  // is pulled out of it and kept separately; the rest is the ordinary set.
-  function handleVisibilityChange(keys: Set<string>) {
-    const wanted = keys.has(MODEL_KEY)
-    if (wanted !== modelColumnOn) setModelColumn(wanted)
-    const rest = new Set(keys)
-    rest.delete(MODEL_KEY)
-    setColumnVisibility(
-      keepUnlistedChoices(rest, new Set(allColumns.map((c) => c.key as string)), columnVisibility),
-    )
-  }
-
-  // The ranking pulls its own metric group to the front, and the maintainer
-  // chose to let it win over an order the reader set (TJ, 2026-09-14). Keyed on
-  // the ranking alone: a live sort, a limit or a bound re-presents the same
-  // columns and must not throw the order away.
-  //
-  // Skipping the first run is what makes the order survive a reload: an effect
-  // keyed on a value fires on mount as well as on change, so without the ref
-  // the stored order was discarded by the very render that read it.
-  const rankedOnce = useRef(false)
-  useEffect(() => {
-    if (!rankedOnce.current) {
-      rankedOnce.current = true
-      return
-    }
-    setColumnOrder(null)
-  }, [view.sortBy])
-
-  // The model every row came from when only one did, so the column says
-  // something rather than a dash on a report with no comparison. The ANALYZED
-  // model, not the panel's: the numbers are the analysis's, and the picker can
-  // move after it.
-  const analysisModelLabel =
-    caps.forecastModels.find((m) => m.id === (analyzed?.forecastModel ?? forecastModel))?.label ??
-    null
-
-  // Every displayed row under every model that answered, grouped by
-  // destination. `modelRowsFor` owns the rules; this only decides whether to
-  // ask, and hands it the ranking model first so its row leads each group.
-  const comparedTableRows = useMemo(() => {
-    if (!comparingRows) return null
-    return modelRowsFor(
-      results,
-      compare.shown.map((m) => ({ id: m.id, label: m.label })),
-      forecastModel,
-      compare.results,
-      chartKey,
-      compare.reachEnds,
-    )
-  }, [comparingRows, results, compare.shown, compare.results, compare.reachEnds, forecastModel])
-
-  // The compared models whose rows on display cover fewer hours than the
-  // window, in the picker's order. One derivation for the table's footnote and
-  // the file's metadata rows, so the two cannot name different models.
-  const partial = useMemo(
-    () => (comparedTableRows ? partialModels(compare.shown, comparedTableRows) : NO_PARTIAL_MODELS),
-    [comparedTableRows, compare.shown],
-  )
-  // A string rather than the list, so the memoized table compares it by value.
-  const partialNote = partial.length > 0 ? PARTIAL_COVERAGE_NOTE : null
-
-  // The chart-only legend's chips: the rows the table would show, so a chip is
-  // a line whenever models are compared. `legendEntries` owns the rules.
-  const legend = useMemo(
-    () => legendEntries(comparedTableRows ?? results, pendingRows, comparingRows),
-    [comparedTableRows, results, pendingRows, comparingRows],
-  )
-
-  const tableRows = useMemo(() => {
-    const value = (r: DestinationResult) =>
-      detailSort.key === WILDFIRE_KEY
-        ? (fire.warnings.get(geoKey(r.latitude, r.longitude))?.miles ?? null)
-        : detailSort.key === MODEL_KEY
-          ? ((r as ModelRow).modelLabel ?? null)
-          : r[detailSort.key]
-    const base = comparedTableRows ?? results
-    return [...base].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
-  }, [results, comparedTableRows, detailSort, fire.warnings])
-  // All columns for the CSV export (includes all columns, not filtered by visibility).
-  // Columns displayed in the table (filtered by visibility). The wildfire
-  // column is last, shown by default, and toggleable in the Columns picker
-  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
-  // rule). While shown, its cells — not the column — say where the check
-  // stands (ticking while it runs, answered when it has; ResultsTable owns
-  // that). The CSV keeps the stricter rule and carries the column only once
-  // the check answered AND the column is shown, because a file's columns
-  // must not disagree with the screen's.
-  const tableColumns = useMemo(() => {
-    const cols = visibleColumns(pointSample, view.sortBy, effectiveVisibleKeys, cloudHeld)
-    const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
-    return applyColumnOrder(withModelColumn(withFire, modelColumnOn), columnOrder)
-  }, [
-    pointSample,
-    view.sortBy,
-    effectiveVisibleKeys,
-    cloudHeld,
-    modelColumnOn,
-    columnOrder,
-  ])
-
-  // Every column there is, in the reader's order: what the Columns picker
-  // lists, and the list a move is made within.
-  //
-  // The baseline is this rather than the columns on screen, so a hidden column
-  // keeps its place. Ordering only the visible ones would send every hidden
-  // column to the end the moment it came back.
-  const allColumns = useMemo(
-    () => applyColumnOrder([...withModelColumn(csvColumns, true), WILDFIRE_COL], columnOrder),
-    [csvColumns, columnOrder],
-  )
-
-  // Both surfaces move a column by naming the column and the one it lands on.
-  // The key list is what is stored, so the move is made on that rather than on
-  // a pair of indices each surface would have to derive the same way.
-  const handleColumnMove = useCallback(
-    (fromKey: string, toKey: string) => {
-      const base = allColumns.map((c) => c.key as string)
-      setColumnOrder((prev) => moveColumn(prev ?? base, fromKey, toKey))
-    },
-    [allColumns],
-  )
 
 
 

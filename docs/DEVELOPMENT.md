@@ -122,7 +122,7 @@ The per-file checks, by module:
 |---|---|---|
 | `checks/accessibility.js` | `glyphs-hidden`, `markup-glyph-hidden`, `new-tab-anchors-named`, `model-picker-roles`, `compare-notes-no-control`, `disabled-reason-twin` | Every glyph is `aria-hidden`; a new-tab link says so; the model picker's roles and names; the chart's notes carry no control; every `aria-describedby` has an `SR_ONLY` twin |
 | `checks/app.js` | `app-effect-keys`, `app-chart-selection`, `app-memoized`, `app-memo-props`, `app-panel-point-sample`, `app-arriving-field`, `app-resize-grips`, `app-results-mode` | `App.tsx`'s effects and memoized children: no effect keyed on a per-keystroke array, stable props on the three memoized components, the Metrics table's one-hour flag read off the panel and the results table's off the report, one `ResizeGrip` spelling, the results bar and mode control |
-| `checks/app.js` | `forecast-selection-hook`, `ranking-knobs-hook`, `results-layout-hook`, `app-resize-grip-count`, `destination-inputs-hook`, `draw-mode-hook`, `presented-report-hook`, `report-csv-rows-keys`, `analyze-command-hook`, `timeline-hook`, `chart-compare-hook` | The hooks cut out of `App.tsx` (#409): each carries the requirements its subject took with it, and a count of the effects it took, so `app-effect-keys`' floor for `App.tsx` and the hook counts add up to the effects there were |
+| `checks/app.js` | `forecast-selection-hook`, `ranking-knobs-hook`, `results-layout-hook`, `app-resize-grip-count`, `destination-inputs-hook`, `draw-mode-hook`, `presented-report-hook`, `report-csv-rows-keys`, `analyze-command-hook`, `timeline-hook`, `chart-compare-hook`, `table-view-hook`, `export-csv-fire-gate` | The hooks cut out of `App.tsx` (#409): each carries the requirements its subject took with it, and a count of the effects it took, so `app-effect-keys`' floor for `App.tsx` and the hook counts add up to the effects there were |
 | `checks/app.js` | `app-legend-anchors`, `app-transport-anchor`, `app-docked-panels` | No bottom offset or bottom-anchored legend spelled in a component; the docked panel defaults and floors |
 | `checks/app.js` | `grid-layer-hook`, `app-grid-gate`, `app-grid-pixels`, `app-paced-fetch`, `app-grid-pace`, `app-compare-pace`, `app-compare-pace-bar` | One flag gates the forecast grid; the grid gets decoded pixels; every paced fetch hands over `onPace` and clears its wait |
 | `checks/app.js` | `app-url-writes`, `app-no-storage`, `app-pair-color`, `app-pair-color-index`, `app-pair-color-rows` | `App.tsx` writes history in one place and names no storage; one allocator gives every comparison colour |
@@ -209,8 +209,9 @@ occurring fails the run.
 
 `make perf` measures what the memo rule in the root `CLAUDE.md` protects: the
 synchronous work an overlay toggle and a keystroke in the coordinates box cost
-with 946 destinations displayed in the table, the chart and the map (issue
-#409). It serves the built image the way `make browser` does and runs
+with 946 destinations displayed in the table, the chart and the map, and the
+same for the three live knobs a reader drives most: a flip of the ranking's
+direction, a cut of the results cap to 100, and its restore (issue #409). It serves the built image the way `make browser` does and runs
 `frontend/e2e/perf/renderCost.spec.ts` from the same Playwright image, with the
 same fixtures, so it spends no quota either. The spec times each interaction
 inside the page, from the dispatch through two task yields, seven times, and

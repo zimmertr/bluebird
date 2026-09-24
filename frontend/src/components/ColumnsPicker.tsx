@@ -32,7 +32,7 @@ interface Props {
   visibleKeys: Set<string>
   onVisibilityChange: (keys: Set<string>) => void
   // Move one column to where another sits. The picker names the two columns
-  // and nothing else: the key list is App's, and `moveColumn` owns the move.
+  // and nothing else: the key list is `useTableView`'s, and `moveColumn` owns the move.
   onColumnMove?: (fromKey: string, toKey: string) => void
   triggerRef: React.RefObject<HTMLButtonElement | null>
 }
