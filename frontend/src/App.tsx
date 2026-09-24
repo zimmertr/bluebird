@@ -22,28 +22,23 @@ import { useMapOverlays } from './hooks/useMapOverlays'
 import { useTimeline } from './hooks/useTimeline'
 import { usePresentedReport } from './hooks/usePresentedReport'
 import { useRemovals } from './hooks/useRemovals'
-import { useResultsLayout } from './hooks/useResultsLayout'
-import { useChartCompare } from './hooks/useChartCompare'
-import { useTableView } from './hooks/useTableView'
+import { useResultsView } from './hooks/useResultsView'
+import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useUrlSync } from './hooks/useUrlSync'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
-  DestinationResult,
-} from './types'
-import {
   LAYER,
   SURFACE_PAGE,
 } from './styles'
 import {
   decodeState,
-  decodeAutoAnalyze,
 } from './utils/urlState'
-import { isPointSample } from './utils/forecastWindow'
 import {
   panelCommitCues,
+  reportView,
 } from './utils/present'
 import {
   hasWelcomed,
@@ -65,23 +60,6 @@ export default function App() {
   // the initial render, not a post-mount setState.
   const restoredRef = useRef(decodeState(window.location.search))
   const restored = restoredRef.current
-
-  // A link that asks to run its analysis on open (`analyze=1`, #511). Read once
-  // at mount like the rest of the link, and cleared the moment it fires, so
-  // nothing but this first load can act on it. The URL writer below is what
-  // takes it out of the address bar, and it can never put it back:
-  // `encodeState` cannot write it.
-  const [autoAnalyze, setAutoAnalyze] = useState(() => decodeAutoAnalyze(window.location.search))
-  // One commit behind `caps.settled` on purpose. The render where the live
-  // limits land is the render where the hooks above re-clamp the restored
-  // model and results cap, in effects whose state reaches the NEXT render. A
-  // run fired in that first commit would read the pre-clamp values; this flag
-  // is set by an effect in the same commit, so it rises in the render that
-  // holds the clamped ones.
-  const [capsApplied, setCapsApplied] = useState(false)
-  useEffect(() => {
-    if (caps.settled) setCapsApplied(true)
-  }, [caps.settled])
 
   const destinationInputs = useDestinationInputs(restored)
   const {
@@ -224,30 +202,8 @@ export default function App() {
     if (destinationNamed) setShowResults(true)
   }, [destinationNamed])
 
-  // What the displayed report is rendered under: markers, legend, results
-  // header, and table column order all read from here.
-  //
-  // With a field held, the panel's ranking IS the displayed ranking — the rows
-  // below are re-derived from it on every change, so reading the snapshot here
-  // would show a legend that disagreed with the table. The window stays
-  // from the snapshot either way: it is a data knob, and a point sample cannot
-  // become a range without a new analysis. Before the first analysis there is
-  // no field and nothing to disagree with.
-  const view =
-    analyzed !== null
-      ? { sortBy, sortDesc, kind: analyzed.kind, window: analyzed.window }
-      : {
-          sortBy,
-          sortDesc,
-          kind: selection.kind,
-          window: panelWindowMs,
-        }
-  // Whether the displayed report's aggregates are one value three times, which
-  // is what collapses the table's columns and drops the aggregate from the
-  // ranking's name. Counted off the analyzed window rather than read off a mode
-  // name, so "a day narrowed to one hour" is recognized as the point sample it
-  // is (#166).
-  const pointSample = isPointSample(view.window.startMs, view.window.endMs)
+  // What the displayed report is rendered under, and whether it is one hour.
+  const { view, pointSample } = reportView(analyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
   const preview = usePreview()
 
   // The address bar mirrors the panel and the map's layers (useUrlSync).
@@ -307,21 +263,6 @@ export default function App() {
   // maps.)
   const fire = useFireProximity(fireField ?? universe ?? results, fireSeq)
 
-  // Stable identities for the table's callbacks, for the reason `NO_TIMES`
-  // exists: an inline arrow is a new prop on every render.
-  const handleRemovePending = useCallback(
-    (d: { latitude: number; longitude: number }) => removePlace(d.latitude, d.longitude),
-    [removePlace],
-  )
-  const handleFocusResult = useCallback(
-    (row: DestinationResult) => mapRef.current?.focusResult(row),
-    [],
-  )
-  const handleFocusPending = useCallback(
-    (at: { latitude: number; longitude: number }) => mapRef.current?.focusPoint(at),
-    [],
-  )
-
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
   // controls never feel dead.
@@ -367,20 +308,12 @@ export default function App() {
     setShowResults,
   })
 
-  // The link's run on open: the click, plus making sure the address bar no
-  // longer carries the flag, so a reload is an ordinary restore rather than a
-  // second spend. The flush is the whole strip. `encodeState` never writes the
-  // param, so while the address bar still carries it the URL sync effect above
-  // can never find it current: a write without it is either already done or
-  // still queued, and flushing lands a queued one now instead of up to a
-  // debounce later. Going through the
-  // writer rather than a history call of its own also keeps any edit already
-  // queued, which a direct write of the stripped address would overwrite.
-  function runAutoAnalyze() {
-    setAutoAnalyze(false)
-    writeUrl.flush()
-    void handleAnalyze()
-  }
+  // A link that asks to run its analysis on open (`analyze=1`, #511).
+  const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
+    settled: caps.settled,
+    flushUrl: writeUrl.flush,
+    analyze: handleAnalyze,
+  })
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
   // analysis SUCCEEDS rather than when the button is pressed. Closing on press
@@ -399,73 +332,41 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
-  // A report stays on screen even when the knobs admit none of it. Collapsing
-  // the panels would answer "why is nothing listed?" by removing the place the
-  // answer goes, and the table's own empty row says which of the three reasons
-  // it is.
-  const showTable = showResults && (response !== null || pending.length > 0)
-
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
   const bannerPx = preview.enabled ? 32 : 0
-  const layout = useResultsLayout({
-    modeChosen: storedView.modeChosen,
-    isDesktop,
-    bannerPx,
-    showTable,
+  // The results sheet's view: its layout, the comparison chart, the table's
+  // shape and file, and the table's callbacks (useResultsView).
+  const resultsView = useResultsView({
+    showResults,
     response,
-    analysisSeq,
-  })
-  const {
-    isDragging,
-    chartShowing,
-  } = layout
-
-  // ── The comparison chart (#232) ───────────────────────────────────────────
-  const charts = useChartCompare({
     results,
     pending,
-    sortBy: view.sortBy,
-    analyzed,
-    analysisSeq,
-    models: caps.forecastModels,
-    forecastModel,
-    comparedModels,
-    times: forecastTimes,
-    windowLimits: caps.windowLimits,
-    chartShowing,
-  })
-  const {
-    compare,
-    pendingRows,
-    comparingRows,
-  } = charts
-
-  // ── The table's shape and its file ──────────────────────────────────────────
-  const tableView = useTableView({
-    storedView,
-    results,
     detailSort,
+    storedView,
+    isDesktop,
+    bannerPx,
+    analysisSeq,
     sortBy: view.sortBy,
     pointSample,
     analyzed,
     models: caps.forecastModels,
     forecastModel,
-    comparingRows,
-    shownModels: compare.shown,
-    compareResults: compare.results,
-    compareReachEnds: compare.reachEnds,
-    pending,
-    pendingRows,
+    comparedModels,
+    times: forecastTimes,
+    windowLimits: caps.windowLimits,
     fire,
+    mapRef,
+    removePlace,
   })
+  const { layout, tableView } = resultsView
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
-      {isDragging && (
+      {layout.isDragging && (
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
 
@@ -521,13 +422,10 @@ export default function App() {
         />
 
         <ResultsSheet
-          showTable={showTable}
+          resultsView={resultsView}
           showResults={showResults}
           isDesktop={isDesktop}
-          layout={layout}
           report={report}
-          charts={charts}
-          tableView={tableView}
           removals={removals}
           sortBy={view.sortBy}
           sortDesc={view.sortDesc}
@@ -538,9 +436,6 @@ export default function App() {
           movePlayheadTo={movePlayheadTo}
           fire={fire}
           modelId={analyzed?.forecastModel ?? forecastModel}
-          onRemovePending={handleRemovePending}
-          onFocusResult={handleFocusResult}
-          onFocusPending={handleFocusPending}
         />
       </div>
       </div>

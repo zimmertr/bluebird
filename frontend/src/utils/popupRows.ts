@@ -13,7 +13,7 @@ import { isSnowDepthKey, snowCellText } from './snowCeiling'
  * The popup used to hold its own hard-coded row list, so a Current lookup read
  * "total", "avg", "min" and "max" over four copies of one number, and a
  * date-range report showed six of the sixteen values the table had. Both
- * surfaces now read one list: `tableColumns` in `App.tsx`, which already
+ * surfaces now read one list: `tableColumns` in `useTableView`, which already
  * carries the point-sample collapse, the ranked family, the Columns picker and
  * the reader's own column order.
  *

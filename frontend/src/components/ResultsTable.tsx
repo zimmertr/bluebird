@@ -176,7 +176,7 @@ function ResultsTable({
   const keys = useMemo(() => rowKeys(results), [results])
 
   return (
-    // No overflow here — the panel's scroll container in App.tsx owns both
+    // No overflow here — the panel's scroll container in ResultsPanels.tsx owns both
     // axes so the horizontal scrollbar stays pinned to the visible bottom.
     <div>
       {/* The table's base type is set once here so every cell inherits it and

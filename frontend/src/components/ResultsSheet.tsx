@@ -12,15 +12,39 @@ import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { LAYER, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
-  extends Omit<ResultsPanelsProps, 'layout' | 'charts' | 'tableView' | 'report' | 'pending' | 'removeResult'> {
-  /** Whether the results area shows at all. */
-  showTable: boolean
+  extends Omit<
+    ResultsPanelsProps,
+    | 'layout'
+    | 'charts'
+    | 'tableView'
+    | 'report'
+    | 'pending'
+    | 'removeResult'
+    | 'onRemovePending'
+    | 'onFocusResult'
+    | 'onFocusPending'
+  > {
+  /** The sheet's view (`useResultsView`): whether it shows, its layout, the chart, the table and the table's callbacks. */
+  resultsView: ResultsSheetView
   /** Whether a report is on screen. */
   showResults: boolean
   /** Docked under the map at a desktop width, a sheet over it on a phone. */
   isDesktop: boolean
   /** The ranking's direction, which the bar's title names. */
   sortDesc: boolean
+  /** The displayed rows, the title's parts and the header sort (`usePresentedReport`). */
+  report: Pick<
+    PresentedReport,
+    'results' | 'windowTitle' | 'detailSort' | 'sortDetail' | 'pending' | 'rowCount' | 'emptyReason'
+  >
+  /** The removed rows and the ways back (`useRemovals`). */
+  removals: Pick<Removals, 'removed' | 'removeResult' | 'restoreRemoved' | 'restoreAllRemoved'>
+}
+
+/** What the sheet reads of `useResultsView`. */
+interface ResultsSheetView {
+  /** Whether the results area shows at all. */
+  showTable: boolean
   /** The sheet's element, its fold, its mode and its panel sizes (`useResultsLayout`). */
   layout: Pick<
     ResultsLayout,
@@ -35,11 +59,6 @@ interface ResultsSheetProps
     | 'tableGrip'
     | 'tablePanelPx'
   >
-  /** The displayed rows, the title's parts and the header sort (`usePresentedReport`). */
-  report: Pick<
-    PresentedReport,
-    'results' | 'windowTitle' | 'detailSort' | 'sortDetail' | 'pending' | 'rowCount' | 'emptyReason'
-  >
   /** The chart and the comparison, and the Models popover's list (`useChartCompare`). */
   charts: Pick<
     ChartCompare,
@@ -47,8 +66,12 @@ interface ResultsSheetProps
   >
   /** The table's shape and its file (`useTableView`). */
   tableView: TableView
-  /** The removed rows and the ways back (`useRemovals`). */
-  removals: Pick<Removals, 'removed' | 'removeResult' | 'restoreRemoved' | 'restoreAllRemoved'>
+  /** Removes a named destination no analysis has covered yet. */
+  onRemovePending: ResultsPanelsProps['onRemovePending']
+  /** Flies the map to a ranked row. */
+  onFocusResult: ResultsPanelsProps['onFocusResult']
+  /** Flies the map to a destination not yet forecast. */
+  onFocusPending: ResultsPanelsProps['onFocusPending']
 }
 
 /**
@@ -64,14 +87,11 @@ interface ResultsSheetProps
  * each is closed until its trigger, which only the sheet draws, opens it.
  */
 export default function ResultsSheet({
-  showTable,
+  resultsView,
   showResults,
   isDesktop,
   sortDesc,
-  layout,
   report,
-  charts,
-  tableView,
   removals,
   sortBy,
   pointSample,
@@ -81,10 +101,8 @@ export default function ResultsSheet({
   movePlayheadTo,
   fire,
   modelId,
-  onRemovePending,
-  onFocusResult,
-  onFocusPending,
 }: ResultsSheetProps) {
+  const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
   const { results, windowTitle, pending, rowCount } = report
   const { selectedModelRows, hiddenModels, toggleHiddenModel, compareWait } = charts
