@@ -11,7 +11,7 @@
 
 import { DestinationResult, HourlySeries } from '../types'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { ChartLine, comparedLineLabel, gridRemapper } from './chartData'
+import { ChartLine, chartKey, comparedLineLabel, gridRemapper, modelSuffix } from './chartData'
 import { HOUR_MS } from './forecastWindow'
 import { listPhrase } from './notices'
 import type { WeatherResult } from './openMeteo'
@@ -423,4 +423,62 @@ export function modelRowsFor(
     }
   })
   return out
+}
+
+/**
+ * One chip in the chart-only legend.
+ *
+ * `row` is what the chip acts on. Its toggle and its removal key on the
+ * DESTINATION (`chartKey`), the same as the table row's checkbox and ×, so a
+ * pair's chip shows, hides or removes that place under every model. There is
+ * no per-pair hide state: hiding one model already has a control, the Models
+ * popover, and a second one here would be state the table and the link do not
+ * know about.
+ */
+export interface LegendEntry {
+  key: string
+  row: DestinationResult
+  /**
+   * The model half of the label, or null for a chip that names no model. It
+   * rides apart from `row.name` because the chip truncates the name and never
+   * the model; the two concatenate to `modelNamed(name, modelLabel)`.
+   */
+  suffix: string | null
+}
+
+/**
+ * The chart-only legend: one chip per row the table would show in Both, then
+ * the pending destinations no analysis has covered. The rows come in
+ * `modelRowsFor`'s order (ranking order, grouped by destination, the ranking
+ * model's row first in each group) rather than the table's, which follows a
+ * detail sort the chart has no use for.
+ *
+ * The legend stands in for the table's checkbox column where that column is
+ * not drawn, so it lists what that column lists. The chart draws one line per
+ * (destination, model) pair, and a compared table shows one row per pair that
+ * answered, so reading the same rows gives one chip per line and no chip for a
+ * model that drew nothing at that place.
+ *
+ * `comparing` names the model on each compared chip. With one model shown,
+ * every chip would carry the same model name, so the label stays the bare
+ * name. React keys stay unique per chip: a destination repeats once per model,
+ * so a compared row keys on its pair.
+ */
+export function legendEntries(
+  rows: readonly DestinationResult[],
+  pending: readonly DestinationResult[],
+  comparing: boolean,
+): LegendEntry[] {
+  const entries = rows.map((row): LegendEntry => {
+    const { modelId, modelLabel } = row as Partial<ModelRow>
+    if (comparing && modelId && modelLabel) {
+      return {
+        key: `model:${pairKey(modelId, chartKey(row))}`,
+        row,
+        suffix: modelSuffix(modelLabel),
+      }
+    }
+    return { key: chartKey(row), row, suffix: null }
+  })
+  return [...entries, ...pending.map((row) => ({ key: chartKey(row), row, suffix: null }))]
 }
