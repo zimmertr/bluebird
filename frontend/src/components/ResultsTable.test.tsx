@@ -46,7 +46,6 @@ const NO_WARNINGS = new Map()
 function props(over: Partial<Props> = {}): Props {
   return {
     results: ROWS,
-    leavingRowKeys: NO_KEYS,
     sortBy: SORT_BY,
     detailSortKey: 'name',
     detailSortDir: 'asc',
