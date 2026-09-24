@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 6, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 4, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
       // The drawer closes when a report commits, and the report is App's.
       { selector: keyedOnlyOn('analysisSeq'), message: 'Close the drawer in an effect keyed on analysisSeq alone.' },
@@ -605,6 +605,25 @@ export const APP = [
     ],
   },
   {
+    // The ban app-legend-anchors held over the whole of App.tsx, kept over the
+    // chrome that left it (#409): every offset on the bottom edge is derived
+    // in resultsSheet.ts, so no component spells one as a class. `bottom-0`
+    // stands on the edge and is let through.
+    name: 'chrome-bottom-offsets',
+    files: [
+      'src/App.tsx',
+      'src/components/LayersPopover.tsx',
+      'src/components/MapButtonColumn.tsx',
+      'src/components/AnalysisOverlay.tsx',
+      'src/components/ResultsSheet.tsx',
+      'src/components/ResultsBar.tsx',
+      'src/components/ResultsPanels.tsx',
+      'src/components/AppDrawer.tsx',
+    ],
+    probe: 'src/App.tsx',
+    ban: [BOTTOM_OFFSET],
+  },
+  {
     // useGridLayer asks whether the grid is allowed, once. Nothing that draws
     // the map's chrome asks again.
     name: 'app-grid-asked-once',
@@ -702,13 +721,37 @@ export const APP = [
     // change, once per keystroke, and the debounce collapses nothing. One call
     // site, handed to debounceUrlWrite, keeps that from returning.
     name: 'app-url-writes',
-    files: ['src/App.tsx'],
+    files: ['src/hooks/useUrlSync.ts'],
     require: [
       { selector: HISTORY_WRITE, count: 1, message: 'Write history from one call site.' },
       {
         selector: `CallExpression[callee.name="debounceUrlWrite"] > ArrowFunctionExpression[params.0.name="url"] > ${HISTORY_WRITE}`,
         message: 'Hand the history write to debounceUrlWrite.',
       },
+    ],
+  },
+  {
+    // The sync effect and the unmount flush are the two effects this hook took
+    // from App.tsx. The sync effect's list is the one App carried, all 21
+    // entries and writeUrl last, and it never flushes: a flush per run writes
+    // on every keystroke and the debounce collapses nothing. The flush runs
+    // only on unmount, keyed on the writer alone.
+    name: 'url-sync-hook',
+    files: ['src/hooks/useUrlSync.ts'],
+    ban: [
+      {
+        selector: `${EFFECT}:not(:has(> ArrayExpression[elements.length=1])) CallExpression[callee.object.name="writeUrl"][callee.property.name="flush"]`,
+        message: 'Flush the writer only on unmount, never from the sync effect.',
+      },
+    ],
+    require: [
+      { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
+      {
+        selector: `${EFFECT} > ArrayExpression[elements.length=21][elements.20.name="writeUrl"]`,
+        message: 'Key the sync effect on the 21 entries App carried, writeUrl last.',
+      },
+      { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
+      { selector: 'ReturnStatement > Identifier[name="writeUrl"]', message: 'Return the writer.' },
     ],
   },
   {
@@ -731,6 +774,7 @@ export const APP = [
       'src/hooks/useChartCompare.ts',
       'src/hooks/useTableView.ts',
       'src/utils/exportCsv.ts',
+      'src/hooks/useUrlSync.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
