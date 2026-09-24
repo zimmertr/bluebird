@@ -2,29 +2,13 @@
 // Bluebird Forecast session can be copied out of the address bar and reopened later.
 // These functions are intentionally pure (no React, no DOM) so they're trivial
 // to unit-test — App.tsx owns the thin glue that reads/writes location.
-import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from 'lz-string'
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
-import {
-  DEFAULT_FAMILY_KEY,
-  FAMILY_KEYS,
-  MetricFamily,
-  RANKED_FAMILIES,
-  RANKING_KEYS,
-  aggregateToken,
-  familyOf,
-} from '../metrics'
-import { Constraints, NO_CONSTRAINTS, hasConstraints } from './clientAnalyze'
-import { GRID_REACH_DEFAULT_FRAC, isGridStyle, type GridStyle } from './forecastGrid'
-import {
-  DAY_END,
-  DAY_START,
-  ForecastSelection,
-  isDayKey,
-  isTimeOfDay,
-  isValidDatetimeLocal,
-  orderDays,
-} from './calendar'
+import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
+import { Constraints, hasConstraints } from './clientAnalyze'
+import { type GridStyle } from './forecastGrid'
+import { ForecastSelection } from './calendar'
 import { Place } from './geocode'
+import { URL_PARAMS, decodeSelection, hasCustomCsv, hasPolygon } from './urlParams'
 
 // The two window classifiers read the calendar band and live beside it. They
 // are re-exported here because the panel, App.tsx and this module's own suite
@@ -102,40 +86,6 @@ export interface ShareableState {
   pins: Place[]
 }
 
-const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
-
-// No legacy sort map anymore: the aggregate keys it used to fold into their
-// metric's representative one (`wind_max_mph` → `wind_avg_mph`) are first-class
-// RANKING_KEYS again since #291, so an old link now restores as exactly the
-// ranking it named.
-
-// The forecast bounds' query params, spelled out rather than abbreviated the
-// way `minel`/`maxel` were: ten terse keys would be ten guesses in the
-// address bar, and readability is what the URL convention buys (#210). The
-// param name reads as the control's label, not as the result field it compares
-// — `maxaqi` is the AQI ceiling, and which aggregate it reads is the app's
-// answer, not something a link should have to encode.
-const CONSTRAINT_PARAMS = [
-  ['minprecip', 'minPrecipTotalIn'],
-  ['maxprecip', 'maxPrecipTotalIn'],
-  ['mintemp', 'minTempF'],
-  ['maxtemp', 'maxTempF'],
-  ['minwind', 'minWindMph'],
-  ['maxwind', 'maxWindMph'],
-  ['minfreeze', 'minFreezeFt'],
-  ['maxfreeze', 'maxFreezeFt'],
-  ['minsnow', 'minSnowDepthIn'],
-  ['maxsnow', 'maxSnowDepthIn'],
-  ['minaqi', 'minAqi'],
-  ['maxaqi', 'maxAqi'],
-  ['mincloudbase', 'minCloudBaseFt'],
-  ['maxcloudbase', 'maxCloudBaseFt'],
-  ['mincloudcover', 'minCloudCoverPct'],
-  ['maxcloudcover', 'maxCloudCoverPct'],
-] as const satisfies readonly (readonly [string, keyof Constraints])[]
-
-const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
-
 // Control defaults — must mirror the initial useState values in App.tsx. Used to
 // decide whether the user has changed anything worth persisting to the URL.
 //
@@ -162,93 +112,6 @@ export function clampLimit(value: number, maxLimit: number): number {
   return Math.max(1, Math.min(maxLimit, value))
 }
 
-function round(n: number): number {
-  const f = 10 ** POLY_PRECISION
-  return Math.round(n * f) / f
-}
-
-// Encode a polygon's ring as "lng,lat;lng,lat;..." matching GeoJSON [lng,lat]
-// order. The closing vertex (equal to the first) is dropped and re-added on
-// decode, so it never bloats the URL.
-function encodePolygon(polygon: GeoPolygon): string {
-  const ring = polygon.coordinates[0] ?? []
-  const pts = ring.slice()
-  if (pts.length > 1) {
-    const first = pts[0]
-    const last = pts[pts.length - 1]
-    if (first[0] === last[0] && first[1] === last[1]) pts.pop()
-  }
-  return pts.map(([lng, lat]) => `${round(lng)},${round(lat)}`).join(';')
-}
-
-function decodePolygon(raw: string): GeoPolygon | null {
-  const pts: number[][] = []
-  for (const pair of raw.split(';')) {
-    const [lngStr, latStr] = pair.split(',')
-    const lng = Number(lngStr)
-    const lat = Number(latStr)
-    if (
-      lngStr === undefined ||
-      latStr === undefined ||
-      !Number.isFinite(lng) ||
-      !Number.isFinite(lat)
-    ) {
-      return null
-    }
-    pts.push([lng, lat])
-  }
-  if (pts.length < 3) return null
-  return { type: 'Polygon', coordinates: [[...pts, pts[0]]] }
-}
-
-// Encode pinned places as "lat,lon,kind,elev,osmId,label" per pin, ';'-joined.
-// Each field is percent-encoded so a label containing ',' or ';' can't collide
-// with the delimiters (URLSearchParams decodes the outer layer on read, then
-// decodePins splits and unescapes each field). Coords are rounded like the
-// polygon ring to keep the URL short. Missing elevation/osmId encode as empty.
-function encodePins(places: Place[]): string {
-  return places
-    .map((p) => {
-      const fields = [
-        String(round(p.lon)),
-        String(round(p.lat)),
-        p.kind,
-        p.elevationFt === undefined ? '' : String(p.elevationFt),
-        p.osmId ?? '',
-        p.label,
-      ]
-      return fields.map((f) => encodeURIComponent(f)).join(',')
-    })
-    .join(';')
-}
-
-// Parse the pins param back into Places. Tolerant like the rest of decodeState:
-// an entry without a finite lon/lat is skipped rather than failing the whole
-// list. `description`/`bbox` aren't persisted — a restored pin doesn't need the
-// disambiguation line or the fly-to extent — so they come back empty/absent.
-function decodePins(raw: string): Place[] {
-  const out: Place[] = []
-  for (const entry of raw.split(';')) {
-    const parts = entry.split(',').map((f) => decodeURIComponent(f))
-    if (parts.length < 6) continue
-    const [lonStr, latStr, kind, elevStr, osmId, label] = parts
-    const lon = Number(lonStr)
-    const lat = Number(latStr)
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue
-    const elev = Number(elevStr)
-    out.push({
-      label: label || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
-      description: '',
-      kind,
-      lat,
-      lon,
-      ...(elevStr !== '' && Number.isFinite(elev) ? { elevationFt: elev } : {}),
-      ...(osmId ? { osmId } : {}),
-    })
-  }
-  return out
-}
-
 /**
  * Build a query string ("?"-less) capturing the shareable state. Returns "" when
  * the user hasn't provided anything worth persisting, so the address bar stays
@@ -269,8 +132,6 @@ function decodePins(raw: string): Place[] {
 // stop, and it is only needed to answer one question: has the user moved off
 // the default, and does this state therefore deserve a URL at all.
 export function encodeState(state: ShareableState, defaultForecastModel: string): string {
-  const hasPolygon = state.polygon !== null && (state.polygon.coordinates[0]?.length ?? 0) >= 3
-  const hasCustom = state.customCsv.trim() !== ''
   const hasConstraint = hasConstraints(state.constraints)
   const hasPins = state.pins.length > 0
   const nonDefaultControls =
@@ -292,170 +153,15 @@ export function encodeState(state: ShareableState, defaultForecastModel: string)
     // beside it: the one thing that differs from a fresh session must not share
     // as a fresh session.
     state.compareModels.length > 0
-  if (!hasPolygon && !hasCustom && !hasConstraint && !hasPins && !nonDefaultControls)
+  if (!hasPolygon(state) && !hasCustomCsv(state) && !hasConstraint && !hasPins && !nonDefaultControls)
     return ''
 
   const p = new URLSearchParams()
-  // Comma-joined and left unencoded: the param stays something you can read
-  // and edit in the address bar, which is the convention every readable
-  // field here follows.
-  if (state.destinationTypes.length > 0) p.set('type', state.destinationTypes.join(','))
-  p.set('sort', state.sortBy)
-  if (state.sortDesc) p.set('desc', '1')
-  // Inactive aggregate dropdowns (#291), written only off their defaults so a
-  // link stays as short as what was changed. The active family is skipped:
-  // `sort` above already carries its whole key, and a second spelling of the
-  // same fact is a chance for the two to disagree.
-  for (const family of RANKED_FAMILIES) {
-    if (family === familyOf(state.sortBy)) continue
-    const token = aggregateToken(state.rowKeys[family])
-    // A snapshot family has one key and no dropdown, so there is no choice to
-    // carry and no param to write (#449).
-    if (token !== null && state.rowKeys[family] !== DEFAULT_FAMILY_KEY[family]) {
-      p.set(family, token)
-    }
+  for (const { key, encode } of URL_PARAMS) {
+    const value = encode?.(state) ?? null
+    if (value !== null) p.set(key, value)
   }
-  p.set('limit', String(state.limit))
-  // Always written once the link exists at all, for the same reason `mode` is:
-  // the model is part of what the numbers mean, so a link that left it to the
-  // reader's default would show something other than what was shared the moment
-  // that default moved. The id is Open-Meteo's own (`ecmwf_ifs025`,
-  // `gfs_hrrr`), which keeps the param as hand-editable as the rest.
-  p.set('model', state.forecastModel)
-  // Written only when something is selected, so an ordinary link carries
-  // nothing for a chart nobody is comparing on. Comma-joined ids in the
-  // published order, which is the order the picker's chips read, so the param
-  // is as hand-editable as `model` beside it.
-  if (state.compareModels.length > 0) p.set('compare', state.compareModels.join(','))
-  // Always written, like type/sort/limit above, even at its default. Links used
-  // to leave `mode` out for the then-default window mode and let the reader
-  // infer it; that made every shared link hostage to the app's current default.
-  // Spelling it out costs one param and makes the link self-describing — which
-  // is also why it survives the calendar even though `d1` alone would imply a
-  // day selection: a reader should not have to know that.
-  p.set('mode', state.selection.kind)
-  if (state.selection.kind === 'days') {
-    const { startDate, endDate, hours } = state.selection
-    // A dateless Dates arm writes mode=days alone: the link reopens on the
-    // empty calendar rather than inventing a day the user never picked.
-    if (startDate !== null) p.set('d1', startDate)
-    // Omitted for a single day, so the common link stays as short as the shape
-    // it describes.
-    if (endDate !== null && endDate !== startDate) p.set('d2', endDate)
-    // Written whenever the narrow-hours control is open, defaults included: the
-    // pair is the control's state, not only its effect, and a link that dropped
-    // 00:00/23:59 would reopen with the disclosure closed.
-    if (hours) {
-      p.set('h1', hours.start)
-      p.set('h2', hours.end)
-    }
-  }
-  for (const [param, key] of CONSTRAINT_PARAMS) {
-    const value = state.constraints[key]
-    if (value !== null) p.set(param, String(value))
-  }
-  if (hasPolygon && state.polygon) p.set('poly', encodePolygon(state.polygon))
-  // A 100-row CSV is ~13 KB raw; compressing keeps the shared link ~1-2 KB (and off
-  // Firefox's address-bar / ingress limits). Only this field is opaque — every other
-  // param stays plain text and hand-editable. Written under a distinct `customz` key so
-  // decode can tell it apart from legacy raw `custom=` links (see decodeState).
-  if (hasCustom) p.set('customz', compressToEncodedURIComponent(state.customCsv))
-  if (state.showWildfires) p.set('fires', '1')
-  if (state.showRadar) p.set('radar', '1')
-  if (state.showSmoke) p.set('smoke', '1')
-  if (state.showSnow) p.set('snow', '1')
-  // The value names the style rather than being a bare `1`, which keeps the
-  // link hand-editable and self-describing: `grid=smooth` says what it will
-  // draw. One param rather than two, because a layer that is off has no style
-  // to carry and a link should not be able to say otherwise.
-  if (state.showGrid) {
-    p.set('grid', state.gridStyle)
-    if (state.gridReachFrac !== GRID_REACH_DEFAULT_FRAC) {
-      p.set('reach', String(Math.round(state.gridReachFrac * 100)))
-    }
-  }
-  // Written only once the reader has touched the switch, and then in both
-  // directions: the default is the device's, so `player=0` says "off even at a
-  // desktop width" as meaningfully as `player=1` says "on even on a phone". A
-  // link that left the default out is the link that keeps meaning what it said
-  // when the default moves.
-  if (state.showPlayer !== null) p.set('player', state.showPlayer ? '1' : '0')
-  if (state.includeUnnamedPeaks) p.set('unnamed', '1')
-  if (hasPins) p.set('pins', encodePins(state.pins))
-
   return p.toString()
-}
-
-/**
- * Read the forecast selection out of a query string, translating the three
- * pre-calendar shapes forward.
- *
- * The old readers are kept rather than replaced, the same way `custom` survives
- * alongside `customz`: every link ever shared carries one of them, and a link
- * that silently restored as the wrong window would be worse than one that
- * failed. What each translates to:
- *
- * - `mode=now` is unchanged, and the only shape that already fit.
- * - `mode=at&at=<moment>` becomes that single day narrowed to that one hour.
- *   Equal hours are how a point sample travels: the backend floors them to the
- *   hour containing the moment, which is exactly what `at` meant.
- * - `mode=window&start&end` becomes the day range the window spanned, keeping
- *   its times as the narrow-hours refinement rather than rounding them away. A
- *   window that already ran midnight to 23:59 restores as plain whole days.
- * - A bare `start`/`end` pair with no `mode` at all predates `mode` being
- *   written; it read as a window then and still does. One timestamp alone
- *   carries no span, so it restores as that whole day rather than a guess.
- */
-function decodeSelection(params: URLSearchParams): ForecastSelection | undefined {
-  const mode = params.get('mode')
-  if (mode === 'now') return { kind: 'now' }
-
-  const d1 = params.get('d1')
-  if (d1 && isDayKey(d1)) {
-    const d2 = params.get('d2')
-    const days = orderDays(d1, d2 && isDayKey(d2) ? d2 : d1)
-    const h1 = params.get('h1')
-    const h2 = params.get('h2')
-    // Both or neither: one hour without the other describes no window, and
-    // filling the missing end from a default would invent a span.
-    const narrowed = h1 !== null && h2 !== null && isTimeOfDay(h1) && isTimeOfDay(h2)
-    return { kind: 'days', ...days, ...(narrowed ? { hours: { start: h1, end: h2 } } : {}) }
-  }
-
-  // mode=days with no valid d1: the empty Dates arm, hours refinement kept.
-  if (mode === 'days') {
-    const h1 = params.get('h1')
-    const h2 = params.get('h2')
-    const narrowed = h1 !== null && h2 !== null && isTimeOfDay(h1) && isTimeOfDay(h2)
-    return {
-      kind: 'days',
-      startDate: null,
-      endDate: null,
-      ...(narrowed ? { hours: { start: h1, end: h2 } } : {}),
-    }
-  }
-
-  const at = params.get('at')
-  if (mode === 'at' && at && isValidDatetimeLocal(at)) {
-    const [date, time] = at.split('T')
-    return { kind: 'days', startDate: date, endDate: date, hours: { start: time, end: time } }
-  }
-
-  const start = params.get('start')
-  const end = params.get('end')
-  const from = start && isValidDatetimeLocal(start) ? start : null
-  const to = end && isValidDatetimeLocal(end) ? end : null
-  if (from === null && to === null) return undefined
-  const [startDate, startTime] = (from ?? (to as string)).split('T')
-  const [endDate, endTime] = (to ?? (from as string)).split('T')
-  const days = orderDays(startDate, endDate)
-  const wholeDays =
-    (from === null || to === null) || (startTime === DAY_START && endTime === DAY_END)
-  return {
-    kind: 'days',
-    ...days,
-    ...(wholeDays ? {} : { hours: { start: startTime, end: endTime } }),
-  }
 }
 
 // The one param a link may carry that is a request rather than state: open
@@ -493,150 +199,12 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   }
 
   const out: Partial<ShareableState> = {}
-
-  // `type=peak,lake`. Unknown names are dropped rather than failing the whole
-  // link — an old `type=custom` link, or a type a future deployment stopped
-  // publishing, restores as "no types checked" and the rest of the link still
-  // works.
-  const type = params.get('type')
-  if (type) {
-    const types = type
-      .split(',')
-      .map((t) => t.trim())
-      .filter((t): t is DiscoveryType => DISCOVERY_TYPES.includes(t as DiscoveryType))
-    if (types.length > 0) out.destinationTypes = [...new Set(types)]
+  for (const { key, decode } of URL_PARAMS) {
+    const raw = params.get(key)
+    if (raw !== null) decode?.(raw, out, params)
   }
-
-  const sort = params.get('sort')
-  if (sort && (RANKING_KEYS as readonly string[]).includes(sort)) out.sortBy = sort as SortBy
-
-  if (params.get('desc') === '1') out.sortDesc = true
-
-  // The aggregate dropdowns (#291): one param per metric family, valued by the
-  // aggregate token its keys already spell (`wind=max`), written only off the
-  // default. The active family's dropdown rides `sort` instead, so it wins
-  // over its own param — the two can only disagree in a hand-edited link, and
-  // `sort` is the one that names the ranking on screen.
-  const rowKeys = { ...DEFAULT_FAMILY_KEY }
-  let rowTouched = false
-  for (const family of RANKED_FAMILIES) {
-    const raw = params.get(family)
-    if (raw === null) continue
-    const key = FAMILY_KEYS[family].find((k) => aggregateToken(k) === raw)
-    if (key !== undefined && key !== DEFAULT_FAMILY_KEY[family]) {
-      rowKeys[family] = key
-      rowTouched = true
-    }
-  }
-  if (out.sortBy !== undefined) {
-    rowKeys[familyOf(out.sortBy)] = out.sortBy
-    rowTouched = rowTouched || out.sortBy !== DEFAULT_FAMILY_KEY[familyOf(out.sortBy)]
-  }
-  if (rowTouched) out.rowKeys = rowKeys
-
-  // Shape only, no ceiling: a link asking for more rows than this deployment
-  // allows gets clamped down by the caller, never discarded. Dropping it here
-  // is what made a shared `limit=500` open silently at the default instead of
-  // at the maximum (issue #191), and the 200 that used to live here was a copy
-  // of a cap that moved in #181.
-  const limit = params.get('limit')
-  if (limit !== null) {
-    const n = Number(limit)
-    if (Number.isInteger(n) && n >= 1) out.limit = n
-  }
-
   const selection = decodeSelection(params)
   if (selection) out.selection = selection
-
-  // Shape only, no membership check: the accepted set is the deployment's, from
-  // /api/capabilities, and this module has no access to it. A link naming a
-  // model this deployment does not offer is settled by the caller, which has
-  // the list. Absent is the interesting case and it means one thing — every
-  // link shared before the picker existed was computed under Open-Meteo's
-  // `best_match` blend, and inherits the current default instead, which is a
-  // release note rather than a migration.
-  const model = params.get('model')
-  if (model && /^[a-z0-9_]+$/.test(model)) out.forecastModel = model
-
-  // The compared models, filtered to the same shape `model` above accepts and
-  // deduplicated, so a hand-edited link cannot smuggle a second copy of one
-  // model onto the chart. Membership is the caller's to judge, exactly as it is
-  // for `model`: this module has no access to /api/capabilities, so an id this
-  // deployment does not publish survives here and is simply never drawn. An
-  // empty result leaves the field undefined rather than handing back an empty
-  // array, so App keeps its own default.
-  const compare = params.get('compare')
-  if (compare) {
-    const ids = compare.split(',').filter((id) => /^[a-z0-9_]+$/.test(id))
-    const unique = ids.filter((id, i) => ids.indexOf(id) === i)
-    if (unique.length > 0) out.compareModels = unique
-  }
-
-  // `minel` and `maxel` are deliberately not read. They carried the elevation
-  // band the panel dropped in #341, so an old link still parses and simply
-  // analyzes the whole range — the reading every other retired parameter gets.
-
-  // Written only when at least one bound survived, so a link carrying none
-  // leaves `constraints` undefined and App keeps its own default rather than
-  // being handed an all-null object that means the same thing.
-  const constraints = { ...NO_CONSTRAINTS }
-  for (const [param, key] of CONSTRAINT_PARAMS) {
-    const raw = params.get(param)
-    if (raw === null) continue
-    const n = Number(raw)
-    if (Number.isFinite(n)) constraints[key] = n
-  }
-  if (hasConstraints(constraints)) out.constraints = constraints
-
-  const poly = params.get('poly')
-  if (poly) {
-    const decoded = decodePolygon(poly)
-    if (decoded) out.polygon = decoded
-  }
-
-  // Prefer the compressed field; fall back to the legacy raw `custom=` so links shared
-  // before compression still open. decompress returns null on a garbled value — drop it.
-  const customz = params.get('customz')
-  if (customz) {
-    const decoded = decompressFromEncodedURIComponent(customz)
-    if (decoded) out.customCsv = decoded
-  } else {
-    const custom = params.get('custom')
-    if (custom) out.customCsv = custom
-  }
-
-  if (params.get('fires') === '1') out.showWildfires = true
-  if (params.get('radar') === '1') out.showRadar = true
-  if (params.get('smoke') === '1') out.showSmoke = true
-  if (params.get('snow') === '1') out.showSnow = true
-  const grid = params.get('grid')
-  if (grid !== null && isGridStyle(grid)) {
-    out.showGrid = true
-    out.gridStyle = grid
-    // Clamped to the bar rather than trusted: the param is hand-editable,
-    // and a position outside it would draw a control that cannot show the
-    // value it is applying. Presence checked before Number, because
-    // Number(null) is 0 — a legal position here.
-    const reachParam = params.get('reach')
-    if (reachParam !== null) {
-      const reach = Number(reachParam)
-      if (Number.isFinite(reach)) {
-        out.gridReachFrac = Math.min(100, Math.max(0, reach)) / 100
-      }
-    }
-  }
-  // Both values are read, and anything else is left to the device default: the
-  // param exists to carry a decision, so no value is not a decision.
-  const player = params.get('player')
-  if (player === '1') out.showPlayer = true
-  if (player === '0') out.showPlayer = false
-  if (params.get('unnamed') === '1') out.includeUnnamedPeaks = true
-
-  const pins = params.get('pins')
-  if (pins) {
-    const decoded = decodePins(pins)
-    if (decoded.length > 0) out.pins = decoded
-  }
 
   return Object.keys(out).length > 0 ? out : null
 }
