@@ -422,14 +422,32 @@ a minute apart, of which one may fail. **This is 120 s of wall clock and the
 single largest segment of the whole merge-to-live path** (see [Where the time
 goes](#where-the-time-goes)).
 
+One 5xx must not abort a release (#519). The canary's 2-minute window holds
+about sixteen requests, so one 5xx is over the 0.05 threshold on its own, and
+one `api-test` retry after an upstream 502 would fail two readings in a row.
+The query therefore answers `0` in two cases, and the true ratio otherwise:
+
+- **Fewer than two 5xx in the window** (a `>= bool 2` factor on the 5xx
+  `increase()`). Two is the smallest count that one retry cannot reach:
+  `increase()` of a single 5xx reads at most 1.33 after extrapolation
+  (measured on the 2026-09-23 canary). A real outage gives many 5xx in two
+  minutes and still fails; two 5xx in sixteen requests is 0.125.
+- **Fewer than 10 requests in the window.** The kubelet probes alone send 16
+  per window (readiness every 10 s, liveness every 30 s; the measured median
+  over 40 pods), and a window under 10 is one that a pod start or stop cuts
+  short. 10 stays under 16, so a canary that runs normally is always judged.
+
+Every term keeps `or vector(0)`, so an empty series answers 0 and never errors
+the measurement.
+
 Two things about it are worth stating plainly, because they bound what the
 120 s buys. The `role` label is real — it reaches Prometheus through the
 Rollout's `canaryMetadata`, verified against the live series — so the query is
 not silently scoped to nothing. But the canary sits at **0% user traffic** for
 the entire gate, so the only requests in that window are the two analysis
-probes above plus the metrics scrape. What the gate therefore detects is a pod
-that 5xxs on its own, or on a scrape, rather than a pod that 5xxs under real
-load. `or vector(0)` / `clamp_min(…, 1e-9)` make the no-traffic case read as a
+probes above plus the kubelet's `/healthz` probes. What the gate therefore
+detects is a pod that 5xxs on its own, or on a health probe, rather than a pod
+that 5xxs under real load. `or vector(0)` / `clamp_min(…, 1e-9)` make the no-traffic case read as a
 clean `0` rather than as an error, which is why an idle canary passes rather
 than flaking.
 
