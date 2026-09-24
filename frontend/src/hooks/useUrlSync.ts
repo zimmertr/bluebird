@@ -41,6 +41,8 @@ export interface UrlSyncInputs {
   places: ShareableState['pins']
   /** The deployment's default model, which a link leaves out (`/api/capabilities`). */
   defaultForecastModel: string
+  /** The tutorial's copy of the app (#536), whose state is no link's to carry. */
+  sandboxed?: boolean
 }
 
 /**
@@ -73,6 +75,7 @@ export function useUrlSync({
   gridReachFrac,
   places,
   defaultForecastModel,
+  sandboxed = false,
 }: UrlSyncInputs): UrlWriter {
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
@@ -96,6 +99,10 @@ export function useUrlSync({
   // any pending write is flushed so the last state reaches the URL before the
   // component exits.
   useEffect(() => {
+    // The tutorial's copy queues nothing, so the address bar keeps the reader's
+    // own link however far the demo goes, and the flushes below find nothing
+    // to write.
+    if (sandboxed) return
     const qs = encodeState({
       polygon,
       destinationTypes,
@@ -156,6 +163,7 @@ export function useUrlSync({
     gridReachFrac,
     places,
     defaultForecastModel,
+    sandboxed,
     writeUrl,
   ])
 

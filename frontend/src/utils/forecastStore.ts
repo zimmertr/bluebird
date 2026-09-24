@@ -169,7 +169,11 @@ type CacheEntry = {
   expires: number
   value: WeatherResult | AqiResult | CloudResult | typeof NO_DATA
 }
-const forecastCache = new Map<string, CacheEntry>()
+// The reader's forecasts, which are the only ones ever written to storage.
+const readerCache = new Map<string, CacheEntry>()
+// The map every read and write goes to: the reader's, or the tutorial's own
+// empty one while it runs (#536).
+let forecastCache = readerCache
 
 // `model` is part of the key for the same reason the coordinates are: two
 // models answering the same question disagree, which is the whole point of
@@ -216,7 +220,7 @@ export function cacheGet(key: string): CacheEntry['value'] | undefined {
 
 export function cachePut(key: string, value: CacheEntry['value']): void {
   forecastCache.set(key, { expires: performance.now() + CACHE_TTL_MS, value })
-  cacheDirty = true
+  if (forecastCache === readerCache) cacheDirty = true
   if (forecastCache.size > CACHE_MAX_ENTRIES) {
     for (const oldest of forecastCache.keys()) {
       forecastCache.delete(oldest)
@@ -244,12 +248,12 @@ let cacheDirty = false
 function persistForecastCache(): void {
   if (!cacheDirty) return
   cacheDirty = false
-  saveSnapshot(buildSnapshot(forecastCache, performance.now(), Date.now()))
+  saveSnapshot(buildSnapshot(readerCache, performance.now(), Date.now()))
 }
 
 function hydrateForecastCache(): void {
   for (const [key, entry] of readSnapshot(loadSnapshot(), performance.now(), Date.now())) {
-    forecastCache.set(key, entry as CacheEntry)
+    readerCache.set(key, entry as CacheEntry)
   }
 }
 
@@ -265,5 +269,21 @@ if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
 // `resetOpenMeteoState` calls it beside resetting the pacing budgets.
 export function resetForecastCache(): void {
   cacheDirty = false
-  forecastCache.clear()
+  readerCache.clear()
+  forecastCache = readerCache
+}
+
+/**
+ * Answer from an empty cache of the tutorial's own until
+ * `leaveForecastScratch` (#536). The reader's map is left as it stood, and it
+ * is still the one a `pagehide` saves, so a tab closed mid-tutorial stores the
+ * reader's forecasts and none of the demo's.
+ */
+export function enterForecastScratch(): void {
+  forecastCache = new Map()
+}
+
+/** Back to the reader's cache; the demo's forecasts go with the scratch map. */
+export function leaveForecastScratch(): void {
+  forecastCache = readerCache
 }

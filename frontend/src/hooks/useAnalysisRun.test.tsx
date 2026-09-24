@@ -26,6 +26,20 @@ describe('useAnalysisRun', () => {
     expect(result.current).toMatchObject({ loading: false, statusMessage: null, progress: null, error: null })
   })
 
+  it('aborts a run in flight when the component unmounts', () => {
+    const { result, unmount } = renderHook(() => useAnalysisRun(MODELS))
+    let signal!: AbortSignal
+    act(() => {
+      void result.current.run('s', (s) => {
+        signal = s
+        return new Promise<void>(() => {})
+      }, hooks())
+    })
+    expect(signal.aborted).toBe(false)
+    unmount()
+    expect(signal.aborted).toBe(true)
+  })
+
   it('announces the counted field at zero, and reads an empty field as done', () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     act(() => result.current.announce(12))

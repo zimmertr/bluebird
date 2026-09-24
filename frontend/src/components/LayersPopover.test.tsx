@@ -72,8 +72,11 @@ describe('LayersPopover', () => {
     expect(rows()).toHaveLength(6)
     const grid = screen.getByRole('checkbox', { name: /^Forecast grid/ })
     expect((grid as HTMLInputElement).disabled).toBe(true)
-    expect(grid.getAttribute('aria-describedby')).toBe('layer-grid-note')
-    expect(document.getElementById('layer-grid-note')?.textContent).toBe(
+    // The note's id is generated, since the tutorial's demo stands a second
+    // popover in the page (#536); what matters is that the box points at it.
+    const noteId = grid.getAttribute('aria-describedby')
+    expect(noteId).toMatch(/-grid-note$/)
+    expect(document.getElementById(noteId!)?.textContent).toBe(
       'The forecast grid is not available for archival data.',
     )
     const player = screen.getByRole('checkbox', { name: 'Forecast player' })

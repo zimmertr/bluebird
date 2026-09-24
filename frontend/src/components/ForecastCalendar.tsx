@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   type BandLimits,
@@ -101,6 +101,9 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // every render, and nothing here changes meaning within a session.
   const now = useMemo(() => new Date(), [])
   const today = dayKey(now)
+  // Generated rather than spelled: the tutorial (#536) stands a second copy of
+  // the app in the page, and a label must name its own field.
+  const timeId = useId()
 
   const [month, setMonth] = useState(() =>
     hasDates(selection) ? monthKey(selection.startDate) : monthKey(today),
@@ -333,11 +336,11 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           {hours && (
             <>
               <div className="mt-1.5 flex items-center gap-2">
-                <label htmlFor="window-start-time" className={`${TEXT.control} flex-1`}>
+                <label htmlFor={`${timeId}-start`} className={`${TEXT.control} flex-1`}>
                   Start
                 </label>
                 <input
-                  id="window-start-time"
+                  id={`${timeId}-start`}
                   type="time"
                   value={hours.start}
                   onChange={(e) => {
@@ -357,11 +360,11 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
                 />
               </div>
               <div className="mt-1.5 flex items-center gap-2">
-                <label htmlFor="window-end-time" className={`${TEXT.control} flex-1`}>
+                <label htmlFor={`${timeId}-end`} className={`${TEXT.control} flex-1`}>
                   End
                 </label>
                 <input
-                  id="window-end-time"
+                  id={`${timeId}-end`}
                   type="time"
                   value={hours.end}
                   onChange={(e) => {

@@ -21,6 +21,17 @@ describe('useRunOnOpen', () => {
     )
   })
 
+  // The tutorial's demo copy of the app (#536) is told, and never reads the
+  // reader's link.
+  it('takes the flag it is given over the link', () => {
+    openAt('?analyze=1')
+    const told = (initial: boolean) =>
+      renderHook(() => useRunOnOpen({ settled: false, flushUrl: NOOP, analyze: NOOP, initial })).result.current
+    expect(told(false).autoAnalyze).toBe(false)
+    openAt('')
+    expect(told(true).autoAnalyze).toBe(true)
+  })
+
   // The render where the live limits land still holds the pre-clamp model
   // and results cap, so the run must wait one commit: the flag rises in the
   // render after `settled` does, never in the same one.

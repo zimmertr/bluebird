@@ -13,7 +13,16 @@ import {
   windowSource,
   type WindowLimits,
 } from './forecastWindow'
-import { NO_DATA, cacheGet, cacheKey, cachePut, resetForecastCache } from './forecastStore'
+import type { Transport } from './apiFetch'
+import {
+  NO_DATA,
+  cacheGet,
+  cacheKey,
+  cachePut,
+  enterForecastScratch,
+  leaveForecastScratch,
+  resetForecastCache,
+} from './forecastStore'
 import {
   CLOUD_VARIABLES,
   FT_TO_M,
@@ -155,6 +164,38 @@ export function resetOpenMeteoState(): void {
   resetForecastCache()
   weatherBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
   aqiBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+  readerBudgets = null
+}
+
+// The reader's own budgets while the tutorial (#536) runs, or null. Its demo
+// analysis spends a fresh pair and an empty cache, so a demo forecast can never
+// answer a real analysis, and the demo never waits on quota the reader spent.
+let readerBudgets: { weather: WeightedBudget; aqi: WeightedBudget } | null = null
+
+/** Set the reader's budgets and forecasts aside until `leaveScratch`. */
+export function enterScratch(): void {
+  if (readerBudgets) return
+  readerBudgets = { weather: weatherBudget, aqi: aqiBudget }
+  weatherBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+  aqiBudget = new WeightedBudget(CLIENT_WEIGHT_PER_MINUTE)
+  enterForecastScratch()
+}
+
+/** Put the reader's budgets and forecasts back, and drop the demo's. */
+export function leaveScratch(): void {
+  if (!readerBudgets) return
+  weatherBudget = readerBudgets.weather
+  aqiBudget = readerBudgets.aqi
+  readerBudgets = null
+  leaveForecastScratch()
+}
+
+// Null means the network, for the reason `setApiTransport` gives.
+let transport: Transport | null = null
+
+/** Answer every Open-Meteo request from `next` until it is set back to null. */
+export function setOpenMeteoTransport(next: Transport | null): void {
+  transport = next
 }
 
 /** One leg of a fetch: which endpoint answers, and the hours it answers for. */
@@ -375,7 +416,7 @@ async function getJson(
   // - any other HTTP status = reachable, failed = OpenMeteoHttpError.
   // Only a user cancel passes through untranslated.
   try {
-    const res = await fetch(`${url}?${qs}`, { signal })
+    const res = await (transport ? transport(`${url}?${qs}`, { signal }) : fetch(`${url}?${qs}`, { signal }))
     if (res.status === 429) throw await classify429(res)
     if (res.status === 400 && (await isOutOfDomain(res))) {
       // Names the remedy, not the model: the batch 400s on one bad location

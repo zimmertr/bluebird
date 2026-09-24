@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { IconLayers } from './icons'
@@ -36,6 +36,7 @@ function layerRow({
   onChange,
   disabled,
   note,
+  idPrefix,
 }: {
   key: string
   label: string
@@ -46,20 +47,23 @@ function layerRow({
    *  touch or to a screen reader. */
   disabled?: boolean
   note?: string
+  /** The popover's own id prefix, so the hidden note is found in this copy. */
+  idPrefix: string
 }) {
   return (
     <label key={key} className={CHOICE_ROW} title={disabled && note ? note : undefined}>
       <input
         type="checkbox"
+        value={key}
         checked={checked}
         disabled={disabled}
-        aria-describedby={disabled && note ? `layer-${key}-note` : undefined}
+        aria-describedby={disabled && note ? `${idPrefix}-${key}-note` : undefined}
         onChange={(e) => onChange(e.target.checked)}
         className={CHOICE_INPUT}
       />
       <span>{label}</span>
       {disabled && note && (
-        <span id={`layer-${key}-note`} className={SR_ONLY}>
+        <span id={`${idPrefix}-${key}-note`} className={SR_ONLY}>
           {note}
         </span>
       )}
@@ -126,6 +130,8 @@ export default function LayersPopover({ overlays, grid, playerOffered }: LayersP
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
   const [layersOpen, setLayersOpen] = useState(false)
+  // Generated rather than spelled, for the reason ForecastCalendar gives.
+  const idPrefix = useId()
   const layersRef = useRef<HTMLDivElement>(null)
   // Both ways out of a popover a reader expects: click away, or press Escape.
   // `pointerdown` rather than `click` so a press that starts outside dismisses
@@ -205,7 +211,7 @@ export default function LayersPopover({ overlays, grid, playerOffered }: LayersP
         <div className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}>
           {MAP_LAYERS.map((layer) => (
             <Fragment key={layer.key}>
-              {layerRow(layer)}
+              {layerRow({ ...layer, idPrefix })}
               {/* The grid's sub-choices, revealed by its own checkbox
                   and rendered under the row they belong to rather than
                   after the list, so the alphabetical order above holds

@@ -8,6 +8,8 @@ export interface RunOnOpenInputs {
   flushUrl: () => void
   /** The Analyze click. */
   analyze: () => void | Promise<unknown>
+  /** Read in place of the address bar's flag: the tutorial's copy of the app has no link. */
+  initial?: boolean
 }
 
 /**
@@ -18,8 +20,10 @@ export interface RunOnOpenInputs {
  * writer is what takes it out of the address bar, and it can never put it
  * back: `encodeState` cannot write it.
  */
-export function useRunOnOpen({ settled, flushUrl, analyze }: RunOnOpenInputs) {
-  const [autoAnalyze, setAutoAnalyze] = useState(() => decodeAutoAnalyze(window.location.search))
+export function useRunOnOpen({ settled, flushUrl, analyze, initial }: RunOnOpenInputs) {
+  const [autoAnalyze, setAutoAnalyze] = useState(
+    () => initial ?? decodeAutoAnalyze(window.location.search),
+  )
   // One commit behind `settled` on purpose. The render where the live limits
   // land is the render where the selection and ranking hooks re-clamp the
   // restored model and results cap, in effects whose state reaches the NEXT

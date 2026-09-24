@@ -1,67 +1,43 @@
+import { StrictMode, createElement } from 'react'
+import { createRoot } from 'react-dom/client'
 import { driver, type PopoverDOM } from 'driver.js'
-import type { MapCamera, MapViewHandle } from '../components/MapView'
+import App from '../App'
+import ErrorBoundary from '../components/ErrorBoundary'
+import type { SandboxHandle } from '../hooks/useTour'
 import { ICON, TOUR, TOUR_DIM, TOUR_STAGE_PAD_PX, TOUR_STAGE_RADIUS_PX } from '../styles'
-import type { WindowLimits } from '../utils/forecastWindow'
-import { buildScene, type DemoCapture, type TourScene } from '../utils/tourScene'
+import { setApiTransport } from '../utils/apiFetch'
+import { enterScratch, leaveScratch, setOpenMeteoTransport } from '../utils/openMeteo'
 import { TOUR_COPY, TOUR_STEPS, stepLayout, tourSelector } from '../utils/tourSteps'
-import demo from './demoScene.json'
+import { setViewPrefsReadOnly } from '../utils/viewPrefs'
+import { Stale, type Stage, find, frame, sleep, until } from './act'
+import { ACTIONS } from './actions'
+import demoData from './demoData.json'
+import { createDemoWorld } from './fixtures'
+import { createPointer } from './pointer'
+import { type DemoData, stateBefore } from './scenario'
 import '../tour.css'
 
-// One run of the tutorial (#536): Driver.js walks the steps in
-// `utils/tourSteps.ts`, and this moves the screen under it. Everything here,
-// Driver and the demo included, is one chunk that `useTour` imports when a
-// reader starts the tutorial, so no one who never opens it downloads any of it.
+// One run of the tutorial (#536). Everything here, Driver and the demo data
+// included, is one chunk that `useTour` imports when a reader starts the
+// tutorial, so no one who never opens it downloads any of it.
 //
-// It never writes the reader's state. The demo analysis is handed to the host
-// as a value the app READS in place of its own report, so ending the tutorial
-// is dropping that value. What it does move is presentation, and it puts each
-// piece back at the end: the drawer, whether the results show, the sheet's
-// collapse, and the camera.
+// The reader's app is hidden and left exactly as it was. Over it stands a
+// second copy of the app, the demo, and each step is acted out on that copy's
+// real controls by a drawn pointer: it types, clicks, draws and presses
+// Analyze. For as long as the demo exists, every request the page makes is
+// answered from recorded and example data (`fixtures.ts`), the demo has a
+// forecast cache and pacing budgets of its own, and nothing is written to the
+// address bar or to storage. Ending the tutorial removes the demo, and the
+// reader's app is simply shown again.
+//
+// A step that is left before its action ends, and every step back, mounts the
+// demo afresh in the state that step starts from (`scenario.stateBefore`), so
+// no screen depends on how the reader moved through the steps.
 
-/** The screen state the tutorial moves, read fresh at every step. */
-export interface TourUi {
-  isDesktop: boolean
-  sidebarOpen: boolean
-  setSidebarOpen: (open: boolean) => void
-  showResults: boolean
-  setShowResults: (show: boolean) => void
-  resultsCollapsed: boolean
-  toggleCollapsed: () => void
-}
-
-/** What the app lends a run. */
+/** What the reader's app lends a run. */
 export interface TourHost {
-  ui: () => TourUi | null
-  map: () => MapViewHandle | null
-  showScene: (scene: TourScene | null) => void
   /** Called once, however the run ends. */
   ended: () => void
-}
-
-interface Saved {
-  sidebarOpen: boolean
-  showResults: boolean
-  resultsCollapsed: boolean
-  camera: MapCamera | null
-}
-
-function nextFrame(): Promise<void> {
-  return new Promise((resolve) => requestAnimationFrame(() => resolve()))
-}
-
-// The phone drawer slides in over 300ms, and a target measured mid-slide lights
-// the wrong place. Waits for the slide to end, with a ceiling in case the
-// transition never runs (reduced motion, or a desktop where it is off).
-function slideDone(): Promise<void> {
-  const drawer = document.querySelector('[data-drawer]')
-  if (!drawer) return Promise.resolve()
-  return new Promise((resolve) => {
-    const timer = window.setTimeout(resolve, 400)
-    drawer.addEventListener('transitionend', () => {
-      window.clearTimeout(timer)
-      resolve()
-    }, { once: true })
-  })
 }
 
 function addClasses(el: HTMLElement, classes: string) {
@@ -87,61 +63,181 @@ function dress(popover: PopoverDOM) {
   popover.closeButton.innerHTML =
     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="${ICON.control}" aria-hidden="true">` +
     '<line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></svg>'
+  // A press on the card is not a press outside a panel the demo opened: the
+  // demo's pickers close on a press anywhere else in the document.
+  for (const type of ['pointerdown', 'mousedown'] as const) {
+    popover.wrapper.addEventListener(type, (e) => e.stopPropagation())
+  }
 }
 
-export function runTour(host: TourHost, windowLimits: WindowLimits): void {
-  const ui = host.ui()
-  if (!ui) {
-    host.ended()
-    return
-  }
-  const scene = buildScene(demo as unknown as DemoCapture, Date.now(), windowLimits)
-  const saved: Saved = {
-    sidebarOpen: ui.sidebarOpen,
-    showResults: ui.showResults,
-    resultsCollapsed: ui.resultsCollapsed,
-    camera: host.map()?.getCamera() ?? null,
-  }
-  let running = true
-  let sceneOn = false
+export function runTour(host: TourHost): void {
+  const demo = demoData as unknown as DemoData
+  const nowMs = Date.now()
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  const readerRoot = document.getElementById('root')
 
-  // Stand the screen the way step `index` needs it, then light the step. A
-  // step whose target is still missing is passed over in the direction of
-  // travel, and running off the end ends the tutorial.
-  async function go(index: number, dir: 1 | -1) {
-    for (let i = index; i >= 0 && i < TOUR_STEPS.length; i += dir) {
-      const now = host.ui()
-      if (!running || !now) return
-      const step = TOUR_STEPS[i]
-      const layout = stepLayout(step, now.isDesktop)
-      const slides = !now.isDesktop && now.sidebarOpen !== layout.drawerOpen
-      now.setSidebarOpen(layout.drawerOpen)
-      // The demo's steps open the results; a step back out of them puts the
-      // reader's own view back.
-      now.setShowResults(layout.showResults || saved.showResults)
-      const wantCollapsed = !layout.showResults && saved.resultsCollapsed
-      if (now.resultsCollapsed !== wantCollapsed) now.toggleCollapsed()
-      const sceneMoves = layout.demo !== sceneOn
-      if (sceneMoves) {
-        sceneOn = layout.demo
-        host.showScene(layout.demo ? scene : null)
-      }
-      // Two frames: one for React to commit, one for the layout effects that
-      // measure the sheet to run, since the camera clears the sheet by that
-      // measurement.
-      await nextFrame()
-      await nextFrame()
-      if (sceneMoves && layout.demo) host.map()?.fitToPoints(scene.universe)
-      else if (sceneMoves && saved.camera) host.map()?.setCamera(saved.camera)
-      if (slides) await slideDone()
-      if (!running) return
-      if (document.querySelector(tourSelector(step.key))) {
-        if (d.isActive()) d.moveTo(i)
-        else d.drive(i)
-        return
-      }
+  // The closed world, set before the demo's first render asks for anything.
+  const world = createDemoWorld(demo, nowMs)
+  setApiTransport(world.api)
+  setOpenMeteoTransport(world.openMeteo)
+  enterScratch()
+  setViewPrefsReadOnly(true)
+
+  const container = document.createElement('div')
+  container.className = TOUR.sandbox
+  container.dataset.tourSandbox = ''
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  const handle: { current: SandboxHandle | null } = { current: null }
+  let mounts = 0
+
+  const frameEl = document.createElement('div')
+  frameEl.className = TOUR.frame
+  // Which step is on screen and whether it is still acting, for the browser
+  // suite to wait on rather than guess a duration.
+  frameEl.dataset.tourFrame = ''
+  document.body.appendChild(frameEl)
+  const pointer = createPointer(reduced)
+
+  let running = true
+  // Bumped by every move, so an action of a step already left stops at its
+  // next wait instead of acting on the screen the reader has moved to.
+  let moves = 0
+  let index = 0
+  // Whether the step on screen is still acting, so leaving it has to mount
+  // the demo afresh at the next step rather than trust a half-acted screen.
+  let acting = false
+
+  // ── What Driver lights ────────────────────────────────────────────────────
+
+  let targets: () => (Element | null | undefined)[] = () => []
+  let lastBox = ''
+
+  // The frame is the union of the targets, kept inside the viewport. Returns
+  // whether it moved, so Driver is asked to redraw only then.
+  function measure(): boolean {
+    const boxes = targets()
+      .filter((el): el is Element => Boolean(el?.isConnected))
+      .map((el) => el.getBoundingClientRect())
+      .filter((b) => b.width > 0 && b.height > 0)
+    if (boxes.length === 0) return false
+    const left = Math.max(0, Math.min(...boxes.map((b) => b.left)))
+    const top = Math.max(0, Math.min(...boxes.map((b) => b.top)))
+    const right = Math.min(window.innerWidth, Math.max(...boxes.map((b) => b.right)))
+    const bottom = Math.min(window.innerHeight, Math.max(...boxes.map((b) => b.bottom)))
+    const box = [left, top, right, bottom].map(Math.round).join(',')
+    if (box === lastBox) return false
+    lastBox = box
+    Object.assign(frameEl.style, {
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${Math.max(0, right - left)}px`,
+      height: `${Math.max(0, bottom - top)}px`,
+    })
+    return true
+  }
+
+  // A control opens, a drawer slides, the map flies: the lit box follows
+  // every frame, and costs a few rectangle reads when nothing moves.
+  let watching = 0
+  function watch() {
+    if (measure() && d.isActive()) d.refresh()
+    watching = requestAnimationFrame(watch)
+  }
+
+  // ── The demo app ──────────────────────────────────────────────────────────
+
+  function stage(move: number): Stage {
+    return {
+      root: container,
+      readerRoot,
+      handle: () => {
+        if (!handle.current) throw new Error('The demo app is not mounted.')
+        return handle.current
+      },
+      alive: () => running && move === moves,
+      reduced,
+      pointer,
+      light: (next) => {
+        targets = next
+        if (measure() && d.isActive()) d.refresh()
+      },
     }
-    if (dir === 1) finish()
+  }
+
+  // Mounts the demo in the state step `at` starts from, and waits until it
+  // stands: limits applied, map drawn, and the analysis done where one has
+  // already run by then.
+  async function mount(at: number, s: Stage): Promise<void> {
+    const { initial, autoAnalyze } = stateBefore(at, demo, nowMs)
+    handle.current = null
+    mounts += 1
+    root.render(
+      createElement(
+        StrictMode,
+        null,
+        createElement(
+          ErrorBoundary,
+          null,
+          createElement(App, { key: mounts, sandbox: { initial, autoAnalyze, handle } }),
+        ),
+      ),
+    )
+    const ready = await until(s, () => handle.current?.settled && handle.current.map && handle.current, 15_000)
+    await ready.map?.whenIdle()
+    if (autoAnalyze) {
+      await until(s, () => handle.current && handle.current.analysisSeq > 0 && !handle.current.loading, 30_000)
+    }
+  }
+
+  // Stands the drawer and the results sheet the way a step needs them.
+  async function stand(s: Stage, at: number): Promise<void> {
+    const h = s.handle()
+    const hasReport = h.analysisSeq > 0
+    const layout = stepLayout(TOUR_STEPS[at], h.isDesktop, hasReport)
+    const slides = h.sidebarOpen !== layout.drawerOpen
+    h.setSidebarOpen(layout.drawerOpen)
+    if (hasReport) h.setShowResults(true)
+    if (layout.collapsed !== null && h.resultsCollapsed !== layout.collapsed) h.toggleCollapsed()
+    await frame(s)
+    await frame(s)
+    if (slides && !h.isDesktop) await sleep(s, 400)
+  }
+
+  // ── Moving between steps ──────────────────────────────────────────────────
+
+  async function show(at: number, fresh: boolean): Promise<void> {
+    moves += 1
+    const s = stage(moves)
+    index = at
+    pointer.hide()
+    try {
+      if (d.isActive()) d.moveTo(at)
+      if (fresh) await mount(at, s)
+      await stand(s, at)
+      const step = TOUR_STEPS[at]
+      const anchor = await until(s, () => find(s, tourSelector(step.anchor)))
+      s.light(() => [anchor])
+      if (!d.isActive()) d.drive(at)
+      const action = ACTIONS[step.key]
+      acting = Boolean(action)
+      frameEl.dataset.step = step.key
+      frameEl.dataset.acting = String(acting)
+      if (action) await action(s, demo, nowMs)
+      if (s.alive()) {
+        acting = false
+        frameEl.dataset.acting = 'false'
+      }
+    } catch (e) {
+      // A step left mid-action stops here quietly. Anything else leaves the
+      // step on screen with its card, and the demo is mounted afresh when the
+      // reader moves on, since `acting` is still set.
+      if (e instanceof Stale) return
+      console.error(e)
+      // The demo never stood up, so there is no card to end the tutorial
+      // from: it ends itself rather than leave the reader under an empty page.
+      if (!d.isActive()) finish()
+    }
   }
 
   // Idempotent: the X, Escape and Done reach it through `finish`, and
@@ -149,15 +245,21 @@ export function runTour(host: TourHost, windowLimits: WindowLimits): void {
   function end() {
     if (!running) return
     running = false
-    host.showScene(null)
-    const now = host.ui()
-    if (now) {
-      now.setSidebarOpen(saved.sidebarOpen)
-      now.setShowResults(saved.showResults)
-      if (saved.resultsCollapsed !== now.resultsCollapsed) now.toggleCollapsed()
-    }
-    if (saved.camera) host.map()?.setCamera(saved.camera)
+    moves += 1
+    cancelAnimationFrame(watching)
+    root.unmount()
+    container.remove()
+    frameEl.remove()
+    pointer.remove()
     host.ended()
+    // The demo's last answers are left to land in its own cache before the
+    // reader's world comes back.
+    void world.settled().then(() => {
+      setApiTransport(null)
+      setOpenMeteoTransport(null)
+      leaveScratch()
+      setViewPrefsReadOnly(false)
+    })
   }
 
   function finish() {
@@ -167,10 +269,10 @@ export function runTour(host: TourHost, windowLimits: WindowLimits): void {
 
   const d = driver({
     steps: TOUR_STEPS.map((step) => ({
-      element: tourSelector(step.key),
+      element: () => frameEl,
       popover: { title: step.title, description: step.text },
     })),
-    // Point only (TJ, 2026-09-24): a lit control is shown, not used.
+    // The reader watches: the tutorial does the pressing.
     disableActiveInteraction: true,
     // A press on the dim does nothing. The X, Escape and Done end it.
     overlayClickBehavior: () => {},
@@ -183,24 +285,28 @@ export function runTour(host: TourHost, windowLimits: WindowLimits): void {
     stagePadding: TOUR_STAGE_PAD_PX,
     stageRadius: TOUR_STAGE_RADIUS_PX,
     onPopoverRender: dress,
-    // Navigation is ours, so every move can stand the screen up first.
-    // Driver sends the arrow keys here too.
+    // Navigation is ours. Driver sends the arrow keys here too.
     onNextClick: () => {
-      const at = d.getActiveIndex() ?? 0
-      if (d.isLastStep()) finish()
-      else void go(at + 1, 1)
+      if (index >= TOUR_STEPS.length - 1) finish()
+      else void show(index + 1, acting)
     },
     onPrevClick: () => {
-      const at = d.getActiveIndex() ?? 0
-      if (at > 0) void go(at - 1, -1)
+      if (index === 0) return
+      const back = index - 1
+      // Back over a step that acted means standing where it started and
+      // acting it again; back from a step that acted, onto one that only
+      // points, means standing where this one started.
+      const fresh = acting || Boolean(ACTIONS[TOUR_STEPS[back].key] || ACTIONS[TOUR_STEPS[index].key])
+      void show(back, fresh)
     },
     // The X and Escape. Driver asks here before it closes and then leaves the
     // closing to us, which is the one path it always takes: its own
     // `onDestroyed` is skipped when the close lands while a step is still
-    // animating in, and a reader who closes that fast would otherwise be left
-    // with the demo on screen and the page inert.
+    // animating in.
     onDestroyStarted: () => finish(),
     onDestroyed: end,
   })
-  void go(0, 1)
+
+  watching = requestAnimationFrame(watch)
+  void show(0, true)
 }

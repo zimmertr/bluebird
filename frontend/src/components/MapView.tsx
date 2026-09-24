@@ -16,6 +16,7 @@ import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
 import { FireWarning } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
+import { POI_LAYERS, poiFromFeature } from '../utils/basemapPoi'
 import { framePadding, pointsWithinView } from '../utils/mapFraming'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
@@ -28,6 +29,7 @@ import { STYLE } from '../map/basemap'
 import { addAttribution, addControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { createPopupBoard } from '../map/popups'
+import { mapIdle } from '../map/idle'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
 export interface MapViewHandle {
@@ -44,18 +46,14 @@ export interface MapViewHandle {
   // this destination has no forecast. Clicking the dot still says what is
   // known about it (TJ, 2026-09-14).
   focusPoint: (at: { latitude: number; longitude: number }) => void
-  // The camera as it stands, and a move back to one. The tutorial (#536)
-  // frames its demo analysis and has to leave the reader's view where it
-  // found it. Null before the map loads, when there is no view to keep.
-  getCamera: () => MapCamera | null
-  setCamera: (camera: MapCamera) => void
-}
-
-export interface MapCamera {
-  center: [number, number]
-  zoom: number
-  bearing: number
-  pitch: number
+  // What the tutorial (#536) needs to act a map step out on its demo copy of
+  // the app: where a place sits on screen, a camera move, a wait for the map to
+  // settle, and where a basemap label can be clicked. Null or a no-op before
+  // the map loads.
+  project: (lng: number, lat: number) => { x: number; y: number } | null
+  flyTo: (lng: number, lat: number, zoom: number) => void
+  whenIdle: () => Promise<void>
+  poiAt: (name: string, lng: number, lat: number) => { x: number; y: number } | null
 }
 
 interface Props {
@@ -424,16 +422,44 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
         featuresRef.current?.results.openPopup(result)
       },
-      getCamera() {
+      project(lng: number, lat: number) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return null
-        const { lng, lat } = map.getCenter()
-        return { center: [lng, lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
+        const at = map.project([lng, lat])
+        const box = map.getCanvas().getBoundingClientRect()
+        return { x: box.left + at.x, y: box.top + at.y }
       },
-      setCamera(camera: MapCamera) {
+      flyTo(lng: number, lat: number, zoom: number) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        map.easeTo({ ...camera, duration: 800 })
+        popups.closeAll()
+        map.flyTo({ center: [lng, lat], zoom, duration: 1500, offset: [0, -cameraPadBottomPx / 2] })
+      },
+      whenIdle() {
+        const map = mapRef.current
+        return map ? mapIdle(map, loadedRef.current) : Promise.resolve()
+      },
+      // A label's hit box is decided by placement at run time, so the point
+      // under its anchor is not always on it. Walks outward from the anchor
+      // until a rendered query answers with the label.
+      poiAt(name: string, lng: number, lat: number) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return null
+        const layers = POI_LAYERS.filter((id) => map.getLayer(id))
+        const anchor = map.project([lng, lat])
+        const box = map.getCanvas().getBoundingClientRect()
+        for (let r = 0; r <= 24; r += 4) {
+          for (let a = 0; a < (r === 0 ? 1 : 8); a++) {
+            const x = anchor.x + r * Math.cos((a * Math.PI) / 4)
+            const y = anchor.y + r * Math.sin((a * Math.PI) / 4)
+            const hit = map.queryRenderedFeatures([x, y], { layers })
+            const named = hit.some(
+              (f) => poiFromFeature(f.layer.id, f.properties ?? {}, [lng, lat])?.name === name,
+            )
+            if (named) return { x: box.left + x, y: box.top + y }
+          }
+        }
+        return null
       },
     }))
 

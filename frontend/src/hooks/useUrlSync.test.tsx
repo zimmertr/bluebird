@@ -78,6 +78,18 @@ describe('useUrlSync', () => {
     expect(replace).not.toHaveBeenCalled()
   })
 
+  // The tutorial's demo copy of the app (#536): the address bar stays the
+  // reader's however far the demo goes, unmount included.
+  it('writes nothing for a sandboxed copy of the app', () => {
+    const { rerender, unmount } = renderHook((p: UrlSyncInputs) => useUrlSync(p), {
+      initialProps: inputs({ sandboxed: true }),
+    })
+    rerender(inputs({ sandboxed: true, showSmoke: true, customCsv: '47.5,-121' }))
+    vi.advanceTimersByTime(DEBOUNCE_MS * 2)
+    unmount()
+    expect(replace).not.toHaveBeenCalled()
+  })
+
   it('flushes a queued write on unmount', () => {
     const { rerender, unmount } = renderHook((p: UrlSyncInputs) => useUrlSync(p), { initialProps: inputs() })
     rerender(inputs({ showRadar: true }))

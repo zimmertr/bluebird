@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { nextActiveIndex, nextToolbarIndex, optionDomId } from '../utils/listbox'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
@@ -28,8 +28,6 @@ import { IconClose, IconSelectArrow } from './icons'
 // The one popover that overrides the hook's width: the rest carry labels.
 const PREFERRED_WIDTH_PX = 380
 
-// Namespaces this listbox's option ids inside the document.
-const LIST_ID = 'model'
 
 // Why the control is faded is NOT said here (TJ, 2026-09-14). It was a `title`
 // plus hidden `aria-describedby` text, which put one of the panel's messages
@@ -106,6 +104,9 @@ export default function ModelPicker({
   disabled = false,
 }: Props) {
   const [open, setOpen] = useState(false)
+  // Namespaces this listbox's option ids inside the document. Generated rather
+  // than spelled, for the reason ForecastCalendar gives.
+  const listId = useId()
   const selectedIndex = models.findIndex((m) => m.id === value)
   const [active, setActive] = useState(Math.max(selectedIndex, 0))
   // Roving tabindex along the chip row: one chip is in the Tab order and the
@@ -425,7 +426,7 @@ export default function ModelPicker({
             aria-multiselectable="true"
             aria-label="Forecast model"
             aria-activedescendant={
-              models[active] ? optionDomId(LIST_ID, models[active].id) : undefined
+              models[active] ? optionDomId(listId, models[active].id) : undefined
             }
             tabIndex={-1}
             onKeyDown={onListKeyDown}
@@ -441,7 +442,7 @@ export default function ModelPicker({
             return (
               <div
                 key={model.id}
-                id={optionDomId(LIST_ID, model.id)}
+                id={optionDomId(listId, model.id)}
                 data-index={i}
                 role="option"
                 aria-selected={isSelected}

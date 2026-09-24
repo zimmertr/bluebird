@@ -857,7 +857,8 @@ export const APP = [
   {
     // The sync effect and the unmount flush are the two effects this hook took
     // from App.tsx. The sync effect keys on every input its encodeState call
-    // reads, 23 entries with writeUrl last, and it never flushes: a flush per
+    // reads and on the tutorial's sandbox flag (#536), 24 entries with writeUrl
+    // last, and it never flushes: a flush per
     // run writes on every keystroke and the debounce collapses nothing. The
     // flush runs only on unmount, keyed on the writer alone.
     name: 'url-sync-hook',
@@ -871,8 +872,8 @@ export const APP = [
     require: [
       { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
       {
-        selector: `${EFFECT} > ArrayExpression[elements.length=23][elements.22.name="writeUrl"]`,
-        message: 'Key the sync effect on all 23 inputs it reads, writeUrl last.',
+        selector: `${EFFECT} > ArrayExpression[elements.length=24][elements.23.name="writeUrl"]`,
+        message: 'Key the sync effect on all 24 inputs it reads, writeUrl last.',
       },
       { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
       { selector: 'ReturnStatement > Identifier[name="writeUrl"]', message: 'Return the writer.' },

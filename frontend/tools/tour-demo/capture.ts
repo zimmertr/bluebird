@@ -1,105 +1,96 @@
-// Captures the tutorial's demo analysis into src/tour/demoScene.json (#536).
+// Captures the tutorial's recorded answers into src/tour/demoData.json (#536).
 //
-// The tutorial shows a finished analysis without running one, so the rows it
-// shows are recorded here once and shipped. They come from the app's own
-// pipeline rather than a hand-built fixture: discovery is the pod's
-// `POST /api/destinations` (the only source of snow depth), and the forecasts
-// are `runClientAnalysis`, the function an Analyze click runs, so every row
-// carries exactly what the browser commits, the wind bearing the player's
-// arrows read included. A new column is therefore a re-capture, not an edit.
+// The tutorial acts an analysis out on a demo copy of the app, and every
+// request that copy makes is answered from this file, so none of it leaves the
+// browser. What is recorded here is what cannot be invented honestly: the
+// place search's answer, discovery's rows (the only source of elevation and
+// snow depth), the deployment's limits, and Open-Meteo's hourly weather for
+// every peak the demo can reach. The weather is re-stamped onto whatever hours
+// the demo asks for when it replays. Air quality, the fire and the smoke are
+// the scenario's own and are made in `src/tour/scenario.ts`, not here.
 //
-// Run it with `make capture-tour-demo`. It spends one discovery request and
-// one batch of Open-Meteo calls.
+// The weather is fetched through the app's own `fetchWeather` and
+// `fetchCloud`, with a transport that keeps each answer, so the recorded
+// request is exactly the one the demo will make. A new variable is therefore a
+// re-capture, not an edit.
+//
+// Run it with `make capture-tour-demo`. It spends one discovery request, one
+// place search, and two Open-Meteo calls of 22 locations.
 import { writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { runClientAnalysis } from '../../src/utils/clientAnalyze'
-import { AQI_LIMIT_DAYS } from '../../src/utils/calendarBand'
+import { fetchCloud, fetchWeather, setOpenMeteoTransport } from '../../src/utils/openMeteo'
 import { FALLBACK_WINDOW_LIMITS } from '../../src/utils/forecastWindow'
-import type { AnalyzeRequest, DestinationsResponse, GeoPolygon } from '../../src/types'
-import type { DemoCapture } from '../../src/utils/tourScene'
+import type { DestinationsResponse } from '../../src/types'
+import {
+  DEMO_MODEL,
+  POOL_NAMES,
+  POOL_POLYGON,
+  SEARCH_QUERY,
+  type DemoData,
+  type RecordedHours,
+} from '../../src/tour/scenario'
 
 const BASE = process.env.BLUEBIRD_URL ?? 'https://bluebirdforecast.com'
-const MODEL = 'gfs_seamless'
-const ZONE = 'America/Los_Angeles'
-// Daylight hours at the peaks, which is the window a reader plans a climb in.
-// Both ends are inclusive, as they are when a reader narrows the hours.
-const START_HOUR = 6
-const END_HOUR = 18
+// A full day from the next midnight UTC, which covers any 13-hour window a
+// reader in any zone can pick for tomorrow once it is re-stamped.
+const HOURS = 24
 
-// The Glacier Peak and Dome Peak massifs.
-const POLYGON: GeoPolygon = {
-  type: 'Polygon',
-  coordinates: [[[-121.25, 48.05], [-120.95, 48.05], [-120.95, 48.35], [-121.25, 48.35], [-121.25, 48.05]]],
-}
-
-// A subset of what discovery finds, chosen for a spread of elevations from
-// 6,000 to 10,500 ft across the whole ring, so the colour scales and the
-// elevation-adjusted wind and temperature have something to show.
-const NAMES = new Set([
-  'Glacier Peak', 'Disappointment Peak', 'Dome Peak', 'Clark Mountain', 'Sinister Peak',
-  'Kennedy Peak', 'Tenpeak Mountain', 'Spire Point', 'Agnes Mountain', 'Gunsight Peak',
-  'Plummer Mountain', 'Sitting Bull Mountain', 'Bannock Mountain', 'Mount Misch',
-  'Lizard Mountain', 'Helmet Butte', 'Gamma Peak', 'Lime Mountain', 'Sulphur Mountain',
-  'Fire Mountain', 'Green Mountain', 'Downey Mountain',
-])
-
-// The UTC instant of a wall-clock hour in ZONE. One correction pass is enough
-// because the offset of the guess and of the answer differ only across a
-// transition, and no transition falls between 06:00 and 18:00.
-function zonedHour(date: string, hour: number): number {
-  const guess = Date.parse(`${date}T${String(hour).padStart(2, '0')}:00:00Z`)
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: ZONE, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
-  }).formatToParts(new Date(guess))
-  const get = (t: string) => Number(parts.find((p) => p.type === t)!.value)
-  const wall = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'))
-  return guess - (wall - guess)
+async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, init)
+  if (!res.ok) throw new Error(`${path} answered ${res.status}`)
+  return (await res.json()) as T
 }
 
 async function main() {
-  const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: ZONE })
-  const startMs = zonedHour(tomorrow, START_HOUR)
-  const endMs = zonedHour(tomorrow, END_HOUR)
+  const capabilities = await json<unknown>('/api/capabilities')
+  const geocode = await json<DemoData['geocode']>(
+    `/api/geocode?limit=5&q=${encodeURIComponent(SEARCH_QUERY)}`,
+  )
+  if (geocode.length < 2) throw new Error('the place search must answer with a menu, not one place')
 
-  const res = await fetch(`${BASE}/api/destinations`, {
+  const discovered = await json<DestinationsResponse>('/api/destinations', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ polygon: POLYGON, destination_types: ['peak'] }),
+    body: JSON.stringify({ polygon: POOL_POLYGON, destination_types: ['peak'] }),
   })
-  if (!res.ok) throw new Error(`discovery answered ${res.status}`)
-  const discovered = (await res.json()) as DestinationsResponse
-  const candidates = discovered.destinations.filter((d) => NAMES.has(d.name))
-  const missing = [...NAMES].filter((n) => !candidates.some((d) => d.name === n))
+  const pool = discovered.destinations.filter((d) => POOL_NAMES.includes(d.name))
+  const missing = POOL_NAMES.filter((n) => !pool.some((d) => d.name === n))
   if (missing.length > 0) throw new Error(`discovery no longer finds: ${missing.join(', ')}`)
 
-  const request: AnalyzeRequest = {
-    polygon: POLYGON,
-    destination_types: ['peak'],
-    start_datetime: new Date(startMs).toISOString(),
-    end_datetime: new Date(endMs).toISOString(),
-    forecast_model: MODEL,
-    // Every row, in the pipeline's own order: the tutorial ranks and cuts the
-    // demo with the reader's knobs, as it would any report.
-    limit: candidates.length,
-  }
-  // Every metric the table can rank by is fetched, the cloud column too, so a
-  // reader who opens the tutorial under any ranking sees numbers.
-  const { response, universe } = await runClientAnalysis(request, candidates, startMs, endMs, {
-    windowLimits: FALLBACK_WINDOW_LIMITS,
-    aqiForecastDays: AQI_LIMIT_DAYS,
-    cloud: true,
+  // Every answer the two fetches get, in order. Both batch the whole pool
+  // into one request, so each list holds one body with one item per peak.
+  const bodies: unknown[] = []
+  setOpenMeteoTransport(async (url, init) => {
+    const res = await fetch(url, init)
+    bodies.push(await res.clone().json())
+    return res
   })
+  const midnight = Math.ceil(Date.now() / 86_400_000) * 86_400_000
+  const startMs = midnight
+  const endMs = midnight + (HOURS - 1) * 3_600_000
+  const opts = { model: DEMO_MODEL, windowLimits: FALLBACK_WINDOW_LIMITS }
+  await fetchWeather(pool, startMs, endMs, opts)
+  const forecast = bodies.splice(0) as RecordedHours[][]
+  await fetchCloud(pool, startMs, endMs, opts)
+  const cloud = bodies.splice(0) as RecordedHours[][]
+  if (forecast.length !== 1 || cloud.length !== 1) throw new Error('expected one batch per service')
 
-  const capture: DemoCapture = {
+  const data: DemoData = {
     capturedAt: new Date().toISOString(),
-    request,
-    response,
-    universe,
+    capabilities,
+    geocode,
+    pool,
     snowAnalysisDate: discovered.snow_analysis_date ?? null,
+    weather: pool.map((d, i) => ({
+      latitude: d.latitude,
+      longitude: d.longitude,
+      forecast: forecast[0][i],
+      cloud: cloud[0][i],
+    })),
   }
-  const out = fileURLToPath(new URL('../../src/tour/demoScene.json', import.meta.url))
-  writeFileSync(out, `${JSON.stringify(capture)}\n`)
-  console.log(`${universe.length} destinations, ${response.times?.length ?? 0} hours -> ${out}`)
+  const out = fileURLToPath(new URL('../../src/tour/demoData.json', import.meta.url))
+  writeFileSync(out, `${JSON.stringify(data)}\n`)
+  console.log(`${pool.length} peaks, ${geocode.length} search results -> ${out}`)
 }
 
 main().catch((err) => {

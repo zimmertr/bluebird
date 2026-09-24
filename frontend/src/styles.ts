@@ -2124,6 +2124,24 @@ export const TABLE = {
  * The two buttons are the panel's inline pair (Clear beside Done): the
  * secondary fill for going back, the accent for the step forward. `ml-0`
  * cancels the 4px Driver puts between two buttons, so the gap is `gap-2` alone.
+ *
+ * `sandbox` holds the demo copy of the app the tutorial acts each step out on,
+ * over the whole screen, while the reader's own app is hidden under it. It sets
+ * no z-index, so the demo's layers and its portaled panels stack against each
+ * other exactly as the reader's do.
+ *
+ * `frame` is what Driver lights. One step's action can span a control and the
+ * panel it opens (a picker's list, the search menu, a popup), so the lit box is
+ * a clear box the tutorial stands over the union of them rather than any one
+ * element.
+ *
+ * `pointer` is the drawn pointer that does the acting. It stands one layer
+ * above Driver's dim (z-index 10000 in Driver's own stylesheet), so it can be
+ * seen moving across a dimmed part of the screen to the lit one, and under the
+ * card (1000000000). The arrow is white with a slate edge, the one pair that
+ * reads over both the dim and the map; no hue, because the pointer is not a
+ * control of the app's and says nothing about one. `pointerPress` is the ring a
+ * press sends out from its tip. Both glide only where motion is welcome.
  */
 export const TOUR = {
   card: `${SURFACE_CARD} font-sans p-4 w-80 max-w-[calc(100vw-2rem)]`,
@@ -2135,6 +2153,13 @@ export const TOUR = {
   previous: `${BUTTON_SECONDARY} ${DISABLED}`,
   next: `${BUTTON_ACCENT} ml-0`,
   close: `${ICON_BUTTON} absolute top-3 right-3 flex items-center justify-center`,
+  frame: 'fixed pointer-events-none',
+  sandbox: 'fixed inset-0',
+  pointer:
+    'fixed left-0 top-0 z-[10001] pointer-events-none drop-shadow-md ' +
+    'transition-[transform,opacity] ease-out motion-reduce:transition-none',
+  pointerArrow: 'block size-6 fill-white stroke-slate-900',
+  pointerPress: 'absolute -left-4 -top-4 size-8 rounded-full border-2 border-white',
 } as const
 
 /**
