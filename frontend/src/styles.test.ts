@@ -26,6 +26,7 @@ import {
   FIELD,
   FIELD_NUMERIC,
   FOCUS_RING,
+  FOCUS_RING_INSET,
   ICON,
   ICON_ADORNMENT,
   METRICS_GRID,
@@ -1009,6 +1010,19 @@ describe('shared recipes', () => {
   it('gives choice rows the focus ring through the has-[:focus-visible] variant', () => {
     const rowRing = FOCUS_RING.replace(/focus-visible:/g, 'has-[:focus-visible]:')
     expect(CHOICE_ROW).toContain(rowRing)
+  })
+
+  // The table header's ring is FOCUS_RING moved inside the edge and nothing
+  // else, derived rather than restated so a new colour or width reaches both.
+  // The ratios are sky-400 on what the ring can stand on, from Tailwind v4's
+  // oklch steps: the header bar it is drawn on, and the two surfaces an outer
+  // ring would have reached (the sheet, and a hovered row over it).
+  it('draws the header ring inside the edge, on a bar it clears', () => {
+    expect(FOCUS_RING_INSET).toBe(FOCUS_RING.replace('outline-offset-2', '-outline-offset-2'))
+    const MEASURED = { headerBar: 4.74, sheet: 6.71, hoveredRow: 6.08 }
+    for (const [ground, ratio] of Object.entries(MEASURED)) {
+      expect(ratio, `the ring on ${ground} must clear the 3:1 asked of a focus indicator`).toBeGreaterThanOrEqual(3)
+    }
   })
 
   // Every message under the Analyze button is a NOTICE box wearing a STATUS

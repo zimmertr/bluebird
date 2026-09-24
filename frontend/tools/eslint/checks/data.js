@@ -312,13 +312,27 @@ export const DATA = [
   {
     // A finger holds the header's gesture rather than scrolling the page, and
     // the header takes both gestures from their hooks, where the checks above
-    // hold them, rather than spelling one inline again.
+    // hold them, rather than spelling one inline again. A sort needs no
+    // pointer, so the header cell carries the keyboard route to it the way
+    // the picker's grip carries one to the reorder.
     name: 'column-drag-header',
     files: ['src/components/ResultsTableHeader.tsx'],
     require: [
       { selector: 'Literal[value="touch-none"]', message: 'Hold the touch gesture with touch-none.' },
       { selector: calls('useColumnDrag'), message: 'Take the column drag from useColumnDrag.' },
       { selector: calls('useColumnResize'), message: 'Take the column resize from useColumnResize.' },
+      {
+        selector: 'JSXOpeningElement[name.name="th"] > JSXAttribute[name.name="tabIndex"] Literal[value=0]',
+        message: 'Put a sortable header in the tab order.',
+      },
+      {
+        selector: 'BinaryExpression[left.object.name="e"][left.property.name="key"][right.value="Enter"]',
+        message: 'Sort a header on Enter.',
+      },
+      {
+        selector: 'BinaryExpression[left.object.name="e"][left.property.name="key"][right.value=" "]',
+        message: 'Sort a header on Space.',
+      },
     ],
   },
   {

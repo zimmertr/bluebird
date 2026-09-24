@@ -175,7 +175,8 @@ on the PR.
 
 CI also operates the built image in a browser (issue #412): Playwright draws a
 ring and analyzes, opens a share link, clicks the map under the legend stack
-and scrolls the stack, and runs axe on the panel, the results,
+and scrolls the stack, taps the chart at a phone's width to move the map's
+playhead, and runs axe on the panel, the results,
 and the Layers popover. Every third-party host is answered from fixtures in
 `frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
 `make browser` runs it locally: it builds the image, serves it on a docker

@@ -417,6 +417,22 @@ export const ACCENT = {
 export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400'
 
 /**
+ * `FOCUS_RING` drawn inside the element's edge rather than 2px outside it: the
+ * results table's sortable headers.
+ *
+ * A header sits in a sticky bar at the top of a scroll box, so an outer ring
+ * loses its top edge to the box's clip, the first column loses its left edge
+ * the same way, and the bottom edge lands on the first row, whose metric
+ * cells wear band fills this role cannot measure against. Drawn inside, the
+ * whole ring stands on the bar's own slate-700, where sky-400 is 4.74:1. The
+ * ring never reaches a row, so a hovered one (slate-700 at 30% over the
+ * slate-800 sheet, 6.08:1) cannot hide it either. Same width and colour as
+ * `FOCUS_RING`, so a keyboard reader meets one indicator in two placements.
+ */
+export const FOCUS_RING_INSET =
+  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sky-400'
+
+/**
  * The full-width primary action: Analyze, and the modals' dismiss buttons.
  *
  * It had been written out three times and had drifted into two radii, with the

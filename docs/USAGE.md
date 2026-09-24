@@ -314,8 +314,8 @@ It has up to two axes, and a switch to pick between them when both exist:
   than a handful of points.
 
 The chart below the map draws the same playhead as a vertical line, and clicking
-the chart moves it. The two are one grid seen twice, so finding the bad afternoon
-on the chart puts it on the map.
+or tapping the chart moves it. The two are one grid seen twice, so finding the bad
+afternoon on the chart puts it on the map.
 
 Playback costs nothing upstream. Every destination's hourly series is already in
 hand from the analysis; the timeline is a position in it.
@@ -424,7 +424,7 @@ Click a marker for a popup carrying the same columns the results table is showin
 
 Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
-Click any column header to sort the rows on screen by it, ascending or descending. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Metrics** table in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place.
+Click any column header to sort the rows on screen by it, ascending or descending. From the keyboard, Tab reaches each header and Enter or Space sorts by it, exactly as a click does; a screen reader reads that hint on each header. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Metrics** table in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place.
 
 Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any bound. Changing the destinations themselves starts a fresh report where it may return: edit the pasted list or the checked types and a removed destination you still name comes back as a pending destination immediately, while the report on screen keeps it struck out until you run the analysis. To undo one, a **Removed** button appears in the results bar while any removal is in force: it lists every removed row by name, and restores them one at a time or all at once. A restore never fetches — a row the report still holds simply reappears, and one it no longer holds (a searched place, or a row removed before a re-analysis) comes back as a pending destination that rejoins the next Analyze.
 
