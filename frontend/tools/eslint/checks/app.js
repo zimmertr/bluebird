@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 6, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 4, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
       // The drawer closes when a report commits, and the report is App's.
       { selector: keyedOnlyOn('analysisSeq'), message: 'Close the drawer in an effect keyed on analysisSeq alone.' },
@@ -702,13 +702,37 @@ export const APP = [
     // change, once per keystroke, and the debounce collapses nothing. One call
     // site, handed to debounceUrlWrite, keeps that from returning.
     name: 'app-url-writes',
-    files: ['src/App.tsx'],
+    files: ['src/hooks/useUrlSync.ts'],
     require: [
       { selector: HISTORY_WRITE, count: 1, message: 'Write history from one call site.' },
       {
         selector: `CallExpression[callee.name="debounceUrlWrite"] > ArrowFunctionExpression[params.0.name="url"] > ${HISTORY_WRITE}`,
         message: 'Hand the history write to debounceUrlWrite.',
       },
+    ],
+  },
+  {
+    // The sync effect and the unmount flush are the two effects this hook took
+    // from App.tsx. The sync effect's list is the one App carried, all 21
+    // entries and writeUrl last, and it never flushes: a flush per run writes
+    // on every keystroke and the debounce collapses nothing. The flush runs
+    // only on unmount, keyed on the writer alone.
+    name: 'url-sync-hook',
+    files: ['src/hooks/useUrlSync.ts'],
+    ban: [
+      {
+        selector: `${EFFECT}:not(:has(> ArrayExpression[elements.length=1])) CallExpression[callee.object.name="writeUrl"][callee.property.name="flush"]`,
+        message: 'Flush the writer only on unmount, never from the sync effect.',
+      },
+    ],
+    require: [
+      { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
+      {
+        selector: `${EFFECT} > ArrayExpression[elements.length=21][elements.20.name="writeUrl"]`,
+        message: 'Key the sync effect on the 21 entries App carried, writeUrl last.',
+      },
+      { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
+      { selector: 'ReturnStatement > Identifier[name="writeUrl"]', message: 'Return the writer.' },
     ],
   },
   {
@@ -731,6 +755,7 @@ export const APP = [
       'src/hooks/useChartCompare.ts',
       'src/hooks/useTableView.ts',
       'src/utils/exportCsv.ts',
+      'src/hooks/useUrlSync.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
