@@ -335,15 +335,22 @@ export const STYLES = [
     // the micro step is for text that is present but never first. The window
     // caption sits on the lifted fill, where the caption tier fails AA.
     name: 'style-results-bar',
-    files: ['src/App.tsx'],
+    files: ['src/components/ResultsBar.tsx'],
     ban: [
-      { selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in App.tsx.' },
+      { selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in the results bar.' },
       { selector: titleCaption('TEXT.caption'), message: 'Set the window title in CAPTION_LIFTED, not TEXT.caption.' },
     ],
     require: [
       { selector: pair('TEXT.control', 'LINK', '^ $'), count: 5, message: 'The five results bar links read at TEXT.control.' },
       { selector: titleCaption('CAPTION_LIFTED'), message: 'Set the window title in CAPTION_LIFTED.' },
     ],
+  },
+  {
+    // The rest of App.tsx keeps the results bar's rule: nothing it draws is
+    // text that is present but never first.
+    name: 'style-app-micro',
+    files: ['src/App.tsx'],
+    ban: [{ selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in App.tsx.' }],
   },
   {
     // The legend's scale key: one strip, drawn from the roles, edged from one

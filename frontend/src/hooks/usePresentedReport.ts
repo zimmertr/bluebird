@@ -239,3 +239,6 @@ export function usePresentedReport({
     emptyReason,
   }
 }
+
+/** What `usePresentedReport` hands its callers; the results sheet reads it whole. */
+export type PresentedReport = ReturnType<typeof usePresentedReport>

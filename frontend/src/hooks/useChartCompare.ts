@@ -255,3 +255,6 @@ export function useChartCompare({
     compareWait,
   }
 }
+
+/** What `useChartCompare` hands its callers; the results sheet reads it whole. */
+export type ChartCompare = ReturnType<typeof useChartCompare>
