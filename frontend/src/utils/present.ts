@@ -372,7 +372,7 @@ export function fieldHasValue(
 }
 
 /** What the displayed report is rendered under, and whether it is one hour. */
-export interface ReportView {
+interface ReportView {
   view: { sortBy: SortBy; sortDesc: boolean; kind: SelectionKind; window: { startMs: number; endMs: number } }
   pointSample: boolean
 }

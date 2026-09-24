@@ -45,7 +45,7 @@ export default function AnalysisOverlay({
     elapsedS: elapsed,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
     // Live countdown while the client pacer sleeps off a quota deficit;
-    // `usePacedFetch` ticks it, and the 250ms elapsed ticker below re-reads it.
+    // `usePacedFetch` ticks it.
     paceRemainingS,
   })
 

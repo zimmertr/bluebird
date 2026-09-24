@@ -48,5 +48,3 @@ export function useRunOnOpen({ settled, flushUrl, analyze }: RunOnOpenInputs) {
 
   return { autoAnalyze, capsApplied, runAutoAnalyze }
 }
-
-export type RunOnOpen = ReturnType<typeof useRunOnOpen>

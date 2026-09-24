@@ -282,6 +282,10 @@ export const APP = [
     files: ['src/components/ResultsPanels.tsx'],
     ban: [
       {
+        selector: `${MEMOIZED} JSXElement`,
+        message: 'Hand a memoized child an element memoized on its inputs, not one built in the render.',
+      },
+      {
         selector: `${MEMOIZED} :matches(ArrowFunctionExpression, FunctionExpression)`,
         message: 'Hand a memoized child a useCallback, not an inline function.',
       },

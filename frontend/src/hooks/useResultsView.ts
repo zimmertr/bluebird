@@ -1,6 +1,6 @@
 import { useCallback, type RefObject } from 'react'
 import type { MapViewHandle } from '../components/MapView'
-import type { DestinationResult } from '../types'
+import type { AnalyzeResponse, DestinationResult } from '../types'
 import { useChartCompare, type ChartCompareInputs } from './useChartCompare'
 import { useResultsLayout } from './useResultsLayout'
 import { useTableView, type TableViewInputs } from './useTableView'
@@ -9,7 +9,7 @@ export interface ResultsViewInputs {
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
-  response: unknown
+  response: AnalyzeResponse | null
   /** The displayed rows. */
   results: DestinationResult[]
   /** The named destinations no analysis has covered yet. */
@@ -144,5 +144,3 @@ export function useResultsView({
 
   return { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending }
 }
-
-export type ResultsView = ReturnType<typeof useResultsView>

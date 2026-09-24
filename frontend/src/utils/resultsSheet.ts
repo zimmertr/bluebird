@@ -5,8 +5,8 @@
 // a share of the column, so the map keeps its full height and the legend stack,
 // the timeline and the map's attribution measure from the sheet's top edge
 // rather than from the bottom of the screen. Every number the anchors need is
-// derived here rather than in `App.tsx`, because `App.tsx` renders the map,
-// which no Vitest project can stand up, and these are the numbers that decide
+// derived here rather than in `MapStage.tsx`, because `MapStage.tsx` renders the
+// map, which no Vitest project can stand up without a mock, and these are the numbers that decide
 // whether a legend is on screen at all.
 //
 // Desktop is mostly unaffected: the panel is docked below the map there,
@@ -126,7 +126,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * This is an ESTIMATE and is used only where an estimate is the right answer:
  * the resting reserve the panel clamp takes, and the camera padding, both of
  * which must be the same number before and after a drag. What the map's bottom
- * chrome rides is the sheet's MEASURED height (`App.tsx` observes the element),
+ * chrome rides is the sheet's MEASURED height (`useResultsLayout` observes the element),
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
@@ -264,7 +264,7 @@ export function sheetHeightPx({
  * How far the results cover the map, which is what every anchor below measures
  * from.
  *
- * `measuredPx` is the sheet element's own height, observed in `App.tsx`. It is
+ * `measuredPx` is the sheet element's own height, observed in `useResultsLayout`. It is
  * the answer wherever it exists, because the alternative — adding up a header,
  * its grips and the panel heights — is an estimate, and an estimate that is
  * 20px out puts the forecast player a different distance above the results in

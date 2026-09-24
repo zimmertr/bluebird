@@ -1,7 +1,8 @@
 // Serialize the full set of analysis inputs to/from the URL query string so a
 // Bluebird Forecast session can be copied out of the address bar and reopened later.
 // These functions are intentionally pure (no React, no DOM) so they're trivial
-// to unit-test — App.tsx and `useRunOnOpen` read location once at mount, and `useUrlSync` writes it.
+// to unit-test. App.tsx and `useRunOnOpen` read location once at mount, and
+// `useUrlSync` writes it.
 import { GeoPolygon, DiscoveryType, SortBy } from '../types'
 import { DEFAULT_FAMILY_KEY, MetricFamily, RANKED_FAMILIES } from '../metrics'
 import { Constraints, hasConstraints } from './constraints'
@@ -86,7 +87,8 @@ export interface ShareableState {
   pins: Place[]
 }
 
-// Control defaults — must mirror the initial useState values in App.tsx. Used to
+// Control defaults: they must mirror the initial useState values in the hooks
+// that hold the panel's state (`useRankingKnobs`, `useDestinationInputs`). Used to
 // decide whether the user has changed anything worth persisting to the URL.
 //
 // The ranking opens on the FIRST row of the Metrics table, so the selected

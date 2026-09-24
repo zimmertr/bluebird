@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react'
 import { createRef } from 'react'
 import { type ResultsViewInputs, useResultsView } from './useResultsView'
 import type { MapViewHandle } from '../components/MapView'
+import type { AnalyzeResponse } from '../types'
 import { analyzedSnapshot, fireWarning, forecastModel, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { ViewPrefs } from '../utils/viewPrefs'
@@ -40,6 +41,7 @@ const NO_MODELS: string[] = []
 const TIMES = [0, 3_600_000]
 const FIRE: ResultsViewInputs['fire'] = { status: 'ready', warnings: new Map([['k', fireWarning()]]), uncovered: new Set() }
 const REPORT = analyzedSnapshot()
+const RESPONSE: AnalyzeResponse = { results: [], total_queried: 0, total_matched: 0 }
 
 function inputs(over: Partial<ResultsViewInputs> = {}): ResultsViewInputs {
   return {
@@ -81,13 +83,13 @@ describe('useResultsView', () => {
   it('shows the table for a report or a pending destination', () => {
     const shown = (over: Partial<ResultsViewInputs>) => renderHook(() => useResultsView(inputs(over))).result.current.showTable
     expect(shown({ response: null, pending: NO_PENDING })).toBe(false)
-    expect(shown({ response: {}, pending: NO_PENDING })).toBe(true)
+    expect(shown({ response: RESPONSE, pending: NO_PENDING })).toBe(true)
     expect(shown({ response: null, pending: ONE_PENDING })).toBe(true)
-    expect(shown({ showResults: false, response: {} })).toBe(false)
+    expect(shown({ showResults: false, response: RESPONSE })).toBe(false)
   })
 
   it('feeds the layout its stored mode and whether the table shows', () => {
-    renderHook(() => useResultsView(inputs({ response: {} })))
+    renderHook(() => useResultsView(inputs({ response: RESPONSE })))
     expect(last(fed.layout)).toMatchObject({ modeChosen: 'table', showTable: true, isDesktop: true, analysisSeq: 1 })
   })
 
