@@ -2508,7 +2508,12 @@ export default function App() {
                           would. Each chip toggles its destination; the ×
                           is the same removal as the table row's and obeys the
                           same rules (searched places deregister, removals
-                          survive live knobs). Two chip rows at most —
+                          survive live knobs). The NAME keeps a fixed budget
+                          (max-w-44) and truncates; the model suffix beside it
+                          never truncates, so a compared chip is wider by its
+                          suffix. max-w-full keeps a chip inside the legend
+                          row, so on a phone a wide chip wraps to its own row
+                          and shrinks its name rather than overflowing. Two chip rows at most —
                           26px chips + the 6px gap = 58px — then it scrolls. */}
                       {resultsMode === 'chart' && legend.length > 0 && (
                         <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
@@ -2518,7 +2523,7 @@ export default function App() {
                               return (
                                 <span
                                   key={key}
-                                  className={`inline-flex max-w-56 items-center ${RADIUS.control} ${
+                                  className={`inline-flex max-w-full items-center ${RADIUS.control} ${
                                     plotted ? 'bg-slate-700' : 'bg-slate-800/50'
                                   }`}
                                 >
@@ -2533,7 +2538,7 @@ export default function App() {
                                       style={{ backgroundColor: rowChartColor(row) }}
                                     />
                                     <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
-                                      <span className="truncate">{row.name}</span>
+                                      <span className="min-w-0 max-w-44 truncate">{row.name}</span>
                                       {suffix && (
                                         <span className="flex-shrink-0 whitespace-pre">{suffix}</span>
                                       )}
