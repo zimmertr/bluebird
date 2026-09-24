@@ -1,2 +1,2 @@
 // Must trip: no wait under the results bar.
-export const Bar = () => <p />
+export const compareWait = null

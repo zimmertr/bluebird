@@ -56,7 +56,7 @@ export const APP = [
       // Vacuous if the effects stop being written as useEffect calls.
       // The floor is what App.tsx keeps. An effect that moves into a hook is
       // counted by that hook's own check, so the sum never drops.
-      { selector: EFFECT, min: 12, message: 'App.tsx runs its effects through useEffect.' },
+      { selector: EFFECT, min: 10, message: 'App.tsx runs its effects through useEffect.' },
       { selector: keyedOnlyOn('destinationNamed'), message: 'Open the results panel in an effect keyed on destinationNamed alone.' },
     ],
   },
@@ -603,7 +603,7 @@ export const APP = [
   },
   {
     name: 'app-compare-pace-bar',
-    files: ['src/App.tsx'],
+    files: ['src/hooks/useChartCompare.ts'],
     require: [
       {
         selector:
@@ -644,6 +644,7 @@ export const APP = [
       'src/hooks/useMapOverlays.ts',
       'src/hooks/useTimeline.ts',
       'src/hooks/useGridLayer.ts',
+      'src/hooks/useChartCompare.ts',
     ],
     ban: [
       { selector: `${named('localStorage')}, ${text('localStorage')}`, message: 'Read and write storage through viewPrefs.ts.' },
@@ -677,8 +678,10 @@ export const APP = [
     ],
   },
   {
-    name: 'app-pair-color-rows',
-    files: ['src/App.tsx'],
+    // The table rows' colours are the chart hook's now; App.tsx keeps the ban
+    // so a second lookup cannot come back there.
+    name: 'app-pair-color-index',
+    files: ['src/App.tsx', 'src/hooks/useChartCompare.ts'],
     ban: [
       {
         selector:
@@ -686,6 +689,34 @@ export const APP = [
         message: 'Read a pair colour through pairColor, not by indexing the map.',
       },
     ],
+  },
+  {
+    name: 'app-pair-color-rows',
+    files: ['src/hooks/useChartCompare.ts'],
     require: [{ selector: 'CallExpression[callee.name="pairColor"]', message: 'Colour the table rows through pairColor.' }],
+  },
+  {
+    // The pair-colour memory and the hidden-model prune are the two effects
+    // this hook took from App.tsx, each keyed on a joined VALUE rather than
+    // the array behind it. The row colour keys on `chart.colorFor`, never on
+    // the `chart` object, which is new every render and would hand the
+    // memoized table a new callback every render.
+    name: 'chart-compare-hook',
+    files: ['src/hooks/useChartCompare.ts'],
+    ban: [
+      {
+        selector: 'VariableDeclarator[id.name="rowChartColor"] CallExpression[callee.name="useCallback"] > ArrayExpression > Identifier[name="chart"]',
+        message: 'Key rowChartColor on chart.colorFor, not on the chart object.',
+      },
+    ],
+    require: [
+      { selector: EFFECT, count: 2, message: 'useChartCompare.ts runs its two effects through useEffect.' },
+      { selector: keyedOnlyOn('chartedPairsKey'), message: 'Remember pair colours in an effect keyed on chartedPairsKey alone.' },
+      { selector: keyedOnlyOn('selectedModelsKey'), message: 'Prune hidden models in an effect keyed on selectedModelsKey alone.' },
+      {
+        selector: 'VariableDeclarator[id.name="rowChartColor"] > CallExpression[callee.name="useCallback"]',
+        message: 'Hand the table rowChartColor as a useCallback.',
+      },
+    ],
   },
 ]

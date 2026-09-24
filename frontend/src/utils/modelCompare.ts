@@ -152,7 +152,7 @@ export interface CompareModel {
  * which is on the chart by being the report.
  *
  * Pure and shared, because two callers need the same answer from different
- * places: the hook, which fetches and draws them, and `App.tsx`, which
+ * places: the hook, which fetches and draws them, and `useChartCompare.ts`, which
  * allocates a colour per (destination, model) pair before the hook composes a
  * line. Two spellings of this filter would put a line on the chart with no
  * colour allocated, or a colour allocated for a line nobody draws.
@@ -171,6 +171,38 @@ export function drawnModelIds(
       fetchable.includes(id) &&
       published.some((m) => m.id === id),
   )
+}
+
+/**
+ * Every (model, destination) pair a chart draws, model by model in the order
+ * given, so the allocator hands out colours in the order the picker reads.
+ */
+export function pairKeysFor(
+  modelIds: readonly string[],
+  destinationKeys: readonly string[],
+): string[] {
+  return modelIds.flatMap((id) => destinationKeys.map((key) => pairKey(id, key)))
+}
+
+/**
+ * The colour of every charted pair: what the session allocator handed out,
+ * with the RANKING model's pairs seeded from their destinations' own colours.
+ *
+ * The seed is what makes a chart with nothing compared draw exactly as it
+ * always did: the ranking model's line for a destination wears the hue its
+ * marker and its table checkbox already wear. Without a ranking model (no
+ * report yet) the allocation stands as it is.
+ */
+export function seedPairColors(
+  allocated: Readonly<Record<string, string>>,
+  rankingModel: string | undefined,
+  destinations: readonly { key: string; color: string }[],
+): Record<string, string> {
+  const seeded: Record<string, string> = { ...allocated }
+  if (rankingModel) {
+    for (const d of destinations) seeded[pairKey(rankingModel, d.key)] = d.color
+  }
+  return seeded
 }
 
 /**
