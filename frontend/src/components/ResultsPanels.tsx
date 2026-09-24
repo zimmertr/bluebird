@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, lazy, useMemo } from 'react'
 import type { DestinationResult, SortBy } from '../types'
 import type { ChartCompare } from '../hooks/useChartCompare'
 import type { FireProximity } from '../hooks/useFireProximity'
@@ -109,6 +109,17 @@ export default function ResultsPanels({
     handleColumnMove,
   } = tableView
   const { detailSort, sortDetail, emptyReason } = report
+  // The comparison's controls, which the chart draws under its plot. An
+  // element is a prop like any other, and one built in the render would be a
+  // new one every time, redrawing the memoized chart on every popover, toggle
+  // and tick while a comparison is up. Kept on the three values it reads.
+  const compareControls = useMemo(
+    () =>
+      compare.active ? (
+        <ModelCompare compared={compare.shown} paceRemainingS={compare.paceRemainingS} />
+      ) : undefined,
+    [compare.active, compare.shown, compare.paceRemainingS],
+  )
   return (
     <>
       {resultsMode !== 'table' && (
@@ -143,14 +154,7 @@ export default function ResultsPanels({
                   }
                   extraLines={compare.lines}
                   modelEnds={compare.endLines}
-                  controls={
-                    compare.active ? (
-                      <ModelCompare
-                        compared={compare.shown}
-                        paceRemainingS={compare.paceRemainingS}
-                      />
-                    ) : undefined
-                  }
+                  controls={compareControls}
                 />
               </Suspense>
             </div>
