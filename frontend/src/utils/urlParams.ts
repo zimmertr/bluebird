@@ -466,8 +466,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
 // Which params carry each field of the shared state. Typed against every key
 // of `ShareableState`, so a new field fails the typecheck here until someone
 // decides which param carries it: a field with no param is a session that a
-// shared link silently drops, and nothing else would notice. The suite checks
-// that each key named here is a row of the table.
+// shared link silently drops, and nothing else would notice. Each list must be
+// non-empty, or `[]` would satisfy the type while claiming nothing. The
+// suite checks that each key named here is a row of the table.
 export const FIELD_PARAMS = {
   polygon: ['poly'],
   destinationTypes: ['type'],
@@ -497,7 +498,7 @@ export const FIELD_PARAMS = {
   showPlayer: ['player'],
   gridReachFrac: ['reach'],
   pins: ['pins'],
-} satisfies Record<keyof ShareableState, readonly string[]>
+} satisfies Record<keyof ShareableState, readonly [string, ...string[]]>
 
 /**
  * Read the forecast selection out of a query string, translating the three

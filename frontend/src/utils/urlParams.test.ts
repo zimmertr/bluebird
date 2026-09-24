@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { decodeState, encodeState, type ShareableState } from './urlState'
 import { FIELD_PARAMS, URL_PARAMS } from './urlParams'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
-import { NO_CONSTRAINTS } from './clientAnalyze'
+import { NO_CONSTRAINTS } from './constraints'
 import { place } from '../testSupport/fixtures'
 // What `decodeState` answered for each state and link below before the codec
 // was a table. A share link is text someone already sent, so this pins the
