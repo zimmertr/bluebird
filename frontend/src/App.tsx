@@ -2397,8 +2397,9 @@ export default function App() {
                           never truncates, so a compared chip is wider by its
                           suffix. max-w-full keeps a chip inside the legend
                           row, so on a phone a wide chip wraps to its own row
-                          and shrinks its name rather than overflowing. Two chip rows at most —
-                          26px chips + the 6px gap = 58px — then it scrolls. */}
+                          and shrinks its name rather than overflowing. Two
+                          chip rows at most — 26px chips + the 6px gap =
+                          58px — then it scrolls. */}
                       {resultsMode === 'chart' && legend.length > 0 && (
                         <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
                           <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
