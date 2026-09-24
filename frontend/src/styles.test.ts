@@ -285,6 +285,13 @@ describe('every component', () => {
     expect(indexCss).toMatch(/@source not ["']\.\/\*\*\/\*\.test\.tsx["']/)
   })
 
+  // The layout guides quote class names in prose, and there is one in src/
+  // and one in each directory under it. A pattern for src/ alone would let
+  // the others emit CSS no page draws.
+  it('keeps every layout guide out of Tailwind\'s reach', () => {
+    expect(indexCss).toMatch(/@source not ["']\.\/\*\*\/CLAUDE\.md["']/)
+  })
+
   // Derived from the scale rather than blocking a list of names, so a utility
   // nobody thought to forbid still fails. Deliberately written without quoting
   // any deleted class: v4 scans this file as raw text and would re-emit it.
