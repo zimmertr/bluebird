@@ -26,7 +26,7 @@ function watchRequests(page: Page): string[] {
   const seen: string[] = []
   page.on('request', (r) => {
     const url = new URL(r.url())
-    if (url.pathname.startsWith('/api/') || url.hostname.endsWith('open-meteo.com')) seen.push(r.url())
+    if (url.pathname.startsWith('/api/') || OPEN_METEO.includes(url.hostname)) seen.push(r.url())
   })
   return seen
 }

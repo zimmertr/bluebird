@@ -96,9 +96,10 @@ function destinations(demo: DemoData, body: DestinationsRequest): unknown {
 /** Answers for the pod's own API. */
 export function apiTransport(demo: DemoData, nowMs: number): Transport {
   return async (input, init) => {
-    const url = new URL(input, 'https://demo.invalid')
+    // `apiFetch` always sends a path on the page's own origin.
+    const [pathname] = input.split('?')
     await wait(API_DELAY_MS, init?.signal)
-    switch (url.pathname) {
+    switch (pathname) {
       case '/api/capabilities':
         return json(demo.capabilities)
       case '/api/config':
