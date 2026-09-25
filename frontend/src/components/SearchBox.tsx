@@ -160,6 +160,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   return (
     <div
       ref={rootRef}
+      data-tour="search"
       className={`relative ${MAP_COL_W} ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
     >
       {/* The box takes the height, not the input inside it: `MAP_ROW_H` is the

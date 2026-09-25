@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FAMILY_KEYS } from '../metrics'
 import { WILDFIRE_KEY } from './tableColumns'
-import { hasWelcomed, readViewPrefs, setWelcomed, writeViewPrefs } from './viewPrefs'
+import {
+  hasWelcomed,
+  readViewPrefs,
+  setViewPrefsReadOnly,
+  setWelcomed,
+  writeViewPrefs,
+} from './viewPrefs'
 
 const VIEW_KEY = 'bluebird_forecast_view'
 const WELCOME_KEY = 'bluebird_forecast_welcomed'
@@ -239,5 +245,23 @@ describe('a storage that will not answer', () => {
   it('yields the defaults on a stored value that is not JSON', () => {
     vi.stubGlobal('localStorage', fakeStorage({ [VIEW_KEY]: '{not json' }))
     expect(readViewPrefs().modeChosen).toBeNull()
+  })
+})
+
+// The tutorial's demo copy of the app (#536) reads the defaults and writes
+// nothing, so nothing it shows is taken for the reader's choice.
+describe('setViewPrefsReadOnly', () => {
+  afterEach(() => setViewPrefsReadOnly(false))
+
+  it('reads the defaults and writes nothing until it is turned off', () => {
+    const storage = withStored({ modeChosen: 'chart', columns5: ['aqi_avg'] })
+    setViewPrefsReadOnly(true)
+    expect(readViewPrefs()).toEqual({ modeChosen: null, columns: null, modelColumn: null, columnOrder: null })
+    writeViewPrefs({ modeChosen: 'table' })
+    setWelcomed()
+    expect(JSON.parse(storage.data.get(VIEW_KEY)!)).toEqual({ modeChosen: 'chart', columns5: ['aqi_avg'] })
+    expect(storage.data.has(WELCOME_KEY)).toBe(false)
+    setViewPrefsReadOnly(false)
+    expect(readViewPrefs().modeChosen).toBe('chart')
   })
 })

@@ -136,6 +136,8 @@ interface Props {
   // The wildfire proximity lookup failed for the displayed report, so no row
   // has been checked. A safety claim the UI must not make silently.
   wildfireCheckFailed?: boolean
+  // The footer's Tutorial link (#536).
+  onStartTour: () => void
 }
 
 export default function ControlPanel({
@@ -186,6 +188,7 @@ export default function ControlPanel({
   capabilitiesSettled,
   onAutoAnalyze,
   onRetry,
+  onStartTour,
   maxLimit,
   maxAreaKm2,
   archiveDays,
@@ -417,6 +420,8 @@ export default function ControlPanel({
         onAnalyze={onAnalyze}
         onRetry={onRetry}
         messages={messages}
+        onStartTour={onStartTour}
+        tourBlocked={loading || drawing}
       />
     </div>
   )

@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DestinationsRequest } from '../types'
-import { API_UNREACHABLE_MESSAGE, ApiUnreachable, apiFetch, apiJson, postDestinations } from './apiFetch'
+import {
+  API_UNREACHABLE_MESSAGE,
+  ApiUnreachable,
+  apiFetch,
+  apiJson,
+  postDestinations,
+  setApiTransport,
+} from './apiFetch'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -87,5 +94,23 @@ describe('postDestinations', () => {
       body: JSON.stringify(body),
       signal: controller.signal,
     })
+  })
+})
+
+// The tutorial (#536) answers its demo's API calls from recorded data.
+describe('setApiTransport', () => {
+  it('answers from the transport while one is set, and from the network after', async () => {
+    const network = stubFetch(async () => new Response('{}'))
+    const transport = vi.fn(async (_path: string) => new Response('{"demo":true}'))
+    setApiTransport(transport)
+    try {
+      expect(await apiJson('/api/capabilities')).toEqual({ demo: true })
+    } finally {
+      setApiTransport(null)
+    }
+    expect(transport).toHaveBeenCalledWith('/api/capabilities', undefined)
+    expect(network).not.toHaveBeenCalled()
+    await apiFetch('/api/capabilities')
+    expect(network).toHaveBeenCalledOnce()
   })
 })

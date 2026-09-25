@@ -177,6 +177,16 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | `LAYER.popover` | Popover opened from drawer (above drawer, below modal) |
 | `LAYER.modal` | Modal dialogs |
 
+**Tutorial**
+
+| Role | Purpose |
+|---|---|
+| `TOUR` | The tutorial's card and its parts, which `tour/runTour.ts` adds to the elements Driver.js builds: the dialog card, a heading and body line, the progress caption, the panel's inline button pair (secondary back, accent forward), and `ICON_BUTTON` for the close. Driver's own stylesheet sits under Tailwind's in `tour.css`, so these win wherever the two disagree |
+| `TOUR.sandbox` | The box the demo copy of the app stands in, over the whole screen while the reader's app is hidden under it. No z-index, so the demo's layers and its portaled panels stack against each other as the reader's do |
+| `TOUR.frame` | The clear box Driver lights, which the run keeps over the union of a step's targets, because one action spans a control and the panel it opens |
+| `TOUR.pointer`, `TOUR.pointerArrow`, `TOUR.pointerPress` | The drawn pointer that acts each step out: one layer above Driver's dim and under its card, a white arrow with a slate edge (the one pair that reads over both the dim and the map, and no hue, since the pointer is no control of the app's), and the white ring a press sends out. It glides only where motion is welcome |
+| `TOUR_DIM`, `TOUR_STAGE_PAD_PX`, `TOUR_STAGE_RADIUS_PX` | The dim around the lit target and the cut-out's clearance and corner, as numbers rather than classes because Driver draws the stage in SVG. The dim is the welcome dialog's backdrop, and the corner is `RADIUS.surface` |
+
 **Calendar days**
 
 | Role | Purpose |
@@ -381,19 +391,21 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 The welcome dialog is a `max-w-md` card on a `p-4` backdrop, so it is 448px wide at a desktop width and 328px wide on a 360px phone, where the copy wraps further. Measured 2026-09-16 in Chrome 153 on macOS, against the built bundle.
 
-- The card's content column is **821px** tall at 448px wide and **1029px** tall at 328px wide
-- The backdrop's padding and the card's border take 34px of the window, so a card that does not scroll needs **855px** of viewport height at a desktop width and **1063px** at a phone width
+- The card's content column is **857px** tall at 448px wide and **1065px** tall at 328px wide. That is the 821 and 1029 measured above plus the **36px** the `Take the tutorial` button added (#536), measured 2026-09-24 in Playwright's Chromium on Linux by removing the button from the rendered card at both widths; the difference, not the total, is what carries between the two browsers' fonts
+- The backdrop's padding and the card's border take 34px of the window, so a card that does not scroll needs **891px** of viewport height at a desktop width and **1099px** at a phone width
 - The dialog has neither: a 768px-tall desktop viewport leaves it 734px and a 360 x 640 phone leaves it 606px, so it scrolls at both
 
 **There is no no-scroll budget to spend.** `max-h-full overflow-y-auto` is what the card wears instead, so the dialog is read by scrolling rather than at a glance. That is why the third step covers the whole Metrics table in one line rather than a step per question: another step lengthens a card the reader already scrolls. `WelcomeModal.tsx` points here for these numbers.
 
-**Re-measure condition:** a new step, a change to the `PROSE` sizes the card is set in, or copy that adds a line to any step. The binding case is the phone: the desktop column is 208px shorter.
+**Re-measure condition:** a new step, a new button, a change to the `PROSE` sizes the card is set in, or copy that adds a line to any step. The binding case is the phone: the desktop column is 208px shorter.
 
 ## Tailwind v4 facts
 
 **Color resolution:** competing color utilities resolve by their order in the generated stylesheet, not their order in the class list. So a role's color cannot be overridden at a call site — the role always wins. This is why every hue is centralized: a component cannot brighten or dim a color it was handed.
 
 **Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The `content` list in `tailwind.config.js` is not the whole scanned set: v4 auto-detects sources beside it, and `frontend/tools/` was being scanned until `@source not "../tools"` went into `src/index.css`. Measured on 2026-09-15: without that line the ESLint fixtures emitted five real utilities into the text-page bundle, and a stray `.lowercase` had already been leaking from `tools/` before they existed. That exclusion is what lets the ESLint rules spell a class where `styles.test.ts` may not, and `styles.test.ts` pins the line.
+
+**Vendor stylesheets go in a layer:** utilities live in `@layer utilities`, and unlayered CSS outranks every layer whatever its specificity. So MapLibre's stylesheet (`map.css`) and Driver.js's (`tour.css`) are each imported inside `layer(base)`, which is what lets a role's utilities restyle what those libraries draw. A vendor rule that must beat a vendor rule, like hiding Driver's arrow, is written unlayered in the same file.
 
 ## Copy rules
 

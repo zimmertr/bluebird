@@ -48,6 +48,8 @@ export interface UrlSyncInputs {
   tableSort: ShareableState['tableSort']
   /** The camera the link opened on, held until the map reports its own. */
   restoredView: CameraView | null
+  /** The tutorial's copy of the app (#536), whose state is no link's to carry. */
+  sandboxed?: boolean
 }
 
 export interface UrlSync {
@@ -94,6 +96,7 @@ export function useUrlSync({
   removedKeys,
   tableSort,
   restoredView,
+  sandboxed = false,
 }: UrlSyncInputs): UrlSync {
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
@@ -117,7 +120,10 @@ export function useUrlSync({
   const latestRef = useRef<{ state: Omit<ShareableState, 'view'>; defaultModel: string } | null>(null)
   const sync = useCallback(() => {
     const latest = latestRef.current
-    if (!latest) return
+    // The tutorial's copy writes nothing, so the address bar keeps the
+    // reader's own link however far the demo goes, and the flushes find
+    // nothing queued.
+    if (!latest || sandboxed) return
     const qs = encodeState({ ...latest.state, view: viewRef.current }, latest.defaultModel, {
       cameraMoved: cameraMovedRef.current,
     })
@@ -130,7 +136,7 @@ export function useUrlSync({
       return
     }
     writeUrl(qs ? `?${qs}` : window.location.pathname)
-  }, [writeUrl])
+  }, [writeUrl, sandboxed])
 
   const reportView = useCallback(
     (view: CameraView, readerMove: boolean) => {

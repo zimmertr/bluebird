@@ -29,6 +29,7 @@ function props(over: Partial<Props> = {}): Props {
   const noop = () => {}
   return {
     drawing: false,
+    onStartTour: noop,
     onStartDrawing: noop,
     onFinishDrawing: noop,
     drawPointCount: 0,

@@ -1,0 +1,15 @@
+/* Driver.js, in one file imported only by tour/runTour.ts, which loads when a
+   reader starts the tutorial (#536), so no one who never opens it downloads it.
+
+   The layer(base) wrapping is load-bearing, for the reason map.css gives:
+   unlayered vendor CSS outranks every Tailwind utility, so without it the
+   card's own white background and padding would beat the TOUR classes in
+   styles.ts. Import the vendor stylesheet only through this file. */
+@import "driver.js/dist/driver.css" layer(base);
+
+/* The card's arrow, hidden. A class cannot do it: Driver rewrites the
+   arrow's class list every time it places the card. Why it is hidden rather
+   than recoloured is the TOUR comment in styles.ts. */
+.driver-popover-arrow {
+  display: none;
+}

@@ -86,6 +86,8 @@ interface AppDrawerProps {
   results: DestinationResult[]
   /** Where the wildfire check stands, for the panel's note when it failed. */
   fireStatus: FireProximityStatus
+  /** The footer's Tutorial link (#536). */
+  onStartTour: () => void
 }
 
 /**
@@ -117,6 +119,7 @@ export default function AppDrawer({
   response,
   results,
   fireStatus,
+  onStartTour,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
   const {
@@ -165,7 +168,9 @@ export default function AppDrawer({
       {/* Controls panel — docked on desktop when open, off-canvas otherwise.
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint. */}
+      {/* `data-drawer` is how the tutorial finds this to wait out its slide. */}
       <aside
+        data-drawer
         className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${SURFACE_DIVIDER} ${
           open
             ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
@@ -244,6 +249,7 @@ export default function AppDrawer({
           capabilitiesSettled={capabilitiesSettled}
           onAutoAnalyze={onAutoAnalyze}
           onRetry={onRetry}
+          onStartTour={onStartTour}
           resultCount={response ? results.length : undefined}
           // What the current bounds admit, not what the analysis fetched:
           // a bound applies live, so it has to move the "of M" or the count

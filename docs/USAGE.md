@@ -2,6 +2,14 @@
 
 Bluebird Forecast is not a recommendation engine. It does not decide what weather is "good" or "bad." It attaches objective forecast data to geographic features and lets you sort the results however you like. A typical question it answers: it's Thursday, the weekend looks wet across Washington, so which peaks in the North Cascades see the least total precipitation from Saturday morning through Sunday evening?
 
+## Tutorial
+
+The app can walk you through itself. Start the tutorial from **Take the tutorial** in the welcome dialog, or at any time from **Tutorial** in the panel's footer, beside Privacy and Terms. It never starts on its own.
+
+It shows each part of the app by using it, one step at a time, with a card that explains the step and a pointer that does the pressing. In the North Cascades it searches for Glacier Peak and picks it from the results menu, zooms in and clicks Dome Peak on the map, draws a small polygon, pastes two coordinates, switches the model to NOAA HRRR, picks tomorrow from 6 AM to 6 PM, ranks on air quality, and presses Analyze. Then it turns on the wildfire and smoke layers, shows that the peaks far from the fire rank first, opens the top row's forecast on the map, and points at the results table's controls, the legend, the forecast player and the Tutorial link. You watch: **Next** and **Previous** (or the arrow keys) move between steps, a step moves on at once if you press Next before it finishes, and the **X** at the top right of the card (or Escape) ends it at once.
+
+The tutorial runs on a copy of the app with example data, and your own app waits hidden underneath it. The weather is a recorded forecast moved onto tomorrow's hours; the fire, its smoke and the air quality around them are made up. Nothing is fetched, so the tutorial spends none of your Open-Meteo quota, and nothing is saved, so when it ends your polygon, results, address bar and map view are exactly as you left them. The Tutorial link waits while an analysis is running or a polygon is being drawn.
+
 ## Destinations
 
 One analysis ranks a single set of destinations, which you define using one or all of the following methods. The first two live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.

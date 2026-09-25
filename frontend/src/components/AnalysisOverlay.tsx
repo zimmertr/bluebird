@@ -62,7 +62,7 @@ export default function AnalysisOverlay({
   if (!overlay.visible) return null
   return (
     <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>
-      <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
+      <div data-tour="progress" className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
         <img
           src={logoUrl}
           width={256}

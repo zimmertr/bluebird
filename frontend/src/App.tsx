@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -29,6 +30,7 @@ import { useFireProximity } from './hooks/useFireProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
+import { type Sandbox, useTour } from './hooks/useTour'
 import {
   LAYER,
   SURFACE_PAGE,
@@ -47,7 +49,7 @@ import {
   setWelcomed,
 } from './utils/viewPrefs'
 
-export default function App() {
+export default function App({ sandbox }: { sandbox?: Sandbox }) {
   const mapRef = useRef<MapViewHandle>(null)
 
   // Live limits from /api/capabilities: the analysis cap gates the client-side
@@ -59,7 +61,9 @@ export default function App() {
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
   // the initial render, not a post-mount setState.
-  const restoredRef = useRef(decodeState(window.location.search))
+  // The tutorial's copy of the app (#536) starts from the step it stands at
+  // instead, since the address bar is the reader's.
+  const restoredRef = useRef(sandbox ? sandbox.initial : decodeState(window.location.search))
   const restored = restoredRef.current
   // The camera a link names: stable for the session, like `restored`.
   const restoredView = restored?.view ?? null
@@ -105,7 +109,7 @@ export default function App() {
   // `viewPrefs.ts` exists to stop. The results layout takes the mode; the
   // table takes the rest.
   const storedView = useMemo(readViewPrefs, [])
-  const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
+  const [showWelcome, setShowWelcome] = useState(() => !sandbox && !hasWelcomed())
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -221,7 +225,7 @@ export default function App() {
 
   // What the displayed report is rendered under, and whether it is one hour.
   const { view, pointSample } = reportView(analyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
-  const preview = usePreview()
+  const preview = usePreview(!sandbox)
 
   const report = usePresentedReport({
     universe,
@@ -272,6 +276,7 @@ export default function App() {
     removedKeys,
     tableSort,
     restoredView,
+    sandboxed: sandbox !== undefined,
   })
   const { writeUrl } = urlSync
 
@@ -336,6 +341,7 @@ export default function App() {
     settled: caps.settled,
     flushUrl: writeUrl.flush,
     analyze: handleAnalyze,
+    initial: sandbox?.autoAnalyze,
   })
 
   // On mobile the controls are an off-canvas drawer, and it closes when an
@@ -384,11 +390,52 @@ export default function App() {
   })
   const { layout, tableView } = resultsView
 
+  // The tutorial (#536): started from the welcome dialog or the panel's footer,
+  // never by itself. It hides this app and acts out its steps on a copy of it,
+  // so nothing the demo does can reach the reader's state. The welcome dialog
+  // closes first, since it belongs to the app the tutorial hides.
+  const tour = useTour()
+  const { start: startTour, playbackRef } = tour
+  const startTutorial = useCallback(() => {
+    if (sandbox) return
+    if (showWelcome) {
+      setWelcomed()
+      setShowWelcome(false)
+    }
+    void startTour()
+  }, [sandbox, showWelcome, startTour])
+  const { playing, setPlaying } = timeline
+  const { resultsCollapsed, toggleCollapsed } = layout
+  // Read when a run moves, rather than written during the render.
+  useLayoutEffect(() => {
+    playbackRef.current = { playing, setPlaying }
+  }, [playbackRef, playing, setPlaying])
+  useLayoutEffect(() => {
+    if (!sandbox) return
+    sandbox.handle.current = {
+      isDesktop,
+      sidebarOpen,
+      setSidebarOpen,
+      setShowResults,
+      resultsCollapsed,
+      toggleCollapsed,
+      map: mapRef.current,
+      settled: capsApplied,
+      loading,
+      analysisSeq,
+      results,
+      addPlace,
+    }
+  }, [sandbox, isDesktop, sidebarOpen, resultsCollapsed, toggleCollapsed, capsApplied, loading, analysisSeq, results, addPlace])
+
   return (
-    <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
+    <div
+      inert={tour.active}
+      className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}${tour.active ? ' invisible' : ''}`}
+    >
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
+      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} onStartTour={startTutorial} />}
       {layout.isDragging && (
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
@@ -416,6 +463,7 @@ export default function App() {
         response={response}
         results={results}
         fireStatus={fire.status}
+        onStartTour={startTutorial}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand

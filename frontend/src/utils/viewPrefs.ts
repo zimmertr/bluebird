@@ -19,6 +19,16 @@ import { WILDFIRE_KEY } from './tableColumns'
 const VIEW_KEY = 'bluebird_forecast_view'
 const WELCOME_KEY = 'bluebird_forecast_welcomed'
 
+// Set while the tutorial runs (#536). Its demo copy of the app reads the
+// defaults and writes nothing, so a column it shows or a layout it picks is
+// never taken for one the reader chose.
+let readOnly = false
+
+/** Read defaults and write nothing until this is set back to false. */
+export function setViewPrefsReadOnly(on: boolean): void {
+  readOnly = on
+}
+
 /** Which views the results area shows: chart-only, table-only, or both. */
 export type ResultsMode = 'chart' | 'table' | 'both'
 
@@ -55,7 +65,7 @@ export interface ViewPrefs {
 }
 
 function readStored(): StoredView {
-  if (typeof localStorage === 'undefined') return {}
+  if (readOnly || typeof localStorage === 'undefined') return {}
   try {
     return (JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') ?? {}) as StoredView
   } catch {
@@ -134,7 +144,7 @@ export function readViewPrefs(): ViewPrefs {
  * is.
  */
 export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
-  if (typeof localStorage === 'undefined') return
+  if (readOnly || typeof localStorage === 'undefined') return
   try {
     const stored = readStored()
     if ('modeChosen' in patch) stored.modeChosen = patch.modeChosen ?? undefined
@@ -172,7 +182,7 @@ export function hasWelcomed(): boolean {
 
 /** Record the dismissal, so the modal opens once per browser rather than per visit. */
 export function setWelcomed(): void {
-  if (typeof localStorage === 'undefined') return
+  if (readOnly || typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(WELCOME_KEY, '1')
   } catch {

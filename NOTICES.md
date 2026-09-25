@@ -76,6 +76,7 @@ Frontend (npm), bundled into the served JavaScript:
 | maplibre-gl | BSD-3-Clause |
 | recharts | MIT |
 | lz-string | MIT |
+| driver.js | MIT |
 
 The stylesheet is generated at build time by [tailwindcss](https://www.npmjs.com/package/tailwindcss) (MIT), whose preflight rules ship in it.
 

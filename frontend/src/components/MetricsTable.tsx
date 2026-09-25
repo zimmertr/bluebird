@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useId } from 'react'
 import { SortBy } from '../types'
 import {
   ACCENT,
@@ -237,6 +237,10 @@ export default function MetricsTable({
   // bound, and leaving it out meant the one control the button skipped was the
   // one sitting right above it.
   const filtersActive = limit !== DEFAULT_LIMIT || hasConstraints(constraints)
+  // Generated rather than spelled, for the reason ForecastCalendar gives. The
+  // radios' group name is one of them: two groups sharing a name are one group
+  // in a document, and a press in either would clear the other.
+  const uid = useId()
 
   // Metrics — the ranking and the bounds in one table (#341). One row
   // per metric: its radio, its aggregate dropdown, and its floor and
@@ -257,7 +261,7 @@ export default function MetricsTable({
   // then METRIC_HEAD_GAP above the two box headings, then the table
   // of the five bounds the ranking can use.
   return (
-    <section>
+    <section data-tour="metrics">
       <h2 className={`${TEXT.section} mb-2.5`}>
         Metrics
       </h2>
@@ -270,10 +274,10 @@ export default function MetricsTable({
             section shares their two edges. That is why it wears
             SEGMENT_FILL rather than SEGMENT, whose CONTROL_W would hang
             past the boxes on the left. */}
-        <span id="rank-by" className={`${TEXT.control} col-span-2 truncate`}>
+        <span id={`${uid}-rank-by`} className={`${TEXT.control} col-span-2 truncate`}>
           Rank by
         </span>
-        <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby="rank-by">
+        <div className={`${SEGMENT_FILL} col-span-2`} role="group" aria-labelledby={`${uid}-rank-by`}>
           {[
             { desc: false, label: 'Lowest' },
             { desc: true, label: 'Highest' },
@@ -304,14 +308,14 @@ export default function MetricsTable({
             bound: this knob always has a value, and the row count in the
             table's header says what it is doing. */}
         <label
-          htmlFor="max-results"
+          htmlFor={`${uid}-max-results`}
           className={`${TEXT.control} col-span-2 truncate`}
           title={LIMIT_NOTE}
         >
           {AGGREGATE.maximum} results
         </label>
         <input
-          id="max-results"
+          id={`${uid}-max-results`}
           type="number"
           min={1}
           max={maxLimit}
@@ -356,7 +360,8 @@ export default function MetricsTable({
               >
                 <input
                   type="radio"
-                  name="sort_metric"
+                  name={`${uid}-sort-metric`}
+                  value={family}
                   checked={isActive}
                   onChange={() => setSortBy(rowKey)}
                   className={CHOICE_INPUT}
@@ -398,7 +403,7 @@ export default function MetricsTable({
               {EDGES.map(([edge, aggregate], i) => (
                 <input
                   key={edge}
-                  id={`${bounds.id}-${edge}`}
+                  id={`${uid}-${bounds.id}-${edge}`}
                   title={bounds.note}
                   type="number"
                   step={bounds.step}

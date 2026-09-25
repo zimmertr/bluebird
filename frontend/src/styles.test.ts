@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  TOUR,
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
@@ -1969,5 +1970,32 @@ describe('the selection chip', () => {
     expect(CHIP.label).not.toMatch(/\bp[xr]-/)
     expect(CHIP.rest).toContain('pr-1')
     expect(CHIP.active).toContain('pr-1')
+  })
+})
+
+// The tutorial's pointer (#536) has to be seen crossing Driver's dim, whose
+// z-index is 10000 in Driver's own stylesheet, and stay under its card at
+// 1000000000. It carries no hue: it is not a control of the app's.
+describe('the tutorial pointer', () => {
+  const z = (classes: string) => Number(/\bz-\[(\d+)\]/.exec(classes)?.[1])
+
+  it('stands between Driver\'s dim and its card', () => {
+    expect(z(TOUR.pointer)).toBeGreaterThan(10_000)
+    expect(z(TOUR.pointer)).toBeLessThan(1_000_000_000)
+  })
+
+  it('never takes a press, so the demo under it gets none from the reader either', () => {
+    expect(TOUR.pointer).toContain('pointer-events-none')
+    expect(TOUR.frame).toContain('pointer-events-none')
+  })
+
+  it('is drawn in white and slate alone', () => {
+    const hues = /\b(?:fill|stroke|border|bg)-(?!white\b|slate-)[a-z]+/
+    expect(TOUR.pointerArrow).not.toMatch(hues)
+    expect(TOUR.pointerPress).not.toMatch(hues)
+  })
+
+  it('lets the demo copy stack as the reader\'s app does, with no layer of its own', () => {
+    expect(TOUR.sandbox).not.toMatch(/\bz-/)
   })
 })

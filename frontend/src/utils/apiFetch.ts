@@ -51,6 +51,20 @@ function isAbort(e: unknown): boolean {
   return (e as { name?: string } | null)?.name === 'AbortError'
 }
 
+/** Anything that answers a request the way `fetch` does. */
+export type Transport = (input: string, init?: RequestInit) => Promise<Response>
+
+// Null means the network. The tutorial (#536) sets its recorded answers here
+// for as long as it runs, so the demo it acts out spends nothing and asks
+// nothing of anyone; this file and openMeteo.ts are the only two doors a
+// request leaves by, which is what makes one setter per door enough.
+let transport: Transport | null = null
+
+/** Answer every API request from `next` until it is set back to null. */
+export function setApiTransport(next: Transport | null): void {
+  transport = next
+}
+
 /**
  * `fetch`, with an unreachable API translated and everything else untouched.
  *
@@ -61,7 +75,7 @@ function isAbort(e: unknown): boolean {
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   try {
-    return await fetch(path, init)
+    return await (transport ? transport(path, init) : fetch(path, init))
   } catch (e) {
     if (isAbort(e)) throw e
     throw new ApiUnreachable()

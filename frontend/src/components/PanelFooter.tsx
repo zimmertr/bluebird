@@ -102,6 +102,11 @@ interface Props {
   // Every message the panel has to say, in order (`utils/panelMessages.ts`).
   // This file decides only how they are boxed and which are dismissed.
   messages: readonly FooterMessage[]
+  // The Tutorial link (#536), which cannot start while an analysis runs or a
+  // ring is being drawn: the tutorial stands the screen up step by step, and
+  // either one would move it underneath.
+  onStartTour: () => void
+  tourBlocked: boolean
 }
 
 /**
@@ -109,7 +114,7 @@ interface Props {
  * the two document links. The block is here and nowhere else, so a message
  * about any section of the panel still reads in the one place the rule puts it.
  */
-export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetry, messages }: Props) {
+export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetry, messages, onStartTour, tourBlocked }: Props) {
   // The dismissal ledger (#253): every footer message is dismissable, each
   // alone. `pruneDismissals` retires a dismissal the moment its key stops
   // being active, which is what makes an identical error return after the
@@ -131,6 +136,7 @@ export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetr
   return (
     <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`}>
       <button
+        data-tour="analyze"
         onClick={onAnalyze}
         disabled={!analyzeEnabled}
         className={`${BUTTON_PRIMARY} ${DISABLED}`}
@@ -162,8 +168,19 @@ export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetr
           privacy copy used to open a dialog here, which meant it had no URL
           and the Terms link next to it pointed at the privacy page anyway.
           Both open in a new tab so reading either never costs you a drawn
-          polygon and its results. */}
+          polygon and its results. Tutorial is a button in the same row: it
+          opens nothing, it starts the tutorial over the page as it stands. */}
       <p className={`${TEXT.caption} text-center`}>
+        <button
+          type="button"
+          data-tour="tutorial"
+          onClick={onStartTour}
+          disabled={tourBlocked}
+          className={`${LINK} ${DISABLED}`}
+        >
+          Tutorial
+        </button>
+        {' · '}
         <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
           Privacy
         </a>

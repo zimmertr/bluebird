@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { analysisFailure } from '../utils/analysisFailure'
 import type { ForecastModelOption } from './useCapabilities'
 import { usePacedFetch } from './usePacedFetch'
@@ -28,6 +28,10 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   // sleep against the same budget (#394).
   const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
   const abortRef = useRef<AbortController | null>(null)
+  // A run outlives nothing it was started for. The reader's app never
+  // unmounts, but the tutorial's demo copy does (#536), and a run left going
+  // would keep fetching after the demo's recorded answers are gone.
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   // Abort the in-flight request. The fetch loops swallow AbortError so no
   // error banner shows: the user chose to stop.

@@ -129,7 +129,7 @@ export default function ResultsBar({
               144px column (SEGMENT_FLUID exists because this shipped
               clipped). */}
           {showResults && (
-            <div className={SEGMENT_FLUID}>
+            <div data-tour="results-mode" className={SEGMENT_FLUID}>
               <button
                 onClick={() => chooseResultsMode('table')}
                 className={`${SEGMENT_ITEM} ${resultsMode === 'table' ? ACCENT.fill : SEGMENT_IDLE}`}
@@ -179,6 +179,7 @@ export default function ResultsBar({
           {showTable && (
             <button
               ref={columnsButtonRef}
+              data-tour="columns"
               onClick={onToggleColumns}
               aria-label="Choose which columns to display"
               className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
@@ -219,6 +220,7 @@ export default function ResultsBar({
           )}
           {canDownload && (
             <button
+              data-tour="download"
               onClick={onDownloadCsv}
               aria-label="Download these results as a CSV file"
               className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}

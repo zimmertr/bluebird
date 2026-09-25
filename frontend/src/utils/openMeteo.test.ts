@@ -8,6 +8,9 @@ import {
   fetchSpans,
   fetchWeather,
   resetOpenMeteoState,
+  enterScratch,
+  leaveScratch,
+  setOpenMeteoTransport,
 } from './openMeteo'
 import { CLOUD_VARIABLES, weatherMetrics, weatherSeries } from './openMeteoAggregate'
 import {
@@ -1190,5 +1193,51 @@ describe('fetchCloud', () => {
     // for the weather it rides beside.
     const three = 3 * 24 * 3600 * 1000
     expect(callWeight(200, 0, three, CLOUD_VARIABLES.length, 1)).toBeCloseTo(240, 6)
+  })
+})
+
+// The tutorial (#536) answers its demo from recorded data and must neither
+// read nor write the reader's forecasts or quota.
+describe('setOpenMeteoTransport', () => {
+  it('answers from the transport while one is set, and from the network after', async () => {
+    const network = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', network)
+    const transport = vi.fn(async (_url: string) => new Response(JSON.stringify(hourlyPayload())))
+    setOpenMeteoTransport(transport)
+    try {
+      await fetchWeather([{ latitude: 1, longitude: 1 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+    } finally {
+      setOpenMeteoTransport(null)
+    }
+    expect(transport).toHaveBeenCalledOnce()
+    expect(transport.mock.calls[0][0]).toContain('latitude=1')
+    expect(network).not.toHaveBeenCalled()
+    await fetchWeather([{ latitude: 2, longitude: 2 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(network).toHaveBeenCalledOnce()
+  })
+})
+
+describe('enterScratch', () => {
+  it('answers from an empty cache until leaveScratch, which drops it and puts the reader\'s back', async () => {
+    const network = vi.fn(async () => jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', network)
+    const reader = [{ latitude: 3, longitude: 3 }]
+    const demo = [{ latitude: 4, longitude: 4 }]
+    await fetchWeather(reader, WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(network).toHaveBeenCalledTimes(1)
+    enterScratch()
+    try {
+      // The reader's forecast is not the demo's to reuse.
+      await fetchWeather(reader, WINDOW.startMs, WINDOW.endMs, OPTS)
+      await fetchWeather(demo, WINDOW.startMs, WINDOW.endMs, OPTS)
+      expect(network).toHaveBeenCalledTimes(3)
+    } finally {
+      leaveScratch()
+    }
+    // The reader's is still held, and the demo's went with the scratch.
+    await fetchWeather(reader, WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(network).toHaveBeenCalledTimes(3)
+    await fetchWeather(demo, WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(network).toHaveBeenCalledTimes(4)
   })
 })
