@@ -181,11 +181,16 @@ One set of roles for both surfaces that reorder columns, the table header and th
 
 | Role | Purpose |
 |---|---|
-| `TOUR` | The tutorial's card and its parts, which `tour/runTour.ts` adds to the elements Driver.js builds: the dialog card, a heading and body line, the progress caption, the panel's inline button pair (secondary back, accent forward), and `ICON_BUTTON` for the close. Driver's own stylesheet sits under Tailwind's in `tour.css`, so these win wherever the two disagree |
+| `TOUR` | The tutorial's own card, dim and pointer (`tour/Card.tsx`, `tour/Dim.tsx`, `tour/pointer.ts`), all drawn by the app: no tour library. They stack over every layer the demo can open, `LAYER.modal` included, in the order they are read: the dim, the pointer, the card |
+| `TOUR.card`, `TOUR.cardTop`, `TOUR.cardBottom` | The welcome dialog's card, since the tutorial starts from it, the docked panel's width on a desktop. On a phone it spans one edge, square where it meets the screen and with the safe area added on that edge |
+| `TOUR.rail`, `TOUR.bar`, `TOUR.barFill` | One short bar per section along the card's top, filled with `ACCENT.mark` as far as the reader has come, on the pill radius |
+| `TOUR.head`, `TOUR.section`, `TOUR.close` | The section's title as a small caption above the step (it says where; the text says what) and `ICON_BUTTON` for the close |
+| `TOUR.text`, `TOUR.textLine` | The step's text, in `PROSE.body`. Every step's text is laid in one grid cell with only the current one visible, so the card is the same height at every step and never moves |
+| `TOUR.foot`, `TOUR.count`, `TOUR.previous`, `TOUR.next` | The count inside the section, then the panel's inline button pair: the secondary fill back, the accent forward |
+| `TOUR.dim`, `TOUR.dimFill`, `TOUR.hole` | The dim, which also takes every press so the reader watches the demo, and the ring round each lit area in the accent, since the lit area is where something is about to be pressed |
 | `TOUR.sandbox` | The box the demo copy of the app stands in, over the whole screen while the reader's app is hidden under it. No z-index, so the demo's layers and its portaled panels stack against each other as the reader's do |
-| `TOUR.frame` | The clear box Driver lights, which the run keeps over the union of a step's targets, because one action spans a control and the panel it opens |
-| `TOUR.pointer`, `TOUR.pointerArrow`, `TOUR.pointerPress` | The drawn pointer that acts each step out: one layer above Driver's dim and under its card, a white arrow with a slate edge (the one pair that reads over both the dim and the map, and no hue, since the pointer is no control of the app's), and the white ring a press sends out. It glides only where motion is welcome |
-| `TOUR_DIM`, `TOUR_STAGE_PAD_PX`, `TOUR_STAGE_RADIUS_PX` | The dim around the lit target and the cut-out's clearance and corner, as numbers rather than classes because Driver draws the stage in SVG. The dim is the welcome dialog's backdrop, and the corner is `RADIUS.surface` |
+| `TOUR.pointer`, `TOUR.pointerArrow`, `TOUR.pointerPress` | The drawn pointer that acts each step out: a white arrow with a slate edge (the one pair that reads over both the dim and the map, and no hue, since the pointer is no control of the app's), and the white ring a press sends out. It glides only where motion is welcome |
+| `TOUR_DIM`, `TOUR_HOLE_PAD_PX`, `TOUR_HOLE_RADIUS_PX`, `TOUR_HOLE_RING_PX` | The dim and the lit areas as numbers, because they are drawn in SVG: black at half (lighter than the welcome dialog's backdrop, because a step is often about what stands around its lit area), 6px of clearance, `RADIUS.surface`'s corner, and `FOCUS_RING`'s 2px |
 
 **Calendar days**
 
@@ -405,7 +410,7 @@ The welcome dialog is a `max-w-md` card on a `p-4` backdrop, so it is 448px wide
 
 **Raw text scanning:** the build step scans source files as raw text to find class names, so a class quoted in a comment or a test emits its CSS. For example, writing `// don't use rounded-xl` in a component file would add `rounded-xl` to the bundle even though it's commented out. The lints and role definitions avoid this by building patterns that don't form the literal class name — e.g., using regex alternation instead of quoting the exact string. The `content` list in `tailwind.config.js` is not the whole scanned set: v4 auto-detects sources beside it, and `frontend/tools/` was being scanned until `@source not "../tools"` went into `src/index.css`. Measured on 2026-09-15: without that line the ESLint fixtures emitted five real utilities into the text-page bundle, and a stray `.lowercase` had already been leaking from `tools/` before they existed. That exclusion is what lets the ESLint rules spell a class where `styles.test.ts` may not, and `styles.test.ts` pins the line.
 
-**Vendor stylesheets go in a layer:** utilities live in `@layer utilities`, and unlayered CSS outranks every layer whatever its specificity. So MapLibre's stylesheet (`map.css`) and Driver.js's (`tour.css`) are each imported inside `layer(base)`, which is what lets a role's utilities restyle what those libraries draw. A vendor rule that must beat a vendor rule, like hiding Driver's arrow, is written unlayered in the same file.
+**Vendor stylesheets go in a layer:** utilities live in `@layer utilities`, and unlayered CSS outranks every layer whatever its specificity. So MapLibre's stylesheet (`map.css`) is imported inside `layer(base)`, which is what lets a role's utilities restyle what the library draws. A vendor rule that must beat a vendor rule is written unlayered in the same file.
 
 ## Copy rules
 

@@ -156,6 +156,7 @@ The text tests that stay, and why:
 | `utils/openMeteoAggregate.test.ts` | `openMeteoAggregate.ts`, `aggregation.py` | The TypeScript port against the Python it mirrors |
 | `utils/resultsSheet.test.ts` | `hooks/useResultsLayout.ts`, `styles.ts` | The `LEGEND_TOP` classes and the panel default against the numbers the arithmetic uses |
 | `utils/basemapPoi.test.ts` | `map/basemap.ts` | The clickable layers against the ids `POI_LAYERS` exports, and the line-placed lake's label offset against the peak's: a comparison with a module's own constants, and a measurement |
+| `tour/actions.test.ts` | `tour/actions.ts`, `tour/act.ts`, every component | No tutorial action finds a control by its words: kept by the maintainer's decision (2026-09-29). Each marker it presses against the one component that wears it |
 
 ### The cold-load budgets
 
