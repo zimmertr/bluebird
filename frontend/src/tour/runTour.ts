@@ -11,8 +11,8 @@ import type { CameraView } from '../utils/mapView'
 import { enterScratch, leaveScratch, setOpenMeteoTransport } from '../utils/openMeteo'
 import { TOUR_STEPS, phoneEdge, stepLayout, tourSelector } from '../utils/tourSteps'
 import { setViewPrefsReadOnly } from '../utils/viewPrefs'
-import { PACE, Stale, type Stage, type Target, boxOf, find, frame, reveal, scrollParent, sleep, until } from './act'
-import { ACTIONS, FRAMES, LIGHTS, REPLAYS } from './actions'
+import { PACE, Stale, type Stage, type Target, boxOf, check, find, frame, reveal, scrollParent, sleep, until } from './act'
+import { ACTIONS, FRAMES, LIGHTS, REPLAYS, RESULTS } from './actions'
 import Card, { type Phase } from './Card'
 import demoData from './demoData.json'
 import Dim from './Dim'
@@ -140,9 +140,9 @@ export function runTour(host: TourHost): void {
   // Each target as the part of it on screen: inside the viewport, and inside
   // the panel that scrolls it, so a section taller than the panel is lit only
   // where it shows.
-  function holes(): Box[] {
+  function measure(list: Target[]): Box[] {
     const view = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }
-    return targets()
+    return list
       .map((t) => {
         if (!(t instanceof Element)) return t ?? null
         if (!t.isConnected) return null
@@ -151,6 +151,56 @@ export function runTour(host: TourHost): void {
       })
       .map((b) => (b ? clip(b, view) : null))
       .filter((b): b is Box => b !== null && b.right - b.left > 1 && b.bottom - b.top > 1)
+  }
+
+  // What the dim cuts out, a frame at a time. A phone's drawer that is
+  // sliding carries its sections away with it, so nothing in it is lit until
+  // it stands still.
+  let drawerWas: Box | null = null
+  function holes(): Box[] {
+    const drawer = container.querySelector('[data-drawer]')
+    const now = drawer ? boxOf(drawer) : null
+    const sliding = Boolean(now && drawerWas && Math.abs(now.left - drawerWas.left) + Math.abs(now.top - drawerWas.top) > 0.5)
+    drawerWas = now
+    return measure(targets().filter((t) => !(sliding && t instanceof Element && drawer?.contains(t))))
+  }
+
+  // Resolves once nothing that moves the screen is moving: the drawer, the
+  // results and the map's own box unchanged over a few frames, and the map
+  // itself at rest.
+  async function settled(s: Stage): Promise<void> {
+    const read = () =>
+      JSON.stringify(
+        ['[data-drawer]', '[data-results-sheet]', tourSelector('map')].map((sel) => {
+          const el = container.querySelector(sel)
+          return el ? boxOf(el) : null
+        }),
+      )
+    let last = read()
+    let still = 0
+    const deadline = performance.now() + 2000
+    while (still < 3 && performance.now() < deadline) {
+      await frame(s)
+      const now = read()
+      still = now === last ? still + 1 : 0
+      last = now
+    }
+    await s.handle().map?.whenIdle()
+    check(s)
+  }
+
+  // Resolves once the light has glided onto its targets, so a hold counted
+  // from here shows the result lit for all of it. Bounded, since a target
+  // that keeps moving (a map still easing) would otherwise hold the step.
+  async function landed(s: Stage): Promise<void> {
+    const deadline = performance.now() + 800
+    while (performance.now() < deadline && !hurried) {
+      const drawn = JSON.parse(document.querySelector('[data-tour-dim]')?.getAttribute('data-holes') ?? '[]') as number[][]
+      const aim = measure(targets())
+      const near = (d: number[], b: Box) => [b.left, b.top, b.right, b.bottom].every((v, i) => Math.abs(v - d[i]) <= 1)
+      if (drawn.length === aim.length && aim.every((b, i) => near(drawn[i], b))) return
+      await frame(s)
+    }
   }
 
   const mapBox = () => {
@@ -241,12 +291,11 @@ export function runTour(host: TourHost): void {
 
   // Nothing of the demo stands under the card. The camera frames into the free
   // map, read at each move, so a fit lands clear of the card and of the map's
-  // own chrome as it stands then. On a phone the card spans an edge. At the
-  // bottom the map and the drawer end where it begins, so the map's own chrome
-  // (the legend, the player) rides above it. At the top it covers the map's
-  // top the way anything laid over a map does, and the results sheet below
-  // keeps the height a reader's drag gives it; only the drawer starts under
-  // it. A list opened from the drawer is placed in what is left.
+  // own chrome as it stands then. On a phone the card spans an edge and lies
+  // over the map the way anything laid over a map does, so the map, its chrome
+  // and the results sheet keep the heights the app gives them; only the
+  // drawer ends where the card begins, and a list opened from it is placed in
+  // what is left.
   function clearCard() {
     const h = handle.current
     const card = cardBox()
@@ -261,8 +310,6 @@ export function runTour(host: TourHost): void {
       return free && now ? cameraInsets(free, now) : NO_INSETS
     })
     setPopoverReserve({ top, bottom })
-    const mapEl = container.querySelector<HTMLElement>(tourSelector('map'))
-    if (mapEl) mapEl.style.marginBottom = bottom ? `${bottom}px` : ''
     const drawerEl = container.querySelector<HTMLElement>('[data-drawer]')
     if (drawerEl) {
       drawerEl.style.top = top ? `${top}px` : ''
@@ -349,10 +396,12 @@ export function runTour(host: TourHost): void {
   async function stand(s: Stage, at: number): Promise<void> {
     const h = s.handle()
     const step = TOUR_STEPS[at]
-    // A phone's card stands at the bottom until the ranking, over where the
-    // results sheet would stand: the sheet is left out until then, or the map's
-    // chrome would still rise above a sheet no one can see.
-    const underCard = !h.isDesktop && phoneEdge(at) === 'bottom'
+    // Before the first analysis a phone's results sheet holds only the
+    // searched places, and it would stand under the bottom card: it is left
+    // out, as it is before a search, or the map's chrome would rise above a
+    // sheet no one can see. From the analysis on it is always shown, as the app
+    // shows it; the legend's colour key depends on it.
+    const underCard = !h.isDesktop && phoneEdge(at) === 'bottom' && h.analysisSeq === 0
     const shown = underCard ? false : h.analysisSeq > 0 ? true : h.showResults
     if (shown !== h.showResults) h.setShowResults(shown)
     // The player as `stateBefore` has it, for a step reached without a mount.
@@ -397,6 +446,30 @@ export function runTour(host: TourHost): void {
     }
   }
 
+  // What the browser suite reads during a hold: each thing the step changed,
+  // as its box on screen, whether it stands on the map and is a popup there,
+  // and whether it shows whole (or, taller than its panel, from its top).
+  function publishResult(list: Target[]) {
+    container.dataset.tourResult = JSON.stringify(
+      list.flatMap((t) => {
+        const [box] = measure([t])
+        if (!box) return []
+        const popup = t instanceof Element && Boolean(t.closest('.maplibregl-popup'))
+        const map = !(t instanceof Element) || popup
+        let whole = true
+        if (t instanceof Element) {
+          const raw = boxOf(t)
+          const scroller = scrollParent(t)
+          const room = scroller ? boxOf(scroller) : null
+          const all = Math.abs(raw.top - box.top) <= 1 && Math.abs(raw.bottom - box.bottom) <= 1
+          const fromTop = room !== null && raw.bottom - raw.top > room.bottom - room.top && Math.abs(box.top - room.top) <= 10
+          whole = all || fromTop
+        }
+        return [{ box, map, popup, whole }]
+      }),
+    )
+  }
+
   function lightStep(s: Stage, at: number) {
     const step = TOUR_STEPS[at]
     const own = LIGHTS[step.key]
@@ -415,6 +488,7 @@ export function runTour(host: TourHost): void {
     // before, and until they land they are that step's.
     phase = 'loading'
     delete container.dataset.tourFramed
+    delete container.dataset.tourResult
     unhurry()
     pointer.hide()
     render()
@@ -458,13 +532,25 @@ export function runTour(host: TourHost): void {
     render()
     try {
       await action(s, demo, nowMs)
+      pointer.hide()
+      // What the step changed, once the screen has stopped moving: shown in
+      // the free map or scrolled whole into view, and lit in place of what
+      // was pressed.
+      await settled(s)
+      const was = JSON.stringify(measure(targets()))
+      const lit = await RESULTS[TOUR_STEPS[at].key](s, demo, nowMs)
+      s.light(lit)
       const finishedEarly = hurried
       unhurry()
-      pointer.hide()
       if (!finishedEarly) {
+        await landed(s)
+        check(s)
         phase = 'hold'
         render()
-        await sleep(s, PACE.holdMs)
+        await frame(s)
+        publishResult(lit())
+        // Long enough to see what the light moved onto, where it moved.
+        await sleep(s, JSON.stringify(measure(targets())) === was ? PACE.holdMs : PACE.resultMs)
       }
       if (at === TOUR_STEPS.length - 1) end()
       else void open(at + 1, false)

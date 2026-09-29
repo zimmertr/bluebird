@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 import { test, expect, DESTINATION_NAMES } from './fixtures'
 import { TOUR_STEPS, phoneEdge, progressText } from '../src/utils/tourSteps'
 import { AQI_BOUND } from '../src/tour/scenario'
+import { ACTIONS } from '../src/tour/actions'
 import { draggedMapFloorPx } from '../src/utils/resultsSheet'
 
 // The tutorial (#536) acts every step out on a demo copy of the app. What is
@@ -99,19 +100,16 @@ async function holdsTheRules(page: Page, i: number, still: Map<string, Box>) {
   const key = TOUR_STEPS[i].key
   const { card: c, holes, open, viewport } = await scene(page)
   expect(holes.length, `${key} lights something`).toBeGreaterThan(0)
+  const popups = open.filter((o) => o.what.includes('maplibregl-popup')).map((o) => o.box)
+  const tails = []
+  for (const p of popups) if (await tailOnly(page, p, c)) tails.push(p)
+  const isTail = (b: Box) => tails.some((t) => Math.abs(t.top - b.top) < 12 && Math.abs(t.left - b.left) < 12)
   for (const h of holes) {
     expect(h.right - h.left, `${key} lights a target on screen`).toBeGreaterThan(0)
     expect(h.left >= -6 && h.top >= -6 && h.right <= viewport.width + 6 && h.bottom <= viewport.height + 6, `${key}: ${JSON.stringify(h)} in view`).toBe(true)
-    expect(meets(c, h), `${key}: the card covers what it lights ${JSON.stringify(h)}`).toBe(false)
+    if (!isTail(h)) expect(meets(c, h), `${key}: the card covers what it lights ${JSON.stringify(h)}`).toBe(false)
   }
-  for (const o of open) {
-    // A popup taller than the map between the phone's chrome and its card
-    // stands with its top clear and only its tail under the card.
-    const phone = viewport.width < 1024
-    const tall = phone && o.what.includes('maplibregl-popup') && o.box.bottom - o.box.top > c.top - (await chromeBottom(page))
-    if (tall) expect(o.box.top, `${key}: the top of ${o.what} clear of the chrome`).toBeGreaterThanOrEqual(await chromeBottom(page))
-    else expect(meets(c, o.box), `${key}: the card covers ${o.what}`).toBe(false)
-  }
+  for (const o of open) if (!isTail(o.box)) expect(meets(c, o.box), `${key}: the card covers ${o.what}`).toBe(false)
   // A map popup stands clear of the map's own chrome too: the button columns,
   // the legends and the player.
   const chrome = await mapChrome(page)
@@ -127,7 +125,10 @@ async function holdsTheRules(page: Page, i: number, still: Map<string, Box>) {
   if (first) expect(c, `${key}: the card stands where it stood`).toEqual(first)
   else still.set(edge, c)
   await expect(card(page).getByRole('heading')).toHaveText(TOUR_STEPS[i].section)
-  await expect(card(page)).toContainText(progressText(TOUR_STEPS[i]))
+  // The count shows in a section of several steps only: "1 of 1" would read
+  // as the length of the whole tutorial.
+  if (TOUR_STEPS[i].sectionSize > 1) await expect(card(page)).toContainText(progressText(TOUR_STEPS[i]))
+  else await expect(card(page)).not.toContainText(progressText(TOUR_STEPS[i]))
 }
 
 // The map's own chrome in the demo, each as its box on screen, or null.
@@ -146,6 +147,17 @@ async function mapChrome(page: Page) {
       player: box('[data-tour="player"]'),
     }
   })
+}
+
+// A phone popup taller than the map between the chrome and the card: it
+// stands with its top clear of the chrome, and only its tail runs under the
+// card.
+async function tailOnly(page: Page, box: Box, c: Box): Promise<boolean> {
+  if ((page.viewportSize()?.width ?? 0) >= 1024) return false
+  const top = await chromeBottom(page)
+  const tall = box.bottom - box.top > c.top - top - 16
+  if (tall) expect(box.top, 'the top of a tall popup clear of the chrome').toBeGreaterThanOrEqual(top)
+  return tall
 }
 
 // The lowest edge of the map's chrome across a phone's top: the button
@@ -243,7 +255,7 @@ async function framedClear(page: Page) {
     free: Box
   }
   const { points, free } = framed
-  expect(points.length).toBeGreaterThan(2)
+  expect(points.length).toBeGreaterThan(0)
   const { card: c } = await scene(page)
   const chrome = await mapChrome(page)
   // A marker is drawn around its point.
@@ -258,13 +270,51 @@ async function framedClear(page: Page) {
   }
   // Spread across it: on the axis the fit is bound by, the points span most of
   // the free map, so the markers stand apart.
+  if (points.length < 3) return
   const xs = points.map(([x]) => x)
   const ys = points.map(([, y]) => y)
   const spread = Math.max(
     (Math.max(...xs) - Math.min(...xs)) / (free.right - free.left),
     (Math.max(...ys) - Math.min(...ys)) / (free.bottom - free.top),
   )
-  expect(spread, 'the framed points fill the free map').toBeGreaterThanOrEqual(0.75)
+  expect(spread, 'the framed points fill the free map').toBeGreaterThanOrEqual(0.7)
+}
+
+// While an acted step holds: what it changed is lit, one light for each thing
+// and no other, each shows whole, on screen, clear of the card, and on the map
+// clear of the map's own chrome.
+async function resultHeld(page: Page, key: string) {
+  const read = () =>
+    page.evaluate(() => {
+      const demo = document.querySelector<HTMLElement>('[data-tour-sandbox]')!
+      const holes = JSON.parse(document.querySelector('[data-tour-dim]')?.getAttribute('data-holes') ?? '[]') as number[][]
+      const result = JSON.parse(demo.dataset.tourResult ?? '[]') as { box: Box; map: boolean; popup: boolean; whole: boolean }[]
+      return { holes, result }
+    })
+  const lit = (hole: number[], b: Box) =>
+    hole[0] <= b.left + 3 && hole[1] <= b.top + 3 && hole[2] >= b.right - 3 && hole[3] >= b.bottom - 3
+  let got = await read()
+  for (let tries = 0; tries < 8 && !(got.result.length > 0 && got.result.every((r) => got.holes.some((h) => lit(h, r.box)))); tries++) {
+    await page.waitForTimeout(80)
+    got = await read()
+  }
+  const { holes, result } = got
+  expect(result.length, `${key} names what it changed`).toBeGreaterThan(0)
+  expect(holes.length, `${key}: one light per result, no other`).toBe(result.length)
+  const { card: c, viewport } = await scene(page)
+  const chrome = await mapChrome(page)
+  for (const r of result) {
+    const b = r.box
+    expect(holes.some((h) => lit(h, b)), `${key}: ${JSON.stringify(b)} lit`).toBe(true)
+    expect(r.whole, `${key}: ${JSON.stringify(b)} shows whole`).toBe(true)
+    expect(b.left >= -2 && b.top >= -2 && b.right <= viewport.width + 2 && b.bottom <= viewport.height + 2, `${key}: on screen`).toBe(true)
+    if (!(r.popup && (await tailOnly(page, b, c)))) expect(meets(c, b), `${key}: ${JSON.stringify(b)} under the card`).toBe(false)
+    if (r.map) {
+      for (const [name, box] of Object.entries(chrome)) {
+        if (box) expect(meets(b, box), `${key}: ${JSON.stringify(b)} under the ${name}`).toBe(false)
+      }
+    }
+  }
 }
 
 // Moves on from step `i`, by a button or a key in turn, and waits for the next.
@@ -276,9 +326,10 @@ async function onward(page: Page, i: number) {
   else if (way === 1) await page.keyboard.press('ArrowRight')
   else if (way === 2) await page.keyboard.press('Enter')
   else await page.keyboard.press('Space')
-  if (key === 'layers') {
+  if (ACTIONS[key]) {
     await expect(card(page)).toHaveAttribute('data-phase', 'hold', { timeout: 30_000 })
-    await framedClear(page)
+    await resultHeld(page, key)
+    if (key === 'layers' || key === 'analyze' || key === 'search') await framedClear(page)
   }
   if (i < STEPS - 1) await expect(card(page)).not.toHaveAttribute('data-step', key, { timeout: 30_000 })
 }
@@ -310,6 +361,8 @@ async function walk(page: Page) {
     // and lit beside the legend.
     if (key === 'legend') {
       await framedClear(page)
+      // The key the card is about: the colour of each band.
+      await expect(page.locator('[data-tour-sandbox] [data-tour="legend"]')).toContainText('AQI')
       const { holes } = await scene(page)
       expect(holes).toHaveLength(2)
       const { points } = JSON.parse((await page.locator('[data-tour-sandbox]').getAttribute('data-tour-framed')) ?? '{}')

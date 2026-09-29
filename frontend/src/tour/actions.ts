@@ -84,7 +84,7 @@ export const LIGHTS: Readonly<Record<string, (stage: Stage) => Target[]>> = {
   row: (stage) => [firstRowButton(stage)?.closest('tr')],
   popup: (stage) => [mapPopup(stage)],
   // The card is about the markers and what their colours mean.
-  legend: (stage) => [area(stage, 'legend'), markersBox(stage)],
+  legend: (stage) => [area(stage, 'legend'), pointsBox(stage, stage.handle().results)],
 }
 
 // The margin a framed step leaves inside the free map, which already keeps
@@ -117,9 +117,11 @@ async function frameAll(stage: Stage, points: { latitude: number; longitude: num
   })
 }
 
-/** The box of the ranked markers on screen, with room for their names, inside the free map. */
-function markersBox(stage: Stage): Target {
-  const at = onScreen(stage, stage.handle().results)
+type Point = { latitude: number; longitude: number }
+
+/** The box of `points` on screen, with room for a marker and its name, inside the free map. */
+function pointsBox(stage: Stage, points: Point[]): Target {
+  const at = onScreen(stage, points)
   const free = stage.freeMap()
   if (at.length === 0 || !free) return null
   const xs = at.map(([x]) => x)
@@ -289,11 +291,9 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     stage.pointer.hide()
     stage.light(() => [find(stage, tourSelector('progress')) ?? button])
     await until(stage, () => stage.handle().analysisSeq > before && !stage.handle().loading, 30_000)
-    // A phone's drawer closes on a finished analysis, onto the ranked markers.
-    stage.light(() => [stage.handle().isDesktop ? button : stage.freeMap()])
   },
 
-  async layers(stage, _demo, nowMs) {
+  async layers(stage) {
     const button = await until(stage, () => area(stage, 'layers'))
     const cluster = button.parentElement
     stage.light(() => [cluster])
@@ -303,11 +303,6 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
       if (!box.checked) await press(stage, box)
     }
     await press(stage, button)
-    stage.pointer.hide()
-    stage.light(() => [stage.freeMap()])
-    // The fire, the whole plume and every ranked peak in one view, so the
-    // reader sees which peaks stand in the smoke.
-    await frameAll(stage, [...stage.handle().results, ...overlayOutline(nowMs)])
   },
 
   async bound(stage) {
@@ -347,6 +342,103 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     await mapSettled(stage)
     await fitPopup(stage, () => mapPopup(stage))
   },
+}
+
+/**
+ * What each acted step changes, shown and lit once its action ends: a panel
+ * section scrolled whole into view, a popup, or places on the map framed into
+ * the free map and lit as one box. Every step in `ACTIONS` names one, which
+ * `actions.test.ts` holds, so a step never ends with its light on what it
+ * pressed while what that press did stands dim or off the screen. Each answers
+ * what to light, measured again every frame.
+ */
+export type Result = (stage: Stage, demo: DemoData, nowMs: number) => Promise<() => Target[]>
+
+// A panel section, scrolled so all of it shows where it fits.
+function section(anchor: string): Result {
+  return async (stage) => {
+    const el = await until(stage, () => area(stage, anchor))
+    await reveal(stage, el)
+    return () => [area(stage, anchor)]
+  }
+}
+
+// Places on the map, framed into the free map.
+function places(which: (stage: Stage, demo: DemoData, nowMs: number) => Point[]): Result {
+  return async (stage, demo, nowMs) => {
+    const points = which(stage, demo, nowMs)
+    await frameAll(stage, points)
+    return () => [pointsBox(stage, points)]
+  }
+}
+
+const popupResult: Result = async (stage) => () => [mapPopup(stage)]
+
+// The pasted lines, as the places they name.
+const pastedPlaces = (): Point[] =>
+  PASTED.split('\n').map((line) => {
+    const [lat, lon] = line.split(',').map(Number)
+    return { latitude: lat, longitude: lon }
+  })
+
+export const RESULTS: Readonly<Record<string, Result>> = {
+  search: places((_stage, demo) => {
+    const { searched } = castPlaces(demo)
+    return [{ latitude: searched.lat, longitude: searched.lon }]
+  }),
+  'map-click': popupResult,
+  // The popup, or where it stood if adding closed it.
+  async 'map-add'(stage, demo) {
+    const { clicked } = castPlaces(demo)
+    return () => [mapPopup(stage) ?? pointsBox(stage, [{ latitude: clicked.lat, longitude: clicked.lon }])]
+  },
+  // A desktop shows draw mode in the panel; a phone's drawer closes, and what
+  // the app shows then is the map, waiting for the first corner.
+  async 'draw-start'(stage, demo, nowMs) {
+    if (stage.handle().isDesktop) return section('polygon')(stage, demo, nowMs)
+    return () => [stage.freeMap()]
+  },
+  async 'draw-corners'(stage) {
+    const ring = RING.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
+    return () => [pointsBox(stage, ring)]
+  },
+  'draw-done': section('polygon'),
+  // The pasted lines, and on a desktop the places they add, which the app
+  // frames itself.
+  async paste(stage, demo, nowMs) {
+    const lit = await section('coordinates')(stage, demo, nowMs)
+    if (!stage.handle().isDesktop) return lit
+    await mapSettled(stage)
+    return () => [...lit(), pointsBox(stage, pastedPlaces())]
+  },
+  async 'model-pick'(stage) {
+    return () => [modelCard(stage) ?? area(stage, 'model')]
+  },
+  'model-rank': section('model'),
+  'window-day': section('calendar'),
+  'window-hours': section('calendar'),
+  // The ranked markers, and on a desktop the results bar that opened under
+  // them. A phone's bar stands under the card.
+  async analyze(stage, demo, nowMs) {
+    // A phone's table opens with the report, under the card; it folds, as the
+    // next step would fold it, so the markers have the map.
+    const handle = stage.handle()
+    if (!handle.isDesktop && !handle.resultsCollapsed) {
+      handle.toggleCollapsed()
+      await frame(stage)
+      await frame(stage)
+    }
+    const lit = await places((s) => s.handle().results)(stage, demo, nowMs)
+    const bar = () => (stage.handle().isDesktop ? find(stage, '[data-results-sheet]') : null)
+    return () => [...lit(), bar()]
+  },
+  // The fire, the whole plume and every ranked peak in one view, so the
+  // reader sees which peaks stand in the smoke.
+  layers: places((stage, _demo, nowMs) => [...stage.handle().results, ...overlayOutline(nowMs)]),
+  async bound(stage) {
+    return () => [area(stage, 'results')]
+  },
+  row: popupResult,
 }
 
 /**

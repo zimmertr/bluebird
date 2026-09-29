@@ -49,6 +49,8 @@ export const PACE = {
   flightMs: 2000,
   /** After a step that finished by itself, before the next card. */
   holdMs: 600,
+  /** The same, where the light moved onto what the step changed. */
+  resultMs: 1000,
 } as const
 
 export function check(stage: Stage): void {

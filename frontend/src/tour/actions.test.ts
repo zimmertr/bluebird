@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import actionsSource from './actions.ts?raw'
 import actSource from './act.ts?raw'
+import { ACTIONS, RESULTS } from './actions'
 
 // The tutorial (#536) presses the app's real controls, so a control it finds
 // by the words on it breaks the step the day the words change, and nothing
@@ -40,5 +41,13 @@ describe('what the tutorial presses', () => {
 
   it.each(named.map((m) => [m]))('finds the %s marker in exactly one component', (marker) => {
     expect(wearers(marker)).toHaveLength(1)
+  })
+})
+
+describe('what each step changes', () => {
+  // A step that acts ends with its light on what it changed, so every action
+  // names that, and nothing that does not act names one.
+  it('names a result for every action, and for nothing else', () => {
+    expect(Object.keys(RESULTS).sort()).toEqual(Object.keys(ACTIONS).sort())
   })
 })
