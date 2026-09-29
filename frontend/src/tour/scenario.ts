@@ -225,6 +225,12 @@ export function castPlaces(demo: DemoData): { searched: Place; clicked: Place } 
 export const DEMO_VIEW: Partial<ViewPrefs> = {
   modeChosen: 'table',
   columnOrder: ['name', 'aqi_avg', 'aqi_min', 'aqi_max'],
+  // The columns the story is about, and few enough that the forecast popup,
+  // which lists the table's columns, fits the map a phone leaves it.
+  columns: new Set([
+    'name', 'aqi_avg', 'aqi_min', 'aqi_max', 'type', 'elevation_ft', 'precip_total_in',
+    'temp_min_f', 'temp_max_f', 'temp_avg_f', 'wind_min_mph', 'wind_max_mph', 'wind_avg_mph',
+  ]),
 }
 
 /**
@@ -263,15 +269,17 @@ export interface StepState {
  * where the card stands, so the run records it as each step opens and hands it
  * to the mount beside this.
  *
- * The player is switched on from the start, on a phone too, so the player step
- * has a player to light wherever the tutorial is opened.
+ * The player is left to the device until the player step: on at a desktop
+ * width, off on a phone, where its bar is a band across a small map. From the
+ * player step on it is switched on, so that step has a player to light.
  */
 export function stateBefore(index: number, demo: DemoData, nowMs: number): StepState {
   const done = (key: string) => stepIndex(key) < index
   const next = (key: string) => stepIndex(key) === index
   const { searched, clicked } = castPlaces(demo)
   const tomorrow = dayKey(new Date(nowMs + 86_400_000))
-  const initial: Partial<ShareableState> = { showPlayer: true }
+  const initial: Partial<ShareableState> = {}
+  if (index >= stepIndex('player')) initial.showPlayer = true
   let replay: Replay | null = null
   const pins: Place[] = []
   if (done('search')) pins.push(searched)

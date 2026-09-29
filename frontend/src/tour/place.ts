@@ -6,8 +6,8 @@
 // is centred on the map, just above the band the forecast player takes while
 // the demo's whole table is open: the map is at its shortest then, so a card
 // that clears it there is on the map and clear of the results in every step.
-// On a phone it spans the screen at the bottom, or at the top once the results
-// are on screen (`phoneEdge`).
+// On a phone it spans the screen at the bottom, or at the top in the steps that
+// light the results sheet (`phoneEdge`).
 import { resolvePanelHeights } from '../utils/layout'
 import { type Insets, clampInsets } from '../utils/mapFraming'
 import { RESULTS_BAR_PX, TRANSPORT_BAND_PX, dockedMapFloorPx } from '../utils/resultsSheet'
@@ -99,8 +99,8 @@ export function cardPlace({
 /**
  * What the map's own chrome takes of each edge, in px in from that edge: on a
  * desktop the search box, Layers and the legends down the left and MapLibre's
- * buttons down the right; on a phone the search box, Controls and Layers
- * across the top. Measured by the run, since the chrome changes with what is
+ * buttons down the right; on a phone the search box, Controls, Layers
+ * and the legends under them, across the top. Measured by the run, since the chrome changes with what is
  * on (a legend per layer, the Layers menu open).
  */
 export interface Held {

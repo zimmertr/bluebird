@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test'
 import { test, expect, DESTINATION_NAMES } from './fixtures'
 import { TOUR_STEPS, phoneEdge, progressText } from '../src/utils/tourSteps'
 import { AQI_BOUND } from '../src/tour/scenario'
+import { draggedMapFloorPx } from '../src/utils/resultsSheet'
 
 // The tutorial (#536) acts every step out on a demo copy of the app. What is
 // held here, at a desktop and at a phone width, is what makes it readable:
@@ -103,16 +104,24 @@ async function holdsTheRules(page: Page, i: number, still: Map<string, Box>) {
     expect(h.left >= -6 && h.top >= -6 && h.right <= viewport.width + 6 && h.bottom <= viewport.height + 6, `${key}: ${JSON.stringify(h)} in view`).toBe(true)
     expect(meets(c, h), `${key}: the card covers what it lights ${JSON.stringify(h)}`).toBe(false)
   }
-  for (const o of open) expect(meets(c, o.box), `${key}: the card covers ${o.what}`).toBe(false)
-  // A map popup stands clear of the map's own button columns too.
+  for (const o of open) {
+    // A popup taller than the map between the phone's chrome and its card
+    // stands with its top clear and only its tail under the card.
+    const phone = viewport.width < 1024
+    const tall = phone && o.what.includes('maplibregl-popup') && o.box.bottom - o.box.top > c.top - (await chromeBottom(page))
+    if (tall) expect(o.box.top, `${key}: the top of ${o.what} clear of the chrome`).toBeGreaterThanOrEqual(await chromeBottom(page))
+    else expect(meets(c, o.box), `${key}: the card covers ${o.what}`).toBe(false)
+  }
+  // A map popup stands clear of the map's own chrome too: the button columns,
+  // the legends and the player.
   const chrome = await mapChrome(page)
   for (const o of open.filter((o) => o.what.includes('maplibregl-popup'))) {
     for (const [name, box] of Object.entries(chrome)) {
-      if (box && name !== 'legend' && name !== 'player') expect(meets(o.box, box), `${key}: a popup under the ${name}`).toBe(false)
+      if (box) expect(meets(o.box, box), `${key}: a popup under the ${name}`).toBe(false)
     }
   }
   if (SECTION_LIT.has(key)) await litOnItsSection(page, key, TOUR_STEPS[i].anchors[0], holes[0])
-  // One place for the whole run, apart from a phone's one switch of edge.
+  // One place for the whole run, apart from a phone's two edges.
   const edge = viewport.width < 1024 ? phoneEdge(i) : 'map'
   const first = still.get(edge)
   if (first) expect(c, `${key}: the card stands where it stood`).toEqual(first)
@@ -137,6 +146,15 @@ async function mapChrome(page: Page) {
       player: box('[data-tour="player"]'),
     }
   })
+}
+
+// The lowest edge of the map's chrome across a phone's top: the button
+// column and the legend under it. Nothing on a desktop, where both stand down
+// the left side.
+async function chromeBottom(page: Page): Promise<number> {
+  if ((page.viewportSize()?.width ?? 0) >= 1024) return 0
+  const { column, buttons, legend } = await mapChrome(page)
+  return Math.max(0, ...[column, buttons, legend].map((b) => b?.bottom ?? 0))
 }
 
 // A panel step lights exactly its section as far as it shows, and shows all
@@ -195,7 +213,9 @@ async function rankingRows(page: Page, desktop: boolean) {
       }
     })
     const aqiHeads = ['aqi_avg', 'aqi_min', 'aqi_max'].every((k) => across(heads[col(k)].getBoundingClientRect()))
-    return { rows, aqiHeads }
+    const head = table.querySelector('thead')!.getBoundingClientRect().height
+    const row = table.querySelector('tbody tr')!.getBoundingClientRect().height
+    return { rows, aqiHeads, head, row }
   })
   if (desktop) {
     for (const r of seen.rows) expect(r.whole, `${r.name} shows whole`).toBe(true)
@@ -203,6 +223,13 @@ async function rankingRows(page: Page, desktop: boolean) {
   }
   const shown = seen.rows.filter((r) => r.whole)
   expect(shown.length).toBeGreaterThan(0)
+  if (!desktop) {
+    // As many rows as the app's own tallest drag of the sheet shows, with the
+    // card over the map's top rather than under the sheet's floor.
+    const tallest = (page.viewportSize()?.height ?? 0) - draggedMapFloorPx(1)
+    const fit = Math.min(seen.rows.length, Math.floor((tallest - seen.head) / seen.row))
+    expect(shown.length, 'rows at the tallest drag').toBeGreaterThanOrEqual(fit)
+  }
   for (const r of shown) expect(r.readable, `${r.name} shows its name and its average`).toBe(true)
   return seen.rows
 }
@@ -210,24 +237,34 @@ async function rankingRows(page: Page, desktop: boolean) {
 // What a step framed (the layers step's fire, plume and peaks; the rows the
 // legend step colours) stands in the free map, clear of the card and the map's
 // own chrome.
-async function framedClear(page: Page, desktop: boolean) {
-  const points = JSON.parse((await page.locator('[data-tour-sandbox]').getAttribute('data-tour-framed')) ?? '[]') as number[][]
+async function framedClear(page: Page) {
+  const framed = JSON.parse((await page.locator('[data-tour-sandbox]').getAttribute('data-tour-framed')) ?? '{}') as {
+    points: number[][]
+    free: Box
+  }
+  const { points, free } = framed
   expect(points.length).toBeGreaterThan(2)
   const { card: c } = await scene(page)
   const chrome = await mapChrome(page)
-  const map = await page.locator('[data-tour-sandbox] [data-tour="map"]').boundingBox()
   // A marker is drawn around its point.
   const R = 8
   const pad = (b: Box) => ({ left: b.left - R, top: b.top - R, right: b.right + R, bottom: b.bottom + R })
-  // On a phone the legend hangs down the button column over what little map
-  // there is, so only the column's buttons are held clear there.
-  const held = [c, chrome.column, chrome.buttons, chrome.player, desktop ? chrome.legend : null].filter((b): b is Box => b !== null)
+  const held = [c, chrome.column, chrome.buttons, chrome.player, chrome.legend].filter((b): b is Box => b !== null)
   for (const [x, y] of points) {
-    expect(x >= map!.x + R && x <= map!.x + map!.width - R && y >= map!.y + R && y <= map!.y + map!.height - R, `${x},${y} on the map`).toBe(true)
+    expect(x >= free.left && x <= free.right && y >= free.top && y <= free.bottom, `${x},${y} in the free map ${JSON.stringify(free)}`).toBe(true)
     for (const b of held.map(pad)) {
       expect(x > b.left && x < b.right && y > b.top && y < b.bottom, `${x},${y} under ${JSON.stringify(b)}`).toBe(false)
     }
   }
+  // Spread across it: on the axis the fit is bound by, the points span most of
+  // the free map, so the markers stand apart.
+  const xs = points.map(([x]) => x)
+  const ys = points.map(([, y]) => y)
+  const spread = Math.max(
+    (Math.max(...xs) - Math.min(...xs)) / (free.right - free.left),
+    (Math.max(...ys) - Math.min(...ys)) / (free.bottom - free.top),
+  )
+  expect(spread, 'the framed points fill the free map').toBeGreaterThanOrEqual(0.75)
 }
 
 // Moves on from step `i`, by a button or a key in turn, and waits for the next.
@@ -241,7 +278,7 @@ async function onward(page: Page, i: number) {
   else await page.keyboard.press('Space')
   if (key === 'layers') {
     await expect(card(page)).toHaveAttribute('data-phase', 'hold', { timeout: 30_000 })
-    await framedClear(page, (page.viewportSize()?.width ?? 0) >= 1024)
+    await framedClear(page)
   }
   if (i < STEPS - 1) await expect(card(page)).not.toHaveAttribute('data-step', key, { timeout: 30_000 })
 }
@@ -269,8 +306,22 @@ async function walk(page: Page) {
       await expect(legend).toContainText('Smoke')
     }
     if (key === 'bound') await rankingRows(page, desktop)
-    // The colored markers: every row the bound left is on the map, in view.
-    if (key === 'legend') await framedClear(page, desktop)
+    // The colored markers: every row the bound left is on the map, in view,
+    // and lit beside the legend.
+    if (key === 'legend') {
+      await framedClear(page)
+      const { holes } = await scene(page)
+      expect(holes).toHaveLength(2)
+      const { points } = JSON.parse((await page.locator('[data-tour-sandbox]').getAttribute('data-tour-framed')) ?? '{}')
+      for (const [x, y] of points as number[][]) {
+        expect(x >= holes[1].left && x <= holes[1].right && y >= holes[1].top && y <= holes[1].bottom, `${x},${y} lit`).toBe(true)
+      }
+    }
+    // A phone keeps its own default, no player, until the player step.
+    if (!desktop) {
+      const player = page.locator('[data-tour-sandbox] [data-tour="player"]')
+      await expect(player).toHaveCount(i >= TOUR_STEPS.findIndex((s) => s.key === 'player') ? 1 : 0)
+    }
     if (key === 'row') {
       const names = await rowNames(page)
       expect(names).toHaveLength(DEMO_ROWS - over.length)

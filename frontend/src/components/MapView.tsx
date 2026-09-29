@@ -41,7 +41,9 @@ export interface MapViewHandle {
   // the one draw mode started with (Cancel, #478).
   restoreRing: (ring: GeoPolygon | null) => void
   flyToPlace: (place: Place) => void
-  fitToPoints: (points: { latitude: number; longitude: number }[]) => void
+  // `paddingPx` in place of the usual margin, for a caller whose insets
+  // already keep the points clear of what stands over the map (#536).
+  fitToPoints: (points: { latitude: number; longitude: number }[], paddingPx?: number) => void
   focusResult: (result: DestinationResult) => void
   // The same camera move for a destination with no forecast yet, and nothing
   // else: no popup, because the one `focusResult` opens is a forecast card and
@@ -414,7 +416,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Frame a pasted custom CSV list whole. Deferred like a pre-load search
       // when the map isn't ready — the load handler folds the points into its
       // opening frame.
-      fitToPoints(points: { latitude: number; longitude: number }[]) {
+      fitToPoints(points: { latitude: number; longitude: number }[], paddingPx = FIT_PADDING_PX) {
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
         if (!bounds) return
         const map = mapRef.current
@@ -427,7 +429,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
         moves.run(1500, (duration) =>
           map.fitBounds(bounds, {
-            padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx, moves.insets),
+            padding: framePadding(paddingPx, cameraPadBottomPx, moves.insets),
             duration,
           }),
         )

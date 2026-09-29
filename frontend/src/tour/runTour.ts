@@ -7,7 +7,6 @@ import { setPopoverReserve } from '../hooks/usePopover'
 import { TOUR } from '../styles'
 import { setApiTransport } from '../utils/apiFetch'
 import { NO_INSETS } from '../utils/mapFraming'
-import { draggedMapFloorPx } from '../utils/resultsSheet'
 import type { CameraView } from '../utils/mapView'
 import { enterScratch, leaveScratch, setOpenMeteoTransport } from '../utils/openMeteo'
 import { TOUR_STEPS, phoneEdge, stepLayout, tourSelector } from '../utils/tourSteps'
@@ -182,8 +181,8 @@ export function runTour(host: TourHost): void {
     }
     const column = shown('[data-map-column]')
     const buttons = shown('.maplibregl-ctrl-top-right')
+    const legend = shown(tourSelector('legend'))
     if (handle.current.isDesktop) {
-      const legend = shown(tourSelector('legend'))
       const leftEdge = Math.max(column?.right ?? map.left, legend?.right ?? map.left)
       return {
         top: 0,
@@ -191,7 +190,7 @@ export function runTour(host: TourHost): void {
         right: buttons ? map.right - buttons.left + CARD_GAP : 0,
       }
     }
-    const topEdge = Math.max(column?.bottom ?? map.top, buttons?.bottom ?? map.top)
+    const topEdge = Math.max(column?.bottom ?? map.top, buttons?.bottom ?? map.top, legend?.bottom ?? map.top)
     return { top: topEdge > map.top ? topEdge - map.top + CARD_GAP : 0, left: 0, right: 0 }
   }
 
@@ -242,10 +241,12 @@ export function runTour(host: TourHost): void {
 
   // Nothing of the demo stands under the card. The camera frames into the free
   // map, read at each move, so a fit lands clear of the card and of the map's
-  // own chrome as it stands then. On a phone the card spans an edge, so the map
-  // and the drawer also end where it begins: the map's own chrome (the legend,
-  // the buttons, the player) moves with the map and stays in view, and a list
-  // opened from the drawer is placed in what is left.
+  // own chrome as it stands then. On a phone the card spans an edge. At the
+  // bottom the map and the drawer end where it begins, so the map's own chrome
+  // (the legend, the player) rides above it. At the top it covers the map's
+  // top the way anything laid over a map does, and the results sheet below
+  // keeps the height a reader's drag gives it; only the drawer starts under
+  // it. A list opened from the drawer is placed in what is left.
   function clearCard() {
     const h = handle.current
     const card = cardBox()
@@ -261,10 +262,7 @@ export function runTour(host: TourHost): void {
     })
     setPopoverReserve({ top, bottom })
     const mapEl = container.querySelector<HTMLElement>(tourSelector('map'))
-    if (mapEl) {
-      mapEl.style.marginTop = top ? `${top}px` : ''
-      mapEl.style.marginBottom = bottom ? `${bottom}px` : ''
-    }
+    if (mapEl) mapEl.style.marginBottom = bottom ? `${bottom}px` : ''
     const drawerEl = container.querySelector<HTMLElement>('[data-drawer]')
     if (drawerEl) {
       drawerEl.style.top = top ? `${top}px` : ''
@@ -357,6 +355,8 @@ export function runTour(host: TourHost): void {
     const underCard = !h.isDesktop && phoneEdge(at) === 'bottom'
     const shown = underCard ? false : h.analysisSeq > 0 ? true : h.showResults
     if (shown !== h.showResults) h.setShowResults(shown)
+    // The player as `stateBefore` has it, for a step reached without a mount.
+    h.setShowPlayer(stateBefore(at, demo, nowMs).initial.showPlayer ?? null)
     const layout = stepLayout(step, h.isDesktop, shown)
     const slides = h.sidebarOpen !== layout.drawerOpen
     h.setSidebarOpen(layout.drawerOpen)
@@ -381,17 +381,14 @@ export function runTour(host: TourHost): void {
     }
   }
 
-  // Sizes the demo's table to show every row it holds. A phone's sheet stands
-  // on the map, so it grows only as far as a reader's drag would take it,
-  // counted from where the demo's map begins under the card; a desktop's
-  // results are docked, and the app keeps the map's floor itself.
+  // Sizes the demo's table to show every row it holds, as far as the app
+  // lets it: a desktop keeps the map's resting floor, and a phone's sheet
+  // stops where a reader's drag would.
   async function wholeTable(s: Stage): Promise<void> {
     const h = s.handle()
     const table = await until(s, () => find<HTMLElement>(s, tourSelector('results')))
     await frame(s)
-    let px = table.offsetHeight + table.scrollHeight - table.clientHeight
-    const map = mapBox()
-    if (!h.isDesktop && map) px = Math.min(px, window.innerHeight - map.top - draggedMapFloorPx(1))
+    const px = table.offsetHeight + table.scrollHeight - table.clientHeight
     if (px > table.offsetHeight + 1) {
       h.sizeTable(px)
       tableSized = true

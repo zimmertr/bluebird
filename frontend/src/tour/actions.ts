@@ -16,6 +16,7 @@ import {
   type,
   until,
 } from './act'
+import { clip } from './place'
 import {
   AQI_BOUND,
   CLICKED,
@@ -82,24 +83,54 @@ export const LIGHTS: Readonly<Record<string, (stage: Stage) => Target[]>> = {
   bound: (stage) => [area(stage, 'results'), highestAqi(stage)],
   row: (stage) => [firstRowButton(stage)?.closest('tr')],
   popup: (stage) => [mapPopup(stage)],
+  // The card is about the markers and what their colours mean.
+  legend: (stage) => [area(stage, 'legend'), markersBox(stage)],
+}
+
+// The margin a framed step leaves inside the free map, which already keeps
+// its own gap from the card and the map's chrome: a marker's radius and the
+// name under it.
+const FRAME_PAD_PX = 32
+
+/** Where each of `points` stands on the screen now. */
+function onScreen(stage: Stage, points: { latitude: number; longitude: number }[]): [number, number][] {
+  const map = stage.handle().map
+  return points.flatMap((p) => {
+    const at = map?.project(p.longitude, p.latitude)
+    return at ? [[at.x, at.y] as [number, number]] : []
+  })
 }
 
 /**
- * Fits the demo map to `points` and waits for it to land, then leaves where
- * each point stands on screen for the browser suite, which holds them all
- * inside the free map.
+ * Fits the demo map so `points` fill the free map, and waits for it to land.
+ * Leaves where each point stands, and the free map, for the browser suite,
+ * which holds every point inside it and the points spread across it.
  */
 async function frameAll(stage: Stage, points: { latitude: number; longitude: number }[]): Promise<void> {
   const map = await until(stage, () => stage.handle().map)
-  map.fitToPoints(points)
+  map.fitToPoints(points, FRAME_PAD_PX)
   await sleep(stage, 100)
   await mapSettled(stage)
-  stage.root.dataset.tourFramed = JSON.stringify(
-    points.flatMap((p) => {
-      const at = map.project(p.longitude, p.latitude)
-      return at ? [[Math.round(at.x), Math.round(at.y)]] : []
-    }),
-  )
+  stage.root.dataset.tourFramed = JSON.stringify({
+    points: onScreen(stage, points).map(([x, y]) => [Math.round(x), Math.round(y)]),
+    free: stage.freeMap(),
+  })
+}
+
+/** The box of the ranked markers on screen, with room for their names, inside the free map. */
+function markersBox(stage: Stage): Target {
+  const at = onScreen(stage, stage.handle().results)
+  const free = stage.freeMap()
+  if (at.length === 0 || !free) return null
+  const xs = at.map(([x]) => x)
+  const ys = at.map(([, y]) => y)
+  const box = {
+    left: Math.min(...xs) - FRAME_PAD_PX,
+    top: Math.min(...ys) - FRAME_PAD_PX,
+    right: Math.max(...xs) + FRAME_PAD_PX,
+    bottom: Math.max(...ys) + FRAME_PAD_PX,
+  }
+  return clip(box, free)
 }
 
 /**

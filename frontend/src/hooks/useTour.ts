@@ -20,6 +20,8 @@ export interface SandboxHandle {
   setShowResults: (show: boolean) => void
   resultsCollapsed: boolean
   toggleCollapsed: () => void
+  /** Switches the forecast player on, or back to this device's default with null. */
+  setShowPlayer: (show: boolean | null) => void
   /** Sets the table's height as a drag on its grip would, or puts it back with null. */
   sizeTable: (px: number | null) => void
   map: MapViewHandle | null

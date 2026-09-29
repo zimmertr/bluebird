@@ -129,6 +129,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
     showSnow,
     showGrid,
     showPlayer,
+    setShowPlayer,
     playerShown,
   } = overlays
   const closeDrawer = useCallback(() => setSidebarOpen(false), [])
@@ -422,6 +423,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
       resultsCollapsed,
       toggleCollapsed,
       sizeTable,
+      setShowPlayer,
       map: mapRef.current,
       settled: capsApplied,
       loading,
@@ -429,7 +431,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
       results,
       addPlace,
     }
-  }, [sandbox, isDesktop, sidebarOpen, showResults, resultsCollapsed, toggleCollapsed, sizeTable, capsApplied, loading, analysisSeq, results, addPlace])
+  }, [sandbox, isDesktop, sidebarOpen, showResults, resultsCollapsed, toggleCollapsed, sizeTable, setShowPlayer, capsApplied, loading, analysisSeq, results, addPlace])
 
   return (
     <div
