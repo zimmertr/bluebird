@@ -108,6 +108,20 @@ describe('openMeteoTransport', () => {
 })
 
 describe('createDemoWorld', () => {
+  // A step the reader hurries lands at once, the answers it waits on included.
+  it('answers at once while instant, and at its pace again after', async () => {
+    const world = createDemoWorld(demo, NOW)
+    world.setInstant(true)
+    let started = performance.now()
+    await world.openMeteo('https://api.open-meteo.com/v1/forecast?latitude=48.3&longitude=-121.0&hourly=temperature_2m&start_hour=2026-09-25T13:00&end_hour=2026-09-25T14:00')
+    expect(performance.now() - started).toBeLessThan(300)
+    world.setInstant(false)
+    started = performance.now()
+    await world.api('/api/config')
+    expect(performance.now() - started).toBeGreaterThanOrEqual(200)
+  })
+
+
   it('settles once the last request has answered', async () => {
     const world = createDemoWorld(demo, NOW)
     let answered = false

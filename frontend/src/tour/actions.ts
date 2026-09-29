@@ -1,27 +1,31 @@
 import {
+  PACE,
   type Stage,
-  byText,
-  centerOf,
-  check,
+  type Target,
+  fitPopup,
   clickMap,
   find,
   frame,
   key,
   mapSettled,
   press,
+  pressField,
+  reveal,
   setValue,
   sleep,
   type,
   until,
 } from './act'
 import {
+  AQI_BOUND,
   CLICKED,
   DEMO_MODEL,
   FIRE_AT,
   HOURS,
-  PLUME_TO,
   PASTED,
+  PLUME_TO,
   RING,
+  type Replay,
   SEARCH_QUERY,
   castPlaces,
   type DemoData,
@@ -30,178 +34,203 @@ import { dayKey } from '../utils/calendarDates'
 import { tourSelector } from '../utils/tourSteps'
 
 // What each step of the tutorial does (#536), keyed on the step's name in
-// `utils/tourSteps.ts`. A step with no entry only points. Each action runs on
+// `utils/tourSteps.ts`. A step with no action only points. Each action runs on
 // the demo copy of the app from the state `scenario.stateBefore` describes,
 // and leaves it in the state the next step's `stateBefore` describes; the
 // tests hold the two to each other.
+//
+// Nothing moves until the reader presses Next: a card is read first, then its
+// action plays. So each action begins by lighting what it is about to touch.
 
 export type Action = (stage: Stage, demo: DemoData, nowMs: number) => Promise<void>
 
+// Every control a step presses is found by its `data-tour` marker, or an
+// option in a list by the value it stands for (a model id, a day, a layer),
+// never by the words on it: a relabelled button must not stall a step.
+// `actions.test.ts` holds each marker named here to exactly one component.
+
 const area = (stage: Stage, anchor: string) => find(stage, tourSelector(anchor))
+const mapPopup = (stage: Stage) => find(stage, '.maplibregl-popup')
+const searchMenu = (stage: Stage) => area(stage, 'search-results')
+const modelList = (stage: Stage) => area(stage, 'model-list')
+// The model list's card, which holds the Ranking and Comparing chips above the
+// list itself.
+const modelCard = (stage: Stage) => modelList(stage)?.parentElement ?? null
+const modelTrigger = (stage: Stage) => area(stage, 'model-trigger') as HTMLButtonElement | null
+const firstRowButton = (stage: Stage) =>
+  area(stage, 'results')?.querySelector<HTMLButtonElement>(tourSelector('row-center')) ?? null
+const highestAqi = (stage: Stage) => find<HTMLInputElement>(stage, 'input[id$="-air-quality-upper"]')
 
 // A drawer that slides in has to finish before a control in it is measured,
 // and on a desktop, where it is docked, this resolves at once.
-async function drawerOpen(stage: Stage): Promise<void> {
+async function drawer(stage: Stage, open: boolean): Promise<void> {
   const handle = stage.handle()
-  if (handle.isDesktop) return
-  handle.setSidebarOpen(true)
+  if (handle.isDesktop || handle.sidebarOpen === open) return
+  handle.setSidebarOpen(open)
   await sleep(stage, 400)
 }
 
-async function drawerClosed(stage: Stage): Promise<void> {
-  const handle = stage.handle()
-  if (handle.isDesktop) return
-  handle.setSidebarOpen(false)
-  await sleep(stage, 400)
+/**
+ * What a step lights while its card is read, where that is more than the
+ * elements its anchors name: the map a step acts on, a popup, a table row.
+ * Everything else lights its anchors.
+ */
+export const LIGHTS: Readonly<Record<string, (stage: Stage) => Target[]>> = {
+  'map-click': (stage) => [stage.freeMap()],
+  'map-add': (stage) => [mapPopup(stage)],
+  'draw-corners': (stage) => [stage.freeMap()],
+  'model-rank': (stage) => [modelCard(stage) ?? area(stage, 'model')],
+  bound: (stage) => [area(stage, 'results'), highestAqi(stage)],
+  row: (stage) => [firstRowButton(stage)?.closest('tr')],
+  popup: (stage) => [mapPopup(stage)],
 }
 
 export const ACTIONS: Readonly<Record<string, Action>> = {
   async search(stage) {
     const box = await until(stage, () => area(stage, 'search'))
-    const menu = () => find(stage, '[role="listbox"][aria-label="Search results"]')
-    stage.light(() => [box, menu()])
+    stage.light(() => [box, searchMenu(stage)])
     const input = await until(stage, () => box.querySelector<HTMLInputElement>('input'))
     await type(stage, input, SEARCH_QUERY)
     key(input, 'Enter')
     // The first result is the Washington volcano; the rest of the menu is the
     // other four Glacier Peaks the search knows.
-    const first = await until(stage, () => menu()?.querySelector<HTMLButtonElement>('button'))
-    await sleep(stage, 700)
+    const first = await until(stage, () => searchMenu(stage)?.querySelector<HTMLButtonElement>('button'))
     await press(stage, first)
+    stage.pointer.hide()
+    await sleep(stage, 100)
     await mapSettled(stage)
   },
 
-  async map(stage, demo) {
+  async 'map-click'(stage, demo) {
     const { clicked } = castPlaces(demo)
-    stage.light(() => [area(stage, 'map')])
+    stage.light(() => [stage.freeMap()])
     const map = await until(stage, () => stage.handle().map)
-    map.flyTo(clicked.lon, clicked.lat, CLICKED.zoom)
-    await sleep(stage, 200)
+    map.flyTo(clicked.lon, clicked.lat, CLICKED.zoom, PACE.flightMs)
+    await sleep(stage, 100)
     await mapSettled(stage)
-    const at = map.poiAt(clicked.label, clicked.lon, clicked.lat)
-    const add = () => find(stage, '.maplibregl-popup [data-poi-action="add"]')
-    if (at) {
-      await clickMap(stage, at)
-      await until(stage, add, 2000).catch(() => null)
-    }
-    const button = add()
-    if (button) {
-      await sleep(stage, 600)
-      await press(stage, button)
-      return
-    }
-    // The label was not drawn where a click could land (MapLibre's placement
-    // decides at run time), so the peak is added the way the button would.
-    stage.handle().addPlace(clicked)
+    // The label's own hit box where placement drew one; its summit otherwise.
+    const at = map.poiAt(clicked.label, clicked.lon, clicked.lat) ?? map.project(clicked.lon, clicked.lat)
+    if (at) await clickMap(stage, at)
+    // Placement decides at run time whether a click can land on a label, so
+    // where none answered, the popup is opened the way the click would have.
+    if (!(await until(stage, () => mapPopup(stage), 1500).catch(() => null))) map.openPoi(clicked)
+    await until(stage, () => mapPopup(stage))
+    stage.light(() => [mapPopup(stage)])
+    await fitPopup(stage, () => mapPopup(stage))
   },
 
-  async polygon(stage) {
-    const section = await until(stage, () => area(stage, 'polygon'))
+  async 'map-add'(stage) {
+    const popup = await until(stage, () => mapPopup(stage))
+    stage.light(() => [mapPopup(stage)])
+    const add = await until(stage, () => popup.querySelector<HTMLButtonElement>('[data-poi-action="add"]'))
+    await press(stage, add)
+  },
+
+  async 'draw-start'(stage) {
     stage.light(() => [area(stage, 'polygon')])
-    await press(stage, await until(stage, () => byText(section, 'button', 'Draw polygon')))
+    await press(stage, await until(stage, () => area(stage, 'draw-start')))
     // A phone's drawer closes as drawing starts, so the ring is placed on a
     // map the reader can see.
+  },
+
+  async 'draw-corners'(stage) {
+    stage.light(() => [stage.freeMap()])
     const map = await until(stage, () => stage.handle().map)
     map.fitToPoints(RING.map(([lng, lat]) => ({ latitude: lat, longitude: lng })))
-    stage.light(() => [area(stage, 'map')])
-    await sleep(stage, 300)
+    await sleep(stage, 100)
     await mapSettled(stage)
+    // Corners follow one another quicker than a press on a control: it is one
+    // gesture, and the reader has seen the first corner land.
     for (const [lng, lat] of RING) {
       const at = map.project(lng, lat)
-      if (at) await clickMap(stage, at)
+      if (at) await clickMap(stage, at, 250)
     }
-    await drawerOpen(stage)
+  },
+
+  async 'draw-done'(stage) {
     stage.light(() => [area(stage, 'polygon')])
-    await frame(stage)
-    const polygonSection = await until(stage, () => area(stage, 'polygon'))
-    await press(stage, await until(stage, () => byText(polygonSection, 'button', 'Done')))
-    const peaks = await until(stage, () => polygonSection.querySelector<HTMLInputElement>('input[value="peak"]'))
+    await press(stage, await until(stage, () => area(stage, 'draw-finish')))
+    const peaks = await until(stage, () => area(stage, 'polygon')?.querySelector<HTMLInputElement>('input[value="peak"]'))
     if (!peaks.checked) await press(stage, peaks)
   },
 
-  async coordinates(stage) {
+  async paste(stage) {
     const section = await until(stage, () => area(stage, 'coordinates'))
     stage.light(() => [section])
     const field = await until(stage, () => section.querySelector('textarea'))
-    field.scrollIntoView({ block: 'nearest' })
-    await stage.pointer.glide(centerOf(field))
-    stage.pointer.press()
-    await sleep(stage, 300)
+    await pressField(stage, field)
     // A paste, so the app frames the pasted rows on the map as it does for a
     // reader's paste.
     field.dispatchEvent(new Event('paste', { bubbles: true }))
     setValue(field, PASTED)
-    await sleep(stage, 800)
+    await sleep(stage, PACE.pressPauseMs)
   },
 
-  async model(stage) {
-    const section = await until(stage, () => area(stage, 'model'))
-    const list = () => find(stage, '[role="listbox"][aria-label="Forecast model"]')
-    const card = () => list()?.parentElement
-    stage.light(() => [section, card()])
-    const trigger = await until(stage, () => section.querySelector<HTMLButtonElement>('button[aria-haspopup="listbox"]'))
-    await press(stage, trigger)
-    const option = await until(stage, () => list()?.querySelector<HTMLElement>(`[role="option"][id$="-option-${DEMO_MODEL}"]`))
-    await sleep(stage, 500)
+  async 'model-pick'(stage) {
+    // The row while the list is shut, and the list, which covers it, once open.
+    stage.light(() => [modelCard(stage) ?? area(stage, 'model')])
+    await press(stage, await until(stage, () => modelTrigger(stage)))
+    const option = await until(stage, () =>
+      modelList(stage)?.querySelector<HTMLElement>(`[role="option"][id$="-option-${DEMO_MODEL}"]`),
+    )
     await press(stage, option)
-    // Ticked, the model joins the chart. Its chip under Comparing makes it the
-    // ranking model, and the one it replaces is then taken off.
-    const toolbar = () => card()?.querySelector('[role="toolbar"]')
-    const chips = () => [...(toolbar()?.querySelectorAll<HTMLButtonElement>('button:not([aria-label])') ?? [])]
-    const promote = await until(stage, () => chips().length === 2 && chips()[1])
-    await sleep(stage, 400)
-    await press(stage, promote)
-    const remove = await until(stage, () => {
-      const drops = [...(toolbar()?.querySelectorAll<HTMLButtonElement>('button[aria-label^="Remove"]') ?? [])]
-      return drops.length === 2 && !drops[1].disabled && drops[1]
-    })
-    await sleep(stage, 400)
-    await press(stage, remove)
-    await sleep(stage, 400)
-    await press(stage, trigger)
   },
 
-  async calendar(stage, _demo, nowMs) {
+  async 'model-rank'(stage) {
+    stage.light(() => [modelCard(stage) ?? area(stage, 'model')])
+    // Ticked, the model joined the chart. Its chip under Comparing makes it the
+    // ranking model, and the one it replaced is then taken off.
+    const chip = () =>
+      modelCard(stage)?.querySelector<HTMLButtonElement>(`${tourSelector('model-chip')}[data-model="${DEMO_MODEL}"]`)
+    await press(stage, await until(stage, chip))
+    // The model it replaced, now compared beside it, is taken off.
+    const old = await until(stage, () =>
+      [...(modelCard(stage)?.querySelectorAll<HTMLButtonElement>(tourSelector('model-remove')) ?? [])].find(
+        (b) => b.dataset.model !== DEMO_MODEL && !b.disabled,
+      ),
+    )
+    await press(stage, old)
+    await press(stage, await until(stage, () => modelTrigger(stage)))
+  },
+
+  async 'window-day'(stage, _demo, nowMs) {
     const section = await until(stage, () => area(stage, 'calendar'))
     stage.light(() => [area(stage, 'calendar')])
-    await press(stage, await until(stage, () => byText(section, 'button', 'Dates')))
+    await press(stage, await until(stage, () => area(stage, 'window-dates')))
     const tomorrow = dayKey(new Date(nowMs + 86_400_000))
     const cell = () => section.querySelector<HTMLButtonElement>(`[data-day="${tomorrow}"]`)
     // Tomorrow is next month's first day at the end of a month.
     await until(stage, () => section.querySelector('[data-day]'))
-    const next = section.querySelector<HTMLButtonElement>('button[aria-label="Next month"]')
+    const next = area(stage, 'next-month')
     if (!cell() && next) await press(stage, next)
     await press(stage, await until(stage, cell))
-    await press(stage, await until(stage, () => byText(section, 'button', 'Hourly')))
+  },
+
+  async 'window-hours'(stage) {
+    const section = await until(stage, () => area(stage, 'calendar'))
+    stage.light(() => [area(stage, 'calendar')])
+    await press(stage, await until(stage, () => area(stage, 'window-hourly')))
     const times = await until(stage, () => {
       const found = section.querySelectorAll<HTMLInputElement>('input[type="time"]')
       return found.length === 2 && found
     })
     for (const [field, value] of [[times[0], HOURS.start], [times[1], HOURS.end]] as const) {
-      await stage.pointer.glide(centerOf(field))
-      stage.pointer.press()
+      await pressField(stage, field)
       setValue(field, value)
-      await sleep(stage, 400)
+      await sleep(stage, PACE.pressPauseMs)
     }
-  },
-
-  async metrics(stage) {
-    const section = await until(stage, () => area(stage, 'metrics'))
-    stage.light(() => [section])
-    const radio = await until(stage, () => section.querySelector<HTMLInputElement>('input[type="radio"][value="aqi"]'))
-    await sleep(stage, 300)
-    await press(stage, radio)
   },
 
   async analyze(stage) {
     const button = await until(stage, () => area(stage, 'analyze'))
     stage.light(() => [button])
-    await press(stage, button)
     const before = stage.handle().analysisSeq
+    await press(stage, button)
+    stage.pointer.hide()
     stage.light(() => [find(stage, tourSelector('progress')) ?? button])
     await until(stage, () => stage.handle().analysisSeq > before && !stage.handle().loading, 30_000)
     // A phone's drawer closes on a finished analysis, onto the ranked markers.
-    stage.light(() => [stage.handle().isDesktop ? button : area(stage, 'map')])
+    stage.light(() => [stage.handle().isDesktop ? button : stage.freeMap()])
   },
 
   async layers(stage) {
@@ -211,13 +240,11 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     await press(stage, button)
     for (const layer of ['fires', 'smoke']) {
       const box = await until(stage, () => cluster?.querySelector<HTMLInputElement>(`input[value="${layer}"]`))
-      await sleep(stage, 300)
       if (!box.checked) await press(stage, box)
     }
-    await sleep(stage, 500)
     await press(stage, button)
-    stage.light(() => [area(stage, 'map')])
     stage.pointer.hide()
+    stage.light(() => [stage.freeMap()])
     // The fire, the whole plume and every ranked peak in one view, so the
     // reader sees which peaks stand in the smoke.
     stage.handle().map?.fitToPoints([
@@ -225,33 +252,76 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
       { latitude: FIRE_AT.lat, longitude: FIRE_AT.lon },
       { latitude: PLUME_TO.lat, longitude: PLUME_TO.lon },
     ])
-    await sleep(stage, 300)
+    await sleep(stage, 100)
     await mapSettled(stage)
+  },
+
+  async bound(stage) {
+    const table = () => area(stage, 'results')
+    stage.light(() => [table(), highestAqi(stage)])
+    // On a phone the bound is in the drawer, which covers the table: it opens
+    // for the typing and closes again so the reader sees the rows leave.
+    await drawer(stage, true)
+    const field = await until(stage, () => highestAqi(stage))
+    await reveal(stage, field)
+    await pressField(stage, field)
+    // Set whole rather than a digit at a time: a highest AQI of 1, then 10, on
+    // the way to 100 would empty the table twice before the rows it is about
+    // were seen to leave.
+    setValue(field, String(AQI_BOUND))
+    await sleep(stage, PACE.pressPauseMs)
+    stage.pointer.hide()
+    await drawer(stage, false)
+    stage.light(() => [table()])
+    await frame(stage)
   },
 
   async row(stage) {
-    const table = await until(stage, () => area(stage, 'results'))
-    const center = await until(stage, () => table.querySelector<HTMLButtonElement>('button[aria-label^="Center map on"]'))
-    const row = center.closest('tr')
-    stage.light(() => [row])
-    await sleep(stage, 400)
+    const center = await until(stage, () => firstRowButton(stage))
+    stage.light(() => [center.closest('tr')])
     await press(stage, center)
-    await until(stage, () => find(stage, '.maplibregl-popup'), 3000).catch(() => null)
+    stage.pointer.hide()
+    // The popup needs more map than the open results leave, so they fold as
+    // the map flies: the next step is about the popup.
+    const handle = stage.handle()
+    if (!handle.resultsCollapsed) handle.toggleCollapsed()
+    await until(stage, () => mapPopup(stage), 3000)
+    stage.light(() => [mapPopup(stage)])
+    await sleep(stage, 100)
     await mapSettled(stage)
+    await fitPopup(stage, () => mapPopup(stage))
   },
+}
 
+/**
+ * Plays a press again on a freshly mounted demo, for what a link cannot hold
+ * (`scenario.Replay`). Runs instantly with the pointer hidden, since the reader
+ * saw it the first time.
+ */
+export const REPLAYS: Readonly<Record<Replay, Action>> = {
+  async poi(stage, demo) {
+    stage.handle().map?.openPoi(castPlaces(demo).clicked)
+    await until(stage, () => mapPopup(stage))
+    await fitPopup(stage, () => mapPopup(stage))
+  },
+  // Draw polygon, and over a placed ring the same button, which reads Edit.
+  async draw(stage) {
+    ;(await until(stage, () => area(stage, 'draw-start'))).click()
+    await frame(stage)
+  },
+  async 'edit-ring'(stage) {
+    ;(await until(stage, () => area(stage, 'draw-start'))).click()
+    await frame(stage)
+  },
+  async 'model-list'(stage) {
+    ;(await until(stage, () => modelTrigger(stage))).click()
+    await until(stage, () => modelList(stage))
+  },
   async popup(stage) {
-    const popup = () => find(stage, '.maplibregl-popup')
-    if (!popup()) {
-      const [top] = stage.handle().results
-      if (top) stage.handle().map?.focusResult(top)
-    }
-    await drawerClosed(stage)
-    const link = await until(stage, () => popup()?.querySelector<HTMLAnchorElement>('a[href*="windy.com"]'))
-    stage.light(() => [popup()])
+    const [top] = stage.handle().results
+    if (top) stage.handle().map?.focusResult(top)
+    await until(stage, () => mapPopup(stage), 3000)
     await mapSettled(stage)
-    // Rests on a number without clicking it: a click opens Windy in a tab.
-    await stage.pointer.glide(centerOf(link))
-    check(stage)
+    await fitPopup(stage, () => mapPopup(stage))
   },
 }

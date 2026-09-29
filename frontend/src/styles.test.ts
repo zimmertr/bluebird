@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   TOUR,
+  TOUR_DIM,
+  TOUR_HOLE_RADIUS_PX,
+  TOUR_HOLE_RING_PX,
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
@@ -1973,29 +1976,57 @@ describe('the selection chip', () => {
   })
 })
 
-// The tutorial's pointer (#536) has to be seen crossing Driver's dim, whose
-// z-index is 10000 in Driver's own stylesheet, and stay under its card at
-// 1000000000. It carries no hue: it is not a control of the app's.
-describe('the tutorial pointer', () => {
+// The tutorial (#536) draws its own card, dim and pointer over the demo copy
+// of the app, so each has to stand over everything the demo can open.
+describe('the tutorial', () => {
   const z = (classes: string) => Number(/\bz-\[(\d+)\]/.exec(classes)?.[1])
+  const modal = Number(/\d+/.exec(LAYER.modal)?.[0])
 
-  it('stands between Driver\'s dim and its card', () => {
-    expect(z(TOUR.pointer)).toBeGreaterThan(10_000)
-    expect(z(TOUR.pointer)).toBeLessThan(1_000_000_000)
+  it('stacks the dim, then the pointer, then the card, over every layer of the app', () => {
+    expect(z(TOUR.dim)).toBeGreaterThan(modal)
+    expect(z(TOUR.pointer)).toBeGreaterThan(z(TOUR.dim))
+    expect(z(TOUR.card)).toBeGreaterThan(z(TOUR.pointer))
   })
 
-  it('never takes a press, so the demo under it gets none from the reader either', () => {
+  it('lets the demo copy stack as the reader\'s app does, with no layer of its own', () => {
+    expect(TOUR.sandbox).not.toMatch(/\bz-/)
+  })
+
+  it('never lets the pointer take a press', () => {
     expect(TOUR.pointer).toContain('pointer-events-none')
-    expect(TOUR.frame).toContain('pointer-events-none')
   })
 
-  it('is drawn in white and slate alone', () => {
+  it('draws the pointer in white and slate alone', () => {
     const hues = /\b(?:fill|stroke|border|bg)-(?!white\b|slate-)[a-z]+/
     expect(TOUR.pointerArrow).not.toMatch(hues)
     expect(TOUR.pointerPress).not.toMatch(hues)
   })
 
-  it('lets the demo copy stack as the reader\'s app does, with no layer of its own', () => {
-    expect(TOUR.sandbox).not.toMatch(/\bz-/)
+  it('wears the dialog card and the panel\'s inline button pair', () => {
+    expect(TOUR.card).toContain(SURFACE_CARD)
+    expect(TOUR.previous).toContain(BUTTON_SECONDARY)
+    expect(TOUR.next).toBe(BUTTON_ACCENT)
+    expect(TOUR.close).toContain(ICON_BUTTON)
+  })
+
+  it('fills the progress bars with the accent mark, on the pill radius', () => {
+    expect(TOUR.barFill).toContain(ACCENT.mark)
+    expect(TOUR.bar).toContain(RADIUS.pill)
+  })
+
+  it('keeps a phone\'s safe area on the edge the card stands on', () => {
+    expect(TOUR.cardTop).toContain('safe-area-inset-top')
+    expect(TOUR.cardBottom).toContain('safe-area-inset-bottom')
+  })
+
+  it('stacks every step\'s text in one cell, so the card is as tall at every step', () => {
+    expect(TOUR.text).toMatch(/\bgrid\b/)
+    expect(TOUR.textLine).toContain('grid-area:1/1')
+  })
+
+  it('dims to half and rings a lit area as the focus ring outlines a control', () => {
+    expect(TOUR_DIM).toBe(0.5)
+    expect(TOUR_HOLE_RADIUS_PX).toBe(8)
+    expect(FOCUS_RING).toContain(`outline-${TOUR_HOLE_RING_PX}`)
   })
 })

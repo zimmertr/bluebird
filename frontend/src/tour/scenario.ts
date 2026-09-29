@@ -6,15 +6,19 @@
 // weather is recorded (`tools/tour-demo/capture.ts`); everything here is made
 // up, deterministic, and named as an example wherever the reader can see it.
 //
-// The cast is chosen so ranking by air quality tells one story. Glacier Peak
-// (searched), Kennedy Peak (pasted) and Gamma Peak (inside the drawn ring)
-// stand beside the fire. Dome Peak (clicked), Mount Misch (pasted) and the
-// ring's three northern peaks are far from it and breathe clean air.
+// The cast is chosen so ranking by air quality tells one story, and so the
+// ranking runs through every band of the US AQI. Gamma Peak (inside the drawn
+// ring) stands beside the fire and is hazardous, Glacier Peak (searched) very
+// unhealthy, Kennedy Peak (pasted) unhealthy, Helmet Butte (in the ring, under
+// the plume) unhealthy for sensitive groups, and Plummer Mountain at the
+// plume's edge moderate. Dome Peak (clicked), Mount Misch (pasted), Bannock
+// and Sitting Bull are far from it and breathe clean air.
 import type { Feature, FeatureCollection, Polygon } from 'geojson'
 import type { DiscoveredDestination, GeoPolygon } from '../types'
 import { dayKey } from '../utils/calendarDates'
 import { type Place, placeFromNominatimRow } from '../utils/geocode'
-import { TOUR_STEPS, stepIndex } from '../utils/tourSteps'
+import { NO_CONSTRAINTS } from '../utils/constraints'
+import { stepIndex } from '../utils/tourSteps'
 import type { ShareableState } from '../utils/urlState'
 
 /** One peak's hourly answer from Open-Meteo, as the API sends it. */
@@ -84,10 +88,10 @@ export const HOURS = { start: '06:00', end: '18:00' } as const
 
 const KM_PER_DEG_LAT = 111.32
 
-/** The fire's middle, between Glacier Peak and Gamma Peak. */
-export const FIRE_AT = { lat: 48.118, lon: -121.078 } as const
-/** Where the plume drifts to, south-east and away from the northern peaks. */
-export const PLUME_TO = { lat: 48.04, lon: -120.9 } as const
+/** The fire's middle, south of Gamma Peak and east of Glacier Peak. */
+export const FIRE_AT = { lat: 48.121, lon: -121.076 } as const
+/** Where the plume drifts to: north-east, over Helmet Butte's shoulder. */
+export const PLUME_TO = { lat: 48.192, lon: -120.921 } as const
 
 function kmBetween(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const kx = KM_PER_DEG_LAT * Math.cos((((aLat + bLat) / 2) * Math.PI) / 180)
@@ -170,14 +174,18 @@ function plumeReach(lat: number, lon: number): { off: number; along: number } {
  * The US AQI at a place in the demo's `hour`th hour: a clean background, a
  * fall-off from the fire, and the plume on top, rising through the afternoon as
  * smoke does when the day heats. Deterministic, so a test can hold it.
+ *
+ * The strengths and the two fall-offs were fitted to the cast above, so each
+ * named peak's window average lands inside its band with room either side.
+ * Capped at 500, where the scale ends.
  */
 export function aqiAt(lat: number, lon: number, hour: number): number {
   const background = 16 + 6 * (0.5 + 0.5 * Math.sin(lat * 97 + lon * 41))
-  const fire = 150 * Math.exp(-kmBetween(lat, lon, FIRE_AT.lat, FIRE_AT.lon) / 6)
+  const fire = 293 * Math.exp(-kmBetween(lat, lon, FIRE_AT.lat, FIRE_AT.lon) / 3.1)
   const { off, along } = plumeReach(lat, lon)
-  const plume = 80 * Math.exp(-off / 4) * (1 - 0.6 * along)
+  const plume = 524 * Math.exp(-off / 1.9) * (1 - 0.6 * along)
   const day = 0.8 + 0.4 * Math.sin((Math.PI * Math.min(hour, 12)) / 12)
-  return Math.round(Math.min(300, background + (fire + plume) * day))
+  return Math.round(Math.min(500, background + (fire + plume) * day))
 }
 
 // ── The state before each step ─────────────────────────────────────────────
@@ -199,52 +207,89 @@ export function castPlaces(demo: DemoData): { searched: Place; clicked: Place } 
   }
 }
 
+/** The highest AQI the bound step types, and the rows it takes away. */
+export const AQI_BOUND = 100
+
+/**
+ * What a step's starting screen holds that no link can: something a press
+ * opened and left open. Mounting the demo from a link cannot open it, so the
+ * press is played again, instantly and with the pointer hidden.
+ *
+ * - `poi`: the clicked peak's popup, with its Add to analysis button.
+ * - `draw`: draw mode, started and with no corner placed yet.
+ * - `edit-ring`: draw mode over the placed ring, so Done is on offer.
+ * - `model-list`: the model list, open, with the ticked model compared.
+ * - `popup`: the forecast popup of the row the row step clicked.
+ */
+export type Replay = 'poi' | 'draw' | 'edit-ring' | 'model-list' | 'popup'
+
 /** Where the demo app starts when it is mounted at a step. */
 export interface StepState {
   initial: Partial<ShareableState>
   autoAnalyze: boolean
+  replay: Replay | null
 }
 
 /**
  * The state the demo app stands in before step `index`: every earlier step's
  * action applied, and nothing of this one's. Mounting the app here and playing
  * the step is the same screen a walk from the start reaches, which is what lets
- * Previous and a Next pressed mid-action jump rather than replay.
+ * Previous jump rather than replay the whole run.
+ *
+ * The camera is not here: where a flight lands depends on the screen and on
+ * where the card stands, so the run records it as each step opens and hands it
+ * to the mount beside this.
  *
  * The player is switched on from the start, on a phone too, so the player step
  * has a player to light wherever the tutorial is opened.
  */
 export function stateBefore(index: number, demo: DemoData, nowMs: number): StepState {
   const done = (key: string) => stepIndex(key) < index
+  const next = (key: string) => stepIndex(key) === index
   const { searched, clicked } = castPlaces(demo)
   const tomorrow = dayKey(new Date(nowMs + 86_400_000))
   const initial: Partial<ShareableState> = { showPlayer: true }
+  let replay: Replay | null = null
   const pins: Place[] = []
   if (done('search')) pins.push(searched)
-  if (done('map')) pins.push(clicked)
+  if (done('map-add')) pins.push(clicked)
   if (pins.length > 0) initial.pins = pins
-  if (done('polygon')) {
+  if (next('map-add')) replay = 'poi'
+  if (next('draw-corners')) replay = 'draw'
+  if (done('draw-corners')) {
     initial.polygon = RING_POLYGON
-    initial.destinationTypes = ['peak']
+    initial.destinationTypes = done('draw-done') ? ['peak'] : []
   }
-  if (done('coordinates')) initial.customCsv = PASTED
-  if (done('model')) {
+  if (next('draw-done')) replay = 'edit-ring'
+  if (done('paste')) initial.customCsv = PASTED
+  if (done('model-pick')) initial.compareModels = [DEMO_MODEL]
+  if (next('model-rank')) replay = 'model-list'
+  if (done('model-rank')) {
     initial.forecastModel = DEMO_MODEL
     initial.compareModels = []
   }
-  if (done('calendar')) {
-    initial.selection = { kind: 'days', startDate: tomorrow, endDate: tomorrow, hours: { ...HOURS } }
+  if (done('window-day')) {
+    initial.selection = {
+      kind: 'days',
+      startDate: tomorrow,
+      endDate: tomorrow,
+      ...(done('window-hours') ? { hours: { ...HOURS } } : {}),
+    }
   }
   if (done('layers')) {
     initial.showWildfires = true
     initial.showSmoke = true
   }
-  return { initial, autoAnalyze: done('analyze') }
+  if (done('bound')) initial.constraints = { ...NO_CONSTRAINTS, maxAqi: AQI_BOUND }
+  if (next('popup')) replay = 'popup'
+  return { initial, autoAnalyze: done('analyze'), replay }
 }
 
-/** Steps whose screen holds something no link can: the popup the row step opened. */
-export function opensPopup(index: number): boolean {
-  return index === stepIndex('popup')
+/**
+ * Whether a map popup belongs on screen while step `index` is read: the peak's
+ * popup its Add button is in, and the forecast the row step opened. Any other
+ * step closes it, so it covers neither a marker nor the card's side of the map.
+ */
+export function keepsPopup(index: number): boolean {
+  return index === stepIndex('map-add') || index === stepIndex('popup')
 }
-
-export const STEP_COUNT = TOUR_STEPS.length

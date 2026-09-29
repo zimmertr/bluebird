@@ -1,41 +1,133 @@
-// The tutorial's steps (#536), and where the screen has to stand for each one.
-// Pure, apart from the chunk that acts them out, so the order and the layout
-// rule are testable in the node project. Every string here was approved by the
-// maintainer (TJ, 2026-09-24); a new or reworded one needs the same.
+// The tutorial's steps (#536), in sections, and where the screen has to stand
+// for each one. Pure, apart from the chunk that acts them out, so the order,
+// the counts the card shows and the layout rule are testable in the node
+// project. Every string here was approved by the maintainer (TJ, 2026-09-24
+// and 2026-09-29); a new or reworded one needs the same.
 
 /** Which part of the screen a step's target lives in. */
 export type TourPlace = 'map' | 'panel' | 'results'
 
-export interface TourStep {
+interface StepSpec {
   /** The step's name, which `tour/actions.ts` keys what the step does on. */
   key: string
-  /** The `data-tour` value the step lights as it opens. */
-  anchor: string
-  title: string
-  text: string
+  /** The `data-tour` values of what the step lights while its card is read. */
+  anchors: readonly string[]
   place: TourPlace
+  text: string
 }
 
-export const TOUR_STEPS: readonly TourStep[] = [
-  { key: 'search', anchor: 'search', place: 'map', title: 'Search by name', text: 'Type the name of a destination and select it from the results menu.' },
-  { key: 'map', anchor: 'map', place: 'map', title: 'Click the map', text: 'Zoom in, click a peak or lake on the map, and select Add to analysis.' },
-  { key: 'polygon', anchor: 'polygon', place: 'panel', title: 'Draw an area', text: 'Draw a polygon on the map to find every peak, trailhead, or lake inside it.' },
-  { key: 'coordinates', anchor: 'coordinates', place: 'panel', title: 'Paste coordinates', text: 'Paste one latitude and longitude per line, with an optional name.' },
-  { key: 'model', anchor: 'model', place: 'panel', title: 'Choose a model', text: 'Each weather model covers a different area and reaches a different distance ahead.' },
-  { key: 'calendar', anchor: 'calendar', place: 'panel', title: 'Pick a window', text: 'Choose the days and hours you plan to be out.' },
-  { key: 'metrics', anchor: 'metrics', place: 'panel', title: 'Rank and filter', text: 'Pick the metric to rank by. Set a lowest or highest value to hide destinations outside it.' },
-  { key: 'analyze', anchor: 'analyze', place: 'panel', title: 'Analyze', text: 'Fetch the forecast for every destination and rank them. This tutorial uses example data.' },
-  { key: 'layers', anchor: 'layers', place: 'map', title: 'Wildfires and smoke', text: 'Turn on wildfires and smoke to see where the air is bad.' },
-  { key: 'results', anchor: 'results', place: 'results', title: 'Ranked results', text: 'Ranked by air quality, the peaks far from the fire come first.' },
-  { key: 'row', anchor: 'results', place: 'results', title: 'Find it on the map', text: 'Click a row to fly to that destination and open its forecast.' },
-  { key: 'popup', anchor: 'map', place: 'map', title: 'Forecast details', text: 'Click any number to see that forecast on Windy.' },
-  { key: 'legend', anchor: 'legend', place: 'map', title: 'Colored markers', text: 'Each marker is colored by the ranking metric. The legend shows what each color means.' },
-  { key: 'player', anchor: 'player', place: 'map', title: 'Forecast player', text: 'Play the forecast hour by hour to watch conditions change on the map.' },
-  { key: 'columns', anchor: 'columns', place: 'results', title: 'Choose columns', text: 'Choose which columns the table shows.' },
-  { key: 'results-mode', anchor: 'results-mode', place: 'results', title: 'Table and chart', text: 'Switch between the table, an hourly chart, or both.' },
-  { key: 'download', anchor: 'download', place: 'results', title: 'Download', text: 'Save these results as a CSV file.' },
-  { key: 'tutorial', anchor: 'tutorial', place: 'panel', title: 'Tutorial', text: 'Open this tutorial again from here at any time.' },
+interface SectionSpec {
+  title: string
+  steps: readonly StepSpec[]
+}
+
+// A gesture a reader thinks of as one stays one step, and a section holds the
+// steps of one part of the app, so the card can say where in the app the step
+// is and how far through that part it has come.
+const SECTIONS: readonly SectionSpec[] = [
+  {
+    title: 'Search by name',
+    steps: [{ key: 'search', anchors: ['search'], place: 'map', text: 'Type the name of a destination and select it from the results menu.' }],
+  },
+  {
+    title: 'Click the map',
+    steps: [
+      { key: 'map-click', anchors: [], place: 'map', text: 'Zoom in and click a peak or lake on the map.' },
+      { key: 'map-add', anchors: [], place: 'map', text: 'Select Add to analysis.' },
+    ],
+  },
+  {
+    title: 'Draw an area',
+    steps: [
+      { key: 'draw-start', anchors: ['polygon'], place: 'panel', text: 'Select Draw polygon.' },
+      { key: 'draw-corners', anchors: [], place: 'map', text: 'Click the map to place each corner.' },
+      { key: 'draw-done', anchors: ['polygon'], place: 'panel', text: 'Select Done, then choose what to find inside the area.' },
+    ],
+  },
+  {
+    title: 'Paste coordinates',
+    steps: [{ key: 'paste', anchors: ['coordinates'], place: 'panel', text: 'Paste one latitude and longitude per line, with an optional name.' }],
+  },
+  {
+    title: 'Choose a model',
+    steps: [
+      { key: 'model-pick', anchors: ['model'], place: 'panel', text: 'Each weather model covers a different area and reaches a different distance ahead.' },
+      { key: 'model-rank', anchors: ['model'], place: 'panel', text: 'One model ranks the results. The others are compared with it.' },
+    ],
+  },
+  {
+    title: 'Pick a window',
+    steps: [
+      { key: 'window-day', anchors: ['calendar'], place: 'panel', text: 'Choose the days you plan to be out.' },
+      { key: 'window-hours', anchors: ['calendar'], place: 'panel', text: 'Select Hourly to set the hours.' },
+    ],
+  },
+  {
+    title: 'Rank and filter',
+    steps: [{ key: 'metrics', anchors: ['metrics'], place: 'panel', text: 'Pick the metric to rank by. Set a lowest or highest value to hide destinations outside it.' }],
+  },
+  {
+    title: 'Analyze',
+    steps: [{ key: 'analyze', anchors: ['analyze'], place: 'panel', text: 'Fetch the forecast for every destination and rank them. This tutorial uses example data.' }],
+  },
+  {
+    title: 'Wildfires and smoke',
+    steps: [{ key: 'layers', anchors: ['layers'], place: 'map', text: 'Turn on wildfires and smoke to see where the air is bad.' }],
+  },
+  {
+    title: 'Ranked results',
+    steps: [
+      { key: 'results', anchors: ['results'], place: 'results', text: 'Ranked by air quality, the peaks far from the fire come first.' },
+      { key: 'bound', anchors: ['results'], place: 'results', text: 'Set a highest AQI to hide the destinations in the smoke.' },
+    ],
+  },
+  {
+    title: 'Find it on the map',
+    steps: [{ key: 'row', anchors: [], place: 'results', text: 'Click a row to fly to that destination and open its forecast.' }],
+  },
+  {
+    title: 'Forecast details',
+    steps: [{ key: 'popup', anchors: [], place: 'map', text: 'Click any number to see that forecast on Windy.' }],
+  },
+  {
+    title: 'Colored markers',
+    steps: [{ key: 'legend', anchors: ['legend'], place: 'map', text: 'Each marker is colored by the ranking metric. The legend shows what each color means.' }],
+  },
+  {
+    title: 'Forecast player',
+    steps: [{ key: 'player', anchors: ['player'], place: 'map', text: 'Play the forecast hour by hour to watch conditions change on the map.' }],
+  },
+  {
+    title: 'Results tools',
+    steps: [{ key: 'tools', anchors: ['columns', 'results-mode', 'download'], place: 'results', text: 'Choose the columns, switch between the table and the chart, or download a CSV file.' }],
+  },
+  {
+    title: 'Tutorial',
+    steps: [{ key: 'tutorial', anchors: ['tutorial'], place: 'panel', text: 'Open this tutorial again from here at any time.' }],
+  },
 ]
+
+export interface TourStep extends StepSpec {
+  /** The section's title, which the card shows above the step's text. */
+  section: string
+  /** Which section, from 0, for the card's progress bars. */
+  sectionIndex: number
+  /** Where the step stands in its section, from 0, and how many it holds. */
+  inSection: number
+  sectionSize: number
+}
+
+export const TOUR_SECTION_COUNT = SECTIONS.length
+
+export const TOUR_STEPS: readonly TourStep[] = SECTIONS.flatMap((section, sectionIndex) =>
+  section.steps.map((step, inSection) => ({
+    ...step,
+    section: section.title,
+    sectionIndex,
+    inSection,
+    sectionSize: section.steps.length,
+  })),
+)
 
 /** The card's own controls. */
 export const TOUR_COPY = {
@@ -46,19 +138,39 @@ export const TOUR_COPY = {
   close: 'End tutorial',
 } as const
 
+/** The count the card shows, which counts inside the step's section. */
+export function progressText(step: TourStep): string {
+  return TOUR_COPY.progress
+    .replace('{{current}}', String(step.inSection + 1))
+    .replace('{{total}}', String(step.sectionSize))
+}
+
+/**
+ * How far each section's bar is filled while `step` is on screen: a section
+ * already passed is full, the step's own section is filled to the step, and
+ * the rest are empty.
+ */
+export function sectionFill(step: TourStep): number[] {
+  return Array.from({ length: TOUR_SECTION_COUNT }, (_, i) =>
+    i < step.sectionIndex ? 1 : i > step.sectionIndex ? 0 : (step.inSection + 1) / step.sectionSize,
+  )
+}
+
 export function tourSelector(anchor: string): string {
   return `[data-tour="${anchor}"]`
 }
 
 /** The index of the step named `key`. */
 export function stepIndex(key: string): number {
-  return TOUR_STEPS.findIndex((s) => s.key === key)
+  const i = TOUR_STEPS.findIndex((s) => s.key === key)
+  if (i < 0) throw new Error(`no tutorial step is named ${key}`)
+  return i
 }
 
 /** How the screen has to stand for one step. */
 export interface TourLayout {
   drawerOpen: boolean
-  /** Null leaves the sheet as it stands; true or false collapses it or not. */
+  /** Null leaves the results as they stand; true or false folds them or not. */
   collapsed: boolean | null
 }
 
@@ -67,18 +179,34 @@ export interface TourLayout {
  * step there. On a phone it is a drawer over the map, so a step on the map or
  * the results closes it and a step in the panel opens it.
  *
- * Once there is a report, a map step folds the results down to their bar, so
- * a popup or the player has the whole map to stand on, and a results step
- * opens them back up. A panel step leaves them as they are on a phone, where
- * the drawer covers them, and open on a desktop, where they sit beside it.
+ * Once the results are on screen (a searched place is enough to show them),
+ * only a results step opens them. Every other step folds them down to their
+ * bar, so the map keeps the height a popup, a drawn ring or the player needs
+ * clear of the card. A panel step on a phone leaves them as they are, since
+ * the drawer covers them.
  */
-export function stepLayout(step: TourStep, isDesktop: boolean, hasReport: boolean): TourLayout {
-  const collapsed = !hasReport
+export function stepLayout(step: TourStep, isDesktop: boolean, hasResults: boolean): TourLayout {
+  const collapsed = !hasResults
     ? null
-    : step.place === 'map'
-      ? true
-      : step.place === 'results' || isDesktop
-        ? false
+    : step.place === 'results'
+      ? false
+      : step.place === 'map' || isDesktop
+        ? true
         : null
   return { drawerOpen: isDesktop || step.place === 'panel', collapsed }
+}
+
+/** Which edge of a phone the card stands on. */
+export type PhoneEdge = 'top' | 'bottom'
+
+/**
+ * The card stands at the bottom of a phone until the ranked results arrive,
+ * and at the top from then on. From the results onward the bottom edge belongs
+ * to the results sheet and to what rides above it (the legend, the player),
+ * and every step after the results lights one of those or the panel's footer.
+ * Before them the targets are the search box at the top, the map and the
+ * panel, whose drawer the card is kept clear of. One switch in the whole run.
+ */
+export function phoneEdge(index: number): PhoneEdge {
+  return index >= stepIndex('results') ? 'top' : 'bottom'
 }

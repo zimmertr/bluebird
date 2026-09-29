@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render } from '@testing-library/react'
 import { useState } from 'react'
 import type { SandboxHandle } from '../hooks/useTour'
-import { Stale, type Stage, byText, find, setValue, sleep } from './act'
+import { Stale, type Stage, find, setValue, sleep } from './act'
 
 afterEach(() => {
   document.body.innerHTML = ''
@@ -14,9 +14,12 @@ function stageOver(root: HTMLElement, readerRoot: HTMLElement, alive = () => tru
     readerRoot,
     handle: () => ({}) as SandboxHandle,
     alive,
-    reduced: true,
+    instant: () => true,
+    hurried: new Promise(() => {}),
     pointer: { glide: async () => {}, press: () => {}, hide: () => {}, remove: () => {} },
     light: () => {},
+    card: () => null,
+    freeMap: () => null,
   }
 }
 
@@ -37,14 +40,6 @@ describe('find', () => {
 
   it('finds a panel the demo portaled out of its own tree, and not the reader\'s', () => {
     expect(find(page(), '[role="listbox"]')?.textContent).toBe('demo list')
-  })
-})
-
-describe('byText', () => {
-  it('matches a button by its whole label', () => {
-    document.body.innerHTML = '<div><button>Draw polygon</button><button>Done</button></div>'
-    expect(byText(document.body, 'button', 'Done')?.textContent).toBe('Done')
-    expect(byText(document.body, 'button', 'Don')).toBeNull()
   })
 })
 
@@ -74,5 +69,22 @@ describe('sleep', () => {
     document.body.innerHTML = '<div id="root"></div><div id="demo"></div>'
     const stage = stageOver(document.getElementById('demo')!, document.getElementById('root')!, () => false)
     await expect(sleep(stage, 10)).rejects.toBeInstanceOf(Stale)
+  })
+
+  // Next pressed while a step plays finishes it where it was going: every
+  // wait in the action ends the moment the reader hurries.
+  it('ends early when the reader hurries the step', async () => {
+    document.body.innerHTML = '<div id="root"></div><div id="demo"></div>'
+    let hurry = () => {}
+    const stage = {
+      ...stageOver(document.getElementById('demo')!, document.getElementById('root')!),
+      instant: () => false,
+      hurried: new Promise<void>((resolve) => (hurry = resolve)),
+    }
+    const started = performance.now()
+    const waiting = sleep(stage, 10_000)
+    hurry()
+    await waiting
+    expect(performance.now() - started).toBeLessThan(1000)
   })
 })

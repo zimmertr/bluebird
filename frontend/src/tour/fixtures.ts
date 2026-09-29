@@ -9,12 +9,19 @@
 // is a 404, which each caller already handles as an unavailable service.
 import type { DestinationsRequest, DiscoveredDestination } from '../types'
 import type { Transport } from '../utils/apiFetch'
+import { AIR_QUALITY_URL } from '../utils/openMeteo'
 import { type DemoData, type RecordedHours, aqiAt, exampleFire, exampleSmoke } from './scenario'
 
 // Long enough for a spinner and the progress card to be seen, short enough to
-// keep the demo moving.
+// keep the demo moving. None at all while a step is being hurried to its end.
 const API_DELAY_MS = 250
 const WEATHER_DELAY_MS = 700
+
+/** Whether answers come at once: a step the reader hurried, or one played again. */
+export interface Pace {
+  instant: boolean
+}
+const UNHURRIED: Pace = { instant: false }
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -94,11 +101,11 @@ function destinations(demo: DemoData, body: DestinationsRequest): unknown {
 }
 
 /** Answers for the pod's own API. */
-export function apiTransport(demo: DemoData, nowMs: number): Transport {
+export function apiTransport(demo: DemoData, nowMs: number, pace: Pace = UNHURRIED): Transport {
   return async (input, init) => {
     // `apiFetch` always sends a path on the page's own origin.
     const [pathname] = input.split('?')
-    await wait(API_DELAY_MS, init?.signal)
+    await wait(pace.instant ? 0 : API_DELAY_MS, init?.signal)
     switch (pathname) {
       case '/api/capabilities':
         return json(demo.capabilities)
@@ -149,18 +156,20 @@ function restamp(rec: RecordedHours, vars: string[], times: number[]): RecordedH
 }
 
 /** Answers for Open-Meteo's forecast, archive and air-quality hosts. */
-export function openMeteoTransport(demo: DemoData): Transport {
+export function openMeteoTransport(demo: DemoData, pace: Pace = UNHURRIED): Transport {
   return async (input, init) => {
     const url = new URL(input)
     const params = url.searchParams
-    await wait(WEATHER_DELAY_MS, init?.signal)
+    await wait(pace.instant ? 0 : WEATHER_DELAY_MS, init?.signal)
     const lats = (params.get('latitude') ?? '').split(',').map(Number)
     const lons = (params.get('longitude') ?? '').split(',').map(Number)
     const vars = (params.get('hourly') ?? '').split(',').filter(Boolean)
     const times = hoursOf(params)
+    // The endpoint compared whole, never by a piece of the host name.
+    const airQuality = `${url.origin}${url.pathname}` === AIR_QUALITY_URL
     const items = lats.map((lat, i): RecordedHours => {
       const lon = lons[i]
-      if (url.hostname.startsWith('air-quality')) {
+      if (airQuality) {
         return {
           latitude: lat,
           longitude: lon,
@@ -180,6 +189,8 @@ export function openMeteoTransport(demo: DemoData): Transport {
 export interface DemoWorld {
   api: Transport
   openMeteo: Transport
+  /** Makes every answer from now on come at once, or at its pace again. */
+  setInstant(instant: boolean): void
   /**
    * Resolves once no demo request is in flight and none has started for a
    * moment. The tutorial ends on it, so an answer still on its way lands in the
@@ -191,6 +202,7 @@ export interface DemoWorld {
 const QUIET_MS = 150
 
 export function createDemoWorld(demo: DemoData, nowMs: number): DemoWorld {
+  const pace: Pace = { instant: false }
   let inFlight = 0
   let lastSettled = 0
   const counted = (transport: Transport): Transport => async (input, init) => {
@@ -203,8 +215,11 @@ export function createDemoWorld(demo: DemoData, nowMs: number): DemoWorld {
     }
   }
   return {
-    api: counted(apiTransport(demo, nowMs)),
-    openMeteo: counted(openMeteoTransport(demo)),
+    api: counted(apiTransport(demo, nowMs, pace)),
+    openMeteo: counted(openMeteoTransport(demo, pace)),
+    setInstant(instant) {
+      pace.instant = instant
+    },
     async settled() {
       while (inFlight > 0 || performance.now() - lastSettled < QUIET_MS) {
         await new Promise((resolve) => setTimeout(resolve, 50))

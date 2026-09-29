@@ -2104,70 +2104,71 @@ export const TABLE = {
 } as const
 
 /**
- * The tutorial (#536). Driver.js builds the card and the dimmed stage around
- * the lit target, and `tour/runTour.ts` puts these classes on its elements from
- * `onPopoverRender`. Driver's own stylesheet sits in a cascade layer under
- * Tailwind's (`tour.css`), so wherever the two disagree these win.
+ * The tutorial (#536): its card, the dim with the lit area cut out of it, and
+ * the drawn pointer that acts each step out on the demo copy of the app. All
+ * three are the tutorial's own, in a React root of their own beside the demo.
+ *
+ * The layers stand over everything the demo can open, `LAYER.modal` included,
+ * in the order they are read: the dim, then the pointer (seen crossing the dim
+ * to the lit area), then the card. The demo's box (`sandbox`) sets no z-index,
+ * so the demo's layers and portaled panels stack as the reader's do.
  *
  * The card is the dialog card the welcome dialog wears, since the tutorial is
- * started from it. `w-80` is the widest card a 360px phone holds inside the
- * same 16px gutter the panel keeps, and the cap keeps it there on anything
- * narrower. The title leaves room on its right for the close button. The card
- * names `font-sans` because Driver's rule for it starts with `all: unset` and
- * then sets a font stack of its own, so the app's font is not inherited.
+ * started from it. On a desktop it is the docked panel's width; on a phone it
+ * spans the screen at one edge, square where it meets the screen's edge and
+ * rounded where it meets the app, with the safe area added to that edge.
  *
- * Its arrow is hidden (`tour.css`) rather than recoloured. Driver draws the
- * arrow from four border colours, one of them the card's and three transparent,
- * and a colour utility sets all four at once; the lit cut-out already says what
- * the card is about.
+ * Its content, top to bottom: the progress `rail`, one `bar` per section,
+ * filled with the accent as far as the reader has come (a bar is a graphic
+ * with nothing on it, so `ACCENT.mark`); the section's title, small and dim
+ * above the step because it says where, while the step's text says what; the
+ * text; and the count in the section beside the panel's inline button pair
+ * (the secondary fill back, the accent forward). The close is `ICON_BUTTON`.
  *
- * The two buttons are the panel's inline pair (Clear beside Done): the
- * secondary fill for going back, the accent for the step forward. `ml-0`
- * cancels the 4px Driver puts between two buttons, so the gap is `gap-2` alone.
+ * `hole` is the ring round each lit area: the accent, because the lit area is
+ * where something is about to be pressed, which is what the accent means.
  *
- * `sandbox` holds the demo copy of the app the tutorial acts each step out on,
- * over the whole screen, while the reader's own app is hidden under it. It sets
- * no z-index, so the demo's layers and its portaled panels stack against each
- * other exactly as the reader's do.
- *
- * `frame` is what Driver lights. One step's action can span a control and the
- * panel it opens (a picker's list, the search menu, a popup), so the lit box is
- * a clear box the tutorial stands over the union of them rather than any one
- * element.
- *
- * `pointer` is the drawn pointer that does the acting. It stands one layer
- * above Driver's dim (z-index 10000 in Driver's own stylesheet), so it can be
- * seen moving across a dimmed part of the screen to the lit one, and under the
- * card (1000000000). The arrow is white with a slate edge, the one pair that
- * reads over both the dim and the map; no hue, because the pointer is not a
- * control of the app's and says nothing about one. `pointerPress` is the ring a
- * press sends out from its tip. Both glide only where motion is welcome.
+ * `pointer` is white with a slate edge, the one pair that reads over both the
+ * dim and the map; no hue, because the pointer is not a control of the app's
+ * and says nothing about one. `pointerPress` is the ring a press sends out
+ * from its tip. Both glide only where motion is welcome.
  */
 export const TOUR = {
-  card: `${SURFACE_CARD} font-sans p-4 w-80 max-w-[calc(100vw-2rem)]`,
-  title: `${PROSE.heading} pr-8`,
-  text: `${PROSE.body} mt-1`,
-  footer: 'mt-3 flex items-center gap-2',
-  progress: `${TEXT.caption} mr-auto`,
-  buttons: 'flex gap-2',
-  previous: `${BUTTON_SECONDARY} ${DISABLED}`,
-  next: `${BUTTON_ACCENT} ml-0`,
-  close: `${ICON_BUTTON} absolute top-3 right-3 flex items-center justify-center`,
-  frame: 'fixed pointer-events-none',
   sandbox: 'fixed inset-0',
+  dim: 'fixed inset-0 z-[70] h-full w-full',
+  dimFill: 'fill-black',
+  hole: 'fill-none stroke-sky-400',
   pointer:
-    'fixed left-0 top-0 z-[10001] pointer-events-none drop-shadow-md ' +
+    'fixed left-0 top-0 z-[71] pointer-events-none drop-shadow-md ' +
     'transition-[transform,opacity] ease-out motion-reduce:transition-none',
   pointerArrow: 'block size-6 fill-white stroke-slate-900',
   pointerPress: 'absolute -left-4 -top-4 size-8 rounded-full border-2 border-white',
+  card: `fixed z-[72] ${SURFACE_CARD} font-sans px-4 pt-3 pb-3 outline-none`,
+  cardTop: 'rounded-t-none border-t-0 pt-[max(0.75rem,env(safe-area-inset-top))]',
+  cardBottom: 'rounded-b-none border-b-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+  rail: 'flex gap-1',
+  bar: `h-1 flex-1 overflow-hidden bg-slate-600 ${RADIUS.pill}`,
+  barFill: `block h-full ${ACCENT.mark} motion-safe:transition-[width] motion-safe:duration-300`,
+  head: 'mt-2.5 flex items-center gap-2',
+  section: `${TEXT.caption} flex-1 font-semibold`,
+  close: `${ICON_BUTTON} -mr-1 flex items-center justify-center`,
+  text: `${PROSE.body} mt-1 grid`,
+  textLine: '[grid-area:1/1]',
+  foot: 'mt-3 flex items-center gap-2',
+  count: `${TEXT.caption} mr-auto tabular-nums`,
+  previous: `${BUTTON_SECONDARY} ${DISABLED}`,
+  next: BUTTON_ACCENT,
 } as const
 
 /**
- * The tutorial's stage, as Driver's config rather than classes, because Driver
- * draws it in SVG. The dim is the welcome dialog's backdrop, black at 60
- * percent; the cut-out stands 6px clear of its target, with `RADIUS.surface`'s
- * 8px corner. Numbers apart from `TOUR`, which holds class recipes only.
+ * The dim and the lit areas, as numbers rather than classes because they are
+ * drawn in SVG. The dim is black at half: the welcome dialog's backdrop is
+ * darker, but a step is often about what stands around its lit area (the
+ * coloured markers, the smoke), which has to stay readable through it. Each
+ * lit area stands 6px clear of its target with `RADIUS.surface`'s 8px corner,
+ * and its ring is 2px, as `FOCUS_RING`'s outline is.
  */
-export const TOUR_DIM = 0.6
-export const TOUR_STAGE_PAD_PX = 6
-export const TOUR_STAGE_RADIUS_PX = 8
+export const TOUR_DIM = 0.5
+export const TOUR_HOLE_PAD_PX = 6
+export const TOUR_HOLE_RADIUS_PX = 8
+export const TOUR_HOLE_RING_PX = 2
