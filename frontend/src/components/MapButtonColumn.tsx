@@ -35,8 +35,10 @@ export default function MapButtonColumn({
   onOpenControls,
   children,
 }: MapButtonColumnProps) {
+  // `data-map-column` is how the tutorial (#536) finds what this column takes
+  // of the map, to keep its camera and a popup clear of it.
   return (
-    <div className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start ${MAP_COL_GAP}`}>
+    <div data-map-column="" className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start ${MAP_COL_GAP}`}>
       {/* The search field is the column's first row rather than a
           neighbour of the Controls button (TJ, 2026-09-14). Beside it,
           the two of them at the column's shared width needed 400px of a

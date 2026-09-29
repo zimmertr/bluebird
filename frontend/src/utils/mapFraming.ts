@@ -117,12 +117,21 @@ export function centerOffset(bottomPx: number, extra: Insets = NO_INSETS): [numb
 }
 
 /**
- * Insets held to a third of their axis each, so a third of the map at least
- * is left to frame into. MapLibre gives up on a fit whose padding is wider
- * than its canvas, which the tutorial's card alone comes close to on a phone.
+ * Insets held so a third of each axis at least is left to frame into: where
+ * the two on one axis would take more than two thirds of it, both shrink in
+ * proportion. MapLibre gives up on a fit whose padding is wider than its
+ * canvas, which the tutorial's card alone comes close to on a phone. One inset
+ * may take most of an axis by itself, because the tutorial's card can stand
+ * well into the map and the part beside it is still a whole third.
  */
 export function clampInsets(insets: Insets, width: number, height: number): Insets {
-  const x = (v: number) => Math.round(Math.min(Math.max(0, v), width / 3))
-  const y = (v: number) => Math.round(Math.min(Math.max(0, v), height / 3))
-  return { top: y(insets.top), right: x(insets.right), bottom: y(insets.bottom), left: x(insets.left) }
+  const pair = (a: number, b: number, span: number): [number, number] => {
+    const [p, q] = [Math.max(0, a), Math.max(0, b)]
+    const room = (2 * span) / 3
+    const k = p + q > room ? room / (p + q) : 1
+    return [Math.round(p * k), Math.round(q * k)]
+  }
+  const [top, bottom] = pair(insets.top, insets.bottom, height)
+  const [left, right] = pair(insets.left, insets.right, width)
+  return { top, right, bottom, left }
 }

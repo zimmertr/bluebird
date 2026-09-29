@@ -352,9 +352,22 @@ export function useResultsLayout({
     onDragEnd: () => setIsDragging(false),
   }
 
+  // The table's height set outright, the way a drag on its grip sets it: the
+  // tutorial (#536) sizes its demo's table to the rows it is showing. Null puts
+  // it back, as a double press on the grip does. A desktop keeps the map's
+  // resting floor, which no drag of the tutorial's should take from it.
+  const sizeTable = useCallback(
+    (px: number | null) => {
+      setTableHeight(px ?? DEFAULT_TABLE_HEIGHT)
+      setHeightsChosen(px !== null && !isDesktop)
+    },
+    [isDesktop],
+  )
+
   return {
     sheetRef,
     isDragging,
+    sizeTable,
     resultsCollapsed,
     toggleCollapsed,
     resultsMode,

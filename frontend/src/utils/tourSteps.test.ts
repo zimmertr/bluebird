@@ -106,6 +106,12 @@ describe('stepLayout', () => {
     expect(stepLayout(at('tutorial'), false, true).drawerOpen).toBe(true)
   })
 
+  it('shows the whole table in the two steps that light it, and nowhere else', () => {
+    const whole = TOUR_STEPS.filter((step) => stepLayout(step, true, true).wholeTable).map((s) => s.key)
+    expect(whole).toEqual(['results', 'bound'])
+    expect(stepLayout(at('results'), false, false).wholeTable).toBe(false)
+  })
+
   it('leaves the results alone until there are any', () => {
     for (const step of TOUR_STEPS) expect(stepLayout(step, false, false).collapsed, step.key).toBeNull()
   })

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react'
 import type { MapViewHandle } from '../components/MapView'
 import type { Place } from '../utils/geocode'
 import type { ShareableState } from '../utils/urlState'
+import type { ViewPrefs } from '../utils/viewPrefs'
 import type { DestinationResult } from '../types'
 
 // The tutorial's state in the reader's app (#536): whether it runs, which
@@ -19,6 +20,8 @@ export interface SandboxHandle {
   setShowResults: (show: boolean) => void
   resultsCollapsed: boolean
   toggleCollapsed: () => void
+  /** Sets the table's height as a drag on its grip would, or puts it back with null. */
+  sizeTable: (px: number | null) => void
   map: MapViewHandle | null
   /** The live limits have landed and been applied. */
   settled: boolean
@@ -31,11 +34,13 @@ export interface SandboxHandle {
 
 /**
  * What makes an `App` the tutorial's copy: where its state starts in place of
- * the address bar, whether it analyzes on open in place of `analyze=1`, and
- * the box it reports itself through.
+ * the address bar and of the stored view, whether it analyzes on open in
+ * place of `analyze=1`, and the box it reports itself through.
  */
 export interface Sandbox {
   initial: Partial<ShareableState>
+  /** The table's shape and the results' mode, in place of the stored ones. */
+  view: Partial<ViewPrefs>
   autoAnalyze: boolean
   handle: { current: SandboxHandle | null }
 }

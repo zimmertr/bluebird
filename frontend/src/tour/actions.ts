@@ -20,15 +20,14 @@ import {
   AQI_BOUND,
   CLICKED,
   DEMO_MODEL,
-  FIRE_AT,
   HOURS,
   PASTED,
-  PLUME_TO,
   RING,
   type Replay,
   SEARCH_QUERY,
   castPlaces,
   type DemoData,
+  overlayOutline,
 } from './scenario'
 import { dayKey } from '../utils/calendarDates'
 import { tourSelector } from '../utils/tourSteps'
@@ -83,6 +82,36 @@ export const LIGHTS: Readonly<Record<string, (stage: Stage) => Target[]>> = {
   bound: (stage) => [area(stage, 'results'), highestAqi(stage)],
   row: (stage) => [firstRowButton(stage)?.closest('tr')],
   popup: (stage) => [mapPopup(stage)],
+}
+
+/**
+ * Fits the demo map to `points` and waits for it to land, then leaves where
+ * each point stands on screen for the browser suite, which holds them all
+ * inside the free map.
+ */
+async function frameAll(stage: Stage, points: { latitude: number; longitude: number }[]): Promise<void> {
+  const map = await until(stage, () => stage.handle().map)
+  map.fitToPoints(points)
+  await sleep(stage, 100)
+  await mapSettled(stage)
+  stage.root.dataset.tourFramed = JSON.stringify(
+    points.flatMap((p) => {
+      const at = map.project(p.longitude, p.latitude)
+      return at ? [[Math.round(at.x), Math.round(at.y)]] : []
+    }),
+  )
+}
+
+/**
+ * Where a step that only points stands the camera before its card is read,
+ * so what the card names is on screen.
+ */
+export const FRAMES: Readonly<Record<string, (stage: Stage) => Promise<void>>> = {
+  // The colored markers: every row the bound left, after the row step flew
+  // in to one of them.
+  async legend(stage) {
+    await frameAll(stage, stage.handle().results)
+  },
 }
 
 export const ACTIONS: Readonly<Record<string, Action>> = {
@@ -233,7 +262,7 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     stage.light(() => [stage.handle().isDesktop ? button : stage.freeMap()])
   },
 
-  async layers(stage) {
+  async layers(stage, _demo, nowMs) {
     const button = await until(stage, () => area(stage, 'layers'))
     const cluster = button.parentElement
     stage.light(() => [cluster])
@@ -247,13 +276,7 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     stage.light(() => [stage.freeMap()])
     // The fire, the whole plume and every ranked peak in one view, so the
     // reader sees which peaks stand in the smoke.
-    stage.handle().map?.fitToPoints([
-      ...stage.handle().results,
-      { latitude: FIRE_AT.lat, longitude: FIRE_AT.lon },
-      { latitude: PLUME_TO.lat, longitude: PLUME_TO.lon },
-    ])
-    await sleep(stage, 100)
-    await mapSettled(stage)
+    await frameAll(stage, [...stage.handle().results, ...overlayOutline(nowMs)])
   },
 
   async bound(stage) {
@@ -263,6 +286,8 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     // for the typing and closes again so the reader sees the rows leave.
     await drawer(stage, true)
     const field = await until(stage, () => highestAqi(stage))
+    // The drawer covers a phone's table while it is open, so only the field is lit.
+    if (!stage.handle().isDesktop) stage.light(() => [field])
     await reveal(stage, field)
     await pressField(stage, field)
     // Set whole rather than a digit at a time: a highest AQI of 1, then 10, on

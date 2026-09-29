@@ -15,6 +15,7 @@ import {
   exampleFire,
   exampleSmoke,
   keepsPopup,
+  overlayOutline,
   stateBefore,
 } from './scenario'
 
@@ -77,10 +78,28 @@ describe('aqiAt', () => {
   const rows = CAST.map((name) => resultRow({ name, aqi_avg: window(name).avg, aqi_max: window(name).max }))
   const kept = filterConstraints(rows, { ...NO_CONSTRAINTS, maxAqi: AQI_BOUND }).map((r) => r.name)
 
-  it('takes exactly the four peaks under the smoke past a highest AQI of 100', () => {
-    expect(CAST.filter((name) => !kept.includes(name)).sort()).toEqual(
-      ['Gamma Peak', 'Glacier Peak', 'Helmet Butte', 'Kennedy Peak'],
-    )
+  const removed = CAST.filter((name) => !kept.includes(name))
+
+  it('takes away the three peaks nearest the fire, whose worst hour is over the bound', () => {
+    expect(removed.sort()).toEqual(CAST.filter((name) => window(name).max > AQI_BOUND).sort())
+    expect(removed.sort()).toEqual(['Gamma Peak', 'Glacier Peak', 'Kennedy Peak'])
+  })
+
+  it('leaves every worst hour well clear of the bound, so no rounding or hour moves a row across it', () => {
+    for (const name of CAST) expect(Math.abs(window(name).max - AQI_BOUND), name).toBeGreaterThanOrEqual(10)
+  })
+
+  it('leaves three colours of the scale among the rows that stay, for the colored markers step', () => {
+    const band = (aqi: number) => [50, 100, 150, 200, 300].findIndex((top) => aqi <= top)
+    const bands = new Set(kept.map((name) => band(window(name).avg)))
+    expect(bands.size).toBeGreaterThanOrEqual(3)
+  })
+
+  it('takes rows away from the bad end of the ranking only, and leaves some', () => {
+    expect(removed.length).toBeGreaterThan(0)
+    expect(kept.length).toBeGreaterThan(0)
+    const worstFirst = [...rows].sort((a, b) => (b.aqi_avg ?? 0) - (a.aqi_avg ?? 0)).map((r) => r.name)
+    expect(worstFirst.slice(0, removed.length).sort()).toEqual([...removed].sort())
   })
 
   it('keeps the row the row step clicks, the top of the ranking, under the bound', () => {
@@ -102,6 +121,12 @@ describe('aqiAt', () => {
 })
 
 describe('the example fire and smoke', () => {
+  it('outlines every corner of the fire and of each plume, for the camera', () => {
+    const rings = [...exampleFire(NOW).features, ...exampleSmoke(NOW).features]
+    const corners = rings.reduce((n, f) => n + (f.geometry as { coordinates: number[][][] }).coordinates[0].length, 0)
+    expect(overlayOutline(NOW)).toHaveLength(corners)
+  })
+
   it('names the fire as an example', () => {
     const [fire] = exampleFire(NOW).features
     expect(fire.properties).toMatchObject({ attr_IncidentName: 'Example fire' })
@@ -161,8 +186,8 @@ describe('stateBefore', () => {
 
   it('holds the highest AQI from the step after the bound on', () => {
     expect(before('bound').initial.constraints).toBeUndefined()
-    expect(before('row').initial.constraints).toEqual({ ...NO_CONSTRAINTS, maxAqi: 100 })
-    expect(before('tutorial').initial.constraints?.maxAqi).toBe(100)
+    expect(before('row').initial.constraints).toEqual({ ...NO_CONSTRAINTS, maxAqi: AQI_BOUND })
+    expect(before('tutorial').initial.constraints?.maxAqi).toBe(AQI_BOUND)
   })
 
   it('is defined for every step', () => {

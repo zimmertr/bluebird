@@ -3,13 +3,12 @@
 //
 // The card stands in one place for the whole run and moves only when the
 // screen does, so the reader's eye never has to find it again. On a desktop it
-// is centred on the map, just above the band the forecast player takes once
-// the results are open: the map is at its shortest then, so a card that clears
-// it there is on the map and clear of the results in every step. On a phone it
-// spans the screen at the bottom, or at the top once the results are on screen
-// (`phoneEdge`).
-import { DEFAULT_PANEL_HEIGHT } from '../hooks/useResultsLayout'
-import { bothFits, resolvePanelHeights } from '../utils/layout'
+// is centred on the map, just above the band the forecast player takes while
+// the demo's whole table is open: the map is at its shortest then, so a card
+// that clears it there is on the map and clear of the results in every step.
+// On a phone it spans the screen at the bottom, or at the top once the results
+// are on screen (`phoneEdge`).
+import { resolvePanelHeights } from '../utils/layout'
 import { type Insets, clampInsets } from '../utils/mapFraming'
 import { RESULTS_BAR_PX, TRANSPORT_BAND_PX, dockedMapFloorPx } from '../utils/resultsSheet'
 import type { PhoneEdge } from '../utils/tourSteps'
@@ -33,24 +32,30 @@ export const CARD_GAP = 16
 const LEFT_HELD_PX = 245
 const RIGHT_HELD_PX = 42
 
+// The demo's table with all of its rows showing, in the steps about the
+// ranking: the header row (34px) and the nine rows the demo analyzes (29px
+// each), measured 2026-09-29 in Chromium at 1280x800, and room for the
+// horizontal scrollbar under them. The browser suite holds every row whole at
+// 1280x800 and 1366x768.
+export const WHOLE_TABLE_PX = 34 + 9 * 29 + 10
+
 /**
- * The map's height on a desktop while the results are docked open in Both
- * mode at their opening heights: the shortest it gets in the tutorial.
- * `availPx` is the height the map and the results share.
+ * The map's height on a desktop while the demo's whole table is docked open
+ * under it (Table mode, one grip): the shortest it gets in the tutorial. The
+ * table never takes the map under its floor. `availPx` is the height the map
+ * and the results share.
  */
 export function dockedMapHeightPx(availPx: number): number {
-  const both = bothFits(availPx)
-  const grips = both ? 2 : 1
-  const { chart, table } = resolvePanelHeights(DEFAULT_PANEL_HEIGHT, DEFAULT_PANEL_HEIGHT, {
-    chartShown: both,
+  const { table } = resolvePanelHeights(0, WHOLE_TABLE_PX, {
+    chartShown: false,
     tableShown: true,
     availPx,
-    mapMinPx: dockedMapFloorPx(grips),
+    mapMinPx: dockedMapFloorPx(1),
   })
-  // The bar and the grips come out of the same column, which is the part of
+  // The bar and the grip come out of the same column, which is the part of
   // `dockedMapFloorPx` over what the legend stack and the player need.
-  const chrome = RESULTS_BAR_PX + dockedMapFloorPx(grips) - dockedMapFloorPx(0)
-  return availPx - chart - table - chrome
+  const chrome = RESULTS_BAR_PX + dockedMapFloorPx(1) - dockedMapFloorPx(0)
+  return availPx - table - chrome
 }
 
 /** Where the card stands, as the fixed-position style it wears. */
@@ -92,29 +97,61 @@ export function cardPlace({
 }
 
 /**
- * What the camera must leave clear on a desktop so a fit or a flight lands off
- * the card: everything down to the card's lower edge. Held to a third of each
- * axis, so a short map still has room to frame into. A phone needs none: its
- * map ends where the card begins.
+ * What the map's own chrome takes of each edge, in px in from that edge: on a
+ * desktop the search box, Layers and the legends down the left and MapLibre's
+ * buttons down the right; on a phone the search box, Controls and Layers
+ * across the top. Measured by the run, since the chrome changes with what is
+ * on (a legend per layer, the Layers menu open).
  */
-export function cameraInsets(card: Box, map: Box): Insets {
-  return clampInsets(
-    { top: card.bottom + CARD_GAP - map.top, right: 0, bottom: 0, left: 0 },
-    map.right - map.left,
-    map.bottom - map.top,
-  )
+export interface Held {
+  top: number
+  right: number
+  left: number
+}
+
+export const NOTHING_HELD: Held = { top: 0, right: 0, left: 0 }
+
+/**
+ * The part of the map a map step acts in and a camera frames into: the map
+ * less the card's band, less what its own chrome holds, and less whatever
+ * covers its bottom edge (`coveredTop`: the player, and on a phone the results
+ * sheet). On a desktop the card stands inside the map, so the free part is the
+ * taller of the bands above and below it.
+ */
+export function freeMap(
+  card: Box,
+  map: Box,
+  edge: PhoneEdge | 'map',
+  coveredTop = map.bottom,
+  held: Held = NOTHING_HELD,
+): Box {
+  const left = map.left + held.left
+  const right = map.right - held.right
+  const top = map.top + held.top
+  const bottom = Math.min(map.bottom, coveredTop)
+  if (edge === 'bottom') return { left, top, right, bottom: Math.min(bottom, card.top - CARD_GAP) }
+  if (edge === 'top') return { left, top: Math.max(top, card.bottom + CARD_GAP), right, bottom }
+  const below = { left, top: Math.max(top, card.bottom + CARD_GAP), right, bottom }
+  const above = { left, top, right, bottom: Math.min(bottom, card.top - CARD_GAP) }
+  return above.bottom - above.top > below.bottom - below.top ? above : below
 }
 
 /**
- * The part of the map a map step acts in: the map less the card's band and
- * less the results where they stand on a phone's map (`coveredTop`, the top of
- * whatever covers the map's bottom edge).
+ * What the camera must leave clear so a fit or a flight lands in the free map,
+ * never under the card or the map's own chrome. Held so each axis keeps a third
+ * of the map at least, so a short map still has room to frame into.
  */
-export function freeMap(card: Box, map: Box, edge: PhoneEdge | 'map', coveredTop = map.bottom): Box {
-  const bottom = Math.min(map.bottom, coveredTop)
-  return edge === 'bottom'
-    ? { left: map.left, top: map.top, right: map.right, bottom: Math.min(bottom, card.top - CARD_GAP) }
-    : { left: map.left, top: Math.max(map.top, card.bottom + CARD_GAP), right: map.right, bottom }
+export function cameraInsets(free: Box, map: Box): Insets {
+  return clampInsets(
+    {
+      top: free.top - map.top,
+      right: map.right - free.right,
+      bottom: map.bottom - free.bottom,
+      left: free.left - map.left,
+    },
+    map.right - map.left,
+    map.bottom - map.top,
+  )
 }
 
 /** The part of `a` inside `b`, or null where they do not meet. */

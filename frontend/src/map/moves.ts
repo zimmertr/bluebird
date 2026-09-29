@@ -18,7 +18,11 @@ import { type Insets, NO_INSETS } from '../utils/mapFraming'
 export interface CameraMoves {
   /** What the camera must leave clear on each edge, on top of its own padding. */
   readonly insets: Insets
-  setInsets(insets: Insets): void
+  /**
+   * The insets, or how to read them: read at each move, since what they keep
+   * clear (a legend, a menu) can change between the setting and the move.
+   */
+  setInsets(insets: Insets | (() => Insets)): void
   setInstant(instant: boolean): void
   /** Makes a move that takes `ms`, or none while instant. */
   run(ms: number, move: (duration: number) => void): void
@@ -27,15 +31,15 @@ export interface CameraMoves {
 }
 
 export function createCameraMoves(): CameraMoves {
-  let insets = NO_INSETS
+  let insets: () => Insets = () => NO_INSETS
   let instant = false
   let last: ((duration: number) => void) | null = null
   return {
     get insets() {
-      return insets
+      return insets()
     },
     setInsets(next) {
-      insets = next
+      insets = typeof next === 'function' ? next : () => next
     },
     setInstant(next) {
       instant = next

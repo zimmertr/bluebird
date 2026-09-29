@@ -172,6 +172,8 @@ export interface TourLayout {
   drawerOpen: boolean
   /** Null leaves the results as they stand; true or false folds them or not. */
   collapsed: boolean | null
+  /** The table is sized to show every row it holds, where the room allows. */
+  wholeTable: boolean
 }
 
 /**
@@ -184,6 +186,9 @@ export interface TourLayout {
  * bar, so the map keeps the height a popup, a drawn ring or the player needs
  * clear of the card. A panel step on a phone leaves them as they are, since
  * the drawer covers them.
+ *
+ * A step that lights the table shows all of it: the ranking is the point of
+ * those steps, and its worst rows are at the bottom.
  */
 export function stepLayout(step: TourStep, isDesktop: boolean, hasResults: boolean): TourLayout {
   const collapsed = !hasResults
@@ -193,7 +198,11 @@ export function stepLayout(step: TourStep, isDesktop: boolean, hasResults: boole
       : step.place === 'map' || isDesktop
         ? true
         : null
-  return { drawerOpen: isDesktop || step.place === 'panel', collapsed }
+  return {
+    drawerOpen: isDesktop || step.place === 'panel',
+    collapsed,
+    wholeTable: hasResults && step.anchors.includes('results'),
+  }
 }
 
 /** Which edge of a phone the card stands on. */

@@ -107,8 +107,9 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
   // Every stored view preference comes out of one read, held for the mount:
   // several initializers each parsing the same stored string is what
   // `viewPrefs.ts` exists to stop. The results layout takes the mode; the
-  // table takes the rest.
-  const storedView = useMemo(readViewPrefs, [])
+  // table takes the rest. The tutorial's copy starts from its own, which
+  // nothing stores (#536).
+  const storedView = useMemo(() => ({ ...readViewPrefs(), ...sandbox?.view }), [sandbox])
   const [showWelcome, setShowWelcome] = useState(() => !sandbox && !hasWelcomed())
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
@@ -405,7 +406,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
     void startTour()
   }, [sandbox, showWelcome, startTour])
   const { playing, setPlaying } = timeline
-  const { resultsCollapsed, toggleCollapsed } = layout
+  const { resultsCollapsed, toggleCollapsed, sizeTable } = layout
   // Read when a run moves, rather than written during the render.
   useLayoutEffect(() => {
     playbackRef.current = { playing, setPlaying }
@@ -420,6 +421,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
       setShowResults,
       resultsCollapsed,
       toggleCollapsed,
+      sizeTable,
       map: mapRef.current,
       settled: capsApplied,
       loading,
@@ -427,7 +429,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
       results,
       addPlace,
     }
-  }, [sandbox, isDesktop, sidebarOpen, showResults, resultsCollapsed, toggleCollapsed, capsApplied, loading, analysisSeq, results, addPlace])
+  }, [sandbox, isDesktop, sidebarOpen, showResults, resultsCollapsed, toggleCollapsed, sizeTable, capsApplied, loading, analysisSeq, results, addPlace])
 
   return (
     <div

@@ -20,6 +20,7 @@ import { type Place, placeFromNominatimRow } from '../utils/geocode'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { stepIndex } from '../utils/tourSteps'
 import type { ShareableState } from '../utils/urlState'
+import type { ViewPrefs } from '../utils/viewPrefs'
 
 /** One peak's hourly answer from Open-Meteo, as the API sends it. */
 export interface RecordedHours {
@@ -158,6 +159,13 @@ export function exampleSmoke(nowMs: number): FeatureCollection {
   }
 }
 
+/** Every corner of the example fire and of its plume, for a camera that has to show all of them. */
+export function overlayOutline(nowMs: number): { latitude: number; longitude: number }[] {
+  return [...exampleFire(nowMs).features, ...exampleSmoke(nowMs).features].flatMap((f) =>
+    (f.geometry as Polygon).coordinates[0].map(([longitude, latitude]) => ({ latitude, longitude })),
+  )
+}
+
 // How far a point is from the plume's axis, and how far along it.
 function plumeReach(lat: number, lon: number): { off: number; along: number } {
   const kx = KM_PER_DEG_LAT * Math.cos((FIRE_AT.lat * Math.PI) / 180)
@@ -176,14 +184,15 @@ function plumeReach(lat: number, lon: number): { off: number; along: number } {
  * smoke does when the day heats. Deterministic, so a test can hold it.
  *
  * The strengths and the two fall-offs were fitted to the cast above, so each
- * named peak's window average lands inside its band with room either side.
+ * named peak's window average lands inside its band with room either side,
+ * and each peak's worst hour stands well clear of `AQI_BOUND` on its side.
  * Capped at 500, where the scale ends.
  */
 export function aqiAt(lat: number, lon: number, hour: number): number {
   const background = 16 + 6 * (0.5 + 0.5 * Math.sin(lat * 97 + lon * 41))
   const fire = 293 * Math.exp(-kmBetween(lat, lon, FIRE_AT.lat, FIRE_AT.lon) / 3.1)
   const { off, along } = plumeReach(lat, lon)
-  const plume = 524 * Math.exp(-off / 1.9) * (1 - 0.6 * along)
+  const plume = 524 * Math.exp(-off / 1.9) * (1 - 0.65 * along)
   const day = 0.8 + 0.4 * Math.sin((Math.PI * Math.min(hour, 12)) / 12)
   return Math.round(Math.min(500, background + (fire + plume) * day))
 }
@@ -207,8 +216,22 @@ export function castPlaces(demo: DemoData): { searched: Place; clicked: Place } 
   }
 }
 
-/** The highest AQI the bound step types, and the rows it takes away. */
-export const AQI_BOUND = 100
+/**
+ * The demo's results: the table alone, where a desktop would widen to the
+ * chart and the table together once the report lands, so the ranking steps can
+ * show every row; and the air quality beside the names, so a phone shows a
+ * row's name and its colour together.
+ */
+export const DEMO_VIEW: Partial<ViewPrefs> = {
+  modeChosen: 'table',
+  columnOrder: ['name', 'aqi_avg', 'aqi_min', 'aqi_max'],
+}
+
+/**
+ * The highest AQI the bound step types. The rows it takes away are the ones
+ * whose worst hour is over it, which the tests work out from this number.
+ */
+export const AQI_BOUND = 150
 
 /**
  * What a step's starting screen holds that no link can: something a press

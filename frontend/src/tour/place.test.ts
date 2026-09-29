@@ -1,29 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { TRANSPORT_BAND_PX } from '../utils/resultsSheet'
-import { CARD_W, cameraInsets, cardPlace, clip, dockedMapHeightPx, freeMap, overlaps } from './place'
+import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/resultsSheet'
+import { CARD_W, WHOLE_TABLE_PX, cameraInsets, cardPlace, clip, dockedMapHeightPx, freeMap, overlaps } from './place'
 
 // The docked panel is 360px, so the map starts there on every desktop.
 const desktopMap = (w: number, h: number) => ({ left: 360, top: 0, right: w, bottom: h })
 
 describe('dockedMapHeightPx', () => {
-  // Measured 2026-09-29 at 1280x800 in Chromium: with the results open in
-  // Both mode the map runs from 0 to 398.
-  it('is the map\'s height with the results open in Both mode', () => {
-    expect(dockedMapHeightPx(800)).toBe(398)
-    expect(dockedMapHeightPx(1440)).toBe(948)
+  it('is the map above the whole table and its bar', () => {
+    expect(dockedMapHeightPx(800)).toBe(800 - WHOLE_TABLE_PX - 44)
+    expect(dockedMapHeightPx(1440)).toBe(1440 - WHOLE_TABLE_PX - 44)
   })
 
   it('is never under the legend stack and the player on a short screen', () => {
-    expect(dockedMapHeightPx(768)).toBeGreaterThanOrEqual(398)
+    // The floor counts the results' bar, which is not map.
+    for (const h of [600, 700, 768]) {
+      expect(dockedMapHeightPx(h)).toBeGreaterThanOrEqual(dockedMapFloorPx(0) - RESULTS_BAR_PX)
+    }
   })
 })
 
 describe('cardPlace', () => {
-  it('centres the card on the map, just above the player once the results are open', () => {
+  it('centres the card on the map, just above the player while the whole table is open', () => {
     const place = cardPlace({ viewportW: 1280, viewportH: 800, isDesktop: true, map: desktopMap(1280, 800), edge: 'bottom' })
     expect(place.width).toBe(CARD_W)
     expect(place.left).toBe(360 + (920 - CARD_W) / 2)
-    expect(800 - (place.bottom ?? 0)).toBe(398 - TRANSPORT_BAND_PX - 16)
+    expect(800 - (place.bottom ?? 0)).toBe(dockedMapHeightPx(800) - TRANSPORT_BAND_PX - 16)
   })
 
   it('stands in the same place whatever the map\'s own height is', () => {
@@ -49,32 +51,44 @@ describe('cardPlace', () => {
   })
 })
 
-describe('cameraInsets', () => {
-  it('frames below a desktop card', () => {
-    const card = { left: 640, top: 100, right: 1000, bottom: 258 }
-    expect(cameraInsets(card, desktopMap(1280, 764))).toEqual({ top: 255, right: 0, bottom: 0, left: 0 })
-  })
-
-  it('leaves a third of the map at least', () => {
-    const card = { left: 640, top: 100, right: 1000, bottom: 300 }
-    expect(cameraInsets(card, desktopMap(1280, 400)).top).toBe(133)
-  })
-})
-
 describe('freeMap', () => {
-  it('is the map below a desktop card', () => {
-    const card = { left: 640, top: 100, right: 1000, bottom: 258 }
-    const free = freeMap(card, desktopMap(1280, 764), 'map')
-    expect(free).toEqual({ left: 360, top: 274, right: 1280, bottom: 764 })
+  const held = { top: 0, left: 212, right: 58 }
+
+  it('is the map below a desktop card, less the chrome down each side', () => {
+    const card = { left: 640, top: 171, right: 1000, bottom: 311 }
+    const free = freeMap(card, desktopMap(1280, 765), 'map', 672, held)
+    expect(free).toEqual({ left: 572, top: 327, right: 1222, bottom: 672 })
     expect(overlaps(free, card)).toBe(false)
   })
 
-  it('stops at the results on a phone, and at the card', () => {
-    const map = { left: 0, top: 0, right: 360, bottom: 640 }
-    expect(freeMap({ left: 0, top: 0, right: 360, bottom: 150 }, map, 'top', 536)).toEqual({
-      left: 0, top: 166, right: 360, bottom: 536,
+  it('is the map above a desktop card that stands low on a tall map', () => {
+    const card = { left: 1100, top: 811, right: 1460, bottom: 951 }
+    expect(freeMap(card, desktopMap(2560, 1405), 'map', 1312, held)).toEqual({
+      left: 572, top: 0, right: 2502, bottom: 795,
     })
-    expect(freeMap({ left: 0, top: 490, right: 360, bottom: 640 }, map, 'bottom').bottom).toBe(474)
+  })
+
+  it('stops at the results on a phone, at the card, and under the button column', () => {
+    const map = { left: 0, top: 150, right: 360, bottom: 640 }
+    const column = { top: 150, left: 0, right: 0 }
+    expect(freeMap({ left: 0, top: 0, right: 360, bottom: 150 }, map, 'top', 536, column)).toEqual({
+      left: 0, top: 300, right: 360, bottom: 536,
+    })
+    expect(freeMap({ left: 0, top: 490, right: 360, bottom: 640 }, { ...map, top: 0 }, 'bottom').bottom).toBe(474)
+  })
+})
+
+describe('cameraInsets', () => {
+  it('keeps the camera to the free map', () => {
+    const map = desktopMap(1280, 765)
+    expect(cameraInsets({ left: 572, top: 327, right: 1222, bottom: 672 }, map)).toEqual({
+      top: 327, right: 58, bottom: 93, left: 212,
+    })
+  })
+
+  it('leaves a third of the map at least', () => {
+    const got = cameraInsets({ left: 360, top: 350, right: 1280, bottom: 390 }, desktopMap(1280, 400))
+    expect(400 - got.top - got.bottom).toBeGreaterThanOrEqual(133)
   })
 })
 

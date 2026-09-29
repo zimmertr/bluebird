@@ -134,8 +134,14 @@ export async function reveal(stage: Stage, el: Element, margin = 8): Promise<voi
     delta = inner.bottom - outer.bottom + margin
   }
   if (Math.abs(delta) < 1) return
-  box.scrollTo({ top: box.scrollTop + delta, behavior: stage.instant() ? 'auto' : 'smooth' })
-  await sleep(stage, 400)
+  const to = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, box.scrollTop + delta))
+  box.scrollTo({ top: to, behavior: stage.instant() ? 'auto' : 'smooth' })
+  // Until the scroll lands, which a slow machine takes longer over than a
+  // fixed wait allows; what is lit is measured once it has.
+  await until(stage, () => Math.abs(box.scrollTop - to) < 1, 2000).catch(() => {
+    box.scrollTo({ top: to, behavior: 'auto' })
+  })
+  check(stage)
 }
 
 /** Moves the pointer onto `el` and clicks it. */

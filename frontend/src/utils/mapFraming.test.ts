@@ -85,11 +85,20 @@ describe('centerOffset', () => {
 
 describe('clampInsets', () => {
   it('leaves a third of each axis free at least', () => {
-    expect(clampInsets({ top: 500, right: 10, bottom: -4, left: 400 }, 360, 640)).toEqual({
-      top: 213,
-      right: 10,
+    const got = clampInsets({ top: 500, right: 10, bottom: 100, left: 400 }, 360, 640)
+    expect(got.top + got.bottom).toBeLessThanOrEqual(Math.ceil((2 * 640) / 3))
+    expect(got.left + got.right).toBeLessThanOrEqual(240)
+    // In proportion: the larger inset stays the larger.
+    expect(got.top / got.bottom).toBeCloseTo(5, 1)
+    expect(got.left).toBeGreaterThan(30 * got.right)
+  })
+
+  it('lets one inset take up to two thirds alone, and drops a negative one', () => {
+    expect(clampInsets({ top: 400, right: 0, bottom: -4, left: 0 }, 900, 765)).toEqual({
+      top: 400,
+      right: 0,
       bottom: 0,
-      left: 120,
+      left: 0,
     })
   })
 })

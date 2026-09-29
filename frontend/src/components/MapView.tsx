@@ -63,8 +63,9 @@ export interface MapViewHandle {
   panBy: (dx: number, dy: number, ms: number) => void
   // Where the camera stands now, or null before the map loads.
   camera: () => CameraView | null
-  // Every framing move from now on leaves these clear, on top of the sheet.
-  setCameraInsets: (insets: Insets) => void
+  // Every framing move from now on leaves these clear, on top of the sheet,
+  // read at each move where a function is given.
+  setCameraInsets: (insets: Insets | (() => Insets)) => void
   // Every move from now on takes no time, and `hurry` lands one under way.
   setInstant: (instant: boolean) => void
   hurry: () => void
@@ -528,7 +529,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const { lng, lat } = map.getCenter()
         return { lng, lat, zoom: map.getZoom() }
       },
-      setCameraInsets(insets: Insets) {
+      setCameraInsets(insets: Insets | (() => Insets)) {
         moves.setInsets(insets)
       },
       setInstant(instant: boolean) {

@@ -35,8 +35,12 @@ function roundRect({ left, top, right, bottom }: Box): string {
   )
 }
 
-// A fifth of the way on each frame: about a quarter of a second to settle.
-const EASE = 0.2
+// How fast a lit area glides to its target: it closes all but e^-1 of the
+// distance in this many milliseconds, so it has settled to a pixel within a
+// third of a second. Timed by the wall clock rather than by the frame or its
+// timestamp, so a slow machine, which draws few frames and may stamp each one
+// as if it came on time, still lands the light on time.
+const GLIDE_TAU_MS = 55
 
 export default function Dim({ holes, reduced }: DimProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -47,14 +51,18 @@ export default function Dim({ holes, reduced }: DimProps) {
     let shown: Box[] = []
     let written = ''
     let raf = 0
+    let last = performance.now()
     const draw = () => {
+      const now = performance.now()
+      const share = 1 - Math.exp(-Math.max(0, now - last) / GLIDE_TAU_MS)
+      last = now
       const target = holes().map(padded)
       shown =
         reduced || shown.length !== target.length
           ? target
           : target.map((t, i) => {
               const s = shown[i]
-              const step = (a: number, b: number) => (Math.abs(b - a) < 0.5 ? b : a + (b - a) * EASE)
+              const step = (a: number, b: number) => (Math.abs(b - a) < 0.5 ? b : a + (b - a) * share)
               return { left: step(s.left, t.left), top: step(s.top, t.top), right: step(s.right, t.right), bottom: step(s.bottom, t.bottom) }
             })
       const rects = shown.map(roundRect).join('')
@@ -63,10 +71,15 @@ export default function Dim({ holes, reduced }: DimProps) {
         written = d
         fillRef.current?.setAttribute('d', d)
         ringRef.current?.setAttribute('d', rects)
-        // What the browser suite reads to hold the card clear of the lit areas.
+        // What the browser suite reads: the lit areas as drawn, not as aimed
+        // at, so a light still on its way from the last step shows as one.
         rootRef.current?.setAttribute(
           'data-holes',
-          JSON.stringify(target.map((b) => [b.left, b.top, b.right, b.bottom].map(Math.round))),
+          JSON.stringify(
+            shown.map((b) =>
+              [b.left + TOUR_HOLE_PAD_PX, b.top + TOUR_HOLE_PAD_PX, b.right - TOUR_HOLE_PAD_PX, b.bottom - TOUR_HOLE_PAD_PX].map(Math.round),
+            ),
+          ),
         )
       }
       raf = requestAnimationFrame(draw)
