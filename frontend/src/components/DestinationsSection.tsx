@@ -192,7 +192,7 @@ export default function DestinationsSection({
             switch (control) {
               case 'start':
                 return (
-                  <button key={control} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
+                  <button key={control} data-tour="draw-start" onClick={onStartDrawing} className={BUTTON_SECONDARY}>
                     {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
                   </button>
                 )
@@ -203,6 +203,7 @@ export default function DestinationsSection({
                 return (
                   <button
                     key={control}
+                    data-tour="draw-finish"
                     onClick={onFinishDrawing}
                     disabled={drawPointCount < 3}
                     className={`${BUTTON_ACCENT} ${DISABLED}`}

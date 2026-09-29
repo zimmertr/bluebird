@@ -34,9 +34,10 @@ import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
  * bottom of the stack sat under the results bar on exactly this window.
  *
  * Shared with the phone, where the sheet's own floors take over; they are the
- * starting heights either way, and the reader's drag replaces them.
+ * starting heights either way, and the reader's drag replaces them. The
+ * tutorial (#536) reads it to know how short the map gets once results open.
  */
-const DEFAULT_PANEL_HEIGHT = 220
+export const DEFAULT_PANEL_HEIGHT = 220
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 

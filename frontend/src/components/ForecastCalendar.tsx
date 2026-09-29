@@ -286,6 +286,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           ].map((option, i) => (
             <button
               key={option.kind}
+              data-tour={option.kind === 'days' ? 'window-dates' : undefined}
               aria-pressed={selection.kind === option.kind}
               onClick={() => switchMode(option.kind)}
               className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
@@ -318,6 +319,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
               ].map((option, i) => (
                 <button
                   key={option.label}
+                  data-tour={option.hourly ? 'window-hourly' : undefined}
                   aria-pressed={option.hourly === (hours !== undefined)}
                   onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
                   className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
@@ -397,6 +399,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
         <span className={TEXT.subheading}>{monthLabel(month)}</span>
         <MonthButton
           label="Next month"
+          tour="next-month"
           glyph="›"
           disabled={!monthHasBandDay(nextMonth, now, band)}
           onClick={() => setMonth(nextMonth)}
@@ -467,14 +470,18 @@ function MonthButton({
   glyph,
   disabled,
   onClick,
+  tour,
 }: {
   label: string
   glyph: string
   disabled: boolean
   onClick: () => void
+  /** The tutorial's marker (#536), on the one month button it presses. */
+  tour?: string
 }) {
   return (
     <button
+      data-tour={tour}
       onClick={onClick}
       disabled={disabled}
       aria-label={label}

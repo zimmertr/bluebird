@@ -17,7 +17,7 @@ import { ColDef } from '../utils/tableColumns'
 import { FireWarning } from '../utils/fireProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { POI_LAYERS, poiFromFeature } from '../utils/basemapPoi'
-import { framePadding, pointsWithinView } from '../utils/mapFraming'
+import { type Insets, centerOffset, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
@@ -31,6 +31,7 @@ import { addAttribution, addControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { createPopupBoard } from '../map/popups'
 import { mapIdle } from '../map/idle'
+import { createCameraMoves } from '../map/moves'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
 export interface MapViewHandle {
@@ -52,9 +53,21 @@ export interface MapViewHandle {
   // settle, and where a basemap label can be clicked. Null or a no-op before
   // the map loads.
   project: (lng: number, lat: number) => { x: number; y: number } | null
-  flyTo: (lng: number, lat: number, zoom: number) => void
+  flyTo: (lng: number, lat: number, zoom: number, ms: number) => void
   whenIdle: () => Promise<void>
   poiAt: (name: string, lng: number, lat: number) => { x: number; y: number } | null
+  // The peak's popup a click on its label opens, for when placement left the
+  // label where no click lands, and for a step that starts with it open.
+  openPoi: (place: Place) => void
+  closePopups: () => void
+  panBy: (dx: number, dy: number, ms: number) => void
+  // Where the camera stands now, or null before the map loads.
+  camera: () => CameraView | null
+  // Every framing move from now on leaves these clear, on top of the sheet.
+  setCameraInsets: (insets: Insets) => void
+  // Every move from now on takes no time, and `hurry` lands one under way.
+  setInstant: (instant: boolean) => void
+  hurry: () => void
 }
 
 interface Props {
@@ -265,6 +278,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // Every popup on the map, pinned ones included, so an unmodified click
     // can clear them all (`map/popups.ts`).
     const [popups] = useState(createPopupBoard)
+    // The framing moves, and the tutorial's insets and pace for them
+    // (`map/moves.ts`). One for the component's lifetime, read at call time.
+    const [moves] = useState(createCameraMoves)
     // Flipped once the load handler has added every source/layer. A ref wouldn't
     // re-run the wildfire effect, so this is state — it lets a restored `fires=1`
     // link turn the overlay on as soon as the map is ready.
@@ -302,7 +318,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // Pull back one zoom level from the tight fit so the whole area
         // clears the viewport with margin — a snug fit can clip vertices
         // behind the controls drawer or browser chrome on small screens.
-        const pad = framePadding(60, controller.inputs.cameraPadBottomPx)
+        const pad = framePadding(60, controller.inputs.cameraPadBottomPx, moves.insets)
         const camera = map.cameraForBounds(bounds, { padding: pad })
         if (camera?.zoom !== undefined) {
           map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
@@ -332,14 +348,18 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const pts = ptsRef.current
         if (!map || !loadedRef.current || pts.length < 3) return
         const canvas = map.getCanvas()
+        // The canvas the reader can see, which on a phone stops at the sheet's
+        // top edge: a vertex behind the sheet is off screen as far as this
+        // question is concerned, or the move that would reveal it is skipped.
+        // What else stands over the map is cut away the same way.
+        const clear = framePadding(0, cameraPadBottomPx, moves.insets)
         const framed = pointsWithinView(
-          pts.map((p) => map.project(p)),
-          canvas.clientWidth,
-          // The canvas the reader can see, which on a phone stops at the
-          // sheet's top edge: a vertex behind the sheet is off screen as far as
-          // this question is concerned, or the move that would reveal it is
-          // skipped.
-          canvas.clientHeight - cameraPadBottomPx,
+          pts.map((p) => {
+            const at = map.project(p)
+            return { x: at.x - clear.left, y: at.y - clear.top }
+          }),
+          canvas.clientWidth - clear.left - clear.right,
+          canvas.clientHeight - clear.top - clear.bottom,
           FIT_PADDING_PX,
         )
         if (framed) return
@@ -347,11 +367,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
           (b, p) => b.extend(p),
           new maplibregl.LngLatBounds(pts[0], pts[0]),
         )
-        map.fitBounds(bounds, {
-          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
-          duration: 600,
-          maxZoom: map.getZoom(),
-        })
+        moves.run(600, (duration) =>
+          map.fitBounds(bounds, {
+            padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx, moves.insets),
+            duration,
+            maxZoom: map.getZoom(),
+          }),
+        )
       },
       // Snapshot the current ring as a GeoPolygon. The points stay editable —
       // the user iterates by dragging vertices and clicking Analyze again.
@@ -381,10 +403,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
           pendingSearchRef.current = place
           return
         }
-        map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), {
-          padding: framePadding(40, cameraPadBottomPx),
-          duration: 1500,
-        })
+        moves.run(1500, (duration) =>
+          map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), {
+            padding: framePadding(40, cameraPadBottomPx, moves.insets),
+            duration,
+          }),
+        )
       },
       // Frame a pasted custom CSV list whole. Deferred like a pre-load search
       // when the map isn't ready — the load handler folds the points into its
@@ -400,22 +424,27 @@ const MapView = forwardRef<MapViewHandle, Props>(
         refitPointsRef.current = points
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
-        map.fitBounds(bounds, {
-          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
-          duration: 1500,
-        })
+        moves.run(1500, (duration) =>
+          map.fitBounds(bounds, {
+            padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx, moves.insets),
+            duration,
+          }),
+        )
       },
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        map.flyTo({
-          center: [at.longitude, at.latitude],
-          zoom: Math.max(map.getZoom(), 10),
-          duration: 800,
-          // The offset `focusResult` explains below: a padding handed to flyTo
-          // is interpolated onto the transform and stays there.
-          offset: [0, -cameraPadBottomPx / 2],
-        })
+        const zoom = Math.max(map.getZoom(), 10)
+        moves.run(800, (duration) =>
+          map.flyTo({
+            center: [at.longitude, at.latitude],
+            zoom,
+            duration,
+            // The offset `focusResult` explains below: a padding handed to
+            // flyTo is interpolated onto the transform and stays there.
+            offset: centerOffset(cameraPadBottomPx, moves.insets),
+          }),
+        )
         popups.closeAll()
       },
       // Center on a result (clicked from its rank in the table) and open the
@@ -423,18 +452,21 @@ const MapView = forwardRef<MapViewHandle, Props>(
       focusResult(result: DestinationResult) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        map.flyTo({
-          center: [result.longitude, result.latitude],
-          zoom: Math.max(map.getZoom(), 10),
-          duration: 800,
-          // The one framing call that centres rather than fits, so it clears
-          // the sheet with `offset` instead of `padding`: a padding handed to
-          // `flyTo` is interpolated onto the transform and STAYS there, and the
-          // next `fitBounds` would then count it a second time on top of its
-          // own. Half the sheet's height puts the result in the middle of the
-          // map the reader can see.
-          offset: [0, -cameraPadBottomPx / 2],
-        })
+        const zoom = Math.max(map.getZoom(), 10)
+        moves.run(800, (duration) =>
+          map.flyTo({
+            center: [result.longitude, result.latitude],
+            zoom,
+            duration,
+            // The one framing call that centres rather than fits, so it clears
+            // the sheet with `offset` instead of `padding`: a padding handed to
+            // `flyTo` is interpolated onto the transform and STAYS there, and
+            // the next `fitBounds` would then count it a second time on top of
+            // its own. Half the sheet's height puts the result in the middle
+            // of the map the reader can see.
+            offset: centerOffset(cameraPadBottomPx, moves.insets),
+          }),
+        )
         featuresRef.current?.results.openPopup(result)
       },
       project(lng: number, lat: number) {
@@ -444,11 +476,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
         const box = map.getCanvas().getBoundingClientRect()
         return { x: box.left + at.x, y: box.top + at.y }
       },
-      flyTo(lng: number, lat: number, zoom: number) {
+      flyTo(lng: number, lat: number, zoom: number, ms: number) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
         popups.closeAll()
-        map.flyTo({ center: [lng, lat], zoom, duration: 1500, offset: [0, -cameraPadBottomPx / 2] })
+        moves.run(ms, (duration) =>
+          map.flyTo({ center: [lng, lat], zoom, duration, offset: centerOffset(cameraPadBottomPx, moves.insets) }),
+        )
       },
       whenIdle() {
         const map = mapRef.current
@@ -475,6 +509,33 @@ const MapView = forwardRef<MapViewHandle, Props>(
           }
         }
         return null
+      },
+      openPoi(place: Place) {
+        const { label: name, kind, lat, lon, elevationFt } = place
+        featuresRef.current?.pois.open({ name, kind, lat, lon, ...(elevationFt !== undefined ? { elevationFt } : {}) })
+      },
+      closePopups() {
+        popups.closeAll()
+      },
+      panBy(dx: number, dy: number, ms: number) {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return
+        moves.run(ms, (duration) => map.panBy([dx, dy], { duration }))
+      },
+      camera() {
+        const map = mapRef.current
+        if (!map || !loadedRef.current) return null
+        const { lng, lat } = map.getCenter()
+        return { lng, lat, zoom: map.getZoom() }
+      },
+      setCameraInsets(insets: Insets) {
+        moves.setInsets(insets)
+      },
+      setInstant(instant: boolean) {
+        moves.setInstant(instant)
+      },
+      hurry() {
+        if (mapRef.current) moves.hurry(mapRef.current)
       },
     }))
 
@@ -508,10 +569,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
         if (!points) return
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
         if (bounds) {
-          map.fitBounds(bounds, {
-            padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx),
-            duration: 1500,
-          })
+          moves.run(1500, (duration) =>
+            map.fitBounds(bounds, {
+              padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx, moves.insets),
+              duration,
+            }),
+          )
         }
       })
       resizeObserver.observe(containerRef.current)
@@ -541,10 +604,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
 
         if (pendingSearchRef.current) {
-          map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
-            padding: framePadding(40, controller.inputs.cameraPadBottomPx),
-            duration: 1500,
-          })
+          const pendingSearch = pendingSearchRef.current
+          moves.run(1500, (duration) =>
+            map.fitBounds(boundsAround(pendingSearch, SEARCH_VIEW_MILES), {
+              padding: framePadding(40, controller.inputs.cameraPadBottomPx, moves.insets),
+              duration,
+            }),
+          )
           pendingSearchRef.current = null
         }
 

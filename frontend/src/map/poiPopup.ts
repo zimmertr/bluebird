@@ -35,6 +35,12 @@ import { RESULT_MARKER_LAYER } from './resultsLayer'
 export interface PoiPopups {
   /** Light every clickable peak and lake, or put them back. */
   setPointed(pointed: boolean): void
+  /**
+   * Opens the popup a click on this place's label opens. The tutorial's (#536):
+   * label placement decides at run time whether a click can land on a label,
+   * and a step that starts with the popup open has no click to replay.
+   */
+  open(poi: BasemapPoi): void
 }
 
 export function mountPoiPopups(
@@ -126,6 +132,9 @@ export function mountPoiPopups(
   }
 
   return {
+    open(poi) {
+      openPoiPopup(poi, false)
+    },
     setPointed(pointed) {
       for (const id of POI_LAYERS) {
         const glow = `${id}-glow`

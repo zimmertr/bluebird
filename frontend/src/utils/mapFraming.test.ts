@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { place } from '../testSupport/fixtures'
-import { framePadding, pointsWithinView, restoredFramePoints } from './mapFraming'
+import { centerOffset, clampInsets, framePadding, pointsWithinView, restoredFramePoints } from './mapFraming'
 
 const W = 800
 const H = 600
@@ -61,6 +61,36 @@ describe('framePadding', () => {
   // half of a map that has room for it in the middle.
   it('adds the sheet lift to the bottom edge alone', () => {
     expect(framePadding(INSET, 220)).toEqual({ top: 60, right: 60, bottom: 280, left: 60 })
+  })
+
+  // The tutorial's card (#536) stands over the map too. On the bottom edge it
+  // covers the same map as the sheet, so the edge clears the taller of the two.
+  it('adds what else stands on the map, clearing the taller of two on one edge', () => {
+    const card = { top: 280, right: 0, bottom: 150, left: 10 }
+    expect(framePadding(INSET, 220, card)).toEqual({ top: 340, right: 60, bottom: 280, left: 70 })
+    expect(framePadding(INSET, 100, card).bottom).toBe(210)
+  })
+})
+
+describe('centerOffset', () => {
+  it('is the sheet\'s half-lift upward alone, as focusResult always had it', () => {
+    expect(centerOffset(220)).toEqual([0, -110])
+  })
+
+  it('centres in the map left clear by a card at the top', () => {
+    expect(centerOffset(0, { top: 300, right: 0, bottom: 0, left: 0 })).toEqual([0, 150])
+    expect(centerOffset(104, { top: 160, right: 0, bottom: 0, left: 40 })).toEqual([20, 28])
+  })
+})
+
+describe('clampInsets', () => {
+  it('leaves a third of each axis free at least', () => {
+    expect(clampInsets({ top: 500, right: 10, bottom: -4, left: 400 }, 360, 640)).toEqual({
+      top: 213,
+      right: 10,
+      bottom: 0,
+      left: 120,
+    })
   })
 })
 

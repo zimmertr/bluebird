@@ -67,9 +67,20 @@ export function pointsWithinView(
   )
 }
 
+/** How much of each edge of the map a framing move must leave clear. */
+export interface Insets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
+export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 }
+
 /**
  * A framing call's inset, with the results sheet's share of the bottom edge
- * added to it (#249).
+ * added to it (#249), and whatever else stands over the map (`extra`: the
+ * tutorial's card, #536).
  *
  * Every `fitBounds` in `MapView` takes the object form, which MapLibre bakes
  * into the computed centre and zoom and then drops — so the padding never
@@ -77,10 +88,41 @@ export function pointsWithinView(
  *
  * The sheet stands on the container's bottom edge and the camera frames into
  * the whole container, so the lift is added to that one edge and to no other.
+ * Something else standing on the same edge is covering the same map, so the
+ * edge keeps clear of whichever of the two reaches higher, not of their sum.
  */
 export function framePadding(
   inset: number,
   bottomPx: number,
+  extra: Insets = NO_INSETS,
 ): { top: number; right: number; bottom: number; left: number } {
-  return { top: inset, right: inset, bottom: inset + bottomPx, left: inset }
+  return {
+    top: inset + extra.top,
+    right: inset + extra.right,
+    bottom: inset + Math.max(bottomPx, extra.bottom),
+    left: inset + extra.left,
+  }
+}
+
+/**
+ * Where a centring move puts its subject, as MapLibre's `offset` from the
+ * container's centre: the middle of the map left clear by the sheet and by
+ * `extra`, counted the way `framePadding` counts them.
+ *
+ * An offset rather than a padding for the reason `focusResult` gives: a
+ * padding handed to `flyTo` is interpolated onto the transform and stays there.
+ */
+export function centerOffset(bottomPx: number, extra: Insets = NO_INSETS): [number, number] {
+  return [(extra.left - extra.right) / 2, (extra.top - Math.max(bottomPx, extra.bottom)) / 2]
+}
+
+/**
+ * Insets held to a third of their axis each, so a third of the map at least
+ * is left to frame into. MapLibre gives up on a fit whose padding is wider
+ * than its canvas, which the tutorial's card alone comes close to on a phone.
+ */
+export function clampInsets(insets: Insets, width: number, height: number): Insets {
+  const x = (v: number) => Math.round(Math.min(Math.max(0, v), width / 3))
+  const y = (v: number) => Math.round(Math.min(Math.max(0, v), height / 3))
+  return { top: y(insets.top), right: x(insets.right), bottom: y(insets.bottom), left: x(insets.left) }
 }

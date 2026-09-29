@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import Popover from './Popover'
-import { usePopover } from '../hooks/usePopover'
+import { setPopoverReserve, usePopover } from '../hooks/usePopover'
 import { placeAt, render, type Box } from '../testSupport/render'
 
 // The recipe every floating panel wears: `usePopover` decides where the panel
@@ -79,6 +79,35 @@ describe('placement', () => {
     // The viewport's margin below the panel, and no further.
     expect(panel().style.top).toBe('60px')
     expect(panel().style.maxHeight).toBe(`${VIEWPORT_H - 16}px`)
+  })
+
+  // The tutorial's card stands across one edge of a phone (#536), and a panel
+  // opened under it would be covered: it is placed as if the viewport ended
+  // at the card.
+  describe('with a band of the viewport reserved', () => {
+    afterEach(() => setPopoverReserve({ top: 0, bottom: 0 }))
+
+    it('opens above a trigger that the reserved bottom leaves no room under', async () => {
+      setPopoverReserve({ top: 0, bottom: 150 })
+      const { user } = render(<Harness trigger={{ left: 20, top: VIEWPORT_H - 330, width: 120, height: 30 }} />)
+      await user.click(screen.getByRole('button', { name: 'Trigger' }))
+      expect(panel().style.bottom).toBe('334px')
+    })
+
+    it('counts a reserved top from the real top of the viewport', async () => {
+      setPopoverReserve({ top: 140, bottom: 0 })
+      const { user } = render(<Harness trigger={{ left: 20, top: 200, width: 120, height: 30 }} />)
+      await user.click(screen.getByRole('button', { name: 'Trigger' }))
+      expect(panel().style.top).toBe('234px')
+    })
+
+    it('never lets a panel taller than what is left reach into the band', async () => {
+      panelHeight = VIEWPORT_H
+      setPopoverReserve({ top: 0, bottom: 150 })
+      const { user } = render(<Harness trigger={{ left: 20, top: 300, width: 120, height: 30 }} />)
+      await user.click(screen.getByRole('button', { name: 'Trigger' }))
+      expect(panel().style.maxHeight).toBe(`${VIEWPORT_H - 150 - 16}px`)
+    })
   })
 
   it('portals the card out of the tree it is declared in', async () => {

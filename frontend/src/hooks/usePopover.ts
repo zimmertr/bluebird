@@ -26,6 +26,14 @@ const VIEWPORT_MARGIN_PX = 8
 // its own measured width.
 const LIST_WIDTH_PX = 256
 
+// The part of the viewport no panel may open over: none, except while the
+// tutorial's card stands across one edge of a phone (#536). A panel is placed
+// in what is left, as if the viewport ended at the card.
+let reserved = { top: 0, bottom: 0 }
+export function setPopoverReserve(next: { top: number; bottom: number }): void {
+  reserved = next
+}
+
 // A panel whose height cannot change while it is open measures once and stays
 // put. Shared rather than a default array literal at the call, so the identity
 // the measuring pass compares against does not change every render.
@@ -75,9 +83,11 @@ export function usePopover({
     (desiredHeight = Infinity) => {
       const trigger = triggerRef.current
       if (!trigger) return
-      const next = popoverBox(
-        trigger.getBoundingClientRect(),
-        { width: window.innerWidth, height: window.innerHeight },
+      const { top, bottom } = reserved
+      const at = trigger.getBoundingClientRect()
+      const inside = popoverBox(
+        { left: at.left, top: at.top - top, width: at.width, height: at.height },
+        { width: window.innerWidth, height: window.innerHeight - top - bottom },
         {
           preferredWidth,
           gap: GAP_PX,
@@ -85,6 +95,16 @@ export function usePopover({
           desiredHeight,
         },
       )
+      const next =
+        top === 0 && bottom === 0
+          ? inside
+          : {
+              ...inside,
+              offset:
+                'top' in inside.offset
+                  ? { top: inside.offset.top + top }
+                  : { bottom: inside.offset.bottom + bottom },
+            }
       // A box that says the same thing is the same box. Without this, every
       // scroll event anywhere on the page re-rendered an open panel to the
       // coordinates it was already at — and a scroll that does not move the

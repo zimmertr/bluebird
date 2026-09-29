@@ -221,6 +221,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
       {places && (
         <ul
           role="listbox"
+          data-tour="search-results"
           aria-label="Search results"
           // `DROPDOWN` (above) is the surface and the width. This is a menu the
           // reader acts in, hanging over the buttons and legends below, and one

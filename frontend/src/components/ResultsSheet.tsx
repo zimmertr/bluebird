@@ -120,9 +120,12 @@ export default function ResultsSheet({
 
   return (
     <>
+      {/* `data-results-sheet` is how the tutorial (#536) finds where the
+          phone sheet covers the map, to keep a popup above it. */}
       {showTable && (
         <div
           ref={sheetRef}
+          data-results-sheet=""
           className={
             isDesktop
               ? 'flex flex-shrink-0 flex-col bg-slate-800'

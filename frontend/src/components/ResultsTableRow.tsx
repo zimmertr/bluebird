@@ -112,6 +112,7 @@ function NameTd({ cellClass, widths, label, name, onCenter, href }: NameTdProps)
         <span className="flex min-w-0 items-center gap-1.5">
           <button
             onClick={onCenter}
+            data-tour="row-center"
             aria-label={`Center map on ${name}`}
             className={`${LINK_ACTION} min-w-0 cursor-pointer truncate text-left`}
           >

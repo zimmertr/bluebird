@@ -15,6 +15,7 @@ export interface SandboxHandle {
   isDesktop: boolean
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
+  showResults: boolean
   setShowResults: (show: boolean) => void
   resultsCollapsed: boolean
   toggleCollapsed: () => void

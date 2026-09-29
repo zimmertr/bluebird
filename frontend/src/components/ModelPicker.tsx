@@ -293,6 +293,8 @@ export default function ModelPicker({
             chipRefs.current[id] = el
           }}
           tabIndex={at === Math.min(chipFocus, chipIds.length - 1) ? 0 : -1}
+          data-tour="model-chip"
+          data-model={id}
           onClick={() => rank(id)}
           onFocus={() => setChipFocus(at)}
           onKeyDown={(e) => onChipKeyDown(e, at, id)}
@@ -319,6 +321,8 @@ export default function ModelPicker({
           disabled={!canDrop}
           aria-hidden={canDrop ? undefined : 'true'}
           aria-label={`Remove ${label}`}
+          data-tour="model-remove"
+          data-model={id}
           onClick={() => removeChip(id, at)}
           className={`${CHIP.remove} ${canDrop ? '' : 'invisible'}`}
         >
@@ -333,6 +337,7 @@ export default function ModelPicker({
       <button
         ref={triggerRef}
         type="button"
+        data-tour="model-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Forecast model: ${selected?.label ?? value}${
@@ -420,6 +425,7 @@ export default function ModelPicker({
           <div
             ref={listRef}
             role="listbox"
+            data-tour="model-list"
             // One list, one decision, and more than one row answers it: every
             // selected model is on the chart. Multi-select is what makes
             // `aria-selected` on more than one row legal.

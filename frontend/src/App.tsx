@@ -416,6 +416,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
       isDesktop,
       sidebarOpen,
       setSidebarOpen,
+      showResults,
       setShowResults,
       resultsCollapsed,
       toggleCollapsed,
@@ -426,7 +427,7 @@ export default function App({ sandbox }: { sandbox?: Sandbox }) {
       results,
       addPlace,
     }
-  }, [sandbox, isDesktop, sidebarOpen, resultsCollapsed, toggleCollapsed, capsApplied, loading, analysisSeq, results, addPlace])
+  }, [sandbox, isDesktop, sidebarOpen, showResults, resultsCollapsed, toggleCollapsed, capsApplied, loading, analysisSeq, results, addPlace])
 
   return (
     <div
