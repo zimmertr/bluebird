@@ -17,6 +17,15 @@ const POPUP_ROOM_PX = 400
 /** How long the marker step waits for the sheet to settle before it frames the map. */
 const MARKER_SETTLE_MS = 350
 
+/** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
+function scrollParent(el: HTMLElement | null): HTMLElement | null {
+  for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
+  }
+  return null
+}
+
 /**
  * The tutorial's state (#536): which step is open, over which steps. The list
  * is fixed when the tour starts, from the steps whose control is on the
@@ -25,21 +34,34 @@ const MARKER_SETTLE_MS = 350
  * no storage, no analysis. What a step may move is the phone's drawer, the
  * Layers menu, the results sheet over a demonstration report, the map's
  * camera and one marker's popup; the popup and the menu are undone when
- * their step is left, and the camera and the drawer are put back where the
- * tour found them when it ends, by any route.
+ * their step is left, and the camera, the drawer and the panel's scroll
+ * position are put back where the tour found them when it ends, by any route.
  */
 export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args) {
   const [steps, setSteps] = useState<readonly TourStep[]>(TOUR_STEPS)
   const [index, setIndex] = useState<number | null>(null)
-  // What the reader had before the tour touched anything.
-  const before = useRef<{ camera: MapCamera | null; sidebarOpen: boolean } | null>(null)
+  // What the reader had before the tour touched anything: the camera, the
+  // drawer, and how far the panel was scrolled (each step scrolls its section
+  // into view).
+  const before = useRef<{
+    camera: MapCamera | null
+    sidebarOpen: boolean
+    scroller: HTMLElement | null
+    scrollTop: number
+  } | null>(null)
 
   const start = useCallback(() => {
     const present = TOUR_STEPS.filter(
       (s) => s.reveal !== undefined || document.querySelector(anchorSelector(s.anchor)) !== null,
     )
     if (present.length === 0) return
-    before.current = { camera: mapRef.current?.getCamera() ?? null, sidebarOpen }
+    const scroller = scrollParent(document.querySelector<HTMLElement>(anchorSelector(TOUR_STEPS[0].anchor)))
+    before.current = {
+      camera: mapRef.current?.getCamera() ?? null,
+      sidebarOpen,
+      scroller,
+      scrollTop: scroller?.scrollTop ?? 0,
+    }
     setSteps(present)
     setIndex(0)
   }, [mapRef, sidebarOpen])
@@ -50,6 +72,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
     if (!saved) return
     setSidebarOpen(saved.sidebarOpen)
     if (saved.camera) mapRef.current?.setCamera(saved.camera)
+    if (saved.scroller) saved.scroller.scrollTop = saved.scrollTop
   }, [mapRef, setSidebarOpen])
   const next = useCallback(() => {
     if (index === null) return
