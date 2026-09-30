@@ -42,7 +42,9 @@ import {
   OpenMeteoHttpError,
   OpenMeteoModelCoverage,
   OpenMeteoRateLimited,
+  OpenMeteoTimeout,
   OpenMeteoUnreachable,
+  TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 
 export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
@@ -66,6 +68,14 @@ export const MAX_CONCURRENT_BATCHES = 4
 // (#393), which is the same number the calendar dims its later days by — one
 // deployment must not clamp the fetch at one horizon and draw another.
 const FALLBACK_AQI_FORECAST_DAYS = 5
+
+// How long one request may take before it is abandoned. Measured 2026-09-30
+// from a home network, a 50-location forecast batch answered in 1.5 to 1.8 s
+// typically, with cold outliers of 7.7 s and 19 s in six tries (#545). 20 s
+// keeps every measured success and still ends a hang, which would otherwise
+// hold the analysis until the reader pressed Cancel. The pacer's sleep is not
+// inside it, because the clock starts when the request does.
+export const REQUEST_DEADLINE_MS = 20_000
 
 // ── Weighted-call pacing ───────────────────────────────────────────────────
 
@@ -244,12 +254,37 @@ export interface Coordinate {
   latitude: number
   longitude: number
   /**
-   * The destination's own elevation, when known. Present on analysis
-   * candidates and absent on forecast-grid lattice points, which is exactly
-   * the split that decides the wind: with an elevation the aggregates report
-   * wind at that height (issue #257), without one they report the 10 m wind.
+   * The destination's own elevation, when known: with one the aggregates
+   * report wind and temperature at that height (issue #257). Without one they
+   * report the 10 m wind and the 2 m temperature, unless `terrainFallback` or
+   * the fetch's `terrainElevation` says to read the terrain height instead.
    */
   elevation_ft?: number | null
+  /**
+   * With no `elevation_ft`, read this place at the terrain height the
+   * response reports for its coordinate rather than at the surface (#545).
+   * Decided per place, by `terrainFallbackFor`, because whether the free air
+   * is the better answer depends on what the place is.
+   */
+  terrainFallback?: boolean
+}
+
+/**
+ * Whether a destination of this type, lacking an elevation of its own, is
+ * better read at the terrain height than at the surface (#545).
+ *
+ * A peak stands above the model's terrain, so the free air interpolated to the
+ * ground's height is closer to what its summit feels than the 10 m wind and
+ * 2 m temperature of the smoothed cell under it. A lake or a trailhead sits ON
+ * that terrain: its surface-layer values are the real near-ground conditions,
+ * and the free air at the same height overstates the wind. So does any other
+ * kind a searched place carries (a city, a river). `custom` is a pasted point,
+ * whose kind nothing knows; a list of coordinates is almost always a list of
+ * summits, so it takes the peak's side. A clicked or searched place arrives
+ * with its real kind (`knownTypes` in clientAnalyze.ts), not as `custom`.
+ */
+export function terrainFallbackFor(type: string): boolean {
+  return type === 'peak' || type === 'custom'
 }
 
 export type WeatherResult = (WeatherAggregates & { series: WeatherSeries | null }) | null
@@ -365,17 +400,32 @@ async function getJson(
   signal: AbortSignal | undefined,
 ): Promise<unknown> {
   const qs = new URLSearchParams(params).toString()
+  // The deadline is a signal of its own so the catch below can tell it from
+  // the caller's: both abort the same fetch, and only one of them is a cancel.
+  // Its reason is a `TimeoutError` DOMException, but the name alone is not
+  // trusted; the signal says which one fired. `AbortSignal.any` is feature
+  // tested because it is younger than the rest of what the app runs on (Safari
+  // 17.4), and a browser without it keeps the caller's signal alone, which is
+  // exactly how every request behaved before the deadline existed.
+  const deadline = AbortSignal.timeout(REQUEST_DEADLINE_MS)
+  const combined = !signal
+    ? deadline
+    : typeof AbortSignal.any === 'function'
+      ? AbortSignal.any([signal, deadline])
+      : signal
   // The error taxonomy (issue #180). Every arm surfaces now that #240 has
   // removed the server reroute, but they stay separate because the message
   // each one owes the reader is different:
   // - fetch rejecting with a TypeError = network/DNS/CORS = unreachable from
   //   THIS browser, which is the one cause the reader can act on.
+  // - the deadline firing = reachable but silent = OpenMeteoTimeout, which
+  //   `getJsonWithResume` retries once (#545).
   // - HTTP 429 = reachable, quota spent = OpenMeteoRateLimited, whose scope
   //   decides whether waiting can help.
   // - any other HTTP status = reachable, failed = OpenMeteoHttpError.
   // Only a user cancel passes through untranslated.
   try {
-    const res = await fetch(`${url}?${qs}`, { signal })
+    const res = await fetch(`${url}?${qs}`, { signal: combined })
     if (res.status === 429) throw await classify429(res)
     if (res.status === 400 && (await isOutOfDomain(res))) {
       // Names the remedy, not the model: the batch 400s on one bad location
@@ -395,6 +445,7 @@ async function getJson(
     if (e instanceof OpenMeteoRateLimited || e instanceof OpenMeteoHttpError) throw e
     if (e instanceof OpenMeteoModelCoverage) throw e
     if (e instanceof OpenMeteoUnreachable) throw e
+    if (deadline.aborted && !signal?.aborted) throw new OpenMeteoTimeout(TIMEOUT_MESSAGE)
     throw new OpenMeteoUnreachable('Cannot reach Open-Meteo. Try again later.')
   }
 }
@@ -445,14 +496,19 @@ export interface FetchWeatherOptions {
    */
   windowLimits?: WindowLimits
   /**
-   * For coordinates carrying no `elevation_ft` of their own, adjust wind to
-   * the TERRAIN elevation Open-Meteo reports for the coordinate (its ~90 m
-   * DEM, on every response) instead of falling back to the 10 m wind. The
-   * forecast grid's option (#288 review): its lattice points are not
-   * destinations, but each stands on real ground, and painting a volcano's
-   * flank with valley-calm wind under a red summit marker was the confusion
-   * this resolves. A coordinate WITH `elevation_ft` keeps it — a destination's
-   * claimed height beats the DEM's cell average.
+   * For EVERY coordinate in the fetch carrying no `elevation_ft` of its own,
+   * adjust wind and temperature to the TERRAIN elevation Open-Meteo reports
+   * for the coordinate (its ~90 m DEM, on every response) instead of falling
+   * back to the 10 m wind and the 2 m temperature. The forecast grid's option
+   * (#288 review): its lattice points are not destinations, but each stands on
+   * real ground, and painting a volcano's flank with valley-calm wind under a
+   * red summit marker was the confusion this resolves. A fetch of destinations
+   * decides the same thing per place instead, through `terrainFallback` on
+   * each coordinate (#545), because a peak and a lake with no elevation want
+   * opposite answers. A coordinate WITH `elevation_ft` keeps it either way,
+   * because a destination's claimed height beats the DEM's cell. Nothing
+   * writes the terrain height back onto a row: the table's Elevation column
+   * stays what OSM or the caller said.
    */
   terrainElevation?: boolean
 }
@@ -461,6 +517,13 @@ export interface FetchWeatherOptions {
 // within the minute, so a single narrated wait usually completes the batch
 // instead of failing the analysis. Hourly/daily limits rethrow immediately —
 // no wait we are willing to impose can help those.
+//
+// A batch that outlives its deadline is asked once more, at once (#545). The
+// measured outliers were cold batches, which a second ask may find warm; a
+// second timeout says the service is stuck, and the analysis fails rather than
+// holding the reader a third time. No sleep
+// first: a timeout says nothing about quota, and the pacer already charged
+// this batch, as it does for the minutely resume below.
 async function getJsonWithResume(
   url: string,
   params: Record<string, string>,
@@ -470,6 +533,7 @@ async function getJsonWithResume(
   try {
     return await getJson(url, params, signal)
   } catch (e) {
+    if (e instanceof OpenMeteoTimeout) return await getJson(url, params, signal)
     if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'minutely') throw e
     onPace?.(e.retryAfterS)
     await abortableSleep(e.retryAfterS * 1000, signal)
@@ -599,7 +663,8 @@ export async function fetchWeather(
       const item = joinHours(perSpan.map((items) => items[j]))
       const elevationFt =
         chunk[j].elevation_ft ??
-        (terrainElevation && typeof item.elevation === 'number'
+        ((terrainElevation || chunk[j].terrainFallback === true) &&
+        typeof item.elevation === 'number'
           ? item.elevation / FT_TO_M
           : null)
       const metrics = weatherMetrics(item, startMs, endMs, elevationFt)
@@ -722,7 +787,10 @@ export async function fetchCloud(
       )
       const elevationFt =
         chunk[j].elevation_ft ??
-        (terrainElevation && typeof item.elevation === 'number' ? item.elevation / FT_TO_M : null)
+        ((terrainElevation || chunk[j].terrainFallback === true) &&
+        typeof item.elevation === 'number'
+          ? item.elevation / FT_TO_M
+          : null)
       const metrics = cloudMetrics(item, startMs, endMs, elevationFt)
       if (metrics === null) return null
       return { ...metrics, series: cloudSeries(item, startMs, endMs, elevationFt) }
@@ -739,6 +807,10 @@ export async function fetchCloud(
 
 export interface FetchAqiOptions {
   signal?: AbortSignal
+  // The air-quality pacer is about to sleep this many seconds. The analysis
+  // awaits air quality before it ranks, so a wait nobody announces is a
+  // progress bar standing still at the end (#545).
+  onPace?: (seconds: number) => void
   // Injectable so tests can pin the horizon clamp.
   nowMs?: number
   // How far ahead air quality reaches, from /api/capabilities. Omitted means
@@ -760,6 +832,7 @@ export async function fetchAqi(
   endMs: number,
   {
     signal,
+    onPace,
     nowMs = Date.now(),
     aqiForecastDays = FALLBACK_AQI_FORECAST_DAYS,
   }: FetchAqiOptions = {},
@@ -794,7 +867,7 @@ export async function fetchAqi(
   }> => {
     if (rateLimited) return { rows: chunk.map(() => null), cacheable: false }
     try {
-      await aqiBudget.acquire(callWeight(chunk.length, startMs, endMs, 1), signal)
+      await aqiBudget.acquire(callWeight(chunk.length, startMs, endMs, 1), signal, onPace)
       const data = await getJson(
         AIR_QUALITY_URL,
         {

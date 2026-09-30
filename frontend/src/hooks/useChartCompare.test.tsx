@@ -81,6 +81,17 @@ describe('useChartCompare', () => {
     expect(result.current.comparingRows).toBe(true)
   })
 
+  it('marks which compared places are read at terrain height, by type (#545)', () => {
+    const rows = [
+      resultRow({ name: 'Peak', type: 'peak', latitude: 1, longitude: 1 }),
+      resultRow({ name: 'Pasted', type: 'custom', latitude: 2, longitude: 2 }),
+      resultRow({ name: 'Lake', type: 'lake', latitude: 3, longitude: 3 }),
+      resultRow({ name: 'Trailhead', type: 'trailhead', latitude: 4, longitude: 4 }),
+    ]
+    renderHook(() => useChartCompare(inputs({ results: rows })))
+    expect(last().rows.map((p) => p.terrainFallback)).toEqual([true, true, false, false])
+  })
+
   it('prunes a hidden model once the panel deselects it', () => {
     let compared = ICON
     const { result, rerender } = renderHook(() => useChartCompare(inputs({ comparedModels: compared })))

@@ -4,6 +4,7 @@ import { discoverCandidates, readErrorBody, runAnalysisPipeline, type PipelineOp
 import { AnalysisRefusalError, runClientAnalysis } from './clientAnalyze'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { FORECAST_REUSE_MS, type HeldForecasts } from './forecastReuse'
+import { geoKey } from './points'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
 
 // The ranking itself is clientAnalyze.ts's, pinned by its own suite. Here it is
@@ -111,6 +112,21 @@ describe('discoverCandidates', () => {
 })
 
 describe('runAnalysisPipeline', () => {
+  it('gives a custom row the kind the browser knows before anything reads its type (#545)', async () => {
+    const lake = discovered({ name: 'Tarn', type: 'custom', elevation_ft: null, osm_id: null })
+    stubDestinations({ destinations: [lake], total: 1 })
+    const seen: string[] = []
+    await runAnalysisPipeline(
+      { ...REQUEST, polygon: undefined, custom_destinations: [{ name: 'Tarn', latitude: lake.latitude, longitude: lake.longitude }] },
+      options({
+        knownTypes: { [geoKey(lake.latitude, lake.longitude)]: 'lake' },
+        onDiscovered: (f) => seen.push(...f.candidates.map((c) => c.type)),
+      }),
+    )
+    expect(seen).toEqual(['lake'])
+    expect(ranked.mock.calls[0][1].map((c) => c.type)).toEqual(['lake'])
+  })
+
   it('announces the field before any forecast is ranked', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     const order: string[] = []

@@ -178,6 +178,28 @@ export const DATA = [
     ],
   },
   {
+    // Whether a destination with no elevation is read at the terrain height is
+    // decided per place, by its type (#545): a peak stands above the model's
+    // terrain and a lake or trailhead sits on it. So the fetches of places set
+    // no fetch-wide `terrainElevation`, which would read a lake like a peak,
+    // and each carries `terrainFallback` from its row to the coordinate: the
+    // analysis, and the model comparison through the points it is handed.
+    name: 'terrain-elevation-fallback',
+    files: ['src/utils/clientAnalyze.ts', 'src/hooks/useModelCompare.ts', 'src/hooks/useChartCompare.ts'],
+    ban: [
+      {
+        selector: 'Property[key.name="terrainElevation"]',
+        message: 'Decide the terrain height per place with terrainFallback, not for the whole fetch.',
+      },
+    ],
+    require: [
+      {
+        selector: 'Property[key.name="terrainFallback"]',
+        message: 'Carry each place\'s terrainFallback onto the coordinate it is fetched by.',
+      },
+    ],
+  },
+  {
     // The browser path puts a thrown message in the notice box unchanged, so
     // it is copy the reader meets, and copy ends on the standing tail. A cancel
     // is the one throw nothing shows. A throw of a shared constant carries no

@@ -108,4 +108,9 @@ export interface AnalyzeOptions {
   discovery?: { polygonKey: string; typesKey: string }
   /** The extra models the chart's comparison is buying forecasts for (#232). */
   compareModels?: readonly string[]
+  /**
+   * What each place the server will call "custom" really is, by coordinate
+   * (`knownTypes` in clientAnalyze.ts, #545).
+   */
+  knownTypes?: Readonly<Record<string, string>>
 }

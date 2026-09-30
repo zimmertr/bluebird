@@ -25,6 +25,7 @@ import {
 } from '../types'
 import { familyOf, isOnRequestFamily } from '../metrics'
 import { postDestinations } from './apiFetch'
+import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
 import {
@@ -35,6 +36,7 @@ import {
   fetchAqi,
   fetchCloud,
   fetchWeather,
+  terrainFallbackFor,
 } from './openMeteo'
 import type { CloudSeries } from './openMeteoAggregate'
 import { nullsLast } from './sortResults'
@@ -486,9 +488,14 @@ export async function runClientAnalysis(
   const coords: Coordinate[] = unforecast.map((d) => ({
     latitude: d.latitude,
     longitude: d.longitude,
-    // The fetch adjusts wind to this height (issue #257); a lattice point
-    // in useForecastGrid sends none and keeps the 10 m wind.
+    // The fetch adjusts wind and temperature to this height (issue #257).
     elevation_ft: d.elevation_ft,
+    // Where OSM gave none (a pasted point it could not match, a clicked peak
+    // with no `ele`), a peak is read at the terrain height the response
+    // reports and a lake or trailhead at the surface (#545). The terrain
+    // height is not written onto the row, so the Elevation column still says
+    // only what OSM or the list said.
+    terrainFallback: terrainFallbackFor(d.type),
   }))
 
   // One controller spans every fetch this analysis makes: the first fatal
@@ -517,6 +524,9 @@ export async function runClientAnalysis(
         latitude: r.latitude,
         longitude: r.longitude,
         elevation_ft: r.elevation_ft,
+        // The weather's rule, for the reason given there: the cloud base walks
+        // up the column from the same height the wind is read at.
+        terrainFallback: terrainFallbackFor(r.type),
       })),
       ...coords,
     ]
@@ -552,6 +562,10 @@ export async function runClientAnalysis(
     if (coords.length > 0) {
       const aqiPending = fetchAqi(coords, startMs, endMs, {
         signal: internal.signal,
+        // The same countdown the weather hands over. Air quality is awaited
+        // before the ranking assembles, so its pacer's sleep is the analysis's
+        // sleep and must read as scheduled, not hung (analyzeOverlay.ts).
+        onPace,
         nowMs,
         aqiForecastDays,
       })
@@ -680,6 +694,49 @@ export function refreshEchoRows(
       longitude: r.longitude,
       elevation_ft: r.elevation_ft ?? undefined,
     }))
+}
+
+/**
+ * What each destination the browser already knows IS, by coordinate, for the
+ * rows the server can only call "custom" (#545).
+ *
+ * `custom_destinations` carries no kind, so every searched or clicked place,
+ * and every row a refresh echoes, comes back typed "custom". The type decides
+ * the terrain-height fallback (`terrainFallbackFor`): a clicked lake read as
+ * custom took the peak's side and was forecast in the free air above its own
+ * shore. Two sources, in order: the held field, whose polygon rows were typed
+ * by discovery, and the places, whose geocoded kind outranks it. A plain
+ * record, so a retry replays the same answer.
+ */
+export function knownTypes(
+  universe: readonly DestinationResult[] | null,
+  places: readonly Place[],
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const r of universe ?? []) {
+    if (r.type !== 'custom') out[geoKey(r.latitude, r.longitude)] = r.type
+  }
+  for (const p of places) {
+    const type = placeType(p.kind)
+    if (type !== 'custom') out[geoKey(p.lat, p.lon)] = type
+  }
+  return out
+}
+
+/**
+ * The discovered field with each "custom" row given the type `knownTypes`
+ * holds for its coordinate. Rows the discovery typed itself, and pasted points
+ * nothing knows more about, pass through unchanged.
+ */
+export function withKnownTypes(
+  candidates: readonly DiscoveredDestination[],
+  known: Readonly<Record<string, string>>,
+): DiscoveredDestination[] {
+  return candidates.map((c) => {
+    if (c.type !== 'custom') return c
+    const type = known[geoKey(c.latitude, c.longitude)]
+    return type ? { ...c, type } : c
+  })
 }
 
 /**

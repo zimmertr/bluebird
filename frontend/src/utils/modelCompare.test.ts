@@ -202,7 +202,7 @@ describe('compareSeries', () => {
     name: string,
     color: string,
   ): CompareDestination {
-    return { key, rank, name, color, latitude: 46, longitude: -121, elevationFt: 14_000 }
+    return { key, rank, name, color, latitude: 46, longitude: -121, elevationFt: 14_000, terrainFallback: true }
   }
 
   const DESTINATIONS = [

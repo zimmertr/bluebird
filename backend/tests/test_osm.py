@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import dataclasses
+import logging
+import time
 
 import httpx
 import pytest
 from conftest import fake_response
+from prometheus_client import REGISTRY
 
 from app import ratelimit
 from app.models import DestinationType, GeoPolygon
@@ -167,19 +171,21 @@ async def test_no_types_asks_nothing(monkeypatch):
     assert await osm.query_osm(POLY, []) == []
 
 
-# ── _post_with_fallback (the 3-mirror failover chain) ──────────────────────
+# ── _post_with_fallback (the mirror failover chain) ────────────────────────
 
 
 class _FakeClient:
     """Async-context httpx stand-in that replays a scripted list of behaviors,
-    one per .post() call (an Exception is raised, anything else is returned).
-    Records the url and timeout of every attempt for per-mirror assertions."""
+    one per .post() call (an Exception is raised, a coroutine function is
+    awaited for its answer, anything else is returned). Records the url,
+    timeout and body of every attempt for per-mirror assertions."""
 
     def __init__(self, behaviors):
         self._behaviors = behaviors
         self.calls = 0
         self.urls: list[str] = []
         self.timeouts: list[float | None] = []
+        self.bodies: list[str] = []
 
     async def __aenter__(self):
         return self
@@ -192,22 +198,27 @@ class _FakeClient:
         self.calls += 1
         self.urls.append(url)
         self.timeouts.append(timeout)
+        self.bodies.append(data["data"])
         if isinstance(behavior, Exception):
             raise behavior
+        if callable(behavior):
+            return await behavior()
         return behavior
 
 
 def test_mirror_order_and_timeouts_match_measurements():
-    # Guard for issue #177 (measured 2026-07-28): overpass-api.de 12-17s,
-    # mail.ru 38.8s, kumi 77-108s. Reordering or retuning this table should
-    # come with fresh measurements (or #77 telemetry) in hand — update the
-    # dated comment in osm/mirrors.py alongside this test.
+    # Guard for issue #545 (measured 2026-09-30, 30 days of #77 telemetry):
+    # overpass-api.de 40 of 62 ok, its 504s after 8-16s; mail.ru 7 of 11 ok,
+    # most under 15s; kumi 0 of 8, so it is gone. Reordering or retuning this
+    # table should come with fresh measurements in hand — update the dated
+    # comment in osm/mirrors.py alongside this test.
     assert [m.url for m in osm.OVERPASS_MIRRORS] == [
         "https://overpass-api.de/api/interpreter",
         "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
     ]
-    assert [m.timeout_s for m in osm.OVERPASS_MIRRORS] == [25.0, 45.0, 45.0]
+    assert [m.timeout_s for m in osm.OVERPASS_MIRRORS] == [25.0, 25.0]
+    # The worst case an analysis can wait on the chain; it was 115s with kumi.
+    assert sum(m.timeout_s for m in osm.OVERPASS_MIRRORS) == 50.0
     # Separate operators get separate budgets, not one shared pool.
     assert len({id(m.budget) for m in osm.OVERPASS_MIRRORS}) == len(osm.OVERPASS_MIRRORS)
 
@@ -225,11 +236,11 @@ async def test_post_with_fallback_recovers_on_second_endpoint(monkeypatch):
     assert result == {"elements": []}
     assert fake.calls == 2
     # The healthy first attempt is silent; only failover gets narrated.
-    assert statuses == ["Trying backup map server 2 of 3…"]
+    assert statuses == ["Trying backup map server 2 of 2…"]
 
 
 async def test_post_with_fallback_all_endpoints_fail(monkeypatch):
-    fake = _FakeClient([httpx.ConnectError("a"), httpx.ConnectError("b"), httpx.ConnectError("c")])
+    fake = _FakeClient([httpx.ConnectError("a"), httpx.ConnectError("b")])
     monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     with pytest.raises(UpstreamError):
@@ -262,7 +273,7 @@ async def test_post_with_fallback_skips_saturated_mirror(monkeypatch):
     assert result == {"elements": []}
     # The saturated mirror never fired an HTTP request.
     assert fake.urls == [mirrors[1].url]
-    assert statuses == ["Trying backup map server 2 of 3…"]
+    assert statuses == ["Trying backup map server 2 of 2…"]
 
 
 async def test_post_with_fallback_all_mirrors_saturated_raises(monkeypatch):
@@ -299,7 +310,7 @@ async def test_post_with_fallback_rejects_partial_remark(monkeypatch):
 
 async def test_post_with_fallback_all_partial_raises(monkeypatch):
     partial = {"remark": "runtime error: Query timed out", "elements": []}
-    fake = _FakeClient([fake_response(partial), fake_response(partial), fake_response(partial)])
+    fake = _FakeClient([fake_response(partial), fake_response(partial)])
     monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
 
     with pytest.raises(UpstreamError) as excinfo:
@@ -308,6 +319,156 @@ async def test_post_with_fallback_all_partial_raises(monkeypatch):
     # The user should be told the query was too demanding, not shown a raw
     # "failed unexpectedly" fallback string.
     assert "partial results" in excinfo.value.message
+
+
+# ── The server timeout travels with the attempt (#545) ────────────────────
+# Overpass keeps a query's slot busy until ITS timeout, so a server timeout
+# longer than the pod's leash held one of the address's two slots for a query
+# nobody was waiting on any more.
+
+
+async def test_each_attempt_asks_the_server_for_its_own_timeout(monkeypatch):
+    # Two different leashes, so the test can tell one mirror's number from the
+    # other's; the real table gives both 25s.
+    mirrors = [
+        dataclasses.replace(osm.OVERPASS_MIRRORS[0], timeout_s=25.0),
+        dataclasses.replace(osm.OVERPASS_MIRRORS[1], timeout_s=13.0),
+    ]
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
+    fake = _FakeClient([httpx.ConnectError("down"), fake_response({"elements": []})])
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
+
+    await osm._post_with_fallback(osm._build_query([DestinationType.peak], "1 2 3 4"))
+
+    assert [b.splitlines()[0] for b in fake.bodies] == [
+        "[out:json][timeout:25];",
+        "[out:json][timeout:13];",
+    ]
+    assert fake.timeouts == [25.0, 13.0]
+    assert not any(osm.SERVER_TIMEOUT_TOKEN in b for b in fake.bodies)
+
+
+async def test_neither_query_spells_a_server_timeout_of_its_own(monkeypatch):
+    # Both builders leave the number to the mirror; a literal here would be
+    # the [timeout:60] that outlived the pod's 25s leash.
+    discovery = osm._build_query([DestinationType.peak], "1 2 3 4")
+    assert discovery.startswith(f"[out:json][timeout:{osm.SERVER_TIMEOUT_TOKEN}];")
+
+    spy: list = []
+    _stub_overpass(monkeypatch, [], spy)
+    await _enrich_custom([_row(47.0, -121.0)])
+    [enrichment] = spy
+    assert enrichment.startswith(f"[out:json][timeout:{osm.SERVER_TIMEOUT_TOKEN}];")
+
+
+# ── Cooldown: a mirror that just failed is asked last (#545) ──────────────
+
+
+class _Clock:
+    """The chain's monotonic clock, moved by hand."""
+
+    def __init__(self, now: float = 1000.0):
+        self.now = now
+
+    def __call__(self) -> float:
+        return self.now
+
+
+PRIMARY = "https://overpass-api.de/api/interpreter"
+SECONDARY = "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+
+
+def _script(monkeypatch, behaviors) -> _FakeClient:
+    fake = _FakeClient(behaviors)
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
+    return fake
+
+
+def test_the_cooldown_is_the_measured_two_minutes():
+    # Bursts of "too busy" on 2026-09-30 lasted tens of minutes with successes
+    # between them; the note in osm/mirrors.py says why two minutes fits.
+    assert osm.MIRROR_COOLDOWN_S == 120.0
+
+
+async def test_a_failed_mirror_is_asked_last_during_its_cooldown(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(osm.mirrors, "_clock", clock)
+
+    first = _script(monkeypatch, [httpx.ConnectError("busy"), fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+    assert first.urls == [PRIMARY, SECONDARY]
+
+    clock.now += osm.MIRROR_COOLDOWN_S - 1
+    second = _script(monkeypatch, [fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+    assert second.urls == [SECONDARY]
+
+
+async def test_a_cooling_mirror_is_still_asked_when_the_rest_fail(monkeypatch):
+    # Prefer, never skip: an analysis makes as many attempts as it did before
+    # the cooldown existed, so a cooling mirror can still save it.
+    clock = _Clock()
+    monkeypatch.setattr(osm.mirrors, "_clock", clock)
+    _script(monkeypatch, [httpx.ConnectError("busy"), fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+
+    statuses: list[str] = []
+
+    async def on_status(msg):
+        statuses.append(msg)
+
+    clock.now += 10
+    fake = _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
+    assert await osm._post_with_fallback("q", on_status) == {"elements": []}
+    assert fake.urls == [SECONDARY, PRIMARY]
+    assert statuses == ["Trying backup map server 2 of 2…"]
+
+
+async def test_a_mirror_leads_again_once_its_cooldown_ends(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(osm.mirrors, "_clock", clock)
+    _script(monkeypatch, [httpx.ConnectError("busy"), fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+
+    clock.now += osm.MIRROR_COOLDOWN_S
+    fake = _script(monkeypatch, [fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+    assert fake.urls == [PRIMARY]
+
+
+async def test_a_success_clears_the_record_and_a_failure_sets_it(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(osm.mirrors, "_clock", clock)
+    _script(monkeypatch, [httpx.ConnectError("busy"), fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+
+    # Now the fallback fails and the cooling primary answers: the primary
+    # earns its place back at once and the fallback takes the cooldown.
+    clock.now += 10
+    _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+
+    clock.now += 10
+    fake = _script(monkeypatch, [httpx.ConnectError("busy"), fake_response({"elements": []})])
+    await osm._post_with_fallback("q")
+    assert fake.urls == [PRIMARY, SECONDARY]
+    assert [m.url for m in osm._attempt_order()] == [SECONDARY, PRIMARY]
+
+
+async def test_a_budget_shed_does_not_cool_the_mirror(monkeypatch):
+    # A shed is the pod's own saturation; the mirror was never asked, so it
+    # has done nothing to be moved to the back for.
+    saturated = ratelimit.UpstreamBudget("test (saturated)", 1, wait_s=0.01)
+    await saturated._sem.acquire()
+    mirrors = [
+        dataclasses.replace(osm.OVERPASS_MIRRORS[0], budget=saturated),
+        *osm.OVERPASS_MIRRORS[1:],
+    ]
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
+    _script(monkeypatch, [fake_response({"elements": []})])
+
+    await osm._post_with_fallback("q")
+    assert [m.url for m in osm._attempt_order()] == [PRIMARY, SECONDARY]
 
 
 # ── Custom-destination enrichment (issue #207) ────────────────────────────────
@@ -464,6 +625,57 @@ async def test_enrich_custom_queries_peaks_and_volcanoes_within_the_radius(monke
     # Volcanoes are unioned in for the same reason discovery does it: OSM tags
     # Rainier and Baker as volcano rather than peak.
     assert "volcano" in query
+
+
+def test_enrich_deadline_is_the_measured_eight_seconds():
+    # Half the primary's healthy answers land under 5s and its "too busy"
+    # arrives after 8-16s (2026-09-30), which is where the note in
+    # osm/enrich.py puts the line. Re-measure before changing.
+    assert osm.ENRICH_DEADLINE_S == 8.0
+
+
+async def test_enrich_custom_goes_on_without_a_lookup_that_misses_its_deadline(
+    monkeypatch, caplog
+):
+    # Through the real chain, so the cancellation is proven to release the
+    # mirror's slot rather than just to reach enrich_custom.
+    budget = ratelimit.UpstreamBudget("test (enrich deadline)", 1)
+    mirrors = [dataclasses.replace(m, budget=budget) for m in osm.OVERPASS_MIRRORS]
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
+    monkeypatch.setattr(osm.enrich, "ENRICH_DEADLINE_S", 0.05)
+
+    async def hang():
+        await asyncio.sleep(30)
+
+    fake = _script(monkeypatch, [hang, fake_response({"elements": []})])
+    host = "overpass-api.de"
+    counted_before = {
+        outcome: REGISTRY.get_sample_value(
+            "bluebird_forecast_overpass_requests_total", {"mirror": host, "outcome": outcome}
+        )
+        for outcome in ("error", "timeout", "success")
+    }
+
+    started = time.perf_counter()
+    with caplog.at_level(logging.WARNING, logger="app.services.osm"):
+        [row] = await _enrich_custom([_row(47.0, -121.0)])
+
+    assert time.perf_counter() - started < 5
+    assert row == _row(47.0, -121.0)
+    assert "gave up" in caplog.text
+    # The deadline stopped the whole lookup; it did not fall over to mirror 2.
+    assert fake.calls == 1
+    # The cancelled attempt gave its slot back.
+    assert budget._sem._value == budget.capacity
+    # Our deadline is not the mirror's failure: no cooldown, no outcome counted.
+    assert [m.url for m in osm._attempt_order()] == [PRIMARY, SECONDARY]
+    for outcome, before in counted_before.items():
+        assert (
+            REGISTRY.get_sample_value(
+                "bluebird_forecast_overpass_requests_total", {"mirror": host, "outcome": outcome}
+            )
+            == before
+        )
 
 
 def test_custom_match_radius_is_the_measured_150_m():

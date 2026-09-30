@@ -15,8 +15,9 @@ from typing import Literal
 # query: a ~103,000 km2 sparse box (Iowa) answered in 25.8s; a ~151,000 km2 box
 # drew a dispatcher "too busy" 504; a ~50,000 km2 dense box (WA/OR Cascades)
 # answered in 21.2s with 1,576 peaks. 100,000 sits inside measured-reliable
-# territory with the [timeout:60] in osm/query.py as the true backstop. Re-measure
-# before raising further.
+# territory, though the Iowa answer is past the 25s each mirror now allows a
+# query (server and client alike, osm/mirrors.py). Re-measure before raising
+# further.
 MAX_POLYGON_AREA_KM2 = 100_000
 
 # Every candidate inside the polygon gets a forecast (no silent sampling), so

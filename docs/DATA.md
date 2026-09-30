@@ -59,25 +59,32 @@ follow from that, all of them visible in the Elevation column:
 
 - **A point with no mapped peak beside it stays blank.** Against the bundled
   100-peak Washington lists the match rate is 97%; the misses are summits no
-  volunteer has mapped as a node, not failures of the lookup.
+  volunteer has mapped as a node, not failures of the lookup. The app still
+  forecasts such a point at the terrain height Open-Meteo reports for its
+  coordinate, as it does a peak with no elevation, and the Elevation column
+  stays blank because that height is the model's ground, not the peak's.
 - **The number is OSM's, not your guidebook's.** Where the two disagree, the
   column shows what OSM says, which is the same figure a polygon search shows
   for that peak. Agreement between the two ways of asking is the point;
   agreement with any particular book is not on offer.
 - **It is best-effort.** If Overpass cannot be reached the rows simply keep a
   blank elevation and the analysis runs regardless, so a blank means "nobody
-  could say" rather than "something broke".
+  could say" rather than "something broke". The lookup also stops waiting after
+  eight seconds, because a pasted list waits on it before any forecast starts.
 
 An elevation you supply yourself in the API's `elevation_ft` is never
 overwritten by this.
 
 Overpass is the query service in front of OSM, run by volunteers on donated
 hardware, and its operators publish a per-address concurrency policy that
-Bluebird Forecast holds itself to separately for each mirror. Three public mirrors are
+Bluebird Forecast holds itself to separately for each mirror. Two public mirrors are
 tried in order, and the order is not arbitrary: `backend/app/services/osm/mirrors.py`
-carries a dated table of measured response times behind it, giving the fastest
-mirror a tight timeout and the slower fallbacks a looser one, so a healthy
-primary is never held up waiting on the patience a last resort needs. Discovery
+carries a dated table of measured success rates and response times behind it,
+and each query asks the server to give up at the same moment the app stops
+waiting, so a query nobody is waiting for never holds one of the operator's
+slots. A mirror that has just failed is asked last for the next two minutes and
+leads again after its first success, so a busy spell costs one slow attempt
+rather than one per analysis, and no mirror is ever skipped outright. Discovery
 results are cached for several minutes, so redrawing the same polygon costs
 Overpass nothing, and a resolved coordinate set is cached the same way, so
 re-analyzing a pasted list at window after window asks only once.
@@ -98,6 +105,9 @@ its budget, the progress line says it is waiting on quota and counts down to
 when it resumes, instead of appearing to hang. If Open-Meteo rate-limits us
 anyway, a short block resumes on its own once the window passes, and a longer
 one stops the analysis and says so rather than retrying into the wall.
+The browser gives each batch 20 seconds to answer and asks a silent one once
+more before the analysis fails with a message and a retry, instead of waiting
+until you cancel.
 
 An API caller can bring its own Open-Meteo key, and a keyed request reads the
 same models from the same data: it goes to Open-Meteo's customer hosts
@@ -121,9 +131,14 @@ it understates what a person feels, and during a measured November storm the
 fetch also carries the free-air wind at five pressure levels (925 / 850 /
 700 / 600 / 500 hPa), and every wind number interpolates between the two
 levels bracketing the destination's elevation, floored at the 10 m value —
-free air can only add exposure, never shelter. Destinations with no known
-elevation, or below the lowest level (~762 m — a valley really is sheltered),
-report the plain 10 m wind. The level heights are the standard atmosphere's,
+free air can only add exposure, never shelter. Destinations below the lowest
+level (~762 m — a valley really is sheltered) report the plain 10 m wind. With
+no known elevation, the app reads a peak or a pasted point at the terrain
+height Open-Meteo reports for its coordinate, as the grid below is read,
+because a summit stands above the model's terrain; a lake, a trailhead or a
+searched town sits on that terrain, so it keeps the plain 10 m wind, which is
+the real near-ground air there, whether it was found in a ring or clicked on
+the map, and the API keeps the 10 m wind for all of them. The level heights are the standard atmosphere's,
 fixed rather than fetched: real level heights move a few percent with
 weather, less than the model's own terrain error. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer, and local
@@ -163,9 +178,11 @@ between the two levels bracketing the destination's elevation. Two things
 differ from the wind. There is **no floor**: a summit can be colder than the
 free air on a calm clear night and warmer than it under an inversion, so a
 clamp in either direction would report a number no model produced. And the
-fallback is the 2 m value rather than the 10 m one — a destination with no
-known elevation, below the lowest level (~762 m), or in an archive window
-reports the surface temperature exactly as it did before.
+fallback is the 2 m value rather than the 10 m one — a destination below the
+lowest level (~762 m) or in an archive window reports the surface temperature
+exactly as it did before, and one with no known elevation follows the wind's
+rule above: a peak or pasted point at the terrain height, a lake or trailhead
+at the surface.
 
 No column header says which method produced a number
 ([#457](https://github.com/zimmertr/bluebird/issues/457)). The wind and
@@ -437,9 +454,12 @@ A base at the destination's own elevation means the model has the destination
 in cloud. Compare the number with the **Elevation (ft)** column: a base below the
 summit is a summit in cloud.
 
-The hour is null when the destination has no known elevation, and when no level
-above it answered. Archive windows publish no pressure levels, so an archive
-hour has a cloud cover and no base.
+The hour is null when no level above the destination answered, and when the
+destination has no known elevation, except that the app measures a peak or a
+pasted point with none from the terrain height Open-Meteo reports for its
+coordinate.
+Archive windows publish no pressure levels, so an archive hour has a cloud
+cover and no base.
 
 What the method cannot do:
 

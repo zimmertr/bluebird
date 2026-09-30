@@ -11,17 +11,19 @@ import {
   customRows,
   discoveryBase,
   isDiscoveryRefresh,
+  knownTypes,
   rankComparator,
   refreshEchoRows,
   resolveCustomOnly,
   runClientAnalysis,
   truncateTopElevation,
   withCloud,
+  withKnownTypes,
 } from './clientAnalyze'
 import { geoKey } from './points'
-import { WeatherResult, resetOpenMeteoState } from './openMeteo'
+import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { resultRow, weatherResult } from '../testSupport/fixtures'
+import { place, resultRow, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -719,6 +721,77 @@ describe('runClientAnalysis', () => {
       universe: [],
     })
   })
+
+  it('reads a peak with no elevation at terrain height and a lake at the surface (#545)', async () => {
+    // Every location answers from terrain 2438.4 m (8,000 ft), between the 850
+    // and 700 hPa levels. A peak or pasted point with no elevation of its own
+    // reads the wind interpolated there: 10 + 20 x (981.4 / 1555) = 22.6 mph.
+    // A lake or trailhead with none keeps the 10 m wind, 6.0, and no cloud
+    // base, because it sits on the terrain the surface values describe. A row
+    // that carries an elevation keeps it: 1,000 ft is under the lowest level,
+    // so its wind stays at 6.0 whatever the terrain says.
+    stubTerrain()
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const out = await runClientAnalysis(
+      { ...REQUEST, limit: 10 },
+      [
+        ...customRows([
+          { name: 'Pasted', latitude: 1, longitude: 1 },
+          { name: 'Low', latitude: 2, longitude: 2, elevation_ft: 1000 },
+        ]),
+        { ...discovered('Nameless', 3, 3), elevation_ft: null },
+        { ...discovered('Tarn', 4, 4), type: 'lake' },
+        { ...discovered('Lot', 5, 5), type: 'trailhead' },
+      ],
+      startMs,
+      endMs,
+      { nowMs: startMs, cloud: true },
+    )
+    const byName = new Map(out.universe.map((r) => [r.name, r]))
+    expect(byName.get('Pasted')?.wind_avg_mph).toBe(22.6)
+    expect(byName.get('Nameless')?.wind_avg_mph).toBe(22.6)
+    expect(byName.get('Pasted')?.cloud_base_min_ft).not.toBeNull()
+    expect(byName.get('Tarn')?.wind_avg_mph).toBe(6)
+    expect(byName.get('Lot')?.wind_avg_mph).toBe(6)
+    expect(byName.get('Tarn')?.cloud_base_min_ft).toBeNull()
+    expect(byName.get('Lot')?.cloud_base_min_ft).toBeNull()
+    expect(byName.get('Low')?.wind_avg_mph).toBe(6)
+    // The terrain height is the forecast's, not the destination's: the
+    // Elevation column still says only what OSM or the list said.
+    expect(byName.get('Pasted')?.elevation_ft).toBeNull()
+    expect(byName.get('Low')?.elevation_ft).toBe(1000)
+  })
+
+  it('hands its countdown to the air-quality pacer as well as the weather one (#545)', async () => {
+    vi.useFakeTimers()
+    try {
+      // The pacer reads the clock, and the clock just changed.
+      resetOpenMeteoState()
+      stubOpenMeteo(THREE_PRECIPS)
+      const startMs = Date.parse('2026-07-21T00:00:00Z')
+      const endMs = Date.parse('2026-07-21T02:00:00Z')
+      // Overspend the air-quality bucket and leave the weather one full, the
+      // way a large analysis a moment ago would have: 50 locations over 201
+      // days is 717.9 weighted calls against 550. The analysis's own three
+      // then wait (167.9 + 3) / 550 x 60 s = 18.6 s, and only on air quality.
+      const fifty = Array.from({ length: 50 }, (_, i) => ({ latitude: 10 + i / 100, longitude: 10 }))
+      const drain = fetchAqi(fifty, startMs - 200 * 86_400_000, startMs, { nowMs: startMs })
+      const onPace = vi.fn()
+      const pending = runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, {
+        nowMs: startMs,
+        onPace,
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onPace).toHaveBeenCalledExactlyOnceWith(19)
+      await vi.advanceTimersByTimeAsync(60_000)
+      await drain
+      await expect(pending).resolves.toBeDefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 // ── The cloud column, fetched only on request (#117) ───────────────────────
@@ -771,6 +844,94 @@ function stubWithCloud(precips: number[], covers: number[], cloudCounts: number[
     }),
   )
 }
+
+// Every location answers from terrain 2438.4 m (8,000 ft), between the 850 and
+// 700 hPa levels, so a place read at the terrain height has wind of
+// 10 + 20 x (981.4 / 1555) = 22.6 mph where the 10 m wind is 6.0 (#545).
+function stubTerrain() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const host = new URL(url).hostname
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      let body: unknown
+      if (host !== 'api.open-meteo.com') {
+        body = Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))
+      } else if (isCloudRequest(url)) {
+        body = cloudBody(new Array(count).fill(50)).map((item) => ({ ...item, elevation: 2438.4 }))
+      } else {
+        body = weatherBody(new Array(count).fill(0)).map((item) => ({
+          elevation: 2438.4,
+          hourly: {
+            ...item.hourly,
+            wind_speed_925hPa: [7, 7],
+            wind_speed_850hPa: [10, 10],
+            wind_speed_700hPa: [30, 30],
+            wind_speed_600hPa: [40, 40],
+            wind_speed_500hPa: [50, 50],
+          },
+        }))
+      }
+      return { ok: true, status: 200, json: async () => body }
+    }),
+  )
+}
+
+describe('the kind of a place the server calls custom (#545)', () => {
+  const startMs = Date.parse('2026-07-21T00:00:00Z')
+  const endMs = Date.parse('2026-07-21T02:00:00Z')
+  // What POST /api/destinations answers for two places clicked on the map: a
+  // lake and a peak, neither with an elevation, both typed "custom" because
+  // `custom_destinations` carries no kind.
+  const echoed = customRows([
+    { name: 'Tarn', latitude: 1, longitude: 1 },
+    { name: 'Summit', latitude: 2, longitude: 2 },
+    { name: 'Pasted', latitude: 3, longitude: 3 },
+  ])
+  const clicked = [
+    place({ label: 'Tarn', kind: 'lake', lat: 1, lon: 1 }),
+    place({ label: 'Summit', kind: 'volcano', lat: 2, lon: 2 }),
+  ]
+
+  it('learns each place\'s kind from the places, over the held field', () => {
+    const held = [
+      resultRow({ type: 'trailhead', latitude: 5, longitude: 5 }),
+      resultRow({ type: 'custom', latitude: 3, longitude: 3 }),
+      resultRow({ type: 'peak', latitude: 1, longitude: 1 }),
+    ]
+    expect(knownTypes(held, clicked)).toEqual({
+      [geoKey(5, 5)]: 'trailhead',
+      [geoKey(1, 1)]: 'lake',
+      [geoKey(2, 2)]: 'peak',
+    })
+  })
+
+  it('types only the rows the server called custom', () => {
+    const known = { [geoKey(1, 1)]: 'lake', [geoKey(9, 9)]: 'lake' }
+    const typed = withKnownTypes([...echoed, discovered('Found', 9, 9)], known)
+    expect(typed.map((d) => d.type)).toEqual(['lake', 'custom', 'custom', 'peak'])
+  })
+
+  it('reads a clicked lake at the 10 m wind and a clicked peak at terrain height', async () => {
+    stubTerrain()
+    const out = await runClientAnalysis(
+      { ...REQUEST, limit: 10 },
+      withKnownTypes(echoed, knownTypes(null, clicked)),
+      startMs,
+      endMs,
+      { nowMs: startMs, cloud: true },
+    )
+    const byName = new Map(out.universe.map((r) => [r.name, r]))
+    expect(byName.get('Tarn')?.type).toBe('lake')
+    expect(byName.get('Tarn')?.wind_avg_mph).toBe(6)
+    expect(byName.get('Tarn')?.cloud_base_min_ft).toBeNull()
+    expect(byName.get('Summit')?.type).toBe('peak')
+    expect(byName.get('Summit')?.wind_avg_mph).toBe(22.6)
+    // A pasted coordinate has no kind to learn, so it keeps the peak's side.
+    expect(byName.get('Pasted')?.type).toBe('custom')
+    expect(byName.get('Pasted')?.wind_avg_mph).toBe(22.6)
+  })
+})
 
 describe('alignCloud', () => {
   it('lays each hour on its own stamp and leaves a missing one null', () => {

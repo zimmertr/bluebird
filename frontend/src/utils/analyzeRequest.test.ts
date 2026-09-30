@@ -60,6 +60,16 @@ describe('planAnalysis', () => {
     expect(plan.record).toEqual({ when: 'after', value: RECORD })
   })
 
+  it('tells the run what each place the server will call custom really is (#545)', () => {
+    const lake = place({ label: 'Tarn', kind: 'lake', lat: 47.51, lon: -121.81 })
+    const held = resultRow({ type: 'trailhead', latitude: 47.5, longitude: -121.8 })
+    const plan = planAnalysis(inputs({ places: [lake], universe: [held] }))
+    expect(plan.run?.options.knownTypes).toEqual({
+      [geoKey(47.51, -121.81)]: 'lake',
+      [geoKey(47.5, -121.8)]: 'trailhead',
+    })
+  })
+
   it('carries the custom list along with a discovery', () => {
     const plan = planAnalysis(inputs({ places: [place()] }))
     expect(plan.run?.request.custom_destinations).toHaveLength(1)

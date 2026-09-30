@@ -142,3 +142,12 @@ def _caches_clear():
     cache.DISCOVERY_CACHE.clear()
     cache.ENRICH_CACHE.clear()
     cache.FORECAST_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
+def _mirror_health_clear():
+    # The mirror chain remembers failures for its cooldown, so one test's
+    # failed mirror would otherwise reorder the chain for the next test.
+    osm.mirrors.reset_mirror_health()
+    yield
+    osm.mirrors.reset_mirror_health()

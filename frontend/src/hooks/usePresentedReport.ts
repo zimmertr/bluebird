@@ -4,7 +4,7 @@ import type { AnalyzedView } from './analyzeTypes'
 import { NOUN, familyOf, isSnapshotFamily } from '../metrics'
 import { snapshotCaption, windowCaption } from '../utils/calendar'
 import { pendingDestinations } from '../utils/customList'
-import { type Place, isPeakKind } from '../utils/geocode'
+import { type Place, placeType } from '../utils/geocode'
 import { geoKey } from '../utils/points'
 import { type PresentationKnobs, presentResults } from '../utils/present'
 import type { SortDir, SortKey } from '../utils/tableColumns'
@@ -84,14 +84,7 @@ export function usePresentedReport({
   useEffect(() => {
     for (const p of places) {
       identityMapRef.current.set(geoKey(p.lat, p.lon), {
-        // The geocoder's own word for the thing, so the table's Type column
-        // says what a place actually is: a searched city reads "City" rather
-        // than "Custom", which is a statement about how it got here rather
-        // than about what it is. Peaks normalize (OSM says "volcano" for
-        // several) because the Peakbagger link keys on that one value;
-        // everything else is carried through. "custom" stays the fallback for
-        // a pasted coordinate, which genuinely has no kind.
-        type: isPeakKind(p.kind) ? 'peak' : p.kind || 'custom',
+        type: placeType(p.kind),
         osm_id: p.osmId ?? null,
       })
     }

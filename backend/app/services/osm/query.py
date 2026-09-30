@@ -54,16 +54,24 @@ _UNNAMED_PEAK_CLAUSES: tuple[str, ...] = (
     'node["natural"="volcano"]["ele"](poly:"{poly}");',
 )
 
+# Stands where a query's server timeout goes. The number belongs to the mirror
+# that sends the query, not to the query, so the mirror chain fills it in per
+# attempt (osm/mirrors.py) and the server gives up when the pod does. No braces,
+# so it survives the str.format that builds _QUERY below.
+SERVER_TIMEOUT_TOKEN = "__SERVER_TIMEOUT_S__"
+
 # `out center` for every query, where peaks alone used to use bare `out`. It is
 # the same output for a node — Overpass only adds a center to ways and
 # relations — so one form serves a union that may contain all three.
-_QUERY = """\
-[out:json][timeout:60];
+_QUERY = (
+    f"[out:json][timeout:{SERVER_TIMEOUT_TOKEN}];\n"
+    """\
 (
 {clauses}
 );
 out center;
 """
+)
 
 
 def _build_query(
