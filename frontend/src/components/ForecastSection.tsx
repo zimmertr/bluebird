@@ -75,7 +75,7 @@ export default function ForecastSection({
             renders the panel narrower than its trigger and widens it to
             380px regardless. */}
         <span className={`${TEXT.control} flex-1`}>Model</span>
-        <div className={`relative ${CONTROL_W}`}>
+        <div className={`relative ${CONTROL_W}`} data-tour="model">
           {/* A model named by a link but not offered here still has to
               appear, or the control would silently show a different model
               than the one about to be requested. */}
@@ -108,7 +108,9 @@ export default function ForecastSection({
       {/* Nothing between the model and the calendar, and nothing under it:
           every message this section has to make lives in the one block
           below the Analyze button (`utils/panelMessages.ts`). */}
-      <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
+      <div data-tour="calendar">
+        <ForecastCalendar selection={selection} onChange={setSelection} band={band} />
+      </div>
     </section>
   )
 }

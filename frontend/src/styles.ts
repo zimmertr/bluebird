@@ -2102,3 +2102,21 @@ export const TABLE = {
    */
   mark: `${TEXT.micro} leading-0`,
 } as const
+
+/**
+ * The guided tutorial (#536): a spotlight over one control and a card beside
+ * it. The spotlight is ONE element wearing a shadow as wide as the screen, so
+ * the dim layer and its rounded cut-out are the same box and cannot drift
+ * apart the way four separate rects around a target would; it takes the
+ * surface radius because the controls it frames do. The card is the welcome
+ * dialog's surface at the modal layer (above the drawer and every popover),
+ * fixed and sized by the same 320px the welcome card reads at on a phone. On a
+ * phone it is a full-width sheet along the bottom edge instead, because a card
+ * beside a control has nowhere to go at 360px. Every colour here is a role the
+ * app already wears; the dim is the welcome backdrop's black at 60%.
+ */
+export const TOUR = {
+  spotlight: `absolute pointer-events-none ${RADIUS.surface} shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)] transition-all duration-200`,
+  card: `${SURFACE_CARD} fixed w-80 p-4 space-y-3 focus:outline-none transition-[top,left] duration-200`,
+  sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
+}

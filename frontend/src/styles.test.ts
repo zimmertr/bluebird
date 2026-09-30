@@ -1971,3 +1971,19 @@ describe('the selection chip', () => {
     expect(CHIP.active).toContain('pr-1')
   })
 })
+
+describe('the tutorial', () => {
+  it('draws the spotlight as one box whose shadow is the dim layer', () => {
+    expect(STYLES.TOUR.spotlight).toContain('shadow-[0_0_0_200vmax_')
+    expect(STYLES.TOUR.spotlight).toContain(STYLES.RADIUS.surface)
+    expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
+  })
+
+  it('stands the card on the welcome dialog surface, fixed, at the welcome card width', () => {
+    expect(STYLES.TOUR.card).toContain(STYLES.SURFACE_CARD)
+    expect(STYLES.TOUR.card).toContain('fixed')
+    expect(STYLES.TOUR.card).toContain('w-80')
+    expect(STYLES.TOUR.sheet).toContain(STYLES.SURFACE_CARD)
+    expect(STYLES.TOUR.sheet).toContain('inset-x-4 bottom-4')
+  })
+})

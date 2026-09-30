@@ -10,6 +10,8 @@ import AppDrawer from './components/AppDrawer'
 import MapStage from './components/MapStage'
 import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
+import Tour from './tour/Tour'
+import { useTour } from './tour/useTour'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useCapabilities } from './hooks/useCapabilities'
@@ -143,6 +145,14 @@ export default function App() {
   function dismissWelcome() {
     setWelcomed()
     setShowWelcome(false)
+  }
+
+  // The guided tutorial (#536). Starting it from the welcome dialog counts as
+  // welcomed, so a reader who ends it early is not shown the dialog again.
+  const tour = useTour({ isDesktop, setSidebarOpen })
+  function startTourFromWelcome() {
+    dismissWelcome()
+    tour.start()
   }
 
   const analysis = useAnalyze(
@@ -388,7 +398,17 @@ export default function App() {
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
+      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} onTutorial={startTourFromWelcome} />}
+      {tour.index !== null && (
+        <Tour
+          steps={tour.steps}
+          index={tour.index}
+          isDesktop={isDesktop}
+          onNext={tour.next}
+          onPrev={tour.prev}
+          onEnd={tour.end}
+        />
+      )}
       {layout.isDragging && (
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
@@ -413,6 +433,7 @@ export default function App() {
         error={error}
         refusal={refusal}
         onRetry={retry}
+        onTutorial={tour.start}
         response={response}
         results={results}
         fireStatus={fire.status}

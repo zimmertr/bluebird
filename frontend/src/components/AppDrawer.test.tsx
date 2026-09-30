@@ -69,6 +69,7 @@ function drawer(open: boolean, onClose = NOOP) {
     <AppDrawer
       open={open}
       onClose={onClose}
+      onTutorial={NOOP}
       drawMode={DRAW}
       destinationInputs={INPUTS}
       forecastSelection={SELECTION}

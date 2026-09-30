@@ -176,6 +176,7 @@ export default function MapStage({
     // sheet and its ResizeObserver sees no change on a drag.
     <div
       className={`flex-1 relative ${MAP_EDGE.publish}`}
+      data-tour="map"
       style={
         {
           '--map-corner-lift': `${layout.mapCornerLift}px`,

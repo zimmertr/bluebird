@@ -2,6 +2,10 @@
 
 Bluebird Forecast is not a recommendation engine. It does not decide what weather is "good" or "bad." It attaches objective forecast data to geographic features and lets you sort the results however you like. A typical question it answers: it's Thursday, the weekend looks wet across Washington, so which peaks in the North Cascades see the least total precipitation from Saturday morning through Sunday evening?
 
+## Tutorial
+
+The welcome dialog offers a guided tutorial, and the `Tutorial` link at the bottom of the panel opens it again at any time. It walks ten controls in order, from the search box to the Analyze button and the Layers menu, with one card beside each: `Next`, `Previous`, and `Done`, or Enter, the arrow keys, and Escape. It points and never acts: nothing is fetched, typed, or analyzed, and ending it changes nothing. On a phone it opens the panel drawer for a panel step and closes it for a map step.
+
 ## Destinations
 
 One analysis ranks a single set of destinations, which you define using one or all of the following methods. The first two live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.

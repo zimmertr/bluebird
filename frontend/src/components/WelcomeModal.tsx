@@ -3,6 +3,7 @@ import SafetyNotice from './SafetyNotice'
 import {
   BADGE_STEP,
   BUTTON_PRIMARY,
+  BUTTON_SECONDARY,
   LAYER,
   PROSE,
   RADIUS,
@@ -13,6 +14,8 @@ import { logoUrl } from '../logo'
 
 interface Props {
   onDismiss: () => void
+  /** Dismiss, then open the guided tutorial (#536). */
+  onTutorial: () => void
 }
 
 // Five steps walking the panel top to bottom, then the Analyze button and what
@@ -31,7 +34,7 @@ const STEPS: [string, string][] = [
   ['Repeat', 'Adjust any control to refine your window. Changing destinations, the forecast window, or the model needs a new Analyze; everything else updates live.'],
 ]
 
-export default function WelcomeModal({ onDismiss }: Props) {
+export default function WelcomeModal({ onDismiss, onTutorial }: Props) {
   const panelRef = useDialog(onDismiss)
   return (
     <div className={`fixed inset-0 ${LAYER.modal} flex items-center justify-center bg-black/60 backdrop-blur-sm p-4`}>
@@ -98,6 +101,14 @@ export default function WelcomeModal({ onDismiss }: Props) {
             className={BUTTON_PRIMARY}
           >
             Search now
+          </button>
+          {/* Voluntary and second: the tour points at controls the reader may
+              already know, so the primary action stays the app itself. */}
+          <button
+            onClick={onTutorial}
+            className={`${BUTTON_SECONDARY} w-full mt-2`}
+          >
+            Take the tutorial
           </button>
         </div>
       </div>

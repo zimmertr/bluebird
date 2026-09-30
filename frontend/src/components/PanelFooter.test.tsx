@@ -17,6 +17,7 @@ function props(over: Partial<Props> = {}): Props {
     loading: false,
     onAnalyze: () => {},
     onRetry: () => {},
+    onTutorial: () => {},
     messages: [],
     ...over,
   }

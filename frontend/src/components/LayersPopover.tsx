@@ -192,6 +192,7 @@ export default function LayersPopover({ overlays, grid, playerOffered }: LayersP
         onClick={() => setLayersOpen((o) => !o)}
         aria-expanded={layersOpen}
         className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
+        data-tour="layers"
       >
         <IconLayers />
         Layers

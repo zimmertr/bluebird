@@ -31,6 +31,7 @@ function props(over: Partial<Props> = {}): Props {
     drawing: false,
     onStartDrawing: noop,
     onFinishDrawing: noop,
+    onTutorial: noop,
     drawPointCount: 0,
     polygonAreaKm2: null,
     onCancelDrawing: noop,

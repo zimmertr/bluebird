@@ -112,6 +112,7 @@ interface Props {
   capabilitiesSettled: boolean
   onAutoAnalyze: () => void
   onRetry: () => void
+  onTutorial: () => void
   maxLimit: number
   // Live polygon-area gate from /api/capabilities, same contract as maxLimit
   // above: the deployment's number, with a compiled fallback behind it.
@@ -186,6 +187,7 @@ export default function ControlPanel({
   capabilitiesSettled,
   onAutoAnalyze,
   onRetry,
+  onTutorial,
   maxLimit,
   maxAreaKm2,
   archiveDays,
@@ -416,6 +418,7 @@ export default function ControlPanel({
         loading={loading}
         onAnalyze={onAnalyze}
         onRetry={onRetry}
+        onTutorial={onTutorial}
         messages={messages}
       />
     </div>

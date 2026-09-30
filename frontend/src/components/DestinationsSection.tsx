@@ -192,7 +192,12 @@ export default function DestinationsSection({
             switch (control) {
               case 'start':
                 return (
-                  <button key={control} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
+                  <button
+                    key={control}
+                    onClick={onStartDrawing}
+                    className={BUTTON_SECONDARY}
+                    data-tour="polygon"
+                  >
                     {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
                   </button>
                 )
@@ -288,7 +293,7 @@ export default function DestinationsSection({
           gesture at all: the three above are things you do to the map,
           and this is a list you bring to it. No helper line; the format
           states itself in the textarea placeholder. */}
-      <div>
+      <div data-tour="coordinates">
         <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinates</h3>
         <textarea
           aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"

@@ -99,6 +99,8 @@ interface Props {
   loading: boolean
   onAnalyze: () => void
   onRetry: () => void
+  /** Open the guided tutorial (#536). */
+  onTutorial: () => void
   // Every message the panel has to say, in order (`utils/panelMessages.ts`).
   // This file decides only how they are boxed and which are dismissed.
   messages: readonly FooterMessage[]
@@ -109,7 +111,14 @@ interface Props {
  * the two document links. The block is here and nowhere else, so a message
  * about any section of the panel still reads in the one place the rule puts it.
  */
-export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetry, messages }: Props) {
+export default function PanelFooter({
+  analyzeEnabled,
+  loading,
+  onAnalyze,
+  onRetry,
+  onTutorial,
+  messages,
+}: Props) {
   // The dismissal ledger (#253): every footer message is dismissable, each
   // alone. `pruneDismissals` retires a dismissal the moment its key stops
   // being active, which is what makes an identical error return after the
@@ -134,6 +143,7 @@ export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetr
         onClick={onAnalyze}
         disabled={!analyzeEnabled}
         className={`${BUTTON_PRIMARY} ${DISABLED}`}
+        data-tour="analyze"
       >
         {loading ? 'Analyzing…' : 'Analyze'}
       </button>
@@ -164,6 +174,12 @@ export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetr
           Both open in a new tab so reading either never costs you a drawn
           polygon and its results. */}
       <p className={`${TEXT.caption} text-center`}>
+        {/* A button in link clothes: it opens the tour over this page rather
+            than a page of its own, so it has no href to give (#536). */}
+        <button type="button" onClick={onTutorial} className={LINK} data-tour="tutorial">
+          Tutorial
+        </button>
+        {' · '}
         <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
           Privacy
         </a>

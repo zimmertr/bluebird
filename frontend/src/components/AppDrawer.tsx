@@ -81,6 +81,8 @@ interface AppDrawerProps {
   error: string | null
   refusal: Refusal | null
   onRetry: () => void
+  /** Open the guided tutorial from the panel footer (#536). */
+  onTutorial: () => void
   /** The committed report, and the rows on display. */
   response: AnalyzeResponse | null
   results: DestinationResult[]
@@ -114,6 +116,7 @@ export default function AppDrawer({
   error,
   refusal,
   onRetry,
+  onTutorial,
   response,
   results,
   fireStatus,
@@ -244,6 +247,7 @@ export default function AppDrawer({
           capabilitiesSettled={capabilitiesSettled}
           onAutoAnalyze={onAutoAnalyze}
           onRetry={onRetry}
+          onTutorial={onTutorial}
           resultCount={response ? results.length : undefined}
           // What the current bounds admit, not what the analysis fetched:
           // a bound applies live, so it has to move the "of M" or the count
