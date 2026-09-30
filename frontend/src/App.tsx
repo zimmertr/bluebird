@@ -384,7 +384,7 @@ export default function App() {
   // The results sheet's view: its layout, the comparison chart, the table's
   // shape and file, and the table's callbacks (useResultsView).
   const resultsView = useResultsView({
-    showResults: showResults || demo !== null,
+    showResults: showResults || tour.sheetShown,
     response: shownResponse,
     results,
     pending,
@@ -482,7 +482,7 @@ export default function App() {
 
         <ResultsSheet
           resultsView={resultsView}
-          showResults={showResults || demo !== null}
+          showResults={showResults || tour.sheetShown}
           chartTooltipIndex={tour.chartTooltipIndex}
           isDesktop={isDesktop}
           report={report}

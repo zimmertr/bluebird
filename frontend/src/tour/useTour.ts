@@ -77,6 +77,13 @@ export function useTour({ isDesktop, setSidebarOpen, mapRef }: Args) {
     layersOpen: step?.reveal === 'layers',
     /** The results sheet shows this instead of the real report for its steps. */
     demo,
+    /**
+     * The sheet itself is up for the results step alone. The marker step keeps
+     * the demonstration for its markers but takes the sheet down, because on a
+     * phone the sheet stands where the popup opens and the popup's lower half
+     * went under it (TJ, 2026-09-29).
+     */
+    sheetShown: step?.reveal === 'results',
     /** The chart's tooltip stands on this hour while the demonstration is up, or follows the mouse. */
     chartTooltipIndex: showingResults ? CHART_TOOLTIP_INDEX : null,
   }
