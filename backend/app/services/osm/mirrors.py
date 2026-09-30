@@ -6,6 +6,7 @@ its per-mirror budgets and timeouts, and the failover that reads them.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import logging
 import time
@@ -23,6 +24,7 @@ from app.services.errors import PartialResultError, UpstreamError, classify_http
 from app.services.http import HEADERS
 from app.services.osm.query import (
     IMPLEMENTED_TYPES,
+    SERVER_TIMEOUT_TOKEN,
     _build_query,
     _classify,
     _ele_ft,
@@ -51,9 +53,10 @@ class OverpassMirror:
     """
 
     url: str
-    # Per-request timeout. The primary gets a tight leash (it is fast or it is
-    # broken); fallbacks get a generous one (by the time one is tried, a slow
-    # answer beats no answer, and the overlay is narrating the wait).
+    # Per-request timeout, and also the `[timeout:N]` the query carries on this
+    # mirror, so the server stops working on a query the pod has stopped
+    # waiting for. A longer server timeout held one of the address's two slots
+    # busy for up to 35s after the pod gave up (#545).
     timeout_s: float
     # Pod-wide cap on in-flight calls to THIS mirror. Limits are per operator,
     # not per provider: overpass-api.de documents ~2 slots per IP, and the
@@ -61,18 +64,20 @@ class OverpassMirror:
     budget: ratelimit.UpstreamBudget
 
 
-# Measured 2026-07-28 (issue #177): single sequential requests, the exact peaks
-# query, over an 18,700 km2 Cascades polygon. Re-measure before reordering;
-# #77's per-provider latency telemetry is the durable fix for this comment
-# rotting silently, and should retune the timeouts when it lands.
+# Measured 2026-09-30 (issue #545): production telemetry over 30 days, plus
+# live probes at 17:00 UTC. Re-measure before reordering or retuning; the
+# bluebird_forecast_overpass_* families (#77) are where the next numbers come from.
 #
-#   overpass-api.de  12.0 / 15.0 / 17.4s -> 200   primary: ~1.5x observed p95
-#   maps.mail.ru     38.8s -> 200                  fallback: slow but real
-#   kumi.systems     77-108s, sometimes 504        hail-mary: last resort
+#   overpass-api.de  62 tries, 40 ok: 38% <2.5s, 48% <5s, 75% <10s, 93% <15s;
+#                    22 x 504 "too busy", each after 8-16s
+#   maps.mail.ru     11 tries, 7 ok, most <15s (one 25-45s); 2 x 45s timeout, 2 x 504
 #
-# kumi previously sat FIRST on the belief that overpass-api.de was the
-# overloaded one. At 77-108s against a 30s client timeout it could never
-# succeed, so every polygon analysis paid the full timeout as a fixed tax.
+# Both get 25s: past it the primary has either answered or said it is busy, and
+# the fallback's one slow success is not worth another 20s on every chain that
+# reaches it. overpass.kumi.systems is gone: 0 of 8 in 30 days, and a live probe
+# was accepted and sent no bytes in 60s, so it only ever added 45s to a chain
+# that was going to fail anyway. The sum of the timeouts is the worst case an
+# analysis can wait on this table, 50s where it was 115s.
 OVERPASS_MIRRORS = [
     OverpassMirror(
         url="https://overpass-api.de/api/interpreter",
@@ -83,19 +88,51 @@ OVERPASS_MIRRORS = [
     ),
     OverpassMirror(
         url="https://maps.mail.ru/osm/tools/overpass/api/interpreter",
-        timeout_s=45.0,
+        timeout_s=25.0,
         budget=ratelimit.UpstreamBudget(
             "OpenStreetMap (maps.mail.ru)", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
         ),
     ),
-    OverpassMirror(
-        url="https://overpass.kumi.systems/api/interpreter",
-        timeout_s=45.0,
-        budget=ratelimit.UpstreamBudget(
-            "OpenStreetMap (kumi.systems)", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
-        ),
-    ),
 ]
+
+# How long a mirror that just failed goes to the back of the chain. The
+# primary's busy spells on 2026-09-30 came in bursts over tens of minutes with
+# successes in between, so a short cooldown routes the next analysis past a
+# mirror that just failed without abandoning it: it is still tried, last, and
+# its first success restores its place. A status ping cannot replace this, since
+# overpass-api.de reported "2 slots available now" in the same minute its
+# queries answered 504.
+MIRROR_COOLDOWN_S = 120.0
+
+# Last failure per mirror URL, on the monotonic clock. Per pod, so replicas
+# learn separately; that costs at most one slow attempt each.
+_last_failure: dict[str, float] = {}
+
+# Read through the module rather than bound at call sites, so a test can move
+# this clock without moving the event loop's.
+_clock: Callable[[], float] = time.monotonic
+
+
+def reset_mirror_health() -> None:
+    """Forget every recorded failure, so each test starts from the table order."""
+    _last_failure.clear()
+
+
+def _attempt_order() -> list[OverpassMirror]:
+    """The table with every mirror inside its cooldown moved to the back.
+
+    Moved, never dropped: an analysis makes as many attempts as it did before
+    this existed, and a healthy mirror is simply asked first.
+    """
+    now = _clock()
+
+    def cooling(mirror: OverpassMirror) -> bool:
+        failed_at = _last_failure.get(mirror.url)
+        return failed_at is not None and now - failed_at < MIRROR_COOLDOWN_S
+
+    return [m for m in OVERPASS_MIRRORS if not cooling(m)] + [
+        m for m in OVERPASS_MIRRORS if cooling(m)
+    ]
 
 
 async def query_osm(
@@ -246,18 +283,23 @@ async def _post_with_fallback(
     on_status: StatusCallback | None = None,
 ) -> dict[str, Any]:
     last_exc: Exception = RuntimeError("No Overpass mirrors configured")
-    total = len(OVERPASS_MIRRORS)
+    order = _attempt_order()
+    total = len(order)
     # No client-level timeout: each attempt sets its own from the mirror table
     # (httpx would otherwise apply its 5s default to any request that missed one).
     async with httpx.AsyncClient(timeout=None, headers=HEADERS) as client:
-        for i, mirror in enumerate(OVERPASS_MIRRORS, start=1):
+        for i, mirror in enumerate(order, start=1):
             host = urlparse(mirror.url).hostname or mirror.url
+            # A plain replace rather than str.format: Overpass QL is full of
+            # braces and quotes, and only this one token is the mirror's to fill.
+            body = query.replace(SERVER_TIMEOUT_TOKEN, str(int(mirror.timeout_s)))
             # Failover is news the user can act on (the wait just got longer);
             # the healthy first attempt needs no narration.
             if i > 1 and on_status is not None:
                 await on_status(f"Trying backup map server {i} of {total}…")
             outcome = "error"
             elapsed: float | None = None
+            cancelled = False
             try:
                 log.info("Trying Overpass endpoint: %s", mirror.url)
                 # The slot is held only while this mirror's request is in
@@ -268,7 +310,7 @@ async def _post_with_fallback(
                     attempt_start = time.perf_counter()
                     try:
                         resp = await client.post(
-                            mirror.url, data={"data": query}, timeout=mirror.timeout_s
+                            mirror.url, data={"data": body}, timeout=mirror.timeout_s
                         )
                     finally:
                         elapsed = time.perf_counter() - attempt_start
@@ -283,6 +325,7 @@ async def _post_with_fallback(
                 if remark:
                     raise PartialResultError(f"Overpass returned a partial result: {remark}")
                 outcome = "success"
+                _last_failure.pop(mirror.url, None)
                 log.info("Overpass query succeeded via %s", mirror.url)
                 return data
             except ratelimit.BudgetExhausted:
@@ -300,14 +343,24 @@ async def _post_with_fallback(
                 )
             except Exception as exc:  # noqa: BLE001 — try the next mirror on any failure
                 outcome = _attempt_outcome(exc)
+                # A shed above is the pod's own saturation and says nothing
+                # about the mirror, so only a real request failure lands here.
+                _last_failure[mirror.url] = _clock()
                 if i < total:
                     telemetry.OVERPASS_FALLBACK.labels(mirror=host).inc()
                 log.warning("Overpass endpoint %s failed: %s", mirror.url, exc)
                 last_exc = exc
+            except asyncio.CancelledError:
+                # The caller's deadline ended this attempt, not the mirror
+                # (enrichment stops waiting long before a mirror's timeout), so
+                # it is neither a failure to cool down nor an outcome to count:
+                # "error" here would read as the mirror breaking.
+                cancelled = True
+                raise
             finally:
                 # `elapsed` stays None when the budget shed before any HTTP
                 # left the pod — nothing was asked, so nothing is recorded.
-                if elapsed is not None:
+                if elapsed is not None and not cancelled:
                     telemetry.OVERPASS_DURATION.labels(mirror=host).observe(elapsed)
                     telemetry.OVERPASS_REQUESTS.labels(mirror=host, outcome=outcome).inc()
     # Every mirror failed — surface the last failure as an actionable message.

@@ -66,18 +66,22 @@ follow from that, all of them visible in the Elevation column:
   agreement with any particular book is not on offer.
 - **It is best-effort.** If Overpass cannot be reached the rows simply keep a
   blank elevation and the analysis runs regardless, so a blank means "nobody
-  could say" rather than "something broke".
+  could say" rather than "something broke". The lookup also stops waiting after
+  eight seconds, because a pasted list waits on it before any forecast starts.
 
 An elevation you supply yourself in the API's `elevation_ft` is never
 overwritten by this.
 
 Overpass is the query service in front of OSM, run by volunteers on donated
 hardware, and its operators publish a per-address concurrency policy that
-Bluebird Forecast holds itself to separately for each mirror. Three public mirrors are
+Bluebird Forecast holds itself to separately for each mirror. Two public mirrors are
 tried in order, and the order is not arbitrary: `backend/app/services/osm/mirrors.py`
-carries a dated table of measured response times behind it, giving the fastest
-mirror a tight timeout and the slower fallbacks a looser one, so a healthy
-primary is never held up waiting on the patience a last resort needs. Discovery
+carries a dated table of measured success rates and response times behind it,
+and each query asks the server to give up at the same moment the app stops
+waiting, so a query nobody is waiting for never holds one of the operator's
+slots. A mirror that has just failed is asked last for the next two minutes and
+leads again after its first success, so a busy spell costs one slow attempt
+rather than one per analysis, and no mirror is ever skipped outright. Discovery
 results are cached for several minutes, so redrawing the same polygon costs
 Overpass nothing, and a resolved coordinate set is cached the same way, so
 re-analyzing a pasted list at window after window asks only once.

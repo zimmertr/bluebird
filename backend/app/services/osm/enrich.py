@@ -6,6 +6,7 @@ nearest each pasted point) and degrades to the rows as sent rather than failing.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from typing import Any
@@ -14,7 +15,7 @@ from app import ratelimit
 from app.services import cache
 from app.services.errors import UpstreamError
 from app.services.osm import mirrors
-from app.services.osm.query import _ele_ft
+from app.services.osm.query import SERVER_TIMEOUT_TOKEN, _ele_ft
 
 # The service's one logger name, kept across the split so a log query written
 # against it still matches every line.
@@ -39,6 +40,14 @@ CUSTOM_MATCH_RADIUS_M = 150.0
 # analysis cap splits, and those chunks run in sequence rather than racing
 # each other for the same 2-slot mirror budget.
 CUSTOM_ENRICH_CHUNK = 500
+
+# How long one lookup may wait on the mirror chain before the rows go on
+# without it. A pasted list or a clicked peak waits on this before any forecast
+# is fetched, and the elevation it buys is an optional column. Measured
+# 2026-09-30 (#545): the primary answers a healthy query in under 5s about half
+# the time and says "too busy" only after 8-16s, so 8s keeps the fast answers
+# and drops the wait on a busy server, which used to reach a minute.
+ENRICH_DEADLINE_S = 8.0
 
 _EARTH_RADIUS_M = 6_371_000.0
 
@@ -79,9 +88,12 @@ async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any
             '["natural"~"^(peak|volcano)$"];\n'
             for d in chunk
         )
-        query = f"[out:json][timeout:60];\n(\n{clauses});\nout;\n"
+        query = f"[out:json][timeout:{SERVER_TIMEOUT_TOKEN}];\n(\n{clauses});\nout;\n"
         log.trace("Overpass enrichment query:\n%s", query)  # type: ignore[attr-defined]
-        data = await mirrors._post_with_fallback(query)
+        # Per request rather than per list: the measurement behind the deadline
+        # is how long one query takes, and a list long enough to split is rare.
+        async with asyncio.timeout(ENRICH_DEADLINE_S):
+            data = await mirrors._post_with_fallback(query)
 
         # Overpass returns the union of every around clause, deduplicated, so
         # the nearest node per point has to be picked back out here.
@@ -140,6 +152,15 @@ async def enrich_custom(destinations: list[dict[str, Any]]) -> list[dict[str, An
             # rows come back exactly as sent, which is what they looked like
             # before any of this existed.
             log.warning("Custom destination elevation lookup unavailable: %s", exc)
+            return [dict(d) for d in destinations]
+        except TimeoutError:
+            # Only the deadline raises this here (httpx's own timeouts are a
+            # different class and end in UpstreamError above), and a busy
+            # donated server is not a bug, so it degrades the same quiet way.
+            log.warning(
+                "Custom destination elevation lookup gave up after %.0fs",
+                ENRICH_DEADLINE_S,
+            )
             return [dict(d) for d in destinations]
         except Exception:
             # Not an upstream problem, so it is a bug here. Still not fatal —
