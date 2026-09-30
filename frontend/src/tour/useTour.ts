@@ -11,6 +11,8 @@ interface Args {
 
 /** The hour the chart's tooltip stands on while the report is a demonstration: the window's middle. */
 const CHART_TOOLTIP_INDEX = 6
+/** How far above the map's centre the marker step puts its marker, so the popup hangs whole below it. */
+const MARKER_LIFT = 0.25
 
 /**
  * The tutorial's state (#536): which step is open, over which steps. The list
@@ -62,7 +64,7 @@ export function useTour({ isDesktop, setSidebarOpen, mapRef }: Args) {
   useEffect(() => {
     if (!showingMarker || demo === null) return
     const map = mapRef.current
-    map?.focusResult(demo.universe[0])
+    map?.focusResult(demo.universe[0], MARKER_LIFT)
     return () => map?.closePopups()
   }, [showingMarker, demo, mapRef])
 
