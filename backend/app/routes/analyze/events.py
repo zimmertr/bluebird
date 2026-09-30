@@ -27,7 +27,6 @@ class Status:
     detail: str | None = None
 
 
-
 @dataclass(slots=True)
 class Progress:
     """Counters for the retrieval phase."""
@@ -38,7 +37,6 @@ class Progress:
     batches_done: int | None = None
     total_batches: int | None = None
     message: str | None = None
-
 
 
 @dataclass(slots=True)
@@ -56,7 +54,6 @@ class Failure:
     extra: dict | None = None
 
 
-
 @dataclass(slots=True)
 class Refusal:
     """The over-cap 400, whose body is `AnalysisRefusal` rather than a plain
@@ -66,7 +63,6 @@ class Refusal:
     body: dict
 
 
-
 @dataclass(slots=True)
 class Result:
     """The terminal success."""
@@ -74,14 +70,11 @@ class Result:
     response: AnalyzeResponse
 
 
-
 AnalyzeEvent = Status | Progress | Failure | Refusal | Result
-
 
 
 # Sentinel pushed onto a progress queue once the backing task has finished.
 _STREAM_DONE = object()
-
 
 
 async def _drain(queue: asyncio.Queue) -> AsyncIterator[Any]:

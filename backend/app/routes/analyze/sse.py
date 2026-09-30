@@ -27,7 +27,6 @@ def _sse(event_type: str, **kwargs) -> str:
     return f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"
 
 
-
 def _sse_error(message: str, code: ErrorCode, **kwargs) -> str:
     """A terminal `error` event.
 
@@ -36,7 +35,6 @@ def _sse_error(message: str, code: ErrorCode, **kwargs) -> str:
     consumer renders and whatever extra fields that failure already sent.
     """
     return _sse("error", message=message, error=error_object(code), **kwargs)
-
 
 
 def _render_sse(event: AnalyzeEvent) -> str:
@@ -78,12 +76,10 @@ def _render_sse(event: AnalyzeEvent) -> str:
     return _sse("result", data=event.response.model_dump())
 
 
-
 # Cloudflare closes proxied connections idle for ~100 seconds, and a paced
 # analysis can legitimately go quiet for most of a minute while the weighted
 # budget refills. Emitted often enough to keep a healthy margin.
 KEEPALIVE_INTERVAL_S = 25.0
-
 
 
 async def _with_keepalive(source, interval_s: float = KEEPALIVE_INTERVAL_S) -> AsyncIterator[str]:
