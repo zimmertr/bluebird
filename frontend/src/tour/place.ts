@@ -3,14 +3,17 @@
 //
 // The card stands in one place for the whole run and moves only when the
 // screen does, so the reader's eye never has to find it again. On a desktop it
-// is centred on the map, just above the band the forecast player takes while
-// the demo's whole table is open: the map is at its shortest then, so a card
-// that clears it there is on the map and clear of the results in every step.
-// On a phone it spans the screen at the bottom, or at the top in the steps that
-// light the results sheet (`phoneEdge`).
+// stands at the map's left, as near the panel as the map's own left column
+// allows, since most steps light the panel or that column, and a card centred
+// on a wide map stood a screen's width from them. Its middle stands a little
+// above the viewport's, raised where the demo's whole table would reach it: the
+// map is at its shortest then, so a card that clears it there is on the map
+// and clear of the results in every step. On a phone it spans the screen at
+// the bottom, or at the top in the steps that light the results sheet
+// (`phoneEdge`).
 import { resolvePanelHeights } from '../utils/layout'
 import { type Insets, clampInsets } from '../utils/mapFraming'
-import { RESULTS_BAR_PX, TRANSPORT_BAND_PX, dockedMapFloorPx } from '../utils/resultsSheet'
+import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/resultsSheet'
 import type { PhoneEdge } from '../utils/tourSteps'
 
 export interface Box {
@@ -24,6 +27,22 @@ export interface Box {
 export const CARD_W = 360
 /** The space the card keeps from what it stands beside. */
 export const CARD_GAP = 16
+/**
+ * How far right of the card's left edge a map step's subject may land on a
+ * wide desktop. A fit into the whole free map of a 2560px screen put the
+ * subject a thousand pixels from the card; kept to this, a peak, the ring or
+ * the fire stands beside the card that names it. At 1280 and 1366 the map
+ * ends first.
+ */
+export const FREE_MAP_REACH_PX = 1100
+// The card's height before it is first measured.
+const CARD_H_GUESS = 124
+// How far down the viewport a desktop card's middle stands. The steps light
+// the search box at the top of the map's left column and the Tutorial link at
+// the bottom of the panel, so a card between them is near both; a little above
+// the middle, so the map below it, where a fit lands on a short screen, is the
+// taller band.
+const CARD_MIDDLE_AT = 0.4
 // The map's left edge holds the search box, Layers and the legends
 // (`MAP_COL_W`, 184px at a 12px inset), and the model list opens over it from
 // the panel: measured 2026-09-29 at 1280x800, its right edge is 245px into the
@@ -74,6 +93,7 @@ export function cardPlace({
   isDesktop,
   map,
   edge,
+  cardH = CARD_H_GUESS,
 }: {
   viewportW: number
   viewportH: number
@@ -81,19 +101,23 @@ export function cardPlace({
   /** The map's box on screen. */
   map: Box
   edge: PhoneEdge
+  /** The card's own height, which is the same at every step. */
+  cardH?: number
 }): CardPlace {
   if (!isDesktop) {
     return edge === 'top'
       ? { left: 0, width: viewportW, top: 0, edge }
       : { left: 0, width: viewportW, bottom: 0, edge }
   }
-  const lowest = map.top + dockedMapHeightPx(viewportH - map.top) - TRANSPORT_BAND_PX - CARD_GAP
+  // The player is off in the demo until its own step, whose map is the tall
+  // one, so the card keeps no band for it.
+  const lowest = map.top + dockedMapHeightPx(viewportH - map.top) - CARD_GAP
   const minLeft = map.left + LEFT_HELD_PX + CARD_GAP
   const maxRight = map.right - RIGHT_HELD_PX - CARD_GAP
   const width = Math.max(0, Math.min(CARD_W, maxRight - minLeft))
-  const centred = map.left + (map.right - map.left - width) / 2
-  const left = Math.round(Math.min(Math.max(centred, minLeft), maxRight - width))
-  return { left, width, bottom: Math.round(viewportH - lowest), edge: 'map' }
+  const left = Math.round(Math.min(minLeft, maxRight - width))
+  const top = Math.round(Math.max(map.top + CARD_GAP, Math.min(viewportH * CARD_MIDDLE_AT - cardH / 2, lowest - cardH)))
+  return { left, width, top, edge: 'map' }
 }
 
 /**
@@ -116,7 +140,8 @@ export const NOTHING_HELD: Held = { top: 0, right: 0, left: 0 }
  * less the card's band, less what its own chrome holds, and less whatever
  * covers its bottom edge (`coveredTop`: the player, and on a phone the results
  * sheet). On a desktop the card stands inside the map, so the free part is the
- * taller of the bands above and below it.
+ * taller of the bands above and below it, reaching no further right than
+ * `FREE_MAP_REACH_PX` from the card.
  */
 export function freeMap(
   card: Box,
@@ -128,11 +153,14 @@ export function freeMap(
   const left = map.left + held.left
   const right = map.right - held.right
   const top = map.top + held.top
-  const bottom = Math.min(map.bottom, coveredTop)
+  // Kept off the map's bottom edge by the gap too, so a light there never
+  // meets one on the results bar under it.
+  const bottom = Math.min(map.bottom, coveredTop) - CARD_GAP
   if (edge === 'bottom') return { left, top, right, bottom: Math.min(bottom, card.top - CARD_GAP) }
   if (edge === 'top') return { left, top: Math.max(top, card.bottom + CARD_GAP), right, bottom }
-  const below = { left, top: Math.max(top, card.bottom + CARD_GAP), right, bottom }
-  const above = { left, top, right, bottom: Math.min(bottom, card.top - CARD_GAP) }
+  const near = Math.min(right, card.left + FREE_MAP_REACH_PX)
+  const below = { left, top: Math.max(top, card.bottom + CARD_GAP), right: near, bottom }
+  const above = { left, top, right: near, bottom: Math.min(bottom, card.top - CARD_GAP) }
   return above.bottom - above.top > below.bottom - below.top ? above : below
 }
 

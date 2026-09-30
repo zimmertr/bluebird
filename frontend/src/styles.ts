@@ -2138,9 +2138,12 @@ export const TOUR = {
   dim: 'fixed inset-0 z-[70] h-full w-full',
   dimFill: 'fill-black',
   hole: 'fill-none stroke-sky-400',
+  // One class, so the dim can take it off and put it back to play it again;
+  // the keyframes are `tour-pulse` in index.css.
+  pulse: 'motion-safe:animate-[tour-pulse_600ms_ease-out_1]',
   pointer:
     'fixed left-0 top-0 z-[71] pointer-events-none drop-shadow-md ' +
-    'transition-[transform,opacity] ease-out motion-reduce:transition-none',
+    'transition-[transform,opacity] ease-in-out motion-reduce:transition-none',
   pointerArrow: 'block size-6 fill-white stroke-slate-900',
   pointerPress: 'absolute -left-4 -top-4 size-8 rounded-full border-2 border-white',
   card: `fixed z-[72] ${SURFACE_CARD} font-sans px-4 pt-3 pb-3 outline-none`,
@@ -2151,11 +2154,13 @@ export const TOUR = {
   barFill: `block h-full ${ACCENT.mark} motion-safe:transition-[width] motion-safe:duration-300`,
   head: 'mt-2.5 flex items-center gap-2',
   section: `${TEXT.caption} flex-1 font-semibold`,
-  close: `${ICON_BUTTON} -mr-1 flex items-center justify-center`,
+  // 28px to press, 44 on a touch screen as every small button in the app,
+  // with its overhang taken back so the title line keeps the text's height.
+  close: `${ICON_BUTTON} ${TAP.action} size-7 -my-1.5 -mr-1.5`,
   text: `${PROSE.body} mt-1 grid`,
   textLine: '[grid-area:1/1]',
-  foot: 'mt-3 flex items-center gap-2',
-  count: `${TEXT.caption} mr-auto tabular-nums`,
+  foot: 'mt-3 flex items-center justify-end gap-2',
+  count: `${TEXT.caption} tabular-nums`,
   previous: `${BUTTON_SECONDARY} ${DISABLED}`,
   next: BUTTON_ACCENT,
 } as const
@@ -2172,3 +2177,16 @@ export const TOUR_DIM = 0.5
 export const TOUR_HOLE_PAD_PX = 6
 export const TOUR_HOLE_RADIUS_PX = 8
 export const TOUR_HOLE_RING_PX = 2
+/**
+ * How long the ring pulses as a card opens: once, long enough to catch the
+ * eye across a wide screen, and gone before the reader has read the title.
+ * Not at all where motion is unwelcome (`TOUR.pulse` is `motion-safe`).
+ */
+export const TOUR_PULSE_MS = 600
+/**
+ * The least a lit area measures on its short side, so a small field or a line
+ * of links is lit as something the eye can find, not as a sliver.
+ */
+export const TOUR_LIGHT_MIN_PX = 44
+/** How far inside the viewport a lit area's ring stays, so it is always whole. */
+export const TOUR_LIGHT_INSET_PX = 4

@@ -8,6 +8,9 @@ import {
   TOUR_DIM,
   TOUR_HOLE_RADIUS_PX,
   TOUR_HOLE_RING_PX,
+  TOUR_LIGHT_INSET_PX,
+  TOUR_LIGHT_MIN_PX,
+  TOUR_PULSE_MS,
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
@@ -2022,6 +2025,19 @@ describe('the tutorial', () => {
   it('stacks every step\'s text in one cell, so the card is as tall at every step', () => {
     expect(TOUR.text).toMatch(/\bgrid\b/)
     expect(TOUR.textLine).toContain('grid-area:1/1')
+  })
+
+  it('pulses the ring once as a card opens, only where motion is welcome', () => {
+    expect(TOUR.pulse).toMatch(/^motion-safe:animate-\[tour-pulse_/)
+    expect(TOUR.pulse).toContain(`_${TOUR_PULSE_MS}ms_`)
+    expect(TOUR.pulse).toMatch(/_1\]$/)
+    expect(TOUR.pulse).not.toMatch(/\s/)
+  })
+
+  it('lights a small target at least as large as a touch target, and inside the screen', () => {
+    expect(TOUR_LIGHT_MIN_PX).toBe(44)
+    // The ring is drawn on the hole's edge, so it stays whole with room to spare.
+    expect(TOUR_LIGHT_INSET_PX).toBeGreaterThan(TOUR_HOLE_RING_PX / 2)
   })
 
   it('dims to half and rings a lit area as the focus ring outlines a control', () => {

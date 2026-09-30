@@ -43,7 +43,7 @@ export interface MapViewHandle {
   flyToPlace: (place: Place) => void
   // `paddingPx` in place of the usual margin, for a caller whose insets
   // already keep the points clear of what stands over the map (#536).
-  fitToPoints: (points: { latitude: number; longitude: number }[], paddingPx?: number) => void
+  fitToPoints: (points: { latitude: number; longitude: number }[], paddingPx?: number, ms?: number) => void
   focusResult: (result: DestinationResult) => void
   // The same camera move for a destination with no forecast yet, and nothing
   // else: no popup, because the one `focusResult` opens is a forecast card and
@@ -416,7 +416,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Frame a pasted custom CSV list whole. Deferred like a pre-load search
       // when the map isn't ready — the load handler folds the points into its
       // opening frame.
-      fitToPoints(points: { latitude: number; longitude: number }[], paddingPx = FIT_PADDING_PX) {
+      fitToPoints(points: { latitude: number; longitude: number }[], paddingPx = FIT_PADDING_PX, ms = 1500) {
         const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
         if (!bounds) return
         const map = mapRef.current
@@ -427,7 +427,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         refitPointsRef.current = points
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
-        moves.run(1500, (duration) =>
+        moves.run(ms, (duration) =>
           map.fitBounds(bounds, {
             padding: framePadding(paddingPx, cameraPadBottomPx, moves.insets),
             duration,

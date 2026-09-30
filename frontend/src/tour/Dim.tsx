@@ -1,5 +1,5 @@
-import { type SyntheticEvent, useEffect, useRef } from 'react'
-import { TOUR, TOUR_DIM, TOUR_HOLE_PAD_PX, TOUR_HOLE_RADIUS_PX, TOUR_HOLE_RING_PX } from '../styles'
+import { type SyntheticEvent, useEffect, useId, useRef } from 'react'
+import { TOUR, TOUR_DIM, TOUR_HOLE_PAD_PX, TOUR_HOLE_RADIUS_PX, TOUR_HOLE_RING_PX, TOUR_PULSE_MS } from '../styles'
 import type { Box } from './place'
 
 // The dim over the demo copy of the app (#536), with each lit area cut out of
@@ -12,6 +12,8 @@ export interface DimProps {
   /** The boxes to light now, as the run measures them. */
   holes: () => Box[]
   reduced: boolean
+  /** Changes as each card opens, and the ring pulses once. */
+  pulse: number
 }
 
 const keep = (e: SyntheticEvent) => e.stopPropagation()
@@ -42,10 +44,12 @@ function roundRect({ left, top, right, bottom }: Box): string {
 // as if it came on time, still lands the light on time.
 const GLIDE_TAU_MS = 55
 
-export default function Dim({ holes, reduced }: DimProps) {
+export default function Dim({ holes, reduced, pulse }: DimProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const fillRef = useRef<SVGPathElement>(null)
   const ringRef = useRef<SVGPathElement>(null)
+  // Only letters and digits, so it reads the same inside `url(#…)`.
+  const maskId = `tour-dim${useId().replace(/[^a-zA-Z0-9]/g, '')}`
 
   useEffect(() => {
     let shown: Box[] = []
@@ -66,10 +70,9 @@ export default function Dim({ holes, reduced }: DimProps) {
               return { left: step(s.left, t.left), top: step(s.top, t.top), right: step(s.right, t.right), bottom: step(s.bottom, t.bottom) }
             })
       const rects = shown.map(roundRect).join('')
-      const d = `M0 0H${window.innerWidth}V${window.innerHeight}H0Z${rects}`
-      if (d !== written) {
-        written = d
-        fillRef.current?.setAttribute('d', d)
+      if (rects !== written) {
+        written = rects
+        fillRef.current?.setAttribute('d', rects)
         ringRef.current?.setAttribute('d', rects)
         // What the browser suite reads: the lit areas as drawn, not as aimed
         // at, so a light still on its way from the last step shows as one.
@@ -88,6 +91,18 @@ export default function Dim({ holes, reduced }: DimProps) {
     return () => cancelAnimationFrame(raf)
   }, [holes, reduced])
 
+  // Once as each card opens, so the eye finds a light that stands far from
+  // the card. The class is taken off and put back to play it again.
+  useEffect(() => {
+    const ring = ringRef.current
+    if (!ring || pulse === 0) return
+    ring.classList.remove(TOUR.pulse)
+    ring.getBoundingClientRect()
+    ring.classList.add(TOUR.pulse)
+    const done = window.setTimeout(() => ring.classList.remove(TOUR.pulse), TOUR_PULSE_MS)
+    return () => window.clearTimeout(done)
+  }, [pulse])
+
   return (
     <div
       ref={rootRef}
@@ -100,7 +115,13 @@ export default function Dim({ holes, reduced }: DimProps) {
       onWheel={keep}
     >
       <svg className="h-full w-full">
-        <path ref={fillRef} className={TOUR.dimFill} fillOpacity={TOUR_DIM} fillRule="evenodd" />
+        {/* The lit areas are cut out through a mask rather than as holes in
+            one path, so two that overlap stay lit where they meet. */}
+        <mask id={maskId}>
+          <rect width="100%" height="100%" fill="white" />
+          <path ref={fillRef} fill="black" />
+        </mask>
+        <rect width="100%" height="100%" className={TOUR.dimFill} fillOpacity={TOUR_DIM} mask={`url(#${maskId})`} />
         <path ref={ringRef} className={TOUR.hole} strokeWidth={TOUR_HOLE_RING_PX} />
       </svg>
     </div>

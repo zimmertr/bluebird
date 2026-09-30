@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { TRANSPORT_BAND_PX } from '../utils/resultsSheet'
 import { RESULTS_BAR_PX, dockedMapFloorPx } from '../utils/resultsSheet'
-import { CARD_W, WHOLE_TABLE_PX, cameraInsets, cardPlace, clip, dockedMapHeightPx, freeMap, overlaps } from './place'
+import { CARD_W, FREE_MAP_REACH_PX, WHOLE_TABLE_PX, cameraInsets, cardPlace, clip, dockedMapHeightPx, freeMap, overlaps } from './place'
 
 // The docked panel is 360px, so the map starts there on every desktop.
 const desktopMap = (w: number, h: number) => ({ left: 360, top: 0, right: w, bottom: h })
@@ -21,11 +20,22 @@ describe('dockedMapHeightPx', () => {
 })
 
 describe('cardPlace', () => {
-  it('centres the card on the map, just above the player while the whole table is open', () => {
-    const place = cardPlace({ viewportW: 1280, viewportH: 800, isDesktop: true, map: desktopMap(1280, 800), edge: 'bottom' })
+  it('stands at the map\'s left, as near the panel as the left column allows', () => {
+    const place = cardPlace({ viewportW: 1280, viewportH: 800, isDesktop: true, map: desktopMap(1280, 800), edge: 'bottom', cardH: 110 })
     expect(place.width).toBe(CARD_W)
-    expect(place.left).toBe(360 + (920 - CARD_W) / 2)
-    expect(800 - (place.bottom ?? 0)).toBe(dockedMapHeightPx(800) - TRANSPORT_BAND_PX - 16)
+    expect(place.left).toBe(360 + 245 + 16)
+    const wide = cardPlace({ viewportW: 2560, viewportH: 1440, isDesktop: true, map: desktopMap(2560, 1440), edge: 'bottom', cardH: 110 })
+    expect(wide.left).toBe(place.left)
+  })
+
+  it('stands a little above the viewport\'s middle, above the map\'s bottom with the whole table open', () => {
+    const tall = cardPlace({ viewportW: 2560, viewportH: 1440, isDesktop: true, map: desktopMap(2560, 1440), edge: 'bottom', cardH: 110 })
+    expect(tall.top).toBe(1440 * 0.4 - 55)
+    // And never where the demo's whole table would reach it.
+    for (let h = 600; h <= 1600; h += 50) {
+      const place = cardPlace({ viewportW: 1280, viewportH: h, isDesktop: true, map: desktopMap(1280, h), edge: 'bottom', cardH: 110 })
+      expect((place.top ?? 0) + 110, `at ${h}`).toBeLessThanOrEqual(dockedMapHeightPx(h) - 16)
+    }
   })
 
   it('stands in the same place whatever the map\'s own height is', () => {
@@ -57,14 +67,17 @@ describe('freeMap', () => {
   it('is the map below a desktop card, less the chrome down each side', () => {
     const card = { left: 640, top: 171, right: 1000, bottom: 311 }
     const free = freeMap(card, desktopMap(1280, 765), 'map', 672, held)
-    expect(free).toEqual({ left: 572, top: 327, right: 1222, bottom: 672 })
+    expect(free).toEqual({ left: 572, top: 327, right: 1222, bottom: 656 })
     expect(overlaps(free, card)).toBe(false)
   })
 
-  it('is the map above a desktop card that stands low on a tall map', () => {
-    const card = { left: 1100, top: 811, right: 1460, bottom: 951 }
-    expect(freeMap(card, desktopMap(2560, 1405), 'map', 1312, held)).toEqual({
-      left: 572, top: 0, right: 2502, bottom: 795,
+  it('is the taller band beside a desktop card, reaching no further right than the card\'s reach', () => {
+    const card = { left: 621, top: 665, right: 981, bottom: 775 }
+    expect(freeMap(card, desktopMap(2560, 1500), 'map', 1500, held)).toEqual({
+      left: 572, top: 791, right: 621 + FREE_MAP_REACH_PX, bottom: 1484,
+    })
+    expect(freeMap(card, desktopMap(2560, 1300), 'map', 1300, held)).toEqual({
+      left: 572, top: 0, right: 621 + FREE_MAP_REACH_PX, bottom: 649,
     })
   })
 
@@ -72,7 +85,7 @@ describe('freeMap', () => {
     const map = { left: 0, top: 150, right: 360, bottom: 640 }
     const column = { top: 150, left: 0, right: 0 }
     expect(freeMap({ left: 0, top: 0, right: 360, bottom: 150 }, map, 'top', 536, column)).toEqual({
-      left: 0, top: 300, right: 360, bottom: 536,
+      left: 0, top: 300, right: 360, bottom: 520,
     })
     expect(freeMap({ left: 0, top: 490, right: 360, bottom: 640 }, { ...map, top: 0 }, 'bottom').bottom).toBe(474)
   })

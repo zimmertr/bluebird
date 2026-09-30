@@ -77,6 +77,9 @@ export default function Card({ index, phase, place, focusKey, cardRef, onNext, o
         <h2 id={titleId} className={TOUR.section}>
           {step.section}
         </h2>
+        {/* Only in a section of more than one step, whose "1 of 1" would read
+            as the length of the whole tutorial. */}
+        {step.sectionSize > 1 && <span className={TOUR.count}>{progressText(step)}</span>}
         <button type="button" onClick={onEnd} aria-label={TOUR_COPY.close} className={TOUR.close}>
           <IconClose />
         </button>
@@ -89,9 +92,6 @@ export default function Card({ index, phase, place, focusKey, cardRef, onNext, o
         ))}
       </div>
       <div className={TOUR.foot}>
-        {/* Kept as an empty cell in a one-step section, whose "1 of 1" would read
-            as the length of the whole tutorial, so the buttons stay put. */}
-        <span className={TOUR.count}>{step.sectionSize > 1 ? progressText(step) : ''}</span>
         <button type="button" onClick={onPrevious} disabled={index === 0} className={TOUR.previous}>
           {TOUR_COPY.previous}
         </button>

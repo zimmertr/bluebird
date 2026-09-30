@@ -2,7 +2,8 @@ import type { Page } from '@playwright/test'
 import { test, expect, DESTINATION_NAMES } from './fixtures'
 import { TOUR_STEPS, phoneEdge, progressText } from '../src/utils/tourSteps'
 import { AQI_BOUND } from '../src/tour/scenario'
-import { ACTIONS } from '../src/tour/actions'
+import { ACTIONS, FRAMED_SPREAD, LIGHTS } from '../src/tour/actions'
+import { TOUR_HOLE_PAD_PX, TOUR_LIGHT_INSET_PX, TOUR_LIGHT_MIN_PX } from '../src/styles'
 import { draggedMapFloorPx } from '../src/utils/resultsSheet'
 
 // The tutorial (#536) acts every step out on a demo copy of the app. What is
@@ -16,8 +17,17 @@ const DEMO_ROWS = 9
 // The panel steps lit by the section they name, which is every panel step but
 // the one that lights the open model list.
 const SECTION_LIT = new Set(
-  TOUR_STEPS.filter((s) => s.place === 'panel' && s.anchors.length === 1 && s.key !== 'model-rank').map((s) => s.key),
+  TOUR_STEPS.filter((s) => s.place === 'panel' && s.anchors.length === 1 && !LIGHTS[s.key]).map((s) => s.key),
 )
+// The steps about the table, the only ones that open the results; every other
+// step keeps them folded to their bar.
+const TABLE_OPEN = new Set(['results', 'bound', 'row'])
+// Where a lit area's ring may reach: the inset, and the hole's own padding.
+const EDGE = TOUR_LIGHT_INSET_PX + TOUR_HOLE_PAD_PX - 1
+// The one step a desktop card at the map's left cannot stand near: the
+// results tools sit at the right end of the results bar, which on a wide
+// screen is the far side of the map.
+const FAR_FROM_CARD = new Set(['tools'])
 const OPEN_METEO = ['api.open-meteo.com', 'air-quality-api.open-meteo.com', 'archive-api.open-meteo.com']
 
 type Box = { left: number; top: number; right: number; bottom: number }
@@ -93,6 +103,10 @@ async function scene(page: Page) {
   })
 }
 
+// The shortest distance between two boxes, 0 where they meet.
+const distance = (a: Box, b: Box) =>
+  Math.hypot(Math.max(0, b.left - a.right, a.left - b.right), Math.max(0, b.top - a.bottom, a.top - b.bottom))
+
 const meets = (a: Box, b: Box) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1
 
 // The rules every step keeps, at every width.
@@ -106,7 +120,12 @@ async function holdsTheRules(page: Page, i: number, still: Map<string, Box>) {
   const isTail = (b: Box) => tails.some((t) => Math.abs(t.top - b.top) < 12 && Math.abs(t.left - b.left) < 12)
   for (const h of holes) {
     expect(h.right - h.left, `${key} lights a target on screen`).toBeGreaterThan(0)
-    expect(h.left >= -6 && h.top >= -6 && h.right <= viewport.width + 6 && h.bottom <= viewport.height + 6, `${key}: ${JSON.stringify(h)} in view`).toBe(true)
+    // Its ring whole, inside the screen.
+    expect(h.left >= EDGE && h.top >= EDGE && h.right <= viewport.width - EDGE && h.bottom <= viewport.height - EDGE, `${key}: ${JSON.stringify(h)} inside the screen`).toBe(true)
+    // A small control is lit at the size of a touch target; a row or a
+    // section, which is long, as itself.
+    const [w, ht] = [h.right - h.left, h.bottom - h.top]
+    if (Math.max(w, ht) < 4 * TOUR_LIGHT_MIN_PX) expect(Math.min(w, ht), `${key}: ${JSON.stringify(h)} large enough to find`).toBeGreaterThanOrEqual(TOUR_LIGHT_MIN_PX - 1)
     if (!isTail(h)) expect(meets(c, h), `${key}: the card covers what it lights ${JSON.stringify(h)}`).toBe(false)
   }
   for (const o of open) if (!isTail(o.box)) expect(meets(c, o.box), `${key}: the card covers ${o.what}`).toBe(false)
@@ -119,6 +138,17 @@ async function holdsTheRules(page: Page, i: number, still: Map<string, Box>) {
     }
   }
   if (SECTION_LIT.has(key)) await litOnItsSection(page, key, TOUR_STEPS[i].anchors[0], holes[0])
+  // On a wide screen the card stands near what it lights: within a third of
+  // the screen's width of the nearest lit area.
+  if (viewport.width >= 2000 && !FAR_FROM_CARD.has(key)) {
+    const gap = Math.min(...holes.map((h) => distance(c, h)))
+    expect(gap, `${key}: the card within a third of the screen of its light`).toBeLessThan(viewport.width / 3)
+  }
+  // The results hold one state: open only in the steps about the table.
+  const table = await page.locator('[data-tour-sandbox] [data-tour="results"]').count()
+  if (table > 0 || TABLE_OPEN.has(key)) {
+    await expect(page.locator('[data-tour-sandbox] [data-tour="results"]'), `${key}: the table open or folded`).toBeVisible({ visible: TABLE_OPEN.has(key) })
+  }
   // One place for the whole run, apart from a phone's two edges.
   const edge = viewport.width < 1024 ? phoneEdge(i) : 'map'
   const first = still.get(edge)
@@ -277,7 +307,7 @@ async function framedClear(page: Page) {
     (Math.max(...xs) - Math.min(...xs)) / (free.right - free.left),
     (Math.max(...ys) - Math.min(...ys)) / (free.bottom - free.top),
   )
-  expect(spread, 'the framed points fill the free map').toBeGreaterThanOrEqual(0.7)
+  expect(spread, 'the framed points fill the free map').toBeGreaterThanOrEqual(FRAMED_SPREAD)
 }
 
 // While an acted step holds: what it changed is lit, one light for each thing
@@ -315,6 +345,33 @@ async function resultHeld(page: Page, key: string) {
       }
     }
   }
+}
+
+// Each time the card's words change, how many areas are lit then and 300 ms
+// later, read in the page so no wait of the suite's own blurs it.
+async function watchTexts(page: Page) {
+  await page.evaluate(() => {
+    const log: { step: string; now: number; later: number }[] = []
+    ;(window as unknown as { __texts: typeof log }).__texts = log
+    const lit = () => (JSON.parse(document.querySelector('[data-tour-dim]')?.getAttribute('data-holes') ?? '[]') as unknown[]).length
+    let step: string | null = null
+    new MutationObserver(() => {
+      const now = document.querySelector('[data-tour-card]')?.getAttribute('data-step') ?? null
+      if (now === null || now === step) return
+      step = now
+      const entry = { step: now, now: lit(), later: -1 }
+      log.push(entry)
+      setTimeout(() => (entry.later = lit()), 300)
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-step'], childList: true })
+  })
+  return () => page.evaluate(() => (window as unknown as { __texts: { step: string; now: number; later: number }[] }).__texts)
+}
+
+// No step's words are read in the dark: its light stands within 300 ms.
+async function lightBeforeText(texts: () => Promise<{ step: string; later: number }[]>) {
+  const log = await texts()
+  expect(log.length).toBeGreaterThanOrEqual(STEPS - 1)
+  for (const t of log) if (t.later >= 0) expect(t.later, `${t.step} lit as its words show`).toBeGreaterThan(0)
 }
 
 // Moves on from step `i`, by a button or a key in turn, and waits for the next.
@@ -370,11 +427,9 @@ async function walk(page: Page) {
         expect(x >= holes[1].left && x <= holes[1].right && y >= holes[1].top && y <= holes[1].bottom, `${x},${y} lit`).toBe(true)
       }
     }
-    // A phone keeps its own default, no player, until the player step.
-    if (!desktop) {
-      const player = page.locator('[data-tour-sandbox] [data-tour="player"]')
-      await expect(player).toHaveCount(i >= TOUR_STEPS.findIndex((s) => s.key === 'player') ? 1 : 0)
-    }
+    // No player until the player step, on every screen.
+    const player = page.locator('[data-tour-sandbox] [data-tour="player"]')
+    await expect(player).toHaveCount(i >= TOUR_STEPS.findIndex((s) => s.key === 'player') ? 1 : 0)
     if (key === 'row') {
       const names = await rowNames(page)
       expect(names).toHaveLength(DEMO_ROWS - over.length)
@@ -384,7 +439,7 @@ async function walk(page: Page) {
   }
 }
 
-for (const [width, height] of [[1280, 800], [1366, 768]]) {
+for (const [width, height] of [[1280, 800], [1366, 768], [2560, 1440]]) {
 test(`at ${width}x${height} the welcome dialog starts a tutorial that acts out every step and leaves nothing behind`, async ({ page, traffic }) => {
   test.setTimeout(240_000)
   await page.setViewportSize({ width, height })
@@ -399,9 +454,11 @@ test(`at ${width}x${height} the welcome dialog starts a tutorial that acts out e
   expect(await page.evaluate(() => localStorage.getItem('bluebird_forecast_welcomed'))).not.toBeNull()
   const kept = await storage(page)
   const requests = watchRequests(page)
+  const texts = await watchTexts(page)
 
   await walk(page)
 
+  await lightBeforeText(texts)
   await expect(card(page)).toHaveCount(0)
   await expect(page.locator('[data-tour-dim]')).toHaveCount(0)
   await expect(page.locator('[data-tour-sandbox]')).toHaveCount(0)
@@ -430,9 +487,11 @@ test('on a phone every step keeps the rules, and the reader\'s report comes back
   await page.getByRole('button', { name: 'Open controls' }).click()
   await page.getByRole('button', { name: 'Tutorial' }).click()
   const requests = watchRequests(page)
+  const texts = await watchTexts(page)
 
   await walk(page)
 
+  await lightBeforeText(texts)
   await expect(card(page)).toHaveCount(0)
   await expect(rows).toHaveCount(DESTINATION_NAMES.length)
   expect(page.url()).toBe(url)

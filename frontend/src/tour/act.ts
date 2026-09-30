@@ -41,10 +41,17 @@ export interface Stage {
 // The pace, where motion is welcome. Slow enough to follow a pointer across
 // the screen and see what it pressed before the screen answers.
 export const PACE = {
+  /** The shortest glide; a longer one takes longer, never faster. */
   glideMinMs: 700,
-  glideMaxMs: 1100,
+  /** The pointer's top speed, midway through a glide that eases in and out. */
+  glidePeakPxPerS: 1000,
+  /** A panel's scroll, at least, and at most. */
+  scrollMinMs: 300,
+  scrollMaxMs: 600,
   /** Before a press, once the pointer has arrived, and again after it. */
   pressPauseMs: 500,
+  /** From the press's ring to the click, and the change it makes. */
+  pressRingMs: 150,
   typeMs: 110,
   flightMs: 2000,
   /** After a step that finished by itself, before the next card. */
@@ -120,29 +127,65 @@ export function scrollParent(el: Element): HTMLElement | null {
   return null
 }
 
+// Where a panel may stop scrolling: the top of a heading, a block or a
+// control, so no row is sliced under the panel's header. A calendar's rows are
+// its days.
+const BLOCK_STARTS = 'section, h2, h3, p, label, [data-tour], [data-day], button, input, select, textarea'
+// How far past the least scroll that shows a tall section's bottom a row start
+// may be, to stop on one: about a calendar row.
+const ROW_SLACK_PX = 40
+
 /**
  * Scrolls `el`'s scrolling ancestor so all of `el` shows, or, when it is
- * taller than the space, so its top stands at the top. Smooth, unless instant.
+ * taller than the space, so its top stands at the top. Of the places that do,
+ * it stops at the start of a block of the panel nearest where it stands, so
+ * the top edge never cuts a row in half. It glides, unless instant, and
+ * resolves once it has landed, so nothing is measured or pressed mid-scroll.
  */
-export async function reveal(stage: Stage, el: Element, margin = 8): Promise<void> {
+export async function reveal(stage: Stage, el: Element, margin = 8, from: 'top' | 'bottom' = 'top'): Promise<void> {
   const box = scrollParent(el)
   if (!box) return
   const outer = box.getBoundingClientRect()
   const inner = el.getBoundingClientRect()
-  let delta = 0
-  if (inner.height > outer.height - 2 * margin || inner.top < outer.top + margin) {
-    delta = inner.top - outer.top - margin
-  } else if (inner.bottom > outer.bottom - margin) {
-    delta = inner.bottom - outer.bottom + margin
+  const max = box.scrollHeight - box.clientHeight
+  const at = (y: number) => box.scrollTop + y - outer.top - margin
+  // The range of scroll positions that show `el`, or put its top at the top.
+  const tall = inner.height > outer.height - 2 * margin
+  const toBottom = at(inner.bottom) - (outer.height - 2 * margin)
+  // Taller than the space, it shows from its top, or, where what the step
+  // changed is at its bottom, from the first row that keeps its bottom in view.
+  const fromBottom = tall && from === 'bottom'
+  const hi = fromBottom ? toBottom + ROW_SLACK_PX : at(inner.top)
+  const lo = tall && !fromBottom ? hi : toBottom
+  const starts = [0, ...[...box.querySelectorAll(BLOCK_STARTS)].map((b) => at(b.getBoundingClientRect().top))]
+  // Near the panel's end it cannot scroll as far as `hi`.
+  const fits = starts.filter((y) => y >= lo - 1 && y <= Math.min(hi, max) + 1)
+  const near = (ys: number[]) => ys.reduce((a, b) => (Math.abs(b - box.scrollTop) < Math.abs(a - box.scrollTop) ? b : a))
+  const pick = fits.length === 0 ? (fromBottom ? toBottom : hi) : fromBottom ? Math.min(...fits) : near(fits)
+  const to = Math.round(Math.max(0, Math.min(max, pick)))
+  await scrollTo(stage, box, to)
+}
+
+/** Glides `box` to `top` over a time set by the distance, easing in and out. */
+async function scrollTo(stage: Stage, box: HTMLElement, top: number): Promise<void> {
+  const from = box.scrollTop
+  const d = top - from
+  if (Math.abs(d) < 1) return
+  if (stage.instant()) {
+    box.scrollTop = top
+    check(stage)
+    return
   }
-  if (Math.abs(delta) < 1) return
-  const to = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, box.scrollTop + delta))
-  box.scrollTo({ top: to, behavior: stage.instant() ? 'auto' : 'smooth' })
-  // Until the scroll lands, which a slow machine takes longer over than a
-  // fixed wait allows; what is lit is measured once it has.
-  await until(stage, () => Math.abs(box.scrollTop - to) < 1, 2000).catch(() => {
-    box.scrollTo({ top: to, behavior: 'auto' })
-  })
+  const ms = Math.min(PACE.scrollMaxMs, Math.max(PACE.scrollMinMs, Math.abs(d) * 1.2))
+  const start = performance.now()
+  for (;;) {
+    const t = Math.min(1, (performance.now() - start) / ms)
+    const eased = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2
+    box.scrollTop = from + d * eased
+    if (t >= 1 || stage.instant()) break
+    await frame(stage)
+  }
+  box.scrollTop = top
   check(stage)
 }
 
@@ -151,7 +194,9 @@ export async function press(stage: Stage, el: HTMLElement): Promise<void> {
   await reveal(stage, el)
   await stage.pointer.glide(centerOf(el), stage)
   await sleep(stage, PACE.pressPauseMs)
-  stage.pointer.press(stage)
+  stage.pointer.press(stage, el)
+  // The ring is seen on what it presses before the press changes it.
+  await sleep(stage, PACE.pressRingMs)
   el.click()
   await sleep(stage, PACE.pressPauseMs)
 }
@@ -165,12 +210,23 @@ export function setValue(el: HTMLInputElement | HTMLTextAreaElement, value: stri
   el.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+/**
+ * Shows `value` in a field without telling the app, for figures typed one at
+ * a time into a field the app would act on at each one. `setValue` with the
+ * whole value hands it over once: React still holds the field's last value,
+ * so it sees the change then.
+ */
+export function showValue(el: HTMLInputElement | HTMLTextAreaElement, value: string): void {
+  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+  Object.getOwnPropertyDescriptor(proto, 'value')?.set?.call(el, value)
+}
+
 /** Moves the pointer onto a field and presses it, ready to type. */
 export async function pressField(stage: Stage, el: HTMLElement): Promise<void> {
   await reveal(stage, el)
   await stage.pointer.glide(centerOf(el), stage)
   await sleep(stage, PACE.pressPauseMs)
-  stage.pointer.press(stage)
+  stage.pointer.press(stage, el)
 }
 
 /** Types `text` into `el` a character at a time. */
@@ -201,7 +257,7 @@ export async function clickMap(stage: Stage, at: { x: number; y: number }, pause
   if (!canvas) throw new Error('The demo map has no canvas.')
   await stage.pointer.glide(at, stage)
   await sleep(stage, pauseMs)
-  stage.pointer.press(stage)
+  stage.pointer.press(stage, canvas)
   const init = { bubbles: true, cancelable: true, clientX: at.x, clientY: at.y, button: 0 }
   canvas.dispatchEvent(new MouseEvent('mousedown', { ...init, buttons: 1 }))
   canvas.dispatchEvent(new MouseEvent('mouseup', init))

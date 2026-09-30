@@ -146,7 +146,7 @@ describe('stateBefore', () => {
   const before = (key: string) => stateBefore(stepIndex(key), demo, NOW)
 
   it('starts from nothing but the player', () => {
-    expect(before('search')).toEqual({ initial: {}, autoAnalyze: false, replay: null })
+    expect(before('search')).toEqual({ initial: { showPlayer: false }, autoAnalyze: false, replay: null })
   })
 
   it('holds each step\'s result from the step after it on', () => {
@@ -190,10 +190,10 @@ describe('stateBefore', () => {
     expect(before('tutorial').initial.constraints?.maxAqi).toBe(AQI_BOUND)
   })
 
-  it('leaves the player to the device until the player step, and switches it on from there', () => {
+  it('keeps the player off until the player step, on every screen, and switches it on from there', () => {
     const player = stepIndex('player')
     for (let i = 0; i < TOUR_STEPS.length; i++) {
-      expect(stateBefore(i, demo, NOW).initial.showPlayer, TOUR_STEPS[i].key).toBe(i >= player ? true : undefined)
+      expect(stateBefore(i, demo, NOW).initial.showPlayer, TOUR_STEPS[i].key).toBe(i >= player)
     }
   })
 })

@@ -106,24 +106,23 @@ describe('stepLayout', () => {
     expect(stepLayout(at('tutorial'), false, true).drawerOpen).toBe(true)
   })
 
-  it('shows the whole table in the two steps that light it, and nowhere else', () => {
+  it('opens the phone drawer at the bound step, whose field is in it', () => {
+    expect(stepLayout(at('bound'), false, true).drawerOpen).toBe(true)
+    expect(stepLayout(at('row'), false, true).drawerOpen).toBe(false)
+  })
+
+  it('shows the whole table in the steps about it, and nowhere else', () => {
     const whole = TOUR_STEPS.filter((step) => stepLayout(step, true, true).wholeTable).map((s) => s.key)
-    expect(whole).toEqual(['results', 'bound'])
+    expect(whole).toEqual(['results', 'bound', 'row'])
     expect(stepLayout(at('results'), false, false).wholeTable).toBe(false)
   })
 
-  it('leaves the results alone until there are any', () => {
-    for (const step of TOUR_STEPS) expect(stepLayout(step, false, false).collapsed, step.key).toBeNull()
-  })
-
-  it.each([true, false])('folds the results for a map step and opens them for a results step (desktop %s)', (desktop) => {
-    expect(stepLayout(at('popup'), desktop, true).collapsed).toBe(true)
-    expect(stepLayout(at('row'), desktop, true).collapsed).toBe(false)
-  })
-
-  it('folds the results beside the docked panel, and leaves them under the phone drawer', () => {
-    expect(stepLayout(at('tutorial'), true, true).collapsed).toBe(true)
-    expect(stepLayout(at('tutorial'), false, true).collapsed).toBeNull()
+  it.each([true, false])('folds the results in every other step, before any exist too (desktop %s)', (desktop) => {
+    const open = TOUR_STEPS.filter((step) => !stepLayout(step, desktop, true).collapsed).map((s) => s.key)
+    expect(open).toEqual(['results', 'bound', 'row'])
+    expect(stepLayout(at('search'), desktop, false).collapsed).toBe(true)
+    // The results tools are in the bar, so the tools step does not open them.
+    expect(stepLayout(at('tools'), desktop, true).collapsed).toBe(true)
   })
 })
 

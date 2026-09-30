@@ -14,7 +14,8 @@ export interface PointerPace {
 
 export interface Pointer {
   glide(to: { x: number; y: number }, pace: PointerPace): Promise<void>
-  press(pace: PointerPace): void
+  /** A ring from the tip, gone as soon as `on` leaves the page or moves. */
+  press(pace: PointerPace, on?: Element): void
   hide(): void
   remove(): void
 }
@@ -27,9 +28,17 @@ const ARROW =
   '<path d="M2 2 L2 19 L6.5 14.8 L9.6 21.6 L12.6 20.3 L9.6 13.6 L15.6 13.4 Z" ' +
   'stroke-width="1.5" stroke-linejoin="round" />'
 
-/** How long a glide over `px` takes: longer for further, inside the pace's bounds. */
+// How much faster than its average a glide that eases in and out is at its
+// middle: the peak slope of CSS's `ease-in-out` curve.
+const EASE_PEAK = 1.6
+
+/**
+ * How long a glide over `px` takes: never under the shortest glide, and long
+ * enough that the pointer's top speed stays under `PACE.glidePeakPxPerS`, so
+ * a long move takes longer rather than going faster.
+ */
 export function glideMs(px: number): number {
-  return Math.round(Math.min(PACE.glideMaxMs, Math.max(PACE.glideMinMs, PACE.glideMinMs + px * 0.5)))
+  return Math.round(Math.max(PACE.glideMinMs, (px * EASE_PEAK * 1000) / PACE.glidePeakPxPerS))
 }
 
 export function createPointer(): Pointer {
@@ -64,7 +73,10 @@ export function createPointer(): Pointer {
       }
       if (!shown) {
         // Appears where it last stood, then sets off, so it is seen arriving.
+        // The jump there lands before the fade's timing is set, or it would
+        // glide there from wherever it was first drawn.
         place(at, 0)
+        el.getBoundingClientRect()
         el.style.transitionDuration = `${FADE_MS}ms`
         el.style.opacity = '1'
         shown = true
@@ -77,7 +89,7 @@ export function createPointer(): Pointer {
       window.clearTimeout(timer)
       if (pace.instant()) hide()
     },
-    press(pace) {
+    press(pace, on) {
       if (pace.instant() || !shown) return
       const ring = document.createElement('span')
       ring.className = TOUR.pointerPress
@@ -90,6 +102,20 @@ export function createPointer(): Pointer {
         { duration: PRESS_MS, easing: 'ease-out' },
       )
       grow.onfinish = () => ring.remove()
+      // A ring left over a control that took the place of the pressed one
+      // reads as a press on that one, so it goes with what it pressed.
+      if (!on) return
+      const was = on.getBoundingClientRect()
+      const watch = () => {
+        if (!ring.isConnected) return
+        const now = on.getBoundingClientRect()
+        const moved = Math.abs(now.left - was.left) + Math.abs(now.top - was.top) + Math.abs(now.width - was.width) > 1
+        if (!on.isConnected || moved || now.width === 0) {
+          grow.cancel()
+          ring.remove()
+        } else requestAnimationFrame(watch)
+      }
+      requestAnimationFrame(watch)
     },
     hide,
     remove() {

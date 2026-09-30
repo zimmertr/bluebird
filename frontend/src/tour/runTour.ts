@@ -4,7 +4,7 @@ import App from '../App'
 import ErrorBoundary from '../components/ErrorBoundary'
 import type { SandboxHandle } from '../hooks/useTour'
 import { setPopoverReserve } from '../hooks/usePopover'
-import { TOUR } from '../styles'
+import { TOUR, TOUR_HOLE_PAD_PX, TOUR_LIGHT_INSET_PX, TOUR_LIGHT_MIN_PX } from '../styles'
 import { setApiTransport } from '../utils/apiFetch'
 import { NO_INSETS } from '../utils/mapFraming'
 import type { CameraView } from '../utils/mapView'
@@ -59,6 +59,22 @@ export interface TourHost {
 // A Next this soon after the one that started an action is the same press
 // landing twice, not a request to finish it.
 const DOUBLE_PRESS_MS = 250
+// How long a new card's words wait after its light has moved.
+const TEXT_AFTER_LIGHT_MS = 200
+// How many frames a lit area's size holds before the light follows a change.
+const STEADY_FRAMES = 3
+// A lit area whose long side is under this is a small control, not a row or
+// a section, and is grown to `TOUR_LIGHT_MIN_PX` each way.
+const SMALL_LONG_SIDE_PX = 4 * TOUR_LIGHT_MIN_PX
+
+function grown(b: Box): Box {
+  const w = b.right - b.left
+  const h = b.bottom - b.top
+  if (Math.max(w, h) >= SMALL_LONG_SIDE_PX) return b
+  const dx = Math.max(0, TOUR_LIGHT_MIN_PX - w) / 2
+  const dy = Math.max(0, TOUR_LIGHT_MIN_PX - h) / 2
+  return { left: b.left - dx, top: b.top - dy, right: b.right + dx, bottom: b.bottom + dy }
+}
 
 export function runTour(host: TourHost): void {
   const demo = demoData as unknown as DemoData
@@ -94,6 +110,11 @@ export function runTour(host: TourHost): void {
   // next wait instead of acting on the screen the reader has moved to.
   let moves = 0
   let index = 0
+  // The step whose text the card shows. It follows `index` once the new
+  // step's light stands, so the eye goes to the light first.
+  let shown = 0
+  // Bumped as each card opens, which pulses its light once.
+  let pulse = 0
   let phase: Phase = 'loading'
   let place: CardPlace | null = null
   let focusKey = 0
@@ -140,7 +161,18 @@ export function runTour(host: TourHost): void {
   // Each target as the part of it on screen: inside the viewport, and inside
   // the panel that scrolls it, so a section taller than the panel is lit only
   // where it shows.
+  //
+  // A small one is grown about its middle to a size the eye finds, and every
+  // one is kept far enough inside the screen that its ring is drawn whole.
   function measure(list: Target[]): Box[] {
+    const view = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }
+    const edge = TOUR_LIGHT_INSET_PX + TOUR_HOLE_PAD_PX
+    const inside = { left: edge, top: edge, right: view.right - edge, bottom: view.bottom - edge }
+    return shownPart(list).map((b) => clip(grown(b), inside) ?? b)
+  }
+
+  // Each target as far as it shows: inside its scrolling panel and the screen.
+  function shownPart(list: Target[]): Box[] {
     const view = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }
     return list
       .map((t) => {
@@ -155,14 +187,37 @@ export function runTour(host: TourHost): void {
 
   // What the dim cuts out, a frame at a time. A phone's drawer that is
   // sliding carries its sections away with it, so nothing in it is lit until
-  // it stands still.
+  // it stands still. A lit area that is changing size (a section opening, a
+  // fit under way, a panel scrolling) keeps its last steady box until the new
+  // one has held for a few frames, and then the light glides to it.
   let drawerWas: Box | null = null
+  let lastRaw: Box[] = []
+  let steady: Box[] = []
+  let heldFor: number[] = []
   function holes(): Box[] {
     const drawer = container.querySelector('[data-drawer]')
     const now = drawer ? boxOf(drawer) : null
     const sliding = Boolean(now && drawerWas && Math.abs(now.left - drawerWas.left) + Math.abs(now.top - drawerWas.top) > 0.5)
     drawerWas = now
-    return measure(targets().filter((t) => !(sliding && t instanceof Element && drawer?.contains(t))))
+    const raw = measure(targets().filter((t) => !(sliding && t instanceof Element && drawer?.contains(t))))
+    if (raw.length !== lastRaw.length) {
+      lastRaw = raw
+      steady = raw
+      heldFor = raw.map(() => 0)
+      return raw
+    }
+    const size = (b: Box) => [b.right - b.left, b.bottom - b.top]
+    steady = raw.map((b, i) => {
+      const [w, h] = size(b)
+      const [pw, ph] = size(lastRaw[i])
+      heldFor[i] = Math.abs(w - pw) < 1 && Math.abs(h - ph) < 1 ? heldFor[i] + 1 : 0
+      // Moving whole, it is followed at once; resizing, it waits.
+      if (heldFor[i] >= STEADY_FRAMES) return b
+      const [sw, sh] = size(steady[i])
+      return Math.abs(w - sw) < 1 && Math.abs(h - sh) < 1 ? b : steady[i]
+    })
+    lastRaw = raw
+    return steady
   }
 
   // Resolves once nothing that moves the screen is moving: the drawer, the
@@ -257,10 +312,10 @@ export function runTour(host: TourHost): void {
       createElement(
         Fragment,
         null,
-        createElement(Dim, { holes, reduced }),
+        createElement(Dim, { holes, reduced, pulse }),
         place &&
           createElement(Card, {
-            index,
+            index: shown,
             phase,
             place,
             focusKey,
@@ -285,6 +340,7 @@ export function runTour(host: TourHost): void {
       isDesktop: h.isDesktop,
       map,
       edge: phoneEdge(at),
+      cardH: cardRef.current?.offsetHeight || undefined,
     })
     render()
   }
@@ -396,20 +452,14 @@ export function runTour(host: TourHost): void {
   async function stand(s: Stage, at: number): Promise<void> {
     const h = s.handle()
     const step = TOUR_STEPS[at]
-    // Before the first analysis a phone's results sheet holds only the
-    // searched places, and it would stand under the bottom card: it is left
-    // out, as it is before a search, or the map's chrome would rise above a
-    // sheet no one can see. From the analysis on it is always shown, as the app
-    // shows it; the legend's colour key depends on it.
-    const underCard = !h.isDesktop && phoneEdge(at) === 'bottom' && h.analysisSeq === 0
-    const shown = underCard ? false : h.analysisSeq > 0 ? true : h.showResults
-    if (shown !== h.showResults) h.setShowResults(shown)
     // The player as `stateBefore` has it, for a step reached without a mount.
     h.setShowPlayer(stateBefore(at, demo, nowMs).initial.showPlayer ?? null)
-    const layout = stepLayout(step, h.isDesktop, shown)
+    const layout = stepLayout(step, h.isDesktop, h.showResults)
     const slides = h.sidebarOpen !== layout.drawerOpen
     h.setSidebarOpen(layout.drawerOpen)
-    if (layout.collapsed !== null && shown && h.resultsCollapsed !== layout.collapsed) h.toggleCollapsed()
+    // Folded before any results exist too, so the bar a search brings arrives
+    // folded rather than opening and folding again.
+    if (h.resultsCollapsed !== layout.collapsed) h.toggleCollapsed()
     if (!keepsPopup(at)) h.map?.closePopups()
     await frame(s)
     await frame(s)
@@ -454,16 +504,19 @@ export function runTour(host: TourHost): void {
       list.flatMap((t) => {
         const [box] = measure([t])
         if (!box) return []
-        const popup = t instanceof Element && Boolean(t.closest('.maplibregl-popup'))
+        const popup = t instanceof Element ? Boolean(t.closest('.maplibregl-popup')) : Boolean((t as { popup?: boolean }).popup)
         const map = !(t instanceof Element) || popup
         let whole = true
         if (t instanceof Element) {
+          const [part] = shownPart([t])
           const raw = boxOf(t)
           const scroller = scrollParent(t)
           const room = scroller ? boxOf(scroller) : null
-          const all = Math.abs(raw.top - box.top) <= 1 && Math.abs(raw.bottom - box.bottom) <= 1
-          const fromTop = room !== null && raw.bottom - raw.top > room.bottom - room.top && Math.abs(box.top - room.top) <= 10
-          whole = all || fromTop
+          const all = Math.abs(raw.top - part.top) <= 1 && Math.abs(raw.bottom - part.bottom) <= 1
+          const taller = room !== null && raw.bottom - raw.top > room.bottom - room.top
+          const fromTop = taller && Math.abs(part.top - room.top) <= 10
+          const fromBottom = taller && Math.abs(part.bottom - room.bottom) <= 10
+          whole = all || fromTop || fromBottom
         }
         return [{ box, map, popup, whole }]
       }),
@@ -473,7 +526,7 @@ export function runTour(host: TourHost): void {
   function lightStep(s: Stage, at: number) {
     const step = TOUR_STEPS[at]
     const own = LIGHTS[step.key]
-    s.light(own ? () => own(s) : () => step.anchors.map((a) => find(s, tourSelector(a))))
+    s.light(own ? () => own(s, demo) : () => step.anchors.map((a) => find(s, tourSelector(a))))
   }
 
   // ── Moving between steps ──────────────────────────────────────────────────
@@ -494,7 +547,10 @@ export function runTour(host: TourHost): void {
     render()
     try {
       if (fresh) await mount(at, s)
-      else {
+      // The new step's light from as early as it can stand, so a flight into
+      // it is never watched in the dark.
+      lightStep(s, at)
+      if (!fresh) {
         // A step with no action of its own, stepped back to: what it shows
         // open is opened again, since the step after it closed it.
         const { replay } = stateBefore(at, demo, nowMs)
@@ -504,7 +560,13 @@ export function runTour(host: TourHost): void {
       await stand(s, at)
       cameras[at] = s.handle().map?.camera() ?? cameras[at] ?? null
       lightStep(s, at)
+      await landed(s)
+      // The light first, and the words a moment after, so the eye is already
+      // where the words send it.
+      if (shown !== at) await sleep(s, TEXT_AFTER_LIGHT_MS)
+      shown = at
       phase = 'read'
+      pulse += 1
       focusKey += 1
       render()
       if (queued) {

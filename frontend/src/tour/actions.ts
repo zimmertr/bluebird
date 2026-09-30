@@ -2,6 +2,7 @@ import {
   PACE,
   type Stage,
   type Target,
+  boxOf,
   fitPopup,
   clickMap,
   find,
@@ -12,11 +13,12 @@ import {
   pressField,
   reveal,
   setValue,
+  showValue,
   sleep,
   type,
   until,
 } from './act'
-import { clip } from './place'
+import { type Box, clip } from './place'
 import {
   AQI_BOUND,
   CLICKED,
@@ -60,6 +62,63 @@ const modelTrigger = (stage: Stage) => area(stage, 'model-trigger') as HTMLButto
 const firstRowButton = (stage: Stage) =>
   area(stage, 'results')?.querySelector<HTMLButtonElement>(tourSelector('row-center')) ?? null
 const highestAqi = (stage: Stage) => find<HTMLInputElement>(stage, 'input[id$="-air-quality-upper"]')
+// The model list's Ranking and Comparing groups, above the list itself.
+const modelChips = (stage: Stage) => modelCard(stage)?.querySelector('[role="toolbar"]') ?? null
+// The results bar, which carries the count of places named so far.
+const resultsBar = (stage: Stage) => find(stage, '[data-results-sheet]')
+
+/** The smallest box around every one of `boxes`, or null where none is on screen. */
+function union(...boxes: (Box | null | undefined)[]): Box | null {
+  const on = boxes.filter((b): b is Box => Boolean(b))
+  if (on.length === 0) return null
+  return {
+    left: Math.min(...on.map((b) => b.left)),
+    top: Math.min(...on.map((b) => b.top)),
+    right: Math.max(...on.map((b) => b.right)),
+    bottom: Math.max(...on.map((b) => b.bottom)),
+  }
+}
+
+const boxIf = (el: Element | null | undefined) => (el ? boxOf(el) : null)
+
+// The air-quality row of the Metrics table, from its name to its highest box:
+// the field alone is too small a light to find.
+function aqiRow(stage: Stage): Box | null {
+  const name = find(stage, 'input[type="radio"][value="aqi"]')?.closest('label')
+  return union(boxIf(name), boxIf(highestAqi(stage)))
+}
+
+// The Layers button and the menu it opens, which hangs below it outside its box.
+function layersAndMenu(stage: Stage): Box | null {
+  const button = area(stage, 'layers')
+  const menu = find(stage, 'input[value="smoke"]')?.closest('label')?.parentElement?.closest('div[class*="absolute"]')
+  return union(boxIf(button?.parentElement), boxIf(menu))
+}
+
+// A table row, as far as its cells reach: the table itself can stand wider.
+function rowCells(row: Element | null | undefined): Box | null {
+  const cells = row ? [...row.children] : []
+  if (cells.length === 0) return null
+  return union(...cells.map(boxOf).filter((b) => b.right > b.left))
+}
+
+// The radius of a result's marker on the map, and a little room round it.
+const MARKER_RADIUS_PX = 16
+
+/**
+ * A popup and the marker it stands on, as one lit area, so the reader sees
+ * which place it belongs to. Marked as a popup for the browser suite.
+ */
+function popupAndMarker(stage: Stage, at: Point): Box | null {
+  const popup = mapPopup(stage)
+  if (!popup) return null
+  const [dot] = onScreen(stage, [at])
+  const marker = dot
+    ? { left: dot[0] - MARKER_RADIUS_PX, top: dot[1] - MARKER_RADIUS_PX, right: dot[0] + MARKER_RADIUS_PX, bottom: dot[1] + MARKER_RADIUS_PX }
+    : null
+  const box = union(boxOf(popup), marker)
+  return box && Object.assign(box, { popup: true })
+}
 
 // A drawer that slides in has to finish before a control in it is measured,
 // and on a desktop, where it is docked, this resolves at once.
@@ -75,14 +134,20 @@ async function drawer(stage: Stage, open: boolean): Promise<void> {
  * elements its anchors name: the map a step acts on, a popup, a table row.
  * Everything else lights its anchors.
  */
-export const LIGHTS: Readonly<Record<string, (stage: Stage) => Target[]>> = {
+export const LIGHTS: Readonly<Record<string, (stage: Stage, demo: DemoData) => Target[]>> = {
   'map-click': (stage) => [stage.freeMap()],
-  'map-add': (stage) => [mapPopup(stage)],
+  'map-add': (stage, demo) => [popupAndMarker(stage, clickedPoint(demo))],
   'draw-corners': (stage) => [stage.freeMap()],
-  'model-rank': (stage) => [modelCard(stage) ?? area(stage, 'model')],
-  bound: (stage) => [area(stage, 'results'), highestAqi(stage)],
-  row: (stage) => [firstRowButton(stage)?.closest('tr')],
-  popup: (stage) => [mapPopup(stage)],
+  'model-rank': (stage) => [modelChips(stage) ?? area(stage, 'model')],
+  // A phone's drawer covers the table while the field is read.
+  bound: (stage) => (stage.handle().isDesktop ? [area(stage, 'results'), aqiRow(stage)] : [aqiRow(stage)]),
+  row: (stage) => [rowCells(firstRowButton(stage)?.closest('tr'))],
+  popup: (stage) => [popupAndMarker(stage, topPoint(stage))],
+  // The three tools as the one run of the bar they stand in: each alone is a
+  // sliver, and the bar leaves no room to grow them.
+  tools: (stage) => [union(boxIf(area(stage, 'results-mode')), boxIf(area(stage, 'columns')), boxIf(area(stage, 'download')))],
+  // The line of links the Tutorial link stands in: the link alone is a sliver.
+  tutorial: (stage) => [area(stage, 'tutorial')?.parentElement],
   // The card is about the markers and what their colours mean.
   legend: (stage) => [area(stage, 'legend'), pointsBox(stage, stage.handle().results)],
 }
@@ -91,6 +156,15 @@ export const LIGHTS: Readonly<Record<string, (stage: Stage) => Target[]>> = {
 // its own gap from the card and the map's chrome: a marker's radius and the
 // name under it.
 const FRAME_PAD_PX = 32
+// How much of the free map a framed set of places spans, at least, along its
+// longer side. The browser suite holds the same share.
+export const FRAMED_SPREAD = 0.7
+
+const clickedPoint = (demo: DemoData): Point => {
+  const { clicked } = castPlaces(demo)
+  return { latitude: clicked.lat, longitude: clicked.lon }
+}
+const topPoint = (stage: Stage): Point => stage.handle().results[0] ?? { latitude: 0, longitude: 0 }
 
 /** Where each of `points` stands on the screen now. */
 function onScreen(stage: Stage, points: { latitude: number; longitude: number }[]): [number, number][] {
@@ -108,9 +182,14 @@ function onScreen(stage: Stage, points: { latitude: number; longitude: number }[
  */
 async function frameAll(stage: Stage, points: { latitude: number; longitude: number }[]): Promise<void> {
   const map = await until(stage, () => stage.handle().map)
-  map.fitToPoints(points, FRAME_PAD_PX)
-  await sleep(stage, 100)
   await mapSettled(stage)
+  // One flight per move: where the move before already framed them, the
+  // camera stays.
+  if (!framed(stage, points)) {
+    map.fitToPoints(points, FRAME_PAD_PX)
+    await sleep(stage, 100)
+    await mapSettled(stage)
+  }
   stage.root.dataset.tourFramed = JSON.stringify({
     points: onScreen(stage, points).map(([x, y]) => [Math.round(x), Math.round(y)]),
     free: stage.freeMap(),
@@ -118,6 +197,29 @@ async function frameAll(stage: Stage, points: { latitude: number; longitude: num
 }
 
 type Point = { latitude: number; longitude: number }
+
+/**
+ * Whether `points` already stand framed in the free map: every one inside it
+ * by the frame's margin, and, for three or more, spread over most of it, so
+ * the camera is not left far out.
+ */
+function framed(stage: Stage, points: Point[]): boolean {
+  const free = stage.freeMap()
+  const at = onScreen(stage, points)
+  if (!free || at.length < points.length) return false
+  const inside = at.every(
+    ([x, y]) =>
+      x >= free.left + FRAME_PAD_PX && x <= free.right - FRAME_PAD_PX && y >= free.top + FRAME_PAD_PX && y <= free.bottom - FRAME_PAD_PX,
+  )
+  if (!inside || at.length < 3) return inside
+  const xs = at.map(([x]) => x)
+  const ys = at.map(([, y]) => y)
+  const spread = Math.max(
+    (Math.max(...xs) - Math.min(...xs)) / (free.right - free.left),
+    (Math.max(...ys) - Math.min(...ys)) / (free.bottom - free.top),
+  )
+  return spread >= FRAMED_SPREAD
+}
 
 /** The box of `points` on screen, with room for a marker and its name, inside the free map. */
 function pointsBox(stage: Stage, points: Point[]): Target {
@@ -147,6 +249,28 @@ export const FRAMES: Readonly<Record<string, (stage: Stage) => Promise<void>>> =
   },
 }
 
+// Every place the analysis ranks, before it has ranked them: the two added
+// on the map, the two pasted, and the recorded peaks inside the drawn ring,
+// which is a rectangle.
+function castPoints(demo: DemoData): Point[] {
+  const { searched, clicked } = castPlaces(demo)
+  const lngs = RING.map(([lng]) => lng)
+  const lats = RING.map(([, lat]) => lat)
+  const inRing = demo.pool.filter(
+    (d) =>
+      d.longitude >= Math.min(...lngs) && d.longitude <= Math.max(...lngs) && d.latitude >= Math.min(...lats) && d.latitude <= Math.max(...lats),
+  )
+  return [
+    { latitude: searched.lat, longitude: searched.lon },
+    { latitude: clicked.lat, longitude: clicked.lon },
+    ...pastedPlaces(),
+    ...inRing.map((d) => ({ latitude: d.latitude, longitude: d.longitude })),
+  ]
+}
+
+// The flight to the ring's corners is short: the map is already over them.
+const RING_FIT_MS = 800
+
 export const ACTIONS: Readonly<Record<string, Action>> = {
   async search(stage) {
     const box = await until(stage, () => area(stage, 'search'))
@@ -159,6 +283,8 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     const first = await until(stage, () => searchMenu(stage)?.querySelector<HTMLButtonElement>('button'))
     await press(stage, first)
     stage.pointer.hide()
+    // The map flies to the pick, into the free map, which is where it lands.
+    stage.light(() => [stage.freeMap()])
     await sleep(stage, 100)
     await mapSettled(stage)
   },
@@ -177,13 +303,13 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     // where none answered, the popup is opened the way the click would have.
     if (!(await until(stage, () => mapPopup(stage), 1500).catch(() => null))) map.openPoi(clicked)
     await until(stage, () => mapPopup(stage))
-    stage.light(() => [mapPopup(stage)])
     await fitPopup(stage, () => mapPopup(stage))
+    stage.light(() => [popupAndMarker(stage, clickedPoint(demo))])
   },
 
-  async 'map-add'(stage) {
+  async 'map-add'(stage, demo) {
     const popup = await until(stage, () => mapPopup(stage))
-    stage.light(() => [mapPopup(stage)])
+    stage.light(() => [popupAndMarker(stage, clickedPoint(demo))])
     const add = await until(stage, () => popup.querySelector<HTMLButtonElement>('[data-poi-action="add"]'))
     await press(stage, add)
   },
@@ -196,11 +322,14 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
   },
 
   async 'draw-corners'(stage) {
+    const ring = RING.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
     stage.light(() => [stage.freeMap()])
     const map = await until(stage, () => stage.handle().map)
-    map.fitToPoints(RING.map(([lng, lat]) => ({ latitude: lat, longitude: lng })))
+    map.fitToPoints(ring, undefined, RING_FIT_MS)
     await sleep(stage, 100)
     await mapSettled(stage)
+    // Where the corners land, so the ring is drawn in the light.
+    stage.light(() => [pointsBox(stage, ring)])
     // Corners follow one another quicker than a press on a control: it is one
     // gesture, and the reader has seen the first corner land.
     for (const [lng, lat] of RING) {
@@ -221,8 +350,10 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     stage.light(() => [section])
     const field = await until(stage, () => section.querySelector('textarea'))
     await pressField(stage, field)
+    await sleep(stage, PACE.pressPauseMs)
     // A paste, so the app frames the pasted rows on the map as it does for a
-    // reader's paste.
+    // reader's paste; on a desktop the light takes in where they land.
+    if (stage.handle().isDesktop) stage.light(() => [section, pointsBox(stage, pastedPlaces())])
     field.dispatchEvent(new Event('paste', { bubbles: true }))
     setValue(field, PASTED)
     await sleep(stage, PACE.pressPauseMs)
@@ -232,14 +363,15 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     // The row while the list is shut, and the list, which covers it, once open.
     stage.light(() => [modelCard(stage) ?? area(stage, 'model')])
     await press(stage, await until(stage, () => modelTrigger(stage)))
-    const option = await until(stage, () =>
-      modelList(stage)?.querySelector<HTMLElement>(`[role="option"][id$="-option-${DEMO_MODEL}"]`),
+    // The box that changes, not the row's words beside it.
+    const box = await until(stage, () =>
+      modelList(stage)?.querySelector<HTMLInputElement>(`[role="option"][id$="-option-${DEMO_MODEL}"] input[type="checkbox"]`),
     )
-    await press(stage, option)
+    await press(stage, box)
   },
 
   async 'model-rank'(stage) {
-    stage.light(() => [modelCard(stage) ?? area(stage, 'model')])
+    stage.light(() => [modelChips(stage) ?? area(stage, 'model')])
     // Ticked, the model joined the chart. Its chip under Comparing makes it the
     // ranking model, and the one it replaced is then taken off.
     const chip = () =>
@@ -283,23 +415,31 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     }
   },
 
-  async analyze(stage) {
+  async analyze(stage, demo) {
     const button = await until(stage, () => area(stage, 'analyze'))
     stage.light(() => [button])
     const before = stage.handle().analysisSeq
     await press(stage, button)
     stage.pointer.hide()
-    stage.light(() => [find(stage, tourSelector('progress')) ?? button])
+    // The map frames every place the analysis ranks while it runs, so the
+    // coloured markers arrive in the light.
+    const cast = castPoints(demo)
+    stage.handle().map?.fitToPoints(cast, FRAME_PAD_PX)
+    stage.light(() => [find(stage, tourSelector('progress')) ?? button, pointsBox(stage, cast)])
     await until(stage, () => stage.handle().analysisSeq > before && !stage.handle().loading, 30_000)
   },
 
-  async layers(stage) {
+  async layers(stage, _demo, nowMs) {
     const button = await until(stage, () => area(stage, 'layers'))
-    const cluster = button.parentElement
-    stage.light(() => [cluster])
+    const overlay = overlayOutline(nowMs)
+    // The camera goes to where the fire will be drawn while the pointer goes
+    // to Layers, so both switches are seen to draw what they turn on.
+    stage.handle().map?.fitToPoints(overlay, FRAME_PAD_PX)
+    stage.light(() => [layersAndMenu(stage), pointsBox(stage, overlay)])
     await press(stage, button)
+    await mapSettled(stage)
     for (const layer of ['fires', 'smoke']) {
-      const box = await until(stage, () => cluster?.querySelector<HTMLInputElement>(`input[value="${layer}"]`))
+      const box = await until(stage, () => button.parentElement?.querySelector<HTMLInputElement>(`input[value="${layer}"]`))
       if (!box.checked) await press(stage, box)
     }
     await press(stage, button)
@@ -307,18 +447,21 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
 
   async bound(stage) {
     const table = () => area(stage, 'results')
-    stage.light(() => [table(), highestAqi(stage)])
-    // On a phone the bound is in the drawer, which covers the table: it opens
-    // for the typing and closes again so the reader sees the rows leave.
+    stage.light(() => (stage.handle().isDesktop ? [table(), aqiRow(stage)] : [aqiRow(stage)]))
+    // On a phone the bound is in the drawer, which covers the table: it stays
+    // open for the typing and closes so the reader sees the rows that are left.
     await drawer(stage, true)
     const field = await until(stage, () => highestAqi(stage))
-    // The drawer covers a phone's table while it is open, so only the field is lit.
-    if (!stage.handle().isDesktop) stage.light(() => [field])
     await reveal(stage, field)
     await pressField(stage, field)
-    // Set whole rather than a digit at a time: a highest AQI of 1, then 10, on
-    // the way to 100 would empty the table twice before the rows it is about
-    // were seen to leave.
+    // Typed a figure at a time as the reader sees it, and handed to the app
+    // once whole: the app applies a bound on every keystroke, and a highest
+    // AQI of 1, then 15, on the way to 150 would empty the table twice.
+    for (let i = 1; i <= String(AQI_BOUND).length; i++) {
+      showValue(field, String(AQI_BOUND).slice(0, i))
+      await sleep(stage, PACE.typeMs)
+    }
+    await sleep(stage, PACE.pressPauseMs)
     setValue(field, String(AQI_BOUND))
     await sleep(stage, PACE.pressPauseMs)
     stage.pointer.hide()
@@ -329,15 +472,15 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
 
   async row(stage) {
     const center = await until(stage, () => firstRowButton(stage))
-    stage.light(() => [center.closest('tr')])
+    stage.light(() => [rowCells(center.closest('tr'))])
     await press(stage, center)
     stage.pointer.hide()
-    // The popup needs more map than the open results leave, so they fold as
-    // the map flies: the next step is about the popup.
+    // The map flies to the row while the results fold, and the popup it opens
+    // is lit once it stands in the free map, not chased on the way.
+    stage.light(() => [stage.freeMap()])
     const handle = stage.handle()
     if (!handle.resultsCollapsed) handle.toggleCollapsed()
     await until(stage, () => mapPopup(stage), 3000)
-    stage.light(() => [mapPopup(stage)])
     await sleep(stage, 100)
     await mapSettled(stage)
     await fitPopup(stage, () => mapPopup(stage))
@@ -354,11 +497,12 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
  */
 export type Result = (stage: Stage, demo: DemoData, nowMs: number) => Promise<() => Target[]>
 
-// A panel section, scrolled so all of it shows where it fits.
-function section(anchor: string): Result {
+// A panel section, scrolled so all of it shows where it fits, or, taller than
+// the panel, from the end `from` names.
+function section(anchor: string, from: 'top' | 'bottom' = 'top'): Result {
   return async (stage) => {
     const el = await until(stage, () => area(stage, anchor))
-    await reveal(stage, el)
+    await reveal(stage, el, undefined, from)
     return () => [area(stage, anchor)]
   }
 }
@@ -372,7 +516,10 @@ function places(which: (stage: Stage, demo: DemoData, nowMs: number) => Point[])
   }
 }
 
-const popupResult: Result = async (stage) => () => [mapPopup(stage)]
+const popupResult =
+  (at: (stage: Stage, demo: DemoData) => Point): Result =>
+  async (stage, demo) =>
+  () => [popupAndMarker(stage, at(stage, demo))]
 
 // The pasted lines, as the places they name.
 const pastedPlaces = (): Point[] =>
@@ -386,11 +533,15 @@ export const RESULTS: Readonly<Record<string, Result>> = {
     const { searched } = castPlaces(demo)
     return [{ latitude: searched.lat, longitude: searched.lon }]
   }),
-  'map-click': popupResult,
-  // The popup, or where it stood if adding closed it.
+  'map-click': popupResult((_stage, demo) => clickedPoint(demo)),
+  // The popup's work is done: it closes, as the reader would close it, and
+  // the new pin is lit, with the results bar that counts it on a desktop. A
+  // phone's bar stands under the card.
   async 'map-add'(stage, demo) {
-    const { clicked } = castPlaces(demo)
-    return () => [mapPopup(stage) ?? pointsBox(stage, [{ latitude: clicked.lat, longitude: clicked.lon }])]
+    stage.handle().map?.closePopups()
+    await frame(stage)
+    const pin = [clickedPoint(demo)]
+    return () => [pointsBox(stage, pin), stage.handle().isDesktop ? resultsBar(stage) : null]
   },
   // A desktop shows draw mode in the panel; a phone's drawer closes, and what
   // the app shows then is the map, waiting for the first corner.
@@ -415,30 +566,22 @@ export const RESULTS: Readonly<Record<string, Result>> = {
     return () => [modelCard(stage) ?? area(stage, 'model')]
   },
   'model-rank': section('model'),
-  'window-day': section('calendar'),
-  'window-hours': section('calendar'),
+  // The picked day is somewhere in the grid, and a phone's panel cannot show
+  // the grid's last row together with the When row above it: the grid wins.
+  'window-day': section('calendar', 'bottom'),
+  'window-hours': section('calendar', 'bottom'),
   // The ranked markers, and on a desktop the results bar that opened under
   // them. A phone's bar stands under the card.
   async analyze(stage, demo, nowMs) {
-    // A phone's table opens with the report, under the card; it folds, as the
-    // next step would fold it, so the markers have the map.
-    const handle = stage.handle()
-    if (!handle.isDesktop && !handle.resultsCollapsed) {
-      handle.toggleCollapsed()
-      await frame(stage)
-      await frame(stage)
-    }
     const lit = await places((s) => s.handle().results)(stage, demo, nowMs)
-    const bar = () => (stage.handle().isDesktop ? find(stage, '[data-results-sheet]') : null)
-    return () => [...lit(), bar()]
+    return () => [...lit(), stage.handle().isDesktop ? resultsBar(stage) : null]
   },
-  // The fire, the whole plume and every ranked peak in one view, so the
-  // reader sees which peaks stand in the smoke.
-  layers: places((stage, _demo, nowMs) => [...stage.handle().results, ...overlayOutline(nowMs)]),
+  // The fire and its whole plume, near enough to read.
+  layers: places((_stage, _demo, nowMs) => overlayOutline(nowMs)),
   async bound(stage) {
     return () => [area(stage, 'results')]
   },
-  row: popupResult,
+  row: popupResult((stage) => topPoint(stage)),
 }
 
 /**

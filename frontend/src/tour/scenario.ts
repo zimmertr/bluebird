@@ -269,9 +269,10 @@ export interface StepState {
  * where the card stands, so the run records it as each step opens and hands it
  * to the mount beside this.
  *
- * The player is left to the device until the player step: on at a desktop
- * width, off on a phone, where its bar is a band across a small map. From the
- * player step on it is switched on, so that step has a player to light.
+ * The player is off until the player step, as a reader can switch it off
+ * from Layers: floating over the map's bottom edge, it covered the markers,
+ * the fire and the bottom of what a step lit. From the player step on it is
+ * switched on, so that step has a player to light.
  */
 export function stateBefore(index: number, demo: DemoData, nowMs: number): StepState {
   const done = (key: string) => stepIndex(key) < index
@@ -279,7 +280,7 @@ export function stateBefore(index: number, demo: DemoData, nowMs: number): StepS
   const { searched, clicked } = castPlaces(demo)
   const tomorrow = dayKey(new Date(nowMs + 86_400_000))
   const initial: Partial<ShareableState> = {}
-  if (index >= stepIndex('player')) initial.showPlayer = true
+  initial.showPlayer = index >= stepIndex('player')
   let replay: Replay | null = null
   const pins: Place[] = []
   if (done('search')) pins.push(searched)

@@ -170,38 +170,37 @@ export function stepIndex(key: string): number {
 /** How the screen has to stand for one step. */
 export interface TourLayout {
   drawerOpen: boolean
-  /** Null leaves the results as they stand; true or false folds them or not. */
-  collapsed: boolean | null
+  /** Whether the results are folded down to their bar. */
+  collapsed: boolean
   /** The table is sized to show every row it holds, where the room allows. */
   wholeTable: boolean
 }
 
+// The steps about the table: the two that light it, and the row step, which
+// presses a row in it and folds it as its own action.
+const TABLE_STEPS = new Set(['results', 'bound', 'row'])
+
 /**
  * The panel is docked beside the map on a desktop, so it stays open for every
  * step there. On a phone it is a drawer over the map, so a step on the map or
- * the results closes it and a step in the panel opens it.
+ * the results closes it and a step in the panel opens it. The bound step
+ * opens it too: its card is about the highest-AQI field in it, and its action
+ * closes the drawer to show the rows leave.
  *
- * Once the results are on screen (a searched place is enough to show them),
- * only a results step opens them. Every other step folds them down to their
- * bar, so the map keeps the height a popup, a drawn ring or the player needs
- * clear of the card. A panel step on a phone leaves them as they are, since
- * the drawer covers them.
- *
- * A step that lights the table shows all of it: the ranking is the point of
- * those steps, and its worst rows are at the bottom.
+ * The results hold one state for as long as they can, since each change moves
+ * the map. They are folded to their bar in every step but the three about the
+ * table, from before the first place is named, so the bar a search brings
+ * arrives folded. The steps about the table open them, and all of the table
+ * shows: the ranking is the point of those steps, and its worst rows are at
+ * the bottom. The row step folds them as the map flies to its row, and they
+ * stay folded to the end; the results tools are in the bar.
  */
 export function stepLayout(step: TourStep, isDesktop: boolean, hasResults: boolean): TourLayout {
-  const collapsed = !hasResults
-    ? null
-    : step.place === 'results'
-      ? false
-      : step.place === 'map' || isDesktop
-        ? true
-        : null
+  const table = TABLE_STEPS.has(step.key)
   return {
-    drawerOpen: isDesktop || step.place === 'panel',
-    collapsed,
-    wholeTable: hasResults && step.anchors.includes('results'),
+    drawerOpen: isDesktop || step.place === 'panel' || step.key === 'bound',
+    collapsed: !table,
+    wholeTable: hasResults && table,
   }
 }
 
