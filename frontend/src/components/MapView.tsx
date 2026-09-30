@@ -52,11 +52,13 @@ export interface MapViewHandle {
   restoreRing: (ring: GeoPolygon | null) => void
   flyToPlace: (place: Place) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
-  // `lift` raises the result above the map's centre by that fraction of the
-  // map's height, so a tall popup has room to hang below it: the tutorial's
-  // marker step passes a quarter, because a popup opened on a centred marker
-  // ran off the bottom of a phone's screen (#536).
-  focusResult: (result: DestinationResult, lift?: number) => void
+  // `popupRoom` is how many pixels the popup needs below the marker. The
+  // marker is placed that far above the visible map's bottom edge, no higher
+  // than the centre and no closer than 16px to the top, so the popup hangs
+  // whole where the map is short (a phone; a desktop with the sheet up) and
+  // the marker stays centred where it is tall. The tutorial's marker step
+  // passes it; a click on a table row leaves it out and centres (#536).
+  focusResult: (result: DestinationResult, popupRoom?: number) => void
   // The same camera move for a destination with no forecast yet, and nothing
   // else: no popup, because the one `focusResult` opens is a forecast card and
   // this destination has no forecast. Clicking the dot still says what is
@@ -446,10 +448,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
       },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives.
-      focusResult(result: DestinationResult, lift = 0) {
+      focusResult(result: DestinationResult, popupRoom = 0) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
-        const liftPx = lift * map.getContainer().clientHeight
+        const containerH = map.getContainer().clientHeight
+        const visibleH = containerH - cameraPadBottomPx
+        // Where the marker lands, measured from the top of the visible map:
+        // the centre unless the popup needs more room below than that leaves.
+        const markerY = popupRoom > 0 ? Math.max(16, Math.min(visibleH / 2, visibleH - popupRoom)) : visibleH / 2
+        const liftPx = visibleH / 2 - markerY
         map.flyTo({
           center: [result.longitude, result.latitude],
           zoom: Math.max(map.getZoom(), 10),

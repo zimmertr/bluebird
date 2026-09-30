@@ -12,8 +12,8 @@ interface Args {
 
 /** The hour the chart's tooltip stands on while the report is a demonstration: the window's middle. */
 const CHART_TOOLTIP_INDEX = 6
-/** How far above the map's centre the marker step puts its marker, so the popup hangs whole below it. */
-const MARKER_LIFT = 0.25
+/** The room a result popup needs below its marker: the popup with every default column, plus its tip and a margin. */
+const POPUP_ROOM_PX = 400
 /** How long the marker step waits for the sheet to settle before it frames the map. */
 const MARKER_SETTLE_MS = 350
 
@@ -82,7 +82,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   useEffect(() => {
     if (!showingMarker || demo === null) return
     const map = mapRef.current
-    const timer = window.setTimeout(() => map?.focusResult(demo.universe[0], MARKER_LIFT), MARKER_SETTLE_MS)
+    const timer = window.setTimeout(() => map?.focusResult(demo.universe[0], POPUP_ROOM_PX), MARKER_SETTLE_MS)
     return () => {
       window.clearTimeout(timer)
       map?.closePopups()
