@@ -66,6 +66,19 @@ describe('the tutorial steps', () => {
     expect(TOUR_STEPS[0].text).toMatch(/^Provide a list of destinations to compare by .*, or drawing a polygon/)
   })
 
+  it('frames the three sections rule to rule, the two surfaces by their box, and a control with breath', () => {
+    const spots = Object.fromEntries(TOUR_STEPS.map((s) => [s.anchor, s.spot ?? 'box']))
+    expect(spots).toEqual({
+      destinations: 'section',
+      forecast: 'section',
+      metrics: 'section',
+      analyze: 'box',
+      layers: 'control',
+      results: 'box',
+      marker: 'control',
+    })
+  })
+
   it('names the three steps that bring their own target on screen', () => {
     const reveals = Object.fromEntries(TOUR_STEPS.map((s) => [s.anchor, s.reveal]))
     expect(reveals).toEqual({

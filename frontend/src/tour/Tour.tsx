@@ -10,7 +10,17 @@ import {
   TOUR,
 } from '../styles'
 import { anchorSelector, type TourStep } from '../utils/tourSteps'
-import { type Box, cardMode, placeCard, sameBox, sheetEdge, spotlight, unionBox } from './place'
+import {
+  type Box,
+  cardMode,
+  placeCard,
+  sameBox,
+  sectionBox,
+  sheetEdge,
+  SPOTLIGHT_PAD,
+  spotlight,
+  unionBox,
+} from './place'
 
 interface Props {
   steps: readonly TourStep[]
@@ -58,9 +68,15 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const lastAt = useRef<{ top: number; left: number } | null>(null)
 
   const measure = useCallback(() => {
-    const boxOf = (anchor: string): Box | null => {
-      const r = document.querySelector<HTMLElement>(anchorSelector(anchor))?.getBoundingClientRect()
+    const rect = (el: Element | null): Box | null => {
+      const r = el?.getBoundingClientRect()
       return r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null
+    }
+    const boxOf = (anchor: string): Box | null => {
+      const el = document.querySelector<HTMLElement>(anchorSelector(anchor))
+      const own = rect(el)
+      if (!el || !own || step.spot !== 'section' || !el.parentElement) return own
+      return sectionBox(own, rect(el.previousElementSibling), rect(el.nextElementSibling), rect(el.parentElement)!)
     }
     const box = unionBox([boxOf(step.anchor), ...(step.frames ?? []).map(boxOf)])
     setTarget((prev) => (sameBox(prev, box) ? prev : box))
@@ -77,7 +93,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         ? prev
         : { width: window.innerWidth, height: window.innerHeight },
     )
-  }, [step.anchor, step.frames])
+  }, [step.anchor, step.frames, step.spot])
 
   // Before every paint: a render that changed a shape is placed by the new
   // shape, not the old one. Converges because a pass that changes nothing
@@ -162,7 +178,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  const light = target ? spotlight(target) : null
+  const light = target ? spotlight(target, step.spot === 'control' ? SPOTLIGHT_PAD : 0) : null
   const sheet = cardMode(viewport.width) === 'sheet'
   if (light && !sheet) lastAt.current = placeCard(light, cardSize, viewport)
   const at = sheet ? null : lastAt.current

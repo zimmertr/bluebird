@@ -25,6 +25,16 @@ export type TourPlace = 'panel' | 'map'
  */
 export type TourReveal = 'layers' | 'results' | 'marker'
 
+/**
+ * How the spotlight fits its target. `section` runs from the rule above the
+ * target to the rule below it, at the target's own width, so the three panel
+ * sections light up between the same lines the panel already draws; `box` is
+ * the target's own box, for a surface that carries its own edges (the results
+ * sheet, the panel footer); `control` is the box with a few pixels of breath,
+ * for a control and its menu, or a popup.
+ */
+export type TourSpot = 'section' | 'box' | 'control'
+
 export interface TourStep {
   /** The `data-tour` value on the target element. */
   anchor: string
@@ -32,6 +42,8 @@ export interface TourStep {
   text: string
   /** Which side of a phone's layout holds the target: the drawer or the map. */
   place: TourPlace
+  /** How the spotlight fits the target; `box` when unsaid. */
+  spot?: TourSpot
   /** What the step opens first; its anchor is absent until it does. */
   reveal?: TourReveal
   /**
@@ -45,18 +57,21 @@ export interface TourStep {
 export const TOUR_STEPS: readonly TourStep[] = [
   {
     anchor: 'destinations',
+    spot: 'section',
     title: 'Destinations',
     text: 'Provide a list of destinations to compare by searching by name, selecting a point on the map, pasting exact coordinate pairs, or drawing a polygon to include every peak, trailhead, or lake inside it.',
     place: 'panel',
   },
   {
     anchor: 'forecast',
+    spot: 'section',
     title: 'Forecast',
     text: 'Set the weather model and the date and time to forecast. Different models have different strengths and weaknesses.',
     place: 'panel',
   },
   {
     anchor: 'metrics',
+    spot: 'section',
     title: 'Metrics',
     text: 'Pick the metric to rank by. Set a lowest or highest value to hide destinations outside it.',
     place: 'panel',
@@ -65,10 +80,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     anchor: 'analyze',
     title: 'Analyze',
     text: 'Fetch the forecast for every destination and rank them.',
+    // The whole footer, rule to edge, so it lights up like the sections above.
     place: 'panel',
   },
   {
     anchor: 'layers',
+    spot: 'control',
     title: 'Layers',
     text: 'Enable or disable drawing additional information on the map.',
     place: 'map',
@@ -84,6 +101,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   {
     anchor: 'marker',
+    spot: 'control',
     title: 'Markers',
     text: 'Select a marker on the map to see a summary of the forecast for that destination.',
     place: 'map',

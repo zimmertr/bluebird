@@ -66,6 +66,20 @@ export function unionBox(boxes: readonly (Box | null)[]): Box | null {
   return { top, left, width: right - left, height: bottom - top }
 }
 
+/**
+ * A panel section between the panel's rules. The rule above a section is the
+ * section's own top border, so its box top is the rule; the first section has
+ * none and takes the top of the column it sits in, where the header's rule
+ * is. The rule below is the next section's top border, so the next box's top;
+ * the last section takes the bottom of the column, where the footer's rule is.
+ * Width is the section's own, which is the rules' extent.
+ */
+export function sectionBox(own: Box, previous: Box | null, next: Box | null, column: Box): Box {
+  const top = previous ? own.top : column.top
+  const bottom = next ? next.top : column.top + column.height
+  return { top, left: own.left, width: own.width, height: bottom - top }
+}
+
 /** The spotlight's box: the target, grown by the pad on every side. */
 export function spotlight(target: Box, pad = SPOTLIGHT_PAD): Box {
   return {

@@ -4,6 +4,7 @@ import {
   cardMode,
   placeCard,
   sameBox,
+  sectionBox,
   SHEET_MAX_W,
   sheetEdge,
   SPOTLIGHT_PAD,
@@ -49,6 +50,18 @@ describe('the sheet', () => {
     expect(sheetEdge({ top: 100, left: 0, width: 300, height: 40 }, 160, 800)).toBe('bottom')
     expect(sheetEdge({ top: 700, left: 0, width: 300, height: 40 }, 160, 800)).toBe('top')
     expect(sheetEdge(null, 160, 800)).toBe('bottom')
+  })
+})
+
+describe('a section between the rules', () => {
+  const column = { top: 100, left: 0, width: 360, height: 600 }
+  const own = { top: 116, left: 16, width: 328, height: 200 }
+  it('takes its own top when a rule stands there, and the column top for the first', () => {
+    expect(sectionBox(own, null, { top: 332, left: 16, width: 328, height: 50 }, column)).toEqual({ top: 100, left: 16, width: 328, height: 232 })
+    expect(sectionBox(own, { top: 0, left: 16, width: 328, height: 100 }, { top: 332, left: 16, width: 328, height: 50 }, column)).toEqual({ top: 116, left: 16, width: 328, height: 216 })
+  })
+  it('runs to the column bottom for the last', () => {
+    expect(sectionBox(own, { top: 0, left: 16, width: 328, height: 100 }, null, column)).toEqual({ top: 116, left: 16, width: 328, height: 584 })
   })
 })
 

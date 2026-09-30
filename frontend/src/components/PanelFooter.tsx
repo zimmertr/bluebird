@@ -138,12 +138,11 @@ export default function PanelFooter({
   const footerBoxes = noticeBoxes(messages.filter((m) => !isDismissed(m.key, dismissed)))
 
   return (
-    <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`}>
+    <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour="analyze">
       <button
         onClick={onAnalyze}
         disabled={!analyzeEnabled}
         className={`${BUTTON_PRIMARY} ${DISABLED}`}
-        data-tour="analyze"
       >
         {loading ? 'Analyzing…' : 'Analyze'}
       </button>
