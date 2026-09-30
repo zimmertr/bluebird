@@ -86,7 +86,7 @@ export const MAP = [
       },
       {
         selector:
-          'Identifier[name=/^(DRAW_COLOR|WIND_ARROW_IMAGE|startVertexDrag|radarTileUrl|snowTileUrl|gridRaster|fetchWildfires|fetchSmoke)$/]',
+          'Identifier[name=/^(DRAW_COLOR|WIND_ARROW_IMAGE|startVertexDrag|radarTileUrl|snowTileUrl|gridRaster|fetchWildfires|fetchSmoke|fetchClosures)$/]',
         message: 'This belongs to the feature module under src/map/ that draws it.',
       },
       {

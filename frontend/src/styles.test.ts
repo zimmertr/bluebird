@@ -82,6 +82,7 @@ import {
   SURFACE_SHEET,
   SWATCH_CHIP,
   SWATCH_EDGE,
+  SWATCH_LINE,
   SWATCH_RAMP,
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
@@ -1788,7 +1789,7 @@ describe('the map layer rows', () => {
   })()
 
   it('found every row', () => {
-    expect(labels).toHaveLength(6)
+    expect(labels).toHaveLength(8)
   })
 
   // Alphabetical, because nothing else orders these: no cost, no severity and
@@ -1815,6 +1816,8 @@ describe('the map legend sections', () => {
   // be listed here.
   const LAYER_LABELS = [
     "label: 'Active wildfire'",
+    "label: 'Area closures'",
+    "label: 'Trail closures'",
     'label: gridLegend.label',
     "label: 'Rain radar'",
     "label: 'Smoke'",
@@ -1884,6 +1887,9 @@ describe('the legend ramp', () => {
     // under it, in two lines whatever the band count.
     expect(SWATCH_RAMP).toMatch(/\bw-full\b/)
     expect(SWATCH_CHIP).not.toMatch(/\bw-full\b/)
+    // The line key stands in the chip's column, so it is the chip's width.
+    expect(SWATCH_LINE).toMatch(/\bw-3\.5\b/)
+    expect(SWATCH_CHIP).toMatch(/\bw-3\.5\b/)
   })
 
   it('names no fill of its own', () => {

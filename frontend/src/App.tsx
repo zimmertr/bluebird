@@ -140,6 +140,8 @@ export default function App() {
   const overlays = useMapOverlays(restored, isDesktop)
   const {
     showWildfires,
+    showAreaClosures,
+    showTrailClosures,
     showRadar,
     showSmoke,
     showSnow,
@@ -305,6 +307,8 @@ export default function App() {
     limit,
     customCsv,
     showWildfires,
+    showAreaClosures,
+    showTrailClosures,
     showRadar,
     showSmoke,
     showSnow,

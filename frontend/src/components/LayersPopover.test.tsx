@@ -7,6 +7,10 @@ import { render } from '../testSupport/render'
 const OVERLAYS = {
   showWildfires: false,
   setShowWildfires: () => {},
+  showAreaClosures: false,
+  setShowAreaClosures: () => {},
+  showTrailClosures: false,
+  setShowTrailClosures: () => {},
   showRadar: false,
   setShowRadar: () => {},
   showSmoke: false,
@@ -40,7 +44,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered />)
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
-    expect(rows()).toHaveLength(6)
+    expect(rows()).toHaveLength(8)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('checkbox')).toBeNull()
     open()
@@ -53,7 +57,7 @@ describe('LayersPopover', () => {
     render(<LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered />)
     open()
     fireEvent.pointerDown(screen.getByRole('checkbox', { name: 'Smoke' }))
-    expect(rows()).toHaveLength(6)
+    expect(rows()).toHaveLength(8)
   })
 
   it('switches a layer through its setter', () => {
@@ -69,7 +73,7 @@ describe('LayersPopover', () => {
   it('keeps every row and greys the ones out of play', () => {
     render(<LayersPopover overlays={OVERLAYS} grid={ARCHIVE} playerOffered={false} />)
     open()
-    expect(rows()).toHaveLength(6)
+    expect(rows()).toHaveLength(8)
     const grid = screen.getByRole('checkbox', { name: /^Forecast grid/ })
     expect((grid as HTMLInputElement).disabled).toBe(true)
     expect(grid.getAttribute('aria-describedby')).toBe('layer-grid-note')
@@ -79,6 +83,17 @@ describe('LayersPopover', () => {
     const player = screen.getByRole('checkbox', { name: 'Forecast player' })
     expect((player as HTMLInputElement).disabled).toBe(true)
     expect(player.getAttribute('aria-describedby')).toBeNull()
+  })
+
+  // Region 6 alone, and both labels say so; each row drives its own layer.
+  it('lists both closure layers in their alphabetical places', () => {
+    const setShowTrailClosures = vi.fn()
+    render(<LayersPopover overlays={{ ...OVERLAYS, setShowTrailClosures }} grid={GRID} playerOffered />)
+    open()
+    expect(rows()[0]).toBe('Area closures (OR/WA only)')
+    expect(rows().indexOf('Trail closures (OR/WA only)')).toBe(rows().indexOf('Snow depth (US only)') + 1)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Trail closures (OR/WA only)' }))
+    expect(setShowTrailClosures).toHaveBeenCalledWith(true)
   })
 
   it('shows the grid style and coverage only while the grid is on', () => {

@@ -74,6 +74,8 @@
     },
     "customCsv": "Name,Lat,Lon\nA peak,46.85,-121.76\n",
     "showWildfires": true,
+    "showAreaClosures": true,
+    "showTrailClosures": true,
     "showRadar": true,
     "showSmoke": true,
     "showSnow": true,

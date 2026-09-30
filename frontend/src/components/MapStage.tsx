@@ -209,6 +209,8 @@ export default function MapStage({
         modelFallbackLabel={tableView.analysisModelLabel}
         fireWarnings={fire.warnings}
         showWildfires={overlays.showWildfires}
+        showAreaClosures={overlays.showAreaClosures}
+        showTrailClosures={overlays.showTrailClosures}
         showRadar={overlays.showRadar}
         showSmoke={overlays.showSmoke}
         showSnow={overlays.showSnow}
