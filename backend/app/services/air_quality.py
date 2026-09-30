@@ -134,9 +134,11 @@ async def _fetch_chunk(
         url = CUSTOMER_AIR_QUALITY_URL
         params["apikey"] = api_key
 
-    # A refused key and a 429 still raise out of here. The key is the caller's
-    # to fix and the same one rides every batch, and the 429 is what stops the
-    # batches behind this one; everything else this service absorbs.
+    # A refused key and a 429 raise out of this one batch call; everything else
+    # degrades here. They do not both leave `fetch_aqi_batch`: `fetch_batched`
+    # turns the 429 into null rows and skips the batches behind it, so only
+    # the refused key, which is the caller's to fix and rides every batch,
+    # reaches the analysis.
     data = await request_openmeteo(
         http.client(),
         url,

@@ -5,7 +5,9 @@ import time
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import fake_response
 from fastapi.testclient import TestClient
+from prometheus_client import REGISTRY
 from test_snodas import a_snapshot
 
 from app import models, ratelimit
@@ -1369,6 +1371,60 @@ def test_a_refused_key_ends_the_stream_with_an_error_event(refuse_key):
         "error": {"code": "invalid_api_key", "retryable": False},
     }
     assert "bad-key" not in resp.text
+
+
+# ── An air-quality 429, through the real service ───────────────────────────
+
+
+@pytest.fixture
+def aqi_rate_limited(monkeypatch):
+    """Weather answers; every air-quality request answers 429. Only the HTTP
+    client is replaced, so `fetch_aqi_batch` itself decides what a 429 means."""
+
+    async def fake_wx(destinations, *args, **kwargs):
+        return [_wx(d["latitude"]) for d in destinations]
+
+    class _Client:
+        async def get(self, url, params=None):
+            return fake_response({"reason": "Hourly API request limit exceeded"}, 429)
+
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality.http, "client", lambda: _Client())
+
+
+def _rate_limited_degrades() -> float:
+    return REGISTRY.get_sample_value(
+        "bluebird_forecast_aqi_degraded_total", {"reason": "rate_limited"}
+    ) or 0.0
+
+
+def _five_body() -> dict:
+    start, end = _window()
+    return {
+        "destination_types": [], "start_datetime": start, "end_datetime": end,
+        "custom_destinations": _five_dests(),
+    }
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        # Fetched after the cut, for the returned rows alone.
+        {},
+        # Fetched for every candidate, because the ranking needs it. A 429
+        # there degrades too: air quality never fails the analysis.
+        {"sort_by": "aqi_max", "sort_desc": True},
+    ],
+    ids=["late", "eager"],
+)
+def test_an_air_quality_429_keeps_the_ranking_with_null_aqi(aqi_rate_limited, extra):
+    before = _rate_limited_degrades()
+    resp = client.post("/api/analyze", json={**_five_body(), **extra})
+    assert resp.status_code == 200
+    rows = resp.json()["results"]
+    assert [r["name"] for r in rows] == ["a", "b", "c", "d", "e"]
+    assert {(r["aqi_min"], r["aqi_avg"], r["aqi_max"]) for r in rows} == {(None, None, None)}
+    assert _rate_limited_degrades() == before + 1
 
 
 def test_the_key_reaches_no_log_record_from_the_route(record_key, caplog):

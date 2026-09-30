@@ -39,14 +39,14 @@ BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
 sys.path.insert(0, str(BACKEND / "tests"))
 
-from conftest import dest  # noqa: E402 — after the sys.path inserts above
+from conftest import dest, fake_response  # noqa: E402 — after the sys.path inserts above
 from fastapi.testclient import TestClient  # noqa: E402
 from test_snodas import a_snapshot  # noqa: E402
 
 from app import ratelimit  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import MAX_ANALYZE_PEAKS, PAST_DATA_DAYS  # noqa: E402
-from app.services import air_quality, cache, osm, snodas, weather  # noqa: E402
+from app.services import air_quality, cache, http, osm, snodas, weather  # noqa: E402
 from app.services.errors import (  # noqa: E402
     InvalidApiKeyError,
     UpstreamError,
@@ -55,6 +55,10 @@ from app.services.errors import (  # noqa: E402
 from app.services.snapshot import SnapshotCache  # noqa: E402
 
 OUT = BACKEND / "tests" / "data" / "analyze_golden.json"
+
+# Taken before any case patches the name, so a case can run the real service
+# behind its recording stub.
+REAL_FETCH_AQI = air_quality.fetch_aqi_batch
 
 # Three fixed hours. The weather and cloud answers cover all three and the air
 # quality answer only the first two, so every row shows how a shorter series
@@ -170,6 +174,10 @@ class Case:
     weather: Exception | None = None
     pace: bool = False
     aqi: Exception | None = None
+    # Every air-quality request answers this HTTP status, and the real service
+    # decides what the analysis sees. A stub that raised instead would pin an
+    # answer the service never gives: it absorbs everything but a refused key.
+    aqi_http_status: int | None = None
     cloud: Exception | None = None
     snow: bool = False
     headers: dict[str, str] = field(default_factory=dict)
@@ -239,14 +247,9 @@ CASES = [
     Case("cloud_sort", _peaks(sort_by="cloud_base_min_ft", sort_desc=True, limit=2), discovered=PEAKS),
     Case("cloud_display_only", _peaks(include_clouds=True, limit=2), discovered=PEAKS, headers=KEY),
     Case("late_aqi_key_refused", _custom(), aqi=InvalidApiKeyError(), headers=KEY),
-    # Any other error out of the late air-quality fetch is not caught by the
-    # analysis, so the JSON route answers the server's bare 500 and the stream
-    # its catch-all event. Recorded as it stands, not as it should be.
-    Case(
-        "late_aqi_rate_limited",
-        _custom(),
-        aqi=UpstreamRateLimited("Open-Meteo", "hourly", 600, "Open-Meteo quota reached. Try again later."),
-    ),
+    # Open-Meteo answers the late air-quality request with a 429. The service
+    # turns it into null rows, so the ranking still answers.
+    Case("late_aqi_rate_limited", _custom(), aqi_http_status=429),
     Case(
         "late_cloud_failure",
         _custom(include_clouds=True),
@@ -352,6 +355,8 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: d
         })
         if case.aqi is not None:
             raise case.aqi
+        if case.aqi_http_status is not None:
+            return await REAL_FETCH_AQI(destinations, start_dt, end_dt, api_key=api_key)
         return [_aqi(d) for d in destinations]
 
     async def fetch_cloud_batch(
@@ -387,6 +392,17 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: d
     mp.setattr(weather, "fetch_cloud_batch", fetch_cloud_batch)
     mp.setattr(air_quality, "fetch_aqi_batch", fetch_aqi_batch)
     mp.setattr(snodas, "GRID", grid)
+    if case.aqi_http_status is not None:
+        answer = fake_response({"reason": "Hourly API request limit exceeded"}, case.aqi_http_status)
+
+        class _Client:
+            async def get(self, url, params=None):
+                return answer
+
+        mp.setattr(http, "client", lambda: _Client())
+        # Pacing off, as the test suite runs it, so the script and pytest
+        # render the same record.
+        mp.setattr(ratelimit, "AQI_WEIGHT", ratelimit.WeightedBudget("Open-Meteo (air quality)", 0))
     mp.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(0, 1))
     return grid
 
