@@ -17,17 +17,16 @@ from app.models import (
     ErrorResponse,
     bbox_area_km2,
 )
-from app.routes.analyze import (
+from app.services import snodas
+from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
-    _noun,
     _refusal_body,
     _resolve_custom,
     _suggest_elevation_floor,
-    _truncate_top_elevation,
     discover,
 )
-from app.services import snodas
+from app.services.ranking import _noun, _truncate_top_elevation
 
 log = logging.getLogger(__name__)
 router = APIRouter()

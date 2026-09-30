@@ -20,24 +20,21 @@ from app.models import (
     GeoPolygon,
     SortBy,
 )
-from app.routes import analyze as analyze_mod
-from app.routes.analyze import (
-    _aligned_aqi,
-    _assemble,
-    _filter_constraints,
-    _filter_elevation,
-    _merge_custom,
-    _noun,
-    _sort_key,
-    _sse,
-    _summarize_request,
-)
-from app.services import air_quality, osm, snodas, weather
+from app.routes.analyze import _sse, _summarize_request
+from app.services import air_quality, osm, ranking, snodas, weather
+from app.services.candidates import _filter_elevation, _merge_custom
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
     UpstreamError,
     UpstreamRateLimited,
+)
+from app.services.ranking import (
+    _aligned_aqi,
+    _assemble,
+    _filter_constraints,
+    _noun,
+    _sort_key,
 )
 
 client = TestClient(app)
@@ -1914,19 +1911,19 @@ def test_cloud_eager_reads_the_ranking_and_every_cloud_bound():
     start, end = _window()
     base = {"destination_types": [], "start_datetime": start, "end_datetime": end,
             "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}]}
-    assert not analyze_mod._cloud_eager(AnalyzeRequest(**base))
-    assert not analyze_mod._cloud_eager(AnalyzeRequest(**base, include_clouds=True))
-    assert analyze_mod._cloud_eager(AnalyzeRequest(**base, sort_by="cloud_cover_max_pct"))
+    assert not ranking._cloud_eager(AnalyzeRequest(**base))
+    assert not ranking._cloud_eager(AnalyzeRequest(**base, include_clouds=True))
+    assert ranking._cloud_eager(AnalyzeRequest(**base, sort_by="cloud_cover_max_pct"))
     for bound in ("min_cloud_base_ft", "max_cloud_base_ft",
                   "min_cloud_cover_pct", "max_cloud_cover_pct"):
-        assert analyze_mod._cloud_eager(AnalyzeRequest(**base, **{bound: 10}))
-    assert not analyze_mod._cloud_eager(AnalyzeRequest(**base, max_aqi=10))
+        assert ranking._cloud_eager(AnalyzeRequest(**base, **{bound: 10}))
+    assert not ranking._cloud_eager(AnalyzeRequest(**base, max_aqi=10))
 
 
 def test_aligned_cloud_maps_by_stamp_and_nulls_the_rest():
-    assert analyze_mod._aligned_cloud([1, 2, 3], None) == (None, None)
+    assert ranking._aligned_cloud([1, 2, 3], None) == (None, None)
     series = {"times": [2, 3], "cloud_base_ft": [9000.0, None], "cloud_cover_pct": [40, 60]}
-    assert analyze_mod._aligned_cloud([1, 2, 3], series) == (
+    assert ranking._aligned_cloud([1, 2, 3], series) == (
         [None, 9000.0, None],
         [None, 40, 60],
     )
@@ -1939,4 +1936,4 @@ def test_summary_logs_the_clouds_opt_in():
         custom_destinations=[{"name": "a", "latitude": 1.0, "longitude": 2.0}],
         include_clouds=True,
     )
-    assert "clouds=on" in analyze_mod._summarize_request(req)
+    assert "clouds=on" in _summarize_request(req)

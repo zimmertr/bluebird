@@ -9,12 +9,10 @@ from datetime import UTC, datetime, timedelta
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routes.analyze import (
-    _suggest_elevation_floor,
-    _truncate_top_elevation,
-    _with_keepalive,
-)
+from app.routes.analyze import _with_keepalive
 from app.services import air_quality, osm, weather
+from app.services.candidates import _suggest_elevation_floor
+from app.services.ranking import _truncate_top_elevation
 
 client = TestClient(app)
 

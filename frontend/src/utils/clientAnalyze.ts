@@ -1,7 +1,8 @@
 // The browser-side analysis pipeline (#170): everything POST /api/analyze
 // does after discovery, ported so the SPA can attach forecasts itself via
-// openMeteo.ts. Each helper is a deliberate port of its analyze.py
-// counterpart (_aligned_aqi, _assemble, _sort_key, _cap_detail) — behavior
+// openMeteo.ts. Each helper is a deliberate port of its counterpart in the
+// backend's services/ranking.py (_aligned_aqi, _assemble, _sort_key,
+// _cap_detail), or services/candidates.py for _custom_dicts — behavior
 // changes happen there first and get mirrored here, with the align cases
 // pinned by the shared weather_vectors.json.
 //

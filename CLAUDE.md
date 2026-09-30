@@ -85,7 +85,7 @@ The browser reimplements enough of the backend that the same decision is spelled
 |---|---|---|---|---|
 | 1 | Hourly weather aggregation | `aggregation._weather_metrics`/`_weather_series` | `openMeteoAggregate.weatherMetrics`/`weatherSeries` | `weather_vectors.json`, read by both suites |
 | 2 | Hourly AQI aggregation | `aggregation._aqi_metrics`/`_aqi_series` | `openMeteoAggregate.aqiMetrics`/`aqiSeries` | the same vectors |
-| 3 | AQI onto the weather grid | `analyze._aligned_aqi` | `clientAnalyze.alignAqi` | the same vectors (`align` cases) |
+| 3 | AQI onto the weather grid | `ranking._aligned_aqi` | `clientAnalyze.alignAqi` | the same vectors (`align` cases) |
 | 4 | Elevation-adjusted wind | `aggregation._WIND_LEVELS`/`_wind_at_elevation` | `openMeteoAggregate.WIND_LEVELS`/`windAtElevation` | the same vectors |
 | 5 | Elevation-adjusted temperature | `aggregation._TEMP_LEVELS`/`_temp_at_elevation` | `openMeteoAggregate.TEMP_LEVELS`/`tempAtElevation` | the same vectors |
 | 6 | Freezing level, unit and conversion | `aggregation._freeze_unit`/`_freeze_to_ft` | `openMeteoAggregate.freezeUnit`/`freezeToFeet` | the same vectors |
@@ -99,8 +99,8 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 14 | How a weather fetch is batched and paced | `openmeteo_fetch.BATCH_SIZE`/`MAX_CONCURRENT_BATCHES` (both services batch through it) | the same two names in `openMeteo.ts` | `mirrored_constants.json` |
 | 15 | Window normalization (point sample to a floored hour and one minute) | `models.analyze.AnalyzeRequest.window_within_servable_range` | `forecastWindow.normalizeWindow` | comments, plus each side's own tests over the same cases |
 | 16 | The model-coverage sentence | `weather._coverage_message` | `analysisFailure.ts`, and its first sentence alone in `useModelCompare.ts` | `mirrored_constants.json` |
-| 17 | Ranking, assembly and the forecast-bound table | `analyze._assemble`/`_sort_key`/`_canonical_times`/`_truncate_top_elevation`/`_LOWER_BOUNDS`/`_UPPER_BOUNDS` | `clientAnalyze.assemble`/`rankComparator`/`canonicalTimes`/`truncateTopElevation`, `constraints.LOWER_BOUNDS`/`UPPER_BOUNDS` | comments, plus each side's own tests |
-| 18 | The over-cap refusal's wording | `analyze._noun`/`_cap_detail` | `clientAnalyze.analysisNoun`/`capDetail` | comments, plus each side's own tests |
+| 17 | Ranking, assembly and the forecast-bound table | `ranking._assemble`/`_sort_key`/`_canonical_times`/`_truncate_top_elevation`/`_LOWER_BOUNDS`/`_UPPER_BOUNDS` | `clientAnalyze.assemble`/`rankComparator`/`canonicalTimes`/`truncateTopElevation`, `constraints.LOWER_BOUNDS`/`UPPER_BOUNDS` | comments, plus each side's own tests |
+| 18 | The over-cap refusal's wording | `ranking._noun`/`_cap_detail` | `clientAnalyze.analysisNoun`/`capDetail` | comments, plus each side's own tests |
 | 19 | The `start_hour`/`end_hour` stamp | `weather.hour_param` | `openMeteo.utcHour` | a comment |
 | 20 | An unnamed summit's name, and the metres-to-feet factor behind it | `osm.query._ele_ft` and `f"Peak {round(elevation_ft)}"` | `basemapPoi.FEET_PER_METER` and `` `Peak ${elevationFt}` `` | a comment |
 | 21 | How long a held forecast may stand in | `cache.FORECAST_TTL_S` | `forecastReuse.FORECAST_REUSE_MS` | a comment |
@@ -110,8 +110,8 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 25 | Cloud base and cloud cover aggregation | `aggregation._cloud_base_m`/`_cloud_metrics`/`_cloud_series` | `openMeteoAggregate.cloudBaseM`/`cloudMetrics`/`cloudSeries` | `weather_vectors.json` (`cloud` cases) |
 | 26 | The cloud base's saturation threshold, Espy's rate and the ISA level heights (the wind and temperature read the same table) | `aggregation.CLOUD_SATURATION_RH`/`ESPY_M_PER_C`/`ISA_HEIGHT_M` | the same three names in `openMeteoAggregate.ts` | `mirrored_constants.json` |
 | 27 | Hourly variables the cloud request asks for | `weather.N_CLOUD_VARIABLES` | `openMeteoAggregate.CLOUD_VARIABLES` | `mirrored_constants.json` |
-| 28 | Cloud onto the weather grid | `analyze._aligned_cloud` | `clientAnalyze.alignCloud` | comments, plus each side's own tests |
-| 29 | Whether a request needs the cloud column for every candidate | `analyze._cloud_eager` | `constraints.namesOnRequestMetric` | comments, plus each side's own tests |
+| 28 | Cloud onto the weather grid | `ranking._aligned_cloud` | `clientAnalyze.alignCloud` | comments, plus each side's own tests |
+| 29 | Whether a request needs the cloud column for every candidate | `ranking._cloud_eager` | `constraints.namesOnRequestMetric` | comments, plus each side's own tests |
 
 The cloud base detects saturation on relative humidity, and the level cloud fraction must not replace it: Open-Meteo's `cloud_cover_{p}hPa` is a fixed function of that same RH (measured 2026-09-22 on GFS and ECMWF), so it adds variables and no information. `docs/DATA.md` has the variants tested against METARs and why each was declined. Record: [0056](docs/decisions/0056-cloud-base-from-rh.md)
 
