@@ -73,6 +73,19 @@ class Result:
 AnalyzeEvent = Status | Progress | Failure | Refusal | Result
 
 
+@dataclass(slots=True)
+class Done[T]:
+    """A phase's value, handed back through the event stream.
+
+    A phase that relays events while it waits is an async generator, and a
+    generator cannot return a value to the loop that reads it. So it yields
+    its value last, wrapped in this. `_run_analysis` takes it off the stream,
+    and no route ever sees one: it is not an `AnalyzeEvent`.
+    """
+
+    value: T
+
+
 # Sentinel pushed onto a progress queue once the backing task has finished.
 _STREAM_DONE = object()
 
