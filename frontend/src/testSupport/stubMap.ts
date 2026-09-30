@@ -29,6 +29,9 @@ export interface StubMapOptions {
   sources?: Record<string, StubSource>
   rendered?: (arg: unknown, opts?: unknown) => unknown[]
   canvasWidth?: number
+  canvasHeight?: number
+  /** Where `project` puts every coordinate: the one screen point a test's marker stands at. */
+  markerAt?: { x: number; y: number }
   zoom?: number
   center?: { lng: number; lat: number }
   bounds?: { west: number; south: number; east: number; north: number }
@@ -48,8 +51,21 @@ export function stubMap(opts: StubMapOptions = {}) {
   const handlers: { type: string; layer?: string; fn: Handler }[] = []
   const canvas = {
     clientWidth: opts.canvasWidth ?? 0,
+    clientHeight: opts.canvasHeight ?? 0,
     style: { cursor: '' },
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
+  }
+  // The container stands at the viewport's origin and belongs to no
+  // document, so a module that looks around it for what stands over the
+  // map finds nothing.
+  const container = {
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      right: canvas.clientWidth,
+      bottom: canvas.clientHeight,
+    }),
+    ownerDocument: null,
   }
   const dragPan = { enabled: true, disable: () => (dragPan.enabled = false), enable: () => (dragPan.enabled = true) }
   const b = opts.bounds ?? { west: -122, south: 47, east: -121, north: 48 }
@@ -110,6 +126,9 @@ export function stubMap(opts: StubMapOptions = {}) {
     },
     queryRenderedFeatures: (arg: unknown, o?: unknown) => opts.rendered?.(arg, o) ?? [],
     getCanvas: () => canvas,
+    getContainer: () => container,
+    project: () => opts.markerAt ?? { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 },
+    panBy: (offset: [number, number], o?: unknown) => calls.push(['panBy', offset, o]),
     getZoom: () => opts.zoom ?? 8,
     getCenter: () => opts.center ?? { lng: -121.5, lat: 47.5 },
     getBounds: () => ({

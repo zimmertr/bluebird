@@ -13,6 +13,7 @@ import { anchorSelector, type TourStep } from '../utils/tourSteps'
 import {
   type Box,
   cardMode,
+  clipAbove,
   placeCard,
   sameBox,
   sectionBox,
@@ -79,7 +80,12 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
       if (!el || !own || step.spot !== 'section' || !el.parentElement) return own
       return sectionBox(own, rect(el.previousElementSibling), rect(el.nextElementSibling), rect(el.parentElement)!)
     }
-    const box = unionBox([boxOf(step.anchor), ...(step.frames ?? []).map(boxOf)])
+    const whole = unionBox([boxOf(step.anchor), ...(step.frames ?? []).map(boxOf)])
+    // A target that runs under another surface is lit only where it shows;
+    // the control pad is kept out of that surface too.
+    const over = step.under ? rect(document.querySelector(anchorSelector(step.under))) : null
+    const box =
+      whole && over ? clipAbove(whole, over.top - (step.spot === 'control' ? SPOTLIGHT_PAD : 0)) : whole
     setTarget((prev) => (sameBox(prev, box) ? prev : box))
     const card = cardRef.current?.getBoundingClientRect()
     if (card) {
@@ -94,7 +100,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         ? prev
         : { width: window.innerWidth, height: window.innerHeight },
     )
-  }, [step.anchor, step.frames, step.spot])
+  }, [step.anchor, step.frames, step.spot, step.under])
 
   // Before every paint: a render that changed a shape is placed by the new
   // shape, not the old one. Converges because a pass that changes nothing

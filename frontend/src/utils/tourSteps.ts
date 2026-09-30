@@ -59,6 +59,12 @@ export interface TourStep {
    * it, and a spotlight over the button alone leaves the menu in the dark.
    */
   frames?: readonly string[]
+  /**
+   * An anchor this target may run beneath. The spotlight stops at its top
+   * edge, so only the part of the target a reader can see is lit: the
+   * marker's popup under the results sheet on a short screen.
+   */
+  under?: string
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -109,6 +115,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     anchor: 'marker',
     spot: 'control',
+    under: 'results',
     title: 'Markers',
     text: 'Select a marker on the map to see a summary of the forecast for that destination.',
     place: 'map',

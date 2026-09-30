@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { type MouseEvent, useEffect, useState } from 'react'
+import { TUTORIAL_PATH } from '../utils/tourSteps'
 import {
   BUTTON_DANGER,
   BUTTON_PRIMARY,
@@ -119,6 +120,13 @@ export default function PanelFooter({
   onTutorial,
   messages,
 }: Props) {
+  // A plain click starts the tour over this page; a modified click or a
+  // middle click is the browser's, and opens the path like any link.
+  function startTour(e: MouseEvent<HTMLAnchorElement>) {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    onTutorial()
+  }
   // The dismissal ledger (#253): every footer message is dismissable, each
   // alone. `pruneDismissals` retires a dismissal the moment its key stops
   // being active, which is what makes an identical error return after the
@@ -173,11 +181,13 @@ export default function PanelFooter({
           Both open in a new tab so reading either never costs you a drawn
           polygon and its results. */}
       <p className={`${TEXT.caption} text-center`}>
-        {/* A button in link clothes: it opens the tour over this page rather
-            than a page of its own, so it has no href to give (#536). */}
-        <button type="button" onClick={onTutorial} className={LINK}>
+        {/* A real link to the tour's path, so it can be copied or opened in
+            a new tab like the two beside it; a plain click starts the tour
+            over this page instead of reloading it, and the tour writes the
+            same path to the address bar (#536). */}
+        <a href={TUTORIAL_PATH} onClick={startTour} className={LINK}>
           Tutorial
-        </button>
+        </a>
         {' · '}
         <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
           Privacy

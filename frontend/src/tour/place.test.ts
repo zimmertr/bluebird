@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CARD_GAP,
   cardMode,
+  clipAbove,
   placeCard,
   sameBox,
   sectionBox,
@@ -110,5 +111,18 @@ describe('the card', () => {
     const at = placeCard(light, card, viewport)
     expect(at.left).toBeGreaterThanOrEqual(VIEWPORT_MARGIN)
     expect(at.top).toBeGreaterThanOrEqual(VIEWPORT_MARGIN)
+  })
+})
+
+describe('clipAbove', () => {
+  const box = { top: 100, left: 10, width: 50, height: 200 }
+
+  it('cuts a box at the line and leaves one above it alone', () => {
+    expect(clipAbove(box, 250)).toEqual({ ...box, height: 150 })
+    expect(clipAbove(box, 400)).toEqual(box)
+  })
+
+  it('keeps a box wholly under the line as no height at the line', () => {
+    expect(clipAbove(box, 50)).toEqual({ ...box, top: 50, height: 0 })
   })
 })

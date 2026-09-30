@@ -49,6 +49,12 @@ describe('the tutorial steps', () => {
     }
   })
 
+  it('lights only what shows of the popup above the results sheet', () => {
+    const anchors = new Set(TOUR_STEPS.map((s) => s.anchor))
+    for (const step of TOUR_STEPS) if (step.under) expect(anchors.has(step.under), step.anchor).toBe(true)
+    expect(TOUR_STEPS.find((s) => s.anchor === 'marker')?.under).toBe('results')
+  })
+
   it('frames the Layers menu with its button, since the menu does not grow the button', () => {
     expect(TOUR_STEPS.find((s) => s.anchor === 'layers')?.frames).toEqual(['layers-menu'])
   })

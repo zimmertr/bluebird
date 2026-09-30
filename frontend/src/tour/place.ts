@@ -82,6 +82,17 @@ export function sectionBox(own: Box, previous: Box | null, next: Box | null, col
 }
 
 /** The spotlight's box: the target, grown by the pad on every side. */
+/**
+ * The part of a box above a line: what shows of a target that runs under
+ * another surface (`TourStep.under`). A box wholly below the line is one of
+ * no height at the line, so the dim keeps a hole where the target starts.
+ */
+export function clipAbove(box: Box, limitTop: number): Box {
+  const bottom = Math.min(box.top + box.height, limitTop)
+  const top = Math.min(box.top, limitTop)
+  return { ...box, top, height: Math.max(0, bottom - top) }
+}
+
 export function spotlight(target: Box, pad = SPOTLIGHT_PAD): Box {
   return {
     top: target.top - pad,
