@@ -204,7 +204,10 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
           so an inset of its own would be that inset twice and the box
           would hang a step right of the legends it hangs over. */}
       {open && (
-        <div className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}>
+        <div
+          className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}
+          data-tour="layers-menu"
+        >
           {MAP_LAYERS.map((layer) => (
             <Fragment key={layer.key}>
               {layerRow(layer)}

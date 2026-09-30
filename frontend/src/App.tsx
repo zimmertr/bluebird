@@ -416,7 +416,6 @@ export default function App() {
         <Tour
           steps={tour.steps}
           index={tour.index}
-          isDesktop={isDesktop}
           onNext={tour.next}
           onPrev={tour.prev}
           onEnd={tour.end}

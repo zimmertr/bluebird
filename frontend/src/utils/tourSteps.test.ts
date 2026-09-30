@@ -41,7 +41,12 @@ describe('the tutorial steps', () => {
   it('marks every anchor on exactly one control in one component', () => {
     for (const step of TOUR_STEPS) {
       expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
+      for (const frame of step.frames ?? []) expect(occurrences(frame), frame).toHaveLength(1)
     }
+  })
+
+  it('frames the Layers menu with its button, since the menu does not grow the button', () => {
+    expect(TOUR_STEPS.find((s) => s.anchor === 'layers')?.frames).toEqual(['layers-menu'])
   })
 
   it('carries the approved copy, in sentence case and without an em dash', () => {

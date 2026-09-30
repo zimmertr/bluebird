@@ -26,6 +26,29 @@ export const SPOTLIGHT_PAD = 6
 export const CARD_GAP = 12
 /** The least the card keeps from a viewport edge. */
 export const VIEWPORT_MARGIN = 16
+/**
+ * Below this width the card is a sheet along the bottom edge rather than a
+ * box beside its target. Tailwind's `sm`, not the app's desktop breakpoint:
+ * at 1000px a 320px card still stands beside a 360px panel with room to
+ * spare, and a sheet there hides the map for nothing.
+ */
+export const SHEET_MAX_W = 640
+
+/** Whether the card is a box beside its target or a sheet along the bottom. */
+export function cardMode(viewportWidth: number): 'card' | 'sheet' {
+  return viewportWidth < SHEET_MAX_W ? 'sheet' : 'card'
+}
+
+/** The smallest box holding every given box; `null` when there is none. */
+export function unionBox(boxes: readonly (Box | null)[]): Box | null {
+  const real = boxes.filter((b): b is Box => b !== null)
+  if (real.length === 0) return null
+  const top = Math.min(...real.map((b) => b.top))
+  const left = Math.min(...real.map((b) => b.left))
+  const bottom = Math.max(...real.map((b) => b.top + b.height))
+  const right = Math.max(...real.map((b) => b.left + b.width))
+  return { top, left, width: right - left, height: bottom - top }
+}
 
 /** The spotlight's box: the target, grown by the pad on every side. */
 export function spotlight(target: Box, pad = SPOTLIGHT_PAD): Box {

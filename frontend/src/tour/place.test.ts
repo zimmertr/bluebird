@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_GAP, placeCard, sameBox, SPOTLIGHT_PAD, spotlight, VIEWPORT_MARGIN } from './place'
+import {
+  CARD_GAP,
+  cardMode,
+  placeCard,
+  sameBox,
+  SHEET_MAX_W,
+  SPOTLIGHT_PAD,
+  spotlight,
+  unionBox,
+  VIEWPORT_MARGIN,
+} from './place'
 
 const card = { width: 320, height: 160 }
 const viewport = { width: 1280, height: 800 }
@@ -20,6 +30,26 @@ describe('the spotlight', () => {
     expect(sameBox(a, { ...a, top: 0 })).toBe(false)
     expect(sameBox(null, null)).toBe(true)
     expect(sameBox(a, null)).toBe(false)
+  })
+})
+
+describe('the sheet', () => {
+  it('is for phone widths alone, not for every window under the desktop breakpoint', () => {
+    expect(cardMode(SHEET_MAX_W - 1)).toBe('sheet')
+    expect(cardMode(SHEET_MAX_W)).toBe('card')
+    expect(cardMode(1000)).toBe('card')
+  })
+})
+
+describe('the union', () => {
+  it('holds every box, and skips the ones that are not there', () => {
+    expect(unionBox([{ top: 10, left: 10, width: 20, height: 20 }, null, { top: 40, left: 5, width: 10, height: 100 }])).toEqual({
+      top: 10,
+      left: 5,
+      width: 25,
+      height: 130,
+    })
+    expect(unionBox([null, null])).toBeNull()
   })
 })
 

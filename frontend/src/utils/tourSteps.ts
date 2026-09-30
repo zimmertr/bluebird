@@ -33,6 +33,12 @@ export interface TourStep {
   place: TourPlace
   /** What the step opens first; its anchor is absent until it does. */
   reveal?: TourReveal
+  /**
+   * Further anchors the spotlight frames together with the target. The Layers
+   * menu is absolutely positioned, so its button's box does not grow to hold
+   * it, and a spotlight over the button alone leaves the menu in the dark.
+   */
+  frames?: readonly string[]
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -66,11 +72,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     text: 'Enable or disable drawing additional information on the map.',
     place: 'map',
     reveal: 'layers',
+    frames: ['layers-menu'],
   },
   {
     anchor: 'results',
     title: 'Results',
-    text: 'Every destination is ranked by the metric you chose. Sort by any column, switch to the chart to compare forecasts hour by hour, or download the table as a CSV file.',
+    text: 'After analysis, the selected destinations are ranked by your chosen metric and constraints.',
     place: 'map',
     reveal: 'results',
   },

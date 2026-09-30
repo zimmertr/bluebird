@@ -2110,9 +2110,9 @@ export const TABLE = {
  * apart the way four separate rects around a target would; it takes the
  * surface radius because the controls it frames do. The card is the welcome
  * dialog's surface at the modal layer (above the drawer and every popover),
- * fixed and sized by the same 320px the welcome card reads at on a phone. On a
- * phone it is a full-width sheet along the bottom edge instead, because a card
- * beside a control has nowhere to go at 360px. Every colour here is a role the
+ * fixed and sized by the same 320px the welcome card reads at on a phone. Under
+ * `SHEET_MAX_W` (`tour/place.ts`) it is a full-width sheet along the bottom
+ * edge instead, because a card beside a control has nowhere to go at 360px. Every colour here is a role the
  * app already wears; the dim is the welcome backdrop's black at 60%.
  */
 export const TOUR = {
