@@ -21,5 +21,8 @@ export function analysisFailure(e: unknown, models: readonly ForecastModelOption
     const label = models.find((m) => m.id === e.modelId)?.label ?? e.modelId
     return { kind: 'error', message: `${label} ${COVERAGE_MESSAGE_TAIL}` }
   }
+  // Everything else is transient and gets the error box with its retry, the
+  // Open-Meteo timeout (#545) as much as an unreachable host: each already
+  // carries the approved sentence, so the message passes through unchanged.
   return { kind: 'error', message: e instanceof Error ? e.message : 'Unknown error' }
 }

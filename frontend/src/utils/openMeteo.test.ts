@@ -1,13 +1,15 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ARCHIVE_URL,
   FORECAST_URL,
+  REQUEST_DEADLINE_MS,
   callWeight,
   fetchAqi,
   fetchCloud,
   fetchSpans,
   fetchWeather,
   resetOpenMeteoState,
+  terrainFallbackFor,
 } from './openMeteo'
 import { CLOUD_VARIABLES, weatherMetrics, weatherSeries } from './openMeteoAggregate'
 import {
@@ -17,7 +19,9 @@ import {
   OpenMeteoHttpError,
   OpenMeteoModelCoverage,
   OpenMeteoRateLimited,
+  OpenMeteoTimeout,
   OpenMeteoUnreachable,
+  TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { archiveBoundaryMs, windowSource } from './forecastWindow'
 // `?raw` gives a file's text without executing it, the drift-guard idiom
@@ -372,6 +376,44 @@ describe('fetchWeather', () => {
       WINDOW.endMs, { ...OPTS, terrainElevation: true },
     )
     expect(out[0]?.wind_avg_mph).toBe(22.6)
+  })
+
+  it('reads one place at terrain height and another at the surface, and keys them apart (#545)', async () => {
+    // A peak and a lake at the same coordinate, neither with an elevation: the
+    // peak is read at the terrain height, the lake at the 10 m wind, and the
+    // second fetch must not be answered from the first one's entry.
+    const payload = hourlyPayload() as ReturnType<typeof hourlyPayload> & { elevation?: number }
+    payload.elevation = 2438.4 // meters = 8,000 ft: between 850 and 700 hPa
+    Object.assign(payload.hourly, {
+      wind_speed_925hPa: [7.0, 7.0],
+      wind_speed_850hPa: [10.0, 10.0],
+      wind_speed_700hPa: [30.0, 30.0],
+      wind_speed_600hPa: [40.0, 40.0],
+      wind_speed_500hPa: [50.0, 50.0],
+    })
+    const fetchSpy = vi.fn(async () => jsonResponse(payload))
+    vi.stubGlobal('fetch', fetchSpy)
+    const peak = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9, terrainFallback: true }],
+      WINDOW.startMs,
+      WINDOW.endMs, OPTS,
+    )
+    const lake = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9, terrainFallback: false }],
+      WINDOW.startMs,
+      WINDOW.endMs, OPTS,
+    )
+    expect(peak[0]?.wind_avg_mph).toBe(22.6)
+    expect(lake[0]?.wind_avg_mph).toBe(6.0) // mean of 5, 7
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads peaks and pasted points at terrain height, lakes and trailheads at the surface (#545)', () => {
+    // A peak stands above the model's terrain; a lake or trailhead sits on it.
+    expect(terrainFallbackFor('peak')).toBe(true)
+    expect(terrainFallbackFor('custom')).toBe(true)
+    expect(terrainFallbackFor('lake')).toBe(false)
+    expect(terrainFallbackFor('trailhead')).toBe(false)
   })
 
   it('keys the cache by elevation, so a lattice point never reads a summit entry', async () => {
@@ -1130,6 +1172,14 @@ describe('the messages the Open-Meteo modules throw', () => {
     expect(BAD_BODY_MESSAGE).toBe('Open-Meteo request failed. Try again later.')
     expect(throwingSources.split(BAD_BODY_MESSAGE)).toHaveLength(2)
   })
+
+  it('give a timeout the backend\'s sentence, spelled once (#545)', () => {
+    // `classify_http_error` in backend/app/services/errors.py says this of an
+    // httpx timeout against Open-Meteo; the browser reuses it rather than
+    // describing one slow upstream two ways.
+    expect(TIMEOUT_MESSAGE).toBe('Open-Meteo took too long. Try again later.')
+    expect(throwingSources.split(TIMEOUT_MESSAGE)).toHaveLength(2)
+  })
 })
 
 // The cloud request (#117): a request of its own so an analysis that never
@@ -1190,5 +1240,148 @@ describe('fetchCloud', () => {
     // for the weather it rides beside.
     const three = 3 * 24 * 3600 * 1000
     expect(callWeight(200, 0, three, CLOUD_VARIABLES.length, 1)).toBeCloseTo(240, 6)
+  })
+})
+
+// ── The per-request deadline (#545) ────────────────────────────────────────
+//
+// Measured 2026-09-30: a 50-location batch answers in 1.5 to 1.8 s, with cold
+// outliers of 7.7 and 19 s, and before the deadline a batch that never
+// answered held the analysis until the reader cancelled.
+
+// A request that never answers, ending only when its signal aborts, the way a
+// real `fetch` rejects with the signal's reason.
+function hang(_url: string, init?: RequestInit): Promise<Response> {
+  return new Promise((_resolve, reject) => {
+    const signal = init?.signal
+    if (!signal) return
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+  })
+}
+
+describe('the per-request deadline', () => {
+  let timeoutSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    // `AbortSignal.timeout` runs on a timer the fake clock does not reach, so
+    // the test stands in one that does, with the same reason a real one gives.
+    timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(new DOMException('signal timed out', 'TimeoutError')), ms)
+      return controller.signal
+    })
+    // The pacer reads the clock, and the clock just changed.
+    resetOpenMeteoState()
+  })
+
+  afterEach(() => {
+    timeoutSpy.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it('gives every request the deadline, and asks a timed-out batch once more', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockImplementationOnce(hang)
+      .mockResolvedValueOnce(jsonResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+
+    await vi.advanceTimersByTimeAsync(REQUEST_DEADLINE_MS - 1)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    const out = await pending
+
+    expect(timeoutSpy).toHaveBeenCalledWith(REQUEST_DEADLINE_MS)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(out[0]?.precip_total_in).toBe(0.3)
+  })
+
+  it('fails with the timeout sentence when the second ask times out too', async () => {
+    const fetchSpy = vi.fn(hang)
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS)
+    // Attached before the clock moves, so the rejection is never unhandled.
+    const failed = expect(pending).rejects.toBeInstanceOf(OpenMeteoTimeout)
+
+    await vi.advanceTimersByTimeAsync(3 * REQUEST_DEADLINE_MS)
+    await failed
+    await expect(pending).rejects.toThrow(TIMEOUT_MESSAGE)
+    // One retry, not a loop: a third ask would hold the reader a third time.
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('lets the reader\'s cancel through as a cancel, and does not retry it', async () => {
+    const fetchSpy = vi.fn(hang)
+    vi.stubGlobal('fetch', fetchSpy)
+    const controller = new AbortController()
+    const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      signal: controller.signal,
+    })
+    const cancelled = expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    controller.abort()
+    await cancelled
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('degrades a timed-out air-quality batch to nulls, as it does any failure', async () => {
+    const fetchSpy = vi.fn(hang)
+    vi.stubGlobal('fetch', fetchSpy)
+    const pending = fetchAqi([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+      nowMs: NOW_MS,
+    })
+
+    await vi.advanceTimersByTimeAsync(REQUEST_DEADLINE_MS)
+    expect(await pending).toEqual([null])
+    // Air quality is best-effort and asks once: a retry would delay the
+    // ranking for a column it can do without.
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ── The air-quality pacer speaks (#545) ────────────────────────────────────
+
+describe('fetchAqi pacing', () => {
+  // The analysis awaits air quality before it ranks, so a silent sleep in its
+  // pacer froze the overlay at the end of an analysis with nothing said.
+
+  // 50 locations over a 201-day window: 50 x 201/14 = 717.9 weighted calls
+  // against a full bucket of 550, so 167.9 short, which the bucket refills in
+  // 167.9/550 x 60 s = 18.3 s.
+  const LONG = { startMs: NOW_MS - 200 * 86_400_000, endMs: NOW_MS }
+  const FIFTY = Array.from({ length: 50 }, (_, i) => ({ latitude: i / 100, longitude: 0 }))
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    resetOpenMeteoState()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('reports a deficit in its own budget through onPace', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
+    const onPace = vi.fn()
+    const pending = fetchAqi(FIFTY, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onPace).toHaveBeenCalledExactlyOnceWith(19)
+    await vi.advanceTimersByTimeAsync(19_000)
+    await expect(pending).resolves.toHaveLength(50)
+  })
+
+  it('says nothing when the budget covers the batch', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse([{ hourly: {} }])))
+    const onPace = vi.fn()
+    await fetchAqi([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+      nowMs: NOW_MS,
+      onPace,
+    })
+    expect(onPace).not.toHaveBeenCalled()
   })
 })

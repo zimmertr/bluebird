@@ -105,7 +105,7 @@ OVERPASS_REQUESTS = Counter(
     "Overpass HTTP attempts, by mirror host and outcome.",
     ["mirror", "outcome"],
 )
-# Reaches past the slowest mirror's 45s client timeout, because the point of
+# Reaches well past the mirrors' client timeouts, because the point of
 # this family (per the mirror-table comment in osm/mirrors.py) is re-tuning those
 # timeouts from measurement instead of a one-day sample.
 OVERPASS_DURATION = Histogram(

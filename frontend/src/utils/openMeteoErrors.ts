@@ -73,6 +73,20 @@ export class OpenMeteoBadBody extends Error {}
 // wording here would only describe that fault two ways (#431).
 export const BAD_BODY_MESSAGE = 'Open-Meteo request failed. Try again later.'
 
+// Thrown when a request outlives its deadline (`REQUEST_DEADLINE_MS` in
+// `openMeteo.ts`). Its own class because the cause is neither of its
+// neighbours': the browser reached Open-Meteo, so `OpenMeteoUnreachable` would
+// send the reader after a network problem they do not have, and no status came
+// back, so there is nothing for `OpenMeteoHttpError` to report. Like
+// unreachable it is transient, so the analysis fails into the error box with
+// its retry rather than the refusal box.
+export class OpenMeteoTimeout extends Error {}
+
+// Not a new sentence: it is the one `classify_http_error` in
+// backend/app/services/errors.py gives an httpx timeout against Open-Meteo, so
+// one slow upstream reads the same on both paths.
+export const TIMEOUT_MESSAGE = 'Open-Meteo took too long. Try again later.'
+
 // Any other HTTP status: reachable, failed. The server shares the same
 // upstream, so a fallback would fail identically — surface it instead.
 export class OpenMeteoHttpError extends Error {

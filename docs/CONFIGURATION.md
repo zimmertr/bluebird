@@ -92,7 +92,7 @@ A `TRACE` run for a peaks query looks like this:
 2026-06-28T08:00:01 [INFO    ] app.routes.analyze: Analyze request: types=peak start=2026-06-28T08:00 end=2026-06-29T20:00 sort=precip_total_in dir=asc limit=10 polygon=6pts area=4,180km2
 2026-06-28T08:00:01 [INFO    ] app.services.osm: Querying OSM Overpass for type=peak
 2026-06-28T08:00:01 [TRACE   ] app.services.osm: Overpass query:
-[out:json][timeout:60];
+[out:json][timeout:__SERVER_TIMEOUT_S__];
 node["natural"="peak"]["name"](poly:"47.1 -121.5 48.2 -120.8 ...");
 out;
 2026-06-28T08:00:01 [INFO    ] app.services.osm: Trying Overpass endpoint: https://overpass-api.de/api/interpreter

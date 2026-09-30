@@ -191,9 +191,14 @@ export function cacheKey(
   // without its own key, a destination with no elevation and the grid cell
   // over it would poison each other's entries.
   // The cloud column (#117) keys on it for the same reason: its walk up the
-  // column starts at that height.
+  // column starts at that height. A destination's own `terrainFallback`
+  // (#545) is the same third answer decided per place, so it keys the same
+  // way: a lake and a peak at one coordinate, neither with an elevation, are
+  // read at different heights and never share an entry.
   const elevation =
-    service === 'aqi' ? '' : (c.elevation_ft ?? (terrainElevation ? 'model' : ''))
+    service === 'aqi'
+      ? ''
+      : (c.elevation_ft ?? (terrainElevation || c.terrainFallback === true ? 'model' : ''))
   // `source` is which endpoint answered (#123). The archive carries no
   // pressure-level winds, so its rows hold the 10 m wind where the forecast
   // endpoint's hold wind at elevation, and the boundary between the two moves

@@ -5,7 +5,7 @@ Bluebird Forecast is one FastAPI service that also serves the built React SPA as
 When a full server-side analysis runs (an API caller on the keyed path, a release probe, or a self-hosted instance), the backend:
 
 1. Validates the polygon area.
-2. Queries the Overpass API for named OSM features, falling back across three mirrors if the first is down.
+2. Queries the Overpass API for named OSM features, falling back to a second mirror if the first is down or busy.
 3. Batches the matched destinations into Open-Meteo weather requests, fetched concurrently under the pod's weighted budget. Air quality rides alongside only when the ranking key or a bound needs it before the cut; otherwise it is attached to the returned rows after the cut, because the quota on this path is the pod's and shared.
 4. Applies the request's metric bounds, ranks by `sort_by` and `sort_desc`, and returns the top `limit` rows, with `total_matched` beside `total_queried`.
 
@@ -38,7 +38,7 @@ of a regex.
 
 None of the external APIs need a key. The three on the analysis path:
 
-- **Overpass** handles the OSM feature queries. Three public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru`, then `overpass.kumi.systems` (ordered by measured latency; see the dated table in `osm/mirrors.py`).
+- **Overpass** handles the OSM feature queries. Two public endpoints are tried in order: `overpass-api.de`, then `maps.mail.ru` (ordered by measured success rate and latency; see the dated table in `osm/mirrors.py`). A third, `overpass.kumi.systems`, was dropped after it answered none of eight attempts in 30 days.
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
 
