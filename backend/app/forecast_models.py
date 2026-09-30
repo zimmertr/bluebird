@@ -96,7 +96,7 @@ class ModelInfo(NamedTuple):
     # Lambert conformal grid no lat/lon box describes: Banff, Edmonton and
     # Monterrey answer, while Alaska, Hawaii, Puerto Rico, Newfoundland and
     # northern BC do not. Bluebird Forecast therefore ships no domain of its own and
-    # lets Open-Meteo be the authority (see `analyze.py`); this flag exists so
+    # lets Open-Meteo be the authority (see `routes/analyze/route.py`); this flag exists so
     # the picker can say the model is regional before a request is spent.
     regional: bool = False
     # Serves a fine regional model for the first day or two and a coarse global

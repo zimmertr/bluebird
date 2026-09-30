@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from conftest import fake_response
@@ -20,7 +21,9 @@ from app.models import (
     GeoPolygon,
     SortBy,
 )
-from app.routes.analyze import _sse, _summarize_request
+from app.routes.analyze import route as route_mod
+from app.routes.analyze.route import _summarize_request
+from app.routes.analyze.sse import _sse
 from app.services import air_quality, osm, ranking, snodas, weather
 from app.services.candidates import _coord_key, _filter_elevation, _merge_custom
 from app.services.errors import (
@@ -1978,3 +1981,11 @@ def test_summary_logs_the_clouds_opt_in():
         include_clouds=True,
     )
     assert "clouds=on" in _summarize_request(req)
+
+
+def test_the_route_logs_under_the_name_the_docs_give():
+    # The module is `app.routes.analyze.route`, but operators filter on the
+    # name `docs/CONFIGURATION.md` shows in its log examples.
+    docs = (Path(__file__).resolve().parents[2] / "docs" / "CONFIGURATION.md").read_text()
+    assert "] app.routes.analyze: Analyze request:" in docs
+    assert route_mod.log.name == "app.routes.analyze"

@@ -317,8 +317,8 @@ export interface Presentation {
  * removing a row promotes the next one in rather than leaving a gap — and,
  * because both filters precede it, "the ten driest destinations that stay
  * under 20 mph" is literally what comes back rather than "whichever of the ten
- * driest happened to be calm". That ordering is the same one analyze.py uses,
- * for the same reason.
+ * driest happened to be calm". That ordering is the same one the backend's
+ * routes/analyze/route.py uses, for the same reason.
  *
  * A null universe means no analysis has committed yet: since #240 removed the
  * server SSE fallback, there is no path that commits a response without also
