@@ -208,9 +208,11 @@ export function stepLayout(step: TourStep, isDesktop: boolean, hasResults: boole
 export type PhoneEdge = 'top' | 'bottom'
 
 // The steps whose card stands at the top of a phone: the ones that light the
-// results sheet or the player riding on it, both on the map's bottom edge,
-// and the last, in the drawer beside them.
-const TOP_EDGE = new Set(['results', 'bound', 'row', 'player', 'tools', 'tutorial'])
+// results sheet or the player riding on it, both on the map's bottom edge;
+// the popup the row step opens, which the row step placed clear of a card at
+// the top, so the card does not move between them; and the last, in the
+// drawer beside them.
+const TOP_EDGE = new Set(['results', 'bound', 'row', 'popup', 'player', 'tools', 'tutorial'])
 
 /**
  * The card stands at the bottom of a phone, over the map's bottom edge,
@@ -219,8 +221,7 @@ const TOP_EDGE = new Set(['results', 'bound', 'row', 'player', 'tools', 'tutoria
  * stands at the top for the steps that light the results sheet or the player,
  * which stand on that bottom edge. The card changes edge only as a new card
  * appears, never in the middle of a step, so the row step's press on the table
- * keeps the top and the popup it opens is shown in the next step, from the
- * bottom.
+ * keeps the top, and so does the next step, about the popup it opened.
  */
 export function phoneEdge(index: number): PhoneEdge {
   return TOP_EDGE.has(TOUR_STEPS[index]?.key ?? '') ? 'top' : 'bottom'

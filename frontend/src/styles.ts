@@ -2143,7 +2143,7 @@ export const TOUR = {
   pulse: 'motion-safe:animate-[tour-pulse_600ms_ease-out_1]',
   pointer:
     'fixed left-0 top-0 z-[71] pointer-events-none drop-shadow-md ' +
-    'transition-[transform,opacity] ease-in-out motion-reduce:transition-none',
+    'transition-[transform,opacity] motion-reduce:transition-none',
   pointerArrow: 'block size-6 fill-white stroke-slate-900',
   pointerPress: 'absolute -left-4 -top-4 size-8 rounded-full border-2 border-white',
   card: `fixed z-[72] ${SURFACE_CARD} font-sans px-4 pt-3 pb-3 outline-none`,

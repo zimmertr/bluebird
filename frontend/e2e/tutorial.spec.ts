@@ -114,10 +114,6 @@ async function holdsTheRules(page: Page, i: number, still: Map<string, Box>) {
   const key = TOUR_STEPS[i].key
   const { card: c, holes, open, viewport } = await scene(page)
   expect(holes.length, `${key} lights something`).toBeGreaterThan(0)
-  const popups = open.filter((o) => o.what.includes('maplibregl-popup')).map((o) => o.box)
-  const tails = []
-  for (const p of popups) if (await tailOnly(page, p, c)) tails.push(p)
-  const isTail = (b: Box) => tails.some((t) => Math.abs(t.top - b.top) < 12 && Math.abs(t.left - b.left) < 12)
   for (const h of holes) {
     expect(h.right - h.left, `${key} lights a target on screen`).toBeGreaterThan(0)
     // Its ring whole, inside the screen.
@@ -126,9 +122,9 @@ async function holdsTheRules(page: Page, i: number, still: Map<string, Box>) {
     // section, which is long, as itself.
     const [w, ht] = [h.right - h.left, h.bottom - h.top]
     if (Math.max(w, ht) < 4 * TOUR_LIGHT_MIN_PX) expect(Math.min(w, ht), `${key}: ${JSON.stringify(h)} large enough to find`).toBeGreaterThanOrEqual(TOUR_LIGHT_MIN_PX - 1)
-    if (!isTail(h)) expect(meets(c, h), `${key}: the card covers what it lights ${JSON.stringify(h)}`).toBe(false)
+    expect(meets(c, h), `${key}: the card covers what it lights ${JSON.stringify(h)}`).toBe(false)
   }
-  for (const o of open) if (!isTail(o.box)) expect(meets(c, o.box), `${key}: the card covers ${o.what}`).toBe(false)
+  for (const o of open) expect(meets(c, o.box), `${key}: the card covers ${o.what}`).toBe(false)
   // A map popup stands clear of the map's own chrome too: the button columns,
   // the legends and the player.
   const chrome = await mapChrome(page)
@@ -177,26 +173,6 @@ async function mapChrome(page: Page) {
       player: box('[data-tour="player"]'),
     }
   })
-}
-
-// A phone popup taller than the map between the chrome and the card: it
-// stands with its top clear of the chrome, and only its tail runs under the
-// card.
-async function tailOnly(page: Page, box: Box, c: Box): Promise<boolean> {
-  if ((page.viewportSize()?.width ?? 0) >= 1024) return false
-  const top = await chromeBottom(page)
-  const tall = box.bottom - box.top > c.top - top - 16
-  if (tall) expect(box.top, 'the top of a tall popup clear of the chrome').toBeGreaterThanOrEqual(top)
-  return tall
-}
-
-// The lowest edge of the map's chrome across a phone's top: the button
-// column and the legend under it. Nothing on a desktop, where both stand down
-// the left side.
-async function chromeBottom(page: Page): Promise<number> {
-  if ((page.viewportSize()?.width ?? 0) >= 1024) return 0
-  const { column, buttons, legend } = await mapChrome(page)
-  return Math.max(0, ...[column, buttons, legend].map((b) => b?.bottom ?? 0))
 }
 
 // A panel step lights exactly its section as far as it shows, and shows all
@@ -338,7 +314,7 @@ async function resultHeld(page: Page, key: string) {
     expect(holes.some((h) => lit(h, b)), `${key}: ${JSON.stringify(b)} lit`).toBe(true)
     expect(r.whole, `${key}: ${JSON.stringify(b)} shows whole`).toBe(true)
     expect(b.left >= -2 && b.top >= -2 && b.right <= viewport.width + 2 && b.bottom <= viewport.height + 2, `${key}: on screen`).toBe(true)
-    if (!(r.popup && (await tailOnly(page, b, c)))) expect(meets(c, b), `${key}: ${JSON.stringify(b)} under the card`).toBe(false)
+    expect(meets(c, b), `${key}: ${JSON.stringify(b)} under the card`).toBe(false)
     if (r.map) {
       for (const [name, box] of Object.entries(chrome)) {
         if (box) expect(meets(b, box), `${key}: ${JSON.stringify(b)} under the ${name}`).toBe(false)
@@ -365,6 +341,90 @@ async function watchTexts(page: Page) {
     }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-step'], childList: true })
   })
   return () => page.evaluate(() => (window as unknown as { __texts: { step: string; now: number; later: number }[] }).__texts)
+}
+
+// Every frame of the walk, read in the page: a light on the map while the
+// camera moves (nothing on the map is lit then); more than one light while
+// the Layers menu is open (the menu alone is lit); and, on a phone, a light
+// across the edge of the drawer's scrolling panel (a light left where its
+// subject was before the layout moved it); and the card over the app's
+// progress box. The progress box stands over
+// both the map and the panel and is lit as itself. This reads the lights as
+// the dim drew them in its own frame, which may be the frame before the
+// layout it is compared with, so a fault counts once it holds for two.
+async function watchLights(page: Page) {
+  await page.evaluate(() => {
+    const bad = new Set<string>()
+    let before = new Map<string, string>()
+    ;(window as unknown as { __lightFaults: () => string[] }).__lightFaults = () => [...bad]
+    const box = (el: Element | null | undefined) => {
+      const r = el?.getBoundingClientRect()
+      return r && r.width > 0 && r.height > 0 ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : null
+    }
+    type B = { left: number; top: number; right: number; bottom: number }
+    const inside = (x: number, y: number, b: B | null) => Boolean(b && x >= b.left && x <= b.right && y >= b.top && y <= b.bottom)
+    const tick = () => {
+      const demo = document.querySelector<HTMLElement>('[data-tour-sandbox]')
+      const dim = document.querySelector('[data-tour-dim]')
+      if (!demo || !dim) {
+        requestAnimationFrame(tick)
+        return
+      }
+      const step = document.querySelector('[data-tour-card]')?.getAttribute('data-step') ?? ''
+      // Keyed by the step and the rule, so a light that glides still counts.
+      const now = new Map<string, string>()
+      const progress = box(demo.querySelector('[data-tour="progress"]'))
+      const holes = (JSON.parse(dim.getAttribute('data-holes') ?? '[]') as number[][])
+        .map(([left, top, right, bottom]) => ({ left, top, right, bottom }))
+        .filter((h) => !inside((h.left + h.right) / 2, (h.top + h.bottom) / 2, progress))
+      const map = box(demo.querySelector('[data-tour="map"]'))
+      // The analyze step is about the progress box, which the card never covers.
+      const cardBox = box(document.querySelector('[data-tour-card]'))
+      if (progress && cardBox && progress.left < cardBox.right && cardBox.left < progress.right && progress.top < cardBox.bottom && cardBox.top < progress.bottom) {
+        now.set(`${step} progress`, `${step}: the card ${JSON.stringify(cardBox)} over the progress box ${JSON.stringify(progress)}`)
+      }
+      const menu = demo.querySelector('input[value="smoke"]')
+      const menuOpen = Boolean(box(menu))
+      if (menuOpen && holes.length > 1) now.set(`${step} menu`, `${step}: ${holes.length} lights with the Layers menu open`)
+      if (demo.dataset.mapMoving !== undefined && map) {
+        const chrome = [
+          '[data-map-column]', '.maplibregl-ctrl-top-right', '[data-tour="legend"]', '[data-drawer]', '[data-results-sheet]',
+          '[data-tour="search"]', '[data-tour="player"]',
+        ].map((sel) => box(demo.querySelector(sel)))
+        const layers = demo.querySelector('[data-tour="layers"]')?.parentElement
+        chrome.push(box(layers), box(menu?.closest('label')?.parentElement))
+        for (const h of holes) {
+          const x = (h.left + h.right) / 2
+          const y = (h.top + h.bottom) / 2
+          if (inside(x, y, map) && !chrome.some((c) => inside(x, y, c))) now.set(`${step} moving`, `${step}: ${JSON.stringify(h)} lit on a moving map`)
+        }
+      }
+      const drawer = box(demo.querySelector('[data-drawer]'))
+      const metrics = demo.querySelector('[data-tour="metrics"]')
+      let scroller: Element | null = metrics?.parentElement ?? null
+      while (scroller && !(['auto', 'scroll'].includes(getComputedStyle(scroller).overflowY) && scroller.scrollHeight > scroller.clientHeight)) {
+        scroller = scroller.parentElement
+      }
+      const room = box(scroller)
+      const open = document.querySelector('[role="listbox"]')
+      if (innerWidth < 1024 && drawer && drawer.left >= 0 && room && !box(open)) {
+        for (const h of holes) {
+          if (h.right <= room.left || h.left >= room.right) continue
+          const across = (edge: number) => h.top < edge - 2 && h.bottom > edge + 2
+          if (across(room.top) || across(room.bottom)) now.set(`${step} edge`, `${step}: ${JSON.stringify(h)} across the panel's edge`)
+        }
+      }
+      for (const rule of now.keys()) if (before.has(rule)) bad.add(before.get(rule)!)
+      before = now
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  return () => page.evaluate(() => (window as unknown as { __lightFaults: () => string[] }).__lightFaults())
+}
+
+async function lightsKeptTheRules(faults: () => Promise<string[]>) {
+  expect(await faults()).toEqual([])
 }
 
 // No step's words are read in the dark: its light stands within 300 ms.
@@ -455,10 +515,12 @@ test(`at ${width}x${height} the welcome dialog starts a tutorial that acts out e
   const kept = await storage(page)
   const requests = watchRequests(page)
   const texts = await watchTexts(page)
+  const lights = await watchLights(page)
 
   await walk(page)
 
   await lightBeforeText(texts)
+  await lightsKeptTheRules(lights)
   await expect(card(page)).toHaveCount(0)
   await expect(page.locator('[data-tour-dim]')).toHaveCount(0)
   await expect(page.locator('[data-tour-sandbox]')).toHaveCount(0)
@@ -488,10 +550,12 @@ test('on a phone every step keeps the rules, and the reader\'s report comes back
   await page.getByRole('button', { name: 'Tutorial' }).click()
   const requests = watchRequests(page)
   const texts = await watchTexts(page)
+  const lights = await watchLights(page)
 
   await walk(page)
 
   await lightBeforeText(texts)
+  await lightsKeptTheRules(lights)
   await expect(card(page)).toHaveCount(0)
   await expect(rows).toHaveCount(DESTINATION_NAMES.length)
   expect(page.url()).toBe(url)

@@ -57,10 +57,15 @@ export interface MapViewHandle {
   project: (lng: number, lat: number) => { x: number; y: number } | null
   flyTo: (lng: number, lat: number, zoom: number, ms: number) => void
   whenIdle: () => Promise<void>
+  /** Whether the camera is moving now: a flight, a fit or a pan under way. */
+  moving: () => boolean
   poiAt: (name: string, lng: number, lat: number) => { x: number; y: number } | null
   // The peak's popup a click on its label opens, for when placement left the
   // label where no click lands, and for a step that starts with it open.
   openPoi: (place: Place) => void
+  // A result's forecast popup where the camera stands, for a flight the
+  // tutorial lands before the popup opens.
+  openResult: (result: DestinationResult) => void
   closePopups: () => void
   panBy: (dx: number, dy: number, ms: number) => void
   // Where the camera stands now, or null before the map loads.
@@ -487,6 +492,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
           map.flyTo({ center: [lng, lat], zoom, duration, offset: centerOffset(cameraPadBottomPx, moves.insets) }),
         )
       },
+      moving() {
+        return Boolean(mapRef.current?.isMoving())
+      },
       whenIdle() {
         const map = mapRef.current
         return map ? mapIdle(map, loadedRef.current) : Promise.resolve()
@@ -516,6 +524,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
       openPoi(place: Place) {
         const { label: name, kind, lat, lon, elevationFt } = place
         featuresRef.current?.pois.open({ name, kind, lat, lon, ...(elevationFt !== undefined ? { elevationFt } : {}) })
+      },
+      openResult(result: DestinationResult) {
+        featuresRef.current?.results.openPopup(result)
       },
       closePopups() {
         popups.closeAll()

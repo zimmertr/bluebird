@@ -49,14 +49,15 @@ export const PACE = {
   /** The shortest glide; a longer one takes longer, never faster. */
   glideMinMs: 450,
   /** The pointer's top speed, midway through a glide that eases in and out. */
-  glidePeakPxPerS: 1000,
-  /** A panel's scroll, at least, and at most. */
+  glidePeakPxPerS: 800,
+  /** A panel's scroll, at least; a longer one takes longer, as a glide does. */
   scrollMinMs: 300,
-  scrollMaxMs: 600,
   /** Before a press, once the pointer has arrived, and again after it. */
   pressPauseMs: 400,
   /** From the press's ring to the click, and the change it makes. */
   pressRingMs: 120,
+  /** A row's press, seen on the row before the results fold it away. */
+  rowPressMs: 300,
   typeMs: 80,
   flightMs: 1600,
   /** After a step that finished by itself, before the next card. */
@@ -181,7 +182,9 @@ async function scrollTo(stage: Stage, box: HTMLElement, top: number): Promise<vo
     check(stage)
     return
   }
-  const ms = Math.min(PACE.scrollMaxMs, Math.max(PACE.scrollMinMs, Math.abs(d) * 1.2))
+  // The ease below is twice its average speed at its middle, which is held
+  // to the pointer's top speed.
+  const ms = Math.max(PACE.scrollMinMs, (Math.abs(d) * 2 * 1000) / PACE.glidePeakPxPerS)
   const start = performance.now()
   for (;;) {
     const t = Math.min(1, (performance.now() - start) / ms)
@@ -270,10 +273,18 @@ export async function clickMap(stage: Stage, at: { x: number; y: number }, pause
   await sleep(stage, pauseMs)
 }
 
-/** Resolves when the demo map has stopped moving and drawn its tiles. */
+// How long a settled camera waits on its tiles at most: a basemap still
+// loading is no reason to hold a step on a still screen.
+const TILES_WAIT_MS = 400
+
+/**
+ * Resolves when the demo map has stopped moving, and has drawn its tiles or
+ * given them a moment.
+ */
 export async function mapSettled(stage: Stage): Promise<void> {
   const map = await until(stage, () => stage.handle().map)
-  await map.whenIdle()
+  await until(stage, () => !map.moving(), 8000)
+  await Promise.race([map.whenIdle(), new Promise((resolve) => setTimeout(resolve, TILES_WAIT_MS))])
   check(stage)
 }
 

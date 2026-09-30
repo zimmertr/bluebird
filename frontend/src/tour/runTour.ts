@@ -171,6 +171,13 @@ export function runTour(host: TourHost): void {
     return shownPart(list).map((b) => clip(grown(b), inside) ?? b)
   }
 
+  // Whether a target stands on the map itself: a popup there, or a box of
+  // the map (`place.onMap`), as against the panel or the map's own chrome.
+  function onMap(t: Target): boolean {
+    if (t instanceof Element) return Boolean(t.closest('.maplibregl-popup'))
+    return Boolean(t && (t as { map?: boolean }).map)
+  }
+
   // Each target as far as it shows: inside its scrolling panel and the screen.
   function shownPart(list: Target[]): Box[] {
     const view = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight }
@@ -188,36 +195,39 @@ export function runTour(host: TourHost): void {
   // What the dim cuts out, a frame at a time. A phone's drawer that is
   // sliding carries its sections away with it, so nothing in it is lit until
   // it stands still. A lit area that is changing size (a section opening, a
-  // fit under way, a panel scrolling) keeps its last steady box until the new
-  // one has held for a few frames, and then the light glides to it.
+  // notice pushing it, a panel scrolling) goes dark until its new size has
+  // held for a few frames.
   let drawerWas: Box | null = null
   let lastRaw: Box[] = []
-  let steady: Box[] = []
   let heldFor: number[] = []
   function holes(): Box[] {
     const drawer = container.querySelector('[data-drawer]')
     const now = drawer ? boxOf(drawer) : null
     const sliding = Boolean(now && drawerWas && Math.abs(now.left - drawerWas.left) + Math.abs(now.top - drawerWas.top) > 0.5)
     drawerWas = now
-    const raw = measure(targets().filter((t) => !(sliding && t instanceof Element && drawer?.contains(t))))
+    // Nothing on the map is lit while the camera moves: the light is on
+    // where the step's subject stands still.
+    const moving = handle.current?.map?.moving() ?? false
+    if (moving) container.dataset.mapMoving = ''
+    else delete container.dataset.mapMoving
+    const raw = measure(
+      targets().filter((t) => !(sliding && t instanceof Element && drawer?.contains(t)) && !(moving && onMap(t))),
+    )
     if (raw.length !== lastRaw.length) {
       lastRaw = raw
-      steady = raw
-      heldFor = raw.map(() => 0)
+      heldFor = raw.map(() => STEADY_FRAMES)
       return raw
     }
     const size = (b: Box) => [b.right - b.left, b.bottom - b.top]
-    steady = raw.map((b, i) => {
+    raw.forEach((b, i) => {
       const [w, h] = size(b)
       const [pw, ph] = size(lastRaw[i])
       heldFor[i] = Math.abs(w - pw) < 1 && Math.abs(h - ph) < 1 ? heldFor[i] + 1 : 0
-      // Moving whole, it is followed at once; resizing, it waits.
-      if (heldFor[i] >= STEADY_FRAMES) return b
-      const [sw, sh] = size(steady[i])
-      return Math.abs(w - sw) < 1 && Math.abs(h - sh) < 1 ? b : steady[i]
     })
     lastRaw = raw
-    return steady
+    // Moving whole, a lit area is followed at once; changing size, it goes
+    // dark until it has held, so the light is never on a place that is gone.
+    return raw.filter((_, i) => heldFor[i] >= STEADY_FRAMES)
   }
 
   // Resolves once nothing that moves the screen is moving: the drawer, the
@@ -308,7 +318,7 @@ export function runTour(host: TourHost): void {
     const free = freeMap(card, map, place.edge, coveredTop(), held())
     // Never more than two thirds of it, so the place still has room to land.
     const room = Math.min(popupRoom, ((free.bottom - free.top) * 2) / 3)
-    return { ...free, top: free.top + room }
+    return Object.assign({ ...free, top: free.top + room }, { map: true })
   }
   // Set while a flight carries a place whose popup opens above it.
   let popupRoom = 0

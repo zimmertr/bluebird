@@ -127,12 +127,16 @@ describe('stepLayout', () => {
 })
 
 describe('phoneEdge', () => {
-  it('stands at the top for the steps that light the results sheet or the player, and the last', () => {
+  it('stands at the top for the steps that light the results sheet or the player, the popup the row opens, and the last', () => {
     const top = TOUR_STEPS.filter((_, i) => phoneEdge(i) === 'top').map((s) => s.key)
-    expect(top).toEqual(['results', 'bound', 'row', 'player', 'tools', 'tutorial'])
+    expect(top).toEqual(['results', 'bound', 'row', 'popup', 'player', 'tools', 'tutorial'])
   })
 
-  it('stands at the bottom for the popup and the legend, which need the map under the chrome', () => {
-    for (const key of ['popup', 'legend']) expect(phoneEdge(stepIndex(key)), key).toBe('bottom')
+  it('keeps its edge from the row step to the popup it opens', () => {
+    expect(phoneEdge(stepIndex('popup'))).toBe(phoneEdge(stepIndex('row')))
+  })
+
+  it('stands at the bottom for the legend, which stands under the map\'s chrome at the top', () => {
+    expect(phoneEdge(stepIndex('legend'))).toBe('bottom')
   })
 })

@@ -38,6 +38,15 @@ describe('cardPlace', () => {
     }
   })
 
+  it('stands above the app\'s progress box where it would cover it, and nowhere else', () => {
+    const covering = cardPlace({ viewportW: 1280, viewportH: 800, isDesktop: true, map: desktopMap(1280, 800), edge: 'bottom', cardH: 140 })
+    const middleY = (800 - RESULTS_BAR_PX) / 2
+    expect((covering.top ?? 0) + 140).toBeLessThanOrEqual(middleY - 205 / 2 - 16)
+    // At 2560 the box stands right of the card, which keeps its own height.
+    const clear = cardPlace({ viewportW: 2560, viewportH: 1440, isDesktop: true, map: desktopMap(2560, 1440), edge: 'bottom', cardH: 140 })
+    expect(clear.top).toBe(1440 * 0.4 - 70)
+  })
+
   it('stands in the same place whatever the map\'s own height is', () => {
     const tall = cardPlace({ viewportW: 1280, viewportH: 800, isDesktop: true, map: desktopMap(1280, 764), edge: 'bottom' })
     const short = cardPlace({ viewportW: 1280, viewportH: 800, isDesktop: true, map: desktopMap(1280, 398), edge: 'top' })

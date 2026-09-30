@@ -1,3 +1,4 @@
+import { flushSync } from 'react-dom'
 import {
   PACE,
   type Stage,
@@ -118,7 +119,7 @@ function popupAndMarker(stage: Stage, at: Point): Box | null {
     ? { left: dot[0] - MARKER_RADIUS_PX, top: dot[1] - MARKER_RADIUS_PX, right: dot[0] + MARKER_RADIUS_PX, bottom: dot[1] + MARKER_RADIUS_PX }
     : null
   const box = union(boxOf(popup), marker)
-  return box && Object.assign(box, { popup: true })
+  return box && Object.assign(box, { popup: true, map: true })
 }
 
 // A drawer that slides in has to finish before a control in it is measured,
@@ -235,7 +236,8 @@ function pointsBox(stage: Stage, points: Point[]): Target {
     right: Math.max(...xs) + FRAME_PAD_PX,
     bottom: Math.max(...ys) + FRAME_PAD_PX,
   }
-  return clip(box, free)
+  const on = clip(box, free)
+  return on && Object.assign(on, { map: true })
 }
 
 /**
@@ -322,9 +324,21 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
 
   async 'draw-start'(stage) {
     stage.light(() => [area(stage, 'polygon')])
-    await press(stage, await until(stage, () => area(stage, 'draw-start')))
+    const button = await until(stage, () => area(stage, 'draw-start'))
+    await reveal(stage, button)
+    await stage.pointer.glide(centerOf(button), stage)
+    await sleep(stage, PACE.pressPauseMs)
+    stage.pointer.press(stage, button)
+    await sleep(stage, PACE.pressRingMs)
+    button.click()
     // A phone's drawer closes as drawing starts, so the ring is placed on a
-    // map the reader can see.
+    // map the reader can see. It is opened again in the same task, before
+    // anything is drawn, as a reader can open it while drawing, so the step
+    // holds on the Polygon block in its draw-mode state; the next step's card
+    // closes it onto the map.
+    const handle = stage.handle()
+    if (!handle.isDesktop) flushSync(() => handle.setSidebarOpen(true))
+    await sleep(stage, PACE.pressPauseMs)
   },
 
   async 'draw-corners'(stage) {
@@ -358,8 +372,7 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     await pressField(stage, field)
     await sleep(stage, PACE.pressPauseMs)
     // A paste, so the app frames the pasted rows on the map as it does for a
-    // reader's paste; on a desktop the light takes in where they land.
-    if (stage.handle().isDesktop) stage.light(() => [section, pointsBox(stage, pastedPlaces())])
+    // reader's paste; the result lights where they land.
     field.dispatchEvent(new Event('paste', { bubbles: true }))
     setValue(field, PASTED)
     await sleep(stage, PACE.pressPauseMs)
@@ -390,7 +403,11 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
       ),
     )
     await press(stage, old)
-    await press(stage, await until(stage, () => modelTrigger(stage)))
+    // Shut as a reader shuts it without touching a row: the list stands over
+    // its own button, so a press there would read as picking the row on top.
+    await sleep(stage, PACE.pressPauseMs)
+    key(await until(stage, () => modelList(stage)), 'Escape')
+    await until(stage, () => !modelList(stage))
   },
 
   async 'window-day'(stage, _demo, nowMs) {
@@ -428,10 +445,10 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     await press(stage, button)
     stage.pointer.hide()
     // The map frames every place the analysis ranks while it runs, so the
-    // coloured markers arrive in the light.
-    const cast = castPoints(demo)
-    stage.handle().map?.fitToPoints(cast, FRAME_PAD_PX)
-    stage.light(() => [find(stage, tourSelector('progress')) ?? button, pointsBox(stage, cast)])
+    // markers arrive where the result lights them; meanwhile the light is on
+    // the app's progress.
+    stage.handle().map?.fitToPoints(castPoints(demo), FRAME_PAD_PX)
+    stage.light(() => [find(stage, tourSelector('progress')) ?? button])
     await until(stage, () => stage.handle().analysisSeq > before && !stage.handle().loading, 30_000)
   },
 
@@ -441,7 +458,8 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     // The camera goes to where the fire will be drawn while the pointer goes
     // to Layers, so both switches are seen to draw what they turn on.
     stage.handle().map?.fitToPoints(overlay, FRAME_PAD_PX)
-    stage.light(() => [layersAndMenu(stage), pointsBox(stage, overlay)])
+    // The menu alone while the pointer works in it; the map once it closes.
+    stage.light(() => [layersAndMenu(stage)])
     await press(stage, button)
     await mapSettled(stage)
     for (const layer of ['fires', 'smoke']) {
@@ -449,6 +467,7 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
       if (!box.checked) await press(stage, box)
     }
     await press(stage, button)
+    stage.light(() => [pointsBox(stage, overlay)])
   },
 
   async bound(stage) {
@@ -491,25 +510,26 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
       stage.pointer.press(stage, center)
       await sleep(stage, PACE.pressRingMs)
       center.click()
-      stage.pointer.hide()
-      stage.light(() => [stage.freeMap()])
       // The press flies to the row and opens its popup over a map still short
       // of the whole table, which then folds: that flight would carry the
-      // popup under the card and land it there. It is taken over at once by
-      // one aimed at the map as it stands folded, and the popup, closed for
-      // the flight, opens where the place landed, and is lit there.
+      // popup under the card and land it there. The popup closes at once, the
+      // press is seen on its row, and then the flight is taken over by one
+      // aimed at the map as it stands folded; the popup opens where the place
+      // landed, and is lit there.
       const handle = stage.handle()
       const map = await until(stage, () => handle.map)
       const [top] = handle.results
       map.closePopups()
+      await sleep(stage, PACE.rowPressMs)
+      stage.pointer.hide()
+      stage.light(() => [stage.freeMap()])
       if (!handle.resultsCollapsed) handle.toggleCollapsed()
       await frame(stage)
       await frame(stage)
       if (top) map.flyTo(top.longitude, top.latitude, Math.max(map.camera()?.zoom ?? 10, 10), ROW_FLIGHT_MS)
       await sleep(stage, 100)
       await mapSettled(stage)
-      // Already there, so this opens the popup and moves nothing.
-      if (top) map.focusResult(top)
+      if (top) map.openResult(top)
       await until(stage, () => mapPopup(stage), 3000)
       if (top) stage.light(() => [popupAndMarker(stage, top)])
       await mapSettled(stage)
@@ -578,10 +598,7 @@ export const RESULTS: Readonly<Record<string, Result>> = {
   },
   // A desktop shows draw mode in the panel; a phone's drawer closes, and what
   // the app shows then is the map, waiting for the first corner.
-  async 'draw-start'(stage, demo, nowMs) {
-    if (stage.handle().isDesktop) return section('polygon')(stage, demo, nowMs)
-    return () => [stage.freeMap()]
-  },
+  'draw-start': section('polygon'),
   async 'draw-corners'(stage) {
     const ring = RING.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
     return () => [pointsBox(stage, ring)]
@@ -602,7 +619,8 @@ export const RESULTS: Readonly<Record<string, Result>> = {
   // The picked day is somewhere in the grid, and a phone's panel cannot show
   // the grid's last row together with the When row above it: the grid wins.
   'window-day': section('calendar', 'bottom'),
-  'window-hours': section('calendar', 'bottom'),
+  // From the Hours row down: the hours are what this step set.
+  'window-hours': section('calendar'),
   // The ranked markers, and on a desktop the results bar that opened under
   // them. A phone's bar stands under the card.
   async analyze(stage, demo, nowMs) {

@@ -28,22 +28,53 @@ const ARROW =
   '<path d="M2 2 L2 19 L6.5 14.8 L9.6 21.6 L12.6 20.3 L9.6 13.6 L15.6 13.4 Z" ' +
   'stroke-width="1.5" stroke-linejoin="round" />'
 
-// How much faster than its average a glide that eases in and out is at its
-// middle: the peak slope of CSS's `ease-in-out` curve.
-const EASE_PEAK = 1.6
+// The glide's curve, set on the element rather than through a class:
+// Tailwind's `ease-in-out` is fast at the start, and its peak set the speed a
+// reader could not follow. A symmetric ease whose handles sit a third in is
+// steepest at 1.5 times its average speed (CSS's `ease-in-out`, at 0.42, is
+// 1.72), so a glide at the capped peak covers 800 px in 1.5 s.
+export const GLIDE_CURVE = [1 / 3, 0, 2 / 3, 1] as const
+
+function bezier(t: number, a: number, b: number): number {
+  const u = 1 - t
+  return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t
+}
+
+/** Where along a glide the pointer is, from 0 to 1, when `x` of its time has passed. */
+export function glideAt(x: number): number {
+  const [x1, y1, x2, y2] = GLIDE_CURVE
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2
+    if (bezier(mid, x1, x2) < x) lo = mid
+    else hi = mid
+  }
+  return bezier((lo + hi) / 2, y1, y2)
+}
+
+// How much faster than its average the pointer moves at the curve's steepest,
+// read off the curve itself.
+const PEAK_SLOPE = (() => {
+  let most = 0
+  for (let i = 0; i < 1000; i++) most = Math.max(most, (glideAt((i + 1) / 1000) - glideAt(i / 1000)) * 1000)
+  return most
+})()
 
 /**
  * How long a glide over `px` takes: never under the shortest glide, and long
- * enough that the pointer's top speed stays under `PACE.glidePeakPxPerS`, so
- * a long move takes longer rather than going faster.
+ * enough that the pointer's speed at the curve's steepest stays under
+ * `PACE.glidePeakPxPerS`, so a long move takes longer rather than going
+ * faster. There is no ceiling.
  */
 export function glideMs(px: number): number {
-  return Math.round(Math.max(PACE.glideMinMs, (px * EASE_PEAK * 1000) / PACE.glidePeakPxPerS))
+  return Math.ceil(Math.max(PACE.glideMinMs, (px * PEAK_SLOPE * 1000) / PACE.glidePeakPxPerS))
 }
 
 export function createPointer(): Pointer {
   const el = document.createElement('div')
   el.className = TOUR.pointer
+  el.style.transitionTimingFunction = `cubic-bezier(${GLIDE_CURVE.join(', ')})`
   el.setAttribute('aria-hidden', 'true')
   el.style.opacity = '0'
   el.innerHTML = `<svg viewBox="0 0 24 24" class="${TOUR.pointerArrow}" style="margin:-2px 0 0 -2px">${ARROW}</svg>`

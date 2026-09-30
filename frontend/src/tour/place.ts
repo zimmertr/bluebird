@@ -43,6 +43,12 @@ const CARD_H_GUESS = 124
 // the middle, so the map below it, where a fit lands on a short screen, is the
 // taller band.
 const CARD_MIDDLE_AT = 0.4
+// The app's progress box, which it centres on the map while an analysis runs
+// (`AnalysisOverlay`): 280px wide, and 205px tall as the demo fills it,
+// measured 2026-09-30 at 1280x800. The analyze step is about it, so where the
+// card would cover it the card stands above it.
+const PROGRESS_W = 280
+const PROGRESS_H = 205
 // The map's left edge holds the search box, Layers and the legends
 // (`MAP_COL_W`, 184px at a 12px inset), and the model list opens over it from
 // the panel: measured 2026-09-29 at 1280x800, its right edge is 245px into the
@@ -116,8 +122,15 @@ export function cardPlace({
   const maxRight = map.right - RIGHT_HELD_PX - CARD_GAP
   const width = Math.max(0, Math.min(CARD_W, maxRight - minLeft))
   const left = Math.round(Math.min(minLeft, maxRight - width))
-  const top = Math.round(Math.max(map.top + CARD_GAP, Math.min(viewportH * CARD_MIDDLE_AT - cardH / 2, lowest - cardH)))
-  return { left, width, top, edge: 'map' }
+  let top = Math.min(viewportH * CARD_MIDDLE_AT - cardH / 2, lowest - cardH)
+  // The map as it stands in the analyze step, with the results folded to
+  // their bar, and the progress box in its middle.
+  const middleX = (map.left + map.right) / 2
+  const middleY = (map.top + viewportH - RESULTS_BAR_PX) / 2
+  if (left < middleX + PROGRESS_W / 2 + CARD_GAP && left + width > middleX - PROGRESS_W / 2 - CARD_GAP) {
+    top = Math.min(top, middleY - PROGRESS_H / 2 - CARD_GAP - cardH)
+  }
+  return { left, width, top: Math.floor(Math.max(map.top + CARD_GAP, top)), edge: 'map' }
 }
 
 /**
