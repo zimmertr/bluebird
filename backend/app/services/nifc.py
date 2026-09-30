@@ -36,8 +36,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
-import math
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -45,12 +43,10 @@ from typing import Any
 import httpx
 
 from app.env import env_int
-from app.services import wfigs_coverage
-from app.services.errors import UpstreamError, UpstreamRateLimited
+from app.services import arcgis, wfigs_coverage
+from app.services.errors import UpstreamError
 from app.services.http import HEADERS
 from app.services.snapshot import cache_factory
-
-log = logging.getLogger(__name__)
 
 PROVIDER = "NIFC (wildfire perimeters)"
 
@@ -170,32 +166,6 @@ def collection_json(snapshot: Snapshot, fires: list[Fire]) -> str:
     )
 
 
-def _bounds(coordinates: Any) -> tuple[float, float, float, float] | None:
-    """Bounding box of an arbitrarily nested GeoJSON coordinate array.
-
-    Written as a walk rather than per-geometry-type cases because the layer
-    returns both Polygon and MultiPolygon and the answer is the same either way.
-    """
-    west = south = math.inf
-    east = north = -math.inf
-    stack: list[Any] = [coordinates]
-    while stack:
-        item = stack.pop()
-        if not isinstance(item, list) or not item:
-            continue
-        if isinstance(item[0], (int, float)) and len(item) >= 2:
-            lon, lat = float(item[0]), float(item[1])
-            west = min(west, lon)
-            east = max(east, lon)
-            south = min(south, lat)
-            north = max(north, lat)
-        else:
-            stack.extend(item)
-    if west is math.inf:
-        return None
-    return west, south, east, north
-
-
 def _to_fire(feature: dict[str, Any]) -> Fire | None:
     """One ArcGIS feature as a stored ``Fire``, or None if it carries no shape.
 
@@ -205,7 +175,7 @@ def _to_fire(feature: dict[str, Any]) -> Fire | None:
     geometry = feature.get("geometry")
     if not isinstance(geometry, dict):
         return None
-    bounds = _bounds(geometry.get("coordinates"))
+    bounds = arcgis.bounds(geometry.get("coordinates"))
     if bounds is None:
         return None
     west, south, east, north = bounds
@@ -221,8 +191,8 @@ def _to_fire(feature: dict[str, Any]) -> Fire | None:
 def _parse_page(payload: bytes) -> tuple[list[Fire], bool, int]:
     """One page of the ArcGIS answer, decoded and reduced to stored fires.
 
-    Pure and synchronous so ``_fetch_layer`` can hand it to a thread: it takes
-    the bytes off the wire and returns what the caller needs to continue paging
+    Pure and synchronous so the pager can hand it to a thread: it takes the
+    bytes off the wire and returns what the caller needs to continue paging
     (the fires, whether ArcGIS truncated the page, and how many features it
     actually sent, which is the offset step).
     """
@@ -232,36 +202,17 @@ def _parse_page(payload: bytes) -> tuple[list[Fire], bool, int]:
     if not isinstance(features, list):
         raise UpstreamError("Wildfire data could not be read.")
     fires = [fire for fire in map(_to_fire, features) if fire is not None]
-    return fires, bool(body.get("exceededTransferLimit")), len(features)
+    return fires, arcgis.page_flag(body), len(features)
 
 
 def _raise_for_arcgis_error(body: Any) -> None:
-    """Surface an error ArcGIS reported inside an HTTP 200.
-
-    ArcGIS answers an exhausted quota with 200 and the refusal in the body, so
-    ``raise_for_status`` learns nothing:
-
-        {"error":{"code":429,"message":"Unable to perform query. Too many
-         requests.","details":["API calls quota exceeded (62896 request units)!
-         maximum allowed request units (57600) per Minute. Retry after 60 sec."]}}
-
-    Validating only that the body looks like a FeatureCollection reports this as
-    a parsing problem, which sent an earlier investigation hunting through our
-    own code for hours (issue #203).
-    """
-    error = body.get("error") if isinstance(body, dict) else None
-    if not isinstance(error, dict):
-        return
-    code = error.get("code") if isinstance(error.get("code"), int) else None
-    # 503 arrives in the same envelope when the service is merely overloaded.
-    if code in (429, 503):
-        raise UpstreamRateLimited(
-            PROVIDER,
-            "minutely",
-            60,
-            "Wildfire data is rate-limited. Try again later.",
-        )
-    raise UpstreamError("Wildfire data was rejected. Try again later.")
+    """An ArcGIS refusal inside an HTTP 200, in this overlay's own words."""
+    arcgis.raise_for_arcgis_error(
+        body,
+        PROVIDER,
+        rate_limited="Wildfire data is rate-limited. Try again later.",
+        rejected="Wildfire data was rejected. Try again later.",
+    )
 
 
 async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) -> tuple[Fire, ...]:
@@ -271,43 +222,27 @@ async def _fetch_layer(client: httpx.AsyncClient, simplify_deg: float | None) ->
     both the smallest query to describe and the one that sidesteps the Aleutians
     straddling the antimeridian, where a west/east envelope is ill-defined.
     """
-    fires: list[Fire] = []
-    offset = 0
-    for _page in range(MAX_PAGES):
-        params: dict[str, Any] = {
-            "where": WHERE,
-            "outFields": OUT_FIELDS,
-            "returnGeometry": "true",
-            "outSR": "4326",
-            "geometryPrecision": GEOMETRY_PRECISION,
-            "resultOffset": offset,
-            "resultRecordCount": PAGE_SIZE,
-            "f": "geojson",
-        }
-        if simplify_deg is not None:
-            params["maxAllowableOffset"] = simplify_deg
-        response = await client.get(QUERY_URL, params=params)
-        response.raise_for_status()
-        # Off the event loop, because this is the one genuinely expensive piece
-        # of CPU work the pod does. The full-resolution copy is 16.5 MB of JSON
-        # holding 861k coordinates, and `json.dumps` runs again per feature to
-        # store it. `snapshot.py` already keeps the refresh off the request that
-        # triggered it, but an `async` function holding the loop blocks every
-        # OTHER request on the pod for as long as it runs, which is the likely
-        # cause of the 4.1 s answer #337 measured from a warm in-memory
-        # snapshot. A thread is enough: both halves are pure, and the GIL is
-        # released around the decode.
-        page_fires, more, count = await asyncio.to_thread(_parse_page, response.content)
-        fires.extend(page_fires)
-        if not more or not count:
-            return tuple(fires)
-        offset += count
-    log.warning(
-        "NIFC paging hit the %d page backstop at %d features; serving what arrived",
-        MAX_PAGES,
-        len(fires),
+    params: dict[str, Any] = {
+        "where": WHERE,
+        "outFields": OUT_FIELDS,
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "geometryPrecision": GEOMETRY_PRECISION,
+        "f": "geojson",
+    }
+    if simplify_deg is not None:
+        params["maxAllowableOffset"] = simplify_deg
+    # `_parse_page` and `MAX_PAGES` are read here, at call time, so a test that
+    # patches either on this module reaches the pager.
+    return await arcgis.fetch_pages(
+        client,
+        QUERY_URL,
+        params,
+        _parse_page,
+        page_size=PAGE_SIZE,
+        max_pages=MAX_PAGES,
+        label="NIFC",
     )
-    return tuple(fires)
 
 
 async def fetch_snapshot() -> Snapshot:

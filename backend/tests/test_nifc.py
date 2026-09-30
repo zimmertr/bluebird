@@ -14,6 +14,7 @@ import time
 
 import httpx
 import pytest
+from conftest import fake_response
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -50,17 +51,6 @@ def _snapshot(*features: dict, fetched_at_ms: int = 1_000) -> nifc.Snapshot:
 
 
 # ── Parsing and geometry ──────────────────────────────────────────────────────
-
-
-def test_bounds_walks_multipolygon_rings():
-    geometry = {
-        "type": "MultiPolygon",
-        "coordinates": [
-            [[[-120.0, 45.0], [-119.0, 45.0], [-119.0, 46.0], [-120.0, 45.0]]],
-            [[[-118.0, 44.0], [-117.5, 44.0], [-117.5, 44.5], [-118.0, 44.0]]],
-        ],
-    }
-    assert nifc._bounds(geometry["coordinates"]) == (-120.0, 44.0, -117.5, 46.0)
 
 
 def test_to_fire_drops_a_feature_with_no_geometry():
@@ -109,7 +99,7 @@ def _client_returning(pages: list[dict]) -> httpx.AsyncClient:
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
-        return httpx.Response(200, json=pages[min(len(calls) - 1, len(pages) - 1)])
+        return fake_response(pages[min(len(calls) - 1, len(pages) - 1)])
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     client.recorded = calls  # type: ignore[attr-defined]
@@ -134,6 +124,31 @@ async def test_fetch_layer_follows_exceeded_transfer_limit():
         # The second request must resume where the first stopped, or paging
         # silently re-reads page one forever.
         assert "resultOffset=1" in str(client.recorded[1].url)
+
+
+async def test_fetch_layer_follows_the_flag_where_geojson_puts_it():
+    """``f=geojson`` reports the page flag under ``properties``, not at the top.
+
+    Measured 2026-09-30 on both ArcGIS services this app reads. A reader that
+    looks only at the top level stops after the first page and serves a
+    truncated national set without a word; fires never passed one page, so the
+    bug sat unseen until the closure lines arrived in two.
+    """
+    pages = [
+        {
+            "type": "FeatureCollection",
+            "properties": {"exceededTransferLimit": True},
+            "features": [_polygon(-120.0, 45.0, -119.9, 45.1)],
+        },
+        {
+            "type": "FeatureCollection",
+            "features": [_polygon(-118.0, 44.0, -117.9, 44.1)],
+        },
+    ]
+    async with _client_returning(pages) as client:
+        fires = await nifc._fetch_layer(client, None)
+        assert len(fires) == 2
+        assert len(client.recorded) == 2
 
 
 async def test_the_page_parse_runs_off_the_event_loop(monkeypatch):

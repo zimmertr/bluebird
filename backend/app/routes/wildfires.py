@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
-from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import nifc
+from app.services.bbox import parse_bbox
 from app.services.snapshot import snapshot_or_503
 
 router = APIRouter()
@@ -55,43 +55,6 @@ class WildfireCollection(BaseModel):
             "coalesce the pair."
         )
     )
-
-
-def _parse_bbox(raw: str) -> tuple[float, float, float, float]:
-    parts = raw.split(",")
-    if len(parts) != 4:
-        raise ApiError(
-            status_code=422,
-            detail="bbox must be four comma-separated numbers: west,south,east,north.",
-            code=ErrorCode.validation,
-        )
-    try:
-        west, south, east, north = (float(p) for p in parts)
-    except ValueError:
-        raise ApiError(
-            status_code=422,
-            detail="bbox must be four comma-separated numbers: west,south,east,north.",
-            code=ErrorCode.validation,
-        ) from None
-    if not (-180 <= west <= 180 and -180 <= east <= 180):
-        raise ApiError(
-            status_code=422,
-            detail="bbox longitudes must be between -180 and 180.",
-            code=ErrorCode.validation,
-        )
-    if not (-90 <= south <= 90 and -90 <= north <= 90):
-        raise ApiError(
-            status_code=422,
-            detail="bbox latitudes must be between -90 and 90.",
-            code=ErrorCode.validation,
-        )
-    if south > north:
-        raise ApiError(
-            status_code=422,
-            detail="bbox south must not exceed north.",
-            code=ErrorCode.validation,
-        )
-    return west, south, east, north
 
 
 @router.get(
@@ -164,7 +127,7 @@ async def wildfires(
         ),
     ),
 ) -> Response:
-    box = _parse_bbox(bbox)
+    box = parse_bbox(bbox)
     snapshot = await snapshot_or_503(nifc.PERIMETERS, event="wildfires_unavailable")
     fires = snapshot.within(box, coarse=detail == "coarse")
     # Returned as a Response so FastAPI passes the stored feature text through
