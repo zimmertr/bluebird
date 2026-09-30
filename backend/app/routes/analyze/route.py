@@ -1,9 +1,7 @@
 import asyncio
-import json
 import logging
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import aclosing
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -12,7 +10,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 
 from app import ratelimit, telemetry
-from app.error_codes import ApiError, ErrorCode, error_object
+from app.error_codes import ApiError, ErrorCode
 from app.models import (
     MAX_ANALYZE_PEAKS,
     AnalysisRefusal,
@@ -26,6 +24,17 @@ from app.models import (
     bbox_area_km2,
     window_source,
 )
+from app.routes.analyze.events import (
+    _STREAM_DONE,
+    AnalyzeEvent,
+    Failure,
+    Progress,
+    Refusal,
+    Result,
+    Status,
+    _drain,
+)
+from app.routes.analyze.sse import _render_sse, _sse_error, _with_keepalive
 from app.services import air_quality, snodas, weather
 from app.services.candidates import (
     _filter_elevation,
@@ -98,7 +107,10 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     )
 
 
-log = logging.getLogger(__name__)
+# Pinned rather than `__name__` (`app.routes.analyze.route`), because
+# `docs/CONFIGURATION.md` shows operators this name in its log examples and a
+# filter written against it must keep matching.
+log = logging.getLogger("app.routes.analyze")
 router = APIRouter()
 
 
@@ -150,160 +162,6 @@ def _summarize_request(request: AnalyzeRequest) -> str:
 #
 # A generator rather than a coroutine because the SSE route needs the events
 # that arrive mid-flight. A coroutine could only hand back the last one.
-
-
-@dataclass(slots=True)
-class Status:
-    """A phase heading, with an optional line of mid-phase news under it."""
-
-    message: str
-    detail: str | None = None
-
-
-@dataclass(slots=True)
-class Progress:
-    """Counters for the retrieval phase."""
-
-    processed: int
-    total: int
-    percent: int
-    batches_done: int | None = None
-    total_batches: int | None = None
-    message: str | None = None
-
-
-@dataclass(slots=True)
-class Failure:
-    """A terminal failure, carried rather than raised.
-
-    The `ApiError` holds everything a JSON caller gets — status, sentence,
-    code, `Retry-After` — and the stream reads the two members an event can
-    carry off the same object. `extra` is for whatever one failure sends
-    beyond that: an upstream rate limit names its scope and its resume
-    estimate, which a response puts in a header and an event cannot.
-    """
-
-    error: ApiError
-    extra: dict | None = None
-
-
-@dataclass(slots=True)
-class Refusal:
-    """The over-cap 400, whose body is `AnalysisRefusal` rather than a plain
-    error: it carries remedy fields, so it is rendered from the model rather
-    than rebuilt member by member on either side."""
-
-    body: dict
-
-
-@dataclass(slots=True)
-class Result:
-    """The terminal success."""
-
-    response: AnalyzeResponse
-
-
-AnalyzeEvent = Status | Progress | Failure | Refusal | Result
-
-
-def _sse(event_type: str, **kwargs) -> str:
-    return f"data: {json.dumps({'type': event_type, **kwargs})}\n\n"
-
-
-def _sse_error(message: str, code: ErrorCode, **kwargs) -> str:
-    """A terminal `error` event.
-
-    The stream has no status code to carry the failure, so the `error` member
-    the JSON routes answer with rides here too, beside the `message` a plain
-    consumer renders and whatever extra fields that failure already sent.
-    """
-    return _sse("error", message=message, error=error_object(code), **kwargs)
-
-
-def _render_sse(event: AnalyzeEvent) -> str:
-    """One analysis event as its `data:` line.
-
-    An optional field is left out of the payload rather than sent as null: a
-    consumer tests for the key, and a healthy status event has never carried a
-    `detail` member.
-    """
-    if isinstance(event, Status):
-        detail = {"detail": event.detail} if event.detail is not None else {}
-        return _sse("status", message=event.message, **detail)
-    if isinstance(event, Progress):
-        counters = {
-            k: v
-            for k, v in (
-                ("batches_done", event.batches_done),
-                ("total_batches", event.total_batches),
-                ("message", event.message),
-            )
-            if v is not None
-        }
-        return _sse(
-            "progress",
-            processed=event.processed,
-            total=event.total,
-            percent=event.percent,
-            **counters,
-        )
-    if isinstance(event, Failure):
-        # The status code has nowhere to go on a stream that is already 200.
-        return _sse_error(event.error.detail, event.error.code, **(event.extra or {}))
-    if isinstance(event, Refusal):
-        # The same structured remedy fields the HTTP 400 carries — the `error`
-        # member among them — message first so a plain consumer can render it.
-        body = dict(event.body)
-        return _sse("error", message=body.pop("detail"), **body)
-    # Result, the last member of the union.
-    return _sse("result", data=event.response.model_dump())
-
-
-# Sentinel pushed onto a progress queue once the backing task has finished.
-_STREAM_DONE = object()
-
-
-async def _drain(queue: asyncio.Queue) -> AsyncIterator[Any]:
-    """Yield items from `queue` until the done sentinel.
-
-    Lets the analysis interleave progress with a coroutine it runs on a
-    separate task: the task pushes items as work happens, then pushes
-    `_STREAM_DONE` in its `finally` to end the drain.
-    """
-    while True:
-        item = await queue.get()
-        if item is _STREAM_DONE:
-            return
-        yield item
-
-
-# Cloudflare closes proxied connections idle for ~100 seconds, and a paced
-# analysis can legitimately go quiet for most of a minute while the weighted
-# budget refills. Emitted often enough to keep a healthy margin.
-KEEPALIVE_INTERVAL_S = 25.0
-
-
-async def _with_keepalive(source, interval_s: float = KEEPALIVE_INTERVAL_S) -> AsyncIterator[str]:
-    """Re-yield `source`, inserting a `keepalive` event during silences.
-
-    Consumers that switch on the event `type` ignore it by construction; its
-    only job is keeping proxy idle timers from killing a paced stream.
-    """
-    iterator = source.__aiter__()
-    next_item = asyncio.ensure_future(anext(iterator))
-    try:
-        while True:
-            try:
-                item = await asyncio.wait_for(asyncio.shield(next_item), interval_s)
-            except TimeoutError:
-                yield _sse("keepalive")
-                continue
-            except StopAsyncIteration:
-                return
-            yield item
-            next_item = asyncio.ensure_future(anext(iterator))
-    finally:
-        next_item.cancel()
 
 
 async def _attach_aqi(

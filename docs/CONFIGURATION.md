@@ -89,7 +89,7 @@ LOG_LEVEL=TRACE
 A `TRACE` run for a peaks query looks like this:
 
 ```
-2026-06-28T08:00:01 [INFO    ] app.routes.analyze: Analyze request: type=peak window=2026-06-28T08:00→2026-06-29T20:00 limit=10
+2026-06-28T08:00:01 [INFO    ] app.routes.analyze: Analyze request: types=peak start=2026-06-28T08:00 end=2026-06-29T20:00 sort=precip_total_in dir=asc limit=10 polygon=6pts area=4,180km2
 2026-06-28T08:00:01 [INFO    ] app.services.osm: Querying OSM Overpass for type=peak
 2026-06-28T08:00:01 [TRACE   ] app.services.osm: Overpass query:
 [out:json][timeout:60];
@@ -103,5 +103,5 @@ out;
 2026-06-28T08:00:04 [INFO    ] app.services.osm: OSM returned 34 named destination(s)
 2026-06-28T08:00:04 [INFO    ] app.services.weather: Fetching Open-Meteo weather: 34 destination(s) across 1 batch(es)
 2026-06-28T08:00:05 [TRACE   ] app.services.weather: Open-Meteo batch returned 34 result(s)
-2026-06-28T08:00:05 [INFO    ] app.routes.analyze: Returning 10 result(s) (driest: 0.012", wettest: 0.089")
+2026-06-28T08:00:05 [INFO    ] app.routes.analyze: Returning 10 result(s) sorted by precip_total_in asc (best: 0.012, worst: 0.089)
 ```

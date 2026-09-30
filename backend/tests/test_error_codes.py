@@ -117,13 +117,18 @@ def test_every_stream_error_event_carries_the_field():
     The stream has no status code to carry a failure, so an `error` event that
     forgot the field would be the one failure path a client cannot branch on.
     `_sse_error` builds it; the refusal spreads a body that already holds it.
+
+    Every module of the analyze package is read, and the stream's own module
+    must hold at least one `error` event, so a move that takes the rendering
+    somewhere else fails here instead of leaving nothing to check.
     """
-    source = (ROUTES / "analyze.py").read_text()
-    bare = [
-        line.strip()
-        for line in source.splitlines()
+    package = ROUTES / "analyze"
+    built = [
+        (py.name, line.strip())
+        for py in sorted(package.glob("*.py"))
+        for line in py.read_text().splitlines()
         if re.search(r'_sse\(\s*"error"', line)
-        and "error=" not in line
-        and "**body" not in line
     ]
+    assert any(name == "sse.py" for name, _ in built), "no error event found in routes/analyze/sse.py"
+    bare = [line for _, line in built if "error=" not in line and "**body" not in line]
     assert not bare, f"error events built without a code: {bare}"

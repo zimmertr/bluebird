@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import ast
 import json
+import re
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from conftest import fake_response
@@ -20,7 +23,8 @@ from app.models import (
     GeoPolygon,
     SortBy,
 )
-from app.routes.analyze import _sse, _summarize_request
+from app.routes.analyze.route import _summarize_request
+from app.routes.analyze.sse import _sse
 from app.services import air_quality, osm, ranking, snodas, weather
 from app.services.candidates import _coord_key, _filter_elevation, _merge_custom
 from app.services.errors import (
@@ -1978,3 +1982,30 @@ def test_summary_logs_the_clouds_opt_in():
         include_clouds=True,
     )
     assert "clouds=on" in _summarize_request(req)
+
+
+def _logger_names_in_code() -> set[str]:
+    """Every name a module under `app/` passes to `logging.getLogger`: a string
+    literal as written, and `__name__` as the module's dotted path."""
+    app_root = Path(__file__).resolve().parents[1] / "app"
+    names = set()
+    for py in app_root.rglob("*.py"):
+        module = ".".join(py.relative_to(app_root.parent).with_suffix("").parts)
+        for node in ast.walk(ast.parse(py.read_text())):
+            if isinstance(node, ast.Call) and getattr(node.func, "attr", None) == "getLogger" and node.args:
+                arg = node.args[0]
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    names.add(arg.value)
+                elif isinstance(arg, ast.Name) and arg.id == "__name__":
+                    names.add(module.removesuffix(".__init__"))
+    return names
+
+
+def test_every_logger_the_docs_show_is_one_the_code_uses():
+    # Operators filter on the names `docs/CONFIGURATION.md` prints in its log
+    # examples, so a module that moves or renames its logger must move the doc
+    # with it. `routes/analyze/route.py` pins its name for exactly this reason.
+    docs = (Path(__file__).resolve().parents[2] / "docs" / "CONFIGURATION.md").read_text()
+    shown = set(re.findall(r"^\S+ \[\w+ *\] ([\w.]+): ", docs, re.MULTILINE))
+    assert {"app.routes.analyze", "app.services.osm", "app.services.weather"} <= shown
+    assert shown - _logger_names_in_code() == set()
