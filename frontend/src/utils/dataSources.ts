@@ -113,6 +113,6 @@ export const DATA_SOURCES: readonly DataSource[] = [
     name: 'US Forest Service',
     href: 'https://www.fs.usda.gov/',
     provides:
-      'Fire closure orders in Oregon and Washington, for the optional closure layers and the closure column.',
+      "Closure orders from the Forest Service's Pacific Northwest, Southwestern and Intermountain regions, for the optional closure layers and the closure column.",
   },
 ]

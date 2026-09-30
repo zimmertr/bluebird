@@ -34,12 +34,13 @@ export type ClosureProximityStatus = FireProximityStatus
 
 /**
  * The two hover texts an N/A cell carries, the fire column's pair (TJ, PR #275
- * review) for the closure feed: the row sat outside Region 6, or the whole
+ * review) for the closure feeds: the row sat outside the eight states the area
+ * feeds cover (#551), or the whole
  * check failed. The second is also the panel's line below Analyze, so the cell
  * and the panel cannot describe one failure two ways.
  */
 export const CLOSURE_UNCOVERED_NOTE =
-  'Forest Service closure data is only available in Oregon and Washington'
+  'Forest Service closure data is only available in Arizona, Idaho, Nevada, New Mexico, Oregon, Utah, Washington and Wyoming'
 export const CLOSURE_UNAVAILABLE_NOTE =
   'The Forest Service is unreachable, so closure data is unavailable.'
 
@@ -52,7 +53,7 @@ export function closureWarningText(w: ClosureWarning): string {
  * The Closure column's on-screen cell once the check has answered: the fire
  * column's three visible states. The ⚠️ and the order's name where the row is
  * inside a closure, the dash where the check ran and cleared it, and `N/A`
- * where the row sits outside the feed's Oregon and Washington coverage and was
+ * where the row sits outside the area feeds' eight-state coverage and was
  * never checked. The CSV writes its own cell (resultsCsv.ts), the bare name,
  * as it writes the fire column's bare number.
  */
