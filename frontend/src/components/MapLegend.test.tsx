@@ -65,7 +65,7 @@ describe('MapLegend', () => {
     const { container } = render(<MapLegend {...BASE} overlays={{ ...NONE, showTrailClosures: true }} />)
     expect(container.textContent).toContain('Trail closures')
     expect(container.textContent).not.toContain('Area closures')
-    expect(screen.getByRole('link', { name: 'US Forest Service' }).getAttribute('href')).toBe(
+    expect(screen.getByRole('link', { name: 'USFS' }).getAttribute('href')).toBe(
       'https://www.fs.usda.gov/',
     )
   })
@@ -77,6 +77,6 @@ describe('MapLegend', () => {
     const text = container.textContent ?? ''
     expect(text.indexOf('Area closures')).toBeLessThan(text.indexOf('Smoke'))
     expect(text.indexOf('Smoke')).toBeLessThan(text.indexOf('Trail closures'))
-    expect(screen.getAllByRole('link', { name: 'US Forest Service' })).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: 'USFS' })).toHaveLength(2)
   })
 })

@@ -169,7 +169,7 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
     // empty layer means "not covered" rather than "open".
     {
       key: 'closedareas',
-      label: 'Area closures (OR/WA only)',
+      label: 'Area closures (OR/WA)',
       checked: showAreaClosures,
       onChange: setShowAreaClosures,
     },
@@ -200,7 +200,7 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
     { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
     {
       key: 'closedtrails',
-      label: 'Trail closures (OR/WA only)',
+      label: 'Trail closures (OR/WA)',
       checked: showTrailClosures,
       onChange: setShowTrailClosures,
     },

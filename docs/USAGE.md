@@ -191,8 +191,8 @@ again. Each of the six that draw somebody else's data is credited in its own sec
 
 | Layer | What it draws | Coverage |
 |---|---|---|
-| **Area closures (OR/WA only)** | Ground closed by a Forest Service fire closure order, in fuchsia | Oregon and Washington |
-| **Trail closures (OR/WA only)** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
+| **Area closures (OR/WA)** | Ground closed by a Forest Service fire closure order, in fuchsia | Oregon and Washington |
+| **Trail closures (OR/WA)** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |

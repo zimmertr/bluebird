@@ -352,7 +352,7 @@ export default function MapLegend({
             ? [
                 {
                   label: 'Area closures',
-                  credit: { href: USFS_HREF, name: 'US Forest Service' },
+                  credit: { href: USFS_HREF, name: 'USFS' },
                   swatch: (
                     <span
                       className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
@@ -366,7 +366,7 @@ export default function MapLegend({
             ? [
                 {
                   label: 'Trail closures',
-                  credit: { href: USFS_HREF, name: 'US Forest Service' },
+                  credit: { href: USFS_HREF, name: 'USFS' },
                   swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
                 },
               ]

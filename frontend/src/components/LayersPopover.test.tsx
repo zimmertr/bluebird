@@ -90,9 +90,9 @@ describe('LayersPopover', () => {
     const setShowTrailClosures = vi.fn()
     render(<LayersPopover overlays={{ ...OVERLAYS, setShowTrailClosures }} grid={GRID} playerOffered />)
     open()
-    expect(rows()[0]).toBe('Area closures (OR/WA only)')
-    expect(rows().indexOf('Trail closures (OR/WA only)')).toBe(rows().indexOf('Snow depth (US only)') + 1)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Trail closures (OR/WA only)' }))
+    expect(rows()[0]).toBe('Area closures (OR/WA)')
+    expect(rows().indexOf('Trail closures (OR/WA)')).toBe(rows().indexOf('Snow depth (US only)') + 1)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Trail closures (OR/WA)' }))
     expect(setShowTrailClosures).toHaveBeenCalledWith(true)
   })
 
