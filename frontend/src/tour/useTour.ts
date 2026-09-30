@@ -14,8 +14,6 @@ interface Args {
 const CHART_TOOLTIP_INDEX = 6
 /** The room a result popup needs below its marker: the popup with every default column, plus its tip and a margin. */
 const POPUP_ROOM_PX = 400
-/** How long the marker step waits for the sheet to settle before it frames the map. */
-const MARKER_SETTLE_MS = 350
 
 /** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
 function scrollParent(el: HTMLElement | null): HTMLElement | null {
@@ -97,17 +95,21 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   const showingResults = step?.reveal === 'results' || step?.reveal === 'marker'
   const demo: DemoReport | null = useMemo(() => (showingResults ? demoReport() : null), [showingResults])
 
-  // The marker step flies to the first demonstration row and opens its popup,
-  // the same move a click on its rank in the table makes, once the sheet has
-  // settled (on a phone it collapses first, and the framing reads its height).
-  // The popup is taken down when the step is left, whichever way it is left.
+  // The marker step cuts to the first demonstration row and opens its popup,
+  // the same framing a click on its rank in the table makes but with no
+  // flight: a tour that flies reads as the app doing something, and the
+  // reader waits on it. Two frames first, so a phone's sheet has collapsed
+  // and reported its height before the framing reads it. The popup is taken
+  // down when the step is left, whichever way it is left.
   const showingMarker = step?.reveal === 'marker'
   useEffect(() => {
     if (!showingMarker || demo === null) return
     const map = mapRef.current
-    const timer = window.setTimeout(() => map?.focusResult(demo.universe[0], POPUP_ROOM_PX), MARKER_SETTLE_MS)
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => map?.focusResult(demo.universe[0], { popupRoom: POPUP_ROOM_PX, instant: true }))
+    })
     return () => {
-      window.clearTimeout(timer)
+      cancelAnimationFrame(frame)
       map?.closePopups()
     }
   }, [showingMarker, demo, mapRef])

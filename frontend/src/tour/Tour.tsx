@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { IconClose } from '../components/icons'
 import {
   BUTTON_ACCENT,
@@ -29,13 +29,18 @@ const MOTION_MS = 250
  * and one card that says what it does. It points and never acts: nothing is
  * clicked, fetched or typed on the reader's behalf.
  *
- * The target is re-measured every animation frame while the tour is open,
- * rather than on resize and scroll events, because the thing that moves it
- * most is the phone's drawer sliding in for a panel step, and that is a CSS
- * transition no event names. A frame that measures the same box sets nothing.
- * The motion role is worn only for the moment after a step changes: with it
- * always on, the spotlight trailed its control by 200 ms whenever the layout
- * moved for another reason.
+ * Measurement runs three ways, and each exists for a case the others miss.
+ * A layout effect after EVERY render measures before the paint, so a render
+ * that changed the card's shape (a sheet becoming a box as the window widens)
+ * never paints a placement computed from the old shape: that was a card
+ * standing below its section for as long as a window drag lasted, because
+ * Chrome pauses animation frames during the drag. Resize and scroll
+ * listeners cover the moves the page is told about. An animation-frame loop
+ * covers the ones it is not: the phone's drawer sliding in for a panel step,
+ * and a popup riding a map that is still settling. A pass that measures the
+ * same boxes sets nothing. The motion role is worn only for the moment after
+ * a step changes; always on, it made the spotlight trail its control by
+ * 200 ms whenever the layout moved for another reason.
  */
 export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const step = steps[index]
@@ -47,37 +52,59 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const [cardSize, setCardSize] = useState({ width: 320, height: 160 })
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
   const [moving, setMoving] = useState(false)
+  // Where the card last stood, kept for the frames a step's target has yet
+  // to appear in (a popup on its way), so the card holds still rather than
+  // falling back to an unplaced box.
+  const lastAt = useRef<{ top: number; left: number } | null>(null)
 
-  // Bring the control into the panel's view, then follow it frame by frame.
-  useEffect(() => {
-    const el = document.querySelector<HTMLElement>(anchorSelector(step.anchor))
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-    let frame = 0
+  const measure = useCallback(() => {
     const boxOf = (anchor: string): Box | null => {
       const r = document.querySelector<HTMLElement>(anchorSelector(anchor))?.getBoundingClientRect()
       return r ? { top: r.top, left: r.left, width: r.width, height: r.height } : null
     }
-    const measure = () => {
-      const box = unionBox([boxOf(step.anchor), ...(step.frames ?? []).map(boxOf)])
-      setTarget((prev) => (sameBox(prev, box) ? prev : box))
-      const card = cardRef.current?.getBoundingClientRect()
-      if (card) {
-        setCardSize((prev) =>
-          prev.width === card.width && prev.height === card.height
-            ? prev
-            : { width: card.width, height: card.height },
-        )
-      }
-      setViewport((prev) =>
-        prev.width === window.innerWidth && prev.height === window.innerHeight
+    const box = unionBox([boxOf(step.anchor), ...(step.frames ?? []).map(boxOf)])
+    setTarget((prev) => (sameBox(prev, box) ? prev : box))
+    const card = cardRef.current?.getBoundingClientRect()
+    if (card) {
+      setCardSize((prev) =>
+        prev.width === card.width && prev.height === card.height
           ? prev
-          : { width: window.innerWidth, height: window.innerHeight },
+          : { width: card.width, height: card.height },
       )
-      frame = requestAnimationFrame(measure)
     }
-    frame = requestAnimationFrame(measure)
-    return () => cancelAnimationFrame(frame)
+    setViewport((prev) =>
+      prev.width === window.innerWidth && prev.height === window.innerHeight
+        ? prev
+        : { width: window.innerWidth, height: window.innerHeight },
+    )
   }, [step.anchor, step.frames])
+
+  // Before every paint: a render that changed a shape is placed by the new
+  // shape, not the old one. Converges because a pass that changes nothing
+  // sets nothing.
+  useLayoutEffect(() => {
+    measure()
+  })
+
+  // Bring the control into the panel's view, then follow it: on the events
+  // the page is told about, and once a frame for the moves it is not.
+  useEffect(() => {
+    const el = document.querySelector<HTMLElement>(anchorSelector(step.anchor))
+    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+    window.addEventListener('resize', measure)
+    document.addEventListener('scroll', measure, true)
+    let frame = 0
+    const tick = () => {
+      measure()
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => {
+      window.removeEventListener('resize', measure)
+      document.removeEventListener('scroll', measure, true)
+      cancelAnimationFrame(frame)
+    }
+  }, [step.anchor, measure])
 
   // Focus lands on Next at every step, so Enter walks the tour and a screen
   // reader hears the new card; the motion role is worn for the move and shed.
@@ -137,20 +164,22 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
 
   const light = target ? spotlight(target) : null
   const sheet = cardMode(viewport.width) === 'sheet'
-  const at = light && !sheet ? placeCard(light, cardSize, viewport) : null
+  if (light && !sheet) lastAt.current = placeCard(light, cardSize, viewport)
+  const at = sheet ? null : lastAt.current
   const sheetRole = sheetEdge(light, cardSize.height, viewport.height) === 'top' ? TOUR.sheetTop : TOUR.sheet
   const motion = moving ? ` ${TOUR.motion}` : ''
   const last = index === steps.length - 1
+  // With no target yet, the dim still covers the screen: a spotlight of no
+  // size at the centre is a dim with no hole in it.
+  const hole = light ?? { top: viewport.height / 2, left: viewport.width / 2, width: 0, height: 0 }
 
   return (
     <div className={`fixed inset-0 ${LAYER.modal} overflow-hidden`}>
-      {light && (
-        <div
-          className={`${TOUR.spotlight}${motion}`}
-          style={{ top: light.top, left: light.left, width: light.width, height: light.height }}
-          aria-hidden="true"
-        />
-      )}
+      <div
+        className={`${TOUR.spotlight}${motion}`}
+        style={{ top: hole.top, left: hole.left, width: hole.width, height: hole.height }}
+        aria-hidden="true"
+      />
       <div
         ref={cardRef}
         role="dialog"

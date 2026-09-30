@@ -56,9 +56,10 @@ export interface MapViewHandle {
   // marker is placed that far above the visible map's bottom edge, no higher
   // than the centre and no closer than 16px to the top, so the popup hangs
   // whole where the map is short (a phone; a desktop with the sheet up) and
-  // the marker stays centred where it is tall. The tutorial's marker step
-  // passes it; a click on a table row leaves it out and centres (#536).
-  focusResult: (result: DestinationResult, popupRoom?: number) => void
+  // the marker stays centred where it is tall. `instant` cuts rather than
+  // flies. The tutorial's marker step passes both; a click on a table row
+  // passes neither and flies to the centre (#536).
+  focusResult: (result: DestinationResult, options?: { popupRoom?: number; instant?: boolean }) => void
   // The same camera move for a destination with no forecast yet, and nothing
   // else: no popup, because the one `focusResult` opens is a forecast card and
   // this destination has no forecast. Clicking the dot still says what is
@@ -448,9 +449,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
       },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives.
-      focusResult(result: DestinationResult, popupRoom = 0) {
+      focusResult(result: DestinationResult, { popupRoom = 0, instant = false } = {}) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
+        // The pad as it stands now, off the controller: the prop this closure
+        // holds can be a render behind a sheet that just collapsed.
+        const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
         const containerH = map.getContainer().clientHeight
         const visibleH = containerH - cameraPadBottomPx
         // Where the marker lands, measured from the top of the visible map:
@@ -460,7 +464,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         map.flyTo({
           center: [result.longitude, result.latitude],
           zoom: Math.max(map.getZoom(), 10),
-          duration: 800,
+          duration: instant ? 0 : 800,
           // The one framing call that centres rather than fits, so it clears
           // the sheet with `offset` instead of `padding`: a padding handed to
           // `flyTo` is interpolated onto the transform and STAYS there, and the
