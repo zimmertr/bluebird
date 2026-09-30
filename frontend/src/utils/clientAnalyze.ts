@@ -486,8 +486,8 @@ export async function runClientAnalysis(
   const coords: Coordinate[] = unforecast.map((d) => ({
     latitude: d.latitude,
     longitude: d.longitude,
-    // The fetch adjusts wind to this height (issue #257); a lattice point
-    // in useForecastGrid sends none and keeps the 10 m wind.
+    // The fetch adjusts wind and temperature to this height (issue #257).
+    // Where OSM gave none, `terrainElevation` below stands in the ground's.
     elevation_ft: d.elevation_ft,
   }))
 
@@ -527,6 +527,9 @@ export async function runClientAnalysis(
           model: request.forecast_model,
           nowMs,
           windowLimits,
+          // The weather fetch's rule, for the reason given there: the cloud
+          // base walks up the column from the same height the wind is read at.
+          terrainElevation: true,
         }).catch((e: unknown) => {
           if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
           internal.abort()
@@ -552,6 +555,10 @@ export async function runClientAnalysis(
     if (coords.length > 0) {
       const aqiPending = fetchAqi(coords, startMs, endMs, {
         signal: internal.signal,
+        // The same countdown the weather hands over. Air quality is awaited
+        // before the ranking assembles, so its pacer's sleep is the analysis's
+        // sleep and must read as scheduled, not hung (analyzeOverlay.ts).
+        onPace,
         nowMs,
         aqiForecastDays,
       })
@@ -599,6 +606,13 @@ export async function runClientAnalysis(
         // half silently moved to the archive endpoint (2026-09-14).
         nowMs,
         windowLimits,
+        // A destination OSM gave no height (a pasted point it could not match,
+        // a clicked peak with no `ele`) is forecast at the terrain height the
+        // response reports for its coordinate rather than at the surface, the
+        // rule the forecast grid already follows (#545). A row with an
+        // elevation keeps its own. The terrain height is not written onto the
+        // row, so the Elevation column still says only what OSM said.
+        terrainElevation: true,
         onProgress: (processed, total) =>
           onProgress?.(
             processed,

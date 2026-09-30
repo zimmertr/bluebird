@@ -273,7 +273,10 @@ export function useModelCompare({
         })),
         window_.startMs,
         endMs,
-        { model: id, signal: controller.signal, onPace, windowLimits },
+        // `terrainElevation` as the analysis sets it, so a destination with no
+        // elevation of its own is compared at the height its ranked row was
+        // forecast at, and the two share one cache entry.
+        { model: id, signal: controller.signal, onPace, windowLimits, terrainElevation: true },
       )
         .then((results) => {
           if (seqRef.current !== seqAtCall) return

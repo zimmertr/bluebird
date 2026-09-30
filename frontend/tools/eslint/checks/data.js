@@ -178,6 +178,24 @@ export const DATA = [
     ],
   },
   {
+    // A destination OSM gave no height is forecast at the terrain height the
+    // response reports (#545), by every fetch of a place: the analysis, its
+    // cloud column and the model comparison. One of them without it answers
+    // the surface values for the same row, and keys a cache entry the others
+    // never read, so a compared line would disagree with the ranked row.
+    name: 'terrain-elevation-fallback',
+    files: ['src/utils/clientAnalyze.ts', 'src/hooks/useModelCompare.ts'],
+    balance: [
+      {
+        selectors: [
+          'CallExpression[callee.name=/^fetch(Weather|Cloud)$/]',
+          'CallExpression[callee.name=/^fetch(Weather|Cloud)$/] > ObjectExpression > Property[key.name="terrainElevation"][value.value=true]',
+        ],
+        message: 'Pass terrainElevation: true to every weather and cloud fetch of a place.',
+      },
+    ],
+  },
+  {
     // The browser path puts a thrown message in the notice box unchanged, so
     // it is copy the reader meets, and copy ends on the standing tail. A cancel
     // is the one throw nothing shows. A throw of a shared constant carries no
