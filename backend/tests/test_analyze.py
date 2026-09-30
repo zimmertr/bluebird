@@ -30,7 +30,7 @@ from app.routes.analyze import (
     _sse,
     _summarize_request,
 )
-from app.services import snodas
+from app.services import air_quality, osm, snodas, weather
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
@@ -403,8 +403,8 @@ def stub_upstreams(monkeypatch):
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
 
 def test_analyze_custom_ranks_and_limits(stub_upstreams):
@@ -488,8 +488,8 @@ def test_analyze_aqi_bound_fetches_air_quality_for_every_candidate(monkeypatch):
             for d in destinations
         ]
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
     start, end = _window()
     body = {
@@ -614,7 +614,7 @@ def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
             for i in range(MAX_ANALYZE_PEAKS + 1)
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", flood)
+    monkeypatch.setattr(osm, "query_osm", flood)
     start, end = _window()
     body = {
         "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
@@ -676,7 +676,7 @@ def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_
             {"name": "b", "latitude": 2.0, "longitude": 3.0, "elevation_ft": None, "osm_id": "node/2", "type": "peak"},
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", two_peaks)
+    monkeypatch.setattr(osm, "query_osm", two_peaks)
     start, end = _window()
     body = {
         "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
@@ -708,7 +708,7 @@ def test_analyze_stream_mirror_failover_rides_the_detail_field(monkeypatch, stub
             {"name": "a", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None, "osm_id": "node/1", "type": "peak"},
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", failing_over)
+    monkeypatch.setattr(osm, "query_osm", failing_over)
     start, end = _window()
     body = {
         "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
@@ -751,7 +751,7 @@ def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstr
              "osm_id": "node/2", "type": "peak"},
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", two_peaks)
+    monkeypatch.setattr(osm, "query_osm", two_peaks)
     start, end = _window()
     body = _union_body(start, end, [
         {"name": "cu_a", "latitude": 2.0, "longitude": 5.0},
@@ -773,7 +773,7 @@ def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
         return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000,
                  "osm_id": "node/1", "type": "peak"}]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
     body = _union_body(start, end, [{"name": "Shared", "latitude": 9.0, "longitude": 9.0}])
     resp = client.post("/api/analyze", json=body)
@@ -789,7 +789,7 @@ def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
         return [{"name": "Discovered", "latitude": 46.852890, "longitude": -121.760410,
                  "elevation_ft": None, "osm_id": "node/1", "type": "peak"}]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
     # Different name; same coordinate at 5-decimal (~1 m) precision.
     body = _union_body(start, end, [{"name": "Mine", "latitude": 46.852892, "longitude": -121.760408}])
@@ -805,7 +805,7 @@ def test_analyze_union_with_empty_discovery_still_analyzes_custom(monkeypatch, s
     async def nothing(polygon, destination_types, on_status=None, **_):
         return []
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", nothing)
+    monkeypatch.setattr(osm, "query_osm", nothing)
     start, end = _window()
     body = _union_body(start, end, [{"name": "cu", "latitude": 1.0, "longitude": 2.0}])
     resp = client.post("/api/analyze", json=body)
@@ -819,7 +819,7 @@ def test_analyze_stream_union_with_empty_discovery_still_analyzes_custom(monkeyp
     async def nothing(polygon, destination_types, on_status=None, **_):
         return []
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", nothing)
+    monkeypatch.setattr(osm, "query_osm", nothing)
     start, end = _window()
     body = _union_body(start, end, [{"name": "cu", "latitude": 1.0, "longitude": 2.0}])
     resp = client.post("/api/analyze/stream", json=body)
@@ -835,7 +835,7 @@ def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_u
         return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
                  "osm_id": "node/1", "type": "peak"}]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
     body = _union_body(start, end, [{"name": "cu", "latitude": 2.0, "longitude": 3.0}])
     resp = client.post("/api/analyze/stream", json=body)
@@ -860,7 +860,7 @@ def test_analyze_union_counts_toward_cap(monkeypatch, stub_upstreams):
             for i in range(MAX_ANALYZE_PEAKS - 5)
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", near_cap)
+    monkeypatch.setattr(osm, "query_osm", near_cap)
     start, end = _window()
     body = _union_body(start, end, [
         {"name": f"c{i}", "latitude": 50.0 + i, "longitude": 10.0} for i in range(10)
@@ -882,7 +882,7 @@ def test_analyze_union_elevation_filter_applies_to_custom_rows(monkeypatch, stub
         return [{"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 9000,
                  "osm_id": "node/1", "type": "peak"}]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", one_peak)
+    monkeypatch.setattr(osm, "query_osm", one_peak)
     start, end = _window()
     body = {
         **_union_body(start, end, [
@@ -1031,8 +1031,8 @@ def stub_hourly_upstreams(monkeypatch):
             for _ in destinations
         ]
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
 
 def _hourly_body(**extra):
@@ -1111,7 +1111,7 @@ def test_analyze_without_series_degrades_aqi_the_same_way(
     async def no_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", no_aqi)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", no_aqi)
     full = client.post("/api/analyze", json=_hourly_body()).json()
     trimmed = client.post(
         "/api/analyze", json=_hourly_body(include_series=False)
@@ -1175,9 +1175,9 @@ def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
             for _ in destinations
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", at_the_cap)
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(osm, "query_osm", at_the_cap)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
     start, end = _window()
     body = {
@@ -1213,8 +1213,8 @@ def test_analyze_maps_a_model_coverage_refusal_to_400_not_502(monkeypatch):
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", refuse)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", refuse)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
     start, end = _window()
     resp = client.post(
@@ -1271,8 +1271,8 @@ def record_key(monkeypatch):
         seen["aqi"].append(api_key)
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
     return seen
 
 
@@ -1335,8 +1335,8 @@ def refuse_key(monkeypatch):
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", refuse)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", refuse)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
 
 def test_a_refused_key_is_a_401_not_a_502(refuse_key):
@@ -1446,8 +1446,8 @@ def test_analyze_tells_the_weather_service_which_endpoint_answers(monkeypatch):
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
     body = {
         "destination_types": [],
@@ -1483,8 +1483,8 @@ def test_analyze_passes_the_boundary_it_classified_against(monkeypatch):
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
     start, end = _spanning_window()
     resp = client.post("/api/analyze", json={
@@ -1526,7 +1526,7 @@ def _failing_discovery(request, monkeypatch):
     async def fail(polygon, destination_types, on_status=None, **_):
         raise request.param
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", fail)
+    monkeypatch.setattr(osm, "query_osm", fail)
 
 
 @pytest.mark.parametrize(
@@ -1608,8 +1608,8 @@ def _failing_weather(request, monkeypatch):
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fail)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fail)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
 
 def _weather_failure_body():
@@ -1662,7 +1662,7 @@ def test_the_over_cap_refusal_is_the_same_body_on_both_routes(monkeypatch, stub_
             for i in range(MAX_ANALYZE_PEAKS + 1)
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", flood)
+    monkeypatch.setattr(osm, "query_osm", flood)
     start, end = _window()
     body = {
         "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
@@ -1690,7 +1690,7 @@ def test_both_routes_rank_the_same_field_the_same_way(monkeypatch, stub_upstream
             for i in range(1, 6)
         ]
 
-    monkeypatch.setattr(analyze_mod.osm, "query_osm", five_peaks)
+    monkeypatch.setattr(osm, "query_osm", five_peaks)
     start, end = _window()
     body = {
         "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
@@ -1794,7 +1794,7 @@ def cloud_calls(monkeypatch, stub_upstreams):
         calls.append(len(destinations))
         return [_cloud(d["latitude"] * 1000) for d in destinations]
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_cloud_batch", fake_cloud)
+    monkeypatch.setattr(weather, "fetch_cloud_batch", fake_cloud)
     return calls
 
 
@@ -1846,7 +1846,7 @@ def test_analyze_cloud_failure_answers_like_a_weather_failure(monkeypatch, stub_
     async def refuse(*args, **kwargs):
         raise UpstreamError("Open-Meteo request failed. Try again later.")
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_cloud_batch", refuse)
+    monkeypatch.setattr(weather, "fetch_cloud_batch", refuse)
     resp = client.post("/api/analyze", json=_cloud_body(sort_by="cloud_cover_avg_pct"))
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "upstream_unavailable"
