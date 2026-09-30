@@ -54,7 +54,7 @@ describe('the tutorial steps', () => {
   it('says the four destination methods once, as options, in one card', () => {
     const anchors = TOUR_STEPS.map((s) => s.anchor)
     expect(anchors).toEqual(['destinations', 'model', 'calendar', 'metrics', 'analyze', 'layers', 'tutorial'])
-    expect(TOUR_STEPS[0].text).toContain(', or ')
+    expect(TOUR_STEPS[0].text).toMatch(/^Provide a list of destinations to compare by .*, or drawing a polygon/)
   })
 
   it('names a selector from the anchor attribute', () => {

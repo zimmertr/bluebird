@@ -15,7 +15,7 @@ A first visit shows a welcome dialog and then the app. Readers asked for a guide
 
 The tutorial is a spotlight and a card. Each of its seven steps frames one control or one section the screen already holds and says one or two sentences about it, verbatim from the approved list. Steps move in about 200 ms. It fetches nothing, types nothing, runs no analysis, and ending it changes nothing in the app. It is voluntary: a secondary button on the welcome dialog and a `Tutorial` link in the panel footer. A control marks itself with `data-tour`, and a step whose control is not on the screen is skipped, so the same tour runs over an empty app and over a report.
 
-The first card frames the Destinations section and says, in the welcome dialog's sentence, that its four methods are options that work together. There is no card per method.
+The first card frames the Destinations section and says, in one sentence, what the section produces and the four ways to fill it, as an "or" list. There is no card per method.
 
 ## Alternatives rejected
 

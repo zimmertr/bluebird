@@ -24,14 +24,15 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
-  // One card for the four methods, framing the whole section, in the welcome
-  // dialog's sentence. A card per method was tried and cut the same day
-  // (TJ, 2026-09-29): numbered cards read as steps to take in order, and a
-  // lead card saying "or" made the four after it say the list twice.
+  // One card for the four methods, framing the whole section. The sentence
+  // is TJ's (2026-09-29): the outcome first, then the four methods as an
+  // "or" list, with the polygon clause saying what it finds because that is
+  // the one method a new reader cannot guess. A card per method was tried
+  // and cut the same day: numbered cards read as steps to take in order.
   {
     anchor: 'destinations',
     title: 'Destinations',
-    text: 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.',
+    text: 'Provide a list of destinations to compare by searching by name, selecting a point on the map, pasting exact coordinate pairs, or drawing a polygon to include every peak, trailhead, and lake inside it.',
     place: 'panel',
   },
   {
