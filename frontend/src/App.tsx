@@ -191,7 +191,14 @@ export default function App() {
   const shownResponse = demo?.response ?? response
   const shownAnalyzed = demo?.analyzed ?? analyzed
   const shownUniverse = demo?.universe ?? universe
-  const timeline = useTimeline({ times: shownResponse?.times, analysisSeq, playerShown, showRadar })
+  // No forecast player over the demonstration: its bar stands along the
+  // map's bottom edge, where the marker step's popup ends on a short window.
+  const timeline = useTimeline({
+    times: shownResponse?.times,
+    analysisSeq,
+    playerShown: playerShown && demo === null,
+    showRadar,
+  })
   const {
     forecastTimes,
     timelineAxes,
