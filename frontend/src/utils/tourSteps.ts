@@ -24,38 +24,14 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
-  // The lead card says the four methods after it are options, not a sequence:
-  // a numbered run of cards reads as steps to take in order, and the section
-  // itself never says "or". The sentence is the welcome dialog's (TJ, A of
-  // two options, 2026-09-29).
+  // One card for the four methods, framing the whole section, in the welcome
+  // dialog's sentence. A card per method was tried and cut the same day
+  // (TJ, 2026-09-29): numbered cards read as steps to take in order, and a
+  // lead card saying "or" made the four after it say the list twice.
   {
     anchor: 'destinations',
     title: 'Destinations',
     text: 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.',
-    place: 'panel',
-  },
-  {
-    anchor: 'search',
-    title: 'Search by name',
-    text: 'Type the name of a destination and select it from the results menu.',
-    place: 'map',
-  },
-  {
-    anchor: 'map',
-    title: 'Click the map',
-    text: 'Zoom in, click a peak or lake on the map, and select Add to analysis.',
-    place: 'map',
-  },
-  {
-    anchor: 'polygon',
-    title: 'Draw an area',
-    text: 'Draw a polygon on the map to find every peak, trailhead, or lake inside it.',
-    place: 'panel',
-  },
-  {
-    anchor: 'coordinates',
-    title: 'Paste coordinates',
-    text: 'Paste one latitude and longitude per line, with an optional name.',
     place: 'panel',
   },
   {

@@ -169,7 +169,6 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           overshot. */}
       <div
         className={`${SURFACE_FLOATING} ${MAP_ROW_H} flex items-center gap-2 px-2.5 transition-colors ${ACCENT.edgeFocus}`}
-        data-tour="search"
       >
         <IconSearch className={`flex-shrink-0 ${ICON_ACTION}`} />
         <input

@@ -31,8 +31,8 @@ const occurrences = (anchor: string): string[] =>
   })
 
 describe('the tutorial steps', () => {
-  it('has eleven steps, each with a distinct anchor', () => {
-    expect(TOUR_STEPS).toHaveLength(11)
+  it('has seven steps, each with a distinct anchor', () => {
+    expect(TOUR_STEPS).toHaveLength(7)
     expect(new Set(TOUR_STEPS.map((s) => s.anchor)).size).toBe(TOUR_STEPS.length)
   })
 
@@ -51,9 +51,9 @@ describe('the tutorial steps', () => {
     expect(TOUR_STEPS.find((s) => s.anchor === 'analyze')?.text).not.toContain('example data')
   })
 
-  it('leads the four destination methods with the card that says they are options', () => {
+  it('says the four destination methods once, as options, in one card', () => {
     const anchors = TOUR_STEPS.map((s) => s.anchor)
-    expect(anchors.slice(0, 5)).toEqual(['destinations', 'search', 'map', 'polygon', 'coordinates'])
+    expect(anchors).toEqual(['destinations', 'model', 'calendar', 'metrics', 'analyze', 'layers', 'tutorial'])
     expect(TOUR_STEPS[0].text).toContain(', or ')
   })
 
