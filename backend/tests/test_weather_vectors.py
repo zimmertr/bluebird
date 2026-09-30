@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from app.routes.analyze import _aligned_aqi
 from app.services import aggregation
+from app.services.ranking import _aligned_aqi
 
 VECTORS = json.loads(
     (Path(__file__).parent / "data" / "weather_vectors.json").read_text()

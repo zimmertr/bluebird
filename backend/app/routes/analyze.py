@@ -1,8 +1,7 @@
 import asyncio
 import json
 import logging
-import math
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -19,23 +18,41 @@ from app.models import (
     AnalysisRefusal,
     AnalyzeRequest,
     AnalyzeResponse,
-    ApiErrorInfo,
     DestinationResult,
     DestinationType,
     ErrorResponse,
-    GeoPolygon,
-    HourlySeries,
     WindowSource,
     archive_boundary,
     bbox_area_km2,
     window_source,
 )
-from app.services import air_quality, osm, snodas, weather
+from app.services import air_quality, snodas, weather
+from app.services.candidates import (
+    _filter_elevation,
+    _merge_custom,
+    _refusal_body,
+    _resolve_custom,
+    _suggest_elevation_floor,
+    discover,
+)
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
     UpstreamError,
     UpstreamRateLimited,
+)
+from app.services.ranking import (
+    _LOWER_BOUNDS,
+    _UPPER_BOUNDS,
+    _aligned_aqi,
+    _aligned_cloud,
+    _aqi_bounded,
+    _assemble,
+    _cloud_eager,
+    _filter_constraints,
+    _noun,
+    _sort_key,
+    _truncate_top_elevation,
 )
 
 # The one spelling of the header that carries a caller's Open-Meteo key.
@@ -81,295 +98,8 @@ def _window_split(request: AnalyzeRequest) -> tuple[WindowSource, datetime]:
     )
 
 
-def _filter_elevation(destinations, min_ft, max_ft) -> list[dict]:
-    """Drop candidates outside the requested elevation band.
-
-    Unknown elevations pass through — many OSM peaks lack the tag and
-    silently excluding them would be surprising.
-    """
-    if min_ft is None and max_ft is None:
-        return destinations
-
-    def keep(dest) -> bool:
-        elev = dest.get("elevation_ft")
-        if elev is None:
-            return True
-        if min_ft is not None and elev < min_ft:
-            return False
-        return not (max_ft is not None and elev > max_ft)
-
-    return [d for d in destinations if keep(d)]
-
-
-# Which result field each forecast bound compares.
-#
-# A ceiling reads the window's worst hour and a floor its best, so a bound is a
-# promise about every hour rather than about an average that can hide a bad
-# afternoon: max_wind_mph=20 admits no destination that gusts to 45 at noon.
-# The freezing level reads the same way in the one family where neither end is
-# the bad one: its floor asks that the level never dropped below the value and
-# its ceiling that it never rose above it.
-# Precipitation and AQI have no minimum aggregate to read — a per-hour
-# precipitation floor would be 0.000 almost everywhere — so both of their
-# bounds compare a single field, the window total and the worst hour.
-# Snow depth is the one row where both ends read the same field, and not for
-# either of the reasons above: it is today's single number rather than a
-# reduction over hours, so there is no best or worst hour to pick between.
-_LOWER_BOUNDS = (
-    ("min_precip_total_in", "precip_total_in"),
-    ("min_temp_f", "temp_min_f"),
-    ("min_wind_mph", "wind_min_mph"),
-    ("min_freeze_ft", "freeze_min_ft"),
-    ("min_snow_depth_in", "snow_depth_in"),
-    ("min_aqi", "aqi_max"),
-    ("min_cloud_base_ft", "cloud_base_min_ft"),
-    ("min_cloud_cover_pct", "cloud_cover_min_pct"),
-)
-_UPPER_BOUNDS = (
-    ("max_precip_total_in", "precip_total_in"),
-    ("max_temp_f", "temp_max_f"),
-    ("max_wind_mph", "wind_max_mph"),
-    ("max_freeze_ft", "freeze_max_ft"),
-    ("max_snow_depth_in", "snow_depth_in"),
-    ("max_aqi", "aqi_max"),
-    ("max_cloud_base_ft", "cloud_base_max_ft"),
-    ("max_cloud_cover_pct", "cloud_cover_max_pct"),
-)
-
-# Every cloud field leads with this, which is how a ranking key or a bound's
-# field is recognized as one the cloud request must answer.
-_CLOUD_PREFIX = "cloud_"
-
-
-
-def _aqi_bounded(request: AnalyzeRequest) -> bool:
-    """Does this request bound AQI, and therefore need it for every candidate?
-
-    Lazy AQI (fetched only for the rows about to be returned) is the whole
-    reason this question is asked separately from the ranking's. A bound
-    applied to a value that was never fetched would drop nothing at all, since
-    nulls pass — the filter would silently do nothing on exactly the requests
-    that asked for it.
-    """
-    return request.min_aqi is not None or request.max_aqi is not None
-
-
-def _cloud_eager(request: AnalyzeRequest) -> bool:
-    """Does the ranking or a bound need the cloud fields for every candidate?
-
-    The same question `_aqi_bounded` asks, for the same reason, with the ranking
-    folded in: the cloud variables are a second request per location (issue
-    #117), so they are fetched for the whole field only when the order or the
-    filter cannot be known without them. A bound on a value never fetched
-    would drop nothing, since nulls pass.
-    """
-    if request.sort_by.value.startswith(_CLOUD_PREFIX):
-        return True
-    return any(
-        getattr(request, attr) is not None
-        for attr, field in (*_LOWER_BOUNDS, *_UPPER_BOUNDS)
-        if field.startswith(_CLOUD_PREFIX)
-    )
-
-
-def _filter_constraints(
-    results: list[DestinationResult], request: AnalyzeRequest
-) -> list[DestinationResult]:
-    """Drop rows outside the request's forecast bounds.
-
-    Runs after aggregation and before the ranking, so `limit` cuts a field
-    that already matches: "the ten driest destinations that stay under 20 mph",
-    never "whichever of the ten driest happened to be calm".
-
-    A null value passes every bound. Two fields can be null here. A missing
-    AQI means the window outran the ~5-day air-quality horizon or a best-effort
-    fetch failed; a missing freezing level means the chosen model publishes
-    none at all. Neither is evidence about the weather, and dropping those
-    rows would quietly empty every long-window analysis that set an AQI
-    ceiling, or every analysis under a model that carries no freezing level.
-    It is the same call `_filter_elevation` makes for an untagged
-    summit and `_sort_key` makes for a nullable ranking key.
-    """
-    lower = [(f, v) for attr, f in _LOWER_BOUNDS if (v := getattr(request, attr)) is not None]
-    upper = [(f, v) for attr, f in _UPPER_BOUNDS if (v := getattr(request, attr)) is not None]
-    if not lower and not upper:
-        return results
-
-    def keep(r: DestinationResult) -> bool:
-        for field, bound in lower:
-            value = getattr(r, field)
-            if value is not None and value < bound:
-                return False
-        for field, bound in upper:
-            value = getattr(r, field)
-            if value is not None and value > bound:
-                return False
-        return True
-
-    return [r for r in results if keep(r)]
-
-
-def _custom_dicts(custom_destinations) -> list[dict]:
-    """The request's custom destinations in the same dict shape discovery
-    produces. Each carries its own "type" so a mixed (union) response can tag
-    every row by true source — discovered rows fall back to the request type."""
-    return [
-        {
-            "name": d.name,
-            "latitude": d.latitude,
-            "longitude": d.longitude,
-            "elevation_ft": d.elevation_ft,
-            "osm_id": None,
-            "type": "custom",
-        }
-        for d in custom_destinations
-    ]
-
-
-async def _resolve_custom(custom_destinations) -> list[dict]:
-    """The request's custom destinations as candidate dicts, with elevation
-    resolved from OSM wherever the caller did not supply one.
-
-    Every path that turns `custom_destinations` into candidates goes through
-    here rather than calling `_custom_dicts` directly, so no route can serve a
-    custom row that skipped enrichment (issue #207).
-    """
-    return await osm.enrich_custom(_custom_dicts(custom_destinations))
-
-
-def _coord_key(dest) -> str:
-    return f"{dest['latitude']:.5f},{dest['longitude']:.5f}"
-
-
-def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
-    """Union of discovered + custom rows where the custom row wins a collision.
-
-    A discovered row is dropped when a custom row claims its exact name (the
-    identity rule query_osm already applies within its own results) or its
-    5-decimal coordinate key (~1 m — the frontend's geoKey precedent). The
-    user's own rows always survive; near-misses simply coexist as two rows.
-    """
-    names = {c["name"] for c in custom}
-    coords = {_coord_key(c) for c in custom}
-    kept = [
-        d for d in discovered if d["name"] not in names and _coord_key(d) not in coords
-    ]
-    return kept + custom
-
-
-def _suggest_elevation_floor(
-    destinations: list[dict], cap: int
-) -> tuple[int, int] | None:
-    """A minimum elevation that would bring the candidate count under ``cap``.
-
-    Returns ``(floor_ft, keeps)`` or None when no floor can work — which
-    happens exactly when the unknown-elevation rows alone exceed the cap,
-    since elevation filters always let unknowns through. The floor is rounded
-    up to the next 100 ft so the suggestion reads like a number a person would
-    type; rounding up can only keep fewer rows, never more, so the suggestion
-    always actually works.
-    """
-    unknowns = sum(1 for d in destinations if d.get("elevation_ft") is None)
-    budget = cap - unknowns
-    if budget <= 0:
-        return None
-    known = sorted(
-        (d["elevation_ft"] for d in destinations if d.get("elevation_ft") is not None),
-        reverse=True,
-    )
-    if len(known) <= budget:
-        return None  # already under cap; nothing to suggest
-    threshold = known[budget - 1]
-    floor = math.ceil(threshold / 100.0) * 100
-    keeps = unknowns + sum(1 for e in known if e >= floor)
-    return floor, keeps
-
-
-def _truncate_top_elevation(destinations: list[dict], cap: int) -> list[dict]:
-    """The explicit opt-in cut: the ``cap`` highest-elevation candidates.
-
-    Unknown-elevation rows are dropped first — a row that cannot prove any
-    elevation cannot claim to be among the highest. Never called without the
-    request's ``top_by_elevation`` flag; silent truncation stays impossible.
-    """
-    known = [d for d in destinations if d.get("elevation_ft") is not None]
-    known.sort(key=lambda d: d["elevation_ft"], reverse=True)
-    return known[:cap]
-
-
-def _cap_detail(count: int, noun: str) -> str:
-    """The over-cap refusal: what is wrong, and nothing else.
-
-    It used to advise the remedies in play ("Draw a smaller polygon...") and
-    quote the computed elevation floor. TJ removed both (2026-08-22, #253's
-    PR): the message states the problem, and the structured fields carry the
-    machine-readable remedies for API callers.
-    """
-    return (
-        f"This search covers {count:,} {noun}s. The analysis limit is "
-        f"{MAX_ANALYZE_PEAKS:,} destinations."
-    )
-
-
-def _refusal_body(
-    count: int,
-    noun: str,
-    *,
-    suggestion: tuple[int, int] | None,
-) -> dict:
-    """The structured 400 body (`AnalysisRefusal`) for an over-cap refusal."""
-    body = AnalysisRefusal(
-        detail=_cap_detail(count, noun),
-        error=ApiErrorInfo.for_code(ErrorCode.refusal),
-        found=count,
-        limit=MAX_ANALYZE_PEAKS,
-    )
-    if suggestion is not None:
-        body.suggested_min_elevation_ft = float(suggestion[0])
-        body.suggested_keeps = suggestion[1]
-    # Dumped in JSON mode because this dict is rendered by hand on both paths:
-    # as a JSONResponse body, and spread into an SSE event.
-    return body.model_dump(mode="json")
-
-
-def _sort_key(sort_field: str, descending: bool = False) -> Callable[[DestinationResult], tuple[int, float]]:
-    # AQI fields are nullable (short forecast horizon / best-effort fetch);
-    # None sorts after every real value in either direction so it never wins
-    # a ranking — hence negating values rather than sort(reverse=True).
-    def key(r: DestinationResult) -> tuple[int, float]:
-        v = getattr(r, sort_field)
-        if v is None:
-            return (1, 0.0)
-        return (0, -v if descending else v)
-
-    return key
-
 log = logging.getLogger(__name__)
 router = APIRouter()
-
-_NOUNS = {
-    DestinationType.peak: "peak",
-    DestinationType.trailhead: "trailhead",
-    DestinationType.lake: "lake",
-    DestinationType.custom: "destination",
-}
-
-
-def _noun(types: Sequence[DestinationType], *, has_custom: bool = False) -> str:
-    """What to call the things a refusal is counting.
-
-    A request can now discover several types at once and union a caller's list
-    on top, so the message has to name the *set*, not a type. It only reaches
-    for a specific noun when the set genuinely holds one kind — "1,842 peaks"
-    is better than "1,842 destinations" when peaks is all there is — and
-    otherwise merges to the general one rather than listing types, because a
-    refusal is read for its remedy and "1,842 peaks, lakes and trailheads"
-    buries that behind an inventory.
-    """
-    kinds = set(types)
-    if has_custom or len(kinds) != 1:
-        return "destination"
-    return _NOUNS.get(next(iter(kinds)), "destination")
 
 
 def _summarize_request(request: AnalyzeRequest) -> str:
@@ -407,54 +137,6 @@ def _summarize_request(request: AnalyzeRequest) -> str:
         parts.append(f"polygon={max(0, len(ring) - 1)}pts")
         parts.append(f"area={bbox_area_km2(ring):,.0f}km2")
     return " ".join(parts)
-
-
-async def discover(
-    polygon: GeoPolygon,
-    destination_types: Sequence[DestinationType],
-    *,
-    include_unnamed_peaks: bool = False,
-    on_status: osm.StatusCallback | None = None,
-) -> list[dict]:
-    """Overpass discovery, with the one mapping from its failures to API errors.
-
-    Four causes, four answers, and the sentence an unrecognized failure gives a
-    caller is as much the contract as the code beside it. Every route that
-    discovers raises them identically, so the ladder lives here rather than
-    once per route, where a fifth cause would have to be remembered three times
-    (issue #384).
-
-    `on_status` is Overpass's only progress signal — mirror failover — and is
-    passed straight through: a route that has nowhere to show it leaves it
-    None.
-    """
-    try:
-        return await osm.query_osm(
-            polygon,
-            destination_types,
-            on_status,
-            include_unnamed_peaks=include_unnamed_peaks,
-        )
-    except NotImplementedError as e:
-        raise ApiError(status_code=400, detail=str(e), code=ErrorCode.validation) from e
-    except ratelimit.BudgetExhausted as e:
-        raise ApiError(
-            status_code=503,
-            detail=e.message,
-            code=ErrorCode.busy,
-            headers={"Retry-After": str(e.retry_after_s)},
-        ) from e
-    except UpstreamError as e:
-        raise ApiError(
-            status_code=502, detail=e.message, code=ErrorCode.upstream_unavailable
-        ) from e
-    except Exception as e:
-        log.exception("Destination search failed")
-        raise ApiError(
-            status_code=502,
-            detail="OpenStreetMap is not available. Try again later.",
-            code=ErrorCode.upstream_unavailable,
-        ) from e
 
 
 # ── The analysis, and the two ways it is presented ─────────────────────────
@@ -709,113 +391,6 @@ _CLOUD_FIELDS = (
     "cloud_cover_avg_pct",
     "cloud_cover_max_pct",
 )
-
-
-def _canonical_times(wx_list: list) -> list[int]:
-    """The shared hourly grid for the response. It is identical across
-    destinations for one window, so the first row carrying a series defines it."""
-    for wx in wx_list:
-        if wx and wx.get("series"):
-            return wx["series"]["times"]
-    return []
-
-
-def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | None]:
-    """AQI values aligned onto the weather grid, null where absent.
-
-    AQI has a shorter (~5-day) horizon than weather, so hours beyond it have no
-    entry and stay null — the chart's AQI line simply ends there.
-    """
-    if not aqi_series:
-        return [None] * len(times_ms)
-    lookup = dict(zip(aqi_series["times"], aqi_series["aqi"], strict=False))
-    return [lookup.get(t) for t in times_ms]
-
-
-def _aligned_cloud(
-    times_ms: list[int], cloud_series: dict | None
-) -> tuple[list[float | None] | None, list[float | None] | None]:
-    """Cloud base and cloud cover aligned onto the weather grid, null where absent.
-
-    The two requests ask for the same hours, so the grids agree whenever both
-    answered; aligning by stamp rather than by index is what keeps a short or
-    missing answer from sliding a value onto the wrong hour. No series at all
-    is no arrays at all, which is what a row whose analysis never asked for
-    the cloud fields carries: a column of nulls would be bytes that say less.
-    """
-    if not cloud_series:
-        return None, None
-    base = dict(zip(cloud_series["times"], cloud_series["cloud_base_ft"], strict=False))
-    cover = dict(zip(cloud_series["times"], cloud_series["cloud_cover_pct"], strict=False))
-    return [base.get(t) for t in times_ms], [cover.get(t) for t in times_ms]
-
-
-def _assemble(
-    destinations: list,
-    wx_list: list,
-    aqi_list: list,
-    type_value: str,
-    *,
-    include_series: bool = True,
-    cloud_list: list | None = None,
-) -> tuple[list[DestinationResult], list[int]]:
-    """Zip destinations with their weather + AQI results into rows, baking the
-    hourly series (AQI aligned onto the weather grid) into each.
-
-    Rows whose weather came back None are dropped. Weather dicts without a
-    `series` key (e.g. stubbed in tests) degrade cleanly to `series=None`.
-
-    `include_series=False` is the caller asking for aggregates alone, and this
-    is the one seam where that is honored: the hours are still fetched and
-    still reduced, they are simply not carried into the row. `times` is
-    unaffected, because it says which hours the aggregates cover.
-
-    A row's `type` prefers the destination dict's own tag — a union response
-    mixes discovered and custom rows — falling back to the request-level value.
-    """
-    times = _canonical_times(wx_list)
-    clouds = cloud_list if cloud_list is not None else [None] * len(destinations)
-    results: list[DestinationResult] = []
-    for dest, wx, aqi, cloud in zip(destinations, wx_list, aqi_list, clouds, strict=False):
-        if wx is None:
-            continue
-        aqi = aqi or {}
-        cloud = cloud or {}
-        wx_series = wx.get("series")
-        agg = {k: v for k, v in wx.items() if k != "series"}
-        aqi_stats = {k: v for k, v in aqi.items() if k != "series"}
-        cloud_stats = {k: v for k, v in cloud.items() if k != "series"}
-        series = None
-        if wx_series and include_series:
-            cloud_base, cloud_cover = _aligned_cloud(wx_series["times"], cloud.get("series"))
-            series = HourlySeries(
-                precip_in=wx_series["precip_in"],
-                temp_f=wx_series["temp_f"],
-                wind_mph=wx_series["wind_mph"],
-                freeze_ft=wx_series["freeze_ft"],
-                aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
-                cloud_base_ft=cloud_base,
-                cloud_cover_pct=cloud_cover,
-            )
-        results.append(
-            DestinationResult(
-                name=dest["name"],
-                type=dest.get("type", type_value),
-                latitude=dest["latitude"],
-                longitude=dest["longitude"],
-                elevation_ft=dest.get("elevation_ft"),
-                osm_id=dest.get("osm_id"),
-                # Off the destination rather than out of `agg`: the snow grid
-                # is read once per candidate at discovery, where the weather
-                # aggregates arrive per location from Open-Meteo.
-                snow_depth_in=dest.get("snow_depth_in"),
-                **agg,
-                **aqi_stats,
-                **cloud_stats,
-                series=series,
-            )
-        )
-    return results, times
 
 
 def _upstream_failure(e: Exception) -> Failure:

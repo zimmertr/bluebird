@@ -57,7 +57,8 @@ export const NO_CONSTRAINTS: Constraints = {
 }
 
 // Which result field each bound compares — the port of _LOWER_BOUNDS and
-// _UPPER_BOUNDS in analyze.py, and the whole of the design.
+// _UPPER_BOUNDS in the backend's services/ranking.py, and the whole of the
+// design.
 //
 // A ceiling reads the window's worst hour and a floor its best, so a bound is
 // a promise about every hour rather than about an average that can hide a bad

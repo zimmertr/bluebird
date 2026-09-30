@@ -27,8 +27,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.routes.analyze import _aligned_aqi
 from app.services import aggregation
+from app.services.ranking import _aligned_aqi
 
 OUT = Path(__file__).parent.parent / "tests" / "data" / "weather_vectors.json"
 
@@ -819,7 +819,7 @@ def main() -> None:
             }
         )
 
-    # The AQI-onto-weather-grid alignment (analyze._aligned_aqi): a shorter
+    # The AQI-onto-weather-grid alignment (ranking._aligned_aqi): a shorter
     # AQI series nulls out past its horizon; no series nulls out entirely.
     grid = [1784592000000, 1784595600000, 1784599200000]
     align_inputs = [
