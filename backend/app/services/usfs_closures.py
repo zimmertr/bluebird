@@ -18,7 +18,7 @@ publish EVERY standing forest order as polygons, under one lowercase schema of
 their own with no status field (issue #551):
 
     Region 3  r03_ForestOrder layer 1               96 live, 32 closures
-    Region 4  R04_Forest_Orders_PUBLIC_VIEW layer 0 214 live,  6 closures
+    Region 4  R04_Forest_Orders_PUBLIC_VIEW layer 0 214 live,  5 closures
 
 Measured 2026-09-30. Region 6's lines are its heavy layer: 5.8 MB at full
 resolution and 1.4 MB at the ~56 m simplification the wildfire overlay already
@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -68,7 +69,9 @@ from app.services.errors import UpstreamError
 from app.services.http import HEADERS
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.snapshot import cache_factory
-from app.services.usfs_coverage import Kind
+from app.services.usfs_coverage import ALL_REGIONS, Kind
+
+log = logging.getLogger(__name__)
 
 PROVIDER = "US Forest Service (closure orders)"
 
@@ -153,12 +156,17 @@ ORDER_WHERE = "rescinddate IS NULL AND (enddate IS NULL OR enddate > CURRENT_TIM
 # into or being upon" an area, OR its description or name says entry is
 # prohibited. TJ chose this test on 2026-09-30 (#551). Of the live orders that
 # day, Region 3 passed 32 of 96 (29 on the citation, 17 on the text) and
-# Region 4 passed 6 of 214 (3 and 5). An `ordertype` allowlist would have
+# Region 4 passed 5 of 214 (3 and 4). An `ordertype` allowlist would have
 # passed 58 and 132.
 #
 # The feeds spell the citation many ways ("36 C.F.R. § 261.53(e)",
-# "36 CFR 261.53 (e)"), so the pattern keys on the section alone.
-CFR_ENTRY_CLOSURE = re.compile(r"261\.5[23]\s*\(e\)")
+# "36 CFR 261.53 (e)", "261.53(a), (c) and (e)"), so each 261.52 or 261.53 is
+# read up to the next section number, and a paragraph (e) anywhere in that
+# stretch counts. The stretch stops there so "261.50(a) and (e)" never lends
+# its (e) to a section before it.
+CFR_ENTRY_SECTION = re.compile(r"261\.5[23]")
+CFR_NEXT_SECTION = re.compile(r"\b\d{3}\.\d")
+CFR_PARAGRAPH_E = re.compile(r"\(e\)", re.IGNORECASE)
 TEXT_ENTRY_CLOSURE = re.compile(
     r"going into or being (up)?on"
     r"|entering or being (up)?on"
@@ -166,6 +174,12 @@ TEXT_ENTRY_CLOSURE = re.compile(
     r"|closed to (all )?(public )?(entry|access)",
     re.IGNORECASE,
 )
+# A permit rule is written in the same words as a closure: Region 4's float
+# permit order 26008 prohibits "Entering or being on the South Fork of the
+# Salmon River ... with float boating equipment without a permit" (review of
+# #551). So a text match does not count when its own sentence names a permit
+# as the way in.
+TEXT_PERMIT_EXCEPTION = re.compile(r"without (a |an )?(valid )?permit|unless .* permit", re.IGNORECASE)
 
 # The layers' own maxRecordCount. Sending it explicitly makes paging
 # deterministic instead of dependent on a server default that can change.
@@ -225,6 +239,11 @@ class Snapshot:
     Region 4's. The trail sets hold Region 6's lines and then its closed-site
     points; the same points sit in both fidelities. ``fetched_at_ms`` is wall
     time because it is shown to a person, as in ``nifc.Snapshot``.
+
+    ``regions`` is the ``ClosureSource`` codes this snapshot holds. Region 6 is
+    always one of them, since a snapshot without it is never built; a Region 3
+    or 4 feed that failed is missing, and the area outline leaves its ground
+    out so a row there reads "not covered" rather than clear.
     """
 
     fetched_at_ms: int
@@ -232,6 +251,7 @@ class Snapshot:
     areas_coarse: tuple[Closure, ...]
     trails_full: tuple[Closure, ...]
     trails_coarse: tuple[Closure, ...]
+    regions: frozenset[str] = ALL_REGIONS
 
     def within(self, bbox: tuple[float, float, float, float], kind: Kind, *, coarse: bool) -> list[Closure]:
         west, south, east, north = bbox
@@ -249,13 +269,18 @@ def collection_json(snapshot: Snapshot, closures: list[Closure], kind: Kind) -> 
     on ``/api/wildfires``: the first survives being saved to a file, and the
     second lets an empty answer outside the feeds read as "not covered" rather
     than "nothing closed". The outline is the one for ``kind``, because only
-    Region 6 publishes trails.
+    Region 6 publishes trails, and the area outline is the snapshot's own,
+    because it holds only the regions whose feeds answered.
     """
+    if kind == "area":
+        coverage = usfs_coverage.area_coverage_json(snapshot.regions)
+    else:
+        coverage = usfs_coverage.COVERAGE_JSON_FOR[kind]
     return (
         '{"type":"FeatureCollection","fetched_at":'
         + str(snapshot.fetched_at_ms)
         + ',"coverage":'
-        + usfs_coverage.COVERAGE_JSON_FOR[kind]
+        + coverage
         + ',"features":['
         + ",".join(c.blob for c in closures)
         + "]}"
@@ -356,15 +381,39 @@ def is_area_closure(attributes: dict[str, Any]) -> bool:
     """Whether a Region 3 or 4 order closes an area to entry.
 
     The rule, and why it reads two signals, is the comment above
-    ``CFR_ENTRY_CLOSURE``.
+    ``CFR_ENTRY_SECTION``.
     """
     cfr = attributes.get("cfr")
-    if isinstance(cfr, str) and CFR_ENTRY_CLOSURE.search(cfr):
+    if isinstance(cfr, str) and _cites_entry_closure(cfr):
         return True
     return any(
-        isinstance(text, str) and TEXT_ENTRY_CLOSURE.search(text) is not None
+        isinstance(text, str) and _says_entry_is_prohibited(text)
         for text in (attributes.get("description"), attributes.get("ordername"))
     )
+
+
+def _cites_entry_closure(cfr: str) -> bool:
+    """Whether a citation names paragraph (e) of 261.52 or 261.53."""
+    for section in CFR_ENTRY_SECTION.finditer(cfr):
+        following = CFR_NEXT_SECTION.search(cfr, section.end())
+        stretch = cfr[section.end() : following.start() if following else len(cfr)]
+        if CFR_PARAGRAPH_E.search(stretch):
+            return True
+    return False
+
+
+def _says_entry_is_prohibited(text: str) -> bool:
+    """Whether a sentence prohibits entry without naming a permit as the way in.
+
+    A sentence runs from the period before the match to the period after it.
+    """
+    for match in TEXT_ENTRY_CLOSURE.finditer(text):
+        start = text.rfind(".", 0, match.start()) + 1
+        end = text.find(".", match.end())
+        sentence = text[start : end if end >= 0 else len(text)]
+        if not TEXT_PERMIT_EXCEPTION.search(sentence):
+            return True
+    return False
 
 
 def _to_order_closure(attributes: dict[str, Any], geometry: Any, source: str) -> Closure | None:
@@ -446,11 +495,11 @@ async def fetch_forest_orders(
     """Every live entry closure in one Region 3 or 4 feed, at both fidelities.
 
     Two phases, because the geometry is the cost and most orders close
-    nothing: Region 4's live orders are 29.9 MB at full resolution, and the six
+    nothing: Region 4's live orders are 29.9 MB at full resolution, and the five
     that pass the test are a fraction of it (2026-09-30). Phase 1 reads the
     attributes of every live order and keeps the ones ``is_area_closure``
     passes. Phase 2 asks for those object IDs alone, once per fidelity, and
-    sends no ``where``: the IDs are the whole filter. The 32 and 6 IDs that
+    sends no ``where``: the IDs are the whole filter. The 32 and 5 IDs that
     passed on 2026-09-30 are a few hundred bytes of query string. When nothing
     passes, phase 2 sends nothing.
     """
@@ -508,6 +557,12 @@ async def fetch_snapshot(transport: httpx.AsyncBaseTransport | None = None) -> S
     it runs concurrently on one client, so a cold pod waits for the slowest
     feed rather than for their sum. ``transport`` exists for the tests, which
     answer every request without a network.
+
+    A failed Region 6 query fails the fetch, as before: Region 6 is the only
+    source of trails. A failed Region 3 or 4 feed drops that region alone,
+    with a warning, so one feed's outage cannot take the others down with it,
+    which on a cold pod would mean no snapshot at all. The next refresh tries
+    it again.
     """
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_S, headers=HEADERS, transport=transport) as client:
         region_six, orders = await asyncio.gather(
@@ -518,18 +573,35 @@ async def fetch_snapshot(transport: httpx.AsyncBaseTransport | None = None) -> S
                 _fetch_layer(client, AREA_QUERY_URL, AREA_FIELDS, None),
                 _fetch_layer(client, AREA_QUERY_URL, AREA_FIELDS, COARSE_OFFSET_DEG),
             ),
-            asyncio.gather(*(fetch_forest_orders(client, feed) for feed in ORDER_FEEDS)),
+            asyncio.gather(
+                *(fetch_forest_orders(client, feed) for feed in ORDER_FEEDS),
+                return_exceptions=True,
+            ),
         )
     points, lines_full, lines_coarse, areas_full, areas_coarse = region_six
-    for full, coarse in orders:
+    regions = {REGION_SIX}
+    for feed, result in zip(ORDER_FEEDS, orders, strict=True):
+        if isinstance(result, BaseException):
+            # Cancellation and interpreter exits are not a feed's failure.
+            if not isinstance(result, Exception):
+                raise result
+            log.warning(
+                "Forest Service orders from the %s failed; serving the snapshot without them: %s",
+                feed.label,
+                result,
+            )
+            continue
+        full, coarse = result
         areas_full += full
         areas_coarse += coarse
+        regions.add(feed.source)
     return Snapshot(
         fetched_at_ms=int(time.time() * 1000),
         areas_full=areas_full,
         areas_coarse=areas_coarse,
         trails_full=lines_full + points,
         trails_coarse=lines_coarse + points,
+        regions=frozenset(regions),
     )
 
 
@@ -539,7 +611,9 @@ closure_cache = cache_factory(
     fetch=fetch_snapshot,
     ttl_s=TTL_S,
     retry_after_failure_s=RETRY_AFTER_FAILURE_S,
-    describe=lambda s: f"{len(s.areas_full)} areas, {len(s.trails_full)} trails and sites",
+    describe=lambda s: (
+        f"{len(s.areas_full)} areas from {', '.join(sorted(s.regions))}, {len(s.trails_full)} trails and sites"
+    ),
 )
 
 CLOSURES = closure_cache()

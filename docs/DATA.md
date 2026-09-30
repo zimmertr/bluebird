@@ -655,12 +655,17 @@ only, because the other two regions publish no trails or sites. Neither feed
 says anything about California, Colorado, Montana, northern Idaho, or eastern
 Wyoming. The API publishes the coverage as a `coverage` geometry on every
 `/api/closures` response, one per layer: coarse outlines biased about 0.2°
-outward on land so a trailhead on a border is never left out. Two places are
+outward on land so a trailhead on a border is never left out. Three places are
 exceptions. Along the Snake River the line runs tight between Clarkston and
 Lewiston, where two towns face each other across the water. In Wyoming it
 follows the Continental Divide, because east of the divide is the Shoshone
-National Forest, which is Region 2. Outside the outline the app reports `N/A`
-rather than clear, because no order there is a fact the feeds cannot state.
+National Forest, which is Region 2. In Nevada it leaves out two Region 5
+areas: the White Mountains around Boundary Peak, which are the Inyo National
+Forest, and the Nevada shore of Lake Tahoe. Outside the outline the app reports
+`N/A` rather than clear, because no order there is a fact the feeds cannot
+state. When one of the Region 3 or Region 4 feeds fails, the server keeps
+serving the other regions, and the area outline leaves out the failed region
+until a later refresh reaches it, so a row there also reads `N/A`.
 
 **Regions 3 and 4 publish every standing order, not closures.** Their feeds
 hold every order a forest has in force: fire restrictions, motor vehicle
@@ -669,8 +674,11 @@ may enter: Region 4 files "Reckless Driving" and "Bridge Load Limits" as
 "Safety Closure". So Bluebird Forecast keeps an order only when it closes an
 area to entry. That is true when its legal citation names 36 CFR 261.52(e) or
 261.53(e), the rules against "going into or being upon" an area, or when its
-name or description says entry is prohibited. Measured 2026-09-30, Region 3
-had 96 live orders and 32 passed; Region 4 had 214 and 6 passed. The feeds
+name or description says entry is prohibited. A sentence that prohibits entry
+"without a permit" describes a permit rule, not a closure, so it does not
+count: Region 4's float permit on the South Fork of the Salmon River is one.
+Measured 2026-09-30, Region 3 had 96 live orders and 32 passed; Region 4 had
+214 and 5 passed. The feeds
 carry no status, so an order is live when nobody rescinded it and its end
 date, if it has one, is still ahead. The two feeds are read in two steps: first
 the text of every live order, then the shapes of the ones that pass. The
@@ -702,8 +710,8 @@ queries: five for Region 6 and three for each other region. Trails and areas com
 fidelities from one fetch: a copy simplified to about 56 m, the same
 tolerance the wildfire overlay uses, is the default, and API callers can ask
 for the full geometry. Measured 2026-09-30, the trail lines are 5.8 MB at full resolution
-and 1.4 MB simplified, and the areas of all three regions are 3.2 MB and
-0.3 MB. See [API.md](API.md#closure-orders).
+and 1.4 MB simplified, and the areas of all three regions are 3.0 MB and
+0.25 MB. See [API.md](API.md#closure-orders).
 
 **The Closure column is a polygon test and nothing else.** A destination is
 flagged when it stands inside the outer ring of an active area closure. It is

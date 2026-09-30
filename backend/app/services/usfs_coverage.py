@@ -25,22 +25,27 @@ Three deliberate properties, in descending order of importance:
   sea. Where two outlines meet, one overlaps the other rather than both
   biasing: the ray cast asks whether ANY polygon holds a point, so an overlap
   costs nothing.
-- **Two exceptions.** The Washington and Idaho line runs down the Snake River
+- **Three exceptions.** The Washington and Idaho line runs down the Snake River
   between Clarkston, Washington and Lewiston, Idaho, two towns that face each
   other across the water, and the line runs tight between them there so
   Lewiston stays outside. Lewiston is in the Nez Perce-Clearwater, which is
   Region 1, so the Idaho polygon stops short of it too. And western Wyoming
   follows the Continental Divide rather than a meridian, because east of the
   divide is the Shoshone, a Region 2 forest these feeds say nothing about: a
-  box to -109.0 would tell a row outside Cody "checked, nothing found".
-- **Static.** A region's scope is a fact about the Forest Service, not about
-  any snapshot, so this is data rather than a fetch.
+  box to -109.0 would tell a row outside Cody "checked, nothing found". And
+  the Nevada polygon is cut back around two Region 5 units inside the state,
+  the Inyo's White Mountains and the Lake Tahoe Basin (review of #551).
+- **Static rings, composed per snapshot.** A region's scope is a fact about
+  the Forest Service, not about any snapshot, so the rings are data rather
+  than a fetch. Which rings the area outline carries is the snapshot's: a
+  Region 3 or 4 feed that failed leaves its rings out (``area_coverage``).
 
 Coordinates are GeoJSON MultiPolygon nesting: polygons → rings → [lon, lat].
 """
 
 from __future__ import annotations
 
+import functools
 import json
 from typing import Any, Literal
 
@@ -115,7 +120,9 @@ _ARIZONA_NEW_MEXICO = [
 
 # Nevada and Utah, Region 4, as one polygon for the same reason. The Humboldt-
 # Toiyabe's districts in California lie outside it, which is the safe side:
-# a row there reads "not covered".
+# a row there reads "not covered". Two pieces of Nevada are Region 5 and are
+# cut out: the Inyo National Forest's White Mountains around Boundary Peak,
+# and the Lake Tahoe Basin Management Unit's Nevada shore.
 _NEVADA_UTAH = [
     # 0.2° north of the Oregon and Idaho line (42.0), overlapping the Idaho
     # polygon, to the Wyoming line.
@@ -132,10 +139,21 @@ _NEVADA_UTAH = [
     [-114.2, 34.84],
     [-114.75, 34.84],
     # The California diagonal from the Colorado River to Lake Tahoe, 0.2°
-    # southwest, which leaves Mount Whitney and Bishop well outside, then the
-    # 120th meridian north, 0.2° west.
-    [-120.12, 38.84],
-    [-120.2, 39.0],
+    # southwest, which leaves Mount Whitney and Bishop well outside.
+    [-118.19, 37.4],
+    # The Inyo's White Mountains (Region 5): -118.0 from 37.4 to 38.3, so
+    # Boundary Peak (-118.35) stays outside.
+    [-118.0, 37.4],
+    [-118.0, 38.3],
+    [-119.4, 38.3],
+    # The Lake Tahoe Basin (Region 5): -119.75 from 38.85 to 39.3, so
+    # Stateline and Incline Village stay outside. Reno and Mount Rose, north
+    # of it, are the Humboldt-Toiyabe and stay inside.
+    [-120.13, 38.85],
+    [-119.75, 38.85],
+    [-119.75, 39.3],
+    # The 120th meridian north, 0.2° west.
+    [-120.2, 39.3],
     [-120.2, 42.2],
 ]
 
@@ -191,17 +209,41 @@ _WESTERN_WYOMING = [
 
 Kind = Literal["area", "trail"]
 
-COVERAGE_FOR: dict[Kind, dict[str, Any]] = {
-    "area": {
+# Each region's rings, keyed by the `ClosureSource` code its features carry,
+# in the order the area outline lists them. The area outline is composed from
+# the regions a snapshot holds, so a feed that failed takes its ground out of
+# coverage and a row there reads "not covered" rather than clear.
+REGION_RINGS: dict[str, tuple[list[list[float]], ...]] = {
+    "R06": (_OREGON_WASHINGTON,),
+    "R03": (_ARIZONA_NEW_MEXICO,),
+    "R04": (_NEVADA_UTAH, _SOUTHERN_IDAHO, _WESTERN_WYOMING),
+}
+ALL_REGIONS: frozenset[str] = frozenset(REGION_RINGS)
+
+
+def area_coverage(regions: frozenset[str]) -> dict[str, Any]:
+    """The area outline for the regions a snapshot holds."""
+    return {
         "type": "MultiPolygon",
-        "coordinates": [
-            [_OREGON_WASHINGTON],
-            [_ARIZONA_NEW_MEXICO],
-            [_NEVADA_UTAH],
-            [_SOUTHERN_IDAHO],
-            [_WESTERN_WYOMING],
-        ],
-    },
+        "coordinates": [[ring] for region, rings in REGION_RINGS.items() if region in regions for ring in rings],
+    }
+
+
+@functools.cache
+def area_coverage_json(regions: frozenset[str]) -> str:
+    """``area_coverage`` serialized, once per set of regions.
+
+    Cached because it rides every area response, and there are only as many
+    sets as combinations of feeds that can fail.
+    """
+    return json.dumps(area_coverage(regions), separators=(",", ":"))
+
+
+# The outlines when every feed answered. The trail outline never changes,
+# because only Region 6 publishes trails and a snapshot without Region 6 is
+# never built.
+COVERAGE_FOR: dict[Kind, dict[str, Any]] = {
+    "area": area_coverage(ALL_REGIONS),
     "trail": {
         "type": "MultiPolygon",
         "coordinates": [[_OREGON_WASHINGTON]],
@@ -215,10 +257,12 @@ COVERAGE_JSON_FOR: dict[Kind, str] = {
 }
 
 
-def covers(kind: Kind, lat: float, lon: float) -> bool:
+def covers(kind: Kind, lat: float, lon: float, regions: frozenset[str] = ALL_REGIONS) -> bool:
     """Whether the feeds behind one kind can say anything about a point.
 
     Mostly for the tests, which pin the geometry to named places; the browser
-    runs the same ray cast against the published member.
+    runs the same ray cast against the published member. ``regions`` narrows
+    the area outline to the feeds a snapshot holds.
     """
-    return any(_in_ring(lon, lat, polygon[0]) for polygon in COVERAGE_FOR[kind]["coordinates"])
+    geometry = area_coverage(regions) if kind == "area" else COVERAGE_FOR[kind]
+    return any(_in_ring(lon, lat, polygon[0]) for polygon in geometry["coordinates"])

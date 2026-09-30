@@ -40,13 +40,16 @@ class ClosureCollection(BaseModel):
             "MultiPolygon geometry riding as a second foreign member. It "
             "differs by kind. For `area` it outlines the Forest Service's "
             "Regions 3, 4 and 6: Arizona, New Mexico, Nevada, Utah, southern "
-            "Idaho, western Wyoming, Oregon and Washington. For `trail` it "
-            "outlines Region 6 alone, Oregon and Washington, because only "
-            "Region 6 publishes closed trails and sites. Every outline is "
-            "coarse and biased about 0.2° outward on land borders. An empty "
-            "`features` array for a bbox outside this geometry means the feeds "
-            "cannot see that area, not that nothing is closed there. Static per "
-            "release."
+            "Idaho, western Wyoming, Oregon and Washington, less two Region 5 "
+            "areas in Nevada. For `trail` it outlines Region 6 alone, Oregon "
+            "and Washington, because only Region 6 publishes closed trails and "
+            "sites. Every outline is coarse and biased about 0.2° outward on "
+            "land borders. An empty `features` array for a bbox outside this "
+            "geometry means the feeds cannot see that area, not that nothing is "
+            "closed there. The trail outline is static per release. The area "
+            "outline leaves out Region 3 or Region 4 when this instance's last "
+            "fetch from that region failed, because the snapshot then holds "
+            "none of its orders."
         )
     )
     features: list[dict[str, Any]] = Field(
@@ -68,7 +71,8 @@ class ClosureCollection(BaseModel):
             "`FireName` are null). An order from them is included when nobody "
             "rescinded it, its end date is not past, and it closes an area to "
             "entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or "
-            "its name or description says entry is prohibited."
+            "its name or description says entry is prohibited in a sentence "
+            "that names no permit as the way in."
         )
     )
 
@@ -95,7 +99,8 @@ class ClosureCollection(BaseModel):
         "Regions 3 and 4 publish every standing forest order, not closures "
         "alone, so an order from them is returned only when it closes an area "
         "to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or "
-        "its name or description says entry is prohibited.\n\n"
+        "its name or description says entry is prohibited in a sentence that "
+        "names no permit as the way in.\n\n"
         "This instance fetches every region on a timer and serves it to "
         "everyone, and serves it past its refresh deadline when the Forest "
         "Service is unreachable, because an order is edited by hand a few "

@@ -473,7 +473,8 @@ order onto Region 6's names so one feature shape serves all three. Their
 `District` and `FireName` are always null. They publish every standing forest
 order rather than closures, so an order from them is returned only when it
 closes an area to entry: its legal citation names 36 CFR 261.52(e) or
-261.53(e), or its name or description says entry is prohibited. They carry no
+261.53(e), or its name or description says entry is prohibited in a sentence
+that names no permit as the way in. They carry no
 status either, so an order is live when nobody rescinded it and its end date,
 if it has one, is still ahead. See [DATA.md](DATA.md#closures) for the counts
 and the test's limits.
@@ -496,7 +497,10 @@ southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon
 and Washington only. An empty result outside the coverage for its kind means
 "not covered", not "nothing closed". The `coverage` foreign member states this
 machine-readably for the requested `kind`, as coarse outlines biased slightly
-outward on land. See [DATA.md](DATA.md#closures).
+outward on land. When this instance's last fetch from Region 3 or Region 4
+failed, the other regions are still served and the `area` outline leaves the
+failed region out, so an empty answer there still reads as "not covered". See
+[DATA.md](DATA.md#closures).
 
 ### Resolving your own coordinates
 

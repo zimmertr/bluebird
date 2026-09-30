@@ -1,4 +1,4 @@
-// Forest Service Region 6 fire closure orders (#550), read from Bluebird
+// Forest Service closure orders (#550, #551), read from Bluebird
 // Forecast's own `GET /api/closures` rather than from the Forest Service.
 //
 // Through the pod for the reason the fire overlay learned in #203: the orders
@@ -8,9 +8,11 @@
 //
 // Two layers from one endpoint, split by `kind`: `area` is the closed ground
 // (polygons), `trail` is the closed trails and roads (lines) together with the
-// closed trailheads and sites (points). Coverage is Region 6 alone, which is
-// Oregon and Washington: outside it an empty answer means "not covered", not
-// "open", which is why both Layers rows say so.
+// closed trailheads and sites (points). The two cover different ground: `area`
+// is Regions 3, 4 and 6 (Arizona, New Mexico, Nevada, Utah, southern Idaho,
+// western Wyoming, Oregon and Washington), and `trail` is Region 6 alone
+// (Oregon and Washington). Outside a kind's coverage an empty answer means
+// "not covered", not "open", which is why both Layers rows say so.
 //
 // The status is the Forest Service's own. An order's end date is what the
 // order says, and nothing here decides whether a closure is still in force.
@@ -27,7 +29,8 @@ export type ClosureKind = 'area' | 'trail'
 /**
  * The closure FeatureCollection plus the foreign members the API rides on it.
  *
- * `coverage` is Oregon and Washington as one geometry, published beside the
+ * `coverage` is the requested kind's outline as one geometry (the eight-state
+ * area outline, or Oregon and Washington for trails), published beside the
  * data it qualifies, the way `WildfireResponse.coverage` is (#256). The map
  * does not read it; the Closure column does (`useClosureProximity`). Optional
  * so a body without it degrades the way the fire check's does: every row is

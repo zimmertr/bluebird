@@ -99,9 +99,12 @@ class _Upstream:
         coarse = "maxAllowableOffset" in query
         offset = int(query["resultOffset"][0])
         if service == R06:
-            return fake_response(self.answers[(layer, coarse, offset)])
-        phase = "attributes" if query["returnGeometry"] == ["false"] else "geometry"
-        return fake_response(self.answers[(service, phase, coarse, offset)])
+            answer = self.answers[(layer, coarse, offset)]
+        else:
+            phase = "attributes" if query["returnGeometry"] == ["false"] else "geometry"
+            answer = self.answers[(service, phase, coarse, offset)]
+        # A test that means an HTTP failure hands the response itself.
+        return answer if isinstance(answer, httpx.Response) else fake_response(answer)
 
     def queries(self, service: str | None = None) -> list[dict[str, list[str]]]:
         return [
@@ -252,6 +255,16 @@ def _shape(objectid: int, west: float, south: float, east: float, north: float) 
     }
 
 
+FLOAT_PERMIT = _order(
+    26008,
+    "South Fork Salmon River & Big Creek Float Permit - Special Order",
+    cfr="36 CFR 261.50(a) and (e), 36 CFR 261.58(k)",
+    description=(
+        "Prohibited is: 1. Entering or being on the South Fork of the Salmon River (below the confluence with "
+        "the East Fork of the South Fork Salmon River) or Big Creek with float boating equipment without a permit."
+    ),
+)
+
 RECKLESS_DRIVING = _order(
     102,
     "Reckless Driving",
@@ -276,7 +289,7 @@ def _orders_answers() -> dict:
         (R03, "geometry", True, 0): _collection(*region_three),
         (R04, "attributes", False, 0): _rows(
             _order(201, "Redfish Cave - Special Order", cfr="36 CFR 261.50(a) and (e), 36 CFR 261.53(e)"),
-            _order(202, "Float Permit - Special Order", cfr="36 CFR 261.50(a) and (e), 36 CFR 261.58(k)"),
+            FLOAT_PERMIT,
         ),
         (R04, "geometry", False, 0): _collection(_shape(201, -114.95, 44.1, -114.9, 44.15)),
         (R04, "geometry", True, 0): _collection(_shape(201, -114.95, 44.1, -114.9, 44.15)),
@@ -297,6 +310,12 @@ def _orders_answers() -> dict:
         {"description": "Being in or on the area described in Exhibit A."},
         {"ordername": "Bear Canyon closed to all public entry"},
         {"ordername": "Mine site CLOSED TO ACCESS"},
+        # Paragraph (e) in a list, and in upper case.
+        {"cfr": "36 CFR 261.53(a) and (e)"},
+        {"cfr": "36 C.F.R. § 261.53(a), (c) and (e)"},
+        {"cfr": "36 CFR 261.52(E)"},
+        # A permit named in ANOTHER sentence does not excuse this one.
+        {"description": "Going into or being upon the area is prohibited. Outfitters need a permit."},
     ],
 )
 def test_an_order_that_closes_an_area_to_entry_passes(attributes):
@@ -313,6 +332,13 @@ def test_an_order_that_closes_an_area_to_entry_passes(attributes):
         {"cfr": "36 C.F.R. § 261.53(a)", "ordername": "Occupancy and Use Prohibition"},
         {"cfr": "36 CFR 261.50(a) and (e), 36 CFR 261.58(k)", "ordername": "Float Permit"},
         {"ordertype": "Safety Closure", "ordername": "Bridge Load Limits"},
+        # The (e) belongs to 261.50, and a paragraph never reaches back across
+        # a section number.
+        {"cfr": "36 CFR 261.50(a) and (e)"},
+        {"cfr": "36 CFR 261.52(a), 36 C.F.R. § 251.55(e)"},
+        # A permit rule, in Region 4's own words (order 26008, 2026-09-30).
+        FLOAT_PERMIT["attributes"],
+        {"description": "Being in or on the gorge unless you hold a valid permit."},
         {"cfr": None, "description": None, "ordername": None},
         {},
     ],
@@ -350,6 +376,48 @@ async def test_an_order_feed_where_nothing_passes_sends_no_geometry_request():
     assert [q["returnGeometry"] for q in upstream.queries(R04)] == [["false"]]
     sources = {json.loads(c.blob)["properties"]["ClosureSource"] for c in snapshot.areas_full}
     assert sources == {"R06", "R03"}
+    # A feed that answered and passed nothing still covers its ground: that
+    # answer is "nothing closed", not "not covered".
+    assert snapshot.regions == usfs_coverage.ALL_REGIONS
+
+
+async def test_a_failed_order_feed_drops_its_region_alone(caplog):
+    answers = _orders_answers()
+    failure = fake_response({}, status=500)
+    answers[(R03, "attributes", False, 0)] = failure
+    upstream = _region(answers)
+    with caplog.at_level("WARNING", logger="app.services.usfs_closures"):
+        snapshot = await usfs_closures.fetch_snapshot(httpx.MockTransport(upstream))
+
+    assert snapshot.regions == frozenset({"R06", "R04"})
+    assert _names(snapshot.areas_full) == ["Eagle Creek", "Redfish Cave - Special Order"]
+    assert _names(snapshot.trails_full) == ["Trail 440", "Trail 441", "Wahtum Lake TH"]
+    assert any("Region 3" in record.getMessage() for record in caplog.records)
+
+    # The area outline leaves Arizona and New Mexico out, so a row there
+    # reads "not covered" rather than clear.
+    coverage = json.loads(usfs_closures.collection_json(snapshot, [], "area"))["coverage"]
+    assert coverage == usfs_coverage.area_coverage(snapshot.regions)
+    humphreys, kings = REGIONS_THREE_AND_FOUR["Humphreys Peak AZ"], REGIONS_THREE_AND_FOUR["Kings Peak UT"]
+    assert not usfs_coverage.covers("area", *humphreys, regions=snapshot.regions)
+    assert usfs_coverage.covers("area", *kings, regions=snapshot.regions)
+    assert usfs_coverage.covers("area", *REGION_SIX["Mount Hood"], regions=snapshot.regions)
+    # The trail outline is Region 6's either way.
+    trail = json.loads(usfs_closures.collection_json(snapshot, [], "trail"))["coverage"]
+    assert trail == usfs_coverage.COVERAGE_FOR["trail"]
+
+
+async def test_a_failed_region_six_query_still_fails_the_fetch():
+    answers = _orders_answers()
+    upstream = _region(answers)
+    upstream.answers[("2", True, 0)] = fake_response({}, status=500)
+    with pytest.raises(httpx.HTTPStatusError):
+        await usfs_closures.fetch_snapshot(httpx.MockTransport(upstream))
+
+
+async def test_a_full_fetch_holds_every_region():
+    snapshot = await usfs_closures.fetch_snapshot(httpx.MockTransport(_region(_orders_answers())))
+    assert snapshot.regions == usfs_coverage.ALL_REGIONS
 
 
 async def test_the_areas_join_region_six_then_three_then_four():
@@ -515,6 +583,8 @@ REGIONS_THREE_AND_FOUR = {
     "Wheeler Peak NM": (36.56, -105.42),
     "Kings Peak UT": (40.78, -110.37),
     "Wheeler Peak NV": (38.98, -114.31),
+    # The Humboldt-Toiyabe, just north of the Lake Tahoe Basin cut.
+    "Reno NV": (39.53, -119.81),
     "Borah Peak ID": (44.14, -113.78),
     # In the Beaverhead Mountains, a few miles from Montana's southern point.
     "Scott Peak ID": (44.36, -112.83),
@@ -542,6 +612,10 @@ NEITHER = {
     # East of the Continental Divide is the Shoshone, a Region 2 forest.
     "Cody WY": (44.53, -109.06),
     "Lander WY": (42.83, -108.73),
+    # Region 5 inside Nevada: the Inyo's White Mountains and the Lake Tahoe
+    # Basin Management Unit's Nevada shore.
+    "Boundary Peak NV": (37.85, -118.35),
+    "Stateline NV": (38.96, -119.94),
 }
 
 # Idaho along the Snake, which the trail outline leaves out: a straight edge
