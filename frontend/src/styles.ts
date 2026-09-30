@@ -2116,7 +2116,15 @@ export const TABLE = {
  * app already wears; the dim is the welcome backdrop's black at 60%.
  */
 export const TOUR = {
-  spotlight: `absolute pointer-events-none ${RADIUS.surface} shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)] transition-all duration-200`,
-  card: `${SURFACE_CARD} fixed w-80 p-4 space-y-3 focus:outline-none transition-[top,left] duration-200`,
+  spotlight: `absolute pointer-events-none ${RADIUS.surface} shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]`,
+  card: `${SURFACE_CARD} fixed w-80 p-4 space-y-3 focus:outline-none`,
   sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
+  /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
+  sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
+  /**
+   * Worn for the moment after a step changes and at no other time. A standing
+   * transition made the spotlight trail its control whenever the layout moved
+   * for another reason, such as the preview banner wrapping on a resize.
+   */
+  motion: 'transition-all duration-200',
 }

@@ -11,6 +11,7 @@ import metricsTableSource from '../components/MetricsTable.tsx?raw'
 import panelFooterSource from '../components/PanelFooter.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
+import resultsLayerSource from '../map/resultsLayer.ts?raw'
 import welcomeSource from '../components/WelcomeModal.tsx?raw'
 
 const SOURCES: Record<string, string> = {
@@ -23,18 +24,20 @@ const SOURCES: Record<string, string> = {
   'PanelFooter.tsx': panelFooterSource,
   'LayersPopover.tsx': layersPopoverSource,
   'ResultsSheet.tsx': resultsSheetSource,
+  'resultsLayer.ts': resultsLayerSource,
   'WelcomeModal.tsx': welcomeSource,
 }
 
 const occurrences = (anchor: string): string[] =>
   Object.entries(SOURCES).flatMap(([name, text]) => {
-    const n = text.split(`${TOUR_ATTR}="${anchor}"`).length - 1
+    // Set in JSX, or from script on an element MapLibre owns (the popup).
+    const n = text.split(`${TOUR_ATTR}="${anchor}"`).length - 1 + text.split(`'${TOUR_ATTR}', '${anchor}'`).length - 1
     return Array<string>(n).fill(name)
   })
 
 describe('the tutorial steps', () => {
-  it('has six steps, each with a distinct anchor', () => {
-    expect(TOUR_STEPS).toHaveLength(6)
+  it('has seven steps, each with a distinct anchor', () => {
+    expect(TOUR_STEPS).toHaveLength(7)
     expect(new Set(TOUR_STEPS.map((s) => s.anchor)).size).toBe(TOUR_STEPS.length)
   })
 
@@ -59,11 +62,11 @@ describe('the tutorial steps', () => {
 
   it('walks the panel top to bottom, then the map, then the results', () => {
     const anchors = TOUR_STEPS.map((s) => s.anchor)
-    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'layers', 'results'])
+    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'layers', 'results', 'marker'])
     expect(TOUR_STEPS[0].text).toMatch(/^Provide a list of destinations to compare by .*, or drawing a polygon/)
   })
 
-  it('names the two steps that bring their own target on screen', () => {
+  it('names the three steps that bring their own target on screen', () => {
     const reveals = Object.fromEntries(TOUR_STEPS.map((s) => [s.anchor, s.reveal]))
     expect(reveals).toEqual({
       destinations: undefined,
@@ -72,6 +75,7 @@ describe('the tutorial steps', () => {
       analyze: undefined,
       layers: 'layers',
       results: 'results',
+      marker: 'marker',
     })
   })
 

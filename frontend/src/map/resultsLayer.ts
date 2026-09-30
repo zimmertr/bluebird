@@ -300,6 +300,8 @@ export function mountResultsLayer(
           }),
         )
         .addTo(map)
+      // The tutorial's marker step frames this popup (#536).
+      popup.getElement()?.setAttribute('data-tour', 'marker')
       // On the board like every other popup, so the next table click or map
       // click takes it down rather than stacking a second one beside it.
       popups.track(popup)

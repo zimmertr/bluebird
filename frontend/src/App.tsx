@@ -154,7 +154,7 @@ export default function App() {
 
   // The guided tutorial (#536). Starting it from the welcome dialog counts as
   // welcomed, so a reader who ends it early is not shown the dialog again.
-  const tour = useTour({ isDesktop, setSidebarOpen })
+  const tour = useTour({ isDesktop, setSidebarOpen, mapRef })
   function startTourFromWelcome() {
     dismissWelcome()
     tour.start()
@@ -483,6 +483,7 @@ export default function App() {
         <ResultsSheet
           resultsView={resultsView}
           showResults={showResults || demo !== null}
+          chartTooltipIndex={tour.chartTooltipIndex}
           isDesktop={isDesktop}
           report={report}
           removals={removals}

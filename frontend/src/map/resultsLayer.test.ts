@@ -4,14 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // and its options, and fires `close` when removed, as MapLibre's does.
 // Hoisted, because `vi.mock` runs before the imports.
 const { popups } = vi.hoisted(() => ({
-  popups: [] as { at: unknown; html: string; options: unknown; removed: boolean }[],
+  popups: [] as { at: unknown; html: string; options: unknown; removed: boolean; attrs: Record<string, string> }[],
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
-    state: { at: unknown; html: string; options: unknown; removed: boolean }
+    state: { at: unknown; html: string; options: unknown; removed: boolean; attrs: Record<string, string> }
     closers: (() => void)[] = []
     constructor(options: unknown) {
-      this.state = { at: null, html: '', options, removed: false }
+      this.state = { at: null, html: '', options, removed: false, attrs: {} }
       popups.push(this.state)
     }
     setLngLat(at: unknown) {
@@ -24,6 +24,10 @@ vi.mock('maplibre-gl', () => ({
     }
     addTo() {
       return this
+    }
+    // The element MapLibre would own; the tutorial marks it (#536).
+    getElement() {
+      return { setAttribute: (k: string, v: string) => (this.state.attrs[k] = v) }
     }
     on(_type: string, fn: () => void) {
       this.closers.push(fn)
@@ -183,6 +187,12 @@ describe('mountResultsLayer', () => {
         modelFallbackLabel: null,
       }),
     )
+  })
+
+  it('marks the popup a table row opens as the tutorial\'s marker target', () => {
+    const { layer } = setup()
+    layer.openPopup(RAINIER)
+    expect(popups[popups.length - 1].attrs).toEqual({ 'data-tour': 'marker' })
   })
 
   // A table row's popup is on the board, so a second table click replaces it

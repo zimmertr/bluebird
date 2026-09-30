@@ -87,6 +87,7 @@ interface ResultsSheetView {
  * each is closed until its trigger, which only the sheet draws, opens it.
  */
 export default function ResultsSheet({
+  chartTooltipIndex = null,
   resultsView,
   showResults,
   isDesktop,
@@ -159,6 +160,7 @@ export default function ResultsSheet({
             <ResultsPanels
               layout={layout}
               charts={charts}
+              chartTooltipIndex={chartTooltipIndex}
               tableView={tableView}
               report={report}
               pending={pending}

@@ -1979,11 +1979,19 @@ describe('the tutorial', () => {
     expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
   })
 
+  it('moves only between steps, never with the layout', () => {
+    for (const role of [STYLES.TOUR.spotlight, STYLES.TOUR.card, STYLES.TOUR.sheet, STYLES.TOUR.sheetTop]) {
+      expect(role).not.toMatch(/transition/)
+    }
+    expect(STYLES.TOUR.motion).toContain('duration-200')
+  })
+
   it('stands the card on the welcome dialog surface, fixed, at the welcome card width', () => {
     expect(STYLES.TOUR.card).toContain(STYLES.SURFACE_CARD)
     expect(STYLES.TOUR.card).toContain('fixed')
     expect(STYLES.TOUR.card).toContain('w-80')
     expect(STYLES.TOUR.sheet).toContain(STYLES.SURFACE_CARD)
     expect(STYLES.TOUR.sheet).toContain('inset-x-4 bottom-4')
+    expect(STYLES.TOUR.sheetTop).toContain('inset-x-4 top-4')
   })
 })

@@ -30,6 +30,8 @@ export interface ResultsPanelsProps {
   layout: Pick<ResultsLayout, 'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'tableGrip' | 'tablePanelPx'>
   /** The charted set and the comparison (`useChartCompare`). */
   charts: Pick<ChartCompare, 'chart' | 'compare' | 'rowChartColor'>
+  /** An hour the chart's tooltip stands on without a mouse (the tutorial, #536). */
+  chartTooltipIndex?: number | null
   /** The table's rows, columns and widths (`useTableView`). */
   tableView: Pick<
     TableView,
@@ -80,6 +82,7 @@ export interface ResultsPanelsProps {
 export default function ResultsPanels({
   layout,
   charts,
+  chartTooltipIndex = null,
   tableView,
   report,
   pending,
@@ -138,6 +141,7 @@ export default function ResultsPanels({
               <Suspense fallback={null}>
                 <TimeSeriesChart
                   times={forecastTimes}
+                  tooltipIndex={chartTooltipIndex}
                   // While a comparison is up every line on the chart is
                   // a (destination, model) pair, composed once by the
                   // hook so each one is named and coloured the same

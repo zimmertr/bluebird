@@ -21,8 +21,9 @@ export type TourPlace = 'panel' | 'map'
  * opens the Layers menu, so the card frames the choices rather than a button.
  * `results` shows the results sheet over a demonstration report, because a
  * first-visit tour runs before any analysis and the sheet is otherwise empty.
+ * `marker` flies to one of that report's markers and opens its popup.
  */
-export type TourReveal = 'layers' | 'results'
+export type TourReveal = 'layers' | 'results' | 'marker'
 
 export interface TourStep {
   /** The `data-tour` value on the target element. */
@@ -80,6 +81,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     text: 'After analysis, the selected destinations are ranked by your chosen metric and constraints.',
     place: 'map',
     reveal: 'results',
+  },
+  {
+    anchor: 'marker',
+    title: 'Markers',
+    text: 'Click a marker on the map to see a summary of the forecast for that destination.',
+    place: 'map',
+    reveal: 'marker',
   },
 ]
 

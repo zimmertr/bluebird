@@ -10,7 +10,7 @@ import {
   TOUR,
 } from '../styles'
 import { anchorSelector, type TourStep } from '../utils/tourSteps'
-import { type Box, cardMode, placeCard, sameBox, spotlight, unionBox } from './place'
+import { type Box, cardMode, placeCard, sameBox, sheetEdge, spotlight, unionBox } from './place'
 
 interface Props {
   steps: readonly TourStep[]
@@ -21,16 +21,21 @@ interface Props {
   onEnd: () => void
 }
 
+/** How long after a step change the spotlight and the card animate. */
+const MOTION_MS = 250
+
 /**
  * The tutorial overlay (#536): a spotlight over the current step's control
  * and one card that says what it does. It points and never acts: nothing is
- * clicked, fetched or typed on the reader's behalf, so it runs the same over
- * an empty app and over a committed report.
+ * clicked, fetched or typed on the reader's behalf.
  *
  * The target is re-measured every animation frame while the tour is open,
  * rather than on resize and scroll events, because the thing that moves it
  * most is the phone's drawer sliding in for a panel step, and that is a CSS
  * transition no event names. A frame that measures the same box sets nothing.
+ * The motion role is worn only for the moment after a step changes: with it
+ * always on, the spotlight trailed its control by 200 ms whenever the layout
+ * moved for another reason.
  */
 export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const step = steps[index]
@@ -41,6 +46,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const [target, setTarget] = useState<Box | null>(null)
   const [cardSize, setCardSize] = useState({ width: 320, height: 160 })
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
+  const [moving, setMoving] = useState(false)
 
   // Bring the control into the panel's view, then follow it frame by frame.
   useEffect(() => {
@@ -74,12 +80,17 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   }, [step.anchor, step.frames])
 
   // Focus lands on Next at every step, so Enter walks the tour and a screen
-  // reader hears the new card. Tab cycles inside the card; Escape ends it;
-  // the arrow keys step either way. Enter and Space on a focused button are
-  // the button's own, or Previous would step back and then forward.
+  // reader hears the new card; the motion role is worn for the move and shed.
   useEffect(() => {
     nextRef.current?.focus()
+    setMoving(true)
+    const timer = window.setTimeout(() => setMoving(false), MOTION_MS)
+    return () => window.clearTimeout(timer)
   }, [index])
+
+  // Tab cycles inside the card; Escape ends it; the arrow keys step either
+  // way. Enter and Space on a focused button are the button's own, or
+  // Previous would step back and then forward.
   const handlers = useRef({ onNext, onPrev, onEnd })
   handlers.current = { onNext, onPrev, onEnd }
   useEffect(() => {
@@ -127,13 +138,15 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const light = target ? spotlight(target) : null
   const sheet = cardMode(viewport.width) === 'sheet'
   const at = light && !sheet ? placeCard(light, cardSize, viewport) : null
+  const sheetRole = sheetEdge(light, cardSize.height, viewport.height) === 'top' ? TOUR.sheetTop : TOUR.sheet
+  const motion = moving ? ` ${TOUR.motion}` : ''
   const last = index === steps.length - 1
 
   return (
     <div className={`fixed inset-0 ${LAYER.modal} overflow-hidden`}>
       {light && (
         <div
-          className={TOUR.spotlight}
+          className={`${TOUR.spotlight}${motion}`}
           style={{ top: light.top, left: light.left, width: light.width, height: light.height }}
           aria-hidden="true"
         />
@@ -145,7 +158,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         aria-labelledby={titleId}
         aria-describedby={textId}
         tabIndex={-1}
-        className={sheet ? TOUR.sheet : TOUR.card}
+        className={`${sheet ? sheetRole : TOUR.card}${motion}`}
         style={at ? { top: at.top, left: at.left } : undefined}
       >
         <div className="flex items-start justify-between gap-3">

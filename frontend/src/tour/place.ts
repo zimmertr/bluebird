@@ -29,12 +29,26 @@ export const CARD_GAP = 12
 /** The least the card keeps from a viewport edge. */
 export const VIEWPORT_MARGIN = 16
 /**
- * Below this width the card is a sheet along the bottom edge rather than a
- * box beside its target. Tailwind's `sm`, not the app's desktop breakpoint:
- * at 1000px a 320px card still stands beside a 360px panel with room to
- * spare, and a sheet there hides the map for nothing.
+ * Below this width the card is a sheet along one edge rather than a box
+ * beside its target. The number is where the box stops fitting beside the
+ * docked panel: 360px of panel, the gap, 320px of card and the margin. Above
+ * it the card has ONE place, to the right of what it frames; below it, one
+ * edge. It is not the app's desktop breakpoint, because at 1000px the box
+ * still fits and a sheet there hides the map for nothing.
  */
-export const SHEET_MAX_W = 640
+export const SHEET_MAX_W = 720
+
+/**
+ * Which edge the sheet takes: the bottom, unless the spotlight reaches into
+ * the band the sheet would cover, in which case the top. The Analyze button
+ * and the results sheet both stand at the bottom of a phone's screen, and a
+ * card over the control it explains is the one place it must not be.
+ */
+export function sheetEdge(light: Box | null, cardHeight: number, viewportHeight: number): 'top' | 'bottom' {
+  if (light === null) return 'bottom'
+  const band = viewportHeight - cardHeight - 2 * VIEWPORT_MARGIN
+  return light.top + light.height > band ? 'top' : 'bottom'
+}
 
 /** Whether the card is a box beside its target or a sheet along the bottom. */
 export function cardMode(viewportWidth: number): 'card' | 'sheet' {

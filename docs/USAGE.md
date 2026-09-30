@@ -4,7 +4,7 @@ Bluebird Forecast is not a recommendation engine. It does not decide what weathe
 
 ## Tutorial
 
-The welcome dialog offers a guided tutorial, and the `Tutorial` link at the bottom of the panel opens it again at any time. It walks six cards in order: the Destinations, Forecast, and Metrics sections, the Analyze button, the Layers menu held open, and the results sheet over a small demonstration report that disappears when the tour ends. Each card sits beside its control: `Next`, `Previous`, and `Done`, or Enter, the arrow keys, and Escape. Nothing is fetched, typed, or analyzed, and ending it changes nothing. On a phone it opens the panel drawer for a panel step and closes it for a map step.
+The welcome dialog offers a guided tutorial, and the `Tutorial` link at the bottom of the panel opens it again at any time. It walks seven cards in order: the Destinations, Forecast, and Metrics sections, the Analyze button, the Layers menu held open, the results sheet over a small demonstration report, and one of that report's markers with its popup open. The demonstration disappears when the tour ends. Each card stands to the right of what it frames, or along one edge of a phone's screen, away from the control: `Next`, `Previous`, and `Done`, or Enter, the arrow keys, and Escape. Nothing is fetched, typed, or analyzed, and ending it changes nothing. On a phone it opens the panel drawer for a panel step and closes it for a map step.
 
 ## Destinations
 

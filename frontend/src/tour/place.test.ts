@@ -5,6 +5,7 @@ import {
   placeCard,
   sameBox,
   SHEET_MAX_W,
+  sheetEdge,
   SPOTLIGHT_PAD,
   spotlight,
   unionBox,
@@ -38,6 +39,16 @@ describe('the sheet', () => {
     expect(cardMode(SHEET_MAX_W - 1)).toBe('sheet')
     expect(cardMode(SHEET_MAX_W)).toBe('card')
     expect(cardMode(1000)).toBe('card')
+  })
+
+  it('is exactly where a box stops fitting beside the docked panel', () => {
+    expect(SHEET_MAX_W).toBeGreaterThanOrEqual(360 + CARD_GAP + card.width + VIEWPORT_MARGIN)
+  })
+
+  it('takes the bottom edge unless the target stands there', () => {
+    expect(sheetEdge({ top: 100, left: 0, width: 300, height: 40 }, 160, 800)).toBe('bottom')
+    expect(sheetEdge({ top: 700, left: 0, width: 300, height: 40 }, 160, 800)).toBe('top')
+    expect(sheetEdge(null, 160, 800)).toBe('bottom')
   })
 })
 

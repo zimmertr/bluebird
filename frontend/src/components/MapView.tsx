@@ -45,6 +45,8 @@ export interface MapViewHandle {
   // this destination has no forecast. Clicking the dot still says what is
   // known about it (TJ, 2026-09-14).
   focusPoint: (at: { latitude: number; longitude: number }) => void
+  /** Close every popup and move nothing: the tutorial leaving its marker step (#536). */
+  closePopups: () => void
 }
 
 interface Props {
@@ -406,6 +408,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // is interpolated onto the transform and stays there.
           offset: [0, -cameraPadBottomPx / 2],
         })
+        popups.closeAll()
+      },
+      closePopups() {
         popups.closeAll()
       },
       // Center on a result (clicked from its rank in the table) and open the
