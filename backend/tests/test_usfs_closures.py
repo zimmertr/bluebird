@@ -583,8 +583,11 @@ REGIONS_THREE_AND_FOUR = {
     "Wheeler Peak NM": (36.56, -105.42),
     "Kings Peak UT": (40.78, -110.37),
     "Wheeler Peak NV": (38.98, -114.31),
-    # The Humboldt-Toiyabe, just north of the Lake Tahoe Basin cut.
+    # The Humboldt-Toiyabe, just north of the Lake Tahoe Basin cut, and just
+    # east of it: the cut stops at -119.85 so the Carson Range's east slope
+    # keeps its forest.
     "Reno NV": (39.53, -119.81),
+    "Carson City NV": (39.16, -119.77),
     "Borah Peak ID": (44.14, -113.78),
     # In the Beaverhead Mountains, a few miles from Montana's southern point.
     "Scott Peak ID": (44.36, -112.83),

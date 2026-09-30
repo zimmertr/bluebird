@@ -146,12 +146,13 @@ _NEVADA_UTAH = [
     [-118.0, 37.4],
     [-118.0, 38.3],
     [-119.4, 38.3],
-    # The Lake Tahoe Basin (Region 5): -119.75 from 38.85 to 39.3, so
-    # Stateline and Incline Village stay outside. Reno and Mount Rose, north
-    # of it, are the Humboldt-Toiyabe and stay inside.
+    # The Lake Tahoe Basin (Region 5): -119.85 from 38.85 to 39.3, so
+    # Stateline and Incline Village stay outside. Carson City (-119.77), whose
+    # Carson Range slope is the Humboldt-Toiyabe, stays inside, and so do Reno
+    # and Mount Rose north of the cut.
     [-120.13, 38.85],
-    [-119.75, 38.85],
-    [-119.75, 39.3],
+    [-119.85, 38.85],
+    [-119.85, 39.3],
     # The 120th meridian north, 0.2° west.
     [-120.2, 39.3],
     [-120.2, 42.2],
