@@ -22,7 +22,7 @@ from app.models import (
 )
 from app.routes.analyze import _sse, _summarize_request
 from app.services import air_quality, osm, ranking, snodas, weather
-from app.services.candidates import _filter_elevation, _merge_custom
+from app.services.candidates import _coord_key, _filter_elevation, _merge_custom
 from app.services.errors import (
     InvalidApiKeyError,
     ModelCoverageError,
@@ -914,6 +914,47 @@ def test_merge_custom_coord_collision_drops_discovered():
     discovered = [{"name": "osm", "latitude": 46.852890, "longitude": -121.760410}]
     custom = [{"name": "mine", "latitude": 46.852892, "longitude": -121.760408}]
     assert _merge_custom(discovered, custom) == custom
+
+
+# The collision key is five decimals (~1 m), the frontend's geoKey precedent.
+# Coarser, and two distinct summits a ridge apart would merge into one row;
+# finer, and a pasted coordinate would miss the OSM node it names.
+def test_coord_key_is_five_decimals():
+    assert _coord_key({"latitude": 46.852894, "longitude": -121.760406}) == "46.85289,-121.76041"
+
+
+@pytest.mark.parametrize(
+    ("custom_lat", "custom_lon", "merges"),
+    [
+        # Differs only at the sixth decimal: the same point.
+        (46.852894, -121.760406, True),
+        # Differs at the fifth decimal, on either axis: a different point.
+        (46.85290, -121.76041, False),
+        (46.85289, -121.76042, False),
+    ],
+)
+def test_merge_custom_collides_at_five_decimals(custom_lat, custom_lon, merges):
+    discovered = [{"name": "osm", "latitude": 46.85289, "longitude": -121.76041}]
+    custom = [{"name": "mine", "latitude": custom_lat, "longitude": custom_lon}]
+    expected = custom if merges else discovered + custom
+    assert _merge_custom(discovered, custom) == expected
+
+
+def test_a_pasted_row_replaces_the_discovered_row_at_its_point(monkeypatch, stub_upstreams):
+    async def one_summit(polygon, destination_types, on_status=None, **_):
+        return [{"name": "Colfax Peak", "latitude": 48.79052, "longitude": -121.79921,
+                 "elevation_ft": 9443.0, "osm_id": "node/1", "type": "peak"}]
+
+    monkeypatch.setattr(osm, "query_osm", one_summit)
+    start, end = _window()
+    body = {
+        "destination_types": ["peak"], "start_datetime": start, "end_datetime": end,
+        "polygon": {"type": "Polygon", "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]},
+        # Pasted with more digits than the key reads, under the caller's own name.
+        "custom_destinations": [{"name": "Colfax", "latitude": 48.790523, "longitude": -121.799207}],
+    }
+    rows = client.post("/api/analyze", json=body).json()["results"]
+    assert [(r["name"], r["type"]) for r in rows] == [("Colfax", "custom")]
 
 
 # ── _aligned_aqi / _assemble (series bake-in) ──────────────────────────────
