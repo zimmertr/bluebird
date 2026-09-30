@@ -85,7 +85,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     anchor: 'marker',
     title: 'Markers',
-    text: 'Click a marker on the map to see a summary of the forecast for that destination.',
+    text: 'Select a marker on the map to see a summary of the forecast for that destination.',
     place: 'map',
     reveal: 'marker',
   },

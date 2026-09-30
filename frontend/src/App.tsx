@@ -154,7 +154,7 @@ export default function App() {
 
   // The guided tutorial (#536). Starting it from the welcome dialog counts as
   // welcomed, so a reader who ends it early is not shown the dialog again.
-  const tour = useTour({ isDesktop, setSidebarOpen, mapRef })
+  const tour = useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef })
   function startTourFromWelcome() {
     dismissWelcome()
     tour.start()
@@ -384,7 +384,8 @@ export default function App() {
   // The results sheet's view: its layout, the comparison chart, the table's
   // shape and file, and the table's callbacks (useResultsView).
   const resultsView = useResultsView({
-    showResults: showResults || tour.sheetShown,
+    showResults: showResults || demo !== null,
+    collapsedOverride: tour.sheetCollapsed,
     response: shownResponse,
     results,
     pending,
@@ -482,7 +483,7 @@ export default function App() {
 
         <ResultsSheet
           resultsView={resultsView}
-          showResults={showResults || tour.sheetShown}
+          showResults={showResults || demo !== null}
           chartTooltipIndex={tour.chartTooltipIndex}
           isDesktop={isDesktop}
           report={report}

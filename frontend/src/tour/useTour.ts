@@ -1,10 +1,11 @@
-import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
-import type { MapViewHandle } from '../components/MapView'
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { MapCamera, MapViewHandle } from '../components/MapView'
 import { anchorSelector, stepLayout, TOUR_STEPS, type TourStep } from '../utils/tourSteps'
 import { demoReport, type DemoReport } from './demoReport'
 
 interface Args {
   isDesktop: boolean
+  sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   mapRef: RefObject<MapViewHandle | null>
 }
@@ -13,6 +14,8 @@ interface Args {
 const CHART_TOOLTIP_INDEX = 6
 /** How far above the map's centre the marker step puts its marker, so the popup hangs whole below it. */
 const MARKER_LIFT = 0.25
+/** How long the marker step waits for the sheet to settle before it frames the map. */
+const MARKER_SETTLE_MS = 350
 
 /**
  * The tutorial's state (#536): which step is open, over which steps. The list
@@ -20,25 +23,39 @@ const MARKER_LIFT = 0.25
  * screen plus the ones that bring their own (`reveal`), so the count a card
  * shows holds for the whole run. Ending changes nothing in the app: no URL,
  * no storage, no analysis. What a step may move is the phone's drawer, the
- * Layers menu, the results sheet over a demonstration report, and one
- * marker's popup; each is undone the moment the step is left.
+ * Layers menu, the results sheet over a demonstration report, the map's
+ * camera and one marker's popup; the popup and the menu are undone when
+ * their step is left, and the camera and the drawer are put back where the
+ * tour found them when it ends, by any route.
  */
-export function useTour({ isDesktop, setSidebarOpen, mapRef }: Args) {
+export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args) {
   const [steps, setSteps] = useState<readonly TourStep[]>(TOUR_STEPS)
   const [index, setIndex] = useState<number | null>(null)
+  // What the reader had before the tour touched anything.
+  const before = useRef<{ camera: MapCamera | null; sidebarOpen: boolean } | null>(null)
 
   const start = useCallback(() => {
     const present = TOUR_STEPS.filter(
       (s) => s.reveal !== undefined || document.querySelector(anchorSelector(s.anchor)) !== null,
     )
     if (present.length === 0) return
+    before.current = { camera: mapRef.current?.getCamera() ?? null, sidebarOpen }
     setSteps(present)
     setIndex(0)
-  }, [])
-  const end = useCallback(() => setIndex(null), [])
+  }, [mapRef, sidebarOpen])
+  const end = useCallback(() => {
+    setIndex(null)
+    const saved = before.current
+    before.current = null
+    if (!saved) return
+    setSidebarOpen(saved.sidebarOpen)
+    if (saved.camera) mapRef.current?.setCamera(saved.camera)
+  }, [mapRef, setSidebarOpen])
   const next = useCallback(() => {
-    setIndex((i) => (i === null ? null : i + 1 < steps.length ? i + 1 : null))
-  }, [steps.length])
+    if (index === null) return
+    if (index + 1 < steps.length) setIndex(index + 1)
+    else end()
+  }, [index, steps.length, end])
   const prev = useCallback(() => {
     setIndex((i) => (i === null || i === 0 ? i : i - 1))
   }, [])
@@ -58,14 +75,18 @@ export function useTour({ isDesktop, setSidebarOpen, mapRef }: Args) {
   const demo: DemoReport | null = useMemo(() => (showingResults ? demoReport() : null), [showingResults])
 
   // The marker step flies to the first demonstration row and opens its popup,
-  // the same move a click on its rank in the table makes. The popup is taken
-  // down when the step is left, whichever way it is left.
+  // the same move a click on its rank in the table makes, once the sheet has
+  // settled (on a phone it collapses first, and the framing reads its height).
+  // The popup is taken down when the step is left, whichever way it is left.
   const showingMarker = step?.reveal === 'marker'
   useEffect(() => {
     if (!showingMarker || demo === null) return
     const map = mapRef.current
-    map?.focusResult(demo.universe[0], MARKER_LIFT)
-    return () => map?.closePopups()
+    const timer = window.setTimeout(() => map?.focusResult(demo.universe[0], MARKER_LIFT), MARKER_SETTLE_MS)
+    return () => {
+      window.clearTimeout(timer)
+      map?.closePopups()
+    }
   }, [showingMarker, demo, mapRef])
 
   return {
@@ -80,12 +101,11 @@ export function useTour({ isDesktop, setSidebarOpen, mapRef }: Args) {
     /** The results sheet shows this instead of the real report for its steps. */
     demo,
     /**
-     * The sheet itself is up for the results step alone. The marker step keeps
-     * the demonstration for its markers but takes the sheet down, because on a
-     * phone the sheet stands where the popup opens and the popup's lower half
-     * went under it (TJ, 2026-09-29).
+     * On a phone the marker step collapses the sheet to its bar: the open
+     * sheet stands where the popup needs to be, and the table is a swipe away.
+     * On desktop the sheet is docked under the map and stays as it is.
      */
-    sheetShown: step?.reveal === 'results',
+    sheetCollapsed: showingMarker && !isDesktop ? true : null,
     /** The chart's tooltip stands on this hour while the demonstration is up, or follows the mouse. */
     chartTooltipIndex: showingResults ? CHART_TOOLTIP_INDEX : null,
   }

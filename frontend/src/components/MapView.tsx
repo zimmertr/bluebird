@@ -31,7 +31,20 @@ import { mountFeatures, type MapFeatures } from '../map/features'
 import { createPopupBoard } from '../map/popups'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
+/** Where the map stands, enough to put it back (#536). */
+export interface MapCamera {
+  lng: number
+  lat: number
+  zoom: number
+  bearing: number
+  pitch: number
+}
+
 export interface MapViewHandle {
+  /** The camera as it stands, or null before the map exists. */
+  getCamera: () => MapCamera | null
+  /** Put the camera back where `getCamera` found it, with no animation. */
+  setCamera: (camera: MapCamera) => void
   framePolygon: () => void
   finishDrawing: () => GeoPolygon | null
   // Replace the ring outright: null empties it (Clear), a polygon puts back
@@ -416,6 +429,20 @@ const MapView = forwardRef<MapViewHandle, Props>(
       },
       closePopups() {
         popups.closeAll()
+      },
+      getCamera() {
+        const map = mapRef.current
+        if (!map) return null
+        const c = map.getCenter()
+        return { lng: c.lng, lat: c.lat, zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
+      },
+      setCamera(camera: MapCamera) {
+        mapRef.current?.jumpTo({
+          center: [camera.lng, camera.lat],
+          zoom: camera.zoom,
+          bearing: camera.bearing,
+          pitch: camera.pitch,
+        })
       },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives.
