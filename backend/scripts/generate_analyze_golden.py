@@ -3,10 +3,11 @@
 Every case posts one request to `POST /api/analyze` and to
 `POST /api/analyze/stream` with the upstream services stubbed, and records
 what a caller receives: the JSON route's status, `Retry-After` and body, the
-stream's every `data:` line, and how many destinations each upstream fetch was
-asked about. The two routes together show every field of every event the
-analysis yields, and the call counts pin which fetches run for every candidate
-and which run only for the returned rows (a quota decision, not a detail).
+stream's every `data:` line, and every argument each upstream fetch was given.
+The two routes together show every field of every event the analysis yields.
+The call log pins which fetches run for every candidate and which run only for
+the returned rows (a quota decision, not a detail), and the model, window,
+endpoint split, key and discovery flags each fetch receives.
 
 The record is the guard for restructuring the analysis: a change that is meant
 to move no behavior must leave this file byte-identical. So the stubs patch
@@ -44,13 +45,14 @@ from test_snodas import a_snapshot  # noqa: E402
 
 from app import ratelimit  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import MAX_ANALYZE_PEAKS  # noqa: E402
+from app.models import MAX_ANALYZE_PEAKS, PAST_DATA_DAYS  # noqa: E402
 from app.services import air_quality, cache, osm, snodas, weather  # noqa: E402
 from app.services.errors import (  # noqa: E402
     InvalidApiKeyError,
     UpstreamError,
     UpstreamRateLimited,
 )
+from app.services.snapshot import SnapshotCache  # noqa: E402
 
 OUT = BACKEND / "tests" / "data" / "analyze_golden.json"
 
@@ -137,11 +139,15 @@ def _cloud(d: dict) -> dict:
 
 
 def _flood(n: int) -> list[dict]:
-    """More candidates than the cap, every tenth with no elevation."""
+    """More candidates than the cap, every hundredth with no elevation.
+
+    Sized so the rows WITH an elevation still outnumber the cap, which is what
+    makes the top-by-elevation cut drop rows rather than only the unknowns.
+    """
     return [
         dest(
             40.0 + i * 1e-4, -110.0 - i * 1e-4, name=f"Summit {i}",
-            elevation_ft=None if i % 10 == 0 else 3000.0 + i,
+            elevation_ft=None if i % 100 == 0 else 3000.0 + i,
             osm_id=f"node/{1000 + i}", type="peak",
         )
         for i in range(n)
@@ -169,8 +175,12 @@ class Case:
     headers: dict[str, str] = field(default_factory=dict)
 
 
+def _hour(t: datetime) -> datetime:
+    return t.replace(minute=0, second=0, microsecond=0)
+
+
 def _window(now: datetime, **extra: Any) -> dict:
-    start = now.replace(minute=0, second=0, microsecond=0)
+    start = _hour(now)
     return {
         "start_datetime": start.isoformat(),
         "end_datetime": (start + timedelta(days=1)).isoformat(),
@@ -191,19 +201,27 @@ KEY = {"X-Open-Meteo-Key": "golden-test-key"}
 CASES = [
     # The whole happy path of a drawn ring: a mirror failover, per-batch
     # progress, a pace wait, the cut, and air quality for the returned rows.
-    Case("polygon", _peaks(limit=3), discovered=PEAKS, failover=True, pace=True),
+    Case(
+        "polygon",
+        _peaks(limit=3, include_unnamed_peaks=True, forecast_model="icon_seamless"),
+        discovered=PEAKS, failover=True, pace=True,
+    ),
     Case("custom_list", _custom()),
     Case("union", _peaks(custom_destinations=CUSTOM), discovered=PEAKS),
     Case("empty_discovery", _peaks(), discovered=[]),
     # A floor keeps the row with no elevation, as every elevation filter does.
     Case("elevation_band", _peaks(min_elevation_ft=7000), discovered=PEAKS),
-    Case("over_cap", _peaks(), discovered=_flood(MAX_ANALYZE_PEAKS + 5)),
-    Case("over_cap_top_by_elevation", _peaks(top_by_elevation=True, limit=2), discovered=_flood(MAX_ANALYZE_PEAKS + 5)),
+    Case("over_cap", _peaks(), discovered=_flood(MAX_ANALYZE_PEAKS + 30)),
+    Case(
+        "over_cap_top_by_elevation",
+        _peaks(top_by_elevation=True, limit=2),
+        discovered=_flood(MAX_ANALYZE_PEAKS + 30),
+    ),
     Case(
         "bad_window",
         lambda now: {
             **_custom()(now),
-            "start_datetime": (now + timedelta(days=2)).replace(minute=0, second=0, microsecond=0).isoformat(),
+            "start_datetime": _hour(now + timedelta(days=2)).isoformat(),
         },
     ),
     Case("nothing_to_analyze", lambda now: _window(now, destination_types=[])),
@@ -221,24 +239,71 @@ CASES = [
     Case("cloud_sort", _peaks(sort_by="cloud_base_min_ft", sort_desc=True, limit=2), discovered=PEAKS),
     Case("cloud_display_only", _peaks(include_clouds=True, limit=2), discovered=PEAKS, headers=KEY),
     Case("late_aqi_key_refused", _custom(), aqi=InvalidApiKeyError(), headers=KEY),
+    # Any other error out of the late air-quality fetch is not caught by the
+    # analysis, so the JSON route answers the server's bare 500 and the stream
+    # its catch-all event. Recorded as it stands, not as it should be.
+    Case(
+        "late_aqi_rate_limited",
+        _custom(),
+        aqi=UpstreamRateLimited("Open-Meteo", "hourly", 600, "Open-Meteo quota reached. Try again later."),
+    ),
     Case(
         "late_cloud_failure",
         _custom(include_clouds=True),
         cloud=UpstreamError("Open-Meteo request failed. Try again later."),
+    ),
+    # A bound that removes every row leaves the late fetches nothing to ask
+    # about, and they ask about nothing rather than sending an empty batch.
+    Case("bound_removes_every_row", _peaks(min_temp_f=1000, include_clouds=True), discovered=PEAKS),
+    # Starts two days inside the archive's range and ends now, so the weather
+    # and cloud fetches are told the window spans the seam.
+    Case(
+        "spanning_window",
+        lambda now: {
+            **_custom()(now),
+            "start_datetime": _hour(now - timedelta(days=PAST_DATA_DAYS + 2)).isoformat(),
+            "end_datetime": _hour(now).isoformat(),
+        },
     ),
     Case("series_off_with_bound", _peaks(include_series=False, max_wind_mph=18, limit=2), discovered=PEAKS),
     Case("snow_depth", _custom(SNOW_CUSTOM, sort_by="snow_depth_in", sort_desc=True), snow=True),
 ]
 
 
-def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list]) -> None:
-    """Install one case's upstreams on the service modules the analysis reads."""
+def _dests(destinations: list[dict]) -> dict:
+    """What a fetch was asked about: the keys each row carries, and each row's
+    name, coordinate and elevation (the wind and temperature read it). A long
+    list keeps its ends, which is where a wrong cut or a wrong order shows."""
+    rows = [[d.get("name"), d["latitude"], d["longitude"], d.get("elevation_ft")] for d in destinations]
+    return {
+        "n": len(rows),
+        "keys": sorted(destinations[0]) if destinations else [],
+        "rows": rows if len(rows) <= 10 else rows[:3] + rows[-3:],
+    }
 
-    def record(service: str, destinations: list, api_key: str | None) -> None:
-        calls[service].append([len(destinations), api_key is not None])
+
+def _window_offsets(start: datetime, end: datetime, origin: datetime) -> list[float]:
+    """The window a fetch was given, in seconds from the window the request
+    asked for, so the record holds no instant the clock chose."""
+    return [(start - origin).total_seconds(), (end - origin).total_seconds()]
+
+
+def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: datetime) -> SnapshotCache:
+    """Install one case's upstreams on the service modules the analysis reads.
+
+    Each stub records every argument the analysis hands it, not only how many
+    destinations: the model, the window, the endpoint split, the key and the
+    discovery flags are exactly what a restructuring carries from one phase to
+    the next, and a stub that ignores an argument cannot notice it was dropped.
+    """
 
     async def query_osm(polygon, destination_types, on_status=None, include_unnamed_peaks=False):
-        calls["discovery"].append(len(destination_types))
+        calls["discovery"].append({
+            "types": [t.value for t in destination_types],
+            "ring": polygon.coordinates[0],
+            "include_unnamed_peaks": include_unnamed_peaks,
+            "on_status": on_status is not None,
+        })
         if case.discovered is None:
             raise AssertionError(f"{case.name} reached discovery without a stubbed answer")
         if isinstance(case.discovered, Exception):
@@ -248,14 +313,23 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list]) -> None:
         return [dict(d) for d in case.discovered]
 
     async def enrich_custom(destinations):
-        calls["enrich"].append(len(destinations))
+        calls["enrich"].append(_dests(destinations))
         return [dict(d) for d in destinations]
 
     async def fetch_weather_batch(
-        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        destinations, start_dt, end_dt, on_progress=None, on_pace=None, model=None,
         api_key=None, source="forecast", boundary=None,
     ):
-        record("weather", destinations, api_key)
+        calls["weather"].append({
+            "destinations": _dests(destinations),
+            "window": _window_offsets(start_dt, end_dt, origin),
+            "model": getattr(model, "value", model),
+            "source": source,
+            "boundary": boundary is not None,
+            "key": api_key,
+            "on_progress": on_progress is not None,
+            "on_pace": on_pace is not None,
+        })
         if case.weather is not None:
             raise case.weather
         total = len(destinations)
@@ -270,27 +344,42 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list]) -> None:
                 await on_progress(min(size * (b + 1), total), total, b + 1, batches)
         return [_weather(d) for d in destinations]
 
-    async def fetch_aqi_batch(destinations, start, end, api_key=None):
-        record("aqi", destinations, api_key)
+    async def fetch_aqi_batch(destinations, start_dt, end_dt, api_key=None):
+        calls["aqi"].append({
+            "destinations": _dests(destinations),
+            "window": _window_offsets(start_dt, end_dt, origin),
+            "key": api_key,
+        })
         if case.aqi is not None:
             raise case.aqi
         return [_aqi(d) for d in destinations]
 
     async def fetch_cloud_batch(
-        destinations, start, end, model=None, api_key=None, source="forecast", boundary=None,
+        destinations, start_dt, end_dt, model=None, api_key=None, source="forecast", boundary=None,
     ):
-        record("cloud", destinations, api_key)
+        calls["cloud"].append({
+            "destinations": _dests(destinations),
+            "window": _window_offsets(start_dt, end_dt, origin),
+            "model": getattr(model, "value", model),
+            "source": source,
+            "boundary": boundary is not None,
+            "key": api_key,
+        })
         if case.cloud is not None:
             raise case.cloud
         return [_cloud(d) for d in destinations]
 
-    async def refuse():
-        raise AssertionError("the golden record must not fetch a snow grid")
+    async def fetch_grid():
+        # Reached only if the analysis waits on the grid. `_run` fails on any
+        # entry here, and on any refresh scheduled behind a request.
+        calls["snow_fetch"].append(case.name)
+        raise RuntimeError("the golden record never fetches a snow grid")
 
-    grid = snodas.snow_cache(fetch=refuse)
-    if case.snow:
-        grid._snapshot = a_snapshot("2026-09-22")
-        grid._fresh_until = float("inf")
+    # Fresh forever, so the analysis never schedules a refresh: the snow case
+    # holds a grid, and every other case holds none and reads nulls.
+    grid = snodas.snow_cache(fetch=fetch_grid)
+    grid._snapshot = a_snapshot("2026-09-22") if case.snow else None
+    grid._fresh_until = float("inf")
 
     mp.setattr(osm, "query_osm", query_osm)
     mp.setattr(osm, "enrich_custom", enrich_custom)
@@ -299,10 +388,11 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list]) -> None:
     mp.setattr(air_quality, "fetch_aqi_batch", fetch_aqi_batch)
     mp.setattr(snodas, "GRID", grid)
     mp.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(0, 1))
+    return grid
 
 
 def _fresh_calls() -> dict[str, list]:
-    return {"discovery": [], "enrich": [], "weather": [], "aqi": [], "cloud": []}
+    return {"discovery": [], "enrich": [], "weather": [], "aqi": [], "cloud": [], "snow_fetch": []}
 
 
 def _stream_events(text: str) -> list[str]:
@@ -325,7 +415,7 @@ def _run(client: TestClient, case: Case, now: datetime) -> dict:
             for held in (cache.DISCOVERY_CACHE, cache.ENRICH_CACHE, cache.FORECAST_CACHE):
                 held.clear()
             calls = _fresh_calls()
-            _stubs(mp, case, calls)
+            grid = _stubs(mp, case, calls, datetime.fromisoformat(body["start_datetime"]))
             path = "/api/analyze" if route == "json" else "/api/analyze/stream"
             # Identity encoding, so the record is the body and not its gzip.
             resp = client.post(path, json=body, headers={"accept-encoding": "identity", **case.headers})
@@ -338,6 +428,9 @@ def _run(client: TestClient, case: Case, now: datetime) -> dict:
                 answer["body"] = resp.text
             else:
                 answer["events"] = _stream_events(resp.text)
+            snow_fetches = calls.pop("snow_fetch")
+            assert not snow_fetches, f"{case.name} on the {route} route fetched a snow grid"
+            assert grid._refresh_task is None, f"{case.name} on the {route} route scheduled a snow refresh"
             answer["calls"] = calls
             out[route] = answer
     return out
@@ -345,7 +438,9 @@ def _run(client: TestClient, case: Case, now: datetime) -> dict:
 
 def render() -> str:
     now = datetime.now(UTC)
-    client = TestClient(app)
+    # A server error is recorded as the response a caller gets rather than
+    # raised here, so a case that ends in one is pinned like any other.
+    client = TestClient(app, raise_server_exceptions=False)
     record = {
         "_comment": (
             "Generated by backend/scripts/generate_analyze_golden.py. Do not edit by hand. "
