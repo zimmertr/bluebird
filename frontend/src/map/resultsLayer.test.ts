@@ -4,14 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // and its options, and fires `close` when removed, as MapLibre's does.
 // Hoisted, because `vi.mock` runs before the imports.
 const { popups } = vi.hoisted(() => ({
-  popups: [] as { at: unknown; html: string; options: unknown; removed: boolean }[],
+  popups: [] as { at: unknown; html: string; options: unknown; removed: boolean; attrs: Record<string, string> }[],
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
-    state: { at: unknown; html: string; options: unknown; removed: boolean }
+    state: { at: unknown; html: string; options: unknown; removed: boolean; attrs: Record<string, string> }
     closers: (() => void)[] = []
     constructor(options: unknown) {
-      this.state = { at: null, html: '', options, removed: false }
+      this.state = { at: null, html: '', options, removed: false, attrs: {} }
       popups.push(this.state)
     }
     setLngLat(at: unknown) {
@@ -25,6 +25,15 @@ vi.mock('maplibre-gl', () => ({
     addTo() {
       return this
     }
+    // The element MapLibre would own, at the size a full card measures; the
+    // fit reads it and the tutorial marks it (#536).
+    getElement() {
+      return {
+        offsetWidth: CARD_W,
+        offsetHeight: CARD_H,
+        setAttribute: (k: string, v: string) => (this.state.attrs[k] = v),
+      }
+    }
     on(_type: string, fn: () => void) {
       this.closers.push(fn)
       return this
@@ -36,7 +45,7 @@ vi.mock('maplibre-gl', () => ({
   },
 }))
 
-import { makeArrowImage, mountResultsLayer, RESULT_MARKER_LAYER } from './resultsLayer'
+import { makeArrowImage, mountResultsLayer, POPUP_PAN_MS, RESULT_MARKER_LAYER } from './resultsLayer'
 import { createMapController, type MapInputs } from './controller'
 import { createPopupBoard } from './popups'
 import { pendingFC } from '../utils/mapFeatures'
@@ -44,6 +53,12 @@ import { resultPopupHtml } from '../utils/resultPopup'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { resultRow } from '../testSupport/fixtures'
 import { stubMap } from '../testSupport/stubMap'
+
+// A full card's size, and a map tall enough to hold one below a centred marker.
+const CARD_W = 280
+const CARD_H = 360
+const MAP_W = 1280
+const MAP_H = 900
 
 const ADAMS = resultRow({ name: 'Mount Adams', latitude: 46.2, longitude: -121.5 })
 const RAINIER = resultRow({ name: 'Mount Rainier', latitude: 46.85, longitude: -121.76 })
@@ -60,8 +75,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function setup(results = [ADAMS, RAINIER]) {
-  const stub = stubMap({ canvasWidth: 1280 })
+function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }) {
+  const stub = stubMap({ canvasWidth: MAP_W, canvasHeight: MAP_H, markerAt })
   const inputs: MapInputs = {
     drawing: false,
     results,
@@ -183,6 +198,56 @@ describe('mountResultsLayer', () => {
         modelFallbackLabel: null,
       }),
     )
+  })
+
+  // The fit itself is `popupFit.test.ts`; this is the layer applying it:
+  // which side the card is built on, and what the map is told to do.
+  it('hangs the card below a centred marker and moves nothing', () => {
+    const { stub, layer } = setup()
+    expect(layer.openPopup(RAINIER)).toEqual({ dx: 0, dy: 0 })
+    expect(popups).toHaveLength(1)
+    expect(popups[0].options).toMatchObject({ anchor: 'top', closeOnClick: false })
+    expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+
+  it('rebuilds the card above a marker near the bottom, before a frame is drawn', () => {
+    const { layer } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
+    expect(layer.openPopup(RAINIER)).toEqual({ dx: 0, dy: 0 })
+    expect(popups.map((p) => [p.options, p.removed])).toEqual([
+      [expect.objectContaining({ anchor: 'top' }), true],
+      [expect.objectContaining({ anchor: 'bottom' }), false],
+    ])
+  })
+
+  it('places against where a caller is about to put the marker, above the sheet', () => {
+    const { layer, controller } = setup()
+    controller.update({ ...controller.inputs, cameraPadBottomPx: 500 })
+    // The visible map is 400 tall; a card hanging from its centre runs under
+    // the sheet by 178, so the marker is asked up by that much.
+    expect(layer.openPopup(RAINIER, { markerAt: { x: 640, y: 200 } })).toEqual({ dx: 0, dy: -178 })
+  })
+
+  it('pans by what the fit asked for on a marker click, marker and card together', () => {
+    const { stub } = setup([ADAMS, RAINIER], { x: 640, y: 40 })
+    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+    stub.calls.length = 0
+    const { stub: low } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
+    low.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    // Above the marker fits whole, so no pan; a marker over the sheet does need one.
+    expect(low.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+    const { stub: buried, controller } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
+    controller.update({ ...controller.inputs, cameraPadBottomPx: 500 })
+    buried.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    expect(buried.calls.filter((c) => c[0] === 'panBy')).toEqual([
+      ['panBy', [0, 496], { duration: POPUP_PAN_MS }],
+    ])
+  })
+
+  it('marks the popup a table row opens as the tutorial\'s marker target', () => {
+    const { layer } = setup()
+    layer.openPopup(RAINIER)
+    expect(popups[popups.length - 1].attrs).toEqual({ 'data-tour': 'marker' })
   })
 
   // A table row's popup is on the board, so a second table click replaces it

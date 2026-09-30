@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { type MouseEvent, useEffect, useState } from 'react'
+import { TUTORIAL_PATH } from '../utils/tourSteps'
 import {
   BUTTON_DANGER,
   BUTTON_PRIMARY,
   DISABLED,
   LINK,
+  LINK_INERT,
   NOTICE,
   NOTICE_DIVIDER,
   NOTICE_DISMISS,
@@ -99,6 +101,10 @@ interface Props {
   loading: boolean
   onAnalyze: () => void
   onRetry: () => void
+  /** Open the guided tutorial (#536). */
+  onTutorial: () => void
+  /** The tour cannot start now (a draw or a run is under way), so the link is inert. */
+  tutorialWaits?: boolean
   // Every message the panel has to say, in order (`utils/panelMessages.ts`).
   // This file decides only how they are boxed and which are dismissed.
   messages: readonly FooterMessage[]
@@ -109,7 +115,28 @@ interface Props {
  * the two document links. The block is here and nowhere else, so a message
  * about any section of the panel still reads in the one place the rule puts it.
  */
-export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetry, messages }: Props) {
+export default function PanelFooter({
+  analyzeEnabled,
+  loading,
+  onAnalyze,
+  onRetry,
+  onTutorial,
+  tutorialWaits = false,
+  messages,
+}: Props) {
+  // A plain click starts the tour over this page; a modified click or a
+  // middle click is the browser's, and opens the path like any link. While
+  // the tour waits the link answers no click at all, the new-tab ones
+  // included, since the page it would open starts the tour the same way.
+  function startTour(e: MouseEvent<HTMLAnchorElement>) {
+    if (tutorialWaits) {
+      e.preventDefault()
+      return
+    }
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault()
+    onTutorial()
+  }
   // The dismissal ledger (#253): every footer message is dismissable, each
   // alone. `pruneDismissals` retires a dismissal the moment its key stops
   // being active, which is what makes an identical error return after the
@@ -129,7 +156,7 @@ export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetr
   const footerBoxes = noticeBoxes(messages.filter((m) => !isDismissed(m.key, dismissed)))
 
   return (
-    <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`}>
+    <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour="analyze">
       <button
         onClick={onAnalyze}
         disabled={!analyzeEnabled}
@@ -164,6 +191,19 @@ export default function PanelFooter({ analyzeEnabled, loading, onAnalyze, onRetr
           Both open in a new tab so reading either never costs you a drawn
           polygon and its results. */}
       <p className={`${TEXT.caption} text-center`}>
+        {/* A real link to the tour's path, so it can be copied or opened in
+            a new tab like the two beside it; a plain click starts the tour
+            over this page instead of reloading it, and the tour writes the
+            same path to the address bar (#536). */}
+        <a
+          href={TUTORIAL_PATH}
+          onClick={startTour}
+          aria-disabled={tutorialWaits || undefined}
+          className={`${LINK} ${LINK_INERT}`}
+        >
+          Tutorial
+        </a>
+        {' · '}
         <a href="/privacy" target="_blank" rel="noreferrer" className={LINK}>
           Privacy
         </a>

@@ -21,6 +21,7 @@ import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeat
 import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
+import { placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -94,8 +95,27 @@ export interface ResultsLayer {
    * Open the forecast popup on a row, for a click on its rank in the table.
    * The camera move is the component's; this is only the popup.
    */
-  openPopup(result: DestinationResult): void
+  /**
+   * Open a result's popup and say how far the map must move for it to show
+   * as much of itself as it can (`popupFit.ts`). `markerAt` is where the
+   * marker WILL stand, in the map container's pixels, for a caller that is
+   * about to fly it there; without it the marker's present position is
+   * read. `avoid` is what else stands over the map, as viewport rects, on
+   * top of the button column the layer finds for itself. The answer is the
+   * move for the caller to make, because a table click folds it into a
+   * flight and a marker click pans by it.
+   */
+  openPopup(result: DestinationResult, options?: { markerAt?: ScreenPoint; avoid?: readonly Rect[] }): PopupPlacement
 }
+
+/** How far the marker, and its popup with it, should move across the screen. */
+export interface PopupPlacement {
+  dx: number
+  dy: number
+}
+
+/** How long a marker click's pan takes: short, because the reader is waiting on the card it opens. */
+export const POPUP_PAN_MS = 300
 
 export function mountResultsLayer(
   map: maplibregl.Map,
@@ -229,34 +249,86 @@ export function mountResultsLayer(
     const row = controller.resultAt(lat, lon)
     const pinned = isPinning(e)
     if (!pinned) popups.closeAll()
-    // Never closeOnClick: it is fixed at construction, so an
-    // already-open popup could not be told to survive the click that
-    // pins a second one — the first shift-click always lost the card it
-    // was meant to keep. Dismissal is the board's (`map/popups.ts`).
-    const resultPopup = new Popup({
-      ...popupOptions(map),
-      closeOnClick: false,
-    })
-    popups.track(resultPopup)
-    resultPopup
-      .setLngLat(anchor)
-      .setHTML(
-        resultPopupHtml({
-          rank: p.rank,
-          // The matched row is the popup's subject. The feature's own
-          // properties are the fallback for the case the match cannot
-          // happen — they carry no aggregates, so those columns draw the
-          // dash a missing value draws anywhere else rather than a
-          // number nobody fetched.
-          row: row ?? featureRow(p, lat, lon),
-          columns: live.popupColumns,
-          warning: controller.fireWarningAt(lat, lon),
-          modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
-          times: row?.series_times ?? live.times,
-          modelFallbackLabel: live.modelFallbackLabel,
-        }),
-      )
-      .addTo(map)
+    const { dx, dy } = openFitted(
+      anchor,
+      resultPopupHtml({
+        rank: p.rank,
+        // The matched row is the popup's subject. The feature's own
+        // properties are the fallback for the case the match cannot
+        // happen — they carry no aggregates, so those columns draw the
+        // dash a missing value draws anywhere else rather than a
+        // number nobody fetched.
+        row: row ?? featureRow(p, lat, lon),
+        columns: live.popupColumns,
+        warning: controller.fireWarningAt(lat, lon),
+        modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
+        times: row?.series_times ?? live.times,
+        modelFallbackLabel: live.modelFallbackLabel,
+      }),
+      {},
+    )
+    // The map comes to the card rather than the card unfurling wherever the
+    // marker rested (TJ, 2026-09-29): a pan of what the fit asked for, with
+    // the marker riding along under its tip. `panBy` moves the camera, so
+    // its sign is the marker's move reversed.
+    if (dx !== 0 || dy !== 0) map.panBy([-dx || 0, -dy || 0], { duration: POPUP_PAN_MS })
+  }
+
+  // What stands over the map inside the part of it a card can be seen in,
+  // in the container's pixels: every surface that names itself
+  // `data-map-overlay` (the button column at the top left, the legend box
+  // under it) plus whatever the caller names. Found through the container's
+  // document rather than handed in, because the layer that opens popups on
+  // a click has no caller to hand it anything.
+  const obstacles = (avoid: readonly Rect[]): Rect[] => {
+    const container = map.getContainer()
+    const box = container.getBoundingClientRect()
+    const overlays = [...(container.ownerDocument?.querySelectorAll('[data-map-overlay]') ?? [])]
+    return [...overlays.map((el) => el.getBoundingClientRect()), ...avoid].map((r) => ({
+      left: r.left - box.left,
+      top: r.top - box.top,
+      right: r.right - box.left,
+      bottom: r.bottom - box.top,
+    }))
+  }
+
+  // Open a popup where it shows the most of itself. The card is built once
+  // hanging below its marker, measured, and rebuilt above it only when the
+  // fit says so, all before a frame is drawn, because MapLibre fixes a
+  // popup's side at construction and this is the one moment its size is
+  // known. Never closeOnClick: it is fixed at construction too, so an
+  // already-open popup could not be told to survive the click that pins a
+  // second one — the first shift-click always lost the card it was meant to
+  // keep. Dismissal is the board's (`map/popups.ts`).
+  const openFitted = (
+    at: [number, number],
+    html: string,
+    { markerAt, avoid = [] }: { markerAt?: ScreenPoint; avoid?: readonly Rect[] },
+  ): PopupPlacement => {
+    const build = (anchor: 'top' | 'bottom') =>
+      new Popup({ ...popupOptions(map), closeOnClick: false, anchor }).setLngLat(at).setHTML(html).addTo(map)
+    let popup = build('top')
+    const el = popup.getElement()
+    const size = { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
+    const canvas = map.getCanvas()
+    // The part of the map a card can be seen in: above the results sheet.
+    const region = {
+      left: 0,
+      top: 0,
+      right: canvas.clientWidth,
+      bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx,
+    }
+    const placed = placePopup(markerAt ?? map.project(at), size, region, obstacles(avoid))
+    if (placed.anchor !== 'top') {
+      popup.remove()
+      popup = build('bottom')
+    }
+    // The tutorial's marker step frames this popup (#536).
+    popup.getElement()?.setAttribute('data-tour', 'marker')
+    // On the board like every other popup, so the next table click or map
+    // click takes it down rather than stacking a second one beside it.
+    popups.track(popup)
+    return { dx: placed.dx, dy: placed.dy }
   }
 
   map.on('click', RESULT_MARKER_LAYER, openResultPopup)
@@ -279,30 +351,26 @@ export function mountResultsLayer(
     setPending(pending) {
       setSource(map, 'pending-destinations', pendingFC(pending))
     },
-    openPopup(result) {
+    openPopup(result, options = {}) {
       const live = controller.inputs
       popups.closeAll()
       // Rank is the analyzed order the markers are labelled with, so the popup
       // matches the marker it lands on.
-      const popup = new Popup(popupOptions(map))
-        .setLngLat([result.longitude, result.latitude])
-        .setHTML(
-          resultPopupHtml({
-            rank: live.results.indexOf(result) + 1,
-            row: result,
-            columns: live.popupColumns,
-            warning: controller.fireWarningAt(result.latitude, result.longitude),
-            // A per-model row names its own model; a single-model report has
-            // one for every row. Same rule as the table's cells.
-            modelId: (result as ModelRow).modelId ?? live.modelId,
-            times: result.series_times ?? live.times,
-            modelFallbackLabel: live.modelFallbackLabel,
-          }),
-        )
-        .addTo(map)
-      // On the board like every other popup, so the next table click or map
-      // click takes it down rather than stacking a second one beside it.
-      popups.track(popup)
+      return openFitted(
+        [result.longitude, result.latitude],
+        resultPopupHtml({
+          rank: live.results.indexOf(result) + 1,
+          row: result,
+          columns: live.popupColumns,
+          warning: controller.fireWarningAt(result.latitude, result.longitude),
+          // A per-model row names its own model; a single-model report has
+          // one for every row. Same rule as the table's cells.
+          modelId: (result as ModelRow).modelId ?? live.modelId,
+          times: result.series_times ?? live.times,
+          modelFallbackLabel: live.modelFallbackLabel,
+        }),
+        options,
+      )
     },
   }
 }

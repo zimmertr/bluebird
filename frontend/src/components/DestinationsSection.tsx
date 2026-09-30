@@ -108,7 +108,7 @@ export default function DestinationsSection({
   const peaksOn = destinationTypes.includes('peak')
 
   return (
-    <section>
+    <section data-tour="destinations">
       <h2 className={`${TEXT.section} mb-2.5`}>
         Destinations
       </h2>

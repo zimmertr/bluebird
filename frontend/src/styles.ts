@@ -157,6 +157,16 @@ export const PROSE = {
  */
 export const LINK = 'text-slate-300 hover:text-sky-400 underline'
 export const LINK_ACTION = 'text-sky-400 hover:text-sky-300 hover:underline'
+/**
+ * A link that cannot answer right now, said through `aria-disabled` because
+ * an anchor has no `disabled` of its own: the footer's Tutorial while a draw
+ * or a run is under way (#536). `DISABLED`'s 40 percent and cursor, spelled
+ * on the aria variant, so an inert link and a disabled button read as one
+ * state. Colourless for the same reason `DISABLED` is, and it keeps the
+ * underline, because a link that loses it stops looking like a link rather
+ * than like one that is waiting.
+ */
+export const LINK_INERT = 'aria-disabled:opacity-40 aria-disabled:cursor-not-allowed'
 
 /**
  * Three radii, down from six spellings.
@@ -2102,3 +2112,35 @@ export const TABLE = {
    */
   mark: `${TEXT.micro} leading-0`,
 } as const
+
+/**
+ * The guided tutorial (#536): a spotlight over one control and a card beside
+ * it. The spotlight is ONE element wearing a shadow as wide as the screen, so
+ * the dim layer and its rounded cut-out are the same box and cannot drift
+ * apart the way four separate rects around a target would. It is square,
+ * because a section between two rules and a sheet with straight edges are;
+ * `spotlightControl` adds the surface radius around a control, which has one. The card is the welcome
+ * dialog's surface at the modal layer (above the drawer and every popover),
+ * fixed and sized by the same 320px the welcome card reads at on a phone. Under
+ * `SHEET_MAX_W` (`tour/place.ts`) it is a full-width sheet along the bottom
+ * edge instead, because a card beside a control has nowhere to go at 360px. Every colour here is a role the
+ * app already wears; the dim is the welcome backdrop's black at 60%.
+ */
+export const TOUR = {
+  spotlight: 'absolute pointer-events-none shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]',
+  /** The spotlight's corners around a control: the control's own radius. */
+  spotlightControl: RADIUS.surface,
+  card: `${SURFACE_CARD} fixed w-80 p-4 space-y-3 focus:outline-none`,
+  sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
+  /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
+  sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
+  /**
+   * Worn for the moment after a step changes and at no other time. A standing
+   * transition made the spotlight trail its control whenever the layout moved
+   * for another reason, such as the preview banner wrapping on a resize.
+   */
+  // `motion-reduce:` drops the transition where the reader asked the system
+  // for less motion; the panel's smooth scroll asks the same question through
+  // `prefersReducedMotion`, and MapLibre's camera moves answer it themselves.
+  motion: 'transition-all duration-200 motion-reduce:transition-none',
+}

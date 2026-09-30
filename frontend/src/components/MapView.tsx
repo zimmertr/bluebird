@@ -31,7 +31,28 @@ import { mountFeatures, type MapFeatures } from '../map/features'
 import { createPopupBoard } from '../map/popups'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
+/** Where the map stands, enough to put it back (#536). */
+/** A rectangle in viewport pixels, the shape `getBoundingClientRect` answers. */
+export interface ViewportRect {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
+export interface MapCamera {
+  lng: number
+  lat: number
+  zoom: number
+  bearing: number
+  pitch: number
+}
+
 export interface MapViewHandle {
+  /** The camera as it stands, or null before the map exists. */
+  getCamera: () => MapCamera | null
+  /** Put the camera back where `getCamera` found it, with no animation. */
+  setCamera: (camera: MapCamera) => void
   framePolygon: () => void
   finishDrawing: () => GeoPolygon | null
   // Replace the ring outright: null empties it (Clear), a polygon puts back
@@ -39,12 +60,21 @@ export interface MapViewHandle {
   restoreRing: (ring: GeoPolygon | null) => void
   flyToPlace: (place: Place) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
-  focusResult: (result: DestinationResult) => void
+  // The marker is sent to the centre of the map the reader can see, moved
+  // by whatever its popup needs to show the most of itself (`popupFit.ts`):
+  // up from under the results sheet, aside from the button column, its
+  // title first where the whole card does not fit. `avoid` is what else
+  // stands over the map, as viewport rects; `instant` cuts rather than
+  // flies. The tutorial's marker step passes both; a click on a table row
+  // passes neither (#536).
+  focusResult: (result: DestinationResult, options?: { instant?: boolean; avoid?: readonly ViewportRect[] }) => void
   // The same camera move for a destination with no forecast yet, and nothing
   // else: no popup, because the one `focusResult` opens is a forecast card and
   // this destination has no forecast. Clicking the dot still says what is
   // known about it (TJ, 2026-09-14).
   focusPoint: (at: { latitude: number; longitude: number }) => void
+  /** Close every popup and move nothing: the tutorial leaving its marker step (#536). */
+  closePopups: () => void
 }
 
 interface Props {
@@ -408,24 +438,49 @@ const MapView = forwardRef<MapViewHandle, Props>(
         })
         popups.closeAll()
       },
+      closePopups() {
+        popups.closeAll()
+      },
+      getCamera() {
+        const map = mapRef.current
+        if (!map) return null
+        const c = map.getCenter()
+        return { lng: c.lng, lat: c.lat, zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
+      },
+      setCamera(camera: MapCamera) {
+        mapRef.current?.jumpTo({
+          center: [camera.lng, camera.lat],
+          zoom: camera.zoom,
+          bearing: camera.bearing,
+          pitch: camera.pitch,
+        })
+      },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives.
-      focusResult(result: DestinationResult) {
+      focusResult(result: DestinationResult, { instant = false, avoid = [] } = {}) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
+        // The pad as it stands now, off the controller: the prop this closure
+        // holds can be a render behind a sheet that just collapsed.
+        const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
+        const canvas = map.getCanvas()
+        // The popup opens first, against the point the marker is flying to,
+        // and rides the flight; what it asks for joins the offset, so one
+        // camera move lands marker and card together.
+        const markerAt = { x: canvas.clientWidth / 2, y: (canvas.clientHeight - cameraPadBottomPx) / 2 }
+        const { dx, dy } = featuresRef.current?.results.openPopup(result, { markerAt, avoid }) ?? { dx: 0, dy: 0 }
         map.flyTo({
           center: [result.longitude, result.latitude],
           zoom: Math.max(map.getZoom(), 10),
-          duration: 800,
+          duration: instant ? 0 : 800,
           // The one framing call that centres rather than fits, so it clears
           // the sheet with `offset` instead of `padding`: a padding handed to
           // `flyTo` is interpolated onto the transform and STAYS there, and the
           // next `fitBounds` would then count it a second time on top of its
           // own. Half the sheet's height puts the result in the middle of the
           // map the reader can see.
-          offset: [0, -cameraPadBottomPx / 2],
+          offset: [dx, -cameraPadBottomPx / 2 + dy],
         })
-        featuresRef.current?.results.openPopup(result)
       },
     }))
 

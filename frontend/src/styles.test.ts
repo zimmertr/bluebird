@@ -826,6 +826,15 @@ describe('shared recipes', () => {
     expect(DISABLED).not.toMatch(/text-|bg-|border-/)
   })
 
+  // An inert link is the disabled look on the aria variant, and nothing else:
+  // the same opacity and cursor, so a waiting link and a disabled button are
+  // one state to the eye.
+  it('says an inert link the way it says a disabled button', () => {
+    expect([...STYLES.LINK_INERT.split(' ')].sort()).toEqual(
+      [...DISABLED.split(' ').map((c) => c.replace('disabled:', 'aria-disabled:'))].sort(),
+    )
+  })
+
   // The other half of that pair, and the reason it cannot BE that pair: a
   // muted control still works, so the cursor must not promise it does not, and
   // the `disabled:` variant would never fire on an element that is not
@@ -1969,5 +1978,32 @@ describe('the selection chip', () => {
     expect(CHIP.label).not.toMatch(/\bp[xr]-/)
     expect(CHIP.rest).toContain('pr-1')
     expect(CHIP.active).toContain('pr-1')
+  })
+})
+
+describe('the tutorial', () => {
+  it('draws the spotlight as one box whose shadow is the dim layer', () => {
+    expect(STYLES.TOUR.spotlight).toContain('shadow-[0_0_0_200vmax_')
+    expect(STYLES.TOUR.spotlight).not.toMatch(/rounded/)
+    expect(STYLES.TOUR.spotlightControl).toBe(STYLES.RADIUS.surface)
+    // The one transition the tour wears yields to a reduced-motion setting.
+    expect(STYLES.TOUR.motion).toContain('motion-reduce:transition-none')
+    expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
+  })
+
+  it('moves only between steps, never with the layout', () => {
+    for (const role of [STYLES.TOUR.spotlight, STYLES.TOUR.card, STYLES.TOUR.sheet, STYLES.TOUR.sheetTop]) {
+      expect(role).not.toMatch(/transition/)
+    }
+    expect(STYLES.TOUR.motion).toContain('duration-200')
+  })
+
+  it('stands the card on the welcome dialog surface, fixed, at the welcome card width', () => {
+    expect(STYLES.TOUR.card).toContain(STYLES.SURFACE_CARD)
+    expect(STYLES.TOUR.card).toContain('fixed')
+    expect(STYLES.TOUR.card).toContain('w-80')
+    expect(STYLES.TOUR.sheet).toContain(STYLES.SURFACE_CARD)
+    expect(STYLES.TOUR.sheet).toContain('inset-x-4 bottom-4')
+    expect(STYLES.TOUR.sheetTop).toContain('inset-x-4 top-4')
   })
 })

@@ -57,7 +57,7 @@ export default function ForecastSection({
   )
 
   return (
-    <section>
+    <section data-tour="forecast">
       <h2 className={`${TEXT.section} mb-2.5`}>
         Forecast
       </h2>

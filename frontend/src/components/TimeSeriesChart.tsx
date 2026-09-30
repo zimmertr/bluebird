@@ -45,6 +45,13 @@ const Y_AXIS_WIDTH = 44
 // series picker (#242 review dropped the chart's own legend strip), so this
 // component only receives the rows already chosen.
 interface Props {
+  /**
+   * An hour index the tooltip stands on without a mouse, or null to follow
+   * one. The tutorial's results step sets it so the card can be read beside
+   * what a hover shows (#536).
+   */
+  tooltipIndex?: number | null
+
   times: number[]
   rows: DestinationResult[]
   metric: ChartMetric
@@ -89,6 +96,7 @@ const NO_EXTRA_LINES: readonly ChartLine[] = []
 const NO_MODEL_ENDS: readonly ModelEndLine[] = []
 
 function TimeSeriesChart({
+  tooltipIndex = null,
   times,
   rows,
   metric,
@@ -321,6 +329,8 @@ function TimeSeriesChart({
             )}
             <Tooltip
               isAnimationActive={false}
+              defaultIndex={tooltipIndex ?? undefined}
+              active={tooltipIndex === null ? undefined : true}
               content={(props: any) => (
                 <ChartTooltip
                   {...props}

@@ -75,6 +75,12 @@ export interface ResultsLayoutInputs {
   /** The report, whose arrival widens a desktop to Both. */
   response: unknown
   analysisSeq: number
+  /**
+   * Collapse the sheet to its bar regardless of the chevron, or null to leave
+   * it to the reader. The tutorial's marker step sets it on a phone, where the
+   * open sheet leaves no room for a marker's popup (#536).
+   */
+  collapsedOverride?: boolean | null
 }
 
 /**
@@ -95,6 +101,7 @@ export function useResultsLayout({
   showTable,
   response,
   analysisSeq,
+  collapsedOverride = null,
 }: ResultsLayoutInputs) {
   // The heights both panels open at, and the ones a double-click on either
   // resizer restores. Named rather than inline because a reset that hard-coded
@@ -132,8 +139,9 @@ export function useResultsLayout({
     writeViewPrefs({ modeChosen: mode })
   }, [])
   // Chevron to collapse/expand the entire results area.
-  const [resultsCollapsed, setResultsCollapsed] = useState(false)
+  const [collapsedChoice, setResultsCollapsed] = useState(false)
   const toggleCollapsed = useCallback(() => setResultsCollapsed((c) => !c), [])
+  const resultsCollapsed = collapsedOverride ?? collapsedChoice
   // The results' own height as rendered, which on a phone is how much map the
   // sheet covers. Observed rather than derived because everything anchored to
   // the map's bottom edge measures from this one number, and a derivation has

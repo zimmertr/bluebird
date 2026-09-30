@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -10,6 +12,21 @@ import AppDrawer from './components/AppDrawer'
 import MapStage from './components/MapStage'
 import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
+
+// The tutorial's overlay is a chunk of its own, fetched on the first press
+// (#536): most readers never open it, and with it in the main bundle the cold
+// load carried 5.4 KB of gzip for a card nobody had asked for. The state hook
+// stays in the main bundle, because the footer link and the welcome dialog
+// need `start` before any chunk is asked for; its demonstration report is
+// loaded the same way, when its step opens.
+const Tour = lazy(() => import('./tour/Tour'))
+import type { DestinationResult } from './types'
+
+// Hoisted, so the fire check reads one empty list while the tutorial's
+// demonstration report is on screen rather than a fresh one per render.
+const NO_ROWS: DestinationResult[] = []
+import { useTour } from './tour/useTour'
+import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useCapabilities } from './hooks/useCapabilities'
@@ -105,7 +122,11 @@ export default function App() {
   // `viewPrefs.ts` exists to stop. The results layout takes the mode; the
   // table takes the rest.
   const storedView = useMemo(readViewPrefs, [])
-  const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
+  // A page opened at /tutorial starts the tour once the panel is up, in
+  // place of the welcome dialog (#536): the path is a link that opens the
+  // tour, and the tour's own start and end keep it and clear it.
+  const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
+  const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -136,6 +157,7 @@ export default function App() {
     closeDrawer,
   })
   const {
+    drawing,
     drawPointCount,
     finishDrawing,
   } = drawMode
@@ -143,6 +165,14 @@ export default function App() {
   function dismissWelcome() {
     setWelcomed()
     setShowWelcome(false)
+  }
+
+  // The guided tutorial (#536). Starting it from the welcome dialog counts as
+  // welcomed, so a reader who ends it early is not shown the dialog again.
+  const tour = useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef })
+  function startTourFromWelcome() {
+    dismissWelcome()
+    tour.start()
   }
 
   const analysis = useAnalyze(
@@ -168,7 +198,22 @@ export default function App() {
   } = analysis
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
-  const timeline = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
+  // While the tutorial's last step is open, the results sheet, the chart and
+  // the markers read a demonstration report instead of the real one (#536).
+  // Everything else — the grid, removals, the URL, the commit cues — keeps
+  // reading the real analysis, so ending the tour leaves nothing behind.
+  const demo = tour.demo
+  const shownResponse = demo?.response ?? response
+  const shownAnalyzed = demo?.analyzed ?? analyzed
+  const shownUniverse = demo?.universe ?? universe
+  // No forecast player over the demonstration: its bar stands along the
+  // map's bottom edge, where the marker step's popup ends on a short window.
+  const timeline = useTimeline({
+    times: shownResponse?.times,
+    analysisSeq,
+    playerShown: playerShown && demo === null,
+    showRadar,
+  })
   const {
     forecastTimes,
     timelineAxes,
@@ -220,13 +265,13 @@ export default function App() {
   }, [destinationNamed])
 
   // What the displayed report is rendered under, and whether it is one hour.
-  const { view, pointSample } = reportView(analyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
+  const { view, pointSample } = reportView(shownAnalyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
   const preview = usePreview()
 
   const report = usePresentedReport({
-    universe,
-    response,
-    analyzed,
+    universe: shownUniverse,
+    response: shownResponse,
+    analyzed: shownAnalyzed,
     analysisSeq,
     arriving,
     liveKnobs,
@@ -284,7 +329,7 @@ export default function App() {
   // knobs re-present rows without re-querying NIFC. (Called here, above the
   // table view, because the wildfire column sorts and renders out of its
   // maps.)
-  const fire = useFireProximity(fireField ?? universe ?? results, fireSeq)
+  const fire = useFireProximity(fireField ?? universe ?? (demo ? NO_ROWS : results), fireSeq)
 
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
@@ -361,8 +406,9 @@ export default function App() {
   // The results sheet's view: its layout, the comparison chart, the table's
   // shape and file, and the table's callbacks (useResultsView).
   const resultsView = useResultsView({
-    showResults,
-    response,
+    showResults: showResults || demo !== null,
+    collapsedOverride: tour.sheetCollapsed,
+    response: shownResponse,
     results,
     pending,
     detailSort,
@@ -372,7 +418,7 @@ export default function App() {
     analysisSeq,
     sortBy: view.sortBy,
     pointSample,
-    analyzed,
+    analyzed: shownAnalyzed,
     models: caps.forecastModels,
     forecastModel,
     comparedModels,
@@ -384,11 +430,39 @@ export default function App() {
   })
   const { layout, tableView } = resultsView
 
+  // The tour waits while a polygon is being drawn or a run is in flight: its
+  // first card frames the Destinations section, which mid-draw shows Cancel
+  // and Clear in place of its controls, and a run that lands under the tour
+  // would redraw the report the demonstration stands in for. Both ways in
+  // are inert meanwhile; a page opened at /tutorial with `analyze=1` starts
+  // once its run has settled.
+  const tourWaits = drawing || loading
+  const startTour = tour.start
+  useEffect(() => {
+    if (!openedAtTutorial.current || tourWaits) return
+    openedAtTutorial.current = false
+    setWelcomed()
+    startTour()
+  }, [startTour, tourWaits])
+
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} />}
+      {showWelcome && (
+        <WelcomeModal onDismiss={dismissWelcome} onTutorial={startTourFromWelcome} tutorialWaits={tourWaits} />
+      )}
+      {tour.index !== null && (
+        <Suspense fallback={null}>
+          <Tour
+            steps={tour.steps}
+            index={tour.index}
+            onNext={tour.next}
+            onPrev={tour.prev}
+            onEnd={tour.end}
+          />
+        </Suspense>
+      )}
       {layout.isDragging && (
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
       )}
@@ -413,6 +487,8 @@ export default function App() {
         error={error}
         refusal={refusal}
         onRetry={retry}
+        onTutorial={tour.start}
+        tutorialWaits={tourWaits}
         response={response}
         results={results}
         fireStatus={fire.status}
@@ -440,6 +516,7 @@ export default function App() {
           showResults={showResults}
           sidebarOpen={sidebarOpen}
           onOpenControls={openDrawer}
+          layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}
           poisPointed={poisPointed}
           urlSync={urlSync}
@@ -448,7 +525,8 @@ export default function App() {
 
         <ResultsSheet
           resultsView={resultsView}
-          showResults={showResults}
+          showResults={showResults || demo !== null}
+          chartTooltipIndex={tour.chartTooltipIndex}
           isDesktop={isDesktop}
           report={report}
           removals={removals}

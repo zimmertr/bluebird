@@ -20,6 +20,7 @@ client = TestClient(app)
 REVALIDATED = [
     pytest.param("/", id="spa-root"),
     pytest.param("/privacy", id="privacy"),
+    pytest.param("/tutorial", id="tutorial"),
     pytest.param("/docs", id="docs"),
     pytest.param("/healthz", id="probe"),
     # `/api/version` rather than `/api/capabilities`: the one API route that

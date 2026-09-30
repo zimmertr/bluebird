@@ -87,6 +87,7 @@ interface ResultsSheetView {
  * each is closed until its trigger, which only the sheet draws, opens it.
  */
 export default function ResultsSheet({
+  chartTooltipIndex = null,
   resultsView,
   showResults,
   isDesktop,
@@ -123,6 +124,7 @@ export default function ResultsSheet({
       {showTable && (
         <div
           ref={sheetRef}
+          data-tour="results"
           className={
             isDesktop
               ? 'flex flex-shrink-0 flex-col bg-slate-800'
@@ -158,6 +160,7 @@ export default function ResultsSheet({
             <ResultsPanels
               layout={layout}
               charts={charts}
+              chartTooltipIndex={chartTooltipIndex}
               tableView={tableView}
               report={report}
               pending={pending}

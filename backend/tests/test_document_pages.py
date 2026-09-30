@@ -16,6 +16,10 @@ client = TestClient(app)
 PAGES = [
     pytest.param("/privacy", "_privacy_page", "Privacy", id="privacy"),
     pytest.param("/terms", "_terms_page", "Terms", id="terms"),
+    # The app's own page at the path that opens the tutorial (#536): the same
+    # route shape, and the same no-redirect guarantee, since this is the URL
+    # people paste to send someone the tour.
+    pytest.param("/tutorial", "_app_page", "Bluebird Forecast", id="tutorial"),
 ]
 
 

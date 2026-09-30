@@ -83,6 +83,7 @@ const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
 
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
+    layersForcedOpen: false,
     mapRef: MAP_REF,
     drawMode: DRAW,
     destinationInputs: INPUTS,

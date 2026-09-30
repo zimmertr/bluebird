@@ -17,6 +17,7 @@ function props(over: Partial<Props> = {}): Props {
     loading: false,
     onAnalyze: () => {},
     onRetry: () => {},
+    onTutorial: () => {},
     messages: [],
     ...over,
   }
@@ -89,6 +90,25 @@ describe('PanelFooter', () => {
     rerender(<PanelFooter {...props({ messages: [] })} />)
     rerender(<PanelFooter {...props({ messages: lone })} />)
     expect(boxes()).toHaveLength(1)
+  })
+
+  it('links the tour at its path and starts it in place on a plain click', async () => {
+    const onTutorial = vi.fn()
+    const { user } = render(<PanelFooter {...props({ onTutorial })} />)
+    const link = screen.getByRole('link', { name: 'Tutorial' })
+    expect(link.getAttribute('href')).toBe('/tutorial')
+    expect(link.getAttribute('target')).toBeNull()
+    await user.click(link)
+    expect(onTutorial).toHaveBeenCalledOnce()
+  })
+
+  it('answers no click on the tour link while it waits, and says so', async () => {
+    const onTutorial = vi.fn()
+    const { user } = render(<PanelFooter {...props({ onTutorial, tutorialWaits: true })} />)
+    const link = screen.getByRole('link', { name: 'Tutorial' })
+    expect(link.getAttribute('aria-disabled')).toBe('true')
+    await user.click(link)
+    expect(onTutorial).not.toHaveBeenCalled()
   })
 
   it('links the two document pages in a new tab', () => {

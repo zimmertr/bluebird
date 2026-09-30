@@ -6,6 +6,8 @@ import { useResultsLayout } from './useResultsLayout'
 import { useTableView, type TableViewInputs } from './useTableView'
 
 export interface ResultsViewInputs {
+  /** Collapse the sheet to its bar for the tutorial's marker step on a phone (#536). */
+  collapsedOverride?: boolean | null
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
@@ -56,6 +58,7 @@ export interface ResultsViewInputs {
  * `chartShowing`, and the table reads the chart's comparison.
  */
 export function useResultsView({
+  collapsedOverride = null,
   showResults,
   response,
   results,
@@ -90,6 +93,7 @@ export function useResultsView({
     showTable,
     response,
     analysisSeq,
+    collapsedOverride,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────
