@@ -412,7 +412,7 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
             DataSource(
                 name="US Forest Service",
                 url="https://www.fs.usda.gov/",
-                provides="Region 6 closure orders behind GET /api/closures",
+                provides="Regions 3, 4 and 6 closure orders behind GET /api/closures",
             ),
             DataSource(
                 name="NOAA HMS",

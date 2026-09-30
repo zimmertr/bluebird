@@ -1,9 +1,11 @@
-"""Forest Service Region 6 closure orders, held once per pod (#550).
+"""Forest Service closure orders, held once per pod (#550, #551).
 
-The fetch is five queries against three layers, and the lines layer is the one
-that pages. What is worth pinning is that every page arrives, that each kind
-reads the layers it names, and that an empty answer outside Oregon and
-Washington can be told apart from a clear one.
+Region 6 is five queries against three layers, and the lines layer is the one
+that pages. Regions 3 and 4 are two phases each: every live order's
+attributes, then the geometry of the entry closures alone. What is worth
+pinning is that every page arrives, that each kind reads the feeds it names,
+that an order which closes nothing never costs its geometry, and that an empty
+answer outside the coverage can be told apart from a clear one.
 """
 
 from __future__ import annotations
@@ -69,28 +71,53 @@ def _snapshot(*, areas=(), lines=(), points=(), fetched_at_ms: int = 1_000) -> u
 # ── The fetch ─────────────────────────────────────────────────────────────────
 
 
-class _Upstream:
-    """Answers each layer, fidelity and offset the way the live service does."""
+R06 = "R06_FireClosureOrders_PublicView"
+R03 = "r03_ForestOrder"
+R04 = "R04_Forest_Orders_PUBLIC_VIEW"
 
-    def __init__(self, answers: dict[tuple[str, bool, int], dict]):
+
+def _service(request: httpx.Request) -> str:
+    return request.url.path.split("/")[-4]
+
+
+class _Upstream:
+    """Answers each feed, layer, fidelity and offset the way the live services do.
+
+    Region 6 is keyed by layer. Regions 3 and 4 are keyed by service and phase,
+    because Region 3's polygons are its layer 1, which is Region 6's lines.
+    """
+
+    def __init__(self, answers: dict[tuple, dict]):
         self.answers = answers
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
-        layer = urlsplit(str(request.url)).path.split("/")[-2]
+        service = _service(request)
+        layer = request.url.path.split("/")[-2]
         query = parse_qs(urlsplit(str(request.url)).query)
         coarse = "maxAllowableOffset" in query
         offset = int(query["resultOffset"][0])
-        return fake_response(self.answers[(layer, coarse, offset)])
+        if service == R06:
+            return fake_response(self.answers[(layer, coarse, offset)])
+        phase = "attributes" if query["returnGeometry"] == ["false"] else "geometry"
+        return fake_response(self.answers[(service, phase, coarse, offset)])
 
-    def queries(self) -> list[dict[str, list[str]]]:
-        return [parse_qs(urlsplit(str(r.url)).query) for r in self.requests]
+    def queries(self, service: str | None = None) -> list[dict[str, list[str]]]:
+        return [
+            parse_qs(urlsplit(str(r.url)).query)
+            for r in self.requests
+            if service is None or _service(r) == service
+        ]
 
 
-def _region() -> _Upstream:
+def _region(orders: dict | None = None) -> _Upstream:
+    """Region 6's layers, and the two order feeds answering nothing unless told."""
     return _Upstream(
         {
+            (R03, "attributes", False, 0): _rows(),
+            (R04, "attributes", False, 0): _rows(),
+            **(orders or {}),
             ("0", False, 0): _collection(_point(-121.94, 45.62, "Wahtum Lake TH")),
             ("1", False, 0): _collection(_line(-121.95, 45.60, -121.90, 45.63, "Trail 440"), more=True),
             ("1", False, 1): _collection(_line(-122.00, 45.55, -121.98, 45.58, "Trail 441")),
@@ -106,8 +133,10 @@ async def test_the_fetch_holds_every_page_of_every_layer():
     upstream = _region()
     snapshot = await usfs_closures.fetch_snapshot(httpx.MockTransport(upstream))
 
-    # Five queries, and the lines page once more at each fidelity.
-    assert len(upstream.requests) == 7
+    # Five queries, and the lines page once more at each fidelity. The order
+    # feeds pass nothing here, so each costs its attribute query alone.
+    assert len([r for r in upstream.requests if _service(r) == R06]) == 7
+    assert len(upstream.requests) == 9
     assert _names(snapshot.areas_full) == ["Eagle Creek"]
     assert _names(snapshot.areas_coarse) == ["Eagle Creek coarse"]
     # Points ride in both fidelities, after the lines.
@@ -118,7 +147,7 @@ async def test_the_fetch_holds_every_page_of_every_layer():
     line_offsets = sorted(
         (q["resultOffset"][0], "maxAllowableOffset" in q)
         for r, q in zip(upstream.requests, upstream.queries(), strict=True)
-        if r.url.path.endswith("/1/query")
+        if _service(r) == R06 and r.url.path.endswith("/1/query")
     )
     assert line_offsets == [("0", False), ("0", True), ("1", False), ("1", True)]
     # Every page asks for one order, or an offset walk could repeat or skip a
@@ -129,22 +158,23 @@ async def test_the_fetch_holds_every_page_of_every_layer():
 async def test_the_fetch_asks_each_layer_for_its_own_fields():
     upstream = _region()
     await usfs_closures.fetch_snapshot(httpx.MockTransport(upstream))
+    requests = [r for r in upstream.requests if _service(r) == R06]
     fields = {
         r.url.path.split("/")[-2]: q["outFields"][0]
-        for r, q in zip(upstream.requests, upstream.queries(), strict=True)
+        for r, q in zip(requests, upstream.queries(R06), strict=True)
     }
     # ArcGIS answers a field a layer lacks with a 400 (measured 2026-09-30).
     assert fields["0"] == usfs_closures.POINT_FIELDS
     assert "RouteName" in fields["1"] and "GIS_Acres" not in fields["1"]
     assert "GIS_Acres" in fields["2"] and "RouteName" not in fields["2"]
-    for query in upstream.queries():
+    for query in upstream.queries(R06):
         assert query["where"] == ["ClosureStatus='Active'"]
         assert query["f"] == ["geojson"]
         assert query["resultRecordCount"] == [str(usfs_closures.PAGE_SIZE)]
 
 
 async def test_the_coarse_copy_uses_the_wildfire_tolerance():
-    upstream = _region()
+    upstream = _region(_orders_answers())
     await usfs_closures.fetch_snapshot(httpx.MockTransport(upstream))
     offsets = {q["maxAllowableOffset"][0] for q in upstream.queries() if "maxAllowableOffset" in q}
     # Mirror row 10 names one tolerance; this module reads it rather than
@@ -177,6 +207,212 @@ def test_a_feature_without_geometry_is_dropped_but_still_counted():
     assert more is True
     # The offset step counts what ArcGIS SENT, or paging re-reads the rows the
     # dropped feature displaced.
+    assert count == 2
+
+
+# ── Regions 3 and 4 ───────────────────────────────────────────────────────────
+
+
+def _order(objectid: int, name: str, *, cfr: str | None = None, description: str | None = None, **extra) -> dict:
+    """One row of a Region 3 or 4 attribute page, as `f=json` sends it."""
+    return {
+        "attributes": {
+            "objectid": objectid,
+            "forestname": "Coconino National Forest",
+            "ordername": name,
+            "ordernum": f"03-04-00-26-{objectid}",
+            "ordertype": "Safety Closure",
+            "description": description,
+            "cfr": cfr,
+            "startdate": 1_780_000_000_000,
+            "enddate": None,
+            "hyperlink": "https://www.fs.usda.gov/r03/coconino/alerts",
+            "acres": 640.0,
+            **extra,
+        }
+    }
+
+
+def _rows(*orders: dict, more: bool = False) -> dict:
+    body: dict = {"objectIdFieldName": "objectid", "features": list(orders)}
+    if more:
+        # Where f=json puts the flag.
+        body["exceededTransferLimit"] = True
+    return body
+
+
+def _shape(objectid: int, west: float, south: float, east: float, north: float) -> dict:
+    """One feature of a phase-2 page: the ID, the one field asked for, a shape."""
+    ring = [[west, south], [east, south], [east, north], [west, north], [west, south]]
+    return {
+        "type": "Feature",
+        "id": objectid,
+        "properties": {"objectid": objectid},
+        "geometry": {"type": "Polygon", "coordinates": [ring]},
+    }
+
+
+RECKLESS_DRIVING = _order(
+    102,
+    "Reckless Driving",
+    cfr="36 CFR 261.54(f)",
+    description="Operating a vehicle carelessly or recklessly on a National Forest System road.",
+)
+
+
+def _orders_answers() -> dict:
+    """Region 3 passes two of three orders across two pages; Region 4 one of two."""
+    region_three = (_shape(101, -111.2, 34.0, -111.1, 34.1), _shape(103, -111.0, 34.2, -110.9, 34.3))
+    return {
+        (R03, "attributes", False, 0): _rows(
+            _order(101, "Davis Wash Public Safety Closure Order", cfr="36 C.F.R. § 261.53(e)"),
+            RECKLESS_DRIVING,
+            more=True,
+        ),
+        (R03, "attributes", False, 2): _rows(
+            _order(103, "Mine Area Closure", description="Going into or being upon the closed area is prohibited."),
+        ),
+        (R03, "geometry", False, 0): _collection(*region_three),
+        (R03, "geometry", True, 0): _collection(*region_three),
+        (R04, "attributes", False, 0): _rows(
+            _order(201, "Redfish Cave - Special Order", cfr="36 CFR 261.50(a) and (e), 36 CFR 261.53(e)"),
+            _order(202, "Float Permit - Special Order", cfr="36 CFR 261.50(a) and (e), 36 CFR 261.58(k)"),
+        ),
+        (R04, "geometry", False, 0): _collection(_shape(201, -114.95, 44.1, -114.9, 44.15)),
+        (R04, "geometry", True, 0): _collection(_shape(201, -114.95, 44.1, -114.9, 44.15)),
+    }
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [
+        # The citation as the feeds spell it: the section sign, and a space.
+        {"cfr": "16 U.S.C. § 551; 36 C.F.R. § 261.50(a) and (b); 36 C.F.R. § 261.53(e);"},
+        {"cfr": "36 CFR 261.50(a) and (e), 36 CFR 261.53(e)"},
+        {"cfr": "16 U.S.C. § 551 and 36 C.F.R. § 261.50(a), 36 C.F.R. § 261.53 (e)"},
+        {"cfr": "36 C.F.R. § 261.52(e) & 36 C.F.R. §§ 261.54(e)"},
+        # The text, in either field, in any case.
+        {"description": "Going into or being upon the closure area is prohibited."},
+        {"description": "prohibits entering or being on the site"},
+        {"description": "Being in or on the area described in Exhibit A."},
+        {"ordername": "Bear Canyon closed to all public entry"},
+        {"ordername": "Mine site CLOSED TO ACCESS"},
+    ],
+)
+def test_an_order_that_closes_an_area_to_entry_passes(attributes):
+    assert usfs_closures.is_area_closure(attributes)
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    [
+        # Region 4 files reckless driving as a Safety Closure; the type is not
+        # the test.
+        RECKLESS_DRIVING["attributes"],
+        # 261.53(a) and 261.50(e) are other paragraphs.
+        {"cfr": "36 C.F.R. § 261.53(a)", "ordername": "Occupancy and Use Prohibition"},
+        {"cfr": "36 CFR 261.50(a) and (e), 36 CFR 261.58(k)", "ordername": "Float Permit"},
+        {"ordertype": "Safety Closure", "ordername": "Bridge Load Limits"},
+        {"cfr": None, "description": None, "ordername": None},
+        {},
+    ],
+)
+def test_an_order_that_closes_nothing_fails(attributes):
+    assert not usfs_closures.is_area_closure(attributes)
+
+
+async def test_an_order_feed_sends_its_passing_ids_alone_for_geometry():
+    upstream = _region(_orders_answers())
+    await usfs_closures.fetch_snapshot(httpx.MockTransport(upstream))
+
+    attributes = [q for q in upstream.queries(R03) if q["returnGeometry"] == ["false"]]
+    geometry = [q for q in upstream.queries(R03) if q["returnGeometry"] == ["true"]]
+    # Phase 1 reads every live order across both pages, with no shape.
+    assert [q["resultOffset"] for q in attributes] == [["0"], ["2"]]
+    for query in attributes:
+        assert query["where"] == [usfs_closures.ORDER_WHERE]
+        assert query["outFields"] == [usfs_closures.ORDER_FIELDS]
+        assert query["f"] == ["json"]
+    # Phase 2 asks for the two that passed, once per fidelity, and the IDs are
+    # the whole filter.
+    assert sorted("maxAllowableOffset" in q for q in geometry) == [False, True]
+    for query in geometry:
+        assert query["objectIds"] == ["101,103"]
+        assert "where" not in query
+        assert query["f"] == ["geojson"]
+        assert query["orderByFields"] == ["OBJECTID"]
+
+
+async def test_an_order_feed_where_nothing_passes_sends_no_geometry_request():
+    upstream = _region({**_orders_answers(), (R04, "attributes", False, 0): _rows(RECKLESS_DRIVING)})
+    snapshot = await usfs_closures.fetch_snapshot(httpx.MockTransport(upstream))
+
+    assert [q["returnGeometry"] for q in upstream.queries(R04)] == [["false"]]
+    sources = {json.loads(c.blob)["properties"]["ClosureSource"] for c in snapshot.areas_full}
+    assert sources == {"R06", "R03"}
+
+
+async def test_the_areas_join_region_six_then_three_then_four():
+    snapshot = await usfs_closures.fetch_snapshot(httpx.MockTransport(_region(_orders_answers())))
+    expected = [
+        "Eagle Creek",
+        "Davis Wash Public Safety Closure Order",
+        "Mine Area Closure",
+        "Redfish Cave - Special Order",
+    ]
+    assert _names(snapshot.areas_full) == expected
+    assert _names(snapshot.areas_coarse) == ["Eagle Creek coarse", *expected[1:]]
+    # Regions 3 and 4 publish no trails.
+    assert _names(snapshot.trails_full) == ["Trail 440", "Trail 441", "Wahtum Lake TH"]
+
+
+async def test_an_order_carries_region_six_property_names():
+    snapshot = await usfs_closures.fetch_snapshot(httpx.MockTransport(_region(_orders_answers())))
+    feature = json.loads(snapshot.areas_full[1].blob)
+    assert feature["id"] == 101
+    assert feature["properties"] == {
+        "OBJECTID": 101,
+        "ForestUnit": "Coconino National Forest",
+        "District": None,
+        "FireName": None,
+        "ClosureOrderName": "Davis Wash Public Safety Closure Order",
+        "ClosureOrderNumber": "03-04-00-26-101",
+        "ClosureDescription": None,
+        "ClosureStartDate": 1_780_000_000_000,
+        "ClosureEndDate": None,
+        "ClosureURLlink": "https://www.fs.usda.gov/r03/coconino/alerts",
+        "GIS_Acres": 640.0,
+        "ClosureSource": "R03",
+        "ClosureType": "Safety Closure",
+    }
+    assert feature["geometry"]["type"] == "Polygon"
+    # Rebuilt compactly, as Region 6's stored text is.
+    assert snapshot.areas_full[1].blob == json.dumps(feature, separators=(",", ":"))
+    assert json.loads(snapshot.areas_full[3].blob)["properties"]["ClosureSource"] == "R04"
+    closure = snapshot.areas_full[1]
+    assert (closure.west, closure.south, closure.east, closure.north) == (-111.2, 34.0, -111.1, 34.1)
+
+
+async def test_every_region_six_feature_carries_its_source():
+    snapshot = await usfs_closures.fetch_snapshot(httpx.MockTransport(_region()))
+    for closure in (*snapshot.areas_full, *snapshot.areas_coarse, *snapshot.trails_full, *snapshot.trails_coarse):
+        properties = json.loads(closure.blob)["properties"]
+        assert properties["ClosureSource"] == "R06"
+        assert properties["ClosureType"] is None
+    # The Forest Service's own properties still ride beside them.
+    assert json.loads(snapshot.areas_full[0].blob)["properties"]["GIS_Acres"] == 1200.0
+
+
+def test_a_geometry_page_joins_by_id_and_skips_what_phase_one_did_not_keep():
+    attributes = {101: _order(101, "Kept", cfr="36 CFR 261.53(e)")["attributes"]}
+    by_property = _shape(101, -111.2, 34.0, -111.1, 34.1)
+    del by_property["id"]
+    payload = json.dumps(
+        _collection(by_property, _shape(999, -111.0, 34.2, -110.9, 34.3), more=True)
+    ).encode()
+    closures, more, count = usfs_closures._parse_order_geometry(payload, attributes, "R03")
+    assert _names(closures) == ["Kept"]
+    assert more is True
     assert count == 2
 
 
@@ -233,24 +469,36 @@ def test_collection_json_carries_the_fetch_time_and_the_coverage():
         trails_full=snapshot.trails_full,
         trails_coarse=snapshot.trails_coarse,
     )
-    body = json.loads(usfs_closures.collection_json(snapshot, list(snapshot.trails_full)))
+    body = json.loads(usfs_closures.collection_json(snapshot, list(snapshot.trails_full), "trail"))
     assert body["type"] == "FeatureCollection"
     assert body["fetched_at"] == 1_790_000_000_000
-    assert body["coverage"] == usfs_coverage.COVERAGE
+    assert body["coverage"] == usfs_coverage.COVERAGE_FOR["trail"]
     assert [f["properties"]["ClosureOrderName"] for f in body["features"]] == ["Trail 440", "Wahtum Lake TH"]
 
 
 def test_collection_json_carries_the_coverage_on_an_empty_answer():
     # The empty answer is exactly the one that needs "not covered" told apart
     # from "nothing closed".
-    body = json.loads(usfs_closures.collection_json(_snapshot(), []))
+    body = json.loads(usfs_closures.collection_json(_snapshot(), [], "area"))
     assert body["features"] == []
     assert body["coverage"]["type"] == "MultiPolygon"
 
 
+def test_collection_json_picks_the_outline_by_kind():
+    # Only Region 6 publishes trails, so the trail outline is its two states
+    # and the area outline is three regions (#551).
+    area = json.loads(usfs_closures.collection_json(_snapshot(), [], "area"))["coverage"]
+    trail = json.loads(usfs_closures.collection_json(_snapshot(), [], "trail"))["coverage"]
+    assert area == usfs_coverage.COVERAGE_FOR["area"]
+    assert trail == usfs_coverage.COVERAGE_FOR["trail"]
+    assert len(area["coordinates"]) == 5
+    assert trail["coordinates"] == [area["coordinates"][0]]
+
+
 # ── Coverage ──────────────────────────────────────────────────────────────────
 
-COVERED = {
+# Oregon and Washington, which both kinds cover.
+REGION_SIX = {
     "Mount Hood": (45.37, -121.70),
     "Mount Rainier": (46.85, -121.76),
     "Wallowa Lake": (45.28, -117.21),
@@ -261,35 +509,81 @@ COVERED = {
     "Halfway OR": (44.88, -117.11),
 }
 
-NOT_COVERED = {
+# Regions 3 and 4, which only the area kind covers (#551).
+REGIONS_THREE_AND_FOUR = {
+    "Humphreys Peak AZ": (35.35, -111.68),
+    "Wheeler Peak NM": (36.56, -105.42),
+    "Kings Peak UT": (40.78, -110.37),
+    "Wheeler Peak NV": (38.98, -114.31),
+    "Borah Peak ID": (44.14, -113.78),
+    # In the Beaverhead Mountains, a few miles from Montana's southern point.
+    "Scott Peak ID": (44.36, -112.83),
+    "Boise ID": (43.62, -116.20),
+    "Gannett Peak WY": (43.18, -109.65),
+    "Grand Teton WY": (43.74, -110.80),
+}
+
+# Outside every region, for both kinds.
+NEITHER = {
+    # Region 1: the Nez Perce-Clearwater, across the river from Clarkston.
     "Lewiston ID": (46.42, -117.02),
-    "Mount Shasta": (41.41, -122.19),
+    "Mount Shasta CA": (41.41, -122.19),
+    "Mount Whitney CA": (36.58, -118.29),
     "Vancouver BC": (49.28, -123.12),
     "Victoria BC": (48.43, -123.37),
-    "Boise ID": (43.62, -116.20),
     "Coeur d'Alene ID": (47.68, -116.78),
-    # Along the Brownlee bend, where a straight edge once reached 0.45° into
-    # Idaho (review of #552).
+    "Longs Peak CO": (40.25, -105.62),
+    "Cloud Peak WY": (44.38, -107.17),
+    "Granite Peak MT": (45.16, -109.81),
+    "Lolo Peak MT": (46.71, -114.24),
+    # Guadalupe Peak (31.89) sits in the 0.2° band south of New Mexico, so
+    # Texas is pinned further out.
+    "Emory Peak TX": (29.27, -103.30),
+    # East of the Continental Divide is the Shoshone, a Region 2 forest.
+    "Cody WY": (44.53, -109.06),
+    "Lander WY": (42.83, -108.73),
+}
+
+# Idaho along the Snake, which the trail outline leaves out: a straight edge
+# there once reached 0.45° into Idaho (review of #552). The area outline takes
+# them in, because southern Idaho is Region 4.
+IDAHO_BY_THE_SNAKE = {
     "Cambridge ID": (44.57, -116.68),
     "Midvale ID": (44.47, -116.73),
     "Weiser ID": (44.25, -116.97),
 }
 
 
-@pytest.mark.parametrize("place", sorted(COVERED))
-def test_region_six_is_covered(place):
-    assert usfs_coverage.covers(*COVERED[place]), place
+@pytest.mark.parametrize("place", sorted(REGION_SIX))
+@pytest.mark.parametrize("kind", ["area", "trail"])
+def test_region_six_is_covered_for_both_kinds(kind, place):
+    assert usfs_coverage.covers(kind, *REGION_SIX[place]), place
 
 
-@pytest.mark.parametrize("place", sorted(NOT_COVERED))
-def test_outside_region_six_is_not_covered(place):
-    assert not usfs_coverage.covers(*NOT_COVERED[place]), place
+@pytest.mark.parametrize("place", sorted(REGIONS_THREE_AND_FOUR))
+def test_regions_three_and_four_are_covered_for_areas_alone(place):
+    assert usfs_coverage.covers("area", *REGIONS_THREE_AND_FOUR[place]), place
+    assert not usfs_coverage.covers("trail", *REGIONS_THREE_AND_FOUR[place]), place
 
 
-def test_coverage_json_is_the_geometry():
-    assert json.loads(usfs_coverage.COVERAGE_JSON) == usfs_coverage.COVERAGE
-    ring = usfs_coverage.COVERAGE["coordinates"][0][0]
-    assert ring[0] == ring[-1]
+@pytest.mark.parametrize("place", sorted(NEITHER))
+@pytest.mark.parametrize("kind", ["area", "trail"])
+def test_outside_every_region_is_not_covered(kind, place):
+    assert not usfs_coverage.covers(kind, *NEITHER[place]), place
+
+
+@pytest.mark.parametrize("place", sorted(IDAHO_BY_THE_SNAKE))
+def test_idaho_by_the_snake_is_an_area_but_not_a_trail(place):
+    assert usfs_coverage.covers("area", *IDAHO_BY_THE_SNAKE[place]), place
+    assert not usfs_coverage.covers("trail", *IDAHO_BY_THE_SNAKE[place]), place
+
+
+@pytest.mark.parametrize("kind", ["area", "trail"])
+def test_coverage_json_is_the_geometry(kind):
+    assert json.loads(usfs_coverage.COVERAGE_JSON_FOR[kind]) == usfs_coverage.COVERAGE_FOR[kind]
+    for polygon in usfs_coverage.COVERAGE_FOR[kind]["coordinates"]:
+        ring = polygon[0]
+        assert ring[0] == ring[-1]
 
 
 # ── The cache ─────────────────────────────────────────────────────────────────

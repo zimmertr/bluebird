@@ -88,3 +88,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0065](0065-link-carries-camera-removals-order.md) | The share link carries the map camera, the removed rows and the table's header sort | 2026-08-22 | Accepted | Frontend: `urlParams.ts`; `mapView.ts` |
 | [0066](0066-tutorial-points-and-never-acts.md) | The tutorial points at controls and never acts on them | 2026-09-29 | Accepted | Frontend: `src/tour/`; `tourSteps.ts` |
 | [0067](0067-region-6-closure-orders.md) | The pod holds one Region 6 closure snapshot and filters it by bbox and kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py` |
+| [0068](0068-forest-orders-entry-closure-test.md) | A Region 3 or 4 forest order is an area closure when its citation or its text closes the area to entry, and closure coverage is per kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py`; `usfs_coverage.py` |

@@ -10,7 +10,7 @@
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
-| [US Forest Service](https://www.fs.usda.gov/) | Region 6 fire closure orders: closed areas, trails, roads and sites, Oregon and Washington only | Free (public domain; quota shared across all consumers) | None |
+| [US Forest Service](https://www.fs.usda.gov/) | Closure orders: closed areas in Regions 3, 4 and 6 (Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington), and closed trails, roads and sites in Region 6 alone | Free (public domain; quota shared across all consumers) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) | Snow depth from the National Snow Analysis, coterminous United States | Free | None |
 | [NOAA NOHRSC SNODAS at NSIDC](https://nsidc.org/data/g02158) | The same analysis as a daily grid, read for the snow depth on each destination | Free | None |
@@ -638,26 +638,48 @@ empty, and empty means "not covered" rather than "clear air".
 
 ## Closures
 
-The two optional closure layers come from the **US Forest Service's Pacific
-Northwest Region (Region 6)**, which publishes its fire closure orders as one
-ArcGIS feature service in three parts: area closures as polygons, closed trails
-and roads as lines, and closed trailheads and other sites as points. One
-layer draws the polygons. The other draws the lines and the points together,
-because a closed trailhead is a closed way in, and it belongs beside the trail
-it serves.
+The two optional closure layers come from three regions of the **US Forest
+Service**. The **Pacific Northwest Region (Region 6)** publishes its fire
+closure orders as one ArcGIS feature service in three parts: area closures as
+polygons, closed trails and roads as lines, and closed trailheads and other
+sites as points. The **Southwestern Region (Region 3)** and the
+**Intermountain Region (Region 4)** publish area orders only, as polygons. One
+layer draws the polygons of all three regions. The other draws Region 6's lines
+and points together, because a closed trailhead is a closed way in, and it
+belongs beside the trail it serves.
 
-**Coverage is Oregon and Washington only.** Region 6 is every national forest
-in those two states and nothing else, so the feed says nothing about Idaho,
-California, or a national park. The API publishes that as a `coverage`
-geometry on every `/api/closures` response: a coarse outline of the two
-states, biased about 0.2° outward on land so a trailhead on the border is never
-left out. Along the Snake River it runs tight between Clarkston and Lewiston,
-where two towns face each other across the water. Outside the outline the
-app reports `N/A` rather than clear, because no order there is a fact the feed
-cannot state.
+**Coverage differs by layer.** The area layer covers Arizona and New Mexico
+(Region 3), Nevada, Utah, southern Idaho and western Wyoming (Region 4), and
+Oregon and Washington (Region 6). The trail layer covers Oregon and Washington
+only, because the other two regions publish no trails or sites. Neither feed
+says anything about California, Colorado, Montana, northern Idaho, or eastern
+Wyoming. The API publishes the coverage as a `coverage` geometry on every
+`/api/closures` response, one per layer: coarse outlines biased about 0.2°
+outward on land so a trailhead on a border is never left out. Two places are
+exceptions. Along the Snake River the line runs tight between Clarkston and
+Lewiston, where two towns face each other across the water. In Wyoming it
+follows the Continental Divide, because east of the divide is the Shoshone
+National Forest, which is Region 2. Outside the outline the app reports `N/A`
+rather than clear, because no order there is a fact the feeds cannot state.
 
-**The status is trusted as published.** Each order carries a status, a start
-date and an end date. The status is maintained by hand at the forest offices,
+**Regions 3 and 4 publish every standing order, not closures.** Their feeds
+hold every order a forest has in force: fire restrictions, motor vehicle
+rules, float permits, and closures. The order's type does not say whether you
+may enter: Region 4 files "Reckless Driving" and "Bridge Load Limits" as
+"Safety Closure". So Bluebird Forecast keeps an order only when it closes an
+area to entry. That is true when its legal citation names 36 CFR 261.52(e) or
+261.53(e), the rules against "going into or being upon" an area, or when its
+name or description says entry is prohibited. Measured 2026-09-30, Region 3
+had 96 live orders and 32 passed; Region 4 had 214 and 6 passed. The feeds
+carry no status, so an order is live when nobody rescinded it and its end
+date, if it has one, is still ahead. The two feeds are read in two steps: first
+the text of every live order, then the shapes of the ones that pass. The
+shapes are the cost: Region 4's live orders are 29.9 MB at full resolution,
+and Region 3's are 5.5 MB, almost all of it orders that close nothing. A test on
+text can be wrong both ways, so read the order itself.
+
+**Region 6's status is trusted as published.** Each Region 6 order carries a
+status, a start date and an end date. The status is maintained by hand at the forest offices,
 and Bluebird Forecast shows every order the Forest Service marks active, whatever its
 dates say. So an active order can carry an end date that is already past.
 Measured 2026-09-30: the Eagle Creek area closure on the Mt. Hood National
@@ -670,16 +692,18 @@ which is the worse mistake. Read the order itself for the details.
 carried none (2026-09-30). Some area closures carry no acreage either. Nothing
 here fills in either gap.
 
-The server fetches the whole region and holds it, the way it holds wildfire
+The server fetches all three regions and holds them, the way it holds wildfire
 perimeters: one copy per server rather than one fetch per visitor, because the
 quota belongs to the Forest Service's ArcGIS organization and is shared with
 every other consumer of its public layers. It refreshes every 30 minutes, since
 the orders are edited by hand a few times a week, and it keeps serving the last
-copy it has when the Forest Service is unreachable. Trails and areas come at two
+copy it has when the Forest Service is unreachable. One refresh is eleven
+queries: five for Region 6 and three for each other region. Trails and areas come at two
 fidelities from one fetch: a copy simplified to about 56 m, the same
 tolerance the wildfire overlay uses, is the default, and API callers can ask
 for the full geometry. Measured 2026-09-30, the trail lines are 5.8 MB at full resolution
-and 1.4 MB simplified. See [API.md](API.md#closure-orders).
+and 1.4 MB simplified, and the areas of all three regions are 3.2 MB and
+0.3 MB. See [API.md](API.md#closure-orders).
 
 **The Closure column is a polygon test and nothing else.** A destination is
 flagged when it stands inside the outer ring of an active area closure. It is
@@ -690,15 +714,15 @@ closure is still reached through closed ground. The check reads the
 simplified copy, since about 56 m of simplification moves a boundary only for a
 destination standing on the line, whose reader reads the order either way. It
 runs once per analysis over the whole candidate field, beside the wildfire
-check. A row outside Oregon and Washington reads `N/A` rather than clear, for
-the coverage reason above, and so does every row when the Forest Service is
+check. A row outside the area layer's coverage reads `N/A` rather than clear,
+for the coverage reason above, and so does every row when the Forest Service is
 unreachable. Sorting by the column puts cleared and `N/A` rows last in both
 directions, the way a clear wildfire row sorts, because no answer is not an
 answer to rank.
 
 The orders are the work of a US government agency, and so in the public
-domain; the feature service carries no license of its own. They are a legal
-notice about a fire, not a trail report. For the order that binds you, read it
+domain; the feature services carry no license of their own. They are a legal
+notice, not a trail report. For the order that binds you, read it
 on the Forest Service's site or call the ranger district.
 
 ## Rain radar
