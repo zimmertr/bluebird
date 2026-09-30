@@ -31,7 +31,7 @@ interface Props {
   onEnd: () => void
 }
 
-/** How long after a step change the spotlight and the card animate. */
+/** How long after a step change, or after its last scroll event, the spotlight and the card animate. */
 const MOTION_MS = 250
 
 /**
@@ -49,8 +49,9 @@ const MOTION_MS = 250
  * covers the ones it is not: the phone's drawer sliding in for a panel step,
  * and a popup riding a map that is still settling. A pass that measures the
  * same boxes sets nothing. The motion role is worn only for the moment after
- * a step changes; always on, it made the spotlight trail its control by
- * 200 ms whenever the layout moved for another reason.
+ * a step changes, stretched by the panel's smooth scroll to the step's
+ * control while one lasts; always on, it made the spotlight trail its
+ * control by 200 ms whenever the layout moved for another reason.
  */
 export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const step = steps[index]
@@ -106,7 +107,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // the page is told about, and once a frame for the moves it is not.
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(anchorSelector(step.anchor))
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' })
+    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
     window.addEventListener('resize', measure)
     document.addEventListener('scroll', measure, true)
     let frame = 0
@@ -124,11 +125,24 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
 
   // Focus lands on Next at every step, so Enter walks the tour and a screen
   // reader hears the new card; the motion role is worn for the move and shed.
+  // The panel scrolls smoothly to a control it has to reach, so the reader
+  // sees where the next section stands rather than a jump, and every scroll
+  // event pushes the shedding out: the spotlight eases after the section for
+  // as long as it moves and settles on it, instead of snapping when a timer
+  // that never saw the scroll runs out.
   useEffect(() => {
     nextRef.current?.focus()
     setMoving(true)
-    const timer = window.setTimeout(() => setMoving(false), MOTION_MS)
-    return () => window.clearTimeout(timer)
+    let timer = window.setTimeout(() => setMoving(false), MOTION_MS)
+    const extend = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setMoving(false), MOTION_MS)
+    }
+    document.addEventListener('scroll', extend, true)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('scroll', extend, true)
+    }
   }, [index])
 
   // Tab cycles inside the card; Escape ends it; the arrow keys step either
