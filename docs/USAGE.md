@@ -436,7 +436,7 @@ Marker colors follow the ranked metric. Under the default ranking that is total 
 
 Wind uses the same six colors, with red from 35 to 50 mph and purple above 50 mph. Purple is the same color the AQI scale gives its Very Unhealthy band, so wherever you meet it the reading is the same: past the end of the ramp. Temperature is the one scale with a bad end on both sides: purple at or below 30°F, through sky blue and cyan, green from 60 to 75°F, then orange and red above 90°F.
 
-Click a marker for a popup carrying the same columns the results table is showing, in the table's order. The map moves so the popup shows as much of itself as it can: above the results sheet, clear of the buttons at the map's top left, and title first where the whole card does not fit. Centring a destination from the table does the same, with the marker flown to the middle of the map first. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's legend always names the metric it is drawing and the numbers its scale turns on.
+Click a marker for a popup carrying the same columns the results table is showing, in the table's order. The map moves so the popup shows as much of itself as it can: above the results sheet, clear of the buttons at the map's top left, and title first where the whole card does not fit. Centring a destination from the table does the same, with the marker flown to the middle of the map first. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. A closure warning follows it on the same terms, linked to the order's page when there is one. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's legend always names the metric it is drawing and the numbers its scale turns on.
 
 ## Results Table
 
@@ -460,6 +460,19 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
 | Cloud base · Min/Max/Avg (ft) | The lowest height above the destination where the model's air is close to saturated, in feet above sea level. Shown only when the report fetched it. Blank for a lake or trailhead with no known elevation and over an archive window |
 | Cloud cover · Min/Max/Avg (%) | The model's total cloud cover over the window, every layer at once. Shown only when the report fetched it |
+
+The last two columns are the table's safety flags, **Wildfire (mi)** and
+**Closure**. Both are on by default and can be hidden in the **Columns** picker
+like any other. The Closure cell shows ⚠️ and the order's name where the
+destination stands inside an active US Forest Service area closure, a dash
+where the check ran and cleared it, and `N/A` where it has no answer. A warned
+cell links to the order on the Forest Service's site when the order has a page,
+and otherwise hovering it says which closure it is. Hovering an `N/A` says
+which of its two causes applies: the destination is outside Oregon and
+Washington, the only states the closure data covers, or the Forest Service is
+unreachable and the whole check failed. The check is inside or outside, with no
+distance: a destination next to a closure is open
+([DATA.md](DATA.md#closures)).
 
 A single-hour analysis ("now", or a chosen moment) collapses each of those
 groups to one column, because over one hour the average, the minimum and the
@@ -540,6 +553,11 @@ What lands in the file:
   causes applies: the destination sits outside the fire data's US coverage,
   or NIFC is unreachable and the whole check failed. The file writes the same answers with the distance
   bare and the cleared cell empty; a coverage `N/A` carries over as written.
+- The **Closure** column on the same terms: once the closure check answers and
+  while the column is shown. A warned cell writes the order's name without the
+  ⚠️, a cleared cell is empty, and a coverage `N/A` carries over as written.
+  While the file carries it, the credits below the data add
+  `Closure data by US Forest Service` with a link to the Forest Service.
 - Nothing a removed row would have contributed. Removals and the max-results
   cut apply first, exactly as on screen.
 
@@ -602,10 +620,11 @@ because there the absence is the model carrying no such variable rather than a
 number that came back empty, and a file is read with nothing around it to say
 which.
 
-The wildfire column is the one that can disappear from the file. If the fire
-check could not run, the column is left out entirely and a warning under
-Analyze says NIFC is unreachable, rather than the file reporting every row as
-clear. So a blank wildfire cell in a file means the check ran and found
+The wildfire and Closure columns are the two that can disappear from the file.
+If the fire check could not run, the column is left out entirely and a warning
+under Analyze says NIFC is unreachable, rather than the file reporting every
+row as clear. The Closure column does the same when the Forest Service is
+unreachable, with a warning of its own. So a blank wildfire cell in a file means the check ran and found
 nothing within 10 miles, which still is not proof there is no fire:
 [the wildfire notes](DATA.md#wildfires) explain the coverage gap that a
 successful check can still miss.

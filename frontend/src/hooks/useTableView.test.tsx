@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type TableViewInputs, useTableView } from './useTableView'
 import type { FireProximity } from './useFireProximity'
-import { analyzedSnapshot, fireWarning, forecastModel, resultRow } from '../testSupport/fixtures'
+import type { ClosureProximity } from './useClosureProximity'
+import { analyzedSnapshot, closureWarning, fireWarning, forecastModel, resultRow } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
-import { MODEL_KEY, WILDFIRE_KEY } from '../utils/tableColumns'
+import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY } from '../utils/tableColumns'
 import { type ViewPrefs, readViewPrefs } from '../utils/viewPrefs'
 
 const NEAR = resultRow({ name: 'Near', latitude: 47.1, longitude: -121.1 })
@@ -16,6 +17,16 @@ const FIRE: FireProximity = {
   warnings: new Map([
     [geoKey(NEAR.latitude, NEAR.longitude), fireWarning({ miles: 2 })],
     [geoKey(FAR.latitude, FAR.longitude), fireWarning({ miles: 8 })],
+  ]),
+  uncovered: new Set(),
+}
+// Two rows inside two different closures, named so their alphabetical order
+// is the reverse of the rows' own, and one cleared row.
+const CLOSURE: ClosureProximity = {
+  status: 'ready',
+  warnings: new Map([
+    [geoKey(NEAR.latitude, NEAR.longitude), closureWarning({ name: 'Zigzag Closure' })],
+    [geoKey(FAR.latitude, FAR.longitude), closureWarning({ name: 'Eagle Creek Closure' })],
   ]),
   uncovered: new Set(),
 }
@@ -46,6 +57,7 @@ function inputs(over: Partial<TableViewInputs> = {}): TableViewInputs {
     pending: NO_PENDING,
     pendingRows: NO_PENDING_ROWS,
     fire: FIRE,
+    closure: CLOSURE,
     ...over,
   }
 }
@@ -127,6 +139,30 @@ describe('useTableView', () => {
     expect(result.current.tableRows.map((r) => r.name)).toEqual(['Near', 'Far', 'Clear'])
     rerender(inputs({ detailSort: { key: WILDFIRE_KEY, dir: 'desc' } }))
     expect(result.current.tableRows.map((r) => r.name)).toEqual(['Far', 'Near', 'Clear'])
+  })
+
+  // The Closure key is virtual too, and sorts by the order's name, with a
+  // cleared row last in both directions.
+  it('sorts the Closure column by name with cleared rows last', () => {
+    const { result, rerender } = renderHook((p: TableViewInputs) => useTableView(p), {
+      initialProps: inputs({ detailSort: { key: CLOSURE_KEY, dir: 'asc' } }),
+    })
+    expect(result.current.tableRows.map((r) => r.name)).toEqual(['Far', 'Near', 'Clear'])
+    rerender(inputs({ detailSort: { key: CLOSURE_KEY, dir: 'desc' } }))
+    expect(result.current.tableRows.map((r) => r.name)).toEqual(['Near', 'Far', 'Clear'])
+  })
+
+  it('shows the Closure column last and by default, lists it in the picker, and hides it on untick', () => {
+    const { result } = renderHook(() => useTableView(inputs()))
+    expect(keys(result.current.tableColumns).slice(-2)).toEqual([WILDFIRE_KEY, CLOSURE_KEY])
+    expect(keys(result.current.allColumns)).toContain(CLOSURE_KEY)
+    expect(result.current.pickerVisibleKeys.has(CLOSURE_KEY)).toBe(true)
+    const without = new Set(result.current.pickerVisibleKeys)
+    without.delete(CLOSURE_KEY)
+    act(() => result.current.handleVisibilityChange(without))
+    expect(keys(result.current.tableColumns)).not.toContain(CLOSURE_KEY)
+    expect(keys(result.current.tableColumns)).toContain(WILDFIRE_KEY)
+    expect(readViewPrefs().columns?.has(CLOSURE_KEY)).toBe(false)
   })
 
   it('labels the analyzed model rather than the panel one', () => {

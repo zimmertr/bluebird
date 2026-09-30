@@ -255,6 +255,12 @@ export type WildfireCoverageIsPublished = Assert<
   Extends<'coverage', keyof Schema['WildfireCollection']>
 >
 
+// The same member on the closure snapshot, which the Closure column reads so a
+// destination outside Oregon and Washington reads N/A rather than open (#550).
+export type ClosureCoverageIsPublished = Assert<
+  Extends<'coverage', keyof Schema['ClosureCollection']>
+>
+
 // ---------------------------------------------------------------------------
 // Every schema is accounted for. A model added to the backend fails this until
 // it is either asserted above or listed as unmirrored with a reason, which is
@@ -270,6 +276,7 @@ type Mirrored =
   | 'AnalyzeRequest'
   | 'AnalyzeResponse'
   | 'CapabilitiesResponse'
+  | 'ClosureCollection'
   | 'ConfigResponse'
   | 'CustomDestination'
   | 'DestinationResult'
@@ -301,7 +308,8 @@ type Unmirrored =
   | 'RateLimits'
   // Both overlays are drawn straight from GeoJSON, and the schema declares the
   // feature bag free-form, so there is nothing here to hold a property name
-  // against. The one exception is the fire coverage member, asserted above.
+  // against. The exceptions are the fire and closure coverage members,
+  // asserted above.
   | 'SmokeCollection'
   // Build identity, for humans and for the release probe. Nothing in the SPA
   // fetches it.

@@ -10,6 +10,7 @@ import type { ForecastSelectionState } from '../hooks/useForecastSelection'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import type { FireProximityStatus } from '../utils/fireProximity'
+import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { CommitReason } from '../utils/present'
 import { LAYER, RADIUS, SURFACE_DIVIDER, TAP, TEXT } from '../styles'
 
@@ -90,6 +91,8 @@ interface AppDrawerProps {
   results: DestinationResult[]
   /** Where the wildfire check stands, for the panel's note when it failed. */
   fireStatus: FireProximityStatus
+  /** Where the closure check stands, for the same note about closures. */
+  closureStatus: ClosureProximityStatus
 }
 
 /**
@@ -123,6 +126,7 @@ export default function AppDrawer({
   response,
   results,
   fireStatus,
+  closureStatus,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
   const {
@@ -198,6 +202,7 @@ export default function AppDrawer({
           onClearDrawing={handleClearDrawing}
           onPointAtSearch={onPointAtSearch}
           wildfireCheckFailed={fireStatus === 'unavailable' && results.length > 0}
+          closureCheckFailed={closureStatus === 'unavailable' && results.length > 0}
           onPointAtMapPois={onPointAtMapPois}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}

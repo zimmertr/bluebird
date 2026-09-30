@@ -1,8 +1,14 @@
 import { createContext, memo, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DestinationResult } from '../types'
-import { MODEL_KEY, WILDFIRE_KEY, type ColDef } from '../utils/tableColumns'
-import { fireLoadingFrame, type FireProximityStatus, type FireWarning } from '../utils/fireProximity'
+import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY, type ColDef } from '../utils/tableColumns'
+import {
+  checkRunning,
+  fireLoadingFrame,
+  type FireProximityStatus,
+  type FireWarning,
+} from '../utils/fireProximity'
+import type { ClosureProximityStatus, ClosureWarning } from '../utils/closureProximity'
 import type { ChartBox } from '../hooks/useChartBox'
 import { destinationUrl } from '../utils/destinationUrl'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from '../utils/wildfires'
@@ -11,6 +17,7 @@ import { isPartialRow } from '../utils/modelCompare'
 import {
   cellColor,
   cellText,
+  closureCell,
   fireCell,
   modelCellText,
   pendingChartRow,
@@ -73,13 +80,14 @@ function ChartToggle({ row, on, color, box }: { row: DestinationResult; on: bool
   )
 }
 
-// The wildfire cells' shared clock while the fire check is in flight: one
-// ticking state for the whole table rather than per cell, so every cell shows
-// the same frame, and an interval only while there is something to wait for.
-// The frame reaches the cells through a context rather than a row prop,
-// because it ticks every 400 ms: as a prop it would redraw every cell of every
-// row per tick, where a context redraws only the wildfire cells that read it.
-// Null once the check has answered.
+// The flag cells' shared clock while the wildfire or the closure check is in
+// flight: one ticking state for the whole table rather than per cell, so every
+// cell shows the same frame, and an interval only while there is something to
+// wait for. The frame reaches the cells through a context rather than a row
+// prop, because it ticks every 400 ms: as a prop it would redraw every cell of
+// every row per tick, where a context redraws only the flag cells that read
+// it. Null once both checks have answered; while one still runs, each cell
+// asks `checkRunning` of its own check, so an answered column stays still.
 const FireFrame = createContext<string | null>(null)
 
 export function FireClock({ running, children }: { running: boolean; children: ReactNode }) {
@@ -142,6 +150,9 @@ interface CellContext {
   fireStatus: FireProximityStatus
   fireWarning?: FireWarning
   fireUncovered: boolean
+  closureStatus: ClosureProximityStatus
+  closureWarning?: ClosureWarning
+  closureUncovered: boolean
   // Centres the map on the row: the name button's fly-to.
   onCenter: () => void
 }
@@ -156,7 +167,7 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
   const warning = ctx.fireWarning
   const { text, note } = fireCell(ctx.fireStatus, warning, ctx.fireUncovered)
   let body: ReactNode = text
-  if (frame !== null) {
+  if (frame !== null && checkRunning(ctx.fireStatus)) {
     body = <span className={TEXT.caption}>{frame}</span>
   } else if (warning) {
     // A warned cell links to the fire it is warning about, the same NIFC map a
@@ -188,11 +199,48 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
   return <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
 }
 
+// The Closure column (#550), the wildfire cell's twin: the same clock, the
+// same three states and the same hover notes on the two unlinked ones. A
+// warned cell names the order, and links it when the Forest Service gave it
+// an http(s) page, as a clicked closure's popup does. Its label names the
+// order and where it goes, in the shape every new-tab link here wears.
+function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
+  const frame = useContext(FireFrame)
+  const warning = ctx.closureWarning
+  const { text, note } = closureCell(ctx.closureStatus, warning, ctx.closureUncovered)
+  let body: ReactNode = text
+  if (frame !== null && checkRunning(ctx.closureStatus)) {
+    body = <span className={TEXT.caption}>{frame}</span>
+  } else if (warning?.url) {
+    body = (
+      <a
+        href={warning.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open ${warning.name} on the US Forest Service site. Opens in a new tab.`}
+        className="hover:underline cursor-pointer"
+      >
+        {text}
+      </a>
+    )
+  } else if (note) {
+    // An order with no page of its own keeps the hover sentence, like the
+    // two N/A states: the note is the only thing that says which one it is.
+    body = (
+      <span title={note} aria-label={note} className="cursor-help">
+        {text}
+      </span>
+    )
+  }
+  return <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
+}
+
 // One body cell of a ranked row: every column after the rank, the name, Model
-// and Wildfire columns included.
+// Wildfire and Closure columns included.
 function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: CellContext }) {
   const key = col.key as string
   if (col.key === WILDFIRE_KEY) return <FireTd colKey={key} ctx={ctx} />
+  if (col.key === CLOSURE_KEY) return <ClosureTd colKey={key} ctx={ctx} />
   // Virtual like the wildfire column: the value rides beside the row. A model
   // that ends inside the window is marked here, once, rather than on each of
   // its numbers (#508): the mark is about the model, and a number with a mark
@@ -285,6 +333,9 @@ interface RowProps {
   fireStatus: FireProximityStatus
   fireWarning?: FireWarning
   fireUncovered: boolean
+  closureStatus: ClosureProximityStatus
+  closureWarning?: ClosureWarning
+  closureUncovered: boolean
   // Absent when the table has no chart column.
   chartBox?: ChartBox
   charted: boolean
@@ -306,6 +357,9 @@ function ResultsTableRow({
   fireStatus,
   fireWarning,
   fireUncovered,
+  closureStatus,
+  closureWarning,
+  closureUncovered,
   chartBox,
   charted,
   chartColor,
@@ -322,6 +376,9 @@ function ResultsTableRow({
     fireStatus,
     fireWarning,
     fireUncovered,
+    closureStatus,
+    closureWarning,
+    closureUncovered,
     onCenter: () => onFocusResult?.(row),
   }
   return (

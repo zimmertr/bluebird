@@ -15,6 +15,7 @@ import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
 import { FireWarning } from '../utils/fireProximity'
+import type { ClosureWarning } from '../utils/closureProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
@@ -118,6 +119,8 @@ interface Props {
   // Fire-proximity warnings keyed by geoKey(lat,lon), mirroring the results
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
+  // The Closure column's warnings (#550), for the same popup's closure line.
+  closureWarnings: Map<string, ClosureWarning>
   showWildfires: boolean
   // The Forest Service closure orders (#550), one switch per layer: the closed
   // ground, and the closed trails, roads and sites. Read from the pod like
@@ -206,6 +209,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       popupColumns,
       modelFallbackLabel,
       fireWarnings,
+      closureWarnings,
       showWildfires,
       showAreaClosures,
       showTrailClosures,
@@ -273,6 +277,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       modelFallbackLabel,
       popupColumns,
       fireWarnings,
+      closureWarnings,
       searchedPlaces,
       onAddPoi,
       onRemovePoi,

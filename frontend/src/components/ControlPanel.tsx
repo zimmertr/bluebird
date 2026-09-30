@@ -138,6 +138,9 @@ interface Props {
   // The wildfire proximity lookup failed for the displayed report, so no row
   // has been checked. A safety claim the UI must not make silently.
   wildfireCheckFailed?: boolean
+  // The same for the closure check (#550): no row has been checked against
+  // the Forest Service's closure orders.
+  closureCheckFailed?: boolean
 }
 
 export default function ControlPanel({
@@ -198,6 +201,7 @@ export default function ControlPanel({
   resultCount,
   aqiAllNull,
   wildfireCheckFailed,
+  closureCheckFailed,
 }: Props) {
   // Falls back to the id so a link naming a model this deployment stopped
   // publishing still reads as something rather than as an empty gap in a
@@ -327,6 +331,7 @@ export default function ControlPanel({
     hasReport: resultCount !== undefined,
     aqiAllNull: Boolean(aqiAllNull),
     wildfireCheckFailed: Boolean(wildfireCheckFailed),
+    closureCheckFailed: Boolean(closureCheckFailed),
     now,
   })
 

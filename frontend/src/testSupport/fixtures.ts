@@ -7,6 +7,7 @@ import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
 import type { CellBox, GridCell } from '../utils/forecastGridLattice'
 import type { FireWarning } from '../utils/fireProximity'
+import type { ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
 import type { Feature, Geometry } from 'geojson'
 import type { ClosureProps } from '../utils/closures'
@@ -254,6 +255,20 @@ export function discovered(over: Partial<DiscoveredDestination> = {}): Discovere
  */
 export function fireWarning(over: Partial<FireWarning> = {}): FireWarning {
   return { miles: 3.2, name: 'Probe Fire', latitude: 46.3, longitude: -121.5, ...over }
+}
+
+/**
+ * One closure warning, as the closure lookup keys it to a row: a named order
+ * with a page of its own, centred close by.
+ */
+export function closureWarning(over: Partial<ClosureWarning> = {}): ClosureWarning {
+  return {
+    name: 'Probe Fire Closure',
+    url: 'https://www.fs.usda.gov/r06/alerts/probe',
+    latitude: 45.6,
+    longitude: -121.9,
+    ...over,
+  }
 }
 
 /**

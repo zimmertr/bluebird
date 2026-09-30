@@ -3,11 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import ResultsTableRow, { FireClock, PendingRow } from './ResultsTableRow'
 import type { ChartBox } from '../hooks/useChartBox'
-import { displayedColumns, MODEL_COL, WILDFIRE_COL, type ColDef } from '../utils/tableColumns'
+import { CLOSURE_COL, displayedColumns, MODEL_COL, WILDFIRE_COL, type ColDef } from '../utils/tableColumns'
 import { FIRE_UNCOVERED_NOTE, fireLoadingFrame } from '../utils/fireProximity'
+import {
+  CLOSURE_UNAVAILABLE_NOTE,
+  CLOSURE_UNCOVERED_NOTE,
+  closureWarningText,
+} from '../utils/closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
 import { pendingChartRow } from '../utils/resultsCells'
-import { fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
+import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 
 type Props = ComponentProps<typeof ResultsTableRow>
@@ -41,6 +46,8 @@ function props(over: Partial<Props> = {}): Props {
     pointSample: false,
     fireStatus: 'ready',
     fireUncovered: false,
+    closureStatus: 'ready',
+    closureUncovered: false,
     charted: false,
     ...over,
   }
@@ -113,6 +120,64 @@ describe('a ranked row', () => {
   it('links a metric cell to Windy under the row name', () => {
     inTable(<ResultsTableRow {...props()} />)
     expect(screen.getByRole('link', { name: 'Open Mount Adams on Windy. Opens in a new tab.' })).toBeTruthy()
+  })
+})
+
+describe('the Closure cell', () => {
+  const only = (over: Partial<Props> = {}) =>
+    inTable(<ResultsTableRow {...props({ columns: [CLOSURE_COL], ...over })} />)
+  const cell = () => within(screen.getByRole('row')).getAllByRole('cell')[1]
+
+  it('links a warned cell to the order by its name', () => {
+    only({ closureWarning: closureWarning() })
+    const link = screen.getByRole('link', {
+      name: 'Open Probe Fire Closure on the US Forest Service site. Opens in a new tab.',
+    })
+    expect(link.textContent).toBe('⚠️ Probe Fire Closure')
+    expect(link.getAttribute('href')).toBe('https://www.fs.usda.gov/r06/alerts/probe')
+    expect(link.getAttribute('target')).toBe('_blank')
+  })
+
+  it('keeps the hover sentence on a warned order with no page', () => {
+    const warning = closureWarning({ url: null })
+    only({ closureWarning: warning })
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(cell().querySelector('[title]')!.getAttribute('title')).toBe(closureWarningText(warning))
+  })
+
+  it('reads the dash for a cleared row', () => {
+    only()
+    expect(cell().textContent).toBe('—')
+  })
+
+  it('explains an uncovered row and a failed check apart', () => {
+    only({ closureUncovered: true })
+    expect(cell().querySelector('[title]')!.getAttribute('title')).toBe(CLOSURE_UNCOVERED_NOTE)
+  })
+
+  it('reads N/A with the unavailable note when the check failed', () => {
+    only({ closureStatus: 'unavailable' })
+    expect(cell().textContent).toBe('N/A')
+    expect(cell().querySelector('[title]')!.getAttribute('title')).toBe(CLOSURE_UNAVAILABLE_NOTE)
+  })
+
+  // One clock for both flag columns: a check that answered stays still while
+  // the other one ticks.
+  it('ticks only while its own check runs', () => {
+    inTable(
+      <FireClock running>
+        <ResultsTableRow
+          {...props({
+            columns: [WILDFIRE_COL, CLOSURE_COL],
+            fireStatus: 'ready',
+            closureStatus: 'loading',
+          })}
+        />
+      </FireClock>,
+    )
+    const cells = within(screen.getByRole('row')).getAllByRole('cell')
+    expect(cells[1].textContent).toBe('—')
+    expect(cells[2].textContent).toBe(fireLoadingFrame(0))
   })
 })
 

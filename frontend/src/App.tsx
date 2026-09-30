@@ -22,8 +22,9 @@ import WelcomeModal from './components/WelcomeModal'
 const Tour = lazy(() => import('./tour/Tour'))
 import type { DestinationResult } from './types'
 
-// Hoisted, so the fire check reads one empty list while the tutorial's
-// demonstration report is on screen rather than a fresh one per render.
+// Hoisted, so the fire and closure checks read one empty list while the
+// tutorial's demonstration report is on screen rather than a fresh one per
+// render.
 const NO_ROWS: DestinationResult[] = []
 import { useTour } from './tour/useTour'
 import { TUTORIAL_PATH } from './utils/tourSteps'
@@ -43,6 +44,7 @@ import { useResultsView } from './hooks/useResultsView'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useUrlSync } from './hooks/useUrlSync'
 import { useFireProximity } from './hooks/useFireProximity'
+import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
@@ -333,7 +335,12 @@ export default function App() {
   // knobs re-present rows without re-querying NIFC. (Called here, above the
   // table view, because the wildfire column sorts and renders out of its
   // maps.)
-  const fire = useFireProximity(fireField ?? universe ?? (demo ? NO_ROWS : results), fireSeq)
+  const checkField = fireField ?? universe ?? (demo ? NO_ROWS : results)
+  const fire = useFireProximity(checkField, fireSeq)
+  // Flags destinations inside an active Forest Service area closure (#550):
+  // the Closure column's check, on the fire check's field and sequence,
+  // because both are one lookup per analysis over the same candidates.
+  const closure = useClosureProximity(checkField, fireSeq)
 
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
@@ -429,6 +436,7 @@ export default function App() {
     times: forecastTimes,
     windowLimits: caps.windowLimits,
     fire,
+    closure,
     mapRef,
     removePlace,
   })
@@ -496,6 +504,7 @@ export default function App() {
         response={response}
         results={results}
         fireStatus={fire.status}
+        closureStatus={closure.status}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand
@@ -513,6 +522,7 @@ export default function App() {
           report={report}
           tableView={tableView}
           fire={fire}
+          closure={closure}
           layout={layout}
           analysis={analysis}
           sortBy={view.sortBy}
@@ -542,6 +552,7 @@ export default function App() {
           timelineAxes={timelineAxes}
           movePlayheadTo={movePlayheadTo}
           fire={fire}
+          closure={closure}
           modelId={analyzed?.forecastModel ?? forecastModel}
         />
       </div>

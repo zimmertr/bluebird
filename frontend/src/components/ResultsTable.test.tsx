@@ -2,7 +2,7 @@ import { Profiler, type ComponentProps, type ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
-import { displayedColumns, WILDFIRE_COL, withModelColumn } from '../utils/tableColumns'
+import { displayedColumns, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
@@ -54,6 +54,9 @@ function props(over: Partial<Props> = {}): Props {
     fireWarnings: NO_WARNINGS,
     fireUncovered: NO_KEYS,
     fireStatus: 'ready',
+    closureWarnings: NO_WARNINGS,
+    closureUncovered: NO_KEYS,
+    closureStatus: 'ready',
     ...over,
   }
 }
@@ -267,5 +270,21 @@ describe('what a render redraws', () => {
     rerender(table('ready'))
     expect(vi.getTimerCount()).toBe(0)
     expect(screen.queryByText(fireLoadingFrame(1))).toBeNull()
+  })
+
+  // One clock for both flag columns: it runs while EITHER check waits, and
+  // stops only once both have answered.
+  it('keeps the clock running while the closure check alone still waits', () => {
+    vi.useFakeTimers()
+    const table = (closureStatus: Props['closureStatus']) => (
+      <ResultsTable
+        {...props({ results: CHARTED, columns: [...COLUMNS, WILDFIRE_COL, CLOSURE_COL], closureStatus })}
+      />
+    )
+    const { rerender } = render(table('loading'))
+    expect(screen.getAllByText(fireLoadingFrame(0))).toHaveLength(3)
+    rerender(table('ready'))
+    expect(vi.getTimerCount()).toBe(0)
+    expect(screen.queryByText(fireLoadingFrame(0))).toBeNull()
   })
 })

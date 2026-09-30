@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createMapController, type MapInputs } from './controller'
-import { resultRow } from '../testSupport/fixtures'
+import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
 import type { FireWarning } from '../utils/fireProximity'
 
@@ -13,6 +13,7 @@ function inputs(over: Partial<MapInputs> = {}): MapInputs {
     modelFallbackLabel: null,
     popupColumns: [],
     fireWarnings: new Map(),
+    closureWarnings: new Map(),
     searchedPlaces: [],
     onAddPoi: () => {},
     onRemovePoi: () => {},
@@ -87,5 +88,15 @@ describe('fireWarningAt', () => {
     expect(controller.fireWarningAt(46.85, -121.76)).toBeNull()
     controller.update(inputs({ fireWarnings: new Map([[geoKey(46.85, -121.76), warning]]) }))
     expect(controller.fireWarningAt(46.85, -121.76)).toBe(warning)
+  })
+})
+
+describe('closureWarningAt', () => {
+  it('looks a closure up by the same key the warnings are stored under', () => {
+    const warning = closureWarning()
+    const controller = createMapController(inputs())
+    expect(controller.closureWarningAt(46.85, -121.76)).toBeNull()
+    controller.update(inputs({ closureWarnings: new Map([[geoKey(46.85, -121.76), warning]]) }))
+    expect(controller.closureWarningAt(46.85, -121.76)).toBe(warning)
   })
 })

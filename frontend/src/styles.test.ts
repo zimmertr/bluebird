@@ -373,12 +373,14 @@ describe('every component', () => {
     // place this panel explains itself. The zero is pinned like every count
     // above — a tooltip coming BACK here is as much a decision as one leaving.
     './components/ModelPicker.tsx': 0,
-    // Two cells carry one each. The Wildfire (mi) cell: the fire's name on a
+    // Three cells carry one each. The Wildfire (mi) cell: the fire's name on a
     // warned row, or which of its two causes an N/A carries (TJ, PR #275
-    // review). And the freezing-level cell: why it reads N/A, which is the
-    // forecast model rather than the weather (TJ, 2026-09-12, asked for with
-    // the metric itself in #295).
-    './components/ResultsTableRow.tsx': 2,
+    // review). The Closure cell, the same three notes for the closure check
+    // (TJ, 2026-09-30, approved with the column in #550). And the
+    // freezing-level cell: why it reads N/A, which is the forecast model
+    // rather than the weather (TJ, 2026-09-12, asked for with the metric
+    // itself in #295).
+    './components/ResultsTableRow.tsx': 3,
   }
 
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {

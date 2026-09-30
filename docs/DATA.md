@@ -26,7 +26,9 @@ requires are collected in [NOTICES.md](../NOTICES.md). A downloaded CSV
 carries its own copy of the Open-Meteo and OpenStreetMap credits below the
 data — CC BY 4.0 and ODbL both ask the credit to travel with every copy, and
 a file is read detached from the screen that shows them — plus the NIFC
-credit whenever the file carries the wildfire column.
+credit whenever the file carries the wildfire column, and a US Forest Service
+credit, with a link to the Forest Service in place of a license, whenever it
+carries the Closure column.
 
 ## A forecast is not a measurement
 
@@ -678,6 +680,21 @@ fidelities from one fetch: a copy simplified to about 56 m, the same
 tolerance the wildfire overlay uses, is the default, and API callers can ask
 for the full geometry. Measured 2026-09-30, the trail lines are 5.8 MB at full resolution
 and 1.4 MB simplified. See [API.md](API.md#closure-orders).
+
+**The Closure column is a polygon test and nothing else.** A destination is
+flagged when it stands inside the outer ring of an active area closure. It is
+not flagged for standing near one, and a closed trail or trailhead does not
+flag the summit it leads to, because other routes can still reach it. Holes in
+a closure are ignored, for the wildfire check's reason: open ground inside a
+closure is still reached through closed ground. The check reads the
+simplified copy, since about 56 m of simplification moves a boundary only for a
+destination standing on the line, whose reader reads the order either way. It
+runs once per analysis over the whole candidate field, beside the wildfire
+check. A row outside Oregon and Washington reads `N/A` rather than clear, for
+the coverage reason above, and so does every row when the Forest Service is
+unreachable. Sorting by the column puts cleared and `N/A` rows last in both
+directions, the way a clear wildfire row sorts, because no answer is not an
+answer to rank.
 
 The orders are the work of a US government agency, and so in the public
 domain; the feature service carries no license of its own. They are a legal

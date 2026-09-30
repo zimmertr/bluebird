@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cellColor,
   cellText,
+  closureCell,
   fireCell,
   modelCellText,
   pendingChartRow,
@@ -12,13 +13,14 @@ import {
   windyCellUrl,
 } from './resultsCells'
 import { FIRE_UNAVAILABLE_NOTE, FIRE_UNCOVERED_NOTE, fireWarningText } from './fireProximity'
+import { CLOSURE_UNAVAILABLE_NOTE, CLOSURE_UNCOVERED_NOTE, closureWarningText } from './closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE } from './freezingLevel'
 import { SNOW_DEPTH_CEILING_IN, snowCellText } from './snowCeiling'
 import { cellStyle, scaleFor } from './colors'
 import { displayedColumns, type ColDef } from './tableColumns'
 import { windyUrl } from './windy'
 import type { ModelRow } from './modelCompare'
-import { fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
+import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 
 const WARNING = fireWarning()
 const column = (key: string): ColDef => {
@@ -28,6 +30,30 @@ const column = (key: string): ColDef => {
 }
 const compared = (over: Partial<ModelRow>): ModelRow =>
   ({ ...resultRow(), modelId: 'icon_seamless', modelLabel: 'DWD ICON', rank: 4, ...over }) as ModelRow
+
+describe('closureCell', () => {
+  const CLOSED = closureWarning()
+
+  it('marks every row N/A with the failure note when the check failed', () => {
+    expect(closureCell('unavailable', CLOSED, false)).toEqual({ text: 'N/A', note: CLOSURE_UNAVAILABLE_NOTE })
+  })
+
+  it('names the order on a warned row once the check answered', () => {
+    expect(closureCell('ready', CLOSED, false)).toEqual({
+      text: '⚠️ Probe Fire Closure',
+      note: closureWarningText(CLOSED),
+    })
+  })
+
+  it('tells an uncovered row from a cleared one', () => {
+    expect(closureCell('ready', undefined, true)).toEqual({ text: 'N/A', note: CLOSURE_UNCOVERED_NOTE })
+    expect(closureCell('ready', undefined, false)).toEqual({ text: '—', note: null })
+  })
+
+  it('carries no note while the check runs', () => {
+    expect(closureCell('loading', CLOSED, false).note).toBeNull()
+  })
+})
 
 describe('fireCell', () => {
   it('marks every row N/A with the failure note when the check failed', () => {

@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
+  CLOSURE_COL,
+  CLOSURE_KEY,
   COLUMNS,
+  FLAG_COLS,
   MODEL_KEY,
+  isSortKey,
   applyColumnOrder,
   moveColumn,
   stepColumn,
@@ -359,6 +363,23 @@ describe('WILDFIRE_COL', () => {
   it('is not part of the row-backed column set', () => {
     expect(COLUMNS.map((c) => c.key)).not.toContain(WILDFIRE_KEY)
     expect(displayedColumns(false, 'precip_total_in').map((c) => c.key)).not.toContain(WILDFIRE_KEY)
+  })
+})
+
+describe('CLOSURE_COL', () => {
+  it('carries the approved label under its virtual key', () => {
+    expect(CLOSURE_COL.key).toBe(CLOSURE_KEY)
+    expect(CLOSURE_COL.label).toBe('Closure')
+  })
+
+  it('is not part of the row-backed column set, and closes the table after the wildfire column', () => {
+    expect(COLUMNS.map((c) => c.key)).not.toContain(CLOSURE_KEY)
+    expect(FLAG_COLS).toEqual([WILDFIRE_COL, CLOSURE_COL])
+  })
+
+  it('is a key a header click can sort on', () => {
+    expect(isSortKey(CLOSURE_KEY)).toBe(true)
+    expect(isSortKey(WILDFIRE_KEY)).toBe(true)
   })
 })
 

@@ -2,6 +2,7 @@ import { Suspense, lazy, useMemo } from 'react'
 import type { DestinationResult, SortBy } from '../types'
 import type { ChartCompare } from '../hooks/useChartCompare'
 import type { FireProximity } from '../hooks/useFireProximity'
+import type { ClosureProximity } from '../hooks/useClosureProximity'
 import type { PresentedReport } from '../hooks/usePresentedReport'
 import type { ResultsLayout } from '../hooks/useResultsLayout'
 import type { TableView } from '../hooks/useTableView'
@@ -62,6 +63,8 @@ export interface ResultsPanelsProps {
   movePlayheadTo: (ms: number) => void
   /** The wildfire check (`useFireProximity`). */
   fire: FireProximity
+  /** The closure check (`useClosureProximity`). */
+  closure: ClosureProximity
   /** The model the report was analyzed under. */
   modelId: string
   /** A pending row's remove button, and a row's press that centres the map on it. */
@@ -94,6 +97,7 @@ export default function ResultsPanels({
   timelineAxes,
   movePlayheadTo,
   fire,
+  closure,
   modelId,
   onRemovePending,
   onFocusResult,
@@ -247,6 +251,9 @@ export default function ResultsPanels({
               fireWarnings={fire.warnings}
               fireUncovered={fire.uncovered}
               fireStatus={fire.status}
+              closureWarnings={closure.warnings}
+              closureUncovered={closure.uncovered}
+              closureStatus={closure.status}
               pending={pending}
               onRemove={removeResult}
               onRemovePending={onRemovePending}

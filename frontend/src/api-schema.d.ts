@@ -78,6 +78,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/closures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Forest Service Region 6 closure orders in a bounding box
+         * @description Active fire closure orders from the US Forest Service's Pacific Northwest Region (Region 6), intersecting `bbox`.
+         *
+         *     `kind` picks the question. `area` answers where a person may not enter, as polygons. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites.
+         *
+         *     Coverage is Oregon and Washington only: Region 6 is every national forest in those two states and nothing else, so an empty result elsewhere means "not covered", not "nothing closed". The `coverage` member states this machine-readably.
+         *
+         *     This instance fetches the whole region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.
+         */
+        get: operations["closures_api_closures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/config": {
         parameters: {
             query?: never;
@@ -583,6 +609,40 @@ export interface components {
              * @description Accepted values for `sort_by`, usable with `sort_desc`.
              */
             sort_keys: string[];
+        };
+        /**
+         * ClosureCollection
+         * @description A GeoJSON FeatureCollection of Forest Service closure orders, plus when and where.
+         *
+         *     Declared for the schema only: the handler returns pre-serialized text so a
+         *     viewport is a filter and a join rather than a re-encode of every closure.
+         */
+        ClosureCollection: {
+            /**
+             * Coverage
+             * @description The area the feed covers, as a GeoJSON MultiPolygon geometry riding as a second foreign member: a coarse outline of Oregon and Washington, which is the Forest Service's Region 6, biased about 0.2° outward on its land borders. An empty `features` array for a bbox outside this geometry means the feed cannot see that area, not that nothing is closed there. Static per release.
+             */
+            coverage: {
+                [key: string]: unknown;
+            };
+            /**
+             * Features
+             * @description Active closure orders intersecting the requested bounding box, with the Forest Service's own properties as it published them: `ClosureOrderName`, `ClosureOrderNumber`, `ForestUnit`, `District`, `FireName`, `ClosureDescription`, `ClosureStartDate` and `ClosureEndDate` in epoch milliseconds, and `ClosureURLlink`, which is often null. Lines also carry `RouteName` and `RouteNum`, and polygons carry `GIS_Acres`. An order is included when the Forest Service marks it active, and that status is trusted as published: an active order can carry an end date that is already past.
+             */
+            features: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Fetched At
+             * @description When this instance last fetched closure orders from the Forest Service, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Closures are cached per instance and served past their refresh deadline when the Forest Service is unreachable, so this is the only honest statement of how current the answer is. It is not when any order was issued or last edited.
+             */
+            fetched_at: number;
+            /**
+             * Type
+             * @description Always `FeatureCollection`, so the body drops straight into a map library.
+             * @constant
+             */
+            type: "FeatureCollection";
         };
         /**
          * ConfigResponse
@@ -1178,6 +1238,16 @@ export interface components {
              */
             analyze_per_minute: number;
             /**
+             * Closures Burst
+             * @description How many closure requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan with both closure layers on.
+             */
+            closures_burst: number;
+            /**
+             * Closures Per Minute
+             * @description Sustained `GET /api/closures` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from a snapshot this instance already holds and reaches no upstream. Both closure layers share it. 0 means the limit is disabled.
+             */
+            closures_per_minute: number;
+            /**
              * Destinations Burst
              * @description How many destinations requests an idle client can send back-to-back before the per-minute pace applies.
              */
@@ -1481,6 +1551,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CapabilitiesResponse"];
+                };
+            };
+        };
+    };
+    closures_api_closures_get: {
+        parameters: {
+            query: {
+                /** @description Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A closure is returned when its own bounding box overlaps this one. */
+                bbox: string;
+                /** @description Which closures to return. `area` is area closures, as polygons. `trail` is closed trails and roads, as lines, together with closed trailheads and sites, as points. */
+                kind: "area" | "trail";
+                /** @description Geometry fidelity. `coarse` simplifies lines and polygons to roughly 56 metres, the same tolerance the wildfire overlay uses, and is about a quarter of the bytes for trails. `full` returns them as the Forest Service drew them. Points are the same either way. */
+                detail?: "coarse" | "full";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closures of the requested kind intersecting the box, with the fetch timestamp. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClosureCollection"];
+                };
+            };
+            /** @description `bbox` or `kind` was missing, or `bbox` was malformed or outside valid coordinate ranges, or `kind` or `detail` named a value this endpoint does not know. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This instance has never completed a fetch from the Forest Service, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

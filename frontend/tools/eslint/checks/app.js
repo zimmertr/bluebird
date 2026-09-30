@@ -1030,4 +1030,19 @@ export const APP = [
       },
     ],
   },
+  {
+    // The Closure column on the same terms (#550): a column of blanks in a
+    // file would claim every row was checked and found open.
+    name: 'export-csv-closure-gate',
+    files: ['src/utils/exportCsv.ts'],
+    require: [
+      {
+        selector:
+          'ConditionalExpression[test.operator="&&"][test.left.left.name="closureStatus"][test.left.right.value="ready"]' +
+          '[test.right.callee.object.name="visibleKeys"][test.right.arguments.0.name="CLOSURE_KEY"]' +
+          '[consequent.name="closureWarnings"][alternate.raw="null"]',
+        message: 'Send the Closure column only when the check is ready and the column is shown.',
+      },
+    ],
+  },
 ]

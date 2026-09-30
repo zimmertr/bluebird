@@ -12,6 +12,7 @@
  * handler is registered is the stale closure this object exists to prevent.
  */
 import type { DestinationResult } from '../types'
+import type { ClosureWarning } from '../utils/closureProximity'
 import type { FireWarning } from '../utils/fireProximity'
 import type { Place } from '../utils/geocode'
 import { geoKey } from '../utils/points'
@@ -27,6 +28,7 @@ export interface MapInputs {
   modelFallbackLabel: string | null
   popupColumns: readonly ColDef[]
   fireWarnings: Map<string, FireWarning>
+  closureWarnings: Map<string, ClosureWarning>
   searchedPlaces: Place[]
   onAddPoi: (place: Place) => void
   onRemovePoi: (latitude: number, longitude: number) => void
@@ -48,6 +50,8 @@ export interface MapController {
   resultAt(latitude: number, longitude: number): DestinationResult | null
   /** The fire warning for a destination at these coordinates, if any. */
   fireWarningAt(latitude: number, longitude: number): FireWarning | null
+  /** The active area closure a destination at these coordinates stands inside, if any. */
+  closureWarningAt(latitude: number, longitude: number): ClosureWarning | null
 }
 
 export function createMapController(initial: MapInputs): MapController {
@@ -66,6 +70,9 @@ export function createMapController(initial: MapInputs): MapController {
     },
     fireWarningAt(latitude, longitude) {
       return inputs.fireWarnings.get(geoKey(latitude, longitude)) ?? null
+    },
+    closureWarningAt(latitude, longitude) {
+      return inputs.closureWarnings.get(geoKey(latitude, longitude)) ?? null
     },
   }
 }

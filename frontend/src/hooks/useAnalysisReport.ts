@@ -30,7 +30,10 @@ export function useAnalysisReport() {
   // matches a row. `fireSeq` is the check's own refetch trigger, bumped when
   // the field is published: keying the check on analysisSeq would abort the
   // in-flight lookup at commit and restart it, serial again. Null when the
-  // last analysis failed; callers fall back to the committed field.
+  // last analysis failed; callers fall back to the committed field. The
+  // closure check (useClosureProximity, #550) reads the same pair: it is one
+  // lookup per analysis over the same candidates, so a second publisher would
+  // only be a second answer to which destinations an analysis covers.
   const [fireField, setFireField] = useState<Point[] | null>(null)
   const [fireSeq, setFireSeq] = useState(0)
 

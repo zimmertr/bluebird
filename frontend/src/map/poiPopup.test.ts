@@ -85,6 +85,7 @@ function setup({
     modelFallbackLabel: null,
     popupColumns: [],
     fireWarnings: new Map(),
+    closureWarnings: new Map(),
     searchedPlaces,
     onAddPoi: vi.fn(),
     onRemovePoi: vi.fn(),

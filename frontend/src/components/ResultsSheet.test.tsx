@@ -62,6 +62,7 @@ function props(over: { showTable?: boolean; resultsCollapsed?: boolean } = {}): 
     timelineAxes: [],
     movePlayheadTo: NOOP,
     fire: { status: 'ready', warnings: new Map(), uncovered: new Set() },
+    closure: { status: 'ready', warnings: new Map(), uncovered: new Set() },
     modelId: 'gfs_seamless',
   } as unknown as Props
 }

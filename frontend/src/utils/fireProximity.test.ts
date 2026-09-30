@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
+  checkRunning,
   uncoveredKeys,
   fireCellText,
   fireLoadingFrame,
@@ -329,5 +330,15 @@ describe('fireLoadingFrame', () => {
   it('is defined for any tick, including negatives', () => {
     expect(fireLoadingFrame(-1)).toBe('')
     expect(fireLoadingFrame(403)).toBe(FIRE_LOADING_FRAMES[3])
+  })
+})
+
+describe('checkRunning', () => {
+  // 'idle' ticks too: it is the one render before the hook's effect has run.
+  it('runs while a check is idle or loading, and stops once it answered', () => {
+    expect(checkRunning('idle')).toBe(true)
+    expect(checkRunning('loading')).toBe(true)
+    expect(checkRunning('ready')).toBe(false)
+    expect(checkRunning('unavailable')).toBe(false)
   })
 })

@@ -5,7 +5,7 @@ import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
 import { LABEL_COLOR } from './popupChrome'
 import { displayedColumns } from './tableColumns'
-import { resultRow } from '../testSupport/fixtures'
+import { closureWarning, resultRow } from '../testSupport/fixtures'
 
 // Every aggregate is a different number so a test can tell which column a
 // value came from.
@@ -74,6 +74,28 @@ describe('resultPopupHtml fire warning', () => {
     const html = resultPopupHtml({ ...base, warning })
     expect(html).not.toContain('Wildfire (mi)')
     expect(html.match(/⚠️/g)).toHaveLength(1)
+  })
+})
+
+// The closure line follows the fire line in its markup (#550): the approved
+// sentence, linked to the order's page when it has one.
+describe('resultPopupHtml closure line', () => {
+  it('says nothing without a closure', () => {
+    expect(resultPopupHtml({ ...base, closure: null })).not.toContain('active closure')
+  })
+
+  it('links the sentence to the order after the fire line', () => {
+    const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
+    const html = resultPopupHtml({ ...base, warning, closure: closureWarning() })
+    expect(html).toContain('⚠️ Inside an active closure (Probe Fire Closure)')
+    expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
+    expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('active closure'))
+  })
+
+  it('writes plain text for an order with no page, and escapes the name', () => {
+    const html = resultPopupHtml({ ...base, closure: closureWarning({ url: null, name: '<b>x</b>' }) })
+    expect(html).toContain('Inside an active closure (&lt;b&gt;x&lt;/b&gt;)')
+    expect(html).not.toContain('fs.usda.gov')
   })
 })
 

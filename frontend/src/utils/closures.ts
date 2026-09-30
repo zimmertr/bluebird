@@ -28,8 +28,10 @@ export type ClosureKind = 'area' | 'trail'
  * The closure FeatureCollection plus the foreign members the API rides on it.
  *
  * `coverage` is Oregon and Washington as one geometry, published beside the
- * data it qualifies, the way `WildfireResponse.coverage` is (#256). Optional
- * because nothing on the map reads it yet: the closure column will.
+ * data it qualifies, the way `WildfireResponse.coverage` is (#256). The map
+ * does not read it; the Closure column does (`useClosureProximity`). Optional
+ * so a body without it degrades the way the fire check's does: every row is
+ * treated as covered, rather than the check failing.
  */
 export interface ClosureResponse extends FeatureCollection {
   coverage?: MultiPolygon
@@ -191,8 +193,10 @@ export function formatClosureDates(
  * The order's own page, when it has one worth linking. Only an http(s) URL
  * passes: the value is the service's free text, and `escapeHtml` keeps it
  * inside the attribute without stopping a `javascript:` link from running.
+ * Exported for the results table's Closure column and the marker popup's
+ * closure line (closureProximity.ts), which link the same order.
  */
-function closureUrl(props: ClosureProps): string | null {
+export function closureUrl(props: ClosureProps): string | null {
   const url = text(props.ClosureURLlink)
   return /^https?:\/\//i.test(url) ? url : null
 }

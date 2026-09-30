@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import { type ReportCsvInputs, reportCsv } from './exportCsv'
-import { fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
+import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { geoKey } from './points'
-import { MODEL_COL, WILDFIRE_COL, WILDFIRE_KEY, displayedColumns } from './tableColumns'
+import {
+  CLOSURE_COL,
+  CLOSURE_KEY,
+  MODEL_COL,
+  WILDFIRE_COL,
+  WILDFIRE_KEY,
+  displayedColumns,
+} from './tableColumns'
 
 const ROW = resultRow({ name: 'Near' })
 const COLUMNS = displayedColumns(false, 'precip_total_in')
 const WARNINGS = new Map([[geoKey(ROW.latitude, ROW.longitude), fireWarning({ miles: 2 })]])
+const CLOSURES = new Map([[geoKey(ROW.latitude, ROW.longitude), closureWarning()]])
 const ROWS = [ROW]
 const NO_UNCOVERED: ReadonlySet<string> = new Set()
 const NO_PENDING: ReportCsvInputs['pending'] = []
 const NO_ENDS: ReportCsvInputs['modelEnds'] = []
-const ALL_VISIBLE = new Set([...COLUMNS.map((c) => c.key as string), WILDFIRE_KEY])
+const ALL_VISIBLE = new Set([...COLUMNS.map((c) => c.key as string), WILDFIRE_KEY, CLOSURE_KEY])
 
 function inputs(over: Partial<ReportCsvInputs> = {}): ReportCsvInputs {
   return {
@@ -23,6 +31,9 @@ function inputs(over: Partial<ReportCsvInputs> = {}): ReportCsvInputs {
     fireStatus: 'ready',
     fireWarnings: WARNINGS,
     fireUncovered: NO_UNCOVERED,
+    closureStatus: 'ready',
+    closureWarnings: CLOSURES,
+    closureUncovered: NO_UNCOVERED,
     window: null,
     pending: NO_PENDING,
     modelLabel: null,
@@ -43,6 +54,18 @@ describe('reportCsv', () => {
     const hidden = new Set(ALL_VISIBLE)
     hidden.delete(WILDFIRE_KEY)
     expect(header(reportCsv(inputs({ visibleKeys: hidden })))).not.toContain(WILDFIRE_COL.label)
+  })
+
+  // The Closure column on the same terms (#550).
+  it('carries the Closure column only when its check is ready and the column is shown', () => {
+    expect(header(reportCsv(inputs()))).toContain(CLOSURE_COL.label)
+    expect(reportCsv(inputs())).toContain('Probe Fire Closure')
+    expect(header(reportCsv(inputs({ closureStatus: 'unavailable' })))).not.toContain(CLOSURE_COL.label)
+    const hidden = new Set(ALL_VISIBLE)
+    hidden.delete(CLOSURE_KEY)
+    const csv = reportCsv(inputs({ visibleKeys: hidden }))
+    expect(header(csv)).not.toContain(CLOSURE_COL.label)
+    expect(header(csv)).toContain(WILDFIRE_COL.label)
   })
 
   it('writes the columns in the order on screen, with the Model column when it is drawn', () => {

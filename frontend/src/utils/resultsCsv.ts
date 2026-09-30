@@ -13,10 +13,11 @@
 // not be unit-tested at all; the download itself is `downloadCsv` in exportCsv.ts.
 
 import { DestinationResult } from '../types'
-import { ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
+import { CLOSURE_COL, CLOSURE_KEY, ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
 import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
+import type { ClosureWarning } from './closureProximity'
 import type { ResolvedWindow } from './forecastWindow'
 import { geoKey } from './points'
 import { isSnowDepthKey, snowCellText } from './snowCeiling'
@@ -39,6 +40,9 @@ const RANK_HEADER = 'Rank'
  * presence is a statement of its own — see buildResultsCsv below.
  */
 const FIRE_HEADER = WILDFIRE_COL.label
+
+/** The Closure column's header, from the table's own column for the same reason. */
+const CLOSURE_HEADER = CLOSURE_COL.label
 
 /**
  * The two ends of the analyzed forecast window (#444).
@@ -113,9 +117,9 @@ function escapeCell(value: string): string {
  * from the app.
  */
 function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null): string {
-  // The wildfire column never reaches here (this module appends it with its
-  // own cell), but its key is virtual and must not index a row.
-  if (col.key === WILDFIRE_KEY) return ''
+  // The two flag columns never reach here (this module appends each with its
+  // own cell), but their keys are virtual and must not index a row.
+  if (col.key === WILDFIRE_KEY || col.key === CLOSURE_KEY) return ''
   // The model column's key is virtual too, and its value rides beside the row
   // rather than on it. A file carries it whenever the screen does, because a
   // file of eight rows per destination that did not say which was which would
@@ -162,6 +166,22 @@ function fireCell(
 }
 
 /**
+ * The closed order's bare name, an empty cell, or N/A: `fireCell`'s three
+ * states for the Closure column. The name without the table's ⚠️, as the fire
+ * cell writes its number without it: a file's cell is the value, and the
+ * glyph is how a screen draws the eye to it.
+ */
+function closureCell(
+  row: DestinationResult,
+  warnings: ReadonlyMap<string, ClosureWarning>,
+  uncovered: ReadonlySet<string>,
+): string {
+  const key = geoKey(row.latitude, row.longitude)
+  if (uncovered.has(key)) return 'N/A'
+  return warnings.get(key)?.name ?? ''
+}
+
+/**
  * One supplier's credit, as the two cells every row below the data wears.
  *
  * The license URI stands in its own cell rather than in parentheses at the end
@@ -184,6 +204,18 @@ function credit(lead: string, sourceName: string, suffix = ''): string[] {
 }
 
 /**
+ * A credit for a source that publishes no license: the US Forest Service's
+ * orders are a federal work. The same two cells, with the source's own link
+ * where a license URI would stand, so the row keeps the shape of the ones
+ * above it and still says where the data came from.
+ */
+function unlicensedCredit(lead: string, sourceName: string): string[] {
+  const s = DATA_SOURCES.find((d) => d.name === sourceName)
+  if (!s) throw new Error(`no data source named ${sourceName}`)
+  return [`${lead} ${s.name}`, s.href]
+}
+
+/**
  * The supplier credits the licenses require to travel with the data (#258).
  *
  * CC BY 4.0 section 3(a)(1)(C) asks for the credit with every copy of the
@@ -196,15 +228,17 @@ function credit(lead: string, sourceName: string, suffix = ''): string[] {
  * words is quoted away by escapeCell like any other cell.
  *
  * Only suppliers the file actually used appear: NIFC is credited exactly when
- * the wildfire column is present, and CAMS is absent because its figures reach
+ * the wildfire column is present, the Forest Service exactly when the Closure
+ * column is, and CAMS is absent because its figures reach
  * the file through Open-Meteo, which is the credit its arrangement asks for.
  */
-function creditRows(fireColumn: boolean): string[][] {
+function creditRows(fireColumn: boolean, closureColumn: boolean): string[][] {
   const rows = [
     credit('Weather data by', 'Open-Meteo'),
     credit('Destination data ©', 'OpenStreetMap', ' contributors'),
   ]
   if (fireColumn) rows.push(credit('Wildfire data by', 'NIFC'))
+  if (closureColumn) rows.push(unlicensedCredit('Closure data by', 'US Forest Service'))
   return rows
 }
 
@@ -282,6 +316,14 @@ export interface CsvOptions {
   /** Rows the fire check could not reach, by geoKey (#256). */
   fireUncovered?: ReadonlySet<string>
   /**
+   * The closure check's warnings, or null to leave the Closure column out,
+   * on `fireWarnings`' terms (see buildResultsCsv): only a check that answered
+   * may put a column in the file (#550).
+   */
+  closureWarnings?: ReadonlyMap<string, ClosureWarning> | null
+  /** Rows outside the closure feed's Oregon and Washington coverage, by geoKey. */
+  closureUncovered?: ReadonlySet<string>
+  /**
    * What the Model column reads for a row no comparison tagged: the model the
    * analysis itself ran. The column can be shown with one model selected, and
    * an empty cell there would say the row came from nowhere. Pending rows are
@@ -331,12 +373,15 @@ export function buildResultsCsv(
     window = null,
     pendingRows = [],
     fireUncovered = new Set<string>(),
+    closureWarnings = null,
+    closureUncovered = new Set<string>(),
     modelLabel = null,
     modelEnds = [],
     timeZone,
   } = options
   const header = [RANK_HEADER, ...columns.map((c) => c.label)]
   if (fireWarnings) header.push(FIRE_HEADER)
+  if (closureWarnings) header.push(CLOSURE_HEADER)
   // The window as two label/value rows behind their own blank row, or nothing
   // at all. Nothing is what a file with no committed analysis writes: every
   // row in it is pending, no forecast covers any of them, and a label over an
@@ -362,6 +407,7 @@ export function buildResultsCsv(
   const pendingBody = pendingRows.map((row) => {
     const cells = ['', ...columns.map((c) => cell(row, c))]
     if (fireWarnings) cells.push('')
+    if (closureWarnings) cells.push('')
     return cells
   })
   const body = rows.map((row, i) => {
@@ -371,6 +417,7 @@ export function buildResultsCsv(
     const rank = (row as ModelRow).rank ?? i + 1
     const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
+    if (closureWarnings) cells.push(closureCell(row, closureWarnings, closureUncovered))
     return cells
   })
   const doc = [
@@ -379,7 +426,7 @@ export function buildResultsCsv(
     ...body,
     ...windowRows,
     [''],
-    ...creditRows(fireWarnings != null),
+    ...creditRows(fireWarnings != null, closureWarnings != null),
   ]
   return BOM + doc.map((r) => r.map(escapeCell).join(',')).join(CRLF) + CRLF
 }

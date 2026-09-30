@@ -3,7 +3,8 @@ import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { selectionState } from '../utils/chartData'
 import { MODEL_KEY, SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
-import type { FireProximityStatus, FireWarning } from '../utils/fireProximity'
+import { checkRunning, type FireProximityStatus, type FireWarning } from '../utils/fireProximity'
+import type { ClosureProximityStatus, ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
 import { geoKey } from '../utils/points'
 import { pendingChartRow, rankText, rowKeys } from '../utils/resultsCells'
@@ -72,6 +73,12 @@ interface Props {
   // versus answered — a column that appeared only on 'ready' looked like the
   // table quietly growing a column moments after every analysis.
   fireStatus: FireProximityStatus
+  // The closure check (#550), the fire check's three props for the Closure
+  // column. Stable for the same reason: every row is memoized on the entry
+  // it reads, and the hook hands back one map per answer.
+  closureWarnings: Map<string, ClosureWarning>
+  closureUncovered: Set<string>
+  closureStatus: ClosureProximityStatus
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
   // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
@@ -122,6 +129,9 @@ function ResultsTable({
   fireWarnings,
   fireUncovered,
   fireStatus,
+  closureWarnings,
+  closureUncovered,
+  closureStatus,
   pending,
   onRemovePending,
   onRemove,
@@ -145,9 +155,9 @@ function ResultsTable({
     [columns, pointSample, sortBy],
   )
 
-  // 'idle' animates too, because it is what the hook reports for the one
-  // render before its effect has run.
-  const fireLoading = fireStatus === 'idle' || fireStatus === 'loading'
+  // One clock for both flag columns, running while EITHER check waits; each
+  // cell decides from its own check whether to show the frame.
+  const checksLoading = checkRunning(fireStatus) || checkRunning(closureStatus)
 
   // The leading checkbox column only appears once an analysis has returned
   // series to chart; rows without series (e.g. pinned search forecasts) render
@@ -197,7 +207,7 @@ function ResultsTable({
           onChartRange={onChartRange}
         />
         <tbody>
-          <FireClock running={fireLoading}>
+          <FireClock running={checksLoading}>
             {pending?.map((d) => {
               const charted = showChartCol && (isCharted?.(pendingChartRow(d)) ?? false)
               return (
@@ -232,6 +242,9 @@ function ResultsTable({
                   fireStatus={fireStatus}
                   fireWarning={fireWarnings.get(at)}
                   fireUncovered={fireUncovered.has(at)}
+                  closureStatus={closureStatus}
+                  closureWarning={closureWarnings.get(at)}
+                  closureUncovered={closureUncovered.has(at)}
                   chartBox={showChartCol ? chartBox : undefined}
                   charted={charted}
                   chartColor={charted ? chartColor?.(row) : undefined}

@@ -1,5 +1,6 @@
 import { NOUN } from '../metrics'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
+import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
 import { BLOCKER_SEVERITY, listPhrase, noticeKey, type FooterMessage } from './notices'
@@ -112,6 +113,7 @@ export interface PanelMessageInputs {
   hasReport: boolean
   aqiAllNull: boolean
   wildfireCheckFailed: boolean
+  closureCheckFailed: boolean
   now: Date
 }
 
@@ -262,6 +264,17 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
           {
             key: 'fire:unavailable',
             text: FIRE_UNAVAILABLE_NOTE,
+            severity: 'error' as const,
+          },
+        ]
+      : []),
+    // The closure check's failure on the same terms, and from the same
+    // constant its N/A cells' hover reads (#550).
+    ...(p.closureCheckFailed && !p.loading
+      ? [
+          {
+            key: 'closure:unavailable',
+            text: CLOSURE_UNAVAILABLE_NOTE,
             severity: 'error' as const,
           },
         ]

@@ -92,7 +92,7 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 7 | Weighted-call formula | `openmeteo_weight.call_weight` | `openMeteo.callWeight` | a comment, plus each side's own unit tests |
 | 8 | Hourly variables a request asks for | `weather.N_VARIABLES` | `openMeteoAggregate.HOURLY_VARIABLES` (one more: the browser also asks for `wind_direction_10m`) | `mirrored_constants.json` |
 | 9 | Candidate cap | `limits.MAX_ANALYZE_PEAKS` | `clientAnalyze.MAX_ANALYZE_DESTINATIONS` | `mirrored_constants.json` |
-| 10 | Wildfire simplification tolerance | `nifc.COARSE_OFFSET_DEG` | `wildfires.COARSE_TOLERANCE_DEG` | `mirrored_constants.json` |
+| 10 | Wildfire simplification tolerance (the closure feed's coarse copy too: `usfs_closures.py` reads `nifc.COARSE_OFFSET_DEG`, and the Closure column's check, `useClosureProximity.ts` over `closureProximity.ts`, tests the coarse copy whose tolerance `COARSE_TOLERANCE_DEG` states) | `nifc.COARSE_OFFSET_DEG` | `wildfires.COARSE_TOLERANCE_DEG` | `mirrored_constants.json` |
 | 11 | Where the archive's hours end | `limits.PAST_DATA_DAYS`/`archive_boundary`/`window_source` | `forecastWindow.PAST_DATA_DAYS`/`archiveBoundaryMs`/`windowSource` | `mirrored_constants.json` for the number, plus the same example table in `test_models.py` and `forecastWindow.test.ts` |
 | 12 | One local day of straddle tolerance | `limits.ARCHIVE_STRADDLE_DAYS` | `forecastWindow.ARCHIVE_STRADDLE_DAYS` | `mirrored_constants.json` |
 | 13 | Horizon slack a window is refused outside | `limits.PAST_LIMIT_SLACK_DAYS`/`FUTURE_LIMIT_SLACK_DAYS` | the same two names in `forecastWindow.ts` | `mirrored_constants.json` |

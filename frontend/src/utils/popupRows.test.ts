@@ -4,6 +4,7 @@ import {
   COLUMNS,
   MODEL_COL,
   WILDFIRE_COL,
+  CLOSURE_COL,
   displayedColumns,
   visibleColumns,
 } from './tableColumns'
@@ -180,12 +181,13 @@ describe('popupGroups follows the table', () => {
     expect(wind.label).toBe(`${NOUN.wind} (${UNIT.wind})`)
   })
 
-  // The wildfire flag is the popup's amber banner, not a measurement among the
+  // The two flags are the popup's amber banners, not measurements among the
   // metrics, and the model rides above the rule beside the type.
-  it('never groups the wildfire or model columns', () => {
-    const cols = [...displayedColumns(false, 'precip_total_in'), WILDFIRE_COL, MODEL_COL]
+  it('never groups the wildfire, closure or model columns', () => {
+    const cols = [...displayedColumns(false, 'precip_total_in'), WILDFIRE_COL, CLOSURE_COL, MODEL_COL]
     const groups = popupGroups(row, cols)
     expect(groups.some((g) => g.label === WILDFIRE_COL.label)).toBe(false)
+    expect(groups.some((g) => g.label === CLOSURE_COL.label)).toBe(false)
     expect(groups.some((g) => g.label === MODEL_COL.label)).toBe(false)
   })
 })

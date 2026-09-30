@@ -70,6 +70,7 @@ const OVERLAYS = {
 const REPORT: MapStageProps['report'] = { results: [ROW], pending: [] }
 const TABLE_VIEW = { tableColumns: [], analysisModelLabel: 'GFS' } as unknown as MapStageProps['tableView']
 const FIRE = { warnings: new Map() } as unknown as MapStageProps['fire']
+const CLOSURE = { warnings: new Map() } as unknown as MapStageProps['closure']
 const LAYOUT: MapStageProps['layout'] = { mapCornerLift: 12, sheetLiftPx: 0, cameraPadBottomPx: 40 }
 const ANALYSIS: MapStageProps['analysis'] = {
   loading: false,
@@ -96,6 +97,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     report: REPORT,
     tableView: TABLE_VIEW,
     fire: FIRE,
+    closure: CLOSURE,
     layout: LAYOUT,
     analysis: ANALYSIS,
     sortBy: DEFAULT_FAMILY_KEY.temp,
@@ -139,6 +141,7 @@ describe('MapStage', () => {
     expect(got.searchedPlaces).toBe(INPUTS.places)
     expect(got.popupColumns).toBe(TABLE_VIEW.tableColumns)
     expect(got.fireWarnings).toBe(FIRE.warnings)
+    expect(got.closureWarnings).toBe(CLOSURE.warnings)
     expect(got.gridSpec).toBe(GRID.grid.spec)
     expect(got.gridCells).toBe(GRID.grid.cells)
     expect(got.showWildfires).toBe(true)
