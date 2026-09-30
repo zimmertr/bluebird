@@ -275,16 +275,16 @@ export function mountResultsLayer(
   }
 
   // What stands over the map inside the part of it a card can be seen in,
-  // in the container's pixels: the button column at the top left, which is
-  // the one thing over every map at every width, plus whatever the caller
-  // names. The column is found through the container's document rather
-  // than handed in, because the layer that opens popups on a click has no
-  // caller to hand it anything.
+  // in the container's pixels: every surface that names itself
+  // `data-map-overlay` (the button column at the top left, the legend box
+  // under it) plus whatever the caller names. Found through the container's
+  // document rather than handed in, because the layer that opens popups on
+  // a click has no caller to hand it anything.
   const obstacles = (avoid: readonly Rect[]): Rect[] => {
     const container = map.getContainer()
     const box = container.getBoundingClientRect()
-    const column = container.ownerDocument?.querySelector('[data-map-buttons]')?.getBoundingClientRect()
-    return [...(column ? [column] : []), ...avoid].map((r) => ({
+    const overlays = [...(container.ownerDocument?.querySelectorAll('[data-map-overlay]') ?? [])]
+    return [...overlays.map((el) => el.getBoundingClientRect()), ...avoid].map((r) => ({
       left: r.left - box.left,
       top: r.top - box.top,
       right: r.right - box.left,

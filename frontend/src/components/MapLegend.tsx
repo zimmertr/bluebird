@@ -253,7 +253,13 @@ export default function MapLegend({
           labels is the ranked metric's and changes under the reader.
           Every label is spelled once, as the sort key AND as what the
           section renders, so the two cannot disagree. */}
-      <div className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}>
+      <div
+        // A popup keeps clear of this box (`resultsLayer.ts` finds every
+        // `data-map-overlay`); the box rather than the scroll column around
+        // it, whose empty length below the box reaches the map's floor.
+        data-map-overlay=""
+        className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}
+      >
         {[
           // Keyed to the markers OR to the grid, because either can be
           // the only colored thing on screen: a live filter can empty
