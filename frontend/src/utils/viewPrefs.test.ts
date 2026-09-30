@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FAMILY_KEYS } from '../metrics'
-import { WILDFIRE_KEY } from './tableColumns'
+import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 import { hasWelcomed, readViewPrefs, setWelcomed, writeViewPrefs } from './viewPrefs'
 
 const VIEW_KEY = 'bluebird_forecast_view'
@@ -82,8 +82,28 @@ describe('reading the stored view', () => {
 // six inline reads, so a preference read anywhere else inherited none of it.
 describe('the column-set migration', () => {
   it('reads the current generation verbatim', () => {
-    withStored({ columns5: ['name', 'precip_total_in'] })
+    withStored({ columns6: ['name', 'precip_total_in'] })
     expect([...readViewPrefs().columns!]).toEqual(['name', 'precip_total_in'])
+  })
+
+  // `columns5` predates the Closure column (#550), so every older set comes
+  // back with it shown, which is what a reader who never chose sees too.
+  it.each([
+    ['columns5'],
+    ['columns4'],
+    ['columns3'],
+    ['columns2'],
+    ['columns'],
+  ])('adds the Closure column to a set stored as %s', (generation) => {
+    withStored({ [generation]: ['name'] })
+    const columns = readViewPrefs().columns!
+    expect(columns.has('name')).toBe(true)
+    expect(columns.has(CLOSURE_KEY)).toBe(true)
+  })
+
+  it('keeps the Closure column hidden when the current generation hid it', () => {
+    withStored({ columns6: ['name', WILDFIRE_KEY] })
+    expect(readViewPrefs().columns!.has(CLOSURE_KEY)).toBe(false)
   })
 
   // `columns4` predates the two cloud families (#117). A set stored then was a
@@ -137,8 +157,9 @@ describe('the column-set migration', () => {
       columns3: ['latitude'],
       columns4: ['longitude'],
       columns5: ['elevation_ft'],
+      columns6: ['osm_id'],
     })
-    expect([...readViewPrefs().columns!]).toEqual(['elevation_ft'])
+    expect([...readViewPrefs().columns!]).toEqual(['osm_id'])
   })
 })
 
@@ -168,10 +189,11 @@ describe('writing a preference', () => {
       columns2: ['type'],
       columns3: ['latitude'],
       columns4: ['elevation_ft'],
+      columns5: ['osm_id'],
       modeChosen: 'both',
     })
     writeViewPrefs({ columns: new Set(['longitude']) })
-    expect(stored(storage)).toEqual({ modeChosen: 'both', columns5: ['longitude'] })
+    expect(stored(storage)).toEqual({ modeChosen: 'both', columns6: ['longitude'] })
   })
 
   it('round-trips a whole table shape', () => {

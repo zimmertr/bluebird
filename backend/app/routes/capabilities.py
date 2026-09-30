@@ -106,6 +106,22 @@ class RateLimits(BaseModel):
             "before the per-minute pace applies."
         )
     )
+    closures_per_minute: int = Field(
+        description=(
+            "Sustained `GET /api/closures` requests per client address per "
+            "minute. As loose as the wildfire bucket and for the same reason: "
+            "it answers from a snapshot this instance already holds and "
+            "reaches no upstream. Both closure layers share it. 0 means the "
+            "limit is disabled."
+        )
+    )
+    closures_burst: int = Field(
+        description=(
+            "How many closure requests an idle client can send back-to-back "
+            "before the per-minute pace applies. Sized for a map pan with both "
+            "closure layers on."
+        )
+    )
 
 
 class ForecastModelInfo(BaseModel):
@@ -355,6 +371,8 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 wildfires_burst=ratelimit.client.WILDFIRES_LIMITER.burst,
                 smoke_per_minute=ratelimit.client.SMOKE_LIMITER.per_minute,
                 smoke_burst=ratelimit.client.SMOKE_LIMITER.burst,
+                closures_per_minute=ratelimit.client.CLOSURES_LIMITER.per_minute,
+                closures_burst=ratelimit.client.CLOSURES_LIMITER.burst,
             ),
         ),
         data_sources=[
@@ -390,6 +408,11 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 name="NIFC WFIGS",
                 url="https://data-nifc.opendata.arcgis.com",
                 provides="Active US wildfire perimeters behind GET /api/wildfires",
+            ),
+            DataSource(
+                name="US Forest Service",
+                url="https://www.fs.usda.gov/",
+                provides="Region 6 closure orders behind GET /api/closures",
             ),
             DataSource(
                 name="NOAA HMS",

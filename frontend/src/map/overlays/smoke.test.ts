@@ -49,6 +49,7 @@ function setup(drawing = false) {
     modelFallbackLabel: null,
     popupColumns: [],
     fireWarnings: new Map(),
+    closureWarnings: new Map(),
     searchedPlaces: [],
     onAddPoi: () => {},
     onRemovePoi: () => {},

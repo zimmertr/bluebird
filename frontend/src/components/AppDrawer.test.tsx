@@ -90,6 +90,7 @@ function drawer(open: boolean, onClose = NOOP) {
       response={null}
       results={NO_ROWS}
       fireStatus="idle"
+      closureStatus="idle"
     />
   )
 }

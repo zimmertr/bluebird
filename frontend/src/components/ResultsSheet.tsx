@@ -101,6 +101,7 @@ export default function ResultsSheet({
   timelineAxes,
   movePlayheadTo,
   fire,
+  closure,
   modelId,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
@@ -172,6 +173,7 @@ export default function ResultsSheet({
               timelineAxes={timelineAxes}
               movePlayheadTo={movePlayheadTo}
               fire={fire}
+              closure={closure}
               modelId={modelId}
               onRemovePending={onRemovePending}
               onFocusResult={onFocusResult}

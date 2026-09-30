@@ -3,6 +3,7 @@ import { AQI_NOTE_KEY, panelMessages, type PanelMessageInputs } from './panelMes
 import type { AnalyzeBlocker } from './analyzeGate'
 import type { CommitReason } from './present'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
+import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import { archiveSeamPhrase } from './calendar'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { NOUN } from '../metrics'
@@ -38,6 +39,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     hasReport: false,
     aqiAllNull: false,
     wildfireCheckFailed: false,
+    closureCheckFailed: false,
     now: NOW,
     ...over,
   }
@@ -232,6 +234,20 @@ describe('panelMessages', () => {
     })
   })
 
+  describe('the closure line', () => {
+    it('is an error in the shared sentence when the check failed', () => {
+      expect(only({ closureCheckFailed: true })).toEqual({
+        key: 'closure:unavailable',
+        text: CLOSURE_UNAVAILABLE_NOTE,
+        severity: 'error',
+      })
+    })
+
+    it('waits while an analysis runs', () => {
+      expect(keys({ closureCheckFailed: true, loading: true })).toEqual([])
+    })
+  })
+
   describe('the air-quality gap in a report', () => {
     const empty = { hasReport: true, aqiAllNull: true }
 
@@ -295,8 +311,16 @@ describe('panelMessages', () => {
         refusal: { message: 'Too many.' },
         hasReport: true,
         wildfireCheckFailed: true,
+        closureCheckFailed: true,
       }),
-    ).toEqual(['window:archive-model', 'window:clamped', 'window:aqi-horizon', 'fire:unavailable', 'refusal:Too many.'])
+    ).toEqual([
+      'window:archive-model',
+      'window:clamped',
+      'window:aqi-horizon',
+      'fire:unavailable',
+      'closure:unavailable',
+      'refusal:Too many.',
+    ])
     expect(keys({ hasReport: true, aqiAllNull: true, aqiCoverage: 'partial', blockers: ['types'] })).toEqual([
       'window:aqi-horizon',
       'blocker:types',

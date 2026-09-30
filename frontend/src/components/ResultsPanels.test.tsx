@@ -53,6 +53,7 @@ const TABLE_VIEW = {
 }
 const REPORT = { detailSort: { key: 'name', dir: 'asc' }, sortDetail: NOOP, emptyReason: null }
 const FIRE = { status: 'ready', warnings: new Map(), uncovered: new Set() }
+const CLOSURE = { status: 'ready', warnings: new Map(), uncovered: new Set() }
 const TIMES = [0, 3_600_000]
 const onRemovePending = () => {}
 const onFocusResult = () => {}
@@ -81,6 +82,7 @@ function props(over: { layout?: unknown; charts?: unknown } = {}): Props {
     timelineAxes: [],
     movePlayheadTo: NOOP,
     fire: FIRE,
+    closure: CLOSURE,
     modelId: 'gfs_seamless',
     onRemovePending,
     onFocusResult,
@@ -112,6 +114,9 @@ describe('ResultsPanels', () => {
     expect(got.results).toBe(TABLE_VIEW.tableRows)
     expect(got.columns).toBe(TABLE_VIEW.tableColumns)
     expect(got.fireWarnings).toBe(FIRE.warnings)
+    expect(got.closureWarnings).toBe(CLOSURE.warnings)
+    expect(got.closureUncovered).toBe(CLOSURE.uncovered)
+    expect(got.closureStatus).toBe('ready')
     expect(got.onRemove).toBe(removeResult)
     expect(got.onRemovePending).toBe(onRemovePending)
     expect(got.onFocusResult).toBe(onFocusResult)

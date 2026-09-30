@@ -68,8 +68,8 @@ it costs two upstream requests rather than one and refuses nothing.
 [DATA.md](DATA.md#open-meteo) has what else is different about an archive
 answer.
 
-**Request pacing.** Analyze, discovery, search, wildfire perimeters, and smoke
-plumes hold separate per-address budgets, so a burst of map searches cannot
+**Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
+plumes, and closure orders hold separate per-address budgets, so a burst of map searches cannot
 starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
 so a person iterating on a map never meets them. A script should stay well under
 them anyway, and can sidestep them entirely by running its own container, where
@@ -84,8 +84,8 @@ to it. The per-address analyze budget above holds, the cap on in-flight
 upstream calls holds, and the candidate cap, the polygon cap, and the row cap
 are all unchanged. A key buys a quota, not an exemption.
 
-The wildfire and smoke budgets are the loosest, because the requests they pace
-are the cheapest the service answers: both come from a snapshot the instance
+The wildfire, smoke and closure budgets are the loosest, because the requests they pace
+are the cheapest the service answers: all three come from a snapshot the instance
 already holds, so a pan costs no upstream call at all. What those budgets
 protect is this instance's own bandwidth, not the providers' quotas, which are
 bounded instead by how often each snapshot refreshes.
@@ -108,7 +108,7 @@ is and whether waiting helps:
 | `422` | A field would not parse or failed a bound: a polygon over the area cap, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis, or the edge rate rule in front of `bluebirdforecast.com` refused the request before the pod saw it (see [TRAFFIC.md](TRAFFIC.md)). `Retry-After` is honest in every case. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
-| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires` and `GET /api/smoke` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
+| `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires`, `GET /api/smoke` and `GET /api/closures` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
 
 Each of these carries a machine-readable `error.code` beside the sentence, so a
 program can tell a failure it caused from one worth retrying without reading

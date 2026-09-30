@@ -16,12 +16,14 @@ import {
   SURFACE_FLOATING,
   SWATCH_CHIP,
   SWATCH_EDGE,
+  SWATCH_LINE,
   SWATCH_RAMP,
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
   TEXT,
   YIELD_EMPTY,
 } from '../styles'
+import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF } from '../utils/radar'
@@ -144,7 +146,10 @@ interface MapLegendProps {
   /** Whether the ranked metric has any value on the rows shown (`fieldHasValue`). */
   rankedFieldHasValue: boolean
   /** Which overlays are on, each keyed by a section. */
-  overlays: Pick<MapOverlays, 'showWildfires' | 'showRadar' | 'showSmoke' | 'showSnow'>
+  overlays: Pick<
+    MapOverlays,
+    'showWildfires' | 'showAreaClosures' | 'showTrailClosures' | 'showRadar' | 'showSmoke' | 'showSnow'
+  >
   /** The forecast grid's state and its row (`useGridLayer`). */
   grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
   /** Whether the panel is open; the column above is one row taller while it is not. */
@@ -170,9 +175,22 @@ export default function MapLegend({
   sheetLiftPx,
   timelineShown,
 }: MapLegendProps) {
-  const { showWildfires, showRadar, showSmoke, showSnow } = overlays
+  const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
   const { gridPainted, gridCued, gridFailed, gridLegend } = grid
-  if (!(hasColoredMarkers || gridPainted || gridCued || gridFailed || showWildfires || showSmoke || showRadar || showSnow)) {
+  if (
+    !(
+      hasColoredMarkers ||
+      gridPainted ||
+      gridCued ||
+      gridFailed ||
+      showWildfires ||
+      showAreaClosures ||
+      showTrailClosures ||
+      showSmoke ||
+      showRadar ||
+      showSnow
+    )
+  ) {
     return null
   }
   // Top-anchored legends: they hang one gap under the Layers button
@@ -322,6 +340,34 @@ export default function MapLegend({
                       }}
                     />
                   ),
+                },
+              ]
+            : []),
+          // The closure orders (#550). US government work, so no licence
+          // asks for the credit; it is here because every layer that draws
+          // somebody else's data names them in its own section. The area
+          // keys on the fire's chip in the closure hue, and the trail on a
+          // dashed rule, because a line is what it draws.
+          ...(showAreaClosures
+            ? [
+                {
+                  label: 'Area closures',
+                  credit: { href: USFS_HREF, name: 'USFS' },
+                  swatch: (
+                    <span
+                      className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                      style={closureAreaSwatch()}
+                    />
+                  ),
+                },
+              ]
+            : []),
+          ...(showTrailClosures
+            ? [
+                {
+                  label: 'Trail closures',
+                  credit: { href: USFS_HREF, name: 'USFS' },
+                  swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
                 },
               ]
             : []),

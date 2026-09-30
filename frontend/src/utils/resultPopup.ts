@@ -2,6 +2,7 @@ import { DestinationResult } from '../types'
 import { SEP } from '../metrics'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
+import { type ClosureWarning, closureWarningText } from './closureProximity'
 import {
   coordinateRow,
   escapeHtml,
@@ -40,6 +41,10 @@ export function resultPopupHtml(d: {
   // Nearest active wildfire within the warn radius, or null. Mirrors the warning
   // the results table shows so a point clicked on the map surfaces the same alert.
   warning: FireWarning | null
+  // The active area closure the destination stands inside, or null (#550).
+  // Mirrors the table's Closure column the way `warning` mirrors its wildfire
+  // column. Optional so a caller with no closure check still builds a card.
+  closure?: ClosureWarning | null
   // What the Windy links carry: the model the numbers came from, and the
   // report's hourly grid, which is what turns a row's series into the HOUR
   // behind a floor or a ceiling. Both optional so a popup built before an
@@ -76,6 +81,18 @@ export function resultPopupHtml(d: {
         'color:#f59e0b;display:block',
       )
     : ''
+  // The closure line, after the fire line and in its markup: one statement
+  // about one order, linked to the order's own page when the Forest Service
+  // gave it one, and plain amber text when it did not. The order's name is
+  // Forest Service free text rendered via setHTML, so it is escaped.
+  const closureLine = d.closure
+    ? `<div style="font-weight:600;margin-bottom:2px">⚠️ ${escapeHtml(closureWarningText(d.closure))}</div>`
+    : ''
+  const closure = !d.closure
+    ? ''
+    : d.closure.url
+      ? popupLink(escapeHtml(d.closure.url), closureLine, 'color:#f59e0b;display:block')
+      : `<div style="color:#f59e0b">${closureLine}</div>`
 
   // What the destination IS, above the rule. The type and the model share one
   // line because each is a word rather than a measurement, and the separator
@@ -90,6 +107,7 @@ export function resultPopupHtml(d: {
   const groups = popupGroups(r, d.columns, { modelId: d.modelId, times: d.times })
   const body = [
     fire,
+    closure,
     ...groups.map((g, at) =>
       // One value reads as a plain "label: value" line, which is every group
       // over a Current lookup and the elevation over any report. Two or more
@@ -99,7 +117,7 @@ export function resultPopupHtml(d: {
         : groupBlock(
             g.label,
             g.values.map((v) => groupValue(v.aggregate, v.text, v.href)),
-            at === 0 && !d.warning,
+            at === 0 && !d.warning && !d.closure,
           ),
     ),
   ]

@@ -10,6 +10,7 @@ import type { Analysis } from '../hooks/useAnalyze'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
 import type { FireProximity } from '../hooks/useFireProximity'
+import type { ClosureProximity } from '../hooks/useClosureProximity'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import type { PresentedReport } from '../hooks/usePresentedReport'
@@ -66,6 +67,8 @@ export interface MapStageProps {
   tableView: Pick<TableView, 'tableColumns' | 'analysisModelLabel'>
   /** Which destinations stand near an active wildfire. */
   fire: Pick<FireProximity, 'warnings'>
+  /** Which destinations stand inside an active Forest Service area closure. */
+  closure: Pick<ClosureProximity, 'warnings'>
   /** How far the phone sheet lifts the map's bottom chrome, and the camera's bottom padding. */
   layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx'>
   /** The run in flight, which the loading card reports and can cancel. */
@@ -109,6 +112,7 @@ export default function MapStage({
   report,
   tableView,
   fire,
+  closure,
   layout,
   analysis,
   sortBy,
@@ -208,7 +212,10 @@ export default function MapStage({
         popupColumns={tableView.tableColumns}
         modelFallbackLabel={tableView.analysisModelLabel}
         fireWarnings={fire.warnings}
+        closureWarnings={closure.warnings}
         showWildfires={overlays.showWildfires}
+        showAreaClosures={overlays.showAreaClosures}
+        showTrailClosures={overlays.showTrailClosures}
         showRadar={overlays.showRadar}
         showSmoke={overlays.showSmoke}
         showSnow={overlays.showSnow}

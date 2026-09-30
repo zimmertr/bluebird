@@ -612,6 +612,45 @@
         "title": "CapabilitiesResponse",
         "type": "object"
       },
+      "ClosureCollection": {
+        "description": "A GeoJSON FeatureCollection of Forest Service closure orders, plus when and where.\n\nDeclared for the schema only: the handler returns pre-serialized text so a\nviewport is a filter and a join rather than a re-encode of every closure.",
+        "properties": {
+          "coverage": {
+            "additionalProperties": true,
+            "description": "The area the feed covers, as a GeoJSON MultiPolygon geometry riding as a second foreign member: a coarse outline of Oregon and Washington, which is the Forest Service's Region 6, biased about 0.2\u00b0 outward on its land borders. An empty `features` array for a bbox outside this geometry means the feed cannot see that area, not that nothing is closed there. Static per release.",
+            "title": "Coverage",
+            "type": "object"
+          },
+          "features": {
+            "description": "Active closure orders intersecting the requested bounding box, with the Forest Service's own properties as it published them: `ClosureOrderName`, `ClosureOrderNumber`, `ForestUnit`, `District`, `FireName`, `ClosureDescription`, `ClosureStartDate` and `ClosureEndDate` in epoch milliseconds, and `ClosureURLlink`, which is often null. Lines also carry `RouteName` and `RouteNum`, and polygons carry `GIS_Acres`. An order is included when the Forest Service marks it active, and that status is trusted as published: an active order can carry an end date that is already past.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "fetched_at": {
+            "description": "When this instance last fetched closure orders from the Forest Service, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. Closures are cached per instance and served past their refresh deadline when the Forest Service is unreachable, so this is the only honest statement of how current the answer is. It is not when any order was issued or last edited.",
+            "title": "Fetched At",
+            "type": "integer"
+          },
+          "type": {
+            "const": "FeatureCollection",
+            "description": "Always `FeatureCollection`, so the body drops straight into a map library.",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "fetched_at",
+          "coverage",
+          "features"
+        ],
+        "title": "ClosureCollection",
+        "type": "object"
+      },
       "ConfigResponse": {
         "description": "Runtime configuration the SPA reads on load.\n\nDeployment-specific, and not part of the analysis contract. For build\nidentity use `GET /api/version`; for the limits requests are validated\nagainst use `GET /api/capabilities`.",
         "properties": {
@@ -1600,6 +1639,16 @@
             "title": "Analyze Per Minute",
             "type": "integer"
           },
+          "closures_burst": {
+            "description": "How many closure requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan with both closure layers on.",
+            "title": "Closures Burst",
+            "type": "integer"
+          },
+          "closures_per_minute": {
+            "description": "Sustained `GET /api/closures` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from a snapshot this instance already holds and reaches no upstream. Both closure layers share it. 0 means the limit is disabled.",
+            "title": "Closures Per Minute",
+            "type": "integer"
+          },
           "destinations_burst": {
             "description": "How many destinations requests an idle client can send back-to-back before the per-minute pace applies.",
             "title": "Destinations Burst",
@@ -1651,7 +1700,9 @@
           "wildfires_per_minute",
           "wildfires_burst",
           "smoke_per_minute",
-          "smoke_burst"
+          "smoke_burst",
+          "closures_per_minute",
+          "closures_burst"
         ],
         "title": "RateLimits",
         "type": "object"
@@ -2051,6 +2102,105 @@
         ]
       }
     },
+    "/api/closures": {
+      "get": {
+        "description": "Active fire closure orders from the US Forest Service's Pacific Northwest Region (Region 6), intersecting `bbox`.\n\n`kind` picks the question. `area` answers where a person may not enter, as polygons. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites.\n\nCoverage is Oregon and Washington only: Region 6 is every national forest in those two states and nothing else, so an empty result elsewhere means \"not covered\", not \"nothing closed\". The `coverage` member states this machine-readably.\n\nThis instance fetches the whole region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.",
+        "operationId": "closures_api_closures_get",
+        "parameters": [
+          {
+            "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A closure is returned when its own bounding box overlaps this one.",
+            "in": "query",
+            "name": "bbox",
+            "required": true,
+            "schema": {
+              "description": "Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A closure is returned when its own bounding box overlaps this one.",
+              "examples": [
+                "-121.9,45.5,-121.5,45.8"
+              ],
+              "title": "Bbox",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which closures to return. `area` is area closures, as polygons. `trail` is closed trails and roads, as lines, together with closed trailheads and sites, as points.",
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "description": "Which closures to return. `area` is area closures, as polygons. `trail` is closed trails and roads, as lines, together with closed trailheads and sites, as points.",
+              "enum": [
+                "area",
+                "trail"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Geometry fidelity. `coarse` simplifies lines and polygons to roughly 56 metres, the same tolerance the wildfire overlay uses, and is about a quarter of the bytes for trails. `full` returns them as the Forest Service drew them. Points are the same either way.",
+            "in": "query",
+            "name": "detail",
+            "required": false,
+            "schema": {
+              "default": "coarse",
+              "description": "Geometry fidelity. `coarse` simplifies lines and polygons to roughly 56 metres, the same tolerance the wildfire overlay uses, and is about a quarter of the bytes for trails. `full` returns them as the Forest Service drew them. Points are the same either way.",
+              "enum": [
+                "coarse",
+                "full"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosureCollection"
+                }
+              }
+            },
+            "description": "Closures of the requested kind intersecting the box, with the fetch timestamp."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`bbox` or `kind` was missing, or `bbox` was malformed or outside valid coordinate ranges, or `kind` or `detail` named a value this endpoint does not know."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "This instance has never completed a fetch from the Forest Service, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry."
+          }
+        },
+        "summary": "Forest Service Region 6 closure orders in a bounding box",
+        "tags": [
+          "closures"
+        ]
+      }
+    },
     "/api/config": {
       "get": {
         "operationId": "config_api_config_get",
@@ -2437,6 +2587,10 @@
     {
       "description": "Smoke plumes traced by NOAA analysts from satellite imagery, cached from their file server. Roughly two analyses land per day, so this is a picture of the smoke rather than a forecast of it.",
       "name": "smoke"
+    },
+    {
+      "description": "Fire closure orders for Oregon and Washington, cached from the US Forest Service's Region 6: closed areas, trails, roads and sites. Served from this instance's snapshot rather than proxied per request, because the upstream quota belongs to an ArcGIS organization and is shared with every other consumer.",
+      "name": "closures"
     }
   ]
 }

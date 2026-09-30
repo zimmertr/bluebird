@@ -4,7 +4,14 @@ import { createRef } from 'react'
 import { type ResultsViewInputs, useResultsView } from './useResultsView'
 import type { MapViewHandle } from '../components/MapView'
 import type { AnalyzeResponse } from '../types'
-import { analyzedSnapshot, fireWarning, forecastModel, pendingDestination, resultRow } from '../testSupport/fixtures'
+import {
+  analyzedSnapshot,
+  closureWarning,
+  fireWarning,
+  forecastModel,
+  pendingDestination,
+  resultRow,
+} from '../testSupport/fixtures'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { ViewPrefs } from '../utils/viewPrefs'
 
@@ -40,6 +47,11 @@ const MODELS = [forecastModel()]
 const NO_MODELS: string[] = []
 const TIMES = [0, 3_600_000]
 const FIRE: ResultsViewInputs['fire'] = { status: 'ready', warnings: new Map([['k', fireWarning()]]), uncovered: new Set() }
+const CLOSURE: ResultsViewInputs['closure'] = {
+  status: 'ready',
+  warnings: new Map([['k', closureWarning()]]),
+  uncovered: new Set(),
+}
 const REPORT = analyzedSnapshot()
 const RESPONSE: AnalyzeResponse = { results: [], total_queried: 0, total_matched: 0 }
 
@@ -63,6 +75,7 @@ function inputs(over: Partial<ResultsViewInputs> = {}): ResultsViewInputs {
     times: TIMES,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     fire: FIRE,
+    closure: CLOSURE,
     mapRef: createRef<MapViewHandle>(),
     removePlace: () => {},
     ...over,
@@ -106,6 +119,7 @@ describe('useResultsView', () => {
       pendingRows: ['pending row'],
       pointSample: true,
       fire: FIRE,
+      closure: CLOSURE,
     })
   })
 

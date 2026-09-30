@@ -1,6 +1,6 @@
 import { DestinationResult, SortBy } from '../types'
 import { MetricFamily, familyOf, metricLabel, windowAggregate } from '../metrics'
-import { ColDef, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
+import { CLOSURE_KEY, ColDef, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
 import { isUnavailableKey, unavailableCellText } from './unavailableCell'
@@ -110,9 +110,10 @@ function groupUnit(cols: ColDef[]): string | null {
  *
  * Three column kinds never become a group. `name` is the popup's title.
  * `type` and the model ride in the band above the rule, where TJ moved them.
- * And the wildfire column stays out entirely: the popup says that in amber at
- * the top, because it is a safety flag rather than a measurement, and saying it
- * twice on one card would be the drift this file exists to stop.
+ * And the two flag columns, wildfire and closure, stay out entirely: the popup
+ * says each in amber at the top, because each is a safety flag rather than a
+ * measurement, and saying it twice on one card would be the drift this file
+ * exists to stop.
  */
 export function popupGroups(
   row: DestinationResult,
@@ -127,7 +128,14 @@ export function popupGroups(
   const groups = new Map<string, ColDef[]>()
   for (const col of columns) {
     const key = col.key as string
-    if (key === 'name' || key === 'type' || key === WILDFIRE_KEY || key === MODEL_KEY) continue
+    if (
+      key === 'name' ||
+      key === 'type' ||
+      key === WILDFIRE_KEY ||
+      key === CLOSURE_KEY ||
+      key === MODEL_KEY
+    )
+      continue
     const bucket = LEAD_KEYS.has(key) ? key : familyOf(key)
     groups.set(bucket, [...(groups.get(bucket) ?? []), col])
   }

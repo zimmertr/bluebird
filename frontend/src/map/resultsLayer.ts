@@ -261,6 +261,7 @@ export function mountResultsLayer(
         row: row ?? featureRow(p, lat, lon),
         columns: live.popupColumns,
         warning: controller.fireWarningAt(lat, lon),
+        closure: controller.closureWarningAt(lat, lon),
         modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
         times: row?.series_times ?? live.times,
         modelFallbackLabel: live.modelFallbackLabel,
@@ -363,6 +364,7 @@ export function mountResultsLayer(
           row: result,
           columns: live.popupColumns,
           warning: controller.fireWarningAt(result.latitude, result.longitude),
+          closure: controller.closureWarningAt(result.latitude, result.longitude),
           // A per-model row names its own model; a single-model report has
           // one for every row. Same rule as the table's cells.
           modelId: (result as ModelRow).modelId ?? live.modelId,

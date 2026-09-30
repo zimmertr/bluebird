@@ -96,8 +96,9 @@ buckets are also published to clients by `GET /api/capabilities`, under
 | geocode | `GET /api/geocode` |
 | wildfires | `GET /api/wildfires` |
 | smoke | `GET /api/smoke` |
+| closures | `GET /api/closures` |
 
-Each bucket's rate and burst are published under `limits.rate`; the two
+Each bucket's rate and burst are published under `limits.rate`; the three
 overlay buckets are the loosest, because a pan costs no upstream call.
 
 Destinations is deliberately its own bucket (issue #180): discovery is one
@@ -109,7 +110,7 @@ Istio VirtualService publishes the API by allowlist
 (`ingress.publicApiPrefixes` in the chart, #240): only the endpoints the web
 app itself calls, plus `/api/version` for checking which build answers, are
 forwarded (`/api/destinations`, `/api/capabilities`, `/api/version`,
-`/api/geocode`, `/api/wildfires`, `/api/smoke`, `/api/config`), and every
+`/api/geocode`, `/api/wildfires`, `/api/smoke`, `/api/closures`, `/api/config`), and every
 other `/api` path answers the app's own JSON `404` at the edge. The analyze routes are a second, narrower rule
 (`ingress.keyedApiPrefixes`, #317): the gateway forwards them when the request
 carries an `X-Open-Meteo-Key` header, and answers the same `404` when it does
@@ -204,7 +205,8 @@ Four points in it are measurements rather than habits.
   The six origins are the ones in the "Outbound" table marked **browser**:
   Open-Meteo's three services (forecast, air quality, and the archive that
   answers the calendar's older windows), the basemap, the radar frames, and
-  NOAA's snow analysis renders. Overpass, Nominatim, NIFC and NOAA's HMS smoke
+  NOAA's snow analysis renders. Overpass, Nominatim, NIFC, the Forest
+  Service's closure layers and NOAA's HMS smoke
   files are absent because the pod fetches those, so for them the browser talks
   to this origin only. NOAA appears on both sides for that reason: the smoke
   files are the pod's fetch and the snow images are the browser's. The one origin covers every
@@ -297,6 +299,7 @@ release.
 | [Open-Meteo air quality, customer host](https://open-meteo.com/en/docs/air-quality-api) (`customer-air-quality-api.open-meteo.com`) | same, from `air_quality.py` | cluster egress IP, quota owner the **caller** | the key's own plan, metered separately from forecast | same as the row above; a refused key is the one AQI failure that does not degrade to null |
 | [Nominatim](https://operations.osmfoundation.org/policies/nominatim/) (`nominatim.openstreetmap.org`) | backend (`geocode.py`) proxying the search box | cluster egress IP | absolute ~1 req/s per service, real User-Agent required | `NOMINATIM_MIN_INTERVAL_MS=3500` spacing per pod (~0.86/s aggregate at 3 replicas, and over the policy once the autoscaler passes 3, since the gate is per pod; the previous 2s ≈ 1.5/s quietly exceeded it at 3) + per-client geocode bucket |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (`services3.arcgis.com`; wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
+| [US Forest Service Region 6](https://www.fs.usda.gov/) (`services1.arcgis.com`; the two closure layers) | backend (`usfs_closures.py`), 5 queries per refresh (the closed sites once, and the closed trails and roads and the closed areas each at full resolution and simplified), on demand and never when idle. The trail lines page, so today the 5 queries are 7 requests (1,536 lines at 1,000 a page, measured 2026-09-30) | cluster egress IP | per-minute request-unit quota belonging to the Forest Service's ArcGIS organization, shared with every other consumer of its public layers | `CLOSURE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure, `CLOSURE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client closures bucket |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (`satepsanone.nesdis.noaa.gov`; smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) (`mapservices.weather.noaa.gov`; snow depth overlay) | **browser**, one server-side render per visible tile | visitor IP | none published; a public National Weather Service GIS endpoint with no key | off by default, and the service refuses caching (`max-age=0, must-revalidate`) so every pan re-renders. Bounded by a 512 px tile rather than 256, which is four times fewer renders per screen at the same ~0.46 s each; by the source's `bounds`, so nothing is requested outside the analysis extent; and by a zoom cap at the point the 1 km analysis has no more detail to give, past which MapLibre magnifies what it holds |
@@ -338,6 +341,12 @@ three timezones. **Radar** stays in the browser: its tiles are cached for five
 minutes at IEM's own edge, a viewport is a different set of tiles for every
 visitor so there is nothing shared to hold, and proxying would put a
 continent's worth of raster through a pod to save nothing.
+
+The closure layers ([#550](https://github.com/zimmertr/bluebird/issues/550))
+go through the pod for the wildfire reason. The Forest Service publishes them
+as an ArcGIS feature service, so the quota belongs to its ArcGIS organization
+and is shared with every other consumer. One pod-side snapshot of the whole
+region serves both layers and every visitor.
 
 Both Open-Meteo paths on the server share one process-wide HTTP client
 (`services/http.py`), so the batches of an analysis ride a pooled keep-alive

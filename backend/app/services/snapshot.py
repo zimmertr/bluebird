@@ -1,10 +1,11 @@
 """One national snapshot per upstream, refreshed on demand and kept past its date.
 
-Two map overlays answer from a country-sized dataset this pod fetches once for
-everyone rather than once per visitor: wildfire perimeters (``nifc.py``) and
-smoke plumes (``hms.py``). Both want the same cache and neither wants the
+Three map overlays answer from a dataset this pod fetches once for everyone
+rather than once per visitor: wildfire perimeters (``nifc.py``), smoke plumes
+(``hms.py``) and Forest Service closure orders (``usfs_closures.py``). All
+three want the same cache and none wants the
 :class:`~app.services.cache.TTLCache`, which deletes an entry the moment it
-expires — exactly the value these two need to hold on to.
+expires — exactly the value these need to hold on to.
 
 The reason is the same for both, and it is why this is stale-tolerant rather
 than merely long-lived. A perimeter measured 40 minutes ago still answers "is
@@ -18,10 +19,10 @@ Aging out therefore blocks nobody: an aged snapshot is served immediately and
 refreshed *behind* the request. Only a cache that has never been filled makes a
 caller wait, or fail.
 
-The cache is not all the two overlays share. Each wires the cache to its own
+The cache is not all the overlays share. Each wires the cache to its own
 upstream the same way, and each route answers a cold cache with the same 503,
-so those live here too rather than as a pair of copies that can drift into two
-different answers to the same question (issue #388).
+so those live here too rather than as copies that can drift into different
+answers to the same question (issue #388).
 """
 
 from __future__ import annotations
@@ -38,7 +39,7 @@ log = logging.getLogger(__name__)
 
 
 # What a caller is asked to wait when the failure itself names no interval.
-# Matches the failure backoff both overlays configure, so a retry lands about
+# Matches the failure backoff the overlays configure, so a retry lands about
 # when the next refresh is allowed rather than before it.
 DEFAULT_RETRY_AFTER_S = 60
 
@@ -115,6 +116,14 @@ class SnapshotCache[T]:
         async with self._lock:
             if self._snapshot is not None:
                 return self._snapshot
+            # A failed cold fetch sets the same backoff a failed refresh does,
+            # and it has to be honoured here too: without this check every
+            # request during an outage on a pod that never filled became its
+            # own upstream attempt, in series behind the lock, which is the
+            # hammering the backoff exists to stop (review of #552). The
+            # caller answers 503 with the error's own Retry-After instead.
+            if self._last_error is not None and self._clock() < self._fresh_until:
+                raise self._last_error
             await self._refresh_locked()
             if self._snapshot is None:
                 raise self._last_error or UpstreamError(f"{self._label} is unavailable.")

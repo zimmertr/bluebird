@@ -28,6 +28,8 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     limit: DEFAULT_LIMIT,
     customCsv: '',
     showWildfires: false,
+    showAreaClosures: false,
+    showTrailClosures: false,
     showRadar: false,
     showSmoke: false,
     showSnow: false,

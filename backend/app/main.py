@@ -18,6 +18,7 @@ from app import cache_headers, ratelimit, security_headers, telemetry
 from app.error_codes import ApiError, api_error_handler
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
+from app.routes.closures import router as closures_router
 from app.routes.config import router as config_router
 from app.routes.destinations import router as destinations_router
 from app.routes.geocode import router as geocode_router
@@ -152,6 +153,16 @@ _TAGS = [
             "Smoke plumes traced by NOAA analysts from satellite imagery, "
             "cached from their file server. Roughly two analyses land per day, "
             "so this is a picture of the smoke rather than a forecast of it."
+        ),
+    },
+    {
+        "name": "closures",
+        "description": (
+            "Fire closure orders for Oregon and Washington, cached from the US "
+            "Forest Service's Region 6: closed areas, trails, roads and sites. "
+            "Served from this instance's snapshot rather than proxied per "
+            "request, because the upstream quota belongs to an ArcGIS "
+            "organization and is shared with every other consumer."
         ),
     },
 ]
@@ -290,6 +301,7 @@ app.include_router(version_router, prefix="/api")
 app.include_router(capabilities_router, prefix="/api")
 app.include_router(wildfires_router, prefix="/api")
 app.include_router(smoke_router, prefix="/api")
+app.include_router(closures_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.
 app.include_router(notfound_router, prefix="/api")

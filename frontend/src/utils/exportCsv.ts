@@ -1,10 +1,17 @@
 import type { DestinationResult } from '../types'
 import { type PendingDestination, pendingAsResult } from './customList'
 import type { FireProximityStatus, FireWarning } from './fireProximity'
+import type { ClosureProximityStatus, ClosureWarning } from './closureProximity'
 import { normalizeWindow } from './forecastWindow'
 import type { ModelEnd } from './modelCompare'
 import { buildResultsCsv, csvFilename } from './resultsCsv'
-import { type ColDef, WILDFIRE_KEY, applyColumnOrder, withModelColumn } from './tableColumns'
+import {
+  CLOSURE_KEY,
+  type ColDef,
+  WILDFIRE_KEY,
+  applyColumnOrder,
+  withModelColumn,
+} from './tableColumns'
 
 export interface ReportCsvInputs {
   /** The table's rows, in the order on screen. */
@@ -15,12 +22,16 @@ export interface ReportCsvInputs {
   modelColumnOn: boolean
   /** The order the reader dragged the columns into, or null for the automatic one. */
   columnOrder: readonly string[] | null
-  /** The columns the table shows, which decides whether the wildfire column goes over. */
+  /** The columns the table shows, which decides whether each flag column goes over. */
   visibleKeys: ReadonlySet<string>
   /** The wildfire check: where it stands, what it found, and what it could not cover. */
   fireStatus: FireProximityStatus
   fireWarnings: ReadonlyMap<string, FireWarning>
   fireUncovered: ReadonlySet<string>
+  /** The closure check, on the same three terms (#550). */
+  closureStatus: ClosureProximityStatus
+  closureWarnings: ReadonlyMap<string, ClosureWarning>
+  closureUncovered: ReadonlySet<string>
   /** The committed window as the snapshot recorded it, or null before any analysis. */
   window: { startMs: number; endMs: number } | null
   /** Named destinations no analysis has covered. */
@@ -45,6 +56,9 @@ export function reportCsv({
   fireStatus,
   fireWarnings,
   fireUncovered,
+  closureStatus,
+  closureWarnings,
+  closureUncovered,
   window,
   pending,
   modelLabel,
@@ -79,6 +93,12 @@ export function reportCsv({
       // metric blank. Before the first analysis this is the whole file.
       pendingRows: pending.map(pendingAsResult),
       fireUncovered,
+      // The Closure column on the wildfire column's terms: over only when its
+      // check answered and the column is on screen, since a column of blanks
+      // in a file would claim every row was checked and found open.
+      closureWarnings:
+        closureStatus === 'ready' && visibleKeys.has(CLOSURE_KEY) ? closureWarnings : null,
+      closureUncovered,
       modelLabel,
       // The file states where each short model ends, where the screen marks
       // the cells: a spreadsheet can compute the covered hours from a date.

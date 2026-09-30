@@ -44,6 +44,8 @@ export interface ResultsViewInputs {
   windowLimits: ChartCompareInputs['windowLimits']
   /** Which destinations stand near an active wildfire. */
   fire: TableViewInputs['fire']
+  /** Which destinations stand inside an active Forest Service area closure. */
+  closure: TableViewInputs['closure']
   /** The map, which the table's focus callbacks fly to a row. */
   mapRef: RefObject<MapViewHandle | null>
   /** Removes a searched place or pasted row by its coordinate. */
@@ -77,6 +79,7 @@ export function useResultsView({
   times,
   windowLimits,
   fire,
+  closure,
   mapRef,
   removePlace,
 }: ResultsViewInputs) {
@@ -129,6 +132,7 @@ export function useResultsView({
     pending,
     pendingRows,
     fire,
+    closure,
   })
 
   // Stable identities for the table's callbacks, for the reason `NO_TIMES`

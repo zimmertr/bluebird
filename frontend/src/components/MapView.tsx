@@ -15,6 +15,7 @@ import '../map.css'
 import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
 import { FireWarning } from '../utils/fireProximity'
+import type { ClosureWarning } from '../utils/closureProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
@@ -118,7 +119,14 @@ interface Props {
   // Fire-proximity warnings keyed by geoKey(lat,lon), mirroring the results
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
+  // The Closure column's warnings (#550), for the same popup's closure line.
+  closureWarnings: Map<string, ClosureWarning>
   showWildfires: boolean
+  // The Forest Service closure orders (#550), one switch per layer: the closed
+  // ground, and the closed trails, roads and sites. Read from the pod like
+  // the fires, and no more a knob than they are.
+  showAreaClosures: boolean
+  showTrailClosures: boolean
   // The two overlays #121 adds. Radar is raster tiles fetched straight from
   // IEM; smoke is one national GeoJSON from the pod. Both are live map layers
   // rather than analysis inputs, so neither ever touches `commitNeeded`.
@@ -201,7 +209,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
       popupColumns,
       modelFallbackLabel,
       fireWarnings,
+      closureWarnings,
       showWildfires,
+      showAreaClosures,
+      showTrailClosures,
       showRadar,
       showSmoke,
       showSnow,
@@ -266,6 +277,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       modelFallbackLabel,
       popupColumns,
       fireWarnings,
+      closureWarnings,
       searchedPlaces,
       onAddPoi,
       onRemovePoi,
@@ -564,6 +576,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         featuresRef.current?.wildfires.dispose()
+        featuresRef.current?.areaClosures.dispose()
+        featuresRef.current?.trailClosures.dispose()
         featuresRef.current?.smoke.dispose()
         featuresRef.current?.radar.dispose()
         featuresRef.current = null
@@ -641,6 +655,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.wildfires.update({ show: showWildfires })
     }, [showWildfires, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.areaClosures.update({ show: showAreaClosures })
+    }, [showAreaClosures, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.trailClosures.update({ show: showTrailClosures })
+    }, [showTrailClosures, mapReady])
 
     useEffect(() => {
       if (mapReady) featuresRef.current?.smoke.update({ show: showSmoke })

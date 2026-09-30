@@ -73,6 +73,8 @@ const base: ShareableState = {
   limit: 10,
   customCsv: '',
   showWildfires: false,
+  showAreaClosures: false,
+  showTrailClosures: false,
   showRadar: false,
   showSmoke: false,
   showSnow: false,
@@ -105,6 +107,8 @@ const pristine: ShareableState = {
   limit: 200,
   customCsv: '',
   showWildfires: false,
+  showAreaClosures: false,
+  showTrailClosures: false,
   showRadar: false,
   showSmoke: false,
   showSnow: false,
@@ -202,8 +206,12 @@ describe('encodeState / decodeState round-trip', () => {
     expect(snowOnly!.showSnow).toBe(true)
     expect(snowOnly!.showRadar).toBeUndefined()
     expect(snowOnly!.showSmoke).toBeUndefined()
-    // Off is the default for all five and stays out of the URL entirely.
+    const closuresOnly = roundTrip({ ...base, showTrailClosures: true })
+    expect(closuresOnly!.showTrailClosures).toBe(true)
+    expect(closuresOnly!.showAreaClosures).toBeUndefined()
+    // Off is the default for all seven and stays out of the URL entirely.
     const clean = encodeState(base, DEFAULT_MODEL)
+    expect(clean).not.toContain('closed')
     expect(clean).not.toContain('radar')
     expect(clean).not.toContain('smoke')
     expect(clean).not.toContain('snow')
@@ -295,6 +303,8 @@ describe('encodeState / decodeState round-trip', () => {
     expect(encodeState({ ...pristine, showSmoke: true }, DEFAULT_MODEL)).toContain('smoke=1')
     expect(encodeState({ ...pristine, showRadar: true }, DEFAULT_MODEL)).toContain('radar=1')
     expect(encodeState({ ...pristine, showSnow: true }, DEFAULT_MODEL)).toContain('snow=1')
+    expect(encodeState({ ...pristine, showAreaClosures: true }, DEFAULT_MODEL)).toContain('closedareas=1')
+    expect(encodeState({ ...pristine, showTrailClosures: true }, DEFAULT_MODEL)).toContain('closedtrails=1')
     // The grid needs an analysis before it draws anything, so a grid-only link
     // reopens on an empty map with the layer armed — which is still the state
     // that was shared, and dropping it would lose the one thing it said.
@@ -312,6 +322,11 @@ describe('encodeState / decodeState round-trip', () => {
       gridStyle: 'smooth',
     })
     expect(decodeState('?radar=0&smoke=yes&snow=true&grid=on')).toBeNull()
+    expect(decodeState('?closedareas=1&closedtrails=1')).toEqual({
+      showAreaClosures: true,
+      showTrailClosures: true,
+    })
+    expect(decodeState('?closedareas=true&closedtrails=0')).toBeNull()
   })
 
   it('restores a CSV-only analysis without a polygon', () => {

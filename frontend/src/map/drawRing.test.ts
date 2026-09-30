@@ -75,6 +75,7 @@ function setup(points: Pts = TRI, drawing = true) {
     modelFallbackLabel: null,
     popupColumns: [],
     fireWarnings: new Map(),
+    closureWarnings: new Map(),
     searchedPlaces: [],
     onAddPoi: () => {},
     onRemovePoi: () => {},

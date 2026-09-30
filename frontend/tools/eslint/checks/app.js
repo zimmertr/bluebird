@@ -857,7 +857,7 @@ export const APP = [
   {
     // The sync effect and the unmount flush are the two effects this hook took
     // from App.tsx. The sync effect keys on every input its encodeState call
-    // reads, 25 entries with the sync callback last, and it never flushes: a
+    // reads, 27 entries with the sync callback last, and it never flushes: a
     // flush per run writes on every keystroke and the debounce collapses
     // nothing. The flush runs only on unmount, keyed on the writer alone. The
     // camera is not an entry: it reaches the writer through reportView, so a
@@ -873,8 +873,8 @@ export const APP = [
     require: [
       { selector: EFFECT, count: 2, message: 'useUrlSync.ts runs its two effects through useEffect.' },
       {
-        selector: `${EFFECT} > ArrayExpression[elements.length=25][elements.24.name="sync"]`,
-        message: 'Key the sync effect on all 25 inputs it reads, sync last.',
+        selector: `${EFFECT} > ArrayExpression[elements.length=27][elements.26.name="sync"]`,
+        message: 'Key the sync effect on all 27 inputs it reads, sync last.',
       },
       { selector: keyedOnlyOn('writeUrl'), message: 'Flush on unmount in an effect keyed on writeUrl alone.' },
       { selector: 'ReturnStatement Property[key.name="writeUrl"]', message: 'Return the writer.' },
@@ -1027,6 +1027,21 @@ export const APP = [
           '[test.right.callee.object.name="visibleKeys"][test.right.arguments.0.name="WILDFIRE_KEY"]' +
           '[consequent.name="fireWarnings"][alternate.raw="null"]',
         message: 'Send the wildfire column only when the check is ready and the column is shown.',
+      },
+    ],
+  },
+  {
+    // The Closure column on the same terms (#550): a column of blanks in a
+    // file would claim every row was checked and found open.
+    name: 'export-csv-closure-gate',
+    files: ['src/utils/exportCsv.ts'],
+    require: [
+      {
+        selector:
+          'ConditionalExpression[test.operator="&&"][test.left.left.name="closureStatus"][test.left.right.value="ready"]' +
+          '[test.right.callee.object.name="visibleKeys"][test.right.arguments.0.name="CLOSURE_KEY"]' +
+          '[consequent.name="closureWarnings"][alternate.raw="null"]',
+        message: 'Send the Closure column only when the check is ready and the column is shown.',
       },
     ],
   },

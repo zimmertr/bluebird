@@ -233,7 +233,15 @@ function decodePinList(raw: string): Place[] {
 // from `1`, so a hand-typed `true` or `0` leaves the default in place.
 function flag(
   key: string,
-  field: 'sortDesc' | 'showWildfires' | 'showRadar' | 'showSmoke' | 'showSnow' | 'includeUnnamedPeaks',
+  field:
+    | 'sortDesc'
+    | 'showWildfires'
+    | 'showAreaClosures'
+    | 'showTrailClosures'
+    | 'showRadar'
+    | 'showSmoke'
+    | 'showSnow'
+    | 'includeUnnamedPeaks',
 ): ParamCodec {
   return {
     key,
@@ -489,6 +497,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   flag('fires', 'showWildfires'),
+  flag('closedareas', 'showAreaClosures'),
+  flag('closedtrails', 'showTrailClosures'),
   flag('radar', 'showRadar'),
   flag('smoke', 'showSmoke'),
   flag('snow', 'showSnow'),
@@ -622,6 +632,8 @@ export const FIELD_PARAMS = {
   limit: ['limit'],
   customCsv: ['customz'],
   showWildfires: ['fires'],
+  showAreaClosures: ['closedareas'],
+  showTrailClosures: ['closedtrails'],
   showRadar: ['radar'],
   showSmoke: ['smoke'],
   showSnow: ['snow'],

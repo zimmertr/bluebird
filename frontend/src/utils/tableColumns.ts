@@ -31,7 +31,7 @@ import { UNAVAILABLE } from './unavailableCell'
  * statement and the one the screen already makes with its mark.
  */
 export type ColDef = {
-  key: keyof DestinationResult | typeof WILDFIRE_KEY | typeof MODEL_KEY
+  key: keyof DestinationResult | typeof WILDFIRE_KEY | typeof CLOSURE_KEY | typeof MODEL_KEY
   label: string
   format?: (v: unknown) => string
   csv?: (v: unknown) => string
@@ -56,13 +56,28 @@ export type ColDef = {
  * useFireProximity's warning map rather than on the row, so every consumer
  * branches on the key before indexing a DestinationResult. It is not in
  * COLUMNS because its cells come from the fire lookup's state rather than the
- * report — App appends it to every table, the CSV appends it only once the
- * check answered — and it is not in the Columns picker because it is a safety
- * flag rather than a metric preference. The label is shared by the table and
- * the CSV so the two surfaces cannot name the same numbers differently.
+ * report: useTableView appends it while it is shown, and the CSV appends it
+ * only once the check answered. It is in the Columns picker since #288, shown
+ * by default (decision 0023). The label is shared by the table and the CSV so
+ * the two surfaces cannot name the same numbers differently.
  */
 export const WILDFIRE_KEY = 'wildfire_mi'
 export const WILDFIRE_COL: ColDef = { key: WILDFIRE_KEY, label: 'Wildfire (mi)' }
+
+/**
+ * The area-closure column (#550): whether a destination stands inside an
+ * active Forest Service area closure. Virtual for the wildfire column's
+ * reason (its value lives in useClosureProximity's warning map), and drawn
+ * beside it, after it, because the two are the table's safety flags rather
+ * than its measurements. Shown by default and hideable in the Columns picker,
+ * as the wildfire column is since #288, and carried into the CSV on the same
+ * terms. One label for the table and the file.
+ */
+export const CLOSURE_KEY = 'closure'
+export const CLOSURE_COL: ColDef = { key: CLOSURE_KEY, label: 'Closure' }
+
+/** The two safety-flag columns, in the order they close the table. */
+export const FLAG_COLS: readonly ColDef[] = [WILDFIRE_COL, CLOSURE_COL]
 
 /**
  * Which model a row's numbers came from, when more than one is selected.
@@ -214,10 +229,15 @@ export const COLUMNS: ColDef[] = [
   { key: 'cloud_cover_avg_pct', unit: UNIT.cloud_cover, label: metricLabel('cloud_cover', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'clouds' },
 ]
 
-// Every key a header click can sort on: the table's columns and the two
+// Every key a header click can sort on: the table's columns and the three
 // virtual ones. A link's `tsort` is checked against it, so a hand-edited key
 // the table has no column for is dropped rather than sorting by nothing.
-const SORT_KEYS: ReadonlySet<string> = new Set([...COLUMNS.map((c) => c.key), WILDFIRE_KEY, MODEL_KEY])
+const SORT_KEYS: ReadonlySet<string> = new Set([
+  ...COLUMNS.map((c) => c.key),
+  WILDFIRE_KEY,
+  CLOSURE_KEY,
+  MODEL_KEY,
+])
 
 /** Whether a string names a column the table can sort on. */
 export function isSortKey(key: string): key is SortKey {

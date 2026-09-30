@@ -2,8 +2,9 @@
 
 Everything the web app does, it does through this API. There are no accounts and
 no authentication. Discovery, geocoding, the limits endpoint, the build
-endpoint, and the two cached map overlays are open to anyone. `/api/smoke`
-takes nothing but the request; `/api/wildfires` takes a bounding box.
+endpoint, and the three cached map overlays are open to anyone. `/api/smoke`
+takes nothing but the request; `/api/wildfires` takes a bounding box, and
+`/api/closures` takes a bounding box and the kind of closure.
 
 Forecasts are the exception. On `bluebirdforecast.com` the two analyze routes
 need an Open-Meteo API key in the `X-Open-Meteo-Key` header. One analysis can
@@ -219,6 +220,7 @@ meant to prevent.
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
+| `GET /api/closures` | Forest Service fire closure orders for Oregon and Washington in a bounding box: closed areas, or closed trails, roads and sites. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -404,6 +406,79 @@ those images go from [Iowa Environmental Mesonet](https://mesonet.agron.iastate.
 and from [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) straight to the browser.
 See [DATA.md](DATA.md#rain-radar) and [DATA.md](DATA.md#snow-depth) for how each
 is addressed.
+
+### Closure orders
+
+`GET /api/closures` returns the US Forest Service's active fire closure orders
+for Oregon and Washington that intersect a bounding box. `kind` is required and
+picks the question: `area` returns area closures as polygons, and `trail`
+returns closed trails and roads as lines together with closed trailheads and
+sites as points.
+
+```bash
+curl -s "https://bluebirdforecast.com/api/closures?bbox=-122.2,45.5,-121.8,45.7&kind=area"
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "fetched_at": 1790791200000,
+  "coverage": { "type": "MultiPolygon", "coordinates": ["…"] },
+  "features": [
+    {
+      "type": "Feature",
+      "id": 2602,
+      "properties": {
+        "OBJECTID": 2602,
+        "ForestUnit": "Mt. Hood National Forest",
+        "District": null,
+        "FireName": " Eagle Creek",
+        "ClosureOrderName": " Eagle Creek Area and Trail Closure",
+        "ClosureOrderNumber": "06-22-01-25-02",
+        "ClosureDescription": "Eagle Creek Area and Trail Closure",
+        "ClosureStartDate": 1751907600000,
+        "ClosureEndDate": 1783443600000,
+        "ClosureURLlink": "https://www.fs.usda.gov/r06/mthood/alerts/eagle-creek-fire-area-closures-forest-order",
+        "GIS_Acres": null
+      },
+      "geometry": { "type": "Polygon", "coordinates": [[[-122.07488, 45.58972], "…"]] }
+    }
+  ]
+}
+```
+
+`bbox` works as it does on `/api/wildfires`, and a malformed one answers the
+same `422`. `detail` picks the geometry fidelity: `coarse` (the default)
+simplifies lines and polygons to roughly 56 metres, the tolerance the wildfire
+endpoint uses, and `full` returns them as the Forest Service drew them. Points
+are the same at both.
+
+The properties are the Forest Service's own, passed through as it published
+them, leading spaces included. Every feature carries the order's name, number
+and description, its national forest and district, the fire it answers, and
+`ClosureStartDate` and `ClosureEndDate` in epoch milliseconds. Lines add
+`RouteName` and `RouteNum`, and polygons add `GIS_Acres`. Several fields are
+often null: `ClosureURLlink` is missing on most trail segments, and some
+polygons carry no acreage.
+
+An order is returned when the Forest Service marks it active, and this service
+trusts that status as sent. The status is maintained by hand, so an active
+order can carry an end date that is already past. The example above is one:
+its end date is 2026-07-07, and on 2026-09-30 the Forest Service still listed
+it as active. Read the status as the Forest Service's statement, and the order
+itself for the details.
+
+The caching contract is the one perimeters and plumes share: one snapshot of
+the whole region per instance, refreshed on a timer, served **past its refresh
+deadline** when the Forest Service is unreachable, and a `503` only from an
+instance that has never once completed a fetch. `fetched_at` says when this
+instance last fetched; the order's own dates are facts about the order.
+
+Coverage is Oregon and Washington only, which is the Forest Service's Region 6.
+An empty result elsewhere means "not covered", not "nothing closed". The
+`coverage` foreign member states this machine-readably, as a coarse outline of
+the two states biased slightly outward on land. See
+[DATA.md](DATA.md#closures).
 
 ### Resolving your own coordinates
 
@@ -875,9 +950,9 @@ curl -s https://bluebirdforecast.com/api/destinations \
 | `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `422` | `validation`, or absent | Request validation failed. Polygon too large, `limit` out of range, or a window outside the servable horizon. |
-| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires and smoke each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. |
+| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
-| `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC or NOAA fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
+| `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
 A `422` carries Pydantic's per-field `detail` list. Every other error carries a
 single plain-language `detail` string, written to be shown to a person as-is.
@@ -929,13 +1004,13 @@ the outcome, so a retry loop will spin forever.
 | `upstream_rate_limited` | `429` | `true` | Open-Meteo rate-limited the deployment mid-analysis. |
 | `upstream_unavailable` | `502` | `true` | An upstream failed or could not be reached. |
 | `busy` | `503` | `true` | An in-flight upstream budget stayed saturated, so the request was shed. |
-| `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire or smoke snapshot, so it has nothing to serve, not even stale. |
+| `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire, smoke or closure snapshot, so it has nothing to serve, not even stale. |
 | `internal` | stream only | `true` | An unexpected failure ended an SSE analysis. The JSON routes have no equivalent. |
 
 Pydantic's `422` is the one exception, and deliberately: its `detail` is a list
 of per-field objects rather than a sentence, and the field paths in it are
-already machine-readable. The `bbox` parameter on `GET /api/wildfires` is
-parsed by hand, so its `422` does carry `validation`.
+already machine-readable. The `bbox` parameter on `GET /api/wildfires` and
+`GET /api/closures` is parsed by hand, so its `422` does carry `validation`.
 
 ## Generating a client
 

@@ -70,6 +70,8 @@ const full: ShareableState = {
   limit: 50,
   customCsv: 'Name,Lat,Lon\nA peak,46.85,-121.76\n',
   showWildfires: true,
+  showAreaClosures: true,
+  showTrailClosures: true,
   showRadar: true,
   showSmoke: true,
   showSnow: true,
@@ -102,6 +104,8 @@ const nowOnly: ShareableState = {
   limit: 200,
   customCsv: '',
   showWildfires: false,
+  showAreaClosures: false,
+  showTrailClosures: false,
   showRadar: false,
   showSmoke: false,
   showSnow: false,
@@ -137,7 +141,7 @@ describe('the codec table against the links it wrote before', () => {
         '&mincloudbase=3000&maxcloudbase=15000&mincloudcover=5&maxcloudcover=60' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
-        '&fires=1&radar=1&smoke=1&snow=1&grid=smooth&reach=40&player=0&unnamed=1' +
+        '&fires=1&closedareas=1&closedtrails=1&radar=1&smoke=1&snow=1&grid=smooth&reach=40&player=0&unnamed=1' +
         '&pins=-121.8144,48.7768,peak,14505,node/123,Tricky%2C+name%3B+%26+co+%25' +
         ';-118.2,36.12346,coordinates,,,' +
         '&removed=-121.76041,46.85289;-121.11391,48.1&tsort=elevation_ft&tdesc=1&view=-121.6123,47.1,9.46',
@@ -208,6 +212,8 @@ describe('the codec table', () => {
       'poly',
       'customz',
       'fires',
+      'closedareas',
+      'closedtrails',
       'radar',
       'smoke',
       'snow',

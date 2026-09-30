@@ -51,7 +51,9 @@ import { createPopupBoard } from './popups'
 import { pendingFC } from '../utils/mapFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
-import { resultRow } from '../testSupport/fixtures'
+import { closureWarning, resultRow } from '../testSupport/fixtures'
+import { closureWarningText } from '../utils/closureProximity'
+import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
@@ -85,6 +87,7 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }) 
     modelFallbackLabel: null,
     popupColumns: [],
     fireWarnings: new Map(),
+    closureWarnings: new Map(),
     searchedPlaces: [],
     onAddPoi: vi.fn(),
     onRemovePoi: vi.fn(),
@@ -170,6 +173,19 @@ describe('mountResultsLayer', () => {
         modelFallbackLabel: null,
       }),
     )
+  })
+
+  // The popup's closure line reads the same map the table's Closure column
+  // does, keyed on the marker's exact coordinates (#550).
+  it('names the closure a clicked destination stands inside', () => {
+    const { stub, controller } = setup()
+    const closure = closureWarning()
+    controller.update({
+      ...controller.inputs,
+      closureWarnings: new Map([[geoKey(RAINIER.latitude, RAINIER.longitude), closure]]),
+    })
+    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    expect(popups[0].html).toContain(closureWarningText(closure))
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {

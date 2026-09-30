@@ -10,6 +10,14 @@ import {
   fireCellText,
   fireWarningText,
 } from './fireProximity'
+import {
+  CLOSURE_UNAVAILABLE_NOTE,
+  CLOSURE_UNCOVERED_NOTE,
+  type ClosureProximityStatus,
+  type ClosureWarning,
+  closureCellText,
+  closureWarningText,
+} from './closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE, isFreezeKey } from './freezingLevel'
 import { isUnavailableKey, unavailableCellText } from './unavailableCell'
 import { isSnowDepthKey, snowCellText } from './snowCeiling'
@@ -41,6 +49,27 @@ export function fireCell(
           ? FIRE_UNCOVERED_NOTE
           : null
   const text = status === 'unavailable' ? 'N/A' : fireCellText(warning, uncovered)
+  return { text, note }
+}
+
+/**
+ * The Closure column's text and hover sentence: `fireCell`'s rules for the
+ * closure check, so the two flag columns read their three states one way.
+ */
+export function closureCell(
+  status: ClosureProximityStatus,
+  warning: ClosureWarning | undefined,
+  uncovered: boolean,
+): { text: string; note: string | null } {
+  const note =
+    status === 'unavailable'
+      ? CLOSURE_UNAVAILABLE_NOTE
+      : status === 'ready' && warning
+        ? closureWarningText(warning)
+        : status === 'ready' && uncovered
+          ? CLOSURE_UNCOVERED_NOTE
+          : null
+  const text = status === 'unavailable' ? 'N/A' : closureCellText(warning, uncovered)
   return { text, note }
 }
 

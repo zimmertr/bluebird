@@ -14,8 +14,9 @@
  *
  * The credits the licenses place next to the data live outside this list:
  * OpenStreetMap in the map's corner control (delivered by the tile server's
- * TileJSON), Open-Meteo docked beside the results, and NIFC, NOAA and IEM each
- * on their own overlay's legend, NOAA twice, for smoke and for snow.
+ * TileJSON), Open-Meteo docked beside the results, and NIFC, NOAA, IEM and the
+ * US Forest Service each on their own overlay's legend, NOAA twice, for smoke
+ * and for snow, and the Forest Service twice, for its two closure layers.
  * CC BY 3.0 wants the fire credit wherever the fire data is drawn, not only in
  * a list of sources somewhere else, and the overlays added beside it follow
  * the same shape so the map has one idea of what a credit looks like. Each of
@@ -107,5 +108,11 @@ export const DATA_SOURCES: readonly DataSource[] = [
     href: 'https://www.nohrsc.noaa.gov/nsa/',
     provides:
       'Snow depth from the National Snow Analysis, for the optional snow overlay and the snow depth metric.',
+  },
+  {
+    name: 'US Forest Service',
+    href: 'https://www.fs.usda.gov/',
+    provides:
+      'Fire closure orders in Oregon and Washington, for the optional closure layers and the closure column.',
   },
 ]

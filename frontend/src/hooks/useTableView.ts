@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DestinationResult, SortBy } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
+import type { ClosureProximity } from './useClosureProximity'
 import type { FireProximity } from './useFireProximity'
 import type { ComparedModel } from './useModelCompare'
 import { chartKey } from '../utils/chartData'
@@ -20,10 +21,11 @@ import type { WeatherResult } from '../utils/openMeteo'
 import { geoKey } from '../utils/points'
 import { compareValues } from '../utils/sortResults'
 import {
+  CLOSURE_KEY,
+  FLAG_COLS,
   MODEL_KEY,
   type SortDir,
   type SortKey,
-  WILDFIRE_COL,
   WILDFIRE_KEY,
   applyColumnOrder,
   displayedColumns,
@@ -69,6 +71,8 @@ export interface TableViewInputs {
   pendingRows: DestinationResult[]
   /** The wildfire check (`useFireProximity`), which sorts and fills the wildfire column. */
   fire: FireProximity
+  /** The closure check (`useClosureProximity`), which sorts and fills the Closure column. */
+  closure: ClosureProximity
 }
 
 /**
@@ -96,6 +100,7 @@ export function useTableView({
   pending,
   pendingRows,
   fire,
+  closure,
 }: TableViewInputs) {
   // Which columns the table displays (null = use default narrowed set, Set = user choice).
   // The CSV export always gets the full displayedColumns set regardless.
@@ -169,7 +174,7 @@ export function useTableView({
   // Columns picker still wins; null means "all of them".
   const effectiveVisibleKeys = useMemo(() => {
     if (columnVisibility !== null) return columnVisibility
-    return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY])
+    return new Set([...csvColumns.map((c) => c.key as string), WILDFIRE_KEY, CLOSURE_KEY])
   }, [columnVisibility, csvColumns])
 
   // Whether the Model column is drawn: the reader's answer if they gave one,
@@ -246,30 +251,38 @@ export function useTableView({
   // a pasted list numbered 1..100 reads in order. See compareValues. The
   // wildfire column's key is virtual: its value is the warning's mileage, so a
   // clear row and an uncovered row are both null and land last either way.
+  // The Closure column's is virtual too, and sorts by the order's NAME: rows
+  // inside a closure group by the order that closed them, and a cleared or
+  // uncovered row is null and lands last in either direction, as a clear
+  // wildfire row does.
   const fireWarnings = fire.warnings
+  const closureWarnings = closure.warnings
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
       detailSort.key === WILDFIRE_KEY
         ? (fireWarnings.get(geoKey(r.latitude, r.longitude))?.miles ?? null)
-        : detailSort.key === MODEL_KEY
-          ? ((r as ModelRow).modelLabel ?? null)
-          : r[detailSort.key]
+        : detailSort.key === CLOSURE_KEY
+          ? (closureWarnings.get(geoKey(r.latitude, r.longitude))?.name ?? null)
+          : detailSort.key === MODEL_KEY
+            ? ((r as ModelRow).modelLabel ?? null)
+            : r[detailSort.key]
     const base = comparedTableRows ?? results
     return [...base].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
-  }, [results, comparedTableRows, detailSort, fireWarnings])
+  }, [results, comparedTableRows, detailSort, fireWarnings, closureWarnings])
 
   // Columns displayed in the table (filtered by visibility). The wildfire
-  // column is last, shown by default, and toggleable in the Columns picker
-  // like everything else (TJ, 2026-08-21, reversing the #256-era always-on
-  // rule). While shown, its cells, not the column, say where the check
-  // stands (ticking while it runs, answered when it has; ResultsTable owns
-  // that). The CSV keeps the stricter rule and carries the column only once
-  // the check answered AND the column is shown, because a file's columns
+  // column and then the Closure column come last, each shown by default and
+  // toggleable in the Columns picker like everything else (TJ, 2026-08-21,
+  // reversing the #256-era always-on rule; the Closure column followed it,
+  // TJ 2026-09-30). While shown, their cells, not the columns, say where each
+  // check stands (ticking while it runs, answered when it has; ResultsTable
+  // owns that). The CSV keeps the stricter rule and carries each column only
+  // once its check answered AND the column is shown, because a file's columns
   // must not disagree with the screen's.
   const tableColumns = useMemo(() => {
     const cols = visibleColumns(pointSample, sortBy, effectiveVisibleKeys, cloudHeld)
-    const withFire = effectiveVisibleKeys.has(WILDFIRE_KEY) ? [...cols, WILDFIRE_COL] : cols
-    return applyColumnOrder(withModelColumn(withFire, modelColumnOn), columnOrder)
+    const flags = FLAG_COLS.filter((c) => effectiveVisibleKeys.has(c.key as string))
+    return applyColumnOrder(withModelColumn([...cols, ...flags], modelColumnOn), columnOrder)
   }, [pointSample, sortBy, effectiveVisibleKeys, cloudHeld, modelColumnOn, columnOrder])
 
   // Every column there is, in the reader's order: what the Columns picker
@@ -279,7 +292,7 @@ export function useTableView({
   // keeps its place. Ordering only the visible ones would send every hidden
   // column to the end the moment it came back.
   const allColumns = useMemo(
-    () => applyColumnOrder([...withModelColumn(csvColumns, true), WILDFIRE_COL], columnOrder),
+    () => applyColumnOrder([...withModelColumn(csvColumns, true), ...FLAG_COLS], columnOrder),
     [csvColumns, columnOrder],
   )
 
@@ -313,6 +326,8 @@ export function useTableView({
   // file leaves in the shape that is on screen.
   const fireStatus = fire.status
   const fireUncovered = fire.uncovered
+  const closureStatus = closure.status
+  const closureUncovered = closure.uncovered
   const handleDownloadCsv = useCallback(() => {
     const csv = reportCsv({
       rows: tableRows,
@@ -323,6 +338,9 @@ export function useTableView({
       fireStatus,
       fireWarnings,
       fireUncovered,
+      closureStatus,
+      closureWarnings,
+      closureUncovered,
       window: analyzed?.window ?? null,
       pending,
       modelLabel: analysisModelLabel,
@@ -338,6 +356,9 @@ export function useTableView({
     fireStatus,
     fireWarnings,
     fireUncovered,
+    closureStatus,
+    closureWarnings,
+    closureUncovered,
     analyzed,
     pending,
     analysisModelLabel,

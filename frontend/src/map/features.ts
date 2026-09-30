@@ -4,11 +4,13 @@
  *
  * The basemap patch goes under the style's own labels. Above the style: the
  * forecast grid, which is the ground everything else is read against, then
- * smoke, then the fire perimeters, then the drawn ring, so a marker is never
+ * smoke, then the fire perimeters, then the closures over the fires that
+ * caused them (the closed ground under the closed trails, so a trail reads on
+ * top of the area it crosses), then the drawn ring, so a marker is never
  * under the outline of the area it was found in, then the markers and the
  * pending dots. The radar loop and the snow field are created when they are
  * switched on, beneath the first smoke fill, so the chain comes out grid, snow,
- * radar, smoke, fire, draw, results. The basemap POI popups and the general
+ * radar, smoke, fire, closures, draw, results. The basemap POI popups and the general
  * click add no layers and go last, because a handler registered later answers
  * a click later.
  *
@@ -22,6 +24,7 @@ import { mountCamera } from './camera'
 import { mountMapClick } from './click'
 import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { mountClosures, type ClosureOverlay } from './overlays/closures'
 import { mountForecastGrid, type ForecastGridOverlay } from './overlays/forecastGrid'
 import { mountRadar, type RadarOverlay } from './overlays/radar'
 import { mountSmoke, type SmokeOverlay } from './overlays/smoke'
@@ -35,6 +38,8 @@ export interface MapFeatures {
   grid: ForecastGridOverlay
   smoke: SmokeOverlay
   wildfires: WildfireOverlay
+  areaClosures: ClosureOverlay
+  trailClosures: ClosureOverlay
   snow: SnowOverlay
   radar: RadarOverlay
   drawRing: DrawRing
@@ -68,6 +73,8 @@ export function mountFeatures(
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { controller, restCursor, popups })
   const wildfires = mountWildfires(map, { restCursor })
+  const areaClosures = mountClosures(map, 'area', { restCursor })
+  const trailClosures = mountClosures(map, 'trail', { restCursor })
   const snow = mountSnow(map)
   const radar = mountRadar(map)
   const drawRing = mountDrawRing(map, {
@@ -83,5 +90,5 @@ export function mountFeatures(
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })
-  return { grid, smoke, wildfires, snow, radar, drawRing, results, pois }
+  return { grid, smoke, wildfires, areaClosures, trailClosures, snow, radar, drawRing, results, pois }
 }

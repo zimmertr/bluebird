@@ -46,6 +46,17 @@ export interface FireWarning {
  */
 export type FireProximityStatus = 'idle' | 'loading' | 'ready' | 'unavailable'
 
+/**
+ * Whether a check's cells should still tick. 'idle' counts, because it is
+ * what a hook reports for the one render before its effect has run. Named
+ * because the table runs one clock for two checks (wildfire and closure), and
+ * each cell asks this of its OWN check, so an answered column does not tick
+ * while the other one waits.
+ */
+export function checkRunning(status: FireProximityStatus): boolean {
+  return status === 'idle' || status === 'loading'
+}
+
 // One degree of latitude ≈ 69 mi. Longitude is scaled by cos(lat). Good to a
 // fraction of a percent at the ~10 mi scale this warning cares about.
 const MI_PER_DEG_LAT = 69.0
@@ -123,8 +134,9 @@ function originToSegmentMiles(ax: number, ay: number, bx: number, by: number): n
   return Math.hypot(ax + t * dx, ay + t * dy)
 }
 
-// Ray-casting point-in-ring test in lon/lat space.
-function pointInRing(lng: number, lat: number, ring: Position[]): boolean {
+// Ray-casting point-in-ring test in lon/lat space. Exported for the closure
+// check (closureProximity.ts), which asks the same question of other polygons.
+export function pointInRing(lng: number, lat: number, ring: Position[]): boolean {
   let inside = false
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const xi = ring[i][0]
@@ -139,7 +151,7 @@ function pointInRing(lng: number, lat: number, ring: Position[]): boolean {
 
 // A geometry's polygons as ring lists: Polygon → one, MultiPolygon → many.
 // Anything else contributes nothing.
-function polygonsOf(geom: Geometry | null): Position[][][] {
+export function polygonsOf(geom: Geometry | null): Position[][][] {
   if (!geom) return []
   if (geom.type === 'Polygon') return [geom.coordinates]
   if (geom.type === 'MultiPolygon') return geom.coordinates
@@ -168,8 +180,9 @@ function distanceToFeatureMiles(lat: number, lon: number, geom: Geometry | null)
 
 // The middle of a geometry's bounding box. Cheap, and stable in a way a
 // centroid is not: a ring winding the other way, or a multipolygon of scattered
-// islands, moves a centroid and leaves a bbox alone.
-function featureCenter(geom: Geometry | null): { latitude: number; longitude: number } {
+// islands, moves a centroid and leaves a bbox alone. Shared with the closure
+// check, whose warning centres on its closure the same way.
+export function featureCenter(geom: Geometry | null): { latitude: number; longitude: number } {
   let west = Infinity
   let south = Infinity
   let east = -Infinity

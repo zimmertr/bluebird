@@ -9,7 +9,7 @@ When a full server-side analysis runs (an API caller on the keyed path, a releas
 3. Batches the matched destinations into Open-Meteo weather requests, fetched concurrently under the pod's weighted budget. Air quality rides alongside only when the ranking key or a bound needs it before the cut; otherwise it is attached to the returned rows after the cut, because the quota on this path is the pod's and shared.
 4. Applies the request's metric bounds, ranks by `sort_by` and `sort_desc`, and returns the top `limit` rows, with `total_matched` beside `total_queried`.
 
-Because the browser talks to Open-Meteo itself, that service sees each visitor's IP address and the coordinates being analyzed — the same information the server would otherwise send on the visitor's behalf. Wildfire perimeters are the exception among the browser-side data sources: they are fetched by the server into a shared snapshot (`app/services/nifc.py`) and served from `GET /api/wildfires`, because NIFC's quota belongs to NIFC's ArcGIS organization and is shared with every other consumer of the public dataset, so per-visitor requests competed for a resource none of them could see. Smoke plumes are the same call for a different reason — NOAA publishes one dated file a day, so a per-visitor fetch would be thousands of requests for one document (`app/services/hms.py`, `GET /api/smoke`). Rain-radar tiles and the snow-depth images are the counter-examples and stay in the browser: a viewport is a different set of images per visitor, so there is nothing shared for a snapshot to hold. Radar is cached at Iowa Environmental Mesonet's own edge; NOAA renders each snow image on request and refuses caching, so the browser is where that cost belongs rather than in a pod holding tiles for a layer most visitors never switch on. See [DATA.md](DATA.md#wildfires).
+Because the browser talks to Open-Meteo itself, that service sees each visitor's IP address and the coordinates being analyzed — the same information the server would otherwise send on the visitor's behalf. Wildfire perimeters are the exception among the browser-side data sources: they are fetched by the server into a shared snapshot (`app/services/nifc.py`) and served from `GET /api/wildfires`, because NIFC's quota belongs to NIFC's ArcGIS organization and is shared with every other consumer of the public dataset, so per-visitor requests competed for a resource none of them could see. Forest Service closure orders are the same call for the same reason: an ArcGIS feature service whose quota belongs to its organization (`app/services/usfs_closures.py`, `GET /api/closures`). Smoke plumes are the same call for a different reason — NOAA publishes one dated file a day, so a per-visitor fetch would be thousands of requests for one document (`app/services/hms.py`, `GET /api/smoke`). Rain-radar tiles and the snow-depth images are the counter-examples and stay in the browser: a viewport is a different set of images per visitor, so there is nothing shared for a snapshot to hold. Radar is cached at Iowa Environmental Mesonet's own edge; NOAA renders each snow image on request and refuses caching, so the browser is where that cost belongs rather than in a pod holding tiles for a layer most visitors never switch on. See [DATA.md](DATA.md#wildfires).
 
 The whole thing builds as a single multi-stage Docker image:
 
@@ -42,11 +42,11 @@ None of the external APIs need a key. The three on the analysis path:
 - **Open-Meteo** provides the hourly forecast and air-quality data, batched up to 50 locations per request, and the archive that answers a window older than the forecast endpoint's reach.
 - **OpenFreeMap** serves the vector map tiles.
 
-Nominatim (place search), NIFC (wildfire perimeters), NOAA HMS (smoke), NOAA NOHRSC (snow depth) and the Iowa Environmental Mesonet (radar) are keyless too; [DATA.md](DATA.md) covers every provider.
+Nominatim (place search), NIFC (wildfire perimeters), the US Forest Service (Region 6 closure orders), NOAA HMS (smoke), NOAA NOHRSC (snow depth) and the Iowa Environmental Mesonet (radar) are keyless too; [DATA.md](DATA.md) covers every provider.
 
-The two national overlays decode their snapshots on a worker thread rather than
-on the event loop (`asyncio.to_thread` in `app/services/nifc.py` and
-`app/services/hms.py`, issue #337). The fire payload is 16.5 MB of JSON holding
+The snapshot overlays decode on a worker thread rather than on the event loop
+(`asyncio.to_thread` in `app/services/arcgis.py`, which pages both ArcGIS
+feeds, and in `app/services/hms.py`, issue #337). The fire payload is 16.5 MB of JSON holding
 861k coordinates, and `app/services/snapshot.py` already keeps that refresh off
 the request that triggered it. What it cannot do is keep an `async` function
 that never awaits from holding the loop, which blocks every other request on

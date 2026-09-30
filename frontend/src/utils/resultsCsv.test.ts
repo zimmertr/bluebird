@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
 import { PARTIAL_COVERAGE_NOTE } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
-import { COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
+import { CLOSURE_COL, COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
 import { FireWarning } from './fireProximity'
 import { geoKey } from './points'
 import { DestinationResult } from '../types'
-import { resultRow } from '../testSupport/fixtures'
+import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { archiveBoundaryMs, normalizeWindow, windowSource } from './forecastWindow'
 
 // The coordinates are spelled out because this suite asserts on them: the file
@@ -381,6 +381,46 @@ describe('the wildfire column', () => {
       // because a file with no wildfire column must not credit its supplier.
       expect(lines(csv)).toHaveLength(6)
     })
+  })
+})
+
+// The Closure column on the wildfire column's terms (#550): the bare order
+// name, an empty cell for a cleared row, N/A outside Oregon and Washington,
+// and no column at all unless the check answered.
+describe('the Closure column', () => {
+  const closed = new Map([[geoKey(46.8523, -121.7603), closureWarning()]])
+
+  it('writes the bare order name after the wildfire column', () => {
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, { closureWarnings: closed })
+    const header = cells(lines(csv)[0])
+    expect(header.slice(-2)).toEqual([WILDFIRE_COL.label, CLOSURE_COL.label])
+    expect(CLOSURE_COL.label).toBe('Closure')
+    expect(lines(csv)[1].endsWith(',Probe Fire Closure')).toBe(true)
+    expect(csv).not.toContain('⚠️')
+  })
+
+  it('leaves a cleared row empty and writes N/A for an uncovered one', () => {
+    const robson = row({ name: 'Mount Robson', latitude: 53.1106, longitude: -119.2317 })
+    const clear = row({ name: 'Clear', latitude: 45, longitude: -121 })
+    const csv = buildResultsCsv([clear, robson], WINDOW_COLUMNS, null, {
+      closureWarnings: closed,
+      closureUncovered: new Set([geoKey(53.1106, -119.2317)]),
+    })
+    const body = lines(csv).slice(1, 3)
+    expect(body[0].endsWith(',')).toBe(true)
+    expect(body[1].endsWith(',N/A')).toBe(true)
+  })
+
+  it('leaves the column out when the check has no answer', () => {
+    const header = cells(lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES))[0])
+    expect(header).not.toContain(CLOSURE_COL.label)
+  })
+
+  it('credits the Forest Service exactly when the file carries the column', () => {
+    const usfs = DATA_SOURCES.find((d) => d.name === 'US Forest Service')!
+    const csv = buildResultsCsv([row()], WINDOW_COLUMNS, null, { closureWarnings: closed })
+    expect(csv).toContain(`Closure data by ${usfs.name},${usfs.href}`)
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).not.toContain('Forest Service')
   })
 })
 

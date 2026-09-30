@@ -7,7 +7,10 @@ import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
 import type { CellBox, GridCell } from '../utils/forecastGridLattice'
 import type { FireWarning } from '../utils/fireProximity'
+import type { ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
+import type { Feature, Geometry } from 'geojson'
+import type { ClosureProps } from '../utils/closures'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -196,6 +199,43 @@ export function fakeResponse(payload: unknown, status = 200): Response {
   return new Response(body, { status, headers: { 'Content-Type': 'application/json' } })
 }
 
+/**
+ * One closure feature as `GET /api/closures` answers it: a closed trail
+ * segment in the Columbia River Gorge, with the leading space the Forest
+ * Service's own text carries, and both dates. A caller that wants a polygon or
+ * a site passes its own geometry.
+ */
+export function closureFeature(
+  over: Partial<ClosureProps> = {},
+  geometry: Geometry = {
+    type: 'LineString',
+    coordinates: [
+      [-121.9, 45.6],
+      [-121.85, 45.62],
+    ],
+  },
+): Feature<Geometry, ClosureProps> {
+  return {
+    type: 'Feature',
+    geometry,
+    properties: {
+      OBJECTID: 7,
+      ForestUnit: 'Columbia River Gorge NSA',
+      District: null,
+      FireName: 'Probe',
+      ClosureOrderName: ' Probe Fire Closure',
+      ClosureOrderNumber: '06-22-00-26-01',
+      ClosureDescription: null,
+      ClosureStartDate: Date.UTC(2026, 7, 1, 12),
+      ClosureEndDate: Date.UTC(2026, 11, 31, 12),
+      ClosureURLlink: 'https://www.fs.usda.gov/r06/alerts/probe',
+      RouteName: ' Eagle Creek',
+      RouteNum: '440',
+      ...over,
+    },
+  }
+}
+
 /** One destination as `POST /api/destinations` answers it. */
 export function discovered(over: Partial<DiscoveredDestination> = {}): DiscoveredDestination {
   return {
@@ -215,6 +255,20 @@ export function discovered(over: Partial<DiscoveredDestination> = {}): Discovere
  */
 export function fireWarning(over: Partial<FireWarning> = {}): FireWarning {
   return { miles: 3.2, name: 'Probe Fire', latitude: 46.3, longitude: -121.5, ...over }
+}
+
+/**
+ * One closure warning, as the closure lookup keys it to a row: a named order
+ * with a page of its own, centred close by.
+ */
+export function closureWarning(over: Partial<ClosureWarning> = {}): ClosureWarning {
+  return {
+    name: 'Probe Fire Closure',
+    url: 'https://www.fs.usda.gov/r06/alerts/probe',
+    latitude: 45.6,
+    longitude: -121.9,
+    ...over,
+  }
 }
 
 /**
