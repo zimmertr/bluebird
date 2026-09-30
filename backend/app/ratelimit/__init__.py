@@ -27,7 +27,7 @@ history. The goal is a bound, not precision; the shared datastore planned in
 mirroring how LOG_LEVEL works.
 
 The two live in ``client`` and ``upstream`` beside this file, and this file
-re-exports them so ``ratelimit.X`` keeps working, with one exception: the five
+re-exports them so ``ratelimit.X`` keeps working, with one exception: the six
 per-client limiters are read only as ``ratelimit.client.X``. The route
 dependencies read them inside ``client``, so a limiter patched here would never
 reach them, and leaving the name out makes that patch fail rather than pass
@@ -40,6 +40,8 @@ from __future__ import annotations
 from app.ratelimit.client import (
     RATE_LIMIT_ANALYZE_BURST,
     RATE_LIMIT_ANALYZE_PER_MINUTE,
+    RATE_LIMIT_CLOSURES_BURST,
+    RATE_LIMIT_CLOSURES_PER_MINUTE,
     RATE_LIMIT_DESTINATIONS_BURST,
     RATE_LIMIT_DESTINATIONS_PER_MINUTE,
     RATE_LIMIT_GEOCODE_BURST,
@@ -53,6 +55,7 @@ from app.ratelimit.client import (
     _TokenBucket,
     analyze_rate_limit,
     client_key,
+    closures_rate_limit,
     destinations_rate_limit,
     geocode_rate_limit,
     smoke_rate_limit,
@@ -90,6 +93,8 @@ __all__ = [
     "RATE_LIMIT_WILDFIRES_BURST",
     "RATE_LIMIT_SMOKE_PER_MINUTE",
     "RATE_LIMIT_SMOKE_BURST",
+    "RATE_LIMIT_CLOSURES_PER_MINUTE",
+    "RATE_LIMIT_CLOSURES_BURST",
     "UPSTREAM_CONCURRENCY_WEATHER",
     "UPSTREAM_CONCURRENCY_AQI",
     "UPSTREAM_CONCURRENCY_OVERPASS",
@@ -117,4 +122,5 @@ __all__ = [
     "geocode_rate_limit",
     "wildfires_rate_limit",
     "smoke_rate_limit",
+    "closures_rate_limit",
 ]

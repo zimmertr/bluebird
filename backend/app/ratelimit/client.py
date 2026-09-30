@@ -46,6 +46,13 @@ RATE_LIMIT_WILDFIRES_BURST = env_int("RATE_LIMIT_WILDFIRES_BURST", 30)
 # (issue #121).
 RATE_LIMIT_SMOKE_PER_MINUTE = env_int("RATE_LIMIT_SMOKE_PER_MINUTE", 90)
 RATE_LIMIT_SMOKE_BURST = env_int("RATE_LIMIT_SMOKE_BURST", 30)
+# Closures are the same kind of request again, a filter over a snapshot this pod
+# already holds, and the overlay refetches on every pan like the wildfire one.
+# Its own bucket because it is two layers that toggle apart from the other
+# overlays, and a user with every layer on should not spend one budget three
+# times (issue #550).
+RATE_LIMIT_CLOSURES_PER_MINUTE = env_int("RATE_LIMIT_CLOSURES_PER_MINUTE", 90)
+RATE_LIMIT_CLOSURES_BURST = env_int("RATE_LIMIT_CLOSURES_BURST", 30)
 
 
 # ── Client identity ───────────────────────────────────────────────────────────
@@ -199,6 +206,9 @@ WILDFIRES_LIMITER = RateLimiter(
     RATE_LIMIT_WILDFIRES_PER_MINUTE, RATE_LIMIT_WILDFIRES_BURST, name="wildfires"
 )
 SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST, name="smoke")
+CLOSURES_LIMITER = RateLimiter(
+    RATE_LIMIT_CLOSURES_PER_MINUTE, RATE_LIMIT_CLOSURES_BURST, name="closures"
+)
 
 
 # ── Route dependencies ────────────────────────────────────────────────────────
@@ -253,3 +263,8 @@ async def wildfires_rate_limit(request: Request) -> None:
 async def smoke_rate_limit(request: Request) -> None:
     """Route dependency: the smoke-overlay bucket, independent of wildfires."""
     _throttle(SMOKE_LIMITER, request)
+
+
+async def closures_rate_limit(request: Request) -> None:
+    """Route dependency: the closure-overlay bucket, independent of the other overlays."""
+    _throttle(CLOSURES_LIMITER, request)

@@ -10,6 +10,7 @@
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
+| [US Forest Service](https://www.fs.usda.gov/) | Region 6 fire closure orders: closed areas, trails, roads and sites, Oregon and Washington only | Free (public domain; quota shared across all consumers) | None |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) | NEXRAD radar mosaic tiles, continental United States | Free | None |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) | Snow depth from the National Snow Analysis, coterminous United States | Free | None |
 | [NOAA NOHRSC SNODAS at NSIDC](https://nsidc.org/data/g02158) | The same analysis as a daily grid, read for the snow depth on each destination | Free | None |
@@ -632,6 +633,56 @@ than silent; see [API.md](API.md#smoke-plumes).
 
 Coverage is North America, which is what HMS analyzes. Elsewhere the layer is
 empty, and empty means "not covered" rather than "clear air".
+
+## Closures
+
+The two optional closure layers come from the **US Forest Service's Pacific
+Northwest Region (Region 6)**, which publishes its fire closure orders as one
+ArcGIS feature service in three parts: area closures as polygons, closed trails
+and roads as lines, and closed trailheads and other sites as points. One
+layer draws the polygons. The other draws the lines and the points together,
+because a closed trailhead is a closed way in, and it belongs beside the trail
+it serves.
+
+**Coverage is Oregon and Washington only.** Region 6 is every national forest
+in those two states and nothing else, so the feed says nothing about Idaho,
+California, or a national park. The API publishes that as a `coverage`
+geometry on every `/api/closures` response: a coarse outline of the two
+states, biased about 0.2° outward on land so a trailhead on the border is never
+left out. Along the Snake River it runs tight between Clarkston and Lewiston,
+where two towns face each other across the water. Outside the outline the
+app reports `N/A` rather than clear, because no order there is a fact the feed
+cannot state.
+
+**The status is trusted as published.** Each order carries a status, a start
+date and an end date. The status is maintained by hand at the forest offices,
+and Bluebird Forecast shows every order the Forest Service marks active, whatever its
+dates say. So an active order can carry an end date that is already past.
+Measured 2026-09-30: the Eagle Creek area closure on the Mt. Hood National
+Forest ended 2026-07-07 by its own date and was still listed as active. A
+date filter here would hide an order the Forest Service still stands behind,
+which is the worse mistake. Read the order itself for the details.
+
+**The link is often missing.** Each order can carry a link to its page on
+`fs.usda.gov`, and most trail segments do not: 629 of the first 1,000 lines
+carried none (2026-09-30). Some area closures carry no acreage either. Nothing
+here fills in either gap.
+
+The server fetches the whole region and holds it, the way it holds wildfire
+perimeters: one copy per server rather than one fetch per visitor, because the
+quota belongs to the Forest Service's ArcGIS organization and is shared with
+every other consumer of its public layers. It refreshes every 30 minutes, since
+the orders are edited by hand a few times a week, and it keeps serving the last
+copy it has when the Forest Service is unreachable. Trails and areas come at two
+fidelities from one fetch: a copy simplified to about 56 m, the same
+tolerance the wildfire overlay uses, is the default, and API callers can ask
+for the full geometry. Measured 2026-09-30, the trail lines are 5.8 MB at full resolution
+and 1.4 MB simplified. See [API.md](API.md#closure-orders).
+
+The orders are the work of a US government agency, and so in the public
+domain; the feature service carries no license of its own. They are a legal
+notice about a fire, not a trail report. For the order that binds you, read it
+on the Forest Service's site or call the ranger district.
 
 ## Rain radar
 
