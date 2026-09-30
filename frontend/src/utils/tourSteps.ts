@@ -24,6 +24,16 @@ export interface TourStep {
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
+  // The lead card says the four methods after it are options, not a sequence:
+  // a numbered run of cards reads as steps to take in order, and the section
+  // itself never says "or". The sentence is the welcome dialog's (TJ, A of
+  // two options, 2026-09-29).
+  {
+    anchor: 'destinations',
+    title: 'Destinations',
+    text: 'Search by name, draw a polygon, click the map, or paste coordinates. Each method finds what you want in its own way; they all work together.',
+    place: 'panel',
+  },
   {
     anchor: 'search',
     title: 'Search by name',

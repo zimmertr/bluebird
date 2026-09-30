@@ -13,9 +13,13 @@ A first visit shows a welcome dialog and then the app. Readers asked for a guide
 
 ## Decision
 
-The tutorial is a spotlight and a card. Each of its ten steps frames one control the screen already holds and says one or two sentences about it, verbatim from the approved list. Steps move in about 200 ms. It fetches nothing, types nothing, runs no analysis, and ending it changes nothing in the app. It is voluntary: a secondary button on the welcome dialog and a `Tutorial` link in the panel footer. A control marks itself with `data-tour`, and a step whose control is not on the screen is skipped, so the same tour runs over an empty app and over a report.
+The tutorial is a spotlight and a card. Each of its eleven steps frames one control or one section the screen already holds and says one or two sentences about it, verbatim from the approved list. Steps move in about 200 ms. It fetches nothing, types nothing, runs no analysis, and ending it changes nothing in the app. It is voluntary: a secondary button on the welcome dialog and a `Tutorial` link in the panel footer. A control marks itself with `data-tour`, and a step whose control is not on the screen is skipped, so the same tour runs over an empty app and over a report.
+
+The first card frames the Destinations section and says, in the welcome dialog's sentence, that its four methods are options that work together. Without it the four cards that follow read as steps to take in order.
 
 ## Alternatives rejected
+
+- One Destinations card instead of five: shorter, but the tour then never points at the search box or the map, the two controls a new reader most often misses.
 
 - An acted demo on a sandboxed app copy (PR #538): slow, heavy, and it explained the app by doing it for the reader rather than showing where things are.
 - A tour library (Driver.js): the app already has the surfaces, the layer and the keys; the overlay is under 200 lines without one.
