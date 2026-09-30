@@ -270,6 +270,9 @@ function castPoints(demo: DemoData): Point[] {
 
 // The flight to the ring's corners is short: the map is already over them.
 const RING_FIT_MS = 800
+// About the height of the demo's forecast popup, which lists its few columns:
+// measured 2026-09-29 at 250px on a desktop.
+const POPUP_ROOM_PX = 260
 
 export const ACTIONS: Readonly<Record<string, Action>> = {
   async search(stage) {
@@ -473,16 +476,23 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
   async row(stage) {
     const center = await until(stage, () => firstRowButton(stage))
     stage.light(() => [rowCells(center.closest('tr'))])
-    await press(stage, center)
-    stage.pointer.hide()
-    // The map flies to the row while the results fold, and the popup it opens
-    // is lit once it stands in the free map, not chased on the way.
-    stage.light(() => [stage.freeMap()])
-    const handle = stage.handle()
-    if (!handle.resultsCollapsed) handle.toggleCollapsed()
-    await until(stage, () => mapPopup(stage), 3000)
-    await sleep(stage, 100)
-    await mapSettled(stage)
+    // The flight lands the place low in the free map, so the popup that opens
+    // above it stands clear of the card on the way and needs no pan after.
+    stage.reservePopup(POPUP_ROOM_PX)
+    try {
+      await press(stage, center)
+      stage.pointer.hide()
+      // The map flies to the row while the results fold, and the popup it
+      // opens is lit once it stands, not chased on the way.
+      stage.light(() => [stage.freeMap()])
+      const handle = stage.handle()
+      if (!handle.resultsCollapsed) handle.toggleCollapsed()
+      await until(stage, () => mapPopup(stage), 3000)
+      await sleep(stage, 100)
+      await mapSettled(stage)
+    } finally {
+      stage.reservePopup(0)
+    }
     await fitPopup(stage, () => mapPopup(stage))
   },
 }

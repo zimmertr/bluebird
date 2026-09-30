@@ -20,6 +20,7 @@ function stageOver(root: HTMLElement, readerRoot: HTMLElement, alive = () => tru
     light: () => {},
     card: () => null,
     freeMap: () => null,
+    reservePopup: () => {},
   }
 }
 

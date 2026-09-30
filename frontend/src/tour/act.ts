@@ -36,24 +36,29 @@ export interface Stage {
   card(): Box | null
   /** The part of the map clear of the card, where a map step acts. */
   freeMap(): Box | null
+  /**
+   * Keeps `px` at the top of the free map out of a flight's reach, so a place
+   * whose popup opens above it lands low enough for the popup; 0 lets it go.
+   */
+  reservePopup(px: number): void
 }
 
 // The pace, where motion is welcome. Slow enough to follow a pointer across
 // the screen and see what it pressed before the screen answers.
 export const PACE = {
   /** The shortest glide; a longer one takes longer, never faster. */
-  glideMinMs: 700,
+  glideMinMs: 450,
   /** The pointer's top speed, midway through a glide that eases in and out. */
   glidePeakPxPerS: 1000,
   /** A panel's scroll, at least, and at most. */
   scrollMinMs: 300,
   scrollMaxMs: 600,
   /** Before a press, once the pointer has arrived, and again after it. */
-  pressPauseMs: 500,
+  pressPauseMs: 400,
   /** From the press's ring to the click, and the change it makes. */
-  pressRingMs: 150,
-  typeMs: 110,
-  flightMs: 2000,
+  pressRingMs: 120,
+  typeMs: 80,
+  flightMs: 1600,
   /** After a step that finished by itself, before the next card. */
   holdMs: 600,
   /** The same, where the light moved onto what the step changed. */

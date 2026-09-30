@@ -304,8 +304,14 @@ export function runTour(host: TourHost): void {
   function freeNow(): Box | null {
     const card = cardBox()
     const map = mapBox()
-    return card && map && place ? freeMap(card, map, place.edge, coveredTop(), held()) : null
+    if (!card || !map || !place) return null
+    const free = freeMap(card, map, place.edge, coveredTop(), held())
+    // Never more than two thirds of it, so the place still has room to land.
+    const room = Math.min(popupRoom, ((free.bottom - free.top) * 2) / 3)
+    return { ...free, top: free.top + room }
   }
+  // Set while a flight carries a place whose popup opens above it.
+  let popupRoom = 0
 
   function render() {
     chromeRoot.render(
@@ -392,6 +398,9 @@ export function runTour(host: TourHost): void {
       },
       card: cardBox,
       freeMap: freeNow,
+      reservePopup: (px) => {
+        popupRoom = px
+      },
     }
   }
 
