@@ -45,9 +45,12 @@ const SUMMITS: Summit[] = [
 ]
 
 export function demoReport(now = Date.now()): DemoReport {
-  // Two days out, so the window is inside every model's reach and reads as a
-  // plan rather than a record.
-  const startMs = Math.floor(now / HOUR_MS) * HOUR_MS + 2 * 24 * HOUR_MS + 6 * HOUR_MS
+  // Two days out, 6 AM to 6 PM local, so the window is inside every model's
+  // reach and reads as a plan rather than a record.
+  const start = new Date(now)
+  start.setDate(start.getDate() + 2)
+  start.setHours(6, 0, 0, 0)
+  const startMs = start.getTime()
   const endMs = startMs + (HOURS - 1) * HOUR_MS
   const times = Array.from({ length: HOURS }, (_, i) => startMs + i * HOUR_MS)
 

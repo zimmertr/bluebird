@@ -54,16 +54,17 @@ describe('the union', () => {
 })
 
 describe('the card', () => {
-  it('hangs below a control near the top, centred on it', () => {
-    const light = { top: 100, left: 400, width: 100, height: 40 }
-    expect(placeCard(light, card, viewport)).toEqual({ top: 140 + CARD_GAP, left: 450 - 160 })
+  it('stands to the right of a panel section, level with its middle', () => {
+    const light = { top: 100, left: 0, width: 360, height: 300 }
+    expect(placeCard(light, card, viewport)).toEqual({ top: 250 - 80, left: 360 + CARD_GAP })
   })
 
-  it('moves to the right when there is no room below', () => {
-    const light = { top: 700, left: 100, width: 100, height: 60 }
-    const at = placeCard(light, card, viewport)
-    expect(at.left).toBe(200 + CARD_GAP)
-    expect(at.top).toBe(viewport.height - card.height - VIEWPORT_MARGIN)
+  it('hangs below a control near the top right edge, centred on it', () => {
+    const light = { top: 100, left: 1000, width: 100, height: 40 }
+    expect(placeCard(light, card, viewport)).toEqual({
+      top: 140 + CARD_GAP,
+      left: viewport.width - card.width - VIEWPORT_MARGIN,
+    })
   })
 
   it('rises above a control at the bottom right', () => {

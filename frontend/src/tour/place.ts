@@ -1,8 +1,10 @@
 /**
  * Where the tutorial card stands, as arithmetic over rectangles (#536). Pure,
  * so the node suite proves the flips without a page: `Tour.tsx` measures and
- * this decides. The card prefers to hang below its target, then to its right,
- * then above, then to its left, taking the first side with room for it. A
+ * this decides. The card prefers the right of its target, then below, then
+ * above, then the left, taking the first side with room for it. Right first
+ * because every panel section has the map beside it, and a card standing on
+ * the map hides no control, where one hanging below covers the next section. A
  * target too big for any side (the map) gets the card inside its bottom edge.
  * Every answer is clamped inside the viewport margin, so a card never leaves
  * the screen.
@@ -70,11 +72,11 @@ export function placeCard(light: Box, card: Size, viewport: Size): { top: number
   const centredLeft = clamp(light.left + light.width / 2 - card.width / 2, m, maxLeft)
   const centredTop = clamp(light.top + light.height / 2 - card.height / 2, m, maxTop)
 
-  const below = light.top + light.height + CARD_GAP
-  if (below + card.height + m <= viewport.height) return { top: below, left: centredLeft }
-
   const right = light.left + light.width + CARD_GAP
   if (right + card.width + m <= viewport.width) return { top: centredTop, left: right }
+
+  const below = light.top + light.height + CARD_GAP
+  if (below + card.height + m <= viewport.height) return { top: below, left: centredLeft }
 
   const above = light.top - CARD_GAP - card.height
   if (above >= m) return { top: above, left: centredLeft }
