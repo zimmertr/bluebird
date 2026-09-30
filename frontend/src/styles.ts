@@ -157,6 +157,16 @@ export const PROSE = {
  */
 export const LINK = 'text-slate-300 hover:text-sky-400 underline'
 export const LINK_ACTION = 'text-sky-400 hover:text-sky-300 hover:underline'
+/**
+ * A link that cannot answer right now, said through `aria-disabled` because
+ * an anchor has no `disabled` of its own: the footer's Tutorial while a draw
+ * or a run is under way (#536). `DISABLED`'s 40 percent and cursor, spelled
+ * on the aria variant, so an inert link and a disabled button read as one
+ * state. Colourless for the same reason `DISABLED` is, and it keeps the
+ * underline, because a link that loses it stops looking like a link rather
+ * than like one that is waiting.
+ */
+export const LINK_INERT = 'aria-disabled:opacity-40 aria-disabled:cursor-not-allowed'
 
 /**
  * Three radii, down from six spellings.
@@ -2129,5 +2139,8 @@ export const TOUR = {
    * transition made the spotlight trail its control whenever the layout moved
    * for another reason, such as the preview banner wrapping on a resize.
    */
-  motion: 'transition-all duration-200',
+  // `motion-reduce:` drops the transition where the reader asked the system
+  // for less motion; the panel's smooth scroll asks the same question through
+  // `prefersReducedMotion`, and MapLibre's camera moves answer it themselves.
+  motion: 'transition-all duration-200 motion-reduce:transition-none',
 }

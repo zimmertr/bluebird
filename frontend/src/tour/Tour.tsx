@@ -9,6 +9,7 @@ import {
   TEXT,
   TOUR,
 } from '../styles'
+import { prefersReducedMotion } from '../utils/motion'
 import { anchorSelector, type TourStep } from '../utils/tourSteps'
 import {
   type Box,
@@ -113,7 +114,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // the page is told about, and once a frame for the moves it is not.
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(anchorSelector(step.anchor))
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
+    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
     window.addEventListener('resize', measure)
     document.addEventListener('scroll', measure, true)
     let frame = 0

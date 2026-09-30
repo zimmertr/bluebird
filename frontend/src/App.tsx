@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -10,7 +12,14 @@ import AppDrawer from './components/AppDrawer'
 import MapStage from './components/MapStage'
 import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
-import Tour from './tour/Tour'
+
+// The tutorial's overlay is a chunk of its own, fetched on the first press
+// (#536): most readers never open it, and with it in the main bundle the cold
+// load carried 5.4 KB of gzip for a card nobody had asked for. The state hook
+// stays in the main bundle, because the footer link and the welcome dialog
+// need `start` before any chunk is asked for; its demonstration report is
+// loaded the same way, when its step opens.
+const Tour = lazy(() => import('./tour/Tour'))
 import type { DestinationResult } from './types'
 
 // Hoisted, so the fire check reads one empty list while the tutorial's
@@ -148,6 +157,7 @@ export default function App() {
     closeDrawer,
   })
   const {
+    drawing,
     drawPointCount,
     finishDrawing,
   } = drawMode
@@ -164,13 +174,6 @@ export default function App() {
     dismissWelcome()
     tour.start()
   }
-  const startTour = tour.start
-  useEffect(() => {
-    if (!openedAtTutorial.current) return
-    openedAtTutorial.current = false
-    setWelcomed()
-    startTour()
-  }, [startTour])
 
   const analysis = useAnalyze(
     caps.maxDestinations,
@@ -427,19 +430,38 @@ export default function App() {
   })
   const { layout, tableView } = resultsView
 
+  // The tour waits while a polygon is being drawn or a run is in flight: its
+  // first card frames the Destinations section, which mid-draw shows Cancel
+  // and Clear in place of its controls, and a run that lands under the tour
+  // would redraw the report the demonstration stands in for. Both ways in
+  // are inert meanwhile; a page opened at /tutorial with `analyze=1` starts
+  // once its run has settled.
+  const tourWaits = drawing || loading
+  const startTour = tour.start
+  useEffect(() => {
+    if (!openedAtTutorial.current || tourWaits) return
+    openedAtTutorial.current = false
+    setWelcomed()
+    startTour()
+  }, [startTour, tourWaits])
+
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-      {showWelcome && <WelcomeModal onDismiss={dismissWelcome} onTutorial={startTourFromWelcome} />}
+      {showWelcome && (
+        <WelcomeModal onDismiss={dismissWelcome} onTutorial={startTourFromWelcome} tutorialWaits={tourWaits} />
+      )}
       {tour.index !== null && (
-        <Tour
-          steps={tour.steps}
-          index={tour.index}
-          onNext={tour.next}
-          onPrev={tour.prev}
-          onEnd={tour.end}
-        />
+        <Suspense fallback={null}>
+          <Tour
+            steps={tour.steps}
+            index={tour.index}
+            onNext={tour.next}
+            onPrev={tour.prev}
+            onEnd={tour.end}
+          />
+        </Suspense>
       )}
       {layout.isDragging && (
         <div className={`fixed inset-0 ${LAYER.modal} cursor-ns-resize touch-none`} />
@@ -466,6 +488,7 @@ export default function App() {
         refusal={refusal}
         onRetry={retry}
         onTutorial={tour.start}
+        tutorialWaits={tourWaits}
         response={response}
         results={results}
         fireStatus={fire.status}

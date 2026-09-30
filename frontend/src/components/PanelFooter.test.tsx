@@ -102,6 +102,15 @@ describe('PanelFooter', () => {
     expect(onTutorial).toHaveBeenCalledOnce()
   })
 
+  it('answers no click on the tour link while it waits, and says so', async () => {
+    const onTutorial = vi.fn()
+    const { user } = render(<PanelFooter {...props({ onTutorial, tutorialWaits: true })} />)
+    const link = screen.getByRole('link', { name: 'Tutorial' })
+    expect(link.getAttribute('aria-disabled')).toBe('true')
+    await user.click(link)
+    expect(onTutorial).not.toHaveBeenCalled()
+  })
+
   it('links the two document pages in a new tab', () => {
     render(<PanelFooter {...props()} />)
     for (const [name, href] of [

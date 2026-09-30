@@ -24,6 +24,11 @@ describe('the tutorial report', () => {
       expect(row.series?.aqi).toHaveLength(n)
       expect(row.series?.precip_in).toHaveLength(n)
       expect(row.aqi_max).not.toBeNull()
+      // No default column reads N/A in the demonstration (TJ, 2026-09-30).
+      expect(row.freeze_min_ft).not.toBeNull()
+      expect(row.freeze_max_ft).not.toBeNull()
+      expect(row.freeze_avg_ft).not.toBeNull()
+      expect(row.snow_depth_in).not.toBeNull()
       expect(row.elevation_ft).not.toBeNull()
     }
   })

@@ -1,7 +1,7 @@
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
 import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
-import { demoReport, type DemoReport } from './demoReport'
+import type { DemoReport } from './demoReport'
 import { cardMode } from './place'
 
 interface Args {
@@ -119,9 +119,24 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
 
   // One report per run, built when the results step opens and kept through
   // the marker step that follows it, since that step points at one of its
-  // markers; dropped when either is left.
+  // markers; dropped when either is left. The builder is a chunk of its own,
+  // fetched here rather than imported, so the fixtures it is made from stay
+  // out of the main bundle with the overlay (`App.tsx`).
   const showingResults = step?.reveal === 'results' || step?.reveal === 'marker'
-  const demo: DemoReport | null = useMemo(() => (showingResults ? demoReport() : null), [showingResults])
+  const [demo, setDemo] = useState<DemoReport | null>(null)
+  useEffect(() => {
+    if (!showingResults) {
+      setDemo(null)
+      return
+    }
+    let current = true
+    void import('./demoReport').then(({ demoReport }) => {
+      if (current) setDemo(demoReport())
+    })
+    return () => {
+      current = false
+    }
+  }, [showingResults])
 
   // The marker step cuts to the first demonstration row and opens its popup,
   // the same framing a click on its rank in the table makes but with no

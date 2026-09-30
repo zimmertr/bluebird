@@ -16,6 +16,8 @@ interface Props {
   onDismiss: () => void
   /** Dismiss, then open the guided tutorial (#536). */
   onTutorial: () => void
+  /** The tour cannot start now (a draw or a run is under way), so the offer is disabled. */
+  tutorialWaits?: boolean
 }
 
 // Five steps walking the panel top to bottom, then the Analyze button and what
@@ -34,7 +36,7 @@ const STEPS: [string, string][] = [
   ['Repeat', 'Adjust any control to refine your window. Changing destinations, the forecast window, or the model needs a new Analyze; everything else updates live.'],
 ]
 
-export default function WelcomeModal({ onDismiss, onTutorial }: Props) {
+export default function WelcomeModal({ onDismiss, onTutorial, tutorialWaits = false }: Props) {
   const panelRef = useDialog(onDismiss)
   return (
     <div className={`fixed inset-0 ${LAYER.modal} flex items-center justify-center bg-black/60 backdrop-blur-sm p-4`}>
@@ -106,6 +108,7 @@ export default function WelcomeModal({ onDismiss, onTutorial }: Props) {
               already know, so the primary action stays the app itself. */}
           <button
             onClick={onTutorial}
+            disabled={tutorialWaits}
             className={`${BUTTON_SECONDARY} w-full mt-2`}
           >
             Take the tutorial

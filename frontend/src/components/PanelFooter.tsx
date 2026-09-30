@@ -5,6 +5,7 @@ import {
   BUTTON_PRIMARY,
   DISABLED,
   LINK,
+  LINK_INERT,
   NOTICE,
   NOTICE_DIVIDER,
   NOTICE_DISMISS,
@@ -102,6 +103,8 @@ interface Props {
   onRetry: () => void
   /** Open the guided tutorial (#536). */
   onTutorial: () => void
+  /** The tour cannot start now (a draw or a run is under way), so the link is inert. */
+  tutorialWaits?: boolean
   // Every message the panel has to say, in order (`utils/panelMessages.ts`).
   // This file decides only how they are boxed and which are dismissed.
   messages: readonly FooterMessage[]
@@ -118,11 +121,18 @@ export default function PanelFooter({
   onAnalyze,
   onRetry,
   onTutorial,
+  tutorialWaits = false,
   messages,
 }: Props) {
   // A plain click starts the tour over this page; a modified click or a
-  // middle click is the browser's, and opens the path like any link.
+  // middle click is the browser's, and opens the path like any link. While
+  // the tour waits the link answers no click at all, the new-tab ones
+  // included, since the page it would open starts the tour the same way.
   function startTour(e: MouseEvent<HTMLAnchorElement>) {
+    if (tutorialWaits) {
+      e.preventDefault()
+      return
+    }
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
     e.preventDefault()
     onTutorial()
@@ -185,7 +195,12 @@ export default function PanelFooter({
             a new tab like the two beside it; a plain click starts the tour
             over this page instead of reloading it, and the tour writes the
             same path to the address bar (#536). */}
-        <a href={TUTORIAL_PATH} onClick={startTour} className={LINK}>
+        <a
+          href={TUTORIAL_PATH}
+          onClick={startTour}
+          aria-disabled={tutorialWaits || undefined}
+          className={`${LINK} ${LINK_INERT}`}
+        >
           Tutorial
         </a>
         {' · '}
