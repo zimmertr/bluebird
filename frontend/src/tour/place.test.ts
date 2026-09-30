@@ -61,10 +61,7 @@ describe('the card', () => {
 
   it('hangs below a control near the top right edge, centred on it', () => {
     const light = { top: 100, left: 1000, width: 100, height: 40 }
-    expect(placeCard(light, card, viewport)).toEqual({
-      top: 140 + CARD_GAP,
-      left: viewport.width - card.width - VIEWPORT_MARGIN,
-    })
+    expect(placeCard(light, card, viewport)).toEqual({ top: 140 + CARD_GAP, left: 1050 - 160 })
   })
 
   it('rises above a control at the bottom right', () => {
