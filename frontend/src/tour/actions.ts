@@ -3,6 +3,7 @@ import {
   type Stage,
   type Target,
   boxOf,
+  centerOf,
   fitPopup,
   clickMap,
   find,
@@ -273,6 +274,8 @@ const RING_FIT_MS = 800
 // About the height of the demo's forecast popup, which lists its few columns:
 // measured 2026-09-29 at 250px on a desktop.
 const POPUP_ROOM_PX = 260
+// The row's flight, as long as the app's own from a row.
+const ROW_FLIGHT_MS = 800
 
 export const ACTIONS: Readonly<Record<string, Action>> = {
   async search(stage) {
@@ -480,15 +483,35 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     // above it stands clear of the card on the way and needs no pan after.
     stage.reservePopup(POPUP_ROOM_PX)
     try {
-      await press(stage, center)
+      // A press whose flight is taken over the moment it starts, so it is
+      // spelled out here rather than paused after, as `press` does.
+      await reveal(stage, center)
+      await stage.pointer.glide(centerOf(center), stage)
+      await sleep(stage, PACE.pressPauseMs)
+      stage.pointer.press(stage, center)
+      await sleep(stage, PACE.pressRingMs)
+      center.click()
       stage.pointer.hide()
-      // The map flies to the row while the results fold, and the popup it
-      // opens is lit once it stands, not chased on the way.
       stage.light(() => [stage.freeMap()])
+      // The press flies to the row and opens its popup over a map still short
+      // of the whole table, which then folds: that flight would carry the
+      // popup under the card and land it there. It is taken over at once by
+      // one aimed at the map as it stands folded, and the popup, closed for
+      // the flight, opens where the place landed, and is lit there.
       const handle = stage.handle()
+      const map = await until(stage, () => handle.map)
+      const [top] = handle.results
+      map.closePopups()
       if (!handle.resultsCollapsed) handle.toggleCollapsed()
-      await until(stage, () => mapPopup(stage), 3000)
+      await frame(stage)
+      await frame(stage)
+      if (top) map.flyTo(top.longitude, top.latitude, Math.max(map.camera()?.zoom ?? 10, 10), ROW_FLIGHT_MS)
       await sleep(stage, 100)
+      await mapSettled(stage)
+      // Already there, so this opens the popup and moves nothing.
+      if (top) map.focusResult(top)
+      await until(stage, () => mapPopup(stage), 3000)
+      if (top) stage.light(() => [popupAndMarker(stage, top)])
       await mapSettled(stage)
     } finally {
       stage.reservePopup(0)
