@@ -121,6 +121,9 @@ async def test_the_fetch_holds_every_page_of_every_layer():
         if r.url.path.endswith("/1/query")
     )
     assert line_offsets == [("0", False), ("0", True), ("1", False), ("1", True)]
+    # Every page asks for one order, or an offset walk could repeat or skip a
+    # feature at a page edge (review of #552).
+    assert {q["orderByFields"][0] for q in upstream.queries()} == {"OBJECTID"}
 
 
 async def test_the_fetch_asks_each_layer_for_its_own_fields():
@@ -254,6 +257,8 @@ COVERED = {
     "Clarkston WA": (46.42, -117.05),
     "the San Juan Islands": (48.53, -123.01),
     "Crater Lake": (42.94, -122.10),
+    "Huntington OR": (44.35, -117.27),
+    "Halfway OR": (44.88, -117.11),
 }
 
 NOT_COVERED = {
@@ -263,6 +268,11 @@ NOT_COVERED = {
     "Victoria BC": (48.43, -123.37),
     "Boise ID": (43.62, -116.20),
     "Coeur d'Alene ID": (47.68, -116.78),
+    # Along the Brownlee bend, where a straight edge once reached 0.45° into
+    # Idaho (review of #552).
+    "Cambridge ID": (44.57, -116.68),
+    "Midvale ID": (44.47, -116.73),
+    "Weiser ID": (44.25, -116.97),
 }
 
 

@@ -116,6 +116,14 @@ class SnapshotCache[T]:
         async with self._lock:
             if self._snapshot is not None:
                 return self._snapshot
+            # A failed cold fetch sets the same backoff a failed refresh does,
+            # and it has to be honoured here too: without this check every
+            # request during an outage on a pod that never filled became its
+            # own upstream attempt, in series behind the lock, which is the
+            # hammering the backoff exists to stop (review of #552). The
+            # caller answers 503 with the error's own Retry-After instead.
+            if self._last_error is not None and self._clock() < self._fresh_until:
+                raise self._last_error
             await self._refresh_locked()
             if self._snapshot is None:
                 raise self._last_error or UpstreamError(f"{self._label} is unavailable.")

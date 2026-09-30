@@ -130,7 +130,15 @@ async def fetch_pages[T](
     items: list[T] = []
     offset = 0
     for _page in range(max_pages):
-        page_params = {**params, "resultOffset": offset, "resultRecordCount": page_size}
+        # ArcGIS promises no order across pages unless one is asked for, so an
+        # offset walk without `orderByFields` can repeat or skip a feature at a
+        # page edge (review of #552). Every hosted layer has an OBJECTID.
+        page_params = {
+            **params,
+            "orderByFields": "OBJECTID",
+            "resultOffset": offset,
+            "resultRecordCount": page_size,
+        }
         response = await client.get(url, params=page_params)
         response.raise_for_status()
         kept, more, count = await asyncio.to_thread(parse, response.content)

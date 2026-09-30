@@ -28,6 +28,13 @@ AREA = _feature(
     },
     "Eagle Creek",
 )
+AREA_COARSE = _feature(
+    {
+        "type": "Polygon",
+        "coordinates": [[[-122.08, 45.58], [-122.07, 45.58], [-122.07, 45.59], [-122.08, 45.58]]],
+    },
+    "Eagle Creek (coarse)",
+)
 LINE = _feature({"type": "LineString", "coordinates": [[-121.95, 45.60], [-121.90, 45.63]]}, "Trail 440")
 POINT = _feature({"type": "Point", "coordinates": [-121.94, 45.62]}, "Wahtum Lake TH")
 FAR = _feature({"type": "Point", "coordinates": [-120.0, 48.0]}, "Far TH")
@@ -42,8 +49,10 @@ def served(monkeypatch):
 
     snapshot = usfs_closures.Snapshot(
         fetched_at_ms=1_790_000_000_000,
+        # The two fidelities hold different features on purpose, so a test can
+        # tell which copy a `detail` value reached.
         areas_full=stored(AREA),
-        areas_coarse=stored(AREA),
+        areas_coarse=stored(AREA_COARSE),
         trails_full=stored(LINE, POINT, FAR),
         trails_coarse=stored(LINE, POINT, FAR),
     )
@@ -65,7 +74,8 @@ def test_area_returns_the_polygons_in_the_box(served):
     body = response.json()
     assert body["fetched_at"] == 1_790_000_000_000
     assert body["coverage"]["type"] == "MultiPolygon"
-    assert _names(response) == ["Eagle Creek"]
+    # The default fidelity is the coarse copy, which the fixture names apart.
+    assert _names(response) == ["Eagle Creek (coarse)"]
 
 
 def test_trail_returns_the_lines_and_the_closed_sites_in_the_box(served):
@@ -83,9 +93,14 @@ def test_kind_is_required_and_closed(served):
 
 def test_detail_defaults_to_coarse_and_accepts_full(served):
     with TestClient(app) as client:
-        for params in ({}, {"detail": "coarse"}, {"detail": "full"}):
+        for params, expected in (
+            ({}, ["Eagle Creek (coarse)"]),
+            ({"detail": "coarse"}, ["Eagle Creek (coarse)"]),
+            ({"detail": "full"}, ["Eagle Creek"]),
+        ):
             response = client.get("/api/closures", params={"bbox": BOX, "kind": "area", **params})
             assert response.status_code == 200
+            assert _names(response) == expected, params
         response = client.get("/api/closures", params={"bbox": BOX, "kind": "area", "detail": "sketch"})
     assert response.status_code == 422
 

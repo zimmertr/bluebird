@@ -58,7 +58,12 @@ _OREGON_WASHINGTON = [
     [-116.26, 45.6],
     [-116.49, 45.25],
     [-116.70, 44.85],
-    [-116.80, 44.3],
+    # Below Brownlee Dam the river swings west to Farewell Bend (-117.23 at
+    # 44.30) before it turns back east past Nyssa. A straight edge from Hells
+    # Canyon to the meridian took in 0.45° of Idaho here (review of #552), so
+    # the outline follows the bend, 0.2° east of it: Cambridge, Midvale and
+    # Weiser, Idaho, stay outside and Huntington and Halfway, Oregon, inside.
+    [-117.03, 44.30],
     # The Oregon and Idaho line south of the river (-117.03), 0.2° east, to
     # 0.2° south of the Nevada and California line (42.0).
     [-116.83, 43.8],
