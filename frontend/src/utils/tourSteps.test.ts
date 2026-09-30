@@ -10,6 +10,7 @@ import forecastSectionSource from '../components/ForecastSection.tsx?raw'
 import metricsTableSource from '../components/MetricsTable.tsx?raw'
 import panelFooterSource from '../components/PanelFooter.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
+import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
 import welcomeSource from '../components/WelcomeModal.tsx?raw'
 
 const SOURCES: Record<string, string> = {
@@ -21,6 +22,7 @@ const SOURCES: Record<string, string> = {
   'MetricsTable.tsx': metricsTableSource,
   'PanelFooter.tsx': panelFooterSource,
   'LayersPopover.tsx': layersPopoverSource,
+  'ResultsSheet.tsx': resultsSheetSource,
   'WelcomeModal.tsx': welcomeSource,
 }
 
@@ -31,8 +33,8 @@ const occurrences = (anchor: string): string[] =>
   })
 
 describe('the tutorial steps', () => {
-  it('has seven steps, each with a distinct anchor', () => {
-    expect(TOUR_STEPS).toHaveLength(7)
+  it('has six steps, each with a distinct anchor', () => {
+    expect(TOUR_STEPS).toHaveLength(6)
     expect(new Set(TOUR_STEPS.map((s) => s.anchor)).size).toBe(TOUR_STEPS.length)
   })
 
@@ -48,13 +50,24 @@ describe('the tutorial steps', () => {
       expect(step.text).not.toContain('—')
       expect(step.title).not.toMatch(/\b[A-Z][a-z]+ [A-Z]/)
     }
-    expect(TOUR_STEPS.find((s) => s.anchor === 'analyze')?.text).not.toContain('example data')
   })
 
-  it('says the four destination methods once, as options, in one card', () => {
+  it('walks the panel top to bottom, then the map, then the results', () => {
     const anchors = TOUR_STEPS.map((s) => s.anchor)
-    expect(anchors).toEqual(['destinations', 'model', 'calendar', 'metrics', 'analyze', 'layers', 'tutorial'])
+    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'layers', 'results'])
     expect(TOUR_STEPS[0].text).toMatch(/^Provide a list of destinations to compare by .*, or drawing a polygon/)
+  })
+
+  it('names the two steps that bring their own target on screen', () => {
+    const reveals = Object.fromEntries(TOUR_STEPS.map((s) => [s.anchor, s.reveal]))
+    expect(reveals).toEqual({
+      destinations: undefined,
+      forecast: undefined,
+      metrics: undefined,
+      analyze: undefined,
+      layers: 'layers',
+      results: 'results',
+    })
   })
 
   it('names a selector from the anchor attribute', () => {
@@ -71,6 +84,8 @@ describe('the tutorial steps', () => {
   })
 
   it('offers the tour from the welcome dialog and the panel footer', () => {
+    // The footer link is a way in, not a step: a card about the tour itself
+    // was cut with the per-control cards.
     expect(welcomeSource).toContain('Take the tutorial')
     expect(panelFooterSource).toContain('>\n          Tutorial\n')
   })

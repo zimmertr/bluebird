@@ -176,7 +176,7 @@ export default function PanelFooter({
       <p className={`${TEXT.caption} text-center`}>
         {/* A button in link clothes: it opens the tour over this page rather
             than a page of its own, so it has no href to give (#536). */}
-        <button type="button" onClick={onTutorial} className={LINK} data-tour="tutorial">
+        <button type="button" onClick={onTutorial} className={LINK}>
           Tutorial
         </button>
         {' · '}

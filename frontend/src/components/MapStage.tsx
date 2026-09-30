@@ -80,6 +80,8 @@ export interface MapStageProps {
   sidebarOpen: boolean
   /** Reopens the controls panel. */
   onOpenControls: () => void
+  /** The tutorial holds the Layers menu open for its step (#536). */
+  layersForcedOpen: boolean
   /** The panel's Map group is hovered, so the search field wears a ring. */
   searchPointed: boolean
   /** The same hover, so every clickable feature on the map glows. */
@@ -114,6 +116,7 @@ export default function MapStage({
   showResults,
   sidebarOpen,
   onOpenControls,
+  layersForcedOpen,
   searchPointed,
   poisPointed,
   urlSync,
@@ -247,7 +250,12 @@ export default function MapStage({
         sidebarOpen={sidebarOpen}
         onOpenControls={onOpenControls}
       >
-        <LayersPopover overlays={overlays} grid={grid} playerOffered={timeline.playerOffered} />
+        <LayersPopover
+          overlays={overlays}
+          grid={grid}
+          playerOffered={timeline.playerOffered}
+          forcedOpen={layersForcedOpen}
+        />
       </MapButtonColumn>
       {/* The timeline, present exactly while something spans time: radar
           contributes a past axis, a multi-hour report a forecast one, and

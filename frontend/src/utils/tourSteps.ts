@@ -3,16 +3,26 @@
  * and which side of the app it lives on. Pure data, so the suite can prove
  * every anchor is a real control without a page: `tourSteps.test.ts` reads
  * the component sources as text and fails an anchor that appears nowhere, or
- * twice. The copy is TJ's approved list, verbatim; a step that names a
- * control the screen does not hold is skipped when the tour starts, which is
- * why the results steps are not here yet: a first-visit tour runs over an
- * empty app.
+ * twice. The copy is TJ's, verbatim (2026-09-29).
+ *
+ * One card per panel section rather than one per control. A card per control
+ * was built and cut the same day: numbered cards read as steps to take in
+ * order, so four destination methods read as four things to do, and a lead
+ * card saying "or" made the four after it say the list twice.
  */
 
 /** The attribute a component marks its control with. */
 export const TOUR_ATTR = 'data-tour'
 
 export type TourPlace = 'panel' | 'map'
+
+/**
+ * What a step has to bring on screen before it can point at it. `layers`
+ * opens the Layers menu, so the card frames the choices rather than a button.
+ * `results` shows the results sheet over a demonstration report, because a
+ * first-visit tour runs before any analysis and the sheet is otherwise empty.
+ */
+export type TourReveal = 'layers' | 'results'
 
 export interface TourStep {
   /** The `data-tour` value on the target element. */
@@ -21,14 +31,11 @@ export interface TourStep {
   text: string
   /** Which side of a phone's layout holds the target: the drawer or the map. */
   place: TourPlace
+  /** What the step opens first; its anchor is absent until it does. */
+  reveal?: TourReveal
 }
 
 export const TOUR_STEPS: readonly TourStep[] = [
-  // One card for the four methods, framing the whole section. The sentence
-  // is TJ's (2026-09-29): the outcome first, then the four methods as an
-  // "or" list, with the polygon clause saying what it finds because that is
-  // the one method a new reader cannot guess. A card per method was tried
-  // and cut the same day: numbered cards read as steps to take in order.
   {
     anchor: 'destinations',
     title: 'Destinations',
@@ -36,20 +43,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     place: 'panel',
   },
   {
-    anchor: 'model',
-    title: 'Choose a model',
-    text: 'Each weather model covers a different area and reaches a different distance ahead.',
-    place: 'panel',
-  },
-  {
-    anchor: 'calendar',
-    title: 'Pick a window',
-    text: 'Choose the days and hours you plan to be out.',
+    anchor: 'forecast',
+    title: 'Forecast',
+    text: 'Set the weather model and the date and time to forecast. Different models have different strengths and weaknesses.',
     place: 'panel',
   },
   {
     anchor: 'metrics',
-    title: 'Rank and filter',
+    title: 'Metrics',
     text: 'Pick the metric to rank by. Set a lowest or highest value to hide destinations outside it.',
     place: 'panel',
   },
@@ -61,15 +62,17 @@ export const TOUR_STEPS: readonly TourStep[] = [
   },
   {
     anchor: 'layers',
-    title: 'Wildfires and smoke',
-    text: 'Turn on wildfires and smoke to see where the air is bad.',
+    title: 'Layers',
+    text: 'Enable or disable drawing additional information on the map.',
     place: 'map',
+    reveal: 'layers',
   },
   {
-    anchor: 'tutorial',
-    title: 'Tutorial',
-    text: 'Open this tutorial again from here at any time.',
-    place: 'panel',
+    anchor: 'results',
+    title: 'Results',
+    text: 'Every destination is ranked by the metric you chose. Sort by any column, switch to the chart to compare forecasts hour by hour, or download the table as a CSV file.',
+    place: 'map',
+    reveal: 'results',
   },
 ]
 

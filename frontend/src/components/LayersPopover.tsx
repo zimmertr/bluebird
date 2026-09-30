@@ -85,6 +85,8 @@ interface LayersPopoverProps {
   >
   /** Whether anything spans time, so the player row can be ticked. */
   playerOffered: boolean
+  /** The tutorial holds the menu open for its Layers step (#536). */
+  forcedOpen?: boolean
 }
 
 /**
@@ -95,7 +97,7 @@ interface LayersPopoverProps {
  * left column is where the app's own map controls live, which
  * makes the split legible. Left is ours, right is the library's.
  */
-export default function LayersPopover({ overlays, grid, playerOffered }: LayersPopoverProps) {
+export default function LayersPopover({ overlays, grid, playerOffered, forcedOpen = false }: LayersPopoverProps) {
   const {
     showWildfires,
     setShowWildfires,
@@ -126,6 +128,7 @@ export default function LayersPopover({ overlays, grid, playerOffered }: LayersP
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
   const [layersOpen, setLayersOpen] = useState(false)
+  const open = layersOpen || forcedOpen
   const layersRef = useRef<HTMLDivElement>(null)
   // Both ways out of a popover a reader expects: click away, or press Escape.
   // `pointerdown` rather than `click` so a press that starts outside dismisses
@@ -187,12 +190,11 @@ export default function LayersPopover({ overlays, grid, playerOffered }: LayersP
   ]
 
   return (
-    <div ref={layersRef} className="relative">
+    <div ref={layersRef} className="relative" data-tour="layers">
       <button
         onClick={() => setLayersOpen((o) => !o)}
-        aria-expanded={layersOpen}
+        aria-expanded={open}
         className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
-        data-tour="layers"
       >
         <IconLayers />
         Layers
@@ -201,7 +203,7 @@ export default function LayersPopover({ overlays, grid, playerOffered }: LayersP
           as `MAP_EDGE.left`: the popover's offset parent is the column,
           so an inset of its own would be that inset twice and the box
           would hang a step right of the legends it hangs over. */}
-      {layersOpen && (
+      {open && (
         <div className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}>
           {MAP_LAYERS.map((layer) => (
             <Fragment key={layer.key}>

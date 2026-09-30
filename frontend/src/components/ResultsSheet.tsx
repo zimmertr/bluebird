@@ -123,6 +123,7 @@ export default function ResultsSheet({
       {showTable && (
         <div
           ref={sheetRef}
+          data-tour="results"
           className={
             isDesktop
               ? 'flex flex-shrink-0 flex-col bg-slate-800'

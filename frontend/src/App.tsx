@@ -11,6 +11,11 @@ import MapStage from './components/MapStage'
 import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
 import Tour from './tour/Tour'
+import type { DestinationResult } from './types'
+
+// Hoisted, so the fire check reads one empty list while the tutorial's
+// demonstration report is on screen rather than a fresh one per render.
+const NO_ROWS: DestinationResult[] = []
 import { useTour } from './tour/useTour'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
@@ -178,7 +183,15 @@ export default function App() {
   } = analysis
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
-  const timeline = useTimeline({ times: response?.times, analysisSeq, playerShown, showRadar })
+  // While the tutorial's last step is open, the results sheet, the chart and
+  // the markers read a demonstration report instead of the real one (#536).
+  // Everything else — the grid, removals, the URL, the commit cues — keeps
+  // reading the real analysis, so ending the tour leaves nothing behind.
+  const demo = tour.demo
+  const shownResponse = demo?.response ?? response
+  const shownAnalyzed = demo?.analyzed ?? analyzed
+  const shownUniverse = demo?.universe ?? universe
+  const timeline = useTimeline({ times: shownResponse?.times, analysisSeq, playerShown, showRadar })
   const {
     forecastTimes,
     timelineAxes,
@@ -230,13 +243,13 @@ export default function App() {
   }, [destinationNamed])
 
   // What the displayed report is rendered under, and whether it is one hour.
-  const { view, pointSample } = reportView(analyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
+  const { view, pointSample } = reportView(shownAnalyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
   const preview = usePreview()
 
   const report = usePresentedReport({
-    universe,
-    response,
-    analyzed,
+    universe: shownUniverse,
+    response: shownResponse,
+    analyzed: shownAnalyzed,
     analysisSeq,
     arriving,
     liveKnobs,
@@ -294,7 +307,7 @@ export default function App() {
   // knobs re-present rows without re-querying NIFC. (Called here, above the
   // table view, because the wildfire column sorts and renders out of its
   // maps.)
-  const fire = useFireProximity(fireField ?? universe ?? results, fireSeq)
+  const fire = useFireProximity(fireField ?? universe ?? (demo ? NO_ROWS : results), fireSeq)
 
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
@@ -371,8 +384,8 @@ export default function App() {
   // The results sheet's view: its layout, the comparison chart, the table's
   // shape and file, and the table's callbacks (useResultsView).
   const resultsView = useResultsView({
-    showResults,
-    response,
+    showResults: showResults || demo !== null,
+    response: shownResponse,
     results,
     pending,
     detailSort,
@@ -382,7 +395,7 @@ export default function App() {
     analysisSeq,
     sortBy: view.sortBy,
     pointSample,
-    analyzed,
+    analyzed: shownAnalyzed,
     models: caps.forecastModels,
     forecastModel,
     comparedModels,
@@ -461,6 +474,7 @@ export default function App() {
           showResults={showResults}
           sidebarOpen={sidebarOpen}
           onOpenControls={openDrawer}
+          layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}
           poisPointed={poisPointed}
           urlSync={urlSync}
@@ -469,7 +483,7 @@ export default function App() {
 
         <ResultsSheet
           resultsView={resultsView}
-          showResults={showResults}
+          showResults={showResults || demo !== null}
           isDesktop={isDesktop}
           report={report}
           removals={removals}
