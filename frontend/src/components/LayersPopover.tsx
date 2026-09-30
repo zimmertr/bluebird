@@ -165,11 +165,12 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
   // question — what is on the map — and nothing about the report follows it,
   // so it is no more a knob than the overlays beside it.
   const MAP_LAYERS = [
-    // Region 6 alone, and the label says so: outside Oregon and Washington an
-    // empty layer means "not covered" rather than "open".
+    // Three Forest Service regions, and the label says so: outside the eight
+    // western states the area feeds cover, an empty layer means "not covered"
+    // rather than "open" (#551). The trail layer is still Region 6 alone.
     {
       key: 'closedareas',
-      label: 'Area closures (OR/WA)',
+      label: 'Area closures (West)',
       checked: showAreaClosures,
       onChange: setShowAreaClosures,
     },

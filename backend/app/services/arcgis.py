@@ -1,7 +1,7 @@
 """What every ArcGIS feature service answers the same way, read once.
 
 Two overlays fetch from ArcGIS Online: NIFC's wildfire perimeters (``nifc.py``)
-and the Forest Service's Region 6 closure orders (``usfs_closures.py``). The
+and the Forest Service's closure orders (``usfs_closures.py``). The
 services differ in what they hold and share three habits, each of which has
 already cost an investigation when it was read wrong:
 

@@ -97,8 +97,8 @@ export function useClosureProximity(
         const areas = await fetchClosures(bbox, 'area', 'coarse', ac.signal)
         if (cancelled) return
         // Which rows the feed cannot see, from the coverage the server
-        // publishes beside the data: outside Oregon and Washington an empty
-        // answer is "not covered", not "open", and the cell says N/A.
+        // publishes beside the data: outside the area feeds' eight states an
+        // empty answer is "not covered", not "open", and the cell says N/A.
         const uncovered = uncoveredKeys(points, areas.coverage)
         const next = new Map<string, ClosureWarning>()
         for (const p of points) {

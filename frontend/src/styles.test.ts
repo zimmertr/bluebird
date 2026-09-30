@@ -373,14 +373,15 @@ describe('every component', () => {
     // place this panel explains itself. The zero is pinned like every count
     // above — a tooltip coming BACK here is as much a decision as one leaving.
     './components/ModelPicker.tsx': 0,
-    // Three cells carry one each. The Wildfire (mi) cell: the fire's name on a
+    // Three cells carry four. The Wildfire (mi) cell: the fire's name on a
     // warned row, or which of its two causes an N/A carries (TJ, PR #275
-    // review). The Closure cell, the same three notes for the closure check
-    // (TJ, 2026-09-30, approved with the column in #550). And the
-    // freezing-level cell: why it reads N/A, which is the forecast model
-    // rather than the weather (TJ, 2026-09-12, asked for with the metric
-    // itself in #295).
-    './components/ResultsTableRow.tsx': 3,
+    // review). The Closure cell, two: the same three notes for the closure
+    // check (TJ, 2026-09-30, approved with the column in #550), and the
+    // order's whole title on a linked row, because the cell clips a long one
+    // (TJ, 2026-09-30, "clip and ellipses", #551). And the freezing-level
+    // cell: why it reads N/A, which is the forecast model rather than the
+    // weather (TJ, 2026-09-12, asked for with the metric itself in #295).
+    './components/ResultsTableRow.tsx': 4,
   }
 
   it.each(Object.entries(sources))('%s carries only its approved tooltips', (path, source) => {
@@ -1718,6 +1719,16 @@ describe('the results table cell mark', () => {
     const markPx = Number(STYLES.TABLE.mark.match(/text-\[(\d+)px\]/)![1])
     expect(TEXT.control.split(' ')).toContain('text-xs')
     expect(markPx).toBeLessThan(12)
+  })
+
+  // The Closure cell's cap (#551). A clamp that let the text overflow would
+  // widen the column anyway, and a block-level one would not clamp what the
+  // column asks of auto table layout, so the three parts are pinned together.
+  it('clips a long order title at a cap the column defends', () => {
+    const parts = STYLES.TABLE.clip.split(' ')
+    expect(parts).toContain('truncate')
+    expect(parts).toContain('inline-block')
+    expect(stepPx(STYLES.TABLE.clip, 'max-w')).toBe(256)
   })
 })
 

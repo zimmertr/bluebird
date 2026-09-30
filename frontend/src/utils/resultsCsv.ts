@@ -321,7 +321,7 @@ export interface CsvOptions {
    * may put a column in the file (#550).
    */
   closureWarnings?: ReadonlyMap<string, ClosureWarning> | null
-  /** Rows outside the closure feed's Oregon and Washington coverage, by geoKey. */
+  /** Rows outside the area closure feeds' eight-state coverage, by geoKey. */
   closureUncovered?: ReadonlySet<string>
   /**
    * What the Model column reads for a row no comparison tagged: the model the

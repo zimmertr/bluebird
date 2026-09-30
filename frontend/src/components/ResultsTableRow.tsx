@@ -218,6 +218,9 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Open ${warning.name} on the US Forest Service site. Opens in a new tab.`}
+        // The whole title on hover: the cell clips a long one (TABLE.clip),
+        // and the link is the only element a pointer can rest on.
+        title={warning.name}
         className="hover:underline cursor-pointer"
       >
         {text}
@@ -231,6 +234,11 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         {text}
       </span>
     )
+  }
+  // A named order is capped and clipped while the column is unsized; a width
+  // the reader chose is honoured by sized() instead (TABLE.clip says why).
+  if (warning && ctx.widths[colKey] === undefined) {
+    body = <span className={TABLE.clip}>{body}</span>
   }
   return <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
 }

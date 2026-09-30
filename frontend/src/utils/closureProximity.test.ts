@@ -90,7 +90,7 @@ describe('closure notes', () => {
   })
 
   it('pins the approved N/A hover sentences', () => {
-    expect(CLOSURE_UNCOVERED_NOTE).toBe('Forest Service closure data is only available in Oregon and Washington')
+    expect(CLOSURE_UNCOVERED_NOTE).toBe('Forest Service closure data is only available in Arizona, Idaho, Nevada, New Mexico, Oregon, Utah, Washington and Wyoming')
     expect(CLOSURE_UNAVAILABLE_NOTE).toBe('The Forest Service is unreachable, so closure data is unavailable.')
   })
 })

@@ -191,7 +191,7 @@ again. Each of the six that draw somebody else's data is credited in its own sec
 
 | Layer | What it draws | Coverage |
 |---|---|---|
-| **Area closures (OR/WA)** | Ground closed by a Forest Service fire closure order, in fuchsia | Oregon and Washington |
+| **Area closures (West)** | Ground closed by a Forest Service closure order, in fuchsia | Oregon, Washington, Arizona, New Mexico, Utah, Nevada, southern Idaho and western Wyoming ([DATA.md](DATA.md#closures)) |
 | **Trail closures (OR/WA)** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
@@ -212,9 +212,9 @@ Hovering a closure names its order, the national forest, the trail and its
 number on a closed trail, and the dates the order runs when it states both, with
 a link to the order where the Forest Service publishes one. The status is the
 Forest Service's own: Bluebird Forecast shows what the order says and does not
-judge whether it is still in force. Both layers cover Oregon and Washington
-alone, so an empty map elsewhere means the region is not covered, not that
-every trail is open.
+judge whether it is still in force. The trail layer covers Oregon and
+Washington alone, and the area layer the eight states in the table, so an empty
+map elsewhere means the region is not covered, not that every trail is open.
 
 Clicking a perimeter names the fire and links to it on NIFC's live map; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
@@ -468,8 +468,8 @@ destination stands inside an active US Forest Service area closure, a dash
 where the check ran and cleared it, and `N/A` where it has no answer. A warned
 cell links to the order on the Forest Service's site when the order has a page,
 and otherwise hovering it says which closure it is. Hovering an `N/A` says
-which of its two causes applies: the destination is outside Oregon and
-Washington, the only states the closure data covers, or the Forest Service is
+which of its two causes applies: the destination is outside the eight western
+states the closure data covers, or the Forest Service is
 unreachable and the whole check failed. The check is inside or outside, with no
 distance: a destination next to a closure is open
 ([DATA.md](DATA.md#closures)).

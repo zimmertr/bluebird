@@ -158,8 +158,9 @@ _TAGS = [
     {
         "name": "closures",
         "description": (
-            "Fire closure orders for Oregon and Washington, cached from the US "
-            "Forest Service's Region 6: closed areas, trails, roads and sites. "
+            "Closure orders cached from three US Forest Service regions: closed "
+            "areas from Regions 3, 4 and 6, and closed trails, roads and sites "
+            "from Region 6 (Oregon and Washington). "
             "Served from this instance's snapshot rather than proxied per "
             "request, because the upstream quota belongs to an ArcGIS "
             "organization and is shared with every other consumer."

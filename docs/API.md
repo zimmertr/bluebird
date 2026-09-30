@@ -220,7 +220,7 @@ meant to prevent.
 | `GET /api/geocode` | Place lookup by name, proxied to Nominatim. |
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
-| `GET /api/closures` | Forest Service fire closure orders for Oregon and Washington in a bounding box: closed areas, or closed trails, roads and sites. |
+| `GET /api/closures` | Forest Service closure orders in a bounding box: closed areas in Regions 3, 4 and 6, or closed trails, roads and sites in Region 6 (Oregon and Washington). |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -409,11 +409,11 @@ is addressed.
 
 ### Closure orders
 
-`GET /api/closures` returns the US Forest Service's active fire closure orders
-for Oregon and Washington that intersect a bounding box. `kind` is required and
-picks the question: `area` returns area closures as polygons, and `trail`
-returns closed trails and roads as lines together with closed trailheads and
-sites as points.
+`GET /api/closures` returns the US Forest Service's active closure orders that
+intersect a bounding box. `kind` is required and picks the question: `area`
+returns area closures as polygons from Regions 3, 4 and 6, and `trail` returns
+closed trails and roads as lines together with closed trailheads and sites as
+points, from Region 6 alone.
 
 ```bash
 curl -s "https://bluebirdforecast.com/api/closures?bbox=-122.2,45.5,-121.8,45.7&kind=area"
@@ -439,7 +439,9 @@ curl -s "https://bluebirdforecast.com/api/closures?bbox=-122.2,45.5,-121.8,45.7&
         "ClosureStartDate": 1751907600000,
         "ClosureEndDate": 1783443600000,
         "ClosureURLlink": "https://www.fs.usda.gov/r06/mthood/alerts/eagle-creek-fire-area-closures-forest-order",
-        "GIS_Acres": null
+        "GIS_Acres": null,
+        "ClosureSource": "R06",
+        "ClosureType": null
       },
       "geometry": { "type": "Polygon", "coordinates": [[[-122.07488, 45.58972], "…"]] }
     }
@@ -453,31 +455,51 @@ simplifies lines and polygons to roughly 56 metres, the tolerance the wildfire
 endpoint uses, and `full` returns them as the Forest Service drew them. Points
 are the same at both.
 
-The properties are the Forest Service's own, passed through as it published
-them, leading spaces included. Every feature carries the order's name, number
-and description, its national forest and district, the fire it answers, and
+The properties are Region 6's, passed through as it published them, leading
+spaces included. Every feature carries the order's name, number and
+description, its national forest and district, the fire it answers, and
 `ClosureStartDate` and `ClosureEndDate` in epoch milliseconds. Lines add
 `RouteName` and `RouteNum`, and polygons add `GIS_Acres`. Several fields are
 often null: `ClosureURLlink` is missing on most trail segments, and some
 polygons carry no acreage.
 
-An order is returned when the Forest Service marks it active, and this service
-trusts that status as sent. The status is maintained by hand, so an active
+Two properties are this service's own, and every feature carries them.
+`ClosureSource` is the region that published the order: `R03`, `R04` or
+`R06`. `ClosureType` is that region's own type for the order, such as
+`Safety Closure`, and is null on Region 6, which publishes fire closures alone.
+
+Regions 3 and 4 publish under a schema of their own, and this service maps each
+order onto Region 6's names so one feature shape serves all three. Their
+`District` and `FireName` are always null. They publish every standing forest
+order rather than closures, so an order from them is returned only when it
+closes an area to entry: its legal citation names 36 CFR 261.52(e) or
+261.53(e), or its name or description says entry is prohibited in a sentence
+that names no permit as the way in. They carry no
+status either, so an order is live when nobody rescinded it and its end date,
+if it has one, is still ahead. See [DATA.md](DATA.md#closures) for the counts
+and the test's limits.
+
+A Region 6 order is returned when the Forest Service marks it active, and this
+service trusts that status as sent. The status is maintained by hand, so an active
 order can carry an end date that is already past. The example above is one:
 its end date is 2026-07-07, and on 2026-09-30 the Forest Service still listed
 it as active. Read the status as the Forest Service's statement, and the order
 itself for the details.
 
 The caching contract is the one perimeters and plumes share: one snapshot of
-the whole region per instance, refreshed on a timer, served **past its refresh
+every region per instance, refreshed on a timer, served **past its refresh
 deadline** when the Forest Service is unreachable, and a `503` only from an
 instance that has never once completed a fetch. `fetched_at` says when this
 instance last fetched; the order's own dates are facts about the order.
 
-Coverage is Oregon and Washington only, which is the Forest Service's Region 6.
-An empty result elsewhere means "not covered", not "nothing closed". The
-`coverage` foreign member states this machine-readably, as a coarse outline of
-the two states biased slightly outward on land. See
+Coverage differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah,
+southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon
+and Washington only. An empty result outside the coverage for its kind means
+"not covered", not "nothing closed". The `coverage` foreign member states this
+machine-readably for the requested `kind`, as coarse outlines biased slightly
+outward on land. When this instance's last fetch from Region 3 or Region 4
+failed, the other regions are still served and the `area` outline leaves the
+failed region out, so an empty answer there still reads as "not covered". See
 [DATA.md](DATA.md#closures).
 
 ### Resolving your own coordinates

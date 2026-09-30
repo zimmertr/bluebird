@@ -56,8 +56,9 @@ services the data comes from, and the software bundled into the shipped image.
   the US government, and so in the public domain under 17 U.S.C. §105; no
   license names Bluebird Forecast's use of it. Credited on the map's snow
   legend whenever snow depth is drawn.
-- [US Forest Service](https://www.fs.usda.gov/): fire closure orders in Oregon
-  and Washington, for the optional closure layers and the closure column. A
+- [US Forest Service](https://www.fs.usda.gov/): closure orders from the Forest
+  Service's Pacific Northwest, Southwestern and Intermountain regions, for the
+  optional closure layers and the closure column. A
   work of the US government, and so in the public domain under 17 U.S.C. §105;
   no license names Bluebird Forecast's use of it. Credited on the map's area and
   trail closure legends whenever closures are drawn.

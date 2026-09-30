@@ -1,4 +1,4 @@
-"""`GET /api/closures`: the Region 6 snapshot, filtered by box and kind (#550).
+"""`GET /api/closures`: the closure snapshot, filtered by box and kind (#550, #551).
 
 Modelled on the wildfire route tests in test_nifc.py. The route shares its
 bbox parser and its cold-cache answer with that route, so these pin that the
@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app import ratelimit
 from app.main import app
-from app.services import usfs_closures
+from app.services import usfs_closures, usfs_coverage
 
 BOX = "-122.2,45.5,-121.8,45.7"
 
@@ -85,6 +85,18 @@ def test_trail_returns_the_lines_and_the_closed_sites_in_the_box(served):
     assert _names(response) == ["Trail 440", "Wahtum Lake TH"]
 
 
+def test_each_kind_answers_its_own_coverage(served):
+    # Only Region 6 publishes trails, so the trail outline is Oregon and
+    # Washington and the area outline adds Regions 3 and 4 (#551).
+    with TestClient(app) as client:
+        area = client.get("/api/closures", params={"bbox": BOX, "kind": "area"}).json()["coverage"]
+        trail = client.get("/api/closures", params={"bbox": BOX, "kind": "trail"}).json()["coverage"]
+    assert area == usfs_coverage.COVERAGE_FOR["area"]
+    assert trail == usfs_coverage.COVERAGE_FOR["trail"]
+    assert len(trail["coordinates"]) == 1
+    assert len(area["coordinates"]) == 5
+
+
 def test_kind_is_required_and_closed(served):
     with TestClient(app) as client:
         assert client.get("/api/closures", params={"bbox": BOX}).status_code == 422
@@ -154,5 +166,5 @@ def test_capabilities_publishes_the_closures_bucket_and_the_source():
     assert {
         "name": "US Forest Service",
         "url": "https://www.fs.usda.gov/",
-        "provides": "Region 6 closure orders behind GET /api/closures",
+        "provides": "Regions 3, 4 and 6 closure orders behind GET /api/closures",
     } in body["data_sources"]

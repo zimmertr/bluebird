@@ -256,7 +256,8 @@ export type WildfireCoverageIsPublished = Assert<
 >
 
 // The same member on the closure snapshot, which the Closure column reads so a
-// destination outside Oregon and Washington reads N/A rather than open (#550).
+// destination outside the area feeds' eight states reads N/A rather than open
+// (#550, #551).
 export type ClosureCoverageIsPublished = Assert<
   Extends<'coverage', keyof Schema['ClosureCollection']>
 >
