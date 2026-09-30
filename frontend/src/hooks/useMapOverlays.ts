@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ShareableState } from '../utils/urlState'
 
 /**
- * The map's overlay switches (#121, #246, #446) and the forecast player's.
+ * The map's overlay switches (#121, #246, #446, #550) and the forecast player's.
  *
  * None of them is a knob: each changes what is drawn over the map and nothing
  * about what was asked for, so no ranking moves and `commitNeeded` does not
@@ -18,6 +18,13 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   // Live, not part of the analyze request. Toggling queries NIFC for the
   // current viewport.
   const [showWildfires, setShowWildfires] = useState(() => restored?.showWildfires ?? false)
+  // The Forest Service closure orders (#550), read from the pod's snapshot
+  // like the fires. Two switches rather than one because the two layers answer
+  // different questions: whether the ground is closed, and whether the trail
+  // to it is. A reader planning a route wants the second without the first
+  // painting the whole district.
+  const [showAreaClosures, setShowAreaClosures] = useState(() => restored?.showAreaClosures ?? false)
+  const [showTrailClosures, setShowTrailClosures] = useState(() => restored?.showTrailClosures ?? false)
   // Radar is raster tiles the browser fetches straight from IEM; smoke is one
   // national GeoJSON from the pod.
   const [showRadar, setShowRadar] = useState(() => restored?.showRadar ?? false)
@@ -44,6 +51,10 @@ export function useMapOverlays(restored: Partial<ShareableState> | null, isDeskt
   return {
     showWildfires,
     setShowWildfires,
+    showAreaClosures,
+    setShowAreaClosures,
+    showTrailClosures,
+    setShowTrailClosures,
     showRadar,
     setShowRadar,
     showSmoke,

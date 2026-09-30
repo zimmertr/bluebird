@@ -182,15 +182,17 @@ The default is 200, sized to sit above the 100-row lists people usually paste so
 
 ## Map layers
 
-Five optional overlays, on the map's own **Layers** button rather than in the
+Seven optional overlays, on the map's own **Layers** button rather than in the
 controls panel: they are the only controls in the app that change what you are
 looking at rather than what you are asking for. All off by default, all live. Switching one on draws it
 immediately and changes nothing about the analysis: an overlay is a picture beside
 the ranking, never an input to it, so none of them ever asks you to press Analyze
-again. Each of the four that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link.
+again. Each of the six that draw somebody else's data is credited in its own section of the map's legend, and each rides in the shared link.
 
 | Layer | What it draws | Coverage |
 |---|---|---|
+| **Area closures (OR/WA only)** | Ground closed by a Forest Service fire closure order, in fuchsia | Oregon and Washington |
+| **Trail closures (OR/WA only)** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
 | **Smoke** | Smoke plumes at three densities, in grey | North America |
@@ -201,10 +203,18 @@ The rows read in alphabetical order, and one of them draws nothing: **Forecast p
 timeline bar at the bottom of the map on and off. It is on by default in a
 desktop-sized window and off on a phone, where the bar is a band across a map the
 report already stands on. It changes nothing about the ranking either, and once
-you have set it, it rides in the shared link like the four above. It goes gray when
+you have set it, it rides in the shared link like the seven above. It goes gray when
 nothing on the map spans time, which is a report of one hour with the rain radar
 off. Every row stays in the list whether or not it applies, so the list is the same
 length every time you open it.
+
+Hovering a closure names its order, the national forest, the trail and its
+number on a closed trail, and the dates the order runs when it states both, with
+a link to the order where the Forest Service publishes one. The status is the
+Forest Service's own: Bluebird Forecast shows what the order says and does not
+judge whether it is still in force. Both layers cover Oregon and Washington
+alone, so an empty map elsewhere means the region is not covered, not that
+every trail is open.
 
 Clicking a perimeter names the fire and links to it on NIFC's live map; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke

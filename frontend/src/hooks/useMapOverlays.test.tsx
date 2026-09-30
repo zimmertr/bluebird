@@ -3,16 +3,23 @@ import { act, renderHook } from '@testing-library/react'
 import { useMapOverlays } from './useMapOverlays'
 
 // Hoisted: a link's restored state is one object for the session.
-const LINK = { showRadar: true, showGrid: true, showPlayer: false }
+const LINK = { showRadar: true, showGrid: true, showPlayer: false, showTrailClosures: true }
 
 describe('useMapOverlays', () => {
   it('starts every overlay off, and restores what a link carried', () => {
     const fresh = renderHook(() => useMapOverlays(null, true)).result.current
-    expect([fresh.showWildfires, fresh.showRadar, fresh.showSmoke, fresh.showSnow, fresh.showGrid]).toEqual([
-      false, false, false, false, false,
-    ])
+    expect([
+      fresh.showWildfires,
+      fresh.showAreaClosures,
+      fresh.showTrailClosures,
+      fresh.showRadar,
+      fresh.showSmoke,
+      fresh.showSnow,
+      fresh.showGrid,
+    ]).toEqual([false, false, false, false, false, false, false])
     const linked = renderHook(() => useMapOverlays(LINK, true)).result.current
     expect([linked.showRadar, linked.showGrid, linked.playerShown]).toEqual([true, true, false])
+    expect([linked.showAreaClosures, linked.showTrailClosures]).toEqual([false, true])
   })
 
   // Null is the device's default: on at a desktop width, off on a phone. A

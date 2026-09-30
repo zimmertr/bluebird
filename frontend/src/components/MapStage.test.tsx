@@ -61,6 +61,8 @@ const GRID = {
 } as unknown as MapStageProps['grid']
 const OVERLAYS = {
   showWildfires: true,
+  showAreaClosures: false,
+  showTrailClosures: true,
   showRadar: false,
   showSmoke: false,
   showSnow: true,
@@ -141,6 +143,8 @@ describe('MapStage', () => {
     expect(got.gridCells).toBe(GRID.grid.cells)
     expect(got.showWildfires).toBe(true)
     expect(got.showSnow).toBe(true)
+    expect(got.showAreaClosures).toBe(false)
+    expect(got.showTrailClosures).toBe(true)
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
   })

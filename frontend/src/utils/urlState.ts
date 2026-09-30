@@ -64,12 +64,14 @@ export interface ShareableState {
   constraints: Constraints
   limit: number
   customCsv: string
-  // The five live map overlays. Persisted so a shared link reproduces the
+  // The seven live map overlays. Persisted so a shared link reproduces the
   // picture, and deliberately not part of the analysis request: an overlay is
   // drawn beside the ranking, never fed into it. That holds for the forecast
   // grid too, even though it is the one whose toggle costs upstream calls —
   // what it spends on is a picture, and the ranking never reads it.
   showWildfires: boolean
+  showAreaClosures: boolean
+  showTrailClosures: boolean
   showRadar: boolean
   showSmoke: boolean
   showSnow: boolean
@@ -80,7 +82,7 @@ export interface ShareableState {
   // off while still carrying a style for it.
   gridStyle: GridStyle
   // Whether the forecast player is on the map, which is NOT the same shape as
-  // the four overlays above: `null` means "whatever this device defaults to"
+  // the overlays above: `null` means "whatever this device defaults to"
   // (on at a desktop width, off on a phone, where the bar costs a third of a
   // short map), and a boolean means the reader has decided. Only a decision is
   // written to the URL, and it is written either way round, so a link can carry
@@ -170,6 +172,8 @@ export function encodeState(
     state.destinationTypes.length !== DEFAULT_TYPES.length ||
     state.includeUnnamedPeaks ||
     state.showWildfires ||
+    state.showAreaClosures ||
+    state.showTrailClosures ||
     state.showRadar ||
     state.showSmoke ||
     state.showSnow ||

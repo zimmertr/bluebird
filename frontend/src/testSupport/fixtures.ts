@@ -8,6 +8,8 @@ import type { WeatherResult } from '../utils/openMeteo'
 import type { CellBox, GridCell } from '../utils/forecastGridLattice'
 import type { FireWarning } from '../utils/fireProximity'
 import type { PendingDestination } from '../utils/customList'
+import type { Feature, Geometry } from 'geojson'
+import type { ClosureProps } from '../utils/closures'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -194,6 +196,43 @@ export function fakeResponse(payload: unknown, status = 200): Response {
   const raw = typeof payload === 'object' && payload !== null && 'raw' in payload
   const body = raw ? String((payload as { raw: unknown }).raw) : JSON.stringify(payload)
   return new Response(body, { status, headers: { 'Content-Type': 'application/json' } })
+}
+
+/**
+ * One closure feature as `GET /api/closures` answers it: a closed trail
+ * segment in the Columbia River Gorge, with the leading space the Forest
+ * Service's own text carries, and both dates. A caller that wants a polygon or
+ * a site passes its own geometry.
+ */
+export function closureFeature(
+  over: Partial<ClosureProps> = {},
+  geometry: Geometry = {
+    type: 'LineString',
+    coordinates: [
+      [-121.9, 45.6],
+      [-121.85, 45.62],
+    ],
+  },
+): Feature<Geometry, ClosureProps> {
+  return {
+    type: 'Feature',
+    geometry,
+    properties: {
+      OBJECTID: 7,
+      ForestUnit: 'Columbia River Gorge NSA',
+      District: null,
+      FireName: 'Probe',
+      ClosureOrderName: ' Probe Fire Closure',
+      ClosureOrderNumber: '06-22-00-26-01',
+      ClosureDescription: null,
+      ClosureStartDate: Date.UTC(2026, 7, 1, 12),
+      ClosureEndDate: Date.UTC(2026, 11, 31, 12),
+      ClosureURLlink: 'https://www.fs.usda.gov/r06/alerts/probe',
+      RouteName: ' Eagle Creek',
+      RouteNum: '440',
+      ...over,
+    },
+  }
 }
 
 /** One destination as `POST /api/destinations` answers it. */

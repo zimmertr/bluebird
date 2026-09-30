@@ -29,6 +29,8 @@ export interface UrlSyncInputs {
   customCsv: string
   /** The map's layer switches. */
   showWildfires: boolean
+  showAreaClosures: boolean
+  showTrailClosures: boolean
   showRadar: boolean
   showSmoke: boolean
   showSnow: boolean
@@ -82,6 +84,8 @@ export function useUrlSync({
   limit,
   customCsv,
   showWildfires,
+  showAreaClosures,
+  showTrailClosures,
   showRadar,
   showSmoke,
   showSnow,
@@ -168,6 +172,8 @@ export function useUrlSync({
         limit,
         customCsv,
         showWildfires,
+        showAreaClosures,
+        showTrailClosures,
         showRadar,
         showSmoke,
         showSnow,
@@ -199,6 +205,8 @@ export function useUrlSync({
     limit,
     customCsv,
     showWildfires,
+    showAreaClosures,
+    showTrailClosures,
     showRadar,
     showSmoke,
     showSnow,

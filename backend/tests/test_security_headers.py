@@ -233,6 +233,7 @@ LINK_ONLY_HOSTS = {
     "opendatacommons.org",
     "openfreemap.org",
     "polyformproject.org",
+    "www.fs.usda.gov",
     "www.nifc.gov",
     "www.nohrsc.noaa.gov",
     "www.openstreetmap.org",

@@ -678,6 +678,19 @@ export const SWATCH_CHIP =
   `text-[9px] font-semibold text-slate-900`
 
 /**
+ * A legend swatch for a layer that draws LINES: a 14px dashed rule with no
+ * fill, the width of {@link SWATCH_CHIP} so it lines up in the same column.
+ *
+ * The closed-trail layer (#550) is a dashed line on the map, and a filled
+ * square beside its label would say "area", which is the other closure layer's
+ * key. Two pixels thick against the map's 2.5, because at 14px long a heavier
+ * rule reads as a bar. The colour is the layer's own, passed in as a value for
+ * `SWATCH_EDGE`'s reason: the border IS the swatch here, and a colour class
+ * beside an inline one would resolve by stylesheet order.
+ */
+export const SWATCH_LINE = 'inline-block w-3.5 flex-shrink-0 border-t-2 border-dashed'
+
+/**
  * A legend key that is a SCALE rather than one colour, drawn as a strip across
  * the box: the snow depth overlay's eleven bands (#446) and, since #454, each
  * of the five ranking metrics' six.

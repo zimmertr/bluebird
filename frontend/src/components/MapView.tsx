@@ -119,6 +119,11 @@ interface Props {
   // table — a clicked point's popup surfaces the same ⚠️ when one applies.
   fireWarnings: Map<string, FireWarning>
   showWildfires: boolean
+  // The Forest Service closure orders (#550), one switch per layer: the closed
+  // ground, and the closed trails, roads and sites. Read from the pod like
+  // the fires, and no more a knob than they are.
+  showAreaClosures: boolean
+  showTrailClosures: boolean
   // The two overlays #121 adds. Radar is raster tiles fetched straight from
   // IEM; smoke is one national GeoJSON from the pod. Both are live map layers
   // rather than analysis inputs, so neither ever touches `commitNeeded`.
@@ -202,6 +207,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       modelFallbackLabel,
       fireWarnings,
       showWildfires,
+      showAreaClosures,
+      showTrailClosures,
       showRadar,
       showSmoke,
       showSnow,
@@ -564,6 +571,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         featuresRef.current?.wildfires.dispose()
+        featuresRef.current?.areaClosures.dispose()
+        featuresRef.current?.trailClosures.dispose()
         featuresRef.current?.smoke.dispose()
         featuresRef.current?.radar.dispose()
         featuresRef.current = null
@@ -641,6 +650,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.wildfires.update({ show: showWildfires })
     }, [showWildfires, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.areaClosures.update({ show: showAreaClosures })
+    }, [showAreaClosures, mapReady])
+
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.trailClosures.update({ show: showTrailClosures })
+    }, [showTrailClosures, mapReady])
 
     useEffect(() => {
       if (mapReady) featuresRef.current?.smoke.update({ show: showSmoke })

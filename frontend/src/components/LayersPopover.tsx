@@ -26,7 +26,7 @@ import {
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
 
-// One row of the Layers popover: a checkbox and what it switches. The four
+// One row of the Layers popover: a checkbox and what it switches. The seven
 // overlays and the forecast player share it, because they are the same kind of
 // choice — about what the map shows, never about what the analysis asks for.
 function layerRow({
@@ -101,6 +101,10 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
   const {
     showWildfires,
     setShowWildfires,
+    showAreaClosures,
+    setShowAreaClosures,
+    showTrailClosures,
+    setShowTrailClosures,
     showRadar,
     setShowRadar,
     showSmoke,
@@ -151,16 +155,24 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
   }, [layersOpen])
 
   // Alphabetical by label, which is the only order a list of unrelated switches
-  // can be scanned in: these five have no ranking between them — no cost, no
+  // can be scanned in: these eight have no ranking between them — no cost, no
   // severity, no dependency — so any other order is one the reader has to
   // learn. The grid's own segment and slider still render under its row,
   // because they are that row's sub-choices rather than list members.
   //
-  // The player is a list member like the other four even though it switches
+  // The player is a list member like the other seven even though it switches
   // something OFF the map rather than a picture onto it: it answers the same
   // question — what is on the map — and nothing about the report follows it,
   // so it is no more a knob than the overlays beside it.
   const MAP_LAYERS = [
+    // Region 6 alone, and the label says so: outside Oregon and Washington an
+    // empty layer means "not covered" rather than "open".
+    {
+      key: 'closedareas',
+      label: 'Area closures (OR/WA only)',
+      checked: showAreaClosures,
+      onChange: setShowAreaClosures,
+    },
     {
       key: 'grid',
       label: 'Forecast grid',
@@ -186,6 +198,12 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
     { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
     { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
     { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
+    {
+      key: 'closedtrails',
+      label: 'Trail closures (OR/WA only)',
+      checked: showTrailClosures,
+      onChange: setShowTrailClosures,
+    },
     { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
   ]
 
