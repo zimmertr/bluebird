@@ -270,13 +270,14 @@ export function useModelCompare({
           latitude: d.latitude,
           longitude: d.longitude,
           elevation_ft: d.elevationFt,
+          // The ranked row's rule, so a place with no elevation is compared at
+          // the height its row was forecast at, and the two share one cache
+          // entry (#545).
+          terrainFallback: d.terrainFallback,
         })),
         window_.startMs,
         endMs,
-        // `terrainElevation` as the analysis sets it, so a destination with no
-        // elevation of its own is compared at the height its ranked row was
-        // forecast at, and the two share one cache entry.
-        { model: id, signal: controller.signal, onPace, windowLimits, terrainElevation: true },
+        { model: id, signal: controller.signal, onPace, windowLimits },
       )
         .then((results) => {
           if (seqRef.current !== seqAtCall) return

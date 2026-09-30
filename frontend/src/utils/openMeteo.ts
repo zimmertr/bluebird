@@ -256,10 +256,33 @@ export interface Coordinate {
   /**
    * The destination's own elevation, when known: with one the aggregates
    * report wind and temperature at that height (issue #257). Without one they
-   * report the 10 m wind and the 2 m temperature, unless the fetch sets
-   * `terrainElevation`, which every fetch of a place now does (#545).
+   * report the 10 m wind and the 2 m temperature, unless `terrainFallback` or
+   * the fetch's `terrainElevation` says to read the terrain height instead.
    */
   elevation_ft?: number | null
+  /**
+   * With no `elevation_ft`, read this place at the terrain height the
+   * response reports for its coordinate rather than at the surface (#545).
+   * Decided per place, by `terrainFallbackFor`, because whether the free air
+   * is the better answer depends on what the place is.
+   */
+  terrainFallback?: boolean
+}
+
+/**
+ * Whether a destination of this type, lacking an elevation of its own, is
+ * better read at the terrain height than at the surface (#545).
+ *
+ * A peak stands above the model's terrain, so the free air interpolated to the
+ * ground's height is closer to what its summit feels than the 10 m wind and
+ * 2 m temperature of the smoothed cell under it. A lake or a trailhead sits ON
+ * that terrain: its surface-layer values are the real near-ground conditions,
+ * and the free air at the same height overstates the wind. `custom` is a
+ * pasted point or a clicked or searched place, which is almost always a peak;
+ * the list does not say, so it takes the peak's side.
+ */
+export function terrainFallbackFor(type: string): boolean {
+  return type === 'peak' || type === 'custom'
 }
 
 export type WeatherResult = (WeatherAggregates & { series: WeatherSeries | null }) | null
@@ -471,22 +494,19 @@ export interface FetchWeatherOptions {
    */
   windowLimits?: WindowLimits
   /**
-   * For coordinates carrying no `elevation_ft` of their own, adjust wind and
-   * temperature to the TERRAIN elevation Open-Meteo reports for the coordinate
-   * (its ~90 m DEM, on every response) instead of falling back to the 10 m wind
-   * and the 2 m temperature. Every fetch of a place sets it: a destination OSM
-   * gave no height (a pasted point it could not match, a clicked peak with no
-   * `ele`, most lakes and trailheads) still stands on real ground, and the
-   * surface values understate what is felt there (#545). The forecast grid was
-   * merely first (#288 review), where painting a volcano's flank with
-   * valley-calm wind under a red summit marker was the confusion it resolved.
-   * A coordinate WITH `elevation_ft` keeps it, because a destination's claimed
-   * height beats the DEM's cell. Nothing writes the terrain height back onto a
-   * row: the table's Elevation column stays what OSM or the caller said.
-   *
-   * It stays an option rather than the rule because it is part of the cache
-   * key (`forecastStore.ts`): an answer at the terrain height and one at the
-   * surface are different answers at the same coordinates.
+   * For EVERY coordinate in the fetch carrying no `elevation_ft` of its own,
+   * adjust wind and temperature to the TERRAIN elevation Open-Meteo reports
+   * for the coordinate (its ~90 m DEM, on every response) instead of falling
+   * back to the 10 m wind and the 2 m temperature. The forecast grid's option
+   * (#288 review): its lattice points are not destinations, but each stands on
+   * real ground, and painting a volcano's flank with valley-calm wind under a
+   * red summit marker was the confusion this resolves. A fetch of destinations
+   * decides the same thing per place instead, through `terrainFallback` on
+   * each coordinate (#545), because a peak and a lake with no elevation want
+   * opposite answers. A coordinate WITH `elevation_ft` keeps it either way,
+   * because a destination's claimed height beats the DEM's cell. Nothing
+   * writes the terrain height back onto a row: the table's Elevation column
+   * stays what OSM or the caller said.
    */
   terrainElevation?: boolean
 }
@@ -641,7 +661,8 @@ export async function fetchWeather(
       const item = joinHours(perSpan.map((items) => items[j]))
       const elevationFt =
         chunk[j].elevation_ft ??
-        (terrainElevation && typeof item.elevation === 'number'
+        ((terrainElevation || chunk[j].terrainFallback === true) &&
+        typeof item.elevation === 'number'
           ? item.elevation / FT_TO_M
           : null)
       const metrics = weatherMetrics(item, startMs, endMs, elevationFt)
@@ -764,7 +785,10 @@ export async function fetchCloud(
       )
       const elevationFt =
         chunk[j].elevation_ft ??
-        (terrainElevation && typeof item.elevation === 'number' ? item.elevation / FT_TO_M : null)
+        ((terrainElevation || chunk[j].terrainFallback === true) &&
+        typeof item.elevation === 'number'
+          ? item.elevation / FT_TO_M
+          : null)
       const metrics = cloudMetrics(item, startMs, endMs, elevationFt)
       if (metrics === null) return null
       return { ...metrics, series: cloudSeries(item, startMs, endMs, elevationFt) }

@@ -720,55 +720,69 @@ describe('runClientAnalysis', () => {
     })
   })
 
-  it('forecasts a destination with no elevation at the terrain height the response reports (#545)', async () => {
+  it('reads a peak with no elevation at terrain height and a lake at the surface (#545)', async () => {
     // Every location answers from terrain 2438.4 m (8,000 ft), between the 850
-    // and 700 hPa levels, so a row with no elevation of its own reads the wind
-    // interpolated there: 10 + 20 x (981.4 / 1555) = 22.6 mph, where the 10 m
-    // wind is 6.0. A row that carries an elevation keeps it: 1,000 ft is under
-    // the lowest level, so its wind stays at 6.0 whatever the terrain says.
+    // and 700 hPa levels. A peak or pasted point with no elevation of its own
+    // reads the wind interpolated there: 10 + 20 x (981.4 / 1555) = 22.6 mph.
+    // A lake or trailhead with none keeps the 10 m wind, 6.0, and no cloud
+    // base, because it sits on the terrain the surface values describe. A row
+    // that carries an elevation keeps it: 1,000 ft is under the lowest level,
+    // so its wind stays at 6.0 whatever the terrain says.
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
+        const host = new URL(url).hostname
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        return {
-          ok: true,
-          status: 200,
-          json: async () =>
-            isWeather
-              ? weatherBody(new Array(count).fill(0)).map((item) => ({
-                  elevation: 2438.4,
-                  hourly: {
-                    ...item.hourly,
-                    wind_speed_925hPa: [7, 7],
-                    wind_speed_850hPa: [10, 10],
-                    wind_speed_700hPa: [30, 30],
-                    wind_speed_600hPa: [40, 40],
-                    wind_speed_500hPa: [50, 50],
-                  },
-                }))
-              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+        let body: unknown
+        if (host !== 'api.open-meteo.com') {
+          body = Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))
+        } else if (isCloudRequest(url)) {
+          body = cloudBody(new Array(count).fill(50)).map((item) => ({ ...item, elevation: 2438.4 }))
+        } else {
+          body = weatherBody(new Array(count).fill(0)).map((item) => ({
+            elevation: 2438.4,
+            hourly: {
+              ...item.hourly,
+              wind_speed_925hPa: [7, 7],
+              wind_speed_850hPa: [10, 10],
+              wind_speed_700hPa: [30, 30],
+              wind_speed_600hPa: [40, 40],
+              wind_speed_500hPa: [50, 50],
+            },
+          }))
         }
+        return { ok: true, status: 200, json: async () => body }
       }),
     )
     const startMs = Date.parse('2026-07-21T00:00:00Z')
     const endMs = Date.parse('2026-07-21T02:00:00Z')
     const out = await runClientAnalysis(
       { ...REQUEST, limit: 10 },
-      customRows([
-        { name: 'Unmatched', latitude: 1, longitude: 1 },
-        { name: 'Low', latitude: 2, longitude: 2, elevation_ft: 1000 },
-      ]),
+      [
+        ...customRows([
+          { name: 'Pasted', latitude: 1, longitude: 1 },
+          { name: 'Low', latitude: 2, longitude: 2, elevation_ft: 1000 },
+        ]),
+        { ...discovered('Nameless', 3, 3), elevation_ft: null },
+        { ...discovered('Tarn', 4, 4), type: 'lake' },
+        { ...discovered('Lot', 5, 5), type: 'trailhead' },
+      ],
       startMs,
       endMs,
-      { nowMs: startMs },
+      { nowMs: startMs, cloud: true },
     )
     const byName = new Map(out.universe.map((r) => [r.name, r]))
-    expect(byName.get('Unmatched')?.wind_avg_mph).toBe(22.6)
+    expect(byName.get('Pasted')?.wind_avg_mph).toBe(22.6)
+    expect(byName.get('Nameless')?.wind_avg_mph).toBe(22.6)
+    expect(byName.get('Pasted')?.cloud_base_min_ft).not.toBeNull()
+    expect(byName.get('Tarn')?.wind_avg_mph).toBe(6)
+    expect(byName.get('Lot')?.wind_avg_mph).toBe(6)
+    expect(byName.get('Tarn')?.cloud_base_min_ft).toBeNull()
+    expect(byName.get('Lot')?.cloud_base_min_ft).toBeNull()
     expect(byName.get('Low')?.wind_avg_mph).toBe(6)
     // The terrain height is the forecast's, not the destination's: the
     // Elevation column still says only what OSM or the list said.
-    expect(byName.get('Unmatched')?.elevation_ft).toBeNull()
+    expect(byName.get('Pasted')?.elevation_ft).toBeNull()
     expect(byName.get('Low')?.elevation_ft).toBe(1000)
   })
 

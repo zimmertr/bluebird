@@ -35,6 +35,7 @@ import {
   fetchAqi,
   fetchCloud,
   fetchWeather,
+  terrainFallbackFor,
 } from './openMeteo'
 import type { CloudSeries } from './openMeteoAggregate'
 import { nullsLast } from './sortResults'
@@ -487,8 +488,13 @@ export async function runClientAnalysis(
     latitude: d.latitude,
     longitude: d.longitude,
     // The fetch adjusts wind and temperature to this height (issue #257).
-    // Where OSM gave none, `terrainElevation` below stands in the ground's.
     elevation_ft: d.elevation_ft,
+    // Where OSM gave none (a pasted point it could not match, a clicked peak
+    // with no `ele`), a peak is read at the terrain height the response
+    // reports and a lake or trailhead at the surface (#545). The terrain
+    // height is not written onto the row, so the Elevation column still says
+    // only what OSM or the list said.
+    terrainFallback: terrainFallbackFor(d.type),
   }))
 
   // One controller spans every fetch this analysis makes: the first fatal
@@ -517,6 +523,9 @@ export async function runClientAnalysis(
         latitude: r.latitude,
         longitude: r.longitude,
         elevation_ft: r.elevation_ft,
+        // The weather's rule, for the reason given there: the cloud base walks
+        // up the column from the same height the wind is read at.
+        terrainFallback: terrainFallbackFor(r.type),
       })),
       ...coords,
     ]
@@ -527,9 +536,6 @@ export async function runClientAnalysis(
           model: request.forecast_model,
           nowMs,
           windowLimits,
-          // The weather fetch's rule, for the reason given there: the cloud
-          // base walks up the column from the same height the wind is read at.
-          terrainElevation: true,
         }).catch((e: unknown) => {
           if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
           internal.abort()
@@ -606,13 +612,6 @@ export async function runClientAnalysis(
         // half silently moved to the archive endpoint (2026-09-14).
         nowMs,
         windowLimits,
-        // A destination OSM gave no height (a pasted point it could not match,
-        // a clicked peak with no `ele`) is forecast at the terrain height the
-        // response reports for its coordinate rather than at the surface, the
-        // rule the forecast grid already follows (#545). A row with an
-        // elevation keeps its own. The terrain height is not written onto the
-        // row, so the Elevation column still says only what OSM said.
-        terrainElevation: true,
         onProgress: (processed, total) =>
           onProgress?.(
             processed,

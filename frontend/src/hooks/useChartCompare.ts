@@ -16,6 +16,7 @@ import {
   seedPairColors,
 } from '../utils/modelCompare'
 import { modelRows, pruneHidden, shownModels, toggleHidden } from '../utils/modelVisibility'
+import { terrainFallbackFor } from '../utils/openMeteo'
 import { paceWaitLine } from '../utils/pacing'
 import { geoKey } from '../utils/points'
 
@@ -100,6 +101,7 @@ export function useChartCompare({
         latitude: r.latitude,
         longitude: r.longitude,
         elevationFt: r.elevation_ft,
+        terrainFallback: terrainFallbackFor(r.type),
       })),
     [results],
   )
@@ -118,6 +120,7 @@ export function useChartCompare({
         latitude: r.latitude,
         longitude: r.longitude,
         elevationFt: r.elevation_ft,
+        terrainFallback: terrainFallbackFor(r.type),
         // The colour it already wears in the table and on the map. A compared
         // chart says two things at once, and this is the one it has always
         // said; the model is the line style.

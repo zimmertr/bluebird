@@ -178,20 +178,24 @@ export const DATA = [
     ],
   },
   {
-    // A destination OSM gave no height is forecast at the terrain height the
-    // response reports (#545), by every fetch of a place: the analysis, its
-    // cloud column and the model comparison. One of them without it answers
-    // the surface values for the same row, and keys a cache entry the others
-    // never read, so a compared line would disagree with the ranked row.
+    // Whether a destination with no elevation is read at the terrain height is
+    // decided per place, by its type (#545): a peak stands above the model's
+    // terrain and a lake or trailhead sits on it. So the fetches of places set
+    // no fetch-wide `terrainElevation`, which would read a lake like a peak,
+    // and each carries `terrainFallback` from its row to the coordinate: the
+    // analysis, and the model comparison through the points it is handed.
     name: 'terrain-elevation-fallback',
-    files: ['src/utils/clientAnalyze.ts', 'src/hooks/useModelCompare.ts'],
-    balance: [
+    files: ['src/utils/clientAnalyze.ts', 'src/hooks/useModelCompare.ts', 'src/hooks/useChartCompare.ts'],
+    ban: [
       {
-        selectors: [
-          'CallExpression[callee.name=/^fetch(Weather|Cloud)$/]',
-          'CallExpression[callee.name=/^fetch(Weather|Cloud)$/] > ObjectExpression > Property[key.name="terrainElevation"][value.value=true]',
-        ],
-        message: 'Pass terrainElevation: true to every weather and cloud fetch of a place.',
+        selector: 'Property[key.name="terrainElevation"]',
+        message: 'Decide the terrain height per place with terrainFallback, not for the whole fetch.',
+      },
+    ],
+    require: [
+      {
+        selector: 'Property[key.name="terrainFallback"]',
+        message: 'Carry each place\'s terrainFallback onto the coordinate it is fetched by.',
       },
     ],
   },

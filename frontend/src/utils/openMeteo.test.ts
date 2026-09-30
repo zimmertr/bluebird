@@ -9,6 +9,7 @@ import {
   fetchSpans,
   fetchWeather,
   resetOpenMeteoState,
+  terrainFallbackFor,
 } from './openMeteo'
 import { CLOUD_VARIABLES, weatherMetrics, weatherSeries } from './openMeteoAggregate'
 import {
@@ -375,6 +376,44 @@ describe('fetchWeather', () => {
       WINDOW.endMs, { ...OPTS, terrainElevation: true },
     )
     expect(out[0]?.wind_avg_mph).toBe(22.6)
+  })
+
+  it('reads one place at terrain height and another at the surface, and keys them apart (#545)', async () => {
+    // A peak and a lake at the same coordinate, neither with an elevation: the
+    // peak is read at the terrain height, the lake at the 10 m wind, and the
+    // second fetch must not be answered from the first one's entry.
+    const payload = hourlyPayload() as ReturnType<typeof hourlyPayload> & { elevation?: number }
+    payload.elevation = 2438.4 // meters = 8,000 ft: between 850 and 700 hPa
+    Object.assign(payload.hourly, {
+      wind_speed_925hPa: [7.0, 7.0],
+      wind_speed_850hPa: [10.0, 10.0],
+      wind_speed_700hPa: [30.0, 30.0],
+      wind_speed_600hPa: [40.0, 40.0],
+      wind_speed_500hPa: [50.0, 50.0],
+    })
+    const fetchSpy = vi.fn(async () => jsonResponse(payload))
+    vi.stubGlobal('fetch', fetchSpy)
+    const peak = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9, terrainFallback: true }],
+      WINDOW.startMs,
+      WINDOW.endMs, OPTS,
+    )
+    const lake = await fetchWeather(
+      [{ latitude: 47.5, longitude: -121.9, terrainFallback: false }],
+      WINDOW.startMs,
+      WINDOW.endMs, OPTS,
+    )
+    expect(peak[0]?.wind_avg_mph).toBe(22.6)
+    expect(lake[0]?.wind_avg_mph).toBe(6.0) // mean of 5, 7
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('reads peaks and pasted points at terrain height, lakes and trailheads at the surface (#545)', () => {
+    // A peak stands above the model's terrain; a lake or trailhead sits on it.
+    expect(terrainFallbackFor('peak')).toBe(true)
+    expect(terrainFallbackFor('custom')).toBe(true)
+    expect(terrainFallbackFor('lake')).toBe(false)
+    expect(terrainFallbackFor('trailhead')).toBe(false)
   })
 
   it('keys the cache by elevation, so a lattice point never reads a summit entry', async () => {

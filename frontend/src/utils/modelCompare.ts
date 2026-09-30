@@ -129,6 +129,12 @@ export interface ComparePoint {
   latitude: number
   longitude: number
   elevationFt: number | null
+  /**
+   * Read at the terrain height when `elevationFt` is null, as the ranked row
+   * was (`terrainFallbackFor` in openMeteo.ts, #545). Carried rather than
+   * re-derived so a compared line and its ranked row cannot disagree.
+   */
+  terrainFallback: boolean
 }
 
 /** One charted destination, as the chart's lines need it. */
