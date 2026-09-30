@@ -31,7 +31,7 @@ interface Props {
   onEnd: () => void
 }
 
-/** How long after a step change, or after its last scroll event, the spotlight and the card animate. */
+/** How long after a step change the spotlight and the card animate, unless a scroll ends it sooner. */
 const MOTION_MS = 250
 
 /**
@@ -49,9 +49,9 @@ const MOTION_MS = 250
  * covers the ones it is not: the phone's drawer sliding in for a panel step,
  * and a popup riding a map that is still settling. A pass that measures the
  * same boxes sets nothing. The motion role is worn only for the moment after
- * a step changes, stretched by the panel's smooth scroll to the step's
- * control while one lasts; always on, it made the spotlight trail its
- * control by 200 ms whenever the layout moved for another reason.
+ * a step changes, and not while the panel scrolls to the step's control;
+ * always on, it made the spotlight trail its control by 200 ms whenever
+ * the layout moved for another reason.
  */
 export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const step = steps[index]
@@ -126,28 +126,28 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // Focus lands on Next at every step, so Enter walks the tour and a screen
   // reader hears the new card; the motion role is worn for the move and shed.
   // The panel scrolls smoothly to a control it has to reach, so the reader
-  // sees where the next section stands rather than a jump, and every scroll
-  // event pushes the shedding out: the spotlight eases after the section for
-  // as long as it moves and settles on it, instead of snapping when a timer
-  // that never saw the scroll runs out.
+  // sees where the next section stands rather than a jump, and the first
+  // scroll event sheds the motion role early: the spotlight then rides the
+  // section up the panel frame by frame. Under a transition it would not,
+  // because a transition restarted every frame stands still (measured: it
+  // held its old place for the whole 330 ms scroll and moved after it).
   useEffect(() => {
     nextRef.current?.focus()
     setMoving(true)
-    let timer = window.setTimeout(() => setMoving(false), MOTION_MS)
-    const extend = () => {
-      window.clearTimeout(timer)
-      timer = window.setTimeout(() => setMoving(false), MOTION_MS)
-    }
-    document.addEventListener('scroll', extend, true)
+    const timer = window.setTimeout(() => setMoving(false), MOTION_MS)
+    const shed = () => setMoving(false)
+    document.addEventListener('scroll', shed, true)
     return () => {
       window.clearTimeout(timer)
-      document.removeEventListener('scroll', extend, true)
+      document.removeEventListener('scroll', shed, true)
     }
   }, [index])
 
   // Tab cycles inside the card; Escape ends it; the arrow keys step either
-  // way. Enter and Space on a focused button are the button's own, or
-  // Previous would step back and then forward.
+  // way, and Backspace and Delete step back, because a Mac keyboard labels
+  // its one key Delete and a reader who tried it expected a step back (TJ,
+  // 2026-09-29). Enter and Space on a focused button are the button's own,
+  // or Previous would step back and then forward.
   const handlers = useRef({ onNext, onPrev, onEnd })
   handlers.current = { onNext, onPrev, onEnd }
   useEffect(() => {
@@ -163,7 +163,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         handlers.current.onNext()
         return
       }
-      if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft' || e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault()
         handlers.current.onPrev()
         return
@@ -218,6 +218,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         aria-labelledby={titleId}
         aria-describedby={textId}
         tabIndex={-1}
+        data-tour-card=""
         className={`${sheet ? sheetRole : TOUR.card}${motion}`}
         style={at ? { top: at.top, left: at.left } : undefined}
       >

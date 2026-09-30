@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { anchorSelector, stepLayout, TOUR_ATTR, TOUR_STEPS } from './tourSteps'
+import { anchorSelector, stepLayout, TOUR_ATTR, TOUR_STEPS, TUTORIAL_PATH } from './tourSteps'
 // `?raw` reads each component as text, so the suite proves every anchor is a
 // real control without rendering one: the app's own idiom (`styles.test.ts`).
 import appSource from '../App.tsx?raw'
@@ -13,6 +13,7 @@ import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
 import resultsLayerSource from '../map/resultsLayer.ts?raw'
 import welcomeSource from '../components/WelcomeModal.tsx?raw'
+import backendMain from '../../../backend/app/main.py?raw'
 
 const SOURCES: Record<string, string> = {
   'App.tsx': appSource,
@@ -103,6 +104,11 @@ describe('the tutorial steps', () => {
     expect(stepLayout(map, true)).toEqual({ drawerOpen: null })
     expect(stepLayout(panel, false)).toEqual({ drawerOpen: true })
     expect(stepLayout(map, false)).toEqual({ drawerOpen: false })
+  })
+
+  it('has a path the backend serves the app at, so a link can open the tour', () => {
+    expect(TUTORIAL_PATH).toBe('/tutorial')
+    expect(backendMain).toContain(`@app.api_route("${TUTORIAL_PATH}"`)
   })
 
   it('offers the tour from the welcome dialog and the panel footer', () => {

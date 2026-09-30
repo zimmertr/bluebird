@@ -17,6 +17,7 @@ import type { DestinationResult } from './types'
 // demonstration report is on screen rather than a fresh one per render.
 const NO_ROWS: DestinationResult[] = []
 import { useTour } from './tour/useTour'
+import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
 import { useCapabilities } from './hooks/useCapabilities'
@@ -112,7 +113,11 @@ export default function App() {
   // `viewPrefs.ts` exists to stop. The results layout takes the mode; the
   // table takes the rest.
   const storedView = useMemo(readViewPrefs, [])
-  const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed())
+  // A page opened at /tutorial starts the tour once the panel is up, in
+  // place of the welcome dialog (#536): the path is a link that opens the
+  // tour, and the tour's own start and end keep it and clear it.
+  const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
+  const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
   // It starts open on both; a close button collapses it to widen the map.
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -159,6 +164,13 @@ export default function App() {
     dismissWelcome()
     tour.start()
   }
+  const startTour = tour.start
+  useEffect(() => {
+    if (!openedAtTutorial.current) return
+    openedAtTutorial.current = false
+    setWelcomed()
+    startTour()
+  }, [startTour])
 
   const analysis = useAnalyze(
     caps.maxDestinations,

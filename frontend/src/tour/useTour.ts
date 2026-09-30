@@ -1,7 +1,8 @@
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
-import { anchorSelector, stepLayout, TOUR_STEPS, type TourStep } from '../utils/tourSteps'
+import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
 import { demoReport, type DemoReport } from './demoReport'
+import { cardMode } from './place'
 
 interface Args {
   isDesktop: boolean
@@ -28,8 +29,10 @@ function scrollParent(el: HTMLElement | null): HTMLElement | null {
  * The tutorial's state (#536): which step is open, over which steps. The list
  * is fixed when the tour starts, from the steps whose control is on the
  * screen plus the ones that bring their own (`reveal`), so the count a card
- * shows holds for the whole run. Ending changes nothing in the app: no URL,
- * no storage, no analysis. What a step may move is the phone's drawer, the
+ * shows holds for the whole run. Ending changes nothing in the app: no
+ * storage, no analysis, and the URL's path, `/tutorial` while the tour runs
+ * so the address bar can be copied as a link that opens it, goes back to `/`
+ * with the query it had. What a step may move is the phone's drawer, the
  * Layers menu, the results sheet over a demonstration report, the map's
  * camera and one marker's popup; the popup and the menu are undone when
  * their step is left, and the camera, the drawer and the panel's scroll
@@ -62,9 +65,13 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
     }
     setSteps(present)
     setIndex(0)
+    window.history.replaceState(null, '', TUTORIAL_PATH + window.location.search)
   }, [mapRef, sidebarOpen])
   const end = useCallback(() => {
     setIndex(null)
+    if (window.location.pathname === TUTORIAL_PATH) {
+      window.history.replaceState(null, '', '/' + window.location.search)
+    }
     const saved = before.current
     before.current = null
     if (!saved) return
@@ -99,14 +106,25 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   // the same framing a click on its rank in the table makes but with no
   // flight: a tour that flies reads as the app doing something, and the
   // reader waits on it. Two frames first, so a phone's sheet has collapsed
-  // and reported its height before the framing reads it. The popup is taken
-  // down when the step is left, whichever way it is left.
+  // and reported its height before the framing reads it. The framing is
+  // handed what the popup must not hang behind: the map's button column, by
+  // its last row (the popup opened under the search box, Controls and Layers
+  // on a phone, TJ 2026-09-29), and the card itself where it is a sheet
+  // along the screen's edge. The popup is taken down when the step is left,
+  // whichever way it is left.
   const showingMarker = step?.reveal === 'marker'
   useEffect(() => {
     if (!showingMarker || demo === null) return
     const map = mapRef.current
     let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => map?.focusResult(demo.universe[0], { popupRoom: POPUP_ROOM_PX, instant: true }))
+      frame = requestAnimationFrame(() => {
+        const obstacles = [
+          document.querySelector(anchorSelector('layers')),
+          cardMode(window.innerWidth) === 'sheet' ? document.querySelector('[data-tour-card]') : null,
+        ]
+        const avoid = obstacles.flatMap((el) => (el ? [el.getBoundingClientRect()] : []))
+        map?.focusResult(demo.universe[0], { popupRoom: POPUP_ROOM_PX, instant: true, avoid })
+      })
     })
     return () => {
       cancelAnimationFrame(frame)

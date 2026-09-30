@@ -14,6 +14,13 @@
 /** The attribute a component marks its control with. */
 export const TOUR_ATTR = 'data-tour'
 
+/**
+ * The path that opens the app with the tour running, so a link can start it
+ * (TJ, 2026-09-29). Spelled again as the route in `backend/app/main.py` that
+ * serves the app's own page there; `tourSteps.test.ts` reads that file.
+ */
+export const TUTORIAL_PATH = '/tutorial'
+
 export type TourPlace = 'panel' | 'map'
 
 /**

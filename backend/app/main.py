@@ -418,5 +418,19 @@ async def terms_page() -> FileResponse:
     return _document_response(_terms_page)
 
 
+# The app itself at a second path: a link to /tutorial opens it with the
+# guided tutorial running (#536), the way a link to /privacy opens that page.
+# The document is the app's own index.html and the browser reads the path
+# (`TUTORIAL_PATH` in `frontend/src/utils/tourSteps.ts`, whose test reads this
+# file). Without the route the static mount, finding no such directory, would
+# answer 404.html.
+_app_page = static_dir / "index.html"
+
+
+@app.api_route("/tutorial", methods=["GET", "HEAD"], include_in_schema=False)
+async def tutorial_page() -> FileResponse:
+    return _document_response(_app_page)
+
+
 if static_dir.exists():
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

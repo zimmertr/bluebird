@@ -29,9 +29,18 @@ import { STYLE } from '../map/basemap'
 import { addAttribution, addControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { createPopupBoard } from '../map/popups'
+import { popupWidth } from '../utils/popupChrome'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
 /** Where the map stands, enough to put it back (#536). */
+/** A rectangle in viewport pixels, the shape `getBoundingClientRect` answers. */
+export interface ViewportRect {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
 export interface MapCamera {
   lng: number
   lat: number
@@ -52,14 +61,21 @@ export interface MapViewHandle {
   restoreRing: (ring: GeoPolygon | null) => void
   flyToPlace: (place: Place) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
-  // `popupRoom` is how many pixels the popup needs below the marker. The
-  // marker is placed that far above the visible map's bottom edge, no higher
-  // than the centre and no closer than 16px to the top, so the popup hangs
-  // whole where the map is short (a phone; a desktop with the sheet up) and
-  // the marker stays centred where it is tall. `instant` cuts rather than
-  // flies. The tutorial's marker step passes both; a click on a table row
-  // passes neither and flies to the centre (#536).
-  focusResult: (result: DestinationResult, options?: { popupRoom?: number; instant?: boolean }) => void
+  // `popupRoom` is how many pixels the popup needs below the marker, and
+  // asking for any hangs the popup below it rather than letting it pick a
+  // side. The marker is placed that far above the visible map's bottom edge,
+  // no higher than the centre and no closer than 16px to the top, so the
+  // popup hangs whole where the map is short (a phone; a desktop with the
+  // sheet up) and the marker stays centred where it is tall. `avoid` is
+  // what else the popup must clear, as viewport rects: one at the top of
+  // the map lowers the marker under it, one at the bottom raises it, and
+  // only a rect the popup's own width would cross counts. `instant` cuts
+  // rather than flies. The tutorial's marker step passes all three; a click
+  // on a table row passes none and flies to the centre (#536).
+  focusResult: (
+    result: DestinationResult,
+    options?: { popupRoom?: number; instant?: boolean; avoid?: readonly ViewportRect[] },
+  ) => void
   // The same camera move for a destination with no forecast yet, and nothing
   // else: no popup, because the one `focusResult` opens is a forecast card and
   // this destination has no forecast. Clicking the dot still says what is
@@ -449,17 +465,38 @@ const MapView = forwardRef<MapViewHandle, Props>(
       },
       // Center on a result (clicked from its rank in the table) and open the
       // same popup a marker click gives.
-      focusResult(result: DestinationResult, { popupRoom = 0, instant = false } = {}) {
+      focusResult(result: DestinationResult, { popupRoom = 0, instant = false, avoid = [] } = {}) {
         const map = mapRef.current
         if (!map || !loadedRef.current) return
         // The pad as it stands now, off the controller: the prop this closure
         // holds can be a render behind a sheet that just collapsed.
         const cameraPadBottomPx = controller.inputs.cameraPadBottomPx
-        const containerH = map.getContainer().clientHeight
+        const container = map.getContainer()
+        const box = container.getBoundingClientRect()
+        const containerH = container.clientHeight
         const visibleH = containerH - cameraPadBottomPx
+        // The popup opens centred under the marker at the width this map
+        // gives one, so an obstacle counts only where that span crosses it:
+        // the button column under a phone's popup, never under a desktop's,
+        // which opens well to the column's right. One in the map's upper
+        // half is a floor the marker sits under; one in the lower half is a
+        // ceiling the popup's room is measured up to.
+        const popupW = parseFloat(popupWidth(map.getCanvas().clientWidth))
+        const centreX = box.left + box.width / 2
+        let topClear = 0
+        let bottomLimit = visibleH
+        for (const r of avoid) {
+          if (r.right <= centreX - popupW / 2 || r.left >= centreX + popupW / 2) continue
+          if (r.bottom - box.top <= containerH / 2) topClear = Math.max(topClear, r.bottom - box.top)
+          else bottomLimit = Math.min(bottomLimit, r.top - box.top)
+        }
         // Where the marker lands, measured from the top of the visible map:
-        // the centre unless the popup needs more room below than that leaves.
-        const markerY = popupRoom > 0 ? Math.max(16, Math.min(visibleH / 2, visibleH - popupRoom)) : visibleH / 2
+        // the centre unless the popup needs more room below than that leaves,
+        // and never above what stands at the top.
+        const markerY =
+          popupRoom > 0
+            ? Math.max(16, topClear + 12, Math.min(visibleH / 2, bottomLimit - popupRoom))
+            : visibleH / 2
         const liftPx = visibleH / 2 - markerY
         map.flyTo({
           center: [result.longitude, result.latitude],
@@ -473,7 +510,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
           // map the reader can see.
           offset: [0, -cameraPadBottomPx / 2 - liftPx],
         })
-        featuresRef.current?.results.openPopup(result)
+        featuresRef.current?.results.openPopup(result, { below: popupRoom > 0 })
       },
     }))
 

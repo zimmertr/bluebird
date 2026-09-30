@@ -94,7 +94,12 @@ export interface ResultsLayer {
    * Open the forecast popup on a row, for a click on its rank in the table.
    * The camera move is the component's; this is only the popup.
    */
-  openPopup(result: DestinationResult): void
+  /**
+   * `below` hangs the popup under its marker. MapLibre otherwise picks the
+   * side with room, and a framing that left room below (`focusResult`) needs
+   * the popup to take it rather than rise into whatever stands above.
+   */
+  openPopup(result: DestinationResult, options?: { below?: boolean }): void
 }
 
 export function mountResultsLayer(
@@ -279,12 +284,12 @@ export function mountResultsLayer(
     setPending(pending) {
       setSource(map, 'pending-destinations', pendingFC(pending))
     },
-    openPopup(result) {
+    openPopup(result, { below = false } = {}) {
       const live = controller.inputs
       popups.closeAll()
       // Rank is the analyzed order the markers are labelled with, so the popup
       // matches the marker it lands on.
-      const popup = new Popup(popupOptions(map))
+      const popup = new Popup({ ...popupOptions(map), ...(below ? { anchor: 'top' as const } : {}) })
         .setLngLat([result.longitude, result.latitude])
         .setHTML(
           resultPopupHtml({

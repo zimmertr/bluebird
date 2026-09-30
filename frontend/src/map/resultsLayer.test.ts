@@ -189,6 +189,14 @@ describe('mountResultsLayer', () => {
     )
   })
 
+  it('hangs the popup under its marker only when asked', () => {
+    const { layer } = setup()
+    layer.openPopup(RAINIER, { below: true })
+    expect(popups[popups.length - 1].options).toMatchObject({ anchor: 'top' })
+    layer.openPopup(RAINIER)
+    expect(popups[popups.length - 1].options).not.toHaveProperty('anchor')
+  })
+
   it('marks the popup a table row opens as the tutorial\'s marker target', () => {
     const { layer } = setup()
     layer.openPopup(RAINIER)
