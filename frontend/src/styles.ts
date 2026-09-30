@@ -2124,6 +2124,27 @@ export const TABLE = {
    * leading cannot put one back. `styles.test.ts` holds both.
    */
   mark: `${TEXT.micro} leading-0`,
+  /**
+   * A cell whose text can run longer than a column should: the Closure cell,
+   * which names the order that closed the ground under a row. Region 6 titles
+   * the orders in fifteen to forty-three characters ("Bear Creek South Area
+   * Closure"), and every one fit as a plain column in #550. Regions 3 and 4
+   * (#551) title a forest order in up to a hundred ("Upper & Lower Tonto Creek
+   * Campground and Horton Creek Trailhead Parking Area Temporary Closure
+   * Order"), which is wider than the map column and the name column together.
+   * So the cell is capped and the tail is clipped to an ellipsis, with the
+   * whole name on the link's hover (TJ, 2026-09-30: "clip and ellipses").
+   *
+   * 256px is the cap: it holds every Region 6 title but the three "Area,
+   * Road, and Trail" ones in full at the table's 12px mono, and clips the
+   * forest-order ones after roughly two clauses, which is where the ground
+   * has been named and the rest is the order's paperwork. `inline-block`
+   * because `max-w` clamps an inline-block's contribution to auto table
+   * layout, so the column defends its content up to the cap and no further;
+   * the cap rides only while the column is UNSIZED, because a dragged or
+   * fitted width is the reader's choice and `sized()` clips to it already.
+   */
+  clip: 'inline-block max-w-64 truncate align-bottom',
 } as const
 
 /**

@@ -12,6 +12,7 @@ import {
 } from '../utils/closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
 import { pendingChartRow } from '../utils/resultsCells'
+import { TABLE } from '../styles'
 import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 
@@ -136,6 +137,24 @@ describe('the Closure cell', () => {
     expect(link.textContent).toBe('⚠️ Probe Fire Closure')
     expect(link.getAttribute('href')).toBe('https://www.fs.usda.gov/r06/alerts/probe')
     expect(link.getAttribute('target')).toBe('_blank')
+  })
+
+  // A forest order's title runs to a hundred characters (#551), so a named
+  // order is capped and clipped until the reader sizes the column; the whole
+  // title stays on the link's hover.
+  it('clips a long order title while the column is unsized', () => {
+    const warning = closureWarning({ name: 'Upper & Lower Tonto Creek Campground Temporary Closure Order' })
+    only({ closureWarning: warning })
+    const link = screen.getByRole('link')
+    expect(link.getAttribute('title')).toBe(warning.name)
+    expect(link.parentElement!.className).toBe(TABLE.clip)
+  })
+
+  it('leaves a sized column to the width the reader chose', () => {
+    only({ closureWarning: closureWarning(), widths: { closure: 120 } })
+    const link = screen.getByRole('link')
+    expect(link.parentElement!.className).not.toContain('max-w')
+    expect(link.parentElement!.style.width).toBe('120px')
   })
 
   it('keeps the hover sentence on a warned order with no page', () => {
