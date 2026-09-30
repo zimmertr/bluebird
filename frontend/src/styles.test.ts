@@ -1975,7 +1975,8 @@ describe('the selection chip', () => {
 describe('the tutorial', () => {
   it('draws the spotlight as one box whose shadow is the dim layer', () => {
     expect(STYLES.TOUR.spotlight).toContain('shadow-[0_0_0_200vmax_')
-    expect(STYLES.TOUR.spotlight).toContain(STYLES.RADIUS.surface)
+    expect(STYLES.TOUR.spotlight).not.toMatch(/rounded/)
+    expect(STYLES.TOUR.spotlightControl).toBe(STYLES.RADIUS.surface)
     expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
   })
 

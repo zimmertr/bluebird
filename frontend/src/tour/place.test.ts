@@ -56,12 +56,12 @@ describe('the sheet', () => {
 describe('a section between the rules', () => {
   const column = { top: 100, left: 0, width: 360, height: 600 }
   const own = { top: 116, left: 16, width: 328, height: 200 }
-  it('takes its own top when a rule stands there, and the column top for the first', () => {
-    expect(sectionBox(own, null, { top: 332, left: 16, width: 328, height: 50 }, column)).toEqual({ top: 100, left: 16, width: 328, height: 232 })
-    expect(sectionBox(own, { top: 0, left: 16, width: 328, height: 100 }, { top: 332, left: 16, width: 328, height: 50 }, column)).toEqual({ top: 116, left: 16, width: 328, height: 216 })
+  it('spans the column, from its own top when a rule stands there, or the column top for the first', () => {
+    expect(sectionBox(own, null, { top: 332, left: 16, width: 328, height: 50 }, column)).toEqual({ top: 100, left: 0, width: 360, height: 232 })
+    expect(sectionBox(own, { top: 0, left: 16, width: 328, height: 100 }, { top: 332, left: 16, width: 328, height: 50 }, column)).toEqual({ top: 116, left: 0, width: 360, height: 216 })
   })
   it('runs to the column bottom for the last', () => {
-    expect(sectionBox(own, { top: 0, left: 16, width: 328, height: 100 }, null, column)).toEqual({ top: 116, left: 16, width: 328, height: 584 })
+    expect(sectionBox(own, { top: 0, left: 16, width: 328, height: 100 }, null, column)).toEqual({ top: 116, left: 0, width: 360, height: 584 })
   })
 })
 

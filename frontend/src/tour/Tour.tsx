@@ -178,7 +178,8 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  const light = target ? spotlight(target, step.spot === 'control' ? SPOTLIGHT_PAD : 0) : null
+  const control = step.spot === 'control'
+  const light = target ? spotlight(target, control ? SPOTLIGHT_PAD : 0) : null
   const sheet = cardMode(viewport.width) === 'sheet'
   if (light && !sheet) lastAt.current = placeCard(light, cardSize, viewport)
   const at = sheet ? null : lastAt.current
@@ -192,7 +193,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   return (
     <div className={`fixed inset-0 ${LAYER.modal} overflow-hidden`}>
       <div
-        className={`${TOUR.spotlight}${motion}`}
+        className={`${TOUR.spotlight}${control ? ` ${TOUR.spotlightControl}` : ''}${motion}`}
         style={{ top: hole.top, left: hole.left, width: hole.width, height: hole.height }}
         aria-hidden="true"
       />

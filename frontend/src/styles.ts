@@ -2107,8 +2107,9 @@ export const TABLE = {
  * The guided tutorial (#536): a spotlight over one control and a card beside
  * it. The spotlight is ONE element wearing a shadow as wide as the screen, so
  * the dim layer and its rounded cut-out are the same box and cannot drift
- * apart the way four separate rects around a target would; it takes the
- * surface radius because the controls it frames do. The card is the welcome
+ * apart the way four separate rects around a target would. It is square,
+ * because a section between two rules and a sheet with straight edges are;
+ * `spotlightControl` adds the surface radius around a control, which has one. The card is the welcome
  * dialog's surface at the modal layer (above the drawer and every popover),
  * fixed and sized by the same 320px the welcome card reads at on a phone. Under
  * `SHEET_MAX_W` (`tour/place.ts`) it is a full-width sheet along the bottom
@@ -2116,7 +2117,9 @@ export const TABLE = {
  * app already wears; the dim is the welcome backdrop's black at 60%.
  */
 export const TOUR = {
-  spotlight: `absolute pointer-events-none ${RADIUS.surface} shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]`,
+  spotlight: 'absolute pointer-events-none shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]',
+  /** The spotlight's corners around a control: the control's own radius. */
+  spotlightControl: RADIUS.surface,
   card: `${SURFACE_CARD} fixed w-80 p-4 space-y-3 focus:outline-none`,
   sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */

@@ -72,12 +72,13 @@ export function unionBox(boxes: readonly (Box | null)[]): Box | null {
  * none and takes the top of the column it sits in, where the header's rule
  * is. The rule below is the next section's top border, so the next box's top;
  * the last section takes the bottom of the column, where the footer's rule is.
- * Width is the section's own, which is the rules' extent.
+ * Width is the column's, edge to edge, the way the header's and the footer's
+ * rules run (TJ, 2026-09-29).
  */
 export function sectionBox(own: Box, previous: Box | null, next: Box | null, column: Box): Box {
   const top = previous ? own.top : column.top
   const bottom = next ? next.top : column.top + column.height
-  return { top, left: own.left, width: own.width, height: bottom - top }
+  return { top, left: column.left, width: column.width, height: bottom - top }
 }
 
 /** The spotlight's box: the target, grown by the pad on every side. */
