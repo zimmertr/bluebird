@@ -20,7 +20,6 @@ from prometheus_client import REGISTRY
 
 from app import ratelimit, telemetry
 from app.main import app
-from app.routes import analyze as analyze_mod
 from app.services import air_quality, cache, weather
 from app.services import osm as osm_mod
 from app.services.errors import UpstreamRateLimited
@@ -153,8 +152,8 @@ def stub_upstreams(monkeypatch):
     async def fake_aqi(destinations, start, end, api_key=None):
         return [None] * len(destinations)
 
-    monkeypatch.setattr(analyze_mod.weather, "fetch_weather_batch", fake_wx)
-    monkeypatch.setattr(analyze_mod.air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
 
 def test_analyze_observes_field_size_and_limit(stub_upstreams):
