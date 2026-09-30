@@ -37,6 +37,19 @@ export function isPeakKind(kind: string): boolean {
   return PEAK_KINDS.has(kind)
 }
 
+/**
+ * The row type a searched or clicked place stands for. The geocoder's own
+ * word for the thing, so the table's Type column says what a place is: a
+ * searched city reads "City" rather than "Custom", which is a statement about
+ * how it got here rather than about what it is. Peaks normalize (OSM says
+ * "volcano" for several) because the Peakbagger link and the terrain-height
+ * fallback key on that one value. "custom" stays the answer for a place with
+ * no kind, which a pasted coordinate genuinely is.
+ */
+export function placeType(kind: string): string {
+  return isPeakKind(kind) ? 'peak' : kind || 'custom'
+}
+
 // "36.57862, -118.29107" · "(36.57862, -118.29107)" · "36.57862 -118.29107"
 const COORD_RE = /^\(?\s*(-?\d{1,2}(?:\.\d+)?)\s*(?:,|\s)\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?$/
 

@@ -135,9 +135,10 @@ free air can only add exposure, never shelter. Destinations below the lowest
 level (~762 m — a valley really is sheltered) report the plain 10 m wind. With
 no known elevation, the app reads a peak or a pasted point at the terrain
 height Open-Meteo reports for its coordinate, as the grid below is read,
-because a summit stands above the model's terrain; a lake or trailhead sits on
-that terrain, so it keeps the plain 10 m wind, which is the real near-ground
-air there, and the API keeps the 10 m wind for all of them. The level heights are the standard atmosphere's,
+because a summit stands above the model's terrain; a lake, a trailhead or a
+searched town sits on that terrain, so it keeps the plain 10 m wind, which is
+the real near-ground air there, whether it was found in a ring or clicked on
+the map, and the API keeps the 10 m wind for all of them. The level heights are the standard atmosphere's,
 fixed rather than fetched: real level heights move a few percent with
 weather, less than the model's own terrain error. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer, and local

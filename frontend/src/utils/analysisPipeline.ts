@@ -7,7 +7,7 @@ import type {
   DiscoveredDestination,
   RefusalFields,
 } from '../types'
-import { AnalysisRefusalError, resolveCustomOnly, runClientAnalysis } from './clientAnalyze'
+import { AnalysisRefusalError, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
@@ -117,6 +117,9 @@ export interface PipelineOptions {
   onPartial: (data: AnalyzeResponse, fieldSoFar: DestinationResult[]) => void
   onProgress: (processed: number, total: number, message: string) => void
   onPace: (seconds: number) => void
+  // What the places the server answers as "custom" really are, by coordinate
+  // (`knownTypes`, #545). Applied before anything reads a row's type.
+  knownTypes?: Readonly<Record<string, string>>
 }
 
 export interface PipelineResult {
@@ -133,7 +136,8 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   const asked = { ...window, model: request.forecast_model }
   const reuse = reusableForecasts(held, asked, now())
 
-  const found = await discoverCandidates(request, signal)
+  const discovered = await discoverCandidates(request, signal)
+  const found = { ...discovered, candidates: withKnownTypes(discovered.candidates, options.knownTypes ?? {}) }
   onDiscovered(found)
 
   const { response, universe } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {

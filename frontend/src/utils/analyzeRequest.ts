@@ -12,6 +12,7 @@ import {
   type DiscoveryRecord,
   discoveryBase,
   isDiscoveryRefresh,
+  knownTypes,
   refreshEchoRows,
 } from './clientAnalyze'
 import { type Constraints, constraintFields } from './constraints'
@@ -126,7 +127,10 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
     sort_by: sortBy,
     sort_desc: sortDesc,
   }
-  const options: AnalyzeOptions = { compareModels: comparedModels }
+  const options: AnalyzeOptions = {
+    compareModels: comparedModels,
+    knownTypes: knownTypes(inputs.universe, places),
+  }
 
   // Removals reset only when the user changed a discovery input. Searched
   // places are deliberately absent, because their list shrinks on removal.

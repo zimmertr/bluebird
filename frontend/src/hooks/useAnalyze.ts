@@ -98,6 +98,7 @@ export function useAnalyze(
           maxDestinations,
           windowLimits,
           aqiForecastDays,
+          knownTypes: options.knownTypes,
           onDiscovered: (found) => {
             facts.snowAnalysisDate = found.snowAnalysisDate
             run.announce(found.candidates.length)

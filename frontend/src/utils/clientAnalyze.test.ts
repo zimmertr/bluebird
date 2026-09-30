@@ -11,17 +11,19 @@ import {
   customRows,
   discoveryBase,
   isDiscoveryRefresh,
+  knownTypes,
   rankComparator,
   refreshEchoRows,
   resolveCustomOnly,
   runClientAnalysis,
   truncateTopElevation,
   withCloud,
+  withKnownTypes,
 } from './clientAnalyze'
 import { geoKey } from './points'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { resultRow, weatherResult } from '../testSupport/fixtures'
+import { place, resultRow, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -728,32 +730,7 @@ describe('runClientAnalysis', () => {
     // base, because it sits on the terrain the surface values describe. A row
     // that carries an elevation keeps it: 1,000 ft is under the lowest level,
     // so its wind stays at 6.0 whatever the terrain says.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (url: string) => {
-        const host = new URL(url).hostname
-        const count = new URL(url).searchParams.get('latitude')!.split(',').length
-        let body: unknown
-        if (host !== 'api.open-meteo.com') {
-          body = Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))
-        } else if (isCloudRequest(url)) {
-          body = cloudBody(new Array(count).fill(50)).map((item) => ({ ...item, elevation: 2438.4 }))
-        } else {
-          body = weatherBody(new Array(count).fill(0)).map((item) => ({
-            elevation: 2438.4,
-            hourly: {
-              ...item.hourly,
-              wind_speed_925hPa: [7, 7],
-              wind_speed_850hPa: [10, 10],
-              wind_speed_700hPa: [30, 30],
-              wind_speed_600hPa: [40, 40],
-              wind_speed_500hPa: [50, 50],
-            },
-          }))
-        }
-        return { ok: true, status: 200, json: async () => body }
-      }),
-    )
+    stubTerrain()
     const startMs = Date.parse('2026-07-21T00:00:00Z')
     const endMs = Date.parse('2026-07-21T02:00:00Z')
     const out = await runClientAnalysis(
@@ -867,6 +844,94 @@ function stubWithCloud(precips: number[], covers: number[], cloudCounts: number[
     }),
   )
 }
+
+// Every location answers from terrain 2438.4 m (8,000 ft), between the 850 and
+// 700 hPa levels, so a place read at the terrain height has wind of
+// 10 + 20 x (981.4 / 1555) = 22.6 mph where the 10 m wind is 6.0 (#545).
+function stubTerrain() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => {
+      const host = new URL(url).hostname
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      let body: unknown
+      if (host !== 'api.open-meteo.com') {
+        body = Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))
+      } else if (isCloudRequest(url)) {
+        body = cloudBody(new Array(count).fill(50)).map((item) => ({ ...item, elevation: 2438.4 }))
+      } else {
+        body = weatherBody(new Array(count).fill(0)).map((item) => ({
+          elevation: 2438.4,
+          hourly: {
+            ...item.hourly,
+            wind_speed_925hPa: [7, 7],
+            wind_speed_850hPa: [10, 10],
+            wind_speed_700hPa: [30, 30],
+            wind_speed_600hPa: [40, 40],
+            wind_speed_500hPa: [50, 50],
+          },
+        }))
+      }
+      return { ok: true, status: 200, json: async () => body }
+    }),
+  )
+}
+
+describe('the kind of a place the server calls custom (#545)', () => {
+  const startMs = Date.parse('2026-07-21T00:00:00Z')
+  const endMs = Date.parse('2026-07-21T02:00:00Z')
+  // What POST /api/destinations answers for two places clicked on the map: a
+  // lake and a peak, neither with an elevation, both typed "custom" because
+  // `custom_destinations` carries no kind.
+  const echoed = customRows([
+    { name: 'Tarn', latitude: 1, longitude: 1 },
+    { name: 'Summit', latitude: 2, longitude: 2 },
+    { name: 'Pasted', latitude: 3, longitude: 3 },
+  ])
+  const clicked = [
+    place({ label: 'Tarn', kind: 'lake', lat: 1, lon: 1 }),
+    place({ label: 'Summit', kind: 'volcano', lat: 2, lon: 2 }),
+  ]
+
+  it('learns each place\'s kind from the places, over the held field', () => {
+    const held = [
+      resultRow({ type: 'trailhead', latitude: 5, longitude: 5 }),
+      resultRow({ type: 'custom', latitude: 3, longitude: 3 }),
+      resultRow({ type: 'peak', latitude: 1, longitude: 1 }),
+    ]
+    expect(knownTypes(held, clicked)).toEqual({
+      [geoKey(5, 5)]: 'trailhead',
+      [geoKey(1, 1)]: 'lake',
+      [geoKey(2, 2)]: 'peak',
+    })
+  })
+
+  it('types only the rows the server called custom', () => {
+    const known = { [geoKey(1, 1)]: 'lake', [geoKey(9, 9)]: 'lake' }
+    const typed = withKnownTypes([...echoed, discovered('Found', 9, 9)], known)
+    expect(typed.map((d) => d.type)).toEqual(['lake', 'custom', 'custom', 'peak'])
+  })
+
+  it('reads a clicked lake at the 10 m wind and a clicked peak at terrain height', async () => {
+    stubTerrain()
+    const out = await runClientAnalysis(
+      { ...REQUEST, limit: 10 },
+      withKnownTypes(echoed, knownTypes(null, clicked)),
+      startMs,
+      endMs,
+      { nowMs: startMs, cloud: true },
+    )
+    const byName = new Map(out.universe.map((r) => [r.name, r]))
+    expect(byName.get('Tarn')?.type).toBe('lake')
+    expect(byName.get('Tarn')?.wind_avg_mph).toBe(6)
+    expect(byName.get('Tarn')?.cloud_base_min_ft).toBeNull()
+    expect(byName.get('Summit')?.type).toBe('peak')
+    expect(byName.get('Summit')?.wind_avg_mph).toBe(22.6)
+    // A pasted coordinate has no kind to learn, so it keeps the peak's side.
+    expect(byName.get('Pasted')?.type).toBe('custom')
+    expect(byName.get('Pasted')?.wind_avg_mph).toBe(22.6)
+  })
+})
 
 describe('alignCloud', () => {
   it('lays each hour on its own stamp and leaves a missing one null', () => {

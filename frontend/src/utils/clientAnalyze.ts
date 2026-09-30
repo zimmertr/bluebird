@@ -25,6 +25,7 @@ import {
 } from '../types'
 import { familyOf, isOnRequestFamily } from '../metrics'
 import { postDestinations } from './apiFetch'
+import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
 import {
@@ -693,6 +694,49 @@ export function refreshEchoRows(
       longitude: r.longitude,
       elevation_ft: r.elevation_ft ?? undefined,
     }))
+}
+
+/**
+ * What each destination the browser already knows IS, by coordinate, for the
+ * rows the server can only call "custom" (#545).
+ *
+ * `custom_destinations` carries no kind, so every searched or clicked place,
+ * and every row a refresh echoes, comes back typed "custom". The type decides
+ * the terrain-height fallback (`terrainFallbackFor`): a clicked lake read as
+ * custom took the peak's side and was forecast in the free air above its own
+ * shore. Two sources, in order: the held field, whose polygon rows were typed
+ * by discovery, and the places, whose geocoded kind outranks it. A plain
+ * record, so a retry replays the same answer.
+ */
+export function knownTypes(
+  universe: readonly DestinationResult[] | null,
+  places: readonly Place[],
+): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const r of universe ?? []) {
+    if (r.type !== 'custom') out[geoKey(r.latitude, r.longitude)] = r.type
+  }
+  for (const p of places) {
+    const type = placeType(p.kind)
+    if (type !== 'custom') out[geoKey(p.lat, p.lon)] = type
+  }
+  return out
+}
+
+/**
+ * The discovered field with each "custom" row given the type `knownTypes`
+ * holds for its coordinate. Rows the discovery typed itself, and pasted points
+ * nothing knows more about, pass through unchanged.
+ */
+export function withKnownTypes(
+  candidates: readonly DiscoveredDestination[],
+  known: Readonly<Record<string, string>>,
+): DiscoveredDestination[] {
+  return candidates.map((c) => {
+    if (c.type !== 'custom') return c
+    const type = known[geoKey(c.latitude, c.longitude)]
+    return type ? { ...c, type } : c
+  })
 }
 
 /**
