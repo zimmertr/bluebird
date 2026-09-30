@@ -86,14 +86,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Forest Service Region 6 closure orders in a bounding box
-         * @description Active fire closure orders from the US Forest Service's Pacific Northwest Region (Region 6), intersecting `bbox`.
+         * Forest Service closure orders in a bounding box
+         * @description Active closure orders from three US Forest Service regions, intersecting `bbox`: the Pacific Northwest Region (Region 6), the Southwestern Region (Region 3) and the Intermountain Region (Region 4).
          *
-         *     `kind` picks the question. `area` answers where a person may not enter, as polygons. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites.
+         *     `kind` picks the question. `area` answers where a person may not enter, as polygons, from all three regions. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites, from Region 6 alone.
          *
-         *     Coverage is Oregon and Washington only: Region 6 is every national forest in those two states and nothing else, so an empty result elsewhere means "not covered", not "nothing closed". The `coverage` member states this machine-readably.
+         *     Coverage therefore differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon and Washington only. An empty result outside the coverage for its kind means "not covered", not "nothing closed". The `coverage` member states this machine-readably.
          *
-         *     This instance fetches the whole region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.
+         *     Regions 3 and 4 publish every standing forest order, not closures alone, so an order from them is returned only when it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited.
+         *
+         *     This instance fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.
          */
         get: operations["closures_api_closures_get"];
         put?: never;
@@ -620,14 +622,14 @@ export interface components {
         ClosureCollection: {
             /**
              * Coverage
-             * @description The area the feed covers, as a GeoJSON MultiPolygon geometry riding as a second foreign member: a coarse outline of Oregon and Washington, which is the Forest Service's Region 6, biased about 0.2° outward on its land borders. An empty `features` array for a bbox outside this geometry means the feed cannot see that area, not that nothing is closed there. Static per release.
+             * @description The area the feeds behind the requested `kind` cover, as a GeoJSON MultiPolygon geometry riding as a second foreign member. It differs by kind. For `area` it outlines the Forest Service's Regions 3, 4 and 6: Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington. For `trail` it outlines Region 6 alone, Oregon and Washington, because only Region 6 publishes closed trails and sites. Every outline is coarse and biased about 0.2° outward on land borders. An empty `features` array for a bbox outside this geometry means the feeds cannot see that area, not that nothing is closed there. Static per release.
              */
             coverage: {
                 [key: string]: unknown;
             };
             /**
              * Features
-             * @description Active closure orders intersecting the requested bounding box, with the Forest Service's own properties as it published them: `ClosureOrderName`, `ClosureOrderNumber`, `ForestUnit`, `District`, `FireName`, `ClosureDescription`, `ClosureStartDate` and `ClosureEndDate` in epoch milliseconds, and `ClosureURLlink`, which is often null. Lines also carry `RouteName` and `RouteNum`, and polygons carry `GIS_Acres`. An order is included when the Forest Service marks it active, and that status is trusted as published: an active order can carry an end date that is already past.
+             * @description Active closure orders intersecting the requested bounding box, with Region 6's property names: `ClosureOrderName`, `ClosureOrderNumber`, `ForestUnit`, `District`, `FireName`, `ClosureDescription`, `ClosureStartDate` and `ClosureEndDate` in epoch milliseconds, and `ClosureURLlink`, which is often null. Lines also carry `RouteName` and `RouteNum`, and polygons carry `GIS_Acres`. Every feature carries `ClosureSource`, the region that published it (`R03`, `R04` or `R06`), and `ClosureType`, the region's own type for the order (null on Region 6). Region 6 features pass through as the Forest Service published them, and are included when it marks them active; that status is trusted as published, so an active order can carry an end date that is already past. Regions 3 and 4 publish every standing forest order with no status, mapped onto the same names (their `District` and `FireName` are null). An order from them is included when nobody rescinded it, its end date is not past, and it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited.
              */
             features: {
                 [key: string]: unknown;
@@ -1560,7 +1562,7 @@ export interface operations {
             query: {
                 /** @description Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A closure is returned when its own bounding box overlaps this one. */
                 bbox: string;
-                /** @description Which closures to return. `area` is area closures, as polygons. `trail` is closed trails and roads, as lines, together with closed trailheads and sites, as points. */
+                /** @description Which closures to return. `area` is area closures, as polygons, from Regions 3, 4 and 6. `trail` is closed trails and roads, as lines, together with closed trailheads and sites, as points, from Region 6 alone. */
                 kind: "area" | "trail";
                 /** @description Geometry fidelity. `coarse` simplifies lines and polygons to roughly 56 metres, the same tolerance the wildfire overlay uses, and is about a quarter of the bytes for trails. `full` returns them as the Forest Service drew them. Points are the same either way. */
                 detail?: "coarse" | "full";
