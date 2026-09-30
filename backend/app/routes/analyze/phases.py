@@ -15,8 +15,9 @@ add a relay loop.
 
 Two rules keep the two routes answering alike. `_eager_fetches` is the only
 reader of the eager conditions, and its one `Eager` value decides both the
-early fetch and the late skip. `_upstream_failure` is the only place a fetch
-error becomes a `Failure`.
+early fetch and the late skip. `_upstream_failure` is the only place a forecast
+fetch error becomes a `Failure`. Discovery maps its own errors in `discover()`,
+and its phase wraps the `ApiError` it raises as it stands.
 """
 
 from __future__ import annotations

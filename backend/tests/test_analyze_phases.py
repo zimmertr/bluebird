@@ -31,7 +31,6 @@ from app.routes.analyze.phases import (
     _find_candidates,
     _rank_and_cut,
     _result,
-    _upstream_failure,
 )
 from app.routes.analyze.route import _run_analysis
 from app.services import air_quality, osm, weather
@@ -259,15 +258,11 @@ async def test_attach_late_maps_a_refused_key_through_the_one_ladder(monkeypatch
     request = _request()
     ranked = Ranked([_row("a", 1.0)], [], 1)
     failure = await _attach_late(ranked, _window(request), request, "key", Eager(False, False))
-    expected = _upstream_failure(InvalidApiKeyError())
     assert isinstance(failure, Failure)
-    # ApiError compares by identity, so the fields that reach a caller are
-    # compared one by one.
-    got, want = failure.error, expected.error
-    assert (got.status_code, got.detail, got.code, got.headers, failure.extra) == (
-        want.status_code, want.detail, want.code, want.headers, expected.extra,
+    error = failure.error
+    assert (error.status_code, error.detail, error.code.value, error.headers, failure.extra) == (
+        401, "Open-Meteo rejected the API key.", "invalid_api_key", None, None,
     )
-    assert got.status_code == 401
 
 
 async def test_attach_late_fails_on_a_cloud_error(monkeypatch, calls):
@@ -295,17 +290,27 @@ def test_result_reports_the_counts_the_phases_carried():
 # ── Closing the analysis mid-phase ─────────────────────────────────────────
 
 
-@pytest.mark.parametrize("phase", ["discovery", "retrieval"])
-async def test_closing_the_analysis_cancels_the_phase_task_before_it_returns(monkeypatch, phase):
-    """A consumer that goes away closes `_run_analysis`. The upstream task the
-    current phase started must be cancelled by the time that close returns,
-    not later when the phase's generator is collected."""
-    started = asyncio.Event()
+@pytest.mark.parametrize(
+    ("phase", "fields", "expected_tasks"),
+    [
+        ("discovery", {}, 1),
+        ("retrieval", {}, 1),
+        # Air quality and the cloud fields both fetched for every candidate,
+        # so three upstream tasks run side by side and all three must stop.
+        ("retrieval", {"sort_by": "aqi_max", "include_clouds": True, "min_cloud_cover_pct": 0}, 3),
+    ],
+    ids=["discovery", "retrieval", "retrieval-with-eager-fetches"],
+)
+async def test_closing_the_analysis_cancels_the_phase_tasks_before_it_returns(
+    monkeypatch, phase, fields, expected_tasks
+):
+    """A consumer that goes away closes `_run_analysis`. Every upstream task
+    the current phase started must be cancelled by the time that close
+    returns, not later when the phase's generator is collected."""
     tasks: list[asyncio.Task] = []
 
-    async def hang() -> None:
+    async def hang(*args, **kwargs) -> None:
         tasks.append(asyncio.current_task())
-        started.set()
         await asyncio.Event().wait()
 
     async def hang_discovery(polygon, destination_types, on_status=None, include_unnamed_peaks=False):
@@ -321,17 +326,22 @@ async def test_closing_the_analysis_cancels_the_phase_task_before_it_returns(mon
 
     monkeypatch.setattr(osm, "query_osm", hang_discovery if phase == "discovery" else discovered)
     monkeypatch.setattr(weather, "fetch_weather_batch", hang_retrieval)
-    request = _request(destination_types=["peak"], polygon=POLYGON, custom_destinations=None)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", hang)
+    monkeypatch.setattr(weather, "fetch_cloud_batch", hang)
+    request = _request(destination_types=["peak"], polygon=POLYGON, custom_destinations=None, **fields)
 
     analysis = _run_analysis(request, None)
     # Read up to the event the hanging call relays, so the analysis is
-    # suspended inside the phase with the task in flight.
+    # suspended inside the phase with every task in flight.
     async for event in analysis:
-        if isinstance(event, (Status, Progress)) and started.is_set() and (
-            getattr(event, "detail", None) or getattr(event, "batches_done", None) is not None
-        ):
+        if getattr(event, "detail", None) or getattr(event, "batches_done", None) is not None:
             break
     await analysis.aclose()
 
-    assert len(tasks) == 1
-    assert tasks[0].cancelling() > 0 or tasks[0].cancelled()
+    assert len(tasks) == expected_tasks
+    assert all(task.cancelling() > 0 or task.cancelled() for task in tasks)
+    # Let each task take its cancellation, then none of them may still run.
+    for _ in range(3):
+        await asyncio.sleep(0)
+    assert all(task.cancelled() for task in tasks)
+    assert not set(tasks) & asyncio.all_tasks()
