@@ -32,7 +32,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     anchor: 'destinations',
     title: 'Destinations',
-    text: 'Provide a list of destinations to compare by searching by name, selecting a point on the map, pasting exact coordinate pairs, or drawing a polygon to include every peak, trailhead, and lake inside it.',
+    text: 'Provide a list of destinations to compare by searching by name, selecting a point on the map, pasting exact coordinate pairs, or drawing a polygon to include every peak, trailhead, or lake inside it.',
     place: 'panel',
   },
   {
