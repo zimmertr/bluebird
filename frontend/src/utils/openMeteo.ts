@@ -100,36 +100,55 @@ export function callWeight(
 
 // The visitor's own per-IP budget is 600 weighted calls/minute per service;
 // 550 leaves margin for other tabs and clock skew. Spending is paced, not
-// burst: a bucket holding one minute of budget refills continuously, callers
-// deduct immediately and sleep off any deficit (negative tokens serialize
-// concurrent batches fairly). This protects the visitor's own quota — the
+// refused, and held to at most 550 in any 60 seconds, which is how Open-Meteo
+// states its own limit. This protects the visitor's own quota — the
 // server-side budgets protect the deployment's.
 const CLIENT_WEIGHT_PER_MINUTE = 550
+const WINDOW_MS = 60_000
 
+// Port of the backend's `ratelimit.WeightedBudget`, without its shed: the
+// browser has no stampede of other visitors to protect itself from. A
+// sliding-window log rather than a token bucket, because a bucket that starts
+// full and refills at the full rate spends twice its budget in its first
+// minute (#581), and one that does not must either refill slower or start
+// nearly empty. Each acquire books the earliest start, no earlier than the one
+// booked before it, at which it and every booking still inside the 60 seconds
+// before that start fit under the budget, then sleeps until that start; booking
+// in order is what serializes concurrent batches fairly. One booking larger
+// than the whole budget starts only when nothing else is booked and holds the
+// window for its share of minutes, so the spend still averages the budget.
 class WeightedBudget {
-  private tokens: number
-  private updated: number
-  constructor(private perMinute: number) {
-    this.tokens = perMinute
-    this.updated = performance.now()
+  // [start, leaves the window at, weight], in booking order.
+  private booked: Array<[number, number, number]> = []
+  // The latest clock reading seen, so a clock that ran backwards cannot make a
+  // booking look further away than it was made.
+  private now = performance.now()
+  constructor(private perMinute: number) {}
+  private startFor(weight: number): { now: number; start: number } {
+    const now = Math.max(this.now, performance.now())
+    this.now = now
+    this.booked = this.booked.filter(([, leaves]) => leaves > now)
+    let start = Math.max(now, ...this.booked.map(([s]) => s))
+    const live = this.booked.filter(([, leaves]) => leaves > start).sort((a, b) => a[1] - b[1])
+    let total = live.reduce((sum, [, , w]) => sum + w, 0)
+    for (const [, leaves, w] of live) {
+      if (total + weight <= this.perMinute) break
+      start = Math.max(start, leaves)
+      total -= w
+    }
+    return { now, start }
   }
-  private refill(now: number): void {
-    const rate = this.perMinute / 60_000 // tokens per ms
-    this.tokens = Math.min(this.perMinute, this.tokens + (now - this.updated) * rate)
-    this.updated = now
-  }
-  /** Deduct `weight`, sleeping off any deficit. Reports waits via onWait. */
+  /** Book `weight`, sleeping until its start. Reports waits via onWait. */
   async acquire(
     weight: number,
     signal?: AbortSignal,
     onWait?: (seconds: number) => void,
   ): Promise<void> {
-    const now = performance.now()
-    this.refill(now)
-    const deficit = weight - this.tokens
-    this.tokens -= weight
-    if (deficit <= 0) return
-    const waitMs = (deficit / this.perMinute) * 60_000
+    const { now, start } = this.startFor(weight)
+    const heldMs = WINDOW_MS * Math.max(1, weight / this.perMinute)
+    this.booked.push([start, start + heldMs, weight])
+    const waitMs = start - now
+    if (waitMs <= 0) return
     if (waitMs > 3_000) onWait?.(Math.ceil(waitMs / 1000))
     await abortableSleep(waitMs, signal)
   }
@@ -515,21 +534,29 @@ export interface FetchWeatherOptions {
   terrainElevation?: boolean
 }
 
+// The longest a minutely 429 is waited out before the one resume, the pod's
+// `_RESUME_MAX_WAIT_S`: a minutely quota refills within the minute it counts,
+// so no longer wait can help it, whatever Retry-After says.
+const RESUME_MAX_WAIT_S = 60
+
 // getJson plus one automatic resume for a minutely 429: that quota refills
 // within the minute, so a single narrated wait usually completes the batch
 // instead of failing the analysis. Hourly/daily limits rethrow immediately —
-// no wait we are willing to impose can help those.
+// no wait we are willing to impose can help those. The resume pays its weight
+// again through `spend` before it asks (#581), as the pod's does: the provider
+// bills the repeated request like any other, and a pacer that never heard of it
+// would book the rest of the minute as if it had not happened.
 //
 // A batch that outlives its deadline is asked once more, at once (#545). The
 // measured outliers were cold batches, which a second ask may find warm; a
 // second timeout says the service is stuck, and the analysis fails rather than
-// holding the reader a third time. No sleep
-// first: a timeout says nothing about quota, and the pacer already charged
-// this batch, as it does for the minutely resume below.
+// holding the reader a third time. No sleep and no second charge: a timeout
+// says nothing about quota, and the pacer already charged this batch.
 async function getJsonWithResume(
   url: string,
   params: Record<string, string>,
   signal: AbortSignal | undefined,
+  spend: () => Promise<void>,
   onPace?: (seconds: number) => void,
 ): Promise<unknown> {
   try {
@@ -537,8 +564,10 @@ async function getJsonWithResume(
   } catch (e) {
     if (e instanceof OpenMeteoTimeout) return await getJson(url, params, signal)
     if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'minutely') throw e
-    onPace?.(e.retryAfterS)
-    await abortableSleep(e.retryAfterS * 1000, signal)
+    const waitS = Math.min(e.retryAfterS, RESUME_MAX_WAIT_S)
+    onPace?.(waitS)
+    await abortableSleep(waitS * 1000, signal)
+    await spend()
     return await getJson(url, params, signal)
   }
 }
@@ -617,11 +646,13 @@ export async function fetchWeather(
       // One acquire per SPAN, each priced on its own hours: two requests are two
       // answers, so a spanning window spends twice, and pricing it on the whole
       // window would bill the archive half's months for the forecast half too.
-      await weatherBudget.acquire(
-        callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
-        signal,
-        onPace,
-      )
+      const spend = () =>
+        weatherBudget.acquire(
+          callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
+          signal,
+          onPace,
+        )
+      await spend()
       const data = await getJsonWithResume(
         span.archive ? ARCHIVE_URL : FORECAST_URL,
         {
@@ -645,6 +676,7 @@ export async function fetchWeather(
           timezone: 'UTC',
         },
         signal,
+        spend,
         onPace,
       )
       const items = asItems(data)
@@ -757,11 +789,13 @@ export async function fetchCloud(
       // budget, because Open-Meteo meters per service and this is the weather
       // endpoint. Read off the list, for the reason the weather fetch reads its
       // own count off `HOURLY_VARIABLES`.
-      await weatherBudget.acquire(
-        callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
-        signal,
-        onPace,
-      )
+      const spend = () =>
+        weatherBudget.acquire(
+          callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
+          signal,
+          onPace,
+        )
+      await spend()
       const data = await getJsonWithResume(
         span.archive ? ARCHIVE_URL : FORECAST_URL,
         {
@@ -776,6 +810,7 @@ export async function fetchCloud(
           timezone: 'UTC',
         },
         signal,
+        spend,
         onPace,
       )
       const items = asItems(data)
@@ -850,6 +885,10 @@ export async function fetchAqi(
   const reqStart = utcHour(startMs)
   const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
   if (reqStart > reqEnd) return destinations.map(() => null)
+  // Priced on the clamped hours the request asks for, as the backend prices
+  // it: a 16-day window asks air quality for its first few days only, so
+  // pricing all sixteen books 16/14 of what the request costs (#581).
+  const reqEndMs = Math.min(endMs, Date.parse(`${endCap}:00Z`))
 
   const results: AqiResult[] = new Array(destinations.length).fill(null)
   const missIdx: number[] = []
@@ -869,7 +908,7 @@ export async function fetchAqi(
   }> => {
     if (rateLimited) return { rows: chunk.map(() => null), cacheable: false }
     try {
-      await aqiBudget.acquire(callWeight(chunk.length, startMs, endMs, 1), signal, onPace)
+      await aqiBudget.acquire(callWeight(chunk.length, startMs, reqEndMs, 1), signal, onPace)
       const data = await getJson(
         AIR_QUALITY_URL,
         {

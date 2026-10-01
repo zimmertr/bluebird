@@ -58,9 +58,13 @@ def _round_or_none(v: float | None, ndigits: int) -> float | None:
 
 # The height of each standard pressure level in the ICAO standard atmosphere,
 # in metres. Every level-reading below takes its height from here rather than
-# from a geopotential it fetched: real level heights move a few percent with the
-# weather, and fetching them would double a request's variable count for a
-# correction smaller than the model's own grid error. The wind and temperature
+# from a geopotential it fetched, and that is the larger error in a summit
+# reading: measured 2026-10-01 at Rainier on GFS Seamless, the 600 hPa surface
+# stood 127 to 192 m above its standard height over three days, which puts the
+# summit temperature 0.7 to 1.3 °C cold, where Open-Meteo's terrain height sat
+# 12 m under the summit. Fetching the real heights would add five variables to
+# every request (a weight factor of 1.9 rather than 1.4 here, 2.0 rather than
+# 1.5 in the browser), and docs/DATA.md states the error instead. The wind and temperature
 # read the five from 925 to 500 hPa; the cloud base reads all eight, because a
 # saturated layer can sit under the lowest summit (1000 hPa) and a clear column
 # has to be checked to the top of every summit on Earth (300 hPa, 30,100 ft).
@@ -83,9 +87,8 @@ ISA_HEIGHT_M: dict[int, float] = {
 # So each hour also carries the free-air wind at five pressure levels, and
 # `_wind_at_elevation` interpolates between the two levels bracketing the
 # destination's elevation, floored at the 10 m value. The heights are the ISA
-# standard atmosphere, fixed rather than fetched: real geopotential heights
-# move a few percent with weather, and fetching them would double the
-# variable count for a correction smaller than the model's own grid error.
+# standard atmosphere, fixed rather than fetched, for the reason and at the
+# measured cost `ISA_HEIGHT_M` records.
 # All eight models Bluebird Forecast offers answered all five levels (probed
 # 2026-08-21). The ARCHIVE endpoint accepts all five and answers every hour
 # null (measured 2026-09-12), which the null-level path below already handles by
@@ -153,6 +156,23 @@ HOURLY_VARIABLES = ",".join(
 
 _JOIN_KEYS: tuple[str, ...] = ("time", *HOURLY_VARIABLES.split(","))
 
+# The unit each weather column has to declare in `hourly_units` before any of
+# its numbers is read: what the request's `temperature_unit=fahrenheit`,
+# `wind_speed_unit=mph` and `precipitation_unit=inch` ask for, spelled the way
+# Open-Meteo writes it back. Measured 2026-10-01 at Rainier, on all eight models
+# from the forecast endpoint and on the archive: "inch", "°F" and "mp/h" (not
+# "mph"). A host that ignored one of those parameters would answer millimetres,
+# Celsius or km/h with plausible-looking numbers, and the table would rank them
+# as inches, Fahrenheit and mph. The freezing level is not here because its
+# unit legitimately varies and `_freeze_to_ft` converts it.
+_DECLARED_UNITS: dict[str, str] = {
+    "precipitation": "inch",
+    "temperature_2m": "°F",
+    "wind_speed_10m": "mp/h",
+    **{name: "mp/h" for name, _ in _WIND_LEVELS},
+    **{name: "°F" for name, _ in _TEMP_LEVELS},
+}
+
 # The cloud base (issue #117): the lowest height in the air column over a
 # destination where the air is saturated, read off the relative humidity at the
 # destination's own 2 m point and at every standard level above it.
@@ -188,6 +208,14 @@ CLOUD_VARIABLES = ",".join(
     + [name for name, _ in _CLOUD_LEVELS]
 )
 CLOUD_JOIN_KEYS: tuple[str, ...] = ("time", *CLOUD_VARIABLES.split(","))
+# The cloud request's own declared units, read the same way: it sends no unit
+# parameters, so the 2 m pair comes back in the Celsius Espy's rule is stated
+# in. Measured 2026-10-01 on all eight models and the archive: "°C" for both.
+# A pair in Fahrenheit would stretch the parcel base by 1.8.
+_CLOUD_DECLARED_UNITS: dict[str, str] = {
+    "temperature_2m": "°C",
+    "dew_point_2m": "°C",
+}
 
 
 # What the archive endpoint writes in `hourly_units` for a variable it does not
@@ -411,6 +439,31 @@ def _freeze_ft_in_window(
     ]
 
 
+def _check_units(data: dict[str, Any], expected: dict[str, str]) -> None:
+    """Refuse a payload whose numbers are not in the units the request asked for.
+
+    `expected` is the request's own table: `_DECLARED_UNITS` for the weather
+    request, `_CLOUD_DECLARED_UNITS` for the cloud one.
+
+    Only a column that carries a number has to declare its unit: the archive
+    answers the pressure levels it does not serve as a column of nulls under
+    the unit "undefined", and that column has nothing to misread. A number
+    under any other unit, or under none, fails the batch the way an unreadable
+    freezing level does. The whole column is read rather than the window, which
+    is the stricter of the two and keeps the two ports trivially equal.
+    """
+    hourly = data.get("hourly", {})
+    units = data.get("hourly_units")
+    declared = units if isinstance(units, dict) else {}
+    for name, unit in expected.items():
+        if declared.get(name) == unit:
+            continue
+        if any(v is not None for v in hourly.get(name) or []):
+            log.warning("Open-Meteo declared %s unit %r", name, declared.get(name))
+            # The sentence `_freeze_to_ft` raises, for the same fault.
+            raise UpstreamError(f"{PROVIDER} request failed. Try again later.")
+
+
 def _weather_metrics(
     data: dict[str, Any],
     start_dt: datetime,
@@ -418,6 +471,7 @@ def _weather_metrics(
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
     try:
+        _check_units(data, _DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         precip = hourly.get("precipitation", [])
@@ -494,12 +548,13 @@ def _weather_series(
     rest into aggregates — this keeps every in-window hour and preserves each
     metric's nulls independently (the chart renders them as line gaps). Returns
     None when the window contains no hours at all, or when the payload is
-    malformed — an unreadable freezing level unit is the one exception, and it
-    raises. Wind and temperature are adjusted to the destination's elevation
-    exactly as `_weather_metrics` adjusts them, so the chart and the playback
-    recoloring draw the same quantities the table ranks.
+    malformed — a column in a unit the request did not ask for is the one
+    exception, and it raises. Wind and temperature are adjusted to the
+    destination's elevation exactly as `_weather_metrics` adjusts them, so the
+    chart and the playback recoloring draw the same quantities the table ranks.
     """
     try:
+        _check_units(data, _DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         precip = hourly.get("precipitation", [])
@@ -727,6 +782,7 @@ def _cloud_metrics(
     aggregates beside whatever cover it has.
     """
     try:
+        _check_units(data, _CLOUD_DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         cover = hourly.get("cloud_cover", [])
@@ -763,6 +819,9 @@ def _cloud_metrics(
             "cloud_cover_max_pct": round(max(covers), 0) if covers else None,
             "cloud_cover_avg_pct": round(sum(covers) / len(covers), 0) if covers else None,
         }
+    except UpstreamError:
+        # The unit refusal, for the weather's reason.
+        raise
     except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
         return None
 
@@ -775,6 +834,7 @@ def _cloud_series(
 ) -> dict[str, Any] | None:
     """Per-hour cloud base and cloud cover over the window, nulls kept."""
     try:
+        _check_units(data, _CLOUD_DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         cover = hourly.get("cloud_cover", [])
@@ -797,5 +857,7 @@ def _cloud_series(
         if not grid:
             return None
         return {"times": grid, "cloud_base_ft": b_out, "cloud_cover_pct": c_out}
+    except UpstreamError:
+        raise
     except Exception:  # noqa: BLE001 — best-effort series degrades to None
         return None

@@ -1,4 +1,4 @@
-# 0073. SemVer 1.0 covers the HTTP API and share links, and a request body refuses a field it does not declare
+# 0076. SemVer 1.0 covers the HTTP API and share links, and a request body refuses a field it does not declare
 
 - Status: Accepted
 - Date: 2026-10-01

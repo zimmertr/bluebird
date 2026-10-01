@@ -63,6 +63,10 @@ MAX_CONCURRENT_BATCHES = 4
 # The pace narration exists so a long wait does not read as a hang. Under a few
 # seconds there is no hang to explain, so the callback stays quiet.
 _PACE_NARRATE_S = 3
+# The longest a minutely 429 is waited out before the one resume. A minutely
+# quota refills within the minute it counts, so no longer wait can help it,
+# whatever Retry-After says.
+_RESUME_MAX_WAIT_S = 60
 
 # Called as each batch completes: (processed_destinations, total_destinations,
 # batches_done, total_batches). Lets the SSE route emit incremental progress.
@@ -81,6 +85,17 @@ ErrorPolicy = Literal["raise", "degrade"]
 # None, because the caller expands a failure into one null row per location and
 # must not confuse "the provider failed" with "the provider answered nothing".
 DEGRADED: Any = object()
+
+class BatchUnanswered(Exception):
+    """A degrading service's batch came back with nothing usable in it.
+
+    Raised by a `fetch_chunk` instead of returning null rows, because a null
+    row is cached as "no data for this window" for the whole TTL, and an
+    unusable answer is not that: the next analysis should ask again. Under
+    `on_error="degrade"` the batch's rows are null for this analysis and nothing
+    of it is cached; under `"raise"` it fails the fetch like any other error.
+    """
+
 
 # A caller's own reading of a refusal this module cannot make for it, called
 # with the error and the quota label it would be counted under. It either raises
@@ -154,6 +169,7 @@ async def fetch_batched(
     slots: ratelimit.UpstreamBudget,
     pacing: Pacing | None,
     on_error: ErrorPolicy,
+    resume_minutely: bool,
     on_progress: ProgressCallback | None = None,
     on_degraded: Callable[[str], None] | None = None,
 ) -> list[dict[str, Any] | None]:
@@ -163,6 +179,14 @@ async def fetch_batched(
     locations in, one row (or None) per location out. `label` names the fetch in
     this module's log lines. `on_degraded` is how a degrading service counts
     what it lost; under `on_error="raise"` it is never called.
+
+    `resume_minutely` is whether a batch that meets a minutely 429 is fetched
+    once more after the wait the provider names. Required, like `on_error`,
+    because the services differ: weather resumes, since a ranking with no
+    weather in it is not a ranking, and air quality stops spending at its first
+    429. The wait happens here rather than in the service because the batch
+    must give up its in-flight slot while it waits and pay its weight again
+    before it asks again, and both belong to this loop.
     """
     if not destinations:
         return []
@@ -210,26 +234,57 @@ async def fetch_batched(
     rate_limited = asyncio.Event()
     sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
 
+    async def spend(chunk: list[dict[str, Any]]) -> None:
+        if pacing is None:
+            return
+        for weight in pacing.weights(chunk):
+            if pacing.on_pace is not None:
+                estimate = pacing.budget.wait_estimate_s(weight)
+                if estimate > _PACE_NARRATE_S:
+                    await pacing.on_pace(int(estimate) + 1)
+            await pacing.budget.acquire(weight)
+
+    async def attempt(chunk: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
+        # The pod's weighted spend first, then a pod-wide in-flight slot. The
+        # weight acquire happens BEFORE the in-flight slot so a pace sleep
+        # never holds a slot another analysis could be using.
+        await spend(chunk)
+        async with slots.slot():
+            return await fetch_chunk(chunk)
+
+    # Batches whose null rows mean "unknown" rather than "no data": never cached.
+    unanswered: set[int] = set()
+
     async def run(
         index: int, chunk: list[dict[str, Any]]
     ) -> tuple[int, list[dict[str, Any] | None]]:
-        # Per-analysis fairness slot first, then the pod's weighted spend, then
-        # a pod-wide in-flight slot. The weight acquire happens BEFORE the
-        # in-flight slot so a pace sleep never holds a slot another analysis
-        # could be using.
+        # Per-analysis fairness slot first, then `attempt`.
         async with sem:
             if rate_limited.is_set():
+                unanswered.add(index)
                 return index, [None] * len(chunk)
             try:
-                if pacing is not None:
-                    for weight in pacing.weights(chunk):
-                        if pacing.on_pace is not None:
-                            estimate = pacing.budget.wait_estimate_s(weight)
-                            if estimate > _PACE_NARRATE_S:
-                                await pacing.on_pace(int(estimate) + 1)
-                        await pacing.budget.acquire(weight)
-                async with slots.slot():
-                    return index, await fetch_chunk(chunk)
+                try:
+                    return index, await attempt(chunk)
+                except UpstreamRateLimited as exc:
+                    # One automatic resume for a minutely 429: that quota
+                    # refills within the minute, so a single paced retry
+                    # usually completes the batch instead of failing the whole
+                    # analysis. Hourly and daily exhaustion pass straight on,
+                    # because no wait we are willing to impose helps those.
+                    # The wait runs outside the in-flight slot, which `attempt`
+                    # has already released, and the retry pays its weight
+                    # again, because the provider bills the request it repeats.
+                    if not resume_minutely or exc.scope != "minutely":
+                        raise
+                    wait = min(exc.retry_after_s, _RESUME_MAX_WAIT_S)
+                    log.warning(
+                        "%s minutely quota hit; resuming batch in %ds", label, wait
+                    )
+                    await asyncio.sleep(wait)
+                # The one resume. A second 429 on the same batch is real
+                # exhaustion and raises from here, minutely or not.
+                return index, await attempt(chunk)
             except ratelimit.BudgetExhausted:
                 # Wedged, not merely busy. Raising fails the analysis with a
                 # 503; degrading loses this batch and keeps the rest.
@@ -238,6 +293,12 @@ async def fetch_batched(
                 if on_degraded is not None:
                     on_degraded("budget")
                 log.warning("%s budget exhausted; degrading this batch", label)
+                unanswered.add(index)
+                return index, [None] * len(chunk)
+            except BatchUnanswered:
+                if on_error == "raise":
+                    raise
+                unanswered.add(index)
                 return index, [None] * len(chunk)
             except UpstreamRateLimited as exc:
                 if on_error == "raise":
@@ -250,6 +311,7 @@ async def fetch_batched(
                     exc.scope or "unknown",
                 )
                 rate_limited.set()
+                unanswered.add(index)
                 return index, [None] * len(chunk)
 
     # Each batch's results land at its own index, so input order survives, while
@@ -273,13 +335,22 @@ async def fetch_batched(
         raise
 
     fetched = [item for sublist in chunk_results_by_index for item in sublist]
-    # A rate-limited run produced None rows that mean "unknown", not "no data
+    # A degraded batch produced None rows that mean "unknown", not "no data
     # for this window" — caching those would freeze the outage into the TTL.
     # Only real answers are cached, and a real empty window is cached as
-    # NO_DATA.
+    # NO_DATA. A rate-limited run caches nothing at all.
     if not rate_limited.is_set():
-        for key, result in zip(miss_keys, fetched, strict=False):
-            cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
+        answered = [
+            i
+            for index, chunk in enumerate(chunks)
+            if index not in unanswered
+            for i in range(index * BATCH_SIZE, index * BATCH_SIZE + len(chunk))
+        ]
+        for i in answered:
+            result = fetched[i]
+            cache.FORECAST_CACHE.put(
+                miss_keys[i], cache.NO_DATA if result is None else result
+            )
     for i, result in zip(miss_indices, fetched, strict=False):
         results[i] = result
     return results

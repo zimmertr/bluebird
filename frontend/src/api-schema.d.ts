@@ -288,7 +288,7 @@ export interface components {
             found?: number | null;
             /**
              * Limit
-             * @description The analysis ceiling the count exceeded (destinations).
+             * @description The analysis ceiling the count exceeded (destinations): the analysis cap, or on a pacing refusal the most destinations the requested window can take without an Open-Meteo key.
              */
             limit?: number | null;
             /**
@@ -1430,7 +1430,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnalyzeResponse"];
                 };
             };
-            /** @description The request parsed but does not describe a runnable analysis: the window ends before it starts, the request sends neither `destination_types` nor `custom_destinations`, `destination_types` is non-empty with no `polygon`, a regional `forecast_model` has no coverage for the area, or the candidate count exceeds the cap. Over-cap refusals carry the structured remedy fields (`found`, `limit`, and a computed elevation-floor suggestion when one exists); send `top_by_elevation: true` to elect an explicit top-N analysis instead. */
+            /** @description The request parsed but does not describe a runnable analysis: the window ends before it starts, the request sends neither `destination_types` nor `custom_destinations`, `destination_types` is non-empty with no `polygon`, a regional `forecast_model` has no coverage for the area, the candidate count exceeds the cap, or, for a request without an Open-Meteo key, the candidates over this window cost more than the deployment can pace. Over-cap refusals carry the structured remedy fields (`found`, `limit`, and a computed elevation-floor suggestion when one exists); send `top_by_elevation: true` to elect an explicit top-N analysis instead. A pacing refusal carries `found` and `limit`, the most destinations that window can take; a shorter window, fewer destinations or a key all clear it. */
             400: {
                 headers: {
                     [name: string]: unknown;

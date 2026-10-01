@@ -15,6 +15,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import dest
 
+from app import ratelimit
 from app.models import MAX_ANALYZE_PEAKS, AnalyzeRequest, DestinationResult
 from app.routes.analyze.events import Done, Failure, Progress, Refusal, Result, Status
 from app.routes.analyze.phases import (
@@ -25,6 +26,7 @@ from app.routes.analyze.phases import (
     Window,
     _apply_cap,
     _attach_late,
+    _check_pacing,
     _check_window,
     _eager_fetches,
     _fetch_forecasts,
@@ -156,6 +158,97 @@ def test_apply_cap_cuts_to_the_highest_when_asked():
     )
     # The snow fill ran on the final set: every row carries the field.
     assert all("snow_depth_in" in d for d in capped.destinations)
+
+
+# ── _check_pacing (#581) ────────────────────────────────────────────────────
+#
+# The pod's pacer is disabled for the suite (conftest), so each test here gives
+# it back its production budget. A window ARCHIVE_DAYS long costs each full
+# batch of 50 five weighted calls a day, 300 at 60 days: the fourth and later
+# batches queue past the two-minute bound behind their own siblings.
+
+ARCHIVE_DAYS = 60
+NO_EAGER = Eager(aqi=False, cloud=False)
+
+
+def _archive_window(days: int) -> Window:
+    end = datetime(2026, 6, 30, 23, 0, tzinfo=UTC)
+    start = (end - timedelta(days=days - 1)).replace(hour=0)
+    return Window(start, end, "archive", end)
+
+
+@pytest.fixture
+def paced(monkeypatch):
+    monkeypatch.setattr(
+        ratelimit, "WEATHER_WEIGHT", ratelimit.WeightedBudget("Open-Meteo", 550)
+    )
+
+
+def test_check_pacing_refuses_what_its_own_batches_would_shed(paced):
+    refusal = _check_pacing(_field(300), _archive_window(ARCHIVE_DAYS), None, "peak", NO_EAGER)
+    assert isinstance(refusal, Refusal)
+    assert refusal.body["error"] == {"code": "refusal", "retryable": False}
+    assert refusal.body["detail"] == (
+        "This search covers 300 peaks over 60 days, which is too many for one analysis."
+    )
+    assert refusal.body["found"] == 300
+    # The most this window can take, and it does take it.
+    limit = refusal.body["limit"]
+    assert 0 < limit < 300
+    window = _archive_window(ARCHIVE_DAYS)
+    assert _check_pacing(_field(limit), window, None, "peak", NO_EAGER) is None
+    assert isinstance(_check_pacing(_field(limit + 1), window, None, "peak", NO_EAGER), Refusal)
+
+
+def test_check_pacing_never_refuses_a_keyed_caller(paced):
+    # A keyed fetch skips the pacer, so nothing it would shed applies.
+    window = _archive_window(ARCHIVE_DAYS)
+    assert _check_pacing(_field(300), window, "caller-key", "peak", NO_EAGER) is None
+
+
+def test_check_pacing_never_refuses_a_forecast_window(paced):
+    # The worst the forecast endpoint can be asked: the analysis cap over its
+    # whole reach, with the cloud column beside it.
+    end = datetime(2026, 9, 16, 23, 0, tzinfo=UTC)
+    window = Window(end - timedelta(days=15, hours=23), end, "forecast", end)
+    cloud = Eager(aqi=False, cloud=True)
+    assert _check_pacing(_field(MAX_ANALYZE_PEAKS), window, None, "peak", cloud) is None
+
+
+def test_check_pacing_counts_the_cloud_column(paced):
+    # The cloud batches spend the same quota beside the weather ones, so a
+    # window the weather alone fits can be refused once the column is asked for.
+    window = _archive_window(40)
+    assert _check_pacing(_field(300), window, None, "peak", NO_EAGER) is None
+    cloud = Eager(aqi=False, cloud=True)
+    assert isinstance(_check_pacing(_field(300), window, None, "peak", cloud), Refusal)
+
+
+async def test_a_refused_analysis_spends_nothing(paced, monkeypatch):
+    # Refused before any upstream call: no forecast is asked for.
+    calls: list[str] = []
+
+    async def fetched(*args, **kwargs):
+        calls.append("weather")
+        return [None] * len(args[0])
+
+    async def discovered(*args, **kwargs):
+        return _field(300)
+
+    monkeypatch.setattr(osm, "query_osm", discovered)
+    monkeypatch.setattr(weather, "fetch_weather_batch", fetched)
+    end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) - timedelta(days=100)
+    request = _request(
+        destination_types=["peak"],
+        polygon=POLYGON,
+        custom_destinations=None,
+        start_datetime=end - timedelta(days=ARCHIVE_DAYS),
+        end_datetime=end,
+    )
+    events = await _collect(_run_analysis(request, None))
+    assert isinstance(events[-1], Refusal)
+    assert events[-1].body["found"] == 300
+    assert calls == []
 
 
 # ── _eager_fetches ─────────────────────────────────────────────────────────
