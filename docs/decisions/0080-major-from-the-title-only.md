@@ -2,8 +2,8 @@
 
 - Status: Accepted
 - Date: 2026-10-01
-- Decider: the maintainer (TJ), on issue #562 (any conventional-commit title with `!` cuts a major, in both repositories; a PR check rejects a title the pipeline cannot read; the tag step becomes retryable; body footers do not count)
-- Issues and PRs: #562, and the paired bluebird-helm PR
+- Decider: the maintainer (TJ), on issue #562 (any conventional-commit title with `!` cuts a major, in both repositories; a PR check rejects a title the pipeline cannot read; the tag step becomes retryable; body footers do not count); and, the same day, that the chart goes to 1.0 with the app
+- Issues and PRs: #562, #600, zimmertr/bluebird-helm#283
 - Cited in code as: #562
 - Guide: root [`CLAUDE.md`](../../CLAUDE.md), CI/CD pipeline; [`docs/CICD.md`](../CICD.md), Conventions
 
@@ -48,6 +48,17 @@ GitVersion 6.8.2 (the version both repositories' `6.x` setup resolves, read from
 | `Merge pull request #999 from zimmertr/topic` | 0.92.3 | 0.92.3 | 0.92.3 |
 
 GitVersion matches without regard to case (`Feat: x` is a minor under every column), which is why `Fix!:` is a major. The full tables, both repositories, are in the two PRs. `backend/tests/test_release_titles.py` holds the same rows against the patterns through the check's own code.
+
+### The chart's 1.0.0 (added 2026-10-01)
+
+The maintainer decided the same day that the chart goes to 1.0 with the app ("Yes", answering the open question on the PRs). No pattern or workflow changes for it: the chart's 1.0.0 comes from a chart PR whose title carries `!`, merged after the app's 1.0.0. The automatic appVersion PR is titled `chore(release): bump chart appVersion to <semver>` and releases a chart patch on its own. Each sequence below lands its titles in turn on bluebird-helm's `origin/main` (d26a9d8, v0.15.21) with this decision's patterns, GitVersion 6.8.2, and tags each result before the next commit the way the release workflow does. The patch numbers move with whatever merges first.
+
+| Order | First title merged | Chart version | Second title merged | Chart version |
+|---|---|---|---|---|
+| App first (the one to use) | `chore(release): bump chart appVersion to 1.0.0` | 0.15.22 | `chore!: cut chart 1.0.0 with app 1.0.0` | 1.0.0 |
+| Chart first | `chore!: cut chart 1.0.0 with app 1.0.0` | 1.0.0 | `chore(release): bump chart appVersion to 1.0.0` | 1.0.1 |
+
+Chart first also gives chart 1.0.0 the newest pre-1.0 app as its `appVersion`, because the chart workflow resolves `appVersion` from the app's latest release when it packages. A third path, retitling the automatic PR to `chore(release)!:`, gives 1.0.0 in one release in the engine, but that PR arms auto-merge when it opens, so a hand edit races its merge. `docs/CICD.md` (Conventions) has the steps.
 
 ## Alternatives rejected
 

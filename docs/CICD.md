@@ -1098,6 +1098,29 @@ costs](#what-a-stable-chart-bump-costs).
   A title no pattern reads still releases a patch, which is why the `PR Title`
   check exists. The patterns live in `GitVersion.yml`, identical in both
   repositories.
+- **Cutting 1.0.0: the app first, then the chart.** The chart goes to 1.0
+  with the app (TJ, 2026-10-01), and neither major happens by itself: each
+  repository needs a merged PR whose title carries `!`. Merge in this order:
+
+  1. The app PR with `!` in its title. It releases `zimmertr/bluebird:1.0.0`,
+     and Path 1 step 5 opens the automatic chart PR, titled `chore(release):
+     bump chart appVersion to 1.0.0`. That title has no `!`, so by itself it
+     releases a chart **patch** (for example 0.15.22) whose default image is
+     the app's 1.0.0. It merges itself; let it, and let that chart release
+     finish.
+  2. Then a chart PR of your own with `!` in its title, for example `chore!:
+     ...`. It must change a file under `charts/**` (or `artifacthub-repo.yml`),
+     because the chart release workflow fires only on those paths, and it
+     should not touch the `appVersion` line the automatic PR edits. Merging it
+     releases chart **1.0.0**, and the package-time resolver gives it the app's
+     1.0.0 as its `appVersion`.
+
+  Not the other way round: a chart `!` PR merged before the app's 1.0.0
+  exists releases chart 1.0.0 with the newest pre-1.0 app as its default image,
+  and the automatic PR that follows the app's 1.0.0 then releases chart 1.0.1.
+  Do not put the `!` on the automatic PR either: auto-merge is armed the
+  moment it opens, so retitling it races its own merge. The engine runs behind
+  this order are in [0080](decisions/0080-major-from-the-title-only.md).
 - **Release guards** in both release pipelines make a re-run finish a release
   rather than repeat it: each piece (image or chart, git tag, GitHub release) is
   made only when missing, and a run whose version has all three is a no-op. See
