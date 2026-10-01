@@ -65,10 +65,30 @@ COPY --from=frontend-builder /app/frontend/dist/ ./static/
 # plugin: frontend/package.json is "type": "module", so a plugin doing this in
 # CommonJS would break, and routing 1 MB of vendor JS through Vite's hashing
 # buys nothing.
+#
+# The bundle's first line points at swagger-ui-bundle.js.LICENSE.txt beside it,
+# and Swagger UI's Apache-2.0 asks that its LICENSE and NOTICE travel with a
+# copy, so all three ship next to the two files that use them (#571). The
+# frontend build lists these files too (VENDORED_FILES in
+# frontend/plugins/thirdPartyLicenses.ts), and a test holds that list to this
+# COPY.
 COPY --from=frontend-builder \
   /app/frontend/node_modules/swagger-ui-dist/swagger-ui-bundle.js \
   /app/frontend/node_modules/swagger-ui-dist/swagger-ui.css \
+  /app/frontend/node_modules/swagger-ui-dist/swagger-ui-bundle.js.LICENSE.txt \
+  /app/frontend/node_modules/swagger-ui-dist/LICENSE \
+  /app/frontend/node_modules/swagger-ui-dist/NOTICE \
   ./static/swagger-ui/
+# The license this image is offered under, beside the code it covers. The
+# image is published on Docker Hub, so a copy of it is a copy of the software.
+COPY LICENSE ./LICENSE
+# The Python half of the notice file the frontend build began: one block per
+# installed distribution, read from what pip actually installed. It follows
+# the dist COPY because it appends to the file that COPY brings in, and it runs
+# from a bind mount so the script is not left in the image. A distribution
+# with no license text fails the build here.
+RUN --mount=type=bind,source=backend/scripts/write_third_party_licenses.py,target=/tmp/write_third_party_licenses.py \
+    python /tmp/write_third_party_licenses.py static/third-party-licenses.txt
 # Nothing needs root at runtime — uvicorn binds 8000 and the app only reads
 # baked-in files — so serve as an unprivileged user. Fixed numeric UID/GID so
 # Kubernetes runAsNonRoot can verify without resolving names inside the image.

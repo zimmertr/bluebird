@@ -2,7 +2,7 @@
 
 One file for each design decision: what was decided, when, who decided, and the evidence that settled it. A record sits beside the guide paragraph that states the rule today and does not replace it. The guide tells a session what to do. The record keeps why, and since when.
 
-The guide is the `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, [`backend/CLAUDE.md`](../../backend/CLAUDE.md), [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), and one for each of [`utils/`](../../frontend/src/utils/CLAUDE.md), [`components/`](../../frontend/src/components/CLAUDE.md), [`hooks/`](../../frontend/src/hooks/CLAUDE.md) and [`map/`](../../frontend/src/map/CLAUDE.md) under it. Each guide paragraph that a record explains ends with a link to it.
+The guide is the `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, [`backend/CLAUDE.md`](../../backend/CLAUDE.md), [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), and one for each of [`utils/`](../../frontend/src/utils/CLAUDE.md), [`components/`](../../frontend/src/components/CLAUDE.md), [`hooks/`](../../frontend/src/hooks/CLAUDE.md) and [`map/`](../../frontend/src/map/CLAUDE.md) under it, and [`frontend/plugins/CLAUDE.md`](../../frontend/plugins/CLAUDE.md) for the build's own plugins. Each guide paragraph that a record explains ends with a link to it.
 
 ## Write a record
 
@@ -102,3 +102,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0079](0079-forest-order-vetoes-and-start-date.md) | A Region 3 or 4 order's own words can veto its citation, a short list excludes what no words can, and an order that has not started is not live, and a Stage 3 fire closure counts by its type | 2026-10-01 | Accepted | Backend: `usfs_closures.py` |
 | [0080](0080-major-from-the-title-only.md) | A major version comes from the PR title's `!` alone, and a body footer never counts | 2026-10-01 | Accepted | Root: CI/CD pipeline; `docs/CICD.md` Conventions |
 | [0081](0081-edge-404-is-the-apps.md) | The gateway's 404 is the app's, and a keyed route's CORS preflight reaches the pod | 2026-10-01 | Accepted | Backend: `routes/notfound.py`; `scripts/generate_edge_not_found.py` |
+| [0086](0086-license-notices-built-into-the-image.md) | The image builds its own third-party license file from what it ships, and a package with no text fails the build | 2026-10-01 | Accepted | Root: Architecture; Frontend: `plugins/thirdPartyLicenses.ts`; Backend: `scripts/write_third_party_licenses.py` |

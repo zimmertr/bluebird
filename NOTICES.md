@@ -66,9 +66,16 @@ services the data comes from, and the software bundled into the shipped image.
 ## Software
 
 The runtime dependencies bundled into the browser app or installed into the
-image. Versions are deliberately absent here: Dependabot moves them weekly,
-and licenses change close to never. The exact versions inside any release are
-recorded in the SBOM attestation on its image:
+image. This section is a summary. The complete list, with every package's
+version and its full license text, is built into each image and served at
+[`/third-party-licenses.txt`](https://bluebirdforecast.com/third-party-licenses.txt);
+the build writes it from what it actually bundled and installed, and fails when
+a package has no license text to copy. Swagger UI's own `LICENSE`, `NOTICE`
+and `swagger-ui-bundle.js.LICENSE.txt` ship beside it under `/swagger-ui/`.
+
+Versions are deliberately absent here: Dependabot moves them weekly, and
+licenses change close to never. The exact versions inside any release are in
+that file, and in the SBOM attestation on its image:
 
 ```bash
 docker buildx imagetools inspect zimmertr/bluebird:<version> --format '{{ json .SBOM }}'
@@ -93,7 +100,7 @@ Backend (pip), installed into the image:
 | uvicorn | BSD-3-Clause |
 | httpx | BSD-3-Clause |
 | pydantic | MIT |
-| prometheus-client | Apache-2.0 |
+| prometheus-client | Apache-2.0 AND BSD-2-Clause |
 
 Vendored: [swagger-ui-dist](https://www.npmjs.com/package/swagger-ui-dist)
 (Apache-2.0), copied into `static/swagger-ui/` at build time so `/docs` loads
@@ -101,13 +108,14 @@ nothing from a CDN.
 
 Their transitive dependencies are all under permissive MIT, ISC, and
 BSD-family licenses, with two exceptions worth naming: `certifi` (MPL-2.0)
-and `typing_extensions` (PSF-2.0). The base image's OS packages are covered
-by the SBOM rather than listed here. To regenerate the full listing:
+and `typing_extensions` (PSF-2.0). `victory-vendor` (MIT AND ISC, through
+recharts) ships no license file of its own, so its text is copied from the
+Victory repository into `frontend/plugins/licenses/`. The base image's OS
+packages and the Python interpreter are covered by the SBOM and by the base
+image's own files rather than listed here. To read the full listing from a
+local build:
 
 ```bash
-docker run --rm -v "$PWD/frontend":/app -w /app node:26-alpine \
-  sh -c "npm ci && npx --yes license-checker --production --csv"
-
-docker run --rm -v "$PWD/backend":/app -w /app python:3.14-slim \
-  sh -c "pip install -q -r requirements.txt pip-licenses && pip-licenses --format=csv"
+docker build -t bluebird-forecast:local .
+docker run --rm bluebird-forecast:local cat static/third-party-licenses.txt
 ```

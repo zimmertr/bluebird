@@ -35,6 +35,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`frontend/src/hooks/CLAUDE.md`](frontend/src/hooks/CLAUDE.md) | The same for every module under `frontend/src/hooks/` |
 | [`frontend/src/map/CLAUDE.md`](frontend/src/map/CLAUDE.md) | The same for every module under `frontend/src/map/`, `overlays/` included |
 | [`frontend/src/utils/CLAUDE.md`](frontend/src/utils/CLAUDE.md) | The same for every module under `frontend/src/utils/` |
+| [`frontend/plugins/CLAUDE.md`](frontend/plugins/CLAUDE.md) | The same for the build's own Vite plugins under `frontend/plugins/`, which run at build time and never reach the browser |
 | `docs/images/` | README assets only (`screenshot.jpg` is the front-page shot) |
 
 Three conventions hold across every page:
@@ -126,6 +127,7 @@ Three things here are deliberately **not** mirrors and must not become ones. Row
 Single container, multi-stage Docker build:
 - Stage 1: `node:26-alpine` builds the React SPA (`npm run build`) and provides the vendored `swagger-ui-dist` assets copied into `static/swagger-ui/`, so `/docs` loads nothing from a CDN
 - Stage 2: `python:3.14-alpine` runs uvicorn and serves the built SPA as static files at `/` (alpine over slim so the shipped image carries none of Debian's perpetual no-fix CVEs) Record: [0001](docs/decisions/0001-alpine-base-image.md)
+- Both stages write `third-party-licenses.txt`, the license text of every npm package the build ships and every Python distribution the image installs, which the pod serves at `/third-party-licenses.txt`: the first from the bundle's module graph (`frontend/plugins/thirdPartyLicenses.ts`), the second from installed metadata (`backend/scripts/write_third_party_licenses.py`). A package with no license text fails the build rather than leaving the notice silently short (#571). Record: [0086](docs/decisions/0086-license-notices-built-into-the-image.md)
 
 The FastAPI backend handles `POST /api/analyze`, which:
 1. Validates polygon area (bounding-box approximation; `MAX_POLYGON_AREA_KM2` in `limits.py`, published by `GET /api/capabilities` and measured in the comment above it)

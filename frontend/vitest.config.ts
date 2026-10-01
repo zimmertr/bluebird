@@ -20,7 +20,13 @@ export default defineConfig({
     projects: [
       {
         extends: true,
-        test: { name: 'node', include: ['src/**/*.test.ts'], environment: 'node', env },
+        test: {
+          name: 'node',
+          // plugins/ holds the build's own Vite plugins, which run in node too.
+          include: ['src/**/*.test.ts', 'plugins/**/*.test.ts'],
+          environment: 'node',
+          env,
+        },
       },
       {
         extends: true,

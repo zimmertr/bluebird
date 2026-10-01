@@ -10,6 +10,9 @@
    must never reach the stylesheet. This is also what lets eslint.config.js
    spell a class verbatim where styles.test.ts may not. */
 @source not "../tools";
+/* The same for the build's own plugins: plugins/licenses/ holds license texts
+   copied from upstream, which are prose nobody reviews for class names. */
+@source not "../plugins";
 /* The frontend module layout lives in `frontend/src/CLAUDE.md` and in one
    `CLAUDE.md` per directory under it, and v4 scans source as raw text, so
    every class name those files quote (`top-[92px]`, `pr-6`,

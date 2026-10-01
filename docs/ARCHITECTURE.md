@@ -13,8 +13,10 @@ Because the browser talks to Open-Meteo itself, that service sees each visitor's
 
 The whole thing builds as a single multi-stage Docker image:
 
-- Stage 1 runs `node:26-alpine` to `npm run build` the SPA, and vendors Swagger UI's assets so `/docs` renders without reaching out to a CDN.
-- Stage 2 runs `python:3.14-alpine` with uvicorn, serving the API and the built SPA together.
+- Stage 1 runs `node:26-alpine` to `npm run build` the SPA, and vendors Swagger UI's assets so `/docs` renders without reaching out to a CDN. The build also writes the npm half of `third-party-licenses.txt`: a Vite plugin (`frontend/plugins/thirdPartyLicenses.ts`) reads the bundle's module graph, the MapLibre worker's, the packages the stylesheets import and the vendored Swagger UI, and copies each package's own license files into it. A package with no license text fails the build.
+- Stage 2 runs `python:3.14-alpine` with uvicorn, serving the API and the built SPA together. After `pip install` it appends the Python half of the same file from the metadata of every installed distribution (`backend/scripts/write_third_party_licenses.py`, run from a bind mount so it does not stay in the image), and copies the repository's `LICENSE` to `/app/LICENSE` and Swagger UI's `LICENSE`, `NOTICE` and `swagger-ui-bundle.js.LICENSE.txt` beside its files.
+
+The finished file is served at `/third-party-licenses.txt`. It is a static file like any other under the mount, so the production gateway forwards it with no chart change: the chart's allowlist governs `/api` paths only. Nothing on the first screen references it, so the cold load does not fetch it. `NOTICES.md` at the repository root stays the human summary; the served file is the complete one, with every license text. See [decision 0086](decisions/0086-license-notices-built-into-the-image.md).
 
 What the first screen costs is gated rather than assumed (issue #337). The
 entry document warms the three hosts a cold load and a first analysis cannot

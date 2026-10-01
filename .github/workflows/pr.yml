@@ -261,6 +261,27 @@ jobs:
           check "the SPA is still served at /" \
             "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/)" "200"
 
+          # The license notices (#571). The build writes the file from what it
+          # actually bundled and installed, and fails on a package with no
+          # text; these say the result ships, is served, and names every
+          # direct dependency, so a build that silently skipped either half
+          # cannot pass. The repo's own LICENSE ships in the image, unserved.
+          check "the bundle's own notice is served beside it" \
+            "$(curl -s -o /dev/null -w '%{http_code}' localhost:8000/swagger-ui/swagger-ui-bundle.js.LICENSE.txt)" "200"
+          check "the third-party license file is served as text" \
+            "$(curl -s -o /dev/null -w '%{http_code} %{content_type}' localhost:8000/third-party-licenses.txt)" "200 text/plain; charset=utf-8"
+          curl -fsS localhost:8000/third-party-licenses.txt > notices.txt || true
+          unlisted=""
+          for name in $(jq -r '.dependencies | keys[]' frontend/package.json) \
+                      $(sed -E 's/[][<>=!~ ].*//' backend/requirements.txt); do
+            # Python names compare the way pip does: case, `-`, `_` and `.` alike.
+            pattern="^$(printf '%s' "$name" | sed -E 's/[-_.]+/[-_.]+/g') [^ ]+$"
+            grep -qiE "$pattern" notices.txt || unlisted="$unlisted $name"
+          done
+          check "the license file names every direct dependency" "$unlisted" ""
+          check "the image carries the repository's LICENSE" \
+            "$(docker exec smoke head -1 /app/LICENSE)" "# PolyForm Noncommercial License 1.0.0"
+
           docker stop smoke >/dev/null 2>&1 || true
           [ "$fail" -eq 0 ] || echo "::error::The built image failed its smoke test. See the failures above."
           exit $fail
