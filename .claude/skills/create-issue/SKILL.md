@@ -1,6 +1,6 @@
 ---
 name: create-issue
-description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section Simplified Technical English body, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
+description: File a GitHub issue on this repo with a plain two-sentence summary on top, the board's six-section body, and the required labels. Use whenever asked to file, create, or open an issue (a bug, a feature, a decision, or a task), or to convert findings into issues.
 ---
 
 # Creating an issue
@@ -11,17 +11,13 @@ Never file an issue the maintainer did not ask for. If the idea is yours,
 propose it and get an explicit yes first. This includes follow-up issues
 discovered mid-task.
 
-## Step 2: write in Simplified Technical English (ASD-STE100)
+## Step 2: keep technical names exact
 
-- Keep an instruction under 20 words. Keep a descriptive sentence under 25.
-- Use the active voice. Give one instruction per sentence.
-- Use one name for one thing. Do not alternate synonyms.
-- Use simple tenses, and avoid -ing verb forms where a simple form works.
-- Use American English spelling. Use no idioms, no em dashes, and no filler.
 - File paths, functions, API names, and label names are technical names. Write
   them exactly as they appear in the code.
-- Quote UI strings, commands, and code verbatim. STE applies to the prose
-  around them.
+- Quote UI strings, commands, and code verbatim.
+- Use one name for one thing. Do not alternate synonyms.
+- Use no em dashes.
 
 ## Step 3: open with a plain summary
 
@@ -36,7 +32,7 @@ part of the issue most readers see on the board, so it carries the whole point.
   third: why it matters now.
 - Write it last, after the six sections, so it summarizes what is actually
   in the issue. Then place it first.
-- Keep every STE rule from Step 2. The summary is the one place plain
+- The summary is the one place plain
   language beats precision: say "the app shows the browser's own error text"
   rather than naming the exception.
 
@@ -83,7 +79,7 @@ Acceptance Criteria and the Notes.
 
 ## Step 5: title
 
-One short STE statement of the problem or the task, with no
+One short statement of the problem or the task, with no
 conventional-commit prefix. Example: "A caller can defeat the per-client rate
 limit with one header".
 

@@ -89,6 +89,7 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0066](0066-tutorial-points-and-never-acts.md) | The tutorial points at controls and never acts on them | 2026-09-29 | Accepted | Frontend: `src/tour/`; `tourSteps.ts` |
 | [0067](0067-region-6-closure-orders.md) | The pod holds one Region 6 closure snapshot and filters it by bbox and kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py` |
 | [0068](0068-forest-orders-entry-closure-test.md) | A Region 3 or 4 forest order is an area closure when its citation or its text closes the area to entry, and closure coverage is per kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py`; `usfs_coverage.py` |
+| [0069](0069-color-scales-not-rederived-for-cvd.md) | The metric colour scales are not re-derived for colour vision deficiency | 2026-08-07 | Accepted | Frontend: `colors.ts` |
 | [0070](0070-table-rank-is-the-ranking.md) | The table's # and the CSV's Rank keep the ranking's rank after a header sort | 2026-10-01 | Accepted | Frontend: `useTableView.ts` |
 | [0071](0071-analyze-frames-rows-off-screen.md) | A committed report moves the map only when none of its rows is in view | 2026-10-01 | Accepted | Frontend: `mapFraming.ts` |
 | [0072](0072-browser-joins-spans-at-local-midnight.md) | The browser joins a spanning window's two fetches at the reader's local midnight, not at the UTC boundary | 2026-10-01 | Accepted | Root: Key constraints; mirror row 11 |

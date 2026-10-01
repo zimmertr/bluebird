@@ -83,7 +83,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself |
-| `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: the five metric scales and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
+| `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
 
 **Accent and intent**
 
@@ -439,6 +439,11 @@ The ones in the tree today, each approved on its own:
   answer here, and here is why" (TJ, 2026-09-12, asked for with the metric
   itself in #295). What keeps the touch cost bounded is that the mark itself
   is honest without the note, and `docs/DATA.md` carries the full explanation.
+- The table's **Closure** cell carries two (#550, #551). One is the hover
+  sentence on an unlinked cell: why an `N/A` reads `N/A`, as on the Wildfire
+  (mi) cell, or which order a row stands in when the Forest Service gave that
+  order no page. The other is the order's whole title on a linked cell,
+  because the cell clips a long one.
 - The Hourly segment, the smoke legend's density chips, and the table's
   **Wildfire (mi)** cell, each documented where it is used.
 

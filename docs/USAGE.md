@@ -20,7 +20,7 @@ The control for this one is the map itself, which is why the panel carries no wi
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
 
-Three things are worth knowing about what you can click:
+Five things are worth knowing about what you can click:
 
 - **Lakes show no elevation.** Peaks do, because the map data carries one for a summit and none for a water body. Analyzing the lake fills it in.
 - **Unnamed summits are clickable too.** OSM knows plenty of peaks only by their height, and the map draws those as a bare elevation. Clicking one adds it as `Peak 5961`, after the number you clicked on.
@@ -53,7 +53,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. When another destination still lets Analyze run, a line under the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, under the type checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods below still work on their own, so an analysis of pasted coordinates or clicked destinations needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. When another destination still lets Analyze run, a line under the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, under the type checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
 
 ### d. Coordinates
 
@@ -116,7 +116,7 @@ How bright a day is says how much of it Bluebird Forecast can tell you about:
 | Dimmed | Weather only. Past the air-quality horizon, so the AQI columns come back blank. Still analyzes fine. |
 | Greyed, not clickable | Outside what the weather service serves. The near edge is how far back its archive goes; the far edge is whichever comes first, the API's own limit or the reach of the forecast model you picked under **Forecast**. |
 
-Hovering either dimmed step says why, and selecting one past the air-quality horizon says so under the Analyze button. Air quality runs shorter than weather because the underlying CAMS model reaches a fraction as far (`limits.aqi_forecast_days` in `GET /api/capabilities` says how far); that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
+Selecting a day past the air-quality horizon says so under the Analyze button. Air quality runs shorter than weather because the underlying CAMS model reaches a fraction as far (`limits.aqi_forecast_days` in `GET /api/capabilities` says how far); that horizon is not the only thing worth knowing about the column, so see [Air quality](DATA.md#air-quality) for how coarse the model grid is and which scale the number is on.
 
 Days are your local calendar days, converted to UTC for the API, and the far edge accounts for that: west of Greenwich the last local day's final hour falls on the next UTC date, so the calendar offers one day less there than it does in London. Selecting days in the past is fine and normal. Those hours are recorded conditions rather than a forecast, and a chart covering both marks where one becomes the other.
 
@@ -156,13 +156,16 @@ them only when you rank by one or bound one. Pick either row over a report
 analyzed without them and the line under the Analyze button asks for a new
 analysis; until you run it, the table shows no cloud numbers. Cloud base
 defaults to its minimum, the lowest the cloud came down, and cloud cover to its
-average. Ranking by Highest `Cloud base · Min` finds the destinations most
-likely to stay above the cloud. How the base is worked out, and how far to
-trust it, are in [DATA.md](DATA.md#cloud-base-and-cloud-cover).
+average. Ranking by Highest `Cloud base · Min` finds the destinations where
+the lowest cloud stayed highest. The base reads the air at and above
+each destination, so a cloud layer below a summit does not show: a summit
+above an undercast and a summit under a clear sky can read the same. How the
+base is worked out, and how far to trust it, are in
+[DATA.md](DATA.md#cloud-base-and-cloud-cover).
 
 Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain — on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature carries the surface layer of a valley floor that cools by radiation on a clear night (Open-Meteo lapses it to the summit's own height, and the cold comes with it), which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). A peak or pasted point with no known elevation is read at the ground height Open-Meteo's terrain model gives its coordinate; a lake or trailhead with none shows the plain near-ground values, which are the real conditions where it sits.
 
-**No header says which method produced a number.** Every metric column reports at the destination's elevation: precipitation and air quality as the grid cell's surface values at that point, the freezing level as a height of its own, and the wind and temperature as above. A header that named the method on two of the five read as a difference in place, so the method lives in [DATA.md](DATA.md#open-meteo) instead. Over an archive window the pressure levels are not published and both families fall back to the near-ground value; the line under the Analyze button names the window.
+**No header says which method produced a number.** Every metric column reports at the destination's elevation: precipitation and air quality as the grid cell's surface values at that point, the freezing level as a height of its own, and the wind and temperature as above. A header that named the method on two of the metric columns read as a difference in place, so the method lives in [DATA.md](DATA.md#open-meteo) instead. Over an archive window the pressure levels are not published and both families fall back to the near-ground value; the line under the Analyze button names the window.
 
 ### Bounds
 
@@ -216,7 +219,7 @@ judge whether it is still in force. The trail layer covers Oregon and
 Washington alone, and the area layer the eight states in the table, so an empty
 map elsewhere means the region is not covered, not that every trail is open.
 
-Clicking a perimeter names the fire and links to it on NIFC's live map; clicking a plume says how
+Hovering a perimeter names the fire, with a link to it on NIFC's live map, and clicking one opens that map in a new tab; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
 sits over a fire — which is most of the time, since one causes the other — the
 click goes to the fire.
@@ -464,12 +467,14 @@ Hovering a row reveals a × at its end (always visible on touch screens) that re
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
 | Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `≥1,290` marks the source file's own ceiling, which is permanent ice rather than a measurement. `N/A` outside the analysis area |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
-| Cloud base · Min/Max/Avg (ft) | The lowest height above the destination where the model's air is close to saturated, in feet above sea level. Shown only when the report fetched it. Blank for a lake or trailhead with no known elevation and over an archive window |
+| Cloud base · Min/Max/Avg (ft) | The lowest height at or above the destination where the model's air is close to saturated, in feet above sea level. Shown only when the report fetched it. Blank for a lake or trailhead with no known elevation and over an archive window |
 | Cloud cover · Min/Max/Avg (%) | The model's total cloud cover over the window, every layer at once. Shown only when the report fetched it |
 
 The last two columns are the table's safety flags, **Wildfire (mi)** and
 **Closure**. Both are on by default and can be hidden in the **Columns** picker
-like any other. The Closure cell shows ⚠️ and the order's name where the
+like any other. Both read the fire perimeters and closure orders that stand
+today, whatever window you analyze, so over a window in the past they say what
+stands now, not what stood then. The Closure cell shows ⚠️ and the order's name where the
 destination stands inside an active US Forest Service area closure, a dash
 where the check ran and cleared it, and `N/A` where it has no answer. A warned
 cell links to the order on the Forest Service's site when the order has a page,
