@@ -714,10 +714,19 @@ area to entry. That is true when its legal citation names 36 CFR 261.52(e) or
 name or description says entry is prohibited. A sentence that prohibits entry
 "without a permit" describes a permit rule, not a closure, so it does not
 count: Region 4's float permit on the South Fork of the Salmon River is one.
-Measured 2026-09-30, Region 3 had 96 live orders and 32 passed; Region 4 had
-214 and 5 passed. The feeds
-carry no status, so an order is live when nobody rescinded it and its end
-date, if it has one, is still ahead. The two feeds are read in two steps: first
+Many orders cite paragraph (e) for something narrower than a person on foot,
+and their own words then overrule the citation as well: an order whose type or
+name makes it a motor vehicle order or a Stage 1 or Stage 2 fire restriction,
+and a sentence that limits entry to a motorized vehicle or to ground "when
+posted". A Stage 3 fire closure still counts, because it closes the forest. One
+order no rule over its words can catch is left out by its number: the Payette
+National Forest's abandoned mine order closes the posted mine openings, and
+its outline is the whole forest. The feeds carry no status, so an order is
+live when nobody rescinded it, its start date has come, and its end date, if
+it has one, is still ahead, all judged against today, like the Closure column
+below. An order a forest filed for next season is not drawn until it starts.
+Measured 2026-10-01, Region 3 had 90 live orders and 30 passed; Region 4 had
+190 and 2 passed. The two feeds are read in two steps: first
 the text of every live order, then the shapes of the ones that pass. The
 shapes are the cost: Region 4's live orders are 29.9 MB at full resolution,
 and Region 3's are 5.5 MB, almost all of it orders that close nothing. A test on

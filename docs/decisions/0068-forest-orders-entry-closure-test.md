@@ -1,6 +1,6 @@
 # 0068. A Region 3 or 4 forest order is an area closure when its citation or its text closes the area to entry, and closure coverage is per kind
 
-- Status: Accepted
+- Status: Superseded in part by 0079 (which orders pass, and what counts as live)
 - Date: 2026-09-30
 - Decider: TJ (#551)
 - Issues and PRs: #551, #550

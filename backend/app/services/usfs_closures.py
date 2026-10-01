@@ -17,13 +17,14 @@ Intermountain Region (Nevada, Utah, southern Idaho and western Wyoming),
 publish EVERY standing forest order as polygons, under one lowercase schema of
 their own with no status field (issue #551):
 
-    Region 3  r03_ForestOrder layer 1               96 live, 32 closures
-    Region 4  R04_Forest_Orders_PUBLIC_VIEW layer 0 214 live,  5 closures
+    Region 3  r03_ForestOrder layer 1               90 live, 30 closures
+    Region 4  R04_Forest_Orders_PUBLIC_VIEW layer 0 190 live,  2 closures
 
-Measured 2026-09-30. Region 6's lines are its heavy layer: 5.8 MB at full
-resolution and 1.4 MB at the ~56 m simplification the wildfire overlay already
-uses, in two pages because the layer's ``maxRecordCount`` is 1,000. Its
-polygons are 1.2 MB full and 0.08 MB simplified. Region 4's live orders are
+The counts were measured 2026-10-01 (#568) and the sizes below 2026-09-30.
+Region 6's lines are its heavy layer: 5.8 MB at full resolution and 1.4 MB at
+the ~56 m simplification the wildfire overlay already uses, in two pages
+because the layer's ``maxRecordCount`` is 1,000. Its polygons are 1.2 MB full
+and 0.08 MB simplified. Region 4's live orders are
 29.9 MB at full resolution (2.2 MB simplified) and Region 3's 5.5 MB (0.8 MB),
 almost all of it orders that close nothing, so those two feeds are read in two
 phases: the attributes of every live order first, then the geometry of the
@@ -144,10 +145,19 @@ ORDER_FIELDS = (
     "objectid,forestname,ordername,ordernum,ordertype,description,cfr,startdate,enddate,hyperlink,acres"
 )
 
-# These feeds carry no status, so a live order is one nobody rescinded whose
-# end date, if it has one, is still ahead. The clause answered 96 orders on
-# Region 3 and 214 on Region 4 (2026-09-30).
-ORDER_WHERE = "rescinddate IS NULL AND (enddate IS NULL OR enddate > CURRENT_TIMESTAMP)"
+# These feeds carry no status, so a live order is one nobody rescinded that
+# has started and whose end date, if it has one, is still ahead. The start date
+# matters because the forests file a seasonal order months ahead: Region 4's
+# Goose Creek winter order, which starts 2026-11-01, was served as standing on
+# 2026-09-30 (#568). The test is against now, not the analyzed window, because
+# the Closure column reads today's orders for every window. Without the start
+# clause the feeds answered 94 and 214 orders on 2026-10-01; with it, 90 and
+# 190.
+ORDER_WHERE = (
+    "rescinddate IS NULL"
+    " AND (startdate IS NULL OR startdate <= CURRENT_TIMESTAMP)"
+    " AND (enddate IS NULL OR enddate > CURRENT_TIMESTAMP)"
+)
 
 # Regions 3 and 4 file every standing order, and `ordertype` does not say
 # whether a person may enter: Region 4 files "Reckless Driving" and "Bridge
@@ -180,6 +190,55 @@ TEXT_ENTRY_CLOSURE = re.compile(
 # #551). So a text match does not count when its own sentence names a permit
 # as the way in.
 TEXT_PERMIT_EXCEPTION = re.compile(r"without (a |an )?(valid )?permit|unless .* permit", re.IGNORECASE)
+
+# Some orders cite paragraph (e), or use the entry words, for something
+# narrower than a person on foot, and say so in their own words. Those words
+# veto the citation as well as the sentence, because they state what the
+# order's (e) closes (#568). A sentence that limits its entry words to a
+# vehicle or to posted ground: Region 3's Fossil Creek order 03-04-06-26-02
+# prohibits "Going into or being upon the Described Area with a motorized
+# vehicle", and Region 4's Snowbasin order 04-19-60 "Going into or being upon
+# the closed area, when posted or marked as closed". An unlimited entry
+# sentence in the same order still passes it, since the order then closes the
+# area as well (Region 3's Cottonwood Cove order prohibits "Using any motor
+# vehicle. Going into or being upon the Described Area.").
+TEXT_SCOPE_VETO = re.compile(r"with a motori[sz]ed vehicle|when posted", re.IGNORECASE)
+# An order whose type or name says it restricts vehicles or fire. Region 4's
+# Goose Creek order 04-12-302 is a "Motor Vehicle Use Prohibition" that cites
+# 261.53 (e) for a snowcat route, and Region 3's Kiowa / Rita Blanca order
+# 03-03-07-26-17 is a "Fire Restriction - Stage 1" that cites 261.53(e). Stage
+# 1 and 2 restrict fire; Stage 3 closes the forest, which is why it is left
+# out here.
+ORDER_KIND_VETO = re.compile(
+    r"motor vehicle use prohibition|motor vehicle closure"
+    r"|fire restrictions? - stage [12]\b|stage (1|2|i{1,2}) fire restriction",
+    re.IGNORECASE,
+)
+# Orders no rule over their text can tell apart from a closure, by order
+# number. The number is printed on the signed order and survives a republish
+# of the layer, where the object ID does not: Region 3's live object IDs start
+# at 75,247 for an order signed in 1996, so that layer has been renumbered
+# before. The number is not unique to one feature (a forest files each part
+# of an order under it), and every part of an order listed here is excluded
+# with it. Each entry says what the order really closes and when it was read.
+EXCLUDED_ORDERS = frozenset(
+    {
+        # Payette National Forest, "Abandoned Mine Area Closure" (Region 4).
+        # It closes the posted abandoned mine openings, and its polygon is the
+        # whole forest, 2.3 million acres. Its text is the Forest Service's
+        # boilerplate for 261.53(e), the same words the Santa Fe Watershed
+        # closure uses for ground that is closed (read 2026-10-01).
+        "04-12-328",
+    }
+)
+
+# A sentence ends at a period followed by a space or the end of the text, so
+# "Mile 12.5" and "261.53(e)" do not end one. A period after a dotted
+# abbreviation ("36 C.F.R. §", "6 A.M.") or after "Mt.", "Rd." or "No." does
+# not end one either: splitting there would move a permit clause into another
+# sentence, and the entry words would then read as a closure (#568).
+SENTENCE_END = re.compile(r"\.(?=\s|$)")
+NOT_A_SENTENCE_END = re.compile(r"(?:\b[A-Za-z]\.)+[A-Za-z]\Z|\b(?:Mt|Rd|No)\Z")
 
 # The layers' own maxRecordCount. Sending it explicitly makes paging
 # deterministic instead of dependent on a server default that can change.
@@ -381,15 +440,32 @@ def is_area_closure(attributes: dict[str, Any]) -> bool:
     """Whether a Region 3 or 4 order closes an area to entry.
 
     The rule, and why it reads two signals, is the comment above
-    ``CFR_ENTRY_SECTION``.
+    ``CFR_ENTRY_SECTION``. The vetoes are the comments above
+    ``TEXT_SCOPE_VETO``, ``ORDER_KIND_VETO`` and ``EXCLUDED_ORDERS``.
     """
-    cfr = attributes.get("cfr")
-    if isinstance(cfr, str) and _cites_entry_closure(cfr):
-        return True
-    return any(
-        isinstance(text, str) and _says_entry_is_prohibited(text)
+    if attributes.get("ordernum") in EXCLUDED_ORDERS:
+        return False
+    # ORDER_WHERE already asks the feed for started orders alone. The rule
+    # reads the date again so the one function that decides an order holds all
+    # of it, and so a test can reach it, since no test answers a `where`.
+    start = attributes.get("startdate")
+    if isinstance(start, int | float) and start > time.time() * 1000:
+        return False
+    labels = (attributes.get("ordertype"), attributes.get("ordername"))
+    if any(isinstance(label, str) and ORDER_KIND_VETO.search(label) for label in labels):
+        return False
+    readings = [
+        reading
         for text in (attributes.get("description"), attributes.get("ordername"))
-    )
+        if isinstance(text, str)
+        for reading in _entry_sentences(text)
+    ]
+    if "closed" in readings:
+        return True
+    if "scoped" in readings:
+        return False
+    cfr = attributes.get("cfr")
+    return isinstance(cfr, str) and _cites_entry_closure(cfr)
 
 
 def _cites_entry_closure(cfr: str) -> bool:
@@ -402,18 +478,27 @@ def _cites_entry_closure(cfr: str) -> bool:
     return False
 
 
-def _says_entry_is_prohibited(text: str) -> bool:
-    """Whether a sentence prohibits entry without naming a permit as the way in.
+def _entry_sentences(text: str) -> list[str]:
+    """How each sentence that carries the entry words reads.
 
-    A sentence runs from the period before the match to the period after it.
+    ``closed`` prohibits entry outright. ``permit`` names a permit as the way
+    in, so it is not a closure but leaves the citation standing, as it always
+    has. ``scoped`` limits the entry words to a vehicle or to posted ground,
+    which vetoes the citation too.
     """
+    ends = [m.start() for m in SENTENCE_END.finditer(text) if not NOT_A_SENTENCE_END.search(text, 0, m.start())]
+    readings = []
     for match in TEXT_ENTRY_CLOSURE.finditer(text):
-        start = text.rfind(".", 0, match.start()) + 1
-        end = text.find(".", match.end())
-        sentence = text[start : end if end >= 0 else len(text)]
-        if not TEXT_PERMIT_EXCEPTION.search(sentence):
-            return True
-    return False
+        start = max((end + 1 for end in ends if end < match.start()), default=0)
+        stop = min((end for end in ends if end >= match.end()), default=len(text))
+        sentence = text[start:stop]
+        if TEXT_SCOPE_VETO.search(sentence):
+            readings.append("scoped")
+        elif TEXT_PERMIT_EXCEPTION.search(sentence):
+            readings.append("permit")
+        else:
+            readings.append("closed")
+    return readings
 
 
 def _to_order_closure(attributes: dict[str, Any], geometry: Any, source: str) -> Closure | None:
@@ -495,12 +580,12 @@ async def fetch_forest_orders(
     """Every live entry closure in one Region 3 or 4 feed, at both fidelities.
 
     Two phases, because the geometry is the cost and most orders close
-    nothing: Region 4's live orders are 29.9 MB at full resolution, and the five
-    that pass the test are a fraction of it (2026-09-30). Phase 1 reads the
+    nothing: Region 4's live orders were 29.9 MB at full resolution on 2026-09-30,
+    and the orders that pass the test are a fraction of it. Phase 1 reads the
     attributes of every live order and keeps the ones ``is_area_closure``
     passes. Phase 2 asks for those object IDs alone, once per fidelity, and
-    sends no ``where``: the IDs are the whole filter. The 32 and 5 IDs that
-    passed on 2026-09-30 are a few hundred bytes of query string. When nothing
+    sends no ``where``: the IDs are the whole filter. The 30 and 2 IDs that
+    passed on 2026-10-01 are a few hundred bytes of query string. When nothing
     passes, phase 2 sends nothing.
     """
     rows = await arcgis.fetch_pages(
