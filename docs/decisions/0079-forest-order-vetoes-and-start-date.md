@@ -1,9 +1,9 @@
-# 0079. A Region 3 or 4 order's own words can veto its citation, a short list excludes what no words can, and an order that has not started is not live
+# 0079. A Region 3 or 4 order's own words can veto its citation, a short list excludes what no words can, and an order that has not started is not live, and a Stage 3 fire closure counts by its type
 
 - Status: Accepted. Supersedes 0068 in part: which orders pass, and what counts as live.
 - Date: 2026-10-01
-- Decider: the maintainer (TJ), on issue #568 (a text veto plus a short exclusion list; an order that has not started is not active)
-- Issues and PRs: #568, #551, #588
+- Decider: the maintainer (TJ), on issue #568 (a text veto plus a short exclusion list; an order that has not started is not active; then, the same day, "Pass Stage 3 fire closures.")
+- Issues and PRs: #568, #551, #588, #596
 - Cited in code as: #568
 - Guide: [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/services/usfs_closures.py` bullet
 
@@ -18,6 +18,8 @@ The order's own words veto both signals, in three narrow forms, each in `usfs_cl
 - `ORDER_KIND_VETO`, over `ordertype` and `ordername`: `motor vehicle use prohibition`, `motor vehicle closure`, and a Stage 1 or Stage 2 fire restriction (`fire restrictions? - stage [12]`, `stage (1|2|i|ii) fire restriction`). Stage 3 closes the forest and is not vetoed.
 - `TEXT_SCOPE_VETO`, over the sentence that carries the entry words: `with a motori[sz]ed vehicle` and `when posted`. Such a sentence does not count, and it vetoes the citation as well, because it says what the order's (e) closes. An unlimited entry sentence elsewhere in the same order still passes it. A permit sentence keeps its 0068 meaning: it does not count, and it leaves the citation standing.
 - `EXCLUDED_ORDERS`, for an order no rule over its text can catch, keyed on `ordernum` with a comment per entry saying what the order closes and when it was read. Today it holds one entry, `04-12-328`, the Payette mine order.
+
+One type passes an order by itself, and it was added the same day after the first change shipped in #596: `STAGE_THREE_FIRE_CLOSURE`, the whole `ordertype` `Fire Closure - Stage 3` as the feeds spell it. Such an order counts with no citation and no entry words. Its own words still narrow it: an entry sentence that names a permit, a vehicle or posted ground keeps it out, and the exclusion list and both date filters apply as to any order.
 
 A sentence ends at a period followed by a space or the end of the text, and not after a dotted abbreviation (`C.F.R.`, `A.M.`) or after `Mt.`, `Rd.` or `No.`.
 
@@ -44,6 +46,20 @@ Four verdicts changed, and each order's text was read:
 Two of the review's six are not in this read. Region 3's Fossil Creek motor vehicle order (03-04-06-26-02, "Going into or being upon the Described Area with a motorized vehicle") ended 2026-10-01 and has left the feed; its 2026-09-30 wording is pinned in the tests and fails on its type and on its text. The San Francisco Peaks alpine tundra order (03-04-08-24-04, "1) Going into or being upon an area.") still passes, unchanged: its exemptions include "Persons hiking on designated trails", so it closes the tundra off trail. That is a real closure of ground, and whether a summit on a trail through it should be flagged is a question about exemptions, which no veto here reads.
 
 No order that passed under 0068 and keeps people out lost its pass. The splitter changed no live verdict.
+
+The review of #596 found three Region 4 orders that keep people out and passed neither signal, and the maintainer decided to pass them by their type. Measured over the same 2026-10-01 read:
+
+| | Region 3 | Region 4 |
+|---|---|---|
+| Passing after #596 | 30 | 2 |
+| Passing with the Stage 3 type | 30 | 5 |
+
+Three verdicts changed, all to "closure", and nothing else. Each is a "Fire Closure - Stage 3" on the Boise National Forest whose `cfr` is "See closure order" and whose description states a purpose rather than a prohibition:
+
+- 0402-01-119, Claremont Fire Area, Road, and Trail Closure, 617 acres, 2026-07-08 to 2026-12-31: "Road and Trail closure. The purpose of this Order is to protect public safety from hazards related to the Claremont Fire."
+- 0402-03-140, Crooked Fire Area, Road, and Trail Closure, two features of 10,450 and 1,069 acres, 2026-09-19 to 2026-12-31: "The purpose of this Order is to protect public safety from hazards related to the Crooked Fire."
+
+No other live order in either region carries a Stage 3 type.
 
 ## Alternatives rejected
 

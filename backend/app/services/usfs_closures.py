@@ -18,7 +18,7 @@ publish EVERY standing forest order as polygons, under one lowercase schema of
 their own with no status field (issue #551):
 
     Region 3  r03_ForestOrder layer 1               90 live, 30 closures
-    Region 4  R04_Forest_Orders_PUBLIC_VIEW layer 0 190 live,  2 closures
+    Region 4  R04_Forest_Orders_PUBLIC_VIEW layer 0 190 live,  5 closures
 
 The counts were measured 2026-10-01 (#568) and the sizes below 2026-09-30.
 Region 6's lines are its heavy layer: 5.8 MB at full resolution and 1.4 MB at
@@ -214,6 +214,15 @@ ORDER_KIND_VETO = re.compile(
     r"|fire restrictions? - stage [12]\b|stage (1|2|i{1,2}) fire restriction",
     re.IGNORECASE,
 )
+# The one type that closes ground by itself. A Stage 3 fire closure keeps the
+# public out of the area it names, and Region 4 files its fire area closures
+# under it with neither signal: the Claremont Fire order 0402-01-119 and the
+# Crooked Fire order 0402-03-140 cite "See closure order" and describe their
+# purpose rather than their prohibitions (read 2026-10-01). So the type passes
+# the order, as TJ decided that day (#568). Its own words still narrow it: an
+# entry sentence that names a permit, a vehicle or posted ground keeps it out.
+# The type string is matched whole, as the feeds spell it.
+STAGE_THREE_FIRE_CLOSURE = re.compile(r"fire closure - stage 3", re.IGNORECASE)
 # Orders no rule over their text can tell apart from a closure, by order
 # number. The number is printed on the signed order and survives a republish
 # of the layer, where the object ID does not: Region 3's live object IDs start
@@ -441,7 +450,9 @@ def is_area_closure(attributes: dict[str, Any]) -> bool:
 
     The rule, and why it reads two signals, is the comment above
     ``CFR_ENTRY_SECTION``. The vetoes are the comments above
-    ``TEXT_SCOPE_VETO``, ``ORDER_KIND_VETO`` and ``EXCLUDED_ORDERS``.
+    ``TEXT_SCOPE_VETO``, ``ORDER_KIND_VETO`` and ``EXCLUDED_ORDERS``, and the
+    one type that passes by itself is the comment above
+    ``STAGE_THREE_FIRE_CLOSURE``.
     """
     if attributes.get("ordernum") in EXCLUDED_ORDERS:
         return False
@@ -464,6 +475,9 @@ def is_area_closure(attributes: dict[str, Any]) -> bool:
         return True
     if "scoped" in readings:
         return False
+    order_type = attributes.get("ordertype")
+    if isinstance(order_type, str) and STAGE_THREE_FIRE_CLOSURE.fullmatch(order_type.strip()):
+        return "permit" not in readings
     cfr = attributes.get("cfr")
     return isinstance(cfr, str) and _cites_entry_closure(cfr)
 
@@ -584,7 +598,7 @@ async def fetch_forest_orders(
     and the orders that pass the test are a fraction of it. Phase 1 reads the
     attributes of every live order and keeps the ones ``is_area_closure``
     passes. Phase 2 asks for those object IDs alone, once per fidelity, and
-    sends no ``where``: the IDs are the whole filter. The 30 and 2 IDs that
+    sends no ``where``: the IDs are the whole filter. The 30 and 5 IDs that
     passed on 2026-10-01 are a few hundred bytes of query string. When nothing
     passes, phase 2 sends nothing.
     """
