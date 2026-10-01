@@ -350,7 +350,12 @@ def test_weather_success_counts_request_and_duration(monkeypatch):
             "precipitation": [0.1],
             "temperature_2m": [50.0],
             "wind_speed_10m": [5.0],
-        }
+        },
+        "hourly_units": {
+            "precipitation": "inch",
+            "temperature_2m": "°F",
+            "wind_speed_10m": "mp/h",
+        },
     }
     _stub_openmeteo(monkeypatch, weather, [[hourly]])
     ok_before = _value(
@@ -442,7 +447,12 @@ def test_keyed_weather_batch_counts_against_the_callers_quota(monkeypatch):
             "precipitation": [0.1],
             "temperature_2m": [50.0],
             "wind_speed_10m": [5.0],
-        }
+        },
+        "hourly_units": {
+            "precipitation": "inch",
+            "temperature_2m": "°F",
+            "wind_speed_10m": "mp/h",
+        },
     }
     _stub_openmeteo(monkeypatch, weather, [[hourly]])
     caller = {"service": "weather", "outcome": "success", "quota": "caller"}

@@ -23,7 +23,7 @@ import {
 import { geoKey } from './points'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { place, resultRow, weatherResult } from '../testSupport/fixtures'
+import { place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -389,6 +389,7 @@ const REQUEST: AnalyzeRequest = {
 
 function weatherBody(precips: number[]) {
   return precips.map((p) => ({
+    hourly_units: WEATHER_UNITS,
     hourly: {
       time: ['2026-07-21T00:00', '2026-07-21T01:00'],
       precipitation: [p, p],
@@ -861,6 +862,7 @@ function stubTerrain() {
         body = cloudBody(new Array(count).fill(50)).map((item) => ({ ...item, elevation: 2438.4 }))
       } else {
         body = weatherBody(new Array(count).fill(0)).map((item) => ({
+          ...item,
           elevation: 2438.4,
           hourly: {
             ...item.hourly,

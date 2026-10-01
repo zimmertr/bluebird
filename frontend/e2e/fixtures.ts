@@ -13,20 +13,31 @@ const style = JSON.parse(readFileSync(new URL('fixtures/style.json', here), 'utf
 // The forecast bodies reuse the inputs of the shared aggregation vectors, so the
 // rows and the chart carry the shapes the aggregation is pinned against rather
 // than numbers invented for this suite.
-interface Vector { name: string; payload: { hourly: Record<string, unknown[]> } }
+interface Vector {
+  name: string
+  payload: { hourly: Record<string, unknown[]>; hourly_units?: Record<string, string> }
+}
 const vectors = JSON.parse(
   readFileSync(new URL('../../backend/tests/data/weather_vectors.json', here), 'utf8'),
 ) as { weather: Vector[]; aqi: Vector[] }
-const vector = (list: Vector[], name: string) => {
+const payloadOf = (list: Vector[], name: string) => {
   const found = list.find((v) => v.name === name)
   if (!found) throw new Error(`weather_vectors.json has no case named ${name}`)
-  return found.payload.hourly
+  return found.payload
 }
+const vector = (list: Vector[], name: string) => payloadOf(list, name).hourly
+// The units those same cases declare, which are the ones a real answer
+// carries: the aggregation refuses a number whose unit it cannot confirm.
+const units = (list: Vector[], name: string) => payloadOf(list, name).hourly_units ?? {}
 const WEATHER_INPUTS: Record<string, unknown[]> = {
   ...vector(vectors.weather, 'wind_and_temperature_levels_together'),
   ...vector(vectors.weather, 'freezing_level_in_feet_is_not_converted'),
   // The one variable only the browser asks for, so no vector carries it.
   wind_direction_10m: [0, 90, 180, 270],
+}
+const WEATHER_UNITS: Record<string, string> = {
+  ...units(vectors.weather, 'wind_and_temperature_levels_together'),
+  ...units(vectors.weather, 'freezing_level_in_feet_is_not_converted'),
 }
 const AQI_INPUTS = vector(vectors.aqi, 'simple_aggregation')
 
@@ -117,7 +128,7 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('https://mesonet.agron.iastate.edu/**', answer(blankTile))
   await page.route('https://mapservices.weather.noaa.gov/**', answer(blankTile))
   const weather = answer((r) =>
-    r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, { freezing_level_height: 'ft' }))),
+    r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, WEATHER_UNITS))),
   )
   await page.route('https://api.open-meteo.com/**', weather)
   await page.route('https://archive-api.open-meteo.com/**', weather)

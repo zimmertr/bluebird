@@ -41,7 +41,9 @@ def _win(start: str, end: str) -> dict[str, str]:
     return {"start": start, "end": end}
 
 
-def _wx(times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m") -> dict:
+def _wx(
+    times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m", units=None
+) -> dict:
     """A weather payload; `levels` maps pressure-level variable names
     (`wind_speed_925hPa` … `wind_speed_500hPa` for the elevation-adjusted wind
     cases, issue #257, and `temperature_925hPa` … `temperature_500hPa` for the
@@ -51,7 +53,12 @@ def _wx(times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m") ->
     for one of the five models that do not publish it, and quoted in the unit
     `freeze_unit` names — which the payload carries in `hourly_units`, because
     Open-Meteo's unit for this variable follows `precipitation_unit` and the
-    aggregation reads it rather than assuming either one."""
+    aggregation reads it rather than assuming either one.
+
+    Every column is declared in the unit the request asks for, as a real
+    response declares it, because the aggregation refuses a number whose unit
+    it cannot confirm (`_check_weather_units`). `units` replaces individual
+    entries, which is how a case states the archive's "undefined"."""
     hourly = {
         "time": times,
         "precipitation": precip,
@@ -60,10 +67,17 @@ def _wx(times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m") ->
     }
     if levels:
         hourly.update(levels)
-    payload = {"hourly": hourly}
+    declared = {
+        name: unit
+        for name, unit in aggregation._DECLARED_UNITS.items()
+        if name in hourly
+    }
+    payload = {"hourly": hourly, "hourly_units": declared}
     if freeze is not None:
         hourly["freezing_level_height"] = freeze
-        payload["hourly_units"] = {"freezing_level_height": freeze_unit}
+        declared["freezing_level_height"] = freeze_unit
+    if units:
+        declared.update(units)
     return payload
 
 
@@ -389,6 +403,9 @@ WEATHER_INPUTS = [
         # The archive shape: every level null for every hour, which is what the
         # archive endpoint answers (measured 2026-09-16). Every figure must come
         # back exactly as the same payload with no levels at all produces it.
+        # The levels are declared "undefined", as the archive declares them
+        # (measured again 2026-10-01): a column of nulls has nothing to misread,
+        # so the unit check must let it through.
         "name": "temperature_all_levels_null_is_the_archive_fallback",
         "window": _win(H[0], H[1]),
         "elevation_ft": 8000.0,
@@ -404,6 +421,7 @@ WEATHER_INPUTS = [
                 "temperature_600hPa": [None, None],
                 "temperature_500hPa": [None, None],
             },
+            units={f"temperature_{p}hPa": "undefined" for p in (925, 850, 700, 600, 500)},
         ),
     },
     {

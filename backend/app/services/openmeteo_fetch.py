@@ -63,6 +63,10 @@ MAX_CONCURRENT_BATCHES = 4
 # The pace narration exists so a long wait does not read as a hang. Under a few
 # seconds there is no hang to explain, so the callback stays quiet.
 _PACE_NARRATE_S = 3
+# The longest a minutely 429 is waited out before the one resume. A minutely
+# quota refills within the minute it counts, so no longer wait can help it,
+# whatever Retry-After says.
+_RESUME_MAX_WAIT_S = 60
 
 # Called as each batch completes: (processed_destinations, total_destinations,
 # batches_done, total_batches). Lets the SSE route emit incremental progress.
@@ -154,6 +158,7 @@ async def fetch_batched(
     slots: ratelimit.UpstreamBudget,
     pacing: Pacing | None,
     on_error: ErrorPolicy,
+    resume_minutely: bool,
     on_progress: ProgressCallback | None = None,
     on_degraded: Callable[[str], None] | None = None,
 ) -> list[dict[str, Any] | None]:
@@ -163,6 +168,14 @@ async def fetch_batched(
     locations in, one row (or None) per location out. `label` names the fetch in
     this module's log lines. `on_degraded` is how a degrading service counts
     what it lost; under `on_error="raise"` it is never called.
+
+    `resume_minutely` is whether a batch that meets a minutely 429 is fetched
+    once more after the wait the provider names. Required, like `on_error`,
+    because the services differ: weather resumes, since a ranking with no
+    weather in it is not a ranking, and air quality stops spending at its first
+    429. The wait happens here rather than in the service because the batch
+    must give up its in-flight slot while it waits and pay its weight again
+    before it asks again, and both belong to this loop.
     """
     if not destinations:
         return []
@@ -210,26 +223,53 @@ async def fetch_batched(
     rate_limited = asyncio.Event()
     sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
 
+    async def spend(chunk: list[dict[str, Any]]) -> None:
+        if pacing is None:
+            return
+        for weight in pacing.weights(chunk):
+            if pacing.on_pace is not None:
+                estimate = pacing.budget.wait_estimate_s(weight)
+                if estimate > _PACE_NARRATE_S:
+                    await pacing.on_pace(int(estimate) + 1)
+            await pacing.budget.acquire(weight)
+
+    async def attempt(chunk: list[dict[str, Any]]) -> list[dict[str, Any] | None]:
+        # The pod's weighted spend first, then a pod-wide in-flight slot. The
+        # weight acquire happens BEFORE the in-flight slot so a pace sleep
+        # never holds a slot another analysis could be using.
+        await spend(chunk)
+        async with slots.slot():
+            return await fetch_chunk(chunk)
+
     async def run(
         index: int, chunk: list[dict[str, Any]]
     ) -> tuple[int, list[dict[str, Any] | None]]:
-        # Per-analysis fairness slot first, then the pod's weighted spend, then
-        # a pod-wide in-flight slot. The weight acquire happens BEFORE the
-        # in-flight slot so a pace sleep never holds a slot another analysis
-        # could be using.
+        # Per-analysis fairness slot first, then `attempt`.
         async with sem:
             if rate_limited.is_set():
                 return index, [None] * len(chunk)
             try:
-                if pacing is not None:
-                    for weight in pacing.weights(chunk):
-                        if pacing.on_pace is not None:
-                            estimate = pacing.budget.wait_estimate_s(weight)
-                            if estimate > _PACE_NARRATE_S:
-                                await pacing.on_pace(int(estimate) + 1)
-                        await pacing.budget.acquire(weight)
-                async with slots.slot():
-                    return index, await fetch_chunk(chunk)
+                try:
+                    return index, await attempt(chunk)
+                except UpstreamRateLimited as exc:
+                    # One automatic resume for a minutely 429: that quota
+                    # refills within the minute, so a single paced retry
+                    # usually completes the batch instead of failing the whole
+                    # analysis. Hourly and daily exhaustion pass straight on,
+                    # because no wait we are willing to impose helps those.
+                    # The wait runs outside the in-flight slot, which `attempt`
+                    # has already released, and the retry pays its weight
+                    # again, because the provider bills the request it repeats.
+                    if not resume_minutely or exc.scope != "minutely":
+                        raise
+                    wait = min(exc.retry_after_s, _RESUME_MAX_WAIT_S)
+                    log.warning(
+                        "%s minutely quota hit; resuming batch in %ds", label, wait
+                    )
+                    await asyncio.sleep(wait)
+                # The one resume. A second 429 on the same batch is real
+                # exhaustion and raises from here, minutely or not.
+                return index, await attempt(chunk)
             except ratelimit.BudgetExhausted:
                 # Wedged, not merely busy. Raising fails the analysis with a
                 # 503; degrading loses this batch and keeps the rest.

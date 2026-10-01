@@ -848,6 +848,10 @@ export async function fetchAqi(
   const reqStart = utcHour(startMs)
   const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
   if (reqStart > reqEnd) return destinations.map(() => null)
+  // Priced on the clamped hours the request asks for, as the backend prices
+  // it: a 16-day window asks air quality for its first few days only, so
+  // pricing all sixteen books 16/14 of what the request costs (#581).
+  const reqEndMs = Math.min(endMs, Date.parse(`${endCap}:00Z`))
 
   const results: AqiResult[] = new Array(destinations.length).fill(null)
   const missIdx: number[] = []
@@ -867,7 +871,7 @@ export async function fetchAqi(
   }> => {
     if (rateLimited) return { rows: chunk.map(() => null), cacheable: false }
     try {
-      await aqiBudget.acquire(callWeight(chunk.length, startMs, endMs, 1), signal, onPace)
+      await aqiBudget.acquire(callWeight(chunk.length, startMs, reqEndMs, 1), signal, onPace)
       const data = await getJson(
         AIR_QUALITY_URL,
         {

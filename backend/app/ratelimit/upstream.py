@@ -44,15 +44,15 @@ NOMINATIM_MIN_INTERVAL_MS = env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
 #
 # Every pod gets the whole 550 rather than a 1/replicas share. Dividing was
 # wrong in both directions. It under-serves, because one analysis is handled
-# end to end by a single pod and can cost ~1,713 weighted calls (30 batches of
-# 50 across a 16-day window), so the budget must cover one request's entire
-# fan-out rather than a fair slice of aggregate traffic — and a divided share
-# is floor-limited anyway, since bucket capacity is per_minute and 550/10 = 55
-# sits below the 57.1 a single batch costs, which would pace every batch on an
-# otherwise idle pod. It also over-protects, because since the client path
+# end to end by a single pod and can cost ~2,400 weighted calls (1,500
+# locations across a 16-day window at the factor of 1.4), so the budget must
+# cover one request's entire fan-out rather than a fair slice of aggregate
+# traffic — and a divided share is floor-limited anyway, since 550/10 = 55 sits
+# below the 80.0 a single 16-day batch costs, which would pace every batch on
+# an otherwise idle pod. It also over-protects, because since the client path
 # shipped the SPA fetches Open-Meteo from the browser on the visitor's own IP;
-# the server path runs only when the browser cannot reach Open-Meteo, so
-# pod-originated spend is the exception rather than the norm.
+# the server path runs only for an unkeyed API caller, so pod-originated spend
+# is the exception rather than the norm.
 #
 # The trade is that the cluster as a whole can exceed 550/min when several pods
 # fetch at once. Accepted deliberately: this is a ceiling, not a reservation,
@@ -62,14 +62,21 @@ NOMINATIM_MIN_INTERVAL_MS = env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
 # store is the durable fix that makes this exact instead of approximate.
 #
 # 0 disables pacing, and is worse than any positive value: unpaced, four
-# concurrent batches fire ~228 weighted calls at once, trip the minute ceiling,
-# burn the single automatic retry in weather.py and fail the analysis outright.
+# concurrent batches fire ~320 weighted calls at once, trip the minute ceiling,
+# burn the single automatic resume in openmeteo_fetch.py and fail the analysis
+# outright.
 UPSTREAM_WEIGHT_PER_MINUTE_WEATHER = env_int("UPSTREAM_WEIGHT_PER_MINUTE_WEATHER", 550)
 UPSTREAM_WEIGHT_PER_MINUTE_AQI = env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 550)
-# A single acquire that would have to wait longer than this sheds instead —
-# at the default refill (550/min ≈ 9.2/s) even a worst-case 50-location batch
-# behind a full queue clears in well under this bound, so tripping it means
-# something is genuinely wedged, not merely busy.
+# A single acquire that would have to wait longer than this sheds instead, so
+# a stampede cannot stack waiters without bound. It is passed in two ways, and
+# only one of them is a wedge. A forecast window never passes it: a worst-case
+# 16-day batch costs 80.0, and behind four of them in flight a batch waits at
+# most 4 x 80 / 9.2 = 35 s. A long ARCHIVE window does: a
+# 50-location batch costs 5 weighted calls a day at the pod's fourteen
+# variables, each acquire waits behind the debt of the batches booked before
+# it, and an analysis of more than 250 destinations over 56 days or more (67
+# at 201 to 250, 83 at 151 to 200) sheds with a 503 every time it is retried,
+# idle pod or not.
 UPSTREAM_WEIGHT_MAX_WAIT_S = env_int("UPSTREAM_WEIGHT_MAX_WAIT_S", 120)
 
 # How long a request may queue for a saturated budget before shedding, and

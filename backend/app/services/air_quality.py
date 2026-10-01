@@ -109,6 +109,9 @@ async def fetch_aqi_batch(
         # becomes null rows — and the 429 stops the batches behind it, which is
         # what the incident's "zombie" AQI batches did not do.
         on_error="degrade",
+        # Air quality never waits out a 429: the first one stops the batches
+        # behind it, and the rows it cost degrade to null.
+        resume_minutely=False,
         on_degraded=degraded,
     )
 

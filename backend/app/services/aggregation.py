@@ -153,6 +153,23 @@ HOURLY_VARIABLES = ",".join(
 
 _JOIN_KEYS: tuple[str, ...] = ("time", *HOURLY_VARIABLES.split(","))
 
+# The unit each weather column has to declare in `hourly_units` before any of
+# its numbers is read: what the request's `temperature_unit=fahrenheit`,
+# `wind_speed_unit=mph` and `precipitation_unit=inch` ask for, spelled the way
+# Open-Meteo writes it back. Measured 2026-10-01 at Rainier, on all eight models
+# from the forecast endpoint and on the archive: "inch", "°F" and "mp/h" (not
+# "mph"). A host that ignored one of those parameters would answer millimetres,
+# Celsius or km/h with plausible-looking numbers, and the table would rank them
+# as inches, Fahrenheit and mph. The freezing level is not here because its
+# unit legitimately varies and `_freeze_to_ft` converts it.
+_DECLARED_UNITS: dict[str, str] = {
+    "precipitation": "inch",
+    "temperature_2m": "°F",
+    "wind_speed_10m": "mp/h",
+    **{name: "mp/h" for name, _ in _WIND_LEVELS},
+    **{name: "°F" for name, _ in _TEMP_LEVELS},
+}
+
 # The cloud base (issue #117): the lowest height in the air column over a
 # destination where the air is saturated, read off the relative humidity at the
 # destination's own 2 m point and at every standard level above it.
@@ -410,6 +427,28 @@ def _freeze_ft_in_window(
     ]
 
 
+def _check_weather_units(data: dict[str, Any]) -> None:
+    """Refuse a payload whose numbers are not in the units the request asked for.
+
+    Only a column that carries a number has to declare its unit: the archive
+    answers the pressure levels it does not serve as a column of nulls under
+    the unit "undefined", and that column has nothing to misread. A number
+    under any other unit, or under none, fails the batch the way an unreadable
+    freezing level does. The whole column is read rather than the window, which
+    is the stricter of the two and keeps the two ports trivially equal.
+    """
+    hourly = data.get("hourly", {})
+    units = data.get("hourly_units")
+    declared = units if isinstance(units, dict) else {}
+    for name, unit in _DECLARED_UNITS.items():
+        if declared.get(name) == unit:
+            continue
+        if any(v is not None for v in hourly.get(name) or []):
+            log.warning("Open-Meteo declared %s unit %r", name, declared.get(name))
+            # The sentence `_freeze_to_ft` raises, for the same fault.
+            raise UpstreamError(f"{PROVIDER} request failed. Try again later.")
+
+
 def _weather_metrics(
     data: dict[str, Any],
     start_dt: datetime,
@@ -417,6 +456,7 @@ def _weather_metrics(
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
     try:
+        _check_weather_units(data)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         precip = hourly.get("precipitation", [])
@@ -493,12 +533,13 @@ def _weather_series(
     rest into aggregates — this keeps every in-window hour and preserves each
     metric's nulls independently (the chart renders them as line gaps). Returns
     None when the window contains no hours at all, or when the payload is
-    malformed — an unreadable freezing level unit is the one exception, and it
-    raises. Wind and temperature are adjusted to the destination's elevation
-    exactly as `_weather_metrics` adjusts them, so the chart and the playback
-    recoloring draw the same quantities the table ranks.
+    malformed — a column in a unit the request did not ask for is the one
+    exception, and it raises. Wind and temperature are adjusted to the
+    destination's elevation exactly as `_weather_metrics` adjusts them, so the
+    chart and the playback recoloring draw the same quantities the table ranks.
     """
     try:
+        _check_weather_units(data)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         precip = hourly.get("precipitation", [])

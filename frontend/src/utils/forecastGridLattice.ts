@@ -75,8 +75,10 @@ export interface GridCell {
  * How many samples one grid may cost.
  *
  * Open-Meteo bills weighted calls per location, so this is the whole spend
- * ceiling: 600 samples over a 16-day window is ~686 weighted calls against the
- * visitor's own budget, which the client pacer spreads rather than refuses.
+ * ceiling: 600 samples over a 16-day window is ~1,030 weighted calls of weather
+ * (600 x 16/14 x 1.5) and ~600 of air quality, whose request stops at its own
+ * horizon, each against the visitor's own budget for that service, which the
+ * client pacer spreads rather than refuses.
  * Below the cap the pitch is the model's; above it the pitch coarsens, and the
  * legend says so.
  */

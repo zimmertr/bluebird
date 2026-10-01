@@ -112,6 +112,7 @@ The browser reimplements enough of the backend that the same decision is spelled
 | 27 | Hourly variables the cloud request asks for | `weather.N_CLOUD_VARIABLES` | `openMeteoAggregate.CLOUD_VARIABLES` | `mirrored_constants.json` |
 | 28 | Cloud onto the weather grid | `ranking._aligned_cloud` | `clientAnalyze.alignCloud` | comments, plus each side's own tests |
 | 29 | Whether a request needs the cloud column for every candidate | `ranking._cloud_eager` | `constraints.namesOnRequestMetric` | comments, plus each side's own tests |
+| 30 | The unit each weather column must declare before its numbers are read (#581) | `aggregation._DECLARED_UNITS`/`_check_weather_units` | `openMeteoAggregate.DECLARED_UNITS`/`checkWeatherUnits` | `weather_vectors.json` for the units that pass (every weather case declares them), plus each side's own tests for the ones refused |
 
 The cloud base detects saturation on relative humidity, and the level cloud fraction must not replace it: Open-Meteo's `cloud_cover_{p}hPa` is a fixed function of that same RH (measured 2026-09-22 on GFS and ECMWF), so it adds variables and no information. `docs/DATA.md` has the variants tested against METARs and why each was declined. Record: [0056](docs/decisions/0056-cloud-base-from-rh.md)
 

@@ -3,9 +3,8 @@
 The pipeline's own behavior is covered where it is used: `test_weather.py`
 drives the cache, the batching, the index reassembly, the pace narration and
 the 429 resume, and `test_air_quality.py` drives the degrade policy and the
-first-429 short circuit. What those suites cannot see is the pair of
-invariants this module exists to hold, so they are asserted here against the
-source itself.
+first-429 short circuit. What those suites cannot see is the invariants this
+module exists to hold, so they are asserted here against the source itself.
 """
 
 from __future__ import annotations
@@ -59,3 +58,18 @@ def test_the_error_policy_has_no_default():
         assert parameter.kind is inspect.Parameter.KEYWORD_ONLY, (
             f"{fn.__name__} lets on_error be passed positionally"
         )
+
+
+def test_the_resume_policy_has_no_default():
+    """A service must say whether a minutely 429 is waited out; it may never inherit it.
+
+    Weather resumes once, because a ranking with no weather in it is not a
+    ranking. Air quality stops at its first 429, because it is best-effort and
+    a resume would spend the quota the 429 just refused. The resume lives in
+    the pipeline because the wait has to leave its in-flight slot (#581).
+    """
+    parameter = inspect.signature(openmeteo_fetch.fetch_batched).parameters[
+        "resume_minutely"
+    ]
+    assert parameter.default is inspect.Parameter.empty
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY

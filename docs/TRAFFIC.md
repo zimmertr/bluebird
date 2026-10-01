@@ -394,10 +394,13 @@ One analysis at the candidate cap (`limits.max_destinations`; 1,500 when this
 was written) over the full 16-day window costs ~2,570 weighted weather calls
 from the browser (1,500 × 16/14 × 1.5), against a 600/minute/IP budget — call
 it **~4 minutes of paced fetching, worst case**, narrated in the UI with a
-countdown. On the browser path a further ~1,710 weighted calls are spent on air
-quality (one variable, so the variable factor stays 1), against the separately
-metered air-quality quota, fetched concurrently so the two waits overlap rather
-than stack; on the server path AQI is lazy and costs at most the `limit`. A repeat of the same analysis inside the cache TTL
+countdown. On the browser path a further ~1,500 weighted calls are spent on air
+quality (1,500 × 1 × 1: one variable, so the variable factor stays 1, and the
+request is clamped to the air-quality horizon, `limits.aqi_forecast_days`,
+which is shorter than 14 days, so the day factor stays 1 as well), against the
+separately metered air-quality quota, fetched concurrently so the two waits
+overlap rather than stack; on the server path AQI is lazy and costs at most the
+`limit`. A repeat of the same analysis inside the cache TTL
 costs ~0. For a browser analysis all of that lands on the visitor's own IP
 and the server pays 1 Overpass query (or 0, within the 10-minute discovery
 cache). The full spend lands on the cluster egress IP only for a direct API
@@ -408,7 +411,7 @@ pod's budget untouched.
 
 The forecast grid overlay adds at most one more fan-out to that, on the
 visitor's own IP and only while the layer is on: 600 cells over the full
-16-day window is ~1,030 weighted calls for weather and ~686 for air quality,
+16-day window is ~1,030 weighted calls for weather and ~600 for air quality,
 which the same pacer spreads over roughly a further two minutes *after* the
 ranking has landed. It is
 never on the critical path — the fetch starts when the report commits — so

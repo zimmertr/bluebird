@@ -102,12 +102,17 @@ def _suggest_elevation_floor(
 ) -> tuple[int, int] | None:
     """A minimum elevation that would bring the candidate count under ``cap``.
 
-    Returns ``(floor_ft, keeps)`` or None when no floor can work — which
-    happens exactly when the unknown-elevation rows alone exceed the cap,
-    since elevation filters always let unknowns through. The floor is rounded
-    up to the next 100 ft so the suggestion reads like a number a person would
-    type; rounding up can only keep fewer rows, never more, so the suggestion
-    always actually works.
+    Returns ``(floor_ft, keeps)`` or None when no floor can work: when the
+    unknown-elevation rows alone reach the cap, since elevation filters always
+    let unknowns through, or when the only floor that fits keeps no row with a
+    known elevation. The floor is rounded up to the next 100 ft so the
+    suggestion reads like a number a person would type.
+
+    Rounding up can still keep too many when rows tie AT a round threshold:
+    fifteen summits at exactly 5,000 ft with room for eight keep all fifteen at
+    a 5,000 ft floor. One step of 100 ft clears every tie, because the floor
+    then sits above the elevation the cut fell on, and nothing at or below that
+    elevation is kept.
     """
     unknowns = sum(1 for d in destinations if d.get("elevation_ft") is None)
     budget = cap - unknowns
@@ -121,8 +126,13 @@ def _suggest_elevation_floor(
         return None  # already under cap; nothing to suggest
     threshold = known[budget - 1]
     floor = math.ceil(threshold / 100.0) * 100
-    keeps = unknowns + sum(1 for e in known if e >= floor)
-    return floor, keeps
+    kept_known = sum(1 for e in known if e >= floor)
+    if kept_known > budget:
+        floor += 100
+        kept_known = sum(1 for e in known if e >= floor)
+    if kept_known == 0:
+        return None  # a floor above every known summit is no remedy
+    return floor, unknowns + kept_known
 
 
 def _refusal_body(
