@@ -105,3 +105,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0083](0083-fix-forward-no-hand-deploy.md) | A bad release is fixed forward, and the pipeline is the only supported way to deploy | 2026-10-01 | Accepted | Root: Kubernetes deployment |
 | [0084](0084-hsts-at-the-edge-six-months.md) | The Cloudflare zone redirects HTTP and sends HSTS for six months, with no subdomains and no preload | 2026-10-01 | Accepted | Backend: `app/security_headers.py` |
 | [0085](0085-chart-stays-gpl.md) | The Helm chart stays GPL-3.0-only as a separate work, and says the image it installs is noncommercial | 2026-10-01 | Accepted | Root: Kubernetes deployment |
+| [0087](0087-stale-tab-reloads-once.md) | A tab left open across a release reloads itself once, silently, and at most once per build | 2026-10-01 | Accepted | Frontend: `src/staleChunk.ts` |
