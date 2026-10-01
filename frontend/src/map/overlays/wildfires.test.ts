@@ -64,10 +64,10 @@ const hover = (name: string, lng = -121.5, lat = 47.5) => ({
   lngLat: { lng, lat },
 })
 
-function setup() {
+function setup(online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 1000, zoom: 8 })
   const restCursor = vi.fn()
-  const fires = mountWildfires(stub.map, { restCursor })
+  const fires = mountWildfires(stub.map, { restCursor, online })
   return { stub, fires, restCursor }
 }
 
@@ -77,7 +77,10 @@ beforeEach(() => {
   fetchWildfires.mockReset()
   fetchWildfires.mockResolvedValue(FIRES)
 })
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('fireDetailFor', () => {
   // Two screen pixels of longitude against the coarse copy's tolerance.
@@ -118,6 +121,29 @@ describe('mountWildfires', () => {
     stub.fire('moveend')
     stub.fire('moveend')
     vi.advanceTimersByTime(FIRE_REFETCH_DEBOUNCE_MS)
+    expect(fetchWildfires).toHaveBeenCalledTimes(2)
+  })
+
+  // #580: a failed fetch waited for a pan, even after the network came back.
+  it('asks again on reconnect, no sooner than the pod’s Retry-After', async () => {
+    fetchWildfires
+      .mockReset()
+      .mockRejectedValueOnce(Object.assign(new Error('Wildfire data unavailable. Try again later.'), { retryAfterS: 30 }))
+      .mockResolvedValueOnce(FIRES)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const online = new EventTarget()
+    const { stub, fires } = setup(online)
+    fires.update({ show: true })
+    await vi.advanceTimersByTimeAsync(0)
+    online.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(29_000)
+    expect(fetchWildfires).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(fetchWildfires).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(stub.sources.wildfires.data).toBe(FIRES))
+    // Recovered: another reconnect asks nothing.
+    online.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(60_000)
     expect(fetchWildfires).toHaveBeenCalledTimes(2)
   })
 

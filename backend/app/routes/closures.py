@@ -105,8 +105,10 @@ class ClosureCollection(BaseModel):
         "everyone, and serves it past its refresh deadline when the Forest "
         "Service is unreachable, because an order is edited by hand a few "
         "times a week and one fetched an hour ago is almost always still the "
-        "order. Read `fetched_at` to see how current the answer is. Only an "
-        "instance that has never completed a fetch answers 503."
+        "order. Read `fetched_at` to see how current the answer is. An "
+        "instance answers 503 when it has never completed a fetch, or when "
+        "every refresh has failed for more than 24 hours since its last good "
+        "one."
     ),
     response_description="Closures of the requested kind intersecting the box, with the fetch timestamp.",
     response_model=ClosureCollection,
@@ -131,7 +133,8 @@ class ClosureCollection(BaseModel):
             "model": ErrorResponse,
             "description": (
                 "This instance has never completed a fetch from the Forest "
-                "Service, so it has nothing to serve, not even stale. Transient; "
+                "Service, or every refresh has failed for more than 24 hours "
+                "since its last good one, so it has nothing it will serve. Transient; "
                 "`Retry-After` says when to retry."
             ),
         },

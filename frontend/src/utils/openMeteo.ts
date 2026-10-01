@@ -855,9 +855,22 @@ export interface FetchAqiOptions {
   aqiForecastDays?: number
 }
 
+/**
+ * What `fetchAqi` answers: a result per location, and whether that location's
+ * null is a FAILURE (its batch errored, miscounted, or was skipped behind a
+ * rate limit) rather than an answer. A successful null (no data there, or a
+ * window past the horizon) is `false`, so a re-analysis that reuses held rows
+ * asks again only for the ones that failed (#580).
+ */
+export interface AqiFetch {
+  results: AqiResult[]
+  failed: boolean[]
+}
+
 // Port of air_quality.fetch_aqi_batch: best-effort by design. Any failure —
 // network, HTTP, a miscounted response — degrades to nulls and never throws
-// (an AbortError still propagates so cancel works). The first rate limit
+// (an AbortError still propagates so cancel works). The nulls a failure left
+// are flagged in `failed`, because a null alone cannot say which kind it is. The first rate limit
 // short-circuits every remaining batch: once the AQI quota is spent, more
 // requests only burn budget to learn the same thing (the incident's zombie
 // AQI batches drained the next minute's budget exactly that way). AQI never
@@ -873,8 +886,8 @@ export async function fetchAqi(
     nowMs = Date.now(),
     aqiForecastDays = FALLBACK_AQI_FORECAST_DAYS,
   }: FetchAqiOptions = {},
-): Promise<AqiResult[]> {
-  if (destinations.length === 0) return []
+): Promise<AqiFetch> {
+  if (destinations.length === 0) return { results: [], failed: [] }
 
   // Clamp to the CAMS horizon; a window entirely beyond it skips the fetch.
   // The cap ends at 23:00 on the day the horizon names, which is where the
@@ -884,13 +897,16 @@ export async function fetchAqi(
   const endCap = `${utcDate(nowMs + aqiForecastDays * 86_400_000)}T23:00`
   const reqStart = utcHour(startMs)
   const reqEnd = utcHour(endMs) < endCap ? utcHour(endMs) : endCap
-  if (reqStart > reqEnd) return destinations.map(() => null)
+  if (reqStart > reqEnd) {
+    return { results: destinations.map(() => null), failed: destinations.map(() => false) }
+  }
   // Priced on the clamped hours the request asks for, as the backend prices
   // it: a 16-day window asks air quality for its first few days only, so
   // pricing all sixteen books 16/14 of what the request costs (#581).
   const reqEndMs = Math.min(endMs, Date.parse(`${endCap}:00Z`))
 
   const results: AqiResult[] = new Array(destinations.length).fill(null)
+  const failed: boolean[] = new Array(destinations.length).fill(false)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
     const hit = cacheGet(cacheKey('aqi', c, startMs, endMs))
@@ -898,7 +914,7 @@ export async function fetchAqi(
     else results[i] = hit === NO_DATA ? null : (hit as AqiResult)
   })
   const misses = missIdx.map((i) => destinations[i])
-  if (misses.length === 0) return results
+  if (misses.length === 0) return { results, failed }
 
   let rateLimited = false
   const chunks = chunked(misses, BATCH_SIZE)
@@ -952,8 +968,9 @@ export async function fetchAqi(
         cachePut(cacheKey('aqi', misses[missPosition], startMs, endMs), r ?? NO_DATA)
       }
       results[missIdx[missPosition]] = r
+      failed[missIdx[missPosition]] = !cacheable
     })
     offset += rows.length
   }
-  return results
+  return { results, failed }
 }

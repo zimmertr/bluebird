@@ -558,6 +558,12 @@ arrives through the tile server's own TileJSON and is drawn in the map's corner
 control rather than by the app. The tiles carry OpenStreetMap data under the
 ODbL, which is why that credit links to OpenStreetMap's copyright page.
 
+If the style document cannot be fetched, the map stays blank and an error under
+Analyze says the map could not load. The page asks for the style again each
+time the browser reports it is back online, and the error clears once the
+style arrives. Only the style counts: a tile, glyph or sprite that fails leaves
+a gap in a map that otherwise drew, and says nothing.
+
 ## Wildfires
 
 The optional perimeter overlay and the proximity warnings on result rows both
@@ -586,7 +592,12 @@ resource nobody involved could see or influence.
 Perimeters are served **past their refresh deadline** when NIFC is unreachable,
 rather than expiring into nothing. A perimeter mapped an hour ago still answers
 a ten-mile proximity question correctly, so withholding it would trade a good
-answer for no answer.
+answer for no answer. **That tolerance ends at 24 hours.** A copy older than a
+day is a picture of a different day, so past it the server answers as it does
+before its first fetch: the overlay draws nothing and the fire check reports
+itself unavailable. The same limit applies to smoke and closures below
+([record 0077](decisions/0077-snapshot-max-stale-24h.md)). The overlay does not
+show the copy's age before that point.
 
 Hovering a fire dates the perimeter: **Last updated** is when NIFC last
 surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
@@ -655,7 +666,9 @@ server with no quota to exhaust. What the server buys instead is the date
 arithmetic: before the day's first pass lands, that file does not exist yet, and
 the fetch falls back to yesterday's analysis rather than reporting an outage.
 The response says which date it served under, so the fallback is visible rather
-than silent; see [API.md](API.md#smoke-plumes).
+than silent; see [API.md](API.md#smoke-plumes). A copy is served through a
+failed refresh for up to 24 hours, like the perimeters; past that the layer is
+empty until NOAA answers again.
 
 Coverage is North America, which is what HMS analyzes. Elsewhere the layer is
 empty, and empty means "not covered" rather than "clear air".
@@ -729,7 +742,9 @@ perimeters: one copy per server rather than one fetch per visitor, because the
 quota belongs to the Forest Service's ArcGIS organization and is shared with
 every other consumer of its public layers. It refreshes every 30 minutes, since
 the orders are edited by hand a few times a week, and it keeps serving the last
-copy it has when the Forest Service is unreachable. One refresh is eleven
+copy it has when the Forest Service is unreachable, for up to 24 hours, like the
+perimeters. Past that both layers are empty and the Closure column reports
+itself unavailable until the Forest Service answers again. One refresh is eleven
 queries: five for Region 6 and three for each other region. Trails and areas come at two
 fidelities from one fetch: a copy simplified to about 56 m, the same
 tolerance the wildfire overlay uses, is the default, and API callers can ask
@@ -882,7 +897,10 @@ marker and the snow layer under it agree on where the analysis exists. Outside
 that box, and over open water inside it,
 the row reads `N/A` rather than zero: the destination was never analyzed, which
 is a different statement from bare ground. A server that has not yet fetched a
-grid reads `N/A` on every row and names no date.
+grid reads `N/A` on every row and names no date. The 24-hour limit on the fire,
+smoke and closure copies does not apply here: when NSIDC cannot be reached the
+server keeps the last grid it has, and the date in the header says how old it
+is.
 
 **The glacier caveat above applies to the column too, and it is the number a
 reader is most likely to misread.** Over permanent ice SNODAS accumulates year

@@ -178,6 +178,18 @@ AQI_DEGRADED = Counter(
     ["reason"],
 )
 
+# ── Snapshot overlays (services/snapshot.py wires this) ──────────────────────
+
+# `provider` is the cache's label verbatim, as the pacing families below use
+# theirs. A refresh that fails is invisible from outside: the cache keeps
+# serving the last good snapshot until `MAX_STALE_S`, so without this an
+# upstream could be down for most of a day before any route said so (#580).
+SNAPSHOT_REFRESH_FAILURES = Counter(
+    "bluebird_forecast_snapshot_refresh_failures_total",
+    "Snapshot refreshes that failed or outran their deadline, by provider.",
+    ["provider"],
+)
+
 # ── Pacing, budgets, and per-client limits (ratelimit wires these) ───────────
 
 THROTTLED = Counter(

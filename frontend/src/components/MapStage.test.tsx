@@ -83,6 +83,7 @@ const DRAW: MapStageProps['drawMode'] = { drawing: false, handleDrawUpdate: NOOP
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP }
 const MAP_REF = createRef<MapViewHandle>()
 const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
+const ON_BASEMAP_FAILED = (_failed: boolean) => {}
 
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
@@ -106,6 +107,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     sidebarOpen: true,
     urlSync: URL_SYNC,
     restoredView: null,
+    onBasemapFailed: ON_BASEMAP_FAILED,
     onOpenControls: NOOP,
     searchPointed: false,
     poisPointed: false,
@@ -150,6 +152,7 @@ describe('MapStage', () => {
     expect(got.showTrailClosures).toBe(true)
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
+    expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
   })
 
   // Paint order is DOM order at one layer, and the Layers popover must open

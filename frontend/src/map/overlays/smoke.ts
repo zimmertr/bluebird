@@ -15,6 +15,7 @@ import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
 import type { MapController } from '../controller'
 import { popupOptions, type PopupBoard } from '../popups'
+import { overlayRecovery, retryAfterOf } from './recovery'
 import {
   SMOKE_CLICK_ORDER,
   SMOKE_DENSITIES,
@@ -40,6 +41,8 @@ export function mountSmoke(
     controller: MapController
     restCursor: () => void
     popups: PopupBoard
+    /** Where the browser's `online` is heard; the window when absent. */
+    online?: EventTarget | null
   },
 ): SmokeOverlay {
   // One source, three fills, because opacity is the whole encoding and a single
@@ -78,29 +81,42 @@ export function mountSmoke(
   // Fetched once per toggle and never on a pan: the whole national analysis is
   // one small response, so unlike the fire overlay there is no viewport to
   // re-ask about. Best-effort: a failed fetch leaves the layers empty and never
-  // disrupts the map or an analysis.
+  // disrupts the map or an analysis. With no pan to ask again, a failure is
+  // asked again when the pod's Retry-After runs out or the browser comes back
+  // online (`recovery.ts`), so an outage ends without a toggle (#580).
+  let showing = false
   let abort: AbortController | null = null
+  const recovery = overlayRecovery(load, { timed: true, online: deps.online })
+
+  function load() {
+    abort?.abort()
+    const ac = new AbortController()
+    abort = ac
+    fetchSmoke(ac.signal)
+      .then((fc) => {
+        if (ac.signal.aborted) return
+        setSource(map, 'smoke', fc)
+        recovery.succeeded()
+      })
+      .catch((err) => {
+        if (ac.signal.aborted || (err as Error).name === 'AbortError') return
+        console.warn('Smoke overlay fetch failed', err)
+        recovery.failed(retryAfterOf(err))
+      })
+  }
 
   return {
     update({ show }) {
-      if (show === (abort !== null)) return
+      if (show === showing) return
+      showing = show
       if (!show) {
         abort?.abort()
         abort = null
+        recovery.stop()
         setSource(map, 'smoke', emptyFC)
         return
       }
-      const ac = new AbortController()
-      abort = ac
-      fetchSmoke(ac.signal)
-        .then((fc) => {
-          if (!ac.signal.aborted) setSource(map, 'smoke', fc)
-        })
-        .catch((err) => {
-          if ((err as Error).name !== 'AbortError') {
-            console.warn('Smoke overlay fetch failed', err)
-          }
-        })
+      load()
     },
     // Click rather than hover, which is the one place the two polygon overlays
     // deliberately behave differently. A fire is a small shape you point at; a
@@ -118,6 +134,7 @@ export function mountSmoke(
     dispose() {
       abort?.abort()
       abort = null
+      recovery.stop()
     },
   }
 }

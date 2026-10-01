@@ -24,7 +24,7 @@ import {
 import { geoKey } from './points'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { CLOUD_UNITS, place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
+import { CLOUD_UNITS, fakeResponse, place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -716,11 +716,66 @@ describe('runClientAnalysis', () => {
     expect(out.response.times).toEqual(first.response.times)
   })
 
+  // #580: a failed air-quality fetch is not cached, but reuse skipped the
+  // fetch for held rows altogether, so the outage stuck for 15 minutes.
+  it('asks air quality again for held rows whose fetch failed, and only for those', async () => {
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const hours = [startMs / 1000, startMs / 1000 + 3600]
+    let aqiUp = false
+    const asked: { weather: number[]; aqi: number[] } = { weather: [], aqi: [] }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        asked[isWeather ? 'weather' : 'aqi'].push(count)
+        if (isWeather) return fakeResponse(weatherBody(THREE_PRECIPS.slice(0, count)))
+        if (!aqiUp) return fakeResponse({}, 500)
+        return fakeResponse(Array.from({ length: count }, () => ({ hourly: { time: hours, us_aqi: [40, 60] } })))
+      }),
+    )
+    const first = await runClientAnalysis({ ...REQUEST, limit: 10 }, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+    })
+    expect(first.universe.every((r) => r.aqi_avg === null)).toBe(true)
+    expect(first.aqiFailed).toEqual(new Set(THREE.map((d) => geoKey(d.latitude, d.longitude))))
+
+    aqiUp = true
+    asked.weather = []
+    asked.aqi = []
+    const out = await runClientAnalysis({ ...REQUEST, limit: 10 }, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+      reuse: { rows: first.universe, times: first.response.times ?? [], aqiFailed: first.aqiFailed },
+    })
+    expect(asked).toEqual({ weather: [], aqi: [3] })
+    expect(out.universe.map((r) => r.aqi_avg)).toEqual([50, 50, 50])
+    expect(out.universe[0].series?.aqi).toEqual([40, 60])
+    expect(out.aqiFailed.size).toBe(0)
+  })
+
+  it('never re-buys a held null that air quality answered', async () => {
+    stubOpenMeteo(THREE_PRECIPS)
+    const startMs = Date.parse('2026-07-21T00:00:00Z')
+    const endMs = Date.parse('2026-07-21T02:00:00Z')
+    const first = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs })
+    expect(first.aqiFailed.size).toBe(0)
+    resetOpenMeteoState()
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, {
+      nowMs: startMs,
+      reuse: { rows: first.universe, times: first.response.times ?? [], aqiFailed: first.aqiFailed },
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it('returns the empty result shape for zero candidates', async () => {
     const out = await runClientAnalysis(REQUEST, [], 0, 1)
     expect(out).toEqual({
       response: { results: [], total_queried: 0, total_matched: 0 },
       universe: [],
+      aqiFailed: new Set(),
     })
   })
 

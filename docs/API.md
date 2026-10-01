@@ -337,8 +337,11 @@ and is shared with every other consumer of the public dataset, so calling them
 per visitor competes with the rest of the internet for it. An instance holds one
 national snapshot and refreshes it on a timer, and serves it **past its refresh
 deadline** when NIFC is unreachable, on the grounds that a perimeter mapped an
-hour ago still answers a ten-mile proximity question. Read `fetched_at` if that
-matters to you. Only an instance that has never completed a fetch answers `503`.
+hour ago still answers a ten-mile proximity question, for up to 24 hours. Read
+`fetched_at` if that matters to you. An instance answers `503` when it has never
+completed a fetch, or when every refresh has failed for more than 24 hours since
+its last good one. A refresh that does not finish within 60 seconds counts as
+failed.
 
 Coverage is the United States only, so an empty result elsewhere means "not
 covered", not "nothing burning". The `coverage` foreign member states this
@@ -399,8 +402,8 @@ rather than reporting an outage — and this field is how you can tell. It is a
 
 Perimeters and plumes share a caching contract: one national snapshot per
 instance, refreshed on a timer, served **past its refresh deadline** when the
-upstream is unreachable, and only a `503` from an instance that has never once
-completed a fetch. Coverage is North America, so an empty result elsewhere means
+upstream is unreachable for up to 24 hours, and a `503` from an instance that
+has never completed a fetch or whose copy is older than that. Coverage is North America, so an empty result elsewhere means
 "not covered", not "clear air". See [DATA.md](DATA.md#smoke).
 
 The rain-radar and snow-depth overlays have no endpoint here and never will:
@@ -490,8 +493,9 @@ itself for the details.
 
 The caching contract is the one perimeters and plumes share: one snapshot of
 every region per instance, refreshed on a timer, served **past its refresh
-deadline** when the Forest Service is unreachable, and a `503` only from an
-instance that has never once completed a fetch. `fetched_at` says when this
+deadline** when the Forest Service is unreachable for up to 24 hours, and a
+`503` from an instance that has never completed a fetch or whose copy is older
+than that. `fetched_at` says when this
 instance last fetched; the order's own dates are facts about the order.
 
 Coverage differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah,
@@ -1052,7 +1056,7 @@ the outcome, so a retry loop will spin forever.
 | `upstream_rate_limited` | `429` | `true` | Open-Meteo rate-limited the deployment mid-analysis. |
 | `upstream_unavailable` | `502` | `true` | An upstream failed or could not be reached. |
 | `busy` | `503` | `true` | An in-flight upstream budget stayed saturated, so the request was shed. |
-| `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire, smoke or closure snapshot, so it has nothing to serve, not even stale. |
+| `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire, smoke or closure snapshot, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. |
 | `internal` | stream only | `true` | An unexpected failure ended an SSE analysis. The JSON routes have no equivalent. |
 
 Pydantic's `422` is the one exception, and deliberately: its `detail` is a list

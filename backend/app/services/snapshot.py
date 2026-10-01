@@ -19,6 +19,12 @@ Aging out therefore blocks nobody: an aged snapshot is served immediately and
 refreshed *behind* the request. Only a cache that has never been filled makes a
 caller wait, or fail.
 
+The tolerance has a limit, though. A snapshot older than ``MAX_STALE_S`` is no
+longer served: past it a fire map can be days out of date with nothing on
+screen saying so, and the honest answer is the "unavailable" a cold cache
+gives. Every refresh is also bounded as a whole by ``REFRESH_DEADLINE_S``,
+because a caller waiting on a cold cache is a request the edge gives up on.
+
 The cache is not all the overlays share. Each wires the cache to its own
 upstream the same way, and each route answers a cold cache with the same 503,
 so those live here too rather than as copies that can drift into different
@@ -32,6 +38,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 
+from app import telemetry
 from app.error_codes import ApiError, ErrorCode
 from app.services.errors import UpstreamError, classify_http_error
 
@@ -42,6 +49,26 @@ log = logging.getLogger(__name__)
 # Matches the failure backoff the overlays configure, so a retry lands about
 # when the next refresh is allowed rather than before it.
 DEFAULT_RETRY_AFTER_S = 60
+
+# The oldest snapshot `get()` still serves when every refresh since it has
+# failed: 24 hours, one value for every overlay and no env knob (decided by the
+# maintainer, 2026-10-01, #580; record 0077). A day covers an upstream's
+# ordinary bad night with nobody noticing, and a fire perimeter or a closure
+# order older than that is a picture of a different day. Past it the route
+# answers the same 503 a cold pod does, so the map shows the overlay as
+# unavailable rather than as current.
+MAX_STALE_S = 24 * 60 * 60
+
+# The whole of one refresh, every page and every feed of it, from the first
+# request to the parsed snapshot. A caller on a cold cache waits this long at
+# most, and Cloudflare closes a proxied request at 100 s (its 524), after which
+# the answer reaches nobody. Each upstream's own REQUEST_TIMEOUT_S bounds one
+# operation only (60 to 120 s), and a paged feed is several of them in series.
+# Measured 2026-10-01 from a home network, cold, three runs each: perimeters
+# 1.2 to 5.5 s (6.7 s when #203 measured it), smoke 0.1 to 0.4 s, closures 0.5
+# to 1.1 s, the snow grid 1.1 to 1.3 s. 60 s is about ten times the slowest of
+# those, and leaves the edge 40 s for the lock wait and the response itself.
+REFRESH_DEADLINE_S = 60.0
 
 
 class SnapshotCache[T]:
@@ -62,6 +89,8 @@ class SnapshotCache[T]:
         retry_after_failure_s: float,
         describe: Callable[[T], str] = lambda _: "ok",
         clock: Callable[[], float] = time.monotonic,
+        max_stale_s: float = MAX_STALE_S,
+        refresh_deadline_s: float = REFRESH_DEADLINE_S,
     ) -> None:
         self._label = label
         self._fetch = fetch
@@ -69,12 +98,23 @@ class SnapshotCache[T]:
         self._retry_after_failure_s = retry_after_failure_s
         self._describe = describe
         self._clock = clock
+        self._max_stale_s = max_stale_s
+        self._refresh_deadline_s = refresh_deadline_s
         self._lock = asyncio.Lock()
         self._snapshot: T | None = None
+        # When the held snapshot landed, on `clock`. Its age is what
+        # `MAX_STALE_S` is measured against; `_fresh_until` cannot say it,
+        # because every failed refresh pushes that out by the backoff.
+        self._fetched_at = 0.0
+        # No refresh is started before this instant: the TTL after a success,
+        # the backoff after a failure.
         self._fresh_until = 0.0
         self._refresh_task: asyncio.Task[None] | None = None
         self._last_error: Exception | None = None
         self.refreshes = 0
+        # Created at 0 so the first failure is an increase an alert can see,
+        # for the reason `telemetry.init_canary_series` gives.
+        telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=label)
 
     @property
     def label(self) -> str:
@@ -86,22 +126,30 @@ class SnapshotCache[T]:
         """Whatever is held, without triggering a refresh. For diagnostics."""
         return self._snapshot
 
-    def _current(self) -> T | None:
-        if self._snapshot is not None and self._clock() < self._fresh_until:
+    def _servable(self) -> T | None:
+        """The held snapshot, unless it is older than `MAX_STALE_S`."""
+        if self._snapshot is not None and self._clock() - self._fetched_at <= self._max_stale_s:
             return self._snapshot
+        return None
+
+    def _current(self) -> T | None:
+        if self._clock() < self._fresh_until:
+            return self._servable()
         return None
 
     async def get(self) -> T:
         """The best snapshot available now, refreshing behind the request if aged.
 
-        Raises :class:`UpstreamError` only when there is nothing at all to
-        serve, which after one successful fetch means never.
+        Raises when there is nothing servable: never fetched, or every refresh
+        has failed for longer than `MAX_STALE_S`. Both raise the error the
+        last refresh failed with, so the route's 503 says why.
         """
         fresh = self._current()
         if fresh is not None:
             return fresh
 
-        if self._snapshot is not None:
+        aged = self._servable()
+        if aged is not None:
             # Aged, not absent. Refresh behind the caller rather than in front
             # of it: a national fetch measured 6.7 seconds for perimeters, and
             # making one unlucky visitor per TTL wait that long to learn what
@@ -109,13 +157,15 @@ class SnapshotCache[T]:
             # move on a human timescale. The stamp travels with the data, so a
             # reader can still see exactly how old this answer is.
             self._schedule_refresh()
-            return self._snapshot
+            return aged
 
-        # Nothing at all. This is the only path that can fail, and the only one
-        # a caller has to wait on.
+        # Nothing servable: never fetched, or held past `MAX_STALE_S`. This is
+        # the only path that can fail, and the only one a caller has to wait
+        # on, for one refresh at most (`REFRESH_DEADLINE_S`).
         async with self._lock:
-            if self._snapshot is not None:
-                return self._snapshot
+            held = self._servable()
+            if held is not None:
+                return held
             # A failed cold fetch sets the same backoff a failed refresh does,
             # and it has to be honoured here too: without this check every
             # request during an outage on a pod that never filled became its
@@ -125,9 +175,10 @@ class SnapshotCache[T]:
             if self._last_error is not None and self._clock() < self._fresh_until:
                 raise self._last_error
             await self._refresh_locked()
-            if self._snapshot is None:
+            held = self._servable()
+            if held is None:
                 raise self._last_error or UpstreamError(f"{self._label} is unavailable.")
-            return self._snapshot
+            return held
 
     def current_or_schedule(self) -> T | None:
         """The best snapshot available right now, without ever waiting for one.
@@ -143,6 +194,10 @@ class SnapshotCache[T]:
         covers both the aged case and the never-fetched one, and the same
         window is what a failed refresh pushes out — so an outage is retried on
         its backoff rather than once per request.
+
+        `MAX_STALE_S` does not apply here. The one caller is the snow depth
+        fill, whose answer carries the grid's own analysis date onto the
+        screen, so an old grid is a dated answer rather than a hidden one.
         """
         if self._clock() >= self._fresh_until:
             try:
@@ -171,8 +226,9 @@ class SnapshotCache[T]:
 
     async def _refresh_guarded(self) -> None:
         async with self._lock:
-            # The refresh that just finished may already have satisfied this.
-            if self._current() is not None:
+            # The refresh that just finished may already have satisfied this,
+            # or failed and set the backoff this one has to wait out.
+            if self._clock() < self._fresh_until:
                 return
             await self._refresh_locked()
 
@@ -182,19 +238,29 @@ class SnapshotCache[T]:
         multiplied by every visitor is a thundering herd against the quota this
         class exists to stop spending."""
         try:
-            snapshot = await self._fetch()
+            # The deadline is asyncio's, the mechanism the elevation lookup's
+            # `ENRICH_DEADLINE_S` uses; it ends in TimeoutError, which the
+            # except below treats as any other failed refresh.
+            async with asyncio.timeout(self._refresh_deadline_s):
+                snapshot = await self._fetch()
         except Exception as exc:  # noqa: BLE001 — a refresh must never take the pod with it
             self._last_error = exc
             self._fresh_until = self._clock() + self._retry_after_failure_s
+            telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=self._label).inc()
+            # A deadline's TimeoutError has no message of its own.
+            reason = str(exc) or f"no answer within {self._refresh_deadline_s:.0f}s"
             if self._snapshot is None:
-                log.warning("%s fetch failed with nothing cached to fall back on: %s", self._label, exc)
+                log.warning("%s fetch failed with nothing cached to fall back on: %s", self._label, reason)
+            elif self._servable() is None:
+                log.warning("%s refresh failed (%s); the last good snapshot is too old to serve", self._label, reason)
             else:
-                log.warning("%s refresh failed (%s); still serving the last good snapshot", self._label, exc)
+                log.warning("%s refresh failed (%s); still serving the last good snapshot", self._label, reason)
             return
         self._last_error = None
         self.refreshes += 1
         self._snapshot = snapshot
-        self._fresh_until = self._clock() + self._ttl_s
+        self._fetched_at = self._clock()
+        self._fresh_until = self._fetched_at + self._ttl_s
         log.info("%s snapshot refreshed: %s", self._label, self._describe(snapshot))
 
     async def settle(self) -> None:
@@ -205,6 +271,7 @@ class SnapshotCache[T]:
 
     def clear(self) -> None:
         self._snapshot = None
+        self._fetched_at = 0.0
         self._fresh_until = 0.0
         self._last_error = None
 
@@ -238,6 +305,8 @@ def cache_factory[T](
         retry_after_failure_s: float = retry_after_failure_s,
         clock: Callable[[], float] = time.monotonic,
         fetch: Callable[[], Awaitable[T]] = fetch,
+        max_stale_s: float = MAX_STALE_S,
+        refresh_deadline_s: float = REFRESH_DEADLINE_S,
     ) -> SnapshotCache[T]:
         return SnapshotCache(
             label=label,
@@ -246,6 +315,8 @@ def cache_factory[T](
             retry_after_failure_s=retry_after_failure_s,
             describe=describe,
             clock=clock,
+            max_stale_s=max_stale_s,
+            refresh_deadline_s=refresh_deadline_s,
         )
 
     return build
@@ -261,9 +332,9 @@ def unavailable_message(exc: Exception, provider: str) -> str:
 async def snapshot_or_503[T](cache: SnapshotCache[T], *, event: str) -> T:
     """The snapshot to answer with, or the 503 that says why there is none.
 
-    Every failure that reaches here means the cache holds nothing at all, stale
-    or otherwise: once one fetch has landed, :meth:`SnapshotCache.get` serves
-    it rather than raising. ``event`` is the token a pod's logs are searched
+    Every failure that reaches here means the cache holds nothing it may
+    serve: never fetched, or older than `MAX_STALE_S`. Short of that,
+    :meth:`SnapshotCache.get` serves what it holds rather than raising. ``event`` is the token a pod's logs are searched
     by, and is the only part of this an overlay still owns.
     """
     try:

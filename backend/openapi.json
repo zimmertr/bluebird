@@ -2141,7 +2141,7 @@
     },
     "/api/closures": {
       "get": {
-        "description": "Active closure orders from three US Forest Service regions, intersecting `bbox`: the Pacific Northwest Region (Region 6), the Southwestern Region (Region 3) and the Intermountain Region (Region 4).\n\n`kind` picks the question. `area` answers where a person may not enter, as polygons, from all three regions. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites, from Region 6 alone.\n\nCoverage therefore differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon and Washington only. An empty result outside the coverage for its kind means \"not covered\", not \"nothing closed\". The `coverage` member states this machine-readably.\n\nRegions 3 and 4 publish every standing forest order, not closures alone, so an order from them is returned only when it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited in a sentence that names no permit as the way in.\n\nThis instance fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.",
+        "description": "Active closure orders from three US Forest Service regions, intersecting `bbox`: the Pacific Northwest Region (Region 6), the Southwestern Region (Region 3) and the Intermountain Region (Region 4).\n\n`kind` picks the question. `area` answers where a person may not enter, as polygons, from all three regions. `trail` answers which ways in are shut, as lines for closed trails and roads plus points for closed trailheads and sites, from Region 6 alone.\n\nCoverage therefore differs by kind. `area` covers Arizona, New Mexico, Nevada, Utah, southern Idaho, western Wyoming, Oregon and Washington. `trail` covers Oregon and Washington only. An empty result outside the coverage for its kind means \"not covered\", not \"nothing closed\". The `coverage` member states this machine-readably.\n\nRegions 3 and 4 publish every standing forest order, not closures alone, so an order from them is returned only when it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited in a sentence that names no permit as the way in.\n\nThis instance fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.",
         "operationId": "closures_api_closures_get",
         "parameters": [
           {
@@ -2229,7 +2229,7 @@
                 }
               }
             },
-            "description": "This instance has never completed a fetch from the Forest Service, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry."
+            "description": "This instance has never completed a fetch from the Forest Service, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry."
           }
         },
         "summary": "Forest Service closure orders in a bounding box",
@@ -2432,7 +2432,7 @@
     },
     "/api/smoke": {
       "get": {
-        "description": "Today's hand-traced smoke plumes covering North America, at all three densities.\n\nHMS is an analyst product, not a model: people at NOAA read GOES imagery and trace what they can see, roughly twice a day. So this is a picture of where the smoke is rather than a forecast, and there is nothing here to animate.\n\nThe whole analysis comes back in one response and there is no bounding box to send: a busy day measured under half a megabyte, so filtering would cost a parameter and save nothing.\n\nThis instance fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable \u2014 smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. Only an instance that has never completed a fetch answers 503.\n\nCoverage is North America, which is what HMS analyzes. An empty result elsewhere means \"not covered\", not \"clear air\".",
+        "description": "Today's hand-traced smoke plumes covering North America, at all three densities.\n\nHMS is an analyst product, not a model: people at NOAA read GOES imagery and trace what they can see, roughly twice a day. So this is a picture of where the smoke is rather than a forecast, and there is nothing here to animate.\n\nThe whole analysis comes back in one response and there is no bounding box to send: a busy day measured under half a megabyte, so filtering would cost a parameter and save nothing.\n\nThis instance fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable \u2014 smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.\n\nCoverage is North America, which is what HMS analyzes. An empty result elsewhere means \"not covered\", not \"clear air\".",
         "operationId": "smoke_api_smoke_get",
         "responses": {
           "200": {
@@ -2463,7 +2463,7 @@
                 }
               }
             },
-            "description": "This instance has never completed a fetch from NOAA, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry."
+            "description": "This instance has never completed a fetch from NOAA, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry."
           }
         },
         "summary": "Smoke plumes from NOAA's Hazard Mapping System",
@@ -2496,7 +2496,7 @@
     },
     "/api/wildfires": {
       "get": {
-        "description": "Active wildfire perimeters from NIFC's WFIGS \"Interagency Perimeters \u2014 Current\" layer, intersecting `bbox`.\n\nThis exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. This instance fetches the national set on a timer and serves it to everyone, which reduces Bluebird Forecast's contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.\n\nCoverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means \"not covered\", not \"nothing burning\".\n\nPerimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.",
+        "description": "Active wildfire perimeters from NIFC's WFIGS \"Interagency Perimeters \u2014 Current\" layer, intersecting `bbox`.\n\nThis exists because NIFC's ArcGIS quota belongs to *their* organization and is shared by every consumer of the public dataset, so a browser calling NIFC directly competes with the rest of the internet for it and loses at random. This instance fetches the national set on a timer and serves it to everyone, which reduces Bluebird Forecast's contribution to that quota to a fixed handful of requests per hour no matter how many people are looking at maps.\n\nCoverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means \"not covered\", not \"nothing burning\".\n\nPerimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.",
         "operationId": "wildfires_api_wildfires_get",
         "parameters": [
           {
@@ -2569,7 +2569,7 @@
                 }
               }
             },
-            "description": "This instance has never completed a fetch from NIFC, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry."
+            "description": "This instance has never completed a fetch from NIFC, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry."
           }
         },
         "summary": "Active US wildfire perimeters in a bounding box",

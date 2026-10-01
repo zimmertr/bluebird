@@ -21,6 +21,9 @@ export interface HeldForecasts {
   // When the FIRST of these rows was fetched, not the last run that reused
   // them.
   fetchedAtMs: number
+  // The rows, by `geoKey`, whose air quality FAILED rather than answered
+  // null. A reuse asks those again (#580); absent means none did.
+  aqiFailed?: ReadonlySet<string>
 }
 
 /** The window and model a run asks for, after the window is resolved. */
@@ -57,6 +60,7 @@ export function holdForecasts(
   times: number[],
   asked: ForecastQuestion,
   nowMs: number,
+  aqiFailed: ReadonlySet<string>,
 ): HeldForecasts {
-  return { rows, times, ...asked, fetchedAtMs: reused?.fetchedAtMs ?? nowMs }
+  return { rows, times, ...asked, fetchedAtMs: reused?.fetchedAtMs ?? nowMs, aqiFailed }
 }

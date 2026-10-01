@@ -12,8 +12,10 @@ import type { CommitReason } from '../utils/present'
 import type { DestinationResult } from '../types'
 
 vi.mock('./ControlPanel', () => ({
-  default: (props: { pointSample: boolean }) => (
-    <div data-testid="panel">{props.pointSample ? 'point' : 'window'}</div>
+  default: (props: { pointSample: boolean; basemapFailed?: boolean }) => (
+    <div data-testid="panel" data-basemap-failed={String(props.basemapFailed)}>
+      {props.pointSample ? 'point' : 'window'}
+    </div>
   ),
 }))
 
@@ -64,7 +66,7 @@ const MAP = createRef<MapViewHandle>()
 const NO_REASONS: CommitReason[] = []
 const NO_ROWS: DestinationResult[] = []
 
-function drawer(open: boolean, onClose = NOOP) {
+function drawer(open: boolean, onClose = NOOP, basemapFailed = false) {
   return (
     <AppDrawer
       open={open}
@@ -91,6 +93,7 @@ function drawer(open: boolean, onClose = NOOP) {
       results={NO_ROWS}
       fireStatus="idle"
       closureStatus="idle"
+      basemapFailed={basemapFailed}
     />
   )
 }
@@ -126,5 +129,13 @@ describe('AppDrawer', () => {
   it("hands the panel the selection's own point-sample flag", () => {
     render(drawer(true))
     expect(screen.getByTestId('panel').textContent).toBe('point')
+  })
+
+  // #580: the map's failure reaches the panel's one notice block.
+  it('hands the panel whether the basemap is failing', () => {
+    const { rerender } = render(drawer(true))
+    expect(screen.getByTestId('panel').dataset.basemapFailed).toBe('false')
+    rerender(drawer(true, NOOP, true))
+    expect(screen.getByTestId('panel').dataset.basemapFailed).toBe('true')
   })
 })

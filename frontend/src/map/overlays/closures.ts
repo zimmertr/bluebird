@@ -26,6 +26,7 @@ import {
   type ClosureProps,
 } from '../../utils/closures'
 import type { BBox } from '../../utils/wildfires'
+import { overlayRecovery, retryAfterOf } from './recovery'
 
 /** Each kind's source id. */
 export const CLOSURE_SOURCES: Record<ClosureKind, string> = {
@@ -105,7 +106,8 @@ function layersFor(kind: ClosureKind, source: string): { specs: maplibregl.Layer
 export function mountClosures(
   map: maplibregl.Map,
   kind: ClosureKind,
-  deps: { restCursor: () => void },
+  // `online` is where the browser's `online` is heard; the window when absent.
+  deps: { restCursor: () => void; online?: EventTarget | null },
 ): ClosureOverlay {
   // Added right after the fire overlay, so a closure is drawn over the fire
   // that caused it and under the drawing UI and the result markers. Data is
@@ -188,6 +190,10 @@ export function mountClosures(
   let showing = false
   let abort: AbortController | null = null
   let debounce: ReturnType<typeof setTimeout> | undefined
+  // A failed fetch is asked again when the browser comes back online, and no
+  // sooner than the pod's Retry-After (`recovery.ts`, #580). No timer: a pan
+  // already asks again.
+  const recovery = overlayRecovery(() => void refresh(), { online: deps.online })
 
   async function refresh() {
     abort?.abort()
@@ -200,11 +206,13 @@ export function mountClosures(
     const detail = fireDetailFor(b.getWest(), b.getEast(), map.getCanvas().clientWidth)
     try {
       const fc = await fetchClosures(bbox, kind, detail, ac.signal)
-      if (!ac.signal.aborted) setSource(map, source, fc)
+      if (ac.signal.aborted) return
+      setSource(map, source, fc)
+      recovery.succeeded()
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.warn('Closure overlay fetch failed', err)
-      }
+      if (ac.signal.aborted || (err as Error).name === 'AbortError') return
+      console.warn('Closure overlay fetch failed', err)
+      recovery.failed(retryAfterOf(err))
     }
   }
   function onMoveEnd() {
@@ -216,6 +224,7 @@ export function mountClosures(
     abort?.abort()
     abort = null
     map.off('moveend', onMoveEnd)
+    recovery.stop()
   }
 
   return {

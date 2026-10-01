@@ -41,6 +41,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     aqiAllNull: false,
     wildfireCheckFailed: false,
     closureCheckFailed: false,
+    basemapFailed: false,
     now: NOW,
     ...over,
   }
@@ -262,6 +263,17 @@ describe('panelMessages', () => {
 
     it('waits while an analysis runs', () => {
       expect(keys({ closureCheckFailed: true, loading: true })).toEqual([])
+    })
+  })
+
+  describe('the basemap line', () => {
+    // #580: a blank map says why, below Analyze with every other message.
+    it('says the map could not load while the basemap style is failing', () => {
+      expect(only({ basemapFailed: true })).toEqual({
+        key: 'map:style',
+        text: 'The map could not load. Try again later.',
+        severity: 'error',
+      })
     })
   })
 

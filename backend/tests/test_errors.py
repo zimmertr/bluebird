@@ -69,3 +69,9 @@ def test_partial_result_message():
 def test_non_httpx_exception_falls_through():
     msg = classify_http_error(ValueError("nope"), PROVIDER)
     assert "request failed" in msg
+
+
+def test_an_asyncio_deadline_reads_as_a_timeout():
+    # The snapshot refresh's total deadline ends in a builtin TimeoutError.
+    msg = classify_http_error(TimeoutError(), PROVIDER)
+    assert msg == f"{PROVIDER} took too long. Try again later."

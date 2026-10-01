@@ -72,8 +72,9 @@ class SmokeCollection(BaseModel):
         "it to everyone, and serves it past its refresh deadline when NOAA is "
         "unreachable — smoke traced this morning is the only tracing there will "
         "be until the next pass. Read `fetched_at` and `analysis_date` to see "
-        "how current the answer is. Only an instance that has never completed a "
-        "fetch answers 503.\n\n"
+        "how current the answer is. An instance answers 503 when it has never "
+        "completed a fetch, or when every refresh has failed for more than 24 "
+        "hours since its last good one.\n\n"
         "Coverage is North America, which is what HMS analyzes. An empty result "
         "elsewhere means \"not covered\", not \"clear air\"."
     ),
@@ -91,9 +92,10 @@ class SmokeCollection(BaseModel):
         503: {
             "model": ErrorResponse,
             "description": (
-                "This instance has never completed a fetch from NOAA, so it has "
-                "nothing to serve, not even stale. Transient; `Retry-After` says "
-                "when to retry."
+                "This instance has never completed a fetch from NOAA, or every "
+                "refresh has failed for more than 24 hours since its last good "
+                "one, so it has nothing it will serve. Transient; `Retry-After` "
+                "says when to retry."
             ),
         },
     },

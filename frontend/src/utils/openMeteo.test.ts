@@ -879,7 +879,8 @@ describe('fetchAqi', () => {
       WINDOW.startMs,
       WINDOW.endMs,
     )
-    expect(out).toEqual([null])
+    // Flagged, so a re-analysis knows to ask again (#580).
+    expect(out).toEqual({ results: [null], failed: [true] })
   })
 
   it('degrades a miscounted response to nulls', async () => {
@@ -889,7 +890,26 @@ describe('fetchAqi', () => {
       WINDOW.startMs,
       WINDOW.endMs,
     )
-    expect(out).toEqual([null])
+    expect(out).toEqual({ results: [null], failed: [true] })
+  })
+
+  it('flags a failed batch and leaves an answered null unflagged', async () => {
+    // Two batches: the first answers with no data at either point (a real
+    // null), the second fails. Only the failure is worth asking again.
+    const coords = Array.from({ length: 51 }, (_, i) => ({ latitude: i / 100, longitude: 1 }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const size = new URL(url).searchParams.get('latitude')!.split(',').length
+        return size === 50
+          ? jsonResponse(coords.slice(0, 50).map(() => ({ hourly: {} })))
+          : { ok: false, status: 500, json: async () => ({}) }
+      }),
+    )
+    const out = await fetchAqi(coords, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
+    expect(out.results.every((r) => r === null)).toBe(true)
+    expect(out.failed.slice(0, 50).every((f) => !f)).toBe(true)
+    expect(out.failed[50]).toBe(true)
   })
 
   it('skips the fetch entirely when the window starts past the horizon', async () => {
@@ -902,7 +922,8 @@ describe('fetchAqi', () => {
       Date.parse('2026-07-21T00:00:00Z'),
       { nowMs: now },
     )
-    expect(out).toEqual([null])
+    // Past the horizon is an answer, not a failure: nothing to ask again.
+    expect(out).toEqual({ results: [null], failed: [false] })
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
@@ -1535,7 +1556,7 @@ describe('the per-request deadline', () => {
     })
 
     await vi.advanceTimersByTimeAsync(REQUEST_DEADLINE_MS)
-    expect(await pending).toEqual([null])
+    expect(await pending).toEqual({ results: [null], failed: [true] })
     // Air quality is best-effort and asks once: a retry would delay the
     // ranking for a column it can do without.
     expect(fetchSpy).toHaveBeenCalledTimes(1)
@@ -1572,7 +1593,7 @@ describe('fetchAqi pacing', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(onPace).toHaveBeenCalledExactlyOnceWith(60)
     await vi.advanceTimersByTimeAsync(60_000)
-    await expect(pending).resolves.toHaveLength(100)
+    expect((await pending).results).toHaveLength(100)
   })
 
   it('prices the hours it asks for, not the window it was handed (#581)', async () => {
@@ -1587,7 +1608,7 @@ describe('fetchAqi pacing', () => {
 
     await vi.advanceTimersByTimeAsync(0)
     expect(onPace).not.toHaveBeenCalled()
-    await expect(pending).resolves.toHaveLength(550)
+    expect((await pending).results).toHaveLength(550)
   })
 
   it('spends no more than a minute of budget in any minute (#581)', async () => {
@@ -1604,7 +1625,7 @@ describe('fetchAqi pacing', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(onPace).toHaveBeenCalledExactlyOnceWith(60)
     await vi.advanceTimersByTimeAsync(60_000)
-    await expect(pending).resolves.toHaveLength(50)
+    expect((await pending).results).toHaveLength(50)
   })
 
   it('says nothing when the budget covers the batch', async () => {

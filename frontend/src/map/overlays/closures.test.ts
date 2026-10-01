@@ -72,11 +72,11 @@ const hover = (over = {}, layer = CLOSURE_AREA_FILL_LAYER, lng = -121.5) => ({
 
 // Mounted beside the fire overlay, as `mountFeatures` does, and over a draw
 // layer standing in for everything above it.
-function setup(kind: ClosureKind = 'area') {
+function setup(kind: ClosureKind = 'area', online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 1000, zoom: 8 })
   const restCursor = vi.fn()
-  mountWildfires(stub.map, { restCursor })
-  const overlay = mountClosures(stub.map, kind, { restCursor })
+  mountWildfires(stub.map, { restCursor, online: null })
+  const overlay = mountClosures(stub.map, kind, { restCursor, online })
   return { stub, overlay, restCursor }
 }
 
@@ -86,7 +86,10 @@ beforeEach(() => {
   fetchClosures.mockReset()
   fetchClosures.mockResolvedValue(TRAILS)
 })
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+})
 
 describe('mountClosures', () => {
   it('stacks the area fill under its outline, over the fires', () => {
@@ -120,6 +123,23 @@ describe('mountClosures', () => {
     stub.fire('moveend')
     vi.advanceTimersByTime(FIRE_REFETCH_DEBOUNCE_MS)
     expect(fetchClosures).toHaveBeenCalledTimes(2)
+  })
+
+  // #580: the fire overlay's recovery, for the same reason.
+  it('asks again on reconnect after a failed fetch', async () => {
+    fetchClosures
+      .mockReset()
+      .mockRejectedValueOnce(new Error('Bluebird Forecast is offline. Try again later.'))
+      .mockResolvedValueOnce(TRAILS)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const online = new EventTarget()
+    const { stub, overlay } = setup('trail', online)
+    overlay.update({ show: true })
+    await vi.advanceTimersByTimeAsync(0)
+    online.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchClosures).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(stub.sources[CLOSURE_SOURCES.trail].data).toBe(TRAILS))
   })
 
   it('aborts the fetch, stops listening and empties its source when switched off', () => {
