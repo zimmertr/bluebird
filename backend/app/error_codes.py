@@ -21,6 +21,8 @@ from __future__ import annotations
 from enum import StrEnum
 
 from fastapi import HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 
@@ -103,3 +105,33 @@ async def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
         content={"detail": exc.detail, "error": error_object(exc.code)},
         headers=exc.headers,
     )
+
+
+# What Pydantic puts in front of the message a validator raises as a
+# `ValueError`. The sentence after it is ours, written to be shown as-is, and
+# the browser shows `msg` as-is: with the prefix the reader saw "Value error,
+# Latitude 95.0 is outside the valid -90 to 90 range."
+_VALUE_ERROR_PREFIX = "Value error, "
+
+
+async def validation_error_handler(
+    _request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """FastAPI's stock `422`, with our own validators' messages left as written.
+
+    The body keeps the shape docs/API.md promises for a `422`: Pydantic's
+    per-field `detail` list, with no `error` object. Only the `msg` of a
+    `value_error` changes, and only by losing the prefix, so what remains is
+    exactly the sentence the validator raised. Pydantic's own messages (a
+    missing field, a wrong type) carry no prefix and pass through untouched.
+    """
+    errors = jsonable_encoder(exc.errors())
+    for error in errors:
+        msg = error.get("msg")
+        if (
+            error.get("type") == "value_error"
+            and isinstance(msg, str)
+            and msg.startswith(_VALUE_ERROR_PREFIX)
+        ):
+            error["msg"] = msg[len(_VALUE_ERROR_PREFIX) :]
+    return JSONResponse(status_code=422, content={"detail": errors})

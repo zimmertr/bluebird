@@ -17,13 +17,21 @@ describe('useAnalysisRun', () => {
     })
     expect(result.current.loading).toBe(true)
     expect(result.current.statusMessage).toBe('Searching…')
-    act(() => result.current.onProgress(3, 4, 'Retrieving Forecasts (3 of 4)…'))
+    act(() => result.current.onProgress(3, 4, 'Retrieving forecasts (3 of 4)…'))
     expect(result.current.progress).toEqual({ processed: 3, total: 4, percent: 75 })
     await act(async () => {
       release()
       await done
     })
     expect(result.current).toMatchObject({ loading: false, statusMessage: null, progress: null, error: null })
+  })
+
+  it('shows the tail label over a full bar', () => {
+    const { result } = renderHook(() => useAnalysisRun(MODELS))
+    act(() => result.current.onProgress(4, 4, 'Retrieving forecasts: 4 of 4 peaks…'))
+    act(() => result.current.onTail('Retrieving air quality…'))
+    expect(result.current.statusMessage).toBe('Retrieving air quality…')
+    expect(result.current.progress).toEqual({ processed: 4, total: 4, percent: 100 })
   })
 
   it('announces the counted field at zero, and reads an empty field as done', () => {
@@ -38,7 +46,7 @@ describe('useAnalysisRun', () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     const h = hooks()
     await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), h))
-    expect(result.current.error).toBe('Broken.')
+    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
     expect(h.onFailure).toHaveBeenCalledOnce()
     expect(h.onSettled).toHaveBeenCalledOnce()
   })

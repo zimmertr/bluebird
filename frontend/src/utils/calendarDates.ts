@@ -51,18 +51,6 @@ export function addOneHour(time: string): string {
 }
 
 /**
- * Subtract one hour from a time in `HH:MM` format, clamping at DAY_START (00:00).
- * 01:00 -> 00:00, 00:30 -> 00:00, 00:00 -> 00:00.
- */
-export function subtractOneHour(time: string): string {
-  const [hStr, mStr] = time.split(':')
-  const h = parseInt(hStr, 10)
-  const m = parseInt(mStr, 10)
-  if (h <= 0) return DAY_START
-  return `${pad(h - 1)}:${pad(m)}`
-}
-
-/**
  * Shift a day by whole days, through the Date constructor's field overflow so a
  * DST transition cannot move the result off the intended calendar day.
  */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { analyzeBlockers, canAnalyze, shouldAutoAnalyze, AnalyzeGate, AutoAnalyzeState } from './analyzeGate'
+import { analyzeBlockers, canAnalyze, ringAddsNothing, shouldAutoAnalyze, AnalyzeGate, AutoAnalyzeState } from './analyzeGate'
 
 // A fully-ready polygon analysis: three points drawn, no vetoes.
 const READY_POLYGON: AnalyzeGate = {
@@ -192,6 +192,27 @@ describe('a polygon with nothing checked', () => {
 
   it('still reports an unfinished polygon as unfinished', () => {
     expect(analyzeBlockers({ ...drawn, drawPointCount: 2 })).toEqual(['polygon'])
+  })
+
+  // With another input the button stays open and the ring is simply ignored,
+  // which the panel says rather than hides (#579). Only for a finished ring:
+  // mid-draw the polygon's counter speaks for it.
+  it('adds nothing beside another input, which Analyze still runs', () => {
+    const withList = { ...drawn, hasCustom: true, drawing: false }
+    expect(canAnalyze(withList)).toBe(true)
+    expect(ringAddsNothing(withList)).toBe(true)
+    expect(ringAddsNothing({ ...drawn, hasPins: true, drawing: false })).toBe(true)
+  })
+
+  it('says nothing while the ring is still being drawn', () => {
+    expect(ringAddsNothing({ ...drawn, hasCustom: true, drawing: true })).toBe(false)
+    expect(ringAddsNothing({ ...drawn, hasCustom: true, drawing: false, drawPointCount: 2 })).toBe(false)
+  })
+
+  it('says nothing for a ring with a type, an oversized ring, or no other input', () => {
+    expect(ringAddsNothing({ ...drawn, hasCustom: true, drawing: false, polygonReady: true })).toBe(false)
+    expect(ringAddsNothing({ ...drawn, hasCustom: true, drawing: false, areaTooLarge: true })).toBe(false)
+    expect(ringAddsNothing({ ...drawn, drawing: false })).toBe(false)
   })
 })
 

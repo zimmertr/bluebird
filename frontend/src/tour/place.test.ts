@@ -5,6 +5,7 @@ import {
   clipAbove,
   placeCard,
   sameBox,
+  scrollBlock,
   sectionBox,
   SHEET_MAX_W,
   sheetEdge,
@@ -124,5 +125,19 @@ describe('clipAbove', () => {
 
   it('keeps a box wholly under the line as no height at the line', () => {
     expect(clipAbove(box, 50)).toEqual({ ...box, top: 50, height: 0 })
+  })
+})
+
+// A section taller than the panel stayed where it stood under `nearest` once
+// its top was in view, so the Metrics step lit only its top two rows.
+describe('the scroll to a step', () => {
+  it('brings a section to the top of the panel', () => {
+    expect(scrollBlock('section')).toBe('start')
+  })
+
+  it('moves a control or a surface only as far as it must', () => {
+    expect(scrollBlock('control')).toBe('nearest')
+    expect(scrollBlock('box')).toBe('nearest')
+    expect(scrollBlock(undefined)).toBe('nearest')
   })
 })

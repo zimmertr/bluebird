@@ -42,6 +42,7 @@ function inputs(over: Partial<UrlSyncInputs> = {}): UrlSyncInputs {
     removedKeys: NO_KEYS,
     tableSort: null,
     restoredView: null,
+    cameraHeld: false,
     ...over,
   }
 }
@@ -180,6 +181,23 @@ describe('the camera in the link', () => {
     vi.advanceTimersByTime(DEBOUNCE_MS)
     expect(params().has('radar')).toBe(false)
     expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+  })
+
+  // The tutorial's marker step frames a demonstration marker. That camera is
+  // the tour's, so the link keeps the reader's while the tour runs.
+  it('keeps the reader\'s camera while the tutorial holds it', () => {
+    const TOUR_VIEW = { lng: -121.1, lat: 48.1, zoom: 12 }
+    const { result, rerender } = renderHook((p: UrlSyncInputs) => useUrlSync(p), { initialProps: inputs() })
+    act(() => result.current.reportView(VIEW, true))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    rerender(inputs({ cameraHeld: true }))
+    act(() => result.current.reportView(TOUR_VIEW, false))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().get('view')).toBe('-121.7601,46.8529,10.5')
+    rerender(inputs())
+    act(() => result.current.reportView(TOUR_VIEW, true))
+    vi.advanceTimersByTime(DEBOUNCE_MS)
+    expect(params().get('view')).toBe('-121.1,48.1,12')
   })
 
   it('flushes a pending camera write on unmount', () => {

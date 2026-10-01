@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { analysisFailure } from '../utils/analysisFailure'
 import type { ForecastModelOption } from './useCapabilities'
 import { usePacedFetch } from './usePacedFetch'
-import type { Progress, Refusal } from './analyzeTypes'
+import type { Progress, Refusal, RunError } from './analyzeTypes'
 
 // The state of the analysis in flight: whether one runs, what it says it is
 // doing, how far it has got, and how it failed. Apart from the report it
@@ -19,7 +19,7 @@ export interface RunHooks {
 
 export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<RunError | null>(null)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
@@ -54,6 +54,11 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     setProgress({ processed, total, percent: total ? Math.round((processed / total) * 100) : 100 })
   }
 
+  // The tail label replaces the status; the progress stays full under it.
+  function onTail(message: string) {
+    setStatusMessage(message)
+  }
+
   // One run. `seed` is the first-phase label, so nothing generic flashes in
   // the gap between the click and the first event.
   async function run(seed: string, body: (signal: AbortSignal) => Promise<void>, hooks: RunHooks) {
@@ -71,7 +76,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
       const failure = analysisFailure(e, models)
       if (failure.kind === 'cancel') setStatusMessage(null)
       else if (failure.kind === 'refusal') setRefusal({ message: failure.message })
-      else setError(failure.message)
+      else setError({ message: failure.message, retry: failure.retry })
     } finally {
       abortRef.current = null
       setLoading(false)
@@ -88,6 +93,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     clearEvents,
     announce,
     onProgress,
+    onTail,
     onPace,
     loading,
     error,

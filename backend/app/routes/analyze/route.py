@@ -247,8 +247,8 @@ async def _run_analysis(
                     "schema": {
                         "type": "string",
                         "example": (
-                            'data: {"type": "status", "message": "Searching for Destinations…"}\n\n'
-                            'data: {"type": "status", "message": "Searching for Destinations…", '
+                            'data: {"type": "status", "message": "Searching for destinations…"}\n\n'
+                            'data: {"type": "status", "message": "Searching for destinations…", '
                             '"detail": "Trying backup map server 2 of 3…"}\n\n'
                             'data: {"type": "progress", "processed": 50, "total": 120, "percent": 42}\n\n'
                             'data: {"type": "result", "data": {"results": [], "total_queried": 0}}\n\n'

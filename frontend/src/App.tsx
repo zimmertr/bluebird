@@ -204,8 +204,9 @@ export default function App() {
   // ── The map timeline (#121) ───────────────────────────────────────────────
   // While the tutorial's last step is open, the results sheet, the chart and
   // the markers read a demonstration report instead of the real one (#536).
-  // Everything else — the grid, removals, the URL, the commit cues — keeps
-  // reading the real analysis, so ending the tour leaves nothing behind.
+  // Everything else — the grid, removals, the URL, the commit cues and the
+  // pending set they count — keeps reading the real analysis, so ending the
+  // tour leaves nothing behind.
   const demo = tour.demo
   const shownResponse = demo?.response ?? response
   const shownAnalyzed = demo?.analyzed ?? analyzed
@@ -276,6 +277,7 @@ export default function App() {
     universe: shownUniverse,
     response: shownResponse,
     analyzed: shownAnalyzed,
+    coverage: analyzed,
     analysisSeq,
     arriving,
     liveKnobs,
@@ -323,6 +325,7 @@ export default function App() {
     removedKeys,
     tableSort,
     restoredView,
+    cameraHeld: tour.index !== null,
   })
   const { writeUrl } = urlSync
 
@@ -408,6 +411,17 @@ export default function App() {
     if (analysisSeq > 0 && !isDesktop) setSidebarOpen(false)
     // Kept: listing `isDesktop` would close the drawer when a window crossed
     // the breakpoint, which is a resize rather than a committed report.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisSeq])
+
+  // A committed report whose rows all stand outside the view moves the map to
+  // them; a view that shows one of them is the reader's and stays (the
+  // maintainer, 2026-10-01, #579). An app move, so it makes no link by itself.
+  // Keyed on the commit alone: a live knob re-presents the same field and must
+  // not pull the camera, and the tutorial's demonstration commits nothing.
+  useEffect(() => {
+    if (analysisSeq > 0) mapRef.current?.frameRowsIfNoneInView(results)
+    // Kept: listing `results` would move the map on every live knob.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 

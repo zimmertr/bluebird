@@ -53,7 +53,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. **Include unnamed peaks**, under the type checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. When another destination still lets Analyze run, a line under the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, under the type checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
 
 ### d. Coordinates
 
@@ -66,7 +66,7 @@ Paste a CSV of your own coordinates to add them to the analysis — alongside wh
 48.1122,-121.1139,Glacier Peak
 ```
 
-The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it.
+The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it. A line pasted twice at the same coordinates is analyzed once, under the first line's name.
 
 You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and rides along like any other row. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 
@@ -122,7 +122,7 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 **A window older than about two months is served from a different place**, and the far past is the one stretch of the calendar where the model you picked does not apply: those hours come from Open-Meteo's archive, which is one recorded dataset rather than a forecast any model made, so the model control is faded out while such a window is selected, and a line under the Analyze button says why. Wind is measured 10 m above the ground there rather than adjusted to each summit, for the reason [DATA.md](DATA.md#open-meteo) gives.
 
-**A range may cross that join.** It is fetched twice, once from each place, and the hours are joined in order before anything is ranked, so the report is one window rather than two halves. A line under the Analyze button names the day the archive's hours end and the day your chosen model's begin, because a report whose first days are recorded conditions and whose last days are a forecast should say so. Nothing about it is blocked, and the model control stays live: the later half is that model's.
+**A range may cross that join.** It is fetched twice, once from each place, and the hours are joined in order before anything is ranked, so the report is one window rather than two halves. The join falls at midnight in your own time zone, so each day is wholly one place's. A line under the Analyze button names the day the archive's hours end and the day your chosen model's begin, because a report whose first days are recorded conditions and whose last days are a forecast should say so. Nothing about it is blocked, and the model control stays live: the later half is that model's.
 
 **The results header spells the year** whenever the window is not in the current one, on both ends of it. A report of last September otherwise reads as four days of "Sat, Sep 13", which is a date no reader can place.
 
@@ -248,7 +248,11 @@ the points are in hand everything else is free: changing the ranking recolors th
 field without asking for anything new, and so does the timeline. It fills in as it
 arrives rather than appearing all at once. A square stays empty only where the
 model published no number for it, which for a freezing-level ranking is the five
-models that carry no freezing level at all.
+models that carry no freezing level at all. A snow depth ranking draws no field and
+no grid row in the legend: snow depth comes from a snow analysis matched to each
+destination, not from a forecast at each point. The switch stays on, and the
+field comes back with any other ranking. The **Snow depth** layer draws the snow
+itself.
 
 After a very large analysis it can take a while to start, because it shares a
 per-minute allowance with the analysis you just ran and has to wait its turn. The
@@ -385,7 +389,7 @@ The comparison travels in the link as `compare=`, a comma-separated list of mode
 
 The rest of the panel travels the same way. A shared link carries the destination types and the unnamed-peaks toggle, the polygon, a pasted list (compressed), the forecast window, the model and its comparison, the ranking, its direction and the results cap once you change them from their defaults, every bound, the layer switches, the coverage slider, the forecast player once you have set it, pinned destinations, the rows you removed with ×, the order you sorted the table in with a header click, and the map's camera. It does not carry column order or widths, hidden models, or anything else that is one reader's view of the report rather than the report. A shared link opens the map where its camera was, as `view=` (longitude, latitude and zoom). A link with no camera opens the map on every destination it carries: the polygon, a pasted list, and searched places.
 
-A pan or a zoom alone makes a link, so a link copied after you move the map reopens at the same place. The map's own moves (the opening frame, a search, a click on a row's rank) keep the camera in a link that already exists, and make no link by themselves. Removed rows travel as `removed=`, one `longitude,latitude` pair for each row, and a restored link hides them from its first report and lists them under **Removed** once that report lands. The header sort travels as `tsort=` with the column and `tdesc=1` for highest first. It is written only while it differs from the ranking's own order, and it holds for the first report a link opens with. A change to **Rank by** drops it, as it does any header sort.
+A pan or a zoom alone makes a link, so a link copied after you move the map reopens at the same place. The map's own moves (the opening frame, a search, a click on a row's rank, a report whose rows were all off screen) keep the camera in a link that already exists, and make no link by themselves. Removed rows travel as `removed=`, one `longitude,latitude` pair for each row, and a restored link hides them from its first report and lists them under **Removed** once that report lands. The header sort travels as `tsort=` with the column and `tdesc=1` for highest first. It is written only while it differs from the ranking's own order, and it holds for the first report a link opens with. A change to **Rank by** drops it, as it does any header sort.
 
 The link stays readable. Commas, semicolons, colons and slashes show as they are, except a comma or a semicolon inside a pinned place's name, which shows as `%2C` or `%3B`, and a space shows as `+`. A pinned place reads as its coordinates, its kind, its elevation, its OpenStreetMap id and its name: `?model=gfs_seamless&mode=now&pins=-121.94734,47.48844,peak,2995,node/349018340,East+Tiger+Mountain`. Only the pasted list is compressed, because 100 rows of plain text would make a link too long to share.
 
@@ -399,7 +403,9 @@ Destinations you name yourself are candidates like any other. A searched place a
 
 ## What happens when you analyze
 
-Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself.
+Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself. If none of the rows is on the map you are looking at, the map moves to show them; if at least one is, the map stays where you left it.
+
+While it runs, a line over the map says what it is waiting on. With a polygon it reads `Searching for destinations…` while the map service finds what is inside it. With only pasted, searched or clicked destinations it reads `Retrieving elevation…` while each one's elevation is looked up. Then it reads `Retrieving forecasts…`, with the count once it is known. If air quality or cloud data is still on its way after the forecasts arrive, it reads `Retrieving air quality…` and then `Retrieving cloud data…` until each arrives.
 
 A large area arrives in pieces. Forecasts are fetched in batches, and each batch that lands is ranked and shown at once rather than held back until the last one returns, so the first rows are up in well under a second where the whole run can take a minute or more. While that is happening the results bar marks its count **so far** (`946 of 946 so far`), because both numbers are a floor and the order still moves as the rest arrive. The words go when the analysis finishes.
 
@@ -445,7 +451,7 @@ Click a marker for a popup carrying the same columns the results table is showin
 
 Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
-Click any column header to sort the rows on screen by it, ascending or descending. From the keyboard, Tab reaches each header and Enter or Space sorts by it, exactly as a click does; a screen reader reads that hint on each header. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Metrics** table in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place.
+Click any column header to sort the rows on screen by it, ascending or descending. From the keyboard, Tab reaches each header and Enter or Space sorts by it, exactly as a click does; a screen reader reads that hint on each header. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Metrics** table in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place. Each row keeps its number in the # column, which is its place in the ranking and the number on its marker, so after a header sort the numbers no longer run in order. The downloaded CSV's Rank column is the same number.
 
 Hovering a row reveals a × at its end (always visible on touch screens) that removes the destination from the report — the rows below renumber, and it stays gone as you re-rank, raise the max results, or change any bound. Changing the destinations themselves starts a fresh report where it may return: edit the pasted list or the checked types and a removed destination you still name comes back as a pending destination immediately, while the report on screen keeps it struck out until you run the analysis. To undo one, a **Removed** button appears in the results bar while any removal is in force: it lists every removed row by name, and restores them one at a time or all at once. A restore never fetches — a row the report still holds simply reappears, and one it no longer holds (a searched place, or a row removed before a re-analysis) comes back as a pending destination that rejoins the next Analyze.
 

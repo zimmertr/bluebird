@@ -87,7 +87,7 @@ function blockerText(
 /** Everything the message list depends on, already derived by the panel. */
 export interface PanelMessageInputs {
   loading: boolean
-  error: string | null
+  error: { message: string; retry: boolean } | null
   refusal: { message: string } | null
   // Every knob that has stopped applying live, in `commitNeeded`'s order.
   commitReasons: readonly CommitReason[]
@@ -102,6 +102,9 @@ export interface PanelMessageInputs {
   // How much of the window the air-quality forecast covers.
   aqiCoverage: 'full' | 'partial' | 'none'
   blockers: readonly AnalyzeBlocker[]
+  // A finished ring with no type checked beside another input that keeps
+  // Analyze open (`ringAddsNothing`): the `types` line as information.
+  ringIgnored: boolean
   pointsNeeded: number
   // The compared models with no freezing level, by name.
   freezeGaps: readonly string[]
@@ -137,7 +140,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   // The event keys: the run error and the refusal key on their MESSAGE,
   // because each new message is a new fact the reader has not seen.
   const refusalKey = p.refusal ? noticeKey('refusal', p.refusal.message) : null
-  const errorKey = p.error ? noticeKey('error', p.error) : null
+  const errorKey = p.error ? noticeKey('error', p.error.message) : null
   // The AQI line qualifies the ANALYSIS rather than the view of it: every
   // displayed row has null AQI although the window is inside the horizon.
   const aqiNoteActive =
@@ -237,7 +240,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   return [
     // One run's outcome. `retry` is what summons the box's Try again button.
     ...(p.error && errorKey && !p.refusal
-      ? [{ key: errorKey, text: p.error, severity: 'error' as const, retry: true }]
+      ? [{ key: errorKey, text: p.error.message, severity: 'error' as const, retry: p.error.retry }]
       : []),
     // Every stale-report reason at once (TJ, 2026-08-22): a user who changed
     // the window and the model is owed both sentences, in `commitNeeded`'s
@@ -257,6 +260,18 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
       text: blockerText(blocker, p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
       severity: BLOCKER_SEVERITY[blocker],
     })),
+    // The `types` sentence, unchanged, where it blocks nothing: the ring is
+    // finished and finds nothing, while another input runs the analysis. Its
+    // own key, because it is a different condition from the blocker.
+    ...(p.ringIgnored
+      ? [
+          {
+            key: 'ring:types',
+            text: blockerText('types', p.maxAreaKm2, p.pointsNeeded, p.freezeGaps),
+            severity: BLOCKER_SEVERITY.types,
+          },
+        ]
+      : []),
     // The same sentence the N/A cells' hover text shows, from one constant,
     // so the panel and the table cannot describe one failure two ways.
     ...(p.wildfireCheckFailed && !p.loading

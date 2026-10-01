@@ -112,8 +112,8 @@ async def test_find_candidates_relays_a_failover_then_hands_back_the_band(monkey
     request = _request(destination_types=["peak"], polygon=POLYGON, custom_destinations=None, min_elevation_ft=5000)
     events = await _collect(_find_candidates(request))
     assert events[:2] == [
-        Status("Searching for Destinations…"),
-        Status("Searching for Destinations…", "Trying backup map server 2 of 3…"),
+        Status("Searching for destinations…"),
+        Status("Searching for destinations…", "Trying backup map server 2 of 3…"),
     ]
     assert isinstance(events[2], Done) and [d["name"] for d in events[2].value] == ["high"]
 

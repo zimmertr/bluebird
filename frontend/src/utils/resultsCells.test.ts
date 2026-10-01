@@ -146,7 +146,7 @@ describe('windyCellUrl', () => {
 })
 
 describe('rankText', () => {
-  it('numbers by position, unless a comparison carries the destination rank', () => {
+  it('reads the stamped rank, and falls back to the position without one', () => {
     expect(rankText(resultRow(), 0)).toBe('1')
     expect(rankText(compared({ rank: 4 }), 0)).toBe('4')
   })

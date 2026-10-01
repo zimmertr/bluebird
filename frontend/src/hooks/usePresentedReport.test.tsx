@@ -32,6 +32,7 @@ function inputs(over: Partial<PresentedReportInputs> = {}): PresentedReportInput
     universe: FIELD,
     response: RESPONSE,
     analyzed: SNAPSHOT,
+    coverage: SNAPSHOT,
     analysisSeq: 1,
     arriving: false,
     liveKnobs: KNOBS,
@@ -97,11 +98,22 @@ describe('usePresentedReport', () => {
 
   it('lists a named place as pending until an analysis covers it', () => {
     const places = [place()]
-    const before = renderHook(() => usePresentedReport(inputs({ places, analyzed: null })))
+    const before = renderHook(() => usePresentedReport(inputs({ places, analyzed: null, coverage: null })))
     expect(before.result.current.pending).toHaveLength(1)
     const covered = analyzedSnapshot({ customKeys: new Set([geoKey(places[0].lat, places[0].lon)]) })
-    const after = renderHook(() => usePresentedReport(inputs({ places, analyzed: covered })))
+    const after = renderHook(() => usePresentedReport(inputs({ places, analyzed: covered, coverage: covered })))
     expect(after.result.current.pending).toHaveLength(0)
+  })
+
+  // The tutorial's demonstration stands in for the report but covers none of
+  // the reader's destinations; what is pending is still the real analysis's
+  // answer, or the demonstration would raise the commit cue.
+  it('measures pending against the real analysis while a demonstration is shown', () => {
+    const places = [place()]
+    const covered = analyzedSnapshot({ customKeys: new Set([geoKey(places[0].lat, places[0].lon)]) })
+    const demo = analyzedSnapshot()
+    const { result } = renderHook(() => usePresentedReport(inputs({ places, analyzed: demo, coverage: covered })))
+    expect(result.current.pending).toHaveLength(0)
   })
 
   // A discovered row carries its OSM id; the refresh that echoes it through

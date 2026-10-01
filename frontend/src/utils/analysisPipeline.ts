@@ -31,6 +31,19 @@ import { requestsCloud } from './analysisSnapshot'
 // retry only deepens the exhaustion (issue #180). Those surface honestly
 // instead.
 
+/**
+ * What a discovery failure with no readable body says (#579, approved by the
+ * maintainer 2026-10-01). The pod always answers with a `detail`, so a reply
+ * without one was replaced on its way here: an edge proxy swaps the pod's
+ * discovery 502 for a page of its own, and a 504 is a proxy's by definition
+ * (docs/API.md). Both are the map service not answering, so they say so in
+ * the pod's own sentence for it. Anything else is a failure nobody described,
+ * in the pod's sentence for that. A bare "HTTP 502" was the reader's only
+ * account before, against the copy rules in docs/STYLES.md.
+ */
+export const DISCOVERY_UNAVAILABLE_MESSAGE = 'OpenStreetMap is not available. Try again later.'
+export const UNDESCRIBED_FAILURE_MESSAGE = 'Something went wrong. Try again later.'
+
 // FastAPI validation errors (422) carry detail as an array of {msg, ...}
 // objects rather than a string; over-limit 400s carry the structured
 // AnalysisRefusal fields alongside detail. Flatten to one readable message
@@ -48,7 +61,9 @@ export async function readErrorBody(res: Response): Promise<{ message: string; r
             .join('; ')
         : ''
   const refusal = body.found != null ? body : null
-  return { message: message || `HTTP ${res.status}`, refusal }
+  const fallback =
+    res.status === 502 || res.status === 504 ? DISCOVERY_UNAVAILABLE_MESSAGE : UNDESCRIBED_FAILURE_MESSAGE
+  return { message: message || fallback, refusal }
 }
 
 /** The field an analysis will forecast, and what finding it reported. */
@@ -116,6 +131,8 @@ export interface PipelineOptions {
   // floor: `total_queried` is what has been forecast so far.
   onPartial: (data: AnalyzeResponse, fieldSoFar: DestinationResult[]) => void
   onProgress: (processed: number, total: number, message: string) => void
+  // The tail label, when air quality or the cloud column outlasts the weather.
+  onTail?: (message: string) => void
   onPace: (seconds: number) => void
   // What the places the server answers as "custom" really are, by coordinate
   // (`knownTypes`, #545). Applied before anything reads a row's type.
@@ -154,6 +171,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
         rows,
       ),
     onProgress: options.onProgress,
+    onTail: options.onTail,
   })
   return {
     // Truncation at discovery or at the cap: either way the caption fields

@@ -2,7 +2,7 @@
 // the snapshot caption, and the archive seam line under Analyze, with the one
 // rule that decides whether a date carries its year.
 
-import { FALLBACK_WINDOW_LIMITS, archiveBoundaryMs, type WindowLimits } from './forecastWindow'
+import { FALLBACK_WINDOW_LIMITS, archiveSeamMs, type WindowLimits } from './forecastWindow'
 import { addDays, dayDate, dayKey } from './calendarDates'
 import type { SelectionKind } from './calendarSelection'
 
@@ -138,12 +138,12 @@ export function windowCaption(
 /**
  * Where a window crossing the archive boundary is joined, in words (#123).
  *
- * The two dates are the archive's last full local day and the forecast
- * endpoint's first, which are consecutive: the boundary is an instant, and the
- * one-local-day straddle tolerance (`ARCHIVE_STRADDLE_DAYS`) is what makes the
- * day it lands in wholly the forecast endpoint's. So the reader is told the
- * truth about which day their report changes source on, in their own zone,
- * rather than about a UTC instant.
+ * The two dates are the archive's last local day and the forecast endpoint's
+ * first, which are consecutive and both whole: the browser joins the two
+ * fetches at `archiveSeamMs`, the local midnight that starts the day the
+ * boundary instant falls in, so no local day is split between them (#579). So
+ * the reader is told the truth about which day their report changes source
+ * on, in their own zone, rather than about a UTC instant.
  *
  * The year rule is the results header's, from `needsYear` above, keyed on the
  * WINDOW rather than on the seam: a report of last September carries the year in
@@ -159,7 +159,7 @@ export function archiveSeamPhrase(
   // Through this module's own day helpers rather than millisecond arithmetic: a
   // local day is 23 or 25 hours on a DST transition, and subtracting 86,400,000
   // ms from a local midnight lands on the wrong date across one of them.
-  const boundaryDay = dayKey(new Date(archiveBoundaryMs(now.getTime(), limits)))
+  const boundaryDay = dayKey(new Date(archiveSeamMs(now.getTime(), limits)))
   const firstForecastDay = dayDate(boundaryDay).getTime()
   const lastArchiveDay = dayDate(addDays(boundaryDay, -1)).getTime()
   const year = needsYear(startMs, endMs, now)

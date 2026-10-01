@@ -17,6 +17,7 @@ import {
   clipAbove,
   placeCard,
   sameBox,
+  scrollBlock,
   sectionBox,
   sheetEdge,
   SPOTLIGHT_PAD,
@@ -114,7 +115,11 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // the page is told about, and once a frame for the moves it is not.
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(anchorSelector(step.anchor))
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
+    el?.scrollIntoView({
+      block: scrollBlock(step.spot),
+      inline: 'nearest',
+      behavior: prefersReducedMotion() ? 'instant' : 'smooth',
+    })
     window.addEventListener('resize', measure)
     document.addEventListener('scroll', measure, true)
     let frame = 0
@@ -128,7 +133,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
       document.removeEventListener('scroll', measure, true)
       cancelAnimationFrame(frame)
     }
-  }, [step.anchor, measure])
+  }, [step.anchor, step.spot, measure])
 
   // Focus lands on Next at every step, so Enter walks the tour and a screen
   // reader hears the new card; the motion role is worn for the move and shed.
