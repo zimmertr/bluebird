@@ -4,7 +4,6 @@ import {
   LAST_FRAME_DWELL_MS,
   availableAxes,
   clampIndex,
-  followsNewestRadar,
   forecastDayLabel,
   forecastScaleMarks,
   forecastStampLabel,
@@ -154,13 +153,6 @@ describe('nearestIndex', () => {
   it('keeps the earlier stamp on a tie, and answers null on an empty grid', () => {
     expect(nearestIndex(HOURS, 1_800_000)).toBe(0)
     expect(nearestIndex([], 5)).toBeNull()
-  })
-})
-
-describe('followsNewestRadar', () => {
-  it('is true only on the newest frame', () => {
-    expect(followsNewestRadar(11, 12)).toBe(true)
-    expect(followsNewestRadar(10, 12)).toBe(false)
   })
 })
 
