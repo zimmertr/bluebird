@@ -34,4 +34,4 @@ Checked read-only on 2026-10-01:
 
 ## Consequences
 
-The time to repair a promoted bad release is the merge-to-live time of the next one (`docs/CICD.md`, Merge to live), plus the time to write the fix or the revert. Nothing enforces the rule: no check refuses a `newTag` that goes backwards, so review in `Kubernetes-Manifests` does. `kubectl argo rollouts retry` stays available for an abort caused by an outside outage, because it re-runs the gates on the same version and moves nothing back. A failed release run, as distinct from a bad release, is #562's subject.
+The time to repair a promoted bad release is the merge-to-live time of the next one (`docs/CICD.md`, Merge to live), plus the time to write the fix or the revert. Nothing enforces the rule: no check refuses a `newTag` that goes backwards, so review in `Kubernetes-Manifests` does. `kubectl argo rollouts retry` stays available for an abort caused by an outside outage, because it re-runs the gates on the same version and moves nothing back. A failed release run, as distinct from a bad release, is #562's subject, and `docs/CICD.md`, Finishing a failed release, has its recovery.

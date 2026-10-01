@@ -606,7 +606,9 @@ The pipeline is also the only supported way to deploy. An image built by hand
 reports `dev` from `/api/version` unless it is given the build args of Path 1,
 step 2, so the canary's `version-check` refuses it; and it carries one
 architecture and no SBOM or provenance. Decision record
-[0083](decisions/0083-fix-forward-no-hand-deploy.md) has the reasoning.
+[0083](decisions/0083-fix-forward-no-hand-deploy.md) has the reasoning. A
+release run that fails before its image reaches the cluster is a different
+problem, with its own recovery: [Finishing a failed release](#finishing-a-failed-release).
 
 ### Is it the release, or something else?
 
