@@ -86,6 +86,17 @@ ErrorPolicy = Literal["raise", "degrade"]
 # must not confuse "the provider failed" with "the provider answered nothing".
 DEGRADED: Any = object()
 
+class BatchUnanswered(Exception):
+    """A degrading service's batch came back with nothing usable in it.
+
+    Raised by a `fetch_chunk` instead of returning null rows, because a null
+    row is cached as "no data for this window" for the whole TTL, and an
+    unusable answer is not that: the next analysis should ask again. Under
+    `on_error="degrade"` the batch's rows are null for this analysis and nothing
+    of it is cached; under `"raise"` it fails the fetch like any other error.
+    """
+
+
 # A caller's own reading of a refusal this module cannot make for it, called
 # with the error and the quota label it would be counted under. It either raises
 # its own exception or returns, leaving the generic handling below to run.
@@ -241,12 +252,16 @@ async def fetch_batched(
         async with slots.slot():
             return await fetch_chunk(chunk)
 
+    # Batches whose null rows mean "unknown" rather than "no data": never cached.
+    unanswered: set[int] = set()
+
     async def run(
         index: int, chunk: list[dict[str, Any]]
     ) -> tuple[int, list[dict[str, Any] | None]]:
         # Per-analysis fairness slot first, then `attempt`.
         async with sem:
             if rate_limited.is_set():
+                unanswered.add(index)
                 return index, [None] * len(chunk)
             try:
                 try:
@@ -278,6 +293,12 @@ async def fetch_batched(
                 if on_degraded is not None:
                     on_degraded("budget")
                 log.warning("%s budget exhausted; degrading this batch", label)
+                unanswered.add(index)
+                return index, [None] * len(chunk)
+            except BatchUnanswered:
+                if on_error == "raise":
+                    raise
+                unanswered.add(index)
                 return index, [None] * len(chunk)
             except UpstreamRateLimited as exc:
                 if on_error == "raise":
@@ -290,6 +311,7 @@ async def fetch_batched(
                     exc.scope or "unknown",
                 )
                 rate_limited.set()
+                unanswered.add(index)
                 return index, [None] * len(chunk)
 
     # Each batch's results land at its own index, so input order survives, while
@@ -313,13 +335,22 @@ async def fetch_batched(
         raise
 
     fetched = [item for sublist in chunk_results_by_index for item in sublist]
-    # A rate-limited run produced None rows that mean "unknown", not "no data
+    # A degraded batch produced None rows that mean "unknown", not "no data
     # for this window" — caching those would freeze the outage into the TTL.
     # Only real answers are cached, and a real empty window is cached as
-    # NO_DATA.
+    # NO_DATA. A rate-limited run caches nothing at all.
     if not rate_limited.is_set():
-        for key, result in zip(miss_keys, fetched, strict=False):
-            cache.FORECAST_CACHE.put(key, cache.NO_DATA if result is None else result)
+        answered = [
+            i
+            for index, chunk in enumerate(chunks)
+            if index not in unanswered
+            for i in range(index * BATCH_SIZE, index * BATCH_SIZE + len(chunk))
+        ]
+        for i in answered:
+            result = fetched[i]
+            cache.FORECAST_CACHE.put(
+                miss_keys[i], cache.NO_DATA if result is None else result
+            )
     for i, result in zip(miss_indices, fetched, strict=False):
         results[i] = result
     return results

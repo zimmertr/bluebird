@@ -39,6 +39,10 @@ const WEATHER_UNITS: Record<string, string> = {
   ...units(vectors.weather, 'wind_and_temperature_levels_together'),
   ...units(vectors.weather, 'freezing_level_in_feet_is_not_converted'),
 }
+// The cloud request sends no unit parameters, so its 2 m pair is Celsius.
+const CLOUD_UNITS: Record<string, string> = { temperature_2m: '°C', dew_point_2m: '°C' }
+const isCloud = (r: Route) =>
+  (new URL(r.request().url()).searchParams.get('hourly') ?? '').includes('dew_point_2m')
 const AQI_INPUTS = vector(vectors.aqi, 'simple_aggregation')
 
 function hourStamps(start: string, end: string): string[] {
@@ -128,7 +132,7 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   await page.route('https://mesonet.agron.iastate.edu/**', answer(blankTile))
   await page.route('https://mapservices.weather.noaa.gov/**', answer(blankTile))
   const weather = answer((r) =>
-    r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, WEATHER_UNITS))),
+    r.fulfill(json(hourlyBodies(new URL(r.request().url()), WEATHER_INPUTS, isCloud(r) ? CLOUD_UNITS : WEATHER_UNITS))),
   )
   await page.route('https://api.open-meteo.com/**', weather)
   await page.route('https://archive-api.open-meteo.com/**', weather)

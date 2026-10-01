@@ -151,7 +151,7 @@ export interface HourlyPayload {
    * so the value is feet under the `inch` every request here sends and meters
    * without it (port of `aggregation._freeze_unit`). Every other weather
    * column must declare the unit the request asked for before any of its
-   * numbers is read (`checkWeatherUnits`).
+   * numbers is read (`checkUnits`).
    */
   hourly_units?: Record<string, string>
   hourly?: {
@@ -298,6 +298,14 @@ export const CLOUD_VARIABLES = [
   'dew_point_2m',
   ...CLOUD_LEVELS.map(([name]) => name),
 ] as const
+
+// Port of aggregation._CLOUD_DECLARED_UNITS: the cloud request sends no unit
+// parameters, so its 2 m pair comes back in the Celsius Espy's rule is stated
+// in. Measured 2026-10-01 on all eight models and the archive: "°C" for both.
+const CLOUD_DECLARED_UNITS: Readonly<Record<string, string>> = {
+  temperature_2m: '°C',
+  dew_point_2m: '°C',
+}
 
 // What the archive endpoint writes in `hourly_units` for a variable it does not
 // serve. The column beside it is all nulls, so the unit carries no information.
@@ -502,15 +510,16 @@ function freezeFtInWindow(
   return out
 }
 
-// Port of aggregation._check_weather_units: a number in a unit the request did
-// not ask for fails the batch, the way an unreadable freezing level does. A
+// Port of aggregation._check_units: a number in a unit the request did not ask
+// for fails the batch, the way an unreadable freezing level does. `expected`
+// is the request's own table (DECLARED_UNITS or CLOUD_DECLARED_UNITS). A
 // column of nulls needs no unit, because the archive answers the levels it
 // does not serve that way under the unit "undefined". The whole column is
 // read rather than the window, which keeps the two ports trivially equal.
-function checkWeatherUnits(payload: HourlyPayload): void {
+function checkUnits(payload: HourlyPayload, expected: Readonly<Record<string, string>>): void {
   const hourly: Record<string, unknown> = payload?.hourly ?? {}
   const declared = payload?.hourly_units
-  for (const [name, unit] of Object.entries(DECLARED_UNITS)) {
+  for (const [name, unit] of Object.entries(expected)) {
     if (declared?.[name] === unit) continue
     const column = (hourly[name] ?? []) as readonly unknown[]
     if (column.some((v) => v != null)) throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
@@ -528,7 +537,7 @@ export function weatherMetrics(
   elevationFt: number | null = null,
 ): WeatherAggregates | null {
   try {
-    checkWeatherUnits(payload)
+    checkUnits(payload, DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const precip = hourly.precipitation ?? []
@@ -629,7 +638,7 @@ export function weatherSeries(
   elevationFt: number | null = null,
 ): WeatherSeries | null {
   try {
-    checkWeatherUnits(payload)
+    checkUnits(payload, DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const precip = hourly.precipitation ?? []
@@ -840,6 +849,7 @@ export function cloudMetrics(
   elevationFt: number | null = null,
 ): CloudAggregates | null {
   try {
+    checkUnits(payload, CLOUD_DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const cover = hourly.cloud_cover ?? []
@@ -884,7 +894,9 @@ export function cloudMetrics(
       cloud_cover_max_pct: covers.length === 0 ? null : roundHalfEven(cMax, 0),
       cloud_cover_avg_pct: covers.length === 0 ? null : roundHalfEven(cSum / covers.length, 0),
     }
-  } catch {
+  } catch (e) {
+    // The unit refusal, for the weather's reason.
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }
@@ -897,6 +909,7 @@ export function cloudSeries(
   elevationFt: number | null = null,
 ): CloudSeries | null {
   try {
+    checkUnits(payload, CLOUD_DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const cover = hourly.cloud_cover ?? []
@@ -914,7 +927,9 @@ export function cloudSeries(
     }
     if (grid.length === 0) return null
     return { times: grid, cloud_base_ft: bOut, cloud_cover_pct: cOut }
-  } catch {
+  } catch (e) {
+    // The unit refusal, for the weather's reason.
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }

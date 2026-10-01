@@ -3086,6 +3086,10 @@
             30.0,
             30.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3173,6 +3177,10 @@
             100.0,
             100.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3250,6 +3258,10 @@
             96.0,
             98.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3349,6 +3361,10 @@
             30.0,
             30.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3411,6 +3427,10 @@
             1.0,
             1.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3502,10 +3522,10 @@
           ]
         },
         "hourly_units": {
-          "cloud_cover": "%",
-          "relative_humidity_2m": "%",
           "temperature_2m": "\u00b0C",
           "dew_point_2m": "\u00b0C",
+          "cloud_cover": "%",
+          "relative_humidity_2m": "%",
           "relative_humidity_1000hPa": "undefined",
           "relative_humidity_925hPa": "undefined",
           "relative_humidity_850hPa": "undefined",
@@ -3575,6 +3595,10 @@
           "relative_humidity_700hPa": [
             99.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3629,6 +3653,10 @@
             99.0,
             99.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3698,6 +3726,10 @@
             50.0,
             50.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3740,6 +3772,10 @@
           "relative_humidity_2m": [],
           "temperature_2m": [],
           "dew_point_2m": []
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": null,

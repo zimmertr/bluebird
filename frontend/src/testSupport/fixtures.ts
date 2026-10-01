@@ -30,7 +30,7 @@ import type { ClosureProps } from '../utils/closures'
  * The `hourly_units` a real Open-Meteo weather answer declares for the units
  * every request asks for (measured 2026-10-01, on all eight models and the
  * archive). The aggregation refuses a number whose column declares anything
- * else (`checkWeatherUnits`), so a fake weather answer spreads this in.
+ * else (`checkUnits`), so a fake weather answer spreads this in.
  */
 export const WEATHER_UNITS: Readonly<Record<string, string>> = {
   precipitation: 'inch',
@@ -38,6 +38,15 @@ export const WEATHER_UNITS: Readonly<Record<string, string>> = {
   wind_speed_10m: 'mp/h',
   ...Object.fromEntries([925, 850, 700, 600, 500].map((p) => [`wind_speed_${p}hPa`, 'mp/h'])),
   ...Object.fromEntries([925, 850, 700, 600, 500].map((p) => [`temperature_${p}hPa`, '°F'])),
+}
+
+/**
+ * The same for the cloud request, which sends no unit parameters and so gets
+ * its 2 m temperature and dew point back in Celsius (measured 2026-10-01).
+ */
+export const CLOUD_UNITS: Readonly<Record<string, string>> = {
+  temperature_2m: '°C',
+  dew_point_2m: '°C',
 }
 
 /** Every hourly array, so a caller spells only the series it charts. */

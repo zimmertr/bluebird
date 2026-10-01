@@ -205,6 +205,14 @@ CLOUD_VARIABLES = ",".join(
     + [name for name, _ in _CLOUD_LEVELS]
 )
 CLOUD_JOIN_KEYS: tuple[str, ...] = ("time", *CLOUD_VARIABLES.split(","))
+# The cloud request's own declared units, read the same way: it sends no unit
+# parameters, so the 2 m pair comes back in the Celsius Espy's rule is stated
+# in. Measured 2026-10-01 on all eight models and the archive: "°C" for both.
+# A pair in Fahrenheit would stretch the parcel base by 1.8.
+_CLOUD_DECLARED_UNITS: dict[str, str] = {
+    "temperature_2m": "°C",
+    "dew_point_2m": "°C",
+}
 
 
 # What the archive endpoint writes in `hourly_units` for a variable it does not
@@ -428,8 +436,11 @@ def _freeze_ft_in_window(
     ]
 
 
-def _check_weather_units(data: dict[str, Any]) -> None:
+def _check_units(data: dict[str, Any], expected: dict[str, str]) -> None:
     """Refuse a payload whose numbers are not in the units the request asked for.
+
+    `expected` is the request's own table: `_DECLARED_UNITS` for the weather
+    request, `_CLOUD_DECLARED_UNITS` for the cloud one.
 
     Only a column that carries a number has to declare its unit: the archive
     answers the pressure levels it does not serve as a column of nulls under
@@ -441,7 +452,7 @@ def _check_weather_units(data: dict[str, Any]) -> None:
     hourly = data.get("hourly", {})
     units = data.get("hourly_units")
     declared = units if isinstance(units, dict) else {}
-    for name, unit in _DECLARED_UNITS.items():
+    for name, unit in expected.items():
         if declared.get(name) == unit:
             continue
         if any(v is not None for v in hourly.get(name) or []):
@@ -457,7 +468,7 @@ def _weather_metrics(
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
     try:
-        _check_weather_units(data)
+        _check_units(data, _DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         precip = hourly.get("precipitation", [])
@@ -540,7 +551,7 @@ def _weather_series(
     chart and the playback recoloring draw the same quantities the table ranks.
     """
     try:
-        _check_weather_units(data)
+        _check_units(data, _DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         precip = hourly.get("precipitation", [])
@@ -768,6 +779,7 @@ def _cloud_metrics(
     aggregates beside whatever cover it has.
     """
     try:
+        _check_units(data, _CLOUD_DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         cover = hourly.get("cloud_cover", [])
@@ -804,6 +816,9 @@ def _cloud_metrics(
             "cloud_cover_max_pct": round(max(covers), 0) if covers else None,
             "cloud_cover_avg_pct": round(sum(covers) / len(covers), 0) if covers else None,
         }
+    except UpstreamError:
+        # The unit refusal, for the weather's reason.
+        raise
     except Exception:  # noqa: BLE001 — malformed payload degrades to no metrics
         return None
 
@@ -816,6 +831,7 @@ def _cloud_series(
 ) -> dict[str, Any] | None:
     """Per-hour cloud base and cloud cover over the window, nulls kept."""
     try:
+        _check_units(data, _CLOUD_DECLARED_UNITS)
         hourly = data.get("hourly", {})
         times = hourly.get("time", [])
         cover = hourly.get("cloud_cover", [])
@@ -838,5 +854,7 @@ def _cloud_series(
         if not grid:
             return None
         return {"times": grid, "cloud_base_ft": b_out, "cloud_cover_pct": c_out}
+    except UpstreamError:
+        raise
     except Exception:  # noqa: BLE001 — best-effort series degrades to None
         return None

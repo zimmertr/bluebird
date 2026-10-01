@@ -11,7 +11,13 @@ import {
   resetOpenMeteoState,
   terrainFallbackFor,
 } from './openMeteo'
-import { CLOUD_VARIABLES, weatherMetrics, weatherSeries } from './openMeteoAggregate'
+import {
+  CLOUD_VARIABLES,
+  cloudMetrics,
+  cloudSeries,
+  weatherMetrics,
+  weatherSeries,
+} from './openMeteoAggregate'
 import {
   BAD_BODY_MESSAGE,
   COVERAGE_PHRASE,
@@ -24,7 +30,7 @@ import {
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { archiveBoundaryMs, windowSource } from './forecastWindow'
-import { WEATHER_UNITS } from '../testSupport/fixtures'
+import { CLOUD_UNITS, WEATHER_UNITS } from '../testSupport/fixtures'
 // `?raw` gives a file's text without executing it, the drift-guard idiom
 // `styles.test.ts` and `metrics.test.ts` use. Both surfaces that say the
 // model-coverage sentence compose it inside a React hook, which a node-env
@@ -134,6 +140,40 @@ describe('freezing level unit', () => {
     const m = rainierMetrics([null], null)
     expect(m?.freeze_min_ft).toBeNull()
     expect(m?.temp_min_f).toBe(3.3)
+  })
+})
+
+// The cloud request's 2 m pair (#581): no unit parameters are sent, so it is
+// Celsius, "°C" (measured 2026-10-01). Espy's rule is stated per degree
+// Celsius, so a pair in Fahrenheit would stretch the parcel base by 1.8.
+describe('cloud units', () => {
+  const payload = (units: Record<string, string> | undefined) => ({
+    ...(units ? { hourly_units: units } : {}),
+    hourly: {
+      time: ['2026-07-21T00:00'],
+      cloud_cover: [40],
+      relative_humidity_2m: [70],
+      temperature_2m: [12],
+      dew_point_2m: [4],
+    },
+  })
+  const startMs = Date.parse('2026-07-21T00:00:00Z')
+  const endMs = Date.parse('2026-07-21T00:01:00Z')
+
+  it('lets the measured units through', () => {
+    expect(cloudMetrics(payload(CLOUD_UNITS) as never, startMs, endMs, 2000)?.cloud_cover_avg_pct).toBe(40)
+  })
+
+  it.each(['temperature_2m', 'dew_point_2m'])('fails the batch on %s in Fahrenheit', (column) => {
+    const p = payload({ ...CLOUD_UNITS, [column]: '°F' })
+    expect(() => cloudMetrics(p as never, startMs, endMs, 2000)).toThrow(OpenMeteoBadBody)
+    expect(() => cloudSeries(p as never, startMs, endMs, 2000)).toThrow(OpenMeteoBadBody)
+  })
+
+  it('fails when the pair carries numbers and declares no unit', () => {
+    expect(() => cloudMetrics(payload(undefined) as never, startMs, endMs, 2000)).toThrow(
+      OpenMeteoBadBody,
+    )
   })
 })
 
@@ -565,6 +605,73 @@ describe('fetchWeather', () => {
       const out = await pending
       expect(fetchSpy).toHaveBeenCalledTimes(2)
       expect(out[0]?.precip_total_in).toBe(0.3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('pays its weight again for the resumed request (#581)', async () => {
+    // Open-Meteo bills the repeated request like any other. 300 places are six
+    // batches of 75 weighted calls; the resume makes it seven, 525 of the 550
+    // budget, so a further 75 straight after must wait. Unpaid, the pacer
+    // believed 450 were spent and let it through at once.
+    vi.useFakeTimers()
+    try {
+      let first = true
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          if (first) {
+            first = false
+            return {
+              ok: false,
+              status: 429,
+              headers: { get: (h: string) => (h === 'Retry-After' ? '1' : null) },
+              json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
+            }
+          }
+          const count = new URL(url).searchParams.get('latitude')!.split(',').length
+          return jsonResponse(Array.from({ length: count }, hourlyPayload))
+        }),
+      )
+      const places = (n: number, lon: number) =>
+        Array.from({ length: n }, (_, i) => ({ latitude: i / 1000, longitude: lon }))
+      const resumed = fetchWeather(places(300, 0), WINDOW.startMs, WINDOW.endMs, OPTS)
+      await vi.advanceTimersByTimeAsync(1_100)
+      await resumed
+      const onPace = vi.fn()
+      const next = fetchWeather(places(50, 1), WINDOW.startMs, WINDOW.endMs, { ...OPTS, onPace })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onPace).toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(120_000)
+      await next
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('caps the resume at a minute whatever Retry-After says (#581)', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          headers: { get: (h: string) => (h === 'Retry-After' ? '3600' : null) },
+          json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
+        })
+        .mockResolvedValueOnce(jsonResponse(hourlyPayload()))
+      vi.stubGlobal('fetch', fetchSpy)
+      const onPace = vi.fn()
+      const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+        ...OPTS,
+        onPace,
+      })
+      await vi.advanceTimersByTimeAsync(60_100)
+      await pending
+      expect(onPace).toHaveBeenCalledWith(60)
+      expect(fetchSpy).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
     }
@@ -1261,6 +1368,7 @@ describe('fetchCloud', () => {
   const endMs = Date.parse('2026-07-21T01:00:00Z')
   const body = (n: number) =>
     Array.from({ length: n }, () => ({
+      hourly_units: CLOUD_UNITS,
       hourly: {
         time: ['2026-07-21T00:00', '2026-07-21T01:00'],
         cloud_cover: [40, 60],

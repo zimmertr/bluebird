@@ -23,7 +23,7 @@ import {
 import { geoKey } from './points'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
+import { CLOUD_UNITS, place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -802,6 +802,7 @@ describe('runClientAnalysis', () => {
 // cover that differs per location so a ranking has something to order.
 function cloudBody(covers: number[]) {
   return covers.map((c) => ({
+    hourly_units: CLOUD_UNITS,
     hourly: {
       time: ['2026-07-21T00:00', '2026-07-21T01:00'],
       cloud_cover: [c, c],

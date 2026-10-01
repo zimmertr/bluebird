@@ -57,7 +57,7 @@ def _wx(
 
     Every column is declared in the unit the request asks for, as a real
     response declares it, because the aggregation refuses a number whose unit
-    it cannot confirm (`_check_weather_units`). `units` replaces individual
+    it cannot confirm (`_check_units`). `units` replaces individual
     entries, which is how a case states the archive's "undefined"."""
     hourly = {
         "time": times,
@@ -568,9 +568,10 @@ WEATHER_INPUTS = [
 def _cl(times, cover, rh2m, t2m, td2m, levels=None, units=None) -> dict:
     """A cloud payload (issue #117): cloud cover, the 2 m humidity pair and the
     2 m temperature in Celsius, and `levels` mapping `relative_humidity_{p}hPa`
-    names to hourly arrays. `units` is the payload's `hourly_units`, which only
-    the archive case sets: it answers the levels it does not serve with the
-    unit `undefined`."""
+    names to hourly arrays. Every payload declares the 2 m pair in Celsius, as
+    a real one does, because the aggregation refuses a number whose unit it
+    cannot confirm. `units` adds to that, which only the archive case does: it
+    answers the levels it does not serve with the unit `undefined`."""
     hourly = {
         "time": times,
         "cloud_cover": cover,
@@ -580,9 +581,10 @@ def _cl(times, cover, rh2m, t2m, td2m, levels=None, units=None) -> dict:
     }
     if levels:
         hourly.update(levels)
-    payload: dict = {"hourly": hourly}
-    if units is not None:
-        payload["hourly_units"] = units
+    payload: dict = {
+        "hourly": hourly,
+        "hourly_units": {**aggregation._CLOUD_DECLARED_UNITS, **(units or {})},
+    }
     return payload
 
 

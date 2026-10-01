@@ -1714,7 +1714,8 @@ def _cloud_location() -> dict[str, Any]:
     }
     for p in aggregation.ISA_HEIGHT_M:
         hourly[f"relative_humidity_{p}hPa"] = [100.0 if p <= 700 else 50.0] * 3
-    return {"hourly": hourly}
+    # The 2 m pair in Celsius, declared as a real answer declares it.
+    return {"hourly": hourly, "hourly_units": {"temperature_2m": "°C", "dew_point_2m": "°C"}}
 
 
 async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
@@ -1795,3 +1796,43 @@ async def test_a_short_cloud_answer_fails_the_batch(monkeypatch):
     _stub_openmeteo(monkeypatch, [[_cloud_location()]])
     with pytest.raises(UpstreamError):
         await weather.fetch_cloud_batch(_dests(2), START, END)
+
+
+# ── The cloud request's units (issue #581) ─────────────────────────────────
+#
+# It sends no unit parameters, so its 2 m temperature and dew point come back
+# in Celsius, "°C" (measured 2026-10-01 on all eight models and the archive).
+# Espy's rule is stated per degree Celsius: a pair in Fahrenheit would put the
+# parcel base 1.8 times as far above the destination.
+
+
+@pytest.mark.parametrize("column", ["temperature_2m", "dew_point_2m"])
+def test_a_cloud_pair_in_another_unit_fails_the_batch(column):
+    payload = _cloud_location()
+    payload["hourly_units"][column] = "°F"
+    with pytest.raises(UpstreamError):
+        aggregation._cloud_metrics(payload, START, END, 2000.0)
+    with pytest.raises(UpstreamError):
+        aggregation._cloud_series(payload, START, END, 2000.0)
+
+
+def test_a_cloud_pair_with_no_declared_unit_fails_the_batch():
+    payload = _cloud_location()
+    del payload["hourly_units"]
+    with pytest.raises(UpstreamError):
+        aggregation._cloud_metrics(payload, START, END, 2000.0)
+
+
+def test_the_cloud_units_the_aggregation_expects_are_the_measured_ones():
+    assert aggregation._CLOUD_DECLARED_UNITS == {
+        "temperature_2m": "°C",
+        "dew_point_2m": "°C",
+    }
+
+
+async def test_a_cloud_batch_in_fahrenheit_fails_the_analysis(monkeypatch):
+    block = _cloud_location()
+    block["hourly_units"]["temperature_2m"] = "°F"
+    _stub_openmeteo(monkeypatch, [[block]])
+    with pytest.raises(UpstreamError):
+        await weather.fetch_cloud_batch([dest(46.85, -121.76)], START, END)

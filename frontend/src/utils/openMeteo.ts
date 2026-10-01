@@ -513,21 +513,29 @@ export interface FetchWeatherOptions {
   terrainElevation?: boolean
 }
 
+// The longest a minutely 429 is waited out before the one resume, the pod's
+// `_RESUME_MAX_WAIT_S`: a minutely quota refills within the minute it counts,
+// so no longer wait can help it, whatever Retry-After says.
+const RESUME_MAX_WAIT_S = 60
+
 // getJson plus one automatic resume for a minutely 429: that quota refills
 // within the minute, so a single narrated wait usually completes the batch
 // instead of failing the analysis. Hourly/daily limits rethrow immediately —
-// no wait we are willing to impose can help those.
+// no wait we are willing to impose can help those. The resume pays its weight
+// again through `spend` before it asks (#581), as the pod's does: the provider
+// bills the repeated request like any other, and a pacer that never heard of it
+// would book the rest of the minute as if it had not happened.
 //
 // A batch that outlives its deadline is asked once more, at once (#545). The
 // measured outliers were cold batches, which a second ask may find warm; a
 // second timeout says the service is stuck, and the analysis fails rather than
-// holding the reader a third time. No sleep
-// first: a timeout says nothing about quota, and the pacer already charged
-// this batch, as it does for the minutely resume below.
+// holding the reader a third time. No sleep and no second charge: a timeout
+// says nothing about quota, and the pacer already charged this batch.
 async function getJsonWithResume(
   url: string,
   params: Record<string, string>,
   signal: AbortSignal | undefined,
+  spend: () => Promise<void>,
   onPace?: (seconds: number) => void,
 ): Promise<unknown> {
   try {
@@ -535,8 +543,10 @@ async function getJsonWithResume(
   } catch (e) {
     if (e instanceof OpenMeteoTimeout) return await getJson(url, params, signal)
     if (!(e instanceof OpenMeteoRateLimited) || e.scope !== 'minutely') throw e
-    onPace?.(e.retryAfterS)
-    await abortableSleep(e.retryAfterS * 1000, signal)
+    const waitS = Math.min(e.retryAfterS, RESUME_MAX_WAIT_S)
+    onPace?.(waitS)
+    await abortableSleep(waitS * 1000, signal)
+    await spend()
     return await getJson(url, params, signal)
   }
 }
@@ -615,11 +625,13 @@ export async function fetchWeather(
       // One acquire per SPAN, each priced on its own hours: two requests are two
       // answers, so a spanning window spends twice, and pricing it on the whole
       // window would bill the archive half's months for the forecast half too.
-      await weatherBudget.acquire(
-        callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
-        signal,
-        onPace,
-      )
+      const spend = () =>
+        weatherBudget.acquire(
+          callWeight(chunk.length, span.startMs, span.endMs, HOURLY_VARIABLES.length, 1),
+          signal,
+          onPace,
+        )
+      await spend()
       const data = await getJsonWithResume(
         span.archive ? ARCHIVE_URL : FORECAST_URL,
         {
@@ -643,6 +655,7 @@ export async function fetchWeather(
           timezone: 'UTC',
         },
         signal,
+        spend,
         onPace,
       )
       const items = asItems(data)
@@ -755,11 +768,13 @@ export async function fetchCloud(
       // budget, because Open-Meteo meters per service and this is the weather
       // endpoint. Read off the list, for the reason the weather fetch reads its
       // own count off `HOURLY_VARIABLES`.
-      await weatherBudget.acquire(
-        callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
-        signal,
-        onPace,
-      )
+      const spend = () =>
+        weatherBudget.acquire(
+          callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
+          signal,
+          onPace,
+        )
+      await spend()
       const data = await getJsonWithResume(
         span.archive ? ARCHIVE_URL : FORECAST_URL,
         {
@@ -774,6 +789,7 @@ export async function fetchCloud(
           timezone: 'UTC',
         },
         signal,
+        spend,
         onPace,
       )
       const items = asItems(data)

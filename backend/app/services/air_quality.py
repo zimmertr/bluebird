@@ -9,6 +9,7 @@ from app.services import cache, http
 from app.services.aggregation import _aqi_metrics, _aqi_series
 from app.services.openmeteo_fetch import (
     DEGRADED,
+    BatchUnanswered,
     Pacing,
     fetch_batched,
     request_openmeteo,
@@ -153,7 +154,7 @@ async def _fetch_chunk(
     )
     if data is DEGRADED:
         telemetry.AQI_DEGRADED.labels(reason="error").inc()
-        return [None] * len(destinations)
+        raise BatchUnanswered()
 
     # Single location → object; multiple → array
     items = data if isinstance(data, list) else [data]
@@ -165,7 +166,8 @@ async def _fetch_chunk(
             len(items),
             len(destinations),
         )
-        return [None] * len(destinations)
+        telemetry.AQI_DEGRADED.labels(reason="error").inc()
+        raise BatchUnanswered()
     out: list[dict[str, Any] | None] = []
     for item in items:
         m = _aqi_metrics(item, start_dt, end_dt)
