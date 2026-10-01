@@ -98,4 +98,5 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0075](0075-pacer-sliding-window.md) | The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log | 2026-10-01 | Accepted | Backend: `app/ratelimit/`; Frontend: `openMeteo.ts` |
 | [0076](0076-api-semver-strict-reader.md) | SemVer 1.0 covers the HTTP API and share links, and a request body refuses a field it does not declare | 2026-10-01 | Accepted | Root: Regenerate the OpenAPI snapshot |
 | [0077](0077-snapshot-max-stale-24h.md) | An overlay snapshot is served through failed refreshes for 24 hours, and no longer | 2026-10-01 | Accepted | Backend: `app/services/snapshot.py` |
+| [0078](0078-timestamp-offsets-honored.md) | A request timestamp means the instant it names: an offset is converted to UTC, and a naive stamp is read as UTC | 2026-10-01 | Accepted | Backend: `app/models/` |
 | [0079](0079-forest-order-vetoes-and-start-date.md) | A Region 3 or 4 order's own words can veto its citation, a short list excludes what no words can, and an order that has not started is not live | 2026-10-01 | Accepted | Backend: `usfs_closures.py` |

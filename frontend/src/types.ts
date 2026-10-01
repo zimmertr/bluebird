@@ -47,7 +47,9 @@ export type SortBy =
 
 export interface GeoPolygon {
   type: 'Polygon'
-  coordinates: number[][][]
+  // [longitude, latitude]. The API also accepts and ignores an altitude as a
+  // third number; the browser never sends one.
+  coordinates: [number, number][][]
   // RFC 7946's optional bounding box, which the API accepts and ignores. The
   // browser never sends it: the search area is always the ring above.
   bbox?: number[]

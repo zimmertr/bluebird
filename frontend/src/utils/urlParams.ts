@@ -141,7 +141,7 @@ function encodePolygon(polygon: GeoPolygon): string {
 }
 
 function decodePolygon(raw: string): GeoPolygon | null {
-  const pts: number[][] = []
+  const pts: [number, number][] = []
   for (const pair of raw.split(';')) {
     const [lngStr, latStr] = pair.split(',')
     const lng = Number(lngStr)

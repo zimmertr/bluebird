@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -166,12 +166,47 @@ def test_window_far_in_future_is_rejected():
     assert "forecast horizon" in str(exc.value)
 
 
-def test_window_naive_datetimes_are_accepted():
-    # Frontend sends local wall-clock strings with no offset; the validator
-    # treats naive datetimes as UTC rather than raising.
-    naive_start = datetime.now().replace(tzinfo=None)  # noqa: DTZ005 — naive is the point of this test
+def test_window_naive_datetimes_are_read_as_utc():
+    # A direct API caller may send a stamp with no offset (the web app sends no
+    # window at all); the validator reads it as UTC rather than raising.
+    naive_start = datetime.now(UTC).replace(tzinfo=None)
     req = _valid_request(start_datetime=naive_start, end_datetime=naive_start + timedelta(hours=6))
-    assert req.start_datetime.replace(tzinfo=None) == naive_start
+    assert req.start_datetime == naive_start.replace(tzinfo=UTC)
+    assert req.start_datetime.tzinfo is UTC
+
+
+def test_window_offsets_are_converted_to_the_utc_instant():
+    # An offset names an instant, and every reader downstream formats the
+    # wall clock it is handed, so the validator hands them all UTC (#564).
+    utc = (_now() + timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+    minus_seven = timezone(timedelta(hours=-7))
+    req = _valid_request(
+        start_datetime=utc.astimezone(minus_seven),
+        end_datetime=(utc + timedelta(hours=3)).astimezone(minus_seven),
+    )
+    assert (req.start_datetime, req.end_datetime) == (utc, utc + timedelta(hours=3))
+    assert req.start_datetime.tzinfo is UTC
+    assert req.end_datetime.tzinfo is UTC
+
+
+def test_window_point_sample_floors_the_utc_hour_under_a_half_hour_offset():
+    # Floored after the conversion, so a +05:30 moment samples the UTC hour it
+    # falls in rather than the hour its local wall clock shows.
+    utc = (_now() + timedelta(days=1)).replace(minute=45, second=0, microsecond=0)
+    moment = utc.astimezone(timezone(timedelta(hours=5, minutes=30)))
+    req = _valid_request(start_datetime=moment, end_datetime=moment)
+    assert req.start_datetime == utc.replace(minute=0)
+    assert req.end_datetime == utc.replace(minute=0) + timedelta(minutes=1)
+
+
+def test_window_mixed_naive_and_aware_ends_compare():
+    # One end with an offset and one without once reached the routes' ordering
+    # guard as an aware and a naive datetime, which raised a TypeError (#564).
+    start = _now() + timedelta(days=1)
+    req = _valid_request(
+        start_datetime=start, end_datetime=(start + timedelta(hours=3)).replace(tzinfo=None)
+    )
+    assert req.end_datetime - req.start_datetime == timedelta(hours=3)
 
 
 def test_window_equal_start_end_normalizes_to_point_sample():

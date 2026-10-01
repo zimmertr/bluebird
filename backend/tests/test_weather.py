@@ -1673,10 +1673,9 @@ async def test_a_spanning_window_needs_the_boundary_that_classified_it():
 
 
 async def test_a_spanning_window_with_one_empty_half_is_one_request(monkeypatch):
-    # `window_source` compares real instants and a request carries wall-clock
-    # hours, so an offset-carrying caller can be spanning by instant and
-    # one-sided by wall clock. The empty half is dropped, never requested
-    # backwards.
+    # A window that disagrees with its classification cannot come from a
+    # request, which converts both ends to UTC first; if one ever reaches the
+    # service, the empty half is dropped, never requested backwards.
     urls: list[str] = []
     _stub_openmeteo(monkeypatch, [_forecast_half()], urls)
     await fetch_weather_batch(
