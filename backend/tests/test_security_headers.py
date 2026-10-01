@@ -225,6 +225,7 @@ _FRONTEND_SRC = Path(__file__).parents[2] / "frontend" / "src"
 # decision this list exists to force on the next host that appears.
 LINK_ONLY_HOSTS = {
     "atmosphere.copernicus.eu",
+    "climate.copernicus.eu",
     "creativecommons.org",
     "data-nifc.opendata.arcgis.com",
     "github.com",
