@@ -9,9 +9,9 @@ const RAINIER: [number, number] = [-121.7604, 46.8529]
 
 describe('poiFromFeature', () => {
   // The tile carries 14410 in its own precomputed feet and 4392 metres; the
-  // metres win, and 4392 x 3.28084 rounds to 14409. That one-foot gap is the
-  // whole reason this prefers metres — see FEET_PER_METER.
-  it('reads a peak’s name and converts its elevation from metres', () => {
+  // feet win, because Planetiler computes them from OSM's raw metres, which is
+  // what the server converts. 4392 x 3.28084 would round to 14409.
+  it('reads a peak’s name and its elevation in the tile’s own feet', () => {
     expect(
       poiFromFeature('ofm-peaks', { name: 'Mount Rainier', class: 'volcano', ele: 4392, ele_ft: 14410 }, RAINIER),
     ).toEqual({
@@ -19,7 +19,7 @@ describe('poiFromFeature', () => {
       kind: 'volcano',
       lat: 46.8529,
       lon: -121.7604,
-      elevationFt: 14409,
+      elevationFt: 14410,
     })
   })
 
@@ -28,15 +28,18 @@ describe('poiFromFeature', () => {
     expect(poi?.elevationFt).toBe(10541)
   })
 
-  // The tile's own precomputed feet is a second rounding of the same metres and
-  // lands a foot away often enough to matter — an unnamed summit is NAMED from
-  // this number, so a disagreement is two destinations for one mountain.
-  it('ignores the tile precomputed feet when metres are available', () => {
-    const poi = poiFromFeature('ofm-peaks', { name: 'X', ele: 3213, ele_ft: 99999 }, RAINIER)
-    expect(poi?.elevationFt).toBe(10541)
+  // #581: Agnes Mountain, raw OSM `ele` 2473.4 m. Discovery converts the raw
+  // metres (2473.4 x 3.28084 = 8114.8) and names it Peak 8115. The tile rounds
+  // `ele` to 2473, which converts to 8114, but its `ele_ft` comes from the raw
+  // metres and says 8115. An unnamed summit is NAMED from this number, so the
+  // click must read the feet, or one mountain is two destinations.
+  it('names a clicked summit the way discovery names it', () => {
+    const poi = poiFromFeature('ofm-peaks', { class: 'peak', ele: 2473, ele_ft: 8115 }, RAINIER)
+    expect(poi?.name).toBe('Peak 8115')
+    expect(poi?.elevationFt).toBe(8115)
   })
 
-  it('falls back to the precomputed feet when there are no metres', () => {
+  it('reads the precomputed feet when there are no metres', () => {
     expect(poiFromFeature('ofm-peaks', { name: 'X', ele_ft: 9000 }, RAINIER)?.elevationFt).toBe(9000)
   })
 
