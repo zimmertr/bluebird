@@ -357,7 +357,7 @@ export interface components {
             destination_types?: components["schemas"]["DestinationType"][];
             /**
              * End Datetime
-             * @description ISO 8601, inclusive of the hour it lands in. Required for `window`, and rejected for the other two modes.
+             * @description ISO 8601, read as `start_datetime` is, and inclusive of the UTC hour it lands in. Required for `window`, and rejected for the other two modes.
              */
             end_datetime?: string | null;
             /**
@@ -506,7 +506,7 @@ export interface components {
             sort_desc?: boolean;
             /**
              * Start Datetime
-             * @description ISO 8601; a naive timestamp is read as UTC. Required for `at` and `window`, and rejected for `current`.
+             * @description ISO 8601; an offset is converted to UTC, and a naive timestamp is read as UTC. Required for `at` and `window`, and rejected for `current`.
              */
             start_datetime?: string | null;
             /**
@@ -1087,9 +1087,12 @@ export interface components {
             bbox?: number[] | null;
             /**
              * Coordinates
-             * @description GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position.
+             * @description GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position. A third number in a position, an altitude, is accepted and ignored.
              */
-            coordinates: number[][][];
+            coordinates: [
+                number,
+                number
+            ][][];
             /**
              * Type
              * @constant

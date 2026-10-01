@@ -11,16 +11,18 @@ from conftest import fake_response
 from prometheus_client import REGISTRY
 
 from app import ratelimit
-from app.models import DestinationType, GeoPolygon
+from app.models import DestinationType, GeoPolygon, bbox_area_km2
 from app.services import osm
 from app.services.errors import UpstreamError
 
-POLY = GeoPolygon(type="Polygon", coordinates=[[[-121.0, 47.0], [-120.0, 47.0], [-120.0, 48.0]]])
+POLY = GeoPolygon(
+    type="Polygon", coordinates=[[[-121.0, 47.0], [-120.0, 47.0], [-120.0, 48.0], [-121.0, 47.0]]]
+)
 
 
 def test_polygon_to_overpass_orders_lat_lon():
     # GeoJSON is [lon, lat]; Overpass wants "lat lon lat lon ...".
-    assert osm._polygon_to_overpass(POLY) == "47.0 -121.0 47.0 -120.0 48.0 -120.0"
+    assert osm._polygon_to_overpass(POLY) == "47.0 -121.0 47.0 -120.0 48.0 -120.0 47.0 -121.0"
 
 
 async def test_query_osm_parses_dedups_and_skips(monkeypatch):
@@ -177,6 +179,28 @@ async def test_a_polygons_bbox_is_neither_queried_nor_keyed(monkeypatch):
     await osm.query_osm(POLY, [DestinationType.peak])
     boxed = GeoPolygon(**POLY.model_dump(exclude={"bbox"}), bbox=[-180, -90, 180, 90])
     await osm.query_osm(boxed, [DestinationType.peak])
+    assert len(queries) == 1
+
+
+async def test_a_positions_altitude_is_neither_queried_nor_keyed(monkeypatch):
+    # RFC 7946 lets a position carry an altitude and the API accepts one, the
+    # way it accepts a bbox (#564). The model drops it, so the same ring with
+    # an altitude is the same area, the same query and one cache entry.
+    queries = []
+
+    async def fake_post(query, on_status=None):
+        queries.append(query)
+        return {"elements": []}
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    raised = GeoPolygon(
+        type="Polygon", coordinates=[[[*p, 1234.5] for p in POLY.coordinates[0]]]
+    )
+    assert raised.coordinates == POLY.coordinates
+    assert bbox_area_km2(raised.coordinates[0]) == bbox_area_km2(POLY.coordinates[0])
+    assert osm._polygon_to_overpass(raised) == osm._polygon_to_overpass(POLY)
+    await osm.query_osm(POLY, [DestinationType.peak])
+    await osm.query_osm(raised, [DestinationType.peak])
     assert len(queries) == 1
 
 

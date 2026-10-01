@@ -57,8 +57,9 @@ async def fetch_aqi_batch(
     # skips the fetch instead of triggering a 400. The cap ends at 23:00 on
     # the day MAX_FORECAST_DAYS names, which is where the whole-day request
     # this replaced already ended, so the clamp keeps its old reach exactly.
-    # Wall clocks are read as UTC without converting, the same convention
-    # `_naive` uses in the shared aggregation.
+    # Compared as naive UTC wall clocks, the form `_naive` filters on in the
+    # shared aggregation; `AnalyzeRequest` has already converted both ends to
+    # UTC, so dropping the zone loses nothing.
     end_cap = (
         datetime.now(UTC).replace(tzinfo=None)
         + timedelta(days=MAX_FORECAST_DAYS)

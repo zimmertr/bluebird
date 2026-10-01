@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
-import type { AnalyzeRequest, DestinationResult } from '../types'
+import type { AnalyzeRequest, DestinationResult, GeoPolygon } from '../types'
 import { useAnalyze } from './useAnalyze'
 import { runClientAnalysis } from '../utils/clientAnalyze'
 import { discoveryKeys } from '../utils/present'
@@ -137,7 +137,7 @@ describe('what the reader sees', () => {
   // A run with no polygon waits first on the pod's elevation lookup, and says
   // so rather than claiming to be retrieving forecasts already (#579).
   it('opens a ring on the search label and a custom list on the elevation label', async () => {
-    const ring = { type: 'Polygon' as const, coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+    const ring: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
     const cases: [AnalyzeRequest, string][] = [
       [{ ...REQUEST, polygon: ring, destination_types: ['peak'] }, SEARCHING_MESSAGE],
       [REQUEST, 'Retrieving elevation…'],

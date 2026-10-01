@@ -81,9 +81,10 @@ def hour_param(dt: datetime) -> str:
     Flooring cannot drop an hour the aggregation would have kept. Every stamp
     it keeps sits on the hour inside `start <= ts <= end`, so it also sits
     inside the floored bounds; at most one extra hour arrives at the head and
-    the same inclusive filter drops it. The wall clock is read as UTC without
-    converting, exactly as `_naive` reads it, so a caller sending an offset
-    gets the behavior it already had rather than a second interpretation.
+    the same inclusive filter drops it. The wall clock is formatted without
+    converting: `AnalyzeRequest` hands every reader an aware UTC instant, so the
+    stamp is the UTC hour Open-Meteo answers in (`timezone=UTC`), the same hour
+    `_naive` filters on.
     """
     return dt.strftime("%Y-%m-%dT%H:00")
 
@@ -113,11 +114,10 @@ def _fetch_spans(
     boundary and the forecast endpoint from the boundary on, because both bounds
     are inclusive and an hour arriving twice would be counted twice in a total.
 
-    Either half can come out empty, and that is not a contradiction of the
-    classification. `window_source` compares real instants while a request
-    carries wall-clock hours read as UTC (see `hour_param`), so a caller sending
-    an offset can be spanning by instant and one-sided by wall clock. An empty
-    half is dropped rather than requested backwards.
+    A half comes out empty only when the window handed in disagrees with the
+    classification it arrived with. `AnalyzeRequest` gives both one aware UTC
+    instant, so a request cannot reach that; the guard keeps an empty half from
+    ever being requested backwards.
     """
     if source != "spanning":
         return [_Span(source == "archive", start_dt, end_dt)]

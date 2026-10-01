@@ -69,15 +69,17 @@ class AnalyzeRequest(_DiscoveryFields):
     start_datetime: datetime | None = Field(
         default=None,
         description=(
-            "ISO 8601; a naive timestamp is read as UTC. Required for `at` and "
-            "`window`, and rejected for `current`."
+            "ISO 8601; an offset is converted to UTC, and a naive timestamp is "
+            "read as UTC. Required for `at` and `window`, and rejected for "
+            "`current`."
         ),
     )
     end_datetime: datetime | None = Field(
         default=None,
         description=(
-            "ISO 8601, inclusive of the hour it lands in. Required for "
-            "`window`, and rejected for the other two modes."
+            "ISO 8601, read as `start_datetime` is, and inclusive of the UTC "
+            "hour it lands in. Required for `window`, and rejected for the "
+            "other two modes."
         ),
     )
     limit: int = Field(
@@ -382,7 +384,15 @@ class AnalyzeRequest(_DiscoveryFields):
     @model_validator(mode="after")
     def window_within_servable_range(self) -> AnalyzeRequest:
         self._resolve_forecast_mode()
-        start, end = self.resolved_window()
+        # Every reader downstream sees one aware UTC instant per end: the
+        # horizon checks, the archive classification, the hour stamps sent to
+        # Open-Meteo, the aggregation's hour filter, the AQI clamp and the
+        # cache keys. An offset therefore means the instant ISO 8601 says it
+        # does, a naive stamp is read as UTC, and a naive end compares with
+        # an aware start instead of raising.
+        start, end = (_as_utc(dt).astimezone(UTC) for dt in self.resolved_window())
+        self.start_datetime = start
+        self.end_datetime = end
         # A zero-length window is a point sample ("current conditions" /
         # "future day/time"): analyze exactly the hour containing the moment.
         # Flooring to the hour and spanning one minute keeps the weather
@@ -398,12 +408,12 @@ class AnalyzeRequest(_DiscoveryFields):
             self.start_datetime = start
             self.end_datetime = end
         now = datetime.now(UTC)
-        if _as_utc(start) < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
+        if start < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
             raise ValueError(
                 "start_datetime is beyond the one-year history limit of the "
                 "weather API. Move the window start closer to today."
             )
-        if _as_utc(end) > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
+        if end > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
             raise ValueError(
                 "end_datetime is beyond the ~16-day forecast horizon of the "
                 "weather API. Move the window end closer to today."
