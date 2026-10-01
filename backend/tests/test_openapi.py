@@ -84,15 +84,22 @@ def test_both_analyze_routes_declare_the_api_key_scheme(schema):
         assert schema["paths"][path]["post"]["security"] == [{"APIKeyHeader": []}]
 
 
-def test_both_analyze_routes_declare_the_refused_key(schema):
+def test_the_json_route_declares_the_refused_key(schema):
     # A generated client meeting a 401 has a model for it, and /docs names the
-    # cause. Both routes declare it, so the pair reads the same.
-    for path in ("/api/analyze", "/api/analyze/stream"):
-        response = schema["paths"][path]["post"]["responses"]["401"]
-        assert response["description"] == "Open-Meteo rejected the API key."
-        assert response["content"]["application/json"]["schema"]["$ref"].endswith(
-            "ErrorResponse"
-        )
+    # cause.
+    response = schema["paths"]["/api/analyze"]["post"]["responses"]["401"]
+    assert response["description"] == "Open-Meteo rejected the API key."
+    assert response["content"]["application/json"]["schema"]["$ref"].endswith(
+        "ErrorResponse"
+    )
+
+
+def test_the_stream_declares_only_the_statuses_it_sends(schema):
+    # The key is tested once the stream is already open, so a refused one is an
+    # `error` event on the 200 (test_a_refused_key_ends_the_stream_with_an_error_event)
+    # and a declared 401 would promise a generated client a status it never meets.
+    responses = schema["paths"]["/api/analyze/stream"]["post"]["responses"]
+    assert set(responses) == {"200", "422", "429"}
 
 
 def test_no_other_route_asks_for_the_key(schema):
@@ -139,6 +146,79 @@ def test_request_and_response_fields_carry_descriptions(schema):
             if not spec.get("description")
         ]
         assert undocumented == [], f"{model} has undocumented fields"
+
+
+def _reachable(schema: dict, roots: list[dict]) -> set[str]:
+    """Every component schema a set of root schemas refers to, at any depth."""
+    seen: set[str] = set()
+    stack: list[object] = list(roots)
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+                name = ref.rsplit("/", 1)[-1]
+                if name not in seen:
+                    seen.add(name)
+                    stack.append(schema["components"]["schemas"][name])
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            stack.extend(node)
+    return seen
+
+
+def _operations(schema: dict):
+    for operations in schema["paths"].values():
+        yield from operations.values()
+
+
+def test_every_request_body_refuses_fields_it_does_not_declare(schema):
+    # Version 1.0 freezes this (issue #563): a request model added later that
+    # forgot the setting would quietly drop a caller's typo again.
+    bodies = [op["requestBody"] for op in _operations(schema) if "requestBody" in op]
+    objects = [
+        name
+        for name in _reachable(schema, bodies)
+        if schema["components"]["schemas"][name].get("type") == "object"
+    ]
+    assert sorted(objects) == ["AnalyzeRequest", "CustomDestination", "DestinationsRequest", "GeoPolygon"]
+    for name in objects:
+        assert schema["components"]["schemas"][name].get("additionalProperties") is False, name
+
+
+def test_every_response_field_the_api_sends_is_required(schema):
+    # Every field of a success body is sent, null or not, so a generated client
+    # should not have to test for the key.
+    successes = [
+        op["responses"]["200"] for op in _operations(schema) if "200" in op.get("responses", {})
+    ]
+    for name in sorted(_reachable(schema, successes)):
+        spec = schema["components"]["schemas"][name]
+        if "properties" in spec:
+            assert sorted(spec.get("required", [])) == sorted(spec["properties"]), name
+
+
+def test_the_analyze_response_carries_no_error_field(schema):
+    # It was always null, and it shared its name with the failure bodies'
+    # `error` object.
+    assert "error" not in schema["components"]["schemas"]["AnalyzeResponse"]["properties"]
+
+
+def test_the_schema_publishes_the_ranges_the_validators_enforce(schema):
+    from app.models import MAX_LIMIT, MIN_LIMIT
+
+    schemas = schema["components"]["schemas"]
+    limit = schemas["AnalyzeRequest"]["properties"]["limit"]
+    assert (limit["minimum"], limit["maximum"]) == (MIN_LIMIT, MAX_LIMIT)
+    custom = schemas["CustomDestination"]["properties"]
+    assert (custom["name"]["minLength"], custom["name"]["maxLength"]) == (1, 255)
+    assert (custom["latitude"]["minimum"], custom["latitude"]["maximum"]) == (-90, 90)
+    assert (custom["longitude"]["minimum"], custom["longitude"]["maximum"]) == (-180, 180)
+    [elevation, _null] = custom["elevation_ft"]["anyOf"]
+    assert (elevation["minimum"], elevation["maximum"]) == (-1500, 30_000)
+    for field in ("min_cloud_cover_pct", "max_cloud_cover_pct"):
+        [cover, _null] = schemas["AnalyzeRequest"]["properties"][field]["anyOf"]
+        assert (cover["minimum"], cover["maximum"]) == (0, 100)
 
 
 def test_analyze_request_carries_a_worked_example(schema):

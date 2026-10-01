@@ -4,9 +4,16 @@ from __future__ import annotations
 
 import math
 from enum import Enum
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+)
 
 from app.limits import MAX_ANALYZE_PEAKS, MAX_POLYGON_AREA_KM2
 
@@ -90,8 +97,47 @@ class SortBy(str, Enum):
     snow_depth = "snow_depth_in"
 
 
+# Every request model refuses a field it does not declare (issue #563). Left to
+# Pydantic's default, a misspelled bound such as `max_wind: 20` was dropped
+# without a word and the caller read an unfiltered 200 as a filtered one. The
+# models that share it are the request bodies and the shapes nested in them;
+# no response model sets it, so a field added to a response stays additive.
+_REQUEST_CONFIG = ConfigDict(extra="forbid")
+
+# Every field of a response is sent, null or not, so the schema says so: left
+# to Pydantic's default, a field with a default reads as optional and a
+# generated client has to test for a key that is always there (issue #563).
+# Not on `AnalysisRefusal`, whose remedy fields a hand-raised 400 leaves out.
+_RESPONSE_CONFIG = ConfigDict(json_schema_serialization_defaults_required=True)
+
+# The error types a `Field` bound raises. The bounds live on the fields so the
+# published schema states the ranges the API enforces, and a validator that
+# owns an approved sentence for its range answers exactly these with it, so a
+# value that does not even parse keeps Pydantic's own message.
+_BOUND_ERRORS = frozenset(
+    {"greater_than_equal", "less_than_equal", "string_too_short", "string_too_long"}
+)
+
+
+def _bound_broken(v: Any, handler: ValidatorFunctionWrapHandler) -> tuple[Any, str | None]:
+    """Validate `v`, and say which bound it broke rather than raising for one.
+
+    Returns the validated value and None, or the input and the bound error's
+    type. Any other failure (a string where a number belongs) raises unchanged.
+    """
+    try:
+        return handler(v), None
+    except ValidationError as exc:
+        broken = next((e["type"] for e in exc.errors() if e["type"] in _BOUND_ERRORS), None)
+        if broken is None:
+            raise
+        return v, broken
+
+
 class GeoPolygon(BaseModel):
     """A GeoJSON Polygon bounding the search area."""
+
+    model_config = _REQUEST_CONFIG
 
     type: Literal["Polygon"]
     coordinates: list[list[list[float]]] = Field(
@@ -117,13 +163,23 @@ def bbox_area_km2(ring: list[list[float]]) -> float:
 class CustomDestination(BaseModel):
     """A caller-supplied destination, analyzed alongside discovered ones."""
 
-    name: str = Field(description="Display name, 1 to 255 characters.")
-    latitude: float = Field(description="Latitude in decimal degrees, -90 to 90.")
-    longitude: float = Field(
-        description="Longitude in decimal degrees, -180 to 180."
+    model_config = _REQUEST_CONFIG
+
+    name: str = Field(
+        min_length=1, max_length=255, description="Display name, 1 to 255 characters."
     )
+    latitude: float = Field(
+        ge=-90, le=90, description="Latitude in decimal degrees, -90 to 90."
+    )
+    longitude: float = Field(
+        ge=-180, le=180, description="Longitude in decimal degrees, -180 to 180."
+    )
+    # Dead Sea shoreline to above-Everest, in feet — wide enough for any real
+    # destination, tight enough to reject unit mix-ups and garbage.
     elevation_ft: float | None = Field(
         default=None,
+        ge=-1500,
+        le=30_000,
         description=(
             "Elevation in feet. Optional, but supplying it is what lets the row "
             "take part in an elevation-band filter: rows with an unknown "
@@ -131,40 +187,49 @@ class CustomDestination(BaseModel):
         ),
     )
 
-    @field_validator("name")
+    # The four validators below hold the sentences a person reads when a
+    # bound above refuses a value; the bounds themselves are the fields'.
+
+    @field_validator("name", mode="wrap")
     @classmethod
-    def name_sane(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
+    def name_sane(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> str:
+        # Stripped first, so the length bounds count what is kept.
+        if isinstance(v, str):
+            v = v.strip()
+        value, broken = _bound_broken(v, handler)
+        if broken == "string_too_short":
             raise ValueError("Custom destination names cannot be empty.")
-        if len(v) > 255:
+        if broken == "string_too_long":
             raise ValueError("Custom destination names are limited to 255 characters.")
-        return v
+        return value
 
-    @field_validator("latitude")
+    @field_validator("latitude", mode="wrap")
     @classmethod
-    def latitude_range(cls, v: float) -> float:
-        if not -90.0 <= v <= 90.0:
-            raise ValueError(f"Latitude {v} is outside the valid -90 to 90 range.")
-        return v
+    def latitude_range(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> float:
+        value, broken = _bound_broken(v, handler)
+        if broken:
+            raise ValueError(f"Latitude {float(v)} is outside the valid -90 to 90 range.")
+        return value
 
-    @field_validator("longitude")
+    @field_validator("longitude", mode="wrap")
     @classmethod
-    def longitude_range(cls, v: float) -> float:
-        if not -180.0 <= v <= 180.0:
-            raise ValueError(f"Longitude {v} is outside the valid -180 to 180 range.")
-        return v
+    def longitude_range(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> float:
+        value, broken = _bound_broken(v, handler)
+        if broken:
+            raise ValueError(f"Longitude {float(v)} is outside the valid -180 to 180 range.")
+        return value
 
-    @field_validator("elevation_ft")
+    @field_validator("elevation_ft", mode="wrap")
     @classmethod
-    def elevation_plausible(cls, v: float | None) -> float | None:
-        # Dead Sea shoreline to above-Everest, in feet — wide enough for any
-        # real destination, tight enough to reject unit mix-ups and garbage.
-        if v is not None and not -1500.0 <= v <= 30_000.0:
+    def elevation_plausible(
+        cls, v: Any, handler: ValidatorFunctionWrapHandler
+    ) -> float | None:
+        value, broken = _bound_broken(v, handler)
+        if broken:
             raise ValueError(
-                f"Elevation {v} ft is outside the plausible -1,500 to 30,000 ft range."
+                f"Elevation {float(v)} ft is outside the plausible -1,500 to 30,000 ft range."
             )
-        return v
+        return value
 
 
 def _check_polygon_area(v: GeoPolygon) -> GeoPolygon:
@@ -202,6 +267,10 @@ class _DiscoveryFields(BaseModel):
     # validators take the word rather than reword either endpoint's answer.
     _list_verb: ClassVar[str] = "analyze"
     _split_noun: ClassVar[str] = "analyses"
+
+    # Inherited by both request bodies; a subclass's own `model_config` merges
+    # with it rather than replacing it.
+    model_config = _REQUEST_CONFIG
 
     polygon: GeoPolygon | None = Field(
         default=None,

@@ -599,7 +599,6 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
         "results": [],
         "total_queried": 0,
         "total_matched": 0,
-        "error": None,
         "times": [],
         "total_found": None,
         "truncated": False,
@@ -1373,10 +1372,15 @@ def test_no_header_leaves_the_unkeyed_path_alone(record_key):
 
 def test_the_key_is_read_from_the_header_only(record_key):
     # Never from the body or the query string, where it would land in a log
-    # line or a browser history.
-    body = {**_custom_body(), "api_key": "secret-key"}
-    resp = client.post("/api/analyze?apikey=secret-key", json=body)
+    # line or a browser history. The query string is ignored; the body refuses
+    # the field outright, as it refuses every field it does not declare.
+    resp = client.post("/api/analyze?apikey=secret-key", json=_custom_body())
     assert resp.status_code == 200
+    assert record_key["weather"] == [None]
+
+    resp = client.post("/api/analyze", json={**_custom_body(), "api_key": "secret-key"})
+    assert resp.status_code == 422
+    assert [e["type"] for e in resp.json()["detail"]] == ["extra_forbidden"]
     assert record_key["weather"] == [None]
 
 

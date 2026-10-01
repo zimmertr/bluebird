@@ -382,3 +382,80 @@ def test_window_source_reads_a_naive_timestamp_as_utc():
     # from the fetch that follows it.
     naive = datetime(2026, 7, 1, 0, 0)  # noqa: DTZ001 — naive on purpose
     assert models.window_source(naive, naive, _SOURCE_NOW) == "archive"
+
+
+# ── The request contract version 1.0 freezes (issue #563) ──────────────────
+
+
+def _polygon() -> dict:
+    return {"type": "Polygon", "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0]]]}
+
+
+# Every request body and every shape nested in one. A typo in any of them used
+# to be dropped without a word, so a misspelled bound read as an unfiltered 200.
+@pytest.mark.parametrize(
+    "build",
+    [
+        lambda: _valid_request(max_wind=20),
+        lambda: DestinationsRequest(destination_types=[], custom_destinations=[_cd()], stray=1),
+        lambda: CustomDestination(**_cd(elevation=4000)),
+        lambda: GeoPolygon(**_polygon(), bbox=[0, 0, 0.1, 0.1]),
+        lambda: _valid_request(custom_destinations=[_cd(elev_ft=4000)]),
+        lambda: _valid_request(destination_types=["peak"], polygon={**_polygon(), "crs": "x"}),
+    ],
+)
+def test_every_request_shape_refuses_a_field_it_does_not_declare(build):
+    with pytest.raises(ValidationError) as caught:
+        build()
+    assert [e["type"] for e in caught.value.errors()] == ["extra_forbidden"]
+
+
+@pytest.mark.parametrize("field", ["min_cloud_cover_pct", "max_cloud_cover_pct"])
+def test_a_cloud_cover_bound_stops_at_100(field):
+    assert getattr(_valid_request(**{field: 100}), field) == 100
+    with pytest.raises(ValidationError) as caught:
+        _valid_request(**{field: 100.5})
+    assert [e["type"] for e in caught.value.errors()] == ["less_than_equal"]
+
+
+# The ranges moved onto the fields so the schema publishes them. The sentence a
+# person reads when one refuses a value is still the approved one, not
+# Pydantic's "Input should be less than or equal to 90".
+@pytest.mark.parametrize(
+    "build, message",
+    [
+        (lambda: _valid_request(limit=0), f"limit must be between {models.MIN_LIMIT} and {models.MAX_LIMIT}"),
+        (
+            lambda: _valid_request(limit=models.MAX_LIMIT + 1),
+            f"limit must be between {models.MIN_LIMIT} and {models.MAX_LIMIT}",
+        ),
+        (lambda: CustomDestination(**_cd(latitude=95)), "Latitude 95.0 is outside the valid -90 to 90 range."),
+        (lambda: CustomDestination(**_cd(latitude="-90.5")), "Latitude -90.5 is outside the valid -90 to 90 range."),
+        (
+            lambda: CustomDestination(**_cd(longitude=-181)),
+            "Longitude -181.0 is outside the valid -180 to 180 range.",
+        ),
+        (
+            lambda: CustomDestination(**_cd(elevation_ft=40_000)),
+            "Elevation 40000.0 ft is outside the plausible -1,500 to 30,000 ft range.",
+        ),
+        (
+            lambda: CustomDestination(**_cd(elevation_ft=-2_000.5)),
+            "Elevation -2000.5 ft is outside the plausible -1,500 to 30,000 ft range.",
+        ),
+        (lambda: CustomDestination(**_cd(name="")), "Custom destination names cannot be empty."),
+        (lambda: CustomDestination(**_cd(name="   ")), "Custom destination names cannot be empty."),
+        (lambda: CustomDestination(**_cd(name="x" * 256)), "Custom destination names are limited to 255 characters."),
+    ],
+)
+def test_a_bound_on_a_field_still_answers_in_its_own_words(build, message):
+    with pytest.raises(ValidationError) as caught:
+        build()
+    [error] = caught.value.errors()
+    assert (error["type"], error["msg"]) == ("value_error", f"Value error, {message}")
+
+
+def test_a_value_that_does_not_parse_keeps_pydantics_own_message():
+    with pytest.raises(ValidationError) as caught:
+        CustomDestination(**_cd(latitude="north"))
+    assert [e["type"] for e in caught.value.errors()] == ["float_parsing"]

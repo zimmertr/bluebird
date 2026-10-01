@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidatorFunctionWrapHandler,
+    field_validator,
+    model_validator,
+)
 
 from app.error_codes import ErrorCode, error_object
 from app.forecast_models import DEFAULT_FORECAST_MODEL, ForecastModel
@@ -16,10 +23,12 @@ from app.limits import (
     _as_utc,
 )
 from app.models.common import (
+    _RESPONSE_CONFIG,
     _SNOW_DATE_DESCRIPTION,
     _SNOW_DEPTH_DESCRIPTION,
     ForecastMode,
     SortBy,
+    _bound_broken,
     _DiscoveryFields,
 )
 
@@ -73,6 +82,8 @@ class AnalyzeRequest(_DiscoveryFields):
     )
     limit: int = Field(
         default=10,
+        ge=MIN_LIMIT,
+        le=MAX_LIMIT,
         description=(
             "How many ranked rows to return. Discovery is never sampled, so "
             "this trims the response, not the work: every candidate is "
@@ -233,6 +244,7 @@ class AnalyzeRequest(_DiscoveryFields):
     min_cloud_cover_pct: float | None = Field(
         default=None,
         ge=0,
+        le=100,
         description=(
             "Drop rows whose `cloud_cover_min_pct` is below this. Nulls pass."
         ),
@@ -240,6 +252,7 @@ class AnalyzeRequest(_DiscoveryFields):
     max_cloud_cover_pct: float | None = Field(
         default=None,
         ge=0,
+        le=100,
         description=(
             "Drop rows whose `cloud_cover_max_pct` is above this, i.e. keep "
             "only destinations that stay at or under it for the whole window. "
@@ -295,12 +308,15 @@ class AnalyzeRequest(_DiscoveryFields):
         }
     }
 
-    @field_validator("limit")
+    # The bound is the field's, so the schema publishes it; this keeps the
+    # sentence a caller reads when it refuses a value.
+    @field_validator("limit", mode="wrap")
     @classmethod
-    def limit_range(cls, v: int) -> int:
-        if v < MIN_LIMIT or v > MAX_LIMIT:
+    def limit_range(cls, v: Any, handler: ValidatorFunctionWrapHandler) -> int:
+        value, broken = _bound_broken(v, handler)
+        if broken:
             raise ValueError(f"limit must be between {MIN_LIMIT} and {MAX_LIMIT}")
-        return v
+        return value
 
     def _resolve_forecast_mode(self) -> None:
         """Settle `forecast_mode` and fill in the timestamps it implies.
@@ -403,6 +419,8 @@ class HourlySeries(BaseModel):
     interpolating across one.
     """
 
+    model_config = _RESPONSE_CONFIG
+
     precip_in: list[float | None] = Field(description="Precipitation, inches.")
     temp_f: list[float | None] = Field(description="Temperature, degrees Fahrenheit.")
     wind_mph: list[float | None] = Field(
@@ -437,6 +455,8 @@ class HourlySeries(BaseModel):
 
 class DestinationResult(BaseModel):
     """One ranked destination, summarized over the analyzed window."""
+
+    model_config = _RESPONSE_CONFIG
 
     name: str = Field(description="Destination name, from OSM or your CSV.")
     type: str = Field(
@@ -667,6 +687,8 @@ class AnalysisRefusal(BaseModel):
 class AnalyzeResponse(BaseModel):
     """A completed analysis: the ranking, and what it was drawn from."""
 
+    model_config = _RESPONSE_CONFIG
+
     results: list[DestinationResult] = Field(
         description="Ranked destinations, best first, at most `limit` of them."
     )
@@ -687,14 +709,6 @@ class AnalyzeResponse(BaseModel):
             "fetch, and `total_queried` keeps meaning what it always has: how "
             "much was analyzed."
         )
-    )
-    error: str | None = Field(
-        default=None,
-        description=(
-            "Always null here. A failed analysis returns a 4xx or 5xx with a "
-            "`detail` message instead. The field exists because the streaming "
-            "endpoint reuses this shape."
-        ),
     )
     total_found: int | None = Field(
         default=None,

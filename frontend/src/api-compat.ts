@@ -69,12 +69,12 @@ type ClientOnly = 'series_times' | 'wind_dir_deg'
  * remaining property required, at every depth.
  *
  * Optionality is deliberately not compared, because the two sides mean
- * different things by `?`. FastAPI leaves a field out of `required` whenever
- * its model gives it a default, while the serializer emits it regardless — so
- * a response field the app can safely rely on still reads as optional in the
- * schema. Levelling both sides compares the value types, which is where a
- * rename or a retype shows up; the `*FieldsExist` assertions are what hold the
- * key sets themselves together.
+ * different things by `?`. The response schemas mark every field required,
+ * since the serializer sends each one, while a `?` in `types.ts` is the app's
+ * own choice about what it may read rather than a claim about the wire.
+ * Levelling both sides compares the value types, which is where a rename or a
+ * retype shows up; the `*FieldsExist` assertions are what hold the key sets
+ * themselves together.
  *
  * `-?` drops the optional marker; `Exclude<…, undefined>` is what drops the
  * `| undefined` it leaves behind, which a mapped type only does on its own when
