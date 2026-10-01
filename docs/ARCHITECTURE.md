@@ -78,20 +78,7 @@ Manifests live in a separate repo, `zimmertr/Kubernetes-Manifests`, under `publi
 
 For the complete CI/CD picture — how a merge flows through GitHub Actions, Docker Hub, the `bluebird-helm` chart, Artifact Hub, and on to Argo CD, plus how per-PR preview environments spin up — see [`CICD.md`](CICD.md), which has Mermaid diagrams of each path.
 
-The release pipeline updates the image tag on merge to `main`, so a normal deploy needs nothing manual. To cut an image by hand:
-
-```bash
-docker build -t zimmertr/bluebird:v1.0.0 .
-docker push zimmertr/bluebird:v1.0.0
-```
-
-Then point the tag at it in `kustomization.yml` and commit. ArgoCD syncs within a few minutes.
-
-```yaml
-images:
-  - name: zimmertr/bluebird
-    newTag: v1.0.0
-```
+The release pipeline updates the image tag on merge to `main`, and it is the only supported way to deploy: there is no hand-built image path and no rollback. A bad release is fixed by the next one; [CICD.md](CICD.md#when-a-release-is-bad) has the procedure.
 
 To set the log level in the cluster, set the chart value in `values.yml`; the Rollout is chart-rendered, and Argo CD's `selfHeal` reverts a hand edit to the live object:
 

@@ -22,8 +22,11 @@ flowchart LR
 
 - **Cloudflare** proxies the zone (orange-cloud DNS). It terminates the public
   TLS session, hides the origin IP, and is where the coarse edge rate rule
-  lives (below). It sets `CF-Connecting-IP` on every forwarded request, and
-  overwrites any value the client sent.
+  lives (below). It answers a plain `http://` request itself with a `301` to
+  the `https://` URL, and adds `Strict-Transport-Security` to every `https`
+  answer (the zone settings are under "Security response headers" below). It
+  sets `CF-Connecting-IP` on every forwarded request, and overwrites any value
+  the client sent.
 - **The tunnel** is a `cloudflared` deployment in the cluster that dials out to
   Cloudflare ([#148](https://github.com/zimmertr/bluebird/issues/148)). The
   origin holds no inbound port, so there is no direct-to-origin path from the
@@ -197,14 +200,33 @@ methods. A keyless `POST` still gets the gateway's `404`.
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | The full URL to this origin, the bare origin to anybody else. A shared link carries the analysis in its query string. |
 | `Permissions-Policy` | `geolocation=(self), camera=(), microphone=(), payment=()` | Geolocation is the one capability the app uses, for MapLibre's geolocate control. The rest are named rather than left to the default, so switching one on is a deliberate edit. |
 | `Content-Security-Policy` | see below | |
-| `Access-Control-Allow-Origin` | `*` | The API is public and keyless, so any page may call it from a browser; methods and headers are open the same way. `Retry-After` is the one header exposed to a cross-origin reader, so a throttled caller can see how long to back off. |
+| `Access-Control-Allow-Origin` | `*`, only on a request that carries `Origin` | Any page may call the API from a browser; methods and headers are open the same way. Starlette's `CORSMiddleware` (`backend/app/main.py`) adds it, and it adds nothing to a request without an `Origin`, so the app's own same-origin calls carry none. The two analyze routes still need `X-Open-Meteo-Key` at the edge, so a keyless cross-origin `POST` gets the gateway's `404`, which carries this header on every answer because it is a fixed copy. `Retry-After` is the one header exposed to a cross-origin reader, so a throttled caller can see how long to back off. |
 
-**The app sends no `Strict-Transport-Security` header, on purpose.** Cloudflare
-terminates the TLS this header is about and sets it at the edge, which is the
-layer that knows the zone. The pod never sees an `https` scheme of its own, and
-a browser cannot be told to forget a `max-age` it has already read, so a second
-voice on the same claim adds nothing and makes a wrong value harder to withdraw.
-A self-hosted instance that terminates its own TLS sets the header at whatever
+**The app sends no `Strict-Transport-Security` header, on purpose. The
+Cloudflare zone sends it.** Since 2026-10-01 the zone has two settings on:
+
+- **Always Use HTTPS.** A plain `http://` request to either hostname gets a
+  `301` to the same path on `https://` from the edge, and never reaches the
+  tunnel. The chart's `ingress.httpsRedirect` cannot do this job: it is set on
+  the gateway's port 80 server, and cloudflared dials the gateway on 443.
+- **HSTS**, with `max-age=15552000` (180 days), no `includeSubDomains` and no
+  `preload`.
+
+Measured on 2026-10-01: `curl -sI http://bluebirdforecast.com/` answered
+`301 Moved Permanently` with `Location: https://bluebirdforecast.com/`, and
+`curl -sI https://bluebirdforecast.com/` carried
+`strict-transport-security: max-age=15552000`; `www.bluebirdforecast.com`
+answered the same way. Both are zone settings in the Cloudflare dashboard and
+live in no repository, one of the cases
+[#314](https://github.com/zimmertr/bluebird/issues/314) tracks
+([#572](https://github.com/zimmertr/bluebird/issues/572)).
+
+A browser cannot be told to forget a `max-age` it has already read. That is why
+the value is six months and not the two years a preload list asks for, why no
+subdomain is covered, and why the pod is not a second voice on the same claim:
+a second source makes a wrong value harder to withdraw. Decision record
+[0084](decisions/0084-hsts-at-the-edge-six-months.md) has the reasoning. A
+self-hosted instance that terminates its own TLS sets the header at whatever
 terminates it, for the same reason.
 
 The policy for the app:

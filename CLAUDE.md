@@ -157,7 +157,7 @@ The FastAPI backend handles `POST /api/analyze`, which:
 
 ## Kubernetes deployment
 
-Manifests live in a separate repo (`zimmertr/Kubernetes-Manifests`) under `public/bluebird/`. ArgoCD picks them up automatically. Stack uses Argo Rollouts (canary), Istio VirtualService/Gateway, and cert-manager for `bluebirdforecast.com`. The release pipeline updates the manifest tag automatically — manual manifest edits are only needed for configuration changes (e.g., `LOG_LEVEL` env var).
+Manifests live in a separate repo (`zimmertr/Kubernetes-Manifests`) under `public/bluebird/`. ArgoCD picks them up automatically. Stack uses Argo Rollouts (canary), Istio VirtualService/Gateway, and cert-manager for `bluebirdforecast.com`. The release pipeline updates the manifest tag automatically — manual manifest edits are only needed for configuration changes (e.g., `LOG_LEVEL` env var). A bad release is fixed forward, as the next release: there is no rollback, a manifest PR that sets `newTag` to an older version is not a fix, and the pipeline is the only supported way to deploy, so no doc may carry a hand-build recipe (`docs/CICD.md`, When a release is bad). Record: [0083](docs/decisions/0083-fix-forward-no-hand-deploy.md) The chart in `zimmertr/bluebird-helm` is a separate work under GPL-3.0-only, and its README says that the image it installs is under this repository's PolyForm Noncommercial license. Record: [0085](docs/decisions/0085-chart-stays-gpl.md)
 
 ## Adding a new destination type
 
