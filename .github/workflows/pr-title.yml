@@ -1,0 +1,48 @@
+name: PR Title
+
+# The PR title becomes the squash commit's title, and that line alone decides
+# the release bump (GitVersion.yml). This refuses a title the pipeline cannot
+# read, before the merge rather than after the release.
+#
+# A workflow of its own rather than a job in pr.yml, because it has to run when
+# only the title changes (`edited`), and an edit must not restart pr.yml's whole
+# suite, whose concurrency group would also cancel the run in flight.
+# `synchronize` stays in the list because a check reports against the head
+# commit, so a push with no run of its own would carry no result. There is no
+# `if:` to skip body-only edits on purpose: a skipped job reports success, which
+# would turn a failed title green the moment someone edited the description.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches:
+      - main
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# `pull_request`, not `pull_request_target`: a fork's run gets a read-only token
+# and no secrets, and this job needs neither. Dependabot's runs are the same.
+permissions:
+  contents: read
+
+jobs:
+  title:
+    name: PR Title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The merge ref, so a PR that edits GitVersion.yml is judged by the
+      # patterns it will merge with.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            GitVersion.yml
+            .github/scripts/check_pr_title.py
+          sparse-checkout-cone-mode: false
+      # The title reaches the script through the environment and is never
+      # pasted into the shell line, where a title holding `$(...)` would run.
+      - name: Check the title is one the release pipeline reads
+        run: python3 .github/scripts/check_pr_title.py
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}

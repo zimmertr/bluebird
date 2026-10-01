@@ -14,7 +14,7 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image. |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Its `pr-title.yml` is the same `PR Title` check as this repo's. |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
@@ -99,9 +99,13 @@ flowchart TD
 **Path 1 — App release** (`bluebird/release.yml`, on merge to `main`, runs
 concurrency-serialized):
 
-1. **Determine Version** — GitVersion (Mainline, conventional commits) computes
-   the SemVer. **Immutability guard:** if `docker manifest inspect
-   zimmertr/bluebird:<semver>` already exists, every downstream job skips.
+1. **Determine Version** — GitVersion (Mainline) computes the SemVer from the
+   squash commit's title (see [Conventions](#conventions)). **Release guard:**
+   a release is three things made in order, the image
+   `zimmertr/bluebird:<semver>`, the git tag `v<semver>` and the GitHub release.
+   Every downstream job skips only when **all three** already exist. Each job
+   makes its own piece only when it is missing, so a run that died part way is
+   finished by a re-run (see [Finishing a failed release](#finishing-a-failed-release)).
 2. **Build & Push** — builds a **multi-arch manifest (`linux/amd64` +
    `linux/arm64`, arm64 via QEMU)** with SBOM + provenance attestations (the
    attestation manifests appear as "unknown/unknown" rows in Docker Hub's UI),
@@ -109,6 +113,15 @@ concurrency-serialized):
    `v<semver>` git tag. Capped at `timeout-minutes: 30`: because releases
    serialize, a job hung on a registry timeout would otherwise dam every
    queued release for up to GitHub's 6-hour default.
+
+   The job asks Docker Hub itself whether the image exists, rather than reading
+   Determine Version's answer, because "Re-run failed jobs" keeps that answer
+   from the first attempt. An existing image skips the build, and only if its
+   `org.opencontainers.image.revision` label is this commit: Mainline gives every
+   commit its own version, so an image from another commit is never a re-run,
+   and the job stops rather than tag a commit the image was not built from. The
+   tag step leaves a `v<semver>` that already names this commit alone and stops
+   on one that names another.
 
    Only the *backend* halves of the image are built per architecture. The
    frontend stage carries `--platform=$BUILDPLATFORM`, so the SPA is compiled
@@ -130,8 +143,11 @@ concurrency-serialized):
    before `USER`. `APP_BUILT_AT` changes on every build, so declaring them any
    earlier would invalidate the `pip install` layer every time and throw away
    the build cache.
-3. **Create GitHub Release** — auto-generated notes. Runs in parallel with
-   step 4, which does not depend on it.
+3. **Create GitHub Release** — auto-generated notes, through `gh release
+   create --verify-tag`, skipped when the release already exists. It is marked
+   **Latest** unless a newer release already is, so a release finished late
+   does not move `releases/latest`, which the chart's `appVersion` resolver
+   reads. Runs in parallel with step 4, which does not depend on it.
 4. **Update Kubernetes-Manifests** — starts as soon as the image is pushed,
    because nothing here needs the GitHub Release to exist. A **self-merging
    PR** on the fixed `chore/bluebird-image` branch sets `images.newTag:
@@ -139,7 +155,9 @@ concurrency-serialized):
    `public/bluebird/kustomization.yml`. Once `Validate manifests` goes green it
    squash-merges itself, Argo CD auto-syncs, and the new image rolls to prod. No
    human step. See [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests)
-   for why every write is shaped this way.
+   for why every write is shaped this way. Steps 4 and 5 both do nothing when
+   a newer release than this one exists, so a re-run that finishes an old
+   release never moves prod or the chart back onto it.
 5. **Bump Helm Chart appVersion** — waits on step 3, unlike step 4:
    `bluebird-helm/release.yml` resolves `appVersion` at package time from this
    repo's `releases/latest`, so opening this PR before the release exists races
@@ -160,13 +178,19 @@ concurrency-serialized):
 **Path 2 — Chart release** (`bluebird-helm/release.yml`, on merge to `main`
 touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself):
 
-1. GitVersion computes the **chart** SemVer. **Immutability guard:** `helm show
-   chart oci://…` — skip if that chart version was already published.
+1. GitVersion computes the **chart** SemVer from the same title patterns.
+   **Release guard:** the same three pieces as Path 1 (the OCI chart, checked
+   with `helm show chart oci://…`, the git tag and the GitHub release), and
+   the same rule: the job skips only when all three exist, and otherwise makes
+   only what is missing. The chart carries no commit, so unlike the image it is
+   not checked against this commit; a tag that names another commit still stops
+   the run.
 2. Resolves `appVersion` **at package time** from `bluebird`'s `releases/latest`
    (the value committed to `Chart.yaml` is only a local-render fallback — the
    resolver is the source of truth).
 3. `helm package --version <chartver> --app-version <appver>` and `helm push`
-   to the OCI repo; tags + GitHub release.
+   to the OCI repo, when the chart is missing; then the tag and the GitHub
+   release, each when missing, marked Latest unless a newer chart release is.
 4. Then, in a separate job, when the merge changed `artifacthub-repo.yml` (or
    on a manual run), pushes it with ORAS to the OCI repo's `artifacthub.io`
    tag; a failure there never blocks the release.
@@ -178,6 +202,9 @@ touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself):
    - stable: `chore/bluebird-stable-chart` sets `helmCharts[0].version:
      <chartver>` in `public/bluebird/kustomization.yml` (prod, triggers the
      canary rollout). Also **self-merging**.
+
+   Neither PR moves when a newer chart release exists, for the same reason as
+   Path 1's steps 4 and 5.
 
    They are separate branches rather than one PR touching both files so a
    preview bump is never blocked behind a prod change, and either can be closed
@@ -200,6 +227,48 @@ Istio `VirtualService`/`Gateway`; cert-manager terminates TLS. The rollout
 itself is a four-step canary — a scale step that starts one canary pod at zero
 user traffic, then three blocking analyses, then promotion in a single cutover — described
 in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
+
+### Finishing a failed release
+
+A release that fails part way leaves some of its pieces published, and the
+image and the tag are immutable, so nothing is deleted or pushed again. A
+chart release in `bluebird-helm` recovers the same way, by re-running its
+`release.yml`.
+
+1. **Re-run the run.** "Re-run all jobs" or "Re-run failed jobs" on the failed
+   `release.yml` run. Each job makes only what is still missing, in order: the
+   image, the tag, the release, then the two bump PRs. This is the whole
+   recovery when the failure was transient.
+2. **If the tag push itself keeps failing**, push the tag by hand at the run's
+   commit, then re-run all jobs, which makes the release and both bump PRs:
+
+   ```sh
+   docker buildx imagetools inspect zimmertr/bluebird:<semver> \
+     --format '{{ index (index .Image "linux/amd64").Config.Labels "org.opencontainers.image.revision" }}'
+   # prints the commit; tag that commit and nothing else
+   git tag -a v<semver> <commit> -m "Release v<semver>"
+   git push origin v<semver>
+   ```
+
+   This is the 2026-07-21 case: GitHub refused the tag pushes for v0.16.0 and
+   v0.16.1 with `refusing to allow a GitHub App to create or update workflow
+   .github/workflows/pr.yml without workflows permission`, which a re-run with
+   the same token would meet again. Push with credentials that carry the
+   `workflow` scope.
+3. **If the run cannot be re-run** (GitHub allows it for 30 days), do the
+   rest by hand:
+   `gh release create v<semver> --repo zimmertr/bluebird --title v<semver>
+   --generate-notes --verify-tag`, then a PR in `Kubernetes-Manifests` setting
+   `images.newTag: <semver>` in `public/bluebird/kustomization.yml`, and a PR in
+   `bluebird-helm` setting `appVersion: "<semver>"` in
+   `charts/bluebird/Chart.yaml`, titled `chore(release): bump chart appVersion
+   to <semver>`.
+
+If a newer release has shipped in the meantime, a re-run still tags and
+releases the old version, but does not mark it Latest and opens no bump PR, so
+prod stays on the newer one. Do the same by hand: `--latest=false`, and no
+bump PRs. Left alone, the version stays an image with no tag, as v0.16.0 and
+v0.16.1 do, and the next merge releases the version after it.
 
 ### Two independent knobs reach prod
 
@@ -718,6 +787,7 @@ flowchart LR
     subgraph BB["zimmertr/bluebird"]
         pr["PR opened / updated"]
         checks["pr.yml<br/>typecheck, ESLint, Vitest, ruff, mypy, pytest, OpenAPI + API-type drift,<br/>hadolint, docker build + Trivy scan (sticky comment),<br/>Lighthouse budgets, browser smoke + axe"]
+        title["pr-title.yml<br/>PR Title: GitVersion reads the title<br/>(also on a title edit)"]
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
@@ -733,6 +803,7 @@ flowchart LR
 
     dev -->|open / push| pr
     pr --> checks
+    pr --> title
     pr --> preview
     preview -->|build + push| dhpr
     preview -->|owner PR only| label
@@ -824,6 +895,18 @@ flowchart LR
   uploaded as the `playwright-report` artifact. The pinned
   `mcr.microsoft.com/playwright` image is for local runs only
   (`docs/DEVELOPMENT.md`); on a runner it would be a 956 MB pull every time.
+- `pr-title.yml`'s **PR Title** job fails a PR whose title none of
+  `GitVersion.yml`'s three patterns reads, since that title becomes the squash
+  commit's and decides the release. It runs on `opened`, `edited`, `reopened`
+  and `synchronize`, so fixing the title fixes the check without a push, and it
+  is a workflow apart from `pr.yml` so a title edit does not restart the whole
+  suite. The patterns are read from `GitVersion.yml` by
+  `.github/scripts/check_pr_title.py`, never copied, and
+  `backend/tests/test_release_titles.py` holds them to the table the engine was
+  run on. It needs no secret, so fork and Dependabot PRs run it the same way.
+  Each run notes the bump the merge will release, and a major as a warning.
+  It is not a required check; adding it to branch protection is a manual step
+  in each repository's settings.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`.
@@ -996,9 +1079,49 @@ costs](#what-a-stable-chart-bump-costs).
 
 ## Conventions
 
-- **GitVersion prefix → bump** (both repos): `feat!` / `BREAKING CHANGE:` →
-  major; `feat:` → minor; `fix` / `perf` / `refactor` / `chore` / `docs` /
-  `style` / `test` / `ci` → patch. The squash-merge commit message (the PR
-  title) is what drives the release.
-- **Immutability guards** in both release pipelines make merges idempotent: a
-  re-run for an already-published image or chart version is a no-op.
+- **PR title → bump** (both repos). The squash commit's title is the PR title,
+  and GitVersion reads that line alone:
+
+  | PR title | Bump |
+  | --- | --- |
+  | any type below with `!` before the colon: `feat!:`, `fix(ui)!:`, `chore!:` | major |
+  | `feat:`, `feat(scope):` | minor |
+  | `fix`, `perf`, `refactor`, `chore`, `docs`, `style`, `test`, `ci`, `build`, each with an optional `(scope)` | patch |
+
+  The body never counts: a `BREAKING CHANGE:` footer, or a body line that
+  starts `fix!:`, changes nothing, so a major is always the title's `!`
+  ([0080](decisions/0080-major-from-the-title-only.md)). A title that starts
+  `BREAKING CHANGE:` names no type, so it is not read, and the PR Title check
+  refuses it. GitVersion matches without regard to case. A `!` anywhere else
+  in the title (`fix: stop the crash!`) is not a major. Dependabot's
+  `build(deps):` and the release bot's `chore(release):` titles are patches.
+  A title no pattern reads still releases a patch, which is why the `PR Title`
+  check exists. The patterns live in `GitVersion.yml`, identical in both
+  repositories.
+- **Cutting 1.0.0: the app first, then the chart.** The chart goes to 1.0
+  with the app (TJ, 2026-10-01), and neither major happens by itself: each
+  repository needs a merged PR whose title carries `!`. Merge in this order:
+
+  1. The app PR with `!` in its title. It releases `zimmertr/bluebird:1.0.0`,
+     and Path 1 step 5 opens the automatic chart PR, titled `chore(release):
+     bump chart appVersion to 1.0.0`. That title has no `!`, so by itself it
+     releases a chart **patch** (for example 0.15.22) whose default image is
+     the app's 1.0.0. It merges itself; let it, and let that chart release
+     finish.
+  2. Then a chart PR of your own with `!` in its title, for example `chore!:
+     ...`. It must change a file under `charts/**` (or `artifacthub-repo.yml`),
+     because the chart release workflow fires only on those paths, and it
+     should not touch the `appVersion` line the automatic PR edits. Merging it
+     releases chart **1.0.0**, and the package-time resolver gives it the app's
+     1.0.0 as its `appVersion`.
+
+  Not the other way round: a chart `!` PR merged before the app's 1.0.0
+  exists releases chart 1.0.0 with the newest pre-1.0 app as its default image,
+  and the automatic PR that follows the app's 1.0.0 then releases chart 1.0.1.
+  Do not put the `!` on the automatic PR either: auto-merge is armed the
+  moment it opens, so retitling it races its own merge. The engine runs behind
+  this order are in [0080](decisions/0080-major-from-the-title-only.md).
+- **Release guards** in both release pipelines make a re-run finish a release
+  rather than repeat it: each piece (image or chart, git tag, GitHub release) is
+  made only when missing, and a run whose version has all three is a no-op. See
+  [Finishing a failed release](#finishing-a-failed-release).
