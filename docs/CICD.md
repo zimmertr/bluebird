@@ -14,7 +14,7 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image. |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render`, which also renders the VirtualService and fails when the gateway's own `404` differs from `backend/edge_not_found.json` on this repo's `main` (#565), and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
@@ -148,7 +148,9 @@ concurrency-serialized):
    `appVersion=<semver>`, opens
    **or updates in place** a single PR (Dependabot-style dedup), then arms
    **squash auto-merge** so it lands itself once `Lint & render` passes. No human
-   step. Requires `GH_PAT` with contents + pull-requests write on `bluebird-helm`,
+   step, unless the release changed `backend/edge_not_found.json`: then
+   `Lint & render` fails until a chart PR copies the new body or headers into
+   the gateway's `404` route, and the bump lands on its next run. Requires `GH_PAT` with contents + pull-requests write on `bluebird-helm`,
    and `allow_auto_merge` enabled on that repo.
 
    Same shape as every write into `Kubernetes-Manifests`, for the same reasons:

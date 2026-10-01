@@ -1,0 +1,21 @@
+{
+  "status": 404,
+  "body": {
+    "detail": "No API endpoint at this path. See /docs for the full API reference, or /openapi.json for the machine-readable schema.",
+    "error": {
+      "code": "not_found",
+      "retryable": false
+    }
+  },
+  "headers": {
+    "access-control-allow-origin": "*",
+    "access-control-expose-headers": "Retry-After",
+    "cache-control": "no-cache",
+    "content-security-policy": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu https://mapservices.weather.noaa.gov; connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com https://archive-api.open-meteo.com https://tiles.openfreemap.org https://mesonet.agron.iastate.edu https://mapservices.weather.noaa.gov; worker-src 'self' blob:; child-src 'self' blob:",
+    "content-type": "application/json",
+    "permissions-policy": "geolocation=(self), camera=(), microphone=(), payment=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "vary": "Origin",
+    "x-content-type-options": "nosniff"
+  }
+}

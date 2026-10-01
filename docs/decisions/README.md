@@ -98,3 +98,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0075](0075-pacer-sliding-window.md) | The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log | 2026-10-01 | Accepted | Backend: `app/ratelimit/`; Frontend: `openMeteo.ts` |
 | [0076](0076-api-semver-strict-reader.md) | SemVer 1.0 covers the HTTP API and share links, and a request body refuses a field it does not declare | 2026-10-01 | Accepted | Root: Regenerate the OpenAPI snapshot |
 | [0077](0077-snapshot-max-stale-24h.md) | An overlay snapshot is served through failed refreshes for 24 hours, and no longer | 2026-10-01 | Accepted | Backend: `app/services/snapshot.py` |
+| [0078](0078-edge-404-is-the-apps.md) | The gateway's 404 is the app's, written down here and compared by the chart's CI | 2026-10-01 | Accepted | Backend: `routes/notfound.py`; `scripts/generate_edge_not_found.py` |

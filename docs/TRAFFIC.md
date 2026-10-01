@@ -170,6 +170,16 @@ rather than the mesh because the interesting one is a list of the hosts the
 browser bundle fetches, and that list changes when a frontend overlay changes.
 Edge-owned headers would drift away from the code that defines them.
 
+One response never reaches the pod: the gateway's own `404` for an `/api` path
+the chart does not publish, and for an analyze request without its key (above).
+The chart sends the same body shape and the same headers on it, copied from
+`backend/edge_not_found.json`. That file is written from the app's real `404`
+by `backend/scripts/generate_edge_not_found.py` and pinned by
+`test_notfound.py`, and bluebird-helm's `Lint & render` check renders the chart
+and fails when its route differs from the file on this repo's `main`. So a
+header added here, or a host added to the policy below, turns the next chart PR
+red until the chart follows ([#565](https://github.com/zimmertr/bluebird/issues/565)).
+
 | Header | Value | Why |
 | --- | --- | --- |
 | `X-Content-Type-Options` | `nosniff` | The static mount serves user-visible files by extension. |
