@@ -51,8 +51,8 @@ function isLakeLayer(layerId: string): boolean {
  */
 export const LAKE_CLASS = 'lake'
 
-// The server's own metres→feet factor (`_ele_ft` in osm/query.py), used here rather
-// than its reciprocal so both sides round identically. This matters more than
+// The server's own metres→feet factor (`_ele_ft` in osm/query.py), used only
+// for a tile that carries metres and no feet. The agreement matters more than
 // it looks: an unnamed summit is NAMED from its elevation, so a one-foot
 // disagreement makes `Peak 5961` and `Peak 5962` two destinations for one
 // mountain — and neither dedup rule catches it, since the backend merges a
@@ -104,14 +104,19 @@ function nameOf(props: Record<string, unknown>): string {
 // where OSM tagged an elevation at all. Prefer the feet the tile computed;
 // convert from meters when it is the only one present.
 function elevationFtOf(props: Record<string, unknown>): number | undefined {
-  // `ele` first, deliberately. The tile also carries a precomputed `ele_ft`,
-  // but that is OpenMapTiles' own rounding of the same metres and lands a foot
-  // away from the server's often enough to matter — see FEET_PER_METER above.
-  // Converting from the shared source is what keeps the two names identical.
-  const m = Number(props.ele)
-  if (Number.isFinite(m)) return Math.round(m * FEET_PER_METER)
+  // `ele_ft` first, because it is the one the server agrees with. The tiles
+  // come from Planetiler, which rounds `ele` to whole metres but computes
+  // `ele_ft` from OSM's raw metres, decimals included, the same raw value the
+  // server's `_ele_ft` converts. Converting the rounded metres loses up to half
+  // a metre, 1.6 ft: Agnes Mountain's raw 2473.4 m is 8115 ft to the server
+  // and in the tile's `ele_ft`, but its tile `ele` of 2473 converts to 8114
+  // (#581). The two factors (3.28084 here and on the server, 3.2808399 in
+  // Planetiler) differ only past the fifth decimal, so they round apart only
+  // when a value lands within a thousandth of a foot of a half.
   const ft = Number(props.ele_ft)
   if (Number.isFinite(ft)) return Math.round(ft)
+  const m = Number(props.ele)
+  if (Number.isFinite(m)) return Math.round(m * FEET_PER_METER)
   return undefined
 }
 

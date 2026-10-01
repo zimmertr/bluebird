@@ -149,7 +149,9 @@ export interface HourlyPayload {
    * same unit parameters, so a disagreement means one of them answered in
    * something else. And the freezing level's unit follows `precipitation_unit`,
    * so the value is feet under the `inch` every request here sends and meters
-   * without it (port of `aggregation._freeze_unit`).
+   * without it (port of `aggregation._freeze_unit`). Every other weather
+   * column must declare the unit the request asked for before any of its
+   * numbers is read (`checkUnits`).
    */
   hourly_units?: Record<string, string>
   hourly?: {
@@ -260,6 +262,21 @@ export const HOURLY_VARIABLES = [
   ...TEMP_LEVELS.map(([name]) => name),
 ] as const
 
+// Port of aggregation._DECLARED_UNITS: the unit each weather column has to
+// declare in `hourly_units` before any of its numbers is read, which is what
+// the request's `temperature_unit`, `wind_speed_unit` and `precipitation_unit`
+// ask for, spelled the way Open-Meteo writes it back. Measured 2026-10-01 on
+// all eight models and on the archive: "inch", "°F" and "mp/h" (not "mph").
+// The freezing level is not here because its unit legitimately varies and
+// `freezeToFeet` converts it.
+const DECLARED_UNITS: Readonly<Record<string, string>> = {
+  precipitation: 'inch',
+  temperature_2m: '°F',
+  wind_speed_10m: 'mp/h',
+  ...Object.fromEntries(WIND_LEVELS.map(([name]) => [name, 'mp/h'])),
+  ...Object.fromEntries(TEMP_LEVELS.map(([name]) => [name, '°F'])),
+}
+
 // Port of aggregation.CLOUD_SATURATION_RH (#117): the relative humidity at or
 // above which a point in the column counts as in cloud. The reasons for 95
 // rather than 100 are in aggregation.py; the value is pinned to the backend's
@@ -281,6 +298,14 @@ export const CLOUD_VARIABLES = [
   'dew_point_2m',
   ...CLOUD_LEVELS.map(([name]) => name),
 ] as const
+
+// Port of aggregation._CLOUD_DECLARED_UNITS: the cloud request sends no unit
+// parameters, so its 2 m pair comes back in the Celsius Espy's rule is stated
+// in. Measured 2026-10-01 on all eight models and the archive: "°C" for both.
+const CLOUD_DECLARED_UNITS: Readonly<Record<string, string>> = {
+  temperature_2m: '°C',
+  dew_point_2m: '°C',
+}
 
 // What the archive endpoint writes in `hourly_units` for a variable it does not
 // serve. The column beside it is all nulls, so the unit carries no information.
@@ -485,10 +510,26 @@ function freezeFtInWindow(
   return out
 }
 
+// Port of aggregation._check_units: a number in a unit the request did not ask
+// for fails the batch, the way an unreadable freezing level does. `expected`
+// is the request's own table (DECLARED_UNITS or CLOUD_DECLARED_UNITS). A
+// column of nulls needs no unit, because the archive answers the levels it
+// does not serve that way under the unit "undefined". The whole column is
+// read rather than the window, which keeps the two ports trivially equal.
+function checkUnits(payload: HourlyPayload, expected: Readonly<Record<string, string>>): void {
+  const hourly: Record<string, unknown> = payload?.hourly ?? {}
+  const declared = payload?.hourly_units
+  for (const [name, unit] of Object.entries(expected)) {
+    if (declared?.[name] === unit) continue
+    const column = (hourly[name] ?? []) as readonly unknown[]
+    if (column.some((v) => v != null)) throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
+  }
+}
+
 // Port of aggregation._weather_metrics: an hour missing ANY metric is dropped entirely,
 // and the loop stops at the shortest array (Python zip semantics) — unlike
 // the series below, which is times-driven. Malformed payloads degrade to
-// null; only an unreadable freezing level unit throws.
+// null; only a number in a unit nothing can read throws.
 export function weatherMetrics(
   payload: HourlyPayload,
   startMs: number,
@@ -496,6 +537,7 @@ export function weatherMetrics(
   elevationFt: number | null = null,
 ): WeatherAggregates | null {
   try {
+    checkUnits(payload, DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const precip = hourly.precipitation ?? []
@@ -596,6 +638,7 @@ export function weatherSeries(
   elevationFt: number | null = null,
 ): WeatherSeries | null {
   try {
+    checkUnits(payload, DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const precip = hourly.precipitation ?? []
@@ -806,6 +849,7 @@ export function cloudMetrics(
   elevationFt: number | null = null,
 ): CloudAggregates | null {
   try {
+    checkUnits(payload, CLOUD_DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const cover = hourly.cloud_cover ?? []
@@ -850,7 +894,9 @@ export function cloudMetrics(
       cloud_cover_max_pct: covers.length === 0 ? null : roundHalfEven(cMax, 0),
       cloud_cover_avg_pct: covers.length === 0 ? null : roundHalfEven(cSum / covers.length, 0),
     }
-  } catch {
+  } catch (e) {
+    // The unit refusal, for the weather's reason.
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }
@@ -863,6 +909,7 @@ export function cloudSeries(
   elevationFt: number | null = null,
 ): CloudSeries | null {
   try {
+    checkUnits(payload, CLOUD_DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
     const cover = hourly.cloud_cover ?? []
@@ -880,7 +927,9 @@ export function cloudSeries(
     }
     if (grid.length === 0) return null
     return { times: grid, cloud_base_ft: bOut, cloud_cover_pct: cOut }
-  } catch {
+  } catch (e) {
+    // The unit refusal, for the weather's reason.
+    if (e instanceof OpenMeteoBadBody) throw e
     return null
   }
 }

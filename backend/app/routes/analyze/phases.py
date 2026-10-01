@@ -33,8 +33,10 @@ from app import ratelimit, telemetry
 from app.error_codes import ApiError, ErrorCode
 from app.models import (
     MAX_ANALYZE_PEAKS,
+    AnalysisRefusal,
     AnalyzeRequest,
     AnalyzeResponse,
+    ApiErrorInfo,
     DestinationResult,
     DestinationType,
     WindowSource,
@@ -67,6 +69,7 @@ from app.services.errors import (
     UpstreamError,
     UpstreamRateLimited,
 )
+from app.services.openmeteo_fetch import MAX_CONCURRENT_BATCHES
 from app.services.ranking import (
     _aligned_aqi,
     _aligned_cloud,
@@ -278,6 +281,78 @@ def _apply_cap(
     # nulls instead of waiting for one (`fill_snow_depth`).
     snow_analysis_date = snodas.fill_snow_depth(destinations)
     return Capped(destinations, total_found, truncated, snow_analysis_date)
+
+
+def _pace_detail(count: int, noun: str, days: int) -> str:
+    """The refusal of an analysis its own batches would shed: what is wrong,
+    and nothing else, in the over-cap refusal's manner (`_cap_detail`)."""
+    return (
+        f"This search covers {count:,} {noun}s over {days:,} days, which is too "
+        "many for one analysis."
+    )
+
+
+def _check_pacing(
+    destinations: list[dict],
+    window: Window,
+    api_key: str | None,
+    noun: str,
+    eager: Eager,
+) -> Refusal | None:
+    """Refuse an unkeyed analysis that the pod's own pacer would shed (#581).
+
+    The weighted pacer sheds any acquire that would wait longer than
+    `UPSTREAM_WEIGHT_MAX_WAIT_S`, and on a long archive window an analysis's
+    OWN batches pass that bound on an idle pod: each costs five weighted calls a
+    day, and the fourth or later batch queues behind the ones before it. It
+    used to spend those first batches and then answer a 503 whose Retry-After
+    no retry could honour. It is refused here instead, before any upstream
+    call, with the most destinations that window CAN take as `limit`.
+
+    The threshold is that existing knob and nothing new: `plan_max_wait_s`
+    runs the analysis's own weights through a scratch copy of the pacer, so the
+    refusal and the shed are one rule and cannot drift. A keyed caller is never
+    refused, because a keyed fetch skips the pacer (#317).
+    """
+    if api_key is not None:
+        return None
+    budget = ratelimit.WEATHER_WEIGHT
+    concurrency = MAX_CONCURRENT_BATCHES * (2 if eager.cloud else 1)
+
+    def fits(n: int) -> bool:
+        plan = weather.planned_weights(
+            n,
+            window.start,
+            window.end,
+            source=window.source,
+            boundary=window.boundary,
+            cloud=eager.cloud,
+        )
+        return budget.plan_max_wait_s(plan, concurrency) <= ratelimit.UPSTREAM_WEIGHT_MAX_WAIT_S
+
+    count = len(destinations)
+    if fits(count):
+        return None
+    # The largest count that fits, by bisection: more destinations never wait
+    # less, so the answer is one edge.
+    lo, hi = 0, count
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if fits(mid):
+            lo = mid
+        else:
+            hi = mid
+    days = (window.end.date() - window.start.date()).days + 1
+    log.info(
+        "Refusing an unkeyed analysis of %d over %d days: it fits %d", count, days, lo
+    )
+    body = AnalysisRefusal(
+        detail=_pace_detail(count, noun, days),
+        error=ApiErrorInfo.for_code(ErrorCode.refusal),
+        found=count,
+        limit=lo,
+    )
+    return Refusal(body.model_dump(mode="json"))
 
 
 def _eager_fetches(request: AnalyzeRequest) -> Eager:

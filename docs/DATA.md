@@ -149,8 +149,13 @@ because a summit stands above the model's terrain; a lake, a trailhead or a
 searched town sits on that terrain, so it keeps the plain 10 m wind, which is
 the real near-ground air there, whether it was found in a ring or clicked on
 the map, and the API keeps the 10 m wind for all of them. The level heights are the standard atmosphere's,
-fixed rather than fetched: real level heights move a few percent with
-weather, less than the model's own terrain error. Two caveats. This is still
+fixed rather than fetched, and that is the larger error here: measured
+2026-10-01 at Rainier on GFS Seamless, the 600 hPa surface stood 127 to 192 m
+above its standard height over three days, where Open-Meteo's terrain height
+sat 12 m under the summit. Read at the summit, the fixed heights put the
+temperature 0.7 to 1.3 °C (1.3 to 2.3 °F) cold. Fetching the real heights
+would add five variables to every request and raise its weight factor from
+1.5 to 2.0. Two caveats. This is still
 a model's free-air wind, not a gust or a summit anemometer, and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
 sample — wind and temperature alike — to the terrain height Open-Meteo resolves

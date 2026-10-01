@@ -218,6 +218,50 @@ async def test_a_real_answer_is_still_cached(monkeypatch):
     assert second == first
 
 
+async def test_a_miscounted_answer_degrades_and_is_not_cached(monkeypatch):
+    # Issue #581: two answers for three locations. The rows are null for this
+    # analysis, as before, but they mean "unknown", so the next analysis asks
+    # again instead of reading "no data" out of the cache for fifteen minutes.
+    one = _hourly(["2026-07-21T00:00"], [80])
+    calls = _stub_openmeteo(monkeypatch, [[one, one], [one, one, one]])
+    assert await fetch_aqi_batch(_dests(3), START, END) == [None] * 3
+
+    results = await fetch_aqi_batch(_dests(3), START, END)
+    assert len(calls) == 2
+    assert [r["aqi_avg"] for r in results] == [80, 80, 80]
+
+
+async def test_a_failed_request_degrades_and_is_not_cached(monkeypatch):
+    # The same rule for a batch the provider failed outright (a 5xx): null for
+    # this analysis, asked again by the next.
+    request = httpx.Request("GET", air_quality.AIR_QUALITY_URL)
+    error = httpx.HTTPStatusError(
+        "502", request=request, response=httpx.Response(502, request=request)
+    )
+    one = _hourly(["2026-07-21T00:00"], [80])
+    calls = _stub_openmeteo(monkeypatch, [error, [one]])
+    assert await fetch_aqi_batch(_dests(1), START, END) == [None]
+
+    results = await fetch_aqi_batch(_dests(1), START, END)
+    assert len(calls) == 2
+    assert results[0]["aqi_avg"] == 80
+
+
+async def test_one_unusable_batch_leaves_its_siblings_cached(monkeypatch):
+    # 60 destinations are two batches. The second answers short; the first is
+    # a real answer and is cached, so the next ask fetches only the second.
+    one = _hourly(["2026-07-21T00:00"], [80])
+    calls = _stub_openmeteo(monkeypatch, [[one] * 50, [one] * 9, [one] * 10])
+    first = await fetch_aqi_batch(_dests(60), START, END)
+    assert first[:50] == [first[0]] * 50 and first[0] is not None
+    assert first[50:] == [None] * 10
+
+    again = await fetch_aqi_batch(_dests(60), START, END)
+    assert len(calls) == 3
+    assert calls[2]["latitude"].count(",") == 9
+    assert None not in again
+
+
 # ── a caller's own API key (issue #317) ────────────────────────────────────
 
 

@@ -29,6 +29,11 @@
             7.0,
             9.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -102,6 +107,11 @@
             7.0,
             9.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -175,6 +185,11 @@
             7.0,
             9.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": null,
@@ -234,6 +249,11 @@
             7.0,
             9.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -281,6 +301,11 @@
           "precipitation": [],
           "temperature_2m": [],
           "wind_speed_10m": []
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": null,
@@ -306,6 +331,11 @@
           "wind_speed_10m": [
             5.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": null,
@@ -339,6 +369,11 @@
             6.0,
             7.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -406,6 +441,11 @@
             7.0,
             9.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -475,6 +515,11 @@
             7.25,
             7.25
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -539,6 +584,11 @@
             20.1,
             20.2
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -603,6 +653,11 @@
             0.0,
             0.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -667,6 +722,11 @@
             0.0,
             0.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -755,6 +815,11 @@
             5.0,
             5.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -870,6 +935,16 @@
             50.0,
             50.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "wind_speed_925hPa": "mp/h",
+          "wind_speed_850hPa": "mp/h",
+          "wind_speed_700hPa": "mp/h",
+          "wind_speed_600hPa": "mp/h",
+          "wind_speed_500hPa": "mp/h"
         }
       },
       "expected_metrics": {
@@ -955,6 +1030,16 @@
             60.0,
             60.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "wind_speed_925hPa": "mp/h",
+          "wind_speed_850hPa": "mp/h",
+          "wind_speed_700hPa": "mp/h",
+          "wind_speed_600hPa": "mp/h",
+          "wind_speed_500hPa": "mp/h"
         }
       },
       "expected_metrics": {
@@ -1040,6 +1125,16 @@
             45.0,
             47.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "wind_speed_925hPa": "mp/h",
+          "wind_speed_850hPa": "mp/h",
+          "wind_speed_700hPa": "mp/h",
+          "wind_speed_600hPa": "mp/h",
+          "wind_speed_500hPa": "mp/h"
         }
       },
       "expected_metrics": {
@@ -1125,6 +1220,16 @@
             6.0,
             6.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "wind_speed_925hPa": "mp/h",
+          "wind_speed_850hPa": "mp/h",
+          "wind_speed_700hPa": "mp/h",
+          "wind_speed_600hPa": "mp/h",
+          "wind_speed_500hPa": "mp/h"
         }
       },
       "expected_metrics": {
@@ -1190,6 +1295,11 @@
             11.0,
             13.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h"
         }
       },
       "expected_metrics": {
@@ -1275,6 +1385,16 @@
             50.0,
             50.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "wind_speed_925hPa": "mp/h",
+          "wind_speed_850hPa": "mp/h",
+          "wind_speed_700hPa": "mp/h",
+          "wind_speed_600hPa": "mp/h",
+          "wind_speed_500hPa": "mp/h"
         }
       },
       "expected_metrics": {
@@ -1360,6 +1480,16 @@
             14.0,
             14.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "temperature_925hPa": "\u00b0F",
+          "temperature_850hPa": "\u00b0F",
+          "temperature_700hPa": "\u00b0F",
+          "temperature_600hPa": "\u00b0F",
+          "temperature_500hPa": "\u00b0F"
         }
       },
       "expected_metrics": {
@@ -1445,6 +1575,16 @@
             10.0,
             10.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "temperature_925hPa": "\u00b0F",
+          "temperature_850hPa": "\u00b0F",
+          "temperature_700hPa": "\u00b0F",
+          "temperature_600hPa": "\u00b0F",
+          "temperature_500hPa": "\u00b0F"
         }
       },
       "expected_metrics": {
@@ -1530,6 +1670,16 @@
             14.0,
             14.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "temperature_925hPa": "\u00b0F",
+          "temperature_850hPa": "\u00b0F",
+          "temperature_700hPa": "\u00b0F",
+          "temperature_600hPa": "\u00b0F",
+          "temperature_500hPa": "\u00b0F"
         }
       },
       "expected_metrics": {
@@ -1615,6 +1765,16 @@
             -1.2,
             -3.4
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "temperature_925hPa": "\u00b0F",
+          "temperature_850hPa": "\u00b0F",
+          "temperature_700hPa": "\u00b0F",
+          "temperature_600hPa": "\u00b0F",
+          "temperature_500hPa": "\u00b0F"
         }
       },
       "expected_metrics": {
@@ -1700,6 +1860,16 @@
             14.0,
             14.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "temperature_925hPa": "\u00b0F",
+          "temperature_850hPa": "\u00b0F",
+          "temperature_700hPa": "\u00b0F",
+          "temperature_600hPa": "\u00b0F",
+          "temperature_500hPa": "\u00b0F"
         }
       },
       "expected_metrics": {
@@ -1785,6 +1955,16 @@
             null,
             null
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "temperature_925hPa": "undefined",
+          "temperature_850hPa": "undefined",
+          "temperature_700hPa": "undefined",
+          "temperature_600hPa": "undefined",
+          "temperature_500hPa": "undefined"
         }
       },
       "expected_metrics": {
@@ -1869,6 +2049,16 @@
             14.0,
             14.0
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "temperature_925hPa": "\u00b0F",
+          "temperature_850hPa": "\u00b0F",
+          "temperature_700hPa": "\u00b0F",
+          "temperature_600hPa": "\u00b0F",
+          "temperature_500hPa": "\u00b0F"
         }
       },
       "expected_metrics": {
@@ -1974,6 +2164,21 @@
             -1.2,
             -0.8
           ]
+        },
+        "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
+          "wind_speed_925hPa": "mp/h",
+          "wind_speed_850hPa": "mp/h",
+          "wind_speed_700hPa": "mp/h",
+          "wind_speed_600hPa": "mp/h",
+          "wind_speed_500hPa": "mp/h",
+          "temperature_925hPa": "\u00b0F",
+          "temperature_850hPa": "\u00b0F",
+          "temperature_700hPa": "\u00b0F",
+          "temperature_600hPa": "\u00b0F",
+          "temperature_500hPa": "\u00b0F"
         }
       },
       "expected_metrics": {
@@ -2049,6 +2254,9 @@
           ]
         },
         "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
           "freezing_level_height": "m"
         }
       },
@@ -2130,6 +2338,9 @@
           ]
         },
         "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
           "freezing_level_height": "ft"
         }
       },
@@ -2211,6 +2422,9 @@
           ]
         },
         "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
           "freezing_level_height": "m"
         }
       },
@@ -2292,6 +2506,9 @@
           ]
         },
         "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
           "freezing_level_height": "m"
         }
       },
@@ -2368,6 +2585,9 @@
           ]
         },
         "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
           "freezing_level_height": "m"
         }
       },
@@ -2439,6 +2659,9 @@
           ]
         },
         "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
           "freezing_level_height": "m"
         }
       },
@@ -2513,6 +2736,9 @@
           ]
         },
         "hourly_units": {
+          "precipitation": "inch",
+          "temperature_2m": "\u00b0F",
+          "wind_speed_10m": "mp/h",
           "freezing_level_height": "m"
         }
       },
@@ -2860,6 +3086,10 @@
             30.0,
             30.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -2947,6 +3177,10 @@
             100.0,
             100.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3024,6 +3258,10 @@
             96.0,
             98.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3123,6 +3361,10 @@
             30.0,
             30.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3185,6 +3427,10 @@
             1.0,
             1.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3276,10 +3522,10 @@
           ]
         },
         "hourly_units": {
-          "cloud_cover": "%",
-          "relative_humidity_2m": "%",
           "temperature_2m": "\u00b0C",
           "dew_point_2m": "\u00b0C",
+          "cloud_cover": "%",
+          "relative_humidity_2m": "%",
           "relative_humidity_1000hPa": "undefined",
           "relative_humidity_925hPa": "undefined",
           "relative_humidity_850hPa": "undefined",
@@ -3349,6 +3595,10 @@
           "relative_humidity_700hPa": [
             99.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3403,6 +3653,10 @@
             99.0,
             99.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3472,6 +3726,10 @@
             50.0,
             50.0
           ]
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": {
@@ -3514,6 +3772,10 @@
           "relative_humidity_2m": [],
           "temperature_2m": [],
           "dew_point_2m": []
+        },
+        "hourly_units": {
+          "temperature_2m": "\u00b0C",
+          "dew_point_2m": "\u00b0C"
         }
       },
       "expected_metrics": null,

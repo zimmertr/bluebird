@@ -93,3 +93,6 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0070](0070-table-rank-is-the-ranking.md) | The table's # and the CSV's Rank keep the ranking's rank after a header sort | 2026-10-01 | Accepted | Frontend: `useTableView.ts` |
 | [0071](0071-analyze-frames-rows-off-screen.md) | A committed report moves the map only when none of its rows is in view | 2026-10-01 | Accepted | Frontend: `mapFraming.ts` |
 | [0072](0072-browser-joins-spans-at-local-midnight.md) | The browser joins a spanning window's two fetches at the reader's local midnight, not at the UTC boundary | 2026-10-01 | Accepted | Root: Key constraints; mirror row 11 |
+| [0073](0073-click-reads-tile-feet.md) | A clicked summit takes its elevation from the tile's own feet | 2026-10-01 | Accepted | Frontend: `basemapPoi.ts` |
+| [0074](0074-refuse-what-the-pacer-would-shed.md) | An unkeyed analysis that its own batches would shed is refused before it spends | 2026-10-01 | Accepted | Backend: `routes/analyze/phases.py` |
+| [0075](0075-pacer-sliding-window.md) | The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log | 2026-10-01 | Accepted | Backend: `app/ratelimit/`; Frontend: `openMeteo.ts` |

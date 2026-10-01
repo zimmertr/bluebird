@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, NamedTuple
@@ -23,10 +22,11 @@ from app.services.aggregation import (
 )
 from app.services.errors import (
     ModelCoverageError,
-    UpstreamRateLimited,
+    UpstreamError,
     is_out_of_domain,
 )
 from app.services.openmeteo_fetch import (
+    BATCH_SIZE,
     PaceCallback,
     Pacing,
     ProgressCallback,
@@ -136,6 +136,52 @@ def _fetch_spans(
 
 
 
+def _span_weights(n_locations: int, spans: list[_Span], n_variables: int) -> list[float]:
+    """One weight per request a batch makes: one per span, each on its own hours.
+
+    The model count is spelled here rather than defaulted, because this service
+    is where `models=` is built: a request that ever names more than one model
+    returns a series per model and costs that multiple, so the two must move
+    together.
+    """
+    return [
+        call_weight(
+            n_locations, span.start.date(), span.end.date(), n_variables, n_models=1
+        )
+        for span in spans
+    ]
+
+
+def planned_weights(
+    n_destinations: int,
+    start_dt: datetime,
+    end_dt: datetime,
+    *,
+    source: WindowSource,
+    boundary: datetime | None,
+    cloud: bool,
+) -> list[list[float]]:
+    """What an unkeyed analysis of this size will ask the weather pacer for.
+
+    One entry per batch, in the order `fetch_batched` sends them, each the
+    weights of that batch's requests: the weather batches, and when `cloud` is
+    set the cloud batches beside them, because both spend the weather quota
+    and run at once. Priced exactly as the fetches price themselves, so a plan
+    that clears is a fetch that clears. Every destination is counted, cached
+    or not: the plan has to be the same answer on every retry.
+    """
+    spans = _fetch_spans(source, start_dt, end_dt, boundary)
+    sizes = [
+        min(BATCH_SIZE, n_destinations - i) for i in range(0, n_destinations, BATCH_SIZE)
+    ]
+    plan: list[list[float]] = []
+    for size in sizes:
+        plan.append(_span_weights(size, spans, N_VARIABLES))
+        if cloud:
+            plan.append(_span_weights(size, spans, N_CLOUD_VARIABLES))
+    return plan
+
+
 async def fetch_weather_batch(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
@@ -195,21 +241,7 @@ async def fetch_weather_batch(
         # is two requests and two answers, so it spends twice, and pricing it on
         # the whole window would bill the archive's months for the forecast
         # half's days as well.
-        #
-        # The model count is spelled here rather than defaulted, because this
-        # service is where `models=` is built: a request that ever names more
-        # than one model returns a series per model and costs that multiple, so
-        # the two must move together.
-        return [
-            call_weight(
-                len(chunk),
-                span.start.date(),
-                span.end.date(),
-                N_VARIABLES,
-                n_models=1,
-            )
-            for span in spans
-        ]
+        return _span_weights(len(chunk), spans, N_VARIABLES)
 
     return await fetch_batched(
         destinations,
@@ -223,6 +255,7 @@ async def fetch_weather_batch(
         if api_key is not None
         else Pacing(ratelimit.WEATHER_WEIGHT, weights, on_pace),
         on_error="raise",
+        resume_minutely=True,
         on_progress=on_progress,
     )
 
@@ -269,16 +302,7 @@ async def fetch_cloud_batch(
         )
 
     def weights(chunk: list[dict[str, Any]]) -> list[float]:
-        return [
-            call_weight(
-                len(chunk),
-                span.start.date(),
-                span.end.date(),
-                N_CLOUD_VARIABLES,
-                n_models=1,
-            )
-            for span in spans
-        ]
+        return _span_weights(len(chunk), spans, N_CLOUD_VARIABLES)
 
     return await fetch_batched(
         destinations,
@@ -294,6 +318,7 @@ async def fetch_cloud_batch(
         if api_key is not None
         else Pacing(ratelimit.WEATHER_WEIGHT, weights),
         on_error="raise",
+        resume_minutely=True,
     )
 
 
@@ -314,8 +339,9 @@ async def _fetch_cloud_chunk(
         )
         for span in spans
     ]
+    _check_counts(per_span, destinations)
     results: list[dict[str, Any] | None] = []
-    for dest, parts in zip(destinations, zip(*per_span, strict=False), strict=False):
+    for dest, parts in zip(destinations, zip(*per_span, strict=True), strict=True):
         elevation_ft = dest.get("elevation_ft")
         item = _join_hours(parts, CLOUD_JOIN_KEYS)
         m = _cloud_metrics(item, start_dt, end_dt, elevation_ft)
@@ -353,10 +379,9 @@ async def _fetch_chunk(
         for span in spans
     ]
 
+    _check_counts(per_span, destinations)
     results: list[dict[str, Any] | None] = []
-    # zip truncates to the shortest, which is the tolerance this loop has always
-    # had for a host returning fewer locations than were asked about.
-    for dest, parts in zip(destinations, zip(*per_span, strict=False), strict=False):
+    for dest, parts in zip(destinations, zip(*per_span, strict=True), strict=True):
         elevation_ft = dest.get("elevation_ft")
         item = _join_hours(parts)
         m = _weather_metrics(item, start_dt, end_dt, elevation_ft)
@@ -373,6 +398,30 @@ async def _fetch_chunk(
 def _as_items(data: Any) -> list[dict[str, Any]]:
     """Open-Meteo's two response shapes as one: a single location answers an object."""
     return data if isinstance(data, list) else [data]
+
+
+def _check_counts(
+    per_span: list[list[dict[str, Any]]], destinations: list[dict[str, Any]]
+) -> None:
+    """Refuse a batch that answered for a different number of locations.
+
+    Rows are matched to destinations by position, so one location missing from
+    the answer would move every row after it onto the wrong destination, and
+    the cache would serve that shift for its whole TTL. The batch fails rather
+    than coming back as null rows, because a null row is cached as "no data"
+    for the same TTL; the browser throws here for the same reason
+    (`OpenMeteoBadBody` in `openMeteo.ts`).
+    """
+    for items in per_span:
+        if len(items) != len(destinations):
+            log.warning(
+                "Open-Meteo returned %d result(s) for %d location(s)",
+                len(items),
+                len(destinations),
+            )
+            # The sentence `classify_http_error` gives any other unusable
+            # Open-Meteo response, which is what the browser shows here too.
+            raise UpstreamError(f"{PROVIDER} request failed. Try again later.")
 
 
 async def _fetch_span(
@@ -432,36 +481,20 @@ async def _fetch_span(
         url = CUSTOMER_ARCHIVE_URL if archive else CUSTOMER_FORECAST_URL
         params["apikey"] = api_key
 
-    guard = _coverage_guard(model)
-
-    async def attempt() -> Any:
-        return await request_openmeteo(
-            http.client(),
-            url,
-            params,
-            service="weather",
-            provider=PROVIDER,
-            api_key=api_key,
-            on_error="raise",
-            on_status_error=guard,
-        )
-
-    try:
-        return await attempt()
-    except UpstreamRateLimited as exc:
-        # One automatic resume for a minutely 429: that quota refills within the
-        # minute, so a single paced retry usually completes the batch instead of
-        # failing the whole analysis. Hourly/daily exhaustion raises immediately
-        # — no wait we are willing to impose can help those.
-        if exc.scope != "minutely":
-            raise
-        log.warning(
-            "Open-Meteo minutely quota hit; resuming batch in %ds", exc.retry_after_s
-        )
-        await asyncio.sleep(exc.retry_after_s)
-    # The one resume. A second 429 on the same batch is real exhaustion and
-    # raises from here, minutely or not.
-    return await attempt()
+    # A 429 leaves here. The one automatic resume of a minutely 429 is
+    # `fetch_batched`'s (`resume_minutely=True` above), because the batch has
+    # to wait outside its in-flight slot and pay its weight again before it
+    # asks again, and only that loop holds either.
+    return await request_openmeteo(
+        http.client(),
+        url,
+        params,
+        service="weather",
+        provider=PROVIDER,
+        api_key=api_key,
+        on_error="raise",
+        on_status_error=_coverage_guard(model),
+    )
 
 
 def _coverage_guard(model: ForecastModel) -> StatusErrorHook:

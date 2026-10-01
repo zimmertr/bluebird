@@ -292,7 +292,7 @@ release.
 | Provider | Called by | From | Policy | Governor |
 | --- | --- | --- | --- | --- |
 | [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (`overpass-api.de`, `maps.mail.ru`) | backend (`services/osm/`), 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste), 2-mirror failover | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
-| [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for unkeyed API callers | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a rolling ~550 weighted/min pacer on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
+| [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for unkeyed API callers | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a pacer that spends at most ~550 weighted calls in any 60 seconds on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod, held the same way to any 60 seconds — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths. The **browser** fetches AQI for the whole field alongside the weather, because air quality is metered as its own per-visitor quota and an AQI ranking must be a live knob; the **server** path fetches it lazily, for the displayed rows only, unless the ranking key or a bound is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
 | [Open-Meteo archive](https://open-meteo.com/en/docs/historical-weather-api) (`archive-api.open-meteo.com`, and `customer-archive-api` for a keyed caller) | the same two callers as the row above, for a window older than `limits.past_data_days` (issue #123). A window that crosses that boundary is fetched from both, one request per endpoint per batch, so it costs two calls where an ordinary window costs one | same split | same weighted accounting, and the same quota the forecast endpoint spends | identical to the row above: the same pacer, the same in-flight cap, and the same 15-min per-location cache, which keys on WHICH endpoint answered so the two cannot serve each other's rows |
 | [Open-Meteo forecast, customer host](https://open-meteo.com) (`customer-api.open-meteo.com`) | backend (`weather.py`) for an API caller that sent `X-Open-Meteo-Key`, same batching and cache as the free host | cluster egress IP, but the quota owner is the **caller** | the key's own plan, whatever the caller bought | no weighted pacer, because the pod's budget meters the pod's quota and this spends the caller's. The in-flight cap of 4 and the per-client analyze bucket still apply, and so does the 15-min per-location cache, which is shared with the free-tier path |
@@ -394,10 +394,13 @@ One analysis at the candidate cap (`limits.max_destinations`; 1,500 when this
 was written) over the full 16-day window costs ~2,570 weighted weather calls
 from the browser (1,500 × 16/14 × 1.5), against a 600/minute/IP budget — call
 it **~4 minutes of paced fetching, worst case**, narrated in the UI with a
-countdown. On the browser path a further ~1,710 weighted calls are spent on air
-quality (one variable, so the variable factor stays 1), against the separately
-metered air-quality quota, fetched concurrently so the two waits overlap rather
-than stack; on the server path AQI is lazy and costs at most the `limit`. A repeat of the same analysis inside the cache TTL
+countdown. On the browser path a further ~1,500 weighted calls are spent on air
+quality (1,500 × 1 × 1: one variable, so the variable factor stays 1, and the
+request is clamped to the air-quality horizon, `limits.aqi_forecast_days`,
+which is shorter than 14 days, so the day factor stays 1 as well), against the
+separately metered air-quality quota, fetched concurrently so the two waits
+overlap rather than stack; on the server path AQI is lazy and costs at most the
+`limit`. A repeat of the same analysis inside the cache TTL
 costs ~0. For a browser analysis all of that lands on the visitor's own IP
 and the server pays 1 Overpass query (or 0, within the 10-minute discovery
 cache). The full spend lands on the cluster egress IP only for a direct API
@@ -408,7 +411,7 @@ pod's budget untouched.
 
 The forecast grid overlay adds at most one more fan-out to that, on the
 visitor's own IP and only while the layer is on: 600 cells over the full
-16-day window is ~1,030 weighted calls for weather and ~686 for air quality,
+16-day window is ~1,030 weighted calls for weather and ~600 for air quality,
 which the same pacer spreads over roughly a further two minutes *after* the
 ranking has landed. It is
 never on the critical path — the fetch starts when the report commits — so

@@ -56,6 +56,33 @@ def test_suggest_floor_impossible_when_unknowns_exceed_cap():
     assert _suggest_elevation_floor(_dests([None, None, None, 1000]), cap=2) is None
 
 
+def test_suggest_floor_steps_past_a_tie_at_a_round_threshold():
+    # Issue #581: rows tied AT the round floor all pass it, so the floor that
+    # was meant to keep eight kept thirteen. One step of 100 ft clears the tie.
+    floor = _suggest_elevation_floor(_dests([5200] * 3 + [5000] * 10), cap=8)
+    assert floor == (5100, 3)
+
+
+def test_suggest_floor_gives_up_when_the_tie_is_every_summit():
+    # The review's sample: fifteen at 5,000 ft with room for eight. The only
+    # floor that fits keeps nothing with a known elevation, which is no remedy.
+    assert _suggest_elevation_floor(_dests([5000] * 15), cap=8) is None
+
+
+def test_suggest_floor_never_keeps_more_than_the_cap():
+    for elevations, cap in [
+        ([5000] * 15, 8),
+        ([5000] * 9 + [6000] * 3, 8),
+        ([None, None] + [4000] * 6 + [4100] * 4, 6),
+        ([4999.6] * 4 + [5000] * 5, 4),
+    ]:
+        floor = _suggest_elevation_floor(_dests(elevations), cap=cap)
+        if floor is not None:
+            floor_ft, keeps = floor
+            assert keeps <= cap
+            assert keeps == sum(1 for e in elevations if e is None or e >= floor_ft)
+
+
 def test_truncate_top_elevation_drops_unknowns_first():
     kept = _truncate_top_elevation(_dests([None, 1000, 5000, 3000]), cap=2)
     assert [d["elevation_ft"] for d in kept] == [5000, 3000]

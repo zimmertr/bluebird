@@ -11,7 +11,13 @@ import {
   resetOpenMeteoState,
   terrainFallbackFor,
 } from './openMeteo'
-import { CLOUD_VARIABLES, weatherMetrics, weatherSeries } from './openMeteoAggregate'
+import {
+  CLOUD_VARIABLES,
+  cloudMetrics,
+  cloudSeries,
+  weatherMetrics,
+  weatherSeries,
+} from './openMeteoAggregate'
 import {
   BAD_BODY_MESSAGE,
   COVERAGE_PHRASE,
@@ -24,6 +30,7 @@ import {
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { archiveBoundaryMs, windowSource } from './forecastWindow'
+import { CLOUD_UNITS, WEATHER_UNITS } from '../testSupport/fixtures'
 // `?raw` gives a file's text without executing it, the drift-guard idiom
 // `styles.test.ts` and `metrics.test.ts` use. Both surfaces that say the
 // model-coverage sentence compose it inside a React hook, which a node-env
@@ -62,7 +69,7 @@ function rainierPayload(freeze: (number | null)[], unit: string | null) {
       wind_speed_10m: [10.0],
       freezing_level_height: freeze,
     },
-    ...(unit === null ? {} : { hourly_units: { freezing_level_height: unit } }),
+    hourly_units: { ...WEATHER_UNITS, ...(unit === null ? {} : { freezing_level_height: unit }) },
   }
 }
 
@@ -136,6 +143,104 @@ describe('freezing level unit', () => {
   })
 })
 
+// The cloud request's 2 m pair (#581): no unit parameters are sent, so it is
+// Celsius, "°C" (measured 2026-10-01). Espy's rule is stated per degree
+// Celsius, so a pair in Fahrenheit would stretch the parcel base by 1.8.
+describe('cloud units', () => {
+  const payload = (units: Record<string, string> | undefined) => ({
+    ...(units ? { hourly_units: units } : {}),
+    hourly: {
+      time: ['2026-07-21T00:00'],
+      cloud_cover: [40],
+      relative_humidity_2m: [70],
+      temperature_2m: [12],
+      dew_point_2m: [4],
+    },
+  })
+  const startMs = Date.parse('2026-07-21T00:00:00Z')
+  const endMs = Date.parse('2026-07-21T00:01:00Z')
+
+  it('lets the measured units through', () => {
+    expect(cloudMetrics(payload(CLOUD_UNITS) as never, startMs, endMs, 2000)?.cloud_cover_avg_pct).toBe(40)
+  })
+
+  it.each(['temperature_2m', 'dew_point_2m'])('fails the batch on %s in Fahrenheit', (column) => {
+    const p = payload({ ...CLOUD_UNITS, [column]: '°F' })
+    expect(() => cloudMetrics(p as never, startMs, endMs, 2000)).toThrow(OpenMeteoBadBody)
+    expect(() => cloudSeries(p as never, startMs, endMs, 2000)).toThrow(OpenMeteoBadBody)
+  })
+
+  it('fails when the pair carries numbers and declares no unit', () => {
+    expect(() => cloudMetrics(payload(undefined) as never, startMs, endMs, 2000)).toThrow(
+      OpenMeteoBadBody,
+    )
+  })
+})
+
+// The other weather units (#581). Every request asks for inches, Fahrenheit
+// and mph, and Open-Meteo writes them back as "inch", "°F" and "mp/h"
+// (measured 2026-10-01 on all eight models and the archive). A number in any
+// other unit would rank as one of those, so it fails the batch the way an
+// unreadable freezing level does. Port of the backend's tests in test_weather.py.
+describe('weather units', () => {
+  const LEVELS = [925, 850, 700, 600, 500]
+  function declared(overrides: Record<string, string | undefined> = {}) {
+    const payload = rainierPayload([null], null)
+    Object.assign(payload.hourly, {
+      ...Object.fromEntries(LEVELS.map((p) => [`wind_speed_${p}hPa`, [40.0]])),
+      ...Object.fromEntries(LEVELS.map((p) => [`temperature_${p}hPa`, [20.0]])),
+    })
+    return { ...payload, hourly_units: { ...payload.hourly_units, ...overrides } }
+  }
+  const metrics = (payload: unknown) =>
+    weatherMetrics(payload as never, RAINIER_WINDOW.startMs, RAINIER_WINDOW.endMs)
+  const seriesOf = (payload: unknown) =>
+    weatherSeries(payload as never, RAINIER_WINDOW.startMs, RAINIER_WINDOW.endMs)
+
+  it('lets the measured units through', () => {
+    expect(metrics(declared())?.precip_total_in).toBe(0)
+  })
+
+  it.each([
+    ['precipitation', 'mm'],
+    ['temperature_2m', '°C'],
+    ['wind_speed_10m', 'km/h'],
+    ['wind_speed_700hPa', 'km/h'],
+    ['temperature_600hPa', '°C'],
+  ])('fails the batch on %s in %s', (column, unit) => {
+    const payload = declared({ [column]: unit })
+    expect(() => metrics(payload)).toThrow(OpenMeteoBadBody)
+    expect(() => seriesOf(payload)).toThrow('Open-Meteo request failed. Try again later.')
+  })
+
+  it('fails when a column carries numbers and declares no unit', () => {
+    const { hourly } = declared()
+    expect(() => metrics({ hourly })).toThrow(OpenMeteoBadBody)
+  })
+
+  it('needs no unit for a column of nulls the archive calls "undefined"', () => {
+    const payload = rainierPayload([null], null)
+    Object.assign(payload.hourly, {
+      ...Object.fromEntries(LEVELS.map((p) => [`wind_speed_${p}hPa`, [null]])),
+    })
+    const units = Object.fromEntries(LEVELS.map((p) => [`wind_speed_${p}hPa`, 'undefined']))
+    const archive = { ...payload, hourly_units: { ...payload.hourly_units, ...units } }
+    expect(metrics(archive)?.wind_min_mph).toBe(10)
+  })
+
+  it('fails the analysis on a batch in another unit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse([{ ...hourlyPayload(), hourly_units: { ...WEATHER_UNITS, precipitation: 'mm' } }]),
+      ),
+    )
+    await expect(
+      fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, OPTS),
+    ).rejects.toBeInstanceOf(OpenMeteoBadBody)
+  })
+})
+
 // ── Fetch orchestration ────────────────────────────────────────────────────
 
 const WINDOW = {
@@ -145,6 +250,7 @@ const WINDOW = {
 
 function hourlyPayload() {
   return {
+    hourly_units: WEATHER_UNITS,
     hourly: {
       time: ['2026-07-21T00:00', '2026-07-21T01:00'],
       precipitation: [0.1, 0.2],
@@ -499,6 +605,73 @@ describe('fetchWeather', () => {
       const out = await pending
       expect(fetchSpy).toHaveBeenCalledTimes(2)
       expect(out[0]?.precip_total_in).toBe(0.3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('pays its weight again for the resumed request (#581)', async () => {
+    // Open-Meteo bills the repeated request like any other. 300 places are six
+    // batches of 75 weighted calls; the resume makes it seven, 525 of the 550
+    // budget, so a further 75 straight after must wait. Unpaid, the pacer
+    // believed 450 were spent and let it through at once.
+    vi.useFakeTimers()
+    try {
+      let first = true
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          if (first) {
+            first = false
+            return {
+              ok: false,
+              status: 429,
+              headers: { get: (h: string) => (h === 'Retry-After' ? '1' : null) },
+              json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
+            }
+          }
+          const count = new URL(url).searchParams.get('latitude')!.split(',').length
+          return jsonResponse(Array.from({ length: count }, hourlyPayload))
+        }),
+      )
+      const places = (n: number, lon: number) =>
+        Array.from({ length: n }, (_, i) => ({ latitude: i / 1000, longitude: lon }))
+      const resumed = fetchWeather(places(300, 0), WINDOW.startMs, WINDOW.endMs, OPTS)
+      await vi.advanceTimersByTimeAsync(1_100)
+      await resumed
+      const onPace = vi.fn()
+      const next = fetchWeather(places(50, 1), WINDOW.startMs, WINDOW.endMs, { ...OPTS, onPace })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(onPace).toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(120_000)
+      await next
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('caps the resume at a minute whatever Retry-After says (#581)', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 429,
+          headers: { get: (h: string) => (h === 'Retry-After' ? '3600' : null) },
+          json: async () => ({ error: true, reason: 'Minutely API request limit exceeded.' }),
+        })
+        .mockResolvedValueOnce(jsonResponse(hourlyPayload()))
+      vi.stubGlobal('fetch', fetchSpy)
+      const onPace = vi.fn()
+      const pending = fetchWeather([{ latitude: 0, longitude: 0 }], WINDOW.startMs, WINDOW.endMs, {
+        ...OPTS,
+        onPace,
+      })
+      await vi.advanceTimersByTimeAsync(60_100)
+      await pending
+      expect(onPace).toHaveBeenCalledWith(60)
+      expect(fetchSpy).toHaveBeenCalledTimes(2)
     } finally {
       vi.useRealTimers()
     }
@@ -894,6 +1067,12 @@ describe('a window older than the forecast endpoint holds', () => {
 
   function archivePayload() {
     return {
+      // The archive declares the levels it does not serve as "undefined"
+      // (measured 2026-10-01), beside the columns of nulls below.
+      hourly_units: {
+        ...WEATHER_UNITS,
+        ...Object.fromEntries([925, 850, 700, 600, 500].map((p) => [`wind_speed_${p}hPa`, 'undefined'])),
+      },
       hourly: {
         time: ['2026-01-02T00:00', '2026-01-02T01:00'],
         precipitation: [0.1, 0.2],
@@ -994,7 +1173,7 @@ describe('a window that crosses the archive boundary', () => {
 
   function half(times: string[], precip: number[]) {
     return {
-      hourly_units: { precipitation: 'inch' },
+      hourly_units: WEATHER_UNITS,
       hourly: {
         time: times,
         precipitation: precip,
@@ -1072,7 +1251,7 @@ describe('a window that crosses the archive boundary', () => {
   it('drops a location whose halves disagree on units', async () => {
     // A total of inches and millimetres is a number with no meaning, so the row
     // degrades to no forecast the way every unreadable payload does.
-    const bodies = [archiveHalf(), { ...forecastHalf(), hourly_units: { precipitation: 'mm' } }]
+    const bodies = [archiveHalf(), { ...forecastHalf(), hourly_units: { ...WEATHER_UNITS, precipitation: 'mm' } }]
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
     const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
 
@@ -1084,8 +1263,8 @@ describe('a window that crosses the archive boundary', () => {
     // pressure-level wind it does not serve, where the forecast endpoint says
     // "mp/h". A column one side does not have is not a disagreement.
     const bodies = [
-      { ...archiveHalf(), hourly_units: { precipitation: 'inch', wind_speed_500hPa: 'undefined' } },
-      { ...forecastHalf(), hourly_units: { precipitation: 'inch', wind_speed_500hPa: 'mp/h' } },
+      { ...archiveHalf(), hourly_units: { ...WEATHER_UNITS, wind_speed_500hPa: 'undefined' } },
+      { ...forecastHalf(), hourly_units: { ...WEATHER_UNITS, wind_speed_500hPa: 'mp/h' } },
     ]
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(bodies.shift())))
     const out = await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
@@ -1102,11 +1281,11 @@ describe('a window that crosses the archive boundary', () => {
     const forecast = forecastHalf()
     const bodies = [
       {
-        hourly_units: { precipitation: 'inch', freezing_level_height: 'undefined' },
+        hourly_units: { ...WEATHER_UNITS, freezing_level_height: 'undefined' },
         hourly: { ...archive.hourly, freezing_level_height: [null, null] },
       },
       {
-        hourly_units: { precipitation: 'inch', freezing_level_height: 'ft' },
+        hourly_units: { ...WEATHER_UNITS, freezing_level_height: 'ft' },
         hourly: { ...forecast.hourly, freezing_level_height: [8000, 9000] },
       },
     ]
@@ -1208,6 +1387,7 @@ describe('fetchCloud', () => {
   const endMs = Date.parse('2026-07-21T01:00:00Z')
   const body = (n: number) =>
     Array.from({ length: n }, () => ({
+      hourly_units: CLOUD_UNITS,
       hourly: {
         time: ['2026-07-21T00:00', '2026-07-21T01:00'],
         cloud_cover: [40, 60],
@@ -1368,11 +1548,12 @@ describe('fetchAqi pacing', () => {
   // The analysis awaits air quality before it ranks, so a silent sleep in its
   // pacer froze the overlay at the end of an analysis with nothing said.
 
-  // 50 locations over a 201-day window: 50 x 201/14 = 717.9 weighted calls
-  // against a full bucket of 550, so 167.9 short, which the bucket refills in
-  // 167.9/550 x 60 s = 18.3 s.
-  const LONG = { startMs: NOW_MS - 200 * 86_400_000, endMs: NOW_MS }
+  // 50 locations over a 100-day window: 50 x 100/14 = 357.1 weighted calls a
+  // batch. Two batches are 714.3 against 550 in any minute, so the second is
+  // booked when the first leaves the window, 60 s later.
+  const LONG = { startMs: NOW_MS - 99 * 86_400_000, endMs: NOW_MS }
   const FIFTY = Array.from({ length: 50 }, (_, i) => ({ latitude: i / 100, longitude: 0 }))
+  const HUNDRED = Array.from({ length: 100 }, (_, i) => ({ latitude: i / 100, longitude: 1 }))
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -1386,11 +1567,43 @@ describe('fetchAqi pacing', () => {
   it('reports a deficit in its own budget through onPace', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
     const onPace = vi.fn()
-    const pending = fetchAqi(FIFTY, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
+    const pending = fetchAqi(HUNDRED, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
 
     await vi.advanceTimersByTimeAsync(0)
-    expect(onPace).toHaveBeenCalledExactlyOnceWith(19)
-    await vi.advanceTimersByTimeAsync(19_000)
+    expect(onPace).toHaveBeenCalledExactlyOnceWith(60)
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(pending).resolves.toHaveLength(100)
+  })
+
+  it('prices the hours it asks for, not the window it was handed (#581)', async () => {
+    // A 31-day window reaching past the air-quality horizon asks for its first
+    // six days only. Priced on those, eleven batches of 50 are 550, which is
+    // one minute's budget and no wait; priced on all 31 days they were 1,218,
+    // and the last batches waited out a minute for spend that never happened.
+    const many = Array.from({ length: 550 }, (_, i) => ({ latitude: i / 1000, longitude: 2 }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
+    const onPace = vi.fn()
+    const pending = fetchAqi(many, NOW_MS, NOW_MS + 30 * 86_400_000, { nowMs: NOW_MS, onPace })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onPace).not.toHaveBeenCalled()
+    await expect(pending).resolves.toHaveLength(550)
+  })
+
+  it('spends no more than a minute of budget in any minute (#581)', async () => {
+    // The token bucket this replaced started full and refilled at the full
+    // rate, so after spending its 550 at once it let the next 50 go in 5.5 s:
+    // 600 in six seconds, and 1,100 in the first minute. The next batch now
+    // waits for the first minute's spend to leave the window.
+    const many = Array.from({ length: 550 }, (_, i) => ({ latitude: i / 1000, longitude: 3 }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
+    await fetchAqi(many, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
+    const onPace = vi.fn()
+    const pending = fetchAqi(FIFTY, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS, onPace })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onPace).toHaveBeenCalledExactlyOnceWith(60)
+    await vi.advanceTimersByTimeAsync(60_000)
     await expect(pending).resolves.toHaveLength(50)
   })
 
