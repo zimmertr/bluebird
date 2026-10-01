@@ -303,6 +303,16 @@ self-hosted instance would keep the defect.
 | An error under `/assets/` | `no-cache` | A cached `404` for a year outlasts the release that would have corrected it. |
 | `GET /api/capabilities` | `public, max-age=60` | Every visitor fetches it once on load, and it answers the same bytes to all of them until a deploy changes a constant ([#337](https://github.com/zimmertr/bluebird/issues/337)). Staleness costs nothing: the numbers only bound what a client offers, the server enforces the real ones on every request, and a client that cannot fetch it at all falls back to compiled constants ([#152](https://github.com/zimmertr/bluebird/issues/152)). |
 
+`no-cache` fixes the next page load and nothing before it. A tab that loaded
+the old document still asks for the old chunk names when it first reaches a
+lazy surface (the chart, the tour, or the tour's demonstration report), and
+the new image answers `404`. `frontend/src/staleChunk.ts` listens for the
+event Vite raises on that failure and reloads the page once, so the tab picks
+up the new document; the URL carries the inputs, so the reload loses only what
+the URL does not. A session reloads at most once per build, so a build whose
+own chunk is missing falls through to the error screen rather than reloading
+forever. Record: [0087](decisions/0087-stale-tab-reloads-once.md)
+
 The middleware sets the header only where the response has none, so a route
 keeps a value of its own. `GET /api/capabilities` is the one route that takes
 that up. `GET /api/version` deliberately does not: the SPA never calls it, so
