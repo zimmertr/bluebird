@@ -248,6 +248,28 @@ describe('the license the terms name', () => {
   })
 })
 
+// The license file the image builds (#571) is only a notice if a reader can
+// find it. The terms page is where a license question goes, so it links the
+// file from the paragraph that names Bluebird Forecast's own license, through
+// the shared link role like every other link on the page.
+describe('the third-party software notices', () => {
+  it('are linked from the terms', () => {
+    const text = copy(termsPage).replace(/\s+/g, ' ')
+
+    expect(text).toMatch(
+      /Bluebird Forecast is built on open-source software, and each package keeps its own license\. The full texts are in the/,
+    )
+    expect(text).toMatch(
+      /<a href="\/third-party-licenses\.txt" className=\{LINK\}> third-party licenses <\/a>/,
+    )
+  })
+
+  // The paragraph changed what the terms say, so the date beneath them moves.
+  it('date the terms to the change that added them', () => {
+    expect(termsPage).toMatch(/Last updated 1 October 2026\./)
+  })
+})
+
 describe('the privacy copy', () => {
   // #169 keyed rate limiting on client address, which made "server logs are
   // used only for debugging" incomplete for as long as it took someone to

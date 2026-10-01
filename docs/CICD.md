@@ -1015,7 +1015,14 @@ flowchart LR
   a Critical/High is one composite action, **`.github/actions/trivy-crit-high`**,
   called by this job and by `image-scan.yml`: both workflows once spelled the
   same `jq` filter, so a filter corrected in one could keep admitting images in
-  the other.
+  the other. The same job then runs the image and **smoke tests** what only a
+  built image can show: the build arguments reach `/api/version`, Swagger UI is
+  served from the image, and the license notices ship (#571):
+  `/third-party-licenses.txt` and `/swagger-ui/swagger-ui-bundle.js.LICENSE.txt`
+  answer, the first names every direct dependency in `frontend/package.json`
+  and `backend/requirements.txt`, and `/app/LICENSE` is in the image. The
+  build itself fails before that when a bundled or installed package has no
+  license text, so this job is where a missing notice turns a PR red.
 - `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, rebuilds from
   that job's warm Actions cache, serves the real image, and audits `/` three
   times with **Lighthouse CI**. It fails the PR when the first screen crosses a

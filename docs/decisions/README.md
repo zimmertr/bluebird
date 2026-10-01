@@ -2,7 +2,7 @@
 
 One file for each design decision: what was decided, when, who decided, and the evidence that settled it. A record sits beside the guide paragraph that states the rule today and does not replace it. The guide tells a session what to do. The record keeps why, and since when.
 
-The guide is the `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, [`backend/CLAUDE.md`](../../backend/CLAUDE.md), [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), and one for each of [`utils/`](../../frontend/src/utils/CLAUDE.md), [`components/`](../../frontend/src/components/CLAUDE.md), [`hooks/`](../../frontend/src/hooks/CLAUDE.md) and [`map/`](../../frontend/src/map/CLAUDE.md) under it. Each guide paragraph that a record explains ends with a link to it.
+The guide is the `CLAUDE.md` files: [`CLAUDE.md`](../../CLAUDE.md) at the root, [`backend/CLAUDE.md`](../../backend/CLAUDE.md), [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), and one for each of [`utils/`](../../frontend/src/utils/CLAUDE.md), [`components/`](../../frontend/src/components/CLAUDE.md), [`hooks/`](../../frontend/src/hooks/CLAUDE.md) and [`map/`](../../frontend/src/map/CLAUDE.md) under it, and [`frontend/plugins/CLAUDE.md`](../../frontend/plugins/CLAUDE.md) for the build's own plugins. Each guide paragraph that a record explains ends with a link to it.
 
 ## Write a record
 
@@ -105,4 +105,5 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0083](0083-fix-forward-no-hand-deploy.md) | A bad release is fixed forward, and the pipeline is the only supported way to deploy | 2026-10-01 | Accepted | Root: Kubernetes deployment |
 | [0084](0084-hsts-at-the-edge-six-months.md) | The Cloudflare zone redirects HTTP and sends HSTS for six months, with no subdomains and no preload | 2026-10-01 | Accepted | Backend: `app/security_headers.py` |
 | [0085](0085-chart-stays-gpl.md) | The Helm chart stays GPL-3.0-only as a separate work, and says the image it installs is noncommercial | 2026-10-01 | Accepted | Root: Kubernetes deployment |
+| [0086](0086-license-notices-built-into-the-image.md) | The image builds its own third-party license file from what it ships, and a package with no text fails the build | 2026-10-01 | Accepted | Root: Architecture; Frontend: `plugins/thirdPartyLicenses.ts`; Backend: `scripts/write_third_party_licenses.py` |
 | [0087](0087-stale-tab-reloads-once.md) | A tab left open across a release reloads itself once, silently, and at most once per build | 2026-10-01 | Accepted | Frontend: `src/staleChunk.ts` |

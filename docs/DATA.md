@@ -25,10 +25,11 @@ Bluebird Forecast calls it the way it does. The licenses and credits each provid
 requires are collected in [NOTICES.md](../NOTICES.md). A downloaded CSV
 carries its own copy of the Open-Meteo and OpenStreetMap credits below the
 data — CC BY 4.0 and ODbL both ask the credit to travel with every copy, and
-a file is read detached from the screen that shows them — plus the NIFC
-credit whenever the file carries the wildfire column, and a US Forest Service
-credit, with a link to the Forest Service in place of a license, whenever it
-carries the Closure column.
+a file is read detached from the screen that shows them — plus a NOAA NOHRSC
+credit, with a link to its snow analysis in place of a license, whenever the
+file carries the snow depth column, the NIFC credit whenever it carries the
+wildfire column, and a US Forest Service credit, with a link to the Forest
+Service in place of a license, whenever it carries the Closure column.
 
 ## A forecast is not a measurement
 

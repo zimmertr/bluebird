@@ -1,9 +1,15 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { thirdPartyLicenses } from './plugins/thirdPartyLicenses.ts'
+
+// One record shared by the app's build and the worker builds, so the MapLibre
+// worker's packages are listed beside the app's (#571).
+const licenses = thirdPartyLicenses(__dirname)
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), licenses.main],
+  worker: { plugins: () => [licenses.worker] },
   build: {
     // Four entries, because three of these pages are real URLs rather than app
     // state. Vite builds only what is named here, so an HTML file left out of

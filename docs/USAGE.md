@@ -555,7 +555,9 @@ What lands in the file:
 - The rows in the order you are reading them, ranking or detail-column sort
   alike, numbered by a leading **Rank** column.
 - Every column, under the same headers, whatever the table is showing, which
-  means a single-hour analysis exports the collapsed set.
+  means a single-hour analysis exports the collapsed set. The **Snow depth (in)**
+  column is one of them in either set, so the credits below the data add
+  `Snow depth data by NOAA NOHRSC` with a link to its snow analysis.
 - The **Wildfire (mi)** column, once the fire check answers and while the
   column is shown. On screen the column is on by default and can be hidden like
   any other: its cells tick while the check runs, then show

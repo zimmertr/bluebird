@@ -63,8 +63,8 @@ describe('the file a spreadsheet opens', () => {
     const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv.endsWith('\r\n')).toBe(true)
     expect(csv).not.toMatch(/[^\r]\n/)
-    // Header, two data rows, then the blank row and three credit lines.
-    expect(lines(csv)).toHaveLength(7)
+    // Header, two data rows, then the blank row and four credit lines.
+    expect(lines(csv)).toHaveLength(8)
   })
 
   it('puts the headers in the first row, where a spreadsheet looks for them', () => {
@@ -257,8 +257,8 @@ describe('quoting', () => {
   it('quotes a name carrying a line break rather than splitting the row', () => {
     const csv = buildResultsCsv([row({ name: 'Two\nLines' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain('"Two\nLines"')
-    // Header and one data row; the trailer is the blank row and three credits.
-    expect(lines(csv)).toHaveLength(6)
+    // Header and one data row; the trailer is the blank row and four credits.
+    expect(lines(csv)).toHaveLength(7)
   })
 
   it('leaves a name needing no quotes unquoted', () => {
@@ -377,9 +377,9 @@ describe('the wildfire column', () => {
       const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, null)
       expect(csv.charCodeAt(0)).toBe(0xfeff)
       expect(cells(lines(csv)[0])[0]).toBe('Rank')
-      // Header, two data rows, the blank row, and two credits: no NIFC line,
+      // Header, two data rows, the blank row, and three credits: no NIFC line,
       // because a file with no wildfire column must not credit its supplier.
-      expect(lines(csv)).toHaveLength(6)
+      expect(lines(csv)).toHaveLength(7)
     })
   })
 })
@@ -455,7 +455,7 @@ describe('the supplier credits', () => {
   // clickable; the same URL inside a sentence is text a reader has to retype.
   it('put the license URI in its own cell, with no parentheses', () => {
     const credits = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).slice(3)
-    expect(credits).toHaveLength(3)
+    expect(credits).toHaveLength(4)
     // The words are one quoted cell (their own comma forces the quotes) and
     // the URI is the whole of the next, which needs none.
     expect(credits[0]).toBe(
@@ -464,7 +464,7 @@ describe('the supplier credits', () => {
     for (const [line, source] of [
       [credits[0], openMeteo],
       [credits[1], osm],
-      [credits[2], nifc],
+      [credits[3], nifc],
     ] as const) {
       expect(line).not.toContain('(http')
       expect(line.endsWith(`",${source.licenseHref}`)).toBe(true)
@@ -476,6 +476,38 @@ describe('the supplier credits', () => {
       `"Wildfire data by ${nifc.name}, ${nifc.license}",${nifc.licenseHref}`,
     )
     expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).not.toContain('NIFC')
+  })
+
+  // SNODAS is a federal work with no license, so its row wears the Forest
+  // Service's shape: the words, then the source's own link where a license URI
+  // would stand. It follows the snow depth column the way NIFC's follows the
+  // wildfire column, because a file without the numbers has no supplier to name.
+  it('credit the snow depth supplier exactly when the file carries the snow depth column', () => {
+    const nohrsc = DATA_SOURCES.find((s) => s.name === 'NOAA NOHRSC')!
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).toContain(
+      'Snow depth data by NOAA NOHRSC,https://www.nohrsc.noaa.gov/nsa/',
+    )
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).toContain(
+      `Snow depth data by ${nohrsc.name},${nohrsc.href}`,
+    )
+    const noSnow = WINDOW_COLUMNS.filter((c) => c.key !== 'snow_depth_in')
+    expect(noSnow).toHaveLength(WINDOW_COLUMNS.length - 1)
+    expect(buildResultsCsv([row()], noSnow, null)).not.toContain('NOHRSC')
+  })
+
+  // The order the columns they credit stand in: the snow depth column is a
+  // metric among the others, and the wildfire and Closure columns close the row.
+  it('credit the column suppliers in the order their columns stand', () => {
+    const all = lines(
+      buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, { closureWarnings: new Map() }),
+    )
+    expect(all.slice(3).map((l) => l.replace(/^"/, '').split(' data')[0])).toEqual([
+      'Weather',
+      'Destination',
+      'Snow depth',
+      'Wildfire',
+      'Closure',
+    ])
   })
 
   it('stand even in a file with no data rows', () => {
@@ -644,8 +676,9 @@ describe('the forecast window in the file', () => {
       expect(all[5]).toBe('')
       expect(all[6]).toContain('Open-Meteo')
       expect(all[7]).toContain('OpenStreetMap')
-      expect(all[8]).toContain('NIFC')
-      expect(all).toHaveLength(9)
+      expect(all[8]).toContain('NOAA NOHRSC')
+      expect(all[9]).toContain('NIFC')
+      expect(all).toHaveLength(10)
     })
 
     // The whole point of the block: no column carries the window, so the row a
