@@ -226,7 +226,7 @@ def test_weighted_budget_counts_spend_and_shed():
         _value("bluebird_forecast_openmeteo_weight_spent_total", {"provider": "test-provider"})
         == spent_before + 10
     )
-    # The bucket holds 50 more; asking for far past max_wait's worth sheds.
+    # The window holds 50 more; asking for far past max_wait's worth sheds.
     with pytest.raises(ratelimit.BudgetExhausted):
         asyncio.run(budget.acquire(1000))
     assert (
@@ -239,13 +239,17 @@ def test_weighted_budget_counts_spend_and_shed():
 
 
 def test_weighted_budget_counts_pace_time():
-    # Capacity 6000/min = 100/s: draining it then asking for 10 more paces
-    # ~0.1s, long enough to count and short enough to sleep for real.
-    budget = ratelimit.WeightedBudget("test-pacer", 6000, max_wait_s=5)
+    # A full window whose spend leaves it 0.1 s from now: asking for 10 more
+    # paces that long, long enough to count and short enough to sleep for real.
+    clock = {"t": 0.0}
+    budget = ratelimit.WeightedBudget(
+        "test-pacer", 6000, max_wait_s=5, clock=lambda: clock["t"]
+    )
     before = _value("bluebird_forecast_upstream_pace_seconds_total", {"provider": "test-pacer"})
 
     async def drain_then_pace():
         await budget.acquire(6000)
+        clock["t"] = 59.9
         await budget.acquire(10)
 
     asyncio.run(drain_then_pace())

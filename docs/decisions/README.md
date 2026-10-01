@@ -95,3 +95,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0072](0072-browser-joins-spans-at-local-midnight.md) | The browser joins a spanning window's two fetches at the reader's local midnight, not at the UTC boundary | 2026-10-01 | Accepted | Root: Key constraints; mirror row 11 |
 | [0073](0073-click-reads-tile-feet.md) | A clicked summit takes its elevation from the tile's own feet | 2026-10-01 | Accepted | Frontend: `basemapPoi.ts` |
 | [0074](0074-refuse-what-the-pacer-would-shed.md) | An unkeyed analysis that its own batches would shed is refused before it spends | 2026-10-01 | Accepted | Backend: `routes/analyze/phases.py` |
+| [0075](0075-pacer-sliding-window.md) | The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log | 2026-10-01 | Proposed | Backend: `app/ratelimit/`; Frontend: `openMeteo.ts` |

@@ -773,10 +773,11 @@ describe('runClientAnalysis', () => {
       stubOpenMeteo(THREE_PRECIPS)
       const startMs = Date.parse('2026-07-21T00:00:00Z')
       const endMs = Date.parse('2026-07-21T02:00:00Z')
-      // Overspend the air-quality bucket and leave the weather one full, the
+      // Overspend the air-quality budget and leave the weather one empty, the
       // way a large analysis a moment ago would have: 50 locations over 201
-      // days is 717.9 weighted calls against 550. The analysis's own three
-      // then wait (167.9 + 3) / 550 x 60 s = 18.6 s, and only on air quality.
+      // days is 717.9 weighted calls, more than a minute's 550, so it holds the
+      // window for 717.9 / 550 x 60 s = 78.3 s. The analysis's own three wait
+      // that long, and only on air quality.
       const fifty = Array.from({ length: 50 }, (_, i) => ({ latitude: 10 + i / 100, longitude: 10 }))
       const drain = fetchAqi(fifty, startMs - 200 * 86_400_000, startMs, { nowMs: startMs })
       const onPace = vi.fn()
@@ -786,8 +787,8 @@ describe('runClientAnalysis', () => {
       })
 
       await vi.advanceTimersByTimeAsync(0)
-      expect(onPace).toHaveBeenCalledExactlyOnceWith(19)
-      await vi.advanceTimersByTimeAsync(60_000)
+      expect(onPace).toHaveBeenCalledExactlyOnceWith(79)
+      await vi.advanceTimersByTimeAsync(80_000)
       await drain
       await expect(pending).resolves.toBeDefined()
     } finally {

@@ -1548,11 +1548,12 @@ describe('fetchAqi pacing', () => {
   // The analysis awaits air quality before it ranks, so a silent sleep in its
   // pacer froze the overlay at the end of an analysis with nothing said.
 
-  // 50 locations over a 201-day window: 50 x 201/14 = 717.9 weighted calls
-  // against a full bucket of 550, so 167.9 short, which the bucket refills in
-  // 167.9/550 x 60 s = 18.3 s.
-  const LONG = { startMs: NOW_MS - 200 * 86_400_000, endMs: NOW_MS }
+  // 50 locations over a 100-day window: 50 x 100/14 = 357.1 weighted calls a
+  // batch. Two batches are 714.3 against 550 in any minute, so the second is
+  // booked when the first leaves the window, 60 s later.
+  const LONG = { startMs: NOW_MS - 99 * 86_400_000, endMs: NOW_MS }
   const FIFTY = Array.from({ length: 50 }, (_, i) => ({ latitude: i / 100, longitude: 0 }))
+  const HUNDRED = Array.from({ length: 100 }, (_, i) => ({ latitude: i / 100, longitude: 1 }))
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -1566,12 +1567,12 @@ describe('fetchAqi pacing', () => {
   it('reports a deficit in its own budget through onPace', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
     const onPace = vi.fn()
-    const pending = fetchAqi(FIFTY, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
+    const pending = fetchAqi(HUNDRED, LONG.startMs, LONG.endMs, { nowMs: NOW_MS, onPace })
 
     await vi.advanceTimersByTimeAsync(0)
-    expect(onPace).toHaveBeenCalledExactlyOnceWith(19)
-    await vi.advanceTimersByTimeAsync(19_000)
-    await expect(pending).resolves.toHaveLength(50)
+    expect(onPace).toHaveBeenCalledExactlyOnceWith(60)
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(pending).resolves.toHaveLength(100)
   })
 
   it('prices the hours it asks for, not the window it was handed (#581)', async () => {
@@ -1587,6 +1588,23 @@ describe('fetchAqi pacing', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(onPace).not.toHaveBeenCalled()
     await expect(pending).resolves.toHaveLength(550)
+  })
+
+  it('spends no more than a minute of budget in any minute (#581)', async () => {
+    // The token bucket this replaced started full and refilled at the full
+    // rate, so after spending its 550 at once it let the next 50 go in 5.5 s:
+    // 600 in six seconds, and 1,100 in the first minute. The next batch now
+    // waits for the first minute's spend to leave the window.
+    const many = Array.from({ length: 550 }, (_, i) => ({ latitude: i / 1000, longitude: 3 }))
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(FIFTY.map(() => ({ hourly: {} })))))
+    await fetchAqi(many, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
+    const onPace = vi.fn()
+    const pending = fetchAqi(FIFTY, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS, onPace })
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(onPace).toHaveBeenCalledExactlyOnceWith(60)
+    await vi.advanceTimersByTimeAsync(60_000)
+    await expect(pending).resolves.toHaveLength(50)
   })
 
   it('says nothing when the budget covers the batch', async () => {
