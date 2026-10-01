@@ -18,7 +18,8 @@ _METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]
 # What the production gateway says in place of the path. Its 404 for an
 # unpublished /api path is a static Istio directResponse in the chart, which
 # cannot echo the request, so `edge_not_found.json` carries the body built with
-# this phrase and the chart's CI compares its rendered route against that file.
+# this phrase and the chart's Edge 404 workflow compares its rendered route
+# against that file.
 EDGE_PATH_PHRASE = "this path"
 
 

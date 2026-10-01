@@ -70,7 +70,7 @@ def test_the_body_is_one_builder_with_the_path_in_it():
 
 
 def test_the_edge_record_is_what_the_script_writes():
-    # bluebird-helm's Lint & render check compares the chart's directResponse
+    # bluebird-helm's Edge 404 workflow compares the chart's directResponse
     # against this file on main, so a stale file would let the chart pass
     # against a body the pod no longer sends.
     assert EDGE_RECORD.read_text() == render_edge_record(), (

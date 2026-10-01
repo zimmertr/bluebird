@@ -252,6 +252,14 @@ edge, before the deployment is asked to spend anything. The gateway tests only
 that the header is there. Whether the key is any good is Open-Meteo's answer,
 which comes back as a `401` (see the error table below).
 
+A web page on another origin can make the keyed call too. Its browser sends a
+CORS preflight first, and a preflight cannot carry the key, so the gateway
+forwards an `OPTIONS` on the analyze routes that carries an `Origin` and an
+`Access-Control-Request-Method` without asking for the header. The answer
+allows `POST` and the headers the preflight names, `X-Open-Meteo-Key` and
+`Content-Type` included, and the analyze responses, refusals included, expose
+`Retry-After` to the page.
+
 An unkeyed analyze request still works from inside the deployment's own network
 and on a self-hosted instance, because the gate is the gateway rather than the
 code.

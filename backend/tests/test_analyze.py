@@ -23,7 +23,7 @@ from app.models import (
     GeoPolygon,
     SortBy,
 )
-from app.routes.analyze.route import _summarize_request
+from app.routes.analyze.route import API_KEY_HEADER, _summarize_request
 from app.routes.analyze.sse import _sse
 from app.services import air_quality, osm, ranking, snodas, weather
 from app.services.candidates import _coord_key, _filter_elevation, _merge_custom
@@ -1388,6 +1388,51 @@ def test_the_key_is_read_from_the_header_only(record_key):
     assert record_key["weather"] == [None]
 
 
+_OTHER_ORIGIN = "https://planner.example"
+
+
+def _allowed(value: str) -> set[str]:
+    return {item.strip().lower() for item in value.split(",")}
+
+
+@pytest.mark.parametrize("path", ["/api/analyze", "/api/analyze/stream"])
+def test_a_keyed_calls_cross_origin_preflight_is_answered_without_spending(
+    record_key, path
+):
+    # A browser on another origin sends this OPTIONS before its keyed POST, and
+    # the OPTIONS cannot carry the key: it names the headers the POST will send
+    # instead. The gateway forwards it for the keyed prefixes without the key
+    # (bluebird-helm, #565), so the pod must answer it, and answer it in the
+    # CORS middleware rather than in a route that could spend.
+    resp = client.options(
+        path,
+        headers={
+            "Origin": _OTHER_ORIGIN,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": f"{API_KEY_HEADER.lower()}, content-type",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+    assert "post" in _allowed(resp.headers["access-control-allow-methods"])
+    assert {API_KEY_HEADER.lower(), "content-type"} <= _allowed(
+        resp.headers["access-control-allow-headers"]
+    )
+    assert record_key["weather"] == []
+
+
+def test_a_keyed_cross_origin_call_is_readable_by_the_browser(record_key):
+    resp = client.post(
+        "/api/analyze",
+        json=_custom_body(),
+        headers={API_KEY_HEADER: "secret-key", "Origin": _OTHER_ORIGIN},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+    # A throttled browser caller has to be able to read how long to wait.
+    assert "retry-after" in _allowed(resp.headers["access-control-expose-headers"])
+
+
 @pytest.fixture
 def refuse_key(monkeypatch):
     async def refuse(*args, **kwargs):
@@ -1410,6 +1455,18 @@ def test_a_refused_key_is_a_401_not_a_502(refuse_key):
     assert resp.json()["detail"] == "Open-Meteo rejected the API key."
     assert resp.json()["error"] == {"code": "invalid_api_key", "retryable": False}
     assert "bad-key" not in resp.text
+
+
+def test_a_refused_key_is_readable_cross_origin(refuse_key):
+    # The answer a browser caller most needs to read is the one saying its key
+    # is wrong.
+    resp = client.post(
+        "/api/analyze",
+        json=_custom_body(),
+        headers={API_KEY_HEADER: "bad-key", "Origin": _OTHER_ORIGIN},
+    )
+    assert resp.status_code == 401
+    assert resp.headers["access-control-allow-origin"] == "*"
 
 
 def test_a_refused_key_ends_the_stream_with_an_error_event(refuse_key):

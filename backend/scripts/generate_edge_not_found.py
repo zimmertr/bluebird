@@ -10,13 +10,14 @@ in `app/routes/notfound.py`, and a copy in another repository drifts in
 silence; the chart's body went without the `error` object for a release after
 the app gained it (#565).
 
-So the app writes down what the copy must say, and the chart's `Lint & render`
-check renders its VirtualService and compares the route against this file on
-bluebird's main. Nothing here is typed by hand: the body is the route's own
+So the app writes down what the copy must say, and the chart's `Edge 404`
+workflow renders its VirtualService and compares the route against this file
+on bluebird's main. Nothing here is typed by hand: the body is the route's own
 builder with the gateway's phrase for the path, and the headers are whatever
 the app actually sent on a 404 to a browser, so a header added to the pod, or
-a host added to its CSP, changes this file and turns the chart's check red
-until the chart follows.
+a host added to its CSP, changes this file and turns that workflow red until
+the chart follows. It is not a required check, so the red is a signal rather
+than a gate.
 """
 
 from __future__ import annotations
