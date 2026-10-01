@@ -118,12 +118,13 @@ export function archiveBoundaryMs(
  * maintainer, 2026-10-01). Record: docs/decisions/0072.
  *
  * The boundary itself stays a UTC midnight, on both sides, because the backend
- * has no reader's zone and classifies by it. Splitting AT it put the seam
- * mid-afternoon of a local day west of Greenwich (17:00 in Seattle), so the day
- * the panel names as the model's first was mostly the archive's. Moving the
- * join back to that day's local midnight makes the whole day the forecast
- * endpoint's, which `ARCHIVE_STRADDLE_DAYS` says it holds, and makes the panel's
- * seam sentence (`archiveSeamPhrase`) exactly true.
+ * has no reader's zone and classifies by it. Splitting AT it put the seam in
+ * the afternoon of a local day west of Greenwich (in Seattle, five hours before
+ * its end), so the day the panel names as the model's first was mostly the
+ * archive's. Moving the join back to that day's local midnight makes the whole
+ * day the forecast endpoint's, which already serves those hours to any window
+ * inside `ARCHIVE_STRADDLE_DAYS`, and makes the panel's seam sentence
+ * (`archiveSeamPhrase`) exactly true.
  *
  * Two guards. The join never moves more than the straddle tolerance before the
  * boundary, which a 25-hour local day could otherwise ask for, so a spanning

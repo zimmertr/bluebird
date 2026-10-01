@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   isWholeDaySpan,
   snapshotCaption,
@@ -158,14 +158,13 @@ describe('naming the archive seam', () => {
   // boundary, so the two days named are whole on either side of UTC (#579).
   // East of it the boundary falls at 02:00 on May 21, which is that day's.
   it('names whole local days east of UTC too', () => {
-    const before = process.env.TZ
-    process.env.TZ = 'Europe/Berlin'
+    vi.stubEnv('TZ', 'Europe/Berlin')
     try {
       expect(
         archiveSeamPhrase(localMs('2026-05-18T00:00'), localMs('2026-05-22T23:59'), 'NOAA GFS', NOW),
       ).toBe('Archive data to May 20, NOAA GFS from May 21.')
     } finally {
-      process.env.TZ = before
+      vi.unstubAllEnvs()
     }
   })
 

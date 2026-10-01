@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   FALLBACK_WINDOW_LIMITS,
   FUTURE_LIMIT_SLACK_DAYS,
@@ -304,12 +304,11 @@ describe('archiveSeamMs', () => {
   // Run with another zone, then put the pinned one back. Node reads TZ again
   // when it is assigned, so `Date` follows it from the next call on.
   function inZone<T>(zone: string, body: () => T): T {
-    const before = process.env.TZ
-    process.env.TZ = zone
+    vi.stubEnv('TZ', zone)
     try {
       return body()
     } finally {
-      process.env.TZ = before
+      vi.unstubAllEnvs()
     }
   }
 

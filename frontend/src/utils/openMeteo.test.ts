@@ -1056,8 +1056,7 @@ describe('a window that crosses the archive boundary', () => {
   // East of UTC the boundary falls at 02:00 local on May 27, so the join moves
   // back to that day's midnight, 22:00Z on May 26.
   it('joins at the local midnight east of UTC too', async () => {
-    const before = process.env.TZ
-    process.env.TZ = 'Europe/Berlin'
+    vi.stubEnv('TZ', 'Europe/Berlin')
     try {
       const fetchSpy = bothHalves()
       vi.stubGlobal('fetch', fetchSpy)
@@ -1066,7 +1065,7 @@ describe('a window that crosses the archive boundary', () => {
       expect(urls[0].searchParams.get('end_hour')).toBe('2026-05-26T21:00')
       expect(urls[1].searchParams.get('start_hour')).toBe('2026-05-26T22:00')
     } finally {
-      process.env.TZ = before
+      vi.unstubAllEnvs()
     }
   })
 
