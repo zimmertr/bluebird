@@ -100,4 +100,5 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0077](0077-snapshot-max-stale-24h.md) | An overlay snapshot is served through failed refreshes for 24 hours, and no longer | 2026-10-01 | Accepted | Backend: `app/services/snapshot.py` |
 | [0078](0078-timestamp-offsets-honored.md) | A request timestamp means the instant it names: an offset is converted to UTC, and a naive stamp is read as UTC | 2026-10-01 | Accepted | Backend: `app/models/` |
 | [0079](0079-forest-order-vetoes-and-start-date.md) | A Region 3 or 4 order's own words can veto its citation, a short list excludes what no words can, and an order that has not started is not live | 2026-10-01 | Accepted | Backend: `usfs_closures.py` |
+| [0080](0080-major-from-the-title-only.md) | A major version comes from the PR title's `!` alone, and a body footer never counts | 2026-10-01 | Accepted | Root: CI/CD pipeline; `docs/CICD.md` Conventions |
 | [0081](0081-edge-404-is-the-apps.md) | The gateway's 404 is the app's, and a keyed route's CORS preflight reaches the pod | 2026-10-01 | Accepted | Backend: `routes/notfound.py`; `scripts/generate_edge_not_found.py` |

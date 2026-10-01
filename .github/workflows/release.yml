@@ -19,14 +19,14 @@ permissions:
   contents: read
 
 jobs:
-  # Calculate the next SemVer using GitVersion (conventional commits drive the increment)
-  # and bail out early if the Docker Hub image tag already exists (immutability guard)
+  # Calculate the next SemVer using GitVersion (the squash commit's title drives
+  # the increment) and skip the release when that version is already out.
   determine-version:
     name: Determine Version
     runs-on: ubuntu-latest
     outputs:
       semVer: ${{ steps.gitversion.outputs.semVer }}
-      tagExists: ${{ steps.tag-check.outputs.exists }}
+      released: ${{ steps.published.outputs.released }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -36,23 +36,39 @@ jobs:
           versionSpec: '6.x'
       - id: gitversion
         uses: gittools/actions/gitversion/execute@v4
-      - name: Check if image tag already exists on Docker Hub
-        id: tag-check
+      # A release is three things made in order: the image, the git tag, the
+      # GitHub release. Only when all three exist is there nothing left to do.
+      # A guard on the image alone cannot finish a run that died between the
+      # push and the tag: a re-run sees the image and skips everything, and the
+      # version stays an image with no tag or release (v0.16.0 and v0.16.1,
+      # 2026-07-21, whose tag pushes were refused). Each job below makes its own
+      # piece only when that piece is missing, so a re-run finishes the release.
+      - name: Check what this version has already published
+        id: published
+        env:
+          SEMVER: ${{ steps.gitversion.outputs.semVer }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if docker manifest inspect zimmertr/bluebird:${{ steps.gitversion.outputs.semVer }} >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Image tag ${{ steps.gitversion.outputs.semVer }} already exists — skipping release"
+          have() { if "$@" >/dev/null 2>&1; then echo true; else echo false; fi; }
+          IMAGE=$(have docker manifest inspect "zimmertr/bluebird:${SEMVER}")
+          TAG=$(have git ls-remote --exit-code origin "refs/tags/v${SEMVER}")
+          RELEASE=$(have gh release view "v${SEMVER}" --repo "$GITHUB_REPOSITORY")
+          echo "${SEMVER}: image=${IMAGE} tag=${TAG} release=${RELEASE}"
+          if [ "${IMAGE}${TAG}${RELEASE}" = truetruetrue ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "v${SEMVER} is already released; skipping."
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "released=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # Build the Docker image and push it to Docker Hub, then tag the commit in git
-  # Skipped if the image tag already exists (prevents overwriting immutable tags)
+  # Build the Docker image and push it to Docker Hub, then tag the commit in git.
+  # Either half is skipped when it already exists, so a re-run after a failed
+  # tag pushes the tag without trying to push the immutable image again.
   build-and-push:
     name: Build & Push
     runs-on: ubuntu-latest
     needs: determine-version
-    if: needs.determine-version.outputs.tagExists == 'false'
+    if: needs.determine-version.outputs.released == 'false'
     # Releases serialize on one concurrency group, so a hung registry push here
     # dams every queued release until GitHub's 6h default kills the job (it
     # blocked deploys for 2.5h on 2026-07-25). Normal multi-arch builds take
@@ -69,12 +85,36 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # Asked here, not read from Determine Version: "Re-run failed jobs" keeps
+      # that job's outputs from the first attempt, which predate the push.
+      # An image that exists must have been built from this commit, or the tag
+      # below would name source the image does not hold. Mainline gives every
+      # commit its own version, so a mismatch is never a re-run and is stopped.
+      - name: Check whether the image is already pushed
+        id: image
+        env:
+          IMAGE: zimmertr/bluebird:${{ needs.determine-version.outputs.semVer }}
+        run: |
+          if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          REV=$(docker buildx imagetools inspect "$IMAGE" \
+            --format '{{ index (index .Image "linux/amd64").Config.Labels "org.opencontainers.image.revision" }}')
+          if [ "$REV" != "$GITHUB_SHA" ]; then
+            echo "::error::${IMAGE} was built from ${REV:-an unknown commit}, not ${GITHUB_SHA}. See docs/CICD.md, Finishing a failed release."
+            exit 1
+          fi
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "${IMAGE} is already pushed from this commit; skipping the build."
       # GitHub exposes no build-start timestamp, and github.event.repository
       # .updated_at is the last push, not this build. Stamp it ourselves so
       # GET /api/version reports when the image was actually produced.
       - id: stamp
+        if: steps.image.outputs.exists == 'false'
         run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v7
+        if: steps.image.outputs.exists == 'false'
         with:
           context: .
           # amd64 for the cluster, arm64 for Apple Silicon / Graviton pulls
@@ -99,29 +139,63 @@ jobs:
           sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # A tag that already names this commit is a re-run's, and is left alone.
+      # One that names another commit is refused rather than moved: the
+      # repository's immutable releases would refuse the move anyway.
       - name: Tag Release Commit
+        env:
+          TAG: v${{ needs.determine-version.outputs.semVer }}
         run: |
+          # The peeled line (^{}) is the commit an annotated tag points at; a
+          # lightweight tag has only the plain line, which is the commit itself.
+          REFS=$(git ls-remote origin "refs/tags/${TAG}" "refs/tags/${TAG}^{}")
+          AT=$(printf '%s\n' "$REFS" | awk '$2 ~ /\^\{\}$/ {print $1; exit}')
+          [ -n "$AT" ] || AT=$(printf '%s\n' "$REFS" | awk 'NF {print $1; exit}')
+          if [ -n "$AT" ]; then
+            if [ "$AT" != "$GITHUB_SHA" ]; then
+              echo "::error::${TAG} already names ${AT}, not ${GITHUB_SHA}."
+              exit 1
+            fi
+            echo "${TAG} already names this commit."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ needs.determine-version.outputs.semVer }}" -m "Release v${{ needs.determine-version.outputs.semVer }}"
-          git push origin "v${{ needs.determine-version.outputs.semVer }}"
+          git tag -a "$TAG" -m "Release ${TAG}"
+          git push origin "$TAG"
 
-  # Create a GitHub Release with auto-generated release notes from merged PR titles
+  # Create a GitHub Release with auto-generated release notes from merged PR titles.
+  #
+  # The gh CLI rather than an action, because a re-run needs two things from
+  # it: to ask first whether the release exists (with immutable releases on, an
+  # existing one cannot be edited, only skipped), and --verify-tag, which
+  # refuses to run when the tag is missing where the API would instead create a
+  # lightweight tag at the head of main, which may not be this commit.
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [determine-version, build-and-push]
-    if: needs.determine-version.outputs.tagExists == 'false'
+    if: needs.determine-version.outputs.released == 'false'
     permissions:
       contents: write
     steps:
-      - uses: softprops/action-gh-release@v3
-        with:
-          tag_name: v${{ needs.determine-version.outputs.semVer }}
-          name: v${{ needs.determine-version.outputs.semVer }}
-          generate_release_notes: true
+      - name: Create the release unless it exists
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ needs.determine-version.outputs.semVer }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "${TAG} already has a release."
+            exit 0
+          fi
+          # A release finished late, behind a newer one, must not take
+          # "Latest" from it. Same test as the two bump jobs below.
+          LATEST=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || true)
+          LATEST_FLAG=--latest
+          if [ -n "$LATEST" ] && [ "$(printf '%s\n%s\n' "${LATEST#v}" "${TAG#v}" | sort -V | tail -1)" != "${TAG#v}" ]; then
+            LATEST_FLAG=--latest=false
+          fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --verify-tag "$LATEST_FLAG"
 
   # Update the image tag in Kubernetes-Manifests so Argo CD rolls out the new version.
   #
@@ -145,7 +219,7 @@ jobs:
     name: Update Kubernetes Manifests
     runs-on: ubuntu-latest
     needs: [determine-version, build-and-push]
-    if: needs.determine-version.outputs.tagExists == 'false'
+    if: needs.determine-version.outputs.released == 'false'
     steps:
       - uses: imranismail/setup-kustomize@v3
         with:
@@ -158,6 +232,13 @@ jobs:
           APP_REPO: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
         run: |
+          # A re-run that finishes an older release after a newer one shipped
+          # must not move prod back onto the older image.
+          LATEST=$(gh release view --repo "$APP_REPO" --json tagName -q .tagName 2>/dev/null || true)
+          if [ -n "$LATEST" ] && [ "$(printf '%s\n%s\n' "${LATEST#v}" "$SEMVER" | sort -V | tail -1)" != "$SEMVER" ]; then
+            echo "::notice::${LATEST} is newer than ${SEMVER}; leaving the manifests alone."
+            exit 0
+          fi
           BR="chore/bluebird-image"
           git clone "https://x-access-token:${GH_TOKEN}@github.com/zimmertr/Kubernetes-Manifests.git" k8s-manifests
           cd k8s-manifests
@@ -222,7 +303,7 @@ jobs:
     name: Bump Helm Chart appVersion
     runs-on: ubuntu-latest
     needs: [determine-version, build-and-push, create-release]
-    if: needs.determine-version.outputs.tagExists == 'false'
+    if: needs.determine-version.outputs.released == 'false'
     steps:
       - name: Open or update the appVersion bump PR
         env:
@@ -234,6 +315,13 @@ jobs:
           APP_SHA: ${{ github.sha }}
           SERVER_URL: ${{ github.server_url }}
         run: |
+          # A re-run that finishes an older release after a newer one shipped
+          # must not move the chart's default image back onto the older one.
+          LATEST=$(gh release view --repo "$APP_REPO" --json tagName -q .tagName 2>/dev/null || true)
+          if [ -n "$LATEST" ] && [ "$(printf '%s\n%s\n' "${LATEST#v}" "$SEMVER" | sort -V | tail -1)" != "$SEMVER" ]; then
+            echo "::notice::${LATEST} is newer than ${SEMVER}; leaving the chart alone."
+            exit 0
+          fi
           BR="chore/bump-appversion"
           git clone "https://x-access-token:${GH_TOKEN}@github.com/zimmertr/bluebird-helm.git" helm
           cd helm

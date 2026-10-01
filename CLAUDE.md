@@ -151,7 +151,7 @@ The FastAPI backend handles `POST /api/analyze`, which:
 
 ## CI/CD pipeline
 
-[`docs/CICD.md`](docs/CICD.md) is the whole flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments), and it owns the per-workflow summaries and the GitVersion prefix → bump table. The one thing to carry into every change here: **a squash-merge to `main` releases**, and the PR title is the conventional commit that decides the bump.
+[`docs/CICD.md`](docs/CICD.md) is the whole flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments), and it owns the per-workflow summaries and the PR title → bump table. The one thing to carry into every change here: **a squash-merge to `main` releases**, and the PR title alone decides the bump: a `!` before the colon (`fix!:`, `feat(api)!:`) is a major, `feat` a minor, every other prefix a patch, and nothing in the body counts, a `BREAKING CHANGE:` footer included. Record: [0080](docs/decisions/0080-major-from-the-title-only.md) The `PR Title` check fails a title the pipeline cannot read, and a failed release is finished by re-running it (`docs/CICD.md`, Finishing a failed release).
 
 ## Kubernetes deployment
 
