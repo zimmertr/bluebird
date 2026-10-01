@@ -93,6 +93,8 @@ interface AppDrawerProps {
   fireStatus: FireProximityStatus
   /** Where the closure check stands, for the same note about closures. */
   closureStatus: ClosureProximityStatus
+  // The basemap style is failing to load (#580).
+  basemapFailed: boolean
 }
 
 /**
@@ -127,6 +129,7 @@ export default function AppDrawer({
   results,
   fireStatus,
   closureStatus,
+  basemapFailed,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
   const {
@@ -203,6 +206,7 @@ export default function AppDrawer({
           onPointAtSearch={onPointAtSearch}
           wildfireCheckFailed={fireStatus === 'unavailable' && results.length > 0}
           closureCheckFailed={closureStatus === 'unavailable' && results.length > 0}
+          basemapFailed={basemapFailed}
           onPointAtMapPois={onPointAtMapPois}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}

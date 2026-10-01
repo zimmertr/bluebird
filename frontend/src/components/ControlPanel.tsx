@@ -142,6 +142,8 @@ interface Props {
   // The same for the closure check (#550): no row has been checked against
   // the Forest Service's closure orders.
   closureCheckFailed?: boolean
+  // The basemap style is failing to load (#580).
+  basemapFailed?: boolean
 }
 
 export default function ControlPanel({
@@ -203,6 +205,7 @@ export default function ControlPanel({
   aqiAllNull,
   wildfireCheckFailed,
   closureCheckFailed,
+  basemapFailed,
 }: Props) {
   // Falls back to the id so a link naming a model this deployment stopped
   // publishing still reads as something rather than as an empty gap in a
@@ -337,6 +340,7 @@ export default function ControlPanel({
     aqiAllNull: Boolean(aqiAllNull),
     wildfireCheckFailed: Boolean(wildfireCheckFailed),
     closureCheckFailed: Boolean(closureCheckFailed),
+    basemapFailed: Boolean(basemapFailed),
     now,
   })
 

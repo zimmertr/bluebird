@@ -93,6 +93,8 @@ export interface MapStageProps {
   urlSync: Pick<UrlSync, 'reportView'>
   /** The camera a link opened on, which wins over the opening fit. */
   restoredView: CameraView | null
+  /** Reports whether the basemap style is failing to load; a state setter. */
+  onBasemapFailed: (failed: boolean) => void
 }
 
 /**
@@ -125,6 +127,7 @@ export default function MapStage({
   poisPointed,
   urlSync,
   restoredView,
+  onBasemapFailed,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   const { registerPlace } = removals
@@ -231,6 +234,7 @@ export default function MapStage({
         cameraPadBottomPx={layout.cameraPadBottomPx}
         restoredView={restoredView}
         onCameraMove={urlSync.reportView}
+        onBasemapFailed={onBasemapFailed}
       />
       {/* The legends render BEFORE the button column below on purpose.
           Both are map chrome at the same layer, so paint order is DOM

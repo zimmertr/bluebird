@@ -1,5 +1,6 @@
 import { NOUN } from '../metrics'
 import { FIRE_UNAVAILABLE_NOTE } from './fireProximity'
+import { BASEMAP_FAILED_NOTE } from './basemapFailure'
 import { CLOSURE_UNAVAILABLE_NOTE } from './closureProximity'
 import type { CommitReason } from './present'
 import type { AnalyzeBlocker } from './analyzeGate'
@@ -117,6 +118,8 @@ export interface PanelMessageInputs {
   aqiAllNull: boolean
   wildfireCheckFailed: boolean
   closureCheckFailed: boolean
+  // The basemap style is failing to load (#580).
+  basemapFailed: boolean
   now: Date
 }
 
@@ -293,6 +296,12 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
             severity: 'error' as const,
           },
         ]
+      : []),
+    // The map itself, which says nothing about the analysis but is the one
+    // place a reader would otherwise learn why the map is blank (#580). Keyed
+    // on its condition like every derived line, and gone once the style loads.
+    ...(p.basemapFailed
+      ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
     // The refusal is an error like the area cap: a finished request, refused
     // for its size (TJ, 2026-08-22). It carries no `retry` — retrying a

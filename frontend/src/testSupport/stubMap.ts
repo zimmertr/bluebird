@@ -139,6 +139,7 @@ export function stubMap(opts: StubMapOptions = {}) {
     }),
     isSourceLoaded: (id: string) => opts.sourceLoaded?.(id) ?? true,
     triggerRepaint: () => calls.push(['triggerRepaint']),
+    setStyle: (style: unknown, o?: unknown) => calls.push(['setStyle', style, o]),
     dragPan,
     // Screen pixels read back as degrees one to one, so a drag to (x, y)
     // leaves the vertex at [x, y] and a test can say where it went.

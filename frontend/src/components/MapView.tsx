@@ -29,6 +29,7 @@ import { createMapController, type MapInputs } from '../map/controller'
 import { STYLE } from '../map/basemap'
 import { addAttribution, addControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
+import { watchBasemap } from '../map/basemapWatch'
 import { createPopupBoard } from '../map/popups'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
@@ -184,6 +185,10 @@ interface Props {
   // Where each settled camera goes (`map/camera.ts`). Stable, and it writes the
   // link without rendering anything, so a pan costs no React work.
   onCameraMove: (view: CameraView, readerMove: boolean) => void
+  // Whether the basemap style is failing to load (`map/basemapWatch.ts`), for
+  // the note below Analyze (#580). A state setter, so stable: the watch is
+  // registered once, with the map, and keeps the one it was handed.
+  onBasemapFailed: (failed: boolean) => void
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -232,6 +237,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       cameraPadBottomPx,
       restoredView,
       onCameraMove,
+      onBasemapFailed,
     },
     ref,
   ) => {
@@ -534,6 +540,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
       })
       mapRef.current = map
       addControls(map)
+      // Before `load`: a style that fails never gets there.
+      const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
       // resizes, but our container also changes size when the results panel
@@ -594,6 +602,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
       return () => {
         loadedRef.current = false
+        basemap.dispose()
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         featuresRef.current?.wildfires.dispose()

@@ -558,6 +558,12 @@ arrives through the tile server's own TileJSON and is drawn in the map's corner
 control rather than by the app. The tiles carry OpenStreetMap data under the
 ODbL, which is why that credit links to OpenStreetMap's copyright page.
 
+If the style document cannot be fetched, the map stays blank and an error under
+Analyze says the map could not load. The page asks for the style again each
+time the browser reports it is back online, and the error clears once the
+style arrives. Only the style counts: a tile, glyph or sprite that fails leaves
+a gap in a map that otherwise drew, and says nothing.
+
 ## Wildfires
 
 The optional perimeter overlay and the proximity warnings on result rows both

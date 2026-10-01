@@ -138,6 +138,9 @@ export default function App() {
   // The same hover glows every clickable feature on the map: the Map group
   // covers both map-borne methods, so its cue lights both controls at once.
   const [poisPointed, setPoisPointed] = useState(false)
+  // The basemap style is failing to load: the map reports it and the panel
+  // says so below Analyze (#580).
+  const [basemapFailed, setBasemapFailed] = useState(false)
   const isDesktop = useIsDesktop()
   const overlays = useMapOverlays(restored, isDesktop)
   const {
@@ -519,6 +522,7 @@ export default function App() {
         results={results}
         fireStatus={fire.status}
         closureStatus={closure.status}
+        basemapFailed={basemapFailed}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand
@@ -549,6 +553,7 @@ export default function App() {
           poisPointed={poisPointed}
           urlSync={urlSync}
           restoredView={restoredView}
+          onBasemapFailed={setBasemapFailed}
         />
 
         <ResultsSheet
