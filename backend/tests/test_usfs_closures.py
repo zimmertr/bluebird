@@ -11,6 +11,7 @@ answer outside the coverage can be told apart from a clear one.
 from __future__ import annotations
 
 import json
+import time
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -273,6 +274,52 @@ RECKLESS_DRIVING = _order(
 )
 
 
+# The orders #568 found passing that keep nobody out on foot, as the feeds
+# sent them (Fossil Creek on 2026-09-30, the rest on 2026-10-01).
+PAYETTE_MINES = _order(
+    25393,
+    "Abandoned Mine Area Closure",
+    ordernum="04-12-328",
+    cfr="36 CFR 261.50(a) and (e), 36 CFR 261.53(e)",
+    description=(
+        "Prohibited is: 1. Going into or being upon an area which is closed for the protection of public "
+        "health and safety. 36 CFR 261.53(e)"
+    ),
+)
+KIOWA_STAGE_ONE = _order(
+    78592,
+    "Kiowa / Rita Blanca NG Stage I Fire Restrictions",
+    ordertype="Fire Restriction - Stage 1",
+    cfr="36 CFR 261.52(a,d,i), 36 CFR 261.53(e), 36 CFR 261.56",
+    description=(
+        "Stage 1 fire restriction to reduce the risk of human-caused wildfires during periods of high fire "
+        "danger and severe fire weather conditions"
+    ),
+)
+FOSSIL_CREEK_VEHICLES = (
+    "To protect public health and safety, and to protect resource integrity, the following are prohibited: "
+    "1) Going into or being upon the Described Area with a motorized vehicle, and 2) Using a motorized vehicle "
+    "on the Described Roads"
+)
+GOOSE_CREEK = _order(
+    26951,
+    "Goose Creek Winter Restrictions",
+    ordertype="Motor Vehicle Use Prohibition",
+    cfr="36 CFR 261.50 (a) (b) and (e), 36 CFR 261.58(b), 36 CFR 261.54 (a) and (d), 36 CFR 261.53 (e)",
+    description=(
+        "Prohibited is: 1. Exceeding combined vehicle/trailer length 52ft. 2. Exceeding 20MPH on the Thorn Cr "
+        "Snowmobile Rte to Goose Cr Overlook. 3. Exceeding idling noise @ Goose Cr TH. 4. Being on a snowcat "
+        "rte. 5. Snowmobile use on 50257."
+    ),
+)
+SNOWBASIN = _order(
+    27083,
+    "Snowbasin Area Restrictions",
+    cfr="See closure order",
+    description="Going into or being upon the closed area, when posted or marked as closed.",
+)
+
+
 def _orders_answers() -> dict:
     """Region 3 passes two of three orders across two pages; Region 4 one of two."""
     region_three = (_shape(101, -111.2, 34.0, -111.1, 34.1), _shape(103, -111.0, 34.2, -110.9, 34.3))
@@ -316,6 +363,27 @@ def _orders_answers() -> dict:
         {"cfr": "36 CFR 261.52(E)"},
         # A permit named in ANOTHER sentence does not excuse this one.
         {"description": "Going into or being upon the area is prohibited. Outfitters need a permit."},
+        # A single capital letter ends a sentence; only a dotted abbreviation
+        # such as "C.F.R." does not ("Exhibit A." in a Region 4 order).
+        {"description": "Going into or being upon the area at Exhibit A. Guides may not work without a permit."},
+        # An unlimited entry sentence beside a vehicle rule still closes the
+        # area (Region 3's Cottonwood Cove order).
+        {
+            "cfr": "36 CFR § 261.53(e)",
+            "description": "Using any motor vehicle. Going into or being upon the Described Area.",
+        },
+        # The Santa Fe Watershed closure uses the Payette mine order's words,
+        # and it is closed ground, so the exclusion is by order number.
+        {
+            "ordernum": "10-198",
+            "cfr": "36 CFR 261.53(e)",
+            "description": (
+                "It is prohibited to go into or be upon any area which is closed for the protection of public "
+                "health and safety, effective until further notice."
+            ),
+        },
+        # Stage 3 closes the forest, so only Stages 1 and 2 are vetoed.
+        {"ordertype": "Fire Closure - Stage 3", "cfr": "36 CFR 261.52(e)"},
     ],
 )
 def test_an_order_that_closes_an_area_to_entry_passes(attributes):
@@ -339,12 +407,48 @@ def test_an_order_that_closes_an_area_to_entry_passes(attributes):
         # A permit rule, in Region 4's own words (order 26008, 2026-09-30).
         FLOAT_PERMIT["attributes"],
         {"description": "Being in or on the gorge unless you hold a valid permit."},
+        # A period inside a sentence does not end it, so the permit clause
+        # stays with the entry words.
+        {"description": "Going into or being upon the river from Mile 12.5 to Mile 40 without a permit."},
+        {"description": "Entering or being on the area along Rd. 123 without a permit."},
+        {"description": "Going into or being upon the area, under 36 C.F.R. § 261.53, without a permit."},
+        # Posted mine openings, filed with the whole forest as their polygon
+        # (#568): excluded by order number.
+        PAYETTE_MINES["attributes"],
+        # A fire restriction cites 261.53(e) and closes nothing.
+        KIOWA_STAGE_ONE["attributes"],
+        {"ordername": "Stage II Fire Restrictions", "cfr": "36 CFR 261.52(e)"},
+        # A vehicle order: by its type, and by its own words, which veto a
+        # citation as well as the sentence.
+        GOOSE_CREEK["attributes"],
+        {
+            "ordertype": "Motor Vehicle Use Prohibition",
+            "ordername": "Fossil Creek Wild and Scenic River Permit Area Motor Vehicle Closure",
+            "description": FOSSIL_CREEK_VEHICLES,
+        },
+        {"cfr": "36 C.F.R. § 261.53(e)", "description": FOSSIL_CREEK_VEHICLES},
+        # Posted sites only.
+        SNOWBASIN["attributes"],
+        {"cfr": "36 CFR 261.53(e)", "description": SNOWBASIN["attributes"]["description"]},
+        # An order that has not started is not standing yet, however plainly
+        # it closes the area (Goose Creek was served a month early, #568).
+        {
+            "cfr": "36 CFR 261.53(e)",
+            "description": "Going into or being upon the Described Area.",
+            "startdate": int(time.time() * 1000) + 365 * 86_400_000,
+        },
         {"cfr": None, "description": None, "ordername": None},
         {},
     ],
 )
 def test_an_order_that_closes_nothing_fails(attributes):
     assert not usfs_closures.is_area_closure(attributes)
+
+
+def test_the_feed_is_asked_for_started_orders_alone():
+    # The server applies the clause, so no fake upstream can; this pins that
+    # it is sent, and the classifier case above pins the rule itself.
+    assert "startdate IS NULL OR startdate <= CURRENT_TIMESTAMP" in usfs_closures.ORDER_WHERE
 
 
 async def test_an_order_feed_sends_its_passing_ids_alone_for_geometry():

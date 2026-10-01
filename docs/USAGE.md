@@ -213,9 +213,11 @@ length every time you open it.
 
 Hovering a closure names its order, the national forest, the trail and its
 number on a closed trail, and the dates the order runs when it states both, with
-a link to the order where the Forest Service publishes one. The status is the
-Forest Service's own: Bluebird Forecast shows what the order says and does not
-judge whether it is still in force. The trail layer covers Oregon and
+a link to the order where the Forest Service publishes one. In Oregon and
+Washington the status is the Forest Service's own: Bluebird Forecast shows what
+the order says and does not judge whether it is still in force. Elsewhere the
+orders carry no status, so an order shows from its start date until its end
+date ([DATA.md](DATA.md#closures)). The trail layer covers Oregon and
 Washington alone, and the area layer the eight states in the table, so an empty
 map elsewhere means the region is not covered, not that every trail is open.
 
