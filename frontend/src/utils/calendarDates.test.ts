@@ -10,7 +10,6 @@ import {
   isTimeOfDay,
   monthKey,
   orderDays,
-  subtractOneHour,
 } from './calendarDates'
 
 // The two 2026 transitions in the timezone vitest.config.ts pins. A local
@@ -103,20 +102,12 @@ describe('day arithmetic', () => {
   })
 })
 
-describe('hour adjustment helpers', () => {
+describe('hour adjustment helper', () => {
   it('adds one hour, clamping at 23:59', () => {
     expect(addOneHour('06:00')).toBe('07:00')
     expect(addOneHour('22:00')).toBe('23:00')
     expect(addOneHour('23:00')).toBe('23:59')
     expect(addOneHour('23:59')).toBe('23:59')
     expect(addOneHour('14:30')).toBe('15:30')
-  })
-
-  it('subtracts one hour, clamping at 00:00', () => {
-    expect(subtractOneHour('07:00')).toBe('06:00')
-    expect(subtractOneHour('01:00')).toBe('00:00')
-    expect(subtractOneHour('00:30')).toBe('00:00')
-    expect(subtractOneHour('00:00')).toBe('00:00')
-    expect(subtractOneHour('15:30')).toBe('14:30')
   })
 })

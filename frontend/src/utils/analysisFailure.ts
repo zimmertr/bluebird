@@ -11,7 +11,7 @@ export type AnalysisFailure =
   | { kind: 'cancel' }
   // Deterministic, so it gets the warn box and no retry.
   | { kind: 'refusal'; message: string }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; retry: boolean }
 
 export function analysisFailure(e: unknown, models: readonly ForecastModelOption[]): AnalysisFailure {
   if (e instanceof DOMException && e.name === 'AbortError') return { kind: 'cancel' }
@@ -19,10 +19,12 @@ export function analysisFailure(e: unknown, models: readonly ForecastModelOption
   if (e instanceof OpenMeteoModelCoverage) {
     // The label comes from the models list, because only the caller has it.
     const label = models.find((m) => m.id === e.modelId)?.label ?? e.modelId
-    return { kind: 'error', message: `${label} ${COVERAGE_MESSAGE_TAIL}` }
+    // No retry: the same model over the same area has no more coverage on a
+    // second request than on the first.
+    return { kind: 'error', message: `${label} ${COVERAGE_MESSAGE_TAIL}`, retry: false }
   }
   // Everything else is transient and gets the error box with its retry, the
   // Open-Meteo timeout (#545) as much as an unreachable host: each already
   // carries the approved sentence, so the message passes through unchanged.
-  return { kind: 'error', message: e instanceof Error ? e.message : 'Unknown error' }
+  return { kind: 'error', message: e instanceof Error ? e.message : 'Unknown error', retry: true }
 }

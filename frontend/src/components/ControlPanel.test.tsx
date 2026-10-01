@@ -129,6 +129,25 @@ describe('the Analyze button', () => {
     expect(messages().join(' ')).toMatch(line)
   })
 
+  // A line pasted twice is one destination, in the count under the box too.
+  it('counts a repeated pasted line once under the coordinates box', () => {
+    render(<ControlPanel {...props({ customCsv: '46.85,-121.76\n46.85,-121.76\n46.2,-121.49' })} />)
+    expect(screen.getByText('2 destinations parsed')).toBeTruthy()
+  })
+
+  // A finished ring with no type checked beside a pin: Analyze stays open, and
+  // the types line says as information that the ring adds nothing (#579).
+  it('stays enabled beside a finished ring with no type, and says the ring adds nothing', () => {
+    render(<ControlPanel {...props({ hasPins: true, drawPointCount: 3, destinationTypes: [] })} />)
+    expect((analyze() as HTMLButtonElement).disabled).toBe(false)
+    expect(messages().join(' ')).toMatch(/destination type/)
+  })
+
+  it('says nothing about the ring while it is still being drawn', () => {
+    render(<ControlPanel {...props({ hasPins: true, drawPointCount: 3, destinationTypes: [], drawing: true })} />)
+    expect(messages().join(' ')).not.toMatch(/destination type/)
+  })
+
   it('is enabled by a searched place alone, and analyzes on a press', async () => {
     const onAnalyze = vi.fn()
     const { user } = render(<ControlPanel {...props({ hasPins: true, onAnalyze })} />)
@@ -199,7 +218,7 @@ describe('the notice block', () => {
   // A panel with something to say at every severity at once: a failed run, a
   // stale report, a blocker, and the air-quality horizon.
   const crowded = props({
-    error: 'Open-Meteo request failed. Try again later.',
+    error: { message: 'Open-Meteo request failed. Try again later.', retry: true },
     commitReasons: ['model-changed', 'window-changed'],
     modelClamped: true,
     drawPointCount: 1,
@@ -234,6 +253,13 @@ describe('the notice block', () => {
     const { user } = render(<ControlPanel {...crowded} onRetry={onRetry} />)
     await user.click(within(notices()[0]).getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  // A model with no coverage over the area fails the same way on a second
+  // request, so its error box carries no Try again.
+  it('offers no retry for a failure that would only repeat itself', () => {
+    render(<ControlPanel {...crowded} error={{ message: 'Broken.', retry: false }} />)
+    expect(within(notices()[0]).queryByRole('button', { name: 'Try again' })).toBeNull()
   })
 
   it('dismisses one message and keeps the rest', async () => {

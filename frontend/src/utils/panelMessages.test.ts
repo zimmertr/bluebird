@@ -30,6 +30,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     source: null,
     aqiCoverage: 'full',
     blockers: [],
+    ringIgnored: false,
     pointsNeeded: 0,
     freezeGaps: [],
     maxAreaKm2: 100_000,
@@ -59,7 +60,7 @@ describe('panelMessages', () => {
 
   describe('the run error', () => {
     it('is one error line that offers a retry, keyed on its message', () => {
-      expect(only({ error: 'Open-Meteo request failed. Try again later.' })).toEqual({
+      expect(only({ error: { message: 'Open-Meteo request failed. Try again later.', retry: true } })).toEqual({
         key: 'error:Open-Meteo request failed. Try again later.',
         text: 'Open-Meteo request failed. Try again later.',
         severity: 'error',
@@ -67,8 +68,14 @@ describe('panelMessages', () => {
       })
     })
 
+    // A model with no coverage over the area answers a second request the way
+    // it answered the first, so the box offers no Try again.
+    it('offers no retry when the failure would only repeat itself', () => {
+      expect(only({ error: { message: 'boom', retry: false } })).toMatchObject({ key: 'error:boom', retry: false })
+    })
+
     it('gives way to a refusal', () => {
-      expect(keys({ error: 'boom', refusal: { message: 'Too many.' } })).toEqual(['refusal:Too many.'])
+      expect(keys({ error: { message: 'boom', retry: true }, refusal: { message: 'Too many.' } })).toEqual(['refusal:Too many.'])
     })
   })
 
@@ -218,6 +225,16 @@ describe('panelMessages', () => {
     it('keeps the order the gate gave', () => {
       expect(keys({ blockers: ['polygon', 'types'] })).toEqual(['blocker:polygon', 'blocker:types'])
     })
+
+    // A finished ring with no type beside a pasted list: Analyze runs, and the
+    // same sentence says, as information, why the ring adds nothing (#579).
+    it('says the types line as information when the ring blocks nothing', () => {
+      expect(only({ ringIgnored: true })).toEqual({
+        key: 'ring:types',
+        text: 'Select at least one destination type for the polygon search.',
+        severity: 'info',
+      })
+    })
   })
 
   describe('the wildfire line', () => {
@@ -262,7 +279,7 @@ describe('panelMessages', () => {
     it.each([
       ['there is no report', { hasReport: false }],
       ['an analysis runs', { loading: true }],
-      ['the run failed', { error: 'boom' }],
+      ['the run failed', { error: { message: 'boom', retry: true } }],
       ['the run was refused', { refusal: { message: 'Too many.' } }],
       ['some row has air quality', { aqiAllNull: false }],
     ] as [string, Partial<PanelMessageInputs>][])('stays quiet when %s', (_case, over) => {
@@ -283,7 +300,7 @@ describe('panelMessages', () => {
   it('puts every line in one fixed order', () => {
     expect(
       keys({
-        error: 'boom',
+        error: { message: 'boom', retry: true },
         commitReasons: ['model-changed', 'window-changed'],
         source: 'spanning',
         window: { startMs: Date.parse('2026-07-01T00:00:00Z'), endMs: Date.parse('2026-09-23T00:00:00Z') },

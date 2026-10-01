@@ -25,6 +25,7 @@ import {
 } from '../styles'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import type { LabelledScale } from '../utils/colors'
+import { gridPaints } from '../utils/forecastGrid'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF } from '../utils/radar'
 import { legendBottomPx } from '../utils/resultsSheet'
@@ -162,7 +163,7 @@ interface MapLegendProps {
 
 /**
  * The map's one legend box and the stack it scrolls in (#454; #409 cut it out
- * of `App.tsx`). Nothing when nothing on the map is coloured or switched on.
+ * of `App.tsx`). Nothing when no section has anything to key.
  */
 export default function MapLegend({
   sortBy,
@@ -176,23 +177,239 @@ export default function MapLegend({
   timelineShown,
 }: MapLegendProps) {
   const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
-  const { gridPainted, gridCued, gridFailed, gridLegend } = grid
-  if (
-    !(
-      hasColoredMarkers ||
-      gridPainted ||
-      gridCued ||
-      gridFailed ||
-      showWildfires ||
-      showAreaClosures ||
-      showTrailClosures ||
-      showSmoke ||
-      showRadar ||
-      showSnow
-    )
-  ) {
-    return null
-  }
+  // The grid's states mean nothing under a ranking it cannot paint, so the
+  // grid neither keys the metric nor gets a row of its own then.
+  const gridShows = gridPaints(sortBy)
+  const gridPainted = gridShows && grid.gridPainted
+  const gridCued = gridShows && grid.gridCued
+  const gridFailed = gridShows && grid.gridFailed
+  const { gridLegend } = grid
+  // ONE box, gaining and losing sections as the report and the
+  // layers change (#454). It was two — the layer rows in one, the
+  // six-row metric key in another — which cost a border, a gap and
+  // a second backdrop on a map that can be 161px tall on a phone.
+  //
+  // **Alphabetical by the label each section READS**, the metric
+  // key included (TJ, 2026-09-17). Nothing ranks these against
+  // each other — no cost, no severity, no dependency — so any
+  // other order is one the reader has to learn, and a key that is
+  // a list member cannot be a headline above the list. It costs
+  // the metric key a fixed position: a temperature ranking sorts
+  // last and an AQI one first. That is the order working rather
+  // than the key moving on its own, and it is the same rule that
+  // moved `Active wildfire` off the bottom, where it had been
+  // sorting under the Layers popover's own name for it.
+  //
+  // Sorted where the box renders them rather than written in order,
+  // because one of the labels is the ranked metric's and changes under
+  // the reader.
+  // Every label is spelled once, as the sort key AND as what the
+  // section renders, so the two cannot disagree.
+  const sections: Parameters<typeof legendSection>[0][] = [
+    // Keyed to the markers OR to the grid, because either can be
+    // the only colored thing on screen: a live filter can empty
+    // the table while the field still paints, and colors without
+    // their key are noise. One section serves both — they are
+    // scored on the same scale by construction (#246), which is
+    // also why the grid has no swatch of its own in its row.
+    //
+    // The strip follows `markerScale`, so playback's swap to an
+    // hourly precipitation scale moves the bands and the numbers
+    // with the markers. The bare metric is all the label says:
+    // which hour or window the colors describe, how it was
+    // reduced, and — for wind — which datum produced it (#361)
+    // are all stated by the results header and the table's own
+    // column headers.
+    ...(markerScale !== null &&
+    rankedFieldHasValue &&
+    (hasColoredMarkers || gridPainted || gridCued)
+      ? [
+          {
+            // `Temperature (°F)`, by the same composer the table
+            // headers use, reading the SCALE's unit so playback's
+            // swap to the hourly rate relabels the strip with its
+            // bands. No aggregate and no qualifier: which hour or
+            // window the colours describe, how it was reduced,
+            // and — for the wind and the temperature — which
+            // datum produced it (#361, #443) are all stated by
+            // the results header and the table's own column
+            // headers. AQI reads as the bare noun, its index
+            // having no unit.
+            label: metricLabel(
+              familyOf(sortBy),
+              undefined,
+              markerScale.unit,
+            ),
+            ramp: {
+              css: scaleRampCss(markerScale),
+              ticks: scaleTicks(markerScale),
+              bands: markerScale.colors.length,
+            },
+          },
+        ]
+      : []),
+    // CC BY 3.0 wants the credit wherever the fire data is drawn,
+    // and section 4(b) lets it be "implemented in any reasonable
+    // manner" — so it is the section's own label. The licence URI
+    // section 4(a) asks for lives in DataSourceList, which both
+    // document pages render.
+    ...(showWildfires
+      ? [
+          {
+            label: 'Active wildfire',
+            credit: { href: NIFC_HREF, name: 'NIFC' },
+            swatch: (
+              <span
+                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                style={{
+                  backgroundColor: 'rgba(220,38,38,0.35)',
+                  borderColor: '#b91c1c',
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
+    // The closure orders (#550). US government work, so no licence
+    // asks for the credit; it is here because every layer that draws
+    // somebody else's data names them in its own section. The area
+    // keys on the fire's chip in the closure hue, and the trail on a
+    // dashed rule, because a line is what it draws.
+    ...(showAreaClosures
+      ? [
+          {
+            label: 'Area closures',
+            credit: { href: USFS_HREF, name: 'USFS' },
+            swatch: (
+              <span
+                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                style={closureAreaSwatch()}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(showTrailClosures
+      ? [
+          {
+            label: 'Trail closures',
+            credit: { href: USFS_HREF, name: 'USFS' },
+            swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
+          },
+        ]
+      : []),
+    // No swatch: the grid's colours are the metric key's, which
+    // the markers share. What this row adds is the one thing that
+    // IS the grid's own — how far apart the samples are, or why
+    // it is not there yet. Every state right-justifies its value
+    // like every other row, statuses included: one row breaking
+    // the column reads as a fault rather than as a distinction.
+    ...(gridPainted || gridCued || gridFailed
+      ? [
+          {
+            label: gridLegend.label,
+            swatch: (
+              // Colored by state (TJ, 2026-08-21): amber while
+              // the grid is waiting or loading so a stall catches
+              // the eye, red when it failed, and the accent once
+              // the pitch is real. The size is the colorless
+              // CONTROL_SIZE because a color beside
+              // TEXT.control's own would resolve by stylesheet
+              // order.
+              <span
+                className={`${CONTROL_SIZE} ${
+                  gridLegend.kind === 'pitch'
+                    ? ACCENT.text
+                    : gridLegend.kind === 'error'
+                      ? STATUS.error
+                      : STATUS.warn
+                } flex-shrink-0`}
+              >
+                {gridLegend.value}
+              </span>
+            ),
+          },
+        ]
+      : []),
+    ...(showRadar
+      ? [
+          {
+            label: 'Rain radar',
+            credit: { href: IEM_HREF, name: 'IEM' },
+            // A gradient rather than banded swatches: NEXRAD's
+            // own reflectivity ramp is continuous, and a legend
+            // that invented boundaries would assert thresholds
+            // Bluebird Forecast does not know.
+            swatch: (
+              <span
+                className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
+                style={{
+                  backgroundImage:
+                    'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                  borderColor: SWATCH_EDGE,
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
+    ...(showSmoke
+      ? [
+          {
+            label: 'Smoke',
+            credit: { href: HMS_HREF, name: 'NOAA' },
+            // One lettered chip per density rather than three
+            // rows. Opacity is the whole encoding here, so the
+            // three chips also read as a ramp side by side,
+            // which they could not do stacked. The letter is
+            // what keeps them nameable at 14px.
+            swatch: (
+              <span className="flex flex-shrink-0 gap-0.5">
+                {SMOKE_DENSITIES.map((density) => (
+                  <span
+                    key={density}
+                    className={SWATCH_CHIP}
+                    style={{
+                      backgroundColor: smokeSwatch(density),
+                      borderColor: SMOKE_EDGE,
+                    }}
+                    // A letter is not nameable on sight. The word
+                    // it stands for is the same one the plume
+                    // popup and the layer use, so this names it
+                    // rather than introducing a second
+                    // vocabulary.
+                    title={density}
+                  >
+                    {density[0]}
+                  </span>
+                ))}
+              </span>
+            ),
+          },
+        ]
+      : []),
+    // Hard-stopped between bands where the metric strip blends,
+    // because those boundaries are NOAA's own classification —
+    // the picture and its key have to agree, which is why both
+    // read `snowDepth.ts`.
+    ...(showSnow
+      ? [
+          {
+            label: SNOW_LABEL,
+            credit: { href: NOHRSC_HREF, name: 'NOHRSC' },
+            ramp: {
+              css: snowRampCss(),
+              ticks: snowTicks(),
+              bands: SNOW_RAMP.length,
+            },
+          },
+        ]
+      : []),
+  ]
+  // Nothing when no section survives, rather than when nothing is switched on:
+  // coloured markers whose ranked metric has no value on any row draw no key,
+  // and a box with nothing in it reads as a fault.
+  if (sections.length === 0) return null
   // Top-anchored legends: they hang one gap under the Layers button
   // (`LEGEND_TOP`) and grow downward, at EVERY width.
   //
@@ -251,26 +468,6 @@ export default function MapLegend({
       // top of the sheet where they cover it (#249).
       style={{ bottom: legendBottomPx(sheetLiftPx, timelineShown) }}
     >
-      {/* ONE box, gaining and losing sections as the report and the
-          layers change (#454). It was two — the layer rows in one, the
-          six-row metric key in another — which cost a border, a gap and
-          a second backdrop on a map that can be 161px tall on a phone.
-
-          **Alphabetical by the label each section READS**, the metric
-          key included (TJ, 2026-09-17). Nothing ranks these against
-          each other — no cost, no severity, no dependency — so any
-          other order is one the reader has to learn, and a key that is
-          a list member cannot be a headline above the list. It costs
-          the metric key a fixed position: a temperature ranking sorts
-          last and an AQI one first. That is the order working rather
-          than the key moving on its own, and it is the same rule that
-          moved `Active wildfire` off the bottom, where it had been
-          sorting under the Layers popover's own name for it.
-
-          Sorted here rather than written in order, because one of the
-          labels is the ranked metric's and changes under the reader.
-          Every label is spelled once, as the sort key AND as what the
-          section renders, so the two cannot disagree. */}
       <div
         // A popup keeps clear of this box (`resultsLayer.ts` finds every
         // `data-map-overlay`); the box rather than the scroll column around
@@ -278,207 +475,7 @@ export default function MapLegend({
         data-map-overlay=""
         className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}
       >
-        {[
-          // Keyed to the markers OR to the grid, because either can be
-          // the only colored thing on screen: a live filter can empty
-          // the table while the field still paints, and colors without
-          // their key are noise. One section serves both — they are
-          // scored on the same scale by construction (#246), which is
-          // also why the grid has no swatch of its own in its row.
-          //
-          // The strip follows `markerScale`, so playback's swap to an
-          // hourly precipitation scale moves the bands and the numbers
-          // with the markers. The bare metric is all the label says:
-          // which hour or window the colors describe, how it was
-          // reduced, and — for wind — which datum produced it (#361)
-          // are all stated by the results header and the table's own
-          // column headers.
-          ...(markerScale !== null &&
-          rankedFieldHasValue &&
-          (hasColoredMarkers || gridPainted || gridCued)
-            ? [
-                {
-                  // `Temperature (°F)`, by the same composer the table
-                  // headers use, reading the SCALE's unit so playback's
-                  // swap to the hourly rate relabels the strip with its
-                  // bands. No aggregate and no qualifier: which hour or
-                  // window the colours describe, how it was reduced,
-                  // and — for the wind and the temperature — which
-                  // datum produced it (#361, #443) are all stated by
-                  // the results header and the table's own column
-                  // headers. AQI reads as the bare noun, its index
-                  // having no unit.
-                  label: metricLabel(
-                    familyOf(sortBy),
-                    undefined,
-                    markerScale.unit,
-                  ),
-                  ramp: {
-                    css: scaleRampCss(markerScale),
-                    ticks: scaleTicks(markerScale),
-                    bands: markerScale.colors.length,
-                  },
-                },
-              ]
-            : []),
-          // CC BY 3.0 wants the credit wherever the fire data is drawn,
-          // and section 4(b) lets it be "implemented in any reasonable
-          // manner" — so it is the section's own label. The licence URI
-          // section 4(a) asks for lives in DataSourceList, which both
-          // document pages render.
-          ...(showWildfires
-            ? [
-                {
-                  label: 'Active wildfire',
-                  credit: { href: NIFC_HREF, name: 'NIFC' },
-                  swatch: (
-                    <span
-                      className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                      style={{
-                        backgroundColor: 'rgba(220,38,38,0.35)',
-                        borderColor: '#b91c1c',
-                      }}
-                    />
-                  ),
-                },
-              ]
-            : []),
-          // The closure orders (#550). US government work, so no licence
-          // asks for the credit; it is here because every layer that draws
-          // somebody else's data names them in its own section. The area
-          // keys on the fire's chip in the closure hue, and the trail on a
-          // dashed rule, because a line is what it draws.
-          ...(showAreaClosures
-            ? [
-                {
-                  label: 'Area closures',
-                  credit: { href: USFS_HREF, name: 'USFS' },
-                  swatch: (
-                    <span
-                      className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                      style={closureAreaSwatch()}
-                    />
-                  ),
-                },
-              ]
-            : []),
-          ...(showTrailClosures
-            ? [
-                {
-                  label: 'Trail closures',
-                  credit: { href: USFS_HREF, name: 'USFS' },
-                  swatch: <span className={SWATCH_LINE} style={closureTrailSwatch()} />,
-                },
-              ]
-            : []),
-          // No swatch: the grid's colours are the metric key's, which
-          // the markers share. What this row adds is the one thing that
-          // IS the grid's own — how far apart the samples are, or why
-          // it is not there yet. Every state right-justifies its value
-          // like every other row, statuses included: one row breaking
-          // the column reads as a fault rather than as a distinction.
-          ...(gridPainted || gridCued || gridFailed
-            ? [
-                {
-                  label: gridLegend.label,
-                  swatch: (
-                    // Colored by state (TJ, 2026-08-21): amber while
-                    // the grid is waiting or loading so a stall catches
-                    // the eye, red when it failed, and the accent once
-                    // the pitch is real. The size is the colorless
-                    // CONTROL_SIZE because a color beside
-                    // TEXT.control's own would resolve by stylesheet
-                    // order.
-                    <span
-                      className={`${CONTROL_SIZE} ${
-                        gridLegend.kind === 'pitch'
-                          ? ACCENT.text
-                          : gridLegend.kind === 'error'
-                            ? STATUS.error
-                            : STATUS.warn
-                      } flex-shrink-0`}
-                    >
-                      {gridLegend.value}
-                    </span>
-                  ),
-                },
-              ]
-            : []),
-          ...(showRadar
-            ? [
-                {
-                  label: 'Rain radar',
-                  credit: { href: IEM_HREF, name: 'IEM' },
-                  // A gradient rather than banded swatches: NEXRAD's
-                  // own reflectivity ramp is continuous, and a legend
-                  // that invented boundaries would assert thresholds
-                  // Bluebird Forecast does not know.
-                  swatch: (
-                    <span
-                      className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                      style={{
-                        backgroundImage:
-                          'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
-                        borderColor: SWATCH_EDGE,
-                      }}
-                    />
-                  ),
-                },
-              ]
-            : []),
-          ...(showSmoke
-            ? [
-                {
-                  label: 'Smoke',
-                  credit: { href: HMS_HREF, name: 'NOAA' },
-                  // One lettered chip per density rather than three
-                  // rows. Opacity is the whole encoding here, so the
-                  // three chips also read as a ramp side by side,
-                  // which they could not do stacked. The letter is
-                  // what keeps them nameable at 14px.
-                  swatch: (
-                    <span className="flex flex-shrink-0 gap-0.5">
-                      {SMOKE_DENSITIES.map((density) => (
-                        <span
-                          key={density}
-                          className={SWATCH_CHIP}
-                          style={{
-                            backgroundColor: smokeSwatch(density),
-                            borderColor: SMOKE_EDGE,
-                          }}
-                          // A letter is not nameable on sight. The word
-                          // it stands for is the same one the plume
-                          // popup and the layer use, so this names it
-                          // rather than introducing a second
-                          // vocabulary.
-                          title={density}
-                        >
-                          {density[0]}
-                        </span>
-                      ))}
-                    </span>
-                  ),
-                },
-              ]
-            : []),
-          // Hard-stopped between bands where the metric strip blends,
-          // because those boundaries are NOAA's own classification —
-          // the picture and its key have to agree, which is why both
-          // read `snowDepth.ts`.
-          ...(showSnow
-            ? [
-                {
-                  label: SNOW_LABEL,
-                  credit: { href: NOHRSC_HREF, name: 'NOHRSC' },
-                  ramp: {
-                    css: snowRampCss(),
-                    ticks: snowTicks(),
-                    bands: SNOW_RAMP.length,
-                  },
-                },
-              ]
-            : []),
-        ]
+        {sections
           .sort((a, b) => a.label.localeCompare(b.label))
           .map((section) => (
             <Fragment key={section.label}>{legendSection(section)}</Fragment>

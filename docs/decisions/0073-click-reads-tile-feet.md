@@ -1,4 +1,4 @@
-# 0070. A clicked summit takes its elevation from the tile's own feet
+# 0073. A clicked summit takes its elevation from the tile's own feet
 
 - Status: Accepted
 - Date: 2026-10-01

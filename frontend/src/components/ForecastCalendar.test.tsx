@@ -158,4 +158,23 @@ describe('the Hours segment', () => {
     fireEvent.change(screen.getByLabelText('Start'), { target: { value: '12:00' } })
     expect(lastSelection()).toMatchObject({ hours: { start: '12:00', end: '13:00' } })
   })
+
+  // An end typed one digit at a time passes 01:00 on its way to 10:00, and the
+  // start must still be where the reader left it when the second digit lands.
+  it('leaves the start alone while the end is typed through earlier hours', () => {
+    render(
+      <Calendar
+        initial={{
+          kind: 'days',
+          startDate: '2026-09-15',
+          endDate: '2026-09-15',
+          hours: { start: '06:00', end: '18:00' },
+        }}
+      />,
+    )
+    const end = screen.getByLabelText('End')
+    fireEvent.change(end, { target: { value: '01:00' } })
+    fireEvent.change(end, { target: { value: '10:00' } })
+    expect(lastSelection()).toMatchObject({ hours: { start: '06:00', end: '10:00' } })
+  })
 })

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildGrid, type GridCell, type GridSpec } from './forecastGridLattice'
-import { gridRaster } from './forecastGridRaster'
+import { gridPaints, gridRaster } from './forecastGridRaster'
 import { resultsFeatureCollection } from './resultFeatures'
 import { gridCell, gridRow } from '../testSupport/fixtures'
 
@@ -89,6 +89,18 @@ function pixelHex(raster: { width: number; rgba: Uint8ClampedArray }, x = 0, y =
 }
 
 describe('gridRaster', () => {
+  // Snow depth is matched to a destination at discovery, which no lattice cell
+  // goes through, so the grid draws nothing under it, even over cells that
+  // happen to carry a number (#579). Every forecast family still paints.
+  it('draws no field under a ranking the grid cannot paint', () => {
+    const spec = buildGrid(CASCADES, 25)!
+    const snowy = spec.points.map((_, i) => gridCell(spec.cells[i], gridRow({ snow_depth_in: 40 }), spec.indices[i]))
+    expect(gridPaints('snow_depth_in')).toBe(false)
+    expect(gridRaster(spec, snowy, 'snow_depth_in', null)).toBeNull()
+    expect(gridPaints('temp_avg_f')).toBe(true)
+    expect(gridPaints('precip_total_in')).toBe(true)
+  })
+
   it('is one pixel per sample, the lattice\'s own shape', () => {
     // Deliberately tiny: the smoothing is the raster layer's, so this only has
     // to carry the values. A 600-sample lattice is a ~25x24 image.

@@ -204,6 +204,31 @@ def test_custom_only_request_resolves_without_discovering(monkeypatch):
     assert row["osm_id"] == "node/42"
 
 
+# A line pasted twice is one destination: OSM is asked about the point once,
+# and one row comes back, under the first line's name (#579).
+def test_a_repeated_custom_row_is_looked_up_once(monkeypatch):
+    asked: list[list[str]] = []
+
+    async def fake(destinations):
+        asked.append([d["name"] for d in destinations])
+        return [dict(d) for d in destinations]
+
+    monkeypatch.setattr(osm_mod, "enrich_custom", fake)
+    resp = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [
+                _custom("First", 47.406905, -121.622215),
+                _custom("Again", 47.406905, -121.622215),
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    assert asked == [["First"]]
+    assert [row["name"] for row in resp.json()["destinations"]] == ["First"]
+
+
 def test_unresolvable_custom_row_comes_back_with_a_null_elevation(monkeypatch):
     _stub_enrich(monkeypatch, {})
     resp = client.post(

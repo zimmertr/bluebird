@@ -122,6 +122,30 @@ export function analyzeBlockers(g: AnalyzeGate & { drawPointCount: number }): An
 }
 
 /**
+ * A finished ring that will add nothing to an analysis Analyze can still run
+ * (#579): no type is checked, so the ring discovers nothing, and a pasted list
+ * or a pin keeps the button open. With no other input this is the `types`
+ * blocker above; with one it blocks nothing, so it is not a blocker, and the
+ * panel shows the same `types` line as information instead. Without it the
+ * reader drew a ring, pressed Analyze, and got a report that ignored the ring
+ * with nothing said.
+ *
+ * Only a finished ring: mid-draw the ring is still being made, and the
+ * polygon's own counter speaks for it. An oversized ring has its own line.
+ */
+export function ringAddsNothing(
+  g: AnalyzeGate & { drawPointCount: number; drawing: boolean },
+): boolean {
+  return (
+    !g.drawing &&
+    g.drawPointCount >= 3 &&
+    !g.polygonReady &&
+    !g.areaTooLarge &&
+    (g.hasCustom || g.hasPins)
+  )
+}
+
+/**
  * Whether a link that asked for its analysis to run on open (`analyze=1`, #511)
  * should run it now.
  *

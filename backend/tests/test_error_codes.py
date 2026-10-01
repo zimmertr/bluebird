@@ -99,6 +99,40 @@ async def test_the_handler_keeps_the_detail_and_the_retry_after_header():
     }
 
 
+# The browser shows a 422's `msg` as-is, so our own validator's sentence must
+# arrive as written rather than behind Pydantic's "Value error, " prefix. The
+# body keeps the stock 422 shape: a list, and no `error` object.
+def test_a_validator_message_arrives_as_the_validator_wrote_it():
+    response = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [{"name": "X", "latitude": 95, "longitude": -121}],
+        },
+    )
+    assert response.status_code == 422
+    body = response.json()
+    assert "error" not in body
+    [error] = body["detail"]
+    assert error["type"] == "value_error"
+    assert error["msg"] == "Latitude 95.0 is outside the valid -90 to 90 range."
+
+
+# Pydantic's own messages carry no prefix and pass through untouched.
+def test_a_pydantic_message_passes_through_unchanged():
+    response = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [{"name": "X", "latitude": "north", "longitude": -121}],
+        },
+    )
+    assert response.status_code == 422
+    [error] = response.json()["detail"]
+    assert error["type"] == "float_parsing"
+    assert error["msg"] == "Input should be a valid number, unable to parse string as a number"
+
+
 def test_a_page_route_404_stays_outside_the_api_contract(tmp_path, monkeypatch):
     # The document pages raise a plain HTTPException. The handler is registered
     # for ApiError alone precisely so that 404 keeps FastAPI's stock body: it

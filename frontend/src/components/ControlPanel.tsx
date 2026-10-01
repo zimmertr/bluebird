@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
-import { Refusal } from '../hooks/useAnalyze'
+import { Refusal, RunError } from '../hooks/useAnalyze'
 import DestinationsSection from './DestinationsSection'
 import ForecastSection from './ForecastSection'
 import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
 import { parseCustomCsv } from '../utils/customDestinations'
+import { distinctRows } from '../utils/customList'
 import { PANEL_EDGE, PANEL_RULE, TEXT } from '../styles'
 import { MetricFamily, familyOf } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
-import { analyzeBlockers, canAnalyze, shouldAutoAnalyze } from '../utils/analyzeGate'
+import { analyzeBlockers, canAnalyze, ringAddsNothing, shouldAutoAnalyze } from '../utils/analyzeGate'
 import { modelsWithoutFreeze } from '../utils/freezingLevel'
 import { selectedIds } from '../utils/modelSelection'
 import { panelMessages } from '../utils/panelMessages'
@@ -97,7 +98,7 @@ interface Props {
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
   loading: boolean
-  error: string | null
+  error: RunError | null
   // An over-limit refusal with its remedy fields. Rendered as an action
   // panel, never with "Try again": retrying a deterministic refusal verbatim
   // re-buys the same 10-40s map query for the same answer.
@@ -212,6 +213,8 @@ export default function ControlPanel({
   // Destinations section prints how many.
   const parsedCustom = useMemo(() => parseCustomCsv(customCsv), [customCsv])
   const hasCustom = parsedCustom.length > 0
+  // A line pasted twice is one destination, and the count says so (#579).
+  const customCount = useMemo(() => distinctRows(parsedCustom).length, [parsedCustom])
   const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
 
   const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
@@ -279,6 +282,7 @@ export default function ControlPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoAnalyze, capabilitiesSettled, analyzeEnabled])
   const blockers = analyzeBlockers({ ...gate, drawPointCount })
+  const ringIgnored = ringAddsNothing({ ...gate, drawPointCount, drawing })
 
   // The selection as the datetime pair the warnings read. The calendar marks
   // days past the air-quality horizon in the grid; this is the sentence that
@@ -322,6 +326,7 @@ export default function ControlPanel({
     source: selectedSource,
     aqiCoverage,
     blockers,
+    ringIgnored,
     pointsNeeded,
     freezeGaps,
     maxAreaKm2,
@@ -382,7 +387,7 @@ export default function ControlPanel({
           setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
           customCsv={customCsv}
           setCustomCsv={setCustomCsv}
-          parsedCount={parsedCustom.length}
+          parsedCount={customCount}
           onCsvPasted={onCsvPasted}
         />
 

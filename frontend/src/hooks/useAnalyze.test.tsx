@@ -108,7 +108,7 @@ describe('one analysis', () => {
     await analyzeAt(result, T0)
     ranked.mockRejectedValueOnce(new Error('Broken.'))
     await analyzeAt(result, T0 + MIN)
-    expect(result.current).toMatchObject({ response: DATA, analysisSeq: 1, fireSeq: 2, fireField: null, error: 'Broken.' })
+    expect(result.current).toMatchObject({ response: DATA, analysisSeq: 1, fireSeq: 2, fireField: null, error: { message: 'Broken.', retry: true } })
   })
 
   it('records the snow date of its own discovery, never the last one', async () => {
@@ -134,11 +134,13 @@ describe('one analysis', () => {
 })
 
 describe('what the reader sees', () => {
-  it('opens a ring on the search label and a custom list on retrieval', async () => {
+  // A run with no polygon waits first on the pod's elevation lookup, and says
+  // so rather than claiming to be retrieving forecasts already (#579).
+  it('opens a ring on the search label and a custom list on the elevation label', async () => {
     const ring = { type: 'Polygon' as const, coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
     const cases: [AnalyzeRequest, string][] = [
       [{ ...REQUEST, polygon: ring, destination_types: ['peak'] }, SEARCHING_MESSAGE],
-      [REQUEST, 'Retrieving Forecasts…'],
+      [REQUEST, 'Retrieving elevation…'],
     ]
     for (const [request, seed] of cases) {
       // The server holds its answer, so the label the run opened on is on screen.
@@ -161,7 +163,7 @@ describe('what the reader sees', () => {
     const { result } = renderHook(() => useAnalyze())
     ranked.mockRejectedValueOnce(new Error('Broken.'))
     await analyzeAt(result, T0)
-    expect(result.current.error).toBe('Broken.')
+    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
     act(() => result.current.reset())
     expect(result.current).toMatchObject({ error: null, refusal: null, response: null, universe: null, analyzed: null })
   })
@@ -174,7 +176,7 @@ describe('what the reader sees', () => {
     })
     const { result } = renderHook(() => useAnalyze())
     await analyzeAt(result, T0)
-    expect(result.current).toMatchObject({ response: partial, universe: ROWS, arriving: false, analysisSeq: 0, error: 'Broken.' })
+    expect(result.current).toMatchObject({ response: partial, universe: ROWS, arriving: false, analysisSeq: 0, error: { message: 'Broken.', retry: true } })
   })
 })
 

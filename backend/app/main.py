@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -15,7 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import cache_headers, ratelimit, security_headers, telemetry
-from app.error_codes import ApiError, api_error_handler
+from app.error_codes import ApiError, api_error_handler, validation_error_handler
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
 from app.routes.closures import router as closures_router
@@ -262,6 +263,8 @@ app.add_middleware(
 # relate the class it is keyed on to the handler's parameter. It only ever calls
 # this one with an ApiError, so the narrower signature is the true one.
 app.add_exception_handler(ApiError, api_error_handler)  # type: ignore[arg-type]
+# FastAPI's own 422, kept in its shape; see `validation_error_handler`.
+app.add_exception_handler(RequestValidationError, validation_error_handler)  # type: ignore[arg-type]
 
 
 @app.middleware("http")

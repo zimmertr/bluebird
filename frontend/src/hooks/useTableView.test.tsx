@@ -5,6 +5,7 @@ import type { FireProximity } from './useFireProximity'
 import type { ClosureProximity } from './useClosureProximity'
 import { analyzedSnapshot, closureWarning, fireWarning, forecastModel, resultRow } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
+import { rankText } from '../utils/resultsCells'
 import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY } from '../utils/tableColumns'
 import { type ViewPrefs, readViewPrefs } from '../utils/viewPrefs'
 
@@ -139,6 +140,23 @@ describe('useTableView', () => {
     expect(result.current.tableRows.map((r) => r.name)).toEqual(['Near', 'Far', 'Clear'])
     rerender(inputs({ detailSort: { key: WILDFIRE_KEY, dir: 'desc' } }))
     expect(result.current.tableRows.map((r) => r.name)).toEqual(['Far', 'Near', 'Clear'])
+  })
+
+  // A header sort reorders the rows, and each keeps the rank the ranking gave
+  // it, the number its marker wears (#579). The same rows come back while
+  // nothing they are made from changes, so the memoized table does not redraw.
+  it('keeps the ranking rank on each row through a header sort, on the same objects', () => {
+    const { result, rerender } = renderHook((p: TableViewInputs) => useTableView(p), {
+      initialProps: inputs({ detailSort: { key: 'name', dir: 'desc' } }),
+    })
+    const first = result.current.tableRows
+    expect(first.map((r) => [r.name, rankText(r, 0)])).toEqual([
+      ['Near', '3'],
+      ['Far', '2'],
+      ['Clear', '1'],
+    ])
+    rerender(inputs({ detailSort: { key: 'name', dir: 'desc' } }))
+    expect(result.current.tableRows[0]).toBe(first[0])
   })
 
   // The Closure key is virtual too, and sorts by the order's name, with a

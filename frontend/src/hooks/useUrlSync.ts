@@ -50,6 +50,13 @@ export interface UrlSyncInputs {
   tableSort: ShareableState['tableSort']
   /** The camera the link opened on, held until the map reports its own. */
   restoredView: CameraView | null
+  /**
+   * True while the tutorial runs (#536). The camera then is the tour's, which
+   * frames a demonstration marker, and a link copied from the address bar
+   * meanwhile must still open where the reader was. The tour puts the camera
+   * back when it ends, so nothing is owed afterwards.
+   */
+  cameraHeld: boolean
 }
 
 export interface UrlSync {
@@ -98,6 +105,7 @@ export function useUrlSync({
   removedKeys,
   tableSort,
   restoredView,
+  cameraHeld,
 }: UrlSyncInputs): UrlSync {
   // One debouncer for the whole component lifetime. It has to outlive the URL
   // sync effect below: a timer owned by that effect would be torn down on every
@@ -136,8 +144,13 @@ export function useUrlSync({
     writeUrl(qs ? `?${qs}` : window.location.pathname)
   }, [writeUrl])
 
+  // A ref rather than a dependency, so `reportView` keeps one identity for the
+  // memoized map it is handed to.
+  const cameraHeldRef = useRef(cameraHeld)
+  cameraHeldRef.current = cameraHeld
   const reportView = useCallback(
     (view: CameraView, readerMove: boolean) => {
+      if (cameraHeldRef.current) return
       viewRef.current = view
       if (readerMove) cameraMovedRef.current = true
       sync()

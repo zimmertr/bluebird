@@ -572,7 +572,9 @@ You do not need a polygon. Send coordinates directly and skip discovery:
 
 Custom destinations can also accompany a polygon, in which case they are merged
 into whatever discovery finds. A custom row matching a discovered one by name or
-by coordinates to five decimals replaces it.
+by coordinates to five decimals replaces it. Two custom rows at the same
+coordinates to five decimals are one destination: the first is kept and the
+later ones are dropped.
 
 Supplying `elevation_ft` is optional. Leave it out and the service resolves it
 against OpenStreetMap for you (see [Resolving your own
@@ -828,9 +830,9 @@ curl -N https://bluebirdforecast.com/api/analyze/stream \
 ```
 
 ```
-data: {"type": "status", "message": "Searching for Destinations…"}
+data: {"type": "status", "message": "Searching for destinations…"}
 
-data: {"type": "status", "message": "Searching for Destinations…", "detail": "Trying backup map server 2 of 3…"}
+data: {"type": "status", "message": "Searching for destinations…", "detail": "Trying backup map server 2 of 3…"}
 
 data: {"type": "progress", "processed": 0, "total": 120, "percent": 0}
 
@@ -983,7 +985,9 @@ curl -s https://bluebirdforecast.com/api/destinations \
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
-A `422` carries Pydantic's per-field `detail` list. Every other error carries a
+A `422` carries Pydantic's per-field `detail` list. Where one of the service's
+own checks refused a field, that entry's `msg` is the sentence the check wrote,
+with no `Value error, ` prefix in front of it. Every other error carries a
 single plain-language `detail` string, written to be shown to a person as-is.
 
 That table is exhaustive: nothing else is emitted deliberately, and in

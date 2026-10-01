@@ -205,7 +205,7 @@ async def _find_candidates(
                 )
             )
             return
-        yield Status("Searching for Destinations…")
+        yield Status("Searching for destinations…")
 
         # Overpass is one opaque request per mirror, so the only progress
         # signal is mirror failover. Run it on a task and surface those
@@ -216,7 +216,7 @@ async def _find_candidates(
             # Mirror failover ("Trying backup map server 2 of 3…") rides the
             # optional `detail` field; `message` stays the stable phase
             # heading the overlay keys on.
-            await osm_queue.put(Status("Searching for Destinations…", detail))
+            await osm_queue.put(Status("Searching for destinations…", detail))
 
         async def run_osm() -> list[dict]:
             try:
@@ -396,7 +396,7 @@ async def _fetch_forecasts(
     log.info("Fetching weather for %d destination(s)", total_queried)
 
     # Announce the retrieval phase WITH the final count the moment discovery
-    # settles, so the overlay shows "Retrieving N Forecasts…" immediately
+    # settles, so the overlay shows "Retrieving N forecasts…" immediately
     # rather than a count-less line while the first batch (a full Open-Meteo
     # round-trip) is still in flight.
     yield Progress(processed=0, total=total_queried, percent=0)
@@ -423,7 +423,7 @@ async def _fetch_forecasts(
         # detail line narrates it under the phase heading.
         await progress_queue.put(
             Status(
-                "Retrieving Forecasts…",
+                "Retrieving forecasts…",
                 f"Open-Meteo quota: resuming in about {seconds}s",
             )
         )

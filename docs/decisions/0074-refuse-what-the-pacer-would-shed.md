@@ -1,4 +1,4 @@
-# 0071. An unkeyed analysis that its own batches would shed is refused before it spends
+# 0074. An unkeyed analysis that its own batches would shed is refused before it spends
 
 - Status: Accepted
 - Date: 2026-10-01

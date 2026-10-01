@@ -73,12 +73,33 @@ async def _resolve_custom(custom_destinations) -> list[dict]:
     Every path that turns `custom_destinations` into candidates goes through
     here rather than calling `_custom_dicts` directly, so no route can serve a
     custom row that skipped enrichment (issue #207).
+
+    A row repeated at one coordinate is dropped before the lookup, so a list
+    pasted with a line twice asks OSM about that point once (#579).
     """
-    return await osm.enrich_custom(_custom_dicts(custom_destinations))
+    return await osm.enrich_custom(_distinct_by_coord(_custom_dicts(custom_destinations)))
 
 
 def _coord_key(dest) -> str:
     return f"{dest['latitude']:.5f},{dest['longitude']:.5f}"
+
+
+def _distinct_by_coord(rows: list[dict]) -> list[dict]:
+    """Each coordinate key once, as first written (#579).
+
+    Two custom rows at one point are one destination: kept twice, the point
+    would be looked up twice, forecast twice, and ranked against itself. The
+    browser's `distinctRows` (utils/customList.ts) applies the same rule
+    before it sends a list.
+    """
+    seen: set[str] = set()
+    unique: list[dict] = []
+    for row in rows:
+        key = _coord_key(row)
+        if key not in seen:
+            seen.add(key)
+            unique.append(row)
+    return unique
 
 
 def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
@@ -88,7 +109,11 @@ def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
     identity rule query_osm already applies within its own results) or its
     5-decimal coordinate key (~1 m — the frontend's geoKey precedent). The
     user's own rows always survive; near-misses simply coexist as two rows.
+
+    A custom row repeated at one coordinate key is kept once
+    (`_distinct_by_coord`), whoever built the list.
     """
+    custom = _distinct_by_coord(custom)
     names = {c["name"] for c in custom}
     coords = {_coord_key(c) for c in custom}
     kept = [

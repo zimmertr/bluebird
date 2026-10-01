@@ -10,6 +10,7 @@ import {
   capDetail,
   customRows,
   discoveryBase,
+  followTail,
   isDiscoveryRefresh,
   knownTypes,
   rankComparator,
@@ -1234,5 +1235,82 @@ describe('isDiscoveryRefresh', () => {
   // purpose so those rows are never mistaken for a polygon's discovered set.
   it('re-discovers when nothing was recorded', () => {
     expect(isDiscoveryRefresh(null, base, [], true)).toBe(false)
+  })
+})
+
+// The fetches that trail the weather, named while they keep the run waiting
+// (#579). The weather has answered when this runs.
+describe('following the tail', () => {
+  function deferred() {
+    let resolve!: () => void
+    const promise = new Promise<void>((r) => (resolve = r))
+    return { promise, resolve }
+  }
+  const tick = () => new Promise<void>((r) => setTimeout(r, 0))
+  // Past the macrotask followTail waits before its first label.
+  const settle = async () => {
+    await tick()
+    await tick()
+  }
+
+  it('names air quality while it is still out', async () => {
+    const aqi = deferred()
+    const labels: string[] = []
+    const done = followTail(aqi.promise, null, (m) => labels.push(m))
+    await settle()
+    expect(labels).toEqual(['Retrieving air quality…'])
+    aqi.resolve()
+    await done
+    expect(labels).toEqual(['Retrieving air quality…'])
+  })
+
+  it('names the cloud data while it is still out', async () => {
+    const cloud = deferred()
+    const labels: string[] = []
+    const done = followTail(Promise.resolve(), cloud.promise, (m) => labels.push(m))
+    await settle()
+    expect(labels).toEqual(['Retrieving cloud data…'])
+    cloud.resolve()
+    await done
+  })
+
+  it('names air quality, then the cloud data once air quality answers, and never goes back', async () => {
+    const aqi = deferred()
+    const cloud = deferred()
+    const labels: string[] = []
+    const done = followTail(aqi.promise, cloud.promise, (m) => labels.push(m))
+    await settle()
+    expect(labels).toEqual(['Retrieving air quality…'])
+    aqi.resolve()
+    await settle()
+    expect(labels).toEqual(['Retrieving air quality…', 'Retrieving cloud data…'])
+    cloud.resolve()
+    await done
+    expect(labels).toEqual(['Retrieving air quality…', 'Retrieving cloud data…'])
+  })
+
+  it('names the cloud data alone when air quality answers first', async () => {
+    const cloud = deferred()
+    const labels: string[] = []
+    const done = followTail(Promise.resolve(), cloud.promise, (m) => labels.push(m))
+    cloud.resolve()
+    await done
+    expect(labels).toEqual([])
+  })
+
+  it('names nothing when neither is out', async () => {
+    const labels: string[] = []
+    await followTail(Promise.resolve(), Promise.resolve(), (m) => labels.push(m))
+    await followTail(null, null, (m) => labels.push(m))
+    expect(labels).toEqual([])
+  })
+
+  it('names nothing when the tail answers in the same tick as the weather', async () => {
+    const aqi = deferred()
+    const labels: string[] = []
+    const done = followTail(aqi.promise, null, (m) => labels.push(m))
+    aqi.resolve()
+    await done
+    expect(labels).toEqual([])
   })
 })

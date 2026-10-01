@@ -24,6 +24,7 @@ import {
   HourlySeries,
 } from '../types'
 import { familyOf, isOnRequestFamily } from '../metrics'
+import { AQI_TAIL_MESSAGE, tailMessage } from './analyzeOverlay'
 import { postDestinations } from './apiFetch'
 import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
@@ -344,10 +345,40 @@ export function assemble(
   return { results, times }
 }
 
+/**
+ * Waits out the fetches that trail the weather, naming each one while it is
+ * the one still out (#579). Neither promise may reject: both callers catch.
+ *
+ * One macrotask passes before the first label, so a tail that answers in the
+ * same tick as the weather never flashes a label. Air quality is named first and the cloud
+ * column once air quality has answered, one label at a time and never back.
+ */
+export async function followTail(
+  aqi: Promise<unknown> | null,
+  cloud: Promise<unknown> | null,
+  onTail: ((message: string) => void) | undefined,
+): Promise<void> {
+  const open = { aqi: aqi !== null, cloud: cloud !== null }
+  void aqi?.then(() => (open.aqi = false))
+  void cloud?.then(() => (open.cloud = false))
+  // A fetch already answered clears its flag in the microtasks this await
+  // lets run; only a tail still out waits the macrotask.
+  await Promise.resolve()
+  if (!open.aqi && !open.cloud) return
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  for (let label = tailMessage(open); label !== null; label = tailMessage(open)) {
+    onTail?.(label)
+    await (label === AQI_TAIL_MESSAGE ? aqi : cloud)
+  }
+}
+
 export interface ClientAnalysisCallbacks {
   signal?: AbortSignal
   onStatus?: (message: string) => void
   onProgress?: (processed: number, total: number, message: string) => void
+  // The tail label, once the weather has answered and air quality or the
+  // cloud column is still out (`followTail`).
+  onTail?: (message: string) => void
   // The pacer (or a minutely resume) is about to wait this many seconds.
   onPace?: (seconds: number) => void
   // Injectable for tests (horizon clamp inside fetchAqi).
@@ -430,6 +461,7 @@ export async function runClientAnalysis(
   {
     signal,
     onProgress,
+    onTail,
     onPartial,
     onPace,
     nowMs,
@@ -622,6 +654,7 @@ export async function runClientAnalysis(
             `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
           ),
       })
+      await followTail(aqiPending, cloud ? cloudPending : null, onTail)
       const aqiList = await aqiPending
       const cloudList = await cloudPending
       if (cloudFailure !== null) throw cloudFailure
@@ -640,6 +673,8 @@ export async function runClientAnalysis(
     // analysis fetched nothing, and the two are the same grid either way.
     if (times.length === 0) times = [...(reuse?.times ?? [])]
 
+    // A re-rank that fetched no weather can still wait on the held rows' cloud.
+    if (coords.length === 0 && cloud) await followTail(null, cloudPending, onTail)
     const heldCloud = await cloudPending
     if (cloudFailure !== null) throw cloudFailure
     const results = [

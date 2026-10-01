@@ -1,6 +1,6 @@
 # 0027. A window older than the forecast data goes to the archive endpoint, split at one seam
 
-- Status: Accepted
+- Status: Superseded in part by 0072 (where the browser splits a spanning window)
 - Date: 2026-09-13 (git: the merge of #334)
 - Decider: TJ (git: author and merger of #334)
 - Issues and PRs: #123, #334

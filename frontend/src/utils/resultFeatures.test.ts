@@ -184,4 +184,10 @@ describe('windArrowsShowing', () => {
     expect(windArrowsShowing('wind_avg_mph', null)).toBe(false)
     expect(windArrowsShowing('precip_total_in', 3)).toBe(false)
   })
+
+  it('draws arrows under every wind ranking, not the average alone', () => {
+    expect(windArrowsShowing('wind_min_mph', 3)).toBe(true)
+    expect(windArrowsShowing('wind_max_mph', 3)).toBe(true)
+    expect(windArrowsShowing('wind_max_mph', null)).toBe(false)
+  })
 })

@@ -1,3 +1,5 @@
+import type { TourSpot } from '../utils/tourSteps'
+
 /**
  * Where the tutorial card stands, as arithmetic over rectangles (#536). Pure,
  * so the node suite proves the flips without a page: `Tour.tsx` measures and
@@ -134,4 +136,16 @@ export function placeCard(light: Box, card: Size, viewport: Size): { top: number
 export function sameBox(a: Box | null, b: Box | null): boolean {
   if (a === null || b === null) return a === b
   return a.top === b.top && a.left === b.left && a.width === b.width && a.height === b.height
+}
+
+/**
+ * How the panel scrolls a step's target into view. A section aligns its top
+ * with the panel's top, so as much of it shows as the panel has room for; a
+ * control or a surface scrolls only as far as it must. `nearest` alone left a
+ * section taller than the panel where it stood whenever its top was already
+ * in view: at 1300 by 763 the Metrics step lit two of its rows and left the
+ * metric list under the panel's footer.
+ */
+export function scrollBlock(spot: TourSpot | undefined): ScrollLogicalPosition {
+  return spot === 'section' ? 'start' : 'nearest'
 }

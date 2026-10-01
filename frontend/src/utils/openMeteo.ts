@@ -9,7 +9,7 @@
 import {
   FALLBACK_WINDOW_LIMITS,
   HOUR_MS,
-  archiveBoundaryMs,
+  archiveSeamMs,
   windowSource,
   type WindowLimits,
 } from './forecastWindow'
@@ -184,11 +184,10 @@ interface FetchSpan {
  *
  * The halves are disjoint: the archive answers through the hour BEFORE the seam
  * and the forecast endpoint from the seam on, because both bounds are inclusive
- * and an hour arriving twice would be counted twice in a total. Unlike the
- * backend's `_fetch_spans`, neither half can come out empty here: a window is
- * already epoch milliseconds by the time it reaches this module, so the
- * classification and the split measure the same instants rather than one reading
- * a caller's wall clock.
+ * and an hour arriving twice would be counted twice in a total. The seam is
+ * `archiveSeamMs`, the reader's local midnight before the boundary, where the
+ * backend's `_fetch_spans` splits at the boundary itself: the pod has no
+ * reader's zone, and the browser has one to keep its seam sentence true.
  */
 export function fetchSpans(
   startMs: number,
@@ -200,7 +199,10 @@ export function fetchSpans(
   if (source !== 'spanning') {
     return [{ archive: source === 'archive', startMs, endMs }]
   }
-  const seam = archiveBoundaryMs(nowMs, limits)
+  // Joined at the reader's local midnight, not at the UTC boundary (#579).
+  // A spanning window starts before the straddle tolerance, and the join
+  // never does, so the archive half is never empty.
+  const seam = archiveSeamMs(nowMs, limits)
   return [
     { archive: true, startMs, endMs: seam - HOUR_MS },
     { archive: false, startMs: seam, endMs },
