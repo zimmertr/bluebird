@@ -11,11 +11,14 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    GetCoreSchemaHandler,
+    GetPydanticSchema,
     ValidationError,
     ValidatorFunctionWrapHandler,
     field_validator,
     model_validator,
 )
+from pydantic_core import CoreSchema, core_schema
 
 from app.limits import MAX_ANALYZE_PEAKS, MAX_POLYGON_AREA_KM2
 
@@ -140,12 +143,33 @@ def _bound_broken(v: Any, handler: ValidatorFunctionWrapHandler) -> tuple[Any, s
 # malformed one is refused with Pydantic's own message at the position that is
 # wrong before `bbox_area_km2` or discovery indexes into it, and the published
 # schema states the shape (#564). Four positions is RFC 7946's minimum: a
-# triangle plus the closing repeat. Exactly two numbers per position, because
-# every reader unpacks `lon, lat` and a third (an altitude) would fail there
-# rather than be ignored.
-_Longitude = Annotated[float, Field(ge=-180, le=180)]
-_Latitude = Annotated[float, Field(ge=-90, le=90)]
-_Ring = Annotated[list[tuple[_Longitude, _Latitude]], Field(min_length=4)]
+# triangle plus the closing repeat.
+#
+# A position is a longitude and a latitude, optionally followed by one more
+# number: RFC 7946's altitude, which a polygon exported from a mapping tool can
+# carry. It is accepted and dropped here, the way a polygon's `bbox` is, so
+# every reader (the area check, the discovery cache key, the Overpass query)
+# only ever sees the `(lon, lat)` pair and an altitude cannot change an answer.
+# One number, or four or more, is refused. Built as a core schema because
+# Pydantic reads no `tuple[float, float, *tuple[float, ...]]` annotation, and a
+# union of the two lengths would report every failure once per branch.
+def _position_schema(_source: Any, _handler: GetCoreSchemaHandler) -> CoreSchema:
+    return core_schema.no_info_after_validator_function(
+        lambda p: (p[0], p[1]),
+        core_schema.tuple_schema(
+            [
+                core_schema.float_schema(ge=-180, le=180),
+                core_schema.float_schema(ge=-90, le=90),
+                core_schema.float_schema(),
+            ],
+            variadic_item_index=2,
+            max_length=3,
+        ),
+    )
+
+
+_Position = Annotated[tuple[float, float], GetPydanticSchema(_position_schema)]
+_Ring = Annotated[list[_Position], Field(min_length=4)]
 
 
 class GeoPolygon(BaseModel):
@@ -160,7 +184,8 @@ class GeoPolygon(BaseModel):
             "GeoJSON coordinate rings. Only the outer ring is read. Positions "
             "are `[longitude, latitude]`, which is GeoJSON order and the "
             "reverse of how coordinates are usually spoken. The ring should "
-            "close by repeating its first position."
+            "close by repeating its first position. A third number in a "
+            "position, an altitude, is accepted and ignored."
         )
     )
     # Declared rather than refused because RFC 7946 lets any GeoJSON object

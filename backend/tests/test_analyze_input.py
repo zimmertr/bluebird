@@ -169,8 +169,11 @@ _MALFORMED_RINGS = {
     "two positions": [[[-121.0, 47.0], [-121.1, 47.1]]],
     "latitude 999": [[[-121.0, 999.0], [-121.1, 47.0], [-121.0, 47.1], [-121.0, 999.0]]],
     "longitude 999": [[[999.0, 47.0], [-121.1, 47.0], [-121.0, 47.1], [999.0, 47.0]]],
-    "a three-number position": [
-        [[-121.0, 47.0, 5.0], [-121.1, 47.0, 5.0], [-121.0, 47.1, 5.0], [-121.0, 47.0, 5.0]]
+    "a four-number position": [
+        [[-121.0, 47.0, 5.0, 1.0], [-121.1, 47.0], [-121.0, 47.1], [-121.0, 47.0]]
+    ],
+    "an altitude that is not a number": [
+        [[-121.0, 47.0, "high"], [-121.1, 47.0], [-121.0, 47.1], [-121.0, 47.0]]
     ],
 }
 
@@ -225,3 +228,30 @@ def test_the_web_apps_smallest_ring_still_validates(bbox):
     request = DestinationsRequest(polygon=polygon, destination_types=["peak"])
     assert request.polygon is not None
     assert request.polygon.coordinates[0][0] == (-121.0, 47.0)
+
+
+_RING = [[-121.0, 47.0], [-121.2, 47.0], [-121.1, 47.2], [-121.0, 47.0]]
+
+
+@pytest.mark.parametrize("route", ["/api/analyze", "/api/analyze/stream", "/api/destinations"])
+def test_an_altitude_is_accepted_and_never_reaches_discovery(route, monkeypatch):
+    # RFC 7946 lets a position carry an altitude, and a polygon exported from a
+    # mapping tool can. It is accepted and dropped like `bbox`, so discovery is
+    # asked about exactly the ring it would be asked about without one.
+    seen = []
+
+    async def discovery(polygon, destination_types, on_status=None, **_):
+        seen.append(polygon.coordinates)
+        return []
+
+    monkeypatch.setattr(osm, "query_osm", discovery)
+    with_altitude = [[*p, 1234.5] for p in _RING]
+    body = {
+        "polygon": {"type": "Polygon", "coordinates": [with_altitude]},
+        "destination_types": ["peak"],
+    }
+    if route != "/api/destinations":
+        body["forecast_mode"] = "current"
+    resp = client.post(route, json=body)
+    assert resp.status_code == 200
+    assert seen == [[[tuple(p) for p in _RING]]]

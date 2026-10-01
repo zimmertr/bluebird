@@ -1087,7 +1087,7 @@ export interface components {
             bbox?: number[] | null;
             /**
              * Coordinates
-             * @description GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position.
+             * @description GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position. A third number in a position, an altitude, is accepted and ignored.
              */
             coordinates: [
                 number,

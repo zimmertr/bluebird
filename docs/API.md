@@ -55,11 +55,11 @@ curl -s https://bluebirdforecast.com/api/analyze \
 Two things to notice. Polygon positions are `[longitude, latitude]`, which is
 GeoJSON order and the reverse of how people usually say coordinates. And the
 ring closes by repeating its first position. Each ring needs at least four
-positions, and each position is exactly two numbers, a longitude from -180 to
-180 and a latitude from -90 to 90; anything else is a `422` naming the position
-that is wrong. A polygon copied from a GeoJSON tool may carry its optional
-`bbox`; the API accepts it and ignores it, and reads the area from
-`coordinates` alone.
+positions, and each position is a longitude from -180 to 180 and a latitude
+from -90 to 90; anything else is a `422` naming the position that is wrong. A
+third number in a position, an altitude, is accepted and ignored. A polygon
+copied from a GeoJSON tool may carry its optional `bbox`; the API accepts it
+and ignores it, and reads the area from `coordinates` alone.
 
 One thing to know about the numbers: the wind fields report wind at each
 destination's own elevation, interpolated from pressure-level winds and floored
