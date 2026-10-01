@@ -10,33 +10,11 @@
 // hooks/useModelCompare.ts and the drawing in the chart.
 
 import { DestinationResult, HourlySeries } from '../types'
-import type { ForecastModelOption } from '../hooks/useCapabilities'
 import { ChartLine, chartKey, comparedLineLabel, gridRemapper, modelSuffix } from './chartData'
 import { HOUR_MS } from './forecastWindow'
 import { listPhrase } from './notices'
 import type { WeatherResult } from './openMeteo'
 import type { WeatherSeries } from './openMeteoAggregate'
-
-/**
- * Is this one of Open-Meteo's blended products?
- *
- * A blend serves an agency's fine regional model for the first day or two and
- * its coarse global model after that, so a single line on the chart changes
- * model partway along and has to say so.
- *
- * The server publishes the answer as `forecast_models[].blend`, and this reads
- * it rather than testing the id for a `_seamless` suffix: the suffix is
- * Open-Meteo's naming habit rather than a contract, so a blended product added
- * under another name would be drawn as one model with nothing saying otherwise.
- * A model the server did not publish is not a blend, which is the shape every
- * other missing field takes here.
- */
-export function isBlend(
-  models: readonly ForecastModelOption[],
-  modelId: string,
-): boolean {
-  return models.find((m) => m.id === modelId)?.blend === true
-}
 
 /**
  * The last hour a model can answer inside the analyzed window: the window's

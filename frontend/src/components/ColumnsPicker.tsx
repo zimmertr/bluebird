@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { SortBy } from '../types'
-import { ColDef } from '../utils/tableColumns'
+import { ColDef, stepColumn } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
@@ -173,14 +173,18 @@ export default function ColumnsPicker({
                   onPointerDown={(e) => beginDrag(e, col.key)}
                   onClick={(e) => e.preventDefault()}
                   onKeyDown={(e) => {
-                    const at = columns.findIndex((c) => c.key === col.key)
-                    if (e.key === 'ArrowUp' && at > 0) {
-                      e.preventDefault()
-                      onColumnMove(col.key, columns[at - 1].key)
-                    } else if (e.key === 'ArrowDown' && at < columns.length - 1) {
-                      e.preventDefault()
-                      onColumnMove(col.key, columns[at + 1].key)
-                    }
+                    const delta = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : null
+                    if (delta === null) return
+                    const order = columns.map((c) => c.key)
+                    const next = stepColumn(order, col.key, delta)
+                    // At either end the order comes back unchanged and the
+                    // key keeps its default, so the list can still scroll.
+                    if (next === order) return
+                    e.preventDefault()
+                    // A one-place move swaps the column with its neighbour,
+                    // so the neighbour now stands where the column stood, and
+                    // that is the column the move names as its target.
+                    onColumnMove(col.key, next[order.indexOf(col.key)])
                   }}
                   aria-label={`Move the ${col.label} column. Use the arrow keys.`}
                   className={`${DRAG_GRIP} ${isCarried ? DRAG_GRIP_ACTIVE : ''} px-1`}

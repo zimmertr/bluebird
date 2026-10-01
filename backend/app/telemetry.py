@@ -75,6 +75,35 @@ HTTP_DURATION = Histogram(
     buckets=_HTTP_BUCKETS,
 )
 
+# The requests a canary serves while the error-rate gate watches it
+# (Kubernetes-Manifests `public/bluebird/resources/analysisTemplate-*.yml`
+# and the chart's probes): the kubelet's `/healthz`, the version check, and
+# api-test's analyze. None of them sends `Sec-Fetch-Site`, so all three
+# count under `client="api"`.
+CANARY_ROUTES: tuple[tuple[str, str], ...] = (
+    ("/healthz", "GET"),
+    ("/api/version", "GET"),
+    ("/api/analyze", "POST"),
+)
+
+
+def init_canary_series(openapi: dict[str, Any]) -> None:
+    """Create every 5xx series the canary's own requests can produce, at 0.
+
+    `increase()` needs an earlier sample to measure from, so a child created
+    by its first increment reads 0 there: the gate's ``>= bool 2`` factor
+    would then forgive two 5xx on a new series where it means to forgive one
+    (bluebird#519, #574). Each route gets 500, which the middleware records
+    for any crash, plus every 5xx its OpenAPI entry declares, so a status a
+    route starts to answer is covered without a second list here.
+    """
+    for route, method in CANARY_ROUTES:
+        responses = openapi["paths"][route][method.lower()]["responses"]
+        statuses = {"500"} | {str(code) for code in responses if str(code).startswith("5")}
+        for status in sorted(statuses):
+            HTTP_REQUESTS.labels(route=route, method=method, status=status, client="api")
+
+
 # ── Analyses ──────────────────────────────────────────────────────────────────
 
 # Candidate counts and limits share one bucket ladder: both live in
