@@ -82,11 +82,21 @@ which timestamps the request needs:
 { "forecast_mode": "current" }
 
 { "forecast_mode": "at",
-  "start_datetime": "2026-08-01T14:00:00Z" }
+  "start_datetime": "$START" }
 
 { "forecast_mode": "window",
-  "start_datetime": "2026-08-01T14:00:00Z",
-  "end_datetime":   "2026-08-03T02:00:00Z" }
+  "start_datetime": "$START",
+  "end_datetime":   "$END" }
+```
+
+A fixed date in an example stops working once the clock moves past it, so the
+examples on this page compute theirs with `jq`, which they already use to read
+the response. Set these once in your shell:
+
+```bash
+# The next whole UTC hour, and twelve hours after it: inside every model's reach.
+START=$(jq -nr 'now + 3600 | strftime("%Y-%m-%dT%H:00:00Z")')
+END=$(jq -nr 'now + 13 * 3600 | strftime("%Y-%m-%dT%H:00:00Z")')
 ```
 
 Timestamps are ISO 8601, and a timestamp means the instant it names:
@@ -107,21 +117,25 @@ refused, because it reads equally as `at` or as a `window` missing its end, and
 guessing would turn a fat-fingered window into a one-hour sample without
 telling you.
 
-### Asking about last summer
+### Asking about a past day
 
 A window older than `limits.past_data_days` is answered from Open-Meteo's
 archive endpoint, back as far as `limits.archive_days`. Nothing in the request
-says so and nothing in the response shape changes:
+says so and nothing in the response shape changes. This example asks about one
+UTC day ninety days back, which falls between the two:
 
 ```bash
+DAY=$(jq -nr 'now - 90 * 86400 | strftime("%Y-%m-%d")')
 curl -s -X POST https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
   -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
-  -d '{"destination_types": [],
-       "custom_destinations": [{"name": "Mount Rainier",
-                                "latitude": 46.8523, "longitude": -121.7603}],
-       "start_datetime": "2025-09-12T00:00:00Z",
-       "end_datetime":   "2025-09-12T23:59:00Z"}' | jq '.results[0]'
+  -d @- <<EOF | jq '.results[0]'
+{"destination_types": [],
+ "custom_destinations": [{"name": "Mount Rainier",
+                          "latitude": 46.8523, "longitude": -121.7603}],
+ "start_datetime": "${DAY}T00:00:00Z",
+ "end_datetime":   "${DAY}T23:59:00Z"}
+EOF
 ```
 
 Three things behave differently, all of them the archive's nature rather than a
@@ -168,8 +182,8 @@ location and does not report its pick.
 ```jsonc
 { "forecast_model": "gfs_hrrr",
   "forecast_mode": "window",
-  "start_datetime": "2026-08-01T14:00:00Z",
-  "end_datetime":   "2026-08-02T02:00:00Z" }
+  "start_datetime": "$START",
+  "end_datetime":   "$END" }
 ```
 
 `forecast_models` in `GET /api/capabilities` is the list, **best first**. That
@@ -247,6 +261,14 @@ the request; leave it out and `/api/analyze` answers the same JSON `404`, at the
 edge, before the deployment is asked to spend anything. The gateway tests only
 that the header is there. Whether the key is any good is Open-Meteo's answer,
 which comes back as a `401` (see the error table below).
+
+A web page on another origin can make the keyed call too. Its browser sends a
+CORS preflight first, and a preflight cannot carry the key, so the gateway
+forwards an `OPTIONS` on the analyze routes that carries an `Origin` and an
+`Access-Control-Request-Method` without asking for the header. The answer
+allows `POST` and the headers the preflight names, `X-Open-Meteo-Key` and
+`Content-Type` included, and the analyze responses, refusals included, expose
+`Retry-After` to the page.
 
 An unkeyed analyze request still works from inside the deployment's own network
 and on a self-hosted instance, because the gate is the gateway rather than the
@@ -623,23 +645,26 @@ number or omitted, and they combine as an AND:
 | `min_cloud_cover_pct` / `max_cloud_cover_pct` | its `cloud_cover_min_pct` is at or above the floor **and** its `cloud_cover_max_pct` at or below the ceiling |
 
 ```bash
+# $START and $END as set under "Choosing a forecast window".
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
   -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
-  -d '{
-    "destination_types": [],
-    "forecast_mode": "window",
-    "start_datetime": "2026-08-01T14:00:00Z",
-    "end_datetime":   "2026-08-02T02:00:00Z",
-    "max_precip_total_in": 0.1,
-    "max_wind_mph": 20,
-    "max_aqi": 100,
-    "limit": 5,
-    "custom_destinations": [
-      { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
-      { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909 }
-    ]
-  }' | jq '{total_queried, total_matched, kept: [.results[].name]}'
+  -d @- <<EOF | jq '{total_queried, total_matched, kept: [.results[].name]}'
+{
+  "destination_types": [],
+  "forecast_mode": "window",
+  "start_datetime": "$START",
+  "end_datetime":   "$END",
+  "max_precip_total_in": 0.1,
+  "max_wind_mph": 20,
+  "max_aqi": 100,
+  "limit": 5,
+  "custom_destinations": [
+    { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
+    { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909 }
+  ]
+}
+EOF
 ```
 
 Five things are worth knowing before relying on them.
@@ -701,19 +726,22 @@ across the longest window the API accepts measures 12.92 MB with them and
 Send `include_series: false` when you read only the aggregates:
 
 ```bash
+# $START and $END as set under "Choosing a forecast window".
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
   -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
-  -d '{
-    "destination_types": [],
-    "forecast_mode": "window",
-    "start_datetime": "2026-08-01T14:00:00Z",
-    "end_datetime":   "2026-08-02T02:00:00Z",
-    "include_series": false,
-    "custom_destinations": [
-      { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 }
-    ]
-  }' | jq '{hours: (.times | length), row: .results[0]}'
+  -d @- <<EOF | jq '{hours: (.times | length), row: .results[0]}'
+{
+  "destination_types": [],
+  "forecast_mode": "window",
+  "start_datetime": "$START",
+  "end_datetime":   "$END",
+  "include_series": false,
+  "custom_destinations": [
+    { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 }
+  ]
+}
+EOF
 ```
 
 ```json
@@ -785,23 +813,26 @@ something asks for them. Three things do:
 | `include_clouds: true` and neither of the above | the returned rows only, after the `limit` cut, the way air quality is |
 
 ```bash
+# $START and $END as set under "Choosing a forecast window".
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
   -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
-  -d '{
-    "destination_types": [],
-    "forecast_mode": "window",
-    "start_datetime": "2026-08-01T14:00:00Z",
-    "end_datetime":   "2026-08-02T02:00:00Z",
-    "sort_by": "cloud_base_min_ft",
-    "sort_desc": true,
-    "max_cloud_cover_pct": 80,
-    "include_series": false,
-    "custom_destinations": [
-      { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
-      { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909 }
-    ]
-  }' | jq '[.results[] | {name, cloud_base_min_ft, cloud_cover_max_pct}]'
+  -d @- <<EOF | jq '[.results[] | {name, cloud_base_min_ft, cloud_cover_max_pct}]'
+{
+  "destination_types": [],
+  "forecast_mode": "window",
+  "start_datetime": "$START",
+  "end_datetime":   "$END",
+  "sort_by": "cloud_base_min_ft",
+  "sort_desc": true,
+  "max_cloud_cover_pct": 80,
+  "include_series": false,
+  "custom_destinations": [
+    { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
+    { "name": "Mt Adams",   "latitude": 46.2024, "longitude": -121.4909 }
+  ]
+}
+EOF
 ```
 
 That ranks the destinations whose cloud came down least, among those never
@@ -1008,10 +1039,10 @@ curl -s https://bluebirdforecast.com/api/destinations \
 | --- | --- | --- |
 | `400` | `validation`, `model_coverage`, `refusal` | The request parsed but does not describe a runnable analysis. Inverted window, neither `destination_types` nor `custom_destinations`, `destination_types` without a `polygon`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
 | `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only `POST /api/analyze` answers it as a status; on the stream the same failure arrives as a terminal `error` event. No retry helps. |
-| `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
+| `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. The gateway's body says "this path" where the app's names it, because a fixed answer at the edge cannot repeat the request; the `error` object and the headers are the same. |
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `422` | `validation`, or absent | Request validation failed. Polygon too large, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
-| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. |
+| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
@@ -1057,14 +1088,14 @@ the outcome, so a retry loop will spin forever.
 
 | `error.code` | Status | `retryable` | Raised when |
 | --- | --- | --- | --- |
-| `validation` | `400`, `422` | `false` | The request does not describe runnable work: an inverted window, a type that is not discoverable, a polygon missing beside `destination_types`, a `bbox` that will not parse. |
+| `validation` | `400`, `422` | `false` | The request does not describe runnable work: an inverted window, a polygon missing beside `destination_types`, a `bbox` that will not parse. |
 | `refusal` | `400` | `false` | The search covers more candidates than the analysis cap allows, or, without a key, more than a long archive window can take. Carries the remedy fields above. |
 | `model_coverage` | `400` | `false` | A regional `forecast_model` was asked about somewhere outside its grid. |
 | `invalid_api_key` | `401` | `false` | Open-Meteo refused the key in `X-Open-Meteo-Key`. |
 | `not_found` | `404` | `false` | No endpoint at that path. |
 | `method_not_allowed` | `405` | `false` | Right path, wrong verb. `Allow` lists the verbs it takes. |
 | `rate_limited` | `429` | `true` | This address is sending faster than the per-address bucket allows. |
-| `upstream_rate_limited` | `429` | `true` | Open-Meteo rate-limited the deployment mid-analysis. |
+| `upstream_rate_limited` | `429` | `true` | Open-Meteo rate-limited the quota the analysis was spending mid-analysis: the deployment's, or your key's on a keyed request. |
 | `upstream_unavailable` | `502` | `true` | An upstream failed or could not be reached. |
 | `busy` | `503` | `true` | An in-flight upstream budget stayed saturated, so the request was shed. |
 | `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire, smoke or closure snapshot, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. |

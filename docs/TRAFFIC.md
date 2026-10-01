@@ -170,6 +170,27 @@ rather than the mesh because the interesting one is a list of the hosts the
 browser bundle fetches, and that list changes when a frontend overlay changes.
 Edge-owned headers would drift away from the code that defines them.
 
+One response never reaches the pod: the gateway's own `404` for an `/api` path
+the chart does not publish, and for an analyze request without its key (above).
+The chart sends the same body shape and the same headers on it, copied from
+`backend/edge_not_found.json`. That file is written from the app's real `404`
+by `backend/scripts/generate_edge_not_found.py` and pinned by
+`test_notfound.py`. bluebird-helm's `Edge 404` workflow renders the chart on
+every chart PR and every push to its `main`, and turns red when the route
+differs from the file on this repo's `main`. That workflow is not a required
+check, so a mismatch blocks nothing: a header added here, or a host added to
+the policy below, shows as a red run until a chart PR copies it, and until then
+the gateway keeps sending the old set
+([#565](https://github.com/zimmertr/bluebird/issues/565)).
+
+A CORS preflight for the keyed analyze routes passes the gateway without the
+key, because a preflight cannot carry it: it names the headers the real request
+will send in `Access-Control-Request-Headers` and sends none of them. The chart
+forwards `OPTIONS` on the keyed prefixes when it carries an `Origin` and an
+`Access-Control-Request-Method`, and the pod's CORS middleware answers it before
+any route runs, echoing the requested headers and listing `POST` among the
+methods. A keyless `POST` still gets the gateway's `404`.
+
 | Header | Value | Why |
 | --- | --- | --- |
 | `X-Content-Type-Options` | `nosniff` | The static mount serves user-visible files by extension. |
