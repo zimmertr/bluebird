@@ -186,3 +186,25 @@ def test_default_budget_clears_a_worst_case_batch_without_pacing():
 
     rationed = ratelimit.WeightedBudget("test", 550 // 10)
     assert rationed.wait_estimate_s(worst_batch) > 0.0
+
+
+# ── An analysis's own plan, from idle (#581) ───────────────────────────────
+
+
+def test_plan_reads_the_longest_wait_a_run_of_batches_would_meet():
+    budget = ratelimit.WeightedBudget("test", 60)  # 1 a second
+    # One at a time: 60 drains the budget, the next 30 waits 30 s.
+    assert budget.plan_max_wait_s([[60], [30]], concurrency=1) == pytest.approx(30.0)
+    # Nothing that fits a full budget waits.
+    assert budget.plan_max_wait_s([[20], [20], [20]], concurrency=3) == 0.0
+
+
+def test_plan_never_touches_the_live_budget():
+    clock = _Clock()
+    budget = ratelimit.WeightedBudget("test", 60, clock=clock)
+    budget.plan_max_wait_s([[60], [60], [60]], concurrency=4)
+    assert budget.wait_estimate_s(60) == 0.0
+
+
+def test_a_disabled_budget_plans_no_wait():
+    assert ratelimit.WeightedBudget("test", 0).plan_max_wait_s([[10_000]], 4) == 0.0

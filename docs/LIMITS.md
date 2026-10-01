@@ -68,6 +68,19 @@ it costs two upstream requests rather than one and refuses nothing.
 [DATA.md](DATA.md#open-meteo) has what else is different about an archive
 answer.
 
+**A long archive window without a key.** Not a sixth published number, because
+it is not one: it is what the deployment's weighted pacer can serve, and that
+depends on both the window and the candidate count. A request costs more
+weighted calls the longer its window, so over an archive window of a couple of
+months an unkeyed analysis of a few hundred destinations queues its own later
+batches past the pacer's wait bound. Rather than spend its first batches and
+then answer `503` on every retry, such an analysis is refused before any
+forecast is fetched, with a `400` that carries `found` and `limit`, the most
+destinations that window can take. A forecast window never meets it, and a
+request carrying your own Open-Meteo key never does either, because a keyed
+request skips the pacer. [API.md](API.md#when-a-search-finds-too-much) has the
+body.
+
 **Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
 plumes, and closure orders hold separate per-address budgets, so a burst of map searches cannot
 starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized

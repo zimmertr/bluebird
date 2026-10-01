@@ -91,3 +91,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0068](0068-forest-orders-entry-closure-test.md) | A Region 3 or 4 forest order is an area closure when its citation or its text closes the area to entry, and closure coverage is per kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py`; `usfs_coverage.py` |
 | [0069](0069-color-scales-not-rederived-for-cvd.md) | The metric colour scales are not re-derived for colour vision deficiency | 2026-08-07 | Accepted | Frontend: `colors.ts` |
 | [0070](0070-click-reads-tile-feet.md) | A clicked summit takes its elevation from the tile's own feet | 2026-10-01 | Accepted | Frontend: `basemapPoi.ts` |
+| [0071](0071-refuse-what-the-pacer-would-shed.md) | An unkeyed analysis that its own batches would shed is refused before it spends | 2026-10-01 | Accepted | Backend: `routes/analyze/phases.py` |

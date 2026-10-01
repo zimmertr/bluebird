@@ -26,6 +26,7 @@ from app.services.errors import (
     is_out_of_domain,
 )
 from app.services.openmeteo_fetch import (
+    BATCH_SIZE,
     PaceCallback,
     Pacing,
     ProgressCallback,
@@ -135,6 +136,52 @@ def _fetch_spans(
 
 
 
+def _span_weights(n_locations: int, spans: list[_Span], n_variables: int) -> list[float]:
+    """One weight per request a batch makes: one per span, each on its own hours.
+
+    The model count is spelled here rather than defaulted, because this service
+    is where `models=` is built: a request that ever names more than one model
+    returns a series per model and costs that multiple, so the two must move
+    together.
+    """
+    return [
+        call_weight(
+            n_locations, span.start.date(), span.end.date(), n_variables, n_models=1
+        )
+        for span in spans
+    ]
+
+
+def planned_weights(
+    n_destinations: int,
+    start_dt: datetime,
+    end_dt: datetime,
+    *,
+    source: WindowSource,
+    boundary: datetime | None,
+    cloud: bool,
+) -> list[list[float]]:
+    """What an unkeyed analysis of this size will ask the weather pacer for.
+
+    One entry per batch, in the order `fetch_batched` sends them, each the
+    weights of that batch's requests: the weather batches, and when `cloud` is
+    set the cloud batches beside them, because both spend the weather quota
+    and run at once. Priced exactly as the fetches price themselves, so a plan
+    that clears is a fetch that clears. Every destination is counted, cached
+    or not: the plan has to be the same answer on every retry.
+    """
+    spans = _fetch_spans(source, start_dt, end_dt, boundary)
+    sizes = [
+        min(BATCH_SIZE, n_destinations - i) for i in range(0, n_destinations, BATCH_SIZE)
+    ]
+    plan: list[list[float]] = []
+    for size in sizes:
+        plan.append(_span_weights(size, spans, N_VARIABLES))
+        if cloud:
+            plan.append(_span_weights(size, spans, N_CLOUD_VARIABLES))
+    return plan
+
+
 async def fetch_weather_batch(
     destinations: list[dict[str, Any]],
     start_dt: datetime,
@@ -194,21 +241,7 @@ async def fetch_weather_batch(
         # is two requests and two answers, so it spends twice, and pricing it on
         # the whole window would bill the archive's months for the forecast
         # half's days as well.
-        #
-        # The model count is spelled here rather than defaulted, because this
-        # service is where `models=` is built: a request that ever names more
-        # than one model returns a series per model and costs that multiple, so
-        # the two must move together.
-        return [
-            call_weight(
-                len(chunk),
-                span.start.date(),
-                span.end.date(),
-                N_VARIABLES,
-                n_models=1,
-            )
-            for span in spans
-        ]
+        return _span_weights(len(chunk), spans, N_VARIABLES)
 
     return await fetch_batched(
         destinations,
@@ -269,16 +302,7 @@ async def fetch_cloud_batch(
         )
 
     def weights(chunk: list[dict[str, Any]]) -> list[float]:
-        return [
-            call_weight(
-                len(chunk),
-                span.start.date(),
-                span.end.date(),
-                N_CLOUD_VARIABLES,
-                n_models=1,
-            )
-            for span in spans
-        ]
+        return _span_weights(len(chunk), spans, N_CLOUD_VARIABLES)
 
     return await fetch_batched(
         destinations,

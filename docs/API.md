@@ -800,6 +800,13 @@ words: `found`, `limit`, and — when one exists — a computed
 that would bring the search under the cap, alongside the `error` object with
 `"code": "refusal"`. Prefer that filter: it keeps the ranking exact.
 
+A second refusal shares that shape. Without an `X-Open-Meteo-Key`, an analysis
+whose candidates over a long archive window cost more weighted calls than the
+deployment can pace is refused before any forecast is fetched: a `400` with
+`"code": "refusal"`, `found`, and `limit`, the most destinations that window can
+take. A shorter window, fewer destinations, or your own key clears it; it never
+applies to a forecast window, and never to a keyed request.
+
 If you would rather cut than filter, opt in explicitly with
 `"top_by_elevation": true` on `POST /api/analyze`, `/api/analyze/stream`, or
 `/api/destinations`: the highest-elevation candidates up to the cap are

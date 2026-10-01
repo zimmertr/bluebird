@@ -7,10 +7,11 @@ shares these, and the services acquire them rather than the routes.
 from __future__ import annotations
 
 import asyncio
+import heapq
 import logging
 import math
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 
 from app import telemetry
@@ -75,8 +76,10 @@ UPSTREAM_WEIGHT_PER_MINUTE_AQI = env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 550)
 # 50-location batch costs 5 weighted calls a day at the pod's fourteen
 # variables, each acquire waits behind the debt of the batches booked before
 # it, and an analysis of more than 250 destinations over 56 days or more (67
-# at 201 to 250, 83 at 151 to 200) sheds with a 503 every time it is retried,
-# idle pod or not.
+# at 201 to 250, 83 at 151 to 200) would shed on every retry, idle pod or not.
+# So an unkeyed analysis is first run through `plan_max_wait_s` against this
+# same bound and refused before it spends anything (`_check_pacing` in
+# routes/analyze/phases.py), and a shed is left meaning other traffic.
 UPSTREAM_WEIGHT_MAX_WAIT_S = env_int("UPSTREAM_WEIGHT_MAX_WAIT_S", 120)
 
 # How long a request may queue for a saturated budget before shedding, and
@@ -250,6 +253,46 @@ class WeightedBudget:
         self._refill(self._clock())
         deficit = weight - self._tokens
         return max(0.0, deficit / self._rate)
+
+    def _book(self, weight: float) -> None:
+        """Spend ``weight`` at the clock's now, with no wait and no shed."""
+        self._refill(self._clock())
+        self._tokens -= weight
+
+    def plan_max_wait_s(
+        self, chunks: Sequence[Sequence[float]], concurrency: int
+    ) -> float:
+        """The longest one acquire would wait if ``chunks`` ran alone, from idle.
+
+        Each chunk is one batch's acquires, in order, and ``concurrency``
+        batches run at once, each next one starting the moment an earlier one
+        is through its waits. That is how `fetch_batched` spends, with every
+        request taken to answer instantly, which is the case that waits
+        longest: a slow answer only gives the budget time to refill. Run on a
+        scratch copy with its own clock, so the live budget is never touched.
+
+        This is what lets an analysis that its own batches would shed be
+        refused before it spends anything (#581), where it used to spend its
+        first batches and then shed with a 503 on every retry.
+        """
+        if not self.enabled:
+            return 0.0
+        clock = [0.0]
+        idle = WeightedBudget(
+            self.provider, self.per_minute, max_wait_s=math.inf, clock=lambda: clock[0]
+        )
+        free = [0.0] * max(1, concurrency)
+        worst = 0.0
+        for weights in chunks:
+            t = heapq.heappop(free)
+            for weight in weights:
+                clock[0] = t
+                wait = idle.wait_estimate_s(weight)
+                idle._book(weight)
+                worst = max(worst, wait)
+                t += wait
+            heapq.heappush(free, t)
+        return worst
 
     async def acquire(self, weight: float) -> None:
         if not self.enabled or weight <= 0:

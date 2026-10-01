@@ -27,6 +27,7 @@ from app.routes.analyze.phases import (
     Fetched,
     _apply_cap,
     _attach_late,
+    _check_pacing,
     _check_window,
     _eager_fetches,
     _fetch_forecasts,
@@ -162,6 +163,10 @@ async def _run_analysis(
         return
 
     eager = _eager_fetches(request)
+    refused = _check_pacing(capped.destinations, window, api_key, noun, eager)
+    if refused is not None:
+        yield refused
+        return
     fetched: Fetched | None = None
     async with aclosing(
         _fetch_forecasts(capped.destinations, window, request, api_key, noun, eager)
@@ -327,12 +332,16 @@ async def analyze_stream(
                 "the window ends before it starts, the request sends neither "
                 "`destination_types` nor `custom_destinations`, "
                 "`destination_types` is non-empty with no `polygon`, a regional "
-                "`forecast_model` has no coverage for the area, or the "
-                "candidate count exceeds the cap. Over-cap refusals carry the "
+                "`forecast_model` has no coverage for the area, the "
+                "candidate count exceeds the cap, or, for a request without an "
+                "Open-Meteo key, the candidates over this window cost more "
+                "than the deployment can pace. Over-cap refusals carry the "
                 "structured remedy fields (`found`, `limit`, and a computed "
                 "elevation-floor suggestion when one exists); send "
                 "`top_by_elevation: true` to elect an explicit top-N analysis "
-                "instead."
+                "instead. A pacing refusal carries `found` and `limit`, the "
+                "most destinations that window can take; a shorter window, "
+                "fewer destinations or a key all clear it."
             ),
         },
         502: {
