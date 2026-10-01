@@ -204,7 +204,7 @@ elevation: precipitation and air quality are the grid cell's surface values at
 that point (neither has a pressure-level variant; a request for
 `precipitation_925hPa` or `pm2_5_925hPa` answers `400`), the freezing level is
 a height of its own, and the surface temperature is lapsed to the destination's
-height. A datum on two of the five read as a difference in place where the
+height. A datum on two of the metric columns read as a difference in place where the
 difference is the method, so the method lives here, as the grid's
 terrain-height caveat below does.
 
