@@ -807,7 +807,18 @@ whose candidates over a long archive window cost more weighted calls than the
 deployment can pace is refused before any forecast is fetched: a `400` with
 `"code": "refusal"`, `found`, and `limit`, the most destinations that window can
 take. A shorter window, fewer destinations, or your own key clears it; it never
-applies to a forecast window, and never to a keyed request.
+applies to a forecast window, and never to a keyed request. The body, for 300
+peaks over a 60-day archive window (the `limit` depends on the deployment's
+pacer):
+
+```json
+{
+  "detail": "This search covers 300 peaks over 60 days, which is too many for one analysis.",
+  "error": { "code": "refusal", "retryable": false },
+  "found": 300,
+  "limit": 150
+}
+```
 
 If you would rather cut than filter, opt in explicitly with
 `"top_by_elevation": true` on `POST /api/analyze`, `/api/analyze/stream`, or
@@ -1028,7 +1039,7 @@ the outcome, so a retry loop will spin forever.
 | `error.code` | Status | `retryable` | Raised when |
 | --- | --- | --- | --- |
 | `validation` | `400`, `422` | `false` | The request does not describe runnable work: an inverted window, a type that is not discoverable, a polygon missing beside `destination_types`, a `bbox` that will not parse. |
-| `refusal` | `400` | `false` | The search covers more candidates than the analysis cap allows. Carries the remedy fields above. |
+| `refusal` | `400` | `false` | The search covers more candidates than the analysis cap allows, or, without a key, more than a long archive window can take. Carries the remedy fields above. |
 | `model_coverage` | `400` | `false` | A regional `forecast_model` was asked about somewhere outside its grid. |
 | `invalid_api_key` | `401` | `false` | Open-Meteo refused the key in `X-Open-Meteo-Key`. |
 | `not_found` | `404` | `false` | No endpoint at that path. |

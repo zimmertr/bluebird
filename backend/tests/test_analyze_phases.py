@@ -188,6 +188,9 @@ def test_check_pacing_refuses_what_its_own_batches_would_shed(paced):
     refusal = _check_pacing(_field(300), _archive_window(ARCHIVE_DAYS), None, "peak", NO_EAGER)
     assert isinstance(refusal, Refusal)
     assert refusal.body["error"] == {"code": "refusal", "retryable": False}
+    assert refusal.body["detail"] == (
+        "This search covers 300 peaks over 60 days, which is too many for one analysis."
+    )
     assert refusal.body["found"] == 300
     # The most this window can take, and it does take it.
     limit = refusal.body["limit"]

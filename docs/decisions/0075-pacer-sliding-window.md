@@ -1,8 +1,8 @@
 # 0075. The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-01
-- Decider: Claude, in the pull request for #581, for TJ's review
+- Decider: the maintainer (TJ), on issue #581
 - Issues and PRs: #581, #180
 - Cited in code as: #581
 - Guide: [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/ratelimit/` bullet; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `openMeteo.ts` bullet
@@ -17,15 +17,22 @@ Each pacer keeps a log of what it booked: each booking has a start time, the tim
 
 ## Evidence
 
-Simulated 2026-10-01 against the two algorithms, with the pod's batching (50 a batch, 4 in flight, 2 s a request) and the weights `call_weight` gives:
+A model, not a measurement: simulated 2026-10-01 with a scratch script of the two algorithms that is not in the repository, from an idle pacer. Every request answers in 2 s and Open-Meteo never refuses. 50 locations a batch and 4 in flight on both sides. The browser prices weather at 15 variables (a factor of 1.5) and air quality at a factor of 1 with its days clamped to 5, runs the two at once, and its wall clock is the slower of the two. The pod prices weather at 14 variables (1.4) and fetches air quality for the displayed rows only. "Peak" is the most sent in any 60 s, which is what Open-Meteo's 600 a minute meters. A 1-day and a 7-day window give the same numbers, because the day factor is 1 under 14 days.
 
-| Case | Token bucket (before) | Sliding window |
-|---|---|---|
-| Most spent in any 60 s, from idle | about 1,100 | 550 |
-| An analysis worth 550 or less | instant | instant |
-| Browser, 1,500 candidates over 16 days (2,571 weighted) | about 204 s | about 244 s |
+| Path | Destinations | Window | Token bucket (before) | Sliding window |
+|---|---|---|---|---|
+| Browser | 50 or 200 | 1 to 16 days | 2 s, peak 343 or less | 2 s, the same |
+| Browser | 500 | 1 or 7 days | 24 s, peak 750, over 600 at 14 s | 62 s, peak 525 |
+| Browser | 500 | 16 days | 36 s, peak 857, over 600 at 15 s | 62 s, peak 514 |
+| Browser | 946 | 1 or 7 days | 97 s, peak 1,050, over 600 at 14 s (air quality at 11 s) | 124 s, peak 525 |
+| Browser | 946 | 16 days | 119 s, peak 1,029, over 600 at 15 s | 182 s, peak 514 |
+| Browser | 1,500 | 1 or 7 days | 187 s, peak 1,050, over 600 at 14 s (air quality at 11 s) | 242 s, peak 525 |
+| Browser | 1,500 | 16 days | 223 s, peak 1,029, over 600 at 15 s | 244 s, peak 514 |
+| Pod | 200 | 1 to 16 days | 2 s, peak 320 or less | 2 s, the same |
+| Pod | 1,500 | 1 or 7 days | 171 s, peak 1,050, over 600 at 9 s | 242 s, peak 490 |
+| Pod | 1,500 | 16 days | 204 s, peak 1,040, over 600 at 10 s | 244 s, peak 480 |
 
-The longer worst case is the cost of staying under the limit. The token bucket was faster because it spent past the limit.
+So the token bucket went over the provider's limit on every browser analysis above about 400 destinations, and leaned on the minutely 429 resume in normal use. Its times are optimistic for that reason: in real use the provider answers 429 and the run waits on the resume. The longer sliding-window times are the cost of staying under the limit.
 
 ## Alternatives rejected
 

@@ -287,8 +287,8 @@ def _pace_detail(count: int, noun: str, days: int) -> str:
     """The refusal of an analysis its own batches would shed: what is wrong,
     and nothing else, in the over-cap refusal's manner (`_cap_detail`)."""
     return (
-        f"This search covers {count:,} {noun}s over {days:,} days, more than "
-        "this service can pace."
+        f"This search covers {count:,} {noun}s over {days:,} days, which is too "
+        "many for one analysis."
     )
 
 

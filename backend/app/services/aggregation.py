@@ -58,9 +58,13 @@ def _round_or_none(v: float | None, ndigits: int) -> float | None:
 
 # The height of each standard pressure level in the ICAO standard atmosphere,
 # in metres. Every level-reading below takes its height from here rather than
-# from a geopotential it fetched: real level heights move a few percent with the
-# weather, and fetching them would double a request's variable count for a
-# correction smaller than the model's own grid error. The wind and temperature
+# from a geopotential it fetched, and that is the larger error in a summit
+# reading: measured 2026-10-01 at Rainier on GFS Seamless, the 600 hPa surface
+# stood 127 to 192 m above its standard height over three days, which puts the
+# summit temperature 0.7 to 1.3 °C cold, where Open-Meteo's terrain height sat
+# 12 m under the summit. Fetching the real heights would add five variables to
+# every request (a weight factor of 1.9 rather than 1.4 here, 2.0 rather than
+# 1.5 in the browser), and docs/DATA.md states the error instead. The wind and temperature
 # read the five from 925 to 500 hPa; the cloud base reads all eight, because a
 # saturated layer can sit under the lowest summit (1000 hPa) and a clear column
 # has to be checked to the top of every summit on Earth (300 hPa, 30,100 ft).
@@ -83,9 +87,8 @@ ISA_HEIGHT_M: dict[int, float] = {
 # So each hour also carries the free-air wind at five pressure levels, and
 # `_wind_at_elevation` interpolates between the two levels bracketing the
 # destination's elevation, floored at the 10 m value. The heights are the ISA
-# standard atmosphere, fixed rather than fetched: real geopotential heights
-# move a few percent with weather, and fetching them would double the
-# variable count for a correction smaller than the model's own grid error.
+# standard atmosphere, fixed rather than fetched, for the reason and at the
+# measured cost `ISA_HEIGHT_M` records.
 # All eight models Bluebird Forecast offers answered all five levels (probed
 # 2026-08-21). The ARCHIVE endpoint accepts all five and answers every hour
 # null (measured 2026-09-12), which the null-level path below already handles by
