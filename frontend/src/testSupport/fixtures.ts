@@ -5,6 +5,7 @@ import { NO_CONSTRAINTS } from '../utils/constraints'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import type { Place } from '../utils/geocode'
 import type { WeatherResult } from '../utils/openMeteo'
+import type { WeatherSeries } from '../utils/openMeteoAggregate'
 import type { CellBox, GridCell } from '../utils/forecastGridLattice'
 import type { FireWarning } from '../utils/fireProximity'
 import type { ClosureWarning } from '../utils/closureProximity'
@@ -129,6 +130,15 @@ export function weatherResult(over: Partial<PresentWeather> = {}): PresentWeathe
     series: null,
     ...over,
   }
+}
+
+/**
+ * The hourly half of one forecast answer, as `fetchWeather` hands it back on
+ * `weatherResult`'s `series`: the hours it covers and a value per hour for each
+ * variable. Empty unless a caller spells the hours its assertions read.
+ */
+export function fetchedSeries(over: Partial<WeatherSeries> = {}): WeatherSeries {
+  return { times: [], precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], ...over }
 }
 
 /**

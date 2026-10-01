@@ -220,20 +220,6 @@ export function draggedMapFloorPx(gripCount: number): number {
 }
 
 /**
- * The same cap read as a sheet height, which is the number the collision is
- * about. `availPx` is the height the map and the sheet share (the viewport less
- * any preview banner).
- *
- * A viewport shorter than the cap answers with less than a sheet needs, or with
- * nothing; the panel floors in `clampPanelHeight` win there, and the transport
- * lands in the button column as it does on any map too short for both. That is
- * the same trade the resting reserve makes.
- */
-export function maxSheetPx(availPx: number): number {
-  return availPx - DRAGGED_MAP_PX
-}
-
-/**
  * The map floor the panel clamp takes on a phone before the reader has set a
  * height of their own. It is not "some map" but "enough map for the legend
  * stack to sit above the sheet", and it is bigger than the docked floor because

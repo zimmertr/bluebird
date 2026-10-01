@@ -85,6 +85,16 @@ describe('reordering', () => {
     expect(onColumnMove).toHaveBeenLastCalledWith('type', COLUMNS[COLUMNS.findIndex((c) => c.key === 'type') + 1].key)
   })
 
+  it('makes no move past either end of the list', async () => {
+    const onColumnMove = vi.fn()
+    const { user } = render(<Picker onColumnMove={onColumnMove} />)
+    grip(COLUMNS[0].label as string).focus()
+    await user.keyboard('{ArrowUp}')
+    grip(COLUMNS[COLUMNS.length - 1].label as string).focus()
+    await user.keyboard('{ArrowDown}')
+    expect(onColumnMove).not.toHaveBeenCalled()
+  })
+
   it('moves a column to the row a drag is released over', () => {
     const onColumnMove = vi.fn()
     render(<Picker onColumnMove={onColumnMove} />)

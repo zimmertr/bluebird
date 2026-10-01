@@ -12,7 +12,6 @@ import {
   compareAdded,
   compareEndMs,
   compareSeries,
-  isBlend,
   isPartialRow,
   legendEntries,
   type LegendEntry,
@@ -89,27 +88,6 @@ describe('what a comparison costs', () => {
   it('prices a comparison of every published model', () => {
     const all = MODELS.length * callWeight(1, start, end, 9, 1)
     expect(all).toBeCloseTo(MODELS.length, 6)
-  })
-})
-
-describe('isBlend', () => {
-  it('reads the flag the server publishes', () => {
-    expect(isBlend(MODELS, 'gfs_seamless')).toBe(true)
-    expect(isBlend(MODELS, 'meteofrance_seamless')).toBe(true)
-    expect(isBlend(MODELS, 'ecmwf_ifs025')).toBe(false)
-    expect(isBlend(MODELS, 'gfs_hrrr')).toBe(false)
-  })
-
-  // The suffix is Open-Meteo's naming habit, not a contract: a blended model
-  // under another name has to read as a blend, and a `_seamless` id the server
-  // does not flag has to read as one model.
-  it('does not read the id for a suffix', () => {
-    expect(isBlend([model('acme_blend', 100, true)], 'acme_blend')).toBe(true)
-    expect(isBlend([model('acme_seamless', 100)], 'acme_seamless')).toBe(false)
-  })
-
-  it('is not a blend when the server never published the model', () => {
-    expect(isBlend(MODELS, 'something_retired')).toBe(false)
   })
 })
 

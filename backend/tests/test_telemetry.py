@@ -111,6 +111,79 @@ def test_unhandled_exception_counts_as_500():
     assert _value("bluebird_forecast_http_requests_total", labels) == before + 1
 
 
+# ── The canary gate's series (#574) ────────────────────────────────────────
+
+
+def _canary_children() -> list[dict[str, str]]:
+    return [
+        {"route": route, "method": method, "status": status, "client": "api"}
+        for route, method in telemetry.CANARY_ROUTES
+        for status in sorted(
+            {"500"}
+            | {
+                code
+                for code in app.openapi()["paths"][route][method.lower()]["responses"]
+                if code.startswith("5")
+            }
+        )
+    ]
+
+
+def test_startup_creates_the_canary_5xx_series_at_zero(monkeypatch):
+    # A series born at 1 reads 0 in increase(), so the error-rate gate could
+    # not see the first 5xx of one. Startup must create them before any
+    # request does, and the scrape must show them.
+    import socket
+
+    children = _canary_children()
+    for labels in children:
+        try:
+            telemetry.HTTP_REQUESTS.remove(
+                labels["route"], labels["method"], labels["status"], labels["client"]
+            )
+        except KeyError:
+            pass
+        assert REGISTRY.get_sample_value("bluebird_forecast_http_requests_total", labels) is None
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    monkeypatch.setattr(telemetry, "METRICS_PORT", port)
+    with TestClient(app):
+        body = httpx.get(f"http://127.0.0.1:{port}/metrics").text
+    assert telemetry._server is None
+
+    for labels in children:
+        assert REGISTRY.get_sample_value("bluebird_forecast_http_requests_total", labels) == 0.0
+        line = (
+            'bluebird_forecast_http_requests_total{client="api",'
+            f'method="{labels["method"]}",route="{labels["route"]}",'
+            f'status="{labels["status"]}"}} 0.0'
+        )
+        assert line in body
+    # The analyze route's declared upstream failures are covered, not only the
+    # crash status every route gets.
+    analyze = {c["status"] for c in children if c["route"] == "/api/analyze"}
+    assert {"500", "502", "503"} <= analyze
+
+
+def test_canary_routes_carry_the_labels_the_middleware_records():
+    # The created children only help if a real canary request lands on them:
+    # the same route template, method and client label.
+    probes = [
+        ("/healthz", "GET", lambda: client.get("/healthz"), "200"),
+        ("/api/version", "GET", lambda: client.get("/api/version"), "200"),
+        ("/api/analyze", "POST", lambda: client.post("/api/analyze", json={}), "400"),
+    ]
+    assert [(r, m) for r, m, _, _ in probes] == list(telemetry.CANARY_ROUTES)
+    for route, method, send, status in probes:
+        labels = {"route": route, "method": method, "status": status, "client": "api"}
+        before = _value("bluebird_forecast_http_requests_total", labels)
+        assert send().status_code == int(status)
+        assert _value("bluebird_forecast_http_requests_total", labels) == before + 1
+
+
 def test_route_label_collapses_the_static_mount():
     class _Mount:
         path = ""

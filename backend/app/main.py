@@ -174,6 +174,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Metrics live on their own port (METRICS_PORT, default 9464), never on
     # this app: the public gateway allowlist filters /api/* only, so a
     # /metrics route here would be a public one (see telemetry.py).
+    telemetry.init_canary_series(_app.openapi())
     telemetry.start_metrics_server()
     # The snow grid, fetched behind startup rather than during it. A pod that
     # waited on NSIDC would be a pod one upstream outage keeps out of the load
