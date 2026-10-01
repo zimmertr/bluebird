@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { composeOverlay, ELEVATION_MESSAGE, OverlayInputs, RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from './analyzeOverlay'
+import {
+  AQI_TAIL_MESSAGE,
+  CLOUD_TAIL_MESSAGE,
+  composeOverlay,
+  ELEVATION_MESSAGE,
+  OverlayInputs,
+  RETRIEVING_MESSAGE,
+  SEARCHING_MESSAGE,
+  tailMessage,
+} from './analyzeOverlay'
 
 const idle: OverlayInputs = {
   analyzeLoading: false,
@@ -120,5 +129,48 @@ describe('composeOverlay', () => {
       paceRemainingS: 0,
     })
     expect(done.visible && done.detail).toBe(null)
+  })
+})
+
+// What the run still waits on once the weather has answered (#579): air
+// quality first, then the cloud column, one label at a time.
+describe('the tail label', () => {
+  it('names air quality while it is the one still out', () => {
+    expect(tailMessage({ aqi: true, cloud: false })).toBe('Retrieving air quality…')
+  })
+
+  it('names the cloud data while it is the one still out', () => {
+    expect(tailMessage({ aqi: false, cloud: true })).toBe('Retrieving cloud data…')
+  })
+
+  it('names air quality first while both are out', () => {
+    expect(tailMessage({ aqi: true, cloud: true })).toBe(AQI_TAIL_MESSAGE)
+  })
+
+  it('names nothing once neither is out', () => {
+    expect(tailMessage({ aqi: false, cloud: false })).toBeNull()
+  })
+
+  it('replaces the forecast count and keeps the full bar', () => {
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      statusMessage: CLOUD_TAIL_MESSAGE,
+      rankedProgress: { processed: 40, total: 40 },
+    })
+    expect(view).toMatchObject({
+      message: 'Retrieving cloud data…',
+      progress: { processed: 40, total: 40, percent: 100 },
+    })
+  })
+
+  it('keeps the forecast count under any other status', () => {
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      statusMessage: 'Retrieving forecasts: 40 of 40 peaks…',
+      rankedProgress: { processed: 40, total: 40 },
+    })
+    expect(view).toMatchObject({ message: 'Retrieving 40 forecasts…' })
   })
 })

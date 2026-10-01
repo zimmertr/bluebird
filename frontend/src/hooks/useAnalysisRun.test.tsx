@@ -26,6 +26,14 @@ describe('useAnalysisRun', () => {
     expect(result.current).toMatchObject({ loading: false, statusMessage: null, progress: null, error: null })
   })
 
+  it('shows the tail label over a full bar', () => {
+    const { result } = renderHook(() => useAnalysisRun(MODELS))
+    act(() => result.current.onProgress(4, 4, 'Retrieving forecasts: 4 of 4 peaks…'))
+    act(() => result.current.onTail('Retrieving air quality…'))
+    expect(result.current.statusMessage).toBe('Retrieving air quality…')
+    expect(result.current.progress).toEqual({ processed: 4, total: 4, percent: 100 })
+  })
+
   it('announces the counted field at zero, and reads an empty field as done', () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     act(() => result.current.announce(12))

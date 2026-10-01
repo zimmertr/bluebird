@@ -131,6 +131,8 @@ export interface PipelineOptions {
   // floor: `total_queried` is what has been forecast so far.
   onPartial: (data: AnalyzeResponse, fieldSoFar: DestinationResult[]) => void
   onProgress: (processed: number, total: number, message: string) => void
+  // The tail label, when air quality or the cloud column outlasts the weather.
+  onTail?: (message: string) => void
   onPace: (seconds: number) => void
   // What the places the server answers as "custom" really are, by coordinate
   // (`knownTypes`, #545). Applied before anything reads a row's type.
@@ -169,6 +171,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
         rows,
       ),
     onProgress: options.onProgress,
+    onTail: options.onTail,
   })
   return {
     // Truncation at discovery or at the cap: either way the caption fields

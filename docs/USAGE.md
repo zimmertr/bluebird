@@ -405,7 +405,7 @@ Destinations you name yourself are candidates like any other. A searched place a
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself. If none of the rows is on the map you are looking at, the map moves to show them; if at least one is, the map stays where you left it.
 
-While it runs, a line over the map says what it is waiting on. With a polygon it reads `Searching for destinations…` while the map service finds what is inside it. With only pasted, searched or clicked destinations it reads `Retrieving elevation…` while each one's elevation is looked up. Then it reads `Retrieving forecasts…`, with the count once it is known.
+While it runs, a line over the map says what it is waiting on. With a polygon it reads `Searching for destinations…` while the map service finds what is inside it. With only pasted, searched or clicked destinations it reads `Retrieving elevation…` while each one's elevation is looked up. Then it reads `Retrieving forecasts…`, with the count once it is known. If air quality or cloud data is still on its way after the forecasts arrive, it reads `Retrieving air quality…` and then `Retrieving cloud data…` until each arrives.
 
 A large area arrives in pieces. Forecasts are fetched in batches, and each batch that lands is ranked and shown at once rather than held back until the last one returns, so the first rows are up in well under a second where the whole run can take a minute or more. While that is happening the results bar marks its count **so far** (`946 of 946 so far`), because both numbers are a floor and the order still moves as the rest arrive. The words go when the analysis finishes.
 

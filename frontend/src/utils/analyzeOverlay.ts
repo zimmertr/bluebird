@@ -8,6 +8,8 @@ import { paceWaitLine } from './pacing'
 //      the forecasts is the pod's elevation lookup of its listed destinations
 //   2. "Retrieving {N} forecasts…"    — the weather fetch (a lone forecast
 //        reads "Retrieving forecast…")
+//   3. "Retrieving air quality…", then "Retrieving cloud data…" — only when
+//      either fetch is still out after the weather has answered (`tailMessage`)
 //
 // The message carries only the TOTAL, not a live "x of y" fraction; the filling
 // progress BAR visualizes the real batch progress underneath it.
@@ -49,6 +51,23 @@ export const ELEVATION_MESSAGE = 'Retrieving elevation…'
 // The retrieval heading before the first batch reports its total.
 export const RETRIEVING_MESSAGE = 'Retrieving forecasts…'
 
+// The tail (#579, the maintainer, 2026-10-01). Air quality and the cloud
+// column are fetched beside the weather but awaited after it, so either can
+// keep the run waiting with the bar already full. Each label names the fetch
+// still out, air quality first, because that is the order the run awaits them.
+export const AQI_TAIL_MESSAGE = 'Retrieving air quality…'
+export const CLOUD_TAIL_MESSAGE = 'Retrieving cloud data…'
+
+// Which tail label stands, given what is still out once the weather has
+// answered: air quality while it is open, then the cloud column, then none.
+export function tailMessage(open: { aqi: boolean; cloud: boolean }): string | null {
+  if (open.aqi) return AQI_TAIL_MESSAGE
+  if (open.cloud) return CLOUD_TAIL_MESSAGE
+  return null
+}
+
+const TAIL_MESSAGES: readonly string[] = [AQI_TAIL_MESSAGE, CLOUD_TAIL_MESSAGE]
+
 // Staged reassurance, tiered to the measured mirror behavior (issue #180):
 // overpass-api.de answers big polygons in 12-42s; a failover adds the backup
 // mirror's 38-45s on top, so "up to 30 seconds" (the old copy) measured false
@@ -84,9 +103,12 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
   // quota bucket is refilling. A paced analysis must never look hung: the
   // countdown plus the elapsed timer is what proves the wait is scheduled.
   const detail = paceWaitLine(i.paceRemainingS ?? null)
+  // A tail label replaces the forecast count once the weather has answered;
+  // the bar stays full under it.
+  const tail = i.statusMessage !== null && TAIL_MESSAGES.includes(i.statusMessage) ? i.statusMessage : null
   return {
     visible: true,
-    message: retrievingLabel(total),
+    message: tail ?? retrievingLabel(total),
     detail,
     progress: { processed, total, percent },
   }

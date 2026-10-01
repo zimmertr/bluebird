@@ -107,6 +107,7 @@ export function useAnalyze(
           },
           onPartial: (data, fieldSoFar) => report.commitArriving(data, fieldSoFar, view()),
           onProgress: run.onProgress,
+          onTail: run.onTail,
           onPace: run.onPace,
         })
         heldForecastsRef.current = out.held

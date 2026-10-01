@@ -54,6 +54,11 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     setProgress({ processed, total, percent: total ? Math.round((processed / total) * 100) : 100 })
   }
 
+  // The tail label replaces the status; the progress stays full under it.
+  function onTail(message: string) {
+    setStatusMessage(message)
+  }
+
   // One run. `seed` is the first-phase label, so nothing generic flashes in
   // the gap between the click and the first event.
   async function run(seed: string, body: (signal: AbortSignal) => Promise<void>, hooks: RunHooks) {
@@ -88,6 +93,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     clearEvents,
     announce,
     onProgress,
+    onTail,
     onPace,
     loading,
     error,
