@@ -15,12 +15,14 @@ from app.models import DestinationType, GeoPolygon
 from app.services import osm
 from app.services.errors import UpstreamError
 
-POLY = GeoPolygon(type="Polygon", coordinates=[[[-121.0, 47.0], [-120.0, 47.0], [-120.0, 48.0]]])
+POLY = GeoPolygon(
+    type="Polygon", coordinates=[[[-121.0, 47.0], [-120.0, 47.0], [-120.0, 48.0], [-121.0, 47.0]]]
+)
 
 
 def test_polygon_to_overpass_orders_lat_lon():
     # GeoJSON is [lon, lat]; Overpass wants "lat lon lat lon ...".
-    assert osm._polygon_to_overpass(POLY) == "47.0 -121.0 47.0 -120.0 48.0 -120.0"
+    assert osm._polygon_to_overpass(POLY) == "47.0 -121.0 47.0 -120.0 48.0 -120.0 47.0 -121.0"
 
 
 async def test_query_osm_parses_dedups_and_skips(monkeypatch):

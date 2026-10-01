@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from enum import Enum
-from typing import Any, ClassVar, Literal, Self
+from typing import Annotated, Any, ClassVar, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -135,13 +136,26 @@ def _bound_broken(v: Any, handler: ValidatorFunctionWrapHandler) -> tuple[Any, s
         return v, broken
 
 
+# A ring's shape is held by the types rather than by a validator, so a
+# malformed one is refused with Pydantic's own message at the position that is
+# wrong before `bbox_area_km2` or discovery indexes into it, and the published
+# schema states the shape (#564). Four positions is RFC 7946's minimum: a
+# triangle plus the closing repeat. Exactly two numbers per position, because
+# every reader unpacks `lon, lat` and a third (an altitude) would fail there
+# rather than be ignored.
+_Longitude = Annotated[float, Field(ge=-180, le=180)]
+_Latitude = Annotated[float, Field(ge=-90, le=90)]
+_Ring = Annotated[list[tuple[_Longitude, _Latitude]], Field(min_length=4)]
+
+
 class GeoPolygon(BaseModel):
     """A GeoJSON Polygon bounding the search area."""
 
     model_config = _REQUEST_CONFIG
 
     type: Literal["Polygon"]
-    coordinates: list[list[list[float]]] = Field(
+    coordinates: list[_Ring] = Field(
+        min_length=1,
         description=(
             "GeoJSON coordinate rings. Only the outer ring is read. Positions "
             "are `[longitude, latitude]`, which is GeoJSON order and the "
@@ -163,7 +177,7 @@ class GeoPolygon(BaseModel):
     )
 
 
-def bbox_area_km2(ring: list[list[float]]) -> float:
+def bbox_area_km2(ring: Sequence[Sequence[float]]) -> float:
     """Approximate bounding-box area in km² for a GeoJSON coordinate ring."""
     lats = [c[1] for c in ring]
     lons = [c[0] for c in ring]

@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 # Bump when the shape of cached values changes so a deploy never serves an
@@ -103,7 +103,7 @@ ENRICH_CACHE = TTLCache(ENRICH_MAX_ENTRIES, ENRICH_TTL_S)
 FORECAST_CACHE = TTLCache(FORECAST_MAX_ENTRIES, FORECAST_TTL_S)
 
 
-def discovery_key(ring: list[list[float]], type_value: str) -> tuple:
+def discovery_key(ring: Sequence[Sequence[float]], type_value: str) -> tuple:
     """Cache key for one discovery query.
 
     Ring coordinates are rounded to 5 decimals (~1 m): enough that a

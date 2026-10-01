@@ -54,9 +54,12 @@ curl -s https://bluebirdforecast.com/api/analyze \
 
 Two things to notice. Polygon positions are `[longitude, latitude]`, which is
 GeoJSON order and the reverse of how people usually say coordinates. And the
-ring closes by repeating its first position. A polygon copied from a GeoJSON
-tool may carry its optional `bbox`; the API accepts it and ignores it, and
-reads the area from `coordinates` alone.
+ring closes by repeating its first position. Each ring needs at least four
+positions, and each position is exactly two numbers, a longitude from -180 to
+180 and a latitude from -90 to 90; anything else is a `422` naming the position
+that is wrong. A polygon copied from a GeoJSON tool may carry its optional
+`bbox`; the API accepts it and ignores it, and reads the area from
+`coordinates` alone.
 
 One thing to know about the numbers: the wind fields report wind at each
 destination's own elevation, interpolated from pressure-level winds and floored
@@ -85,6 +88,13 @@ which timestamps the request needs:
   "start_datetime": "2026-08-01T14:00:00Z",
   "end_datetime":   "2026-08-03T02:00:00Z" }
 ```
+
+Timestamps are ISO 8601, and a timestamp means the instant it names:
+`2026-08-01T07:00:00-07:00` and `2026-08-01T14:00:00Z` ask about the same hour
+and get the same answer. A timestamp with no offset is read as UTC. Open-Meteo
+answers in UTC hours, so the hour an `at` request samples, and the last hour a
+`window` includes, is the UTC hour the instant falls in; under an offset that is
+not a whole hour, such as `+05:30`, that is not the hour the local clock shows.
 
 Sending a timestamp a mode does not use is a `422` rather than something the
 server quietly ignores. `at` works for past hours too, not just future ones, and

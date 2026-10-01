@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AnalyzeRequest, DestinationResult } from '../types'
+import type { AnalyzeRequest, DestinationResult, GeoPolygon } from '../types'
 import {
   DISCOVERY_UNAVAILABLE_MESSAGE,
   UNDESCRIBED_FAILURE_MESSAGE,
@@ -24,7 +24,7 @@ const ranked = vi.mocked(runClientAnalysis)
 
 const HOUR = 3_600_000
 const NOW = Date.parse('2026-07-20T12:00:00Z')
-const RING = { type: 'Polygon' as const, coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+const RING: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
 const REQUEST: AnalyzeRequest = {
   polygon: RING,
   destination_types: ['peak'],
