@@ -324,9 +324,10 @@ async def analyze_stream(
             "model": AnalysisRefusal,
             "description": (
                 "The request parsed but does not describe a runnable analysis: "
-                "the window is inverted, the destination type is not "
-                "discoverable, `custom_destinations` is missing for a custom "
-                "analysis, the elevation band excludes every candidate, or the "
+                "the window ends before it starts, the request sends neither "
+                "`destination_types` nor `custom_destinations`, "
+                "`destination_types` is non-empty with no `polygon`, a regional "
+                "`forecast_model` has no coverage for the area, or the "
                 "candidate count exceeds the cap. Over-cap refusals carry the "
                 "structured remedy fields (`found`, `limit`, and a computed "
                 "elevation-floor suggestion when one exists); send "

@@ -88,9 +88,11 @@ waiting, so a query nobody is waiting for never holds one of the operator's
 slots. A mirror that has just failed is asked last for the next two minutes and
 leads again after its first success, so a busy spell costs one slow attempt
 rather than one per analysis, and no mirror is ever skipped outright. Discovery
-results are cached for several minutes, so redrawing the same polygon costs
-Overpass nothing, and a resolved coordinate set is cached the same way, so
-re-analyzing a pasted list at window after window asks only once.
+results are cached for several minutes, and a resolved coordinate set is cached
+the same way. Each server pod holds its own cache, so redrawing the same polygon
+or re-analyzing a pasted list at window after window asks Overpass at most once
+per pod while the entry lasts, not once per analysis. A lookup that gave up is
+not cached, so the next analysis asks again.
 
 ## Open-Meteo
 
@@ -135,7 +137,12 @@ fetch also carries the free-air wind at five pressure levels (925 / 850 /
 700 / 600 / 500 hPa), and every wind number interpolates between the two
 levels bracketing the destination's elevation, floored at the 10 m value —
 free air can only add exposure, never shelter. Destinations below the lowest
-level (~762 m — a valley really is sheltered) report the plain 10 m wind. With
+level (~762 m — a valley really is sheltered) report the plain 10 m wind.
+Destinations above the highest level, 500 hPa (~5,574 m, 18,287 ft), take the
+500 hPa wind as it stands rather than interpolating: no higher level is
+fetched for wind or temperature, so the number is the air at that level
+however far the summit rises above it. No summit in the contiguous United
+States reaches it. With
 no known elevation, the app reads a peak or a pasted point at the terrain
 height Open-Meteo reports for its coordinate, as the grid below is read,
 because a summit stands above the model's terrain; a lake, a trailhead or a
@@ -185,7 +192,9 @@ fallback is the 2 m value rather than the 10 m one — a destination below the
 lowest level (~762 m) or in an archive window reports the surface temperature
 exactly as it did before, and one with no known elevation follows the wind's
 rule above: a peak or pasted point at the terrain height, a lake or trailhead
-at the surface.
+at the surface. Above the 500 hPa height the temperature takes that level's
+value as the wind does, which reads warm by the lapse over the remaining height: at the
+standard rate, about 4 °C (7 °F) at Denali's 6,190 m.
 
 No column header says which method produced a number
 ([#457](https://github.com/zimmertr/bluebird/issues/457)). The wind and
@@ -195,7 +204,7 @@ elevation: precipitation and air quality are the grid cell's surface values at
 that point (neither has a pressure-level variant; a request for
 `precipitation_925hPa` or `pm2_5_925hPa` answers `400`), the freezing level is
 a height of its own, and the surface temperature is lapsed to the destination's
-height. A datum on two of the five read as a difference in place where the
+height. A datum on two of the metric columns read as a difference in place where the
 difference is the method, so the method lives here, as the grid's
 terrain-height caveat below does.
 
@@ -437,9 +446,9 @@ request costs a second weighted call per location, so it is not made by default.
 over every layer at once. It says nothing about height: a sheet of cirrus at
 30,000 ft and fog on the summit both read 100 %.
 
-**Cloud base** is the lowest height above the destination where the model's air
-is close to saturated, in feet above sea level. Each hour walks up the air
-column from the destination:
+**Cloud base** is the lowest height at or above the destination where the
+model's air is close to saturated, in feet above sea level. Each hour walks up
+the air column from the destination:
 
 1. It starts at the destination's own elevation, with the 2 m relative humidity.
 2. It then reads the relative humidity at every standard pressure level above the
@@ -454,8 +463,9 @@ column from the destination:
    (Espy's rule).
 
 A base at the destination's own elevation means the model has the destination
-in cloud. Compare the number with the **Elevation (ft)** column: a base below the
-summit is a summit in cloud.
+in cloud. Compare the number with the **Elevation (ft)** column: a base equal to
+it is a summit in cloud. For a destination with a known elevation the base is
+never lower than that, because the walk starts there.
 
 The hour is null when no level above the destination answered, and when the
 destination has no known elevation, except that the app measures a peak or a
@@ -466,6 +476,11 @@ cover and no base.
 
 What the method cannot do:
 
+- **It cannot see below the destination.** The column is read at and above the
+  destination only, so a cloud deck below a summit does not show. A summit that
+  stands above an undercast reads the next saturated layer above it, or Espy's
+  fallback when the air above is dry, the same as a summit under a clear sky,
+  and a ranking on the base cannot tell the two apart.
 - **The levels are far apart.** Above 850 hPa they stand 1,100 to 2,000 m apart,
   and a thin deck between two of them is interpolated rather than seen.
 - **The heights are standard, not measured.** A real 850 hPa surface moves by
@@ -542,7 +557,9 @@ The optional perimeter overlay and the proximity warnings on result rows both
 come from NIFC's WFIGS service. The warnings run with every analysis whether or
 not the overlay is switched on, and measure to the fire perimeter rather than
 its centroid, because a large fire's centroid can sit many miles inside its own
-edge.
+edge. The warnings read the perimeters that stand today, whatever window was
+analyzed: a report on past dates flags the fires mapped now, not the ones that
+burned during those dates.
 
 Both read from **Bluebird Forecast's copy of the dataset, not from NIFC directly**. The
 server holds one snapshot of every active perimeter in the country and refreshes
@@ -722,7 +739,9 @@ closure is still reached through closed ground. The check reads the
 simplified copy, since about 56 m of simplification moves a boundary only for a
 destination standing on the line, whose reader reads the order either way. It
 runs once per analysis over the whole candidate field, beside the wildfire
-check. A row outside the area layer's coverage reads `N/A` rather than clear,
+check, and it reads the orders in force today, whatever window was analyzed: a
+report on past dates flags today's closures, not the ones that stood then. A
+row outside the area layer's coverage reads `N/A` rather than clear,
 for the coverage reason above, and so does every row when the Forest Service is
 unreachable. Sorting by the column puts cleared and `N/A` rows last in both
 directions, the way a clear wildfire row sorts, because no answer is not an
@@ -779,9 +798,11 @@ satellite snow observations, on a 1 km grid, and it is the best statement of how
 much snow is on the ground that exists for the United States.
 
 Like the radar, it is an **observation rather than a forecast**: it says where
-snow lies now, not where it will lie. That is what puts it on the map beside
-radar, smoke and fire instead of in the results table, and it is why switching
-it on never asks you to press Analyze again.
+snow lies now, not where it will lie. That is what puts the layer on the map
+beside radar, smoke and fire, and it is why switching it on never asks you to
+press Analyze again. The results table carries the same analysis as a column of
+its own, read from a different source and described in
+[The snow depth on a row](#the-snow-depth-on-a-row) below.
 
 **It updates four times a day**, at 20 minutes past 01, 05, 11 and 17 UTC. A
 snow depth is therefore hours old at worst, which is the right resolution for a

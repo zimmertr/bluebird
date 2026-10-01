@@ -55,11 +55,12 @@ export type ColoredFamily = MetricFamily
 
 // Scales are anchored to absolute conditions, not to the chosen ranking
 // direction — ranking "highest" simply surfaces the far end of the same scale
-// first. Three of the six run green (dry/calm/clean) through red to purple,
+// first. Three of the eight run green (dry/calm/clean) through red to purple,
 // because they measure something a hiker wants less of and the purple top is
-// where "less of" stops being advice (#445). Temperature has a bad end on
-// both sides and its green in the middle; the freezing level and snow depth
-// encode a quantity rather than a verdict; each says why on its own entry.
+// where "less of" stops being advice (#445); AQI adds the EPA's maroon past
+// it. Temperature has a bad end on both sides and its green in the middle;
+// the freezing level, snow depth and cloud base encode a quantity rather than
+// a verdict; cloud cover is slate; each says why on its own entry.
 //
 // Every scale has SIX bands, and the count is what `scaleTicks` in
 // `legendRamp.ts` reads the map legend's three tick positions off — its

@@ -39,9 +39,11 @@ describe('the constants the backend publishes for this side to match', () => {
   it('prices a weather request on one more variable than the backend', () => {
     // The browser also asks for `wind_direction_10m`, which only the map's
     // playback arrows read, so this pair is off by exactly one rather than
-    // equal. Both counts still floor to weight factor 1 — max(1, vars/10) —
-    // which is why the drift that prompted issue #380 cost nothing; the next
-    // variable either side adds is the one that would.
+    // equal. Both counts are past the floor of max(1, vars/10), so the two
+    // weight factors differ too (1.5 here, 1.4 on the pod), and the extra
+    // variable costs a tenth of a weighted call per location. Each side prices
+    // its own request off its own count, so the gap is a price, not a drift;
+    // a variable added to one side alone is what this test fails.
     expect(HOURLY_VARIABLES.length).toBe(constants.N_VARIABLES + 1)
     expect(HOURLY_VARIABLES).toContain('wind_direction_10m')
   })

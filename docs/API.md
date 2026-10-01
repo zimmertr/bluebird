@@ -748,7 +748,7 @@ field exists because the streaming endpoint reuses the shape.
 ## Cloud base and cloud cover
 
 Six more fields describe the sky: `cloud_base_min_ft`, `cloud_base_max_ft` and
-`cloud_base_avg_ft` (the lowest height above the destination where the model's
+`cloud_base_avg_ft` (the lowest height at or above the destination where the model's
 air is close to saturated, in feet above sea level), and `cloud_cover_min_pct`,
 `cloud_cover_max_pct` and `cloud_cover_avg_pct` (the model's total cloud cover,
 0 to 100). How the base is worked out, and what it cannot tell you, is in
@@ -967,7 +967,7 @@ curl -s https://bluebirdforecast.com/api/destinations \
 
 | Status | `error.code` | Meaning |
 | --- | --- | --- |
-| `400` | `validation`, `model_coverage`, `refusal` | The request parsed but does not describe a runnable analysis. Inverted window, undiscoverable destination type, missing `custom_destinations`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
+| `400` | `validation`, `model_coverage`, `refusal` | The request parsed but does not describe a runnable analysis. Inverted window, neither `destination_types` nor `custom_destinations`, `destination_types` without a `polygon`, a regional `forecast_model` asked about somewhere outside its grid, or too many candidates — the over-limit case carries the structured remedy fields described above. |
 | `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only `POST /api/analyze` answers it as a status; on the stream the same failure arrives as a terminal `error` event. No retry helps. |
 | `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |

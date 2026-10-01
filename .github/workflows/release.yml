@@ -126,9 +126,10 @@ jobs:
   # Update the image tag in Kubernetes-Manifests so Argo CD rolls out the new version.
   #
   # This lands through a self-merging PR rather than a direct push: Kubernetes-Manifests
-  # forbids direct commits to main, and its "Validate manifests" check renders the
-  # affected kustomization before anything reaches Argo CD. A tag that doesn't resolve
-  # fails the PR instead of failing a sync.
+  # forbids direct commits to main, and its "Validate manifests" check gives auto-merge
+  # something to wait on. That check YAML-parses the changed files and renders the
+  # affected kustomization; the render pulls the chart but no image, so a tag that does
+  # not exist passes it and fails later, when the canary pod cannot pull it.
   #
   # Dependabot-style fixed branch: force-pushed every release and edited in place, so
   # rapid releases collapse into one up-to-date PR rather than a pile of stale ones.

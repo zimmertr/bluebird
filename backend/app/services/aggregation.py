@@ -234,11 +234,12 @@ def _join_hours(
     array is padded to the stamp count, which keeps them parallel for the
     index-addressed reads below.
 
-    Two payloads are dropped rather than mixed. Disagreeing `hourly_units` means
-    one host answered in units the other did not, and a total of inches and
-    millimetres is a number with no meaning; a repeated stamp would count one
-    hour twice. Both degrade to no metrics, which is what every payload this
-    module cannot read does.
+    Disagreeing `hourly_units` drop the payload rather than mix it: one host
+    answered in units the other did not, and a total of inches and millimetres
+    is a number with no meaning. That degrades to no metrics, which is what
+    every payload this module cannot read does. A stamp that arrives in both
+    halves is kept once, from the first half, and the rest of the payload is
+    kept, because counting one hour twice would inflate a total.
 
     A unit is compared only where both hosts declare one. The archive serves no
     pressure-level winds and answers their unit as the literal string
