@@ -164,24 +164,6 @@ export function nearestIndex(times: readonly number[], ms: number): number | nul
 }
 
 /**
- * Does a paused playhead follow the newest radar frame as the window slides?
- *
- * Radar's frames are offsets from *now*, so every five minutes the whole set
- * shifts and each frame becomes five minutes older. A playhead parked on the
- * newest frame should stay on the newest frame — that is what "I am watching
- * the current radar" means. A playhead the reader scrubbed back to should stay
- * on the picture they scrubbed to, which as the window slides means it does not
- * move on the index axis either; it simply ages out of the loop eventually.
- *
- * Both cases are therefore "leave the index alone", which is exactly why this
- * is written down: the index is the same, the *meaning* is not, and it is worth
- * being explicit that the newest frame is index `count - 1` in both.
- */
-export function followsNewestRadar(index: number, count: number): boolean {
-  return index >= count - 1
-}
-
-/**
  * The label a scrub position reads as on the forecast axis.
  *
  * Weekday plus hour, matching the chart's own short-span axis ticks, so the

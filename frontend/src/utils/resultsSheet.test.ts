@@ -18,7 +18,6 @@ import {
   draggedMapFloorPx,
   legendBottomPx,
   mapCornerLiftPx,
-  maxSheetPx,
   resolveSheetLift,
   restingLiftPx,
   restingMapFloorPx,
@@ -221,17 +220,12 @@ describe('the resting height', () => {
 // resting reserve above holds only until the reader takes hold of a grip; this
 // one holds however far they pull.
 describe('the drag cap', () => {
-  it.each([
-    ['402x874', 874],
-    ['500x757', 757],
-  ])('at %s, leaves the transport the floor the legend takes', (_at, availPx) => {
-    expect(availPx - maxSheetPx(availPx) - TRANSPORT_BAND_PX).toBe(LEGEND_TOP_PX)
+  it('leaves the transport the floor the legend takes', () => {
+    expect(DRAGGED_MAP_PX - TRANSPORT_BAND_PX).toBe(LEGEND_TOP_PX)
   })
 
-  it('states both caps outright', () => {
+  it('states the cap outright', () => {
     expect(DRAGGED_MAP_PX).toBe(280)
-    expect(maxSheetPx(874)).toBe(594)
-    expect(maxSheetPx(757)).toBe(477)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -240,7 +234,7 @@ describe('the drag cap', () => {
   it.each([1, 2])('reads as a map floor for a sheet with %i grips', (gripCount) => {
     const availPx = 757
     const panelsPx = availPx - draggedMapFloorPx(gripCount)
-    expect(sheetHeightPx({ collapsed: false, gripCount, panelsPx })).toBe(maxSheetPx(availPx))
+    expect(sheetHeightPx({ collapsed: false, gripCount, panelsPx })).toBe(availPx - DRAGGED_MAP_PX)
   })
 
   it('stops a long drag where the docked floor did not', () => {
@@ -253,7 +247,7 @@ describe('the drag cap', () => {
     })
     const lift = (panelsPx: number) => sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx })
     const capped = lift(clampPanelHeight(table, 400, 0, VIEWPORT, draggedMapFloorPx(1)))
-    expect(capped).toBe(maxSheetPx(VIEWPORT))
+    expect(capped).toBe(VIEWPORT - DRAGGED_MAP_PX)
     expect(VIEWPORT - capped - TRANSPORT_BAND_PX).toBe(LEGEND_TOP_PX)
     // The same drag with only the docked floor under it put the bar into the
     // button column, which is the collision this cap exists for.

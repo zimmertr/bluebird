@@ -14,7 +14,7 @@ three repositories and the supporting services that automate the path.
 | System | Role |
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image. |
-| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set so Artifact Hub never ranks a PR build as latest. |
+| **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. |
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
@@ -76,6 +76,7 @@ flowchart TD
     helmPR -->|auto-merge once lint passes| helmMain
     helmMain --> helmRel
     ghRelease -.->|appVersion from releases/latest| helmRel
+    helmRel -->|ORAS push to the artifacthub.io tag,<br/>only when artifacthub-repo.yml changed| dhChart
     helmRel -->|helm push| dhChart
     dhChart --> ah
     helmRel -->|open/update PR: chart version| kmStablePR
@@ -163,9 +164,14 @@ touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself):
    chart oci://…` — skip if that chart version was already published.
 2. Resolves `appVersion` **at package time** from `bluebird`'s `releases/latest`
    (the value committed to `Chart.yaml` is only a local-render fallback — the
-   resolver is the source of truth), then `helm package --version <chartver>
-   --app-version <appver>` and `helm push` to the OCI repo; tags + GitHub release.
-3. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
+   resolver is the source of truth).
+3. When the merge changed `artifacthub-repo.yml` (or on a manual run), pushes
+   it with ORAS to the OCI repo's `artifacthub.io` tag before the chart push,
+   because Artifact Hub reads that metadata only when the repo's tag list
+   changes.
+4. `helm package --version <chartver> --app-version <appver>` and `helm push`
+   to the OCI repo; tags + GitHub release.
+5. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
    PRs, one per consumer:
    - preview: `chore/bluebird-preview-chart` sets `targetRevision: <chartver>`
      in `public/bluebird-pr/applicationset.yml` (the ephemeral per-PR envs).
@@ -436,6 +442,17 @@ The query therefore answers `0` in two cases, and the true ratio otherwise:
   `increase()` of a single 5xx reads at most 1.33 after extrapolation
   (measured on the 2026-09-23 canary). A real outage gives many 5xx in two
   minutes and still fails; two 5xx in sixteen requests is 0.125.
+
+  That count holds only on a series that existed before its first 5xx.
+  `increase()` measures from an earlier sample, so a series created by its
+  first 5xx reads 0 for that one, and the gate would forgive two 5xx on it.
+  The pod therefore creates, at 0 when it starts, every 5xx series the
+  canary's own requests can produce (`CANARY_ROUTES` in
+  `backend/app/telemetry.py`): `GET /healthz`, `GET /api/version` and
+  `POST /api/analyze`, each at 500 and at every 5xx its OpenAPI entry
+  declares, all with `client="api"`. A 5xx on any other series (another
+  route, an undeclared status, or `client="web"`) is still not counted until
+  the second one on that series. At weight 0 the canary serves nothing else.
 - **Fewer than 10 requests in the window.** The kubelet probes alone send 16
   per window (readiness every 10 s, liveness every 30 s; the measured median
   over 40 pods), and a window under 10 is one that a pod start or stop cuts
