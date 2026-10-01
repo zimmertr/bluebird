@@ -1081,6 +1081,11 @@ export interface components {
          */
         GeoPolygon: {
             /**
+             * Bbox
+             * @description Optional GeoJSON bounding box (four or six numbers), accepted and ignored: the search area is always read from `coordinates`.
+             */
+            bbox?: number[] | null;
+            /**
              * Coordinates
              * @description GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position.
              */

@@ -54,7 +54,9 @@ curl -s https://bluebirdforecast.com/api/analyze \
 
 Two things to notice. Polygon positions are `[longitude, latitude]`, which is
 GeoJSON order and the reverse of how people usually say coordinates. And the
-ring closes by repeating its first position.
+ring closes by repeating its first position. A polygon copied from a GeoJSON
+tool may carry its optional `bbox`; the API accepts it and ignores it, and
+reads the area from `coordinates` alone.
 
 One thing to know about the numbers: the wind fields report wind at each
 destination's own elevation, interpolated from pressure-level winds and floored
@@ -625,7 +627,7 @@ curl -s https://bluebirdforecast.com/api/analyze \
   }' | jq '{total_queried, total_matched, kept: [.results[].name]}'
 ```
 
-Four things are worth knowing before relying on them.
+Five things are worth knowing before relying on them.
 
 **A ceiling reads the worst hour, a floor the best.** `max_wind_mph: 20` does
 not mean "averages under 20", it means "never exceeds 20", so a destination
@@ -635,6 +637,12 @@ one, and it reads straight: the floor asks that the level never dropped below
 the value, the ceiling that it never rose above it. Precipitation and air
 quality have no minimum aggregate to read, so both of their bounds compare one
 field: the window total, and the worst hour.
+
+**A floor above its ceiling is refused.** A pair that can match nothing answers
+`422` rather than an empty ranking, with the two fields named in `msg`:
+`min_wind_mph must not be above max_wind_mph.` An equal pair is allowed and
+asks for exactly that value. `min_elevation_ft` and `max_elevation_ft` are
+checked the same way, on both `POST /api/analyze` and `POST /api/destinations`.
 
 **They run before the ranking and before `limit`.** So `limit: 10` with a wind
 ceiling returns the ten driest destinations that stay calm, not whichever of
@@ -969,7 +977,7 @@ curl -s https://bluebirdforecast.com/api/destinations \
 | `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only `POST /api/analyze` answers it as a status; on the stream the same failure arrives as a terminal `error` event. No retry helps. |
 | `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. |
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
-| `422` | `validation`, or absent | Request validation failed. Polygon too large, `limit` out of range, a window outside the servable horizon, or a field the request body does not declare. |
+| `422` | `validation`, or absent | Request validation failed. Polygon too large, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
 | `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the deployment mid-analysis. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
@@ -1078,6 +1086,8 @@ a filter. This is the answer to `"max_wind": 20` where `max_wind_mph` was meant:
 
 The other direction is additive. A minor release can add a field to a response
 or to a stream event, so read the fields you know and ignore the rest. It can
+also add a new `error.code`: branch on the codes you know, and fall back on
+`retryable` for any other. It can
 also add an optional request field; a body that leaves it out gets the default,
 so every body a 1.x release accepted is still accepted. A self-hosted instance
 running an older release refuses a field it does not have yet.

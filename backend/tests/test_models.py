@@ -399,9 +399,10 @@ def _polygon() -> dict:
         lambda: _valid_request(max_wind=20),
         lambda: DestinationsRequest(destination_types=[], custom_destinations=[_cd()], stray=1),
         lambda: CustomDestination(**_cd(elevation=4000)),
-        lambda: GeoPolygon(**_polygon(), bbox=[0, 0, 0.1, 0.1]),
+        lambda: GeoPolygon(**_polygon(), crs={"type": "name"}),
         lambda: _valid_request(custom_destinations=[_cd(elev_ft=4000)]),
         lambda: _valid_request(destination_types=["peak"], polygon={**_polygon(), "crs": "x"}),
+        lambda: _valid_request(destination_types=["peak"], polygon={**_polygon(), "bbox": [0, 0, 1, 1], "crs": "x"}),
     ],
 )
 def test_every_request_shape_refuses_a_field_it_does_not_declare(build):
@@ -459,3 +460,70 @@ def test_a_value_that_does_not_parse_keeps_pydantics_own_message():
     with pytest.raises(ValidationError) as caught:
         CustomDestination(**_cd(latitude="north"))
     assert [e["type"] for e in caught.value.errors()] == ["float_parsing"]
+
+
+# A polygon's RFC 7946 bbox is the one member beyond the two the API reads, and
+# it is accepted and dropped on the floor: the ring alone is the search area.
+@pytest.mark.parametrize("bbox", [[0, 0, 0.1, 0.1], [0, 0, -10, 0.1, 0.1, 4000]])
+def test_a_polygon_may_carry_a_bbox_that_nothing_reads(bbox):
+    polygon = GeoPolygon(**_polygon(), bbox=bbox)
+    assert polygon.coordinates == GeoPolygon(**_polygon()).coordinates
+    # Wildly wrong for the ring, and still only accepted: nothing reads it.
+    _valid_request(destination_types=["peak"], polygon={**_polygon(), "bbox": [-180, -90, 180, 90]})
+
+
+def test_a_bbox_must_be_a_list_of_numbers():
+    with pytest.raises(ValidationError) as caught:
+        GeoPolygon(**_polygon(), bbox=["west", 0, 1, 1])
+    assert [e["type"] for e in caught.value.errors()] == ["float_parsing"]
+
+
+# ── An inverted bound pair (issue #563) ────────────────────────────────────
+
+# The pairs as the ranking reads them, plus the elevation band. Spelled out here
+# so a pair the derivation misses, or invents, fails by name.
+_EXPECTED_PAIRS = {
+    "AnalyzeRequest": {
+        ("min_elevation_ft", "max_elevation_ft"),
+        ("min_precip_total_in", "max_precip_total_in"),
+        ("min_temp_f", "max_temp_f"),
+        ("min_wind_mph", "max_wind_mph"),
+        ("min_freeze_ft", "max_freeze_ft"),
+        ("min_snow_depth_in", "max_snow_depth_in"),
+        ("min_aqi", "max_aqi"),
+        ("min_cloud_base_ft", "max_cloud_base_ft"),
+        ("min_cloud_cover_pct", "max_cloud_cover_pct"),
+    },
+    "DestinationsRequest": {("min_elevation_ft", "max_elevation_ft")},
+}
+
+
+def test_every_bound_pair_is_found():
+    from app.services.ranking import _LOWER_BOUNDS, _UPPER_BOUNDS
+
+    assert set(AnalyzeRequest._range_pairs()) == _EXPECTED_PAIRS["AnalyzeRequest"]
+    assert set(DestinationsRequest._range_pairs()) == _EXPECTED_PAIRS["DestinationsRequest"]
+    ranked = {(low, high) for (low, _), (high, _) in zip(_LOWER_BOUNDS, _UPPER_BOUNDS, strict=True)}
+    assert ranked <= _EXPECTED_PAIRS["AnalyzeRequest"]
+
+
+def _build(model: str, **fields):
+    if model == "AnalyzeRequest":
+        return _valid_request(**fields)
+    return DestinationsRequest(destination_types=[], custom_destinations=[_cd()], **fields)
+
+
+@pytest.mark.parametrize(
+    "model, low, high",
+    [(model, low, high) for model, pairs in _EXPECTED_PAIRS.items() for low, high in sorted(pairs)],
+)
+def test_a_minimum_above_its_maximum_is_refused_by_name(model, low, high):
+    # 5 and 10 sit inside every bound's own range, so only the order can fail.
+    with pytest.raises(ValidationError) as caught:
+        _build(model, **{low: 10, high: 5})
+    [error] = caught.value.errors()
+    assert (error["type"], error["msg"]) == ("value_error", f"Value error, {low} must not be above {high}.")
+    # An equal pair asks for exactly that value, and one side alone is no pair.
+    _build(model, **{low: 5, high: 5})
+    _build(model, **{low: 10})
+    _build(model, **{high: 5})

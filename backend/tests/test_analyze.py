@@ -294,11 +294,15 @@ def test_filter_constraints_combine_as_and():
     assert [r.name for r in kept] == ["keeper"]
 
 
-def test_filter_constraints_inverted_range_keeps_nothing():
-    # No cross-field validation, matching the elevation band: an impossible
-    # request answers honestly with an empty field rather than a 422.
-    rows = [_result("a", temp_min=50.0, temp_max=70.0)]
-    assert _filter_constraints(rows, _bounded(min_temp_f=90.0, max_temp_f=10.0)) == []
+@pytest.mark.parametrize("route", ["/api/analyze", "/api/analyze/stream"])
+def test_an_inverted_bound_pair_is_a_422_before_anything_runs(route):
+    # It can match nothing, so it once answered an empty 200 that read as
+    # "nothing qualifies" rather than as the typo it is (#563). Refused before
+    # the stream opens, like every other validation failure.
+    resp = client.post(route, json={**_custom_body(), "min_temp_f": 90, "max_temp_f": 10})
+    assert resp.status_code == 422
+    [error] = resp.json()["detail"]
+    assert (error["loc"], error["msg"]) == (["body"], "min_temp_f must not be above max_temp_f.")
 
 
 # ── small helpers ──────────────────────────────────────────────────────────

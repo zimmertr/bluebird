@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from enum import Enum
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -13,6 +13,7 @@ from pydantic import (
     ValidationError,
     ValidatorFunctionWrapHandler,
     field_validator,
+    model_validator,
 )
 
 from app.limits import MAX_ANALYZE_PEAKS, MAX_POLYGON_AREA_KM2
@@ -147,6 +148,18 @@ class GeoPolygon(BaseModel):
             "reverse of how coordinates are usually spoken. The ring should "
             "close by repeating its first position."
         )
+    )
+    # Declared rather than refused because RFC 7946 lets any GeoJSON object
+    # carry one, and a polygon exported from a mapping tool often does. It is
+    # never read: the area, the discovery query and the cache key all come
+    # from `coordinates`, so a bbox that disagrees with the ring changes
+    # nothing.
+    bbox: list[float] | None = Field(
+        default=None,
+        description=(
+            "Optional GeoJSON bounding box (four or six numbers), accepted and "
+            "ignored: the search area is always read from `coordinates`."
+        ),
     )
 
 
@@ -376,5 +389,30 @@ class _DiscoveryFields(BaseModel):
                 f"{cls._split_noun}."
             )
         return v
+
+    @classmethod
+    def _range_pairs(cls) -> list[tuple[str, str]]:
+        """Every `min_X` field with a `max_X` beside it, read off the model.
+
+        Derived rather than listed, so a bound pair added to either request
+        is refused the same way without a second table to keep in step: the
+        elevation band on both, and every forecast bound on `AnalyzeRequest`.
+        """
+        return [
+            (low, high)
+            for low in cls.model_fields
+            if low.startswith("min_") and (high := "max_" + low[4:]) in cls.model_fields
+        ]
+
+    @model_validator(mode="after")
+    def no_range_inverted(self) -> Self:
+        # An inverted pair can match nothing, so it answered an empty 200 that
+        # read as "nothing qualifies" rather than as the typo it is (#563). An
+        # equal pair is a real request: exactly that value.
+        for low, high in self._range_pairs():
+            floor, ceiling = getattr(self, low), getattr(self, high)
+            if floor is not None and ceiling is not None and floor > ceiling:
+                raise ValueError(f"{low} must not be above {high}.")
+        return self
 
 
