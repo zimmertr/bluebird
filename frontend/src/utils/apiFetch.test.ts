@@ -1,12 +1,32 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DestinationsRequest } from '../types'
-import { API_UNREACHABLE_MESSAGE, ApiUnreachable, apiFetch, apiJson, postDestinations } from './apiFetch'
+import {
+  API_DEADLINE_MS,
+  API_UNREACHABLE_MESSAGE,
+  ApiUnreachable,
+  apiFetch,
+  apiJson,
+  postDestinations,
+  retryAfterSeconds,
+} from './apiFetch'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
-function stubFetch(impl: () => Promise<Response>) {
+// A fetch that never answers on its own and rejects with the signal's reason
+// when aborted, which is what a browser does.
+function hangingFetch() {
+  return stubFetch(
+    (_path?: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+      }),
+  )
+}
+
+function stubFetch(impl: (path?: unknown, init?: RequestInit) => Promise<Response>) {
   const spy = vi.fn(impl)
   vi.stubGlobal('fetch', spy)
   return spy
@@ -47,7 +67,56 @@ describe('apiFetch', () => {
     const spy = stubFetch(() => Promise.resolve(new Response('ok', { status: 200 })))
     const res = await apiFetch('/api/smoke', { headers: { Accept: 'application/json' } })
     expect(res.ok).toBe(true)
-    expect(spy).toHaveBeenCalledWith('/api/smoke', { headers: { Accept: 'application/json' } })
+    expect(spy).toHaveBeenCalledWith(
+      '/api/smoke',
+      expect.objectContaining({ headers: { Accept: 'application/json' } }),
+    )
+  })
+
+  // #580: a request that never got an answer held its caller forever.
+  it('gives a request with no answer up as unreachable at the deadline', async () => {
+    vi.useFakeTimers()
+    hangingFetch()
+    const pending = apiFetch('/api/smoke').catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(API_DEADLINE_MS - 1)
+    let settled = false
+    void pending.then(() => (settled = true))
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    const err = await pending
+    expect(err).toBeInstanceOf(ApiUnreachable)
+    expect((err as Error).message).toBe(API_UNREACHABLE_MESSAGE)
+  })
+
+  it('still passes the caller’s own cancel through as an abort', async () => {
+    hangingFetch()
+    const controller = new AbortController()
+    const pending = apiFetch('/api/smoke', { signal: controller.signal }).catch((e: unknown) => e)
+    controller.abort()
+    const err = await pending
+    expect((err as Error).name).toBe('AbortError')
+  })
+
+  it('stops the clock once the answer has started', async () => {
+    vi.useFakeTimers()
+    const spy = stubFetch(() => Promise.resolve(new Response('ok', { status: 200 })))
+    await apiFetch('/api/smoke')
+    const signal = (spy.mock.calls[0][1] as RequestInit).signal as AbortSignal
+    await vi.advanceTimersByTimeAsync(API_DEADLINE_MS * 2)
+    expect(signal.aborted).toBe(false)
+  })
+})
+
+describe('retryAfterSeconds', () => {
+  it('reads the seconds form and nothing else', () => {
+    const answer = (value?: string) =>
+      new Response('', { status: 503, headers: value === undefined ? {} : { 'Retry-After': value } })
+    expect(retryAfterSeconds(answer('60'))).toBe(60)
+    expect(retryAfterSeconds(answer(' 5 '))).toBe(5)
+    expect(retryAfterSeconds(answer())).toBeNull()
+    expect(retryAfterSeconds(answer('Wed, 21 Oct 2026 07:28:00 GMT'))).toBeNull()
+    expect(retryAfterSeconds(answer('-1'))).toBeNull()
   })
 })
 
@@ -81,11 +150,18 @@ describe('postDestinations', () => {
     const controller = new AbortController()
     const body: DestinationsRequest = { destination_types: ['peak'] }
     await postDestinations(body, controller.signal)
-    expect(spy).toHaveBeenCalledWith('/api/destinations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
+    expect(spy).toHaveBeenCalledWith(
+      '/api/destinations',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
+    )
+    // The fetch carries a signal of its own, for the deadline, that the
+    // caller's cancel still reaches.
+    const signal = (spy.mock.calls[0][1] as RequestInit).signal as AbortSignal
+    controller.abort()
+    expect(signal.aborted).toBe(true)
   })
 })

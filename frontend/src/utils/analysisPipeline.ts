@@ -157,12 +157,12 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   const found = { ...discovered, candidates: withKnownTypes(discovered.candidates, options.knownTypes ?? {}) }
   onDiscovered(found)
 
-  const { response, universe } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
+  const { response, universe, aqiFailed } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
     signal,
     maxDestinations: options.maxDestinations,
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
-    reuse: reuse && { rows: reuse.rows, times: reuse.times },
+    reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed },
     cloud: requestsCloud(request),
     onPace: options.onPace,
     onPartial: (rows, times) =>
@@ -182,6 +182,6 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
       truncated: response.truncated || found.truncated,
     },
     field: universe,
-    held: holdForecasts(reuse, universe, response.times ?? [], asked, now()),
+    held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed),
   }
 }

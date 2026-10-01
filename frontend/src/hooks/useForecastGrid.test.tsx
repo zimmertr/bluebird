@@ -29,7 +29,7 @@ weather.mockImplementation(
       calls.push({ points: points.length, signal: opts!.signal!, answer: resolve, fail: reject })
     }),
 )
-vi.mocked(fetchAqi).mockResolvedValue([])
+vi.mocked(fetchAqi).mockResolvedValue({ results: [], failed: [] })
 vi.mocked(fetchCloud).mockResolvedValue([])
 
 let warned: ReturnType<typeof vi.spyOn>

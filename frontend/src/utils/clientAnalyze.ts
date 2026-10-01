@@ -30,6 +30,7 @@ import { type Place, placeType } from './geocode'
 import { geoKey } from './points'
 import type { WindowLimits } from './forecastWindow'
 import {
+  AqiFetch,
   AqiResult,
   CloudResult,
   Coordinate,
@@ -256,6 +257,21 @@ export function withCloud(
   return next
 }
 
+/**
+ * The same row with a fresh air-quality answer laid over it: the three
+ * aggregates and the hourly column on the report's grid. For a held row whose
+ * air quality failed the first time and was asked again (#580).
+ */
+export function withAqi(row: DestinationResult, aqi: AqiResult, times: readonly number[]): DestinationResult {
+  return {
+    ...row,
+    aqi_avg: aqi?.aqi_avg ?? null,
+    aqi_min: aqi?.aqi_min ?? null,
+    aqi_max: aqi?.aqi_max ?? null,
+    series: row.series ? { ...row.series, aqi: alignAqi(times, aqi?.series ?? null) } : row.series,
+  }
+}
+
 // Port of _canonical_times: the shared hourly grid is identical across
 // destinations for one window, so the first row carrying a series defines it.
 export function canonicalTimes(wxList: readonly WeatherResult[]): number[] {
@@ -403,7 +419,16 @@ export interface ClientAnalysisCallbacks {
   // when the held rows were fetched (`FORECAST_REUSE_MS` in forecastReuse.ts).
   // Passing rows from a different window here would silently mix two
   // forecasts into one report.
-  reuse?: { rows: readonly DestinationResult[]; times: readonly number[] } | null
+  //
+  // `aqiFailed` names the held rows (by `geoKey`) whose air quality FAILED
+  // rather than answered null. Those are asked again (#580): a failure is not
+  // cached by the fetch, but reuse used to skip the fetch for held rows
+  // altogether, so an outage stuck to them for the whole reuse window.
+  reuse?: {
+    rows: readonly DestinationResult[]
+    times: readonly number[]
+    aqiFailed?: ReadonlySet<string>
+  } | null
   /**
    * The ranked field as it arrives, once per landed batch (#337, finding 2).
    *
@@ -446,6 +471,9 @@ export interface ClientAnalysis {
   // entries are the SAME objects as `response.results`, not copies; nothing
   // mutates a row after this returns.
   universe: DestinationResult[]
+  // The rows of `universe`, by `geoKey`, whose air quality failed rather than
+  // answered: what the next run's `reuse.aqiFailed` should be.
+  aqiFailed: Set<string>
 }
 
 // The client-side counterpart of the analyze routes' fetch-and-rank half:
@@ -473,7 +501,7 @@ export async function runClientAnalysis(
   }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
   if (destinations.length === 0) {
-    return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [] }
+    return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set() }
   }
   const cap = maxDestinations ?? MAX_ANALYZE_DESTINATIONS
   const noun = analysisNoun(request)
@@ -529,6 +557,22 @@ export async function runClientAnalysis(
     // only what OSM or the list said.
     terrainFallback: terrainFallbackFor(d.type),
   }))
+
+  // Held rows whose air quality failed last time, asked again in the same
+  // fetch as the new candidates' (one batch pipeline, one pacer). A held null
+  // that was an ANSWER, or a window past the horizon, is not in the set, so it
+  // is never re-bought.
+  const heldAqiFailed = reuse?.aqiFailed
+  const aqiRetry: number[] = []
+  if (heldAqiFailed && heldAqiFailed.size > 0) {
+    reused.forEach((r, i) => {
+      if (heldAqiFailed.has(geoKey(r.latitude, r.longitude))) aqiRetry.push(i)
+    })
+  }
+  const aqiCoords: Coordinate[] = [
+    ...aqiRetry.map((i) => ({ latitude: reused[i].latitude, longitude: reused[i].longitude })),
+    ...coords,
+  ]
 
   // One controller spans every fetch this analysis makes: the first fatal
   // failure aborts the rest, so no in-flight or queued batch keeps spending
@@ -588,23 +632,33 @@ export async function runClientAnalysis(
     // The server path stays lazy (#181). There the budget is the pod's, shared
     // across visitors, so the same arithmetic comes out the other way.
     // Nothing new to forecast: every candidate came out of the held field, so
-    // the analysis is a re-rank and costs no upstream call at all.
+    // the analysis is a re-rank and costs no weather call at all. Air quality
+    // is asked only for held rows whose fetch failed, and only then.
+    const aqiPending: Promise<AqiFetch> | null =
+      aqiCoords.length > 0
+        ? fetchAqi(aqiCoords, startMs, endMs, {
+            signal: internal.signal,
+            // The same countdown the weather hands over. Air quality is awaited
+            // before the ranking assembles, so its pacer's sleep is the analysis's
+            // sleep and must read as scheduled, not hung (analyzeOverlay.ts).
+            onPace,
+            nowMs,
+            aqiForecastDays,
+          })
+            // fetchAqi only ever throws AbortError, which is what a weather failure
+            // (or Cancel) triggers below. Swallow it here so it cannot surface as an
+            // unhandled rejection once the caller has already taken the real error.
+            .catch(
+              (): AqiFetch => ({
+                results: new Array(aqiCoords.length).fill(null),
+                failed: new Array(aqiCoords.length).fill(true),
+              }),
+            )
+        : null
     let fetched: DestinationResult[] = []
+    let fetchedAqiFailed: boolean[] = []
     let times: number[] = []
     if (coords.length > 0) {
-      const aqiPending = fetchAqi(coords, startMs, endMs, {
-        signal: internal.signal,
-        // The same countdown the weather hands over. Air quality is awaited
-        // before the ranking assembles, so its pacer's sleep is the analysis's
-        // sleep and must read as scheduled, not hung (analyzeOverlay.ts).
-        onPace,
-        nowMs,
-        aqiForecastDays,
-      })
-        // fetchAqi only ever throws AbortError, which is what a weather failure
-        // (or Cancel) triggers below. Swallow it here so it cannot surface as an
-        // unhandled rejection once the caller has already taken the real error.
-        .catch((): AqiResult[] => new Array(coords.length).fill(null))
       // Air quality resolves at the end, so a partial field carries none. That
       // is invisible for a weather ranking (the column fills in when the
       // analysis commits) and meaningless for an air-quality one, which would
@@ -655,9 +709,11 @@ export async function runClientAnalysis(
           ),
       })
       await followTail(aqiPending, cloud ? cloudPending : null, onTail)
-      const aqiList = await aqiPending
+      // Never null on this branch: the new candidates are in `aqiCoords`.
+      const aqi = (await aqiPending) ?? { results: [], failed: [] }
       const cloudList = await cloudPending
       if (cloudFailure !== null) throw cloudFailure
+      const aqiList = aqi.results.slice(aqiRetry.length)
       const assembled = assemble(
         unforecast,
         wxList,
@@ -666,6 +722,11 @@ export async function runClientAnalysis(
       )
       fetched = assembled.results
       times = assembled.times
+      // `assemble` drops the rows with no weather, so the flags are carried
+      // over by position among the candidates that kept a row.
+      const failedBy = new Map<string, boolean>()
+      unforecast.forEach((d, i) => failedBy.set(geoKey(d.latitude, d.longitude), aqi.failed[aqiRetry.length + i]))
+      fetchedAqiFailed = fetched.map((r) => failedBy.get(geoKey(r.latitude, r.longitude)) === true)
     }
 
     // The hourly grid is a property of the window, not of a fetch, and reuse is
@@ -673,14 +734,27 @@ export async function runClientAnalysis(
     // analysis fetched nothing, and the two are the same grid either way.
     if (times.length === 0) times = [...(reuse?.times ?? [])]
 
-    // A re-rank that fetched no weather can still wait on the held rows' cloud.
-    if (coords.length === 0 && cloud) await followTail(null, cloudPending, onTail)
+    // A re-rank that fetched no weather can still wait on the held rows' cloud,
+    // and on their air quality where it failed last time.
+    if (coords.length === 0 && (cloud || aqiPending !== null)) {
+      await followTail(aqiPending, cloud ? cloudPending : null, onTail)
+    }
     const heldCloud = await cloudPending
     if (cloudFailure !== null) throw cloudFailure
-    const results = [
-      ...reused.map((r, i) => withCloud(r, heldCloud?.[i] ?? null, times)),
-      ...fetched,
-    ]
+    const retried = aqiPending === null ? null : await aqiPending
+    const retryAt = new Map(aqiRetry.map((i, k) => [i, k]))
+    const aqiFailed = new Set<string>()
+    const held = reused.map((r, i) => {
+      const row = withCloud(r, heldCloud?.[i] ?? null, times)
+      const k = retryAt.get(i)
+      if (k === undefined || retried === null) return row
+      if (retried.failed[k]) aqiFailed.add(geoKey(r.latitude, r.longitude))
+      return withAqi(row, retried.results[k], times)
+    })
+    fetched.forEach((r, i) => {
+      if (fetchedAqiFailed[i]) aqiFailed.add(geoKey(r.latitude, r.longitude))
+    })
+    const results = [...held, ...fetched]
     results.sort(rankComparator(sortBy, request.sort_desc ?? false))
     const top = results.slice(0, request.limit)
 
@@ -698,6 +772,7 @@ export async function runClientAnalysis(
         truncated,
       },
       universe: results,
+      aqiFailed,
     }
   } catch (e) {
     internal.abort()

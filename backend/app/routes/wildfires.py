@@ -77,8 +77,9 @@ class WildfireCollection(BaseModel):
         "Perimeters are served past their refresh deadline when NIFC is "
         "unreachable, because a shape measured an hour ago still answers a "
         "10-mile proximity question correctly. Read `fetched_at` to see how "
-        "current the answer is. Only an instance that has never completed a "
-        "fetch answers 503."
+        "current the answer is. An instance answers 503 when it has never "
+        "completed a fetch, or when every refresh has failed for more than 24 "
+        "hours since its last good one."
     ),
     response_description="Perimeters intersecting the box, with the fetch timestamp.",
     response_model=WildfireCollection,
@@ -98,8 +99,9 @@ class WildfireCollection(BaseModel):
         503: {
             "model": ErrorResponse,
             "description": (
-                "This instance has never completed a fetch from NIFC, so it has "
-                "nothing to serve, not even stale. Transient; `Retry-After` says "
+                "This instance has never completed a fetch from NIFC, or every "
+                "refresh has failed for more than 24 hours since its last good "
+                "one, so it has nothing it will serve. Transient; `Retry-After` says "
                 "when to retry."
             ),
         },

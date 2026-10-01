@@ -31,13 +31,19 @@ describe('reusableForecasts', () => {
 
 describe('holdForecasts', () => {
   it('starts the clock at this fetch when nothing was reused', () => {
-    const held = holdForecasts(null, HELD.rows, HELD.times, ASKED, T0 + 5 * MIN)
-    expect(held).toEqual({ ...HELD, fetchedAtMs: T0 + 5 * MIN })
+    const held = holdForecasts(null, HELD.rows, HELD.times, ASKED, T0 + 5 * MIN, new Set())
+    expect(held).toEqual({ ...HELD, fetchedAtMs: T0 + 5 * MIN, aqiFailed: new Set() })
+  })
+
+  // #580: the next run asks these rows for air quality again.
+  it('holds which rows failed air quality', () => {
+    const failed = new Set(['47.00000,-121.00000'])
+    expect(holdForecasts(null, HELD.rows, HELD.times, ASKED, T0, failed).aqiFailed).toBe(failed)
   })
 
   it('keeps the first fetch clock across a reuse, so a field cannot be kept alive', () => {
     // Re-analyzed at +14 min, reusing the field fetched at T0.
-    const second = holdForecasts(HELD, HELD.rows, HELD.times, ASKED, T0 + 14 * MIN)
+    const second = holdForecasts(HELD, HELD.rows, HELD.times, ASKED, T0 + 14 * MIN, new Set())
     expect(second.fetchedAtMs).toBe(T0)
     // Two minutes after that re-analysis, sixteen after the first fetch.
     expect(reusableForecasts(second, ASKED, T0 + 16 * MIN)).toBeNull()

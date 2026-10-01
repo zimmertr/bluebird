@@ -21,6 +21,7 @@ import {
   type FireDetail,
   type WildfireProps,
 } from '../../utils/wildfires'
+import { overlayRecovery, retryAfterOf } from './recovery'
 
 // How long the wildfire popup survives the cursor leaving its perimeter, so
 // the cursor can cross the gap and land on the NIFC link inside it. The popup
@@ -67,7 +68,8 @@ export interface WildfireOverlay {
 
 export function mountWildfires(
   map: maplibregl.Map,
-  deps: { restCursor: () => void },
+  // `online` is where the browser's `online` is heard; the window when absent.
+  deps: { restCursor: () => void; online?: EventTarget | null },
 ): WildfireOverlay {
   // Added before draw/results so the red perimeters sit beneath the drawing UI
   // and result markers. Data is populated on demand by `update`; the layers
@@ -165,6 +167,10 @@ export function mountWildfires(
   let showing = false
   let abort: AbortController | null = null
   let debounce: ReturnType<typeof setTimeout> | undefined
+  // A failed fetch is asked again when the browser comes back online, and no
+  // sooner than the pod's Retry-After (`recovery.ts`, #580). No timer: a pan
+  // already asks again.
+  const recovery = overlayRecovery(() => void refresh(), { online: deps.online })
 
   async function refresh() {
     abort?.abort()
@@ -175,11 +181,13 @@ export function mountWildfires(
     const detail = fireDetailFor(b.getWest(), b.getEast(), map.getCanvas().clientWidth)
     try {
       const fc = await fetchWildfires(bbox, detail, ac.signal)
-      if (!ac.signal.aborted) setSource(map, 'wildfires', fc)
+      if (ac.signal.aborted) return
+      setSource(map, 'wildfires', fc)
+      recovery.succeeded()
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.warn('Wildfire overlay fetch failed', err)
-      }
+      if (ac.signal.aborted || (err as Error).name === 'AbortError') return
+      console.warn('Wildfire overlay fetch failed', err)
+      recovery.failed(retryAfterOf(err))
     }
   }
   function onMoveEnd() {
@@ -191,6 +199,7 @@ export function mountWildfires(
     abort?.abort()
     abort = null
     map.off('moveend', onMoveEnd)
+    recovery.stop()
   }
 
   return {

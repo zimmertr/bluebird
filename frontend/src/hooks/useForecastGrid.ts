@@ -284,7 +284,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // field with no request. Keying the fetch on `sortBy` is the architecture
     // this line exists to forbid.
     const air = fetchAqi(spec.points, startMs, endMs, { signal: ac.signal, aqiForecastDays })
-      .then((list) => {
+      .then(({ results: list }) => {
         if (cancelled) return
         list.forEach((a, i) => {
           aqi[i] = a

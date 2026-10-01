@@ -52,20 +52,65 @@ function isAbort(e: unknown): boolean {
 }
 
 /**
+ * How long the pod has to start answering before the request is given up as
+ * unreachable (#580). Past Cloudflare's 100 s on purpose: in production the
+ * edge answers a pod that is merely slow with its own 524 first, which is a
+ * status the caller reads like any other, so this ends only a request that
+ * gets no answer at all, such as a connection that dropped without closing or
+ * a deployment with no edge in front. The slowest answer the pod gives on
+ * purpose stays under it: discovery waits at most on two Overpass mirrors at
+ * 25 s each and the 8 s elevation lookup, and a cold overlay on the 60 s
+ * refresh deadline in `snapshot.py`.
+ */
+export const API_DEADLINE_MS = 110_000
+
+/**
  * `fetch`, with an unreachable API translated and everything else untouched.
  *
  * Returns the `Response` whatever its status: a status is an answer, and what
  * a 404 or a 429 means differs per endpoint (a rate-limit flag on the overlays,
  * a refusal body on analyze, a fallback on capabilities), so the caller keeps
  * that judgement.
+ *
+ * The deadline covers the wait for the response to start, not the body read
+ * after it: a body that fails part way would reject in the caller's own parse
+ * with the browser's wording, and every answer here is small. It is a timer on
+ * a controller of its own rather than `AbortSignal.timeout` composed with the
+ * caller's signal, because that composition cannot be undone once the
+ * response has started.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const caller = init?.signal ?? null
+  const forward = () => controller.abort(caller?.reason)
+  if (caller?.aborted) forward()
+  else caller?.addEventListener('abort', forward, { once: true })
+  const deadline = setTimeout(
+    () => controller.abort(new DOMException('No answer from the API.', 'TimeoutError')),
+    API_DEADLINE_MS,
+  )
   try {
-    return await fetch(path, init)
+    return await fetch(path, { ...init, signal: controller.signal })
   } catch (e) {
-    if (isAbort(e)) throw e
+    // The caller's own cancel, whatever the error says, passes through.
+    if (caller?.aborted || isAbort(e)) throw e
     throw new ApiUnreachable()
+  } finally {
+    clearTimeout(deadline)
   }
+}
+
+/**
+ * The `Retry-After` an answer carries, in seconds, or null.
+ *
+ * The overlays read it off a 503 or a 429 so a retry waits as long as the pod
+ * asked (#580). Only the delta-seconds form: the pod and its rate limiter send
+ * nothing else.
+ */
+export function retryAfterSeconds(res: Response): number | null {
+  const value = res.headers.get('Retry-After')
+  if (value === null || !/^\d+$/.test(value.trim())) return null
+  return Number(value.trim())
 }
 
 /**

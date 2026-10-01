@@ -70,7 +70,7 @@ function options(over: Partial<PipelineOptions> = {}): PipelineOptions {
 
 beforeEach(() => {
   ranked.mockReset()
-  ranked.mockResolvedValue({ response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] }, universe: ROWS })
+  ranked.mockResolvedValue({ response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] }, universe: ROWS, aqiFailed: new Set() })
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -151,7 +151,7 @@ describe('runAnalysisPipeline', () => {
     const order: string[] = []
     ranked.mockImplementation(async () => {
       order.push('ranked')
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [] }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
     })
     await runAnalysisPipeline(REQUEST, options({ onDiscovered: (f) => order.push(`found ${f.candidates.length}`) }))
     expect(order).toEqual(['found 1', 'ranked'])
@@ -161,7 +161,7 @@ describe('runAnalysisPipeline', () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     ranked.mockImplementation(async (_r, _c, _s, _e, cb) => {
       cb!.onPartial!(ROWS, [7])
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [] }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
     })
     const onPartial = vi.fn()
     await runAnalysisPipeline(REQUEST, options({ onPartial }))
@@ -183,11 +183,21 @@ describe('runAnalysisPipeline', () => {
     const startMs = Date.parse(REQUEST.start_datetime)
     const held: HeldForecasts = {
       rows: ROWS, times: [1], startMs, endMs: startMs + 2 * HOUR, model: 'gfs_seamless', fetchedAtMs: NOW - 60_000,
+      aqiFailed: new Set(['held']),
     }
+    const stillFailed = new Set(['still'])
+    ranked.mockResolvedValueOnce({
+      response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] },
+      universe: ROWS,
+      aqiFailed: stillFailed,
+    })
     const out = await runAnalysisPipeline(REQUEST, options({ held }))
-    expect(ranked.mock.calls[0][4]!.reuse).toEqual({ rows: ROWS, times: [1] })
+    // The rows whose air quality failed go to the run that may ask again
+    // (#580), and the ones that failed again come back to be held.
+    expect(ranked.mock.calls[0][4]!.reuse).toEqual({ rows: ROWS, times: [1], aqiFailed: new Set(['held']) })
     // The clock stays on the first fetch.
     expect(out.held).toMatchObject({ rows: ROWS, times: [1], fetchedAtMs: NOW - 60_000 })
+    expect(out.held.aqiFailed).toBe(stillFailed)
   })
 
   it('fetches afresh once the held field is fifteen minutes old', async () => {

@@ -76,8 +76,8 @@ flowchart TD
     helmPR -->|auto-merge once lint passes| helmMain
     helmMain --> helmRel
     ghRelease -.->|appVersion from releases/latest| helmRel
-    helmRel -->|ORAS push to the artifacthub.io tag,<br/>only when artifacthub-repo.yml changed| dhChart
     helmRel -->|helm push| dhChart
+    helmRel -->|then, in a separate job, ORAS push to the artifacthub.io tag<br/>when artifacthub-repo.yml changed; never blocks the release| dhChart
     dhChart --> ah
     helmRel -->|open/update PR: chart version| kmStablePR
     helmRel -->|open/update PR: targetRevision| kmPreviewPR
@@ -165,12 +165,11 @@ touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself):
 2. Resolves `appVersion` **at package time** from `bluebird`'s `releases/latest`
    (the value committed to `Chart.yaml` is only a local-render fallback — the
    resolver is the source of truth).
-3. When the merge changed `artifacthub-repo.yml` (or on a manual run), pushes
-   it with ORAS to the OCI repo's `artifacthub.io` tag before the chart push,
-   because Artifact Hub reads that metadata only when the repo's tag list
-   changes.
-4. `helm package --version <chartver> --app-version <appver>` and `helm push`
+3. `helm package --version <chartver> --app-version <appver>` and `helm push`
    to the OCI repo; tags + GitHub release.
+4. Then, in a separate job, when the merge changed `artifacthub-repo.yml` (or
+   on a manual run), pushes it with ORAS to the OCI repo's `artifacthub.io`
+   tag; a failure there never blocks the release.
 5. **bump-manifests** moves `Kubernetes-Manifests` onto the new chart via two
    PRs, one per consumer:
    - preview: `chore/bluebird-preview-chart` sets `targetRevision: <chartver>`

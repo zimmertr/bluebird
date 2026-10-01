@@ -12,6 +12,8 @@
 node_modules/
 dist/
 .vite/
+# TypeScript's incremental state, written by a local `tsc` run.
+*.tsbuildinfo
 
 # Python
 __pycache__/

@@ -17,7 +17,7 @@
 // The status is the Forest Service's own. An order's end date is what the
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
-import { apiFetch } from './apiFetch'
+import { apiFetch, retryAfterSeconds } from './apiFetch'
 import { escapeHtml } from './popupChrome'
 import type { BBox, FireDetail } from './wildfires'
 
@@ -127,8 +127,12 @@ export async function fetchClosures(
   if (!res.ok) {
     const err = new Error('Closure data unavailable. Try again later.') as Error & {
       rateLimited?: boolean
+      retryAfterS?: number | null
     }
     err.rateLimited = res.status === 429 || res.status === 503
+    // How long the pod asked for, which the overlay waits out before asking
+    // again (`map/overlays/recovery.ts`).
+    err.retryAfterS = retryAfterSeconds(res)
     throw err
   }
   const data = await res.json()

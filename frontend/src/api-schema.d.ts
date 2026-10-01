@@ -95,7 +95,7 @@ export interface paths {
          *
          *     Regions 3 and 4 publish every standing forest order, not closures alone, so an order from them is returned only when it closes an area to entry: its legal citation names 36 CFR 261.52(e) or 261.53(e), or its name or description says entry is prohibited in a sentence that names no permit as the way in.
          *
-         *     This instance fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.
+         *     This instance fetches every region on a timer and serves it to everyone, and serves it past its refresh deadline when the Forest Service is unreachable, because an order is edited by hand a few times a week and one fetched an hour ago is almost always still the order. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.
          */
         get: operations["closures_api_closures_get"];
         put?: never;
@@ -184,7 +184,7 @@ export interface paths {
          *
          *     The whole analysis comes back in one response and there is no bounding box to send: a busy day measured under half a megabyte, so filtering would cost a parameter and save nothing.
          *
-         *     This instance fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable — smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. Only an instance that has never completed a fetch answers 503.
+         *     This instance fetches the dated file from NOAA on a timer and serves it to everyone, and serves it past its refresh deadline when NOAA is unreachable — smoke traced this morning is the only tracing there will be until the next pass. Read `fetched_at` and `analysis_date` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.
          *
          *     Coverage is North America, which is what HMS analyzes. An empty result elsewhere means "not covered", not "clear air".
          */
@@ -232,7 +232,7 @@ export interface paths {
          *
          *     Coverage is the United States only: NIFC does not publish perimeters elsewhere, so an empty result outside the US means "not covered", not "nothing burning".
          *
-         *     Perimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. Only an instance that has never completed a fetch answers 503.
+         *     Perimeters are served past their refresh deadline when NIFC is unreachable, because a shape measured an hour ago still answers a 10-mile proximity question correctly. Read `fetched_at` to see how current the answer is. An instance answers 503 when it has never completed a fetch, or when every refresh has failed for more than 24 hours since its last good one.
          */
         get: operations["wildfires_api_wildfires_get"];
         put?: never;
@@ -1591,7 +1591,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description This instance has never completed a fetch from the Forest Service, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry. */
+            /** @description This instance has never completed a fetch from the Forest Service, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1779,7 +1779,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description This instance has never completed a fetch from NOAA, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry. */
+            /** @description This instance has never completed a fetch from NOAA, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -1851,7 +1851,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description This instance has never completed a fetch from NIFC, so it has nothing to serve, not even stale. Transient; `Retry-After` says when to retry. */
+            /** @description This instance has never completed a fetch from NIFC, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;

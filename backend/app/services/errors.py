@@ -177,7 +177,9 @@ def classify_http_error(exc: Exception, provider: str) -> str:
     if isinstance(exc, PartialResultError):
         return f"{provider} partial results. Try again later."
 
-    if isinstance(exc, httpx.TimeoutException):
+    # A builtin TimeoutError is an asyncio deadline over several requests (the
+    # snapshot refresh's), which is the same fact as one request timing out.
+    if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
         return f"{provider} took too long. Try again later."
 
     if isinstance(exc, httpx.HTTPStatusError):

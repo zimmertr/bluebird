@@ -49,7 +49,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(T0)
   ranked.mockReset()
-  ranked.mockResolvedValue({ response: DATA, universe: ROWS })
+  ranked.mockResolvedValue({ response: DATA, universe: ROWS, aqiFailed: new Set() })
   stubResolve()
 })
 afterEach(() => {
@@ -63,7 +63,7 @@ describe('the forecast reuse', () => {
     await analyzeAt(result, T0)
     await analyzeAt(result, T0 + 14 * MIN)
     await analyzeAt(result, T0 + 16 * MIN)
-    expect(reuses()).toEqual([null, { rows: ROWS, times: [1] }, null])
+    expect(reuses()).toEqual([null, { rows: ROWS, times: [1], aqiFailed: new Set() }, null])
   })
 
   it('refuses at exactly fifteen minutes', async () => {
