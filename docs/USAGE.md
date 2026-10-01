@@ -66,7 +66,7 @@ Paste a CSV of your own coordinates to add them to the analysis — alongside wh
 48.1122,-121.1139,Glacier Peak
 ```
 
-The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it. A line pasted twice at the same coordinates is analyzed once, under the first line's name.
+The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. A latitude must be between -90 and 90 and a longitude between -180 and 180. A line outside those ranges is dropped, the way a line that is not two numbers is, so it is not counted in the parsed total under the box and is not analyzed. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it. A line pasted twice at the same coordinates is analyzed once, under the first line's name.
 
 You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and rides along like any other row. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 

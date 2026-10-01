@@ -112,7 +112,17 @@ export function pointsBbox(
   const midLat = (minLat + maxLat) / 2
   const cos = Math.max(0.01, Math.cos((midLat * Math.PI) / 180))
   const lonPad = marginMi / (MI_PER_DEG_LAT * cos)
-  return [minLon - lonPad, minLat - latPad, maxLon + lonPad, maxLat + latPad]
+  // Clamped to the globe because the routes refuse a box past either edge, and a
+  // valid point within the margin of a pole or the antimeridian pads straight
+  // past one. The clamp gives up the stretch across the antimeridian rather
+  // than wrapping into a second box: both feeds are US-only, and the only US
+  // land across that line is the western Aleutians.
+  return [
+    Math.max(-180, minLon - lonPad),
+    Math.max(-90, minLat - latPad),
+    Math.min(180, maxLon + lonPad),
+    Math.min(90, maxLat + latPad),
+  ]
 }
 
 // Project (lng,lat) into a local equirectangular plane centered on (lng0,lat0),

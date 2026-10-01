@@ -32,6 +32,28 @@ describe('parseCustomCsv', () => {
     ])
   })
 
+  it('drops a row outside the valid coordinate range', () => {
+    const csv = [
+      '95.5,-121.1',
+      '-90.01,0',
+      '45,-221',
+      '0,180.5',
+      '9999,0',
+      'Infinity,0',
+      '46.85, -121.76',
+    ].join('\n')
+    expect(parseCustomCsv(csv)).toEqual([
+      { name: '46.85, -121.76', latitude: 46.85, longitude: -121.76 },
+    ])
+  })
+
+  it('keeps a row exactly on a coordinate bound', () => {
+    expect(parseCustomCsv('90,180\n-90,-180').map((d) => [d.latitude, d.longitude])).toEqual([
+      [90, 180],
+      [-90, -180],
+    ])
+  })
+
   it('uses an optional third column as the name', () => {
     expect(parseCustomCsv('46.8529, -121.7604, Mount Rainier')[0]).toEqual({
       name: 'Mount Rainier',

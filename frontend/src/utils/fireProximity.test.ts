@@ -66,6 +66,22 @@ describe('pointsBbox', () => {
   it('is null with no points', () => {
     expect(pointsBbox([], 11)).toBeNull()
   })
+  // The routes refuse a box past either edge of the globe, so a valid point
+  // within the margin of one must still yield a box they accept.
+  it('clamps at the antimeridian', () => {
+    const [west, , east] = pointsBbox([{ latitude: 52, longitude: -179.9 }], 11)!
+    expect(west).toBe(-180)
+    expect(east).toBeGreaterThan(-179.9)
+    const [, , eastEdge] = pointsBbox([{ latitude: 52, longitude: 179.9 }], 11)!
+    expect(eastEdge).toBe(180)
+  })
+  it('clamps at the poles', () => {
+    const [, south, , north] = pointsBbox([{ latitude: 89.95, longitude: 0 }], 11)!
+    expect(north).toBe(90)
+    expect(south).toBeLessThan(89.95)
+    const [, southEdge] = pointsBbox([{ latitude: -89.95, longitude: 0 }], 11)!
+    expect(southEdge).toBe(-90)
+  })
 })
 
 describe('nearestFire', () => {
