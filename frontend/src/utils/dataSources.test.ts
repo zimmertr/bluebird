@@ -39,6 +39,21 @@ describe('data sources', () => {
     expect(byName.NIFC?.license).toBe('CC BY 3.0')
   })
 
+  // A window older than the forecast endpoint reaches is answered by Open-Meteo's
+  // archive, whose default is a reanalysis rather than any model the picker
+  // lists. Those figures are ERA5's the way the air quality figures are CAMS's,
+  // so the list names it the same way: as the work behind what Open-Meteo
+  // returns, with no license of its own beside it.
+  it('names the reanalysis behind past dates', () => {
+    const era5 = DATA_SOURCES.find((s) => s.name === 'ERA5')
+
+    expect(era5).toEqual({
+      name: 'ERA5',
+      href: 'https://climate.copernicus.eu',
+      provides: 'The reanalysis behind the weather figures Open-Meteo returns for past dates.',
+    })
+  })
+
   // A named license needs somewhere to be read. Both CC BY versions here ask
   // for the license text or its URI alongside the data, and this list is the
   // only place in the shipped app that can carry it — NOTICES.md is a repo file

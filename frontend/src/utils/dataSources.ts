@@ -77,6 +77,11 @@ export const DATA_SOURCES: readonly DataSource[] = [
       'The atmospheric model behind the air quality figures Open-Meteo returns.',
   },
   {
+    name: 'ERA5',
+    href: 'https://climate.copernicus.eu',
+    provides: 'The reanalysis behind the weather figures Open-Meteo returns for past dates.',
+  },
+  {
     name: 'OpenFreeMap',
     href: 'https://openfreemap.org',
     provides: 'The vector tiles the basemap is drawn from.',

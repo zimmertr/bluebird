@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-01
 - Decider: the maintainer (TJ), on issue #571 (option A: generate the file at build time, rather than serve `NOTICES.md`)
-- Issues and PRs: #571
+- Issues and PRs: #571, #602
 - Cited in code as: #571
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), the Architecture bullet on `third-party-licenses.txt`; [`frontend/plugins/CLAUDE.md`](../../frontend/plugins/CLAUDE.md), the `plugins/thirdPartyLicenses.ts` bullet; [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `scripts/write_third_party_licenses.py` bullet
 
@@ -20,6 +20,7 @@ Each build stage writes its half of one file, `third-party-licenses.txt`, from w
 - A package with no license text fails the build, in either stage. For an npm package that ships none, the text is copied from its own repository into `frontend/plugins/licenses/<name>.txt`; today that is `victory-vendor` alone.
 - The Dockerfile also copies the repository's `LICENSE` to `/app/LICENSE`, and Swagger UI's `LICENSE`, `NOTICE` and `swagger-ui-bundle.js.LICENSE.txt` beside its two files.
 - `NOTICES.md` stays the human summary and points at the served file for the complete list.
+- The terms page links the file from its License section, through the shared `LINK` role, with the sentence the maintainer approved on 2026-10-01. A notice nobody can find is not a notice, and the terms are where a license question goes.
 
 The path is a plain static file under the mount, so no route and no chart change are needed: the chart's gateway allowlist filters `/api` paths only, and every other path rides the stable route to the pod.
 

@@ -27,6 +27,11 @@ services the data comes from, and the software bundled into the shipped image.
   Monitoring Service, whose model output is the basis of the air quality
   figures. It reaches Bluebird Forecast through Open-Meteo's processing, and the
   underlying information is provided under the Copernicus licence.
+- [ERA5](https://climate.copernicus.eu): the Copernicus Climate Change
+  Service's reanalysis, the basis of the weather figures Open-Meteo's archive
+  returns for past dates. It reaches Bluebird Forecast through Open-Meteo's
+  processing, and the underlying information is provided under the Copernicus
+  licence.
 - [OpenFreeMap](https://openfreemap.org): serves the basemap's vector tiles,
   which are drawn from OpenStreetMap data in the OpenMapTiles schema. The map
   corner credits OpenFreeMap, OpenMapTiles, and OpenStreetMap through the
@@ -55,7 +60,8 @@ services the data comes from, and the software bundled into the shipped image.
   [NSIDC](https://nsidc.org/data/g02158) for the snow depth metric. A work of
   the US government, and so in the public domain under 17 U.S.C. §105; no
   license names Bluebird Forecast's use of it. Credited on the map's snow
-  legend whenever snow depth is drawn.
+  legend whenever snow depth is drawn, and in an exported CSV whenever the file
+  carries the snow depth column.
 - [US Forest Service](https://www.fs.usda.gov/): closure orders from the Forest
   Service's Pacific Northwest, Southwestern and Intermountain regions, for the
   optional closure layers and the closure column. A

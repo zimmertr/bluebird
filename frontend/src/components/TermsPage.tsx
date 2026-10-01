@@ -23,24 +23,34 @@ export default function TermsPage() {
       </p>
 
       <Section id="license" heading="License">
-        <p className={PROSE.body}>
-          Bluebird Forecast is free to use. Its source is public but it is not open source: it is
-          licensed under the{' '}
-          <a
-            href="https://polyformproject.org/licenses/noncommercial/1.0.0"
-            target="_blank"
-            rel="noreferrer"
-            className={LINK}
-          >
-            PolyForm Noncommercial License 1.0.0
-          </a>
-          . You may read, modify, self-host, and share it for any noncommercial purpose.
-          Commercial use of any kind needs a separate license: email{' '}
-          <a href={`mailto:${SUPPORT_EMAIL}`} className={LINK}>
-            {SUPPORT_EMAIL}
-          </a>{' '}
-          to arrange one.
-        </p>
+        <div className={`${PROSE.body} space-y-3`}>
+          <p>
+            Bluebird Forecast is free to use. Its source is public but it is not open source: it is
+            licensed under the{' '}
+            <a
+              href="https://polyformproject.org/licenses/noncommercial/1.0.0"
+              target="_blank"
+              rel="noreferrer"
+              className={LINK}
+            >
+              PolyForm Noncommercial License 1.0.0
+            </a>
+            . You may read, modify, self-host, and share it for any noncommercial purpose.
+            Commercial use of any kind needs a separate license: email{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className={LINK}>
+              {SUPPORT_EMAIL}
+            </a>{' '}
+            to arrange one.
+          </p>
+          <p>
+            Bluebird Forecast is built on open-source software, and each package keeps its own
+            license. The full texts are in the{' '}
+            <a href="/third-party-licenses.txt" className={LINK}>
+              third-party licenses
+            </a>
+            .
+          </p>
+        </div>
       </Section>
 
       <Section id="warranty" heading="No warranty">
@@ -89,7 +99,7 @@ export default function TermsPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 28 July 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 1 October 2026.</p>
     </PageShell>
   )
 }
