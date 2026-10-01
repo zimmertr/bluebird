@@ -23,7 +23,6 @@ import {
   monthKey,
   monthLabel,
   orderDays,
-  subtractOneHour,
   weekdayInitials,
 } from '../utils/calendar'
 import {
@@ -366,15 +365,13 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
                   value={hours.end}
                   onChange={(e) => {
                     if (!isTimeOfDay(e.target.value)) return
-                    // On a single day, clamp the start time if end moves before it.
-                    // This prevents overnight spans from being entered on a single day.
-                    const isSingleDay =
-                      selection.kind === 'days' && selection.startDate === selection.endDate
-                    const newStart =
-                      isSingleDay && e.target.value <= hours.start
-                        ? subtractOneHour(e.target.value)
-                        : hours.start
-                    setHours({ ...hours, start: newStart, end: e.target.value })
+                    // No clamp on the start, unlike the field above. A time
+                    // typed digit by digit passes through the early hours on
+                    // its way (the "1" of "10" is 01:00), which a start rarely
+                    // crosses but an end nearly always does, so a clamp here
+                    // moved the start to midnight on the first keystroke. An
+                    // end left before its start is the 'order' warning's case.
+                    setHours({ ...hours, end: e.target.value })
                   }}
                   className={`${FIELD} ${CONTROL_W} px-2 py-1.5`}
                 />

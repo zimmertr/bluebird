@@ -156,12 +156,16 @@ function elevationFtFromEle(ele: string | undefined): number | undefined {
  * `addresstype` is the same row's answer to "what kind of place is this", and
  * for those rows it says "city". Preferred only where `type` is the unhelpful
  * one, so a peak stays a peak.
+ *
+ * `yes` is the other unhelpful one: OSM's bare "this is one" value, as in
+ * `building=yes`, which names no kind at all and showed in the Type column as
+ * the word "yes".
  */
-const BUREAUCRATIC = new Set(['administrative', 'boundary'])
+const UNHELPFUL = new Set(['administrative', 'boundary', 'yes'])
 
 function kindOf(row: NominatimRow): string {
   const raw = (row.type ?? '').trim()
-  const better = BUREAUCRATIC.has(raw) ? (row.addresstype ?? '').trim() : ''
+  const better = UNHELPFUL.has(raw) ? (row.addresstype ?? '').trim() : ''
   return (better || raw).replace(/_/g, ' ')
 }
 

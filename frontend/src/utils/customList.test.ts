@@ -58,6 +58,14 @@ describe('buildCustomList', () => {
     expect(out[1].elevation_ft).toBe(14411)
   })
 
+  // A line pasted twice is one destination, kept under its first name, so
+  // its forecast is bought once and it does not rank against itself.
+  it('keeps a CSV line repeated at one coordinate once, as first written', () => {
+    const again = { name: 'Rainier again', latitude: 46.852901, longitude: -121.760401 }
+    const out = buildCustomList([...csv, again], [])
+    expect(out.map((d) => d.name)).toEqual(['Mount Rainier', 'Mount Adams'])
+  })
+
   it('carries a searched place elevation and leaves it absent when unknown', () => {
     const out = buildCustomList([], [place('A', 1, 2, 5000), place('B', 3, 4)])
     expect(out[0].elevation_ft).toBe(5000)

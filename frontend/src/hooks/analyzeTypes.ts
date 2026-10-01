@@ -24,6 +24,15 @@ export type Refusal = {
   message: string
 }
 
+// A run that failed, in the error box. `retry` says whether Try again can do
+// any good: a transient failure can, but a model with no coverage over the
+// area answers the same request the same way every time, and the remedy its
+// sentence names is a different model rather than a second attempt.
+export type RunError = {
+  message: string
+  retry: boolean
+}
+
 // The data snapshot behind the current response: the window it sampled, and
 // the presentation knobs it was requested with.
 //

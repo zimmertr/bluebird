@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { analysisFailure } from '../utils/analysisFailure'
 import type { ForecastModelOption } from './useCapabilities'
 import { usePacedFetch } from './usePacedFetch'
-import type { Progress, Refusal } from './analyzeTypes'
+import type { Progress, Refusal, RunError } from './analyzeTypes'
 
 // The state of the analysis in flight: whether one runs, what it says it is
 // doing, how far it has got, and how it failed. Apart from the report it
@@ -19,7 +19,7 @@ export interface RunHooks {
 
 export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<RunError | null>(null)
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
@@ -71,7 +71,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
       const failure = analysisFailure(e, models)
       if (failure.kind === 'cancel') setStatusMessage(null)
       else if (failure.kind === 'refusal') setRefusal({ message: failure.message })
-      else setError(failure.message)
+      else setError({ message: failure.message, retry: failure.retry })
     } finally {
       abortRef.current = null
       setLoading(false)

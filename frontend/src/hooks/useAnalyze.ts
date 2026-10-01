@@ -15,7 +15,7 @@ import type { AnalyzeOptions } from './analyzeTypes'
 
 // The types live in analyzeTypes.ts. They are re-exported here because the
 // panel imports them by the hook's name.
-export type { AnalyzeOptions, AnalyzedView, Progress, Refusal } from './analyzeTypes'
+export type { AnalyzeOptions, AnalyzedView, Progress, Refusal, RunError } from './analyzeTypes'
 
 // One Analyze click, end to end, composed from three parts: the run in flight
 // (useAnalysisRun), the report it commits (useAnalysisReport), and the

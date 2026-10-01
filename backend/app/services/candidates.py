@@ -88,9 +88,23 @@ def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
     identity rule query_osm already applies within its own results) or its
     5-decimal coordinate key (~1 m — the frontend's geoKey precedent). The
     user's own rows always survive; near-misses simply coexist as two rows.
+
+    A custom row repeated at one coordinate key is kept once, the first time
+    it appears: a list pasted with the same line twice would otherwise buy
+    the same forecast twice and rank the place against itself. The browser's
+    `mergeCustom` (utils/customList.ts) drops the same repeats before the
+    request is sent, and this keeps a direct API caller to the same rule.
     """
+    seen: set[str] = set()
+    unique: list[dict] = []
+    for c in custom:
+        key = _coord_key(c)
+        if key not in seen:
+            seen.add(key)
+            unique.append(c)
+    custom = unique
     names = {c["name"] for c in custom}
-    coords = {_coord_key(c) for c in custom}
+    coords = seen
     kept = [
         d for d in discovered if d["name"] not in names and _coord_key(d) not in coords
     ]

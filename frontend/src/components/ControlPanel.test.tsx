@@ -199,7 +199,7 @@ describe('the notice block', () => {
   // A panel with something to say at every severity at once: a failed run, a
   // stale report, a blocker, and the air-quality horizon.
   const crowded = props({
-    error: 'Open-Meteo request failed. Try again later.',
+    error: { message: 'Open-Meteo request failed. Try again later.', retry: true },
     commitReasons: ['model-changed', 'window-changed'],
     modelClamped: true,
     drawPointCount: 1,
@@ -234,6 +234,13 @@ describe('the notice block', () => {
     const { user } = render(<ControlPanel {...crowded} onRetry={onRetry} />)
     await user.click(within(notices()[0]).getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalledOnce()
+  })
+
+  // A model with no coverage over the area fails the same way on a second
+  // request, so its error box carries no Try again.
+  it('offers no retry for a failure that would only repeat itself', () => {
+    render(<ControlPanel {...crowded} error={{ message: 'Broken.', retry: false }} />)
+    expect(within(notices()[0]).queryByRole('button', { name: 'Try again' })).toBeNull()
   })
 
   it('dismisses one message and keeps the rest', async () => {

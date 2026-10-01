@@ -54,6 +54,13 @@ describe('MapLegend', () => {
     expect(screen.getByText(/Smoke/)).toBeTruthy()
   })
 
+  // The markers alone are no reason for a box when their key is the one
+  // section they would have brought: an empty box reads as a fault.
+  it('draws nothing when the ranked metric has no value and no layer is on', () => {
+    const { container } = render(<MapLegend {...BASE} hasColoredMarkers rankedFieldHasValue={false} />)
+    expect(container.innerHTML).toBe('')
+  })
+
   it('credits NIFC beside the wildfire section', () => {
     render(<MapLegend {...BASE} overlays={{ ...NONE, showWildfires: true }} />)
     expect(screen.getByRole('link', { name: 'NIFC' })).toBeTruthy()

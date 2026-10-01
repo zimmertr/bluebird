@@ -14,11 +14,20 @@ export interface PendingDestination extends CustomDestination {
 // The custom side of an analysis: pasted CSV rows ∪ searched places, deduped by
 // coordinate. A searched place wins a collision — it carries identity (kind,
 // OSM id) and often an elevation the CSV line lacks.
+//
+// A CSV line repeated at one coordinate is kept once, as first written: two
+// rows at one point would buy its forecast twice and rank the place against
+// itself. `_merge_custom` in backend/app/services/candidates.py applies the
+// same rule to an API caller's list.
 function mergeCustom(csvRows: CustomDestination[], places: Place[]): PendingDestination[] {
-  const placeKeys = new Set(places.map((p) => geoKey(p.lat, p.lon)))
-  const fromCsv: PendingDestination[] = csvRows
-    .filter((r) => !placeKeys.has(geoKey(r.latitude, r.longitude)))
-    .map((r) => ({ ...r, source: 'csv' }))
+  const seen = new Set(places.map((p) => geoKey(p.lat, p.lon)))
+  const fromCsv: PendingDestination[] = []
+  for (const r of csvRows) {
+    const key = geoKey(r.latitude, r.longitude)
+    if (seen.has(key)) continue
+    seen.add(key)
+    fromCsv.push({ ...r, source: 'csv' })
+  }
   const fromPlaces: PendingDestination[] = places.map((p) => ({
     name: p.label,
     latitude: p.lat,

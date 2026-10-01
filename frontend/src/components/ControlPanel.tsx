@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { CustomDestination, DiscoveryType, SortBy } from '../types'
-import { Refusal } from '../hooks/useAnalyze'
+import { Refusal, RunError } from '../hooks/useAnalyze'
 import DestinationsSection from './DestinationsSection'
 import ForecastSection from './ForecastSection'
 import MetricsTable from './MetricsTable'
@@ -97,7 +97,7 @@ interface Props {
   // input like the CSV, so one alone enables Analyze with no polygon drawn.
   hasPins: boolean
   loading: boolean
-  error: string | null
+  error: RunError | null
   // An over-limit refusal with its remedy fields. Rendered as an action
   // panel, never with "Try again": retrying a deterministic refusal verbatim
   // re-buys the same 10-40s map query for the same answer.

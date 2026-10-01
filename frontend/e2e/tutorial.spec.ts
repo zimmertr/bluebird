@@ -56,6 +56,27 @@ async function expectSpotlightOn(page: Page, anchor: string) {
   }).toPass({ timeout: 5_000 })
 }
 
+// A section the panel has room for stands whole inside the panel's scroll box,
+// rather than under its footer.
+async function expectSectionInPanel(page: Page, anchor: string) {
+  await expect(async () => {
+    const fit = await page.evaluate((a) => {
+      const el = document.querySelector(`[data-tour="${a}"]`)
+      let box = el?.parentElement ?? null
+      while (box && !(['auto', 'scroll'].includes(getComputedStyle(box).overflowY) && box.scrollHeight > box.clientHeight)) {
+        box = box.parentElement
+      }
+      if (!el || !box) return null
+      const s = el.getBoundingClientRect()
+      const b = box.getBoundingClientRect()
+      return { fits: s.height <= b.height, inside: s.top >= b.top - 1 && s.bottom <= b.bottom + 1 }
+    }, anchor)
+    expect(fit).not.toBeNull()
+    expect(fit!.fits).toBe(true)
+    expect(fit!.inside).toBe(true)
+  }).toPass({ timeout: 5_000 })
+}
+
 // The popup stands whole in the part of the map the reader can see: above
 // the sheet, and clear of the button column, the legend and the card.
 async function expectPopupClear(page: Page) {
@@ -92,6 +113,7 @@ test('walks the seven cards from the footer link and puts the app back', async (
     await expect(heading(page)).toHaveText(step.title)
     await expect(card(page)).toContainText(`${i + 1} of ${STEPS.length}`)
     await expectSpotlightOn(page, step.anchor)
+    if (step.anchor === 'metrics') await expectSectionInPanel(page, 'metrics')
     if (step.anchor === 'layers') await expect(page.locator('[data-tour="layers-menu"]')).toBeVisible()
     if (step.anchor === 'results') await expect(page.locator('table tbody tr')).toHaveCount(5)
     if (step.anchor === 'marker') await expectPopupClear(page)

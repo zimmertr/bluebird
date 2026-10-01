@@ -18,6 +18,14 @@ export interface PresentedReportInputs {
   universe: DestinationResult[] | null
   response: AnalyzeResponse | null
   analyzed: AnalyzedView | null
+  /**
+   * The analysis the pending set is measured against: the real one, even
+   * while the tutorial's demonstration stands in for `analyzed` (#536). The
+   * demonstration covers none of the reader's destinations, so measured
+   * against it every named one turned pending and raised the commit cue for
+   * an analysis the reader never asked for.
+   */
+  coverage: AnalyzedView | null
   analysisSeq: number
   /** True while the field is still landing batch by batch (#337). */
   arriving: boolean
@@ -48,6 +56,7 @@ export function usePresentedReport({
   universe,
   response,
   analyzed,
+  coverage,
   analysisSeq,
   arriving,
   liveKnobs,
@@ -205,10 +214,10 @@ export function usePresentedReport({
       pendingDestinations(
         csvRows,
         places,
-        analyzed?.customKeys ?? NO_CUSTOM,
+        coverage?.customKeys ?? NO_CUSTOM,
         activeRemovedKeys,
       ),
-    [csvRows, places, analyzed, activeRemovedKeys],
+    [csvRows, places, coverage, activeRemovedKeys],
   )
 
   // The table bar's row count: shown, of what the knobs admit, and (only when

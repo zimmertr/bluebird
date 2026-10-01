@@ -87,7 +87,7 @@ function blockerText(
 /** Everything the message list depends on, already derived by the panel. */
 export interface PanelMessageInputs {
   loading: boolean
-  error: string | null
+  error: { message: string; retry: boolean } | null
   refusal: { message: string } | null
   // Every knob that has stopped applying live, in `commitNeeded`'s order.
   commitReasons: readonly CommitReason[]
@@ -137,7 +137,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   // The event keys: the run error and the refusal key on their MESSAGE,
   // because each new message is a new fact the reader has not seen.
   const refusalKey = p.refusal ? noticeKey('refusal', p.refusal.message) : null
-  const errorKey = p.error ? noticeKey('error', p.error) : null
+  const errorKey = p.error ? noticeKey('error', p.error.message) : null
   // The AQI line qualifies the ANALYSIS rather than the view of it: every
   // displayed row has null AQI although the window is inside the horizon.
   const aqiNoteActive =
@@ -237,7 +237,7 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   return [
     // One run's outcome. `retry` is what summons the box's Try again button.
     ...(p.error && errorKey && !p.refusal
-      ? [{ key: errorKey, text: p.error, severity: 'error' as const, retry: true }]
+      ? [{ key: errorKey, text: p.error.message, severity: 'error' as const, retry: p.error.retry }]
       : []),
     // Every stale-report reason at once (TJ, 2026-08-22): a user who changed
     // the window and the model is owed both sentences, in `commitNeeded`'s

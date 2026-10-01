@@ -137,11 +137,16 @@ export function resultsFeatureCollection(
  * Whether the wind arrows are drawn: on a wind ranking, while the playhead is
  * on an hour.
  *
+ * Any wind ranking, minimum and maximum as well as average: the arrows read the
+ * hour's bearing, which no reduction changes, so tying them to one key hid the
+ * direction under the two rankings a reader picks to find the calm or the gusty
+ * summit.
+ *
  * On any other metric an arrow would be a second variable nobody asked about,
  * drawn over the one they did. The markers' arrows and the forecast grid's both
  * read this one rule, so the two can never disagree about whether wind has a
  * direction worth drawing.
  */
 export function windArrowsShowing(sortBy: SortBy, hourIndex: number | null): boolean {
-  return hourIndex !== null && sortBy === 'wind_avg_mph'
+  return hourIndex !== null && familyOf(sortBy) === 'wind'
 }

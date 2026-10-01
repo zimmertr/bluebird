@@ -38,7 +38,7 @@ describe('useAnalysisRun', () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     const h = hooks()
     await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), h))
-    expect(result.current.error).toBe('Broken.')
+    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
     expect(h.onFailure).toHaveBeenCalledOnce()
     expect(h.onSettled).toHaveBeenCalledOnce()
   })

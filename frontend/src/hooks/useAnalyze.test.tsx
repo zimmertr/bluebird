@@ -108,7 +108,7 @@ describe('one analysis', () => {
     await analyzeAt(result, T0)
     ranked.mockRejectedValueOnce(new Error('Broken.'))
     await analyzeAt(result, T0 + MIN)
-    expect(result.current).toMatchObject({ response: DATA, analysisSeq: 1, fireSeq: 2, fireField: null, error: 'Broken.' })
+    expect(result.current).toMatchObject({ response: DATA, analysisSeq: 1, fireSeq: 2, fireField: null, error: { message: 'Broken.', retry: true } })
   })
 
   it('records the snow date of its own discovery, never the last one', async () => {
@@ -161,7 +161,7 @@ describe('what the reader sees', () => {
     const { result } = renderHook(() => useAnalyze())
     ranked.mockRejectedValueOnce(new Error('Broken.'))
     await analyzeAt(result, T0)
-    expect(result.current.error).toBe('Broken.')
+    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
     act(() => result.current.reset())
     expect(result.current).toMatchObject({ error: null, refusal: null, response: null, universe: null, analyzed: null })
   })
@@ -174,7 +174,7 @@ describe('what the reader sees', () => {
     })
     const { result } = renderHook(() => useAnalyze())
     await analyzeAt(result, T0)
-    expect(result.current).toMatchObject({ response: partial, universe: ROWS, arriving: false, analysisSeq: 0, error: 'Broken.' })
+    expect(result.current).toMatchObject({ response: partial, universe: ROWS, arriving: false, analysisSeq: 0, error: { message: 'Broken.', retry: true } })
   })
 })
 

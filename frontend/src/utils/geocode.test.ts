@@ -240,6 +240,12 @@ describe('what a searched place is called', () => {
     expect(row({ type: 'boundary', addresstype: 'town' }).kind).toBe('town')
   })
 
+  // OSM's bare `yes` (as in `building=yes`) names no kind, so the place
+  // kind stands in for it the way it does for a boundary.
+  it('prefers the place kind over a bare yes', () => {
+    expect(row({ type: 'yes', addresstype: 'building' }).kind).toBe('building')
+  })
+
   it('leaves a real feature type alone', () => {
     expect(row({ type: 'peak', addresstype: 'peak' }).kind).toBe('peak')
     expect(row({ type: 'water', addresstype: 'water' }).kind).toBe('water')

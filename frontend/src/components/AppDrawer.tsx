@@ -2,7 +2,7 @@ import type { RefObject } from 'react'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
-import type { Refusal } from '../hooks/useAnalyze'
+import type { Refusal, RunError } from '../hooks/useAnalyze'
 import type { LiveCapabilities } from '../hooks/useCapabilities'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
@@ -79,7 +79,7 @@ interface AppDrawerProps {
   onAutoAnalyze: () => void
   /** The run in flight and how it ended (`useAnalyze`). */
   loading: boolean
-  error: string | null
+  error: RunError | null
   refusal: Refusal | null
   onRetry: () => void
   /** Open the guided tutorial from the panel footer (#536). */

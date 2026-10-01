@@ -28,6 +28,7 @@ describe('analysisFailure', () => {
     expect(analysisFailure(new OpenMeteoModelCoverage('gfs_hrrr'), MODELS)).toEqual({
       kind: 'error',
       message: `NOAA HRRR ${COVERAGE_MESSAGE_TAIL}`,
+      retry: false,
     })
   })
 
@@ -35,18 +36,20 @@ describe('analysisFailure', () => {
     expect(analysisFailure(new OpenMeteoModelCoverage('ukmo_seamless'), MODELS)).toEqual({
       kind: 'error',
       message: `ukmo_seamless ${COVERAGE_MESSAGE_TAIL}`,
+      retry: false,
     })
   })
 
   it('shows any other error by its message, and a non-error generically', () => {
-    expect(analysisFailure(new Error('Broken.'), MODELS)).toEqual({ kind: 'error', message: 'Broken.' })
-    expect(analysisFailure('nope', MODELS)).toEqual({ kind: 'error', message: 'Unknown error' })
+    expect(analysisFailure(new Error('Broken.'), MODELS)).toEqual({ kind: 'error', message: 'Broken.', retry: true })
+    expect(analysisFailure('nope', MODELS)).toEqual({ kind: 'error', message: 'Unknown error', retry: true })
   })
 
   it('reads a timed-out batch like an unreachable one: an error, so it can be retried (#545)', () => {
     expect(analysisFailure(new OpenMeteoTimeout(TIMEOUT_MESSAGE), MODELS)).toEqual({
       kind: 'error',
       message: 'Open-Meteo took too long. Try again later.',
+      retry: true,
     })
     expect(analysisFailure(new OpenMeteoUnreachable('Cannot reach Open-Meteo. Try again later.'), MODELS).kind).toBe(
       'error',

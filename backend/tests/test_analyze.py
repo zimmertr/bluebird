@@ -920,6 +920,15 @@ def test_merge_custom_coord_collision_drops_discovered():
     assert _merge_custom(discovered, custom) == custom
 
 
+# A line pasted twice is one place: kept once, as first written, so the
+# forecast is bought once and the place does not rank against itself.
+def test_merge_custom_keeps_a_repeated_custom_point_once():
+    first = {"name": "first", "latitude": 46.852890, "longitude": -121.760410}
+    again = {"name": "again", "latitude": 46.852892, "longitude": -121.760408}
+    other = {"name": "other", "latitude": 47.0, "longitude": -121.0}
+    assert _merge_custom([], [first, other, again]) == [first, other]
+
+
 # The collision key is five decimals (~1 m), the frontend's geoKey precedent.
 # Coarser, and two distinct summits a ridge apart would merge into one row;
 # finer, and a pasted coordinate would miss the OSM node it names.
