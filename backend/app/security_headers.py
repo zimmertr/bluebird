@@ -215,10 +215,11 @@ def _script_hashes(html: str) -> tuple[str, ...]:
 
 # Sent on every response, alongside whichever CSP the path earns.
 #
-# No Strict-Transport-Security here, deliberately. TLS terminates at the edge,
-# which is the layer that knows the zone and already sets the header; a browser
-# cannot be told to forget a max-age it has read, so the app must not be a
-# second voice on a claim it cannot withdraw.
+# No Strict-Transport-Security here, deliberately. Cloudflare terminates the
+# public TLS, and the zone's own HSTS setting adds the header to every https
+# answer (values in docs/TRAFFIC.md, decision 0084). A browser cannot be told
+# to forget a max-age it has read, so the app must not be a second voice on a
+# claim it cannot withdraw.
 BASE_HEADERS: dict[str, str] = {
     "X-Content-Type-Options": "nosniff",
     # Full URL to this origin, bare origin to anybody else. The path of an

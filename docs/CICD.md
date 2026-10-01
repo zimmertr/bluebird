@@ -446,7 +446,7 @@ flowchart TD
 
     done["Promoted — canary ReplicaSet scales to 3 and becomes stable,<br/>Service bluebird repointed at it, old ReplicaSet scaled down"]
     abort["Aborted — canary scaled to 0, VirtualService never left<br/>100% stable, Rollout Degraded<br/>(Argo CD: Synced + Degraded)"]
-    fix["Fix through git: patch release via Path 1<br/>(or revert the newTag commit)"]
+    fix["Fix forward: the next release via Path 1<br/>(no rollback; see When a release is bad)"]
 
     apply --> detect --> scale --> vc
     vc -->|"passes"| at
@@ -577,10 +577,159 @@ that rule is one `selfHeal` would put back mid-rollout. Argo CD's health assessm
 *Progressing* during a canary, *Healthy* at promotion, and *Degraded* after an
 abort **while still being Synced** — an aborted rollout is Rollouts state, not
 git drift, so `selfHeal` won't retry it. Remediation flows through git like
-everything else: ship a fixed patch release via Path 1 (or revert the `newTag`
-commit in `Kubernetes-Manifests`); the next pod-template change supersedes the
-aborted revision and starts a fresh canary. `kubectl argo rollouts retry`
-exists for one-off flakes, but the normal path is git.
+everything else: ship the fix as the next release via Path 1; the next
+pod-template change supersedes the aborted revision and starts a fresh canary.
+`kubectl argo rollouts retry` exists for one-off flakes, but the normal path is
+git. [When a release is bad](#when-a-release-is-bad) is the whole procedure.
+
+## When a release is bad
+
+The rule is **fix forward**: a bad release is repaired by the next release,
+never by putting an older version back. There is no rollback procedure, and
+none is supported. Three facts make it the only rule that holds here:
+
+- **A merge to `main` releases.** `Update Kubernetes Manifests` cuts
+  `chore/bluebird-image` fresh from `Kubernetes-Manifests/main` on every
+  release and sets `newTag` to that release, so a hand pin to an older tag
+  lasts only until the next merge, and nothing warns when it is overwritten.
+- **A version cannot be withdrawn.** Docker Hub tag immutability is on for
+  every tag of `zimmertr/bluebird` (rule `.*`), and this repository has GitHub
+  immutable releases on. A bad image, its `v<version>` tag and its GitHub
+  release stay public for good, so the next version is the only one that can
+  carry the fix.
+- **The cluster follows git.** `Kubernetes-Manifests/main` takes no direct
+  commit, and the `bluebird` Application runs `selfHeal`, which puts back
+  anything changed on the live objects, a `kubectl argo rollouts undo`
+  included.
+
+The pipeline is also the only supported way to deploy. An image built by hand
+reports `dev` from `/api/version` unless it is given the build args of Path 1,
+step 2, so the canary's `version-check` refuses it; and it carries one
+architecture and no SBOM or provenance. Decision record
+[0083](decisions/0083-fix-forward-no-hand-deploy.md) has the reasoning.
+
+### Is it the release, or something else?
+
+Start here. Every command below only reads.
+
+```bash
+# The version serving users: the stable pods answer this.
+curl -s https://bluebirdforecast.com/api/version
+
+# The rollout: its step and status, the stable and canary images, and one
+# AnalysisRun per gate.
+kubectl argo rollouts get rollout bluebird -n bluebird-system
+
+# What each gate measured. A run is named bluebird-<hash>-<revision>-<step>:
+# step 1 is version-check, 2 is api-test and 3 is error-rate.
+kubectl -n bluebird-system get analysisrun
+kubectl -n bluebird-system get analysisrun <name> \
+  -o jsonpath='{range .status.metricResults[*].measurements[*]}{.phase}{"\t"}{.message}{"\n"}{end}'
+
+# Whether Argo CD applied what git says.
+kubectl -n argo-system get application bluebird
+
+# What the pods logged. The label leaves out the preview pods, which share
+# the namespace.
+kubectl -n bluebird-system logs -l app.kubernetes.io/instance=bluebird -c bluebird \
+  --since=30m --prefix | grep -E '\[(WARNING|ERROR)'
+```
+
+Then open the `Bluebird` dashboard in Grafana (its source is
+`Kubernetes-Manifests/observability/kube-prometheus-stack/files/bluebird-dashboard.json`).
+**Pods by build** shows which version each pod runs. **Errors by status** and
+**API latency** say whether users are hurt, and **Container restarts per hour**
+catches a crash loop. A problem that starts when **Pods by build** changes over
+is the release. A problem that starts while the build holds still is most often
+an outside service. **Errors by status** does not split by route; in Grafana's
+Explore the same counter does:
+
+```promql
+sum by (route, status) (increase(bluebird_forecast_http_requests_total{status=~"5.."}[15m]))
+```
+
+### Which outside service?
+
+The pod counts every call it makes to a provider, and the dashboard's Suppliers
+row plots each count. The table gives the series, its panel, and the text to
+look for in the logs above.
+
+| Provider | What the pod fetches | Metric and panel | Log text |
+| --- | --- | --- | --- |
+| Overpass | discovery and pasted coordinates (`POST /api/destinations`, and the API's analyze routes) | `bluebird_forecast_overpass_requests_total` by `mirror` and `outcome`, and `bluebird_forecast_overpass_fallback_total` by `mirror`: **Overpass attempts by mirror and outcome**, **Overpass failovers per hour** | `Overpass endpoint <url> failed:` |
+| Open-Meteo | the API's analyze routes only: the canary's `api-test` and keyed callers | `bluebird_forecast_openmeteo_requests_total` by `service`, `outcome` and `quota`, and `bluebird_forecast_openmeteo_rate_limited_total` by `scope`: **Open-Meteo attempts by outcome**, **Open-Meteo 429s per hour by scope** | `request failed:`, `rate limited (` |
+| NIFC, the Forest Service, NOAA HMS, SNODAS | the four overlay snapshots | `bluebird_forecast_snapshot_refresh_failures_total` by `provider`: **Overlay snapshot refresh failures per hour** | `refresh failed (`, `fetch failed with nothing cached to fall back on` |
+| Nominatim | the search box (`GET /api/geocode`) | none | `Nominatim request failed:` |
+
+Two cases need a second look:
+
+- **The web app's forecasts never touch the pod.** Each visitor's browser
+  fetches Open-Meteo itself (Outbound in [TRAFFIC.md](TRAFFIC.md#outbound-what-calls-what)),
+  so a forecast outage that users see is absent from every series above. Ask
+  Open-Meteo directly:
+  `curl -s -o /dev/null -w '%{http_code}\n' 'https://api.open-meteo.com/v1/forecast?latitude=47.49&longitude=-121.95&hourly=temperature_2m&forecast_days=1'`.
+- **A shed is the pod's own budget, not the provider.**
+  `bluebird_forecast_upstream_shed_total` by `provider` and `mechanism`
+  (**Upstream sheds**) and the log tokens `event=budget_exhausted`,
+  `event=gate_shed` and `event=weight_shed` mean the pod refused work before
+  it reached the provider. [LIMITS.md](LIMITS.md) has the caps and the
+  `429`/`502`/`503` each one answers with.
+
+An outside outage is not a release problem, and nothing needs to ship. A
+release that starts during a lasting Overpass or Open-Meteo outage fails
+`api-test` and aborts on its own, which is the gate working
+([Step 2](#the-four-steps)).
+
+### Ship the fix
+
+1. Open a PR in the repository that holds the defect: this one for the app,
+   `bluebird-helm` for the chart. The fix can be a revert of the bad PR. Give
+   it a `fix:` title: GitHub's revert button titles it `Revert "..."`, and a
+   revert ships as a new patch version like any other fix, never as the old
+   version.
+2. Merge it. Path 1 builds the next version and opens `chore/bluebird-image`,
+   which merges itself once `Validate manifests` passes; a chart fix travels
+   Path 2 instead. [Merge to live](#merge-to-live) has the time each stage
+   takes.
+3. Follow it:
+
+   ```bash
+   gh run list -R zimmertr/bluebird --workflow release.yml --limit 3
+   gh pr list -R zimmertr/Kubernetes-Manifests --head chore/bluebird-image --state all --limit 1
+   kubectl argo rollouts get rollout bluebird -n bluebird-system --watch
+   ```
+
+4. The fix is live when `/api/version` reports the new version.
+
+A defect in `public/bluebird/values.yml` or in an analysis template is fixed by
+a `Kubernetes-Manifests` PR to that file. That is a configuration change and
+goes through `Validate manifests` like every other write; a PR that sets
+`newTag` to an older version is not a fix, for the reasons above.
+
+### While the canary runs
+
+There is nothing to do. Users stay on the stable version through all three
+gates, because the canary takes no user traffic until it is promoted. What the
+operator sees meanwhile:
+
+- Argo CD shows `bluebird` as `Progressing`. `kubectl argo rollouts get` shows
+  the step, the canary image beside the stable one, and the running
+  AnalysisRun. `/api/version` still reports the old version, and **Pods by
+  build** shows one pod of the new version beside the stable set.
+- When a gate fails, the Rollout aborts itself: the canary scales to zero, the
+  Rollout reports `Degraded`, and Argo CD shows `Synced` and `Degraded`.
+  `/api/version` never changed, and no user request reached the failed
+  version. Read the failed AnalysisRun's measurements with the command above,
+  then ship the fix as the next release. It supersedes the aborted revision and
+  starts a fresh canary.
+- Do not promote by hand: `kubectl argo rollouts promote --full` skips the
+  gates that are left (revision 209 went out that way, see
+  [Merge to live](#merge-to-live)). Do not `undo` either, for the `selfHeal`
+  reason above. When the failed measurement is plainly an outside outage, such
+  as `received non 2xx response code: 502` from `api-test`,
+  `kubectl argo rollouts retry rollout bluebird -n bluebird-system` runs the
+  gates again on the same version once the provider is back. It moves no
+  version, so it is not a rollback.
 
 ## Where the time goes
 
