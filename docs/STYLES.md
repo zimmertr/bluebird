@@ -439,6 +439,11 @@ The ones in the tree today, each approved on its own:
   answer here, and here is why" (TJ, 2026-09-12, asked for with the metric
   itself in #295). What keeps the touch cost bounded is that the mark itself
   is honest without the note, and `docs/DATA.md` carries the full explanation.
+- The table's **Closure** cell carries two (#550, #551). One is the hover
+  sentence on an unlinked cell: why an `N/A` reads `N/A`, as on the Wildfire
+  (mi) cell, or which order a row stands in when the Forest Service gave that
+  order no page. The other is the order's whole title on a linked cell,
+  because the cell clips a long one.
 - The Hourly segment, the smoke legend's density chips, and the table's
   **Wildfire (mi)** cell, each documented where it is used.
 

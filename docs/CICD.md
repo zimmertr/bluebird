@@ -188,11 +188,12 @@ touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself):
 
 **Path 3 — GitOps sync** (Argo CD → cluster): Argo CD reconciles
 `public/bluebird/`. Kustomize inflates the OCI `helmCharts` entry with
-`values.yml`, overlays the namespace and the two `AnalysisTemplate`s, and pins
+`values.yml`, overlays the namespace and the three `AnalysisTemplate`s
+(`api-test`, `error-rate` and `version-check`), and pins
 the image via `images.newTag`. The chart renders an **Argo Rollout** plus the
 Istio `VirtualService`/`Gateway`; cert-manager terminates TLS. The rollout
-itself is a three-step canary — one canary pod held at zero user traffic
-through three blocking analyses, then promoted in a single cutover — described
+itself is a four-step canary — a scale step that starts one canary pod at zero
+user traffic, then three blocking analyses, then promotion in a single cutover — described
 in [Inside the prod canary](#inside-the-prod-canary-argo-rollouts) below.
 
 ### Two independent knobs reach prod
@@ -222,8 +223,11 @@ writes above go through a PR, and the thing they wait on is `pr.yml` /
    matching more than intended corrupts the file.
 2. Renders every kustomization affected by the PR with `kustomize build
    --enable-helm` (nearest-ancestor mapping from changed files, skipping
-   `deprecated/` and `*.disable*`). A chart version or image tag that doesn't
-   resolve fails the PR instead of failing an Argo CD sync. A PR that touches
+   `deprecated/` and `*.disable*`). The render pulls each `helmCharts` chart,
+   so a chart version that doesn't resolve fails the PR instead of failing an
+   Argo CD sync. It pulls no image: `images.newTag` is only a string to
+   kustomize, so an image tag that does not exist passes this check and fails
+   later, when the canary pod cannot pull it. A PR that touches
    `pr.yml` itself adds `public/bluebird` to its own render list, so a tool bump
    cannot pass green on an empty target list.
 
@@ -571,11 +575,12 @@ cache keys, which fed straight into the budget problem below. The trade is that
 a branch pushed with no pull request open gets no checks until one is opened.
 Every check branch protection requires is a `pull_request` check anyway.
 
-Branch protection requires four contexts: `Python Lint`, `Docker Build`,
-`Frontend Typecheck & Tests` and `Backend Tests`. **A job here cannot be
+Branch protection requires five contexts: `Python Lint`, `Docker Build`,
+`Frontend Typecheck & Tests`, `Backend Tests` and `Browser Smoke & Axe`
+(read from the branch protection API on 2026-10-01). **A job here cannot be
 renamed or deleted on its own**: branch protection matches the name exactly,
 and a name it requires that no longer reports strands every open pull request.
-`Aggregation vectors in sync` was a fifth from 2026-09-15 until #380 deleted
+`Aggregation vectors in sync` was required too from 2026-09-15 until #380 deleted
 the job, and it had to leave the required list in the same change.
 
 ### The repository's Actions cache
@@ -798,7 +803,7 @@ flowchart LR
   cannot go red on someone else's outage. Axe fails on serious and critical
   violations only, and there are none today. A violation can only be accepted
   by an entry in `KNOWN` in `accessibility.spec.ts`, and an entry that stops
-  occurring fails too. It becomes a required check when this job merges. On a
+  occurring fails too. It is a required check. On a
   red run the HTML report, with a trace and a screenshot per failure, is
   uploaded as the `playwright-report` artifact. The pinned
   `mcr.microsoft.com/playwright` image is for local runs only

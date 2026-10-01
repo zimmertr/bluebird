@@ -373,9 +373,9 @@ describe('every component', () => {
     // place this panel explains itself. The zero is pinned like every count
     // above — a tooltip coming BACK here is as much a decision as one leaving.
     './components/ModelPicker.tsx': 0,
-    // Three cells carry four. The Wildfire (mi) cell: the fire's name on a
-    // warned row, or which of its two causes an N/A carries (TJ, PR #275
-    // review). The Closure cell, two: the same three notes for the closure
+    // Three cells carry four. The Wildfire (mi) cell: which of its two causes
+    // an N/A carries (TJ, PR #275 review); a warned row is a link and wears
+    // none. The Closure cell, two: the same three notes for the closure
     // check (TJ, 2026-09-30, approved with the column in #550), and the
     // order's whole title on a linked row, because the cell clips a long one
     // (TJ, 2026-09-30, "clip and ellipses", #551). And the freezing-level
