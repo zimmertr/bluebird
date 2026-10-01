@@ -479,10 +479,11 @@ order onto Region 6's names so one feature shape serves all three. Their
 order rather than closures, so an order from them is returned only when it
 closes an area to entry: its legal citation names 36 CFR 261.52(e) or
 261.53(e), or its name or description says entry is prohibited in a sentence
-that names no permit as the way in. They carry no
-status either, so an order is live when nobody rescinded it and its end date,
-if it has one, is still ahead. See [DATA.md](DATA.md#closures) for the counts
-and the test's limits.
+that names no permit as the way in, and its own words do not narrow it to
+motor vehicles, posted sites, or a Stage 1 or 2 fire restriction. They carry no
+status either, so an order is live when nobody rescinded it, its start date
+has come, and its end date, if it has one, is still ahead. See
+[DATA.md](DATA.md#closures) for the counts and the test's limits.
 
 A Region 6 order is returned when the Forest Service marks it active, and this
 service trusts that status as sent. The status is maintained by hand, so an active

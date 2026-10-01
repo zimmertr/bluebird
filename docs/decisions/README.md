@@ -88,7 +88,7 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0065](0065-link-carries-camera-removals-order.md) | The share link carries the map camera, the removed rows and the table's header sort | 2026-08-22 | Accepted | Frontend: `urlParams.ts`; `mapView.ts` |
 | [0066](0066-tutorial-points-and-never-acts.md) | The tutorial points at controls and never acts on them | 2026-09-29 | Accepted | Frontend: `src/tour/`; `tourSteps.ts` |
 | [0067](0067-region-6-closure-orders.md) | The pod holds one Region 6 closure snapshot and filters it by bbox and kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py` |
-| [0068](0068-forest-orders-entry-closure-test.md) | A Region 3 or 4 forest order is an area closure when its citation or its text closes the area to entry, and closure coverage is per kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py`; `usfs_coverage.py` |
+| [0068](0068-forest-orders-entry-closure-test.md) | A Region 3 or 4 forest order is an area closure when its citation or its text closes the area to entry, and closure coverage is per kind | 2026-09-30 | Superseded in part by 0079 | Backend: `usfs_closures.py`; `usfs_coverage.py` |
 | [0069](0069-color-scales-not-rederived-for-cvd.md) | The metric colour scales are not re-derived for colour vision deficiency | 2026-08-07 | Accepted | Frontend: `colors.ts` |
 | [0070](0070-table-rank-is-the-ranking.md) | The table's # and the CSV's Rank keep the ranking's rank after a header sort | 2026-10-01 | Accepted | Frontend: `useTableView.ts` |
 | [0071](0071-analyze-frames-rows-off-screen.md) | A committed report moves the map only when none of its rows is in view | 2026-10-01 | Accepted | Frontend: `mapFraming.ts` |
@@ -98,3 +98,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0075](0075-pacer-sliding-window.md) | The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log | 2026-10-01 | Accepted | Backend: `app/ratelimit/`; Frontend: `openMeteo.ts` |
 | [0076](0076-api-semver-strict-reader.md) | SemVer 1.0 covers the HTTP API and share links, and a request body refuses a field it does not declare | 2026-10-01 | Accepted | Root: Regenerate the OpenAPI snapshot |
 | [0077](0077-snapshot-max-stale-24h.md) | An overlay snapshot is served through failed refreshes for 24 hours, and no longer | 2026-10-01 | Accepted | Backend: `app/services/snapshot.py` |
+| [0079](0079-forest-order-vetoes-and-start-date.md) | A Region 3 or 4 order's own words can veto its citation, a short list excludes what no words can, and an order that has not started is not live | 2026-10-01 | Accepted | Backend: `usfs_closures.py` |
