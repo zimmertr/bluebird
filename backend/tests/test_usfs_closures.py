@@ -320,6 +320,29 @@ SNOWBASIN = _order(
 )
 
 
+# Region 4's Stage 3 fire closures, which close ground by their type alone:
+# no citation and no entry words (read 2026-10-01).
+CLAREMONT_FIRE = _order(
+    27072,
+    "Claremont Fire Area, Road, and Trail Closure",
+    ordernum="0402-01-119",
+    ordertype="Fire Closure - Stage 3",
+    cfr="See closure order",
+    description=(
+        "Road and Trail closure. The purpose of this Order is to protect public safety from hazards related "
+        "to the Claremont Fire."
+    ),
+)
+CROOKED_FIRE = _order(
+    27212,
+    "Crooked Fire Area, Road, and Trail Closure ",
+    ordernum="0402-03-140",
+    ordertype="Fire Closure - Stage 3",
+    cfr="See closure order",
+    description="The purpose of this Order is to protect public safety from hazards related to the Crooked Fire.",
+)
+
+
 def _orders_answers() -> dict:
     """Region 3 passes two of three orders across two pages; Region 4 one of two."""
     region_three = (_shape(101, -111.2, 34.0, -111.1, 34.1), _shape(103, -111.0, 34.2, -110.9, 34.3))
@@ -384,6 +407,15 @@ def _orders_answers() -> dict:
         },
         # Stage 3 closes the forest, so only Stages 1 and 2 are vetoed.
         {"ordertype": "Fire Closure - Stage 3", "cfr": "36 CFR 261.52(e)"},
+        # And it closes by its type alone, with no citation and no entry
+        # words (#568).
+        CLAREMONT_FIRE["attributes"],
+        CROOKED_FIRE["attributes"],
+        # An unlimited entry sentence beside a permit sentence still closes.
+        {
+            "ordertype": "Fire Closure - Stage 3",
+            "description": "Going into or being upon the area. Outfitters operate without a permit.",
+        },
     ],
 )
 def test_an_order_that_closes_an_area_to_entry_passes(attributes):
@@ -430,6 +462,19 @@ def test_an_order_that_closes_an_area_to_entry_passes(attributes):
         # Posted sites only.
         SNOWBASIN["attributes"],
         {"cfr": "36 CFR 261.53(e)", "description": SNOWBASIN["attributes"]["description"]},
+        # A Stage 3 type passes by itself, but its own words still narrow it:
+        # an entry sentence that names a permit, or posted ground.
+        {
+            **CROOKED_FIRE["attributes"],
+            "description": "Going into or being upon the Described Area without a permit.",
+        },
+        {**CROOKED_FIRE["attributes"], "description": SNOWBASIN["attributes"]["description"]},
+        # The Stage 1 and 2 types are restrictions, and the type alone passes
+        # nothing.
+        {"ordertype": "Fire Restriction - Stage 2", "cfr": "See closure order"},
+        {"ordertype": "Fire Closure - Stage 2"},
+        # A Stage 3 closure that has not started yet.
+        {**CLAREMONT_FIRE["attributes"], "startdate": int(time.time() * 1000) + 365 * 86_400_000},
         # An order that has not started is not standing yet, however plainly
         # it closes the area (Goose Creek was served a month early, #568).
         {

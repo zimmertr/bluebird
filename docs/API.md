@@ -490,7 +490,9 @@ order rather than closures, so an order from them is returned only when it
 closes an area to entry: its legal citation names 36 CFR 261.52(e) or
 261.53(e), or its name or description says entry is prohibited in a sentence
 that names no permit as the way in, and its own words do not narrow it to
-motor vehicles, posted sites, or a Stage 1 or 2 fire restriction. They carry no
+motor vehicles, posted sites, or a Stage 1 or 2 fire restriction. A Stage 3
+fire closure counts by its type alone, unless its own words narrow it the same
+way. They carry no
 status either, so an order is live when nobody rescinded it, its start date
 has come, and its end date, if it has one, is still ahead. See
 [DATA.md](DATA.md#closures) for the counts and the test's limits.
