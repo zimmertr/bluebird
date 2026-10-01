@@ -39,7 +39,7 @@ export interface paths {
          * Rank destinations, streaming progress as it goes
          * @description Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.
          *
-         *     Check the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:
+         *     Check the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Five event types arrive as `data:` lines carrying a JSON object with a `type` field:
          *
          *     - `status` — a human-readable phase message in `message`, plus an optional `detail` line for mid-phase news: a fall-over to a backup map server, or a weather-quota pace wait with its resume estimate
          *     - `progress` — `processed`, `total`, and `percent` counters
@@ -522,11 +522,6 @@ export interface components {
          */
         AnalyzeResponse: {
             /**
-             * Error
-             * @description Always null here. A failed analysis returns a 4xx or 5xx with a `detail` message instead. The field exists because the streaming endpoint reuses this shape.
-             */
-            error?: string | null;
-            /**
              * Results
              * @description Ranked destinations, best first, at most `limit` of them.
              */
@@ -535,18 +530,18 @@ export interface components {
              * Snow Analysis Date
              * @description The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.
              */
-            snow_analysis_date?: string | null;
+            snow_analysis_date: string | null;
             /**
              * Times
              * @description Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window, and sent in both shapes: under `include_series: false` it is the only statement of which hours the aggregates reduced.
              * @default []
              */
-            times?: number[];
+            times: number[];
             /**
              * Total Found
              * @description Pre-truncation candidate count when `truncated` is true; null otherwise. Lets a client caption an elected top-N honestly ("top 1,500 of 2,340").
              */
-            total_found?: number | null;
+            total_found: number | null;
             /**
              * Total Matched
              * @description How many of those candidates satisfied the request's forecast bounds, before `limit` cut the list. Equal to `total_queried` when no bound was set, so a client can always say "N of M matching" without knowing whether the caller filtered. It is a separate number because a bound drops rows the caller paid to fetch, and `total_queried` keeps meaning what it always has: how much was analyzed.
@@ -562,7 +557,7 @@ export interface components {
              * @description True only when the request set `top_by_elevation` and the candidate set exceeded the limit, so only the highest candidates were analyzed. Never true otherwise: an over-limit set without the opt-in refuses with a 400 instead.
              * @default false
              */
-            truncated?: boolean;
+            truncated: boolean;
         };
         /**
          * ApiErrorInfo
@@ -704,69 +699,69 @@ export interface components {
              * Aqi Avg
              * @description Mean US AQI across the window, all EPA pollutants combined. Null past the air-quality horizon, or if the best-effort fetch failed. An air-quality outage never fails an analysis.
              */
-            aqi_avg?: number | null;
+            aqi_avg: number | null;
             /**
              * Aqi Max
              * @description Worst single AQI hour. Null under the same terms.
              */
-            aqi_max?: number | null;
+            aqi_max: number | null;
             /**
              * Aqi Min
              * @description Cleanest single AQI hour. Null under the same terms.
              */
-            aqi_min?: number | null;
+            aqi_min: number | null;
             /**
              * Cloud Base Avg Ft
              * @description Mean cloud base across the window. Null under the same terms.
              */
-            cloud_base_avg_ft?: number | null;
+            cloud_base_avg_ft: number | null;
             /**
              * Cloud Base Max Ft
              * @description Highest cloud base in the window. Null under the same terms.
              */
-            cloud_base_max_ft?: number | null;
+            cloud_base_max_ft: number | null;
             /**
              * Cloud Base Min Ft
              * @description Lowest cloud base in the window, feet above sea level. Each hour is the lowest height in the model's air column over the destination where the relative humidity reaches 95 %, read from the destination's own 2 m air and the standard pressure levels above it and interpolated between the two that bracket it. Read against `elevation_ft`: at or below it, the destination was in cloud. When nothing in the column is saturated the hour reads the destination's own parcel base, about 125 m above it per degree Celsius between its temperature and dew point, so a clear sky reads a high number rather than null.
              *
              *     Null unless the cloud variables were fetched (a cloud `sort_by`, a cloud bound, or `include_clouds`), for a destination with no known elevation, and for archive hours, which carry no pressure levels to read.
              */
-            cloud_base_min_ft?: number | null;
+            cloud_base_min_ft: number | null;
             /**
              * Cloud Cover Avg Pct
              * @description Mean cloud cover across the window. Null under the same terms.
              */
-            cloud_cover_avg_pct?: number | null;
+            cloud_cover_avg_pct: number | null;
             /**
              * Cloud Cover Max Pct
              * @description Cloudiest hour's cloud cover. Null under the same terms.
              */
-            cloud_cover_max_pct?: number | null;
+            cloud_cover_max_pct: number | null;
             /**
              * Cloud Cover Min Pct
              * @description Clearest hour's total cloud cover, percent. Null unless the cloud variables were fetched. Unlike the cloud base, archive windows carry it.
              */
-            cloud_cover_min_pct?: number | null;
+            cloud_cover_min_pct: number | null;
             /**
              * Elevation Ft
              * @description Elevation in feet, when known.
              */
-            elevation_ft?: number | null;
+            elevation_ft: number | null;
             /**
              * Freeze Avg Ft
              * @description Mean freezing level across the window. Null under the same terms.
              */
-            freeze_avg_ft?: number | null;
+            freeze_avg_ft: number | null;
             /**
              * Freeze Max Ft
              * @description Highest freezing level in the window. Null under the same terms.
              */
-            freeze_max_ft?: number | null;
+            freeze_max_ft: number | null;
             /**
              * Freeze Min Ft
              * @description Lowest freezing level in the window, feet above sea level. Read against `elevation_ft`: below the destination, the whole destination was below freezing at that hour. Zero means the freezing level reached sea level, not that there is no value. Null for every hour of a forecast model that does not publish the variable, which is five of the eight; an absent freezing level never affects the other figures on this row.
              */
-            freeze_min_ft?: number | null;
+            freeze_min_ft: number | null;
             /**
              * Latitude
              * @description Latitude in decimal degrees.
@@ -786,7 +781,7 @@ export interface components {
              * Osm Id
              * @description OpenStreetMap identifier such as `node/12345`. Null for custom destinations, which have no OSM identity.
              */
-            osm_id?: string | null;
+            osm_id: string | null;
             /**
              * Precip Avg In Hr
              * @description Mean hourly precipitation, inches.
@@ -808,12 +803,12 @@ export interface components {
              */
             precip_total_in: number;
             /** @description Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`. */
-            series?: components["schemas"]["HourlySeries"] | null;
+            series: components["schemas"]["HourlySeries"] | null;
             /**
              * Snow Depth In
              * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.
              */
-            snow_depth_in?: number | null;
+            snow_depth_in: number | null;
             /**
              * Temp Avg F
              * @description Mean temperature, degrees Fahrenheit.
@@ -922,7 +917,7 @@ export interface components {
              * Snow Analysis Date
              * @description The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.
              */
-            snow_analysis_date?: string | null;
+            snow_analysis_date: string | null;
             /**
              * Total
              * @description Same as `len(destinations)`, for convenience.
@@ -932,13 +927,13 @@ export interface components {
              * Total Found
              * @description Pre-truncation candidate count when `truncated` is true; null otherwise.
              */
-            total_found?: number | null;
+            total_found: number | null;
             /**
              * Truncated
              * @description True only when the request set `top_by_elevation` and the found set exceeded the limit, so `destinations` holds the highest candidates only.
              * @default false
              */
-            truncated?: boolean;
+            truncated: boolean;
         };
         /**
          * DiscoveredDestination
@@ -949,7 +944,7 @@ export interface components {
              * Elevation Ft
              * @description Elevation in feet, when OSM knows it. For a custom row this is the caller's own value if one was sent, otherwise the matched peak's — null when neither exists.
              */
-            elevation_ft?: number | null;
+            elevation_ft: number | null;
             /**
              * Latitude
              * @description Latitude in decimal degrees.
@@ -969,12 +964,12 @@ export interface components {
              * Osm Id
              * @description OpenStreetMap identifier such as `node/12345`.
              */
-            osm_id?: string | null;
+            osm_id: string | null;
             /**
              * Snow Depth In
              * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.
              */
-            snow_depth_in?: number | null;
+            snow_depth_in: number | null;
             /**
              * Type
              * @description The discovery type this row matched, or `custom` for a caller-supplied row.
@@ -1086,6 +1081,11 @@ export interface components {
          */
         GeoPolygon: {
             /**
+             * Bbox
+             * @description Optional GeoJSON bounding box (four or six numbers), accepted and ignored: the search area is always read from `coordinates`.
+             */
+            bbox?: number[] | null;
+            /**
              * Coordinates
              * @description GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position.
              */
@@ -1119,12 +1119,12 @@ export interface components {
              * Cloud Base Ft
              * @description Cloud base, feet above sea level; see `cloud_base_min_ft` on the result. Null as a whole unless the cloud variables were fetched.
              */
-            cloud_base_ft?: (number | null)[] | null;
+            cloud_base_ft: (number | null)[] | null;
             /**
              * Cloud Cover Pct
              * @description Total cloud cover, percent. Null as a whole unless the cloud variables were fetched.
              */
-            cloud_cover_pct?: (number | null)[] | null;
+            cloud_cover_pct: (number | null)[] | null;
             /**
              * Freeze Ft
              * @description Freezing level, feet above sea level. Null at every hour for the models that do not publish the variable; see `freeze_avg_ft` on the result.
@@ -1506,15 +1506,6 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
-                };
-            };
-            /** @description Open-Meteo rejected the API key. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */

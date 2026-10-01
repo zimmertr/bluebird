@@ -206,7 +206,7 @@ async def _run_analysis(
         "**200 for the rest of the exchange**, including for failures, because "
         "the connection is already streaming by the time an upstream problem "
         "surfaces. So a 200 here means the request was accepted, not that the "
-        "analysis succeeded. Four event "
+        "analysis succeeded. Five event "
         "types arrive as `data:` lines carrying a JSON object with a `type` "
         "field:\n\n"
         "- `status` — a human-readable phase message in `message`, plus an "
@@ -230,11 +230,9 @@ async def _run_analysis(
         "since the stream is already open."
     ),
     dependencies=[Depends(ratelimit.analyze_rate_limit)],
+    # No 401: Open-Meteo tests the key only once the stream is open, so a
+    # refused key arrives as an `error` event on the 200.
     responses={
-        401: {
-            "model": ErrorResponse,
-            "description": "Open-Meteo rejected the API key.",
-        },
         429: {
             "model": ErrorResponse,
             "description": (
@@ -256,7 +254,8 @@ async def _run_analysis(
                             'data: {"type": "status", "message": "Searching for destinations…", '
                             '"detail": "Trying backup map server 2 of 3…"}\n\n'
                             'data: {"type": "progress", "processed": 50, "total": 120, "percent": 42}\n\n'
-                            'data: {"type": "result", "data": {"results": [], "total_queried": 0}}\n\n'
+                            'data: {"type": "result", "data": {"results": [], "total_queried": 0, '
+                            '"total_matched": 0}}\n\n'
                         ),
                     }
                 }

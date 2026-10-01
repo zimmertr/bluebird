@@ -96,3 +96,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0073](0073-click-reads-tile-feet.md) | A clicked summit takes its elevation from the tile's own feet | 2026-10-01 | Accepted | Frontend: `basemapPoi.ts` |
 | [0074](0074-refuse-what-the-pacer-would-shed.md) | An unkeyed analysis that its own batches would shed is refused before it spends | 2026-10-01 | Accepted | Backend: `routes/analyze/phases.py` |
 | [0075](0075-pacer-sliding-window.md) | The weighted pacer spends at most its budget in any 60 seconds, as a sliding-window log | 2026-10-01 | Accepted | Backend: `app/ratelimit/`; Frontend: `openMeteo.ts` |
+| [0076](0076-api-semver-strict-reader.md) | SemVer 1.0 covers the HTTP API and share links, and a request body refuses a field it does not declare | 2026-10-01 | Accepted | Root: Regenerate the OpenAPI snapshot |

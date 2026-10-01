@@ -294,11 +294,15 @@ def test_filter_constraints_combine_as_and():
     assert [r.name for r in kept] == ["keeper"]
 
 
-def test_filter_constraints_inverted_range_keeps_nothing():
-    # No cross-field validation, matching the elevation band: an impossible
-    # request answers honestly with an empty field rather than a 422.
-    rows = [_result("a", temp_min=50.0, temp_max=70.0)]
-    assert _filter_constraints(rows, _bounded(min_temp_f=90.0, max_temp_f=10.0)) == []
+@pytest.mark.parametrize("route", ["/api/analyze", "/api/analyze/stream"])
+def test_an_inverted_bound_pair_is_a_422_before_anything_runs(route):
+    # It can match nothing, so it once answered an empty 200 that read as
+    # "nothing qualifies" rather than as the typo it is (#563). Refused before
+    # the stream opens, like every other validation failure.
+    resp = client.post(route, json={**_custom_body(), "min_temp_f": 90, "max_temp_f": 10})
+    assert resp.status_code == 422
+    [error] = resp.json()["detail"]
+    assert (error["loc"], error["msg"]) == (["body"], "min_temp_f must not be above max_temp_f.")
 
 
 # ── small helpers ──────────────────────────────────────────────────────────
@@ -599,7 +603,6 @@ def test_analyze_elevation_band_can_empty_results(stub_upstreams):
         "results": [],
         "total_queried": 0,
         "total_matched": 0,
-        "error": None,
         "times": [],
         "total_found": None,
         "truncated": False,
@@ -1373,10 +1376,15 @@ def test_no_header_leaves_the_unkeyed_path_alone(record_key):
 
 def test_the_key_is_read_from_the_header_only(record_key):
     # Never from the body or the query string, where it would land in a log
-    # line or a browser history.
-    body = {**_custom_body(), "api_key": "secret-key"}
-    resp = client.post("/api/analyze?apikey=secret-key", json=body)
+    # line or a browser history. The query string is ignored; the body refuses
+    # the field outright, as it refuses every field it does not declare.
+    resp = client.post("/api/analyze?apikey=secret-key", json=_custom_body())
     assert resp.status_code == 200
+    assert record_key["weather"] == [None]
+
+    resp = client.post("/api/analyze", json={**_custom_body(), "api_key": "secret-key"})
+    assert resp.status_code == 422
+    assert [e["type"] for e in resp.json()["detail"]] == ["extra_forbidden"]
     assert record_key["weather"] == [None]
 
 

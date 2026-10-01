@@ -70,6 +70,7 @@
         "type": "object"
       },
       "AnalyzeRequest": {
+        "additionalProperties": false,
         "description": "One analysis: which destinations, over which window, ranked how.",
         "examples": [
           {
@@ -183,6 +184,8 @@
           "limit": {
             "default": 10,
             "description": "How many ranked rows to return. Discovery is never sampled, so this trims the response, not the work: every candidate is forecast and ranked before the cut.",
+            "maximum": 1500.0,
+            "minimum": 1.0,
             "title": "Limit",
             "type": "integer"
           },
@@ -214,6 +217,7 @@
           "max_cloud_cover_pct": {
             "anyOf": [
               {
+                "maximum": 100.0,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -327,6 +331,7 @@
           "min_cloud_cover_pct": {
             "anyOf": [
               {
+                "maximum": 100.0,
                 "minimum": 0.0,
                 "type": "number"
               },
@@ -460,18 +465,6 @@
       "AnalyzeResponse": {
         "description": "A completed analysis: the ranking, and what it was drawn from.",
         "properties": {
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Always null here. A failed analysis returns a 4xx or 5xx with a `detail` message instead. The field exists because the streaming endpoint reuses this shape.",
-            "title": "Error"
-          },
           "results": {
             "description": "Ranked destinations, best first, at most `limit` of them.",
             "items": {
@@ -533,7 +526,11 @@
         "required": [
           "results",
           "total_queried",
-          "total_matched"
+          "total_matched",
+          "total_found",
+          "truncated",
+          "times",
+          "snow_analysis_date"
         ],
         "title": "AnalyzeResponse",
         "type": "object"
@@ -665,11 +662,14 @@
         "type": "object"
       },
       "CustomDestination": {
+        "additionalProperties": false,
         "description": "A caller-supplied destination, analyzed alongside discovered ones.",
         "properties": {
           "elevation_ft": {
             "anyOf": [
               {
+                "maximum": 30000.0,
+                "minimum": -1500.0,
                 "type": "number"
               },
               {
@@ -681,16 +681,22 @@
           },
           "latitude": {
             "description": "Latitude in decimal degrees, -90 to 90.",
+            "maximum": 90.0,
+            "minimum": -90.0,
             "title": "Latitude",
             "type": "number"
           },
           "longitude": {
             "description": "Longitude in decimal degrees, -180 to 180.",
+            "maximum": 180.0,
+            "minimum": -180.0,
             "title": "Longitude",
             "type": "number"
           },
           "name": {
             "description": "Display name, 1 to 255 characters.",
+            "maxLength": 255,
+            "minLength": 1,
             "title": "Name",
             "type": "string"
           }
@@ -997,6 +1003,8 @@
           "type",
           "latitude",
           "longitude",
+          "elevation_ft",
+          "osm_id",
           "precip_total_in",
           "precip_avg_in_hr",
           "precip_min_in_hr",
@@ -1006,7 +1014,21 @@
           "temp_avg_f",
           "wind_min_mph",
           "wind_max_mph",
-          "wind_avg_mph"
+          "wind_avg_mph",
+          "freeze_min_ft",
+          "freeze_max_ft",
+          "freeze_avg_ft",
+          "aqi_avg",
+          "aqi_min",
+          "aqi_max",
+          "snow_depth_in",
+          "cloud_base_min_ft",
+          "cloud_base_avg_ft",
+          "cloud_base_max_ft",
+          "cloud_cover_min_pct",
+          "cloud_cover_avg_pct",
+          "cloud_cover_max_pct",
+          "series"
         ],
         "title": "DestinationResult",
         "type": "object"
@@ -1022,6 +1044,7 @@
         "type": "string"
       },
       "DestinationsRequest": {
+        "additionalProperties": false,
         "description": "Discovery only: which destinations exist, with no forecasts attached.\n\nThis is the first half of `POST /api/analyze`. The SPA uses it to get the\ncandidate list and then fetches Open-Meteo itself, so a browser analysis\ncosts this deployment one Overpass query instead of dozens of forecast\ncalls.\n\nTwo kinds of candidate arrive here. A polygon is *discovered*; a\n`custom_destinations` list is *resolved* \u2014 the caller already knows where\nits points are, so the only open question is what OSM knows about them.",
         "properties": {
           "custom_destinations": {
@@ -1147,7 +1170,10 @@
         },
         "required": [
           "destinations",
-          "total"
+          "total",
+          "total_found",
+          "truncated",
+          "snow_analysis_date"
         ],
         "title": "DestinationsResponse",
         "type": "object"
@@ -1216,7 +1242,10 @@
           "name",
           "type",
           "latitude",
-          "longitude"
+          "longitude",
+          "elevation_ft",
+          "osm_id",
+          "snow_depth_in"
         ],
         "title": "DiscoveredDestination",
         "type": "object"
@@ -1342,8 +1371,24 @@
         "type": "object"
       },
       "GeoPolygon": {
+        "additionalProperties": false,
         "description": "A GeoJSON Polygon bounding the search area.",
         "properties": {
+          "bbox": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional GeoJSON bounding box (four or six numbers), accepted and ignored: the search area is always read from `coordinates`.",
+            "title": "Bbox"
+          },
           "coordinates": {
             "description": "GeoJSON coordinate rings. Only the outer ring is read. Positions are `[longitude, latitude]`, which is GeoJSON order and the reverse of how coordinates are usually spoken. The ring should close by repeating its first position.",
             "items": {
@@ -1512,7 +1557,9 @@
           "temp_f",
           "wind_mph",
           "freeze_ft",
-          "aqi"
+          "aqi",
+          "cloud_base_ft",
+          "cloud_cover_pct"
         ],
         "title": "HourlySeries",
         "type": "object"
@@ -2014,7 +2061,7 @@
     },
     "/api/analyze/stream": {
       "post": {
-        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Four event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`, plus an optional `detail` line for mid-phase news: a fall-over to a backup map server, or a weather-quota pace wait with its resume estimate\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `keepalive` \u2014 periodic no-op during quiet stretches (a paced analysis can wait most of a minute for quota); ignore it\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message` and the same machine-readable `error` object (`code`, `retryable`) the JSON routes answer with; an over-limit refusal also carries the `AnalysisRefusal` remedy fields, and an upstream rate limit carries `scope` and `retry_after_s`\n\nExactly one `result` or one `error` ends the stream.\n\nRate limiting applies before the stream opens: a client past the per-address limit gets a plain **429 with `Retry-After`**, exactly as on `POST /api/analyze`. Capacity problems found mid-analysis (the instance-wide upstream budget saturating) arrive as an `error` event, since the stream is already open.",
+        "description": "Identical analysis to `POST /api/analyze`, delivered as Server-Sent Events so a caller can show progress instead of waiting on one long request.\n\nCheck the status code first, then the stream. A request that fails validation is rejected with **422 before the stream opens**, exactly as on `POST /api/analyze`. Once the stream does open the status is **200 for the rest of the exchange**, including for failures, because the connection is already streaming by the time an upstream problem surfaces. So a 200 here means the request was accepted, not that the analysis succeeded. Five event types arrive as `data:` lines carrying a JSON object with a `type` field:\n\n- `status` \u2014 a human-readable phase message in `message`, plus an optional `detail` line for mid-phase news: a fall-over to a backup map server, or a weather-quota pace wait with its resume estimate\n- `progress` \u2014 `processed`, `total`, and `percent` counters\n- `keepalive` \u2014 periodic no-op during quiet stretches (a paced analysis can wait most of a minute for quota); ignore it\n- `result` \u2014 the terminal success event, carrying a full `AnalyzeResponse` in `data`\n- `error` \u2014 the terminal failure event, with the reason in `message` and the same machine-readable `error` object (`code`, `retryable`) the JSON routes answer with; an over-limit refusal also carries the `AnalysisRefusal` remedy fields, and an upstream rate limit carries `scope` and `retry_after_s`\n\nExactly one `result` or one `error` ends the stream.\n\nRate limiting applies before the stream opens: a client past the per-address limit gets a plain **429 with `Retry-After`**, exactly as on `POST /api/analyze`. Capacity problems found mid-analysis (the instance-wide upstream budget saturating) arrive as an `error` event, since the stream is already open.",
         "operationId": "analyze_stream_api_analyze_stream_post",
         "requestBody": {
           "content": {
@@ -2031,22 +2078,12 @@
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "example": "data: {\"type\": \"status\", \"message\": \"Searching for destinations\u2026\"}\n\ndata: {\"type\": \"status\", \"message\": \"Searching for destinations\u2026\", \"detail\": \"Trying backup map server 2 of 3\u2026\"}\n\ndata: {\"type\": \"progress\", \"processed\": 50, \"total\": 120, \"percent\": 42}\n\ndata: {\"type\": \"result\", \"data\": {\"results\": [], \"total_queried\": 0}}\n\n",
+                  "example": "data: {\"type\": \"status\", \"message\": \"Searching for destinations\u2026\"}\n\ndata: {\"type\": \"status\", \"message\": \"Searching for destinations\u2026\", \"detail\": \"Trying backup map server 2 of 3\u2026\"}\n\ndata: {\"type\": \"progress\", \"processed\": 50, \"total\": 120, \"percent\": 42}\n\ndata: {\"type\": \"result\", \"data\": {\"results\": [], \"total_queried\": 0, \"total_matched\": 0}}\n\n",
                   "type": "string"
                 }
               }
             },
             "description": "An SSE stream. Ends with either a `result` or an `error` event."
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Open-Meteo rejected the API key."
           },
           "422": {
             "content": {

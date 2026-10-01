@@ -163,6 +163,23 @@ async def test_type_order_does_not_change_the_query_or_the_cache_key(monkeypatch
     assert len(queries) == 1
 
 
+async def test_a_polygons_bbox_is_neither_queried_nor_keyed(monkeypatch):
+    # RFC 7946 lets a polygon carry a bbox and the API accepts one (#563), but
+    # the ring is the whole question: the same ring with any bbox, or none, is
+    # one query and one cache entry.
+    queries = []
+
+    async def fake_post(query, on_status=None):
+        queries.append(query)
+        return {"elements": []}
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, [DestinationType.peak])
+    boxed = GeoPolygon(**POLY.model_dump(exclude={"bbox"}), bbox=[-180, -90, 180, 90])
+    await osm.query_osm(boxed, [DestinationType.peak])
+    assert len(queries) == 1
+
+
 async def test_no_types_asks_nothing(monkeypatch):
     async def fake_post(query, on_status=None):
         raise AssertionError("no types requested, so Overpass must not be called")

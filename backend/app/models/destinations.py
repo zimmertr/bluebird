@@ -7,6 +7,7 @@ from typing import ClassVar
 from pydantic import BaseModel, Field
 
 from app.models.common import (
+    _RESPONSE_CONFIG,
     _SNOW_DATE_DESCRIPTION,
     _SNOW_DEPTH_DESCRIPTION,
     CustomDestination,
@@ -83,6 +84,8 @@ class DestinationsRequest(_DiscoveryFields):
 class DiscoveredDestination(BaseModel):
     """One candidate, forecast-free."""
 
+    model_config = _RESPONSE_CONFIG
+
     name: str = Field(
         description="Destination name: OSM's for a discovered row, the caller's for a custom one."
     )
@@ -112,6 +115,8 @@ class DiscoveredDestination(BaseModel):
 
 class DestinationsResponse(BaseModel):
     """Everything found, after the optional elevation band."""
+
+    model_config = _RESPONSE_CONFIG
 
     destinations: list[DiscoveredDestination] = Field(
         description=(

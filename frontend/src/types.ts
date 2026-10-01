@@ -48,6 +48,9 @@ export type SortBy =
 export interface GeoPolygon {
   type: 'Polygon'
   coordinates: number[][][]
+  // RFC 7946's optional bounding box, which the API accepts and ignores. The
+  // browser never sends it: the search area is always the ring above.
+  bbox?: number[]
 }
 
 export interface CustomDestination {
@@ -222,7 +225,6 @@ export interface AnalyzeResponse {
   // before the limit cut. Equal to total_queried when no bound was set, so the
   // footer can say "N of M matching" without knowing whether anything filtered.
   total_matched: number
-  error?: string | null
   // Shared hourly grid for every row's `series`, epoch milliseconds (UTC),
   // rendered in the viewer's local time.
   times?: number[]

@@ -133,6 +133,26 @@ def test_a_pydantic_message_passes_through_unchanged():
     assert error["msg"] == "Input should be a valid number, unable to parse string as a number"
 
 
+# An unknown field is refused in Pydantic's own words, in the stock 422 shape
+# docs/API.md shows, rather than dropped (issue #563).
+def test_an_unknown_request_field_is_a_422_naming_it():
+    response = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [{"name": "X", "latitude": 47, "longitude": -121, "elev": 4000}],
+        },
+    )
+    assert response.status_code == 422
+    [error] = response.json()["detail"]
+    assert {k: error[k] for k in ("type", "loc", "msg", "input")} == {
+        "type": "extra_forbidden",
+        "loc": ["body", "custom_destinations", 0, "elev"],
+        "msg": "Extra inputs are not permitted",
+        "input": 4000,
+    }
+
+
 def test_a_page_route_404_stays_outside_the_api_contract(tmp_path, monkeypatch):
     # The document pages raise a plain HTTPException. The handler is registered
     # for ApiError alone precisely so that 404 keeps FastAPI's stock body: it

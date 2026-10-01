@@ -192,8 +192,8 @@ describe('filterConstraints', () => {
   })
 
   it('keeps nothing when a range is inverted', () => {
-    // No cross-field validation, matching the elevation band: an impossible
-    // request answers honestly rather than being rejected.
+    // The panel applies bounds live, so a pair inverted mid-edit keeps nothing
+    // rather than raising. The API refuses the same pair at the door (#563).
     const rows = [boundRow('a', { temp_min_f: 50, temp_max_f: 70 })]
     expect(filterConstraints(rows, bounded({ minTempF: 90, maxTempF: 10 }))).toEqual([])
   })
