@@ -284,8 +284,10 @@ archive's nature rather than a limitation of the wiring.
   hours only.
 - **A window may cross the boundary, and then it carries both.** A window that
   starts in the archive's range and ends inside the forecast endpoint's is
-  fetched from each of them — the archive through the hour before the boundary,
-  the forecast endpoint from the boundary on — and the hours are joined in order
+  fetched from each of them — the archive through the hour before the reader's
+  local midnight that starts the boundary's day, the forecast endpoint from that
+  midnight on, so no local day is split between them (the API splits at the
+  boundary itself, see [API.md](API.md)) — and the hours are joined in order
   before anything is aggregated, so the report is one window rather than two
   halves. What changes across that join is what the two bullets above describe:
   the early hours are the reanalysis and name no model, the later hours are the

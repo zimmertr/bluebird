@@ -17,7 +17,7 @@ import { ColDef } from '../utils/tableColumns'
 import { FireWarning } from '../utils/fireProximity'
 import type { ClosureWarning } from '../utils/closureProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
-import { framePadding, pointsWithinView } from '../utils/mapFraming'
+import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
@@ -61,6 +61,10 @@ export interface MapViewHandle {
   restoreRing: (ring: GeoPolygon | null) => void
   flyToPlace: (place: Place) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
+  // The same fit, made only when none of the points is on screen: a committed
+  // report whose rows all stand outside the view (#579). A view that shows
+  // one of them is the reader's and does not move.
+  frameRowsIfNoneInView: (points: { latitude: number; longitude: number }[]) => void
   // The marker is sent to the centre of the map the reader can see, moved
   // by whatever its popup needs to show the most of itself (`popupFit.ts`):
   // up from under the results sheet, aside from the button column, its
@@ -344,6 +348,23 @@ const MapView = forwardRef<MapViewHandle, Props>(
       }
     }
 
+    function fitToPoints(points: { latitude: number; longitude: number }[]) {
+      const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
+      if (!bounds) return
+      const map = mapRef.current
+      if (!map || !loadedRef.current) {
+        pendingFitPointsRef.current = points
+        return
+      }
+      refitPointsRef.current = points
+      if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
+      refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
+      map.fitBounds(bounds, {
+        padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
+        duration: 1500,
+      })
+    }
+
     useImperativeHandle(ref, () => ({
       // Bring the drawn ring back into view. Editing a polygon you cannot see
       // is the one gesture the draw/idle split made possible: you finish, pan
@@ -421,21 +442,21 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // Frame a pasted custom CSV list whole. Deferred like a pre-load search
       // when the map isn't ready — the load handler folds the points into its
       // opening frame.
-      fitToPoints(points: { latitude: number; longitude: number }[]) {
-        const bounds = boundsForPoints(points, SEARCH_VIEW_MILES)
-        if (!bounds) return
+      fitToPoints,
+      frameRowsIfNoneInView(points: { latitude: number; longitude: number }[]) {
         const map = mapRef.current
-        if (!map || !loadedRef.current) {
-          pendingFitPointsRef.current = points
-          return
-        }
-        refitPointsRef.current = points
-        if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
-        refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
-        map.fitBounds(bounds, {
-          padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
-          duration: 1500,
-        })
+        // Before load there is nothing to compare against; the opening frame
+        // covers the report a link opens with.
+        if (!map || !loadedRef.current || points.length === 0) return
+        const canvas = map.getCanvas()
+        const shown = anyPointInView(
+          points.map((p) => map.project([p.longitude, p.latitude])),
+          canvas.clientWidth,
+          // The canvas the reader can see, which on a phone stops at the
+          // sheet's top edge, as in `framePolygon`.
+          canvas.clientHeight - cameraPadBottomPx,
+        )
+        if (!shown) fitToPoints(points)
       },
       focusPoint(at: { latitude: number; longitude: number }) {
         const map = mapRef.current

@@ -6,6 +6,7 @@ import {
   PAST_LIMIT_SLACK_DAYS,
   type WindowSource,
   archiveBoundaryMs,
+  archiveSeamMs,
   hourlyStampCount,
   isPointSample,
   normalizeWindow,
@@ -290,3 +291,56 @@ describe('windowSource', () => {
     expect(windowSource(w.startMs, w.endMs, NOW)).toBe('archive')
   })
 })
+
+// The browser joins a spanning window's two fetches at the local midnight that
+// starts the day the boundary falls in, so no local day is split between the
+// archive and the model (#579). The boundary stays a UTC midnight on both
+// sides; only the join moves, and only in the browser.
+describe('archiveSeamMs', () => {
+  const SEAM_NOW = Date.parse('2026-09-12T18:00:00Z')
+  // The boundary at that clock: 2026-07-19T00:00Z.
+  const iso = (ms: number) => new Date(ms).toISOString()
+
+  // Run with another zone, then put the pinned one back. Node reads TZ again
+  // when it is assigned, so `Date` follows it from the next call on.
+  function inZone<T>(zone: string, body: () => T): T {
+    const before = process.env.TZ
+    process.env.TZ = zone
+    try {
+      return body()
+    } finally {
+      process.env.TZ = before
+    }
+  }
+
+  it('moves the join back to the local midnight west of UTC', () => {
+    // The boundary is 17:00 PDT on July 18, so July 18 starts at 07:00Z.
+    expect(iso(archiveBoundaryMs(SEAM_NOW))).toBe('2026-07-19T00:00:00.000Z')
+    expect(iso(archiveSeamMs(SEAM_NOW))).toBe('2026-07-18T07:00:00.000Z')
+  })
+
+  it('moves the join back to the local midnight east of UTC', () => {
+    // The boundary is 02:00 CEST on July 19, so July 19 starts at 22:00Z the day before.
+    expect(inZone('Europe/Berlin', () => iso(archiveSeamMs(SEAM_NOW)))).toBe('2026-07-18T22:00:00.000Z')
+  })
+
+  it('keeps the join at the boundary in UTC itself', () => {
+    expect(inZone('UTC', () => iso(archiveSeamMs(SEAM_NOW)))).toBe('2026-07-19T00:00:00.000Z')
+  })
+
+  it('rounds up to the first whole hour of a day on a half-hour offset', () => {
+    // July 19 starts at 18:30Z in India, and the first stamp of it is 19:00Z.
+    expect(inZone('Asia/Kolkata', () => iso(archiveSeamMs(SEAM_NOW)))).toBe('2026-07-18T19:00:00.000Z')
+  })
+
+  // Within the straddle tolerance in every zone, so a spanning window, which
+  // starts before it, always has an archive half.
+  it('stays within a day of the boundary at both ends of the clock', () => {
+    for (const zone of ['Pacific/Kiritimati', 'Etc/GMT+12']) {
+      const seam = inZone(zone, () => archiveSeamMs(SEAM_NOW))
+      expect(archiveBoundaryMs(SEAM_NOW) - seam, zone).toBeLessThanOrEqual(DAY)
+      expect(archiveBoundaryMs(SEAM_NOW) - seam, zone).toBeGreaterThanOrEqual(0)
+    }
+  })
+})
+

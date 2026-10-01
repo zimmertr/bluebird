@@ -47,7 +47,7 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0024](0024-product-rename-in-halves.md) | The product is Bluebird Forecast, renamed in halves | 2026-09-11 | Accepted | Root: The product is Bluebird Forecast |
 | [0025](0025-keyed-analyze-api.md) | The analyze routes are public only to a caller with an Open-Meteo key | 2026-09-11 | Accepted | Root: The browser path is the only path |
 | [0026](0026-freezing-level-outside-zip.md) | The freezing level is reduced on its own, read in its declared unit, and colored like every metric | 2026-09-13 | Accepted | Root: Key constraints |
-| [0027](0027-archive-endpoint-seam.md) | A window older than the forecast data goes to the archive endpoint, split at one seam | 2026-09-13 | Accepted | Root: Key constraints |
+| [0027](0027-archive-endpoint-seam.md) | A window older than the forecast data goes to the archive endpoint, split at one seam | 2026-09-13 | Superseded in part by 0072 | Root: Key constraints |
 | [0028](0028-notices-below-analyze.md) | Every notice renders in the one block under the Analyze button | 2026-09-13 | Accepted | Root: Every notice renders in the one block |
 | [0029](0029-archive-disables-picker.md) | An archive window disables the model picker instead of hiding it | 2026-09-13 | Accepted | Frontend: `ModelPicker.tsx` |
 | [0030](0030-tools-own-packages.md) | Tools that need another TypeScript are packages of their own | 2026-09-14 | Accepted | Root: Regenerate the OpenAPI snapshot; Style through the design system |
@@ -89,3 +89,6 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0066](0066-tutorial-points-and-never-acts.md) | The tutorial points at controls and never acts on them | 2026-09-29 | Accepted | Frontend: `src/tour/`; `tourSteps.ts` |
 | [0067](0067-region-6-closure-orders.md) | The pod holds one Region 6 closure snapshot and filters it by bbox and kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py` |
 | [0068](0068-forest-orders-entry-closure-test.md) | A Region 3 or 4 forest order is an area closure when its citation or its text closes the area to entry, and closure coverage is per kind | 2026-09-30 | Accepted | Backend: `usfs_closures.py`; `usfs_coverage.py` |
+| [0070](0070-table-rank-is-the-ranking.md) | The table's # and the CSV's Rank keep the ranking's rank after a header sort | 2026-10-01 | Accepted | Frontend: `useTableView.ts` |
+| [0071](0071-analyze-frames-rows-off-screen.md) | A committed report moves the map only when none of its rows is in view | 2026-10-01 | Accepted | Frontend: `mapFraming.ts` |
+| [0072](0072-browser-joins-spans-at-local-midnight.md) | The browser joins a spanning window's two fetches at the reader's local midnight, not at the UTC boundary | 2026-10-01 | Accepted | Root: Key constraints; mirror row 11 |

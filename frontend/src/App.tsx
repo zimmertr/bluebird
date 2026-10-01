@@ -414,6 +414,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
+  // A committed report whose rows all stand outside the view moves the map to
+  // them; a view that shows one of them is the reader's and stays (the
+  // maintainer, 2026-10-01, #579). An app move, so it makes no link by itself.
+  // Keyed on the commit alone: a live knob re-presents the same field and must
+  // not pull the camera, and the tutorial's demonstration commits nothing.
+  useEffect(() => {
+    if (analysisSeq > 0) mapRef.current?.frameRowsIfNoneInView(results)
+    // Kept: listing `results` would move the map on every live knob.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisSeq])
+
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
   const bannerPx = preview.enabled ? 32 : 0

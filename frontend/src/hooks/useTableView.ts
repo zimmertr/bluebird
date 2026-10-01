@@ -257,6 +257,13 @@ export function useTableView({
   // wildfire row does.
   const fireWarnings = fire.warnings
   const closureWarnings = closure.warnings
+  // Each row stamped with its place in the RANKING before a header sort moves
+  // it, so the # column and the file's Rank name the same destination the
+  // marker and its popup do (the maintainer, 2026-10-01, #579; record 0070).
+  // A comparison's rows carry the same stamp already (`modelRowsFor`). Its own
+  // memo, keyed on the ranking alone, so a header sort reorders the same row
+  // objects rather than minting new ones for the memoized table.
+  const rankedRows = useMemo(() => results.map((r, i) => ({ ...r, rank: i + 1 })), [results])
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
       detailSort.key === WILDFIRE_KEY
@@ -266,9 +273,9 @@ export function useTableView({
           : detailSort.key === MODEL_KEY
             ? ((r as ModelRow).modelLabel ?? null)
             : r[detailSort.key]
-    const base = comparedTableRows ?? results
+    const base: DestinationResult[] = comparedTableRows ?? rankedRows
     return [...base].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
-  }, [results, comparedTableRows, detailSort, fireWarnings, closureWarnings])
+  }, [rankedRows, comparedTableRows, detailSort, fireWarnings, closureWarnings])
 
   // Columns displayed in the table (filtered by visibility). The wildfire
   // column and then the Closure column come last, each shown by default and

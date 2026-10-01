@@ -1031,9 +1031,12 @@ describe('a window that crosses the archive boundary', () => {
     expect(`${urls[1].origin}${urls[1].pathname}`).toBe(FORECAST_URL)
     // Disjoint: the archive answers through the hour BEFORE the seam, because
     // both bounds are inclusive and a repeated hour would be counted twice.
+    // The seam is the reader's local midnight before the UTC boundary (#579):
+    // May 26 starts at 07:00Z in the pinned Pacific zone, so no local day is
+    // split between the two endpoints.
     expect(urls[0].searchParams.get('start_hour')).toBe('2026-05-25T22:00')
-    expect(urls[0].searchParams.get('end_hour')).toBe('2026-05-26T23:00')
-    expect(urls[1].searchParams.get('start_hour')).toBe('2026-05-27T00:00')
+    expect(urls[0].searchParams.get('end_hour')).toBe('2026-05-26T06:00')
+    expect(urls[1].searchParams.get('start_hour')).toBe('2026-05-26T07:00')
     expect(urls[1].searchParams.get('end_hour')).toBe('2026-05-27T01:00')
     // The model rides only on the half a model answered.
     expect(urls[0].searchParams.get('models')).toBeNull()
@@ -1048,6 +1051,23 @@ describe('a window that crosses the archive boundary', () => {
     expect(out[0]?.precip_total_in).toBe(1.5)
     expect(out[0]?.precip_max_in_hr).toBe(0.8)
     expect(out[0]?.series?.times).toHaveLength(4)
+  })
+
+  // East of UTC the boundary falls at 02:00 local on May 27, so the join moves
+  // back to that day's midnight, 22:00Z on May 26.
+  it('joins at the local midnight east of UTC too', async () => {
+    const before = process.env.TZ
+    process.env.TZ = 'Europe/Berlin'
+    try {
+      const fetchSpy = bothHalves()
+      vi.stubGlobal('fetch', fetchSpy)
+      await fetchWeather(coords, SPANNING.startMs, SPANNING.endMs, OPTS)
+      const urls = fetchSpy.mock.calls.map((c) => new URL(String((c as unknown[])[0])))
+      expect(urls[0].searchParams.get('end_hour')).toBe('2026-05-26T21:00')
+      expect(urls[1].searchParams.get('start_hour')).toBe('2026-05-26T22:00')
+    } finally {
+      process.env.TZ = before
+    }
   })
 
   it('drops a location whose halves disagree on units', async () => {

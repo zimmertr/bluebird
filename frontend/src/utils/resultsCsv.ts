@@ -411,9 +411,10 @@ export function buildResultsCsv(
     return cells
   })
   const body = rows.map((row, i) => {
-    // The destination's rank, not the row's position. A comparison writes one
-    // row per model, so counting positions numbered one destination's rows as
-    // though they were several places — the defect the table's # column had.
+    // The destination's rank, not the row's position, the same number as the
+    // table's # column and the marker. A comparison writes one row per model,
+    // and a header sort reorders the rows, so a position would name another
+    // place in either case.
     const rank = (row as ModelRow).rank ?? i + 1
     const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))

@@ -17,7 +17,7 @@ describe('useAnalysisRun', () => {
     })
     expect(result.current.loading).toBe(true)
     expect(result.current.statusMessage).toBe('Searching…')
-    act(() => result.current.onProgress(3, 4, 'Retrieving Forecasts (3 of 4)…'))
+    act(() => result.current.onProgress(3, 4, 'Retrieving forecasts (3 of 4)…'))
     expect(result.current.progress).toEqual({ processed: 3, total: 4, percent: 75 })
     await act(async () => {
       release()

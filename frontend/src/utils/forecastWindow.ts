@@ -97,10 +97,11 @@ export type WindowSource = 'forecast' | 'archive' | 'spanning'
  * The instant the archive's hours end and the forecast endpoint's begin.
  *
  * `now - pastDataDays`, floored to the UTC day, because every fetch sends UTC
- * hour stamps. One definition for three readers: `windowSource` classifies a
- * window against it, `fetchWeather` splits a spanning window at it, and the
- * panel names the two days it falls between. A second spelling could put the
- * seam an hour from where the classification believed it was.
+ * hour stamps. One definition for every reader: `windowSource` classifies a
+ * window against it, and `archiveSeamMs` below derives from it the local
+ * midnight where `fetchWeather` joins a spanning window and the panel names
+ * the two days the join falls between. A second spelling could put the seam
+ * an hour from where the classification believed it was.
  *
  * Mirror of `archive_boundary` in `backend/app/limits.py`.
  */
@@ -109,6 +110,37 @@ export function archiveBoundaryMs(
   limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
 ): number {
   return Math.floor((nowMs - limits.pastDataDays * DAY_MS) / DAY_MS) * DAY_MS
+}
+
+/**
+ * Where the browser joins a spanning window's two fetches: the first hour of
+ * the reader's LOCAL day that the boundary instant falls in (#579, the
+ * maintainer, 2026-10-01). Record: docs/decisions/0072.
+ *
+ * The boundary itself stays a UTC midnight, on both sides, because the backend
+ * has no reader's zone and classifies by it. Splitting AT it put the seam
+ * mid-afternoon of a local day west of Greenwich (17:00 in Seattle), so the day
+ * the panel names as the model's first was mostly the archive's. Moving the
+ * join back to that day's local midnight makes the whole day the forecast
+ * endpoint's, which `ARCHIVE_STRADDLE_DAYS` says it holds, and makes the panel's
+ * seam sentence (`archiveSeamPhrase`) exactly true.
+ *
+ * Two guards. The join never moves more than the straddle tolerance before the
+ * boundary, which a 25-hour local day could otherwise ask for, so a spanning
+ * window, which starts before that, always has an archive half. And it lands
+ * on the hour, rounded up: Open-Meteo's stamps are whole UTC hours, so in a
+ * zone on a half-hour offset the local day's first stamp is the first whole
+ * hour after its midnight.
+ */
+export function archiveSeamMs(
+  nowMs: number = Date.now(),
+  limits: WindowLimits = FALLBACK_WINDOW_LIMITS,
+): number {
+  const boundary = archiveBoundaryMs(nowMs, limits)
+  const at = new Date(boundary)
+  const localMidnight = new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()
+  const earliest = boundary - ARCHIVE_STRADDLE_DAYS * DAY_MS
+  return Math.ceil(Math.max(localMidnight, earliest) / HOUR_MS) * HOUR_MS
 }
 
 /**

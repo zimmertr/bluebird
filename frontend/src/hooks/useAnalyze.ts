@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { AnalyzeRequest } from '../types'
-import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
+import { ELEVATION_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
@@ -80,10 +80,11 @@ export function useAnalyze(
     }
     const view = () => analyzedView(request, kind, facts, Date.now(), windowLimits)
     // Seed the first-phase label so nothing generic ("Starting…") flashes in
-    // the click-to-first-event gap: a polygon run opens on discovery, a custom
-    // or refresh run goes straight to retrieval (upgraded to the counted label
-    // once the up-front progress lands).
-    const seed = request.polygon ? SEARCHING_MESSAGE : 'Retrieving Forecasts…'
+    // the click-to-first-event gap: a polygon run opens on discovery, and a
+    // custom or refresh run on the elevation lookup it waits on first. Either
+    // gives way to the counted retrieval label once discovery announces the
+    // field.
+    const seed = request.polygon ? SEARCHING_MESSAGE : ELEVATION_MESSAGE
     // No server fallback (#240). An OpenMeteoUnreachable used to reroute the
     // whole analysis through POST /api/analyze/stream on the pod's shared
     // quota: a public quota-amplification surface no ordinary visitor ever

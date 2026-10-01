@@ -134,11 +134,13 @@ describe('one analysis', () => {
 })
 
 describe('what the reader sees', () => {
-  it('opens a ring on the search label and a custom list on retrieval', async () => {
+  // A run with no polygon waits first on the pod's elevation lookup, and says
+  // so rather than claiming to be retrieving forecasts already (#579).
+  it('opens a ring on the search label and a custom list on the elevation label', async () => {
     const ring = { type: 'Polygon' as const, coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
     const cases: [AnalyzeRequest, string][] = [
       [{ ...REQUEST, polygon: ring, destination_types: ['peak'] }, SEARCHING_MESSAGE],
-      [REQUEST, 'Retrieving Forecasts…'],
+      [REQUEST, 'Retrieving elevation…'],
     ]
     for (const [request, seed] of cases) {
       // The server holds its answer, so the label the run opened on is on screen.

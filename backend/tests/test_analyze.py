@@ -663,7 +663,7 @@ def test_analyze_stream_custom_happy_path_emits_result(stub_upstreams):
     assert len(result_events) == 1
     assert result_events[0]["data"]["total_queried"] == 2
     # The count is announced up front via an initial 0-progress event, so the
-    # overlay names it ("Retrieving 2 Forecasts…") without a count-less flash.
+    # overlay names it ("Retrieving 2 forecasts…") without a count-less flash.
     progress_events = [e for e in events if e["type"] == "progress"]
     assert progress_events[0]["processed"] == 0
     assert progress_events[0]["total"] == 2
@@ -691,7 +691,7 @@ def test_analyze_stream_polygon_searches_then_announces_count(monkeypatch, stub_
     statuses = [e["message"] for e in events if e["type"] == "status"]
     # Discovery shows only the generic label, and it precedes the first progress
     # event (which carries the count) — no count-less "Retrieving…" in between.
-    assert "Searching for Destinations…" in statuses
+    assert "Searching for destinations…" in statuses
     assert types.index("status") < types.index("progress")
     first_progress = next(e for e in events if e["type"] == "progress")
     assert first_progress["processed"] == 0
@@ -723,7 +723,7 @@ def test_analyze_stream_mirror_failover_rides_the_detail_field(monkeypatch, stub
     assert detail_events == [
         {
             "type": "status",
-            "message": "Searching for Destinations…",
+            "message": "Searching for destinations…",
             "detail": "Trying backup map server 2 of 3…",
         }
     ]
@@ -844,7 +844,7 @@ def test_analyze_stream_union_emits_search_then_mixed_result(monkeypatch, stub_u
     resp = client.post("/api/analyze/stream", json=body)
     events = [json.loads(line[len("data: "):]) for line in resp.text.splitlines() if line.startswith("data: ")]
     statuses = [e["message"] for e in events if e["type"] == "status"]
-    assert "Searching for Destinations…" in statuses
+    assert "Searching for destinations…" in statuses
     first_progress = next(e for e in events if e["type"] == "progress")
     assert first_progress["total"] == 2
     result = next(e for e in events if e["type"] == "result")["data"]

@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnalyzeRequest, DestinationResult } from '../types'
-import { discoverCandidates, readErrorBody, runAnalysisPipeline, type PipelineOptions } from './analysisPipeline'
+import {
+  DISCOVERY_UNAVAILABLE_MESSAGE,
+  UNDESCRIBED_FAILURE_MESSAGE,
+  discoverCandidates,
+  readErrorBody,
+  runAnalysisPipeline,
+  type PipelineOptions,
+} from './analysisPipeline'
 import { AnalysisRefusalError, runClientAnalysis } from './clientAnalyze'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { FORECAST_REUSE_MS, type HeldForecasts } from './forecastReuse'
@@ -75,8 +82,20 @@ describe('readErrorBody', () => {
     expect(refusal.refusal).toMatchObject({ found: 2000 })
   })
 
-  it('falls back to the status when the body says nothing', async () => {
-    expect((await readErrorBody(fakeResponse({ raw: 'not json' }, 502))).message).toBe('HTTP 502')
+  // A body the pod did not write says nothing; the reader still gets one of
+  // the pod's own sentences rather than "HTTP 502" (#579).
+  it('says the map service is unavailable for a 502 or 504 with nothing in it', async () => {
+    expect((await readErrorBody(fakeResponse({ raw: 'not json' }, 502))).message).toBe(
+      'OpenStreetMap is not available. Try again later.',
+    )
+    expect((await readErrorBody(fakeResponse({ raw: '<html>' }, 504))).message).toBe(DISCOVERY_UNAVAILABLE_MESSAGE)
+  })
+
+  it('says something went wrong for any other status with nothing in it', async () => {
+    expect((await readErrorBody(fakeResponse({ raw: 'not json' }, 500))).message).toBe(
+      'Something went wrong. Try again later.',
+    )
+    expect((await readErrorBody(fakeResponse({}, 503))).message).toBe(UNDESCRIBED_FAILURE_MESSAGE)
   })
 })
 

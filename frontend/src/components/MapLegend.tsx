@@ -25,6 +25,7 @@ import {
 } from '../styles'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import type { LabelledScale } from '../utils/colors'
+import { gridPaints } from '../utils/forecastGrid'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
 import { IEM_HREF } from '../utils/radar'
 import { legendBottomPx } from '../utils/resultsSheet'
@@ -176,7 +177,13 @@ export default function MapLegend({
   timelineShown,
 }: MapLegendProps) {
   const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
-  const { gridPainted, gridCued, gridFailed, gridLegend } = grid
+  // The grid's states mean nothing under a ranking it cannot paint, so the
+  // grid neither keys the metric nor gets a row of its own then.
+  const gridShows = gridPaints(sortBy)
+  const gridPainted = gridShows && grid.gridPainted
+  const gridCued = gridShows && grid.gridCued
+  const gridFailed = gridShows && grid.gridFailed
+  const { gridLegend } = grid
   // ONE box, gaining and losing sections as the report and the
   // layers change (#454). It was two — the layer rows in one, the
   // six-row metric key in another — which cost a border, a gap and

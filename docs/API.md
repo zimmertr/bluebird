@@ -823,9 +823,9 @@ curl -N https://bluebirdforecast.com/api/analyze/stream \
 ```
 
 ```
-data: {"type": "status", "message": "Searching for Destinations…"}
+data: {"type": "status", "message": "Searching for destinations…"}
 
-data: {"type": "status", "message": "Searching for Destinations…", "detail": "Trying backup map server 2 of 3…"}
+data: {"type": "status", "message": "Searching for destinations…", "detail": "Trying backup map server 2 of 3…"}
 
 data: {"type": "progress", "processed": 0, "total": 120, "percent": 0}
 

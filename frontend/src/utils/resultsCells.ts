@@ -147,9 +147,10 @@ export function windyCellUrl(
 }
 
 /**
- * The destination's own rank when a comparison repeats it down several rows,
- * and the display position otherwise, which is what the two are when a
- * destination has one row.
+ * The destination's place in the ranking, which every table row carries
+ * (`useTableView` stamps it before a header sort, and a comparison's rows
+ * repeat it down each destination's group). The position is only the fallback
+ * for a row handed in without one.
  */
 export function rankText(row: DestinationResult, index: number): string {
   return String((row as ModelRow).rank ?? index + 1)

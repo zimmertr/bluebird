@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { composeOverlay, OverlayInputs, SEARCHING_MESSAGE } from './analyzeOverlay'
+import { composeOverlay, ELEVATION_MESSAGE, OverlayInputs, RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from './analyzeOverlay'
 
 const idle: OverlayInputs = {
   analyzeLoading: false,
@@ -21,17 +21,32 @@ describe('composeOverlay', () => {
     })
     expect(view).toEqual({
       visible: true,
-      message: 'Searching for Destinations…',
+      message: 'Searching for destinations…',
       detail: null,
       progress: null,
     })
+  })
+
+  // The three phase labels in sentence case, as the rest of the app writes
+  // (the maintainer, 2026-10-01, #579), each spelled once beside the others.
+  it('spells the phase labels in sentence case', () => {
+    expect(SEARCHING_MESSAGE).toBe('Searching for destinations…')
+    expect(ELEVATION_MESSAGE).toBe('Retrieving elevation…')
+    expect(RETRIEVING_MESSAGE).toBe('Retrieving forecasts…')
+  })
+
+  // A run with no polygon waits on the elevation lookup first, and no staged
+  // "still searching" line belongs under it: it searches for nothing.
+  it('shows the elevation label as it is, with nothing staged under it', () => {
+    const view = composeOverlay({ ...idle, analyzeLoading: true, statusMessage: ELEVATION_MESSAGE, elapsedS: 60 })
+    expect(view).toEqual({ visible: true, message: 'Retrieving elevation…', detail: null, progress: null })
   })
 
   it('falls back to a generic retrieving label in the status gap', () => {
     const view = composeOverlay({ ...idle, analyzeLoading: true })
     expect(view).toEqual({
       visible: true,
-      message: 'Retrieving Forecasts…',
+      message: 'Retrieving forecasts…',
       detail: null,
       progress: null,
     })
@@ -46,7 +61,7 @@ describe('composeOverlay', () => {
     })
     expect(view).toEqual({
       visible: true,
-      message: 'Retrieving 200 Forecasts…',
+      message: 'Retrieving 200 forecasts…',
       detail: null,
       progress: { processed: 50, total: 200, percent: 25 },
     })
@@ -58,7 +73,7 @@ describe('composeOverlay', () => {
       analyzeLoading: true,
       rankedProgress: { processed: 0, total: 1 },
     })
-    expect(view.visible && view.message).toBe('Retrieving Forecast…')
+    expect(view.visible && view.message).toBe('Retrieving forecast…')
   })
 
   it('shows reassurance once a search runs long', () => {
@@ -78,13 +93,13 @@ describe('composeOverlay', () => {
 
   it('never stages the searching reassurance outside the search phase', () => {
     // The retrieval gap (statusMessage null) and a custom run's seeded
-    // "Retrieving Forecasts…" heading must not claim we are still searching.
+    // "Retrieving forecasts…" heading must not claim we are still searching.
     const gap = composeOverlay({ ...idle, analyzeLoading: true, elapsedS: 30 })
     expect(gap.visible && gap.detail).toBe(null)
     const custom = composeOverlay({
       ...idle,
       analyzeLoading: true,
-      statusMessage: 'Retrieving Forecasts…',
+      statusMessage: 'Retrieving forecasts…',
       elapsedS: 30,
     })
     expect(custom.visible && custom.detail).toBe(null)

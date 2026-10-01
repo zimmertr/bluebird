@@ -26,7 +26,7 @@ describe('AnalysisOverlay', () => {
   // when the quota is spent again.
   it('shows the batch percentage and the quota line instead of the clock', () => {
     render(<AnalysisOverlay {...FETCHING} />)
-    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 Forecasts…Open-Meteo quota: resuming in 45s')
+    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 forecasts…Open-Meteo quota: resuming in 45s')
     expect(screen.getByText('Open-Meteo quota: resuming in 45s')).toBeTruthy()
     expect(screen.getByText('25%')).toBeTruthy()
     expect(screen.queryByText(/^Elapsed/)).toBeNull()

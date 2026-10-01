@@ -68,6 +68,20 @@ export function pointsWithinView(
 }
 
 /**
+ * Is at least one of these already-projected points on the canvas?
+ *
+ * The question a committed report asks before it moves the map (#579): a
+ * camera that already shows one of its rows is the reader's, and is left
+ * alone; a camera that shows none of them is looking at somewhere the report
+ * says nothing about. Edge-inclusive and with no inset, because a marker on
+ * the edge is a marker the reader can see. Projected pixels for the reason
+ * `pointsWithinView` gives. An empty list answers false.
+ */
+export function anyPointInView(points: { x: number; y: number }[], width: number, height: number): boolean {
+  return points.some((p) => p.x >= 0 && p.x <= width && p.y >= 0 && p.y <= height)
+}
+
+/**
  * A framing call's inset, with the results sheet's share of the bottom edge
  * added to it (#249).
  *

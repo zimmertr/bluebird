@@ -129,6 +129,25 @@ describe('the Analyze button', () => {
     expect(messages().join(' ')).toMatch(line)
   })
 
+  // A line pasted twice is one destination, in the count under the box too.
+  it('counts a repeated pasted line once under the coordinates box', () => {
+    render(<ControlPanel {...props({ customCsv: '46.85,-121.76\n46.85,-121.76\n46.2,-121.49' })} />)
+    expect(screen.getByText('2 destinations parsed')).toBeTruthy()
+  })
+
+  // A finished ring with no type checked beside a pin: Analyze stays open, and
+  // the types line says as information that the ring adds nothing (#579).
+  it('stays enabled beside a finished ring with no type, and says the ring adds nothing', () => {
+    render(<ControlPanel {...props({ hasPins: true, drawPointCount: 3, destinationTypes: [] })} />)
+    expect((analyze() as HTMLButtonElement).disabled).toBe(false)
+    expect(messages().join(' ')).toMatch(/destination type/)
+  })
+
+  it('says nothing about the ring while it is still being drawn', () => {
+    render(<ControlPanel {...props({ hasPins: true, drawPointCount: 3, destinationTypes: [], drawing: true })} />)
+    expect(messages().join(' ')).not.toMatch(/destination type/)
+  })
+
   it('is enabled by a searched place alone, and analyzes on a press', async () => {
     const onAnalyze = vi.fn()
     const { user } = render(<ControlPanel {...props({ hasPins: true, onAnalyze })} />)

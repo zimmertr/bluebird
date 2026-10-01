@@ -30,6 +30,7 @@ function inputs(over: Partial<PanelMessageInputs> = {}): PanelMessageInputs {
     source: null,
     aqiCoverage: 'full',
     blockers: [],
+    ringIgnored: false,
     pointsNeeded: 0,
     freezeGaps: [],
     maxAreaKm2: 100_000,
@@ -223,6 +224,16 @@ describe('panelMessages', () => {
 
     it('keeps the order the gate gave', () => {
       expect(keys({ blockers: ['polygon', 'types'] })).toEqual(['blocker:polygon', 'blocker:types'])
+    })
+
+    // A finished ring with no type beside a pasted list: Analyze runs, and the
+    // same sentence says, as information, why the ring adds nothing (#579).
+    it('says the types line as information when the ring blocks nothing', () => {
+      expect(only({ ringIgnored: true })).toEqual({
+        key: 'ring:types',
+        text: 'Select at least one destination type for the polygon search.',
+        severity: 'info',
+      })
     })
   })
 

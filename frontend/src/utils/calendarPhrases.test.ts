@@ -135,11 +135,11 @@ describe('a window in another year', () => {
 })
 
 // Where a window crossing the archive boundary changes source. The two dates
-// are consecutive local days: the boundary is a UTC instant, and the
-// one-local-day straddle tolerance is what makes the day it lands in wholly the
-// forecast endpoint's. NOW is local noon on July 15 and the pinned zone is
-// Pacific, so the boundary instant (2026-05-21T00:00Z) lands on the afternoon of
-// May 20 there — the first local day the forecast endpoint answers whole.
+// are consecutive local days: the browser joins its two fetches at the local
+// midnight that starts the day the boundary instant falls in (#579). NOW is
+// local noon on July 15 and the pinned zone is Pacific, so the boundary instant
+// (2026-05-21T00:00Z) lands on the afternoon of May 20 there, and the join at
+// that day's midnight makes May 20 the first day the forecast endpoint answers.
 describe('naming the archive seam', () => {
   const localMs = (s: string) => Date.parse(s)
 
@@ -152,6 +152,21 @@ describe('naming the archive seam', () => {
         NOW,
       ),
     ).toBe('Archive data to May 19, NOAA GFS from May 20.')
+  })
+
+  // The browser joins the two fetches at the local midnight before the UTC
+  // boundary, so the two days named are whole on either side of UTC (#579).
+  // East of it the boundary falls at 02:00 on May 21, which is that day's.
+  it('names whole local days east of UTC too', () => {
+    const before = process.env.TZ
+    process.env.TZ = 'Europe/Berlin'
+    try {
+      expect(
+        archiveSeamPhrase(localMs('2026-05-18T00:00'), localMs('2026-05-22T23:59'), 'NOAA GFS', NOW),
+      ).toBe('Archive data to May 20, NOAA GFS from May 21.')
+    } finally {
+      process.env.TZ = before
+    }
   })
 
   it('carries the year when the window does', () => {

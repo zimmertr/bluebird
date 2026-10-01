@@ -1,10 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import { place } from '../testSupport/fixtures'
-import { framePadding, pointsWithinView, restoredFramePoints } from './mapFraming'
+import { anyPointInView, framePadding, pointsWithinView, restoredFramePoints } from './mapFraming'
 
 const W = 800
 const H = 600
 const INSET = 60
+
+// A committed report moves the map only when the view shows none of its rows
+// (#579): one row on screen, even on the edge, keeps the reader's camera.
+describe('anyPointInView', () => {
+  it('answers yes when one row is on the canvas and the rest are off it', () => {
+    expect(anyPointInView([{ x: -50, y: 100 }, { x: 400, y: 300 }, { x: 900, y: 700 }], W, H)).toBe(true)
+  })
+
+  it('counts a row on the very edge as in view', () => {
+    expect(anyPointInView([{ x: 0, y: H }], W, H)).toBe(true)
+    expect(anyPointInView([{ x: W, y: 0 }], W, H)).toBe(true)
+  })
+
+  it('answers no when every row is off the canvas, on any side', () => {
+    expect(anyPointInView([{ x: -1, y: 300 }, { x: W + 1, y: 300 }, { x: 400, y: -1 }, { x: 400, y: H + 1 }], W, H)).toBe(false)
+  })
+
+  it('answers no for no rows; the map handle guards on having any', () => {
+    expect(anyPointInView([], W, H)).toBe(false)
+  })
+})
 
 describe('pointsWithinView', () => {
   it('accepts a shape sitting well inside the canvas', () => {
