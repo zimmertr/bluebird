@@ -151,10 +151,12 @@ def _caches_clear():
     cache.DISCOVERY_CACHE.clear()
     cache.ENRICH_CACHE.clear()
     cache.FORECAST_CACHE.clear()
+    cache.GEOCODE_CACHE.clear()
     yield
     cache.DISCOVERY_CACHE.clear()
     cache.ENRICH_CACHE.clear()
     cache.FORECAST_CACHE.clear()
+    cache.GEOCODE_CACHE.clear()
 
 
 @pytest.fixture(autouse=True)

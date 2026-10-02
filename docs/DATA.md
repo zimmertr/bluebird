@@ -546,7 +546,9 @@ callers at roughly one request per second and explicitly forbids autocomplete,
 which a search-as-you-type box violates by construction. The same policy
 requires an identifying `User-Agent`, a header browsers refuse to let a page
 set, which is why this one lookup is proxied through Bluebird Forecast's server instead
-of running in your browser the way the weather fetch does.
+of running in your browser the way the weather fetch does. The policy also asks
+callers to cache results, so the server keeps each answer for about ten minutes
+and a repeat of the same search is answered without asking Nominatim again.
 
 ## Map tiles
 

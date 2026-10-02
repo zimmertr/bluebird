@@ -313,7 +313,9 @@ def test_geocode_503_when_gate_queue_is_full(monkeypatch):
     monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
 
     assert client.get("/api/geocode", params={"q": "Baker"}).status_code == 200
-    resp = client.get("/api/geocode", params={"q": "Baker"})
+    # A different place, because a repeat of the first is answered from the
+    # geocode cache without reaching the gate.
+    resp = client.get("/api/geocode", params={"q": "Rainier"})
     assert resp.status_code == 503
     assert int(resp.headers["retry-after"]) >= 1
     assert resp.json()["error"] == {"code": "busy", "retryable": True}

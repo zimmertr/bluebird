@@ -284,7 +284,8 @@ because Nominatim's usage policy asks for a real User-Agent, which a browser
 fetch cannot set. That policy also forbids autocomplete, so call it on an
 explicit search action, never per keystroke. The pod paces its own calls to
 Nominatim's rate; when that queue is full the route answers `503` with
-`error.code` `busy`.
+`error.code` `busy`. A repeat of the same `q` and `limit` within about ten
+minutes is answered from the pod's cache and never joins that queue.
 
 ### Which build is running
 
