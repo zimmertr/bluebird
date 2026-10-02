@@ -758,22 +758,6 @@ export const SWATCH_RAMP_TICK =
  */
 export const SWATCH_EDGE = '#475569'
 
-/**
- * The rank digit printed in a map marker, as paint VALUES for its MapLibre
- * symbol layer rather than classes, because the marker is drawn by the map.
- *
- * The marker's fill is the band its value falls in, so the digit lands on every
- * colour every scale has. White straight on those measured 1.05:1 (cloud
- * cover's slate-50) to 3.96:1 (the purple top band), and cleared AA only on
- * AQI's maroon: a reader could see a marker and not its number (#576). A dark
- * ink fails the other way, on the maroon and the purple. So the digit wears the
- * halo the marker's name label already wears, and the halo is what the digit
- * stands on: white on slate-900 measures 17.85:1, whatever band is under it.
- * `colors.test.ts` measures every band against both, so a new band or a new ink
- * fails there rather than shipping unmeasured.
- */
-export const RANK_INK = { color: '#ffffff', halo: '#0f172a', haloWidth: 1.5 } as const
-
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */

@@ -110,5 +110,5 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0088](0088-commit-closes-every-popup.md) | A committed report closes every popup on the map, pinned ones included, and the forecast player is an overlay a popup avoids | 2026-10-01 | Accepted | Frontend: `hooks/useClosePopupsOnCommit.ts` |
 | [0089](0089-focus-follows-the-replacement.md) | The keyboard goes where the pressed control went: into a popover, back to its trigger, and to whatever replaces a control that leaves | 2026-10-01 | Accepted | Frontend: `hooks/useFocusHandoff.ts`, `hooks/usePopover.ts` |
 | [0090](0090-named-by-the-words-it-shows.md) | A control is named by the words it shows, and a sentence about where it goes is its description | 2026-10-01 | Accepted | Frontend: `components/ResultsTableRow.tsx` |
-| [0091](0091-rank-digit-on-a-halo.md) | The marker's rank digit stands on a halo | 2026-10-01 | Proposed | `docs/STYLES.md` |
+| [0091](0091-rank-digit-stays-plain-white.md) | The marker's rank digit stays plain white, with no halo | 2026-10-01 | Accepted | `docs/STYLES.md` |
 | [0092](0092-closure-dash-is-no-order-found.md) | The Closure dash means "no Forest Service order found", and the N/A hover names no place | 2026-10-01 | Accepted | Frontend: `utils/closureProximity.ts` |

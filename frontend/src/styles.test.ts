@@ -1326,15 +1326,13 @@ describe('tap targets', () => {
 
 describe('every role', () => {
   // Flattened so a role added later is covered without being listed.
-  // A role that is a paint VALUE for the map rather than a class list
-  // (`RANK_INK`'s halo width) is no recipe, so only strings are read.
-  const recipes: [string, string][] = Object.entries(STYLES)
-    .flatMap(([name, value]) =>
-      typeof value === 'string'
-        ? [[name, value] as [string, unknown]]
-        : Object.entries(value as Record<string, unknown>).map(([k, v]) => [`${name}.${k}`, v] as [string, unknown]),
-    )
-    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  const recipes: [string, string][] = Object.entries(STYLES).flatMap(([name, value]) =>
+    typeof value === 'string'
+      ? [[name, value] as [string, string]]
+      : Object.entries(value as Record<string, string>).map(
+          ([k, v]) => [`${name}.${k}`, v] as [string, string],
+        ),
+  )
 
   // The file warns about this in five places and it still nearly shipped: this
   // very PR first built BUTTON_DANGER out of TEXT.control, which carries
@@ -1929,14 +1927,6 @@ describe('the legend ramp', () => {
   // measurable. These are the measured ratios over all five metric ramps and
   // the eleven snow bands; a change to the scrim or the ink re-measures them.
   const RAMP_INK = { straightWhite: 1.45, straightDark: 2.04, onScrim: 6.49 }
-
-  // The marker's rank digit has the ramp's problem in paint: it lands on every
-  // band of every scale, and white straight on them ran 1.05:1 to 3.96:1
-  // (#576). It stands on the halo the marker's name label already wears.
-  // `colors.test.ts` measures the bands against both inks and this halo.
-  it('stands the marker rank digit on a halo rather than on its band', () => {
-    expect(STYLES.RANK_INK).toEqual({ color: '#ffffff', halo: '#0f172a', haloWidth: 1.5 })
-  })
 
   it('stands its numbers on a ground rather than on the ramp', () => {
     expect(RAMP_INK.straightWhite).toBeLessThan(4.5)

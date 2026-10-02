@@ -55,7 +55,6 @@ import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { closureWarningText } from '../utils/closureProximity'
 import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
-import { RANK_INK } from '../styles'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
 const CARD_W = 280
@@ -128,17 +127,6 @@ describe('mountResultsLayer', () => {
       'pending-destinations-labels',
     ])
     expect(stub.layout['results-wind'].visibility).toBe('none')
-  })
-
-  // White straight on the marker's band fell as low as 1.05:1, so the digit
-  // stands on a halo, the one ground that is the same under every band (#576).
-  it('draws the rank digit on the halo the design system measured', () => {
-    const { stub } = setup()
-    expect(stub.paint['results-rank']).toEqual({
-      'text-color': RANK_INK.color,
-      'text-halo-color': RANK_INK.halo,
-      'text-halo-width': RANK_INK.haloWidth,
-    })
   })
 
   it('draws the rows the results table ranks, for the hour under the playhead', () => {

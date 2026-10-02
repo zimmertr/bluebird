@@ -22,7 +22,6 @@ import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
 import { placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
-import { RANK_INK } from '../styles'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -171,13 +170,7 @@ export function mountResultsLayer(
     type: 'symbol',
     source: 'results',
     layout: { 'text-field': ['get', 'rank'], 'text-size': 10, 'text-font': ['Noto Sans Bold'] },
-    // On a halo, because no one ink clears AA on every band the marker can
-    // wear (RANK_INK says how far short white fell).
-    paint: {
-      'text-color': RANK_INK.color,
-      'text-halo-color': RANK_INK.halo,
-      'text-halo-width': RANK_INK.haloWidth,
-    },
+    paint: { 'text-color': '#fff' },
   })
   map.addLayer({
     id: 'results-labels',

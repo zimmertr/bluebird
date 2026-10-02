@@ -234,7 +234,6 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
-| The marker's rank digit clears AA | `styles.test.ts`, `colors.test.ts` | `RANK_INK` pins the halo; `colors.test.ts` measures every band of every scale against white, slate-900 and the halo |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
@@ -532,17 +531,13 @@ the alternative and is not measurable, which is the whole reason this one is
 pinned in `styles.test.ts` as `RAMP_INK` — change the ramp colours or the scrim's
 opacity and the number has to be taken again.
 
-**The marker's rank digit stands on a halo, for the same reason.** The digit is
-printed in the marker, whose fill is the band its value falls in, so its ground is
-every colour every scale has. White straight on those measured **1.05:1**
-(cloud cover's slate-50) to **3.96:1** (the purple top band), and cleared AA only
-on AQI's maroon (8.31:1) and the no-value grey (4.76:1); slate-900 fails the other
-way, at 2.15:1 on the maroon. So the digit wears the 1.5px slate-900 halo the
-marker's name label already wears, and the halo is what it stands on: white on
-slate-900 measures **17.85:1** under every band. `RANK_INK` in `styles.ts` holds
-the three paint values and `colors.test.ts` measures every band against both inks
-and the halo, so a band added to a scale is measured before it ships (#576).
-Record: [0091](decisions/0091-rank-digit-on-a-halo.md)
+**The marker's rank digit stays white on its band, with no halo.** It lands on
+every band colour every scale has, and white measures 1.05:1 to 3.96:1 on all but
+AQI's maroon and the no-value grey. A 1.5px slate-900 halo would lift it to
+17.85:1 and was built for #576; the maintainer declined it on sight as too heavy
+(2026-10-01). The ratios are dated evidence in the record, so the next session
+does not re-propose the same fix blind.
+Record: [0091](decisions/0091-rank-digit-stays-plain-white.md)
 
 ### Model coverage message
 

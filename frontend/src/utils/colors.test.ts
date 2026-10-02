@@ -11,7 +11,6 @@ import {
 import { COLUMNS } from './tableColumns'
 import { scaleTicks } from './legendRamp'
 import { NO_VALUE } from './resultFeatures'
-import { RANK_INK } from '../styles'
 import { LabelledScale } from './colors'
 import { FAMILY_KEYS, RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
 
@@ -698,28 +697,6 @@ function toRgb(hex: string): number[] {
 function round2(v: number): number {
   return Math.round(v * 100) / 100
 }
-
-// The rank digit printed in a marker (#576). The marker wears whatever band its
-// value falls in, so the digit's ground is every colour any scale has, and the
-// no-value grey. Measured 2026-10-01: white straight on those ran from 1.05:1
-// to 3.96:1 and cleared AA only on AQI's maroon, which is why the digit stands
-// on a halo. Recomputed from the scales, so a band added or moved fails here.
-describe('the rank digit in a marker', () => {
-  const grounds = [...new Set([...Object.values(METRIC_SCALE).flatMap((s) => s.colors), NO_VALUE])]
-
-  it('could not stand straight on the bands in any one ink', () => {
-    const onWhite = grounds.map((g) => round2(contrast('#ffffff', g)))
-    const onDark = grounds.map((g) => round2(contrast(RANK_INK.halo, g)))
-    expect(Math.min(...onWhite)).toBe(1.05)
-    expect(onWhite.filter((r) => r >= 4.5).sort((a, b) => a - b)).toEqual([4.76, 8.31])
-    expect(Math.min(...onDark)).toBe(2.15)
-  })
-
-  it('clears AA on its halo, whatever band is under it', () => {
-    expect(round2(contrast(RANK_INK.color, RANK_INK.halo))).toBe(17.85)
-    expect(RANK_INK.haloWidth).toBeGreaterThan(0)
-  })
-})
 
 describe('the cloud base ramp', () => {
   // The freezing level's six shades in its own order (TJ, #117): both are a
