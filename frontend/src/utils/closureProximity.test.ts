@@ -90,7 +90,9 @@ describe('closure notes', () => {
   })
 
   it('pins the approved N/A hover sentences', () => {
-    expect(CLOSURE_UNCOVERED_NOTE).toBe('Forest Service closure data is only available in Arizona, Idaho, Nevada, New Mexico, Oregon, Utah, Washington and Wyoming')
+    // Names no state: the outline covers only part of three of them and drops
+    // a region whose feed failed (#567).
+    expect(CLOSURE_UNCOVERED_NOTE).toBe('Outside the area the closure data covers')
     expect(CLOSURE_UNAVAILABLE_NOTE).toBe('The Forest Service is unreachable, so closure data is unavailable.')
   })
 })
