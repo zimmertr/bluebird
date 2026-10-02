@@ -11,9 +11,20 @@ const SEARCHING = { ...IDLE, loading: true, statusMessage: 'Searching' }
 const FETCHING = { ...IDLE, loading: true, progress: QUARTER, paceRemainingS: 45 }
 
 describe('AnalysisOverlay', () => {
-  it('draws nothing while no analysis runs', () => {
-    const { container } = render(<AnalysisOverlay {...IDLE} />)
-    expect(container.innerHTML).toBe('')
+  // Nothing but the empty live region, which is mounted for good so the first
+  // status line of a run is announced (#576).
+  it('draws no card while no analysis runs', () => {
+    render(<AnalysisOverlay {...IDLE} />)
+    expect(screen.getByRole('status').textContent).toBe('')
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+  })
+
+  it('says the first line of a run into a region that was already there', () => {
+    const { rerender } = render(<AnalysisOverlay {...IDLE} />)
+    const region = screen.getByRole('status')
+    rerender(<AnalysisOverlay {...SEARCHING} />)
+    expect(screen.getByRole('status')).toBe(region)
+    expect(region.textContent).toBe('Searching')
   })
 
   it('shows the phase line where there is no progress to count', () => {
@@ -22,11 +33,31 @@ describe('AnalysisOverlay', () => {
     expect(screen.getByText('Elapsed 0s')).toBeTruthy()
   })
 
+  // The button that started the run turns disabled under the keyboard, so the
+  // run's one control takes the focus rather than the body (#576).
+  it('hands the keyboard to Cancel when the button that started the run turns disabled', async () => {
+    const Analyze = ({ running }: { running: boolean }) => <button disabled={running}>Analyze</button>
+    const { user, rerender } = render(
+      <>
+        <Analyze running={false} />
+        <AnalysisOverlay {...IDLE} />
+      </>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Analyze' }))
+    rerender(
+      <>
+        <Analyze running />
+        <AnalysisOverlay {...SEARCHING} />
+      </>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
+  })
+
   // While the pacer sleeps, the detail line under the heading counts down to
   // when the quota is spent again.
   it('shows the batch percentage and the quota line instead of the clock', () => {
     render(<AnalysisOverlay {...FETCHING} />)
-    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 forecasts…Open-Meteo quota: resuming in 45s')
+    expect(screen.getByRole('status').textContent).toBe('Retrieving 4 forecasts… Open-Meteo quota: resuming in 45s')
     expect(screen.getByText('Open-Meteo quota: resuming in 45s')).toBeTruthy()
     expect(screen.getByText('25%')).toBeTruthy()
     expect(screen.queryByText(/^Elapsed/)).toBeNull()

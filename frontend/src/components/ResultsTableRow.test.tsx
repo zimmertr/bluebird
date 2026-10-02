@@ -13,10 +13,18 @@ import {
 import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
 import { pendingChartRow } from '../utils/resultsCells'
 import { TABLE } from '../styles'
+import { formatPrecipTotal } from '../metrics'
 import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
 
 type Props = ComponentProps<typeof ResultsTableRow>
+
+/** The text an element's `aria-describedby` points at. */
+const describedBy = (el: Element) =>
+  (el.getAttribute('aria-describedby') ?? '')
+    .split(' ')
+    .map((id) => document.getElementById(id)?.textContent ?? '')
+    .join(' ')
 
 const SORT_BY = 'precip_total_in'
 const COLUMNS = [
@@ -101,9 +109,9 @@ describe('a ranked row', () => {
 
   it('explains an uncovered wildfire cell on hover', () => {
     inTable(<ResultsTableRow {...props({ fireUncovered: true })} />)
-    const cells = within(screen.getByRole('row')).getAllByRole('cell')
-    const fire = cells.find((c) => c.textContent === 'N/A')!
-    expect(fire.querySelector('[title]')!.getAttribute('title')).toBe(FIRE_UNCOVERED_NOTE)
+    const note = screen.getByText('N/A')
+    expect(note.getAttribute('title')).toBe(FIRE_UNCOVERED_NOTE)
+    expect(describedBy(note)).toBe(FIRE_UNCOVERED_NOTE)
   })
 
   it('reads the analysis model in the Model column for a row no comparison tagged', () => {
@@ -118,9 +126,52 @@ describe('a ranked row', () => {
     expect(cell.getAttribute('title')).toBe(FREEZE_UNAVAILABLE_NOTE)
   })
 
-  it('links a metric cell to Windy under the row name', () => {
+  // The reason was an aria-label on a span with no role, which a screen reader
+  // does not read, so it reached a pointer and nobody else (#576). Now it is
+  // hidden text in the cell itself, read after the value.
+  it('gives an N/A reason to a screen reader as well as to the pointer', () => {
+    const freeze = displayedColumns(false, 'freeze_min_ft').find((c) => c.key === 'freeze_min_ft') as ColDef
+    inTable(<ResultsTableRow {...props({ columns: [freeze], row: { ...ROW, freeze_min_ft: null } })} />)
+    const value = within(screen.getByRole('row')).getByText('N/A')
+    expect(value.getAttribute('aria-label')).toBeNull()
+    expect(describedBy(value)).toBe(FREEZE_UNAVAILABLE_NOTE)
+    expect(value.closest('td')!.textContent).toBe(`N/A${FREEZE_UNAVAILABLE_NOTE}`)
+  })
+
+  // The link's name is the value it shows (#575). A label over it replaced the
+  // value in every metric cell, so a screen reader heard "Open Mount Adams on
+  // Windy" in place of every number, and voice control could not match one.
+  // The sentence rides as the description instead.
+  it('names a metric cell link by its value and describes where it goes', () => {
+    inTable(<ResultsTableRow {...props({ row: { ...ROW, precip_total_in: 0.42 } })} />)
+    const shown = formatPrecipTotal(0.42)
+    const value = within(screen.getByRole('row')).getByText(shown)
+    // Found by the name a reader hears, computed the way a browser does it.
+    const link = screen.getByRole('link', {
+      name: shown,
+      description: 'Open Mount Adams on Windy. Opens in a new tab.',
+    })
+    expect(link).toBe(value)
+    expect(link.getAttribute('aria-label')).toBeNull()
+  })
+
+  // One sentence per row, in the filler cell, rather than one per metric
+  // cell: the cells stay one value each when a screen reader reads the table.
+  it('keeps one copy of the Windy sentence per row, out of the cells', () => {
     inTable(<ResultsTableRow {...props()} />)
-    expect(screen.getByRole('link', { name: 'Open Mount Adams on Windy. Opens in a new tab.' })).toBeTruthy()
+    const copies = screen.getAllByText('Open Mount Adams on Windy. Opens in a new tab.')
+    expect(copies).toHaveLength(1)
+    expect(copies[0].closest('td')!.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  // Hidden with `invisible`, the remove button could not take focus, so Tab
+  // skipped it in every row (#576). It idles transparent instead.
+  it('puts the remove button in the Tab order', async () => {
+    const { user } = inTable(<ResultsTableRow {...props({ onRemove: vi.fn() })} />)
+    const remove = screen.getByRole('button', { name: 'Remove Mount Adams' })
+    expect(remove.className).not.toMatch(/(^|\s)invisible(\s|$)/)
+    await user.tab()
+    expect(document.activeElement).toBe(remove)
   })
 })
 
@@ -176,8 +227,9 @@ describe('the Closure cell', () => {
 
   it('reads N/A with the unavailable note when the check failed', () => {
     only({ closureStatus: 'unavailable' })
-    expect(cell().textContent).toBe('N/A')
-    expect(cell().querySelector('[title]')!.getAttribute('title')).toBe(CLOSURE_UNAVAILABLE_NOTE)
+    const value = within(cell()).getByText('N/A')
+    expect(value.getAttribute('title')).toBe(CLOSURE_UNAVAILABLE_NOTE)
+    expect(describedBy(value)).toBe(CLOSURE_UNAVAILABLE_NOTE)
   })
 
   // One clock for both flag columns: a check that answered stays still while

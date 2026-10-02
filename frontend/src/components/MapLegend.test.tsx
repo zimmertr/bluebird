@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react'
 import MapLegend from './MapLegend'
 import { render } from '../testSupport/render'
 import { rankedScale } from '../utils/colors'
+import { SMOKE_DENSITIES } from '../utils/smoke'
 
 const NONE = {
   showWildfires: false,
@@ -45,6 +46,18 @@ describe('MapLegend', () => {
     expect(at('Rain radar')).toBeGreaterThanOrEqual(0)
     expect(at('Rain radar')).toBeLessThan(at('Smoke'))
     expect(at('Smoke')).toBeLessThan(at('Temperature'))
+  })
+
+  // A chip shows a letter, and the word it stands for was its title alone,
+  // which reaches a pointer and nobody else (#576). The word is in the chip
+  // as hidden text too.
+  it('names each smoke density to a screen reader as well as on hover', () => {
+    render(<MapLegend {...BASE} overlays={SMOKE_AND_RADAR} />)
+    for (const density of SMOKE_DENSITIES) {
+      const chip = screen.getByTitle(density)
+      expect(chip.textContent).toBe(`${density[0]}${density}`)
+      expect(document.getElementById(chip.getAttribute('aria-describedby')!)!.textContent).toBe(density)
+    }
   })
 
   // Colours over a field of N/A explain nothing, so the key stays away.

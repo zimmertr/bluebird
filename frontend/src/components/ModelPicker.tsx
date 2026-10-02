@@ -140,6 +140,11 @@ export default function ModelPicker({
     triggerRef,
     preferredWidth: PREFERRED_WIDTH_PX,
     remeasure: [models, chipIds.length],
+    // The list rather than the chip row, because the list is what an opened
+    // picker is for; Shift+Tab reaches the chips above it. The list itself
+    // rather than an option, so `aria-activedescendant` names the highlighted
+    // row and the arrow keys stay on one element.
+    initialFocusRef: listRef,
   })
 
   function openList() {
@@ -148,11 +153,10 @@ export default function ModelPicker({
     setOpen(true)
   }
 
-  // Every close from inside the panel hands the keyboard back to the trigger.
-  // A press outside does not, and that one is `usePopover`'s.
+  // Every close from inside the panel hands the keyboard back to the trigger:
+  // the panel unmounts under it, and `usePopover` returns an orphaned focus.
   function close() {
     setOpen(false)
-    triggerRef.current?.focus()
   }
 
   /** Apply one rule's answer. The ranking setter clamps the window, so it is
@@ -178,18 +182,10 @@ export default function ModelPicker({
 
   // The panel is on screen only once `usePopover` has placed it, and on the
   // first open that is a render after `open` turns true (a later open starts
-  // from the previous box). So the two effects below key on the panel being
-  // drawn: keyed on `open`, the first open would look for a list that does not
-  // exist yet and leave the keyboard on the trigger.
+  // from the previous box). So the effect below keys on the panel being drawn:
+  // keyed on `open`, the first open would look for a list that does not exist
+  // yet.
   const shown = open && box !== null
-
-  // Focus the list itself rather than an option, so `aria-activedescendant`
-  // names the highlighted row and the arrow keys stay on one element. The list
-  // rather than the chip row, because the list is what an opened picker is for;
-  // Shift+Tab reaches the chips above it.
-  useEffect(() => {
-    if (shown) listRef.current?.focus()
-  }, [shown])
 
   useEffect(() => {
     if (!shown) return

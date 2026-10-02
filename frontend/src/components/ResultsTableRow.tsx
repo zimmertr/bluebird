@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, useEffect, useState } from 'react'
+import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DestinationResult } from '../types'
 import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY, type ColDef } from '../utils/tableColumns'
@@ -25,7 +25,7 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/resultsCells'
-import { CHOICE_INPUT, ICON_ACTION, LINK_ACTION, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, ICON_ACTION, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 
@@ -40,16 +40,20 @@ import { sized } from './sizedCell'
 // both, the row-remove rule in index.css). `rank` is "—" for pending rows.
 // Both faces sit in one grid cell (TABLE.rankStack) so the column never
 // changes width when they trade places; see the role's comment.
+//
+// The × idles at no opacity rather than `invisible`, because a hidden element
+// cannot take focus and the keyboard could not reach it at all (#576). It
+// shows as the row's own keyboard focus does, the way it shows on hover.
 function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; onRemove?: () => void }) {
   return (
     <td className={`${TABLE.cell} tabular-nums whitespace-nowrap`}>
       {onRemove ? (
         <span className={TABLE.rankStack}>
-          <span className={`${TEXT.caption} ${TABLE.rankFace} group-hover:invisible`}>{rank}</span>
+          <span className={`${TEXT.caption} ${TABLE.rankFace} ${TABLE.rankIdleFace}`}>{rank}</span>
           <button
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className={`row-remove ${TABLE.rankFace} invisible group-hover:visible leading-none ${ICON_ACTION} cursor-pointer`}
+            className={`row-remove ${TABLE.rankFace} ${TABLE.removeFace} leading-none ${ICON_ACTION} cursor-pointer`}
           >
             <IconClose />
           </button>
@@ -155,7 +159,20 @@ interface CellContext {
   closureUncovered: boolean
   // Centres the map on the row: the name button's fly-to.
   onCenter: () => void
+  // The row's own id, from `useId`, so it holds still across renders of a
+  // memoized row: the hidden sentences are found by ids built from it.
+  rowId: string
 }
+
+// The id of a cell's hidden note.
+//
+// A cell's note is its approved hover `title`, and the same sentence as hidden
+// text beside it (#576). It was an `aria-label` on the span, which a screen
+// reader does not read on an element with no role, so the reason reached a
+// pointer and nobody else. The hidden copy sits in the cell, where reading the
+// table reaches it after the value. Each site spells its own title attribute, so the
+// approved-tooltip count in `styles.test.ts` keeps seeing every one.
+const noteId = (rowId: string, colKey: string) => `${rowId}-${colKey}-note`
 
 // The wildfire column's key is virtual, its value living in the fire lookup
 // rather than on the row. While the check is in flight every cell ticks the
@@ -189,11 +206,16 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
   } else if (note) {
     // The two unlinked states keep their hover text: N/A means either "never
     // checked here" or "the check failed", and the note is the only thing
-    // that says which. `aria-label` is the same sentence for a screen reader.
+    // that says which. A screen reader gets the same sentence as hidden text.
     body = (
-      <span title={note} aria-label={note} className="cursor-help">
-        {text}
-      </span>
+      <>
+        <span title={note} aria-describedby={noteId(ctx.rowId, colKey)} className="cursor-help">
+          {text}
+        </span>
+        <span id={noteId(ctx.rowId, colKey)} className={SR_ONLY}>
+          {note}
+        </span>
+      </>
     )
   }
   return <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>{sized(ctx.widths, colKey, body)}</td>
@@ -230,9 +252,14 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
     // An order with no page of its own keeps the hover sentence, like the
     // two N/A states: the note is the only thing that says which one it is.
     body = (
-      <span title={note} aria-label={note} className="cursor-help">
-        {text}
-      </span>
+      <>
+        <span title={note} aria-describedby={noteId(ctx.rowId, colKey)} className="cursor-help">
+          {text}
+        </span>
+        <span id={noteId(ctx.rowId, colKey)} className={SR_ONLY}>
+          {note}
+        </span>
+      </>
     )
   }
   // A named order is capped and clipped while the column is unsized; a width
@@ -282,9 +309,18 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
         {sized(
           ctx.widths,
           key,
-          <span title={missing.cause} aria-label={missing.cause} className={missing.cause ? 'cursor-help' : undefined}>
-            {missing.text}
-          </span>,
+          missing.cause ? (
+            <>
+              <span title={missing.cause} aria-describedby={noteId(ctx.rowId, key)} className="cursor-help">
+                {missing.text}
+              </span>
+              <span id={noteId(ctx.rowId, key)} className={SR_ONLY}>
+                {missing.cause}
+              </span>
+            </>
+          ) : (
+            missing.text
+          ),
         )}
       </td>
     )
@@ -308,11 +344,15 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
             href={windyCellUrl(row, key, col.windyLayer, ctx.modelId, ctx.times)}
             target="_blank"
             rel="noopener noreferrer"
-            // The link text is the measurement itself, so unlabelled this
-            // announces as "link, 0.0000". The label names the destination
-            // and the site, never the layer: a layer name would be a metric
-            // spelled at a call site, which the linter's metric-name ban forbids.
-            aria-label={`Open ${row.name} on Windy. Opens in a new tab.`}
+            // The value is the link's name, so a reader hears the forecast:
+            // reading the table, tabbing, or saying "click 11.5" to voice
+            // control. A label here replaced the value in every cell (#575).
+            // Where the link goes rides as its description instead, one
+            // sentence per row in the row's filler cell. It names the
+            // destination and the site, never the layer: a layer name would be
+            // a metric spelled at a call site, which the linter's metric-name
+            // ban forbids.
+            aria-describedby={windyNoteId(ctx.rowId)}
             className="hover:underline cursor-pointer"
           >
             {display}
@@ -327,6 +367,9 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
     </td>
   )
 }
+
+// The id of a row's one Windy sentence.
+const windyNoteId = (rowId: string) => `${rowId}-windy`
 
 interface RowProps {
   row: DestinationResult
@@ -374,6 +417,7 @@ function ResultsTableRow({
   onRemove,
   onFocusResult,
 }: RowProps) {
+  const rowId = useId()
   const ctx: CellContext = {
     widths,
     coloredGroup,
@@ -388,6 +432,7 @@ function ResultsTableRow({
     closureWarning,
     closureUncovered,
     onCenter: () => onFocusResult?.(row),
+    rowId,
   }
   return (
     <tr className={TABLE.row}>
@@ -396,7 +441,15 @@ function ResultsTableRow({
       {columns.map((col) => (
         <BodyTd key={col.key as string} col={col} row={row} ctx={ctx} />
       ))}
-      <td aria-hidden="true" className="p-0" />
+      {/* The filler column also holds the row's one copy of the Windy
+          sentence every metric link points at, as the header's filler holds
+          the sort hint: a reference resolves through aria-hidden, so the
+          links are described while the filler stays out of the tree. */}
+      <td aria-hidden="true" className="p-0">
+        <span id={windyNoteId(rowId)} className={SR_ONLY}>
+          {`Open ${row.name} on Windy. Opens in a new tab.`}
+        </span>
+      </td>
     </tr>
   )
 }

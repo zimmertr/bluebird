@@ -1,7 +1,8 @@
-import type { RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
+import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import type { Refusal, RunError } from '../hooks/useAnalyze'
 import type { LiveCapabilities } from '../hooks/useCapabilities'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
@@ -165,6 +166,10 @@ export default function AppDrawer({
     setLimit,
     clearFilters,
   } = rankingKnobs
+  // Opened from the map's Controls button, which unmounts as the drawer opens,
+  // the keyboard lands on this drawer's own way back out (#576).
+  const closeRef = useRef<HTMLButtonElement>(null)
+  useTakeOrphanedFocus(closeRef, open)
   return (
     <>
       {/* Mobile: dim backdrop behind the open drawer */}
@@ -177,8 +182,13 @@ export default function AppDrawer({
 
       {/* Controls panel — docked on desktop when open, off-canvas otherwise.
           When closed it stays absolute + translated off-screen so it leaves the
-          layout and the map fills the full width on every breakpoint. */}
+          layout and the map fills the full width on every breakpoint.
+
+          Inert while closed: off screen is not out of the Tab order, and the
+          closed drawer kept some 45 stops a keyboard walked through blind
+          before reaching the map (#576). */}
       <aside
+        inert={!open}
         className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${SURFACE_DIVIDER} ${
           open
             ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
@@ -187,6 +197,7 @@ export default function AppDrawer({
       >
         {/* Close button — collapses the panel on both mobile and desktop */}
         <button
+          ref={closeRef}
           onClick={onClose}
           aria-label="Close controls"
           // Flex centres the drawn cross in the circle; why the cross is drawn

@@ -59,6 +59,19 @@ describe('visibility', () => {
     expect((box('Name') as HTMLInputElement).disabled).toBe(false)
   })
 
+  // Disabled says a box cannot be unticked and never why, so each ranked box
+  // carries the reason as its description (#576).
+  it('says why a ranked box is held', () => {
+    render(<Picker />)
+    const ranked = COLUMNS.filter((c) => (c.key as string).startsWith('precip_'))
+    for (const col of ranked) {
+      expect(
+        screen.getByRole('checkbox', { name: `${col.label} column`, description: 'Shown while this metric ranks.' }),
+      ).toBeTruthy()
+    }
+    expect(box('Name').getAttribute('aria-describedby')).toBeNull()
+  })
+
   it('hides a column when it is unticked', async () => {
     const onVisibilityChange = vi.fn()
     const { user } = render(<Picker onVisibilityChange={onVisibilityChange} />)

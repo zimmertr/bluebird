@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { popoverBox, type PopoverBox } from '../utils/listbox'
+import { useTakeOrphanedFocus } from './useFocusHandoff'
 
 /**
  * A panel hanging off a trigger: where it lands, when it is measured again, and
@@ -31,6 +32,16 @@ const LIST_WIDTH_PX = 256
 // the measuring pass compares against does not change every render.
 const ONCE_PER_OPEN: readonly unknown[] = []
 
+// What Tab can land on inside a panel. Disabled controls and `tabIndex={-1}`
+// are out, which is what makes the first and last of these the panel's two
+// edges for the Tab handling below.
+const TABBABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]'
+
+function tabbables(panel: HTMLElement): HTMLElement[] {
+  return [...panel.querySelectorAll<HTMLElement>(TABBABLE)].filter((el) => el.tabIndex >= 0)
+}
+
 interface Options {
   open: boolean
   /** Called with `false` by Escape and by a press outside the panel. */
@@ -51,6 +62,12 @@ interface Options {
    * in a gap the viewport could have given it outright.
    */
   remeasure?: readonly unknown[]
+  /**
+   * What takes the keyboard when the panel opens. Defaults to the panel's
+   * first control; `ModelPicker` names its list, which is not in the Tab
+   * order because it is one element driven by `aria-activedescendant`.
+   */
+  initialFocusRef?: React.RefObject<HTMLElement | null>
 }
 
 export function usePopover({
@@ -59,6 +76,7 @@ export function usePopover({
   triggerRef,
   preferredWidth = LIST_WIDTH_PX,
   remeasure = ONCE_PER_OPEN,
+  initialFocusRef,
 }: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -141,11 +159,52 @@ export function usePopover({
     }
   }, [open, place])
 
+  // The keyboard goes INTO the panel when it opens (#576). Every panel is
+  // portalled to the end of the body, so one left on its trigger was reached
+  // only after every link in the results table: 89 Tab stops at three rows.
+  // Keyed on the panel being drawn rather than on `open`, because on the first
+  // open the panel exists only a render after `open` turns true (it waits for
+  // the placement above), and an [open]-keyed pass would find nothing to focus.
+  const shown = open && box !== null
+  useEffect(() => {
+    if (!shown) return
+    const panel = popoverRef.current
+    const target = initialFocusRef?.current ?? (panel ? tabbables(panel)[0] : undefined)
+    target?.focus()
+  }, [shown, initialFocusRef])
+
+  // And back out to the trigger when it closes, by whatever route, if the
+  // keyboard was inside: the panel unmounts under it, and the browser would
+  // otherwise park it on the body. A press on something else keeps its focus,
+  // because then nothing was orphaned.
+  useTakeOrphanedFocus(triggerRef, !open)
+
   useEffect(() => {
     if (!open) return
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        onTab(e)
+        return
+      }
       if (e.key !== 'Escape') return
+      onOpenChange(false)
+      triggerRef.current?.focus()
+    }
+
+    // Tab past either edge of the panel closes it and hands the keyboard back
+    // to the trigger. Left alone, Tab off the last row walks out of the end of
+    // the document, since that is where the portal put the panel. A panel that
+    // runs its own Tab order (`ModelPicker`'s chips and list) prevents the
+    // default first, and its own handler has already run by the time the
+    // event reaches the document.
+    const onTab = (e: KeyboardEvent) => {
+      const panel = popoverRef.current
+      if (e.defaultPrevented || !panel || !panel.contains(document.activeElement)) return
+      const items = tabbables(panel)
+      const edge = e.shiftKey ? items[0] : items[items.length - 1]
+      if (items.length > 0 && document.activeElement !== edge) return
+      e.preventDefault()
       onOpenChange(false)
       triggerRef.current?.focus()
     }

@@ -98,6 +98,33 @@ describe('DestinationsSection', () => {
       expect(onCancelDrawing).toHaveBeenCalledOnce()
     })
 
+    // Each press unmounts the button it landed on, and the button that
+    // replaces it takes the keyboard rather than the body (#576).
+    it('hands the keyboard to Cancel on entering the mode and back to Draw on leaving it', async () => {
+      const { user, rerender } = render(<DestinationsSection {...props()} />)
+      await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
+      rerender(<DestinationsSection {...props({ drawing: true })} />)
+      // Done is disabled before three points, so Cancel is the first that can take it.
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      rerender(<DestinationsSection {...props()} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
+    })
+
+    // Clear disables itself under the press that empties the ring, so the
+    // first control that can still act takes the keyboard (#576).
+    it('hands the keyboard on when Clear empties the ring', async () => {
+      const { user, rerender } = render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1 })} />)
+      await user.click(screen.getByRole('button', { name: 'Clear' }))
+      rerender(<DestinationsSection {...props({ drawing: true })} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
+
+      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0 })} />)
+      await user.click(screen.getByRole('button', { name: 'Clear' }))
+      rerender(<DestinationsSection {...props()} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
+    })
+
     it('reads Done, Cancel, Clear while drawing', () => {
       render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1 })} />)
       const names = screen.getAllByRole('button').map((b) => b.textContent)

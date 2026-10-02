@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import {
   type BandLimits,
@@ -37,6 +37,7 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
+  SR_ONLY,
   SURFACE_DIVIDER,
   SURFACE_GROUP,
   SURFACE_GROUP_BLEED,
@@ -100,6 +101,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // every render, and nothing here changes meaning within a session.
   const now = useMemo(() => new Date(), [])
   const today = dayKey(now)
+  const hoursNoteId = useId()
 
   const [month, setMonth] = useState(() =>
     hasDates(selection) ? monthKey(selection.startDate) : monthKey(today),
@@ -315,6 +317,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
                 <button
                   key={option.label}
                   aria-pressed={option.hourly === (hours !== undefined)}
+                  aria-describedby={hoursNoteId}
                   onClick={() => setHours(option.hourly ? hours ?? defaultHours(now) : undefined)}
                   className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
                     option.hourly === (hours !== undefined) ? ACCENT.fill : SEGMENT_IDLE
@@ -324,6 +327,12 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
                 </button>
               ))}
             </div>
+            {/* The note is the row's `title`, which reaches a pointer and
+                nobody else, so it is mounted again as the hidden text both
+                halves of the segment point at (#576). */}
+            <span id={hoursNoteId} className={SR_ONLY}>
+              {HOURS_NOTE}
+            </span>
           </div>
           {/* Two label-plus-control rows, not a side-by-side pair: every other
               control in this panel sits beside its label at CONTROL_W, and the

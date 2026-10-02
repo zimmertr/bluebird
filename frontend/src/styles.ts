@@ -915,6 +915,21 @@ export const LAYER = {
 } as const
 
 /**
+ * The skip link (#576): the page's first Tab stop, which jumps past the panel
+ * to the map. Hidden until it has the keyboard, and then the floating button
+ * the map's own two buttons are, over everything, in the top-left corner a
+ * keyboard reader is already looking at.
+ *
+ * Transparent and unpressable rather than `sr-only` while idle, because
+ * `sr-only` positions the element too and two competing `position` utilities
+ * resolve by stylesheet order, not by intent. Transparent, it stands over the
+ * corner without catching a press meant for what is under it.
+ */
+export const SKIP_LINK =
+  `${BUTTON_FLOATING} fixed left-2 top-2 ${LAYER.modal} px-3 py-2 ` +
+  'pointer-events-none opacity-0 focus:pointer-events-auto focus:opacity-100'
+
+/**
  * The grip a column is dragged by, in the table header and in the Columns
  * picker alike (#360).
  *
@@ -2109,8 +2124,19 @@ export const TABLE = {
    * (#339). Touch devices have no hover and place the × in a second column
    * beside the number instead: the `.row-remove` rule in index.css.
    */
-  rankStack: 'inline-grid items-center justify-items-center',
+  rankStack: 'group/rank inline-grid items-center justify-items-center',
   rankFace: 'col-start-1 row-start-1',
+  /**
+   * Which face shows. The number gives way on row hover, and while the × has
+   * keyboard focus. The × idles at no OPACITY rather than `invisible`, which is
+   * the whole of #576 item 9: an element with `visibility: hidden` cannot take
+   * focus, so Tab skipped every row's remove and a keyboard could reach it
+   * only through the chart legend. Opacity keeps it in the Tab order, and the
+   * focus it takes is what shows it. The touch rule in index.css lifts the
+   * idle opacity along with the column move.
+   */
+  rankIdleFace: 'group-hover:invisible group-has-[:focus-visible]/rank:invisible',
+  removeFace: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
   /**
    * A footnote reference on a cell: the `*` a Model cell carries when its
    * model ends inside the window (#508), pointing at the line under the table.

@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { CompareNote } from '../hooks/useChartCompare'
-import { rankedNoun } from '../metrics'
+import { resultsHeading } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
 import { IconChart, IconChartTable, IconChevron, IconTable } from './icons'
@@ -42,13 +42,16 @@ interface ResultsBarProps {
   bothHasRoom: boolean
   /** Whether the results area shows, which is when Columns and Models stand. */
   showTable: boolean
-  /** The three popovers' triggers and their presses. */
+  /** The three popovers' triggers, their presses, and whether each is open. */
   columnsButtonRef: RefObject<HTMLButtonElement | null>
   onToggleColumns: () => void
+  columnsOpen: boolean
   modelsButtonRef: RefObject<HTMLButtonElement | null>
   onToggleModels: () => void
+  modelsOpen: boolean
   removedButtonRef: RefObject<HTMLButtonElement | null>
   onToggleRemoved: () => void
+  removedOpen: boolean
   /** How many rows the reader removed; the Removed button hides at zero. */
   removedCount: number
   /** Whether there is a row to write, and the press that writes the file. */
@@ -86,10 +89,13 @@ export default function ResultsBar({
   showTable,
   columnsButtonRef,
   onToggleColumns,
+  columnsOpen,
   modelsButtonRef,
   onToggleModels,
+  modelsOpen,
   removedButtonRef,
   onToggleRemoved,
+  removedOpen,
   removedCount,
   canDownload,
   onDownloadCsv,
@@ -107,9 +113,7 @@ export default function ResultsBar({
               been ranked yet. The window timestamp joins once a
               report exists (windowTitle below). */}
           <span className={`${TEXT.subheading} min-w-0 truncate`}>
-            {`${sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(sortBy, pointSample)} (${
-              rowCount ?? `0 of ${pendingCount}`
-            })`}
+            {resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
           </span>
           {windowTitle !== null && (
             <span className={`${CAPTION_LIFTED} truncate`}>
@@ -163,7 +167,10 @@ export default function ResultsBar({
                 disabled={!bothHasRoom}
                 className={`${SEGMENT_ITEM} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'both'}
-                aria-label="Show chart and table"
+                // Holds the word the button shows, for a reader using voice
+                // control (#576); the word itself is hidden on a phone, so the
+                // button needs a label of its own.
+                aria-label="Show both chart and table"
               >
                 <IconChartTable className="flex-shrink-0" />
                 <span className="hidden sm:inline">Both</span>
@@ -184,6 +191,7 @@ export default function ResultsBar({
             <button
               ref={columnsButtonRef}
               onClick={onToggleColumns}
+              aria-expanded={columnsOpen}
               aria-label="Choose which columns to display"
               className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
             >
@@ -202,6 +210,7 @@ export default function ResultsBar({
             <button
               ref={modelsButtonRef}
               onClick={onToggleModels}
+              aria-expanded={modelsOpen}
               className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
             >
               Models
@@ -210,12 +219,17 @@ export default function ResultsBar({
           {/* Removed rows (#241): a removal's only undo, so it is a
               standing bar member rather than a transient toast —
               removals persist across live knobs and refreshes, and so
-              does the way back. Hidden at zero: nothing to restore. */}
+              does the way back. Hidden at zero: nothing to restore.
+
+              This and Download CSV are named by the words they show,
+              with no label over them: a reader using voice control
+              says what is on the screen, and a label without those
+              words left nothing to match (#576, WCAG 2.5.3). */}
           {removedCount > 0 && (
             <button
               ref={removedButtonRef}
               onClick={onToggleRemoved}
-              aria-label={`Restore removed rows (${removedCount} removed)`}
+              aria-expanded={removedOpen}
               className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
             >
               Removed ({removedCount})
@@ -224,7 +238,6 @@ export default function ResultsBar({
           {canDownload && (
             <button
               onClick={onDownloadCsv}
-              aria-label="Download these results as a CSV file"
               className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
             >
               Download CSV

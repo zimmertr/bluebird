@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   BUTTON_ACCENT,
@@ -11,6 +11,7 @@ import {
   STATUS,
   TEXT,
 } from '../styles'
+import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
 
@@ -105,6 +106,14 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
+  // Clear disables itself under the press that empties the ring (and leaves
+  // the row outside the mode), so the first control in the row that can still
+  // act takes the keyboard: Cancel while drawing, Draw polygon otherwise (#576).
+  const drawRowRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (drawPointCount !== 0) return
+    for (const button of drawRowRef.current?.querySelectorAll('button') ?? []) takeOrphanedFocus(button)
+  }, [drawPointCount])
   const peaksOn = destinationTypes.includes('peak')
 
   return (
@@ -186,13 +195,19 @@ export default function DestinationsSection({
             can mean anything but "another vertex", so this row is the whole
             of #118 in the panel: Draw/Edit to enter, Done to keep the ring,
             Cancel to put back the one the mode started with. Which of them
-            show, and in what order, is `drawControls`. */}
-        <div className="flex flex-wrap gap-2">
+            show, and in what order, is `drawControls`.
+
+            Each takes the keyboard when it mounts in place of the one just
+            pressed (#576): Draw polygon unmounts under the press that starts
+            the mode and Done or Cancel under the press that ends it, and the
+            focus fell to the body every time. On a phone the drawer closes
+            instead, and the map's Controls button takes it. */}
+        <div ref={drawRowRef} className="flex flex-wrap gap-2">
           {drawControls(drawing, drawPointCount).map((control) => {
             switch (control) {
               case 'start':
                 return (
-                  <button key={control} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
+                  <button key={control} ref={takeOrphanedFocus} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
                     {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
                   </button>
                 )
@@ -203,6 +218,7 @@ export default function DestinationsSection({
                 return (
                   <button
                     key={control}
+                    ref={takeOrphanedFocus}
                     onClick={onFinishDrawing}
                     disabled={drawPointCount < 3}
                     className={`${BUTTON_ACCENT} ${DISABLED}`}
@@ -212,7 +228,7 @@ export default function DestinationsSection({
                 )
               case 'cancel':
                 return (
-                  <button key={control} onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
+                  <button key={control} ref={takeOrphanedFocus} onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
                     Cancel
                   </button>
                 )
@@ -224,6 +240,7 @@ export default function DestinationsSection({
                 return (
                   <button
                     key={control}
+                    ref={takeOrphanedFocus}
                     onClick={onClearDrawing}
                     disabled={drawPointCount === 0}
                     className={`${BUTTON_SECONDARY} ${DISABLED}`}

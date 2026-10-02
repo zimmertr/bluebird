@@ -33,6 +33,8 @@ function Harness({ trigger, header }: { trigger: Box; header?: string }) {
       {open && box && (
         <Popover box={box} popoverRef={popoverRef} header={header}>
           <button>Inside</button>
+          <button disabled>Unusable</button>
+          <button>Last</button>
         </Popover>
       )}
     </>
@@ -126,5 +128,57 @@ describe('dismissal', () => {
     // reopen what the press had just closed.
     await user.click(trigger)
     expect(screen.queryByRole('button', { name: 'Inside' })).toBeNull()
+  })
+})
+
+// Every panel is portalled to the end of the body, so the keyboard has to be
+// carried in and out of it: left on the trigger, a reader reached the Columns
+// rows only after every link in the results table (#576).
+describe('focus', () => {
+  const TRIGGER = { left: 20, top: 100, width: 120, height: 30 }
+  const trigger = () => screen.getByRole('button', { name: 'Trigger' })
+  const inside = (name: string) => screen.queryByRole('button', { name })
+
+  it('moves the keyboard to the first control when the panel opens', async () => {
+    const { user } = render(<Harness trigger={TRIGGER} />)
+    await user.click(trigger())
+    expect(document.activeElement).toBe(inside('Inside'))
+  })
+
+  it('closes on Tab past the last control and hands the keyboard to the trigger', async () => {
+    const { user } = render(<Harness trigger={TRIGGER} />)
+    await user.click(trigger())
+    await user.tab()
+    // The disabled row is not a stop, so Last is the panel's far edge.
+    expect(document.activeElement).toBe(inside('Last'))
+    await user.tab()
+    expect(inside('Inside')).toBeNull()
+    expect(document.activeElement).toBe(trigger())
+  })
+
+  it('closes on Shift+Tab before the first control and hands the keyboard to the trigger', async () => {
+    const { user } = render(<Harness trigger={TRIGGER} />)
+    await user.click(trigger())
+    await user.tab({ shift: true })
+    expect(inside('Inside')).toBeNull()
+    expect(document.activeElement).toBe(trigger())
+  })
+
+  it('hands the keyboard back when the panel closes under it', async () => {
+    const { user } = render(<Harness trigger={TRIGGER} />)
+    await user.click(trigger())
+    inside('Last')!.focus()
+    // A press on nothing that takes focus, as on the map.
+    fireEvent.pointerDown(document.body)
+    expect(inside('Inside')).toBeNull()
+    expect(document.activeElement).toBe(trigger())
+  })
+
+  it('leaves the keyboard where a press elsewhere put it', async () => {
+    const { user } = render(<Harness trigger={TRIGGER} />)
+    await user.click(trigger())
+    await user.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    expect(inside('Inside')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }))
   })
 })

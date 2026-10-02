@@ -53,17 +53,39 @@ export const ACCESSIBILITY = [
     // WCAG 2.4.4: a link's purpose has to be clear from the link itself, and
     // two of the table's links fail that on their text alone. The label is the
     // whole answer, and it also warns about the new tab.
+    //
+    // The metric cell's link is the exception, because its text is a forecast
+    // value a reader came for (#575): the value is its name, and the sentence
+    // is its description, so it carries aria-describedby instead and the
+    // disabled-reason-twin check below holds that to its hidden text.
     name: 'new-tab-anchors-named',
     files: ['src/components/ResultsTableRow.tsx'],
     ban: [
       {
         selector:
           `${newTab}:not(:has(${attr('aria-label')} TemplateElement[value.raw=/Opens in a new tab\\.$/]))` +
-          `:not(:has(${attr('aria-label')} Literal[value=/Opens in a new tab\\.$/]))`,
-        message: 'Give a new-tab anchor an aria-label ending "Opens in a new tab."',
+          `:not(:has(${attr('aria-label')} Literal[value=/Opens in a new tab\\.$/]))` +
+          `:not(:has(${attr('aria-describedby')}))`,
+        message: 'Give a new-tab anchor an aria-label ending "Opens in a new tab.", or a description that says it.',
+      },
+      {
+        // A label over the value replaced it in every metric cell, so a screen
+        // reader never heard a number (#575).
+        selector: `${tag('a')}:has(CallExpression[callee.name="windyCellUrl"]):has(${attr('aria-label')})`,
+        message: 'Name a metric cell link by its value: no aria-label. The Windy sentence is its description.',
       },
     ],
-    require: [{ selector: newTab, min: 3, message: 'ResultsTableRow.tsx carries the new-tab anchors.' }],
+    require: [
+      { selector: newTab, min: 3, message: 'ResultsTableRow.tsx carries the new-tab anchors.' },
+      {
+        selector: `${tag('a')}:has(CallExpression[callee.name="windyCellUrl"]):has(${attr('aria-describedby')})`,
+        message: 'Describe a metric cell link with the Windy sentence through aria-describedby.',
+      },
+      {
+        selector: 'TemplateElement[value.raw=/on Windy\\. Opens in a new tab\\.$/]',
+        message: 'Keep the Windy sentence the metric links point at.',
+      },
+    ],
   },
   {
     name: 'model-picker-roles',
@@ -134,9 +156,19 @@ export const ACCESSIBILITY = [
     // A disabled control says it cannot be used and never why, so it carries
     // its reason as a title and again as hidden text for readers a title never
     // reaches. Every aria-describedby must have its hidden text to point at,
-    // and the results header's sort hint is held to the same pairing.
+    // and the results header's sort hint is held to the same pairing. So are
+    // the table's N/A reasons and its Windy sentence, the calendar's Hours
+    // note, the smoke legend's density words and the Columns picker's ranked
+    // boxes (#575, #576).
     name: 'disabled-reason-twin',
-    files: ['src/components/LayersPopover.tsx', 'src/components/ResultsTableHeader.tsx'],
+    files: [
+      'src/components/LayersPopover.tsx',
+      'src/components/ResultsTableHeader.tsx',
+      'src/components/ResultsTableRow.tsx',
+      'src/components/ForecastCalendar.tsx',
+      'src/components/MapLegend.tsx',
+      'src/components/ColumnsPicker.tsx',
+    ],
     balance: [
       {
         selectors: [attr('aria-describedby'), `${attr('className')} > JSXExpressionContainer > Identifier[name="SR_ONLY"]`],

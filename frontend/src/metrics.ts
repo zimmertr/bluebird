@@ -370,6 +370,25 @@ export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
 }
 
 /**
+ * The results bar's title: the direction, the ranked metric and the count,
+ * "Lowest Total Precipitation (5 of 5)". Before any report the count is a zero
+ * over the destinations waiting, so the bar reads the same before and after.
+ *
+ * One spelling, because two surfaces say it: the bar shows it, and a committed
+ * report announces it to a screen reader (#576). A second composition of the
+ * same words is a second place for them to drift.
+ */
+export function resultsHeading(
+  sortBy: SortBy,
+  sortDesc: boolean,
+  pointSample: boolean,
+  rowCount: string | null,
+  pendingCount: number,
+): string {
+  return `${sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(sortBy, pointSample)} (${rowCount ?? `0 of ${pendingCount}`})`
+}
+
+/**
  * A metric named alongside its unit, for the surfaces that tabulate rather
  * than rank: "Precipitation · Total (in)", "AQI · Avg", "Wind (mph)".
  *

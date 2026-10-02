@@ -31,7 +31,9 @@ const MESSAGES: FooterMessage[] = [
 ]
 
 const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…)$/ })
-const boxes = () => screen.queryAllByRole('status')
+// The boxes stand inside the footer's one live region, which is mounted for
+// good so a box that arrives is announced.
+const boxes = () => [...screen.getByRole('status').children] as HTMLElement[]
 
 describe('PanelFooter', () => {
   it('analyzes on a press while enabled', async () => {
@@ -90,6 +92,57 @@ describe('PanelFooter', () => {
     rerender(<PanelFooter {...props({ messages: [] })} />)
     rerender(<PanelFooter {...props({ messages: lone })} />)
     expect(boxes()).toHaveLength(1)
+  })
+
+  // A box that arrives already holding its text is not announced by most
+  // screen readers, so the region is there before anything is said (#576).
+  it('keeps one live region mounted, empty until there is something to say', () => {
+    const { rerender } = render(<PanelFooter {...props()} />)
+    const region = screen.getByRole('status')
+    expect(region.textContent).toBe('')
+    rerender(<PanelFooter {...props({ messages: MESSAGES })} />)
+    expect(screen.getByRole('status')).toBe(region)
+    expect(region.textContent).toMatch(/Run failed\./)
+  })
+
+  // Analyze turns disabled under the keyboard that pressed it; once the run
+  // is over and whatever held the focus meanwhile is gone, the focus comes
+  // back to the button rather than to the body (#576).
+  it('takes the keyboard back when a run ends and the focus has nowhere else', async () => {
+    const { user, rerender } = render(
+      <>
+        <PanelFooter {...props()} />
+        <button>Cancel</button>
+      </>,
+    )
+    await user.click(analyze())
+    rerender(
+      <>
+        <PanelFooter {...props({ analyzeEnabled: false, loading: true })} />
+        <button>Cancel</button>
+      </>,
+    )
+    screen.getByRole('button', { name: 'Cancel' }).focus()
+    // The run ends: Cancel goes, and the button comes back.
+    rerender(<PanelFooter {...props()} />)
+    expect(document.activeElement).toBe(analyze())
+  })
+
+  it('leaves the focus alone when it is somewhere a reader put it', async () => {
+    const { user, rerender } = render(
+      <>
+        <PanelFooter {...props({ analyzeEnabled: false })} />
+        <input aria-label="Elsewhere" />
+      </>,
+    )
+    await user.click(screen.getByRole('textbox', { name: 'Elsewhere' }))
+    rerender(
+      <>
+        <PanelFooter {...props()} />
+        <input aria-label="Elsewhere" />
+      </>,
+    )
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Elsewhere' }))
   })
 
   it('links the tour at its path and starts it in place on a plain click', async () => {

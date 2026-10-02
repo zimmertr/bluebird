@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { logoUrl } from '../logo'
 import type { Progress } from '../hooks/useAnalyze'
-import { ACCENT, BUTTON_SECONDARY, LAYER, PROSE, RADIUS, SURFACE_CARD, TEXT } from '../styles'
-import { composeOverlay } from '../utils/analyzeOverlay'
+import { ACCENT, BUTTON_SECONDARY, LAYER, PROSE, RADIUS, SR_ONLY, SURFACE_CARD, TEXT } from '../styles'
+import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { composeOverlay, type OverlayView } from '../utils/analyzeOverlay'
 
 interface AnalysisOverlayProps {
   /** Whether an analysis is in flight; the card shows exactly while it is. */
@@ -59,7 +60,37 @@ export default function AnalysisOverlay({
     return () => clearInterval(id)
   }, [overlay.visible])
 
-  if (!overlay.visible) return null
+  // What the live region below says: the status line and its detail while a
+  // run is up, nothing otherwise.
+  const spoken = overlay.visible ? [overlay.message, overlay.detail].filter(Boolean).join(' ') : ''
+
+  return (
+    <>
+      {/* The analysis phase would be the one moment the app goes silent for
+          a screen reader, so each status line is announced as it changes;
+          the detail line rides along, so failover news ("Trying backup map
+          server…") is announced as well. The region is mounted for good and
+          only its text comes and goes: a region that arrives already holding
+          its text is not announced by most screen readers, which is how the
+          first line of every run went unheard (#576). */}
+      <div role="status" aria-live="polite" className={SR_ONLY}>
+        {spoken}
+      </div>
+      {overlay.visible && <OverlayCard overlay={overlay} elapsed={elapsed} onCancel={onCancel} />}
+    </>
+  )
+}
+
+/** The card itself, drawn only while a run is up. */
+function OverlayCard({
+  overlay,
+  elapsed,
+  onCancel,
+}: {
+  overlay: Extract<OverlayView, { visible: true }>
+  elapsed: number
+  onCancel: () => void
+}) {
   return (
     <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>
       <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
@@ -70,12 +101,9 @@ export default function AnalysisOverlay({
           alt=""
           className={`w-12 h-12 ${RADIUS.surface} object-cover mx-auto mb-3 animate-pulse`}
         />
-        {/* role=status + aria-live: without it, the analysis phase is
-            the one moment the app goes completely silent for screen
-            readers — announce each status line as it changes. The
-            wrapper covers the detail line too, so failover news
-            ("Trying backup map server…") is announced as well. */}
-        <div role="status" aria-live="polite">
+        {/* Drawn for the eye; the live region above is what a screen
+            reader hears, so the words are in the tree once. */}
+        <div aria-hidden="true">
           <p className={`${PROSE.heading} leading-snug`}>{overlay.message}</p>
           {overlay.detail && (
             <p className={`${TEXT.caption} mt-1 leading-snug`}>{overlay.detail}</p>
@@ -107,6 +135,9 @@ export default function AnalysisOverlay({
           </div>
         )}
         <button
+          // Analyze turns disabled under the keyboard that pressed it, so
+          // the run's one control takes the focus rather than the body (#576).
+          ref={takeOrphanedFocus}
           onClick={onCancel}
           // `w-fit mx-auto` rather than leaning on the card's text
           // alignment: TAP.action makes every button a flex container,

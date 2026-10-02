@@ -19,6 +19,7 @@ import {
   formatPrecipTotal,
   metricLabel,
   rankedNoun,
+  resultsHeading,
   windowAggregate,
 } from './metrics'
 import { COLUMNS } from './utils/tableColumns'
@@ -291,6 +292,19 @@ describe('windowAggregate', () => {
       }
       expect(Object.values(AGGREGATE)).toContain(windowAggregate(key))
     }
+  })
+})
+
+// The bar's title and the announcement a committed report makes read this
+// one composition (#576).
+describe('resultsHeading', () => {
+  it('names the direction, the ranked metric and the count', () => {
+    expect(resultsHeading('precip_total_in', false, false, '5 of 5', 0)).toBe('Lowest Total Precipitation (5 of 5)')
+    expect(resultsHeading('wind_max_mph', true, false, '3 of 9', 0)).toBe('Highest Max Wind (3 of 9)')
+  })
+
+  it('counts zero over the destinations waiting before any report', () => {
+    expect(resultsHeading('temp_avg_f', false, false, null, 2)).toBe('Lowest Avg Temperature (0 of 2)')
   })
 })
 

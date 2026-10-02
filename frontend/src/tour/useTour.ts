@@ -53,6 +53,10 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   // Whether this run pushed `/tutorial` onto the history, and so owes a
   // `back()` rather than a rewrite when it ends.
   const pushed = useRef(false)
+  // Where the keyboard was when the tour began: the Tutorial link, usually.
+  // The card takes the focus for the length of the tour, and when it unmounts
+  // the focus would fall to the body, so the reader is put back here (#576).
+  const returnFocus = useRef<HTMLElement | null>(null)
 
   const start = useCallback(() => {
     const present = TOUR_STEPS.filter(
@@ -66,6 +70,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
       scroller,
       scrollTop: scroller?.scrollTop ?? 0,
     }
+    const active = document.activeElement
+    returnFocus.current = active instanceof HTMLElement && active !== document.body ? active : null
     setSteps(present)
     setIndex(0)
     if (window.location.pathname !== TUTORIAL_PATH) {
@@ -105,6 +111,17 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
     if (index + 1 < steps.length) setIndex(index + 1)
     else end()
   }, [index, steps.length, end])
+  // After the commit that ended the tour rather than inside `end`, because the
+  // same commit puts the drawer back, and an element in a closed drawer is
+  // inert and cannot take the focus until it opens. An element that left the
+  // page meanwhile (the welcome card's button) is not put back.
+  useEffect(() => {
+    if (index !== null) return
+    const el = returnFocus.current
+    returnFocus.current = null
+    if (el?.isConnected) el.focus()
+  }, [index])
+
   const prev = useCallback(() => {
     setIndex((i) => (i === null || i === 0 ? i : i - 1))
   }, [])
