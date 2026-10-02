@@ -178,7 +178,10 @@ CI also operates the built image in a browser (issue #412): Playwright draws a
 ring and analyzes, opens a share link, clicks the map under the legend stack
 and scrolls the stack, taps the chart at a phone's width to move the map's
 playhead, opens a popup beside the forecast player and analyzes again to see it
-close, and runs axe on the panel, the results,
+close, walks the keyboard through Analyze, the closed drawer, a row's remove
+button and the Columns popover (`keyboardFocus.spec.ts`, the half of #576 that
+rests on `inert` and on a hidden element refusing focus, neither of which jsdom
+implements), and runs axe on the panel, the results,
 and the Layers popover. Every third-party host is answered from fixtures in
 `frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
 `make browser` runs it locally: it builds the image, serves it on a docker

@@ -533,7 +533,10 @@ export default function App() {
       {/* Map + results column. On a phone the results leave the flow and stand
           on the map as a sheet, so the column is what positions them; on
           desktop nothing is positioned and the class list is the one it was. */}
-      <div className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
+      {/* The page's main landmark (#576): the map and the report are what the
+          page is for, and a screen reader's landmark list had nothing to jump
+          to past the panel. */}
+      <main className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
         <MapStage
           mapRef={mapRef}
           drawMode={drawMode}
@@ -579,7 +582,7 @@ export default function App() {
           closure={closure}
           modelId={analyzed?.forecastModel ?? forecastModel}
         />
-      </div>
+      </main>
       </div>
     </div>
   )

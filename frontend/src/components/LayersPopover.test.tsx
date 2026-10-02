@@ -40,6 +40,17 @@ const open = () => fireEvent.click(screen.getByRole('button', { name: 'Layers' }
 const rows = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
 
 describe('LayersPopover', () => {
+  // The menu unmounts under a keyboard that was in it, so Escape hands the
+  // focus back to the button that opened it rather than to the body (#576).
+  it('hands the keyboard back to its button when Escape closes it', async () => {
+    const { user } = render(<LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered />)
+    await user.click(screen.getByRole('button', { name: 'Layers' }))
+    screen.getAllByRole('checkbox')[0].focus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Layers' }))
+  })
+
   it('opens on the button and closes on Escape and on a press outside', () => {
     render(<LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered />)
     expect(screen.queryByRole('checkbox')).toBeNull()

@@ -65,7 +65,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
 | `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.25:1 on the panel, 5.96:1 on an idle metric select and 5.43:1 on an unplotted chart chip, where 50% was 4.11, 4.58 and 4.22 |
-| `SR_ONLY` | Text for assistive technology only, the twin of an approved tooltip |
+| `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
@@ -203,6 +203,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | `TABLE.head` | Results table header cell |
 | `TABLE.rankStack` | Rank cell: number and remove × in one grid cell, so the column never changes width on hover |
 | `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
+| `TABLE.rankIdleFace` / `TABLE.removeFace` | Which face shows: the number gives way on row hover and while the × has keyboard focus. The × idles at no opacity rather than `invisible`, because a hidden element cannot take focus (#576) |
 
 ## What is enforced
 
@@ -230,7 +231,9 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
 | Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
-| A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx` and `ResultsTableHeader.tsx` matches a `SR_ONLY` element |
+| A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx` and `MapLegend.tsx` matches a `SR_ONLY` element |
+| A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
+| The marker's rank digit clears AA | `styles.test.ts`, `colors.test.ts` | `RANK_INK` pins the halo; `colors.test.ts` measures every band of every scale against white, slate-900 and the halo |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
@@ -455,8 +458,12 @@ only thing explaining a state, the same text is also mounted in a visually hidde
 element that `aria-describedby` names (`SR_ONLY` in `styles.ts`), because the
 touch argument above applies to a screen reader as well: a `title` is a pointer's
 affordance and is not promised to anything else. The linter's
-`disabled-reason-twin` check fails an `aria-describedby` in `LayersPopover.tsx`
-or `ResultsTableHeader.tsx` with no `SR_ONLY` twin.
+`disabled-reason-twin` check fails an `aria-describedby` in `LayersPopover.tsx`,
+`ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx` or
+`MapLegend.tsx` with no `SR_ONLY` twin. A sentence on an element with no role
+(the table's `N/A` reasons, the smoke legend's density letters) is mounted inside
+that element's own cell or chip, because a screen reader reads a description only
+on something it can focus, and reads content wherever it is (#576).
 
 ### Sentence case
 
@@ -523,6 +530,18 @@ slate-200 measures **6.49:1** against the worst band under it. A text shadow was
 the alternative and is not measurable, which is the whole reason this one is
 pinned in `styles.test.ts` as `RAMP_INK` — change the ramp colours or the scrim's
 opacity and the number has to be taken again.
+
+**The marker's rank digit stands on a halo, for the same reason.** The digit is
+printed in the marker, whose fill is the band its value falls in, so its ground is
+every colour every scale has. White straight on those measured **1.05:1**
+(cloud cover's slate-50) to **3.96:1** (the purple top band), and cleared AA only
+on AQI's maroon (8.31:1) and the no-value grey (4.76:1); slate-900 fails the other
+way, at 2.15:1 on the maroon. So the digit wears the 1.5px slate-900 halo the
+marker's name label already wears, and the halo is what it stands on: white on
+slate-900 measures **17.85:1** under every band. `RANK_INK` in `styles.ts` holds
+the three paint values and `colors.test.ts` measures every band against both inks
+and the halo, so a band added to a scale is measured before it ships (#576).
+Record: [0091](decisions/0091-rank-digit-on-a-halo.md)
 
 ### Model coverage message
 

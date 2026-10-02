@@ -28,10 +28,13 @@ function props(over: Partial<Props> = {}): Props {
     showTable: true,
     columnsButtonRef: COLUMNS,
     onToggleColumns: NOOP,
+    columnsOpen: false,
     modelsButtonRef: MODELS,
     onToggleModels: NOOP,
+    modelsOpen: false,
     removedButtonRef: REMOVED,
     onToggleRemoved: NOOP,
+    removedOpen: false,
     removedCount: 0,
     canDownload: true,
     onDownloadCsv: NOOP,
@@ -67,11 +70,32 @@ describe('ResultsBar', () => {
 
   it('shows Removed only with something to restore, and Download only with a row', () => {
     const { rerender } = render(<ResultsBar {...props({ canDownload: false })} />)
-    expect(screen.queryByRole('button', { name: /Restore removed rows/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Removed/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Download/ })).toBeNull()
     rerender(<ResultsBar {...props({ removedCount: 3 })} />)
-    expect(screen.getByRole('button', { name: 'Restore removed rows (3 removed)' }).textContent).toBe('Removed (3)')
-    expect(screen.getByRole('button', { name: /Download/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Removed (3)' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Download CSV' })).toBeTruthy()
+  })
+
+  // WCAG 2.5.3: a voice-control reader says the words on the button, so the
+  // name has to be those words. Both buttons once carried a label that held
+  // neither of them (#576).
+  it('names Removed and Download CSV by the words they show', () => {
+    render(<ResultsBar {...props({ removedCount: 2 })} />)
+    for (const name of ['Removed (2)', 'Download CSV']) {
+      const button = screen.getByRole('button', { name })
+      expect(button.textContent).toBe(name)
+      expect(button.getAttribute('aria-label')).toBeNull()
+    }
+  })
+
+  // A trigger says whether its panel is open, so a screen reader hears
+  // "collapsed" or "expanded" on it (#576).
+  it('tells each popover trigger whether its panel is open', () => {
+    const { rerender } = render(<ResultsBar {...props({ removedCount: 1 })} />)
+    for (const ref of [COLUMNS, MODELS, REMOVED]) expect(ref.current?.getAttribute('aria-expanded')).toBe('false')
+    rerender(<ResultsBar {...props({ removedCount: 1, columnsOpen: true, modelsOpen: true, removedOpen: true })} />)
+    for (const ref of [COLUMNS, MODELS, REMOVED]) expect(ref.current?.getAttribute('aria-expanded')).toBe('true')
   })
 
   it('opens each popover through its own trigger', () => {

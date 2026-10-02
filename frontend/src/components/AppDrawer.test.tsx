@@ -125,6 +125,30 @@ describe('AppDrawer', () => {
     expect(screen.getByTestId('panel')).toBeTruthy()
   })
 
+  // Off screen is not out of the Tab order: closed, the drawer kept some 45
+  // stops a keyboard walked through blind (#576).
+  it('leaves the Tab order while closed', () => {
+    const { container, rerender } = render(drawer(true))
+    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(false)
+    rerender(drawer(false))
+    expect(container.querySelector('aside')?.hasAttribute('inert')).toBe(true)
+  })
+
+  // The map's Controls button unmounts as the drawer opens, so the drawer's
+  // own Close button takes the keyboard rather than the body (#576).
+  it('takes the keyboard when the button that opened it goes', () => {
+    const page = (open: boolean) => (
+      <>
+        {drawer(open)}
+        {!open && <button>Open controls</button>}
+      </>
+    )
+    const { rerender } = render(page(false))
+    screen.getByRole('button', { name: 'Open controls' }).focus()
+    rerender(page(true))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close controls' }))
+  })
+
   // The Metrics table follows the When selection, not the report.
   it("hands the panel the selection's own point-sample flag", () => {
     render(drawer(true))

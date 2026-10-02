@@ -11,6 +11,7 @@ import {
   STATUS,
   TEXT,
 } from '../styles'
+import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
 
@@ -186,13 +187,19 @@ export default function DestinationsSection({
             can mean anything but "another vertex", so this row is the whole
             of #118 in the panel: Draw/Edit to enter, Done to keep the ring,
             Cancel to put back the one the mode started with. Which of them
-            show, and in what order, is `drawControls`. */}
+            show, and in what order, is `drawControls`.
+
+            Each takes the keyboard when it mounts in place of the one just
+            pressed (#576): Draw polygon unmounts under the press that starts
+            the mode and Done or Cancel under the press that ends it, and the
+            focus fell to the body every time. On a phone the drawer closes
+            instead, and the map's Controls button takes it. */}
         <div className="flex flex-wrap gap-2">
           {drawControls(drawing, drawPointCount).map((control) => {
             switch (control) {
               case 'start':
                 return (
-                  <button key={control} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
+                  <button key={control} ref={takeOrphanedFocus} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
                     {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
                   </button>
                 )
@@ -203,6 +210,7 @@ export default function DestinationsSection({
                 return (
                   <button
                     key={control}
+                    ref={takeOrphanedFocus}
                     onClick={onFinishDrawing}
                     disabled={drawPointCount < 3}
                     className={`${BUTTON_ACCENT} ${DISABLED}`}
@@ -212,7 +220,7 @@ export default function DestinationsSection({
                 )
               case 'cancel':
                 return (
-                  <button key={control} onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
+                  <button key={control} ref={takeOrphanedFocus} onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
                     Cancel
                   </button>
                 )
@@ -224,6 +232,7 @@ export default function DestinationsSection({
                 return (
                   <button
                     key={control}
+                    ref={takeOrphanedFocus}
                     onClick={onClearDrawing}
                     disabled={drawPointCount === 0}
                     className={`${BUTTON_SECONDARY} ${DISABLED}`}

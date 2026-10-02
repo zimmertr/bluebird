@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
   ACCENT,
@@ -58,6 +58,8 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   const rootRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const searchRef = useRef<AbortController | null>(null)
+  const listId = useId()
+  const optionId = (i: number) => `${listId}-${i}`
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
@@ -181,6 +183,15 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
             setError(null)
           }}
           onKeyDown={onKeyDown}
+          // The WAI-ARIA combobox (#576), the attributes the model picker's
+          // trigger wears: the field keeps the keyboard, the arrow keys move a
+          // highlight through the list, and `aria-activedescendant` is what
+          // tells a screen reader which place that highlight is on.
+          role="combobox"
+          aria-expanded={places !== null}
+          aria-controls={places ? listId : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={places && places.length > 0 ? optionId(Math.min(highlight, places.length - 1)) : undefined}
           // Says what the box is for and stops there. There is no `title`
           // spelling out that it takes a name or a coordinate pair: a search
           // box taking a name is the least surprising thing on the page, and a
@@ -211,14 +222,21 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
         ) : null}
       </div>
 
-      {error && (
-        <div className={`${DROPDOWN} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
-          {error}
-        </div>
-      )}
+      {/* A live region mounted for good, so a failed search is announced:
+          one that arrives holding its text is not, by most screen readers
+          (#576). It has no box of its own; the notice inside it is the
+          absolute dropdown it always was. */}
+      <div role="status">
+        {error && (
+          <div className={`${DROPDOWN} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
+            {error}
+          </div>
+        )}
+      </div>
 
       {places && (
         <ul
+          id={listId}
           role="listbox"
           aria-label="Search results"
           // `DROPDOWN` (above) is the surface and the width. This is a menu the
@@ -236,32 +254,40 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           className={`${DROPDOWN} overflow-hidden divide-y divide-slate-600`}
         >
           {places.map((p, i) => (
-            <li key={`${p.lat},${p.lon},${i}`} role="option" aria-selected={i === highlight}>
-              {/* A tint rather than an opaque step, the way the table's rows
-                  highlight — re-derived for the popover's lighter fill, which
-                  slate-700/30 no longer registers against. slate-600/50 reads
-                  1.18:1 on it, where the old pair read 1.11:1 on slate-800, and
-                  `CAPTION_LIFTED` below still clears AA on the result (5.89:1).
-                  Measured 2026-09-14. */}
-              <button
-                onClick={() => pick(p)}
-                onMouseEnter={() => setHighlight(i)}
-                className={`${TAP.height} w-full px-2.5 py-2 text-left transition-colors ${
-                  i === highlight ? 'bg-slate-600/50' : ''
-                }`}
-              >
-                <span className={`${TEXT.control} block truncate`}>
-                  {p.label}
-                  {p.kind && (
-                    <span className={`${TEXT.overline} ml-2`}>
-                      {p.kind}
-                    </span>
-                  )}
-                </span>
-                {p.description && (
-                  <span className={`${CAPTION_LIFTED} block truncate`}>{p.description}</span>
+            // The option is what a press picks, with no button inside it: an
+            // option's children are presentational, so a button there was a
+            // second, unnamed control in every row and a Tab stop the
+            // combobox does not want, the field being where the keyboard
+            // lives (#576).
+            //
+            // A tint rather than an opaque step, the way the table's rows
+            // highlight — re-derived for the popover's lighter fill, which
+            // slate-700/30 no longer registers against. slate-600/50 reads
+            // 1.18:1 on it, where the old pair read 1.11:1 on slate-800, and
+            // `CAPTION_LIFTED` below still clears AA on the result (5.89:1).
+            // Measured 2026-09-14.
+            <li
+              key={`${p.lat},${p.lon},${i}`}
+              id={optionId(i)}
+              role="option"
+              aria-selected={i === highlight}
+              onClick={() => pick(p)}
+              onMouseEnter={() => setHighlight(i)}
+              className={`${TAP.height} w-full cursor-pointer px-2.5 py-2 text-left transition-colors ${
+                i === highlight ? 'bg-slate-600/50' : ''
+              }`}
+            >
+              <span className={`${TEXT.control} block truncate`}>
+                {p.label}
+                {p.kind && (
+                  <span className={`${TEXT.overline} ml-2`}>
+                    {p.kind}
+                  </span>
                 )}
-              </button>
+              </span>
+              {p.description && (
+                <span className={`${CAPTION_LIFTED} block truncate`}>{p.description}</span>
+              )}
             </li>
           ))}
         </ul>

@@ -1,4 +1,4 @@
-import { type MouseEvent, useEffect, useState } from 'react'
+import { type MouseEvent, useEffect, useRef, useState } from 'react'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
 import {
   BUTTON_DANGER,
@@ -14,6 +14,7 @@ import {
   TEXT,
 } from '../styles'
 import { IconClose } from './icons'
+import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import {
   type FooterMessage,
   type NoticeSeverity,
@@ -78,7 +79,7 @@ function FooterNotice({
   onDismiss: (key: string) => void
 }) {
   return (
-    <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`} role="status">
+    <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`}>
       {/* Every message renders the same way, alone or one of several: a row
           under a row, separated by the rule `NOTICE_DIVIDER` draws in the box's
           own border tint. A bulleted list did the separating before and spent
@@ -155,9 +156,16 @@ export default function PanelFooter({
   }, [activeKeySig])
   const footerBoxes = noticeBoxes(messages.filter((m) => !isDismissed(m.key, dismissed)))
 
+  // A run disables this button under the keyboard that pressed it, and the
+  // overlay's Cancel takes the focus meanwhile; when the run ends and Cancel
+  // goes, the focus comes back here rather than to the body (#576).
+  const analyzeRef = useRef<HTMLButtonElement>(null)
+  useTakeOrphanedFocus(analyzeRef, analyzeEnabled)
+
   return (
     <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour="analyze">
       <button
+        ref={analyzeRef}
         onClick={onAnalyze}
         disabled={!analyzeEnabled}
         className={`${BUTTON_PRIMARY} ${DISABLED}`}
@@ -165,6 +173,11 @@ export default function PanelFooter({
         {loading ? 'Analyzing…' : 'Analyze'}
       </button>
 
+      {/* One live region for every box, mounted for good: a box that
+          arrives already holding its text is not announced by most screen
+          readers, which is what each box's own role="status" did (#576).
+          Collapsed while empty, so it adds no gap under the button. */}
+      <div role="status" className="space-y-3 empty:mb-0">
       {footerBoxes.map((box) => (
         <FooterNotice
           key={box.severity}
@@ -184,6 +197,7 @@ export default function PanelFooter({
           )}
         </FooterNotice>
       ))}
+      </div>
 
       {/* Two labels, two pages, and each label goes where it says. The
           privacy copy used to open a dialog here, which meant it had no URL

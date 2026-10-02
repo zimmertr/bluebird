@@ -21,7 +21,7 @@ beforeEach(() => {
   onSelect.mockClear()
 })
 
-const field = () => screen.getByRole('textbox', { name: 'Search for a place' })
+const field = () => screen.getByRole('combobox', { name: 'Search for a place' })
 
 describe('SearchBox', () => {
   it('does not search while the reader types', async () => {
@@ -49,6 +49,39 @@ describe('SearchBox', () => {
     await user.keyboard('{ArrowDown}{Enter}')
     expect(onSelect).toHaveBeenCalledWith(second)
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  // A combobox (#576): the field keeps the keyboard and says which place the
+  // highlight is on, so a screen reader hears the arrow keys move.
+  it('is a combobox that names the highlighted place', async () => {
+    const second = place({ label: 'Mount Baker', description: 'Mount Baker, Uganda', lat: 0.38, lon: 29.87 })
+    search.mockResolvedValue([place(), second])
+    const { user } = render(<SearchBox onSelect={onSelect} />)
+    expect(field().getAttribute('aria-expanded')).toBe('false')
+    await user.type(field(), 'Mount Baker{Enter}')
+    const list = await screen.findByRole('listbox', { name: 'Search results' })
+    expect(field().getAttribute('aria-expanded')).toBe('true')
+    expect(field().getAttribute('aria-controls')).toBe(list.id)
+    const options = screen.getAllByRole('option')
+    expect(field().getAttribute('aria-activedescendant')).toBe(options[0].id)
+    await user.keyboard('{ArrowDown}')
+    expect(field().getAttribute('aria-activedescendant')).toBe(options[1].id)
+    // An option holds no control of its own; the field is the one Tab stop.
+    expect(list.querySelector('button')).toBeNull()
+    await user.click(options[0])
+    expect(onSelect).toHaveBeenCalledWith(place())
+  })
+
+  // A notice that arrives holding its text is not announced by most screen
+  // readers, so it lands in a region that was already there (#576).
+  it('says a failed search into a region mounted before it', async () => {
+    search.mockRejectedValue(new Error('down'))
+    const { user } = render(<SearchBox onSelect={onSelect} />)
+    const region = screen.getByRole('status')
+    expect(region.textContent).toBe('')
+    await user.type(field(), 'Mount Baker{Enter}')
+    expect(await screen.findByText('Search failed. Try again later.')).toBeTruthy()
+    expect(region.textContent).toBe('Search failed. Try again later.')
   })
 
   it('answers a coordinate pair without the geocoder', async () => {

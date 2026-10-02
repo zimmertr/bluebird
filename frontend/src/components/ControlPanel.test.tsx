@@ -87,7 +87,9 @@ function props(over: Partial<Props> = {}): Props {
 const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…)$/ })
 
 /** Every notice box, in document order. */
-const notices = () => screen.queryAllByRole('status')
+// The boxes stand inside the footer's one live region, which is mounted for
+// good so a box that arrives is announced.
+const notices = () => [...screen.getByRole('status').children] as HTMLElement[]
 
 /** The text of every message under the button, box by box. */
 const messages = () => notices().map((box) => box.textContent)
@@ -230,8 +232,9 @@ describe('the notice block', () => {
     const footer = button.parentElement as HTMLElement
     expect(notices().length).toBeGreaterThan(1)
     for (const box of notices()) {
-      // In the footer beside the button, and after it in reading order.
-      expect(box.parentElement).toBe(footer)
+      // In the footer beside the button, inside its one live region, and
+      // after it in reading order.
+      expect(box.parentElement?.parentElement).toBe(footer)
       expect(button.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
   })

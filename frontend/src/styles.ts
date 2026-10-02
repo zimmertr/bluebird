@@ -758,6 +758,22 @@ export const SWATCH_RAMP_TICK =
  */
 export const SWATCH_EDGE = '#475569'
 
+/**
+ * The rank digit printed in a map marker, as paint VALUES for its MapLibre
+ * symbol layer rather than classes, because the marker is drawn by the map.
+ *
+ * The marker's fill is the band its value falls in, so the digit lands on every
+ * colour every scale has. White straight on those measured 1.05:1 (cloud
+ * cover's slate-50) to 3.96:1 (the purple top band), and cleared AA only on
+ * AQI's maroon: a reader could see a marker and not its number (#576). A dark
+ * ink fails the other way, on the maroon and the purple. So the digit wears the
+ * halo the marker's name label already wears, and the halo is what the digit
+ * stands on: white on slate-900 measures 17.85:1, whatever band is under it.
+ * `colors.test.ts` measures every band against both, so a new band or a new ink
+ * fails there rather than shipping unmeasured.
+ */
+export const RANK_INK = { color: '#ffffff', halo: '#0f172a', haloWidth: 1.5 } as const
+
 export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */
@@ -2109,8 +2125,19 @@ export const TABLE = {
    * (#339). Touch devices have no hover and place the × in a second column
    * beside the number instead: the `.row-remove` rule in index.css.
    */
-  rankStack: 'inline-grid items-center justify-items-center',
+  rankStack: 'group/rank inline-grid items-center justify-items-center',
   rankFace: 'col-start-1 row-start-1',
+  /**
+   * Which face shows. The number gives way on row hover, and while the × has
+   * keyboard focus. The × idles at no OPACITY rather than `invisible`, which is
+   * the whole of #576 item 9: an element with `visibility: hidden` cannot take
+   * focus, so Tab skipped every row's remove and a keyboard could reach it
+   * only through the chart legend. Opacity keeps it in the Tab order, and the
+   * focus it takes is what shows it. The touch rule in index.css lifts the
+   * idle opacity along with the column move.
+   */
+  rankIdleFace: 'group-hover:invisible group-has-[:focus-visible]/rank:invisible',
+  removeFace: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
   /**
    * A footnote reference on a cell: the `*` a Model cell carries when its
    * model ends inside the window (#508), pointing at the line under the table.

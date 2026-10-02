@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, useId, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { familyOf, metricLabel } from '../metrics'
@@ -13,6 +13,7 @@ import {
   MAP_EDGE,
   RADIUS,
   STATUS,
+  SR_ONLY,
   SURFACE_FLOATING,
   SWATCH_CHIP,
   SWATCH_EDGE,
@@ -176,6 +177,7 @@ export default function MapLegend({
   sheetLiftPx,
   timelineShown,
 }: MapLegendProps) {
+  const smokeId = useId()
   const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
   // The grid's states mean nothing under a ranking it cannot paint, so the
   // grid neither keys the metric nor gets a row of its own then.
@@ -377,10 +379,16 @@ export default function MapLegend({
                     // it stands for is the same one the plume
                     // popup and the layer use, so this names it
                     // rather than introducing a second
-                    // vocabulary.
+                    // vocabulary. The word is also hidden text
+                    // in the chip, because a title reaches a
+                    // pointer and nobody else (#576).
                     title={density}
+                    aria-describedby={`${smokeId}-${density}`}
                   >
                     {density[0]}
+                    <span id={`${smokeId}-${density}`} className={SR_ONLY}>
+                      {density}
+                    </span>
                   </span>
                 ))}
               </span>

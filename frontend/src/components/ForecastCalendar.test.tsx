@@ -113,6 +113,16 @@ describe('choosing days', () => {
 })
 
 describe('the Hours segment', () => {
+  // The note was the row's title alone, which reaches a pointer and nobody
+  // else (#576). Both halves of the segment now carry it as a description.
+  it('describes both halves with the note the row shows on hover', () => {
+    render(<Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-15' }} />)
+    const note = screen.getByRole('button', { name: 'Hourly' }).closest('[title]')!.getAttribute('title')!
+    for (const name of ['All day', 'Hourly']) {
+      expect(screen.getByRole('button', { name, description: note })).toBeTruthy()
+    }
+  })
+
   it('opens Hourly on this hour through the end of the day', async () => {
     const { user } = render(
       <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-15' }} />,

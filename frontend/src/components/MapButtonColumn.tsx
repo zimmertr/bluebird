@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { IconMenu } from './icons'
+import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { BUTTON_FLOATING, LAYER, MAP_COL_GAP, MAP_COL_W, MAP_EDGE, MAP_ROW_H } from '../styles'
 import type { Place } from '../utils/geocode'
 
@@ -54,8 +55,11 @@ export default function MapButtonColumn({
       <div className="relative z-10">
         <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} />
       </div>
+      {/* Stands in for the drawer's Close button, so it takes the keyboard
+          when that button goes inert under it (#576). */}
       {!sidebarOpen && (
         <button
+          ref={takeOrphanedFocus}
           onClick={onOpenControls}
           aria-label="Open controls"
           className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex flex-shrink-0 items-center gap-2 px-2.5`}

@@ -25,6 +25,7 @@ import {
   SURFACE_POPOVER,
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
+import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 
 // One row of the Layers popover: a checkbox and what it switches. The seven
 // overlays and the forecast player share it, because they are the same kind of
@@ -134,6 +135,11 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
   const [layersOpen, setLayersOpen] = useState(false)
   const open = layersOpen || forcedOpen
   const layersRef = useRef<HTMLDivElement>(null)
+  // A close by Escape or by a press elsewhere unmounts the menu under a
+  // keyboard that was inside it, so the focus comes back to the button that
+  // opened it rather than falling to the body (#576).
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  useTakeOrphanedFocus(buttonRef, !open)
   // Both ways out of a popover a reader expects: click away, or press Escape.
   // `pointerdown` rather than `click` so a press that starts outside dismisses
   // even if the pointer travels before release, and so it lands before the
@@ -211,6 +217,7 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
   return (
     <div ref={layersRef} className="relative" data-tour="layers">
       <button
+        ref={buttonRef}
         onClick={() => setLayersOpen((o) => !o)}
         aria-expanded={open}
         className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}

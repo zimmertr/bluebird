@@ -148,10 +148,13 @@ export default function ResultsSheet({
             showTable={showTable}
             columnsButtonRef={columnsButtonRef}
             onToggleColumns={() => setColumnsOpen(!columnsOpen)}
+            columnsOpen={columnsOpen}
             modelsButtonRef={modelsButtonRef}
             onToggleModels={() => setModelsOpen(!modelsOpen)}
+            modelsOpen={modelsOpen}
             removedButtonRef={removedButtonRef}
             onToggleRemoved={() => setRemovedOpen(!removedOpen)}
+            removedOpen={removedOpen}
             removedCount={removed.size}
             canDownload={results.length > 0 || pending.length > 0}
             onDownloadCsv={handleDownloadCsv}
