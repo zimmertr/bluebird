@@ -125,6 +125,14 @@ test('a link reopens at its camera, with its removals and its table order', asyn
   // has loaded, so its first request is the camera the map opened on, read
   // after the opening frame had its chance to fit the ring.
   const fires = page.waitForRequest((r) => r.url().includes('/api/wildfires'))
+  // The fire proximity check asks the same route, for the destinations' own
+  // box, as soon as discovery publishes them, and could ask first. Holding
+  // the discovery answer until the overlay has asked makes the first request
+  // the overlay's.
+  await page.route('**/api/destinations', async (route) => {
+    await fires
+    await route.fallback()
+  })
   await page.goto(
     `/?type=peak&mode=days&d1=${d1}&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&fires=1` +
       `&removed=-121.792,47.4375&tsort=name&tdesc=1&view=${view}&analyze=1`,

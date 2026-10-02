@@ -27,11 +27,19 @@
  * moment of the write plus the milliseconds that were left, so the reader can
  * subtract however long the page was away.
  *
- * The snapshot half is pure except `loadSnapshot`/`saveSnapshot`, which are the
- * only two functions that touch storage and which swallow every failure. A
- * private window, cleared site data, and a full quota all present as an
- * exception from an ordinary-looking property access, and none of them is a
- * reason to fail an analysis.
+ * A snapshot is read back only by the build that wrote it. The stored values
+ * are aggregates, not raw hours, so a release that changes the aggregation
+ * changes what they mean, and a tab that reloads into the new build inside the
+ * 15 minutes would otherwise show numbers the old build worked out. The stamp
+ * lives inside the one key rather than in its name, so another build's
+ * snapshot is removed when it is refused instead of sitting beside the new one
+ * in the tab's quota.
+ *
+ * The snapshot half is pure except `loadSnapshot`/`saveSnapshot`/
+ * `removeSnapshot`, which are the only functions that touch storage and which
+ * swallow every failure. A private window, cleared site data, and a full quota
+ * all present as an exception from an ordinary-looking property access, and
+ * none of them is a reason to fail an analysis.
  */
 
 import type { AqiResult, CloudResult, Coordinate, WeatherResult } from './openMeteo'
@@ -58,6 +66,8 @@ export interface StoredEntry {
 }
 
 export interface StoredSnapshot {
+  /** The build that wrote it, which is the only build that reads it back. */
+  build: string
   /** `Date.now()` at the write, so the reader can measure the gap. */
   savedAt: number
   entries: StoredEntry[]
@@ -74,6 +84,7 @@ export function buildSnapshot(
   entries: Iterable<[string, { expires: number; value: unknown }]>,
   perfNow: number,
   nowMs: number,
+  build: string,
   maxBytes = MAX_BYTES,
 ): StoredSnapshot {
   // The map iterates in insertion order, so the newest entries are last. They
@@ -88,14 +99,19 @@ export function buildSnapshot(
   const kept: StoredEntry[] = []
   // The envelope's own cost, so the budget bounds the string that is actually
   // written rather than the entries alone.
-  let bytes = JSON.stringify({ savedAt: nowMs, entries: [] }).length
+  let bytes = JSON.stringify({ build, savedAt: nowMs, entries: [] }).length
   for (const entry of fresh) {
     const size = JSON.stringify(entry).length + 1
     if (bytes + size > maxBytes) break
     kept.push(entry)
     bytes += size
   }
-  return { savedAt: nowMs, entries: kept }
+  return { build, savedAt: nowMs, entries: kept }
+}
+
+/** Whether `snapshot` was written by `build`. A snapshot with no stamp was not. */
+export function snapshotFromBuild(snapshot: unknown, build: string): boolean {
+  return !!snapshot && typeof snapshot === 'object' && (snapshot as Partial<StoredSnapshot>).build === build
 }
 
 /**
@@ -108,8 +124,9 @@ export function readSnapshot(
   snapshot: unknown,
   perfNow: number,
   nowMs: number,
+  build: string,
 ): [string, { expires: number; value: unknown }][] {
-  if (!snapshot || typeof snapshot !== 'object') return []
+  if (!snapshotFromBuild(snapshot, build)) return []
   const { savedAt, entries } = snapshot as Partial<StoredSnapshot>
   if (typeof savedAt !== 'number' || !Array.isArray(entries)) return []
   // A clock that moved backwards would otherwise hand back more freshness than
@@ -145,11 +162,16 @@ export function saveSnapshot(snapshot: StoredSnapshot): void {
   } catch {
     // A full quota, a private window, or blocked site data. The in-memory map
     // is unaffected and the next analysis costs exactly what it would have.
-    try {
-      globalThis.sessionStorage?.removeItem(STORAGE_KEY)
-    } catch {
-      /* nothing left to try */
-    }
+    removeSnapshot()
+  }
+}
+
+/** Remove the snapshot, or do nothing at all. Never throws. */
+export function removeSnapshot(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(STORAGE_KEY)
+  } catch {
+    /* nothing left to try */
   }
 }
 
@@ -245,21 +267,37 @@ export function cachePut(key: string, value: CacheEntry['value']): void {
 // survives the back/forward cache; `visibilitychange` covers a phone whose
 // browser is backgrounded and then killed.
 let cacheDirty = false
+// The build the page is running, handed in by `main.tsx` the way it hands the
+// same value to `reloadOnStaleChunk`. Null until then, and nothing is written
+// without it, because a snapshot with no stamp is one no build will read.
+let currentBuild: string | null = null
 
 function persistForecastCache(): void {
-  if (!cacheDirty) return
+  if (!cacheDirty || currentBuild === null) return
   cacheDirty = false
-  saveSnapshot(buildSnapshot(forecastCache, performance.now(), Date.now()))
+  saveSnapshot(buildSnapshot(forecastCache, performance.now(), Date.now(), currentBuild))
 }
 
-function hydrateForecastCache(): void {
-  for (const [key, entry] of readSnapshot(loadSnapshot(), performance.now(), Date.now())) {
+/**
+ * Put back what the last page of this build stored, and remove a snapshot any
+ * other build stored, so the tab never holds two.
+ */
+export function hydrateForecastCache(build: string): void {
+  currentBuild = build
+  const snapshot = loadSnapshot()
+  if (snapshot === null) return
+  if (!snapshotFromBuild(snapshot, build)) {
+    removeSnapshot()
+    return
+  }
+  for (const [key, entry] of readSnapshot(snapshot, performance.now(), Date.now(), build)) {
     forecastCache.set(key, entry as CacheEntry)
   }
 }
 
-if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
-  hydrateForecastCache()
+/** The wiring `main.tsx` calls once, before the app renders. */
+export function keepForecastsAcrossReload(build: string): void {
+  hydrateForecastCache(build)
   window.addEventListener('pagehide', persistForecastCache)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') persistForecastCache()
@@ -270,5 +308,6 @@ if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
 // `resetOpenMeteoState` calls it beside resetting the pacing budgets.
 export function resetForecastCache(): void {
   cacheDirty = false
+  currentBuild = null
   forecastCache.clear()
 }
