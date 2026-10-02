@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from app import ratelimit
 from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
+from app.services import cache
 from app.services.errors import classify_http_error
 from app.services.http import USER_AGENT
 
@@ -75,6 +76,13 @@ async def geocode(
     limit: int = Query(5, ge=1, le=10, description="Maximum places to return."),
 ) -> list[Any]:
     log.info("Geocode query: %r", q)
+    # Checked before the gate, so a repeat search neither calls Nominatim nor
+    # waits in the queue behind other visitors' searches.
+    cache_key = cache.geocode_key(q, limit)
+    cached = cache.GEOCODE_CACHE.get(cache_key)
+    if cached is not None:
+        log.debug("Geocode query %r served from cache", q)
+        return cached
     # Pace the shared egress IP to Nominatim's ~1 req/s policy before opening
     # a connection; a full queue sheds here rather than piling onto them.
     try:
@@ -115,4 +123,7 @@ async def geocode(
         )
 
     log.info("Geocode query %r returned %d place(s)", q, len(rows))
+    # An empty list is a real answer and is cached too; failures above never
+    # reach here, so a transient error is not held for the TTL.
+    cache.GEOCODE_CACHE.put(cache_key, rows)
     return rows

@@ -87,6 +87,11 @@ that file, and in the SBOM attestation on its image:
 docker buildx imagetools inspect zimmertr/bluebird:<version> --format '{{ json .SBOM }}'
 ```
 
+<!-- backend/tests/test_notices.py holds the two tables below to
+     frontend/package.json's dependencies and backend/requirements.txt, in
+     both directions, and each license cell to the license the package
+     declares. A new direct dependency fails it until it has a row. -->
+
 Frontend (npm), bundled into the served JavaScript:
 
 | Package | License |

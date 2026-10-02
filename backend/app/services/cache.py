@@ -1,6 +1,6 @@
 """Small in-memory TTL caches for upstream results (issue #180).
 
-Three things get cached, each because the same work was otherwise paid for
+Four things get cached, each because the same work was otherwise paid for
 twice within minutes:
 
 - Overpass discovery, keyed by (polygon ring, type): the browser flow calls
@@ -13,10 +13,14 @@ twice within minutes:
 - Per-location Open-Meteo results, keyed by (coordinate, window, service):
   eight clicks on the same polygon re-bought ~1,800 weighted calls each
   time against a 600/minute budget.
+- Nominatim place searches, keyed by (query, limit): Nominatim's usage policy
+  asks callers to cache results, and every search otherwise waits its turn
+  behind a per-pod gate set to their ~1 request per second (issue #571).
 
-Both caches are per pod and in-memory on purpose, like everything in
+All of these caches are per pod and in-memory on purpose, like everything in
 ratelimit: the goal is absorbing repeats, not exactness across replicas.
-Entries expire by TTL (Overpass data drifts on a human timescale; Open-Meteo
+Entries expire by TTL (OSM data, from Overpass or Nominatim, drifts on a
+human timescale; Open-Meteo
 model runs update roughly hourly, so 15 minutes is conservative) and the
 stores are LRU-bounded so an adversary drawing endless polygons cannot grow
 memory without bound.
@@ -54,6 +58,12 @@ FORECAST_TTL_S = 15 * 60
 # window), so the worst case is tens of MB per pod — bounded, and far
 # cheaper than the upstream quota it saves.
 FORECAST_MAX_ENTRIES = 5_000
+
+# OSM data again, so the discovery TTL. An entry is at most ten small place
+# rows, so the bound is generous: it exists to stop an endless stream of
+# distinct queries from growing memory, not to save any.
+GEOCODE_TTL_S = 10 * 60
+GEOCODE_MAX_ENTRIES = 512
 
 
 class TTLCache:
@@ -101,6 +111,7 @@ class TTLCache:
 DISCOVERY_CACHE = TTLCache(DISCOVERY_MAX_ENTRIES, DISCOVERY_TTL_S)
 ENRICH_CACHE = TTLCache(ENRICH_MAX_ENTRIES, ENRICH_TTL_S)
 FORECAST_CACHE = TTLCache(FORECAST_MAX_ENTRIES, FORECAST_TTL_S)
+GEOCODE_CACHE = TTLCache(GEOCODE_MAX_ENTRIES, GEOCODE_TTL_S)
 
 
 def discovery_key(ring: Sequence[Sequence[float]], type_value: str) -> tuple:
@@ -127,6 +138,18 @@ def custom_enrich_key(points: list[tuple[float, float]]) -> tuple:
     """
     coords = tuple(sorted((round(lat, 5), round(lon, 5)) for lat, lon in points))
     return (CACHE_VERSION, "custom-enrich", coords)
+
+
+def geocode_key(query: str, limit: int) -> tuple:
+    """Cache key for one place search.
+
+    The query is kept exactly as sent. Nominatim's answer to a query that
+    differs only in case or spacing is usually, not always, the same, and a
+    repeat search from the box sends the identical string, which is the hit
+    pattern that matters. ``limit`` is part of the key because a shorter list
+    cannot answer a request for a longer one.
+    """
+    return (CACHE_VERSION, "geocode", query, limit)
 
 
 # Cached values are per-WINDOW results (aggregates and series computed over
