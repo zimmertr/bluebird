@@ -20,6 +20,16 @@ import { terrainFallbackFor } from '../utils/openMeteo'
 import { paceWaitLine } from '../utils/pacing'
 import { geoKey } from '../utils/points'
 
+// No compared model came back empty: one identity, so the bar is handed the
+// same empty list on every render where there is nothing to say.
+const NO_NOTES: readonly CompareNote[] = []
+
+/** One compared model's note, keyed by the model it is about. */
+export interface CompareNote {
+  id: string
+  note: string
+}
+
 export interface ChartCompareInputs {
   /** The displayed rows, in ranking order: what the chart and the compare fetch cover. */
   results: DestinationResult[]
@@ -246,6 +256,18 @@ export function useChartCompare({
   // one wait said twice is the reason it was put in one module.
   const compareWait = compare.active && chartShowing ? null : paceWaitLine(compare.paceRemainingS)
 
+  // Why a compared model has no rows, on the same terms as the wait. The note
+  // is the chart's (`ModelCompare`), but the table loses that model's rows
+  // too, and a phone opens on Table, where the chart and its note are not on
+  // screen. The same sentences, unchanged, in the order the chart lists them.
+  const chartSaysIt = compare.active && chartShowing
+  const shownCompared = compare.shown
+  const compareNotes = useMemo(() => {
+    if (chartSaysIt) return NO_NOTES
+    const notes = shownCompared.flatMap((m) => (m.note === null ? [] : [{ id: m.id, note: m.note }]))
+    return notes.length > 0 ? notes : NO_NOTES
+  }, [chartSaysIt, shownCompared])
+
   return {
     chart,
     compare,
@@ -256,6 +278,7 @@ export function useChartCompare({
     rowChartColor,
     comparingRows,
     compareWait,
+    compareNotes,
   }
 }
 

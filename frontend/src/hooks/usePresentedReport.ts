@@ -7,6 +7,7 @@ import { pendingDestinations } from '../utils/customList'
 import { type Place, placeType } from '../utils/geocode'
 import { geoKey } from '../utils/points'
 import { type PresentationKnobs, presentResults } from '../utils/present'
+import { isRankingOrder } from '../utils/sortResults'
 import type { SortDir, SortKey } from '../utils/tableColumns'
 
 // Stands in for the analysis snapshot's covered set before the first analysis.
@@ -188,7 +189,7 @@ export function usePresentedReport({
   // order, which is what the table shows when nobody clicked a header.
   const tableSort = useMemo(
     () =>
-      detailSort.key === view.sortBy && (detailSort.dir === 'desc') === view.sortDesc
+      isRankingOrder(detailSort, view.sortBy, view.sortDesc)
         ? null
         : { key: detailSort.key, desc: detailSort.dir === 'desc' },
     [detailSort, view.sortBy, view.sortDesc],

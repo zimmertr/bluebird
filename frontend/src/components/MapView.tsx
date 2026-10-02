@@ -79,7 +79,7 @@ export interface MapViewHandle {
   // this destination has no forecast. Clicking the dot still says what is
   // known about it (TJ, 2026-09-14).
   focusPoint: (at: { latitude: number; longitude: number }) => void
-  /** Close every popup and move nothing: the tutorial leaving its marker step (#536). */
+  /** Close every popup and move nothing: the tutorial leaving its marker step (#536), and a committed report (#577). */
   closePopups: () => void
 }
 

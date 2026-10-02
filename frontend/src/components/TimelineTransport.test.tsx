@@ -28,6 +28,14 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 describe('TimelineTransport', () => {
+  // A popup's placement steps around every surface that names itself so
+  // (`obstacles` in map/resultsLayer.ts), and the bar stands over the map.
+  it('names itself a map overlay, so a popup keeps clear of it', () => {
+    const { container } = render(<TimelineTransport {...props()} />)
+    expect(container.querySelectorAll('[data-map-overlay]')).toHaveLength(1)
+    expect(container.firstElementChild?.hasAttribute('data-map-overlay')).toBe(true)
+  })
+
   it('plays from pause and pauses from play', async () => {
     const onPlayingChange = vi.fn()
     const { user, rerender } = render(<TimelineTransport {...props({ onPlayingChange })} />)

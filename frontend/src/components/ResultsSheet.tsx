@@ -62,7 +62,7 @@ interface ResultsSheetView {
   /** The chart and the comparison, and the Models popover's list (`useChartCompare`). */
   charts: Pick<
     ChartCompare,
-    'chart' | 'compare' | 'rowChartColor' | 'selectedModelRows' | 'hiddenModels' | 'toggleHiddenModel' | 'compareWait'
+    'chart' | 'compare' | 'rowChartColor' | 'selectedModelRows' | 'hiddenModels' | 'toggleHiddenModel' | 'compareWait' | 'compareNotes'
   >
   /** The table's shape and its file (`useTableView`). */
   tableView: TableView
@@ -107,7 +107,7 @@ export default function ResultsSheet({
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
   const { results, windowTitle, pending, rowCount } = report
-  const { selectedModelRows, hiddenModels, toggleHiddenModel, compareWait } = charts
+  const { selectedModelRows, hiddenModels, toggleHiddenModel, compareWait, compareNotes } = charts
   const { allColumns, pickerVisibleKeys, handleVisibilityChange, handleColumnMove, handleDownloadCsv } = tableView
   const { removed, removeResult, restoreRemoved, restoreAllRemoved } = removals
 
@@ -156,6 +156,7 @@ export default function ResultsSheet({
             canDownload={results.length > 0 || pending.length > 0}
             onDownloadCsv={handleDownloadCsv}
             compareWait={compareWait}
+            compareNotes={compareNotes}
           />
           {!resultsCollapsed && (
             <ResultsPanels

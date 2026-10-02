@@ -28,6 +28,8 @@ export interface ResultsViewInputs {
   analysisSeq: number
   /** The displayed ranking. */
   sortBy: TableViewInputs['sortBy']
+  /** The displayed ranking's direction. */
+  sortDesc: TableViewInputs['sortDesc']
   /** Whether the analyzed report is one hour. */
   pointSample: boolean
   /** The snapshot the held field was fetched under, null before the first analysis. */
@@ -71,6 +73,7 @@ export function useResultsView({
   bannerPx,
   analysisSeq,
   sortBy,
+  sortDesc,
   pointSample,
   analyzed,
   models,
@@ -121,6 +124,7 @@ export function useResultsView({
     results,
     detailSort,
     sortBy,
+    sortDesc,
     pointSample,
     analyzed,
     models,

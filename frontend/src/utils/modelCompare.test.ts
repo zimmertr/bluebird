@@ -12,6 +12,7 @@ import {
   compareAdded,
   compareEndMs,
   compareSeries,
+  endsInsideWindow,
   isPartialRow,
   legendEntries,
   type LegendEntry,
@@ -113,6 +114,13 @@ describe('compareEndMs', () => {
     expect(compareEndMs(end, [], NOW)).toBe(end)
   })
 
+  // The fetch stamps whole hours, so a model whose reach falls at 16:11 last
+  // answers at 16:00, and that is the hour the mark and the dashed line name.
+  it('lands a reach on the hour the fetch stops at', () => {
+    const at = NOW + 11 * 60_000
+    expect(compareEndMs(NOW + 10 * DAY, [42], at)).toBe(NOW + 42 * HOUR)
+  })
+
   // The window the hook fetches for is this function over the resolved window,
   // so a Current analysis has to buy a span rather than a moment: Open-Meteo's
   // inclusive filter matches nothing between a moment and itself.
@@ -120,6 +128,26 @@ describe('compareEndMs', () => {
     const at = Date.UTC(2026, 8, 12, 18, 30)
     const resolved = normalizeWindow(at, at)
     expect(compareEndMs(resolved.endMs, [384], NOW)).toBeGreaterThan(resolved.startMs)
+  })
+})
+
+describe('endsInsideWindow', () => {
+  const windowEnd = NOW + 2 * DAY + 59 * 60_000 // a range ends at :59
+
+  it('is true for a model that stops an hour or more before the window', () => {
+    expect(endsInsideWindow(windowEnd - DAY, windowEnd)).toBe(true)
+  })
+
+  // A model whose last hour is the window's last hour covers the window,
+  // although that hour starts before the window's final minute.
+  it('is false for a model whose last hour is the window last hour', () => {
+    expect(endsInsideWindow(NOW + 2 * DAY, windowEnd)).toBe(false)
+    expect(endsInsideWindow(windowEnd, windowEnd)).toBe(false)
+  })
+
+  it('is false for a one-hour window whose hour the model answers', () => {
+    const resolved = normalizeWindow(NOW, NOW)
+    expect(endsInsideWindow(compareEndMs(resolved.endMs, [0], NOW + 30 * 60_000), resolved.endMs)).toBe(false)
   })
 })
 

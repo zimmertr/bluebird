@@ -42,3 +42,20 @@ export function compareValues(av: unknown, bv: unknown, dir: 'asc' | 'desc' = 'a
       : String(av).localeCompare(String(bv), undefined, { numeric: true })
   return dir === 'asc' ? cmp : -cmp
 }
+
+/**
+ * Is the table's header sort the ranking's own order, which is what the table
+ * shows while nobody has clicked a header?
+ *
+ * One spelling for the two readers that ask: the link writes a header sort
+ * only when it differs from this (`tableSort` in `usePresentedReport.ts`), and
+ * the table keeps its rows in the order they arrived in while it holds, which
+ * is what keeps a comparison's rows grouped by destination (`useTableView.ts`).
+ */
+export function isRankingOrder(
+  sort: { key: string; dir: 'asc' | 'desc' },
+  sortBy: string,
+  sortDesc: boolean,
+): boolean {
+  return sort.key === sortBy && (sort.dir === 'desc') === sortDesc
+}

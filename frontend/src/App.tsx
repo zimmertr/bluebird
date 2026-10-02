@@ -41,6 +41,7 @@ import { useTimeline } from './hooks/useTimeline'
 import { usePresentedReport } from './hooks/usePresentedReport'
 import { useRemovals } from './hooks/useRemovals'
 import { useResultsView } from './hooks/useResultsView'
+import { useClosePopupsOnCommit } from './hooks/useClosePopupsOnCommit'
 import { useRunOnOpen } from './hooks/useRunOnOpen'
 import { useUrlSync } from './hooks/useUrlSync'
 import { useFireProximity } from './hooks/useFireProximity'
@@ -428,6 +429,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
+  // A committed report closes every popup the last one left open (#577).
+  useClosePopupsOnCommit(analysisSeq, mapRef)
+
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
   const bannerPx = preview.enabled ? 32 : 0
@@ -445,6 +449,7 @@ export default function App() {
     bannerPx,
     analysisSeq,
     sortBy: view.sortBy,
+    sortDesc: view.sortDesc,
     pointSample,
     analyzed: shownAnalyzed,
     models: caps.forecastModels,

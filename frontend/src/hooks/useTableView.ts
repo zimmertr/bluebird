@@ -19,7 +19,7 @@ import {
 } from '../utils/modelCompare'
 import type { WeatherResult } from '../utils/openMeteo'
 import { geoKey } from '../utils/points'
-import { compareValues } from '../utils/sortResults'
+import { compareValues, isRankingOrder } from '../utils/sortResults'
 import {
   CLOSURE_KEY,
   FLAG_COLS,
@@ -49,13 +49,20 @@ export interface TableViewInputs {
   detailSort: { key: SortKey; dir: SortDir }
   /** The ranking, whose metric group leads the columns. */
   sortBy: SortBy
+  /** The ranking's direction: with `sortBy`, the order the rows arrive in. */
+  sortDesc: boolean
   /** Whether the window is a single hour, which relabels every metric column. */
   pointSample: boolean
   /** The committed report's snapshot: its model, its window, and whether it carries cloud. */
   analyzed: AnalyzedView | null
   /** The deployment's models (`/api/capabilities`), for the analysis model's label. */
   models: readonly ForecastModelOption[]
-  /** The panel's ranking model, whose row leads each compared group. */
+  /**
+   * The panel's model, which names the Model column only before any report
+   * has committed. Never the rows' model: the panel's ranking can move ahead
+   * of the report (a chip promotion), and the rows stay the report's until
+   * the next Analyze.
+   */
   forecastModel: string
   /** Whether several models' rows are on display (`useChartCompare`). */
   comparingRows: boolean
@@ -89,6 +96,7 @@ export function useTableView({
   results,
   detailSort,
   sortBy,
+  sortDesc,
   pointSample,
   analyzed,
   models,
@@ -217,18 +225,22 @@ export function useTableView({
 
   // Every displayed row under every model that answered, grouped by
   // destination. `modelRowsFor` owns the rules; this only decides whether to
-  // ask, and hands it the ranking model first so its row leads each group.
+  // ask, and names the ANALYZED model as the one whose rows are the report's
+  // own. Naming the panel's instead lost the report after a chip promotion:
+  // its model was then treated as a compared one, which the compare fetch
+  // never holds, so every one of its rows was skipped until the next Analyze.
+  const rankingId = analyzed?.forecastModel ?? forecastModel
   const comparedTableRows = useMemo(() => {
     if (!comparingRows) return null
     return modelRowsFor(
       results,
       shownModels.map((m) => ({ id: m.id, label: m.label })),
-      forecastModel,
+      rankingId,
       compareResults,
       chartKey,
       compareReachEnds,
     )
-  }, [comparingRows, results, shownModels, compareResults, compareReachEnds, forecastModel])
+  }, [comparingRows, results, shownModels, compareResults, compareReachEnds, rankingId])
 
   // The compared models whose rows on display cover fewer hours than the
   // window, in the picker's order. One derivation for the table's footnote and
@@ -264,6 +276,12 @@ export function useTableView({
   // memo, keyed on the ranking alone, so a header sort reorders the same row
   // objects rather than minting new ones for the memoized table.
   const rankedRows = useMemo(() => results.map((r, i) => ({ ...r, rank: i + 1 })), [results])
+  // Until a header click, the rows stay in the order they arrived in, which is
+  // the ranking's. Re-sorting them by the ranking's own key restated the
+  // ranking at best for one row per place, and under a comparison it pulled
+  // each place's models apart (ranks reading 1, 1, 1, 2, 1, 2, 3), where
+  // `modelRowsFor` hands them over grouped with the report's row first.
+  const rankingOrder = isRankingOrder(detailSort, sortBy, sortDesc)
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
       detailSort.key === WILDFIRE_KEY
@@ -274,8 +292,9 @@ export function useTableView({
             ? ((r as ModelRow).modelLabel ?? null)
             : r[detailSort.key]
     const base: DestinationResult[] = comparedTableRows ?? rankedRows
+    if (rankingOrder) return base
     return [...base].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
-  }, [rankedRows, comparedTableRows, detailSort, fireWarnings, closureWarnings])
+  }, [rankedRows, comparedTableRows, detailSort, rankingOrder, fireWarnings, closureWarnings])
 
   // Columns displayed in the table (filtered by visibility). The wildfire
   // column and then the Closure column come last, each shown by default and
