@@ -479,6 +479,19 @@ describe('the privacy copy, held to the code', () => {
     expect((sentence ?? '').match(/\bone run by\b/g)?.length).toBe(hosts.length)
   })
 
+  // The page says when the logs go, and that rests on a measurement rather
+  // than on code: kubelet rotation never fires at this volume, so a pod's lines
+  // last until a release replaces the pod. The record of that measurement is
+  // what this sentence answers to, so losing it fails here.
+  it('says the logs go with the server update, as the measurement found', () => {
+    const traffic = repoFile('docs/TRAFFIC.md').replace(/\s+/g, ' ')
+    expect(traffic).toMatch(/## Request logs and how long they last/)
+    expect(traffic).toMatch(/pod replacement at a release clears the logs, not rotation/)
+
+    expect(text).toMatch(/They are kept only for debugging and are deleted when the server is next updated, typically within days\./)
+    expect(text).not.toMatch(/log rotation/)
+  })
+
   it('names Cloudflare, which carries every request', () => {
     expect(repoFile('docs/TRAFFIC.md')).toMatch(/\*\*Cloudflare\*\* proxies the zone/)
 

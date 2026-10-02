@@ -60,8 +60,8 @@ export default function PrivacyPage() {
             aren't saved to a database or tied to your identity. Server logs record your IP
             address with each request to the server's API, and the place names you search for,
             but not the page's address or anything else you enter. They are kept only for
-            debugging and are discarded by routine log rotation, typically within days. They are
-            never archived or shared. Your address is also counted in memory to apply rate
+            debugging and are deleted when the server is next updated, typically within days.
+            They are never archived or shared. Your address is also counted in memory to apply rate
             limits, which is what keeps the free data providers available to everyone; those
             counters expire on their own and are gone whenever the server restarts.
           </li>

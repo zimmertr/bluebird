@@ -166,7 +166,7 @@ the whole defense.
 
 The access log above is the one place the pod writes a client address, and the
 geocode route adds the place names it proxies. The privacy page promises those
-lines are "discarded by routine log rotation, typically within days"
+lines are "deleted when the server is next updated, typically within days"
 ([#612](https://github.com/zimmertr/bluebird/issues/612)). Measured
 2026-10-02, read-only:
 
@@ -201,9 +201,12 @@ lines are "discarded by routine log rotation, typically within days"
   longest was 8.7 days. An autoscaler scale-down or a reschedule ends a pod
   sooner.
 
-So "typically within days" holds today, but the mechanism is the release, not
-rotation, and nothing bounds it in time: with no release for a quarter, a pod's
-oldest lines would still be on disk at the end of it.
+So "typically within days" holds today, and the privacy sentence names the
+mechanism that makes it true: pod replacement at a release clears the logs, not
+rotation. Nothing bounds it in time: with no release for a quarter, a pod's
+oldest lines would still be on disk at the end of it, and the sentence would
+need revisiting. It was "discarded by routine log rotation" until this
+measurement showed rotation never fires at this volume.
 
 **Cloudflare** keeps its own record of every proxied request, outside this
 cluster. The zone is on the **Free** plan (read from the Cloudflare API on
