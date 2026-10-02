@@ -37,7 +37,8 @@ export function useAnalyze(
   // redrawn ring that still covers most of the old one), because reuse is
   // decided per destination rather than per reason, and re-buying a forecast
   // already on screen spends the visitor's Open-Meteo quota to learn nothing.
-  // Set only once a run has finished and committed.
+  // Set only once a run has finished and committed, so a run that does not
+  // finish leaves the forecasts of the report it puts back (#560).
   const heldForecastsRef = useRef<HeldForecasts | null>(null)
 
   // Re-run the most recent request (the "Try again" button on transient
@@ -63,9 +64,15 @@ export function useAnalyze(
   // election) and the table shows exactly the ranked rows. Repeats may be
   // served from short-lived caches; nothing is refetched behind the user's
   // back. The previous report deliberately stays on screen until this one
-  // commits, and a cancel or a failure leaves it standing.
-  async function analyze(request: AnalyzeRequest, kind: SelectionKind = 'days', options: AnalyzeOptions = {}) {
-    const { discovery, compareModels = [] } = options
+  // commits, and a cancel or a failure puts it back as it was, partial rows
+  // and all discarded (#560). Resolves true only when the run committed, so
+  // the click can keep its own bookkeeping off a run that changed nothing.
+  async function analyze(
+    request: AnalyzeRequest,
+    kind: SelectionKind = 'days',
+    options: AnalyzeOptions = {},
+  ): Promise<boolean> {
+    const { discovery, compareModels = [], onCommit } = options
     lastRequestRef.current = { request, kind, options }
     // Derived off the request unless the caller says otherwise: the weather-
     // only refresh re-fetches a polygon report through the custom path, so its
@@ -90,7 +97,7 @@ export function useAnalyze(
     // quota: a public quota-amplification surface no ordinary visitor ever
     // exercised (27 review seats, zero fallbacks). It now surfaces through the
     // run's failure mapping like every other provider failure.
-    await run.run(
+    return run.run(
       seed,
       async (signal) => {
         const out = await runAnalysisPipeline(request, {
@@ -112,8 +119,12 @@ export function useAnalyze(
         })
         heldForecastsRef.current = out.held
         report.commit(out.response, out.field, view())
+        // In the same render as the commit, so the report never shows a
+        // frame under the bookkeeping of the one before it, and inside the
+        // run rather than after the click, so a retry's commit applies it too.
+        onCommit?.()
       },
-      { onFailure: report.dropCandidates, onSettled: report.settle },
+      { onFailure: report.discard, onSettled: report.settle },
     )
   }
 
@@ -124,6 +135,8 @@ export function useAnalyze(
     reset,
     analyzed: report.analyzed,
     analysisSeq: report.analysisSeq,
+    // Moves when a run that showed partial rows is put back (#560).
+    discardSeq: report.discardSeq,
     fireField: report.fireField,
     fireSeq: report.fireSeq,
     loading: run.loading,

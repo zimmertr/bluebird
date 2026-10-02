@@ -163,9 +163,15 @@ export function useResultsLayout({
   // report arrives with its chart — unless the user has ever explicitly picked
   // a mode, which always wins. A phone stays on Table: the stacked pair leaves
   // the map a sliver there. Checked per analysis rather than on mount so the
-  // pre-analysis screen still opens on the plain table.
+  // pre-analysis screen still opens on the plain table. The first rows widen
+  // it as they arrive, before any commit, so a first run that does not commit
+  // narrows it back: the screen it returns to is the pre-analysis one (#560).
   useEffect(() => {
-    if (response === null || modeChosenRef.current) return
+    if (modeChosenRef.current) return
+    if (response === null) {
+      if (analysisSeq === 0) setModePref('table')
+      return
+    }
     if (!window.matchMedia('(min-width: 1024px)').matches) return
     setModePref('both')
   }, [response, analysisSeq])

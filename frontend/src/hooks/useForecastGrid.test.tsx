@@ -59,6 +59,7 @@ function inputs(over: Partial<ForecastGridInputs> = {}): ForecastGridInputs {
     reachFrac: 0,
     displayReachFrac: 0,
     analysisSeq: 1,
+    arriving: false,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     aqiForecastDays: 5,
     cloud: false,
@@ -100,6 +101,21 @@ describe('useForecastGrid', () => {
     await act(async () => calls[1].answer(answers(calls[1], { precip_total_in: 0.1 })))
     expect(result.current.status).toBe('ready')
     expect(result.current.cells.every((c) => c.row.precip_total_in === 0.1)).toBe(true)
+  })
+
+  // #560: the snapshot of a run still arriving may never stand as a report.
+  // A lattice fetched for it would be held under the sequence of the report a
+  // cancel puts back, and served under that report's markers.
+  it('fetches nothing while a run arrives, and keeps its lattice when the run is put back', async () => {
+    const { result, rerender } = mount()
+    await act(async () => calls[0].answer(answers(calls[0])))
+    const held = result.current.cells
+    rerender(inputs({ arriving: true, pitchKm: 25, field: [resultRow({ latitude: 40 })] }))
+    expect(calls).toHaveLength(1)
+    rerender(inputs())
+    expect(calls).toHaveLength(1)
+    expect(result.current.cells).toEqual(held)
+    expect(result.current.status).toBe('ready')
   })
 
   it('aborts the fetch when the layer is switched off, and goes back to idle', async () => {

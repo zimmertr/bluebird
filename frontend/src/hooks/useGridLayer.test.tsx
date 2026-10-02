@@ -36,6 +36,7 @@ function inputs(over: Partial<GridLayerInputs> = {}): GridLayerInputs {
     forecastModels: MODELS,
     forecastTimes: TIMES,
     analysisSeq: 1,
+    arriving: false,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     aqiForecastDays: 5,
     ...over,

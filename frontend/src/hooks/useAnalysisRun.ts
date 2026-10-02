@@ -11,7 +11,8 @@ import type { Progress, Refusal, RunError } from './analyzeTypes'
 // one commits.
 
 export interface RunHooks {
-  // A run that did not finish, cancelled or failed.
+  // A run that did not finish, cancelled or failed. It must change nothing,
+  // so this is where the report it began over is put back.
   onFailure: () => void
   // Any run ending, whatever the outcome.
   onSettled: () => void
@@ -60,8 +61,10 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   }
 
   // One run. `seed` is the first-phase label, so nothing generic flashes in
-  // the gap between the click and the first event.
-  async function run(seed: string, body: (signal: AbortSignal) => Promise<void>, hooks: RunHooks) {
+  // the gap between the click and the first event. Resolves true only when
+  // `body` finished: a cancel and a failure resolve false, so the caller can
+  // tell a run that committed from one that must change nothing (#560).
+  async function run(seed: string, body: (signal: AbortSignal) => Promise<void>, hooks: RunHooks): Promise<boolean> {
     const controller = new AbortController()
     abortRef.current = controller
     setLoading(true)
@@ -69,8 +72,10 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     setProgress(null)
     clearPace()
     setStatusMessage(seed)
+    let finished = false
     try {
       await body(controller.signal)
+      finished = true
     } catch (e) {
       hooks.onFailure()
       const failure = analysisFailure(e, models)
@@ -85,6 +90,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
       setProgress(null)
       clearPace()
     }
+    return finished
   }
 
   return {

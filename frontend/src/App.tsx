@@ -199,6 +199,7 @@ export default function App() {
     reset,
     analyzed,
     analysisSeq,
+    discardSeq,
     fireField,
     fireSeq,
     loading,
@@ -244,6 +245,7 @@ export default function App() {
     forecastModels: caps.forecastModels,
     forecastTimes,
     analysisSeq,
+    arriving,
     windowLimits: caps.windowLimits,
     aqiForecastDays: caps.aqiForecastDays,
   })
@@ -433,8 +435,9 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisSeq])
 
-  // A committed report closes every popup the last one left open (#577).
-  useClosePopupsOnCommit(analysisSeq, mapRef)
+  // A committed report closes every popup the last one left open (#577), and
+  // so does a run put back after its partial rows showed (#560).
+  useClosePopupsOnCommit(analysisSeq, mapRef, discardSeq)
 
   // Space below the map that a resize must leave alone: the preview banner (when
   // present) sits above the map, so the map + chart + table share the rest.
@@ -452,6 +455,7 @@ export default function App() {
     isDesktop,
     bannerPx,
     analysisSeq,
+    arriving,
     sortBy: view.sortBy,
     sortDesc: view.sortDesc,
     pointSample,
