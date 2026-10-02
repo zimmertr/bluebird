@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import gc
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
 import pytest
-from conftest import dest, fake_response
+from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response
 
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
@@ -574,7 +576,9 @@ def _stub_openmeteo(
 
     A behavior is an Exception (raised), a ``(ticks, payload)`` pair (yields to
     the event loop ``ticks`` times first, so completion order can be forced
-    independent of start order), or a bare payload. Returns the list of params
+    independent of start order), a callable (handed the call's url and params,
+    so an error answer can be built on the request the service really made),
+    or a bare payload. Returns the list of params
     each call was made with, so batching can be asserted. Running off the end
     of the script is an IndexError, which is the point: a test that expects two
     upstream calls fails loudly on a third.
@@ -592,6 +596,8 @@ def _stub_openmeteo(
                 urls.append(url)
             if isinstance(behavior, Exception):
                 raise behavior
+            if callable(behavior):
+                return behavior(url, params or {})
             if isinstance(behavior, tuple):
                 ticks, payload = behavior
                 for _ in range(ticks):
@@ -1378,17 +1384,67 @@ async def test_a_refused_key_is_not_classified_as_a_transient_failure(monkeypatc
     assert not isinstance(exc.value, ModelCoverageError)
 
 
-async def test_the_key_reaches_no_log_record_at_trace(monkeypatch, caplog):
+def _answered(status: int, body: dict[str, Any]) -> Callable[[str, dict], httpx.Response]:
+    """An error answer built on the request the service made, so the text
+    `raise_for_status` gives it names the keyed URL the way a real one does."""
+    return lambda url, params: fake_response(body, status, url=url, params=params)
+
+
+def _unreachable(url: str, params: dict) -> httpx.Response:
+    # httpx's own transport messages name no URL today. This one does, so the
+    # branch is held to redacting whatever its error says rather than to
+    # httpx's current wording.
+    request = httpx.Request("GET", url, params=params)
+    raise httpx.ConnectError(f"Cannot connect to {request.url}", request=request)
+
+
+# Every branch of `request_openmeteo` that logs, each answered on a keyed URL.
+_KEYED_FAILURES = [
+    pytest.param(
+        _answered(400, {"error": True, "reason": "The supplied API key is invalid."}),
+        InvalidApiKeyError,
+        id="refused-key",
+    ),
+    pytest.param(
+        _answered(429, {"reason": "Hourly API request limit exceeded"}),
+        UpstreamRateLimited,
+        id="rate-limit",
+    ),
+    pytest.param(_answered(502, {}), UpstreamError, id="upstream-error"),
+    pytest.param(
+        _answered(400, {"error": True, "reason": "No data is available for this location"}),
+        ModelCoverageError,
+        id="model-coverage",
+    ),
+    pytest.param(_unreachable, UpstreamError, id="unreachable"),
+]
+
+
+@pytest.mark.parametrize(("answer", "error"), _KEYED_FAILURES)
+async def test_the_key_reaches_no_log_record(monkeypatch, caplog, answer, error):
     # The pod forwards a paid credential and must forget it. TRACE logs the
     # full request params, and raise_for_status builds its message out of the
     # request URL, so both are places the key could come to rest.
-    _stub_openmeteo(monkeypatch, [_invalid_key()])
-    with caplog.at_level(5), pytest.raises(InvalidApiKeyError):  # TRACE
-        await fetch_weather_batch(_dests(1), START, END, api_key="secret-key")
+    _stub_openmeteo(monkeypatch, [answer])
+    with caplog.at_level(5), pytest.raises(error):  # TRACE
+        await fetch_weather_batch(_dests(1), START, END, api_key=FAKE_API_KEY)
+    assert_no_key_logged(caplog.records)
 
-    assert caplog.records
-    for record in caplog.records:
-        assert "secret-key" not in record.getMessage()
+
+async def test_a_second_failed_batch_logs_no_key_either(monkeypatch, caplog):
+    # Two batches refused at once: the loop raises the first, and nothing
+    # awaits the second. Its exception chains the keyed URL, and asyncio would
+    # log it at ERROR with that traceback when the task is collected, unless
+    # the pipeline's cancel marks it seen first.
+    refused = _answered(400, {"error": True, "reason": "The supplied API key is invalid."})
+    _stub_openmeteo(monkeypatch, [refused, refused])
+    with caplog.at_level(5):  # TRACE
+        with pytest.raises(InvalidApiKeyError):
+            await fetch_weather_batch(
+                _dests(openmeteo_fetch.BATCH_SIZE + 1), START, END, api_key=FAKE_API_KEY
+            )
+        gc.collect()
+    assert_no_key_logged(caplog.records)
 
 
 async def test_a_keyed_and_an_unkeyed_request_share_one_cache_entry(monkeypatch):

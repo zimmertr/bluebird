@@ -1,4 +1,5 @@
-"""Shared fixtures, and the two builders every upstream stub is made of.
+"""Shared fixtures, the two builders every upstream stub is made of, and the
+made-up key the keyed tests send.
 
 Rate limiting is disabled for every test by default: the route suites hammer
 the endpoints far past any real burst, and the Nominatim gate would insert
@@ -8,6 +9,7 @@ in their own strict instances explicitly (see test_ratelimit.py).
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
@@ -29,18 +31,49 @@ from app.services import cache, hms, nifc, osm, snodas, usfs_closures
 # through every caller.
 
 
-def fake_response(payload: Any, status: int = 200) -> httpx.Response:
+def fake_response(
+    payload: Any,
+    status: int = 200,
+    *,
+    url: str = "https://stub.invalid",
+    params: dict[str, Any] | None = None,
+) -> httpx.Response:
     """The answer an HTTP stub hands back where the real client would.
 
     A real httpx.Response rather than a stand-in class, because the services
     read `.json()`, `.raise_for_status()` and `exc.response.status_code` off
     it: a double whose `raise_for_status` passed on every status would make an
-    error answer look healthy. The URL is a placeholder — nothing reads it, but
-    `raise_for_status` builds its message from a request.
+    error answer look healthy. The URL is a placeholder unless a stub passes
+    the `url` and `params` it was called with: `raise_for_status` builds its
+    message from the request, so only then does an error's text carry the
+    query string, and any key in it, the way the real client's does.
     """
     return httpx.Response(
-        status, json=payload, request=httpx.Request("GET", "https://stub.invalid")
+        status, json=payload, request=httpx.Request("GET", url, params=params)
     )
+
+
+# A caller's Open-Meteo key for tests, made up. It holds `+`, `/` and `=`
+# because httpx percent-encodes those in a query string, so a check that looks
+# only for the key as typed would pass over the form a URL carries it in.
+FAKE_API_KEY = "not+a/real=key"
+
+
+def assert_no_key_logged(records: list[logging.LogRecord], key: str = FAKE_API_KEY) -> None:
+    """No record holds `key`, raw or as httpx encodes it.
+
+    Each record is formatted whole, so a traceback is read as well as the
+    message: asyncio's "exception was never retrieved" line is one ERROR
+    record whose message names nothing, and its key is in the chained
+    `HTTPStatusError` the traceback prints.
+    """
+    assert records, "nothing was logged, so nothing was checked"
+    forms = {key, str(httpx.QueryParams({"apikey": key})).removeprefix("apikey=")}
+    formatter = logging.Formatter("%(name)s %(levelname)s %(message)s")
+    for record in records:
+        text = formatter.format(record)
+        for form in forms:
+            assert form not in text, f"{record.name} {record.levelname} logged the key:\n{text}"
 
 
 def dest(lat: float, lon: float, **extra: Any) -> dict[str, Any]:

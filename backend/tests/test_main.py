@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
+
+import httpx
+from conftest import FAKE_API_KEY
 
 from app.main import _client_ip, app
 
@@ -60,3 +64,19 @@ def test_gzip_compresses_at_the_measured_level():
     )
     assert gzip_middleware.kwargs["compresslevel"] == 6
     assert gzip_middleware.kwargs["minimum_size"] == 1024
+
+
+async def test_httpx_logs_no_request_line_at_any_level(caplog):
+    # httpx logs every request's full URL at INFO, and a keyed Open-Meteo
+    # request carries the caller's key in its query string. `main.py` holds
+    # the httpx logger at WARNING so that line never reaches the log, even
+    # with the root logger at TRACE.
+    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    with caplog.at_level(5):  # TRACE
+        async with httpx.AsyncClient(transport=transport) as http_client:
+            await http_client.get(
+                "https://customer-api.open-meteo.com/v1/forecast",
+                params={"apikey": FAKE_API_KEY},
+            )
+    assert logging.getLogger("httpx").getEffectiveLevel() > logging.INFO
+    assert [r for r in caplog.records if r.name.startswith("httpx")] == []
