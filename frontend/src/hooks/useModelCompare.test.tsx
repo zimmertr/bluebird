@@ -111,6 +111,15 @@ describe('useModelCompare', () => {
     expect(result.current.results[pairKey('icon_seamless', KEY)]).toEqual(fresh)
   })
 
+  // #560: a run that does not commit puts back a report whose held pairs must
+  // all answer its own window, so nothing is bought until a run ends.
+  it('buys nothing for the rows of a run still arriving, and buys once it ends', () => {
+    const { rerender } = mount(options({ arriving: true }))
+    expect(calls).toHaveLength(0)
+    rerender(options())
+    expect(calls).toHaveLength(1)
+  })
+
   it('aborts what is in the air when the analysis changes or the chart goes away', () => {
     const { rerender, unmount } = mount()
     const first = calls[0]

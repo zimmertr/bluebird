@@ -144,6 +144,14 @@ export interface ForecastGridInputs {
   /** Bumped once per committed analysis; re-grids even for an identical field. */
   analysisSeq: number
   /**
+   * A run's rows are still arriving (#337). The lattice waits for the run to
+   * commit or be put back (#560) rather than gridding a field and a snapshot
+   * that may never stand as a report: a lattice fetched for them would be
+   * held under the same `analysisSeq` as the report a cancel puts back, and
+   * the ratchet below would serve it under that report's markers.
+   */
+  arriving: boolean
+  /**
    * Where this deployment puts the archive boundary, from `/api/capabilities`.
    * The lattice reads the analyzed window, so it has to resolve to the same
    * endpoint the markers above it came from (#393).
@@ -172,6 +180,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     reachFrac,
     displayReachFrac,
     analysisSeq,
+    arriving,
     windowLimits,
     aqiForecastDays,
     cloud,
@@ -190,6 +199,14 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
   const reachKm = reachKmFor(pitchKm, reachFrac)
 
   useEffect(() => {
+    // Everything held stays as it is: the commit re-grids on its own sequence,
+    // and a run put back hands this effect the very inputs the held lattice
+    // was fetched for. A fetch this cut short is resumed then, as the ratchet
+    // below sees an incomplete one.
+    if (arriving) {
+      clearPace()
+      return
+    }
     if (!enabled || field === null || win === null || field.length === 0) {
       fetchedRef.current = null
       clearPace()
@@ -391,7 +408,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // fact about the analysis, recorded in the same commit that bumps
     // `analysisSeq`, and a batch still arriving can record it first.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, analysisSeq, pitchKm, reachKm])
+  }, [enabled, analysisSeq, pitchKm, reachKm, arriving])
 
   // The held field re-cut to the reach on display, live with the thumb, with
   // the countdown folded back in. Memoized on all three inputs, so `spec` and

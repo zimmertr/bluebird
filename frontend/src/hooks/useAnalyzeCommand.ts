@@ -12,7 +12,8 @@ export type AnalyzeCommandInputs = Omit<AnalyzeInputs, 'kind' | 'window' | 'poly
   polygon: GeoPolygon | null
   drawPointCount: number
   mapRef: RefObject<MapViewHandle | null>
-  analyze: (request: AnalyzeRequest, kind: SelectionKind, options: AnalyzeOptions) => Promise<void>
+  /** Resolves true only when the run committed; a cancel or a failure changes nothing. */
+  analyze: (request: AnalyzeRequest, kind: SelectionKind, options: AnalyzeOptions) => Promise<boolean>
   /** Drops the report on screen without fetching. */
   reset: () => void
   finishDrawing: () => void
@@ -26,6 +27,13 @@ export type AnalyzeCommandInputs = Omit<AnalyzeInputs, 'kind' | 'window' | 'poly
  * run. Which request goes out is `planAnalysis`'s decision; this hook owns the
  * one piece of state that outlives a click, the discovery record a later
  * Analyze reads to decide whether it is a refresh.
+ *
+ * A click whose run does not commit changes nothing (#560). The record and
+ * the removal scope move only when the run commits, because both describe the
+ * report on screen, and a cancel or a failure puts the previous report back:
+ * recording the new ring there would let the next Analyze refresh the old
+ * field under the new ring's name and never search it, and clearing the
+ * removals would undo the reader's work for a report that never arrived.
  *
  * `handleAnalyze` is a plain function rather than a callback: `analyze` is a
  * new function on every render, so a memo keyed on it would never hold, and
@@ -96,21 +104,37 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
     } satisfies AnalyzeInputs
     const plan = planAnalysis(planned)
 
-    clearRemovalsForScope(plan.removalScope)
-
     // Before the await, not after it. The analysis publishes ranked rows as
     // each batch lands (#337, finding 2), and a results area that opens only
     // once the whole run returns would hide every one of them until the end.
     const { willRank, run, record } = plan
     if (willRank) setShowResults(true)
 
-    if (record?.when === 'before') discoveryRef.current = record.value
-    if (run) await analyze(run.request, run.kind, run.options)
-    if (record?.when === 'after') discoveryRef.current = record.value
+    // What the commit changes. Run by the commit itself (useAnalyze), in the
+    // render that puts the new report up, and again by a retry's commit,
+    // which answers for this click.
+    const commitEffects = () => {
+      clearRemovalsForScope(plan.removalScope)
+      if (record) discoveryRef.current = record.value
+    }
 
-    // Nothing to rank (unreachable through the gate, which requires an input,
-    // but kept as a safety net): drop any stale report.
-    if (!willRank) reset()
+    if (run) {
+      // A record written before the run is there for a click made while it is
+      // still in flight. If the run does not commit, the report it described
+      // was never shown, so the record goes back to the one that describes
+      // the report put back, unless a later click has written its own since.
+      const previous = discoveryRef.current
+      if (record?.when === 'before') discoveryRef.current = record.value
+      const committed = await analyze(run.request, run.kind, { ...run.options, onCommit: commitEffects })
+      if (!committed && record?.when === 'before' && discoveryRef.current === record.value) {
+        discoveryRef.current = previous
+      }
+    } else {
+      // Nothing to rank (unreachable through the gate, which requires an
+      // input, but kept as a safety net): drop any stale report.
+      commitEffects()
+      if (!willRank) reset()
+    }
 
     setShowResults(true)
   }

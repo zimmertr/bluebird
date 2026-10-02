@@ -66,6 +66,7 @@ function inputs(over: Partial<ResultsViewInputs> = {}): ResultsViewInputs {
     isDesktop: true,
     bannerPx: 0,
     analysisSeq: 1,
+    arriving: false,
     sortBy: 'precip_total_in',
     sortDesc: true,
     pointSample: true,

@@ -11,7 +11,7 @@ describe('useAnalysisRun', () => {
   it('shows the seed while a run is in flight, and clears every status when it ends', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     let release!: () => void
-    let done!: Promise<void>
+    let done!: Promise<boolean>
     act(() => {
       done = result.current.run('Searching…', () => new Promise<void>((r) => (release = r)), hooks())
     })
@@ -62,7 +62,7 @@ describe('useAnalysisRun', () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     const h = hooks()
     let seen: AbortSignal | undefined
-    let done!: Promise<void>
+    let done!: Promise<boolean>
     act(() => {
       done = result.current.run(
         's',
@@ -83,11 +83,24 @@ describe('useAnalysisRun', () => {
     expect(h.onFailure).toHaveBeenCalledOnce()
   })
 
+  // #560: the caller keeps its own bookkeeping off a run that changed nothing,
+  // so the run has to say which kind it was.
+  it('resolves true only when the body finished', async () => {
+    const { result } = renderHook(() => useAnalysisRun(MODELS))
+    const outcomes: boolean[] = []
+    await act(async () => {
+      outcomes.push(await result.current.run('s', async () => {}, hooks()))
+      outcomes.push(await result.current.run('s', async () => Promise.reject(new Error('Broken.')), hooks()))
+      outcomes.push(await result.current.run('s', async () => Promise.reject(new DOMException('stop', 'AbortError')), hooks()))
+    })
+    expect(outcomes).toEqual([true, false, false])
+  })
+
   it('clears the last error and refusal as the next run starts, so an identical one shows again', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), hooks()))
     let release!: () => void
-    let done!: Promise<void>
+    let done!: Promise<boolean>
     act(() => {
       done = result.current.run('s', () => new Promise<void>((r) => (release = r)), hooks())
     })

@@ -1,13 +1,23 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
 
 // The committed report and what it was analyzed under: the rows on screen, the
 // full field behind them, the snapshot, and the counters surfaces reset on.
 // Apart from the run that produces it because it outlives that run: a cancel
-// or a failure leaves the report standing.
+// or a failure puts back the report the run began over, exactly.
 
 type Point = { latitude: number; longitude: number }
+
+// What a commit leaves behind, and therefore what a run that does not commit
+// puts back.
+interface Committed {
+  response: AnalyzeResponse | null
+  universe: DestinationResult[] | null
+  analyzed: AnalyzedView | null
+  fireField: Point[] | null
+}
+const NOTHING_COMMITTED: Committed = { response: null, universe: null, analyzed: null, fireField: null }
 
 export function useAnalysisReport() {
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
@@ -29,13 +39,23 @@ export function useAnalysisReport() {
   // warnings are keyed by coordinate, so an extra point's warning never
   // matches a row. `fireSeq` is the check's own refetch trigger, bumped when
   // the field is published: keying the check on analysisSeq would abort the
-  // in-flight lookup at commit and restart it, serial again. Null when the
-  // last analysis failed; callers fall back to the committed field. The
+  // in-flight lookup at commit and restart it, serial again. Null when no
+  // analysis has published one; callers fall back to the committed field. The
   // closure check (useClosureProximity, #550) reads the same pair: it is one
   // lookup per analysis over the same candidates, so a second publisher would
   // only be a second answer to which destinations an analysis covers.
   const [fireField, setFireField] = useState<Point[] | null>(null)
   const [fireSeq, setFireSeq] = useState(0)
+  // The last committed report, held apart from the state above because the
+  // partial rows of a run overwrite that state while it arrives (#337), and a
+  // run that does not finish must change nothing (#560): its partial rows
+  // would otherwise stand as a report, under a snapshot that let the next
+  // Analyze refresh the subset that arrived as if it were the whole field.
+  // `publishedRef` is the candidate field last published, which the commit of
+  // the run that published it keeps. Refs, because nothing renders from
+  // either until `discard` copies them back.
+  const committedRef = useRef<Committed>(NOTHING_COMMITTED)
+  const publishedRef = useRef<Point[] | null>(null)
 
   // `fullField` is required rather than defaulted: a path that cannot supply
   // the full field has to say so at the call site, since silently passing the
@@ -45,6 +65,7 @@ export function useAnalysisReport() {
     setUniverse(fullField)
     setArriving(false)
     setAnalyzed(view)
+    committedRef.current = { response: data, universe: fullField, analyzed: view, fireField: publishedRef.current }
     // A fresh report, which is not the same event as a fresh row array: live
     // knobs rebuild the rows constantly. Surfaces that reset per report (the
     // table's detail-column sort) key off this rather than off the rows.
@@ -65,24 +86,36 @@ export function useAnalysisReport() {
     setAnalyzed(view)
   }
 
-  // A run ended. The rows that landed stay, but nothing more is coming for
-  // them.
+  // A run ended, whatever the outcome: nothing more is coming.
   function settle() {
     setArriving(false)
   }
 
   function publishCandidates(points: Point[]) {
+    publishedRef.current = points
     setFireField(points)
     setFireSeq((n) => n + 1)
   }
 
-  // The published field describes an analysis that will never commit; drop it
-  // so the check falls back to the report still on screen.
-  function dropCandidates() {
-    setFireField(null)
+  // A run that will never commit: the report it began over goes back on
+  // screen as it was, the same objects rather than copies, so every surface
+  // keyed on them sees no change at all. Its partial rows go, and so does the
+  // candidate field it published, which describes an analysis that does not
+  // exist. With no report before it, this is the no-report state.
+  // `analysisSeq` never moved for the run, so nothing keyed on it fires.
+  function discard() {
+    const was = committedRef.current
+    publishedRef.current = was.fireField
+    setResponse(was.response)
+    setUniverse(was.universe)
+    setAnalyzed(was.analyzed)
+    setArriving(false)
+    setFireField(was.fireField)
   }
 
   function clear() {
+    committedRef.current = NOTHING_COMMITTED
+    publishedRef.current = null
     setResponse(null)
     setUniverse(null)
     setArriving(false)
@@ -95,7 +128,7 @@ export function useAnalysisReport() {
     commitArriving,
     settle,
     publishCandidates,
-    dropCandidates,
+    discard,
     clear,
     response,
     universe,

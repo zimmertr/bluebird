@@ -244,6 +244,7 @@ export default function App() {
     forecastModels: caps.forecastModels,
     forecastTimes,
     analysisSeq,
+    arriving,
     windowLimits: caps.windowLimits,
     aqiForecastDays: caps.aqiForecastDays,
   })
@@ -452,6 +453,7 @@ export default function App() {
     isDesktop,
     bannerPx,
     analysisSeq,
+    arriving,
     sortBy: view.sortBy,
     sortDesc: view.sortDesc,
     pointSample,

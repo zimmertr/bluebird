@@ -40,6 +40,8 @@ export interface ChartCompareInputs {
   /** The committed report's snapshot: its model and the models it bought. */
   analyzed: AnalyzedView | null
   analysisSeq: number
+  /** A run's rows are still arriving: the comparison buys nothing for them. */
+  arriving: boolean
   /** The deployment's models (`/api/capabilities`). */
   models: readonly ForecastModelOption[]
   /** The panel's ranking model and its ticked comparisons. */
@@ -69,6 +71,7 @@ export function useChartCompare({
   sortBy,
   analyzed,
   analysisSeq,
+  arriving,
   models,
   forecastModel,
   comparedModels,
@@ -211,6 +214,7 @@ export function useChartCompare({
     heldSeries: chartedSeries,
     analyzed,
     analysisSeq,
+    arriving,
     models,
     picked: comparedModels,
     fetchable: analyzed?.compareModels ?? [],

@@ -103,12 +103,41 @@ describe('one analysis', () => {
     })
   })
 
-  it('keeps the last report through a failure, drops the fire field, and shows the error', async () => {
+  it('keeps the last report and its fire field through a failure, and shows the error', async () => {
     const { result } = renderHook(() => useAnalyze())
     await analyzeAt(result, T0)
+    const field = result.current.fireField
     ranked.mockRejectedValueOnce(new Error('Broken.'))
     await analyzeAt(result, T0 + MIN)
-    expect(result.current).toMatchObject({ response: DATA, analysisSeq: 1, fireSeq: 2, fireField: null, error: { message: 'Broken.', retry: true } })
+    expect(result.current).toMatchObject({ response: DATA, analysisSeq: 1, fireSeq: 2, error: { message: 'Broken.', retry: true } })
+    expect(result.current.fireField).toBe(field)
+  })
+
+  // #560: the click keeps its bookkeeping off a run that changed nothing.
+  it('resolves true on a commit and false on a failure', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const outcomes: boolean[] = []
+    await act(async () => {
+      outcomes.push(await result.current.analyze(REQUEST))
+    })
+    ranked.mockRejectedValueOnce(new Error('Broken.'))
+    await act(async () => {
+      outcomes.push(await result.current.analyze(REQUEST))
+    })
+    expect(outcomes).toEqual([true, false])
+  })
+
+  // The click's bookkeeping runs with the commit, and a retry's commit is the
+  // click's, so it runs then too.
+  it('runs the commit hook on a commit only, including the commit of a retry', async () => {
+    const onCommit = vi.fn()
+    const { result } = renderHook(() => useAnalyze())
+    ranked.mockRejectedValueOnce(new Error('Broken.'))
+    await act(() => result.current.analyze(REQUEST, 'days', { onCommit }))
+    expect(onCommit).not.toHaveBeenCalled()
+    await act(async () => result.current.retry())
+    await vi.waitFor(() => expect(result.current.analysisSeq).toBe(1))
+    expect(onCommit).toHaveBeenCalledOnce()
   })
 
   it('records the snow date of its own discovery, never the last one', async () => {
@@ -147,7 +176,7 @@ describe('what the reader sees', () => {
       let answer!: (r: Response) => void
       vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => (answer = r))))
       const { result } = renderHook(() => useAnalyze())
-      let done!: Promise<void>
+      let done!: Promise<boolean>
       act(() => {
         done = result.current.analyze(request)
       })
@@ -168,15 +197,18 @@ describe('what the reader sees', () => {
     expect(result.current).toMatchObject({ error: null, refusal: null, response: null, universe: null, analyzed: null })
   })
 
-  it('leaves the rows that arrived on screen, no longer arriving, when the run fails', async () => {
-    const partial = { results: ROWS, total_queried: 1, total_matched: 1, times: [1] }
+  // #560: a run that does not finish changes nothing. Its rows go with it,
+  // and with no report before it the screen is back to none.
+  it('drops the rows that arrived when the run fails, and shows the error over no report', async () => {
     ranked.mockImplementationOnce(async (_r, _c, _s, _e, cb) => {
       cb!.onPartial!(ROWS, [1])
       throw new Error('Broken.')
     })
     const { result } = renderHook(() => useAnalyze())
     await analyzeAt(result, T0)
-    expect(result.current).toMatchObject({ response: partial, universe: ROWS, arriving: false, analysisSeq: 0, error: { message: 'Broken.', retry: true } })
+    expect(result.current).toMatchObject({
+      response: null, universe: null, analyzed: null, arriving: false, analysisSeq: 0, error: { message: 'Broken.', retry: true },
+    })
   })
 })
 

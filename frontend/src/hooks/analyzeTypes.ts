@@ -102,7 +102,8 @@ export type AnalyzedView = AnalyzedSnapshot & {
 }
 
 /**
- * What an analysis needs recording about it that its request cannot say.
+ * What an analysis needs recording about it that its request cannot say, and
+ * what its click does once it commits.
  *
  * An object rather than two more positional arguments: both fields are
  * optional and both are strings-or-arrays, so a caller that swapped them would
@@ -122,4 +123,10 @@ export interface AnalyzeOptions {
    * (`knownTypes` in clientAnalyze.ts, #545).
    */
   knownTypes?: Readonly<Record<string, string>>
+  /**
+   * What the click that started this run changes once it commits: the
+   * discovery record and the removal scope (#560). Carried on the options
+   * because a retry replays them, and the retry's commit is the click's.
+   */
+  onCommit?: () => void
 }

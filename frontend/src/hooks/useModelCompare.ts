@@ -113,6 +113,13 @@ export interface ModelCompareOptions {
   analyzed: { window: { startMs: number; endMs: number }; forecastModel: string } | null
   /** Bumped per committed analysis; a new one drops the forecasts in hand. */
   analysisSeq: number
+  /**
+   * A run's rows are still arriving (#337). Nothing is bought for them: a
+   * commit drops whatever this hook holds anyway, and a run that does not
+   * commit puts back a report whose held pairs must all answer its own window
+   * and model (#560).
+   */
+  arriving?: boolean
   models: readonly ForecastModelOption[]
   /** Ticked in the panel now: which models are DRAWN. */
   picked: readonly string[]
@@ -151,6 +158,7 @@ export function useModelCompare({
   heldSeries,
   analyzed,
   analysisSeq,
+  arriving = false,
   models,
   picked,
   fetchable,
@@ -235,7 +243,7 @@ export function useModelCompare({
   // The chart is one reader of them, not the reason for them — which is why
   // `enabled` (off on air quality, where a comparison could only draw one
   // answer twice) does not gate this. The other columns still differ per model.
-  const fetching = analyzed !== null && rows.length > 0 && drawnIds.length > 0
+  const fetching = !arriving && analyzed !== null && rows.length > 0 && drawnIds.length > 0
 
   // One string per dependency that is really a set, so an effect keyed on it
   // runs once per real change rather than once per re-derived array.

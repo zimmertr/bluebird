@@ -38,12 +38,51 @@ describe('useAnalysisReport', () => {
     expect(result.current.response).toBe(DATA)
   })
 
-  it('bumps the fire sequence when a field is published, not when it is dropped', () => {
+  it('bumps the fire sequence when a field is published, not when it is discarded', () => {
     const { result } = renderHook(() => useAnalysisReport())
     act(() => result.current.publishCandidates([{ latitude: 1, longitude: 2 }]))
     expect(result.current).toMatchObject({ fireField: [{ latitude: 1, longitude: 2 }], fireSeq: 1 })
-    act(() => result.current.dropCandidates())
+    act(() => result.current.discard())
     expect(result.current).toMatchObject({ fireField: null, fireSeq: 1 })
+  })
+
+  // #560: a run that does not commit changes nothing. The same objects come
+  // back, not equal copies, so a surface keyed on them sees no change.
+  it('puts the committed report back, exactly, over the partial rows of a run that did not commit', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    const committedField = [{ latitude: 1, longitude: 2 }]
+    act(() => {
+      result.current.publishCandidates(committedField)
+      result.current.commit(DATA, ROWS, VIEW)
+    })
+    const partial = { results: [resultRow({ name: 'C', latitude: 40 })], total_queried: 9, total_matched: 9 }
+    act(() => {
+      result.current.publishCandidates([{ latitude: 40, longitude: -120 }])
+      result.current.commitArriving(partial, partial.results, { ...VIEW, polygonKey: 'ring B' })
+    })
+    expect(result.current.response).toBe(partial)
+    act(() => result.current.discard())
+    expect(result.current.response).toBe(DATA)
+    expect(result.current.universe).toBe(ROWS)
+    expect(result.current.analyzed).toBe(VIEW)
+    expect(result.current.fireField).toBe(committedField)
+    expect(result.current).toMatchObject({ arriving: false, analysisSeq: 1 })
+  })
+
+  it('returns to no report when the first run does not commit', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    act(() => result.current.commitArriving(DATA, ROWS, VIEW))
+    act(() => result.current.discard())
+    expect(result.current).toMatchObject({ response: null, universe: null, analyzed: null, arriving: false, analysisSeq: 0 })
+  })
+
+  it('puts back nothing from before a clear', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    act(() => result.current.clear())
+    act(() => result.current.commitArriving(DATA, ROWS, VIEW))
+    act(() => result.current.discard())
+    expect(result.current).toMatchObject({ response: null, universe: null, analyzed: null })
   })
 
   it('clears the report and keeps the counters', () => {

@@ -168,13 +168,7 @@ export { expect }
 // handler is attached, and nothing in the page says when that is. So click,
 // wait for the panel's own readout to move, and click again while it has not.
 // Every vertex goes through here so the retry lives in one place.
-export async function drawRing(page: Page) {
-  await page.getByRole('button', { name: 'Draw polygon' }).click()
-  const vertices: [number, number][] = [
-    [520, 260],
-    [760, 300],
-    [620, 480],
-  ]
+async function placeVertices(page: Page, vertices: readonly [number, number][]) {
   for (const [index, [x, y]] of vertices.entries()) {
     const remaining = vertices.length - index - 1
     const moved =
@@ -190,4 +184,21 @@ export async function drawRing(page: Page) {
     }).toPass({ timeout: 20_000 })
   }
   await page.getByRole('button', { name: 'Done' }).click()
+}
+
+export async function drawRing(page: Page) {
+  await page.getByRole('button', { name: 'Draw polygon' }).click()
+  await placeVertices(page, [
+    [520, 260],
+    [760, 300],
+    [620, 480],
+  ])
+}
+
+// Replaces the ring on the map with a new one through Edit polygon and Clear,
+// the way a reader moves the search area after a report.
+export async function redrawRing(page: Page, vertices: readonly [number, number][]) {
+  await page.getByRole('button', { name: 'Edit polygon' }).click()
+  await page.getByRole('button', { name: 'Clear', exact: true }).click()
+  await placeVertices(page, vertices)
 }

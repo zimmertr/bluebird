@@ -26,6 +26,8 @@ export interface ResultsViewInputs {
   bannerPx: number
   /** Moves once per committed report. */
   analysisSeq: number
+  /** A run's rows are still arriving (#337). */
+  arriving: boolean
   /** The displayed ranking. */
   sortBy: TableViewInputs['sortBy']
   /** The displayed ranking's direction. */
@@ -72,6 +74,7 @@ export function useResultsView({
   isDesktop,
   bannerPx,
   analysisSeq,
+  arriving,
   sortBy,
   sortDesc,
   pointSample,
@@ -109,6 +112,7 @@ export function useResultsView({
     sortBy,
     analyzed,
     analysisSeq,
+    arriving,
     models,
     forecastModel,
     comparedModels,

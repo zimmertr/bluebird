@@ -30,6 +30,8 @@ export interface GridLayerInputs {
   forecastTimes: readonly number[]
   /** Moves once per committed report: a new report is a new lattice. */
   analysisSeq: number
+  /** A run's rows are still arriving, so nothing is fetched until it ends. */
+  arriving: boolean
   windowLimits: WindowLimits
   aqiForecastDays: number
 }
@@ -54,6 +56,7 @@ export function useGridLayer({
   forecastModels,
   forecastTimes,
   analysisSeq,
+  arriving,
   windowLimits,
   aqiForecastDays,
 }: GridLayerInputs) {
@@ -100,6 +103,7 @@ export function useGridLayer({
     // real time, and only a committed value can fetch.
     displayReachFrac: gridReachDraft ?? gridReachFrac,
     analysisSeq,
+    arriving,
     windowLimits,
     aqiForecastDays,
     cloud: analyzed?.cloudFetched ?? false,

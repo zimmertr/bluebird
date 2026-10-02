@@ -47,6 +47,7 @@ function inputs(over: Partial<ChartCompareInputs> = {}): ChartCompareInputs {
     sortBy: 'precip_total_in',
     analyzed: REPORT,
     analysisSeq: 1,
+    arriving: false,
     models: MODELS,
     forecastModel: 'gfs_seamless',
     comparedModels: ICON,

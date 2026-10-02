@@ -44,6 +44,18 @@ describe('useResultsLayout', () => {
     expect(result.current.resultsMode).toBe('both')
   })
 
+  // #560: the first rows widen it before anything commits, and a first run
+  // that never commits leaves the pre-analysis screen, which opens on Table.
+  it('narrows back to Table when the rows of a first run go without a commit', () => {
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: DESKTOP,
+    })
+    rerender({ ...DESKTOP, response: {} })
+    expect(result.current.resultsMode).toBe('both')
+    rerender(DESKTOP)
+    expect(result.current.resultsMode).toBe('table')
+  })
+
   it('never overrides a mode the reader pressed, or a phone', () => {
     const pressed = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
       initialProps: { ...DESKTOP, modeChosen: 'table' as const },
