@@ -96,6 +96,10 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
 
   await redrawRing(page, await ringBPixels(page))
+  // A card over ring A's report, which a run that showed nothing new leaves open.
+  const popup = page.locator('.maplibregl-popup')
+  await page.getByRole('button', { name: /^Center map on / }).first().click()
+  await expect(popup).toHaveCount(1)
   await page.getByRole('button', { name: 'Analyze' }).click()
   await page.getByRole('button', { name: 'Cancel' }).click()
   discovery.release()
@@ -103,6 +107,7 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   // Ring A's report, and the panel still saying the search area moved.
   await expect.poll(async () => onlyRing(await rowNames(page), DESTINATION_NAMES)).toBe(true)
   await expect(page.getByText('A new search area requires a new analysis.')).toBeVisible()
+  await expect(popup).toHaveCount(1)
 
   await page.getByRole('button', { name: 'Analyze' }).click()
   await expect.poll(async () => onlyRing(await rowNames(page), ringBNames(3))).toBe(true)
@@ -133,6 +138,10 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
   await page.getByRole('button', { name: 'Analyze' }).click()
   await expect(page.getByText(/so far/)).toBeVisible()
   await expect(page.locator('table tbody tr')).toHaveCount(50)
+  // A card over a partial row, which names a row the report put back does not hold.
+  const popup = page.locator('.maplibregl-popup')
+  await page.getByRole('button', { name: /^Center map on / }).first().click()
+  await expect(popup).toHaveCount(1)
   await page.getByRole('button', { name: 'Cancel' }).click()
   holdWeather = false
   heldWeather.splice(0).forEach((r) => r.abort().catch(() => {}))
@@ -140,6 +149,7 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
   await expect.poll(async () => onlyRing(await rowNames(page), DESTINATION_NAMES)).toBe(true)
   await expect(page.getByText(/so far/)).toHaveCount(0)
   await expect(page.getByText('A new search area requires a new analysis.')).toBeVisible()
+  await expect(popup).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Analyze' }).click()
   await expect.poll(async () => onlyRing(await rowNames(page), ringBNames(60))).toBe(true)

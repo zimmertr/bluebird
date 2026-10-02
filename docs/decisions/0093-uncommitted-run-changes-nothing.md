@@ -4,7 +4,7 @@
 - Date: 2026-10-01
 - Decider: the maintainer (TJ), on issue #560 (half 1 as the issue planned; for half 2, neither of the issue's options: the previous report comes back exactly)
 - Issues and PRs: #560, #613
-- Cited in code as: #560, in `hooks/useAnalysisReport.ts`, `hooks/useAnalyzeCommand.ts`, `hooks/useAnalysisRun.ts`, `hooks/useAnalyze.ts`, `hooks/useForecastGrid.ts`, `hooks/useModelCompare.ts`, `hooks/useResultsLayout.ts`
+- Cited in code as: #560, in `hooks/useAnalysisReport.ts`, `hooks/useAnalyzeCommand.ts`, `hooks/useAnalysisRun.ts`, `hooks/useAnalyze.ts`, `hooks/useForecastGrid.ts`, `hooks/useModelCompare.ts`, `hooks/useResultsLayout.ts`, `hooks/useClosePopupsOnCommit.ts`
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, "The data snapshot is refined, not broken"; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), the `useAnalysisReport.ts` and `useAnalyzeCommand.ts` bullets
 
 ## Context
@@ -27,6 +27,7 @@ A run that does not finish changes nothing.
   - The forecast grid fetches nothing while rows arrive. A lattice fetched for an arriving snapshot was held under the sequence of the report a cancel put back, and its ratchet served that lattice under the old report's markers.
   - The model comparison buys nothing while rows arrive. A commit drops what it holds anyway, and a pair bought under another window would have stayed beside a report it does not answer.
   - The results layout narrows back to Table when a first run's rows go without a commit, because the first rows widen a desktop to Both before anything commits.
+  - Map popups close when a run that had shown partial rows is discarded, as they do on a commit (record 0088): a card opened over a partial row names a row the report put back may not hold. A separate counter, `discardSeq`, moves for that and nothing else, because `analysisSeq` must not move for a run that never committed. A run discarded before any row arrived showed nothing new, so the cards over the standing report stay open.
 - The per-location forecast cache (`forecastStore.ts`) keeps what the stopped run fetched. Its entries are keyed by the request that produced them (location, window, model, elevation, endpoint) and expire on the same 15 minutes as before, so a later run that asks the same question may use them under the existing rules. They describe no report. The held field a re-analysis reuses (`forecastReuse.ts`) is set only on a commit, so it still belongs to the report put back.
 
 ## Evidence
@@ -37,7 +38,7 @@ The Round 5 readiness review, 2026-10-01: a Vitest probe over the real `useAnaly
 
 - Restore only the previous `analyzed` snapshot and keep the partial rows (#560 option A). The cue speaks again, but the rows that arrived sit beside a snapshot that does not describe them.
 - Keep the partial snapshot and mark the field as not eligible for a refresh echo (#560 option B). The screen keeps what the reader saw arrive, but nothing on it says rows are missing.
-- Bump `analysisSeq` on the restore so every surface resets. It would close popups, reframe the map and reset the table's sort for a run that, by this rule, changed nothing.
+- Bump `analysisSeq` on the restore so every surface resets. It would reframe the map, reset the table's sort and the player's playhead, and close popups even after a run that showed nothing new, for a run that, by this rule, changed nothing.
 
 ## Consequences
 

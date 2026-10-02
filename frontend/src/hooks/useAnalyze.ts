@@ -135,6 +135,8 @@ export function useAnalyze(
     reset,
     analyzed: report.analyzed,
     analysisSeq: report.analysisSeq,
+    // Moves when a run that showed partial rows is put back (#560).
+    discardSeq: report.discardSeq,
     fireField: report.fireField,
     fireSeq: report.fireSeq,
     loading: run.loading,

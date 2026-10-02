@@ -30,6 +30,26 @@ describe('useClosePopupsOnCommit', () => {
     expect(closePopups).toHaveBeenCalledTimes(2)
   })
 
+  // #560: a card opened over a stopped run's partial rows may name a row the
+  // report put back does not hold.
+  it('closes every popup when a run that showed partial rows is put back', () => {
+    const { ref, closePopups } = mapRef()
+    const { rerender } = renderHook((discardSeq: number) => useClosePopupsOnCommit(1, ref, discardSeq), {
+      initialProps: 0,
+    })
+    expect(closePopups).toHaveBeenCalledTimes(1)
+    rerender(1)
+    expect(closePopups).toHaveBeenCalledTimes(2)
+    rerender(1)
+    expect(closePopups).toHaveBeenCalledTimes(2)
+  })
+
+  it('closes nothing before a report or a discard', () => {
+    const { ref, closePopups } = mapRef()
+    renderHook(() => useClosePopupsOnCommit(0, ref, 0))
+    expect(closePopups).not.toHaveBeenCalled()
+  })
+
   it('survives a map that has not mounted', () => {
     expect(() => renderHook(() => useClosePopupsOnCommit(1, { current: null }))).not.toThrow()
   })

@@ -69,6 +69,24 @@ describe('useAnalysisReport', () => {
     expect(result.current).toMatchObject({ arriving: false, analysisSeq: 1 })
   })
 
+  // #560: the map closes its popups on this, so it moves only when partial
+  // rows were on screen to be opened over.
+  it('counts a discard only when the run had shown partial rows', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    act(() => result.current.discard())
+    expect(result.current.discardSeq).toBe(0)
+    act(() => result.current.commitArriving(DATA, ROWS.slice(0, 1), VIEW))
+    act(() => result.current.discard())
+    expect(result.current.discardSeq).toBe(1)
+    act(() => result.current.discard())
+    expect(result.current.discardSeq).toBe(1)
+    act(() => result.current.commitArriving(DATA, ROWS.slice(0, 1), VIEW))
+    act(() => result.current.commit(DATA, ROWS, VIEW))
+    act(() => result.current.discard())
+    expect(result.current).toMatchObject({ discardSeq: 1, analysisSeq: 2 })
+  })
+
   it('returns to no report when the first run does not commit', () => {
     const { result } = renderHook(() => useAnalysisReport())
     act(() => result.current.commitArriving(DATA, ROWS, VIEW))

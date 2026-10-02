@@ -32,6 +32,13 @@ export function useAnalysisReport() {
   const [arriving, setArriving] = useState(false)
   // Bumped once per committed analysis. See commit().
   const [analysisSeq, setAnalysisSeq] = useState(0)
+  // Bumped when a run that had shown partial rows is discarded. A popup
+  // opened over those rows names a row the report put back may not hold, so
+  // the map closes every popup on it, as it does on a commit (#577); a run
+  // discarded before any row arrived changed nothing on screen and leaves
+  // the popups over the standing report open. Apart from `analysisSeq`,
+  // which must not move for a run that never committed (#560).
+  const [discardSeq, setDiscardSeq] = useState(0)
   // The wildfire check's field, published the moment discovery settles so the
   // NIFC lookup runs concurrently with the weather fetch instead of after it
   // (TJ, PR #275 review). It is the candidate list, a superset of the
@@ -56,6 +63,8 @@ export function useAnalysisReport() {
   // either until `discard` copies them back.
   const committedRef = useRef<Committed>(NOTHING_COMMITTED)
   const publishedRef = useRef<Point[] | null>(null)
+  // Whether the run in flight has put partial rows on screen.
+  const shownPartialRef = useRef(false)
 
   // `fullField` is required rather than defaulted: a path that cannot supply
   // the full field has to say so at the call site, since silently passing the
@@ -66,6 +75,7 @@ export function useAnalysisReport() {
     setArriving(false)
     setAnalyzed(view)
     committedRef.current = { response: data, universe: fullField, analyzed: view, fireField: publishedRef.current }
+    shownPartialRef.current = false
     // A fresh report, which is not the same event as a fresh row array: live
     // knobs rebuild the rows constantly. Surfaces that reset per report (the
     // table's detail-column sort) key off this rather than off the rows.
@@ -84,6 +94,7 @@ export function useAnalysisReport() {
     setUniverse(fieldSoFar)
     setArriving(true)
     setAnalyzed(view)
+    shownPartialRef.current = true
   }
 
   // A run ended, whatever the outcome: nothing more is coming.
@@ -111,11 +122,14 @@ export function useAnalysisReport() {
     setAnalyzed(was.analyzed)
     setArriving(false)
     setFireField(was.fireField)
+    if (shownPartialRef.current) setDiscardSeq((n) => n + 1)
+    shownPartialRef.current = false
   }
 
   function clear() {
     committedRef.current = NOTHING_COMMITTED
     publishedRef.current = null
+    shownPartialRef.current = false
     setResponse(null)
     setUniverse(null)
     setArriving(false)
@@ -135,6 +149,7 @@ export function useAnalysisReport() {
     analyzed,
     arriving,
     analysisSeq,
+    discardSeq,
     fireField,
     fireSeq,
   }

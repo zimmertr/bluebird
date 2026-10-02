@@ -11,7 +11,12 @@ import type { MapViewHandle } from '../components/MapView'
  * another place, with nothing on it to say so. Closing is the whole answer:
  * a click on the marker opens the new report's card.
  *
- * Keyed on the commit alone, so a live knob, which re-presents the same
+ * A run that is discarded after showing partial rows closes them too
+ * (#560): a card opened over those rows names a row the report put back may
+ * not hold. `discardSeq` moves for that and nothing else, so a run cancelled
+ * before any row arrived leaves the cards over the standing report open.
+ *
+ * Keyed on those two events alone, so a live knob, which re-presents the same
  * report, leaves an open card where it is. Through the map handle rather than
  * a prop, because `MapView` is memoized and Analyze is a panel click the map
  * never sees. Its own hook rather than an effect in `App.tsx`, because that
@@ -20,8 +25,9 @@ import type { MapViewHandle } from '../components/MapView'
 export function useClosePopupsOnCommit(
   analysisSeq: number,
   mapRef: RefObject<MapViewHandle | null>,
+  discardSeq = 0,
 ): void {
   useEffect(() => {
-    if (analysisSeq > 0) mapRef.current?.closePopups()
-  }, [analysisSeq, mapRef])
+    if (analysisSeq > 0 || discardSeq > 0) mapRef.current?.closePopups()
+  }, [analysisSeq, discardSeq, mapRef])
 }

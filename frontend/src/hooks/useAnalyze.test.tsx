@@ -217,7 +217,7 @@ describe('the returned API', () => {
   it('is the same set of names in the same order', () => {
     const { result } = renderHook(() => useAnalyze())
     expect(Object.keys(result.current)).toEqual([
-      'analyze', 'cancel', 'retry', 'reset', 'analyzed', 'analysisSeq', 'fireField', 'fireSeq', 'loading',
+      'analyze', 'cancel', 'retry', 'reset', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
       'arriving', 'error', 'refusal', 'response', 'universe', 'statusMessage', 'progress', 'paceRemainingS',
     ])
   })

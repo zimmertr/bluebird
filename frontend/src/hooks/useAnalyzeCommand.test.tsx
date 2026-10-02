@@ -354,6 +354,8 @@ describe('a run that does not commit changes nothing', () => {
       const started = stopNext(how, false)
       await click(how === 'cancel' ? started : undefined)
       expect(names()).toEqual(PEAKS.A)
+      // Nothing new was on screen, so the popups over ring A stay open.
+      expect(hook.result.current.analysis.discardSeq).toBe(0)
       const cue = discoveryChanges(hook.result.current.analysis.analyzed, discoveryKeys(RING_B, ['peak'], false), true)
       expect(cue.polygon).toBe(true)
       expect(clearRemovalsForScope).toHaveBeenCalledOnce()
@@ -382,7 +384,7 @@ describe('a run that does not commit changes nothing', () => {
       expect(after.response).toBe(before.response)
       expect(after.universe).toBe(before.universe)
       expect(after.analyzed).toBe(before.analyzed)
-      expect(after).toMatchObject({ arriving: false, analysisSeq: 1 })
+      expect(after).toMatchObject({ arriving: false, analysisSeq: 1, discardSeq: 1 })
 
       await click()
       const echo = ranked.mock.calls[ranked.mock.calls.length - 1][1]
