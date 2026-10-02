@@ -234,6 +234,7 @@ LINK_ONLY_HOSTS = {
     "opendatacommons.org",
     "openfreemap.org",
     "polyformproject.org",
+    "www.cloudflare.com",
     "www.fs.usda.gov",
     "www.nifc.gov",
     "www.nohrsc.noaa.gov",

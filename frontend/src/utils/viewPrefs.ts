@@ -16,8 +16,10 @@
 import { FAMILY_KEYS } from '../metrics'
 import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 
-const VIEW_KEY = 'bluebird_forecast_view'
-const WELCOME_KEY = 'bluebird_forecast_welcomed'
+// Exported for the privacy page's test, which holds the page's account of what
+// this browser keeps to the keys that are actually written.
+export const VIEW_KEY = 'bluebird_forecast_view'
+export const WELCOME_KEY = 'bluebird_forecast_welcomed'
 
 /** Which views the results area shows: chart-only, table-only, or both. */
 export type ResultsMode = 'chart' | 'table' | 'both'
