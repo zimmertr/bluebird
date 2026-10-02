@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ast
+import asyncio
+import gc
 import json
 import re
 import time
@@ -8,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from conftest import fake_response
+from conftest import FAKE_API_KEY, assert_no_key_logged, fake_response
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
 from test_snodas import a_snapshot
@@ -1548,14 +1550,93 @@ def test_the_key_reaches_no_log_record_from_the_route(record_key, caplog):
         resp = client.post(
             "/api/analyze",
             json=_custom_body(),
-            headers={"X-Open-Meteo-Key": "secret-key"},
+            headers={"X-Open-Meteo-Key": FAKE_API_KEY},
         )
     assert resp.status_code == 200
-    assert caplog.records
-    for record in caplog.records:
-        assert "secret-key" not in record.getMessage()
+    assert_no_key_logged(caplog.records)
     # And the answer itself says nothing about it.
-    assert "secret-key" not in resp.text
+    assert FAKE_API_KEY not in resp.text
+
+
+# ── A side fetch that fails before the weather does ────────────────────────
+#
+# An AQI or cloud ranking fetches its column beside the weather. When the side
+# task fails first and the weather fails after it, the analysis answers the
+# weather's failure, and the side task's exception is one nobody awaited unless
+# the phase collects it. asyncio would log it at ERROR, and its traceback chains
+# the `HTTPStatusError` whose text is the keyed request URL.
+
+_SIDE_FETCHES = {"fetch_aqi_batch", "fetch_cloud_batch"}
+
+
+def _keyed_answer(status: int, body: dict):
+    return lambda url, params: fake_response(body, status, url=url, params=params)
+
+
+_REFUSED_KEY = _keyed_answer(400, {"error": True, "reason": "The supplied API key is invalid."})
+
+
+@pytest.mark.parametrize("route", ["/api/analyze", "/api/analyze/stream"])
+@pytest.mark.parametrize(
+    ("fields", "side_answer"),
+    [
+        pytest.param({"sort_by": "aqi_max", "sort_desc": True}, _REFUSED_KEY, id="aqi-refused-key"),
+        pytest.param({"sort_by": "cloud_cover_avg_pct"}, _REFUSED_KEY, id="cloud-refused-key"),
+        pytest.param(
+            {"sort_by": "cloud_cover_avg_pct"},
+            _keyed_answer(429, {"reason": "Hourly API request limit exceeded"}),
+            id="cloud-rate-limit",
+        ),
+        pytest.param(
+            {"sort_by": "cloud_cover_avg_pct"}, _keyed_answer(502, {}), id="cloud-upstream-error"
+        ),
+        pytest.param(
+            {"sort_by": "cloud_cover_avg_pct"},
+            _keyed_answer(400, {"error": True, "reason": "No data is available for this location"}),
+            id="cloud-model-coverage",
+        ),
+    ],
+)
+def test_a_side_fetch_failing_first_logs_no_key(monkeypatch, caplog, route, fields, side_answer):
+    order: list[str] = []
+
+    async def after_the_side_fetches() -> None:
+        side = [t for t in asyncio.all_tasks() if getattr(t.get_coro(), "__name__", None) in _SIDE_FETCHES]
+        for _ in range(1000):
+            if side and all(t.done() for t in side):
+                order.append("side done")
+                return
+            await asyncio.sleep(0)
+
+    class _Client:
+        async def get(self, url, params=None):
+            params = params or {}
+            side = (
+                url == air_quality.CUSTOMER_AIR_QUALITY_URL
+                or params.get("hourly") == weather.CLOUD_VARIABLES
+            )
+            if side:
+                return side_answer(url, params)
+            await after_the_side_fetches()
+            order.append("weather fails")
+            return fake_response({}, 502, url=url, params=params)
+
+    stub = _Client()
+    monkeypatch.setattr(air_quality.http, "client", lambda: stub)
+    with caplog.at_level(5):  # TRACE
+        resp = client.post(
+            route,
+            json={**_custom_body(), **fields},
+            headers={"X-Open-Meteo-Key": FAKE_API_KEY},
+        )
+        # The unretrieved exception is logged when its task is collected.
+        gc.collect()
+    assert order == ["side done", "weather fails"]
+    if route == "/api/analyze":
+        assert resp.status_code == 502
+    else:
+        assert '"code": "upstream_unavailable"' in resp.text
+    assert_no_key_logged(caplog.records)
 
 
 # ── The archive boundary (issue #123) ──────────────────────────────────────

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, Literal, NamedTuple
@@ -106,6 +107,10 @@ StatusErrorHook = Callable[[httpx.HTTPStatusError, str], None]
 # forwards a paid credential and must forget it, so a log line is the one
 # place it could survive the request.
 _REDACTED = "[redacted]"
+# The key's value in a query string, whatever it holds. httpx percent-encodes
+# the query, so a key holding `+`, `/` or `=` reaches an error's text in a form
+# that a replace of the raw key would miss.
+_KEY_IN_QUERY = re.compile(r"(apikey=)[^&#\s'\"]+", re.IGNORECASE)
 
 
 def redacted_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -127,8 +132,19 @@ def redacted_error(exc: Exception, api_key: str | None) -> str:
     exception straight into a log line would persist the credential that
     `redacted_params` was careful not to.
     """
-    text = str(exc)
-    return text.replace(api_key, _REDACTED) if api_key else text
+    text = _KEY_IN_QUERY.sub(rf"\g<1>{_REDACTED}", str(exc))
+    if not api_key:
+        return text
+    # The query mask above covers a URL; these cover the key anywhere else,
+    # in both the form it was sent in and the form httpx encodes it to.
+    for form in (api_key, _encoded(api_key)):
+        text = text.replace(form, _REDACTED)
+    return text
+
+
+def _encoded(api_key: str) -> str:
+    """The key as httpx writes it into a query string."""
+    return str(httpx.QueryParams({"apikey": api_key})).removeprefix("apikey=")
 
 
 def quota_label(api_key: str | None) -> str:
@@ -330,6 +346,11 @@ async def fetch_batched(
                 await on_progress(processed, total, batches_done, total_batches)
     except BaseException:
         # A batch failed (or the client disconnected) — don't leak the siblings.
+        # Every task is cancelled, the finished ones too: `cancel()` on a task
+        # that already failed marks its exception as seen, so asyncio never
+        # logs it with the traceback that chains a keyed request URL.
+        # `test_a_second_failed_batch_logs_no_key_either` fails if a `done()`
+        # guard is added here.
         for task in tasks:
             task.cancel()
         raise

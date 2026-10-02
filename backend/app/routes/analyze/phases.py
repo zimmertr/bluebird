@@ -487,9 +487,16 @@ async def _fetch_forecasts(
     finally:
         # If the consumer went away (generator torn down) before the fetch
         # finished, don't leave the request running in the background.
-        for task in (fetch_task, aqi_task, cloud_task):
-            if task is not None and not task.done():
+        tasks = [t for t in (fetch_task, aqi_task, cloud_task) if t is not None]
+        for task in tasks:
+            if not task.done():
                 task.cancel()
+        # Then collect every outcome, because a side task that failed while
+        # the weather fetch was still running is otherwise never awaited, and
+        # asyncio logs an unretrieved exception at ERROR with its traceback.
+        # That traceback chains the upstream `HTTPStatusError`, whose text is
+        # the request URL, and a keyed request carries the caller's key in it.
+        await asyncio.gather(*tasks, return_exceptions=True)
     yield Done(Fetched(wx_list, aqi_list, cloud_list))
 
 

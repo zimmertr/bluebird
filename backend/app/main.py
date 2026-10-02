@@ -79,9 +79,11 @@ _uvicorn_access.handlers = []
 _uvicorn_access.propagate = False
 _uvicorn_access.disabled = True
 
-# httpx logs every outbound request at INFO. At our INFO default that would
-# flood the logs during a weather fetch (dozens of batched Open-Meteo calls),
-# so keep it to warnings and above.
+# httpx logs every outbound request at INFO with its full URL, query string
+# included, and a keyed Open-Meteo request carries the caller's own key in that
+# query string (`apikey=`). Holding this logger at WARNING is what keeps that
+# line, and the key in it, out of the log at every LOG_LEVEL down to TRACE; it
+# also spares the log a line per batch. `test_main.py` fails if it is lowered.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 _access_log = logging.getLogger("bluebird_forecast.access")
