@@ -113,3 +113,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0091](0091-rank-digit-stays-plain-white.md) | The marker's rank digit stays plain white, with no halo | 2026-10-01 | Accepted | `docs/STYLES.md` |
 | [0092](0092-closure-dash-is-no-order-found.md) | The Closure dash means "no Forest Service order found", and the N/A hover names no place | 2026-10-01 | Accepted | Frontend: `utils/closureProximity.ts` |
 | [0093](0093-uncommitted-run-changes-nothing.md) | A run that does not finish changes nothing: a cancel or a failure puts the previous report back exactly | 2026-10-01 | Accepted | Root: Architecture; Frontend: `hooks/useAnalysisReport.ts`, `hooks/useAnalyzeCommand.ts` |
+| [0095](0095-forecast-snapshot-carries-its-build.md) | The stored forecasts carry the build that wrote them, and only that build reads them back | 2026-10-01 | Accepted | Root: Architecture; Frontend: `utils/forecastStore.ts` |

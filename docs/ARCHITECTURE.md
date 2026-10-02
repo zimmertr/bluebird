@@ -32,7 +32,10 @@ timing budgets on every PR, described in [CICD.md](CICD.md#pr-preview-environmen
 The browser holds each location's forecast for 15 minutes, and since issue #337
 that cache survives a reload: what fits in a 2 MB budget is mirrored into
 `sessionStorage` when the page is hidden and read back when it loads
-(`frontend/src/utils/forecastStore.ts`). Quota is the scarcest thing the app
+(`frontend/src/utils/forecastStore.ts`). Only the build that wrote it reads it
+back: the stored values are aggregates, so a reload into a new release discards
+them rather than showing what the old build worked out. Record:
+[0095](decisions/0095-forecast-snapshot-carries-its-build.md) Quota is the scarcest thing the app
 spends, and before this a refresh re-bought coordinates the browser had already
 paid for. Every stamp on the wire is whole seconds rather than ISO text
 (`timeformat=unixtime`), which is 11 bytes instead of 18 and a multiply instead
