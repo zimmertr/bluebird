@@ -12,7 +12,7 @@
 // is Regions 3, 4 and 6 (Arizona, New Mexico, Nevada, Utah, southern Idaho,
 // western Wyoming, Oregon and Washington), and `trail` is Region 6 alone
 // (Oregon and Washington). Outside a kind's coverage an empty answer means
-// "not covered", not "open", which is why both Layers rows say so.
+// "not covered", not "nothing closed", which is why both Layers rows say so.
 //
 // The status is the Forest Service's own. An order's end date is what the
 // order says, and nothing here decides whether a closure is still in force.
@@ -29,8 +29,8 @@ export type ClosureKind = 'area' | 'trail'
 /**
  * The closure FeatureCollection plus the foreign members the API rides on it.
  *
- * `coverage` is the requested kind's outline as one geometry (the eight-state
- * area outline, or Oregon and Washington for trails), published beside the
+ * `coverage` is the requested kind's outline as one geometry (the area
+ * outline of the regions whose feeds answered, or Oregon and Washington for trails), published beside the
  * data it qualifies, the way `WildfireResponse.coverage` is (#256). The map
  * does not read it; the Closure column does (`useClosureProximity`). Optional
  * so a body without it degrades the way the fire check's does: every row is
