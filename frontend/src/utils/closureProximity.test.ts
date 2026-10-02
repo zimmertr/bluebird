@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import type { FeatureCollection, Polygon } from 'geojson'
+import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import {
+  CLOSURE_STATE_PROBES,
   CLOSURE_UNAVAILABLE_NOTE,
   CLOSURE_UNCOVERED_NOTE,
   closureCellText,
   closureFor,
+  closureUncoveredNote,
   closureWarningText,
+  coveredStates,
 } from './closureProximity'
 import { closureFeature, closureWarning } from '../testSupport/fixtures'
 
@@ -92,5 +95,46 @@ describe('closure notes', () => {
   it('pins the approved N/A hover sentences', () => {
     expect(CLOSURE_UNCOVERED_NOTE).toBe('Forest Service closure data is only available in Arizona, Idaho, Nevada, New Mexico, Oregon, Utah, Washington and Wyoming')
     expect(CLOSURE_UNAVAILABLE_NOTE).toBe('The Forest Service is unreachable, so closure data is unavailable.')
+  })
+})
+
+// A 0.1° square around each named state's probe, standing in for the rings
+// the server composes from the regions whose feeds answered.
+const outlineOf = (...states: string[]): MultiPolygon => ({
+  type: 'MultiPolygon',
+  coordinates: CLOSURE_STATE_PROBES.filter(([state]) => states.includes(state)).map(([, lat, lon]) => [
+    [
+      [lon - 0.1, lat - 0.1],
+      [lon + 0.1, lat - 0.1],
+      [lon + 0.1, lat + 0.1],
+      [lon - 0.1, lat + 0.1],
+      [lon - 0.1, lat - 0.1],
+    ],
+  ]),
+})
+const ALL_STATES = CLOSURE_STATE_PROBES.map(([state]) => state)
+
+describe('the uncovered note, from the live outline (#567)', () => {
+  it('is the approved sentence exactly while every region answers', () => {
+    expect(closureUncoveredNote(coveredStates(outlineOf(...ALL_STATES)))).toBe(CLOSURE_UNCOVERED_NOTE)
+  })
+
+  it('leaves out the states of a region whose feed failed', () => {
+    // Region 3 (Arizona and New Mexico) missing from the outline.
+    const states = coveredStates(outlineOf('Idaho', 'Nevada', 'Oregon', 'Utah', 'Washington', 'Wyoming'))
+    expect(states).toEqual(['Idaho', 'Nevada', 'Oregon', 'Utah', 'Washington', 'Wyoming'])
+    expect(closureUncoveredNote(states)).toBe(
+      'Forest Service closure data is only available in Idaho, Nevada, Oregon, Utah, Washington and Wyoming',
+    )
+  })
+
+  it('keeps every state when the server published no outline', () => {
+    expect(coveredStates(undefined)).toEqual(ALL_STATES)
+  })
+
+  it('falls back to the unavailable sentence when the outline holds no state', () => {
+    expect(closureUncoveredNote(coveredStates({ type: 'MultiPolygon', coordinates: [] }))).toBe(
+      CLOSURE_UNAVAILABLE_NOTE,
+    )
   })
 })

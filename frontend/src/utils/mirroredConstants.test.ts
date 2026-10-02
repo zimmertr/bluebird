@@ -26,6 +26,7 @@ import { COVERAGE_MESSAGE_TAIL, COVERAGE_PHRASE } from './openMeteoErrors'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
 import { SNOW_DEPTH_CEILING_IN } from './snowCeiling'
+import { CLOSURE_STATE_PROBES } from './closureProximity'
 import {
   ARCHIVE_STRADDLE_DAYS,
   FUTURE_LIMIT_SLACK_DAYS,
@@ -103,6 +104,12 @@ describe('the cloud base both sides compute (#117)', () => {
     const browser = Object.entries(ISA_HEIGHT_M).map(([p, m]) => [Number(p), m])
     const sort = (pairs: number[][]) => [...pairs].sort((a, b) => b[0] - a[0])
     expect(sort(browser)).toEqual(sort(constants.ISA_HEIGHT_M))
+  })
+
+  it('probes the closure outline where the backend holds each state', () => {
+    // The backend's tests put each point inside its own region's rings alone,
+    // so a probe moved here alone could name a state whose feed failed.
+    expect(CLOSURE_STATE_PROBES).toEqual(constants.CLOSURE_STATE_PROBES)
   })
 })
 

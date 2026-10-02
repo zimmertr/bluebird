@@ -254,6 +254,7 @@ export default function ResultsPanels({
               closureWarnings={closure.warnings}
               closureUncovered={closure.uncovered}
               closureStatus={closure.status}
+              closureUncoveredNote={closure.uncoveredNote}
               pending={pending}
               onRemove={removeResult}
               onRemovePending={onRemovePending}

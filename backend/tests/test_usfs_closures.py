@@ -804,6 +804,21 @@ def test_idaho_by_the_snake_is_an_area_but_not_a_trail(place):
     assert not usfs_coverage.covers("trail", *IDAHO_BY_THE_SNAKE[place]), place
 
 
+@pytest.mark.parametrize("state", sorted(usfs_coverage.STATE_PROBES))
+def test_each_state_probe_sits_in_its_own_region_alone(state):
+    # The browser names a state in the N/A hover when the live outline holds
+    # its probe (#567). A probe inside another region's rings would keep a
+    # state named after its own region's feed failed.
+    region, lat, lon = usfs_coverage.STATE_PROBES[state]
+    assert usfs_coverage.covers("area", lat, lon, regions=frozenset({region})), state
+    assert not usfs_coverage.covers("area", lat, lon, regions=usfs_coverage.ALL_REGIONS - {region}), state
+
+
+def test_the_state_probes_cover_every_region_in_the_hovers_order():
+    assert list(usfs_coverage.STATE_PROBES) == sorted(usfs_coverage.STATE_PROBES)
+    assert {region for region, _, _ in usfs_coverage.STATE_PROBES.values()} == usfs_coverage.ALL_REGIONS
+
+
 @pytest.mark.parametrize("kind", ["area", "trail"])
 def test_coverage_json_is_the_geometry(kind):
     assert json.loads(usfs_coverage.COVERAGE_JSON_FOR[kind]) == usfs_coverage.COVERAGE_FOR[kind]

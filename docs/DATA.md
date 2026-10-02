@@ -705,7 +705,39 @@ Forest, and the Nevada shore of Lake Tahoe. Outside the outline the app reports
 `N/A` rather than clear, because no order there is a fact the feeds cannot
 state. When one of the Region 3 or Region 4 feeds fails, the server keeps
 serving the other regions, and the area outline leaves out the failed region
-until a later refresh reaches it, so a row there also reads `N/A`.
+until a later refresh reaches it, so a row there also reads `N/A`, and the
+`N/A` hover leaves that region's states out of the list it names. The hover
+finds them by asking the live outline whether it holds one point per state,
+which the server keeps beside its rings (`STATE_PROBES` in
+`backend/app/services/usfs_coverage.py`), so the sentence and the cells read the
+same geometry. The list names whole states, and the outline takes in only part
+of Idaho, Wyoming and Nevada.
+
+**A cleared row means no Forest Service order, not open ground.** The outline
+is drawn around states, and the feeds hold the Forest Service's own orders and
+nothing else, so inside the outline there is ground the check cannot see. A
+destination there reads the dash, the same as a national forest peak the check
+really cleared:
+
+- **National parks and monuments.** The National Park Service closes its own
+  ground, and none of that reaches these feeds. A ray cast against the live
+  outline on 2026-10-01 put Mount Rainier, Eldorado Peak (North Cascades),
+  Mount Olympus, the Crater Lake rim, Grand Teton and Angels Landing (Zion)
+  inside it with no order holding them.
+- **State land**, such as Washington DNR ground: Mount Si read the dash the same
+  day.
+- **BLM land and tribal land**, which the outline takes in across Nevada, Utah,
+  Arizona, New Mexico and eastern Oregon.
+- **The Canadian strip.** The 0.2° outward bias reaches into British Columbia,
+  so Slesse Mountain reads the dash although no US agency closes it. The bias
+  stays, for the border trailhead reason above.
+- **Anything but a fire closure in Oregon and Washington.** Region 6's feed is
+  its fire closure orders, so a road washout, a wildlife closure or a
+  construction closure there is not in it.
+
+Telling those apart would take a land ownership layer, which the app does not
+have. Until it does, read a dash as "no Forest Service order found", and check
+the land manager's own closures for anything outside a national forest.
 
 **Regions 3 and 4 publish every standing order, not closures.** Their feeds
 hold every order a forest has in force: fire restrictions, motor vehicle
@@ -780,6 +812,8 @@ destination standing on the line, whose reader reads the order either way. It
 runs once per analysis over the whole candidate field, beside the wildfire
 check, and it reads the orders in force today, whatever window was analyzed: a
 report on past dates flags today's closures, not the ones that stood then. A
+row the check runs on and finds no order holding reads the dash, which means
+what the paragraph on cleared rows above says and no more. A
 row outside the area layer's coverage reads `N/A` rather than clear,
 for the coverage reason above, and so does every row when the Forest Service is
 unreachable. Sorting by the column puts cleared and `N/A` rows last in both

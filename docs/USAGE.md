@@ -194,7 +194,7 @@ again. Each of the six that draw somebody else's data is credited in its own sec
 
 | Layer | What it draws | Coverage |
 |---|---|---|
-| **Area closures (West)** | Ground closed by a Forest Service closure order, in fuchsia | Oregon, Washington, Arizona, New Mexico, Utah, Nevada, southern Idaho and western Wyoming ([DATA.md](DATA.md#closures)) |
+| **Area closures (West)** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
 | **Trail closures (OR/WA)** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
 | **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
 | **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
@@ -218,8 +218,12 @@ Washington the status is the Forest Service's own: Bluebird Forecast shows what
 the order says and does not judge whether it is still in force. Elsewhere the
 orders carry no status, so an order shows from its start date until its end
 date ([DATA.md](DATA.md#closures)). The trail layer covers Oregon and
-Washington alone, and the area layer the eight states in the table, so an empty
+Washington alone, and the area layer the ground in the table, so an empty
 map elsewhere means the region is not covered, not that every trail is open.
+Inside that ground an empty map is not a promise either: both layers draw
+Forest Service orders and nothing else, so a closure a national park, a state,
+the BLM or a tribe puts in place never appears, and in Oregon and Washington
+the feed holds fire closures only.
 
 Hovering a perimeter names the fire, with a link to it on NIFC's live map, and clicking one opens that map in a new tab; clicking a plume says how
 dense it is, which satellite it was traced from, and over what hours. Where smoke
@@ -478,14 +482,22 @@ like any other. Both read the fire perimeters and closure orders that stand
 today, whatever window you analyze, so over a window in the past they say what
 stands now, not what stood then. The Closure cell shows ⚠️ and the order's name where the
 destination stands inside an active US Forest Service area closure, a dash
-where the check ran and cleared it, and `N/A` where it has no answer. A warned
+where the check ran and found no Forest Service order holding it, and `N/A`
+where it has no answer. The dash means exactly that and no more: it is not a
+statement that the ground is open. The check reads Forest Service orders alone,
+so a summit in a national park, on state, BLM or tribal land, or just across the
+Canadian border reads the same dash as a checked national forest peak, and in
+Oregon and Washington only fire closures are in the feed. Check the land
+manager's own closures before you go ([DATA.md](DATA.md#closures)). A warned
 cell links to the order on the Forest Service's site when the order has a page,
 and otherwise hovering it says which closure it is. Hovering an `N/A` says
-which of its two causes applies: the destination is outside the eight western
-states the closure data covers, or the Forest Service is
-unreachable and the whole check failed. The check is inside or outside, with no
-distance: a destination next to a closure is open
-([DATA.md](DATA.md#closures)).
+which of its two causes applies: the destination is outside the ground the
+closure data covers, or the Forest Service is
+unreachable and the whole check failed. The first names the states the
+outline reaches, leaving out any whose feed failed on the last refresh, and in
+Idaho, Wyoming and Nevada the outline takes in only part of the state. The
+check is inside or outside, with no distance: a destination just outside a
+closure is not flagged, which does not make it open.
 
 A single-hour analysis ("now", or a chosen moment) collapses each of those
 groups to one column, because over one hour the average, the minimum and the
@@ -571,6 +583,8 @@ What lands in the file:
 - The **Closure** column on the same terms: once the closure check answers and
   while the column is shown. A warned cell writes the order's name without the
   ⚠️, a cleared cell is empty, and a coverage `N/A` carries over as written.
+  An empty cell means no Forest Service order holds the row, on the screen's
+  terms: it says nothing about a park, state, BLM or tribal closure.
   While the file carries it, the credits below the data add
   `Closure data by US Forest Service` with a link to the Forest Service.
 - Nothing a removed row would have contributed. Removals and the max-results

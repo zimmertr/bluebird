@@ -55,11 +55,14 @@ export function fireCell(
 /**
  * The Closure column's text and hover sentence: `fireCell`'s rules for the
  * closure check, so the two flag columns read their three states one way.
+ * `uncoveredNote` is the check's own (`closureUncoveredNote`), naming only the
+ * states the live outline holds.
  */
 export function closureCell(
   status: ClosureProximityStatus,
   warning: ClosureWarning | undefined,
   uncovered: boolean,
+  uncoveredNote: string = CLOSURE_UNCOVERED_NOTE,
 ): { text: string; note: string | null } {
   const note =
     status === 'unavailable'
@@ -67,7 +70,7 @@ export function closureCell(
       : status === 'ready' && warning
         ? closureWarningText(warning)
         : status === 'ready' && uncovered
-          ? CLOSURE_UNCOVERED_NOTE
+          ? uncoveredNote
           : null
   const text = status === 'unavailable' ? 'N/A' : closureCellText(warning, uncovered)
   return { text, note }

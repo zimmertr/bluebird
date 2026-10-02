@@ -6,11 +6,11 @@
 //
 // A POLYGON test and nothing else (TJ, 2026-09-30). No distance, unlike the
 // fire check: a closure is a line on the ground the order draws, and a
-// destination a mile outside it is open. No trail-line test either: a closed
+// destination a mile outside it is not inside that order. No trail-line test either: a closed
 // trail says nothing about the summit it leads to, which other routes reach.
 // The status is the Forest Service's own, trusted as sent, the way the layers
 // trust it.
-import type { Feature, FeatureCollection } from 'geojson'
+import type { Feature, FeatureCollection, MultiPolygon } from 'geojson'
 import { type ClosureProps, closureName, closureUrl } from './closures'
 import { type FireProximityStatus, featureCenter, pointInRing, polygonsOf } from './fireProximity'
 
@@ -34,15 +34,62 @@ export type ClosureProximityStatus = FireProximityStatus
 
 /**
  * The two hover texts an N/A cell carries, the fire column's pair (TJ, PR #275
- * review) for the closure feeds: the row sat outside the eight states the area
- * feeds cover (#551), or the whole
- * check failed. The second is also the panel's line below Analyze, so the cell
- * and the panel cannot describe one failure two ways.
+ * review) for the closure feeds: the row sat outside the ground the area feeds
+ * cover (#551), or the whole check failed. The second is also the panel's line
+ * below Analyze, so the cell and the panel cannot describe one failure two
+ * ways. The first is the sentence with every region's feed answering; the
+ * cell reads `closureUncoveredNote`, which names only the states the live
+ * outline holds.
  */
 export const CLOSURE_UNCOVERED_NOTE =
   'Forest Service closure data is only available in Arizona, Idaho, Nevada, New Mexico, Oregon, Utah, Washington and Wyoming'
 export const CLOSURE_UNAVAILABLE_NOTE =
   'The Forest Service is unreachable, so closure data is unavailable.'
+
+/**
+ * One point per state the area outline reaches, well inside the ground its
+ * region covers, in the order the hover lists them. The backend owns them
+ * (`STATE_PROBES` in usfs_coverage.py, beside the rings an edit could move one
+ * out of) and its tests hold each inside its own region alone;
+ * mirroredConstants.test.ts holds this copy to that one.
+ */
+export const CLOSURE_STATE_PROBES: readonly (readonly [state: string, lat: number, lon: number])[] = [
+  ['Arizona', 35.35, -111.68],
+  ['Idaho', 44.14, -113.78],
+  ['Nevada', 38.98, -114.31],
+  ['New Mexico', 36.56, -105.42],
+  ['Oregon', 45.37, -121.7],
+  ['Utah', 40.78, -110.37],
+  ['Washington', 46.2, -121.49],
+  ['Wyoming', 43.48, -110.76],
+]
+
+/**
+ * The states whose probe the published outline holds. The outline is composed
+ * per snapshot from the regions whose feeds answered, so a failed Region 3 or
+ * Region 4 feed takes its states out of this list the same way it takes its
+ * rows out of coverage (#567). A missing outline (an older server) marks no
+ * row uncovered, so every state stays.
+ */
+export function coveredStates(coverage: MultiPolygon | undefined): string[] {
+  if (!coverage) return CLOSURE_STATE_PROBES.map(([state]) => state)
+  return CLOSURE_STATE_PROBES.filter(([, lat, lon]) =>
+    coverage.coordinates.some((polygon) => polygon.length > 0 && pointInRing(lon, lat, polygon[0])),
+  ).map(([state]) => state)
+}
+
+/**
+ * The uncovered N/A cell's hover, naming the states `coveredStates` found.
+ * With every state present it is `CLOSURE_UNCOVERED_NOTE` exactly. An outline
+ * that holds no state cannot happen while Region 6 is required, and would mean
+ * no closure data at all, which the unavailable sentence already says.
+ */
+export function closureUncoveredNote(states: readonly string[]): string {
+  if (states.length === 0) return CLOSURE_UNAVAILABLE_NOTE
+  const list =
+    states.length === 1 ? states[0] : `${states.slice(0, -1).join(', ')} and ${states[states.length - 1]}`
+  return `Forest Service closure data is only available in ${list}`
+}
 
 /** The warned cell's hover sentence, and the marker popup's closure line. */
 export function closureWarningText(w: ClosureWarning): string {
@@ -52,9 +99,10 @@ export function closureWarningText(w: ClosureWarning): string {
 /**
  * The Closure column's on-screen cell once the check has answered: the fire
  * column's three visible states. The ⚠️ and the order's name where the row is
- * inside a closure, the dash where the check ran and cleared it, and `N/A`
- * where the row sits outside the area feeds' eight-state coverage and was
- * never checked. The CSV writes its own cell (resultsCsv.ts), the bare name,
+ * inside a closure, the dash where the check ran and found no order holding
+ * it, and `N/A` where the row sits outside the area feeds' coverage and was
+ * never checked. The dash is "no Forest Service order here", not "open": the
+ * feeds carry no park, state, BLM or tribal closure (docs/DATA.md#closures). The CSV writes its own cell (resultsCsv.ts), the bare name,
  * as it writes the fire column's bare number.
  */
 export function closureCellText(warning: ClosureWarning | undefined, uncovered: boolean): string {

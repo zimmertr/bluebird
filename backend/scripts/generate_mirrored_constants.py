@@ -42,6 +42,7 @@ from app.services.aggregation import CLOUD_SATURATION_RH, ESPY_M_PER_C, ISA_HEIG
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.openmeteo_fetch import BATCH_SIZE, MAX_CONCURRENT_BATCHES
 from app.services.snodas import SNOW_DEPTH_CEILING_IN
+from app.services.usfs_coverage import STATE_PROBES
 from app.services.weather import (
     N_CLOUD_VARIABLES,
     N_VARIABLES,
@@ -94,6 +95,11 @@ def render() -> str:
             # rather than an object, because JSON would turn the levels into
             # strings and an object's order is not a promise.
             "ISA_HEIGHT_M": [[level, height] for level, height in ISA_HEIGHT_M.items()],
+            # Where the browser probes the live closure outline for the states
+            # it names in an N/A hover (#567). A list of [state, lat, lon] for
+            # ISA_HEIGHT_M's reason; the region stays here, where the tests
+            # that read it are.
+            "CLOSURE_STATE_PROBES": [[state, lat, lon] for state, (_, lat, lon) in STATE_PROBES.items()],
         },
         "strings": {"model_coverage_message": _coverage_template()},
     }
