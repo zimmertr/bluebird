@@ -162,6 +162,62 @@ not care who you claim to be. A caller already inside the cluster mesh can
 still set the header, which is why the buckets are one layer of several, not
 the whole defense.
 
+## Request logs and how long they last
+
+The access log above is the one place the pod writes a client address, and the
+geocode route adds the place names it proxies. The privacy page promises those
+lines are "discarded by routine log rotation, typically within days"
+([#612](https://github.com/zimmertr/bluebird/issues/612)). Measured
+2026-10-02, read-only:
+
+- **Where they live.** Only in each container's log file on the node it runs
+  on, under `/var/log/pods/`. Nothing ships them anywhere: no collector
+  (Loki, Promtail, Fluent Bit, Vector, Alloy, an OpenTelemetry collector) runs
+  in the cluster or is declared in `Kubernetes-Manifests` (the
+  `observability/` tree holds kube-prometheus-stack and metrics-server, which
+  scrape metrics, not logs), and Istio's access log is off (no
+  `accessLogFile` in the mesh config, no `Telemetry` resource), so the sidecar
+  writes nothing per request.
+- **The size cap.** The kubelet keeps `containerLogMaxSize: 10Mi` and
+  `containerLogMaxFiles: 5` (read from `/configz` on `k8s-node-1` and
+  `k8s-node-3`), at most 50 MiB per container. These are the kubelet's
+  defaults: the Talos machine config (`zimmertr/Bootstrap-Kubernetes-With-Talos`)
+  sets neither.
+- **The volume.** One production pod wrote 3,846 bytes to disk in its first 51
+  minutes (26 lines over 16 API requests), about 4.6 KB an hour. At that rate a
+  10 MiB file takes about 96 days to fill. The busiest pod-hour in Prometheus's
+  last 30 days served 40 API requests; even if each wrote as much as a server
+  analysis does (about 1.5 KB on disk, the heaviest request the pod logs), a
+  10 MiB file would take a week of that hour held without a break, and all
+  five files over a month. The size cap therefore never decides how long a line
+  lasts.
+- **What does.** A pod's log directory is deleted with the pod, and every
+  release replaces every pod. `/var/log/pods/` on all three workers held only
+  the current pods' directories, and the pod measured above was replaced by a
+  release minutes later, its directory gone with it. The releases list has 349
+  releases from 2026-07-02 to 2026-10-02. Over the last 90 days the median gap
+  between two was about 20 minutes, 90% of gaps were under 9 hours, and the
+  longest was 11 days (2026-08-23 to 2026-09-03); over the last 30 days the
+  longest was 8.7 days. An autoscaler scale-down or a reschedule ends a pod
+  sooner.
+
+So "typically within days" holds today, but the mechanism is the release, not
+rotation, and nothing bounds it in time: with no release for a quarter, a pod's
+oldest lines would still be on disk at the end of it.
+
+**Cloudflare** keeps its own record of every proxied request, outside this
+cluster. The zone is on the **Free** plan (read from the Cloudflare API on
+2026-10-02). Cloudflare's documentation says Logpull, the API that hands a
+zone owner raw request logs, is Enterprise only and retains nothing until it is
+enabled; Instant Logs is Business and up; Logpush is listed for every plan but
+only sends logs from the moment a job exists, and nothing in these repos
+creates one. What Cloudflare keeps for itself is not stated as a period: its
+[privacy policy](https://www.cloudflare.com/privacypolicy/) keeps personal
+information as long as its business purposes need. **Not verified for this
+zone:** the API token used here cannot list Logpush jobs or read the zone's
+analytics retention, so whether a job exists and how far back the dashboard's
+analytics reach are open.
+
 ## Security response headers
 
 Every response the pod sends carries the set below, added by

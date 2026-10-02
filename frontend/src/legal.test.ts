@@ -345,7 +345,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 1 October 2026\./)
+    expect(privacyPage).toMatch(/Last updated 2 October 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -452,6 +452,31 @@ describe('the privacy copy, held to the code', () => {
     expect(accessLog).not.toMatch(/request\.url(?!\.path)|query|referer|request\.headers/i)
 
     expect(text).toMatch(/but not the page's address or anything else you enter/)
+  })
+
+  // A drawn area and a pasted place reach Overpass through a chain of public
+  // mirrors, and each mirror is a separate operator who sees that area. A
+  // mirror added to the chain fails here until the page names who runs it.
+  it('names the operator of every Overpass mirror the server can reach', () => {
+    const mirrors = repoFile('backend/app/services/osm/mirrors.py')
+    const table = mirrors.slice(mirrors.indexOf('OVERPASS_MIRRORS = ['), mirrors.indexOf('\n]\n', mirrors.indexOf('OVERPASS_MIRRORS = [')))
+    const hosts = [...table.matchAll(/url="https:\/\/([^/"]+)\//g)].map((match) => match[1])
+    expect(hosts.length).toBeGreaterThan(0)
+
+    const OPERATOR_BY_HOST: Record<string, RegExp> = {
+      'overpass-api.de': /one run by FOSSGIS in Germany/,
+      'maps.mail.ru': /one run by VK \(maps\.mail\.ru\)/,
+    }
+    for (const host of hosts) {
+      const operator = OPERATOR_BY_HOST[host]
+      expect(operator, `no operator named for ${host}`).toBeDefined()
+      if (operator) expect(text).toMatch(operator)
+    }
+
+    // The sentence counts its servers, so it cannot name fewer than the chain holds.
+    const sentence = text.match(/Destination searches are answered by public OpenStreetMap servers: (.+?)\. /)?.[1]
+    expect(sentence).toBeDefined()
+    expect((sentence ?? '').match(/\bone run by\b/g)?.length).toBe(hosts.length)
   })
 
   it('names Cloudflare, which carries every request', () => {
