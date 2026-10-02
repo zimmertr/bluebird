@@ -39,7 +39,6 @@ const CLOSURE: ClosureProximity = {
     [geoKey(FAR.latitude, FAR.longitude), closureWarning({ name: 'Eagle Creek Closure' })],
   ]),
   uncovered: new Set(),
-  uncoveredNote: '',
 }
 const MODELS = [forecastModel({ id: 'gfs_seamless', label: 'NOAA GFS' })]
 const REPORT = analyzedSnapshot()

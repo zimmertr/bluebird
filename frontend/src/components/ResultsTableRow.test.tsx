@@ -49,7 +49,6 @@ function props(over: Partial<Props> = {}): Props {
     fireUncovered: false,
     closureStatus: 'ready',
     closureUncovered: false,
-    closureUncoveredNote: CLOSURE_UNCOVERED_NOTE,
     charted: false,
     ...over,
   }
@@ -173,11 +172,6 @@ describe('the Closure cell', () => {
   it('explains an uncovered row and a failed check apart', () => {
     only({ closureUncovered: true })
     expect(cell().querySelector('[title]')!.getAttribute('title')).toBe(CLOSURE_UNCOVERED_NOTE)
-  })
-
-  it('hovers an uncovered row with the note the check handed it', () => {
-    only({ closureUncovered: true, closureUncoveredNote: 'Derived note' })
-    expect(cell().querySelector('[title]')!.getAttribute('title')).toBe('Derived note')
   })
 
   it('reads N/A with the unavailable note when the check failed', () => {

@@ -85,15 +85,6 @@ describe('useClosureProximity', () => {
     expect(result.current.warnings.size).toBe(1)
   })
 
-  // The box above is Region 6 alone, which is what the outline is when both
-  // other regions' feeds failed: the hover must not name their states (#567).
-  it('names in its N/A hover only the states the published outline holds', async () => {
-    answer(() => fakeResponse(body()))
-    const { result } = renderHook(() => useClosureProximity([INSIDE, ROBSON]))
-    await waitFor(() => expect(result.current.status).toBe('ready'))
-    expect(result.current.uncoveredNote).toBe('Forest Service closure data is only available in Oregon and Washington')
-  })
-
   it('stops at once on a refusal the backoff would not outlast', async () => {
     answer(() => fakeResponse({ detail: 'Slow down.' }, 429))
     const { result } = renderHook(() => useClosureProximity([INSIDE]))

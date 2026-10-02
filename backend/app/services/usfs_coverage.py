@@ -221,26 +221,6 @@ REGION_RINGS: dict[str, tuple[list[list[float]], ...]] = {
 }
 ALL_REGIONS: frozenset[str] = frozenset(REGION_RINGS)
 
-# One point per state the area outline reaches, each well inside the ground its
-# region covers, keyed by the state's name with its region beside it. The
-# browser asks the LIVE area outline which of these it holds and names only
-# those states in the Closure column's N/A hover, so a region whose feed failed
-# is not named as covered (#567). They are kept beside the rings because an
-# edit to a ring is what could move one out, the tests hold each inside its own
-# region's rings and outside every other region's, and the mirrored-constant
-# manifest carries them to the browser. Alphabetical, the order the hover
-# lists them in.
-STATE_PROBES: dict[str, tuple[str, float, float]] = {
-    "Arizona": ("R03", 35.35, -111.68),  # Humphreys Peak
-    "Idaho": ("R04", 44.14, -113.78),  # Borah Peak
-    "Nevada": ("R04", 38.98, -114.31),  # Wheeler Peak
-    "New Mexico": ("R03", 36.56, -105.42),  # Wheeler Peak
-    "Oregon": ("R06", 45.37, -121.70),  # Mount Hood
-    "Utah": ("R04", 40.78, -110.37),  # Kings Peak
-    "Washington": ("R06", 46.20, -121.49),  # Mount Adams
-    "Wyoming": ("R04", 43.48, -110.76),  # Jackson
-}
-
 
 def area_coverage(regions: frozenset[str]) -> dict[str, Any]:
     """The area outline for the regions a snapshot holds."""

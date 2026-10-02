@@ -57,7 +57,6 @@ function props(over: Partial<Props> = {}): Props {
     closureWarnings: NO_WARNINGS,
     closureUncovered: NO_KEYS,
     closureStatus: 'ready',
-    closureUncoveredNote: 'Uncovered note',
     ...over,
   }
 }

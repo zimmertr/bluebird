@@ -53,7 +53,7 @@ const TABLE_VIEW = {
 }
 const REPORT = { detailSort: { key: 'name', dir: 'asc' }, sortDetail: NOOP, emptyReason: null }
 const FIRE = { status: 'ready', warnings: new Map(), uncovered: new Set() }
-const CLOSURE = { status: 'ready', warnings: new Map(), uncovered: new Set(), uncoveredNote: 'Uncovered note' }
+const CLOSURE = { status: 'ready', warnings: new Map(), uncovered: new Set() }
 const TIMES = [0, 3_600_000]
 const onRemovePending = () => {}
 const onFocusResult = () => {}
@@ -117,7 +117,6 @@ describe('ResultsPanels', () => {
     expect(got.closureWarnings).toBe(CLOSURE.warnings)
     expect(got.closureUncovered).toBe(CLOSURE.uncovered)
     expect(got.closureStatus).toBe('ready')
-    expect(got.closureUncoveredNote).toBe(CLOSURE.uncoveredNote)
     expect(got.onRemove).toBe(removeResult)
     expect(got.onRemovePending).toBe(onRemovePending)
     expect(got.onFocusResult).toBe(onFocusResult)

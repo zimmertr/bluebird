@@ -153,7 +153,6 @@ interface CellContext {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
-  closureUncoveredNote: string
   // Centres the map on the row: the name button's fly-to.
   onCenter: () => void
 }
@@ -208,7 +207,7 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
 function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
   const frame = useContext(FireFrame)
   const warning = ctx.closureWarning
-  const { text, note } = closureCell(ctx.closureStatus, warning, ctx.closureUncovered, ctx.closureUncoveredNote)
+  const { text, note } = closureCell(ctx.closureStatus, warning, ctx.closureUncovered)
   let body: ReactNode = text
   if (frame !== null && checkRunning(ctx.closureStatus)) {
     body = <span className={TEXT.caption}>{frame}</span>
@@ -345,7 +344,6 @@ interface RowProps {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
-  closureUncoveredNote: string
   // Absent when the table has no chart column.
   chartBox?: ChartBox
   charted: boolean
@@ -370,7 +368,6 @@ function ResultsTableRow({
   closureStatus,
   closureWarning,
   closureUncovered,
-  closureUncoveredNote,
   chartBox,
   charted,
   chartColor,
@@ -390,7 +387,6 @@ function ResultsTableRow({
     closureStatus,
     closureWarning,
     closureUncovered,
-    closureUncoveredNote,
     onCenter: () => onFocusResult?.(row),
   }
   return (

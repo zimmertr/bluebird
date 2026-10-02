@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchClosures } from '../utils/closures'
 import {
-  CLOSURE_UNCOVERED_NOTE,
   type ClosureProximityStatus,
   type ClosureWarning,
   closureFor,
-  closureUncoveredNote,
-  coveredStates,
 } from '../utils/closureProximity'
 import { pointsBbox, pointsKey, uncoveredKeys } from '../utils/fireProximity'
 import { geoKey } from '../utils/points'
@@ -30,9 +27,6 @@ export interface ClosureProximity {
   status: ClosureProximityStatus
   warnings: Map<string, ClosureWarning>
   uncovered: Set<string>
-  // The hover an uncovered row's N/A carries, read off the same outline that
-  // marked it uncovered, so a region whose feed failed is not named (#567).
-  uncoveredNote: string
 }
 
 // The fire check's retry doctrine, unchanged: three tries, backing off, and
@@ -62,7 +56,6 @@ export function useClosureProximity(
     status: 'idle',
     warnings: EMPTY,
     uncovered: NONE,
-    uncoveredNote: CLOSURE_UNCOVERED_NOTE,
   })
 
   // The identity of the destinations rather than of the array holding them,
@@ -81,7 +74,7 @@ export function useClosureProximity(
       setState((prev) =>
         prev.status === 'idle' && prev.warnings.size === 0
           ? prev
-          : { status: 'idle', warnings: EMPTY, uncovered: NONE, uncoveredNote: CLOSURE_UNCOVERED_NOTE },
+          : { status: 'idle', warnings: EMPTY, uncovered: NONE },
       )
       return
     }
@@ -114,12 +107,7 @@ export function useClosureProximity(
           const hit = closureFor(p.latitude, p.longitude, areas)
           if (hit) next.set(key, hit)
         }
-        setState({
-          status: 'ready',
-          warnings: next,
-          uncovered,
-          uncoveredNote: closureUncoveredNote(coveredStates(areas.coverage)),
-        })
+        setState({ status: 'ready', warnings: next, uncovered })
       } catch (err) {
         // An abort is the caller changing its mind, not a failure to report.
         if (cancelled || (err as Error).name === 'AbortError') return
@@ -132,7 +120,7 @@ export function useClosureProximity(
         // A 429 or a 503 (a pod that has never fetched the orders) does not
         // clear inside a backoff, so the check stops honestly.
         if (isRateLimited(err)) {
-          setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE, uncoveredNote: CLOSURE_UNCOVERED_NOTE })
+          setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE })
           return
         }
         if (n + 1 < ATTEMPTS) {
@@ -141,7 +129,7 @@ export function useClosureProximity(
           }, BACKOFF_MS[n])
           return
         }
-        setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE, uncoveredNote: CLOSURE_UNCOVERED_NOTE })
+        setState({ status: 'unavailable', warnings: EMPTY, uncovered: NONE })
       }
     }
 

@@ -50,11 +50,6 @@ describe('closureCell', () => {
     expect(closureCell('ready', undefined, false)).toEqual({ text: '—', note: null })
   })
 
-  it('hovers an uncovered row with the note the check derived', () => {
-    expect(closureCell('ready', undefined, true, 'Derived note').note).toBe('Derived note')
-    expect(closureCell('unavailable', undefined, true, 'Derived note').note).toBe(CLOSURE_UNAVAILABLE_NOTE)
-  })
-
   it('carries no note while the check runs', () => {
     expect(closureCell('loading', CLOSED, false).note).toBeNull()
   })

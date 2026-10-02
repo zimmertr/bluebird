@@ -79,8 +79,6 @@ interface Props {
   closureWarnings: Map<string, ClosureWarning>
   closureUncovered: Set<string>
   closureStatus: ClosureProximityStatus
-  // The uncovered N/A cell's hover, one string per answer (#567).
-  closureUncoveredNote: string
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
   // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
@@ -134,7 +132,6 @@ function ResultsTable({
   closureWarnings,
   closureUncovered,
   closureStatus,
-  closureUncoveredNote,
   pending,
   onRemovePending,
   onRemove,
@@ -248,7 +245,6 @@ function ResultsTable({
                   closureStatus={closureStatus}
                   closureWarning={closureWarnings.get(at)}
                   closureUncovered={closureUncovered.has(at)}
-                  closureUncoveredNote={closureUncoveredNote}
                   chartBox={showChartCol ? chartBox : undefined}
                   charted={charted}
                   chartColor={charted ? chartColor?.(row) : undefined}

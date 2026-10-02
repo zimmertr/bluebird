@@ -491,12 +491,12 @@ Oregon and Washington only fire closures are in the feed. Check the land
 manager's own closures before you go ([DATA.md](DATA.md#closures)). A warned
 cell links to the order on the Forest Service's site when the order has a page,
 and otherwise hovering it says which closure it is. Hovering an `N/A` says
-which of its two causes applies: the destination is outside the ground the
+which of its two causes applies: the destination is outside the area the
 closure data covers, or the Forest Service is
-unreachable and the whole check failed. The first names the states the
-outline reaches, leaving out any whose feed failed on the last refresh, and in
-Idaho, Wyoming and Nevada the outline takes in only part of the state. The
-check is inside or outside, with no distance: a destination just outside a
+unreachable and the whole check failed. The first names no state, because the
+area takes in only part of Idaho, Wyoming and Nevada and leaves out any region
+whose feed failed on the last refresh; the Area closures row above says where
+it reaches. The check is inside or outside, with no distance: a destination just outside a
 closure is not flagged, which does not make it open.
 
 A single-hour analysis ("now", or a chosen moment) collapses each of those

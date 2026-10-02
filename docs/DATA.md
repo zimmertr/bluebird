@@ -705,13 +705,11 @@ Forest, and the Nevada shore of Lake Tahoe. Outside the outline the app reports
 `N/A` rather than clear, because no order there is a fact the feeds cannot
 state. When one of the Region 3 or Region 4 feeds fails, the server keeps
 serving the other regions, and the area outline leaves out the failed region
-until a later refresh reaches it, so a row there also reads `N/A`, and the
-`N/A` hover leaves that region's states out of the list it names. The hover
-finds them by asking the live outline whether it holds one point per state,
-which the server keeps beside its rings (`STATE_PROBES` in
-`backend/app/services/usfs_coverage.py`), so the sentence and the cells read the
-same geometry. The list names whole states, and the outline takes in only part
-of Idaho, Wyoming and Nevada.
+until a later refresh reaches it, so a row there also reads `N/A`. The `N/A`
+hover says only that the row is outside the area the closure data covers, and
+names no state: the outline takes in only part of Idaho, Wyoming and Nevada,
+and loses a region whose feed failed, so any list of states would be wrong
+about one or the other.
 
 **A cleared row means no Forest Service order, not open ground.** The outline
 is drawn around states, and the feeds hold the Forest Service's own orders and

@@ -51,7 +51,6 @@ const CLOSURE: ResultsViewInputs['closure'] = {
   status: 'ready',
   warnings: new Map([['k', closureWarning()]]),
   uncovered: new Set(),
-  uncoveredNote: '',
 }
 const REPORT = analyzedSnapshot()
 const RESPONSE: AnalyzeResponse = { results: [], total_queried: 0, total_matched: 0 }
