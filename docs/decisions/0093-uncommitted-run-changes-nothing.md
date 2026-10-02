@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-01
 - Decider: the maintainer (TJ), on issue #560 (half 1 as the issue planned; for half 2, neither of the issue's options: the previous report comes back exactly)
-- Issues and PRs: #560, PR_NUMBER
+- Issues and PRs: #560, #613
 - Cited in code as: #560, in `hooks/useAnalysisReport.ts`, `hooks/useAnalyzeCommand.ts`, `hooks/useAnalysisRun.ts`, `hooks/useAnalyze.ts`, `hooks/useForecastGrid.ts`, `hooks/useModelCompare.ts`, `hooks/useResultsLayout.ts`
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, "The data snapshot is refined, not broken"; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), the `useAnalysisReport.ts` and `useAnalyzeCommand.ts` bullets
 
