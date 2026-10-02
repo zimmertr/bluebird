@@ -31,7 +31,7 @@ vi.mock('./RemovedPicker', () => ({ default: () => null }))
 type Props = ComponentProps<typeof ResultsSheet>
 const NOOP = () => {}
 const LAYOUT = { sheetRef: { current: null }, resultsCollapsed: false, toggleCollapsed: NOOP }
-const CHARTS = { selectedModelRows: [], hiddenModels: new Set(), toggleHiddenModel: NOOP, compareWait: null }
+const CHARTS = { selectedModelRows: [], hiddenModels: new Set(), toggleHiddenModel: NOOP, compareWait: null, compareNotes: [] }
 const TABLE_VIEW = { allColumns: [], pickerVisibleKeys: [], handleVisibilityChange: NOOP, handleColumnMove: NOOP }
 const REPORT = { results: [], windowTitle: null, pending: [], rowCount: 0 }
 const REMOVALS = { removed: new Map(), removeResult: NOOP, restoreRemoved: NOOP, restoreAllRemoved: NOOP }

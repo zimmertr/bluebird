@@ -35,8 +35,28 @@ export function compareEndMs(
   nowMs: number,
 ): number {
   let end = windowEndMs
-  for (const hours of forecastHours) end = Math.min(end, nowMs + hours * HOUR_MS)
+  // A reach lands on the hour the fetch stops at, not on the minute "now"
+  // happened to be: the request is stamped in whole hours (`utcHour`), so the
+  // last hour a model answers is the one its reach falls in, and a mark at
+  // 16:11 would date data that stops at 16:00.
+  for (const hours of forecastHours) end = Math.min(end, floorHour(nowMs + hours * HOUR_MS))
   return end
+}
+
+function floorHour(ms: number): number {
+  return ms - (ms % HOUR_MS)
+}
+
+/**
+ * Does a model that stops at `endMs` leave out any hour of the window?
+ *
+ * Compared on the hourly grid, because a window's end is a minute (a range
+ * ends at 23:59, a single hour at :01 past) and a reach is an hour: a model
+ * whose last hour is the window's last hour covers the window, although that
+ * hour starts before the window's final minute.
+ */
+export function endsInsideWindow(endMs: number, windowEndMs: number): boolean {
+  return endMs < floorHour(windowEndMs)
 }
 
 /**
@@ -378,7 +398,8 @@ export function modelEndLines(ends: readonly ModelEnd[]): ModelEndLine[] {
  * **Grouped by destination, not by model.** A reader comparing models is
  * asking "what do they say about THIS place", so the eight answers belong
  * next to each other; sorting a metric column afterwards interleaves them,
- * which is the reader's choice rather than the default.
+ * which is the reader's choice rather than the default: the table keeps this
+ * order until a header click (`tableRows` in `useTableView.ts`).
  *
  * The ranking model's row is the report's own — it is already in hand, it
  * already ranked, and re-deriving it from a second fetch could only disagree
@@ -392,8 +413,9 @@ export function modelEndLines(ends: readonly ModelEnd[]): ModelEndLine[] {
  *
  * A pair with nothing fetched contributes NO row. A model outside its domain
  * at that spot has no numbers, and a row of zeros there would read as a
- * forecast of calm; the panel's own warning is what says a model came back
- * empty. So a destination need not appear once per model — it appears once
+ * forecast of calm; the comparison's note, beside the chart and under the
+ * results bar while the chart is not on screen, is what says a model came
+ * back empty. So a destination need not appear once per model — it appears once
  * per model that answered.
  *
  * `ends` holds, by model id, where each compared model ends when that is

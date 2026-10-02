@@ -3,7 +3,16 @@ import { act, renderHook } from '@testing-library/react'
 import { type TableViewInputs, useTableView } from './useTableView'
 import type { FireProximity } from './useFireProximity'
 import type { ClosureProximity } from './useClosureProximity'
-import { analyzedSnapshot, closureWarning, fireWarning, forecastModel, resultRow } from '../testSupport/fixtures'
+import {
+  analyzedSnapshot,
+  closureWarning,
+  fireWarning,
+  forecastModel,
+  resultRow,
+  weatherResult,
+} from '../testSupport/fixtures'
+import { chartKey } from '../utils/chartData'
+import { type ModelRow, pairKey } from '../utils/modelCompare'
 import { geoKey } from '../utils/points'
 import { rankText } from '../utils/resultsCells'
 import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY } from '../utils/tableColumns'
@@ -40,6 +49,8 @@ const NO_SHOWN: TableViewInputs['shownModels'] = []
 const NO_RESULTS: TableViewInputs['compareResults'] = {}
 const NO_ENDS: TableViewInputs['compareReachEnds'] = {}
 const BY_NAME: TableViewInputs['detailSort'] = { key: 'name', dir: 'asc' }
+// The ranking's own order: what the table holds while nobody clicked a header.
+const RANKED: TableViewInputs['detailSort'] = { key: 'precip_total_in', dir: 'asc' }
 
 function inputs(over: Partial<TableViewInputs> = {}): TableViewInputs {
   return {
@@ -47,6 +58,7 @@ function inputs(over: Partial<TableViewInputs> = {}): TableViewInputs {
     results: ROWS,
     detailSort: BY_NAME,
     sortBy: 'precip_total_in',
+    sortDesc: false,
     pointSample: false,
     analyzed: REPORT,
     models: MODELS,
@@ -188,6 +200,75 @@ describe('useTableView', () => {
     const { result } = renderHook(() => useTableView(inputs({ models, forecastModel: 'icon_seamless' })))
     expect(result.current.analysisModelLabel).toBe('NOAA GFS')
     expect(result.current.partialNote).toBeNull()
+  })
+
+  // A chip promotion moves the panel's ranking model ahead of the report. The
+  // rows stay the report's until the next Analyze: the analyzed model's rows
+  // lead each group, and the model promoted out of the comparison has none.
+  it('keeps the analyzed model rows after the panel ranking moves to another model', () => {
+    const models = [
+      ...MODELS,
+      forecastModel({ id: 'ecmwf_ifs025', label: 'ECMWF IFS' }),
+      forecastModel({ id: 'jma_seamless', label: 'JMA GSM' }),
+    ]
+    const shown = [
+      { id: 'gfs_seamless', label: 'NOAA GFS', note: null },
+      { id: 'jma_seamless', label: 'JMA GSM', note: null },
+    ]
+    const fetched = Object.fromEntries(ROWS.map((r) => [pairKey('jma_seamless', chartKey(r)), weatherResult()]))
+    const { result } = renderHook(() =>
+      useTableView(
+        inputs({
+          models,
+          forecastModel: 'ecmwf_ifs025',
+          comparingRows: true,
+          shownModels: shown,
+          compareResults: fetched,
+          detailSort: RANKED,
+        }),
+      ),
+    )
+    const labels = result.current.tableRows.map((r) => (r as ModelRow).modelLabel)
+    expect(labels.filter((l) => l === 'NOAA GFS')).toHaveLength(ROWS.length)
+    expect(labels.filter((l) => l === 'JMA GSM')).toHaveLength(ROWS.length)
+    expect(labels).not.toContain('ECMWF IFS')
+  })
+
+  // Under the ranking's own order a comparison reads one place at a time,
+  // the report's row first, as `modelRowsFor` hands them over. A header click
+  // is what sorts across places.
+  it('keeps compared rows grouped by destination until a header click', () => {
+    const models = [...MODELS, forecastModel({ id: 'jma_seamless', label: 'JMA GSM' })]
+    const shown = [
+      { id: 'gfs_seamless', label: 'NOAA GFS', note: null },
+      { id: 'jma_seamless', label: 'JMA GSM', note: null },
+    ]
+    // Ranked lowest first by precipitation, with JMA wetter than every GFS
+    // row, so a sort on the ranking key would put all of GFS ahead of all of
+    // JMA.
+    const ranked = [
+      resultRow({ name: 'A', latitude: 47.1, longitude: -121.1, precip_total_in: 0.1 }),
+      resultRow({ name: 'B', latitude: 47.2, longitude: -121.2, precip_total_in: 0.2 }),
+    ]
+    const fetched = Object.fromEntries(
+      ranked.map((r) => [pairKey('jma_seamless', chartKey(r)), weatherResult({ precip_total_in: 1 })]),
+    )
+    const base = inputs({
+      results: ranked,
+      models,
+      comparingRows: true,
+      shownModels: shown,
+      compareResults: fetched,
+      detailSort: RANKED,
+    })
+    const read = (rows: readonly unknown[]) =>
+      rows.map((r) => `${(r as ModelRow).name} ${(r as ModelRow).modelLabel}`)
+    const { result, rerender } = renderHook((p: TableViewInputs) => useTableView(p), {
+      initialProps: base,
+    })
+    expect(read(result.current.tableRows)).toEqual(['A NOAA GFS', 'A JMA GSM', 'B NOAA GFS', 'B JMA GSM'])
+    rerender({ ...base, detailSort: { key: 'precip_total_in', dir: 'desc' } })
+    expect(read(result.current.tableRows)).toEqual(['A JMA GSM', 'B JMA GSM', 'B NOAA GFS', 'A NOAA GFS'])
   })
 
   // The memoized table compares its props by reference, so a render that

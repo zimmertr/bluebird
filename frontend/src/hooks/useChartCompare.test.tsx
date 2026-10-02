@@ -12,6 +12,7 @@ import { paceWaitLine } from '../utils/pacing'
 type CompareInputs = Parameters<typeof import('./useModelCompare').useModelCompare>[0]
 const fed: CompareInputs[] = []
 let paceRemainingS: number | null = null
+let notes: Record<string, string> = {}
 vi.mock('./useModelCompare', () => ({
   useModelCompare: (inputs: CompareInputs) => {
     fed.push(inputs)
@@ -21,7 +22,7 @@ vi.mock('./useModelCompare', () => ({
     return {
       active: ids.length > 1,
       compared: [],
-      shown: ids.map((id) => ({ id, label: id })),
+      shown: ids.map((id) => ({ id, label: id, note: notes[id] ?? null })),
       lines: [],
       endLines: [],
       reachEnds: [],
@@ -61,6 +62,7 @@ const last = () => fed[fed.length - 1]
 beforeEach(() => {
   fed.length = 0
   paceRemainingS = null
+  notes = {}
 })
 
 describe('useChartCompare', () => {
@@ -109,6 +111,18 @@ describe('useChartCompare', () => {
     expect(renderHook(() => useChartCompare(inputs())).result.current.compareWait).toBeNull()
     const hidden = renderHook(() => useChartCompare(inputs({ chartShowing: false })))
     expect(hidden.result.current.compareWait).toBe(paceWaitLine(30))
+  })
+
+  // A model with no coverage loses its table rows as well as its lines, so
+  // the reason reaches the bar wherever the chart is not on screen, in the
+  // same words the chart uses.
+  it('says why a compared model has no rows only where the chart does not', () => {
+    notes = { icon_seamless: 'DWD ICON has no forecast coverage for this area.' }
+    expect(renderHook(() => useChartCompare(inputs())).result.current.compareNotes).toEqual([])
+    const hidden = renderHook(() => useChartCompare(inputs({ chartShowing: false })))
+    expect(hidden.result.current.compareNotes).toEqual([
+      { id: 'icon_seamless', note: 'DWD ICON has no forecast coverage for this area.' },
+    ])
   })
 
   it('tracks a pending destination until an analysis covers it', () => {

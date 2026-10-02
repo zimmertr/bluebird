@@ -9,6 +9,7 @@ import {
   ComparePoint,
   compareEndMs,
   drawnModelIds,
+  endsInsideWindow,
   compareSeries,
   modelEndLines,
   modelSeriesOnGrid,
@@ -368,7 +369,7 @@ export function useModelCompare({
       const model = models.find((m) => m.id === id)
       if (!model) continue
       const end = compareEndMs(window_.endMs, [model.forecastHours], nowMs)
-      if (end < window_.endMs) ends[id] = end
+      if (endsInsideWindow(end, window_.endMs)) ends[id] = end
     }
     return ends
   }, [drawnIds, models, nowMs, window_])

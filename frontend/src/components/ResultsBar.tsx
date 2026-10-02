@@ -1,4 +1,5 @@
 import type { RefObject } from 'react'
+import type { CompareNote } from '../hooks/useChartCompare'
 import { rankedNoun } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
@@ -55,6 +56,8 @@ interface ResultsBarProps {
   onDownloadCsv: () => void
   /** The comparison's wait, when the chart cannot say it. */
   compareWait: string | null
+  /** Why a compared model has no rows, when the chart cannot say it. */
+  compareNotes: readonly CompareNote[]
 }
 
 /**
@@ -91,6 +94,7 @@ export default function ResultsBar({
   canDownload,
   onDownloadCsv,
   compareWait,
+  compareNotes,
 }: ResultsBarProps) {
   return (
     <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
@@ -249,6 +253,13 @@ export default function ResultsBar({
       {compareWait !== null && (
         <div className={`mt-1 ${CONTROL_SIZE} ${STATUS.warn}`}>{compareWait}</div>
       )}
+      {/* Under the wait, as beside the chart: a wait is about every model,
+          where a note is about one. */}
+      {compareNotes.map(({ id, note }) => (
+        <div key={id} className={`mt-1 ${CONTROL_SIZE} ${STATUS.warn}`}>
+          {note}
+        </div>
+      ))}
     </div>
   )
 }

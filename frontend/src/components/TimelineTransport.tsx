@@ -85,6 +85,11 @@ export default function TimelineTransport({
   const axisLabel = (a: TimelineAxis) => (a === 'radar' ? 'Radar' : forecastLabel)
   return (
     <div
+      // A popup keeps clear of the bar (`resultsLayer.ts` finds every
+      // `data-map-overlay`). Where the results are docked below the map the
+      // bar stands inside the part of it a card can be seen in, and a card
+      // hung over it lost its last rows to it.
+      data-map-overlay=""
       // Sits directly above the attribution control, which is a licence term
       // and cannot be covered.
       //

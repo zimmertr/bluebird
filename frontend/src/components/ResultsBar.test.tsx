@@ -36,6 +36,7 @@ function props(over: Partial<Props> = {}): Props {
     canDownload: true,
     onDownloadCsv: NOOP,
     compareWait: null,
+    compareNotes: [],
     ...over,
   }
 }
@@ -82,6 +83,27 @@ describe('ResultsBar', () => {
     expect(onToggleColumns).toHaveBeenCalledOnce()
     expect(onToggleModels).toHaveBeenCalledOnce()
     expect(COLUMNS.current?.textContent).toBe('Columns')
+  })
+
+  // A table-only reader loses a model's rows with the chart's note out of
+  // sight, so the bar carries it, one line per model, under the wait.
+  it('says each compared model note on its own line under the wait', () => {
+    render(
+      <ResultsBar
+        {...props({
+          compareWait: 'Waiting 12 s',
+          compareNotes: [
+            { id: 'icon_seamless', note: 'DWD ICON note' },
+            { id: 'gfs_hrrr', note: 'NOAA HRRR note' },
+          ],
+        })}
+      />,
+    )
+    const wait = screen.getByText('Waiting 12 s')
+    const first = screen.getByText('DWD ICON note')
+    const second = screen.getByText('NOAA HRRR note')
+    expect(wait.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('says the comparison wait on its own line', () => {
