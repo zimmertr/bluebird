@@ -931,6 +931,21 @@ export const LAYER = {
 } as const
 
 /**
+ * The skip link (#576): the page's first Tab stop, which jumps past the panel
+ * to the map. Hidden until it has the keyboard, and then the floating button
+ * the map's own two buttons are, over everything, in the top-left corner a
+ * keyboard reader is already looking at.
+ *
+ * Transparent and unpressable rather than `sr-only` while idle, because
+ * `sr-only` positions the element too and two competing `position` utilities
+ * resolve by stylesheet order, not by intent. Transparent, it stands over the
+ * corner without catching a press meant for what is under it.
+ */
+export const SKIP_LINK =
+  `${BUTTON_FLOATING} fixed left-2 top-2 ${LAYER.modal} px-3 py-2 ` +
+  'pointer-events-none opacity-0 focus:pointer-events-auto focus:opacity-100'
+
+/**
  * The grip a column is dragged by, in the table header and in the Columns
  * picker alike (#360).
  *

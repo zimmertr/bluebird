@@ -60,6 +60,21 @@ test('the drawer leaves the Tab order when it closes, and each way through hands
   await expect(close).toBeFocused()
 })
 
+test('the first Tab offers the skip link, which shows and lands on the main landmark', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto('/')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  const skip = page.getByRole('link', { name: 'Skip to map' })
+  expect(await skip.evaluate((el) => getComputedStyle(el).opacity)).toBe('0')
+  await page.locator('body').focus()
+  await page.keyboard.press('Tab')
+  await expect(skip).toBeFocused()
+  expect(await skip.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('main')).toBeFocused()
+  expect(new URL(page.url()).hash).toBe('')
+})
+
 test('a results bar popover takes the keyboard in and gives it back', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 })
   await analyzeFromTheKeyboard(page)

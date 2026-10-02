@@ -62,7 +62,7 @@ describe('ResultsBar', () => {
   it('keeps Both in the segment and disables it without the room', () => {
     const chooseResultsMode = vi.fn()
     render(<ResultsBar {...props({ bothHasRoom: false, chooseResultsMode })} />)
-    const both = screen.getByRole('button', { name: 'Show chart and table' }) as HTMLButtonElement
+    const both = screen.getByRole('button', { name: 'Show both chart and table' }) as HTMLButtonElement
     expect(both.disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Show chart only' }))
     expect(chooseResultsMode).toHaveBeenCalledWith('chart')
@@ -87,6 +87,14 @@ describe('ResultsBar', () => {
       expect(button.textContent).toBe(name)
       expect(button.getAttribute('aria-label')).toBeNull()
     }
+  })
+
+  // The label holds the word the button shows, which a voice-control reader
+  // says to press it (#576, WCAG 2.5.3).
+  it('names Both with the word it shows', () => {
+    render(<ResultsBar {...props()} />)
+    const both = screen.getByRole('button', { name: 'Show both chart and table' })
+    expect(both.textContent).toBe('Both')
   })
 
   // A trigger says whether its panel is open, so a screen reader hears

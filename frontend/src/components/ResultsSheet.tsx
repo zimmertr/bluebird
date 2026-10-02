@@ -9,7 +9,9 @@ import ModelsPicker from './ModelsPicker'
 import RemovedPicker from './RemovedPicker'
 import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
-import { LAYER, SURFACE_SHEET } from '../styles'
+import { resultsHeading } from '../metrics'
+import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { LAYER, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -39,6 +41,8 @@ interface ResultsSheetProps
   >
   /** The removed rows and the ways back (`useRemovals`). */
   removals: Pick<Removals, 'removed' | 'removeResult' | 'restoreRemoved' | 'restoreAllRemoved'>
+  /** Bumped once per committed report, which is when the bar's title is announced. */
+  analysisSeq: number
 }
 
 /** What the sheet reads of `useResultsView`. */
@@ -94,6 +98,7 @@ export default function ResultsSheet({
   sortDesc,
   report,
   removals,
+  analysisSeq,
   sortBy,
   pointSample,
   forecastTimes,
@@ -119,9 +124,27 @@ export default function ResultsSheet({
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [modelsOpen, setModelsOpen] = useState(false)
   const [removedOpen, setRemovedOpen] = useState(false)
+  // Restoring the last removed row takes the Removed button and its list away
+  // under the keyboard, so the bar member before it takes the focus (#576).
+  useTakeOrphanedFocus(modelsButtonRef, removed.size === 0)
+
+  // What a committed report says to a screen reader: the bar's own title, as
+  // it reads in the commit that brought the report (#576). Held per report
+  // rather than following the title, because a live sort or bound retitles the
+  // bar on every keystroke and announcing each one would drown the reader.
+  // Set while rendering, the way React derives state from a prop that moved,
+  // so the words land in the same commit as the rows.
+  const heading = resultsHeading(sortBy, sortDesc, pointSample, rowCount, pending.length)
+  const [announced, setAnnounced] = useState({ seq: analysisSeq, text: '' })
+  if (announced.seq !== analysisSeq) setAnnounced({ seq: analysisSeq, text: heading })
 
   return (
     <>
+      {/* Mounted for good, empty until the first report: a region that
+          arrives holding its text is not announced. */}
+      <div role="status" className={SR_ONLY}>
+        {announced.text}
+      </div>
       {showTable && (
         <div
           ref={sheetRef}

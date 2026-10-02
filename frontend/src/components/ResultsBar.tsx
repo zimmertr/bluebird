@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { CompareNote } from '../hooks/useChartCompare'
-import { rankedNoun } from '../metrics'
+import { resultsHeading } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
 import { IconChart, IconChartTable, IconChevron, IconTable } from './icons'
@@ -113,9 +113,7 @@ export default function ResultsBar({
               been ranked yet. The window timestamp joins once a
               report exists (windowTitle below). */}
           <span className={`${TEXT.subheading} min-w-0 truncate`}>
-            {`${sortDesc ? 'Highest' : 'Lowest'} ${rankedNoun(sortBy, pointSample)} (${
-              rowCount ?? `0 of ${pendingCount}`
-            })`}
+            {resultsHeading(sortBy, sortDesc, pointSample, rowCount, pendingCount)}
           </span>
           {windowTitle !== null && (
             <span className={`${CAPTION_LIFTED} truncate`}>
@@ -169,7 +167,10 @@ export default function ResultsBar({
                 disabled={!bothHasRoom}
                 className={`${SEGMENT_ITEM} ${DISABLED} ${resultsMode === 'both' ? ACCENT.fill : SEGMENT_IDLE}`}
                 aria-pressed={resultsMode === 'both'}
-                aria-label="Show chart and table"
+                // Holds the word the button shows, for a reader using voice
+                // control (#576); the word itself is hidden on a phone, so the
+                // button needs a label of its own.
+                aria-label="Show both chart and table"
               >
                 <IconChartTable className="flex-shrink-0" />
                 <span className="hidden sm:inline">Both</span>

@@ -29,15 +29,12 @@ export default function RemovedPicker({
 }: Props) {
   const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
 
-  // Restoring the last row empties the list out from under the popover: close
-  // it and hand focus back to the trigger, so a keyboard user is not left
-  // focused on an unmounted button.
+  // Restoring the last row empties the list out from under the popover, so it
+  // closes. Where the keyboard goes is the sheet's: the trigger hides at zero
+  // with the list, so there is no trigger to hand it back to (#576).
   useEffect(() => {
-    if (open && entries.length === 0) {
-      onOpenChange(false)
-      triggerRef.current?.focus()
-    }
-  }, [open, entries.length, onOpenChange, triggerRef])
+    if (open && entries.length === 0) onOpenChange(false)
+  }, [open, entries.length, onOpenChange])
 
   if (!open || !box) return null
 

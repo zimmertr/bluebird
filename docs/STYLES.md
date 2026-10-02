@@ -54,6 +54,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
 | `BUTTON_DANGER` | Destructive retry inside an error notice |
 | `BUTTON_FLOATING` | Pressable floating box: the Controls and Layers buttons, the map's only two |
+| `SKIP_LINK` | The page's first Tab stop, the floating button shown only while it has the keyboard. Transparent and unpressable while idle rather than `sr-only`, because `sr-only` sets a position of its own (#576) |
 | `BANNER_PREVIEW` | The preview-deployment banner, the one surface that is deliberately loud: white on red-600, 4.76:1 |
 
 **Fields and controls**
@@ -231,7 +232,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
 | Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
-| A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx` and `MapLegend.tsx` matches a `SR_ONLY` element |
+| A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The marker's rank digit clears AA | `styles.test.ts`, `colors.test.ts` | `RANK_INK` pins the halo; `colors.test.ts` measures every band of every scale against white, slate-900 and the halo |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
@@ -459,8 +460,8 @@ element that `aria-describedby` names (`SR_ONLY` in `styles.ts`), because the
 touch argument above applies to a screen reader as well: a `title` is a pointer's
 affordance and is not promised to anything else. The linter's
 `disabled-reason-twin` check fails an `aria-describedby` in `LayersPopover.tsx`,
-`ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx` or
-`MapLegend.tsx` with no `SR_ONLY` twin. A sentence on an element with no role
+`ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`,
+`MapLegend.tsx` or `ColumnsPicker.tsx` with no `SR_ONLY` twin. A sentence on an element with no role
 (the table's `N/A` reasons, the smoke legend's density letters) is mounted inside
 that element's own cell or chip, because a screen reader reads a description only
 on something it can focus, and reads content wherever it is (#576).

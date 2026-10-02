@@ -26,4 +26,4 @@ The review computed the names with `dom-accessibility-api` on 2026-10-01: the li
 
 ## Consequences
 
-The description follows the value on every cell a keyboard tabs through. "Both" in the results bar still has a label without its word, because its name needs an approved string.
+The description follows the value on every cell a keyboard tabs through. "Both" keeps a label, because the word is hidden on a phone and the button would otherwise have no name there; the label now holds the word ("Show both chart and table", approved by the maintainer).

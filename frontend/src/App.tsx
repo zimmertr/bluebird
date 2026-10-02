@@ -9,6 +9,7 @@ import {
 } from 'react'
 import type { MapViewHandle } from './components/MapView'
 import AppDrawer from './components/AppDrawer'
+import SkipLink from './components/SkipLink'
 import MapStage from './components/MapStage'
 import ResultsSheet from './components/ResultsSheet'
 import WelcomeModal from './components/WelcomeModal'
@@ -66,6 +67,9 @@ import {
   readViewPrefs,
   setWelcomed,
 } from './utils/viewPrefs'
+
+// The main landmark's id, which the skip link moves the keyboard to.
+const MAIN_ID = 'main'
 
 export default function App() {
   const mapRef = useRef<MapViewHandle>(null)
@@ -481,6 +485,7 @@ export default function App() {
 
   return (
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
+      <SkipLink targetId={MAIN_ID} />
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
       {showWelcome && (
@@ -536,7 +541,13 @@ export default function App() {
       {/* The page's main landmark (#576): the map and the report are what the
           page is for, and a screen reader's landmark list had nothing to jump
           to past the panel. */}
-      <main className={`flex-1 flex flex-col overflow-hidden min-w-0${isDesktop ? '' : ' relative'}`}>
+      <main
+        id={MAIN_ID}
+        // Focusable by script alone, for the skip link, and drawing no ring:
+        // the landmark is where the keyboard lands, not a control.
+        tabIndex={-1}
+        className={`flex-1 flex flex-col overflow-hidden min-w-0 focus:outline-none${isDesktop ? '' : ' relative'}`}
+      >
         <MapStage
           mapRef={mapRef}
           drawMode={drawMode}
@@ -571,6 +582,7 @@ export default function App() {
           isDesktop={isDesktop}
           report={report}
           removals={removals}
+          analysisSeq={analysisSeq}
           sortBy={view.sortBy}
           sortDesc={view.sortDesc}
           pointSample={pointSample}

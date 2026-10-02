@@ -207,7 +207,10 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-slate-400 focus:outline-none`}
         />
         {loading ? (
+          // A picture of the wait, named as one: a label on an element with
+          // no role is read by nobody (#576).
           <div
+            role="img"
             className={`h-4 w-4 flex-shrink-0 ${SPINNER}`}
             aria-label="Searching"
           />

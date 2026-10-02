@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   BUTTON_ACCENT,
@@ -106,6 +106,14 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
+  // Clear disables itself under the press that empties the ring (and leaves
+  // the row outside the mode), so the first control in the row that can still
+  // act takes the keyboard: Cancel while drawing, Draw polygon otherwise (#576).
+  const drawRowRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (drawPointCount !== 0) return
+    for (const button of drawRowRef.current?.querySelectorAll('button') ?? []) takeOrphanedFocus(button)
+  }, [drawPointCount])
   const peaksOn = destinationTypes.includes('peak')
 
   return (
@@ -194,7 +202,7 @@ export default function DestinationsSection({
             the mode and Done or Cancel under the press that ends it, and the
             focus fell to the body every time. On a phone the drawer closes
             instead, and the map's Controls button takes it. */}
-        <div className="flex flex-wrap gap-2">
+        <div ref={drawRowRef} className="flex flex-wrap gap-2">
           {drawControls(drawing, drawPointCount).map((control) => {
             switch (control) {
               case 'start':

@@ -84,6 +84,15 @@ describe('SearchBox', () => {
     expect(region.textContent).toBe('Search failed. Try again later.')
   })
 
+  // A label on an element with no role is read by nobody, so the wait is a
+  // named picture (#576).
+  it('names the spinner while a search runs', async () => {
+    search.mockReturnValue(new Promise(() => {}))
+    const { user } = render(<SearchBox onSelect={onSelect} />)
+    await user.type(field(), 'Mount Baker{Enter}')
+    expect(screen.getByRole('img', { name: 'Searching' })).toBeTruthy()
+  })
+
   it('answers a coordinate pair without the geocoder', async () => {
     const { user } = render(<SearchBox onSelect={onSelect} />)
     await user.type(field(), '46.8523, -121.7603{Enter}')

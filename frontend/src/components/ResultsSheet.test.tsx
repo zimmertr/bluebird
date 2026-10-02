@@ -3,7 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import ResultsSheet from './ResultsSheet'
 import { render } from '../testSupport/render'
-import { DEFAULT_FAMILY_KEY } from '../metrics'
+import { DEFAULT_FAMILY_KEY, resultsHeading } from '../metrics'
 
 // The panels and the bar have suites of their own. What this one is about is
 // what the sheet hands them, so both are replaced by stand-ins that keep what
@@ -16,10 +16,13 @@ vi.mock('./ResultsPanels', () => ({
   },
 }))
 vi.mock('./ResultsBar', () => ({
-  default: (props: { onToggleColumns: () => void }) => (
-    <button data-testid="bar" onClick={props.onToggleColumns}>
-      Columns
-    </button>
+  default: (props: { onToggleColumns: () => void; modelsButtonRef: React.RefObject<HTMLButtonElement | null> }) => (
+    <>
+      <button data-testid="bar" onClick={props.onToggleColumns}>
+        Columns
+      </button>
+      <button ref={props.modelsButtonRef}>Models</button>
+    </>
   ),
 }))
 vi.mock('./ColumnsPicker', () => ({
@@ -39,7 +42,16 @@ const onRemovePending = () => {}
 const onFocusResult = () => {}
 const onFocusPending = () => {}
 
-function props(over: { showTable?: boolean; resultsCollapsed?: boolean } = {}): Props {
+function props(
+  over: {
+    showTable?: boolean
+    resultsCollapsed?: boolean
+    analysisSeq?: number
+    rowCount?: string
+    sortDesc?: boolean
+    removed?: number
+  } = {},
+): Props {
   return {
     resultsView: {
       showTable: over.showTable ?? true,
@@ -52,9 +64,10 @@ function props(over: { showTable?: boolean; resultsCollapsed?: boolean } = {}): 
     },
     showResults: true,
     isDesktop: true,
-    sortDesc: false,
-    report: REPORT,
-    removals: REMOVALS,
+    sortDesc: over.sortDesc ?? false,
+    report: over.rowCount === undefined ? REPORT : { ...REPORT, rowCount: over.rowCount },
+    analysisSeq: over.analysisSeq ?? 0,
+    removals: { ...REMOVALS, removed: new Map(Array.from({ length: over.removed ?? 0 }, (_, i) => [`r${i}`, {}])) },
     sortBy: DEFAULT_FAMILY_KEY.temp,
     pointSample: false,
     forecastTimes: [],
@@ -95,6 +108,36 @@ describe('ResultsSheet', () => {
     expect(got.onFocusResult).toBe(onFocusResult)
     expect(got.onFocusPending).toBe(onFocusPending)
     expect(got.removeResult).toBe(REMOVALS.removeResult)
+  })
+
+  // A committed report says the bar's own title to a screen reader, once: a
+  // live knob that retitles the bar afterwards announces nothing (#576).
+  it('announces the bar title when a report commits, and not on a live change', () => {
+    const { rerender } = render(<ResultsSheet {...props()} />)
+    const region = screen.getByRole('status')
+    expect(region.textContent).toBe('')
+    rerender(<ResultsSheet {...props({ analysisSeq: 1, rowCount: '5 of 5' })} />)
+    const said = resultsHeading(DEFAULT_FAMILY_KEY.temp, false, false, '5 of 5', 0)
+    expect(region.textContent).toBe(said)
+    rerender(<ResultsSheet {...props({ analysisSeq: 1, rowCount: '5 of 5', sortDesc: true })} />)
+    expect(region.textContent).toBe(said)
+    rerender(<ResultsSheet {...props({ analysisSeq: 2, rowCount: '4 of 5', sortDesc: true })} />)
+    expect(region.textContent).toBe(resultsHeading(DEFAULT_FAMILY_KEY.temp, true, false, '4 of 5', 0))
+  })
+
+  // The last restore takes the Removed button and its list away under the
+  // keyboard, so the bar member before it takes the focus (#576).
+  it('hands the keyboard to Models when the last removed row is restored', () => {
+    const page = (removed: number) => (
+      <>
+        <ResultsSheet {...props({ removed })} />
+        {removed > 0 && <button>Restore</button>}
+      </>
+    )
+    const { rerender } = render(page(1))
+    screen.getByRole('button', { name: 'Restore' }).focus()
+    rerender(page(0))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Models' }))
   })
 
   it('opens the Columns popover from the bar', () => {

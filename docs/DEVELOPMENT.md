@@ -178,7 +178,7 @@ CI also operates the built image in a browser (issue #412): Playwright draws a
 ring and analyzes, opens a share link, clicks the map under the legend stack
 and scrolls the stack, taps the chart at a phone's width to move the map's
 playhead, opens a popup beside the forecast player and analyzes again to see it
-close, walks the keyboard through Analyze, the closed drawer, a row's remove
+close, walks the keyboard through the skip link, Analyze, the closed drawer, a row's remove
 button and the Columns popover (`keyboardFocus.spec.ts`, the half of #576 that
 rests on `inert` and on a hidden element refusing focus, neither of which jsdom
 implements), and runs axe on the panel, the results,

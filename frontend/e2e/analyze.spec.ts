@@ -14,6 +14,6 @@ test('draw a ring, analyze, and see the rows and the chart', async ({ page }) =>
   await expect(rows).toHaveCount(DESTINATION_NAMES.length)
   await expect(rows.first()).toContainText(new RegExp(DESTINATION_NAMES.join('|')))
 
-  await page.getByRole('button', { name: 'Show chart and table' }).click()
+  await page.getByRole('button', { name: 'Show both chart and table' }).click()
   await expect(page.locator('svg.recharts-surface').first()).toBeVisible()
 })

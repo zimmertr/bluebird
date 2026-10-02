@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { SortBy } from '../types'
 import { ColDef, stepColumn } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
@@ -12,6 +12,7 @@ import {
   DRAG_GRIP,
   DRAG_GRIP_ACTIVE,
   DRAG_INSERT,
+  SR_ONLY,
 } from '../styles'
 import { IconGrip } from './icons'
 import {
@@ -48,6 +49,7 @@ export default function ColumnsPicker({
   triggerRef,
 }: Props) {
   const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
+  const rankedNoteId = useId()
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
 
@@ -150,6 +152,8 @@ export default function ColumnsPicker({
                 type="checkbox"
                 checked={isVisible}
                 disabled={isRanked}
+                // Disabled says it cannot be unticked and never why (#576).
+                aria-describedby={isRanked ? rankedNoteId : undefined}
                 onChange={(e) => {
                   const next = new Set(visibleKeys)
                   if (e.target.checked) {
@@ -196,6 +200,10 @@ export default function ColumnsPicker({
           )
         })}
       </div>
+      {/* The one reason every ranked box points at. */}
+      <span id={rankedNoteId} className={SR_ONLY}>
+        Shown while this metric ranks.
+      </span>
 
       {carry && (
         <>
