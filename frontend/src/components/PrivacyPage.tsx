@@ -1,7 +1,7 @@
 import PageShell, { Section } from './PageShell'
 import ContactBody from './ContactBody'
 import DataSourceList from './DataSourceList'
-import { PROSE } from '../styles'
+import { LINK, PROSE } from '../styles'
 
 // The public privacy policy: the address you can paste into an email, hand to
 // a data provider, or put in a form that asks for one. Terms live at /terms,
@@ -12,7 +12,8 @@ import { PROSE } from '../styles'
 // it: #169 added rate limiting keyed on client address, which quietly
 // falsified "logs are used only for debugging" until it was rewritten here.
 // Anything that changes what Bluebird Forecast does with a request changes this file
-// too, and legal.test.ts pins the claims that have already been wrong once.
+// too, and legal.test.ts reads each claim here against the code that makes it
+// true, so the change that falsifies one fails there.
 export default function PrivacyPage() {
   return (
     <PageShell heading="Privacy" subtitle="What Bluebird Forecast does with your data">
@@ -25,30 +26,65 @@ export default function PrivacyPage() {
 
         <ul className={`${PROSE.body} space-y-3`}>
           <li>
-            <span className={PROSE.strong}>Your location</span> is only requested to
-            center the map when you first open the app. If you allow it, it stays in your browser
-            and is never sent to the Bluebird Forecast server.
+            <span className={PROSE.strong}>Your location</span> is only requested when you
+            press the locate button on the map, and your browser asks you first. The map then
+            centers on where you are, and the page's address records that view, which places you
+            to within about 10 meters. Your location then travels with the address, as the next
+            two points describe, until you move the map somewhere else.
           </li>
           <li>
-            <span className={PROSE.strong}>Your searches</span> (the area you draw and
-            the dates you pick) are sent to the Bluebird Forecast server to look up destinations. Your
-            browser then fetches weather and air quality for them directly from Open-Meteo, and
-            maps and fires from the providers below, so those requests carry your address, not
-            the server's. If your browser cannot reach Open-Meteo, the Bluebird Forecast server fetches
-            forecasts instead. As with any web request, those providers can see your IP address.
+            <span className={PROSE.strong}>Your searches</span> go to the Bluebird Forecast
+            server so it can find destinations. When you press Analyze, it receives the area you
+            draw, the kinds of destination you pick, and the coordinates of any place you paste,
+            search for or click on the map, and it checks each destination for nearby fires and
+            closures. A place name you type in the search box goes to the server too, which looks
+            it up with Nominatim. The fire and closure layers send the server the area on screen.
+          </li>
+          <li>
+            <span className={PROSE.strong}>The page's address</span> holds what is on screen:
+            the area, the dates, the places you added and the map view. Your browser sends that
+            address to the Bluebird Forecast server when you load the page and with each request
+            the page makes to it, and a link you share carries all of it.
+          </li>
+          <li>
+            <span className={PROSE.strong}>Forecasts</span> come to your browser directly from
+            Open-Meteo, and the map, the rain radar and the snow layer come directly from their
+            providers, so those requests carry your IP address, not the server's. If your browser
+            cannot reach Open-Meteo, the analysis stops there, and the server does not fetch
+            forecasts for you.
           </li>
           <li>
             <span className={PROSE.strong}>Nothing is stored about you.</span> Searches
-            aren't saved to a database or tied to your identity. Server logs (which include your
-            IP address) are kept only for debugging and are discarded by routine log rotation,
-            typically within days. They are never archived or shared. Your address is also counted
-            in memory to apply rate limits, which is what keeps the free data providers available
-            to everyone; those counters expire on their own and are gone whenever the server
-            restarts.
+            aren't saved to a database or tied to your identity. Server logs record your IP
+            address with each request to the server's API, and the place names you search for,
+            but not the page's address or anything else you enter. They are kept only for
+            debugging and are discarded by routine log rotation, typically within days. They are
+            never archived or shared. Your address is also counted in memory to apply rate
+            limits, which is what keeps the free data providers available to everyone; those
+            counters expire on their own and are gone whenever the server restarts.
           </li>
           <li>
-            <span className={PROSE.strong}>On your device</span>, the only thing saved
-            is a small flag remembering that you dismissed the welcome dialog.
+            <span className={PROSE.strong}>On your device</span>, Bluebird Forecast saves four
+            things and sends none of them anywhere. Your browser's local storage keeps whether you
+            dismissed the welcome dialog and how you laid out the results: which views are open,
+            which columns show, and in what order. Session storage, which ends when you close the
+            tab, keeps the forecasts fetched in the last 15 minutes so a reload does not fetch them
+            again, and the version of the app that last reloaded itself after an update.
+          </li>
+          <li>
+            <span className={PROSE.strong}>Cloudflare</span> carries every request between your
+            browser and the Bluebird Forecast server. It sees your IP address and the full address
+            of each request, applies a rate limit of its own, and asks your browser to report
+            connections to the site that fail. Its own{' '}
+            <a
+              href="https://www.cloudflare.com/privacypolicy/"
+              target="_blank"
+              rel="noreferrer"
+              className={LINK}
+            >
+              privacy policy
+            </a>{' '}
+            covers what it keeps.
           </li>
         </ul>
       </div>
@@ -56,8 +92,11 @@ export default function PrivacyPage() {
       <Section id="data" heading="Where your requests go">
         <p className={`${PROSE.body} mb-3`}>
           Bluebird Forecast produces none of this data. It queries these providers, ranks what comes
-          back, and shows you the result. Each has its own privacy policy and license, and
-          each can see your address the way any web request lets a server see it.
+          back, and shows you the result. Each has its own privacy policy and license. Your
+          browser contacts Open-Meteo, OpenFreeMap, the Iowa Environmental Mesonet and NOAA
+          NOHRSC itself, so they can see your IP address the way any web request lets a server
+          see it. The others are reached through the Bluebird Forecast server or through
+          Open-Meteo, and see that address instead of yours.
         </p>
         <DataSourceList />
       </Section>
@@ -66,7 +105,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 28 July 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 1 October 2026.</p>
     </PageShell>
   )
 }

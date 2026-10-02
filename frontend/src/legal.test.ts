@@ -23,12 +23,29 @@ import wildfires from './utils/wildfires.ts?raw'
 import mapLegend from './components/MapLegend.tsx?raw'
 import resultsBar from './components/ResultsBar.tsx?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
+import { DATA_SOURCES } from './utils/dataSources'
+import { STORAGE_KEY } from './utils/forecastStore'
+import forecastStore from './utils/forecastStore.ts?raw'
+import { VIEW_KEY, WELCOME_KEY } from './utils/viewPrefs'
+import viewPrefs from './utils/viewPrefs.ts?raw'
+import { CHUNK_RELOAD_KEY } from './staleChunk'
+import mainEntry from './main.tsx?raw'
+import mapView from './utils/mapView.ts?raw'
+import mapControls from './map/controls.ts?raw'
+import geocodeClient from './utils/geocode.ts?raw'
 
 // CSS files: vitest stubs CSS imports to empty strings, so read them from the
 // filesystem using the same import.meta.url pattern vitest uses internally.
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const indexCss = readFileSync(join(__dirname, 'index.css'), 'utf-8')
 const mapCss = readFileSync(join(__dirname, 'map.css'), 'utf-8')
+
+// The privacy claims about the server are held to the server's own source.
+// The Vitest container mounts the repository root, which is what makes the
+// backend readable from here (docs/DEVELOPMENT.md).
+function repoFile(path: string): string {
+  return readFileSync(join(__dirname, '..', '..', path), 'utf-8')
+}
 
 // Comments are not copy, and this repo's comments legitimately use em dashes.
 // Only line comments that begin a line are stripped, so the `//` inside an
@@ -284,14 +301,16 @@ describe('the privacy copy', () => {
 
   // #174 moved forecast fetches into the browser while this copy still routed
   // them through the server, the third such drift in a week (#169's rate
-  // limiting, #171's license). The request path is now a pinned claim too: the
-  // browser talks to Open-Meteo itself, and the server steps in only as the
-  // fallback.
-  it('describes forecasts as fetched by the browser, with the server as fallback', () => {
+  // limiting, #171's license). #240 then removed the server fallback, and this
+  // test kept requiring the sentence that described it until #570. The request
+  // path is a pinned claim: the browser talks to Open-Meteo itself, and nothing
+  // retries through the server.
+  it('describes forecasts as fetched by the browser, with no server fallback', () => {
     const text = copy(privacyPage)
 
     expect(text).toMatch(/directly from\s+Open-Meteo/)
-    expect(text).toMatch(/server fetches\s+forecasts instead/)
+    expect(text).not.toMatch(/server fetches\s+forecasts instead/)
+    expect(text).not.toMatch(/cannot reach Open-Meteo, the Bluebird Forecast server/)
     expect(text).not.toMatch(/server to fetch forecasts/)
   })
 
@@ -304,6 +323,154 @@ describe('the privacy copy', () => {
     expect(text).toMatch(/no analytics scripts/i)
     expect(text).toMatch(/no cookies/i)
     expect(text).toMatch(/no accounts/i)
+  })
+})
+
+// #570 found six sentences on these pages that the code had outgrown, each
+// falsified by a change in a file nobody connects to a privacy page. Every
+// claim below is read against the code that makes it true, so the change that
+// falsifies one fails here and brings the page along with it.
+describe('the privacy copy, held to the code', () => {
+  const text = copy(privacyPage).replace(/\s+/g, ' ')
+
+  // Every module outside the tests, read as text with its comments stripped.
+  const appSources = Object.fromEntries(
+    Object.entries(
+      import.meta.glob(['./**/*.{ts,tsx}', '!./**/*.test.{ts,tsx}', '!./testSupport/**', '!./**/*.d.ts'], {
+        query: '?raw',
+        import: 'default',
+        eager: true,
+      }) as Record<string, string>,
+    ).map(([path, source]) => [path, copy(source)]),
+  )
+
+  it('dates the policy to the change that last corrected it', () => {
+    expect(privacyPage).toMatch(/Last updated 1 October 2026\./)
+  })
+
+  // The page names each key by what it keeps, and says how many there are.
+  // A new key, or a new module that reaches for browser storage, fails here
+  // until the page says what it keeps.
+  it('names every key the app keeps in browser storage', () => {
+    const storageUsers = Object.entries(appSources)
+      .filter(([, source]) => /\b(localStorage|sessionStorage|indexedDB|document\.cookie)\b|\bcaches\.open\b/.test(source))
+      .map(([path]) => path)
+      .sort()
+    expect(storageUsers).toEqual(['./main.tsx', './utils/forecastStore.ts', './utils/viewPrefs.ts'])
+
+    const literals = new Set<string>()
+    for (const source of Object.values(appSources)) {
+      for (const match of source.matchAll(/['"`](bluebird_forecast_[a-z0-9_]+)['"`]/g)) literals.add(match[1])
+    }
+    const described: Record<string, RegExp> = {
+      [WELCOME_KEY]: /local storage keeps whether you dismissed the welcome dialog/,
+      [VIEW_KEY]: /how you laid out the results: which views are open, which columns show, and in what order/,
+      [STORAGE_KEY]: /Session storage, which ends when you close the tab, keeps the forecasts fetched/,
+      [CHUNK_RELOAD_KEY]: /the version of the app that last reloaded itself after an update/,
+    }
+    expect([...literals].sort()).toEqual(Object.keys(described).sort())
+    for (const pattern of Object.values(described)) expect(text).toMatch(pattern)
+
+    const count = ['one', 'two', 'three', 'four', 'five', 'six'].indexOf(
+      text.match(/Bluebird Forecast saves (\w+) things and sends none of them anywhere/)?.[1] ?? '',
+    ) + 1
+    expect(count).toBe(literals.size)
+
+    // Which storage each key lives in is part of the claim: session storage
+    // is the half the page says ends with the tab.
+    expect(viewPrefs).toMatch(/localStorage\.setItem\(VIEW_KEY/)
+    expect(viewPrefs).toMatch(/localStorage\.setItem\(WELCOME_KEY/)
+    expect(forecastStore).toMatch(/sessionStorage\?\.setItem\(STORAGE_KEY/)
+    expect(mainEntry).toMatch(/reloadOnStaleChunk\(\{[\s\S]*?storage: \(\) => window\.sessionStorage/)
+    // The page's "last 15 minutes".
+    expect(forecastStore).toMatch(/const CACHE_TTL_MS = 15 \* 60_000/)
+  })
+
+  // The browser's own third-party surface is the CSP's list, so the page's
+  // list of providers that see your address is read against it. A new origin
+  // there fails until this table and the page both name it.
+  it('names exactly the providers the browser contacts itself', () => {
+    const securityHeaders = repoFile('backend/app/security_headers.py')
+    const hosts = new Set<string>()
+    for (const block of securityHeaders.matchAll(/BROWSER_(?:FETCH|IMAGE)_ORIGINS = \(([\s\S]*?)\n\)/g)) {
+      for (const match of block[1].matchAll(/"https:\/\/([^"]+)"/g)) hosts.add(match[1])
+    }
+    expect(hosts.size).toBeGreaterThan(0)
+
+    const PROVIDER_BY_HOST: [string, string][] = [
+      ['open-meteo.com', 'Open-Meteo'],
+      ['openfreemap.org', 'OpenFreeMap'],
+      ['mesonet.agron.iastate.edu', 'Iowa Environmental Mesonet'],
+      ['mapservices.weather.noaa.gov', 'NOAA NOHRSC'],
+    ]
+    const expected = new Set<string>()
+    for (const host of hosts) {
+      const entry = PROVIDER_BY_HOST.find(([suffix]) => host === suffix || host.endsWith(`.${suffix}`))
+      expect(entry, `no provider named for ${host}`).toBeDefined()
+      if (entry) expected.add(entry[1])
+    }
+
+    const listed = text.match(/Your browser contacts (.+?) itself,/)?.[1]
+    expect(listed).toBeDefined()
+    const named = (listed ?? '').split(/, | and /).map((name) => name.replace(/^the /, ''))
+    expect(new Set(named)).toEqual(expected)
+    // The names are the list's own, so a reader can find each one below.
+    for (const name of named) expect(DATA_SOURCES.map((s) => s.name)).toContain(name)
+  })
+
+  // A geolocate press is a reader move (decision 0065), so the link takes the
+  // camera, centered on the fix, and the page address carries it to the
+  // server. If either fact changes, so must this paragraph.
+  it('says where your location goes after the locate button', () => {
+    expect(mapControls).toMatch(/new GeolocateControl\(/)
+    expect(mapView).toMatch(/event\.geolocateSource === true/)
+    // Nothing asks for a location on its own, which is why the page says a press.
+    for (const source of Object.values(appSources)) expect(source).not.toMatch(/\.trigger\(\)/)
+
+    expect(text).toMatch(/only requested when you press the locate button on the map/)
+    expect(text).toMatch(/the page's address records that view, which places you to within about 10 meters/)
+    expect(text).not.toMatch(/never sent to the Bluebird Forecast server/)
+    expect(text).not.toMatch(/when you first open/)
+  })
+
+  // The place search is proxied for Nominatim's usage policy, and the route
+  // logs the query it proxies.
+  it('discloses that a place search goes to the server and into its log', () => {
+    expect(geocodeClient).toMatch(/`\/api\/geocode\?/)
+    expect(repoFile('backend/app/routes/geocode.py')).toMatch(/log\.info\("Geocode query: %r", q\)/)
+
+    expect(text).toMatch(/A place name you type in the search box goes to the server too/)
+    expect(text).toMatch(/Server logs record your IP address with each request to the server's API, and the place names you search for/)
+  })
+
+  // "But not the page's address" holds only while the access log prints the
+  // path alone: the query string and the Referer header both carry it.
+  it('promises an address-free log only while the access log prints the path alone', () => {
+    const mainPy = repoFile('backend/app/main.py')
+    const accessLog = mainPy.slice(mainPy.indexOf('async def access_log'), mainPy.indexOf('\n\n\n', mainPy.indexOf('async def access_log')))
+    expect(accessLog).toMatch(/path = request\.url\.path/)
+    expect(accessLog).not.toMatch(/request\.url(?!\.path)|query|referer|request\.headers/i)
+
+    expect(text).toMatch(/but not the page's address or anything else you enter/)
+  })
+
+  it('names Cloudflare, which carries every request', () => {
+    expect(repoFile('docs/TRAFFIC.md')).toMatch(/\*\*Cloudflare\*\* proxies the zone/)
+
+    expect(text).toMatch(/Cloudflare<\/span> carries every request between your browser and the Bluebird Forecast server/)
+    expect(copy(privacyPage)).toMatch(/href="https:\/\/www\.cloudflare\.com\/privacypolicy\/"/)
+  })
+})
+
+// The analyze routes are keyed at the gateway (#317, decision 0025), and the
+// header they need is the one the route publishes.
+describe('the API terms', () => {
+  it('say which endpoints need a key, and whose', () => {
+    const text = copy(termsPage).replace(/\s+/g, ' ')
+
+    expect(repoFile('backend/app/routes/analyze/route.py')).toMatch(/API_KEY_HEADER = "X-Open-Meteo-Key"/)
+    expect(text).not.toMatch(/needs no key/)
+    expect(text).toMatch(/its two analyze endpoints need your own Open-Meteo API key/)
   })
 })
 

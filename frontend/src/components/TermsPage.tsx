@@ -74,8 +74,11 @@ export default function TermsPage() {
             <a href="/docs" className={LINK}>
               HTTP API
             </a>{' '}
-            is open and needs no key. In return, please keep your usage in proportion to what
-            someone could reasonably do by hand, and cache what you fetch.
+            is open to everyone. On this site its two analyze endpoints need your own
+            Open-Meteo API key, so their forecasts spend your quota rather than the one this site
+            shares with every visitor, and nothing else needs a key. In return, please keep your
+            usage in proportion to what someone could reasonably do by hand, and cache what you
+            fetch.
           </p>
         </div>
       </Section>
