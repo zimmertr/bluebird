@@ -146,6 +146,26 @@ export function sameBox(a: Box | null, b: Box | null): boolean {
  * in view: at 1300 by 763 the Metrics step lit two of its rows and left the
  * metric list under the panel's footer.
  */
-export function scrollBlock(spot: TourSpot | undefined): ScrollLogicalPosition {
+export type ScrollBlock = 'start' | 'nearest'
+
+export function scrollBlock(spot: TourSpot | undefined): ScrollBlock {
   return spot === 'section' ? 'start' : 'nearest'
+}
+
+/**
+ * The scroll position that shows a target inside the one box that scrolls
+ * it, given both as viewport boxes and the box's present position. This is
+ * `scrollIntoView` for a single ancestor: that call scrolls EVERY ancestor
+ * that can, the app's root included whenever a positioned descendant has
+ * stretched its overflow, and it moved the whole page up a step at a time
+ * over a 101-row report (2026-10-06). `nearest` moves the shorter way, the
+ * top edge winning for a target taller than the box.
+ */
+export function scrollTopFor(block: ScrollBlock, target: Box, view: Box, current: number): number {
+  const above = target.top - view.top
+  const below = target.top + target.height - (view.top + view.height)
+  if (block === 'start') return Math.max(0, current + above)
+  if (above < 0) return Math.max(0, current + above)
+  if (below > 0) return Math.max(0, current + Math.min(above, below))
+  return current
 }

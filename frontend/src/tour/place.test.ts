@@ -6,6 +6,7 @@ import {
   placeCard,
   sameBox,
   scrollBlock,
+  scrollTopFor,
   sectionBox,
   SHEET_MAX_W,
   sheetEdge,
@@ -139,5 +140,33 @@ describe('the scroll to a step', () => {
     expect(scrollBlock('control')).toBe('nearest')
     expect(scrollBlock('box')).toBe('nearest')
     expect(scrollBlock(undefined)).toBe('nearest')
+  })
+
+  // One box, the panel's own; the position it should take, never a call that
+  // scrolls every ancestor.
+  describe('scrollTopFor', () => {
+    const view = { top: 100, left: 0, width: 360, height: 500 }
+
+    it('puts a section at the top of the box', () => {
+      expect(scrollTopFor('start', { top: 400, left: 0, width: 360, height: 200 }, view, 50)).toBe(350)
+      expect(scrollTopFor('start', { top: 20, left: 0, width: 360, height: 200 }, view, 300)).toBe(220)
+    })
+
+    it('leaves a target already in view where it is', () => {
+      expect(scrollTopFor('nearest', { top: 150, left: 0, width: 360, height: 200 }, view, 50)).toBe(50)
+    })
+
+    it('moves the shorter way to a target outside the box', () => {
+      expect(scrollTopFor('nearest', { top: 20, left: 0, width: 360, height: 60 }, view, 300)).toBe(220)
+      expect(scrollTopFor('nearest', { top: 550, left: 0, width: 360, height: 100 }, view, 50)).toBe(100)
+    })
+
+    it('shows the top of a target taller than the box', () => {
+      expect(scrollTopFor('nearest', { top: 400, left: 0, width: 360, height: 900 }, view, 50)).toBe(350)
+    })
+
+    it('never asks for a negative position', () => {
+      expect(scrollTopFor('start', { top: 20, left: 0, width: 360, height: 60 }, view, 0)).toBe(0)
+    })
   })
 })

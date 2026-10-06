@@ -14,7 +14,7 @@ interface Args {
 /** The hour the chart's tooltip stands on while the report is a demonstration: the window's middle. */
 const CHART_TOOLTIP_INDEX = 6
 /** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
-function scrollParent(el: HTMLElement | null): HTMLElement | null {
+export function scrollParent(el: HTMLElement | null): HTMLElement | null {
   for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
     const { overflowY } = getComputedStyle(node)
     if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) return node
