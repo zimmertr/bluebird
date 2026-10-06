@@ -63,9 +63,25 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # The tag names the head commit, so a re-run or a reopen on the same
+      # commit asks for a tag that is already there, from the same source.
+      # Docker Hub's immutable tags refuse a second push of it (a rebuild is
+      # a new digest: the build stamp differs), which would fail the preview;
+      # the image already pushed is the one Argo CD should run.
+      - name: Check whether the tag is already pushed
+        id: image
+        run: |
+          if docker manifest inspect "${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:${TAG} is already pushed; skipping the build."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - id: stamp
+        if: steps.image.outputs.exists == 'false'
         run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        if: steps.image.outputs.exists == 'false'
         with:
           context: .
           platforms: linux/amd64
