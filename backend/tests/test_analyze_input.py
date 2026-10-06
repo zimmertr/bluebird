@@ -10,6 +10,7 @@ fetched and cached by one reading of its timestamps.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -18,6 +19,7 @@ from conftest import fake_response
 from fastapi.testclient import TestClient
 from test_weather import _hourly
 
+from app.limits import PAST_LIMIT_SLACK_DAYS
 from app.main import app
 from app.models import AnalyzeRequest, DestinationsRequest
 from app.services import cache, osm, weather
@@ -157,6 +159,56 @@ def test_a_naive_end_before_an_aware_start_is_the_ordinary_400(route, upstream):
     else:
         assert status == 400
         assert answer["detail"] == "The start date must be before the end date."
+
+
+# ── a stamp whose UTC instant leaves datetime's range ──────────────────────
+
+# Not the module's client: on a 500 that one re-raises the server's exception
+# into the test, and what matters here is what the caller is answered.
+_answering_client = TestClient(app, raise_server_exceptions=False)
+
+
+def _point_answer(route: str, moment: str) -> tuple[int, list[dict[str, Any]]]:
+    resp = _answering_client.post(
+        route,
+        json={
+            "custom_destinations": [{"name": "a", "latitude": 47.0, "longitude": -121.0}],
+            "forecast_mode": "at",
+            "start_datetime": moment,
+        },
+    )
+    if resp.status_code != 422:
+        return resp.status_code, []
+    return 422, [{k: e[k] for k in ("loc", "msg", "type")} for e in resp.json()["detail"]]
+
+
+@pytest.mark.parametrize("route", ROUTES)
+@pytest.mark.parametrize(
+    ("moment", "ordinary"),
+    [
+        # Each is a valid ISO 8601 stamp whose wall clock datetime holds but
+        # whose UTC instant falls past year 9999 or before year 1, so the
+        # conversion to UTC overflows before any horizon check reads it.
+        ("9999-12-31T23:00:00-14:00", timedelta(days=365)),
+        ("0001-01-01T00:00:00+14:00", -timedelta(days=PAST_LIMIT_SLACK_DAYS + 5)),
+    ],
+    ids=["past year 9999", "before year 1"],
+)
+def test_a_stamp_beyond_datetimes_range_is_the_ordinary_horizon_422(
+    route, moment, ordinary, upstream, caplog
+):
+    # The answer must be the one any other out-of-horizon stamp on the same
+    # side gets, so the reference is asked of the route rather than spelled.
+    reference = (datetime.now(UTC) + ordinary).isoformat()
+    _, expected = _point_answer(route, reference)
+    assert expected, "the reference stamp was not refused"
+
+    with caplog.at_level(logging.ERROR):
+        status, errors = _point_answer(route, moment)
+
+    assert (status, errors) == (422, expected)
+    assert upstream == []
+    assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
 
 
 # ── a malformed ring is a 422 ──────────────────────────────────────────────
