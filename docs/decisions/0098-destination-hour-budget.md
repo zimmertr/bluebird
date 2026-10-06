@@ -1,8 +1,8 @@
 # 0098. An analysis is bounded by candidates times window hours, keyed or not, and the forecast cache by bytes
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-06
-- Decider: the maintainer (TJ), on issue #624 (option A plus the cache bound, as the issue recommends); the budget's value is the fix's proposal from the measurement below, and takes effect when the maintainer merges it
+- Decider: the maintainer (TJ), on issue #624, 2026-10-06: option A plus the cache bound, the budget of 1,500,000 destination-hours proposed from the measurement below, and the API description wording
 - Issues and PRs: #624, #595, #581, #317, #123, #323
 - Cited in code as: #624
 - Guide: [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/routes/analyze/` bullet (`_check_pacing`), the `app/limits.py` bullet and the `app/services/cache.py` bullet
