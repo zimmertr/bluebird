@@ -34,8 +34,9 @@ jobs:
     steps:
       # The merge ref, so a PR that edits GitVersion.yml is judged by the
       # patterns it will merge with.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           sparse-checkout: |
             GitVersion.yml
             .github/scripts/check_pr_title.py
