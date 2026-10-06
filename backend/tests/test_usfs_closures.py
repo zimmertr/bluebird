@@ -11,6 +11,8 @@ answer outside the coverage can be told apart from a clear one.
 from __future__ import annotations
 
 import json
+import random
+import re
 import time
 from urllib.parse import parse_qs, urlsplit
 
@@ -863,6 +865,38 @@ def test_the_sentence_scan_is_linear_in_the_descriptions_length(unit):
     started = time.perf_counter()
     usfs_closures._entry_sentences(text)
     assert time.perf_counter() - started < 1.0
+
+
+def test_the_permit_exception_is_linear_in_a_line_that_repeats_unless():
+    # About 60 KB in one sentence on one line, with an "unless" every word and
+    # no permit after any of them. Read from every "unless" to the end of the
+    # line, this was quadratic: 0.22 s here and 0.86 s at twice the length in
+    # the backend test container (measured 2026-10-06). One pass takes about a
+    # millisecond, so the bound holds on a slow runner too.
+    text = "Closed to entry " + "unless " * (60_000 // len("unless "))
+    started = time.perf_counter()
+    assert usfs_closures._entry_sentences(text) == ["closed"]
+    assert time.perf_counter() - started < 0.05
+
+
+# The pattern before #660, kept only to hold the linear one to its answers.
+_PERMIT_EXCEPTION_BEFORE = re.compile(
+    r"without (a |an )?(valid )?permit|unless .* permit", re.IGNORECASE
+)
+
+
+def test_the_permit_exception_answers_as_it_did():
+    # Short random strings over the words the pattern reads, in both cases,
+    # with line breaks among them: the old pattern's `.` stops at one, so
+    # "unless" and "permit" on two lines never matched.
+    words = ["unless ", "UNLESS ", "unles", "permit", "Permit", "without ", "a ", "an ",
+             "valid ", "x", " ", "\n", "."]
+    rng = random.Random(660)
+    for _ in range(20_000):
+        text = "".join(rng.choice(words) for _ in range(rng.randint(0, 12)))
+        assert bool(usfs_closures.TEXT_PERMIT_EXCEPTION.search(text)) == bool(
+            _PERMIT_EXCEPTION_BEFORE.search(text)
+        ), text
 
 
 @pytest.mark.parametrize(
