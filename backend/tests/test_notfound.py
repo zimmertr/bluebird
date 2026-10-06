@@ -9,13 +9,16 @@ from fastapi.testclient import TestClient
 from starlette.routing import Mount
 from starlette.staticfiles import StaticFiles
 
+import app.routes.analyze.route as analyze_route
 from app.main import app
+from app.routes.analyze.route import API_KEY_HEADER
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.security_headers import APP_CSP, BASE_HEADERS
 
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
+from conftest import FAKE_API_KEY  # noqa: E402
 from generate_edge_not_found import OUT as EDGE_RECORD  # noqa: E402 — after the sys.path insert above
 from generate_edge_not_found import render as render_edge_record  # noqa: E402
 
@@ -139,6 +142,66 @@ def test_catch_all_is_absent_from_the_schema():
     # It answers every path under /api; documenting it would bury the real
     # endpoints under a wildcard.
     assert not [p for p in app.openapi()["paths"] if "{path" in p]
+
+
+@pytest.fixture
+def analyses(monkeypatch):
+    """Every call the analyze routes make into the analysis, by the key it got.
+
+    The spy delegates to the real analysis, so a request that reaches a route
+    is answered exactly as it would be without it.
+    """
+    calls: list[str | None] = []
+    real = analyze_route._run_analysis
+
+    def spy(request, api_key):
+        calls.append(api_key)
+        return real(request, api_key)
+
+    monkeypatch.setattr(analyze_route, "_run_analysis", spy)
+    return calls
+
+
+# The gateway matches paths as literal text and does not decode `%2F`, while
+# uvicorn does before Starlette routes, so `/api%2Fanalyze` passed every edge
+# rule as a path outside `/api/` and then ran the analyze route without a key
+# (#620). Both cases of the hex digit decode to a slash.
+_ENCODED_SLASH = [
+    ("POST", "/api%2Fanalyze"),
+    ("POST", "/api%2fanalyze"),
+    ("POST", "/api%2Fanalyze%2Fstream"),
+    ("GET", "/api%2Fversion"),
+]
+
+
+@pytest.mark.parametrize(("method", "path"), _ENCODED_SLASH)
+def test_an_encoded_slash_is_the_edge_404_and_reaches_no_route(analyses, method, path):
+    response = client.request(method, path, json={}, headers={"Origin": "https://example.com"})
+    assert response.status_code == 404
+    assert analyses == []
+    # The same answer the gateway gives the same path, so a caller cannot tell
+    # which layer refused it, and the pod adds no sentence of its own.
+    record = json.loads(EDGE_RECORD.read_text())
+    assert response.json() == record["body"]
+    sent = {k.lower(): v for k, v in response.headers.items() if k.lower() != "content-length"}
+    assert sent == record["headers"]
+
+
+def test_the_plain_analyze_path_still_reaches_the_route(analyses):
+    # `{}` names nothing to analyze, which the analysis itself refuses before
+    # any upstream call, so this reaches the route and spends nothing.
+    response = client.post("/api/analyze", json={}, headers={API_KEY_HEADER: FAKE_API_KEY})
+    assert response.status_code == 400
+    assert analyses == [FAKE_API_KEY]
+
+
+@pytest.mark.parametrize(
+    "path", ["/api/version", "/api/capabilities", "/api/config", "/healthz", "/api/version?q=a%2Fb"]
+)
+def test_plain_paths_are_untouched_by_the_encoded_slash_rule(path):
+    # The query string is not the path: a geocode search for "a/b" carries
+    # `%2F` there, and must still reach its route.
+    assert client.get(path).status_code == 200
 
 
 def test_healthz_answers_head_for_uptime_monitors():
