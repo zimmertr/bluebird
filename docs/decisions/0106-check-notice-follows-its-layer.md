@@ -1,4 +1,4 @@
-# 0100. A failed column check's notice shows only while its layer is on, and the check keeps asking
+# 0106. A failed column check's notice shows only while its layer is on, and the check keeps asking
 
 - Status: Accepted
 - Date: 2026-10-06

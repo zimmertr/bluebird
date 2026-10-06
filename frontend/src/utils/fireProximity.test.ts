@@ -350,7 +350,7 @@ describe('fireLoadingFrame', () => {
   })
 })
 
-// The panel's line about a failed check follows the layer (#642, record 0100).
+// The panel's line about a failed check follows the layer (#642, record 0106).
 describe('checkNoticeDue', () => {
   it('is due only for a failed check, over a report with rows, while its layer is on', () => {
     expect(checkNoticeDue('unavailable', true, 3)).toBe(true)
