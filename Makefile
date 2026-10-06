@@ -10,20 +10,23 @@ NODE_IMAGE := node:$(shell cat .node-version)-alpine
 PYTHON_IMAGE := python:3.14-slim
 # Pinned because ruff's default rule set changes between releases.
 RUFF_VERSION := 0.16.0
+# The pip-compile Dependabot runs, so a lock written here and one Dependabot
+# rewrites come out the same. 7.5 breaks on pip 26, hence the older pip beside it.
+PIP_TOOLS_VERSION := 7.5.3
 # Must match @playwright/test in frontend/e2e/package.json: each release pins
 # its own Chromium build, and the image carries the build for its own version.
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.63.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lighthouse browser perf
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lock-backend lighthouse browser perf
 
 typecheck:
-	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci && npx tsc --noEmit"
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci --ignore-scripts && npx tsc --noEmit"
 
 lint-frontend:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm run lint"
 
 test-frontend:
-	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci && npm test"
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci --ignore-scripts && npm test"
 
 check-api:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm run check:api"
@@ -44,6 +47,13 @@ typecheck-backend:
 lint-backend:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo $(PYTHON_IMAGE) sh -c "pip install ruff==$(RUFF_VERSION) && ruff check backend/"
 
+# Not a check: rewrites the two hashed locks from requirements.in and
+# requirements-dev.in. On the image's own base, so every marker resolves for the
+# platform that installs the lock. pip-compile keeps every pin it already has
+# unless asked; add --upgrade-package NAME to move one.
+lock-backend:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend python:3.14-alpine sh -c "pip install --root-user-action=ignore 'pip<26' pip-tools==$(PIP_TOOLS_VERSION) && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements.txt requirements.in && pip-compile --generate-hashes --allow-unsafe --strip-extras --output-file=requirements-dev.txt requirements-dev.in"
+
 # The one target that is several commands: the audit needs a built image
 # serving on a network that a Chromium container can reach. A failed audit
 # leaves lh-target running; `docker rm -f lh-target` clears it.
@@ -61,7 +71,7 @@ browser:
 	docker build -t bluebird:e2e .
 	-docker network create e2e-net
 	docker run -d --rm --name e2e-target --network e2e-net bluebird:e2e
-	docker run --rm --network e2e-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci && npx playwright test"
+	docker run --rm --network e2e-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://e2e-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci --ignore-scripts && npx playwright test"
 	docker rm -f e2e-target
 
 # The render probe (issue #409): the same served image, one 946-destination
@@ -72,5 +82,5 @@ perf:
 	docker build -t bluebird:perf .
 	-docker network create perf-net
 	docker run -d --rm --name perf-target --network perf-net bluebird:perf
-	docker run --rm --network perf-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://perf-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci && npx playwright test --config perf/playwright.config.ts"
+	docker run --rm --network perf-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://perf-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci --ignore-scripts && npx playwright test --config perf/playwright.config.ts"
 	docker rm -f perf-target
