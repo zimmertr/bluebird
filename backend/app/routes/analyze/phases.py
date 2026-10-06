@@ -31,6 +31,7 @@ from typing import Any
 
 from app import ratelimit, telemetry
 from app.error_codes import ApiError, ErrorCode
+from app.limits import MAX_ANALYZE_DESTINATION_HOURS, window_hours
 from app.models import (
     MAX_ANALYZE_PEAKS,
     AnalysisRefusal,
@@ -284,8 +285,9 @@ def _apply_cap(
 
 
 def _pace_detail(count: int, noun: str, days: int) -> str:
-    """The refusal of an analysis its own batches would shed: what is wrong,
-    and nothing else, in the over-cap refusal's manner (`_cap_detail`)."""
+    """The refusal of an analysis too large to run, over the destination-hour
+    budget or past what the pacer would shed: what is wrong, and nothing else,
+    in the over-cap refusal's manner (`_cap_detail`)."""
     return (
         f"This search covers {count:,} {noun}s over {days:,} days, which is too "
         "many for one analysis."
@@ -299,27 +301,37 @@ def _check_pacing(
     noun: str,
     eager: Eager,
 ) -> Refusal | None:
-    """Refuse an unkeyed analysis that the pod's own pacer would shed (#581).
+    """Refuse an analysis too large to run, before it spends anything.
 
-    The weighted pacer sheds any acquire that would wait longer than
-    `UPSTREAM_WEIGHT_MAX_WAIT_S`, and on a long archive window an analysis's
-    OWN batches pass that bound on an idle pod: each costs five weighted calls a
-    day, and the fourth or later batch queues behind the ones before it. It
-    used to spend those first batches and then answer a 503 whose Retry-After
-    no retry could honour. It is refused here instead, before any upstream
-    call, with the most destinations that window CAN take as `limit`.
+    Two bounds, one refusal. The destination-hour budget holds every caller,
+    keyed or not (#624): each candidate's hourly series is held until the
+    response is built, so candidates times window hours is what one analysis
+    holds in memory, and over a year-long window the analysis cap alone was
+    more than the pod has. `MAX_ANALYZE_DESTINATION_HOURS` has the measurement.
 
-    The threshold is that existing knob and nothing new: `plan_max_wait_s`
-    runs the analysis's own weights through a scratch copy of the pacer, so the
-    refusal and the shed are one rule and cannot drift. A keyed caller is never
-    refused, because a keyed fetch skips the pacer (#317).
+    The pacer bound holds an unkeyed caller alone (#581). The weighted pacer
+    sheds any acquire that would wait longer than `UPSTREAM_WEIGHT_MAX_WAIT_S`,
+    and on a long archive window an analysis's OWN batches pass that bound on
+    an idle pod: each costs five weighted calls a day, and the fourth or later
+    batch queues behind the ones before it. It used to spend those first
+    batches and then answer a 503 whose Retry-After no retry could honour.
+    `plan_max_wait_s` runs the analysis's own weights through a scratch copy of
+    the pacer, so the refusal and the shed are one rule and cannot drift. A
+    keyed fetch skips the pacer (#317), so a keyed caller meets only the budget.
+
+    Either way the refusal carries, as `limit`, the most destinations the window
+    can take under both bounds at once, so a caller who sends that many is not
+    refused a second time.
     """
-    if api_key is not None:
-        return None
     budget = ratelimit.WEATHER_WEIGHT
     concurrency = MAX_CONCURRENT_BATCHES * (2 if eager.cloud else 1)
+    most = MAX_ANALYZE_DESTINATION_HOURS // max(1, window_hours(window.start, window.end))
 
     def fits(n: int) -> bool:
+        if n > most:
+            return False
+        if api_key is not None:
+            return True
         plan = weather.planned_weights(
             n,
             window.start,
@@ -334,8 +346,8 @@ def _check_pacing(
     if fits(count):
         return None
     # The largest count that fits, by bisection: more destinations never wait
-    # less, so the answer is one edge.
-    lo, hi = 0, count
+    # less or hold less, so the answer is one edge.
+    lo, hi = 0, min(count, most + 1)
     while hi - lo > 1:
         mid = (lo + hi) // 2
         if fits(mid):
@@ -344,7 +356,11 @@ def _check_pacing(
             hi = mid
     days = (window.end.date() - window.start.date()).days + 1
     log.info(
-        "Refusing an unkeyed analysis of %d over %d days: it fits %d", count, days, lo
+        "Refusing an analysis of %d over %d days (%s): it fits %d",
+        count,
+        days,
+        "keyed" if api_key is not None else "unkeyed",
+        lo,
     )
     body = AnalysisRefusal(
         detail=_pace_detail(count, noun, days),

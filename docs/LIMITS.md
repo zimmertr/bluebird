@@ -1,8 +1,9 @@
 # Limits
 
-Bluebird Forecast caps five things: the area of a search polygon, how many
-destinations one analysis may forecast, how many rows a response returns, how
-far back in time a window may reach, and how fast a single client may ask. Every
+Bluebird Forecast caps six things: the area of a search polygon, how many
+destinations one analysis may forecast, how many destinations it may forecast
+over how many hours, how many rows a response returns, how far back in time a
+window may reach, and how fast a single client may ask. Every
 one of those numbers is published as JSON by
 `GET /api/capabilities`, read from the same constants the validators enforce,
 so it cannot drift from what the service actually does:
@@ -48,6 +49,22 @@ before anything is fetched, so the refusal arrives with no request made; the
 toward the same cap, because a pasted coordinate costs exactly what a
 discovered one costs.
 
+**Destinations times hours.** The candidate cap bounds how many forecasts an
+analysis fetches, but not how much it holds: every candidate's hourly series is
+kept until the response is built, so memory grows with the candidate count
+times the window's hours. Since a window can reach a year back, the candidate
+cap over the longest window would hold more than twice the production pod's
+memory limit, so
+`max_destination_hours` bounds the product. It applies with or without an
+Open-Meteo key, since a key buys quota, not memory. Past it an analysis is
+refused before any forecast is fetched, with the same `400` the pacer refusal
+below answers: `found`, and `limit`, the most destinations that window can
+take. The web app never meets it, because the browser fetches and holds its
+own forecasts, and an API caller asking what the app's forecast calendar
+offers, the candidate cap over 16 days, sits well inside it.
+`backend/app/limits.py` records the measurement behind the number, with its
+date.
+
 **Rows returned.** The max-results knob trims the ranking after it is computed.
 It never reduces the upstream work, which is why raising it costs nothing and
 lowering it saves nothing. A shared link asking for more rows than the running
@@ -68,7 +85,7 @@ it costs two upstream requests rather than one and refuses nothing.
 [DATA.md](DATA.md#open-meteo) has what else is different about an archive
 answer.
 
-**A long archive window without a key.** Not a sixth published number, because
+**A long archive window without a key.** Not a seventh published number, because
 it is not one: it is what the deployment's weighted pacer can serve, and that
 depends on both the window and the candidate count. A request costs more
 weighted calls the longer its window, so over an archive window of a couple of
@@ -76,9 +93,9 @@ months an unkeyed analysis of a few hundred destinations queues its own later
 batches past the pacer's wait bound. Rather than spend its first batches and
 then answer `503` on every retry, such an analysis is refused before any
 forecast is fetched, with a `400` that carries `found` and `limit`, the most
-destinations that window can take. A forecast window never meets it, and a
-request carrying your own Open-Meteo key never does either, because a keyed
-request skips the pacer. [API.md](API.md#when-a-search-finds-too-much) has the
+destinations that window can take under this and the destination-hour bound
+together. A forecast window never meets it, and a request carrying your own
+Open-Meteo key never does either, because a keyed request skips the pacer. [API.md](API.md#when-a-search-finds-too-much) has the
 body.
 
 **Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
@@ -89,13 +106,13 @@ them anyway, and can sidestep them entirely by running its own container, where
 every limit is tunable or off.
 
 An Open-Meteo key changes exactly one of these limits, and it is not one of
-the five. The deployment's weighted pacer, which spreads a large fan-out over
+the six. The deployment's weighted pacer, which spreads a large fan-out over
 minutes so the shared free-tier quota is never exhausted, does not meter a
 request that carries a caller's key: that request spends the key's quota, which
 the pacer knows nothing about and cannot protect. Everything else still applies
 to it. The per-address analyze budget above holds, the cap on in-flight
-upstream calls holds, and the candidate cap, the polygon cap, and the row cap
-are all unchanged. A key buys a quota, not an exemption.
+upstream calls holds, and the candidate cap, the destination-hour cap, the
+polygon cap, and the row cap are all unchanged. A key buys a quota, not an exemption.
 
 The wildfire, smoke and closure budgets are the loosest, because the requests they pace
 are the cheapest the service answers: all three come from a snapshot the instance
@@ -116,7 +133,7 @@ is and whether waiting helps:
 
 | Status | What happened |
 |---|---|
-| `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. |
+| `400` | The request is runnable in shape but not as asked. Past the candidate cap or the destination-hour cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. |
 | `401` | The weather service refused the API key an analyze request carried. Nothing here can fix it and no retry helps. |
 | `422` | A field would not parse or failed a bound: a polygon over the area cap, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis, or the edge rate rule in front of `bluebirdforecast.com` refused the request before the pod saw it (see [TRAFFIC.md](TRAFFIC.md)). `Retry-After` is honest in every case. |

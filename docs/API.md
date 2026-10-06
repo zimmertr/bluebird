@@ -723,8 +723,12 @@ until it has been fetched, so these shrink the answer, never the work.
 Every result row carries `series`: the hourly precipitation, temperature, wind,
 freezing level and AQI behind its aggregates, aligned index-for-index to the
 shared `times` grid. Those hours are nearly the whole body. One analysis at the candidate cap
-across the longest window the API accepts measures 12.92 MB with them and
-0.61 MB without.
+across a 16-day window measured 12.92 MB with them and 0.61 MB without
+(2026-09-13). A longer window costs proportionally more, up to the
+destination-hour cap that `GET /api/capabilities` publishes as
+`max_destination_hours`: an analysis at that cap measured 34 to 40 MB with
+them, depending on how it splits into destinations and hours, and 0.93 MB
+without (2026-10-06, synthetic hours with every column present).
 
 Send `include_series: false` when you read only the aggregates:
 
@@ -860,9 +864,16 @@ whose candidates over a long archive window cost more weighted calls than the
 deployment can pace is refused before any forecast is fetched: a `400` with
 `"code": "refusal"`, `found`, and `limit`, the most destinations that window can
 take. A shorter window, fewer destinations, or your own key clears it; it never
-applies to a forecast window, and never to a keyed request. The body, for 300
-peaks over a 60-day archive window (the `limit` depends on the deployment's
-pacer):
+applies to a forecast window, and never to a keyed request.
+
+A third holds every request, keyed or not: the candidate count times the
+window's hours may not pass `max_destination_hours`, which bounds the memory
+one analysis holds while every candidate's hourly series waits for the
+response. It answers with the same sentence and fields, and its `limit` is the
+most destinations that window can take under both bounds at once, so sending
+that many is never refused a second time. A shorter window or fewer
+destinations clears it; a key does not. The body, for 300 peaks over a 60-day
+archive window without a key (the `limit` depends on the deployment's pacer):
 
 ```json
 {

@@ -1165,6 +1165,11 @@ export interface components {
              */
             archive_days: number;
             /**
+             * Max Destination Hours
+             * @description Ceiling on candidates times window hours in a single analysis, with or without an Open-Meteo key. Every candidate's hourly forecast is held until the response is built, so this is what bounds the memory one analysis takes. An analysis past it is refused with 400 before any forecast is fetched, and the refusal's `limit` is the most destinations its window can take.
+             */
+            max_destination_hours: number;
+            /**
              * Max Destinations
              * @description Ceiling on candidates in a single analysis, counting discovered and custom destinations together. Every candidate gets a real forecast, so this is what bounds upstream cost. Exceeding it fails loudly rather than silently truncating the ranking.
              */

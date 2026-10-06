@@ -17,7 +17,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | Page | What belongs there |
 |---|---|
 | [`docs/USAGE.md`](docs/USAGE.md) | The user-facing walkthrough: destinations, forecast windows, max results, Analyze, marker colors, the results table |
-| [`docs/LIMITS.md`](docs/LIMITS.md) | The five caps (polygon area, candidates, rows, how far back a window reaches, request pacing), why each exists, and the `429`/`502`/`503` mapping |
+| [`docs/LIMITS.md`](docs/LIMITS.md) | The six caps (polygon area, candidates, candidates times window hours, rows, how far back a window reaches, request pacing), why each exists, and the `429`/`502`/`503` mapping |
 | [`docs/DATA.md`](docs/DATA.md) | Per-provider truth: what each source can and cannot tell you, its fair-use posture, and the data-quality caveats |
 | [`docs/API.md`](docs/API.md) | HTTP API prose for callers: endpoints, worked examples, error handling |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | The env-var table and log levels |

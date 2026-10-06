@@ -1593,6 +1593,11 @@
             "title": "Archive Days",
             "type": "integer"
           },
+          "max_destination_hours": {
+            "description": "Ceiling on candidates times window hours in a single analysis, with or without an Open-Meteo key. Every candidate's hourly forecast is held until the response is built, so this is what bounds the memory one analysis takes. An analysis past it is refused with 400 before any forecast is fetched, and the refusal's `limit` is the most destinations its window can take.",
+            "title": "Max Destination Hours",
+            "type": "integer"
+          },
           "max_destinations": {
             "description": "Ceiling on candidates in a single analysis, counting discovered and custom destinations together. Every candidate gets a real forecast, so this is what bounds upstream cost. Exceeding it fails loudly rather than silently truncating the ranking.",
             "title": "Max Destinations",
@@ -1643,6 +1648,7 @@
           "past_data_days",
           "archive_days",
           "aqi_forecast_days",
+          "max_destination_hours",
           "rate"
         ],
         "title": "Limits",
