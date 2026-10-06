@@ -299,6 +299,26 @@ describe('quoting', () => {
       expect(csv).not.toContain("'-45.123")
     })
 
+    // Excel reads a typed or imported `-1+1` as the formula `=-1+1` (#623).
+    it('prefixes an apostrophe to a name leading with a minus that is not a number', () => {
+      const csv = buildResultsCsv([row({ name: '-1+1' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain(",'-1+1,")
+      expect(csv).not.toContain(',-1+1,')
+    })
+
+    it('leaves a negative number untouched', () => {
+      const csv = buildResultsCsv([row({ temp_min_f: -3.2 })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain(',-3.2,')
+      expect(csv).not.toContain("'-3.2")
+    })
+
+    // The fallback a pin restored from a link takes, five decimals each.
+    it('leaves a coordinate name in either fallback spelling untouched', () => {
+      const csv = buildResultsCsv([row({ name: '-45.12300, -170.45600' })], WINDOW_COLUMNS, NO_FIRES)
+      expect(csv).toContain('"-45.12300, -170.45600"')
+      expect(csv).not.toContain("'-45.123")
+    })
+
     it('leaves a formula character that is not in the lead alone', () => {
       const csv = buildResultsCsv([row({ name: 'Hidden Lake @ Dusk' })], WINDOW_COLUMNS, NO_FIRES)
       expect(csv).toContain(',Hidden Lake @ Dusk,')

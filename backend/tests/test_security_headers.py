@@ -118,6 +118,17 @@ def test_the_app_policy_forbids_the_dangerous_sources():
     assert not [name for name, sources in app_csp.items() if "'unsafe-eval'" in sources]
 
 
+def test_the_app_policy_allows_style_attributes_and_no_inline_style_element():
+    # The popups need inline style attributes; nothing needs an inline <style>
+    # element, and one written into popup markup would restyle the whole page
+    # rather than the card (#621). The split directives say so to every engine
+    # that knows them, and style-src stays as the fallback for one that does not.
+    app_csp = _parse(security_headers.APP_CSP)
+    assert app_csp["style-src-elem"] == ["'self'"]
+    assert app_csp["style-src-attr"] == ["'unsafe-inline'"]
+    assert app_csp["style-src"] == ["'self'", "'unsafe-inline'"]
+
+
 def test_the_docs_policy_differs_from_the_app_policy_only_where_stated():
     app_csp = _parse(security_headers.APP_CSP)
     docs = _parse(client.get("/docs").headers["Content-Security-Policy"])

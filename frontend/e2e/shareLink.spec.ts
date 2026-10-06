@@ -186,6 +186,17 @@ test('a fresh session writes no link until the reader moves the map', async ({ p
   await expect.poll(() => new URL(page.url()).searchParams.get('view')).toMatch(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?,\d+(\.\d+)?$/)
 })
 
+// MapLibre throws on a latitude past a pole, and a link's places are framed in
+// the map's load handler, so one such pin used to stop everything that handler
+// mounts: the markers, the drawing and the overlays (#622). The pin is dropped
+// as the link is read, and the map loads as if it carried none. A pin rather
+// than a ring, because a restored ring would rename the draw button this
+// waits on.
+test('a link with a pin past a pole still loads the map', async ({ page }) => {
+  await page.goto('/?pins=0,100,peak,,,North')
+  await waitForMapLoad(page)
+})
+
 // A link's camera was the sender's own move, so a link carrying nothing else
 // keeps it rather than being stripped to the bare path.
 test('a link that carries a camera alone keeps it', async ({ page }) => {
