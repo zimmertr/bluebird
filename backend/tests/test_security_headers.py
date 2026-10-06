@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import re
 from pathlib import Path
 
@@ -13,8 +14,9 @@ from starlette.applications import Starlette
 from starlette.responses import StreamingResponse
 from starlette.routing import Route
 
-from app import main, security_headers
+from app import cache_headers, main, security_headers
 from app.main import app
+from app.routes import version as version_route
 
 client = TestClient(app)
 
@@ -74,6 +76,75 @@ def test_a_streamed_response_still_carries_the_headers():
     assert response.text == "onetwo"
     assert response.headers["Content-Security-Policy"] == security_headers.APP_CSP
     assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+# ── An unhandled exception (#631) ─────────────────────────────────────────────
+
+# Not the module's client: TestClient re-raises a server exception into the
+# test by default, and what matters here is what the caller is answered.
+_answering = TestClient(app, raise_server_exceptions=False)
+
+# The exception's own text, which the caller must never read: an exception
+# message is written for whoever reads the log, and can carry anything.
+_CRASH = "the route's own words about what broke"
+
+
+@pytest.fixture
+def crashing_route(monkeypatch):
+    """``GET /api/version`` raising an exception nothing converts.
+
+    The build identity is the stub rather than a real failure because the
+    real ones get fixed: each 500 an issue ever named answers a 422 or a 502 now.
+    """
+
+    def crash() -> str:
+        raise RuntimeError(_CRASH)
+
+    monkeypatch.setattr(version_route, "get_commit", crash)
+
+
+def _crash():
+    return _answering.get("/api/version", headers={"Origin": "https://example.test"})
+
+
+def test_an_unhandled_exception_leaves_with_every_header(crashing_route):
+    """A 500 is an answer like any other, and leaves with the same headers.
+
+    Starlette writes an unhandled exception's 500 from its outermost layer,
+    outside every middleware the app adds, so without the app answering it
+    itself the 500 left with none of them.
+    """
+    response = _crash()
+    assert response.status_code == 500
+    for name, value in security_headers.BASE_HEADERS.items():
+        assert response.headers[name] == value
+    assert response.headers["Content-Security-Policy"] == security_headers.APP_CSP
+    assert response.headers["Cache-Control"] == cache_headers.REVALIDATE
+    assert response.headers["Access-Control-Allow-Origin"] == "*"
+
+
+def test_an_unhandled_exception_answers_the_internal_error_body(crashing_route):
+    response = _crash()
+    assert response.json() == {
+        "detail": "Something went wrong. Try again later.",
+        "error": {"code": "internal", "retryable": True},
+    }
+    assert _CRASH not in response.text
+
+
+def test_an_unhandled_exception_still_reaches_the_log(crashing_route, caplog):
+    # Answering the 500 here means no server sees the exception, so the app
+    # owes the log the traceback the server used to print, and the access log
+    # its line.
+    with caplog.at_level(logging.INFO):
+        _crash()
+    crashes = [r for r in caplog.records if r.exc_info and str(r.exc_info[1]) == _CRASH]
+    assert len(crashes) == 1
+    assert crashes[0].levelno == logging.ERROR
+    assert any(
+        r.name == "bluebird_forecast.access" and "GET /api/version 500" in r.getMessage()
+        for r in caplog.records
+    )
 
 
 def test_the_api_carries_the_app_policy():
