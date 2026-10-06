@@ -85,6 +85,11 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write  # Required to push the git tag
+    # The index digest of what is in the registry, for the scan job: the
+    # build's own answer, or on a re-run that skipped the build, the registry's
+    # answer for the image this job checked was built from this commit.
+    outputs:
+      digest: ${{ steps.build.outputs.digest || steps.image.outputs.digest }}
     steps:
       # The one checkout that keeps its token in .git/config, because the
       # tag step below pushes with it. Every other checkout drops it.
@@ -117,6 +122,7 @@ jobs:
             exit 1
           fi
           echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "digest=$(docker buildx imagetools inspect "$IMAGE" --format '{{ .Manifest.Digest }}')" >> "$GITHUB_OUTPUT"
           echo "${IMAGE} is already pushed from this commit; skipping the build."
       # GitHub exposes no build-start timestamp, and github.event.repository
       # .updated_at is the last push, not this build. Stamp it ourselves so
@@ -124,7 +130,8 @@ jobs:
       - id: stamp
         if: steps.image.outputs.exists == 'false'
         run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         if: steps.image.outputs.exists == 'false'
         with:
           context: .
@@ -175,6 +182,71 @@ jobs:
           git tag -a "$TAG" -m "Release ${TAG}"
           git push origin "$TAG"
 
+  # Scan what Build & Push put in the registry before anything moves onto it.
+  # The PR gate scanned an amd64 image built from the PR branch; this image is
+  # built again from the squash commit, which non-strict branch protection lets
+  # be a combination no PR built, and its arm64 half was never scanned at all.
+  #
+  # By digest, so the bytes scanned are the bytes pushed, and once per
+  # platform: the digest names the multi-platform index, and Trivy reads only
+  # the half TRIVY_PLATFORM names. No Docker Hub login, because the image is
+  # public and this job then holds no credential for Trivy's code to see.
+  #
+  # Every later job needs this one, so a failed scan holds production and the
+  # chart's default image on the previous release, and makes no GitHub
+  # release: bluebird-helm reads the chart's default image from Latest, so a
+  # release here would carry the failed version into the next chart. The
+  # image and the tag stay published, as with any failure after the push: the
+  # fix is the next release (docs/CICD.md, The release scan).
+  scan:
+    name: Scan Pushed Image
+    runs-on: ubuntu-latest
+    needs: [determine-version, build-and-push]
+    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
+    # Releases serialize; a hung Trivy download must not dam the queue.
+    timeout-minutes: 15
+    strategy:
+      # Report both platforms even when one fails, so one fix covers both.
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      # Only for trivy.yaml: the same exclusions the PR gate and the weekly
+      # scan apply, so the three gates judge an image the same way.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan image (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: ${{ matrix.platform }}
+        with:
+          image-ref: zimmertr/bluebird@${{ needs.build-and-push.outputs.digest }}
+          format: json
+          output: trivy.json
+          ignore-unfixed: true
+          trivy-config: trivy.yaml
+
+      - name: Count Critical/High vulnerabilities
+        id: crit
+        uses: ./.github/actions/trivy-crit-high
+        with:
+          report: trivy.json
+
+      - name: Fail on fixable Critical/High vulnerabilities
+        env:
+          CRIT_HIGH: ${{ steps.crit.outputs.count }}
+          SEMVER: ${{ needs.determine-version.outputs.semVer }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          if [ "$CRIT_HIGH" -gt 0 ]; then
+            trivy convert --format table trivy.json >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${SEMVER} (${PLATFORM}). Production stays on the previous release. See docs/CICD.md, The release scan."
+            exit 1
+          fi
+          echo "No fixable Critical/High vulnerabilities in zimmertr/bluebird:${SEMVER} (${PLATFORM})." >> "$GITHUB_STEP_SUMMARY"
+
   # Create a GitHub Release with auto-generated release notes from merged PR titles.
   #
   # The gh CLI rather than an action, because a re-run needs two things from
@@ -185,7 +257,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push]
+    needs: [determine-version, build-and-push, scan]
     if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     permissions:
       contents: write
@@ -221,15 +293,15 @@ jobs:
   #
   # GH_PAT must have contents + pull-requests write on zimmertr/Kubernetes-Manifests.
   #
-  # Deliberately does NOT wait on create-release: the only thing this job needs
-  # to exist is the pushed image, and the release notes it links to are a URL
+  # Deliberately does NOT wait on create-release: the only things this job needs
+  # are the pushed image and its passing scan, and the release notes it links to are a URL
   # that resolves by the time anyone opens the PR. Waiting on it put a measured
   # 15 s of release-note generation in front of every production deploy (issue
   # #368).
   update-manifests:
     name: Update Kubernetes Manifests
     runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push]
+    needs: [determine-version, build-and-push, scan]
     if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     steps:
       # The upstream release binary, checked against its published SHA-256,
@@ -328,7 +400,7 @@ jobs:
   bump-chart-appversion:
     name: Bump Helm Chart appVersion
     runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push, create-release]
+    needs: [determine-version, build-and-push, create-release, scan]
     if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     steps:
       - name: Open or update the appVersion bump PR
