@@ -29,7 +29,9 @@ jobs:
     name: Frontend Typecheck & Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # No `cache: npm`. Measured on 2026-09-15: `npm ci` takes 4 s on a cold
       # cache and 4-5 s on a warm one, while restoring the cache costs 2 s in
       # `setup-node` — so the cache was net negative on time. It was also 50
@@ -38,7 +40,7 @@ jobs:
       # do pay for themselves (issue #368).
       # The Node major lives in .node-version alone, so these checks run on
       # the runtime the image builds the app with.
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
       - run: npm ci
@@ -69,8 +71,10 @@ jobs:
     name: Python Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
       # Pin ruff: its default rule set changes between releases, so an unpinned
@@ -84,13 +88,15 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       # No `cache: pip`, and that is a measurement rather than an oversight.
       # With it, the install drops 8 s to 6 s and `setup-python` grows 2-3 s
       # restoring the 25 MB it saved, so this job lands in the same 26-29 s it
       # takes without it. The wheels are small and already close to the runner;
       # the cache was never paying for a slow download (issue #368).
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
       - run: pip install -r requirements-dev.txt
@@ -125,13 +131,15 @@ jobs:
       contents: read
       pull-requests: write  # Sticky scan-result comment on PRs
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Lint Dockerfile
-        uses: hadolint/hadolint-action@v3.5.0
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: Dockerfile
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64
@@ -157,7 +165,7 @@ jobs:
       # live in trivy.yaml, shared with image-scan.yml so this gate and the
       # weekly re-scan judge an image the same way.
       - name: Scan image (Trivy)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: bluebird:pr-scan
           format: json
@@ -309,9 +317,11 @@ jobs:
     needs: docker-build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64
@@ -332,7 +342,7 @@ jobs:
       # The budgets, the blocked third-party hosts, and the reasoning behind
       # both live in .github/lighthouserc.js.
       - name: Audit the first screen
-        uses: treosh/lighthouse-ci-action@12.6.2
+        uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 # 12.6.2
         with:
           configPath: .github/lighthouserc.js
           # The HTML reports land in the run's artifacts, so a failure can be
@@ -356,9 +366,11 @@ jobs:
     needs: docker-build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64
@@ -376,7 +388,7 @@ jobs:
           done
           curl -fsS localhost:8000/ >/dev/null
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
       - run: npm ci
@@ -389,7 +401,7 @@ jobs:
       - name: Read the Playwright version
         id: pw
         run: echo "version=$(jq -r '.packages["node_modules/@playwright/test"].version' frontend/e2e/package-lock.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ steps.pw.outputs.version }}
@@ -403,7 +415,7 @@ jobs:
 
       # The HTML report carries a trace and a screenshot of every failed
       # test, so a red run can be read rather than guessed at.
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
           name: playwright-report

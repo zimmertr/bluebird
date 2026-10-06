@@ -8,7 +8,13 @@
 # against 3.0 s native (release run 34916818009, 2026-09-15) and was the
 # longest step of the whole release. The amd64-only PR and preview builds are
 # unaffected, since there BUILDPLATFORM and TARGETPLATFORM are the same.
-FROM --platform=$BUILDPLATFORM node:26-alpine AS frontend-builder
+#
+# Both base images are pinned by digest as well as tag: the tag says which
+# runtime this is (test_node_version.py reads the Node major off it), and the
+# digest says which build of it, so a rebuild cannot pull a different image
+# than the one last reviewed. Dependabot moves both, and opens a PR when the
+# image under an unchanged tag is rebuilt.
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # Cache mount keeps npm's download cache out of the layer but warm across
@@ -20,7 +26,7 @@ RUN npm run build
 # Stage 2: Python backend serving built frontend as static files.
 # Alpine over slim: Debian's base layer ships dozens of no-fix CVEs (perl-base,
 # libc6, …) that scanners flag forever; musl's ~10-package base scans clean.
-FROM python:3.14-alpine
+FROM python:3.14-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72
 
 LABEL org.opencontainers.image.title="Bluebird Forecast" \
       org.opencontainers.image.description="Map-based weather window finder for hikers and mountaineers" \
@@ -35,9 +41,9 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Alpine fixes a package days to weeks before the python base image rebuilds
 # carrying it, so the base tag can ship a libuuid that Alpine 3.24 has already
-# fixed. That gap has no Dependabot remedy: the docker ecosystem only moves the
-# tag, and here the tag was already current while the packages under it were
-# not (7 fixable HIGH util-linux CVEs, 2026-09). Upgrading beats pinning the
+# fixed. That gap has no Dependabot remedy: Dependabot moves the base when the
+# image is rebuilt, and here the newest image was already pinned while the
+# packages under it were not (7 fixable HIGH util-linux CVEs, 2026-09). Upgrading beats pinning the
 # one package, for the reason the pip upgrade below is written on: a pin sits
 # outside Dependabot's view and goes stale.
 #
