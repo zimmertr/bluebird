@@ -102,11 +102,43 @@ buckets are also published to clients by `GET /api/capabilities`, under
 | closures | `GET /api/closures` |
 
 Each bucket's rate and burst are published under `limits.rate`; the three
-overlay buckets are the loosest, because a pan costs no upstream call.
+overlay buckets are the loosest, because a pan costs no upstream call. What a
+pan does cost is the pod's CPU, and the largest answer is the whole country:
+a box that takes in every wildfire perimeter, or every closure of a kind, gets
+a gzipped copy built once per snapshot and held
+(`app/services/held_body.py`, [#628](https://github.com/zimmertr/bluebird/issues/628)),
+because gzipping the full-detail perimeters again for every request cost about
+half a CPU-second each (445 ms for an 18 MB synthetic set, measured
+2026-10-06). A smaller box is still filtered and compressed per request, which
+is cheap because it is small.
 
 Destinations is deliberately its own bucket (issue #180): discovery is one
 map query with no forecasts, and sharing the analyze bucket let the browser
 flow starve real analyses.
+
+A bucket bounds how often an address starts a request, not how much of a
+pod-wide upstream budget it holds while the request runs, so two buckets are
+sized against the budget behind them rather than against the request's own
+cost ([#627](https://github.com/zimmertr/bluebird/issues/627), record
+[0103](decisions/0103-ipv6-by-64-and-one-discovery-per-address.md)):
+
+- **Geocode** sits in front of the Nominatim gate, which every visitor on a
+  pod shares and which sheds a search booked more than 5 s out. The bucket's
+  first minute, its burst plus a minute's refill, books fewer gate slots than
+  the gate opens in a minute, so one address can no longer keep the gate
+  booked ahead and shed everybody else's search. The search box searches on
+  submit only, so a person never meets it.
+- **Destinations** also holds one discovery in flight per address
+  (`DISCOVERY_IN_FLIGHT_PER_CLIENT`, not an env knob). An Overpass query runs
+  5 to 25 s against two slots per mirror that the whole pod shares, and an
+  address inside its bucket could otherwise hold all of them. A second
+  discovery from the same address waits for the first, up to
+  `UPSTREAM_BUDGET_WAIT_S`, and then gets the bucket's own `429`; another
+  address's discovery is never behind it. The web app sends one discovery per
+  Analyze, so a person never has two. A cancelled Analyze leaves its request
+  running on the pod, which is why the second one waits rather than being
+  refused outright. The analyze routes do not take part: they are reached
+  only with a key, and their own bucket bounds them.
 
 The analyze bucket meters a route the internet reaches only with a key. The
 Istio VirtualService publishes the API by allowlist
@@ -154,8 +186,17 @@ Rate limiting keys on, in order: `CF-Connecting-IP` (Cloudflare overwrites
 it, so proxied traffic can't rotate it), else the **rightmost**
 `X-Forwarded-For` hop (each proxy appends to the right, so that's the peer
 our edge actually saw; the leftmost hop is client-typed and rotating it must
-not mint fresh buckets), else the socket peer. The access log prints the same
-value enforcement counted.
+not mint fresh buckets), else the socket peer. That address is then counted by its network rather
+than as text: an IPv6 address is keyed on its /64, an IPv4 address written in
+IPv6's mapped form on its IPv4 address, and every spelling of one address is
+one key ([#627](https://github.com/zimmertr/bluebird/issues/627), record
+[0103](decisions/0103-ipv6-by-64-and-one-discovery-per-address.md)). The zone
+serves IPv6, so an IPv6 visitor's whole address reaches the pod, and every
+IPv6 client holds at least a /64 it can pick addresses from at will: a key per
+address handed it a fresh, full bucket per request. A /64 groups a household,
+which is how one IPv4 address behind its router is already counted. The
+access log prints the whole address; a throttle line prints the address and
+the key it was counted under, which is what ties the two together.
 
 `CF-Connecting-IP` is trustworthy because the Cloudflare Tunnel
 ([#148](https://github.com/zimmertr/bluebird/issues/148)) is the only inbound

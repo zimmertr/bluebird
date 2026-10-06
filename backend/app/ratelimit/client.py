@@ -6,16 +6,21 @@ these bound one client address, and those bound the whole pod's spend.
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
 import logging
 import math
 import time
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 from fastapi import Request
 
 from app import telemetry
 from app.env import env_int
 from app.error_codes import ApiError, ErrorCode
+from app.ratelimit.upstream import SHED_RETRY_AFTER_S, UPSTREAM_BUDGET_WAIT_S
 
 log = logging.getLogger("bluebird_forecast.ratelimit")
 
@@ -29,8 +34,18 @@ RATE_LIMIT_ANALYZE_PER_MINUTE = env_int("RATE_LIMIT_ANALYZE_PER_MINUTE", 12)
 RATE_LIMIT_ANALYZE_BURST = env_int("RATE_LIMIT_ANALYZE_BURST", 6)
 RATE_LIMIT_DESTINATIONS_PER_MINUTE = env_int("RATE_LIMIT_DESTINATIONS_PER_MINUTE", 30)
 RATE_LIMIT_DESTINATIONS_BURST = env_int("RATE_LIMIT_DESTINATIONS_BURST", 10)
-RATE_LIMIT_GEOCODE_PER_MINUTE = env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 30)
-RATE_LIMIT_GEOCODE_BURST = env_int("RATE_LIMIT_GEOCODE_BURST", 10)
+# Geocode is sized under the pod-wide Nominatim gate it sits in front of, not
+# by how cheap the request is. The gate opens one slot per
+# NOMINATIM_MIN_INTERVAL_MS (about 17 a minute at 3.5 s) and sheds a caller
+# booked more than 5 s out, so a bucket that let one address spend faster than
+# the gate serves let that address keep it booked ahead and shed every other
+# visitor's search on the pod (#627). A bucket's first minute spends its burst
+# plus a minute's refill, 13 here, which leaves the gate a third of its slots
+# for everyone else. The search box searches on submit only, so a person
+# typing place names never meets 10 a minute; the burst of 3 covers a quick
+# retype. Decided by the maintainer, 2026-10-06 (record 0103).
+RATE_LIMIT_GEOCODE_PER_MINUTE = env_int("RATE_LIMIT_GEOCODE_PER_MINUTE", 10)
+RATE_LIMIT_GEOCODE_BURST = env_int("RATE_LIMIT_GEOCODE_BURST", 3)
 # Wildfire perimeters are the loosest bucket because they are the cheapest
 # request the API serves: it answers from a national snapshot this pod already
 # holds and never touches NIFC on the request path. The overlay refetches on
@@ -54,12 +69,34 @@ RATE_LIMIT_SMOKE_BURST = env_int("RATE_LIMIT_SMOKE_BURST", 30)
 RATE_LIMIT_CLOSURES_PER_MINUTE = env_int("RATE_LIMIT_CLOSURES_PER_MINUTE", 90)
 RATE_LIMIT_CLOSURES_BURST = env_int("RATE_LIMIT_CLOSURES_BURST", 30)
 
+# Discoveries one client key may have in flight at once. A bucket bounds how
+# often an address starts a discovery, not how many it holds open, and one
+# Overpass query runs 5 to 25 s against slots the whole pod shares (two per
+# mirror). Inside its bucket one address could hold every one of them and make
+# other visitors queue and then shed (#627). One is the per-address share the
+# maintainer decided, 2026-10-06 (record 0103): the web app sends one discovery
+# per Analyze and waits for it, so a person never has two. A second waits its
+# turn rather than being refused, because a cancelled Analyze leaves its first
+# request running on the pod and the retry should not read as a rate limit.
+# The wait is the same bound a request waits for a saturated Overpass slot.
+DISCOVERY_IN_FLIGHT_PER_CLIENT = 1
+
 
 # ── Client identity ───────────────────────────────────────────────────────────
 
 
-def client_key(request: Request) -> str:
-    """The client identity rate limiting keys on (and the access log prints).
+# An IPv6 client is counted by the network its provider assigned rather than by
+# one address in it. Every IPv6 client holds at least a /64 and picks any
+# address inside it at will, so a key per address handed it a fresh, full bucket
+# per request (#627). /64 is the smallest block a provider assigns and the
+# common practice for per-client IPv6 limits; it groups a household, which is
+# how one IPv4 address behind its router is already counted. Decided by the
+# maintainer, 2026-10-06 (record 0103).
+IPV6_CLIENT_PREFIX = 64
+
+
+def client_address(request: Request) -> str:
+    """The address a request came from, as the access log prints it.
 
     ``CF-Connecting-IP`` wins when present: Cloudflare overwrites it, so
     traffic that really came through Cloudflare cannot forge it. Otherwise
@@ -79,6 +116,31 @@ def client_key(request: Request) -> str:
     if forwarded:
         return forwarded.rsplit(",", 1)[-1].strip()
     return request.client.host if request.client else "-"
+
+
+def bucket_key(address: str) -> str:
+    """The identity an address is counted under.
+
+    Parsed rather than compared as text, so every spelling of one address is
+    one client (``2001:DB8::1`` and ``2001:db8:0::1``), an IPv4 client written
+    in IPv6's mapped form is its IPv4 address, and an IPv6 address is its
+    ``IPV6_CLIENT_PREFIX`` network. Anything that does not parse (a test
+    client's host name, ``-``) is counted as written.
+    """
+    try:
+        ip = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped is not None:
+            return str(ip.ipv4_mapped)
+        return str(ipaddress.IPv6Network((ip, IPV6_CLIENT_PREFIX), strict=False))
+    return str(ip)
+
+
+def client_key(request: Request) -> str:
+    """The client identity rate limiting keys on: its address, counted by ``bucket_key``."""
+    return bucket_key(client_address(request))
 
 
 # ── Per-client token buckets ──────────────────────────────────────────────────
@@ -193,6 +255,61 @@ class RateLimiter:
             del self._buckets[key]
 
 
+@dataclass
+class _Lane:
+    """One client key's in-flight slots, and how many requests hold or await one."""
+
+    slots: asyncio.Semaphore
+    users: int = 0
+
+
+class InFlightLimiter:
+    """At most ``per_client`` requests in flight per client key; later ones queue.
+
+    A token bucket bounds how often a client starts a request; this bounds how
+    many it holds open at once, which is what a pod-wide upstream slot is
+    spent on. A request past the share waits for one of its own to finish, up
+    to ``wait_s``, and is refused after that. A key's lane exists only while
+    something holds or awaits it, so memory follows the requests in flight
+    rather than every address ever seen. A ``per_client`` of 0 disables it.
+    """
+
+    def __init__(self, per_client: int, *, name: str = "", wait_s: float | None = None) -> None:
+        self._per_client = per_client
+        self.name = name
+        self._wait_s = float(UPSTREAM_BUDGET_WAIT_S if wait_s is None else wait_s)
+        self._lanes: dict[str, _Lane] = {}
+
+    @property
+    def enabled(self) -> bool:
+        return self._per_client > 0
+
+    @asynccontextmanager
+    async def slot(self, key: str) -> AsyncIterator[bool]:
+        """Hold one of ``key``'s slots; yields False when the wait ran out."""
+        if not self.enabled:
+            yield True
+            return
+        lane = self._lanes.get(key)
+        if lane is None:
+            lane = self._lanes[key] = _Lane(asyncio.Semaphore(self._per_client))
+        lane.users += 1
+        try:
+            try:
+                await asyncio.wait_for(lane.slots.acquire(), timeout=self._wait_s)
+            except TimeoutError:
+                yield False
+                return
+            try:
+                yield True
+            finally:
+                lane.slots.release()
+        finally:
+            lane.users -= 1
+            if lane.users == 0:
+                del self._lanes[key]
+
+
 # ── Instances ─────────────────────────────────────────────────────────────────
 
 ANALYZE_LIMITER = RateLimiter(
@@ -211,6 +328,9 @@ SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST,
 CLOSURES_LIMITER = RateLimiter(
     RATE_LIMIT_CLOSURES_PER_MINUTE, RATE_LIMIT_CLOSURES_BURST, name="closures"
 )
+DESTINATIONS_IN_FLIGHT = InFlightLimiter(
+    DISCOVERY_IN_FLIGHT_PER_CLIENT, name="destinations_in_flight"
+)
 
 
 # ── Route dependencies ────────────────────────────────────────────────────────
@@ -221,11 +341,18 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
     allowed, retry_after = limiter.check(key)
     if allowed:
         return
-    seconds = max(1, math.ceil(retry_after))
-    telemetry.THROTTLED.labels(bucket=limiter.name or "unnamed").inc()
+    _refuse(limiter.name, request, key, max(1, math.ceil(retry_after)))
+
+
+def _refuse(bucket: str, request: Request, key: str, seconds: int) -> None:
+    """The one 429 a per-client limit answers, whichever limit refused."""
+    telemetry.THROTTLED.labels(bucket=bucket or "unnamed").inc()
+    # The address as the access log prints it, and the key it was counted
+    # under, so a throttle line finds its request and its neighbours in a /64.
     log.warning(
-        "event=rate_limited path=%s client=%s retry_after_s=%d",
+        "event=rate_limited path=%s client=%s key=%s retry_after_s=%d",
         request.url.path,
+        client_address(request),
         key,
         seconds,
     )
@@ -250,6 +377,20 @@ async def destinations_rate_limit(request: Request) -> None:
     the analyze budget of someone running full server-side analyses.
     """
     _throttle(DESTINATIONS_LIMITER, request)
+
+
+async def destinations_in_flight(request: Request) -> AsyncIterator[None]:
+    """Route dependency: one discovery in flight per client key.
+
+    Listed after the bucket, so a request the bucket refuses never queues.
+    Held for the whole request because custom destinations are resolved
+    against Overpass too, not only a polygon's discovery.
+    """
+    key = client_key(request)
+    async with DESTINATIONS_IN_FLIGHT.slot(key) as admitted:
+        if not admitted:
+            _refuse(DESTINATIONS_IN_FLIGHT.name, request, key, SHED_RETRY_AFTER_S)
+        yield
 
 
 async def geocode_rate_limit(request: Request) -> None:

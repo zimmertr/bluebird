@@ -1707,7 +1707,7 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description This client is discovering faster than the per-address limit (its own bucket, independent of the analyze endpoints). `Retry-After` says how many seconds to wait. */
+            /** @description This client is discovering faster than the per-address limit (its own bucket, independent of the analyze endpoints), or a second discovery from this address waited too long behind its first. `Retry-After` says how many seconds to wait. */
             429: {
                 headers: {
                     [name: string]: unknown;
