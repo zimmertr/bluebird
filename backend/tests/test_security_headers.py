@@ -147,6 +147,27 @@ def test_an_unhandled_exception_still_reaches_the_log(crashing_route, caplog):
     )
 
 
+def test_an_exception_after_the_response_started_is_raised_on():
+    """A started response cannot become a 500, so the server ends it as before.
+
+    Its headers already left with the start of the response; replacing the
+    body halfway would hand the caller a stream that ends in a second answer.
+    """
+
+    async def chunks():
+        yield b"one"
+        raise RuntimeError(_CRASH)
+
+    async def stream(_request):
+        return StreamingResponse(chunks(), media_type="text/event-stream")
+
+    inner = Starlette(routes=[Route("/s", stream)])
+    inner.add_middleware(main.InternalErrorMiddleware)
+
+    with TestClient(inner) as streamed, pytest.raises(RuntimeError, match=_CRASH):
+        streamed.get("/s")
+
+
 def test_the_api_carries_the_app_policy():
     # The API is not a page, but it shares the origin with one: a policy that
     # stopped at the SPA would leave /api/* free to frame or to be framed.

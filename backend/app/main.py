@@ -14,7 +14,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app import (
     body_limit,
@@ -24,7 +24,14 @@ from app import (
     security_headers,
     telemetry,
 )
-from app.error_codes import ApiError, api_error_handler, validation_error_handler
+from app.error_codes import (
+    INTERNAL_DETAIL,
+    ApiError,
+    ErrorCode,
+    api_error_handler,
+    error_object,
+    validation_error_handler,
+)
 from app.limits import MAX_REQUEST_BYTES
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
@@ -105,6 +112,7 @@ _uvicorn_access.disabled = True
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 _access_log = logging.getLogger("bluebird_forecast.access")
+_error_log = logging.getLogger("bluebird_forecast.errors")
 
 
 def _client_ip(request: Request) -> str:
@@ -277,7 +285,62 @@ class EncodedSlashMiddleware:
         await self.app(scope, receive, send)
 
 
+class InternalErrorMiddleware:
+    """Answers an exception nothing else converted with the API's own 500.
+
+    Starlette writes the 500 for an unhandled exception from
+    `ServerErrorMiddleware`, which it always places outside every middleware
+    the app adds, and an exception handler registered for `Exception` is run
+    from that same layer. So that 500 left without the security, cache and
+    CORS headers every other answer carries, and without an access-log line
+    (#631). Answering it here, innermost, sends it out through all of them
+    like any other error. The body is the `internal` failure the analyze
+    stream already answers; the exception's own text goes to the log and
+    never to the caller, since it is written for whoever reads the log.
+
+    A response that has already started cannot be replaced, so that exception
+    is raised on and the server ends the connection as before. Its headers
+    left with the start of the response.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        started = False
+
+        async def send_tracking(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_tracking)
+        except Exception:
+            if started:
+                raise
+            # No server sees this exception any more, so its traceback is
+            # logged here, through the same redacting root handler.
+            _error_log.exception("Unhandled error in %s %s", scope["method"], scope["path"])
+            answer = JSONResponse(
+                status_code=500,
+                content={"detail": INTERNAL_DETAIL, "error": error_object(ErrorCode.internal)},
+            )
+            await answer(scope, receive, send)
+
+
 # Added first, so it sits innermost, next to the router: every middleware added
+# below wraps the 500 it answers, which is what gives that answer the CORS,
+# security and cache headers, a line in the access log, and a count in the
+# metrics under its route.
+app.add_middleware(InternalErrorMiddleware)
+
+# Added next, so it sits just inside every other layer: every middleware added
 # below wraps its answer, which is what gives it the CORS, security and cache
 # headers the edge record holds, a line in the access log, and a count in the
 # metrics (under `unmatched`, since no route claimed it).

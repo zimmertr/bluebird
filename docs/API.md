@@ -1061,6 +1061,7 @@ curl -s https://bluebirdforecast.com/api/destinations \
 | `413` | `validation` | The request body is larger than `limits.max_request_bytes`. It is refused before it is read, whether it declares a `Content-Length` or arrives chunked: `"Request body is too large. Maximum is {limits.max_request_bytes} bytes."`, the number written with thousands separators. |
 | `422` | `validation`, or absent | Request validation failed. Polygon too large, a ring with more points than `limits.max_polygon_points`, a list longer than the maximum the schema states, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
 | `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. An IPv6 address counts by its /64. Destinations also runs one request at a time per address: a second waits for the first and gets this `429` if it waits too long. |
+| `500` | `internal` | The service failed in a way none of the other statuses describes. The body has the same `{detail, error}` shape as every other error and never carries the failure's own text. On the stream the same failure arrives as a terminal `error` event. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
 
@@ -1118,7 +1119,7 @@ the outcome, so a retry loop will spin forever.
 | `upstream_unavailable` | `502` | `true` | An upstream failed or could not be reached. |
 | `busy` | `503` | `true` | An in-flight upstream budget stayed saturated, so the request was shed. |
 | `snapshot_unavailable` | `503` | `true` | This instance has never completed a fetch of the wildfire, smoke or closure snapshot, or every refresh has failed for more than 24 hours since its last good one, so it has nothing it will serve. |
-| `internal` | stream only | `true` | An unexpected failure ended an SSE analysis. The JSON routes have no equivalent. |
+| `internal` | `500` | `true` | An unexpected failure in the server: an exception no route turned into one of the codes above, or one that ended an SSE analysis, where it arrives on the `error` event. |
 
 Pydantic's `422` is the one exception, and deliberately: its `detail` is a list
 of per-field objects rather than a sentence, and the field paths in it are

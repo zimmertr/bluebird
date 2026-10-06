@@ -67,6 +67,13 @@ RETRYABLE: dict[ErrorCode, bool] = {
 }
 
 
+# The `detail` of every `internal` failure: the analyze stream's, the JSON
+# analyze route's unreachable fallthrough, and the 500 `main.py` answers for an
+# exception nothing else converted. One sentence, because a caller sees all
+# three as the same thing: the request was fine and the server was not.
+INTERNAL_DETAIL = "Something went wrong. Try again later."
+
+
 def error_object(code: ErrorCode) -> dict[str, object]:
     """The `error` member of a failure body, for a caller building one by hand."""
     return {"code": code.value, "retryable": RETRYABLE[code]}

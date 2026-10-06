@@ -200,8 +200,9 @@ the key it was counted under, which is what ties the two together.
 
 `CF-Connecting-IP` is trustworthy because the Cloudflare Tunnel
 ([#148](https://github.com/zimmertr/bluebird/issues/148)) is the only inbound
-path: the origin holds no open port, so a request cannot reach a pod without
-passing Cloudflare, and Cloudflare overwrites the header. Before the tunnel,
+path from the internet: the origin holds no open port, so a request from
+outside cannot reach a pod without passing Cloudflare, and Cloudflare
+overwrites the header. Before the tunnel,
 an inbound port-forward left a direct-to-origin path where a caller could
 forge the header and defeat the per-client buckets
 ([#200](https://github.com/zimmertr/bluebird/issues/200)); the pod-wide
@@ -209,6 +210,27 @@ upstream budgets were the backstop then, and remain one now, because they do
 not care who you claim to be. A caller already inside the cluster mesh can
 still set the header, which is why the buckets are one layer of several, not
 the whole defense.
+
+The home network is the other path that never passes Cloudflare. The shared
+Istio gateway is also a LAN address, and it serves the public
+`bluebirdforecast.com` host there as well as the internal `*.sol.milkyway`
+name, because the tunnel forwards to that same gateway. So a device on the home
+network that sends its request straight to the gateway skips the tunnel, can
+set `CF-Connecting-IP` to any address it likes, and the limiter counts the
+request against that address. Inside the cluster the reach is wider than the
+mesh: no `PeerAuthentication` exists, so mutual TLS is permissive and a pod
+outside the mesh reaches a bluebird pod's port directly, and the cluster runs
+unrelated sites, so a compromise of any of them inherits that reach. A
+`NetworkPolicy` closes neither today, because the cluster's CNI enforces none
+([Kubernetes-Manifests#1310](https://github.com/zimmertr/Kubernetes-Manifests/issues/1310)).
+Two remedies for the LAN path are open, and the choice between them is the
+maintainer's ([#631](https://github.com/zimmertr/bluebird/issues/631)): the
+gateway can drop `CF-Connecting-IP` from every request that did not arrive
+through cloudflared, which leaves the app unchanged; or the app can believe the
+header only from a configured trusted peer, which is a new setting and first
+needs a check of which peer address the pod actually sees behind its Istio
+sidecar. Until one of them lands, a forged address is bounded by the same
+pod-wide upstream budgets that bound one from inside the mesh.
 
 ## Request logs and how long they last
 
@@ -273,9 +295,19 @@ analytics reach are open.
 
 Every response the pod sends carries the set below, added by
 `backend/app/security_headers.py` outside every route, so a route, a static
-file and a `404` are all covered (the cache-header middleware sits beside it,
-and the order between the two carries nothing)
-([#132](https://github.com/zimmertr/bluebird/issues/132)). The app owns them
+file, a `404` and a `500` are all covered (the cache-header middleware sits
+beside it, and the order between the two carries nothing)
+([#132](https://github.com/zimmertr/bluebird/issues/132)). The `500` needs
+help to get there. Starlette writes the answer to an exception nothing caught
+from its outermost layer, outside every middleware the app adds, so that
+answer used to leave with none of these headers, no CORS header and no
+access-log line. The innermost layer in `backend/app/main.py` now answers it
+first, as the API's `internal` error with the failure's own text kept in the
+log, and it leaves through every layer like any other error
+([#631](https://github.com/zimmertr/bluebird/issues/631), record
+[0107](decisions/0107-unhandled-exception-answered-innermost.md)). The one
+answer still outside them is a failure inside one of those layers itself,
+which Starlette answers with a plain-text `500` and no headers. The app owns them
 rather than the mesh because the interesting one is a list of the hosts the
 browser bundle fetches, and that list changes when a frontend overlay changes.
 Edge-owned headers would drift away from the code that defines them.
