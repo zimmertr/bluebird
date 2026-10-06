@@ -3,7 +3,8 @@ import {
   DEFAULT_LIMIT,
   DEFAULT_SORT,
   encodeState,
-  decodeState,
+  decodeState as decodeWithLimits,
+  type DecodeLimits,
   classifyWindow,
   classifyAqiCoverage,
   clampLimit,
@@ -19,11 +20,17 @@ import {
 } from './calendar'
 import { GeoPolygon } from '../types'
 import { DEFAULT_FAMILY_KEY, RANKED_FAMILIES, RANKING_KEYS } from '../metrics'
-import { NO_CONSTRAINTS } from './clientAnalyze'
+import { MAX_ANALYZE_DESTINATIONS, NO_CONSTRAINTS } from './clientAnalyze'
 import { urlNeedsSync } from './urlSync'
-import { escapeQueryText, unescapeQueryText } from './urlParams'
+import { MAX_CUSTOMZ_CHARS, escapeQueryText, unescapeQueryText } from './urlParams'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { place } from '../testSupport/fixtures'
+
+// The candidate cap as the app hands it over at mount, which is the hook's
+// fallback until /api/capabilities answers. Tests that are about the cap pass
+// a small one of their own.
+const LIMITS: DecodeLimits = { maxDestinations: MAX_ANALYZE_DESTINATIONS }
+const decodeState = (search: string, limits: DecodeLimits = LIMITS) => decodeWithLimits(search, limits)
 
 const polygon: GeoPolygon = {
   type: 'Polygon',
@@ -626,8 +633,10 @@ describe('pins encoded once', () => {
     expect(decodeState(new URL(`https://bluebirdforecast.com/?${qs}`).search)?.pins).toEqual([pin, tiger])
   })
 
-  it('round-trips an id holding the delimiters', () => {
-    const pin = { ...tiger, osmId: 'way/1,2;3&x=%' }
+  // An id is held to the shape the app writes (#621), so the delimiters ride
+  // in the label here and the id's own escaping is the label's.
+  it('round-trips a pin whose id stands beside a label holding the delimiters', () => {
+    const pin = { ...tiger, osmId: 'way/123', label: 'way/1,2;3&x=%' }
     expect(decodeState(encodeState(pinned([pin]), 'gfs_seamless'))?.pins).toEqual([pin])
   })
 
@@ -663,6 +672,59 @@ describe('pins encoded once', () => {
   it('drops a pin with a malformed escape and keeps the rest', () => {
     const out = decodeState('pins=1,2,peak,,,Bad%E0%A4%A;3,4,peak,,,Good')
     expect(out?.pins?.map((p) => p.label)).toEqual(['Good'])
+  })
+})
+
+// A pin's id becomes the path of the popup's OpenStreetMap link, and its kind
+// becomes the row's type, so a link may carry only what the app itself writes
+// there (#621). The pin keeps its place either way.
+describe('a pin carries only an OSM id and a place kind', () => {
+  const pin = (kind: string, osmId: string) =>
+    `pins=-121.5,47.5,${escapeQueryText(kind)},,${escapeQueryText(osmId)},Probe`
+
+  it('drops an id carrying a quote mark and markup, and keeps the pin', () => {
+    const pins = decodeState(pin('city', 'x"><b>probe</b><i x="'))?.pins
+    expect(pins).toHaveLength(1)
+    expect(pins?.[0].label).toBe('Probe')
+    expect(pins?.[0].osmId).toBeUndefined()
+  })
+
+  it.each(['node/349018340', 'way/7', 'relation/1234'])('keeps the id %s', (osmId) => {
+    expect(decodeState(pin('city', osmId))?.pins?.[0].osmId).toBe(osmId)
+  })
+
+  it.each(['node/12a', 'area/7', 'node/', '/node/7', 'node/7/x'])('drops the id %j', (osmId) => {
+    expect(decodeState(pin('city', osmId))?.pins?.[0].osmId).toBeUndefined()
+  })
+
+  it.each(['peak', 'mountain pass', 'coordinates', ''])('keeps the kind %j', (kind) => {
+    expect(decodeState(pin(kind, ''))?.pins?.[0].kind).toBe(kind)
+  })
+
+  it('reads a kind carrying markup as no kind', () => {
+    expect(decodeState(pin('city"><b>probe</b>', ''))?.pins?.[0].kind).toBe('')
+  })
+})
+
+// MapLibre refuses a latitude past a pole by throwing, and the throw lands in
+// the map's load handler, so one such vertex left the map with no markers, no
+// drawing and no overlays (#622). The same bounds `view` and `removed` hold.
+describe('a link coordinate off the globe', () => {
+  it('drops a ring with a vertex past a pole', () => {
+    expect(decodeState('type=peak&poly=0,100;1,100;1,101')?.polygon).toBeUndefined()
+  })
+
+  it('drops a ring with a vertex past the antimeridian', () => {
+    expect(decodeState('type=peak&poly=-181,46.8;-121.4,46.2;-121.1,48.1')?.polygon).toBeUndefined()
+  })
+
+  it('keeps a ring that reaches the poles and the antimeridian exactly', () => {
+    expect(decodeState('poly=-180,-90;180,90;0,0')?.polygon).toBeDefined()
+  })
+
+  it('drops a pin past a pole or the antimeridian and keeps the rest', () => {
+    const out = decodeState('pins=0,100,peak,,,North;200,10,peak,,,East;-121.5,47.5,peak,,,Kept')
+    expect(out?.pins?.map((p) => p.label)).toEqual(['Kept'])
   })
 })
 
@@ -774,6 +836,40 @@ describe('the compressed list', () => {
   it('reads a list written with its + escaped', () => {
     const escaped = compressToEncodedURIComponent(csv).replace(/\+/g, '%2B')
     expect(decodeState(`customz=${escaped}`)!.customCsv).toBe(csv)
+  })
+})
+
+// lz-string inflates with no output limit, and a run of one character is the
+// input it inflates most: a few thousand codes become tens of millions of
+// characters, every row of which became a pending marker (#622). So the value
+// is bounded on the way in, then the text it inflated to, then its rows.
+describe('the compressed list is bounded', () => {
+  const customz = (text: string) => `customz=${compressToEncodedURIComponent(text)}`
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => `47.${i},-121.${i},Peak ${i}`).join('\n')
+
+  it('drops a value longer than a link can carry', () => {
+    // Digits that do not repeat, so the value is long without being large.
+    let seed = 7
+    const digits = () => String((seed = (seed * 48271) % 2147483647)).padStart(10, '0')
+    const text = Array.from({ length: 900 }, () => `4${digits()},-12${digits()},${digits()}`).join('\n')
+    const value = customz(text)
+    expect(value.length).toBeGreaterThan(MAX_CUSTOMZ_CHARS + 'customz='.length)
+    expect(decodeState(value)?.customCsv).toBeUndefined()
+  })
+
+  it('drops a short value that inflates past what the cap of rows could fill', () => {
+    // Comment text, so no row bound is involved: only the inflated length.
+    const value = customz(`#${'a'.repeat(1_000_000)}`)
+    expect(value.length).toBeLessThan(MAX_CUSTOMZ_CHARS)
+    expect(decodeState(value, { maxDestinations: 3 })?.customCsv).toBeUndefined()
+  })
+
+  it('drops a list with more rows than the published candidate cap', () => {
+    expect(decodeState(customz(rows(4)), { maxDestinations: 3 })?.customCsv).toBeUndefined()
+  })
+
+  it('keeps a list at the cap exactly', () => {
+    expect(decodeState(customz(rows(3)), { maxDestinations: 3 })?.customCsv).toBe(rows(3))
   })
 })
 

@@ -93,13 +93,22 @@ const CRLF = '\r\n'
  * apostrophe is the spreadsheet convention for "this is text", which is the
  * least the defense can alter.
  *
- * A bare leading "-" is deliberately NOT prefixed. It is not a formula lead on
- * its own in any of the three, and a destination with no name falls back to its
- * coordinates, so every southern-hemisphere coordinate row starts with "-"; a
- * prefix there would corrupt the one field that identifies the row.
+ * A leading "-" is guarded too, with an exception. Excel turns a typed or
+ * imported `-1+1` into the formula `=-1+1` (#623); what Sheets and LibreOffice
+ * do with it was not established, and the guard costs them nothing. But a
+ * negative number starts with one, and so does a destination with no name,
+ * which falls back to its coordinates, so every southern- or western-hemisphere
+ * coordinate row would too. A prefix on either would turn a number into text
+ * or corrupt the one field that identifies the row. So a minus is guarded
+ * unless the whole cell is a number, or two joined by ", " the way both
+ * coordinate fallbacks write them.
  */
+const NUMBER = String.raw`-?\d+(?:\.\d+)?(?:e[-+]?\d+)?`
+const NUMBER_OR_PAIR = new RegExp(`^${NUMBER}(?:, ${NUMBER})?$`, 'i')
+
 function escapeCell(value: string): string {
-  const guarded = /^[=+@\t\r]/.test(value) ? `'${value}` : value
+  const lead = /^[=+@\t\r]/.test(value) || (value.startsWith('-') && !NUMBER_OR_PAIR.test(value))
+  const guarded = lead ? `'${value}` : value
   return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded
 }
 

@@ -118,6 +118,17 @@ def test_the_app_policy_forbids_the_dangerous_sources():
     assert not [name for name, sources in app_csp.items() if "'unsafe-eval'" in sources]
 
 
+def test_the_app_policy_allows_style_attributes_and_no_inline_style_element():
+    # The popups need inline style attributes; nothing needs an inline <style>
+    # element, and one written into popup markup would restyle the whole page
+    # rather than the card (#621). The split directives say so to every engine
+    # that knows them, and style-src stays as the fallback for one that does not.
+    app_csp = _parse(security_headers.APP_CSP)
+    assert app_csp["style-src-elem"] == ["'self'"]
+    assert app_csp["style-src-attr"] == ["'unsafe-inline'"]
+    assert app_csp["style-src"] == ["'self'", "'unsafe-inline'"]
+
+
 def test_the_docs_policy_differs_from_the_app_policy_only_where_stated():
     app_csp = _parse(security_headers.APP_CSP)
     docs = _parse(client.get("/docs").headers["Content-Security-Policy"])
@@ -136,8 +147,22 @@ def test_the_docs_policy_differs_from_the_app_policy_only_where_stated():
     assert hashes, "Swagger UI's init script must be allowed by hash"
     assert set(docs["script-src"]) - hashes - assets == {"'self'"}
 
+    # Nor the app's narrowing of style-src, which answers markup the app writes
+    # from a link, where the docs page carries a third-party bundle and that
+    # bundle's styling is not this policy's to second-guess.
+    assert "style-src-elem" not in docs
+    assert "style-src-attr" not in docs
+
     # Everything else is the app's policy, give or take where those assets sit.
-    shared = set(app_csp) - {"img-src", "connect-src", "worker-src", "child-src", "script-src"}
+    shared = set(app_csp) - {
+        "img-src",
+        "connect-src",
+        "worker-src",
+        "child-src",
+        "script-src",
+        "style-src-elem",
+        "style-src-attr",
+    }
     assert {name: set(app_csp[name]) for name in shared} == {
         name: set(docs[name]) - assets for name in shared
     }

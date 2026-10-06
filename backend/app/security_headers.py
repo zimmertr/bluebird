@@ -80,17 +80,33 @@ _SHARED_CSP: tuple[tuple[str, str], ...] = (
     # popup builders beside it), because a string passed to setHTML is not a
     # class list Tailwind's scanner ever sees. Inline style attributes are
     # exactly what style-src blocks without this, so a strict value renders
-    # every map popup unstyled. style-src-attr would carry it alone, but an
-    # engine that does not know that directive falls back to this one, which
-    # would break the popups on exactly the older browsers a CSP protects most.
-    # The script side stays strict, which is where the XSS boundary sits.
+    # every map popup unstyled. The app's policy narrows it with the split
+    # directives below; this stays as the fallback for an engine that does not
+    # know them, which would otherwise break the popups on exactly the older
+    # browsers a CSP protects most. The script side stays strict, which is
+    # where the XSS boundary sits.
     ("style-src", "'self' 'unsafe-inline'"),
+)
+
+# What the app's pages narrow style-src to, on every engine that knows the
+# split: inline style ATTRIBUTES, which the popups need, and no inline <style>
+# ELEMENT, which nothing in the app or its bundle writes. The difference is
+# reach. MapLibre positions a popup with a transform, which makes the card the
+# containing block for anything inside it, so an attribute in popup markup is
+# confined to the card, where an element written there would restyle the whole
+# page (#621). Stylesheets still load from this origin. Not shared with /docs:
+# Swagger UI is a third-party bundle, and that page writes no markup from a
+# link.
+_APP_STYLE_CSP: tuple[tuple[str, str], ...] = (
+    ("style-src-elem", "'self'"),
+    ("style-src-attr", "'unsafe-inline'"),
 )
 
 
 APP_CSP = _directives(
     (
         *_SHARED_CSP,
+        *_APP_STYLE_CSP,
         # data: covers the CSS icon sprites (inline SVG) and the 1x1 PNG the
         # forecast grid's image source is declared with; blob: covers
         # MapLibre's Image-element fallback for a decoded tile.
@@ -116,10 +132,12 @@ APP_CSP = _directives(
 def docs_csp(html: str, asset_origins: Iterable[str] = ()) -> str:
     """The policy for the self-hosted Swagger UI page.
 
-    It differs from :data:`APP_CSP` in four ways, all of them narrowing except
-    the first: the inline init script FastAPI emits is allowed by its own
-    hash, no third-party origin reaches either img-src or connect-src, and the
-    page starts no worker so neither worker directive is sent.
+    It differs from :data:`APP_CSP` in five ways, all of them narrowing except
+    the first two: the inline init script FastAPI emits is allowed by its own
+    hash, the app's split style directives are not sent (the page is a
+    third-party bundle that writes no markup from a link), no third-party
+    origin reaches either img-src or connect-src, and the page starts no
+    worker so neither worker directive is sent.
 
     The hash is taken from the rendered page rather than pinned, so a FastAPI
     upgrade that rewrites that script cannot silently blank the page. The suite
