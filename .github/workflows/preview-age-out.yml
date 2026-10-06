@@ -1,0 +1,53 @@
+name: Preview Age-out
+
+# Argo CD's `bluebird-pr` ApplicationSet deploys every open pull request that
+# carries the `create pr container` label, and before this workflow nothing
+# removed the label short of closing the PR. A preview therefore ran for as
+# long as its PR stayed open: #330's had been up for 19 days on 2026-10-01, on
+# an image built before four fixes had merged (#637).
+#
+# Removing the label is the whole teardown. The generator polls GitHub every
+# 150 s, stops templating `bluebird-pr-<N>` once the label is gone, and the
+# ApplicationSet deletes that Application; its resources finalizer prunes what
+# it deployed. Nothing here touches Argo or the cluster. A push to an owner's PR
+# re-adds the label through pr-preview.yml, and so does adding it by hand.
+on:
+  schedule:
+    - cron: "23 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+
+env:
+  # Days without any update (a push, a comment, a label, a review) before a
+  # preview is taken down. 14 is a pick awaiting the maintainer's confirmation
+  # (#637); this line is the only place the number is written.
+  PREVIEW_MAX_AGE_DAYS: 14
+
+jobs:
+  age-out:
+    name: Remove the preview label from quiet PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove `create pr container` from PRs not updated within the limit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          LABEL: create pr container
+        run: |
+          cutoff=$(( $(date -u +%s) - PREVIEW_MAX_AGE_DAYS * 86400 ))
+          # gh lists 30 by default; a preview is opt-in per PR, so 200 open
+          # labelled PRs is far past anything this repository holds.
+          stale=$(gh pr list --label "$LABEL" --state open --limit 200 \
+            --json number,updatedAt \
+            | jq -r --argjson cutoff "$cutoff" \
+              '.[] | select((.updatedAt | fromdateiso8601) < $cutoff) | "\(.number) \(.updatedAt)"')
+          if [ -z "$stale" ]; then
+            echo "No labelled PR is older than ${PREVIEW_MAX_AGE_DAYS} days."
+            exit 0
+          fi
+          echo "$stale" | while read -r n updated; do
+            echo "PR #${n} last updated ${updated}: removing \"${LABEL}\"."
+            gh pr edit "$n" --remove-label "$LABEL"
+          done
