@@ -12,8 +12,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import cache_headers, ratelimit, security_headers, telemetry
 from app.error_codes import ApiError, api_error_handler, validation_error_handler
@@ -23,6 +24,7 @@ from app.routes.closures import router as closures_router
 from app.routes.config import router as config_router
 from app.routes.destinations import router as destinations_router
 from app.routes.geocode import router as geocode_router
+from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.routes.notfound import router as notfound_router
 from app.routes.smoke import router as smoke_router
 from app.routes.version import router as version_router
@@ -227,6 +229,42 @@ app = FastAPI(
 # it work unchanged in local dev, a PR preview, and production. Pinning it to
 # the production URL would make a local /docs fire real requests at the live
 # site.
+
+class EncodedSlashMiddleware:
+    """Answers the gateway's own 404 to any path that spells a slash as `%2F`.
+
+    The production gateway publishes `/api` by allowlist and matches paths as
+    literal text, without decoding `%2F`; uvicorn decodes it before Starlette
+    routes. So `/api%2Fanalyze` matched no edge rule, as a path outside `/api/`,
+    and then ran the analyze route without a key on the pod's shared quota
+    (#620). The chart refuses `/api%2F` too (bluebird-helm#302); this is the
+    layer that also holds where there is no gateway, or where a later edge rule
+    misses a shape.
+
+    It reads `raw_path`, the path as sent, because `path` has already been
+    decoded. Every path is covered, not only `/api`: no route here takes a path
+    parameter, so no request this app serves needs an encoded slash. The body
+    is the edge record's (`EDGE_PATH_PHRASE`), so both layers say the same
+    thing. Pure ASGI like the header middlewares, so it never buffers the
+    analyze stream it passes through.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and b"%2f" in (scope.get("raw_path") or b"").lower():
+            refusal = JSONResponse(status_code=404, content=not_found_body(EDGE_PATH_PHRASE))
+            await refusal(scope, receive, send)
+            return
+        await self.app(scope, receive, send)
+
+
+# Added first, so it sits innermost, next to the router: every middleware added
+# below wraps its answer, which is what gives it the CORS, security and cache
+# headers the edge record holds, a line in the access log, and a count in the
+# metrics (under `unmatched`, since no route claimed it).
+app.add_middleware(EncodedSlashMiddleware)
 
 # A national wildfire viewport is the largest body this API serves: ~1.5 MB of
 # perimeter geometry. Everything else here is small enough that the 1 KB floor
