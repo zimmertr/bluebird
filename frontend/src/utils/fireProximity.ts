@@ -57,6 +57,22 @@ export function checkRunning(status: FireProximityStatus): boolean {
   return status === 'idle' || status === 'loading'
 }
 
+/**
+ * Whether a failed check owes the panel its line below Analyze (#642, record
+ * 0106). Only while the layer drawing the same data is on: a reader who never
+ * asked for it on the map is not told the map's source is unreachable, and the
+ * column's own `N/A` cells still say the check has no answer. Shared by the
+ * wildfire and closure checks, each against its own layer. `rowCount` because
+ * a failed check over a report with no rows has nothing to be wrong about.
+ */
+export function checkNoticeDue(
+  status: FireProximityStatus,
+  layerOn: boolean,
+  rowCount: number,
+): boolean {
+  return layerOn && status === 'unavailable' && rowCount > 0
+}
+
 // One degree of latitude ≈ 69 mi. Longitude is scaled by cos(lat). Good to a
 // fraction of a percent at the ~10 mi scale this warning cares about.
 const MI_PER_DEG_LAT = 69.0

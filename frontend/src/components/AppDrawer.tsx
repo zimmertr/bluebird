@@ -10,7 +10,7 @@ import type { DrawMode } from '../hooks/useDrawMode'
 import type { ForecastSelectionState } from '../hooks/useForecastSelection'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { AnalyzeResponse, DestinationResult } from '../types'
-import type { FireProximityStatus } from '../utils/fireProximity'
+import { type FireProximityStatus, checkNoticeDue } from '../utils/fireProximity'
 import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { CommitReason } from '../utils/present'
 import { LAYER, RADIUS, SURFACE_DIVIDER, TAP, TEXT } from '../styles'
@@ -94,6 +94,9 @@ interface AppDrawerProps {
   fireStatus: FireProximityStatus
   /** Where the closure check stands, for the same note about closures. */
   closureStatus: ClosureProximityStatus
+  /** The Wildfires and area closures layers, which each check's note follows (`checkNoticeDue`). */
+  showWildfires: boolean
+  showAreaClosures: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
 }
@@ -130,6 +133,8 @@ export default function AppDrawer({
   results,
   fireStatus,
   closureStatus,
+  showWildfires,
+  showAreaClosures,
   basemapFailed,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
@@ -215,8 +220,8 @@ export default function AppDrawer({
           onCancelDrawing={handleCancelDrawing}
           onClearDrawing={handleClearDrawing}
           onPointAtSearch={onPointAtSearch}
-          wildfireCheckFailed={fireStatus === 'unavailable' && results.length > 0}
-          closureCheckFailed={closureStatus === 'unavailable' && results.length > 0}
+          wildfireCheckFailed={checkNoticeDue(fireStatus, showWildfires, results.length)}
+          closureCheckFailed={checkNoticeDue(closureStatus, showAreaClosures, results.length)}
           basemapFailed={basemapFailed}
           onPointAtMapPois={onPointAtMapPois}
           destinationTypes={destinationTypes}
