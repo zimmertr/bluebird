@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from conftest import dest
 
-from app import ratelimit
+from app import limits, ratelimit
 from app.models import MAX_ANALYZE_PEAKS, AnalyzeRequest, DestinationResult
 from app.routes.analyze.events import Done, Failure, Progress, Refusal, Result, Status
 from app.routes.analyze.phases import (
@@ -208,11 +208,62 @@ def test_check_pacing_never_refuses_a_keyed_caller(paced):
 
 def test_check_pacing_never_refuses_a_forecast_window(paced):
     # The worst the forecast endpoint can be asked: the analysis cap over its
-    # whole reach, with the cloud column beside it.
+    # whole reach, with the cloud column beside it. The browser path offers
+    # exactly this, so neither the pacer nor the destination-hour budget may
+    # refuse it, with a key or without.
     end = datetime(2026, 9, 16, 23, 0, tzinfo=UTC)
     window = Window(end - timedelta(days=15, hours=23), end, "forecast", end)
     cloud = Eager(aqi=False, cloud=True)
     assert _check_pacing(_field(MAX_ANALYZE_PEAKS), window, None, "peak", cloud) is None
+    assert _check_pacing(_field(MAX_ANALYZE_PEAKS), window, "caller-key", "peak", cloud) is None
+
+
+# ── the destination-hour budget (#624) ─────────────────────────────────────
+#
+# Every candidate's hourly series is held until the response is built, so what
+# one analysis holds is its candidate count times its window's hours. A key
+# skips the pacer, so this is the one bound on a keyed analysis's size.
+
+YEAR_DAYS = 365
+
+
+def test_check_pacing_refuses_a_keyed_analysis_over_the_hour_budget():
+    window = _archive_window(YEAR_DAYS)
+    most = limits.MAX_ANALYZE_DESTINATION_HOURS // (YEAR_DAYS * 24)
+    refusal = _check_pacing(_field(most + 1), window, "caller-key", "peak", NO_EAGER)
+    assert isinstance(refusal, Refusal)
+    # The pacing refusal's shape and sentence exactly: one more kind of "too
+    # many for one analysis", with the most this window can take as `limit`.
+    assert refusal.body == {
+        "detail": (
+            f"This search covers {most + 1:,} peaks over {YEAR_DAYS} days, "
+            "which is too many for one analysis."
+        ),
+        "error": {"code": "refusal", "retryable": False},
+        "found": most + 1,
+        "limit": most,
+        "suggested_min_elevation_ft": None,
+        "suggested_keeps": None,
+    }
+    assert _check_pacing(_field(most), window, "caller-key", "peak", NO_EAGER) is None
+
+
+def test_check_pacing_holds_an_unkeyed_caller_to_the_hour_budget_too():
+    # The suite runs with the pacer off, so only the budget can refuse here:
+    # it is a bound on memory, not on quota, and a self-hosted instance with
+    # its pacer disabled holds the same series a keyed request does.
+    window = _archive_window(YEAR_DAYS)
+    most = limits.MAX_ANALYZE_DESTINATION_HOURS // (YEAR_DAYS * 24)
+    refusal = _check_pacing(_field(most + 1), window, None, "peak", NO_EAGER)
+    assert isinstance(refusal, Refusal) and refusal.body["limit"] == most
+
+
+def test_the_hour_budget_counts_the_hourly_stamps_a_series_holds():
+    # Both ends are inclusive, and a point sample is the one hour it floors to.
+    start = datetime(2026, 9, 1, 0, 0, tzinfo=UTC)
+    assert limits.window_hours(start, start + timedelta(hours=23)) == 24
+    assert limits.window_hours(start, start + timedelta(minutes=1)) == 1
+    assert limits.window_hours(start + timedelta(minutes=30), start + timedelta(hours=2)) == 2
 
 
 def test_check_pacing_counts_the_cloud_column(paced):

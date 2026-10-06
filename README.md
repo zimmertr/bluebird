@@ -51,7 +51,7 @@ Then open `http://localhost:8000`.
 | Doc | What it covers |
 |---|---|
 | [Usage](docs/USAGE.md) | Drawing polygons, forecast windows, and reading the results |
-| [Limits](docs/LIMITS.md) | The seven caps, why each exists, and what hitting one looks like |
+| [Limits](docs/LIMITS.md) | The eight caps, why each exists, and what hitting one looks like |
 | [Data Sources](docs/DATA.md) | What each source can tell you, and what it cannot |
 | [API](docs/API.md) | The full HTTP API: no accounts, and an Open-Meteo key only for forecasts |
 | [Configuration](docs/CONFIGURATION.md) | Environment variables and log levels |

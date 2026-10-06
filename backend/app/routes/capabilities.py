@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
+from app.limits import MAX_ANALYZE_DESTINATION_HOURS
 from app.models import (
     ARCHIVE_DATA_DAYS,
     DEFAULT_FORECAST_MODEL,
@@ -260,6 +261,16 @@ class Limits(BaseModel):
             "with 422."
         )
     )
+    max_destination_hours: int = Field(
+        description=(
+            "Ceiling on candidates times window hours in a single analysis, "
+            "with or without an Open-Meteo key. Every candidate's hourly "
+            "forecast is held until the response is built, so this is what "
+            "bounds the memory one analysis takes. An analysis past it is "
+            "refused with 400 before any forecast is fetched, and the refusal's "
+            "`limit` is the most destinations its window can take."
+        )
+    )
     rate: RateLimits = Field(
         description=(
             "Per-client request pacing. Unlike the bounds above, exceeding "
@@ -377,6 +388,7 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
             aqi_forecast_days=AQI_FORECAST_DAYS,
             max_request_bytes=MAX_REQUEST_BYTES,
             max_polygon_points=MAX_POLYGON_POINTS,
+            max_destination_hours=MAX_ANALYZE_DESTINATION_HOURS,
             # Read from the live limiter instances, not the env constants, so
             # what this publishes is what enforcement actually counts.
             rate=RateLimits(

@@ -334,15 +334,17 @@ async def analyze_stream(
                 "`destination_types` nor `custom_destinations`, "
                 "`destination_types` is non-empty with no `polygon`, a regional "
                 "`forecast_model` has no coverage for the area, the "
-                "candidate count exceeds the cap, or, for a request without an "
-                "Open-Meteo key, the candidates over this window cost more "
-                "than the deployment can pace. Over-cap refusals carry the "
+                "candidate count exceeds the cap, the candidates times the "
+                "window's hours pass `max_destination_hours`, or, for a request "
+                "without an Open-Meteo key, the candidates over this window cost "
+                "more than the deployment can pace. Over-cap refusals carry the "
                 "structured remedy fields (`found`, `limit`, and a computed "
                 "elevation-floor suggestion when one exists); send "
                 "`top_by_elevation: true` to elect an explicit top-N analysis "
                 "instead. A pacing refusal carries `found` and `limit`, the "
-                "most destinations that window can take; a shorter window, "
-                "fewer destinations or a key all clear it."
+                "most destinations that window can take; a shorter window or "
+                "fewer destinations clears either; a key clears only the pacing "
+                "refusal."
             ),
         },
         502: {

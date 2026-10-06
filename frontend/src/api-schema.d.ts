@@ -288,7 +288,7 @@ export interface components {
             found?: number | null;
             /**
              * Limit
-             * @description The analysis ceiling the count exceeded (destinations): the analysis cap, or on a pacing refusal the most destinations the requested window can take without an Open-Meteo key.
+             * @description The analysis ceiling the count exceeded (destinations): the analysis cap, or on a pacing or destination-hour refusal the most destinations the requested window can take.
              */
             limit?: number | null;
             /**
@@ -1165,6 +1165,11 @@ export interface components {
              */
             archive_days: number;
             /**
+             * Max Destination Hours
+             * @description Ceiling on candidates times window hours in a single analysis, with or without an Open-Meteo key. Every candidate's hourly forecast is held until the response is built, so this is what bounds the memory one analysis takes. An analysis past it is refused with 400 before any forecast is fetched, and the refusal's `limit` is the most destinations its window can take.
+             */
+            max_destination_hours: number;
+            /**
              * Max Destinations
              * @description Ceiling on candidates in a single analysis, counting discovered and custom destinations together. Every candidate gets a real forecast, so this is what bounds upstream cost. Exceeding it fails loudly rather than silently truncating the ranking.
              */
@@ -1443,7 +1448,7 @@ export interface operations {
                     "application/json": components["schemas"]["AnalyzeResponse"];
                 };
             };
-            /** @description The request parsed but does not describe a runnable analysis: the window ends before it starts, the request sends neither `destination_types` nor `custom_destinations`, `destination_types` is non-empty with no `polygon`, a regional `forecast_model` has no coverage for the area, the candidate count exceeds the cap, or, for a request without an Open-Meteo key, the candidates over this window cost more than the deployment can pace. Over-cap refusals carry the structured remedy fields (`found`, `limit`, and a computed elevation-floor suggestion when one exists); send `top_by_elevation: true` to elect an explicit top-N analysis instead. A pacing refusal carries `found` and `limit`, the most destinations that window can take; a shorter window, fewer destinations or a key all clear it. */
+            /** @description The request parsed but does not describe a runnable analysis: the window ends before it starts, the request sends neither `destination_types` nor `custom_destinations`, `destination_types` is non-empty with no `polygon`, a regional `forecast_model` has no coverage for the area, the candidate count exceeds the cap, the candidates times the window's hours pass `max_destination_hours`, or, for a request without an Open-Meteo key, the candidates over this window cost more than the deployment can pace. Over-cap refusals carry the structured remedy fields (`found`, `limit`, and a computed elevation-floor suggestion when one exists); send `top_by_elevation: true` to elect an explicit top-N analysis instead. A pacing refusal carries `found` and `limit`, the most destinations that window can take; a shorter window or fewer destinations clears either; a key clears only the pacing refusal. */
             400: {
                 headers: {
                     [name: string]: unknown;
