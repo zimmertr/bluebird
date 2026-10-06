@@ -587,6 +587,9 @@ def test_attempt_outcome_classification():
         == "network_error"
     )
     assert osm_mod._attempt_outcome(ValueError("bad json")) == "error"
+    # The attempt's own total deadline (#630) is a timeout like httpx's, and
+    # the timeout series is the one the mirror table is retuned from.
+    assert osm_mod._attempt_outcome(TimeoutError()) == "timeout"
 
 
 def test_overpass_failure_counts_fallback_and_success_counts_mirror(monkeypatch):

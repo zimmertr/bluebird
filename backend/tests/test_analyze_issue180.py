@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+from conftest import fake_response
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -227,6 +228,26 @@ def test_lazy_aqi_fetches_only_displayed_rows(monkeypatch):
     # AQI is display data here (default precip sort): fetched once, for
     # exactly the 5 returned rows, not the 20 candidates.
     assert calls == [5]
+
+
+def test_lazy_aqi_that_does_not_decode_degrades_to_null(monkeypatch):
+    # Issue #630: the late air-quality fetch caught only a refused key, so a
+    # 200 whose body was not JSON escaped it and this route answered a bare
+    # 500. Air quality is best-effort: the ranking stands with null AQI.
+    _stub_discovery(monkeypatch, 3)
+    _stub_weather(monkeypatch)
+
+    class _NotJson:
+        async def get(self, url, params=None):
+            return fake_response(None, text="<html>busy</html>")
+
+    monkeypatch.setattr(air_quality.http, "client", lambda: _NotJson())
+    resp = client.post(
+        "/api/analyze",
+        json={"destination_types": ["peak"], "polygon": _POLY, "limit": 3, **_window()},
+    )
+    assert resp.status_code == 200
+    assert [r["aqi_avg"] for r in resp.json()["results"]] == [None, None, None]
 
 
 def test_aqi_sort_fetches_every_candidate(monkeypatch):

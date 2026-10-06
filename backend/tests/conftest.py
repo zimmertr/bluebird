@@ -37,6 +37,7 @@ def fake_response(
     *,
     url: str = "https://stub.invalid",
     params: dict[str, Any] | None = None,
+    text: str | None = None,
 ) -> httpx.Response:
     """The answer an HTTP stub hands back where the real client would.
 
@@ -47,10 +48,15 @@ def fake_response(
     the `url` and `params` it was called with: `raise_for_status` builds its
     message from the request, so only then does an error's text carry the
     query string, and any key in it, the way the real client's does.
+
+    `text` replaces the JSON body with raw text, for the answer an upstream
+    gives when something in front of it is not the API: an HTML error page
+    from a proxy, served with a 200. `payload` is ignored when it is given.
     """
-    return httpx.Response(
-        status, json=payload, request=httpx.Request("GET", url, params=params)
-    )
+    request = httpx.Request("GET", url, params=params)
+    if text is not None:
+        return httpx.Response(status, text=text, request=request)
+    return httpx.Response(status, json=payload, request=request)
 
 
 # A caller's Open-Meteo key for tests, made up. It holds `+`, `/` and `=`
