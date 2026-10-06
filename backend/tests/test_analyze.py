@@ -635,6 +635,83 @@ def test_analyze_over_peak_cap_is_400(monkeypatch, stub_upstreams):
     assert resp.json()["error"] == {"code": "refusal", "retryable": False}
 
 
+def _year_long(count: int) -> dict:
+    """A keyed caller's year-long window over `count` pasted destinations:
+    365 calendar days, 8,737 hourly stamps."""
+    end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    return {
+        "destination_types": [],
+        "start_datetime": (end - timedelta(days=364)).isoformat(),
+        "end_datetime": end.isoformat(),
+        "custom_destinations": [
+            {"name": f"d{i}", "latitude": 40.0 + i * 1e-3, "longitude": -110.0}
+            for i in range(count)
+        ],
+    }
+
+
+def _refusal_from(route: str, resp) -> dict:
+    """The refusal as the JSON route's 400 body, or the stream's error event
+    with its `message` read back as `detail`."""
+    if route == "/api/analyze":
+        assert resp.status_code == 400
+        return resp.json()
+    events = [
+        json.loads(line[len("data: "):])
+        for line in resp.text.splitlines()
+        if line.startswith("data: ")
+    ]
+    error = events[-1]
+    assert error.pop("type") == "error"
+    error["detail"] = error.pop("message")
+    return error
+
+
+@pytest.mark.parametrize("route", ["/api/analyze", "/api/analyze/stream"])
+def test_a_keyed_analysis_over_the_hour_budget_is_refused_before_it_fetches(
+    route, monkeypatch
+):
+    # A key skips the pacer, so before #624 nothing bounded a keyed analysis
+    # by its window: the analysis cap over a year of hours held more series
+    # than the pod's memory limit.
+    from app import limits
+
+    fetched: list[int] = []
+
+    async def fake_wx(destinations, *args, **kwargs):
+        fetched.append(len(destinations))
+        return [_wx(1.0) for _ in destinations]
+
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+    hours = 364 * 24 + 1
+    most = limits.MAX_ANALYZE_DESTINATION_HOURS // hours
+    resp = client.post(route, json=_year_long(most + 1), headers={API_KEY_HEADER: FAKE_API_KEY})
+    assert _refusal_from(route, resp) == {
+        "detail": (
+            f"This search covers {most + 1:,} destinations over 365 days, "
+            "which is too many for one analysis."
+        ),
+        "error": {"code": "refusal", "retryable": False},
+        "found": most + 1,
+        "limit": most,
+        "suggested_min_elevation_ft": None,
+        "suggested_keeps": None,
+    }
+    assert fetched == []
+
+
+def test_a_keyed_analysis_at_the_hour_budget_runs(monkeypatch, stub_upstreams):
+    from app import limits
+
+    hours = 364 * 24 + 1
+    most = limits.MAX_ANALYZE_DESTINATION_HOURS // hours
+    resp = client.post(
+        "/api/analyze", json=_year_long(most), headers={API_KEY_HEADER: FAKE_API_KEY}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["total_queried"] == most
+
+
 def test_analyze_stream_emits_error_event(stub_upstreams):
     now = datetime.now(UTC)
     body = {

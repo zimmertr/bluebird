@@ -30,6 +30,33 @@ MAX_POLYGON_AREA_KM2 = 100_000
 # truncation only ever happens when the request explicitly opts in.
 MAX_ANALYZE_PEAKS = 1_500
 
+# Candidates times window hours, the most one server-side analysis may hold
+# (#624). Every candidate's hourly series is held until the response is built,
+# and since the archive (#123) a window can run about 390 days, so the count
+# cap alone no longer bounds memory: a key skips the pacer, which was the only
+# other bound on a long window (#581).
+#
+# Measured 2026-10-06 in the backend test container, one keyed POST
+# /api/analyze per row with Open-Meteo answered from synthetic bodies (every
+# value present, four batches in flight, series on, `limit` = every row):
+#
+#   candidates x hours      peak RSS growth
+#      150 x 9,407            563 MB
+#      200 x 9,407            728 MB
+#      400 x 9,407          1,301 MB
+#      800 x 9,407          2,506 MB   (past the pod's 2 GiB limit)
+#    1,500 x 1,000            608 MB   (this budget)
+#    1,500 x   385            289 MB   (the browser's largest analysis)
+#
+# That is about 100 MB plus 320 bytes per destination-hour, so the analysis cap
+# over the longest window would need about 4.6 GB. One destination's held
+# weather over 9,407 hours is 1.40 MB (1.58 MB with every column present).
+# At 1,500,000 one analysis peaks near 600 MB, under a third of the limit:
+# the measured steady state (253 MiB), a full forecast cache
+# (`cache.FORECAST_MAX_BYTES`) and two analyses at the budget fit together.
+# The browser's largest analysis is 577,500, well inside it.
+MAX_ANALYZE_DESTINATION_HOURS = 1_500_000
+
 # How far back a window may reach, which is the ARCHIVE endpoint's reach rather
 # than the forecast endpoint's (issue #123). One year is a product choice, not a
 # limit of the data: the archive holds decades, and a calendar offering them
@@ -130,6 +157,21 @@ MAX_POLYGON_POINTS = 1_000
 
 def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
+def window_hours(start: datetime, end: datetime) -> int:
+    """How many hourly stamps fall inside a window, both ends inclusive.
+
+    That is how many values each of a destination's series holds
+    (`_weather_series` keeps every stamp from start to end), so it is the hours
+    half of `MAX_ANALYZE_DESTINATION_HOURS`. A point sample, which the request
+    validator turns into one minute from the top of its hour, counts one.
+    """
+    first = start.replace(minute=0, second=0, microsecond=0)
+    if first < start:
+        first += timedelta(hours=1)
+    last = end.replace(minute=0, second=0, microsecond=0)
+    return max(0, (last - first) // timedelta(hours=1) + 1)
 
 
 def archive_boundary(now: datetime) -> datetime:

@@ -677,8 +677,8 @@ class AnalysisRefusal(BaseModel):
         default=None,
         description=(
             "The analysis ceiling the count exceeded (destinations): the "
-            "analysis cap, or on a pacing refusal the most destinations the "
-            "requested window can take without an Open-Meteo key."
+            "analysis cap, or on a pacing or destination-hour refusal the most "
+            "destinations the requested window can take."
         ),
     )
     suggested_min_elevation_ft: float | None = Field(

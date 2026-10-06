@@ -23,7 +23,8 @@ Entries expire by TTL (OSM data, from Overpass or Nominatim, drifts on a
 human timescale; Open-Meteo
 model runs update roughly hourly, so 15 minutes is conservative) and the
 stores are LRU-bounded so an adversary drawing endless polygons cannot grow
-memory without bound.
+memory without bound. The forecast store is bounded by bytes too, because one of its
+entries grows with its window's hours (#624).
 
 Coordinate keys are the values exactly as they appear in the destination
 dicts. Deliberately NOT rounded coarsely: Open-Meteo interpolates per exact
@@ -54,10 +55,32 @@ ENRICH_MAX_ENTRIES = 64
 
 FORECAST_TTL_S = 15 * 60
 # A 1,500-destination analysis is up to 3,000 entries (weather + AQI); this
-# holds a few of those. Entries carry hourly series (~a few KB for a 16-day
-# window), so the worst case is tens of MB per pod — bounded, and far
-# cheaper than the upstream quota it saves.
+# holds a few of those over a forecast window. The count alone does not bound
+# memory, because an entry carries its window's hourly series and a window can
+# run a year (#123, #624). Measured 2026-10-06 in the backend test container,
+# with the app's own aggregation over synthetic hours: one weather entry is
+# 67.5 KB over 385 hours (16 days) and 1.58 MB over 9,407 (the longest window
+# the request accepts); an AQI entry is 26.5 KB and 0.50 MB. Bounded by count
+# alone, 5,000 year-long entries would be several GB.
 FORECAST_MAX_ENTRIES = 5_000
+# So the store is bounded by bytes as well, counted by `forecast_entry_bytes`.
+# 256 MiB is an eighth of the pod's 2 GiB memory limit, and beside the
+# measured steady state and two analyses at `MAX_ANALYZE_DESTINATION_HOURS`
+# (limits.py) it leaves the pod under its limit. It still holds every entry of
+# a 1,500-destination analysis over 16 days, which is the repeat it exists to
+# absorb; an analysis at the budget over a long window outgrows it, and its
+# oldest entries go first.
+FORECAST_MAX_BYTES = 256 * 1024 * 1024
+
+# What `forecast_entry_bytes` counts per hourly value, and per entry beside
+# them. Measured 2026-10-06 (`sys.getsizeof` walked over real entries): 33.7
+# bytes per value for a weather entry with every column present, 26.5 for an
+# AQI entry, and 2.5 KB for a one-hour weather entry, whose aggregates are most
+# of it. An epoch-ms stamp is a 32-byte int behind an 8-byte slot, so 40 is the
+# most any value costs; `test_forecast_entry_bytes_never_counts_less_than_an_
+# entry_holds` holds the count above the walk.
+_BYTES_PER_HOURLY_VALUE = 40
+_BYTES_PER_ENTRY = 4 * 1024
 
 # OSM data again, so the discovery TTL. An entry is at most ten small place
 # rows, so the bound is generous: it exists to stop an endless stream of
@@ -68,19 +91,30 @@ GEOCODE_MAX_ENTRIES = 512
 
 class TTLCache:
     """LRU-bounded TTL map. Synchronous by design: every access happens on
-    the single event loop, the same no-lock argument ratelimit makes."""
+    the single event loop, the same no-lock argument ratelimit makes.
+
+    With `max_bytes`, the store is bounded by what `sizer` counts as well as by
+    entry count: the least recently used entries go until both bounds hold, and
+    an entry larger than `max_bytes` on its own is not stored at all, since
+    keeping it would evict everything else and still not fit.
+    """
 
     def __init__(
         self,
         max_entries: int,
         ttl_s: float,
         *,
+        max_bytes: int | None = None,
+        sizer: Callable[[Any], int] | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._max = max(1, max_entries)
         self._ttl = ttl_s
         self._clock = clock
-        self._data: OrderedDict[Any, tuple[float, Any]] = OrderedDict()
+        self.max_bytes = max_bytes
+        self._sizer = sizer if sizer is not None else (lambda _value: 0)
+        self._data: OrderedDict[Any, tuple[float, Any, int]] = OrderedDict()
+        self.bytes = 0
         self.hits = 0
         self.misses = 0
 
@@ -89,9 +123,9 @@ class TTLCache:
         if entry is None:
             self.misses += 1
             return None
-        expires, value = entry
+        expires, value, _size = entry
         if self._clock() >= expires:
-            del self._data[key]
+            self._drop(key)
             self.misses += 1
             return None
         self._data.move_to_end(key)
@@ -99,18 +133,52 @@ class TTLCache:
         return value
 
     def put(self, key: Any, value: Any) -> None:
-        self._data[key] = (self._clock() + self._ttl, value)
-        self._data.move_to_end(key)
-        while len(self._data) > self._max:
-            self._data.popitem(last=False)
+        size = self._sizer(value)
+        if key in self._data:
+            self._drop(key)
+        if self.max_bytes is not None and size > self.max_bytes:
+            return
+        self._data[key] = (self._clock() + self._ttl, value, size)
+        self.bytes += size
+        while len(self._data) > self._max or (
+            self.max_bytes is not None and self.bytes > self.max_bytes
+        ):
+            self._drop(next(iter(self._data)))
+
+    def _drop(self, key: Any) -> None:
+        _expires, _value, size = self._data.pop(key)
+        self.bytes -= size
 
     def clear(self) -> None:
         self._data.clear()
+        self.bytes = 0
+
+
+def forecast_entry_bytes(value: Any) -> int:
+    """An upper bound on what one forecast entry holds, from its hour counts.
+
+    Counted rather than walked: a walk visits every value, which is tens of
+    thousands of objects per entry over a long window and three thousand
+    entries per analysis, on the event loop. The series are nearly all of an
+    entry, so their lengths times the measured most per value, plus a fixed
+    allowance for the aggregates, never falls under the real size (see the
+    constants above).
+    """
+    values = 0
+    series = value.get("series") if isinstance(value, dict) else None
+    if isinstance(series, dict):
+        values = sum(len(column) for column in series.values() if isinstance(column, list))
+    return _BYTES_PER_ENTRY + values * _BYTES_PER_HOURLY_VALUE
 
 
 DISCOVERY_CACHE = TTLCache(DISCOVERY_MAX_ENTRIES, DISCOVERY_TTL_S)
 ENRICH_CACHE = TTLCache(ENRICH_MAX_ENTRIES, ENRICH_TTL_S)
-FORECAST_CACHE = TTLCache(FORECAST_MAX_ENTRIES, FORECAST_TTL_S)
+FORECAST_CACHE = TTLCache(
+    FORECAST_MAX_ENTRIES,
+    FORECAST_TTL_S,
+    max_bytes=FORECAST_MAX_BYTES,
+    sizer=forecast_entry_bytes,
+)
 GEOCODE_CACHE = TTLCache(GEOCODE_MAX_ENTRIES, GEOCODE_TTL_S)
 
 
