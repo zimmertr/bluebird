@@ -380,7 +380,11 @@ writes above go through a PR, and the thing they wait on is `pr.yml` /
 
 A fourth writer into that repo is not one of these jobs: Renovate
 (`.github/renovate.json`) auto-merges minor and patch updates after a seven-day
-release age, gated on the same `Validate manifests` check.
+release age, gated on the same `Validate manifests` check. It does not touch
+the `zimmertr/bluebird` image tag or the `bluebird-helm` chart version: both
+are disabled there (Kubernetes-Manifests#1363), because the release jobs above
+are their only writers, and a higher tag that appeared in Docker Hub without
+passing this repo's checks must not reach production by being newer.
 
 Three constraints hold this together, and breaking any one of them silently
 strands the automation:
