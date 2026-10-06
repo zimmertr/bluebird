@@ -349,7 +349,8 @@ export default function App() {
   const { writeUrl } = urlSync
 
   // Flags destinations within 10 mi of an active US wildfire; independent of the
-  // map overlay toggle. Empty (no ⚠️) when best-effort NIFC data is unavailable.
+  // map overlay toggle, which it reads only to ask a failed check again when
+  // the layer comes on. Empty (no ⚠️) when best-effort NIFC data is unavailable.
   // Fed the candidate field useAnalyze publishes at discovery, so the NIFC
   // lookup overlaps the weather fetch instead of following it; the committed
   // universe answers when no candidate field exists (a failed run, the server
@@ -358,11 +359,11 @@ export default function App() {
   // table view, because the wildfire column sorts and renders out of its
   // maps.)
   const checkField = fireField ?? universe ?? (demo ? NO_ROWS : results)
-  const fire = useFireProximity(checkField, fireSeq)
+  const fire = useFireProximity(checkField, fireSeq, showWildfires)
   // Flags destinations inside an active Forest Service area closure (#550):
   // the Closure column's check, on the fire check's field and sequence,
   // because both are one lookup per analysis over the same candidates.
-  const closure = useClosureProximity(checkField, fireSeq)
+  const closure = useClosureProximity(checkField, fireSeq, showAreaClosures)
 
   // Every knob that has stopped being live, and why. Empty while everything
   // applies instantly, which is the normal case: the cues exist so the
@@ -545,6 +546,8 @@ export default function App() {
         results={results}
         fireStatus={fire.status}
         closureStatus={closure.status}
+        showWildfires={showWildfires}
+        showAreaClosures={showAreaClosures}
         basemapFailed={basemapFailed}
       />
 
