@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, Literal, NamedTuple
@@ -29,6 +28,7 @@ from typing import Any, Literal, NamedTuple
 import httpx
 
 from app import ratelimit, telemetry
+from app.log_redaction import KEY_IN_QUERY, REDACTED
 from app.services import cache
 from app.services.errors import (
     InvalidApiKeyError,
@@ -103,15 +103,6 @@ class BatchUnanswered(Exception):
 # its own exception or returns, leaving the generic handling below to run.
 StatusErrorHook = Callable[[httpx.HTTPStatusError, str], None]
 
-# What stands in for a caller's key wherever text could persist. The pod
-# forwards a paid credential and must forget it, so a log line is the one
-# place it could survive the request.
-_REDACTED = "[redacted]"
-# The key's value in a query string, whatever it holds. httpx percent-encodes
-# the query, so a key holding `+`, `/` or `=` reaches an error's text in a form
-# that a replace of the raw key would miss.
-_KEY_IN_QUERY = re.compile(r"(apikey=)[^&#\s'\"]+", re.IGNORECASE)
-
 
 def redacted_params(params: dict[str, Any]) -> dict[str, Any]:
     """`params` with any caller API key replaced, for logging.
@@ -121,7 +112,7 @@ def redacted_params(params: dict[str, Any]) -> dict[str, Any]:
     """
     if "apikey" not in params:
         return params
-    return {**params, "apikey": _REDACTED}
+    return {**params, "apikey": REDACTED}
 
 
 def redacted_error(exc: Exception, api_key: str | None) -> str:
@@ -131,14 +122,18 @@ def redacted_error(exc: Exception, api_key: str | None) -> str:
     request carries the key in that URL's query string, so interpolating the
     exception straight into a log line would persist the credential that
     `redacted_params` was careful not to.
+
+    The root formatter (`log_redaction`) masks the query form on every record
+    too. This stays beside it because only a call site holds the key itself,
+    so only here can the key be removed where it appears outside a query.
     """
-    text = _KEY_IN_QUERY.sub(rf"\g<1>{_REDACTED}", str(exc))
+    text = KEY_IN_QUERY.sub(rf"\g<1>{REDACTED}", str(exc))
     if not api_key:
         return text
     # The query mask above covers a URL; these cover the key anywhere else,
     # in both the form it was sent in and the form httpx encodes it to.
     for form in (api_key, _encoded(api_key)):
-        text = text.replace(form, _REDACTED)
+        text = text.replace(form, REDACTED)
     return text
 
 
