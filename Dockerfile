@@ -13,7 +13,11 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 # Cache mount keeps npm's download cache out of the layer but warm across
 # builds, so a lockfile change re-downloads only what actually changed.
-RUN --mount=type=cache,target=/root/.npm npm ci
+# --ignore-scripts because no package here needs its install script on Linux
+# (#633): the lockfile's two are fsevents, macOS only, and @scarf/scarf, which
+# only reports the install to scarf.sh. esbuild and the other native tools ship
+# their binaries as optional dependencies, so the build needs no script either.
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
 COPY frontend/ ./
 RUN npm run build
 
@@ -49,6 +53,11 @@ ENV PYTHONUNBUFFERED=1 \
 RUN apk upgrade --no-cache
 
 WORKDIR /app
+# requirements.txt is pip-compile's lock of requirements.in: every installed
+# distribution, the indirect ones included, pinned with its hashes (#633).
+# --require-hashes makes a package missing from it, or a download that does not
+# match it, fail the build rather than install, so the image holds exactly the
+# set the PR's tests ran and the dependency graph lists.
 COPY backend/requirements.txt ./
 # Upgrade pip first: the version bundled with the base image trails pip's own
 # security fixes (e.g. CVE-2025-8869 tar link-following), and scanners flag it.
@@ -57,7 +66,7 @@ COPY backend/requirements.txt ./
 # hadolint ignore=DL3042,DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
-    pip install -r requirements.txt
+    pip install --require-hashes -r requirements.txt
 COPY backend/app/ ./app/
 COPY --from=frontend-builder /app/frontend/dist/ ./static/
 # Swagger UI's assets, vendored so /docs renders without reaching out to a CDN.
