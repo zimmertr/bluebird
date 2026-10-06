@@ -1445,6 +1445,13 @@ _KEYED_FAILURES = [
         id="model-coverage",
     ),
     pytest.param(_unreachable, UpstreamError, id="unreachable"),
+    # A refusal whose reason is not a string: read as no reason, so it is the
+    # ordinary upstream error rather than a TypeError raised mid-handling.
+    pytest.param(
+        _answered(400, {"error": True, "reason": 123}),
+        UpstreamError,
+        id="reason-not-a-string",
+    ),
 ]
 
 

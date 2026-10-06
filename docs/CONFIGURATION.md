@@ -68,6 +68,8 @@ table for what each knob means:
 
 Bluebird Forecast uses Python's standard `logging` module plus one custom level, `TRACE`. Set `LOG_LEVEL` (case-insensitive) to control verbosity. The default is `WARNING`.
 
+Every line, at every level and from every logger, uvicorn's included, passes one formatter before it is written. It replaces the value of any `apikey=` in the line, a traceback included, with `[redacted]`, and writes a control character such as ESC as `\x1b`, so a request path cannot recolour or rewrite the terminal reading the log. Nothing configures it; it is always on.
+
 | Level | Value | What is logged |
 |---|---|---|
 | `TRACE` | 5 | Raw Overpass query text, per-element OSM results, Open-Meteo request parameters, batch result counts. Very verbose, so reach for it only when debugging data issues. |

@@ -16,7 +16,14 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app import body_limit, cache_headers, ratelimit, security_headers, telemetry
+from app import (
+    body_limit,
+    cache_headers,
+    log_redaction,
+    ratelimit,
+    security_headers,
+    telemetry,
+)
 from app.error_codes import ApiError, api_error_handler, validation_error_handler
 from app.limits import MAX_REQUEST_BYTES
 from app.routes.analyze import router
@@ -59,17 +66,25 @@ _LEVELS: dict[str, int] = {
 _level_name = os.environ.get("LOG_LEVEL", "WARNING").upper()
 _level = _LEVELS.get(_level_name, logging.WARNING)
 
-logging.basicConfig(
-    level=_level,
-    format="%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%dT%H:%M:%S",
+# The one handler every record reaches, uvicorn's included (they propagate here,
+# below). Its formatter masks a caller's key and escapes control characters in
+# the whole formatted record, traceback and all: see log_redaction.
+LOG_HANDLER = logging.StreamHandler()
+LOG_HANDLER.setFormatter(
+    log_redaction.RedactingFormatter(
+        "%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
 )
+logging.basicConfig(level=_level, handlers=[LOG_HANDLER])
 
 logging.getLogger(__name__).info("Log level set to %s", _level_name)
 
 # Uvicorn installs its own bare handlers (the timestamp-less "INFO:  ..." lines).
 # Clear them and let its records propagate to our root formatter instead, so
-# every line — app, startup, shutdown — carries a timestamp and [LEVEL]. Its
+# every line — app, startup, shutdown — carries a timestamp and [LEVEL]. That
+# is also what puts uvicorn's "Exception in ASGI application" traceback through
+# the redacting formatter; a handler of its own would print it raw. Its
 # per-request access log is silenced outright; the middleware below emits a
 # cleaner one (real client IP, API calls only).
 for _uv_name in ("uvicorn", "uvicorn.error"):

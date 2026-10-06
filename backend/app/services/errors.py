@@ -106,8 +106,19 @@ def _reason_matches(exc: httpx.HTTPStatusError, pattern: re.Pattern[str]) -> boo
         body = exc.response.json()
     except (json.JSONDecodeError, UnicodeDecodeError):
         return False
-    reason = body.get("reason", "") if isinstance(body, dict) else ""
-    return bool(pattern.search(reason or ""))
+    return bool(pattern.search(_reason(body)))
+
+
+def _reason(body: object) -> str:
+    """The `reason` of an Open-Meteo error body, or "" if it has none to read.
+
+    Both readers run inside the `except httpx.HTTPStatusError` of a request
+    that may carry a caller's key in its URL, so anything they raised would
+    chain that URL into a traceback. A reason that is not a string is
+    therefore read as absent rather than handed to a regex that would raise.
+    """
+    reason = body.get("reason") if isinstance(body, dict) else None
+    return reason if isinstance(reason, str) else ""
 
 
 class PartialResultError(RuntimeError):
@@ -140,11 +151,10 @@ def parse_rate_limit(exc: httpx.HTTPStatusError) -> tuple[str | None, int]:
     """
     scope: str | None = None
     try:
-        body = exc.response.json()
-        reason = body.get("reason", "") if isinstance(body, dict) else ""
+        reason = _reason(exc.response.json())
     except (json.JSONDecodeError, UnicodeDecodeError):
         reason = ""
-    match = _SCOPE_WORDS.search(reason or "")
+    match = _SCOPE_WORDS.search(reason)
     if match:
         scope = match.group(1).lower()
 
@@ -152,9 +162,13 @@ def parse_rate_limit(exc: httpx.HTTPStatusError) -> tuple[str | None, int]:
     header = exc.response.headers.get("Retry-After")
     if header:
         try:
-            retry_after = max(1, math.ceil(float(header)))
+            seconds = float(header)
         except ValueError:
-            pass
+            seconds = math.nan
+        # `float` reads "inf" and "nan" too, and math.ceil raises on either
+        # (OverflowError for an infinity, which a ValueError guard misses).
+        if math.isfinite(seconds):
+            retry_after = max(1, math.ceil(seconds))
     return scope, retry_after
 
 
