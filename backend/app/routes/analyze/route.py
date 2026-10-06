@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 
 from app import body_limit, ratelimit
-from app.error_codes import ApiError, ErrorCode
+from app.error_codes import INTERNAL_DETAIL, ApiError, ErrorCode
 from app.models import (
     AnalysisRefusal,
     AnalyzeRequest,
@@ -276,7 +276,7 @@ async def analyze_stream(
                     yield _render_sse(event)
         except Exception:
             log.exception("Unexpected error in analyze_stream")
-            yield _sse_error("Something went wrong. Try again later.", ErrorCode.internal)
+            yield _sse_error(INTERNAL_DETAIL, ErrorCode.internal)
 
     return StreamingResponse(
         _with_keepalive(generate()),
@@ -385,6 +385,6 @@ async def analyze(
     # empty ranking that looks like a real answer.
     raise ApiError(
         status_code=500,
-        detail="Something went wrong. Try again later.",
+        detail=INTERNAL_DETAIL,
         code=ErrorCode.internal,
     )
