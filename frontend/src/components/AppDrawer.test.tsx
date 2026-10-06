@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
-import { createRef } from 'react'
+import { type ComponentProps, createRef } from 'react'
 import AppDrawer from './AppDrawer'
 import type { MapViewHandle } from './MapView'
 import { render } from '../testSupport/render'
-import { capabilities } from '../testSupport/fixtures'
+import { capabilities, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_SELECTION } from '../utils/calendar'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
@@ -12,8 +12,18 @@ import type { CommitReason } from '../utils/present'
 import type { DestinationResult } from '../types'
 
 vi.mock('./ControlPanel', () => ({
-  default: (props: { pointSample: boolean; basemapFailed?: boolean }) => (
-    <div data-testid="panel" data-basemap-failed={String(props.basemapFailed)}>
+  default: (props: {
+    pointSample: boolean
+    basemapFailed?: boolean
+    wildfireCheckFailed?: boolean
+    closureCheckFailed?: boolean
+  }) => (
+    <div
+      data-testid="panel"
+      data-basemap-failed={String(props.basemapFailed)}
+      data-wildfire-failed={String(props.wildfireCheckFailed)}
+      data-closure-failed={String(props.closureCheckFailed)}
+    >
       {props.pointSample ? 'point' : 'window'}
     </div>
   ),
@@ -66,7 +76,12 @@ const MAP = createRef<MapViewHandle>()
 const NO_REASONS: CommitReason[] = []
 const NO_ROWS: DestinationResult[] = []
 
-function drawer(open: boolean, onClose = NOOP, basemapFailed = false) {
+function drawer(
+  open: boolean,
+  onClose = NOOP,
+  basemapFailed = false,
+  over: Partial<ComponentProps<typeof AppDrawer>> = {},
+) {
   return (
     <AppDrawer
       open={open}
@@ -93,7 +108,10 @@ function drawer(open: boolean, onClose = NOOP, basemapFailed = false) {
       results={NO_ROWS}
       fireStatus="idle"
       closureStatus="idle"
+      showWildfires={false}
+      showAreaClosures={false}
       basemapFailed={basemapFailed}
+      {...over}
     />
   )
 }
@@ -161,5 +179,24 @@ describe('AppDrawer', () => {
     expect(screen.getByTestId('panel').dataset.basemapFailed).toBe('false')
     rerender(drawer(true, NOOP, true))
     expect(screen.getByTestId('panel').dataset.basemapFailed).toBe('true')
+  })
+
+  // A failed check's note follows its own layer (#642): the wildfire one the
+  // Wildfires layer, the closure one the area closures layer, neither the other's.
+  it('passes a failed check on to the panel only while its layer is on', () => {
+    const failed: Partial<ComponentProps<typeof AppDrawer>> = {
+      results: [resultRow()],
+      fireStatus: 'unavailable',
+      closureStatus: 'unavailable',
+    }
+    const { rerender } = render(drawer(true, NOOP, false, failed))
+    expect(screen.getByTestId('panel').dataset.wildfireFailed).toBe('false')
+    expect(screen.getByTestId('panel').dataset.closureFailed).toBe('false')
+    rerender(drawer(true, NOOP, false, { ...failed, showWildfires: true }))
+    expect(screen.getByTestId('panel').dataset.wildfireFailed).toBe('true')
+    expect(screen.getByTestId('panel').dataset.closureFailed).toBe('false')
+    rerender(drawer(true, NOOP, false, { ...failed, showAreaClosures: true }))
+    expect(screen.getByTestId('panel').dataset.wildfireFailed).toBe('false')
+    expect(screen.getByTestId('panel').dataset.closureFailed).toBe('true')
   })
 })

@@ -227,11 +227,16 @@ export function place(over: Partial<Place> = {}): Place {
  * `.status` and `.json()` off it, and a hand-rolled double with `ok: true`
  * beside a 400 would make an error answer look healthy. A payload is sent as
  * JSON; `{ raw }` sends the text as it is, for a body that must not parse.
+ * `headers` join the answer's own, for a refusal that carries a `Retry-After`.
  */
-export function fakeResponse(payload: unknown, status = 200): Response {
+export function fakeResponse(
+  payload: unknown,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   const raw = typeof payload === 'object' && payload !== null && 'raw' in payload
   const body = raw ? String((payload as { raw: unknown }).raw) : JSON.stringify(payload)
-  return new Response(body, { status, headers: { 'Content-Type': 'application/json' } })
+  return new Response(body, { status, headers: { 'Content-Type': 'application/json', ...headers } })
 }
 
 /**

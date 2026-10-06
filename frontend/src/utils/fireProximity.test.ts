@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import {
+  checkNoticeDue,
   checkRunning,
   uncoveredKeys,
   fireCellText,
@@ -346,6 +347,18 @@ describe('fireLoadingFrame', () => {
   it('is defined for any tick, including negatives', () => {
     expect(fireLoadingFrame(-1)).toBe('')
     expect(fireLoadingFrame(403)).toBe(FIRE_LOADING_FRAMES[3])
+  })
+})
+
+// The panel's line about a failed check follows the layer (#642, record 0100).
+describe('checkNoticeDue', () => {
+  it('is due only for a failed check, over a report with rows, while its layer is on', () => {
+    expect(checkNoticeDue('unavailable', true, 3)).toBe(true)
+    expect(checkNoticeDue('unavailable', false, 3)).toBe(false)
+    expect(checkNoticeDue('unavailable', true, 0)).toBe(false)
+    expect(checkNoticeDue('loading', true, 3)).toBe(false)
+    expect(checkNoticeDue('ready', true, 3)).toBe(false)
+    expect(checkNoticeDue('idle', true, 3)).toBe(false)
   })
 })
 
