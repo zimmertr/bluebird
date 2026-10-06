@@ -12,7 +12,8 @@ spend more than a thousand weighted Open-Meteo calls, this deployment has a
 single free-tier quota to answer every visitor from, and it does not spend that
 quota on API callers. A keyed request spends the key's own quota instead: the
 pod forwards the key to Open-Meteo, and it reaches no log line, no metric, and
-no error message. Open-Meteo sells keys; the `api_key_header` field of
+no error message: every log record, a traceback included, passes a formatter
+that masks it. Open-Meteo sells keys; the `api_key_header` field of
 `GET /api/capabilities` names the header to put one in.
 
 The web app needs no key, and stays free. The browser fetches its own forecasts

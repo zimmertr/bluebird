@@ -168,6 +168,24 @@ def test_parse_rate_limit_degrades_on_garbage():
     assert retry == 60
 
 
+@pytest.mark.parametrize("header", ["inf", "-inf", "Infinity", "1e999"])
+def test_parse_rate_limit_reads_a_non_finite_retry_after_as_absent(header):
+    # math.ceil raises OverflowError on an infinity, which the ValueError
+    # guard did not catch, and this runs while a keyed HTTPStatusError is
+    # being handled, so a raise here would chain its URL into a traceback.
+    scope, retry = parse_rate_limit(
+        _http_429({"reason": "Hourly API request limit exceeded."}, headers={"Retry-After": header})
+    )
+    assert scope == "hourly"
+    assert retry == 900
+
+
+def test_parse_rate_limit_reads_a_reason_that_is_not_a_string_as_absent():
+    scope, retry = parse_rate_limit(_http_429({"error": True, "reason": 123}))
+    assert scope is None
+    assert retry == 60
+
+
 def test_rate_limit_messages_state_the_horizon():
     assert "quota reached" in rate_limit_message("Open-Meteo (weather service)", "hourly")
     assert "quota reached" in rate_limit_message("Open-Meteo (weather service)", "daily")

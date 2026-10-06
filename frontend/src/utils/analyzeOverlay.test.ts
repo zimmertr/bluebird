@@ -44,8 +44,9 @@ describe('composeOverlay', () => {
     expect(RETRIEVING_MESSAGE).toBe('Retrieving forecasts…')
   })
 
-  // A run with no polygon waits on the elevation lookup first, and no staged
-  // "still searching" line belongs under it: it searches for nothing.
+  // An over-cap list that keeps its highest waits on the elevation lookup
+  // before any forecast is counted, and no staged "still searching" line
+  // belongs under it: it searches for nothing.
   it('shows the elevation label as it is, with nothing staged under it', () => {
     const view = composeOverlay({ ...idle, analyzeLoading: true, statusMessage: ELEVATION_MESSAGE, elapsedS: 60 })
     expect(view).toEqual({ visible: true, message: 'Retrieving elevation…', detail: null, progress: null })
@@ -161,6 +162,21 @@ describe('the tail label', () => {
     expect(view).toMatchObject({
       message: 'Retrieving cloud data…',
       progress: { processed: 40, total: 40, percent: 100 },
+    })
+  })
+
+  // A run with no polygon fetches beside its elevation lookup (#643), so the
+  // lookup can be the one thing still out when the bar is full.
+  it('names the elevation lookup over a full bar', () => {
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      statusMessage: ELEVATION_MESSAGE,
+      rankedProgress: { processed: 100, total: 100 },
+    })
+    expect(view).toMatchObject({
+      message: 'Retrieving elevation…',
+      progress: { processed: 100, total: 100, percent: 100 },
     })
   })
 
