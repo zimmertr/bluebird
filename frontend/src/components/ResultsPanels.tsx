@@ -234,7 +234,18 @@ export default function ResultsPanels({
             onDrag={tableGrip.onDrag}
             onDragEnd={tableGrip.onDragEnd}
           />
-          <div className="@container overflow-auto min-h-0 results-scrollbars flex-shrink-0" style={{ height: `${tablePanelPx}px` }}>
+          {/* `relative` so this box is the containing block of the rows'
+              screen-reader notes: `SR_ONLY` positions them absolutely, and
+              with no positioned ancestor nearer than the app's root they
+              stood in the root's coordinates, one per row, past this box's
+              clipping. At 101 rows the root's scrollable overflow reached
+              3,260 px, and anything that scrolled an element into view then
+              moved the whole page up and left it there (the tutorial,
+              2026-10-06). */}
+          <div
+            className="@container relative overflow-auto min-h-0 results-scrollbars flex-shrink-0"
+            style={{ height: `${tablePanelPx}px` }}
+          >
             <ResultsTable
               emptyReason={emptyReason}
               results={tableRows}

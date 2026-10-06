@@ -11,6 +11,7 @@ import {
 } from '../styles'
 import { prefersReducedMotion } from '../utils/motion'
 import { anchorSelector, type TourStep } from '../utils/tourSteps'
+import { scrollParent } from './useTour'
 import {
   type Box,
   cardMode,
@@ -18,6 +19,7 @@ import {
   placeCard,
   sameBox,
   scrollBlock,
+  scrollTopFor,
   sectionBox,
   sheetEdge,
   SPOTLIGHT_PAD,
@@ -112,14 +114,25 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   })
 
   // Bring the control into the panel's view, then follow it: on the events
-  // the page is told about, and once a frame for the moves it is not.
+  // the page is told about, and once a frame for the moves it is not. The
+  // panel's own scroller is the one box moved, and only by what the target
+  // needs (`scrollTopFor`): `scrollIntoView` scrolls every ancestor that
+  // can, and the app's root can whenever a positioned descendant stretches
+  // its overflow, so each step pushed a 101-row report's page further up
+  // and the end of the tour left it there (2026-10-06).
   useEffect(() => {
     const el = document.querySelector<HTMLElement>(anchorSelector(step.anchor))
-    el?.scrollIntoView({
-      block: scrollBlock(step.spot),
-      inline: 'nearest',
-      behavior: prefersReducedMotion() ? 'instant' : 'smooth',
-    })
+    const scroller = scrollParent(el)
+    if (el && scroller) {
+      const box = (r: DOMRect): Box => ({ top: r.top, left: r.left, width: r.width, height: r.height })
+      const top = scrollTopFor(
+        scrollBlock(step.spot),
+        box(el.getBoundingClientRect()),
+        box(scroller.getBoundingClientRect()),
+        scroller.scrollTop,
+      )
+      if (top !== scroller.scrollTop) scroller.scrollTo({ top, behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
+    }
     window.addEventListener('resize', measure)
     document.addEventListener('scroll', measure, true)
     let frame = 0
@@ -144,7 +157,9 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // because a transition restarted every frame stands still (measured: it
   // held its old place for the whole 330 ms scroll and moved after it).
   useEffect(() => {
-    nextRef.current?.focus()
+    // `preventScroll`, because a focus call scrolls every scrollable ancestor
+    // to the focused element the way `scrollIntoView` does.
+    nextRef.current?.focus({ preventScroll: true })
     setMoving(true)
     const timer = window.setTimeout(() => setMoving(false), MOTION_MS)
     const shed = () => setMoving(false)
@@ -194,10 +209,10 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
       const last = focusables[focusables.length - 1]
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
-        last.focus()
+        last.focus({ preventScroll: true })
       } else if (!e.shiftKey && document.activeElement === last) {
         e.preventDefault()
-        first.focus()
+        first.focus({ preventScroll: true })
       }
     }
     document.addEventListener('keydown', onKeyDown)

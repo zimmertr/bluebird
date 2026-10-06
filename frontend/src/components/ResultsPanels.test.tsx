@@ -107,6 +107,16 @@ describe('ResultsPanels', () => {
     expect(screen.getAllByTestId('grip')).toHaveLength(1)
   })
 
+  // The rows' screen-reader notes are positioned absolutely, so the box that
+  // scrolls the table has to be their containing block, or every row past the
+  // fold stands in the app root's coordinates and makes the whole page
+  // scrollable (2026-10-06).
+  it('scrolls the table inside a positioned box', () => {
+    render(<ResultsPanels {...props({ layout: layout('table') })} />)
+    const scroller = screen.getByTestId('table').parentElement!
+    expect(scroller.className.split(' ')).toEqual(expect.arrayContaining(['relative', 'overflow-auto']))
+  })
+
   it('hands the table the members it is given', () => {
     seen.table.length = 0
     render(<ResultsPanels {...props({ layout: layout('table') })} />)
