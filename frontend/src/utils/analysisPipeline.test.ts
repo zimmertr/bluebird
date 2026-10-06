@@ -121,13 +121,6 @@ describe('discoverCandidates', () => {
     await expect(plain).rejects.not.toBeInstanceOf(AnalysisRefusalError)
   })
 
-  it('resolves a custom list without a ring, and reports no date when none came', async () => {
-    const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
-    stubDestinations({ destinations: [discovered({ name: 'Mine' })], total: 1 })
-    const found = await discoverCandidates({ ...REQUEST, polygon: undefined, custom_destinations: custom }, signal)
-    expect(found.candidates.map((c) => c.name)).toEqual(['Mine'])
-    expect(found).toMatchObject({ totalFound: null, truncated: false, snowAnalysisDate: null })
-  })
 })
 
 describe('runAnalysisPipeline', () => {
@@ -144,6 +137,50 @@ describe('runAnalysisPipeline', () => {
     )
     expect(seen).toEqual(['lake'])
     expect(ranked.mock.calls[0][1].map((c) => c.type)).toEqual(['lake'])
+  })
+
+  // A run with no polygon discovers nothing, so its forecasts do not wait on
+  // the pod's lookup of its rows (#643).
+  it('starts a custom list on the rows it was sent, with the lookup still out', async () => {
+    let answer!: (r: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => (answer = r))))
+    const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
+    const order: string[] = []
+    let handed: Promise<readonly unknown[]> | undefined
+    ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
+      order.push(`ranked ${candidates.map((c) => `${c.name}:${c.elevation_ft}`).join()}`)
+      handed = cb!.resolving
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
+    })
+    const resolved: (string | null)[] = []
+    await runAnalysisPipeline(
+      { ...REQUEST, polygon: undefined, custom_destinations: custom },
+      options({
+        knownTypes: { [geoKey(47, -121)]: 'peak' },
+        onDiscovered: (f) => order.push(`found ${f.candidates.length} ${f.snowAnalysisDate}`),
+        onResolved: (f) => resolved.push(f.snowAnalysisDate, ...f.candidates.map((c) => c.type)),
+      }),
+    )
+    // Announced and ranked while the server has said nothing.
+    expect(order).toEqual(['found 1 null', 'ranked Mine:null'])
+    expect(resolved).toEqual([])
+
+    answer(
+      fakeResponse({
+        destinations: [discovered({ name: 'Mine', type: 'custom', latitude: 47, longitude: -121, elevation_ft: 6000 })],
+        total: 1,
+        snow_analysis_date: '2026-07-19',
+      }),
+    )
+    // The lookup's rows reach the ranking with the browser's own kinds on them.
+    expect(await handed).toMatchObject([{ name: 'Mine', type: 'peak', elevation_ft: 6000 }])
+    expect(resolved).toEqual(['2026-07-19', 'peak'])
+  })
+
+  it('hands a ring no lookup: discovery already answered', async () => {
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    await runAnalysisPipeline(REQUEST, options())
+    expect(ranked.mock.calls[0][4]!.resolving).toBeUndefined()
   })
 
   it('announces the field before any forecast is ranked', async () => {

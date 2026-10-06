@@ -96,8 +96,12 @@ flowchart TD
     rollout --> prod
 ```
 
-**Path 1 — App release** (`bluebird/release.yml`, on merge to `main`, runs
-concurrency-serialized):
+**Path 1 — App release** (`bluebird/release.yml`, on merge to `main` or a
+manual dispatch from `main`, runs concurrency-serialized). Every job carries
+`if: github.ref == 'refs/heads/main'`, so a dispatch from any other branch
+skips them all: that branch would otherwise be built, pushed and bumped into
+production, because GitVersion gives it a prerelease version that sorts above
+the newest release (#632).
 
 1. **Determine Version** — GitVersion (Mainline) computes the SemVer from the
    squash commit's title (see [Conventions](#conventions)). **Release guard:**
@@ -176,7 +180,8 @@ concurrency-serialized):
    [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests).
 
 **Path 2 — Chart release** (`bluebird-helm/release.yml`, on merge to `main`
-touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself):
+touching `charts/**`, `artifacthub-repo.yml`, or the workflow itself, or a
+manual dispatch, which the same ref check confines to `main`):
 
 1. GitVersion computes the **chart** SemVer from the same title patterns.
    **Release guard:** the same three pieces as Path 1 (the OCI chart, checked
@@ -329,10 +334,79 @@ strands the automation:
   so requiring an up-to-date branch would deadlock whichever PR merged second.
 
 The `GH_PAT` used for all of this needs contents + pull-requests write on
-`Kubernetes-Manifests`, and `allow_auto_merge` must be on there. Concurrent
+`Kubernetes-Manifests` (see [The release credentials](#the-release-credentials)),
+and `allow_auto_merge` must be on there. Concurrent
 writes to the *same* file are safe: the image tag and the stable chart version
 both live in `public/bluebird/kustomization.yml` but on lines far enough apart
 that a three-way merge of the two branches never conflicts.
+
+### The release credentials
+
+**What `GH_PAT` is today.** One personal access token of the owner's, stored
+as a repository-level Actions secret in both `bluebird` and `bluebird-helm`
+and in no environment. Three jobs hold it: `update-manifests` and
+`bump-chart-appversion` here, and `bump-manifests` in `bluebird-helm`. Each
+clones the target repository with it, force-pushes a fixed branch, opens or
+edits the PR, and arms auto-merge. It has to be a token other than
+`GITHUB_TOKEN` for two reasons: `GITHUB_TOKEN` cannot write to another
+repository, and a merge made with it does not fire the target's `on: push`
+workflows, so the chart bump would land and never publish. Its exact scope and
+expiry cannot be read from a workflow; the jobs need contents and
+pull-requests write on `Kubernetes-Manifests` and `bluebird-helm` and nothing
+else.
+
+What it can do is larger than what the jobs do with it. `Kubernetes-Manifests`
+requires a PR and the `Validate manifests` check but no approving review, so a
+holder of the token can open, arm and merge a PR there that changes any
+directory, and Argo CD syncs it. A writer to that repository is cluster-admin
+by construction: its `root-appprojects` application syncs every
+`appproject.yml`, so a narrower Argo CD project cannot contain one. The
+containment is on the write side.
+
+**What keeps it in.** No job that holds a write credential runs third-party
+code before it: every `uses:` in the three repositories is a full commit SHA
+with its version in a comment (a tag is a pointer its owner can move, and an
+action in a job can rewrite every later step through `$GITHUB_PATH` and
+`$GITHUB_ENV`), and `update-manifests` installs `kustomize` from the upstream
+release tarball checked against its published SHA-256 rather than through a
+setup action. Dependabot reads the version comments and moves each pin by PR.
+GitVersion and Helm are pinned to exact versions for the same reason. A value
+from the event or a step output reaches a `run:` script through `env:`, never
+pasted into it. Every `actions/checkout` sets `persist-credentials: false`
+except the two that push a tag (`build-and-push` here and the chart's
+`publish`). `backend/tests/test_workflow_pins.py` fails an unpinned action, a
+pasted expression, a release job without the `main` check, or a base image
+without a digest in this repository.
+
+**What the maintainer still owes (#632).** These are repository settings and
+credentials, which no pull request can make:
+
+1. In `bluebird` and `bluebird-helm`, create an environment named `release`
+   with a deployment branch policy of `main` only (Settings, Environments,
+   "Selected branches and tags", add `main`).
+2. Replace `GH_PAT` with a credential that only does this job. Preferred: a
+   GitHub App owned by the account, installed on `Kubernetes-Manifests` and
+   `bluebird-helm` only, with Contents and Pull requests read and write; store
+   its app ID and private key as `release` environment secrets, and mint a
+   one-hour token per run with `actions/create-github-app-token` (pinned by
+   SHA like every other action). Its merges still fire `on: push`, and bot
+   commits stop carrying the owner's identity. Acceptable: a fine-grained
+   token limited to those two repositories with the same two permissions and
+   an expiry, stored as a `release` environment secret.
+3. Move `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` into the same environment
+   (the preview and prerelease jobs still need Docker Hub, so those keep a
+   repository secret or get an environment of their own), and delete the
+   repository-level `GH_PAT`.
+4. Give the jobs that use them `environment: release`: `build-and-push`,
+   `update-manifests` and `bump-chart-appversion` here; `publish`,
+   `artifacthub-metadata` and `bump-manifests` in `bluebird-helm`. A job
+   that names an environment it cannot deploy to fails rather than running
+   without it, which is the point of the branch policy.
+5. Turn on "Require actions to be pinned to a full-length commit SHA" in each
+   repository's Actions settings, now that every reference is.
+6. Once the bot has an identity of its own, `Validate manifests` can refuse
+   a PR from it whose diff is anything but the one expected line. While the
+   bot is the owner, a branch-name check would stop nothing.
 
 ### What a stable chart bump costs
 
@@ -1137,10 +1211,10 @@ released** `zimmertr/bluebird:<semver>` with Trivy:
   base and rolls it out through Path 1.
 
 **When there is no base-image PR to merge.** Alpine fixes a package days to
-weeks before the `python:3.14-alpine` image rebuilds carrying it, so the tag
-can be current while the packages under it are not. Dependabot's `docker`
-ecosystem only moves tags, so it has nothing to open, and this is the case
-that failed the 2026-09 scans (seven fixable HIGH util-linux CVEs against a
+weeks before the `python:3.14-alpine` image rebuilds carrying it, so the
+pinned image can be the newest one published while the packages under it are
+not. Dependabot moves the base only when the image is rebuilt, so it has
+nothing to open, and this is the case that failed the 2026-09 scans (seven fixable HIGH util-linux CVEs against a
 base tag that was already the newest published). The Dockerfile answers it
 with `RUN apk upgrade --no-cache` in the runtime stage, which pulls the
 current Alpine index at build time rather than waiting on the base.
@@ -1207,18 +1281,20 @@ Three things narrow what an auto-merged patch can bring with it (#633):
   set in front of the alerts. Regenerating the lock by hand is `make
   lock-backend` ([DEVELOPMENT.md](DEVELOPMENT.md#the-backends-dependency-lock)).
 
-In practice only `pip`/`npm` patches auto-merge, plus three exactly pinned
-actions (hadolint, trivy-action, lighthouse-ci-action) whose patch bumps do
-auto-merge: every other GitHub Action is major-pinned (`@v7`, `@v4`, `@v3`), so
-Dependabot raises them as *major* bumps that wait for review anyway. The Dockerfile's base tags float at the minor (`python:3.14-alpine`,
-`node:26-alpine`), so docker-ecosystem PRs are minor/major runtime bumps that
-also wait for review. A Node major bump also fails `Backend Tests` until the
+In practice only `pip`/`npm` patches auto-merge. Every GitHub Action is pinned
+to a commit SHA with its exact version in a comment (#632), so Dependabot
+raises action patch bumps too, and the job arms auto-merge on them; they still
+wait for a person, for the `Workflows` reason below. The Dockerfile's base
+images are pinned as `tag@digest`, with the tags floating at the minor
+(`python:3.14-alpine`, `node:26-alpine`): a new minor or major is a runtime
+bump that waits for review, and a rebuild of the image under the same tag
+arrives as a digest PR. A Node major bump also fails `Backend Tests` until the
 same PR moves `.node-version` to match, which is what keeps CI on the image's
-runtime. Base-OS *patch* fixes arrive without any PR, picked up
-by whatever build happens next. The merge PAT is intentionally scoped to Contents + Pull requests
-(not `Workflows`), so a workflow-file edit is not something it can land on its
-own, and those three actions' patch bumps still wait for a person even though
-the job arms auto-merge on them.
+runtime. Base-OS *patch* fixes no longer arrive unannounced at the next build:
+they come as that digest PR. The merge PAT is intentionally scoped to Contents +
+Pull requests (not `Workflows`), so a workflow-file edit is not something it can
+land on its own, and every action bump waits for a person even though the job
+arms auto-merge on its patches.
 
 The merge step runs with a PAT (`AUTO_MERGE_PAT`, stored as a **Dependabot**
 secret — Actions secrets are empty in Dependabot-triggered runs), *not* the

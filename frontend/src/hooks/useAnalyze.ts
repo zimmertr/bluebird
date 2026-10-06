@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { AnalyzeRequest } from '../types'
-import { ELEVATION_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
+import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
@@ -88,10 +88,10 @@ export function useAnalyze(
     const view = () => analyzedView(request, kind, facts, Date.now(), windowLimits)
     // Seed the first-phase label so nothing generic ("Starting…") flashes in
     // the click-to-first-event gap: a polygon run opens on discovery, and a
-    // custom or refresh run on the elevation lookup it waits on first. Either
-    // gives way to the counted retrieval label once discovery announces the
-    // field.
-    const seed = request.polygon ? SEARCHING_MESSAGE : ELEVATION_MESSAGE
+    // custom or refresh run on the forecasts, which it asks for at once while
+    // its elevation lookup runs beside them (#643). Either gives way to the
+    // counted retrieval label once the field is announced.
+    const seed = request.polygon ? SEARCHING_MESSAGE : RETRIEVING_MESSAGE
     // No server fallback (#240). An OpenMeteoUnreachable used to reroute the
     // whole analysis through POST /api/analyze/stream on the pod's shared
     // quota: a public quota-amplification surface no ordinary visitor ever
@@ -111,6 +111,11 @@ export function useAnalyze(
             facts.snowAnalysisDate = found.snowAnalysisDate
             run.announce(found.candidates.length)
             report.publishCandidates(found.candidates.map((c) => ({ latitude: c.latitude, longitude: c.longitude })))
+          },
+          // A run with no polygon learns its snow date after it has announced
+          // its field, and before the first row commits.
+          onResolved: (found) => {
+            facts.snowAnalysisDate = found.snowAnalysisDate
           },
           onPartial: (data, fieldSoFar) => report.commitArriving(data, fieldSoFar, view()),
           onProgress: run.onProgress,

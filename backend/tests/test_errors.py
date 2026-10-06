@@ -2,8 +2,15 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from conftest import fake_response
 
-from app.services.errors import PartialResultError, UpstreamError, classify_http_error
+from app.services.errors import (
+    PartialResultError,
+    UpstreamError,
+    classify_http_error,
+    is_invalid_api_key,
+    is_out_of_domain,
+)
 
 PROVIDER = "Test Provider"
 
@@ -75,3 +82,18 @@ def test_an_asyncio_deadline_reads_as_a_timeout():
     # The snapshot refresh's total deadline ends in a builtin TimeoutError.
     msg = classify_http_error(TimeoutError(), PROVIDER)
     assert msg == f"{PROVIDER} took too long. Try again later."
+
+
+# ── a malformed refusal body is read as no reason ──────────────────────────
+
+# Each runs inside the `except httpx.HTTPStatusError` in openmeteo_fetch, so
+# an exception from one would chain the keyed request URL into a traceback.
+_NOT_A_STRING = [123, ["The supplied API key is invalid."], {"text": "x"}, True]
+
+
+@pytest.mark.parametrize("reason", _NOT_A_STRING, ids=repr)
+@pytest.mark.parametrize("reads", [is_invalid_api_key, is_out_of_domain])
+def test_a_reason_that_is_not_a_string_matches_nothing(reads, reason):
+    response = fake_response({"error": True, "reason": reason}, 400)
+    exc = httpx.HTTPStatusError("400", request=response.request, response=response)
+    assert reads(exc) is False
