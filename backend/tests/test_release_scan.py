@@ -5,9 +5,11 @@ The release then builds again, from the squash commit, for amd64 and arm64,
 and that is the image production pulls. Branch protection is not strict, so
 the squash tree can be a combination no PR built, and nothing gated arm64 at
 all. So the release scans what it pushed, by digest rather than by tag, once
-per platform, and both jobs that move production or the chart's default image
-wait on that scan (#634). The image stays published when the scan fails:
-production simply stays where it is until a fix releases.
+per platform, and every job after it waits on that scan (#634): the two that
+move production or the chart's default image, and the GitHub release, whose
+Latest is what bluebird-helm reads the chart's default image from. The image
+and its tag stay published when the scan fails: production simply stays where
+it is until a fix releases.
 
 A preview tag names its PR and head commit, so a re-run or a reopen on the
 same commit asks for a tag that already exists. Once `zimmertr/bluebird-pr`
@@ -27,9 +29,11 @@ WORKFLOWS = REPO / ".github" / "workflows"
 
 COUNT_ACTION = "./.github/actions/trivy-crit-high"
 PLATFORMS = {"linux/amd64", "linux/arm64"}
-# The two jobs that move what users run: the production image tag in
-# Kubernetes-Manifests, and the chart's default image in bluebird-helm.
-BUMPS = ("update-manifests", "bump-chart-appversion")
+# Everything that tells the world the release is good: the production image
+# tag in Kubernetes-Manifests, the chart's default image in bluebird-helm, and
+# the GitHub release, whose Latest bluebird-helm's own release reads that
+# default from at package time.
+DOWNSTREAM = ("create-release", "update-manifests", "bump-chart-appversion")
 
 
 def _workflow(name: str) -> dict:
@@ -93,10 +97,10 @@ def test_the_scan_covers_both_platforms(jobs):
     assert trivy.get("env", {}).get("TRIVY_PLATFORM") == "${{ matrix.platform }}"
 
 
-@pytest.mark.parametrize("bump", BUMPS)
-def test_production_waits_on_the_scan(jobs, bump):
+@pytest.mark.parametrize("downstream", DOWNSTREAM)
+def test_the_release_waits_on_the_scan(jobs, downstream):
     name, _ = _scan(jobs)
-    assert name in _needs(jobs[bump])
+    assert name in _needs(jobs[downstream])
 
 
 def test_a_preview_tag_is_pushed_once():
