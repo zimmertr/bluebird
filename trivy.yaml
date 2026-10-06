@@ -1,7 +1,8 @@
 # Scan settings shared by every Trivy run against this repo's image: the PR
-# gate in pr.yml, the weekly re-scan of the released image in image-scan.yml,
-# and a local `trivy image` from the repo root. One file so the gate that lets
-# an image through and the gate that re-checks it later cannot disagree.
+# gate in pr.yml, the scan of the pushed release in release.yml, the weekly
+# re-scan of the released image in image-scan.yml, and a local `trivy image`
+# from the repo root. One file so the gate that lets an image through and the
+# gates that check it later cannot disagree.
 scan:
   skip-files:
     # pip publishes a CycloneDX SBOM of the source it vendors, and Trivy reads

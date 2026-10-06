@@ -1,9 +1,9 @@
 name: Count Critical/High vulnerabilities
 description: >-
   Read a Trivy JSON report and say how many Critical or High vulnerabilities it
-  holds. Two workflows gate on that number and both once spelled the same jq
-  filter, so a filter fixed in one could silently keep passing images in the
-  other (issue #388).
+  holds. Three workflows gate on that number, and two of them once spelled the
+  same jq filter, so a filter fixed in one could silently keep passing images
+  in the other (issue #388).
 
 inputs:
   report:

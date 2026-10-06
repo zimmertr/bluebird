@@ -35,6 +35,7 @@ flowchart TD
     subgraph BB["GitHub: zimmertr/bluebird"]
         bbMain["main"]
         bbRel["release.yml"]
+        bbScan["scan job<br/>Trivy by digest,<br/>linux/amd64 + linux/arm64"]
         ghRelease["GitHub Release vSemVer"]
     end
 
@@ -69,9 +70,11 @@ flowchart TD
     dev -.->|merge app PR| bbMain
     bbMain --> bbRel
     bbRel -->|GitVersion, then build| dhImage
-    bbRel --> ghRelease
-    bbRel -->|open/update PR: image newTag| kmImagePR
-    bbRel -->|open/update PR| helmPR
+    bbRel --> bbScan
+    bbScan -->|passed| ghRelease
+    dhImage -.->|pushed digest, both platforms| bbScan
+    bbScan -->|passed: open/update PR: image newTag| kmImagePR
+    bbScan -->|passed: open/update PR| helmPR
 
     helmPR -->|auto-merge once lint passes| helmMain
     helmMain --> helmRel
@@ -133,6 +136,10 @@ the newest release (#632).
    `dist/` — see [Where the time goes](#where-the-time-goes) for what the
    emulated version of that stage cost.
 
+   The job's `digest` output is the index digest the push produced, or on a
+   re-run that skipped the build, the registry's digest for the image it
+   checked. Step 3 scans exactly that.
+
    **Build identity.** Three build args are passed here and baked into the
    image as env vars: `APP_VERSION` (the GitVersion SemVer), `APP_COMMIT`
    (`github.sha`), and `APP_BUILT_AT` (stamped by a `date -u` step, because
@@ -147,22 +154,31 @@ the newest release (#632).
    before `USER`. `APP_BUILT_AT` changes on every build, so declaring them any
    earlier would invalidate the `pip install` layer every time and throw away
    the build cache.
-3. **Create GitHub Release** — auto-generated notes, through `gh release
+3. **Scan Pushed Image** — Trivy, once per platform (`linux/amd64` and
+   `linux/arm64`), against `zimmertr/bluebird@<digest>` from step 2, with the
+   same `trivy.yaml` and `.github/actions/trivy-crit-high` as the PR gate and
+   the weekly scan. It fails on a fixable Critical/High finding. Steps 4, 5
+   and 6 all need it, so production, the chart's default image and the GitHub
+   release move only onto a scanned digest. See
+   [The release scan](#the-release-scan).
+4. **Create GitHub Release** — auto-generated notes, through `gh release
    create --verify-tag`, skipped when the release already exists. It is marked
    **Latest** unless a newer release already is, so a release finished late
    does not move `releases/latest`, which the chart's `appVersion` resolver
-   reads. Runs in parallel with step 4, which does not depend on it.
-4. **Update Kubernetes-Manifests** — starts as soon as the image is pushed,
+   reads. Waits on step 3, then runs in parallel with step 5, which does not
+   depend on it.
+5. **Update Kubernetes-Manifests** — starts as soon as the scan passes,
    because nothing here needs the GitHub Release to exist. A **self-merging
    PR** on the fixed `chore/bluebird-image` branch sets `images.newTag:
    <semver>` in
    `public/bluebird/kustomization.yml`. Once `Validate manifests` goes green it
    squash-merges itself, Argo CD auto-syncs, and the new image rolls to prod. No
    human step. See [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests)
-   for why every write is shaped this way. Steps 4 and 5 both do nothing when
+   for why every write is shaped this way. Steps 5 and 6 both do nothing when
    a newer release than this one exists, so a re-run that finishes an old
    release never moves prod or the chart back onto it.
-5. **Bump Helm Chart appVersion** — waits on step 3, unlike step 4:
+6. **Bump Helm Chart appVersion** — waits on the scan like step 5, and
+   unlike step 5 also on step 4:
    `bluebird-helm/release.yml` resolves `appVersion` at package time from this
    repo's `releases/latest`, so opening this PR before the release exists races
    the resolver onto the previous version. Force-pushes a fixed
@@ -209,7 +225,7 @@ manual dispatch, which the same ref check confines to `main`):
      canary rollout). Also **self-merging**.
 
    Neither PR moves when a newer chart release exists, for the same reason as
-   Path 1's steps 4 and 5.
+   Path 1's steps 5 and 6.
 
    They are separate branches rather than one PR touching both files so a
    preview bump is never blocked behind a prod change, and either can be closed
@@ -242,8 +258,9 @@ chart release in `bluebird-helm` recovers the same way, by re-running its
 
 1. **Re-run the run.** "Re-run all jobs" or "Re-run failed jobs" on the failed
    `release.yml` run. Each job makes only what is still missing, in order: the
-   image, the tag, the release, then the two bump PRs. This is the whole
-   recovery when the failure was transient.
+   image, the tag, the scan, the release, then the two bump PRs. This is the whole
+   recovery when the failure was transient. A scan that failed on a finding is
+   not transient; see [The release scan](#the-release-scan).
 2. **If the tag push itself keeps failing**, push the tag by hand at the run's
    commit, then re-run all jobs, which makes the release and both bump PRs:
 
@@ -274,6 +291,57 @@ releases the old version, but does not mark it Latest and opens no bump PR, so
 prod stays on the newer one. Do the same by hand: `--latest=false`, and no
 bump PRs. Left alone, the version stays an image with no tag, as v0.16.0 and
 v0.16.1 do, and the next merge releases the version after it.
+
+### The release scan
+
+The PR gate scans an amd64 image it builds from the PR branch. Production
+pulls a different build: `Build & Push` builds again from the squash commit,
+and three things can make that image differ from anything a gate saw. This
+repository's branch protection does not require a PR to be up to date with
+`main` (`strict: false`, read 2026-10-06), so two green PRs can merge into a
+combination no PR built; `apk upgrade` and the Python lock's
+transitive set resolve when the image is built; and the release adds
+`linux/arm64`, which no other gate scans. The weekly scan reads the amd64 half
+only, up to a week later. So `Scan Pushed Image` scans the release's own push
+before production moves (#634):
+
+- **By digest.** The image ref is `zimmertr/bluebird@<digest>`, from
+  `Build & Push`'s `digest` output, so the bytes scanned are the bytes
+  pushed rather than whatever a name resolves to when the scan runs.
+- **Once per platform.** A matrix over `linux/amd64` and `linux/arm64`, with
+  `fail-fast: false` so both report. The digest names the multi-platform
+  index; `TRIVY_PLATFORM` picks the half each leg reads, and without it both
+  legs would read amd64.
+- **One definition of a failure.** The same `trivy-action` pin,
+  `ignore-unfixed`, `trivy.yaml` and `.github/actions/trivy-crit-high` as the
+  PR gate and the weekly scan, so the three judge an image alike.
+- **No credential.** The image is public, so the job does not log in to
+  Docker Hub and holds nothing a scanner could read.
+
+`Create GitHub Release`, `Update Kubernetes Manifests` and `Bump Helm Chart
+appVersion` all need the scan. A scan that fails therefore leaves production
+and the chart's default image on the previous release and makes no GitHub
+release, while the image and the `v<semver>` tag stay published, as with any
+failure after the push. The release is held as well as the two bumps because
+`bluebird-helm`'s own release resolves the chart's `appVersion` from
+`releases/latest` at package time: a failed version marked Latest would
+become the chart's default image at the next chart release, whatever the
+bump job did (maintainer, 2026-10-06). The fix is
+the next release, the same remedy as the [scheduled image
+scan](#scheduled-image-scan): merge the open Dependabot base-image PR, or if
+there is none, clear the buildx cache and release. Re-running the run does
+not help a real finding; it does help a scan that failed on a download, and
+"Re-run failed jobs" keeps `Build & Push`'s digest from the first attempt.
+
+A version whose scan failed is left as an image and a tag with no release,
+like the image-without-a-tag case under [Finishing a failed
+release](#finishing-a-failed-release), and the weekly scan, which reads the
+Latest release, keeps scanning the version production runs.
+
+The job is newer than the [release path](#the-release-path) measurements
+below, and adds its time to every release and to the merge-to-live path.
+`release.yml` can only run as a real release, so the first release after the
+job merged is the first measurement.
 
 ### Two independent knobs reach prod
 
@@ -869,8 +937,8 @@ Three consequences, and two of them are reasons *not* to optimise:
 - **The Trivy database is already cached.** `trivy-action` wraps its own
   `actions/cache` around both the pinned binary (42 MB, 2.1 s to restore) and
   the vulnerability DB (80 MB, 3.7 s), keyed `cache-trivy-<date>` with
-  `restore-keys: cache-trivy-`. `image-scan.yml` uses the same action and
-  therefore the same key, so the two already share one copy. There is nothing
+  `restore-keys: cache-trivy-`. `image-scan.yml` and `release.yml`'s scan use
+  the same action and therefore the same key, so they already share one copy. There is nothing
   to add.
 - **The npm cache was costing more than it saved.** `npm ci` measured 4 s on a
   cold cache and 4–5 s on a warm one, while restoring the cache cost 2 s inside
@@ -939,6 +1007,10 @@ gh cache list --limit 100 --json id,ref --jq '.[] | select(.ref | startswith("re
 | `Update Kubernetes Manifests` | 11 s | 8–18 s |
 | `Bump Helm Chart appVersion` | 10 s | 8–13 s |
 | **whole run** | **151 s** | 88–311 s |
+
+`Scan Pushed Image` (#634) is newer than these runs and is not in the table;
+it runs between `Build & Push` and every later job, so its time adds to the
+whole run and to the first segment of [Merge to live](#merge-to-live).
 
 `Build & Push` is the multi-arch build, and within it one step dominates.
 In release run `34916818009` the **arm64 `npm run build` took 35.6 s against
@@ -1084,12 +1156,13 @@ flowchart LR
   a hidden `<!-- bluebird-image-scan -->` marker, not `--edit-last`, so it can't
   clobber the preview-URL comment). The job fails only on **fixable
   Critical/High** findings. File-level exclusions live in **`trivy.yaml`** at the
-  repo root, read by this job and by `image-scan.yml` below, so the gate that
-  admits an image and the gate that re-checks it later cannot disagree. Each
+  repo root, read by this job, by `release.yml`'s scan of the pushed image and
+  by `image-scan.yml` below, so the gate that admits an image and the gates
+  that check it later cannot disagree. Each
   entry there carries its reasoning; today the only one is pip's vendored-source
   SBOM, which Trivy would otherwise read as installed inventory. What counts as
   a Critical/High is one composite action, **`.github/actions/trivy-crit-high`**,
-  called by this job and by `image-scan.yml`: both workflows once spelled the
+  called by this job, by `release.yml` and by `image-scan.yml`: two workflows once spelled the
   same `jq` filter, so a filter corrected in one could keep admitting images in
   the other. The same job then runs the image and **smoke tests** what only a
   built image can show: the build arguments reach `/api/version`, Swagger UI is
@@ -1143,7 +1216,18 @@ flowchart LR
   in each repository's settings.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
-  never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`.
+  never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
+  and skips the build when that tag is already in Docker Hub: a re-run or a
+  reopen on the same head commit asks for the same tag, and the image already
+  there is from the same source.
+- **Preview tags should be immutable, and that is a Docker Hub setting, not a
+  workflow.** `zimmertr/bluebird` and the chart repository have immutable
+  tags on (rule `.*`); `zimmertr/bluebird-pr` did not when #634 was filed. Without it, anyone
+  holding the Docker Hub token can replace the image behind a live preview's
+  tag, and previews run in `bluebird-system` beside production. Turning it on
+  is the maintainer's step (Docker Hub, `zimmertr/bluebird-pr`, Settings,
+  immutable tags with the rule `.*`); the existing-tag skip above is what keeps
+  a re-run from failing once it is on.
 - For the owner's own PRs it applies the **`create pr container`** label and posts
   a sticky comment with the preview URL. Other authors (e.g. Dependabot) still
   build an image but get no label, so no preview pod spins up.
@@ -1220,6 +1304,10 @@ PR-time scanning gates what gets *published*, but CVEs are disclosed after
 images ship. The released image rots while nothing rebuilds it.
 `image-scan.yml` (weekly cron + `workflow_dispatch`) re-scans the **latest
 released** `zimmertr/bluebird:<semver>` with Trivy:
+
+The moment of release is covered by [the release scan](#the-release-scan),
+which scans both platforms of the pushed digest before production moves. This
+job is the later check: CVEs disclosed after that scan, on the amd64 half.
 
 - **Always:** SARIF upload → code-scanning alerts in the repo **Security tab**.
 - **Gate:** the job fails — triggering GitHub's workflow-failure email — only
@@ -1324,7 +1412,7 @@ so the patch would land on `main` but never ship. With the PAT, an auto-merged
 patch deploys through Path 1 like any other merge — the prod canary still gates
 the rollout.
 
-The same trap applies to Path 1 step 5's auto-merged `appVersion` bump, which is
+The same trap applies to Path 1 step 6's auto-merged `appVersion` bump, which is
 why that `gh pr merge` runs under `GH_PAT`: a `GITHUB_TOKEN`-driven merge there
 would land the bump on `bluebird-helm/main` without ever firing Path 2, leaving
 the chart unpublished.
@@ -1342,6 +1430,7 @@ sequenceDiagram
 
     Dev->>BB: merge PR to main
     BB->>DH: push bluebird:0.21.1
+    BB->>DH: scan the pushed digest, amd64 and arm64 (Trivy)
     BB->>KM: open/update image newTag=0.21.1 PR + arm auto-merge
     BB->>HELM: open/update appVersion bump PR + arm auto-merge
     KM->>KM: auto-merge image PR (after Validate manifests)
@@ -1388,7 +1477,7 @@ costs](#what-a-stable-chart-bump-costs).
   repository needs a merged PR whose title carries `!`. Merge in this order:
 
   1. The app PR with `!` in its title. It releases `zimmertr/bluebird:1.0.0`,
-     and Path 1 step 5 opens the automatic chart PR, titled `chore(release):
+     and Path 1 step 6 opens the automatic chart PR, titled `chore(release):
      bump chart appVersion to 1.0.0`. That title has no `!`, so by itself it
      releases a chart **patch** (for example 0.15.22) whose default image is
      the app's 1.0.0. It merges itself; let it, and let that chart release
