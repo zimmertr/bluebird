@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-09-11 (git: the merge of #320)
 - Decider: TJ (git: author and merger of #320)
-- Issues and PRs: #240, #317, #320
+- Issues and PRs: #240, #317, #320, #626
 - Cited in code as: #240, #317
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, the bullet "The browser path is the only path", from "`POST /api/analyze` and `/api/analyze/stream` still exist"
 

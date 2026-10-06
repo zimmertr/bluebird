@@ -390,7 +390,7 @@ class AnalyzeRequest(_DiscoveryFields):
         # cache keys. An offset therefore means the instant ISO 8601 says it
         # does, a naive stamp is read as UTC, and a naive end compares with
         # an aware start instead of raising.
-        start, end = (_as_utc(dt).astimezone(UTC) for dt in self.resolved_window())
+        start, end = (_utc_instant(dt) for dt in self.resolved_window())
         self.start_datetime = start
         self.end_datetime = end
         # A zero-length window is a point sample ("current conditions" /
@@ -409,16 +409,40 @@ class AnalyzeRequest(_DiscoveryFields):
             self.end_datetime = end
         now = datetime.now(UTC)
         if start < now - timedelta(days=PAST_LIMIT_SLACK_DAYS):
-            raise ValueError(
-                "start_datetime is beyond the one-year history limit of the "
-                "weather API. Move the window start closer to today."
-            )
+            raise ValueError(_BEFORE_HISTORY)
         if end > now + timedelta(days=FUTURE_LIMIT_SLACK_DAYS):
-            raise ValueError(
-                "end_datetime is beyond the ~16-day forecast horizon of the "
-                "weather API. Move the window end closer to today."
-            )
+            raise ValueError(_PAST_HORIZON)
         return self
+
+
+_BEFORE_HISTORY = (
+    "start_datetime is beyond the one-year history limit of the "
+    "weather API. Move the window start closer to today."
+)
+_PAST_HORIZON = (
+    "end_datetime is beyond the ~16-day forecast horizon of the "
+    "weather API. Move the window end closer to today."
+)
+
+
+def _utc_instant(dt: datetime) -> datetime:
+    """`dt` as an aware UTC instant, refused as out of range if it has none.
+
+    Pydantic accepts any wall clock datetime can hold with any offset up to a
+    day, so a stamp at the last hour of year 9999 west of UTC, or the first of
+    year 1 east of it, names an instant datetime cannot represent and the
+    conversion raises OverflowError. Pydantic turns only ValueError into a 422,
+    so that would leave as a 500. Either instant is centuries past the horizon
+    on its side, which the offset's sign tells apart, so it gets the answer
+    that horizon gives every other stamp.
+    """
+    aware = _as_utc(dt)
+    try:
+        return aware.astimezone(UTC)
+    except OverflowError:
+        offset = aware.utcoffset()
+        later = offset is not None and offset < timedelta(0)
+        raise ValueError(_PAST_HORIZON if later else _BEFORE_HISTORY) from None
 
 
 class HourlySeries(BaseModel):
