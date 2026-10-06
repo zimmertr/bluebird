@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiJson } from '../utils/apiFetch'
 import { AQI_LIMIT_DAYS } from '../utils/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 
 // The live limits this deployment enforces, from GET /api/capabilities. The
@@ -42,6 +43,11 @@ export interface Capabilities {
   maxDestinations: number
   maxLimit: number
   maxPolygonAreaKm2: number
+  /**
+   * Most positions a ring may carry, its closing point included. The draw tool
+   * stops placing points at it, and a link's ring past it is not restored.
+   */
+  maxPolygonPoints: number
   /** Days back the calendar may offer, which is the archive endpoint's reach. */
   archiveDays: number
   /** Days ahead air quality is available. Marks days in the calendar grid. */
@@ -100,6 +106,9 @@ const FALLBACK: Capabilities = {
   maxDestinations: MAX_ANALYZE_DESTINATIONS,
   maxLimit: MAX_ANALYZE_DESTINATIONS,
   maxPolygonAreaKm2: FALLBACK_POLYGON_AREA_KM2,
+  // Imported for the reason the four below are: the browser's half of a
+  // mirrored pair (#619).
+  maxPolygonPoints: MAX_POLYGON_POINTS,
   archiveDays: FALLBACK_ARCHIVE_DAYS,
   // The four below are imported rather than respelled, for the same reason
   // `maxDestinations` is: each is the browser's half of a mirrored pair, pinned
@@ -234,6 +243,7 @@ export function parseCapabilities(body: unknown): Capabilities {
     maxDestinations: num('max_destinations', FALLBACK.maxDestinations),
     maxLimit: num('max_limit', FALLBACK.maxLimit),
     maxPolygonAreaKm2: num('max_polygon_area_km2', FALLBACK.maxPolygonAreaKm2),
+    maxPolygonPoints: num('max_polygon_points', FALLBACK.maxPolygonPoints),
     archiveDays: num('archive_days', FALLBACK.archiveDays),
     aqiForecastDays: num('aqi_forecast_days', FALLBACK.aqiForecastDays),
     // Per field here too, not per object: a deployment on an older build

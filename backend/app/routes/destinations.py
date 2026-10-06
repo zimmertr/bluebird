@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-from app import ratelimit, telemetry
+from app import body_limit, ratelimit, telemetry
 from app.error_codes import ApiError, ErrorCode
 from app.models import (
     MAX_ANALYZE_PEAKS,
@@ -57,6 +57,7 @@ router = APIRouter()
     ),
     dependencies=[Depends(ratelimit.destinations_rate_limit)],
     responses={
+        413: body_limit.TOO_LARGE_RESPONSE,
         400: {
             "model": AnalysisRefusal,
             "description": (

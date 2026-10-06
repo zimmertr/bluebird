@@ -121,6 +121,17 @@ def test_a_chunked_body_is_cut_off_at_the_cap_while_it_streams(route_calls):
     assert route_calls.discovery == 0
 
 
+@pytest.mark.parametrize("path", ["/api/analyze", "/api/analyze/stream"])
+def test_every_route_that_takes_a_body_refuses_an_oversized_one(path):
+    response = client.post(
+        path,
+        content=_padded(MAX_REQUEST_BYTES + 1),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 413
+    assert response.json() == _TOO_LARGE
+
+
 def test_a_body_exactly_at_the_cap_is_read(route_calls):
     response = _post(_padded(MAX_REQUEST_BYTES))
     assert response.status_code == 200

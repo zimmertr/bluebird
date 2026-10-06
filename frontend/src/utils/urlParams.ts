@@ -40,11 +40,20 @@ import type { ShareableState } from './urlState'
  * than the percent-decoded value. Every other row deals in plain text and the
  * writer escapes it with `escapeQueryText`.
  */
+/**
+ * The published limits a link is read against. A link is decoded once, at
+ * mount, so what arrives here is whatever the deployment has said by then.
+ */
+export interface DecodeLimits {
+  /** The most positions a ring may carry, its closing point included (#619). */
+  maxPolygonPoints: number
+}
+
 export interface ParamCodec {
   key: string
   escaped?: true
   encode?: (state: ShareableState) => string | null
-  decode?: (raw: string, out: Partial<ShareableState>) => void
+  decode?: (raw: string, out: Partial<ShareableState>, limits: DecodeLimits) => void
 }
 
 // Control defaults: they must mirror the initial useState values in the hooks
@@ -140,9 +149,15 @@ function encodePolygon(polygon: GeoPolygon): string {
   return pts.map(([lng, lat]) => `${round(lng)},${round(lat)}`).join(';')
 }
 
-function decodePolygon(raw: string): GeoPolygon | null {
+// A ring over the cap is dropped like any malformed one rather than cut short:
+// the server would refuse it, and the first N points of a ring are not the
+// area its author drew.
+function decodePolygon(raw: string, maxPoints: number): GeoPolygon | null {
+  const pairs = raw.split(';')
+  // The link leaves out the closing point and decoding adds it back.
+  if (pairs.length + 1 > maxPoints) return null
   const pts: [number, number][] = []
-  for (const pair of raw.split(';')) {
+  for (const pair of pairs) {
     const [lngStr, latStr] = pair.split(',')
     const lng = Number(lngStr)
     const lat = Number(latStr)
@@ -468,9 +483,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   {
     key: 'poly',
     encode: (state) => (hasPolygon(state) && state.polygon ? encodePolygon(state.polygon) : null),
-    decode: (raw, out) => {
+    decode: (raw, out, limits) => {
       if (!raw) return
-      const decoded = decodePolygon(raw)
+      const decoded = decodePolygon(raw, limits.maxPolygonPoints)
       if (decoded) out.polygon = decoded
     },
   },

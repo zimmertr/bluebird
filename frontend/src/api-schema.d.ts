@@ -1190,6 +1190,16 @@ export interface components {
              */
             max_polygon_area_km2: number;
             /**
+             * Max Polygon Points
+             * @description Most positions a polygon's outer ring may carry, counting the closing repeat of the first position. A longer ring is rejected with 422.
+             */
+            max_polygon_points: number;
+            /**
+             * Max Request Bytes
+             * @description Largest request body accepted, in bytes. A larger one is answered 413 before it is read, whether it declares a `Content-Length` or arrives chunked. Sized so the largest request the schema allows fits beneath it.
+             */
+            max_request_bytes: number;
+            /**
              * Min Limit
              * @description Smallest accepted `limit`.
              */
@@ -1451,6 +1461,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description The request body is larger than `limits.max_request_bytes` in `GET /api/capabilities`, and was refused before it was read. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -1509,6 +1528,15 @@ export interface operations {
                 };
                 content: {
                     "text/event-stream": string;
+                };
+            };
+            /** @description The request body is larger than `limits.max_request_bytes` in `GET /api/capabilities`, and was refused before it was read. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1654,6 +1682,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnalysisRefusal"];
+                };
+            };
+            /** @description The request body is larger than `limits.max_request_bytes` in `GET /api/capabilities`, and was refused before it was read. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */

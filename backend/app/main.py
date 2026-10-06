@@ -16,8 +16,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app import cache_headers, ratelimit, security_headers, telemetry
+from app import body_limit, cache_headers, ratelimit, security_headers, telemetry
 from app.error_codes import ApiError, api_error_handler, validation_error_handler
+from app.limits import MAX_REQUEST_BYTES
 from app.routes.analyze import router
 from app.routes.capabilities import router as capabilities_router
 from app.routes.closures import router as closures_router
@@ -265,6 +266,14 @@ class EncodedSlashMiddleware:
 # headers the edge record holds, a line in the access log, and a count in the
 # metrics (under `unmatched`, since no route claimed it).
 app.add_middleware(EncodedSlashMiddleware)
+
+# Added next, so it sits just outside the slash check and inside every other
+# layer. None of those layers reads a request body, so it still refuses an
+# oversized body before routing, any dependency or the JSON parse, and inside
+# rather than outermost its refusal leaves the way every other 4xx does: with
+# the CORS header a cross-origin caller needs to read it, the security headers,
+# an access-log line and a metrics sample.
+app.add_middleware(body_limit.BodySizeLimitMiddleware, max_bytes=MAX_REQUEST_BYTES)
 
 # A national wildfire viewport is the largest body this API serves: ~1.5 MB of
 # perimeter geometry. Everything else here is small enough that the 1 KB floor

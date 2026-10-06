@@ -24,6 +24,7 @@ import {
 } from './openMeteoAggregate'
 import { COVERAGE_MESSAGE_TAIL, COVERAGE_PHRASE } from './openMeteoErrors'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
+import { MAX_POLYGON_POINTS } from './drawGeometry'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
 import { SNOW_DEPTH_CEILING_IN } from './snowCeiling'
 import {
@@ -59,6 +60,10 @@ describe('the constants the backend publishes for this side to match', () => {
 
   it('caps a browser analysis where the server caps one', () => {
     expect(MAX_ANALYZE_DESTINATIONS).toBe(constants.MAX_ANALYZE_PEAKS)
+  })
+
+  it('stops a ring where the server stops one', () => {
+    expect(MAX_POLYGON_POINTS).toBe(constants.MAX_POLYGON_POINTS)
   })
 
   it('believes the wildfire simplification the backend applies', () => {

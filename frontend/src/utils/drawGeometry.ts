@@ -24,6 +24,15 @@ import type { Ring } from './polylabel'
 export const MAX_POLYGON_POINTS = 1_000
 
 /**
+ * Whether one more point fits in a ring of `pts`, under a cap that counts the
+ * closing repeat as the server does. The one test the draw tool's two ways of
+ * adding a point share.
+ */
+export function ringHasRoom(pts: readonly [number, number][], maxPoints: number): boolean {
+  return pts.length + 1 < maxPoints
+}
+
+/**
  * Approximate area of a ring, as the box around it.
  *
  * A port of `bbox_area_km2` in `backend/app/models/common.py`, formula for formula,

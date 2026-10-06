@@ -6,7 +6,9 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
+from app.limits import MAX_ANALYZE_PEAKS
 from app.models.common import (
+    _MAX_TYPES_LISTED,
     _RESPONSE_CONFIG,
     _SNOW_DATE_DESCRIPTION,
     _SNOW_DEPTH_DESCRIPTION,
@@ -49,6 +51,7 @@ class DestinationsRequest(_DiscoveryFields):
     )
     destination_types: list[DestinationType] = Field(
         default_factory=list,
+        max_length=_MAX_TYPES_LISTED,
         description=(
             "What to discover inside the polygon, as a set — several types "
             "come back from one Overpass query, each row tagged with the type "
@@ -60,6 +63,7 @@ class DestinationsRequest(_DiscoveryFields):
     )
     custom_destinations: list[CustomDestination] | None = Field(
         default=None,
+        max_length=MAX_ANALYZE_PEAKS,
         description=(
             "Caller-supplied destinations to resolve against OSM. Each is "
             "matched to the nearest peak within ~150 m, filling in "

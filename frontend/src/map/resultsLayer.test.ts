@@ -55,6 +55,7 @@ import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { closureWarningText } from '../utils/closureProximity'
 import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
 const CARD_W = 280
@@ -93,6 +94,7 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }) 
     onRemovePoi: vi.fn(),
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
+    maxPolygonPoints: MAX_POLYGON_POINTS,
   }
   const controller = createMapController(inputs)
   const board = createPopupBoard()

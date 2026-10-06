@@ -11,7 +11,9 @@ import { ForecastSelection } from './calendar'
 import { Place } from './geocode'
 import { type CameraView } from './mapView'
 import { type SortKey } from './tableColumns'
+import { MAX_POLYGON_POINTS } from './drawGeometry'
 import {
+  type DecodeLimits,
   DEFAULT_LIMIT,
   DEFAULT_SORT,
   URL_PARAMS,
@@ -238,13 +240,22 @@ export function decodeAutoAnalyze(search: string): boolean {
   }
 }
 
+// What a link is read against when the caller names no limits: the browser's
+// own copies of the published numbers, which are also what `useCapabilities`
+// holds until the deployment answers.
+const FALLBACK_DECODE_LIMITS: DecodeLimits = { maxPolygonPoints: MAX_POLYGON_POINTS }
+
 /**
  * Parse a location.search string back into a partial state. Tolerant by design:
  * unknown or malformed values are dropped rather than throwing, so a user
  * pasting a truncated or hand-edited link still gets whatever survived. Returns
- * null when nothing usable was found.
+ * null when nothing usable was found. `limits` are the published bounds a value
+ * is held to; a ring over its cap is dropped like a malformed one.
  */
-export function decodeState(search: string): Partial<ShareableState> | null {
+export function decodeState(
+  search: string,
+  limits: DecodeLimits = FALLBACK_DECODE_LIMITS,
+): Partial<ShareableState> | null {
   const query = search.startsWith('?') ? search.slice(1) : search
   let params: URLSearchParams
   try {
@@ -257,7 +268,7 @@ export function decodeState(search: string): Partial<ShareableState> | null {
   const out: Partial<ShareableState> = {}
   for (const { key, escaped, decode } of URL_PARAMS) {
     const value = escaped ? rawValues.get(key) : params.get(key)
-    if (value !== undefined && value !== null) decode?.(value, out)
+    if (value !== undefined && value !== null) decode?.(value, out, limits)
   }
   const selection = decodeSelection(params)
   if (selection) out.selection = selection

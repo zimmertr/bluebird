@@ -36,6 +36,7 @@ import { mountSmoke } from './smoke'
 import { createMapController } from '../controller'
 import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 import { stubMap } from '../../testSupport/stubMap'
+import { MAX_POLYGON_POINTS } from '../../utils/drawGeometry'
 
 const PLUME = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {} }] }
 
@@ -55,6 +56,7 @@ function setup(drawing = false, online: EventTarget | null = null) {
     onRemovePoi: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
+    maxPolygonPoints: MAX_POLYGON_POINTS,
   })
   const deps = {
     controller,

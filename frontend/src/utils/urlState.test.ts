@@ -819,8 +819,8 @@ describe('decodeState tolerance', () => {
   })
 
   it('drops a ring over the cap the deployment published', () => {
-    expect(decodeState(polyOf(5), 5)!.polygon).toBeUndefined()
-    expect(decodeState(polyOf(4), 5)!.polygon!.coordinates[0]).toHaveLength(5)
+    expect(decodeState(polyOf(5), { maxPolygonPoints: 5 })!.polygon).toBeUndefined()
+    expect(decodeState(polyOf(4), { maxPolygonPoints: 5 })!.polygon!.coordinates[0]).toHaveLength(5)
   })
 
   it('rejects an unknown destination type but keeps valid neighbors', () => {

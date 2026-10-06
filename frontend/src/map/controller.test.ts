@@ -3,6 +3,7 @@ import { createMapController, type MapInputs } from './controller'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
 import type { FireWarning } from '../utils/fireProximity'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 function inputs(over: Partial<MapInputs> = {}): MapInputs {
   return {
@@ -19,6 +20,7 @@ function inputs(over: Partial<MapInputs> = {}): MapInputs {
     onRemovePoi: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
+    maxPolygonPoints: MAX_POLYGON_POINTS,
     ...over,
   }
 }

@@ -12,6 +12,7 @@ import type { ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
 import type { Feature, Geometry } from 'geojson'
 import type { ClosureProps } from '../utils/closures'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 // The one place a fake result row, hourly series or forecast answer is spelled
 // out in full.
@@ -192,6 +193,7 @@ export function capabilities(over: Partial<Capabilities> = {}): Capabilities {
     maxDestinations: 1500,
     maxLimit: 1500,
     maxPolygonAreaKm2: 100_000,
+    maxPolygonPoints: MAX_POLYGON_POINTS,
     archiveDays: 365,
     aqiForecastDays: 5,
     windowLimits: FALLBACK_WINDOW_LIMITS,
