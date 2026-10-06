@@ -293,6 +293,7 @@ The policy for the app:
 ```
 default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
 form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+style-src-elem 'self'; style-src-attr 'unsafe-inline';
 img-src 'self' data: blob: https://tiles.openfreemap.org https://mesonet.agron.iastate.edu
   https://mapservices.weather.noaa.gov;
 connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open-meteo.com
@@ -301,7 +302,7 @@ connect-src 'self' data: https://api.open-meteo.com https://air-quality-api.open
 worker-src 'self' blob:; child-src 'self' blob:
 ```
 
-Four points in it are measurements rather than habits.
+Five points in it are measurements rather than habits.
 
 - **`connect-src` is the browser's third-party surface, and nothing else.**
   The six origins are the ones in the "Outbound" table marked **browser**:
@@ -329,10 +330,22 @@ Four points in it are measurements rather than habits.
   on the older browsers a CSP protects most. The script side stays strict,
   which is where the XSS boundary sits: the built pages carry no inline
   `<script>` at all, checked on the build output.
+- **`style-src-elem` and `style-src-attr` narrow that on every engine that
+  knows them** (#621): style attributes stay allowed, and an inline `<style>`
+  element does not, while stylesheets still load from this origin. Nothing in
+  the app or its bundle writes a `<style>` element, which the browser suite
+  confirms: every test there fails on anything the served policy refused. The
+  difference is reach. MapLibre positions a popup with a CSS transform, which
+  makes the card the containing block for anything inside it, so an attribute
+  in popup markup stays inside the card, where an element would restyle the
+  whole page. `style-src` stays as it was, as the fallback for an engine that
+  does not know the split.
 - **`/docs` is the one path with its own policy**, and it is narrower
-  everywhere except one directive: no third-party origin reaches `img-src` or
-  `connect-src`, the page starts no worker, and Swagger UI's inline init
-  script is allowed by its SHA-256 hash. The hash is taken from the rendered
+  everywhere except two directives: no third-party origin reaches `img-src` or
+  `connect-src`, the page starts no worker, Swagger UI's inline init
+  script is allowed by its SHA-256 hash, and the split style directives above
+  are not sent, since that page is a third-party bundle that writes no markup
+  from a link. The hash is taken from the rendered
   page rather than pinned, so a FastAPI upgrade that rewrites that script
   cannot silently blank the page. A source checkout has no vendored assets and
   falls back to a CDN for them, and the policy follows that fallback rather

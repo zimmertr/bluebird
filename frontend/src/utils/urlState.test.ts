@@ -633,8 +633,10 @@ describe('pins encoded once', () => {
     expect(decodeState(new URL(`https://bluebirdforecast.com/?${qs}`).search)?.pins).toEqual([pin, tiger])
   })
 
-  it('round-trips an id holding the delimiters', () => {
-    const pin = { ...tiger, osmId: 'way/1,2;3&x=%' }
+  // An id is held to the shape the app writes (#621), so the delimiters ride
+  // in the label here and the id's own escaping is the label's.
+  it('round-trips a pin whose id stands beside a label holding the delimiters', () => {
+    const pin = { ...tiger, osmId: 'way/123', label: 'way/1,2;3&x=%' }
     expect(decodeState(encodeState(pinned([pin]), 'gfs_seamless'))?.pins).toEqual([pin])
   })
 

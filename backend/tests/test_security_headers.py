@@ -147,8 +147,22 @@ def test_the_docs_policy_differs_from_the_app_policy_only_where_stated():
     assert hashes, "Swagger UI's init script must be allowed by hash"
     assert set(docs["script-src"]) - hashes - assets == {"'self'"}
 
+    # Nor the app's narrowing of style-src, which answers markup the app writes
+    # from a link, where the docs page carries a third-party bundle and that
+    # bundle's styling is not this policy's to second-guess.
+    assert "style-src-elem" not in docs
+    assert "style-src-attr" not in docs
+
     # Everything else is the app's policy, give or take where those assets sit.
-    shared = set(app_csp) - {"img-src", "connect-src", "worker-src", "child-src", "script-src"}
+    shared = set(app_csp) - {
+        "img-src",
+        "connect-src",
+        "worker-src",
+        "child-src",
+        "script-src",
+        "style-src-elem",
+        "style-src-attr",
+    }
     assert {name: set(app_csp[name]) for name in shared} == {
         name: set(docs[name]) - assets for name in shared
     }
