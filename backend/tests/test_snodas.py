@@ -489,7 +489,7 @@ async def test_keeps_yesterdays_held_grid_while_today_is_unpublished(stub_client
     assert seen == [("HEAD", TODAY_URL)]
 
 
-# ── A refused file (#629, decision 0102) ──────────────────────────────────
+# ── A refused file (#629, decision 0104) ──────────────────────────────────
 
 
 def _nan_tar() -> bytes:

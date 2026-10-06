@@ -29,7 +29,7 @@ from typing import Any, Literal, NamedTuple
 import httpx
 
 from app import ratelimit, telemetry
-from app.services import cache
+from app.services import cache, http
 from app.services.errors import (
     InvalidApiKeyError,
     UpstreamError,
@@ -402,6 +402,13 @@ async def request_openmeteo(
     carries — they differ, and both are the caller's to choose. The client is
     passed in rather than reached for, so the pooled connections stay the
     caller's to own (see services.http).
+
+    The whole request runs under `http.TIMEOUT_S` as a total. The client's own
+    timeout is per operation, and its read timer restarts on every chunk, so
+    an answer that keeps arriving slowly would otherwise hold one of the pod's
+    in-flight slots for as long as it liked (#630). A body that does not
+    decode is an unusable answer like any other: degraded or raised under the
+    caller's policy, never an exception that escapes both.
     """
     quota = quota_label(api_key)
     log.trace("%s request params: %s", provider, redacted_params(params))  # type: ignore[attr-defined]
@@ -410,7 +417,9 @@ async def request_openmeteo(
     attempt_start = time.perf_counter()
     try:
         try:
-            resp = await client.get(url, params=params)
+            # Read through the module so a test can shorten it.
+            async with asyncio.timeout(http.TIMEOUT_S):
+                resp = await client.get(url, params=params)
         finally:
             telemetry.OPENMETEO_DURATION.labels(service=service, quota=quota).observe(
                 time.perf_counter() - attempt_start
@@ -451,7 +460,9 @@ async def request_openmeteo(
         if on_error == "degrade":
             return DEGRADED
         raise UpstreamError(classify_http_error(exc, provider)) from exc
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, TimeoutError) as exc:
+        # The deadline above ends in the builtin TimeoutError, which is not an
+        # httpx error; `classify_http_error` words it as the timeout it is.
         telemetry.OPENMETEO_REQUESTS.labels(
             service=service, outcome="network_error", quota=quota
         ).inc()
@@ -463,4 +474,15 @@ async def request_openmeteo(
     telemetry.OPENMETEO_REQUESTS.labels(
         service=service, outcome="success", quota=quota
     ).inc()
-    return resp.json()
+    try:
+        return resp.json()
+    except (ValueError, RecursionError) as exc:
+        # A proxy's HTML page on a 200, or JSON nested past the parser's
+        # depth. The HTTP attempt succeeded, which is what the counter above
+        # records; the body is what failed. `classify_http_error` words a
+        # ValueError as "request failed", the sentence every other unusable
+        # Open-Meteo answer gets.
+        log.warning("%s answered a body that does not decode: %s", provider, type(exc).__name__)
+        if on_error == "degrade":
+            return DEGRADED
+        raise UpstreamError(classify_http_error(exc, provider)) from exc
