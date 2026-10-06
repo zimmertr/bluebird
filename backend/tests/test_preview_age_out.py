@@ -2,10 +2,10 @@
 
 Argo CD's pull-request generator deploys every open PR that carries the
 `create pr container` label, and nothing else ever removed it, so a preview
-lived for as long as its PR stayed open: #330's ran for 19 days on an image
-that predated four fixes (#637). `preview-age-out.yml` removes the label from
-PRs untouched for longer than one constant, and the generator prunes the
-environment on its next poll.
+lived for as long as its PR stayed open: #330's had been up for 19 days on
+2026-10-01, on an image that predated four fixes (#637). `preview-age-out.yml`
+removes the label from PRs untouched for longer than one constant, and the
+generator prunes the environment on its next poll.
 
 The workflow only runs after merge, so this reads it as text: what it may do
 (one permission), where the limit is written (once), and the two `gh` calls

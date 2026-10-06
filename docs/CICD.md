@@ -1016,6 +1016,7 @@ flowchart LR
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
+        ageout["preview-age-out.yml<br/>daily: label off quiet PRs"]
     end
 
     dhpr["Docker Hub<br/>zimmertr/bluebird-pr:pr-N-headsha"]
@@ -1038,6 +1039,7 @@ flowchart LR
     dhpr -->|image override| app
     app --> env
     pr -.->|PR closed: automated prune| env
+    ageout -.->|removes| label
 ```
 
 - `pr.yml`'s backend job runs `scripts/generate_openapi.py --check` after pytest.
@@ -1153,6 +1155,24 @@ flowchart LR
   (surfaced by `/api/config` → the SPA banner) plus `LOG_LEVEL=TRACE`. Closing
   the PR prunes the environment, and `cache-cleanup.yml` deletes that PR's
   Actions caches.
+- **A preview ages out after 14 days without an update.** `preview-age-out.yml`
+  runs daily (and on demand) with `pull-requests: write` and nothing else, lists
+  the open PRs carrying `create pr container`, and removes the label from each
+  whose `updatedAt` is older than `PREVIEW_MAX_AGE_DAYS`, the one constant at the
+  top of the workflow. Removing the label is the whole teardown: the generator
+  stops templating `bluebird-pr-<N>` on its next poll, the ApplicationSet deletes
+  the Application, and its resources finalizer prunes what it deployed. Any
+  update counts as activity (a push, a comment, a label, a review), and a push to
+  an owner's PR re-adds the label through `pr-preview.yml`, so a preview comes
+  back with the next commit or by adding the label by hand. Before this, a
+  preview lived for as long as its PR stayed open: #330's had been up for 19 days
+  on 2026-10-01, on an image that predated four fixes (#637). Record: [0108](decisions/0108-previews-age-out.md)
+- Two calls from #637 are still the maintainer's. One is removing the label
+  from #330 (or closing it); the workflow's first run does the same on its own,
+  because #330 has not been updated since 2026-09-14. The other is whether
+  previews keep `LOG_LEVEL=TRACE`, which Kubernetes-Manifests sets and which
+  stays until the maintainer says otherwise. The 14 days is a pick awaiting the
+  same confirmation.
 
 ## Unattended maintenance
 
