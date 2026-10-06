@@ -13,6 +13,7 @@ import {
 // published limit has one source lives in the linter (tools/eslint/checks).
 import forecastWindowSource from '../utils/forecastWindow.ts?raw'
 import { AQI_LIMIT_DAYS } from '../utils/calendar'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import {
   FALLBACK_WINDOW_LIMITS,
   FUTURE_LIMIT_SLACK_DAYS,
@@ -33,6 +34,7 @@ describe('parseCapabilities', () => {
       max_future_days: 9,
       past_data_days: 30,
       aqi_forecast_days: 4,
+      max_polygon_points: 500,
     },
     // Deliberately NOT in reach order: the server ranks these for mountain
     // terrain, and a client that re-sorted would undo the ranking.
@@ -62,6 +64,7 @@ describe('parseCapabilities', () => {
       maxPolygonAreaKm2: 70_000,
       archiveDays: 200,
       aqiForecastDays: 4,
+      maxPolygonPoints: 500,
       windowLimits: { maxPastDays: 210, maxFutureDays: 9, pastDataDays: 30 },
       forecastModels: [
         {
@@ -184,6 +187,9 @@ describe('parseCapabilities', () => {
     expect(partial.maxPolygonAreaKm2).toBeGreaterThan(0)
     expect(partial.archiveDays).toBeGreaterThan(0)
     expect(partial.aqiForecastDays).toBeGreaterThan(0)
+    // A deployment from before #619 publishes no ring cap; the draw tool and
+    // the link parser stop at the browser's own copy of it.
+    expect(partial.maxPolygonPoints).toBe(MAX_POLYGON_POINTS)
   })
 
   // The three window bounds arrive as one object, so the per-field rule has to

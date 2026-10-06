@@ -14,6 +14,16 @@ import type { GeoPolygon } from '../types'
 import type { Ring } from './polylabel'
 
 /**
+ * The most positions a ring may carry, the closing repeat of its first point
+ * included (#619). The fallback for `limits.max_polygon_points`, held until
+ * `/api/capabilities` answers, and the browser's half of `MAX_POLYGON_POINTS` in
+ * `backend/app/limits.py`: every position is copied into every clause of the
+ * Overpass query, so the server refuses a ring past it, and the draw tool and a
+ * share link stop there rather than build one it would refuse.
+ */
+export const MAX_POLYGON_POINTS = 1_000
+
+/**
  * Approximate area of a ring, as the box around it.
  *
  * A port of `bbox_area_km2` in `backend/app/models/common.py`, formula for formula,

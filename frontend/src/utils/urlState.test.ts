@@ -24,6 +24,7 @@ import { urlNeedsSync } from './urlSync'
 import { escapeQueryText, unescapeQueryText } from './urlParams'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { place } from '../testSupport/fixtures'
+import { MAX_POLYGON_POINTS } from './drawGeometry'
 
 const polygon: GeoPolygon = {
   type: 'Polygon',
@@ -796,6 +797,30 @@ describe('decodeState tolerance', () => {
 
   it('drops a polygon with fewer than 3 vertices', () => {
     expect(decodeState('poly=-121.5,46.8;-121.4,46.2')).toBeNull()
+  })
+
+  // A link carries the ring without its closing point, which decoding adds
+  // back, so `n` pairs make a ring of `n + 1` positions: the count the server
+  // caps (#619).
+  const polyOf = (pairs: number) =>
+    'type=peak&poly=' +
+    Array.from({ length: pairs }, (_, i) => `${-121 - i / 1e4},${46 + (i % 2) / 1e4}`).join(';')
+
+  it('drops a ring one point over the cap and keeps the rest of the link', () => {
+    const out = decodeState(polyOf(MAX_POLYGON_POINTS))
+    expect(out!.polygon).toBeUndefined()
+    expect(out!.destinationTypes).toEqual(['peak'])
+  })
+
+  it('keeps a ring exactly at the cap', () => {
+    expect(decodeState(polyOf(MAX_POLYGON_POINTS - 1))!.polygon!.coordinates[0]).toHaveLength(
+      MAX_POLYGON_POINTS,
+    )
+  })
+
+  it('drops a ring over the cap the deployment published', () => {
+    expect(decodeState(polyOf(5), 5)!.polygon).toBeUndefined()
+    expect(decodeState(polyOf(4), 5)!.polygon!.coordinates[0]).toHaveLength(5)
   })
 
   it('rejects an unknown destination type but keeps valid neighbors', () => {
