@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
 from app.models import ErrorResponse
-from app.services import nifc
+from app.services import held_body, nifc
 from app.services.bbox import parse_bbox
 from app.services.snapshot import snapshot_or_503
 
 router = APIRouter()
+
+# The gzipped national answer at each fidelity, held per snapshot (#628).
+_NATIONAL = held_body.HeldBodies()
 
 
 class WildfireCollection(BaseModel):
@@ -109,6 +112,7 @@ class WildfireCollection(BaseModel):
     dependencies=[Depends(ratelimit.wildfires_rate_limit)],
 )
 async def wildfires(
+    request: Request,
     bbox: str = Query(
         ...,
         description=(
@@ -131,7 +135,19 @@ async def wildfires(
 ) -> Response:
     box = parse_bbox(bbox)
     snapshot = await snapshot_or_503(nifc.PERIMETERS, event="wildfires_unavailable")
-    fires = snapshot.within(box, coarse=detail == "coarse")
+    coarse = detail == "coarse"
+    fires = snapshot.within(box, coarse=coarse)
+    # A box that takes in every perimeter is the national answer, the same
+    # bytes for every such box until the snapshot changes, so it is compressed
+    # once and held rather than once per request.
+    if len(fires) == len(snapshot.coarse if coarse else snapshot.full) and held_body.takes_gzip(
+        request
+    ):
+        return held_body.respond(
+            await _NATIONAL.gzipped(
+                snapshot, detail, lambda: nifc.collection_json(snapshot, fires)
+            )
+        )
     # Returned as a Response so FastAPI passes the stored feature text through
     # untouched; `response_model` above still documents the shape.
     return Response(

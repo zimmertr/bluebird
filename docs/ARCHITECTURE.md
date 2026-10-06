@@ -58,7 +58,10 @@ that never awaits from holding the loop, which blocks every other request on
 the pod for the length of the parse. Responses are compressed at gzip level 6
 rather than Starlette's default of 9, measured on the largest body this service
 sends: level 9 costs 124 ms more event-loop CPU per request and saves 0.4% of
-the bytes.
+the bytes. The largest of those bodies, an overlay's whole national set, is
+not compressed per request at all: `app/services/held_body.py` gzips it once
+per snapshot, on a worker thread, and the wildfire and closure routes send the
+held bytes to every client that takes gzip (#628).
 
 Every response leaves the pod carrying a Content-Security-Policy and the usual
 hardening headers, added by `app/security_headers.py` outside every route,

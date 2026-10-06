@@ -55,7 +55,10 @@ router = APIRouter()
         "a client and want ranked forecasts in one call, `POST /api/analyze` "
         "remains the endpoint for that."
     ),
-    dependencies=[Depends(ratelimit.destinations_rate_limit)],
+    dependencies=[
+        Depends(ratelimit.destinations_rate_limit),
+        Depends(ratelimit.destinations_in_flight),
+    ],
     responses={
         413: body_limit.TOO_LARGE_RESPONSE,
         400: {

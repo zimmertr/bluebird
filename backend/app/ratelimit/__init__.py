@@ -28,7 +28,8 @@ mirroring how LOG_LEVEL works.
 
 The two live in ``client`` and ``upstream`` beside this file, and this file
 re-exports them so ``ratelimit.X`` keeps working, with one exception: the six
-per-client limiters are read only as ``ratelimit.client.X``. The route
+per-client limiters, and the per-client in-flight share beside them, are read
+only as ``ratelimit.client.X``. The route
 dependencies read them inside ``client``, so a limiter patched here would never
 reach them, and leaving the name out makes that patch fail rather than pass
 silently. The upstream budgets are the other way round: the services read them
@@ -50,12 +51,16 @@ from app.ratelimit.client import (
     RATE_LIMIT_SMOKE_PER_MINUTE,
     RATE_LIMIT_WILDFIRES_BURST,
     RATE_LIMIT_WILDFIRES_PER_MINUTE,
+    InFlightLimiter,
     RateLimiter,
     _throttle,
     _TokenBucket,
     analyze_rate_limit,
+    bucket_key,
+    client_address,
     client_key,
     closures_rate_limit,
+    destinations_in_flight,
     destinations_rate_limit,
     geocode_rate_limit,
     smoke_rate_limit,
@@ -104,9 +109,12 @@ __all__ = [
     "UPSTREAM_WEIGHT_MAX_WAIT_S",
     "UPSTREAM_BUDGET_WAIT_S",
     "SHED_RETRY_AFTER_S",
+    "client_address",
+    "bucket_key",
     "client_key",
     "_TokenBucket",
     "RateLimiter",
+    "InFlightLimiter",
     "BudgetExhausted",
     "UpstreamBudget",
     "MinIntervalGate",
@@ -119,6 +127,7 @@ __all__ = [
     "_throttle",
     "analyze_rate_limit",
     "destinations_rate_limit",
+    "destinations_in_flight",
     "geocode_rate_limit",
     "wildfires_rate_limit",
     "smoke_rate_limit",

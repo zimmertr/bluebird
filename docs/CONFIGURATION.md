@@ -37,8 +37,8 @@ table for what each knob means:
 | `RATE_LIMIT_ANALYZE_BURST` | `6` | Analyze requests an idle client may send back-to-back before the per-minute pace applies. |
 | `RATE_LIMIT_DESTINATIONS_PER_MINUTE` | `30` | Sustained `POST /api/destinations` requests per client address per minute, its own bucket so discovery never starves analyses. `0` disables the limit. |
 | `RATE_LIMIT_DESTINATIONS_BURST` | `10` | Destinations requests an idle client may send back-to-back. |
-| `RATE_LIMIT_GEOCODE_PER_MINUTE` | `30` | Sustained `GET /api/geocode` requests per client address per minute. `0` disables the limit. |
-| `RATE_LIMIT_GEOCODE_BURST` | `10` | Geocode requests an idle client may send back-to-back. |
+| `RATE_LIMIT_GEOCODE_PER_MINUTE` | `10` | Sustained `GET /api/geocode` requests per client address per minute. Sized together with the burst, so one address's first minute books fewer Nominatim gate slots than the gate opens in a minute (`NOMINATIM_MIN_INTERVAL_MS`); `test_ratelimit.py` holds the defaults to that. `0` disables the limit. |
+| `RATE_LIMIT_GEOCODE_BURST` | `3` | Geocode requests an idle client may send back-to-back. |
 | `RATE_LIMIT_WILDFIRES_PER_MINUTE` | `90` | Sustained `GET /api/wildfires` requests per client address per minute. The loosest bucket: it answers from a snapshot the pod already holds and reaches no upstream, and the map overlay refetches on every pan. `0` disables the limit. |
 | `RATE_LIMIT_WILDFIRES_BURST` | `30` | Wildfire requests an idle client may send back-to-back. |
 | `WILDFIRE_CACHE_TTL_S` | `600` | How long a fetched national wildfire-perimeter snapshot counts as current. Past it the snapshot is still served, with a refresh running behind the request. |
