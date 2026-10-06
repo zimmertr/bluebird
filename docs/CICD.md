@@ -1020,7 +1020,7 @@ flowchart LR
   served from the image, and the license notices ship (#571):
   `/third-party-licenses.txt` and `/swagger-ui/swagger-ui-bundle.js.LICENSE.txt`
   answer, the first names every direct dependency in `frontend/package.json`
-  and `backend/requirements.txt`, and `/app/LICENSE` is in the image. The
+  and `backend/requirements.in`, and `/app/LICENSE` is in the image. The
   build itself fails before that when a bundled or installed package has no
   license text, so this job is where a missing notice turns a PR red.
 - `pr.yml`'s **Lighthouse Budgets** job runs after `docker-build`, rebuilds from
@@ -1175,6 +1175,37 @@ auto-merge for patch (bugfix) bumps only** — GitHub completes the merge once
 When it arms auto-merge it also posts a marker-guarded comment on the PR saying
 so (and how to stop it), so the self-merge is visible from the PR page rather
 than something to infer from the merge timeline.
+
+Three things narrow what an auto-merged patch can bring with it (#633):
+
+- **Every npm and pip entry waits seven days** after a release before proposing
+  it (`cooldown: default-days: 7` in `.github/dependabot.yml`). A patch
+  auto-merges as soon as the required checks pass and a merge to `main`
+  deploys, so before the cooldown a release published the day before the
+  weekly run was live the same morning (vite 8.3.1, #556: opened 06:48, merged
+  06:51 on 2026-10-01). The npm worms of 2025 were pulled within hours to a few
+  days of publication. The wait applies to version updates only: GitHub
+  documents that Dependabot's **security** updates do not wait for it, so a
+  fix for a published advisory still arrives at once. The `github-actions` and
+  `docker` entries carry no cooldown here.
+- **No `npm ci` runs install scripts.** The image build, both `npm ci` steps in
+  `pr.yml`, the two tool-package installs in `frontend/package.json` and the
+  `Makefile` all pass `--ignore-scripts`. The app's lockfile holds two packages
+  with a script, `fsevents` (macOS only) and `@scarf/scarf` (install telemetry
+  pulled in by `swagger-ui-dist`), and no package needs one on Linux, so a
+  build-chain release that adds a script cannot run it on the runner or in the
+  builder. The bundle the image serves was byte-identical with and without the
+  flag (2026-10-06).
+- **The backend installs from a hashed lock.** `backend/requirements.in` holds
+  the direct pins and `backend/requirements.txt` is pip-compile's lock of it,
+  every indirect distribution included and every one hashed; the image
+  installs it with `pip install --require-hashes`, so a package missing from it
+  or a download that does not match fails the build. Dependabot's pip entry
+  reads the `.in` files and recompiles both locks (`requirements-dev.txt` is
+  the same lock plus the test tools), and the dependency graph reads
+  `requirements.txt`, which is what puts Starlette and the rest of the indirect
+  set in front of the alerts. Regenerating the lock by hand is `make
+  lock-backend` ([DEVELOPMENT.md](DEVELOPMENT.md#the-backends-dependency-lock)).
 
 In practice only `pip`/`npm` patches auto-merge, plus three exactly pinned
 actions (hadolint, trivy-action, lighthouse-ci-action) whose patch bumps do

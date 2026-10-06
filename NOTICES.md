@@ -88,7 +88,7 @@ docker buildx imagetools inspect zimmertr/bluebird:<version> --format '{{ json .
 ```
 
 <!-- backend/tests/test_notices.py holds the two tables below to
-     frontend/package.json's dependencies and backend/requirements.txt, in
+     frontend/package.json's dependencies and backend/requirements.in, in
      both directions, and each license cell to the license the package
      declares. A new direct dependency fails it until it has a row. -->
 

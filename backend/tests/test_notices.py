@@ -3,7 +3,7 @@
 The image's ``third-party-licenses.txt`` is written by the build from what it
 actually ships, so nothing there can go stale. The two tables in NOTICES.md are
 hand-written, and nothing tied them to the manifests: a dependency added to
-``frontend/package.json`` or ``backend/requirements.txt`` reached production
+``frontend/package.json`` or ``backend/requirements.in`` reached production
 with no row, and the one license column that had drifted (prometheus-client,
 which is two licenses) went unnoticed. This holds both tables to their manifest
 in both directions, and each license cell to the license the package itself
@@ -28,7 +28,7 @@ REPO = Path(__file__).parents[2]
 NOTICES = REPO / "NOTICES.md"
 PACKAGE_JSON = REPO / "frontend" / "package.json"
 PACKAGE_LOCK = REPO / "frontend" / "package-lock.json"
-REQUIREMENTS = REPO / "backend" / "requirements.txt"
+REQUIREMENTS = REPO / "backend" / "requirements.in"
 
 
 def _canonical(name: str) -> str:
