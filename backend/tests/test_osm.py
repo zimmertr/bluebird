@@ -291,6 +291,25 @@ async def test_post_with_fallback_all_endpoints_fail(monkeypatch):
     assert fake.timeouts == [m.timeout_s for m in osm.OVERPASS_MIRRORS]
 
 
+async def test_a_mirror_that_answers_past_its_deadline_fails_over(monkeypatch):
+    # Issue #630: httpx's timeout is per operation and its read timer restarts
+    # on every chunk, so a mirror that trickles its answer held a slot for as
+    # long as it liked. Each attempt now has the mirror's timeout as a total,
+    # which is what makes the sum above a worst case rather than a hope.
+    mirrors = [dataclasses.replace(m, timeout_s=0.05) for m in osm.OVERPASS_MIRRORS]
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
+
+    async def trickle():
+        await asyncio.sleep(1)
+        return fake_response({"elements": [{"slow": True}]})
+
+    fake = _FakeClient([trickle, fake_response({"elements": []})])
+    monkeypatch.setattr(osm.mirrors.httpx, "AsyncClient", lambda *a, **k: fake)
+
+    assert await osm._post_with_fallback("q") == {"elements": []}
+    assert fake.calls == 2
+
+
 async def test_post_with_fallback_skips_saturated_mirror(monkeypatch):
     # Mirror 1's pod-wide budget is fully occupied: the chain must move to the
     # next operator (its own capacity) instead of shedding the analysis.

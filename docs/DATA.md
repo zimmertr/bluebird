@@ -86,7 +86,9 @@ tried in order, and the order is not arbitrary: `backend/app/services/osm/mirror
 carries a dated table of measured success rates and response times behind it,
 and each query asks the server to give up at the same moment the app stops
 waiting, so a query nobody is waiting for never holds one of the operator's
-slots. A mirror that has just failed is asked last for the next two minutes and
+slots. That moment is a total for the whole attempt, not a limit on the gap
+between bytes, so a mirror that trickles its answer is given up on at the same
+time as one that sends nothing. A mirror that has just failed is asked last for the next two minutes and
 leads again after its first success, so a busy spell costs one slow attempt
 rather than one per analysis, and no mirror is ever skipped outright. Discovery
 results are cached for several minutes, and a resolved coordinate set is cached
@@ -113,7 +115,13 @@ anyway, a short block resumes on its own once the window passes, and a longer
 one stops the analysis and says so rather than retrying into the wall.
 The browser gives each batch 20 seconds to answer and asks a silent one once
 more before the analysis fails with a message and a retry, instead of waiting
-until you cancel.
+until you cancel. The server path gives each request 60 seconds from the first
+byte sent to the last byte received, a total rather than a gap between bytes,
+so an answer that keeps arriving slowly cannot hold one of the server's few
+request slots past it. An answer that arrives but is not the API's JSON (an
+error page from something in front of Open-Meteo, say) is treated like any
+other failed request: the weather fails the analysis, and air quality reads
+blank.
 
 An API caller can bring its own Open-Meteo key, and a keyed request reads the
 same models from the same data: it goes to Open-Meteo's customer hosts
@@ -548,7 +556,10 @@ requires an identifying `User-Agent`, a header browsers refuse to let a page
 set, which is why this one lookup is proxied through Bluebird Forecast's server instead
 of running in your browser the way the weather fetch does. The policy also asks
 callers to cache results, so the server keeps each answer for about ten minutes
-and a repeat of the same search is answered without asking Nominatim again.
+and a repeat of the same search is answered without asking Nominatim again. A
+search that has not finished in ten seconds, or that comes back as something
+other than Nominatim's JSON, is reported as a failed search rather than left
+waiting.
 
 ## Map tiles
 
@@ -950,6 +961,15 @@ grid reads `N/A` on every row and names no date. The 24-hour limit on the fire,
 smoke and closure copies does not apply here: when NSIDC cannot be reached the
 server keeps the last grid it has, and the date in the header says how old it
 is.
+
+**A file the server refuses means no snow depth that day.** The day's archive
+is checked before it is used: the download, the archive and each member inside
+it have a size they may not pass, and every number in the header must be a real
+number. A file that fails any of those checks is not read, and for that analysis
+day every row reads `N/A` and the header names no date, the same as a server
+that has no grid yet. The previous day's grid is not served in its place,
+because its date would then sit beside a column you would take for today's. The
+next day's file replaces the refusal as soon as NSIDC publishes it.
 
 **The glacier caveat above applies to the column too, and it is the number a
 reader is most likely to misread.** Over permanent ice SNODAS accumulates year

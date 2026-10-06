@@ -20,7 +20,9 @@ a year of a cached `404` is worse than the defect this fixes.
 
 The header is set only where the response carries none, so a route keeps its
 own value. That is the decision a route is entitled to make about its own
-body, and `/api/capabilities` and `/api/version` are expected to take it.
+body. `/api/capabilities` takes it; `/api/version` deliberately does not,
+because the SPA never calls it and its one reader is a person asking which
+build is live right now (`docs/TRAFFIC.md`).
 """
 
 from __future__ import annotations

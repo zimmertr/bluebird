@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -168,7 +169,9 @@ def _stub_openmeteo(
             if isinstance(behavior, Exception):
                 raise behavior
             if callable(behavior):
-                return behavior(url, params or {})
+                answer = behavior(url, params or {})
+                # A coroutine behavior is one that takes real time to answer.
+                return await answer if inspect.isawaitable(answer) else answer
             return fake_response(behavior)
 
     stub = _Client()
@@ -250,6 +253,32 @@ async def test_a_failed_request_degrades_and_is_not_cached(monkeypatch):
     results = await fetch_aqi_batch(_dests(1), START, END)
     assert len(calls) == 2
     assert results[0]["aqi_avg"] == 80
+
+
+async def test_a_body_that_is_not_json_degrades_and_is_not_cached(monkeypatch):
+    # Issue #630: air quality is best-effort, so an answer that does not
+    # decode is a null row like any other failed batch, never an exception
+    # that fails the analysis around it.
+    one = _hourly(["2026-07-21T00:00"], [80])
+    calls = _stub_openmeteo(
+        monkeypatch, [lambda url, params: fake_response(None, text="<html>busy</html>"), [one]]
+    )
+    assert await fetch_aqi_batch(_dests(1), START, END) == [None]
+
+    results = await fetch_aqi_batch(_dests(1), START, END)
+    assert len(calls) == 2
+    assert results[0]["aqi_avg"] == 80
+
+
+async def test_a_request_past_its_total_deadline_degrades(monkeypatch):
+    monkeypatch.setattr(air_quality.http, "TIMEOUT_S", 0.05)
+
+    async def slow(url, params):
+        await asyncio.sleep(1)
+        return fake_response([_hourly(["2026-07-21T00:00"], [80])])
+
+    _stub_openmeteo(monkeypatch, [slow])
+    assert await fetch_aqi_batch(_dests(1), START, END) == [None]
 
 
 async def test_one_unusable_batch_leaves_its_siblings_cached(monkeypatch):

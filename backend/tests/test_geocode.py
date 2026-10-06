@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 from conftest import fake_response
 from fastapi.testclient import TestClient
@@ -170,3 +172,28 @@ def test_geocode_asks_again_after_the_ttl(monkeypatch):
     now[0] = geocode_mod.cache.GEOCODE_TTL_S
     client.get("/api/geocode", params={"q": "Seattle"})
     assert len(calls) == 2
+
+
+def test_geocode_body_that_is_not_json_is_502(monkeypatch):
+    # Issue #630: an HTML block page on a 200 decodes to nothing. It used to
+    # escape the handler as a bare 500 rather than the route's documented 502.
+    _patch_client(monkeypatch, fake_response(None, text="<html>blocked</html>"))
+    resp = client.get("/api/geocode", params={"q": "Seattle"})
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == f"{geocode_mod.PROVIDER} request failed. Try again later."
+
+
+def test_geocode_past_its_total_deadline_is_502(monkeypatch):
+    # Issue #630: httpx's timeout is per operation, so a slow trickle never
+    # trips it. The whole call has a deadline.
+    monkeypatch.setattr(geocode_mod, "TIMEOUT_S", 0.05, raising=False)
+
+    class _Slow(_FakeClient):
+        async def get(self, url, params=None, headers=None):
+            await asyncio.sleep(1)
+            return fake_response([])
+
+    monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _Slow(None))
+    resp = client.get("/api/geocode", params={"q": "Seattle"})
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == f"{geocode_mod.PROVIDER} took too long. Try again later."

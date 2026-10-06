@@ -34,28 +34,38 @@ written to disk: the pod runs ``readOnlyRootFilesystem``, and 64 MiB inside a
 **Its header is a file beside it, and it is read rather than assumed.** NSIDC
 has changed the masked product's extent once already, so the columns, rows,
 origin, resolution and no-data value all come out of the ``.txt.gz`` member. A
-header missing any of them, or declaring anything other than two bytes per
-pixel, fails the fetch — which leaves the last good snapshot standing, because
-an array read with the wrong geometry answers confident nonsense rather than
-nothing.
+header missing any of them, holding a number that is not finite, or declaring
+anything other than two bytes per pixel, refuses the file, because an array
+read with the wrong geometry answers confident nonsense rather than nothing.
+
+**A refused file is no grid for its day, not yesterday's grid.** The download,
+the outer archive and each member are bounded before they are read, and a file
+that breaks a bound or a header check is held as :class:`Refused` for its
+analysis date: every row reads null until the next day's file, and the hourly
+check finds the day in hand rather than downloading the same file again. The
+grid before it is not kept, because its date would caption a column the reader
+takes for today's (decision 0104). An NSIDC that cannot be reached is a
+different case, and still leaves the last good grid standing with its date.
 """
 
 from __future__ import annotations
 
 import asyncio
-import gzip
 import io
 import logging
 import math
 import struct
 import tarfile
 import time
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from typing import IO, NamedTuple
 
 import httpx
 
+from app import telemetry
 from app.env import env_int
 from app.services.errors import UpstreamError
 from app.services.http import HEADERS
@@ -88,6 +98,31 @@ RETRY_AFTER_FAILURE_S = env_int("SNODAS_RETRY_AFTER_FAILURE_S", 300)
 # Generous: the September archive measured 4.9 MB and a midwinter one is larger,
 # off a government file server rather than a tuned API.
 REQUEST_TIMEOUT_S = 120.0
+
+# The most of one day's archive the pod will download. Measured 2026-10-06 by
+# HEAD at NSIDC over thirteen days: 6.3 MB on 2026-10-05, 35 to 45 MB through
+# the 2023 to 2026 winters, and 48.0 MB at the largest, 2026-01-25. Twice that,
+# so a bigger winter is still read, while a file that is not the archive cannot
+# be held in memory whole: the download sits beside the grid in the pod's
+# memory until it is parsed.
+MAX_ARCHIVE_BYTES = 96 * 2**20
+
+# The most the header member may inflate to. The real one is 3,381 bytes
+# (2026-10-05), sixty-odd `key: value` lines, so this is about twenty times
+# that and still nothing a pod notices.
+MAX_HEADER_BYTES = 64 * 2**10
+
+# The largest grid the header may declare, and so the most the data member may
+# inflate to. Today's is 8192 by 4096 two-byte samples, 64 MiB (#449); twice
+# that leaves room for NSIDC to widen the extent, which it has done to the
+# masked product once, without letting a header claim an array the pod cannot
+# hold. The bound is checked against the header before any sample is read.
+MAX_GRID_BYTES = 128 * 2**20
+
+# How much compressed input each step of the bounded inflate takes. Small,
+# because one step can inflate a long run of zeros a thousandfold before the
+# output bound stops it.
+_INFLATE_STEP_BYTES = 64 * 2**10
 
 INCHES_PER_METER = 39.3701
 
@@ -126,15 +161,24 @@ _BYTES_PER_PIXEL = 2
 _SAMPLE = struct.Struct(">h")
 
 
-def _bad(detail: str) -> UpstreamError:
+class RefusedGrid(UpstreamError):
+    """The day's file broke a bound or a header check.
+
+    Its own class because the fetch answers it differently from an NSIDC that
+    cannot be reached: a refusal stands for its day as :class:`Refused`, where
+    an outage leaves the last good grid standing.
+    """
+
+
+def _bad(detail: str) -> RefusedGrid:
     """A refusal a person can act on, carrying the user-facing sentence.
 
     The message is the overlays' own: nothing about a malformed grid is a thing
-    a reader can fix, and the snapshot cache is what turns this into "keep
-    serving what we have" rather than into anything on screen.
+    a reader can fix, and the fetch turns this into a null column for the day
+    rather than into anything on screen.
     """
     log.warning("SNODAS grid rejected: %s", detail)
-    return UpstreamError("Snow depth data is unavailable. Try again later.")
+    return RefusedGrid("Snow depth data is unavailable. Try again later.")
 
 
 def parse_header(text: str) -> dict[str, str]:
@@ -167,7 +211,7 @@ def _units_divisor(declared: str) -> float:
         value = float(divisor)
     except ValueError as exc:
         raise _bad(f"data units {declared!r} carry no divisor") from exc
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         raise _bad(f"data units {declared!r} divide by {value}")
     return value
 
@@ -230,6 +274,19 @@ class Snapshot:
         return round(value / self.units_divisor * INCHES_PER_METER, 2)
 
 
+@dataclass(frozen=True)
+class Refused:
+    """A day whose file was refused, held in the grid's place.
+
+    Held by the cache like a grid, for two reasons. The hourly check compares
+    the held date before it downloads anything, so the same bad file is not
+    fetched again every backoff. And the grid before it is replaced rather than
+    kept, so no row reads yesterday's depth under today's report.
+    """
+
+    analysis_date: str
+
+
 # The month segment of a path, as NSIDC spells it. Spelled here rather than
 # taken from ``%b``, which reads the C library's locale: a pod whose locale is
 # not English would build ``09_sept`` and get a 404 for every day of the year.
@@ -275,25 +332,67 @@ def _members(archive: tarfile.TarFile) -> tuple[str, str]:
     return data, header
 
 
-def _read(archive: tarfile.TarFile, name: str) -> bytes:
+def _inflate(member: IO[bytes], name: str, limit: int) -> bytes:
+    """A gzip member's content, refused the moment it passes ``limit`` bytes.
+
+    ``gzip.decompress`` inflates the whole member before anyone can look at its
+    size, so a member that inflates to gigabytes is in memory before it is
+    refused. This feeds the compressed bytes through in small steps and asks
+    each step for no more output than the bound has left, so nothing past the
+    bound is ever produced. Several gzip members back to back are read as one,
+    as ``gzip.decompress`` reads them, because the format allows it.
+    """
+    out: list[bytes] = []
+    size = 0
+    inflater = zlib.decompressobj(wbits=31)
+    pending = b""
+    try:
+        while True:
+            if not pending:
+                pending = member.read(_INFLATE_STEP_BYTES)
+                if not pending:
+                    break
+            if inflater.eof:
+                inflater = zlib.decompressobj(wbits=31)
+            chunk = inflater.decompress(pending, limit + 1 - size)
+            size += len(chunk)
+            if size > limit:
+                raise _bad(f"{name} inflates past {limit} bytes")
+            out.append(chunk)
+            pending = inflater.unconsumed_tail or inflater.unused_data
+    except zlib.error as exc:
+        raise _bad(f"{name} is not gzip: {exc}") from exc
+    if not inflater.eof:
+        raise _bad(f"{name} ends before its gzip stream does")
+    return b"".join(out)
+
+
+def _read(archive: tarfile.TarFile, name: str, limit: int) -> bytes:
     member = archive.extractfile(name)
     if member is None:
         raise _bad(f"{name} is not a readable member")
-    return gzip.decompress(member.read())
+    return _inflate(member, name, limit)
 
 
-def read_tar(payload: bytes, day: date) -> Snapshot:
-    """One day's archive as a snapshot, or a refusal naming what was wrong.
+class _Geometry(NamedTuple):
+    columns: int
+    rows: int
+    min_x: float
+    max_y: float
+    res_x: float
+    res_y: float
+    no_data: int
+    units_divisor: float
 
-    Synchronous, and run off the event loop by its caller: decompressing 64 MiB
-    is CPU work, and an ``async`` function holding the loop blocks every other
-    request on the pod while it runs.
+
+def _geometry(header: dict[str, str]) -> _Geometry:
+    """Everything the header must say before a sample is read, checked.
+
+    Every number must be finite. ``float()`` reads ``nan`` and ``inf``, NaN
+    passes every ``<= 0`` check below, and a grid built on either answered each
+    lookup with a ``ValueError`` from ``math.floor``, which reached the routes
+    as a 500 until the next day's file (#629).
     """
-    with tarfile.open(fileobj=io.BytesIO(payload)) as archive:
-        data_name, header_name = _members(archive)
-        header = parse_header(_read(archive, header_name).decode("utf-8", "replace"))
-        samples = _read(archive, data_name)
-
     missing = [key for key in _REQUIRED if key not in header]
     if missing:
         raise _bad(f"header is missing {', '.join(missing)}")
@@ -307,7 +406,7 @@ def read_tar(payload: bytes, day: date) -> Snapshot:
     declared_max = header["maximum data value"]
     try:
         ceiling_mm = int(float(declared_max))
-    except ValueError as exc:
+    except (ValueError, OverflowError) as exc:
         raise _bad(f"maximum data value {declared_max!r} is not a number") from exc
     if ceiling_mm != _INT16_MAX_MM:
         raise _bad(f"maximum data value {ceiling_mm}, expected {_INT16_MAX_MM}")
@@ -319,19 +418,18 @@ def read_tar(payload: bytes, day: date) -> Snapshot:
         max_y = float(header["maximum y-axis coordinate"])
         res_x = float(header["x-axis resolution"])
         res_y = float(header["y-axis resolution"])
+        # `int(inf)` is an OverflowError rather than a ValueError.
         no_data = int(float(header["no data value"]))
-    except ValueError as exc:
+    except (ValueError, OverflowError) as exc:
         raise _bad(f"header holds an unreadable number: {exc}") from exc
+    if not all(math.isfinite(v) for v in (min_x, max_y, res_x, res_y)):
+        raise _bad(f"header places the grid at {min_x}, {max_y} by {res_x}x{res_y} degrees")
     if columns <= 0 or rows <= 0 or res_x <= 0 or res_y <= 0:
         raise _bad(f"header describes a {columns}x{rows} grid at {res_x}x{res_y} degrees")
+    if columns * rows * _BYTES_PER_PIXEL > MAX_GRID_BYTES:
+        raise _bad(f"header declares a {columns}x{rows} grid, past {MAX_GRID_BYTES} bytes")
 
-    expected = columns * rows * _BYTES_PER_PIXEL
-    if len(samples) != expected:
-        raise _bad(f"{len(samples)} bytes of samples where the header says {expected}")
-
-    return Snapshot(
-        analysis_date=day.isoformat(),
-        fetched_at_ms=int(time.time() * 1000),
+    return _Geometry(
         columns=columns,
         rows=rows,
         min_x=min_x,
@@ -340,20 +438,77 @@ def read_tar(payload: bytes, day: date) -> Snapshot:
         res_y=res_y,
         no_data=no_data,
         units_divisor=_units_divisor(header["data units"]),
-        samples=samples,
     )
 
 
-def _held() -> Snapshot | None:
+def read_tar(payload: bytes, day: date) -> Snapshot:
+    """One day's archive as a snapshot, or a refusal naming what was wrong.
+
+    Synchronous, and run off the event loop by its caller: decompressing 64 MiB
+    is CPU work, and an ``async`` function holding the loop blocks every other
+    request on the pod while it runs.
+
+    The header is read and checked before the data member is touched, because
+    the size it declares is the bound the data member is inflated against.
+    The archive is opened as a plain tar: NSIDC publishes one uncompressed, and
+    ``tarfile.open``'s default would unwrap a gzip, bz2 or xz layer around it,
+    a second expansion that no bound here would see.
+    """
+    try:
+        with tarfile.open(fileobj=io.BytesIO(payload), mode="r:") as archive:
+            data_name, header_name = _members(archive)
+            header = parse_header(
+                _read(archive, header_name, MAX_HEADER_BYTES).decode("utf-8", "replace")
+            )
+            geometry = _geometry(header)
+            expected = geometry.columns * geometry.rows * _BYTES_PER_PIXEL
+            samples = _read(archive, data_name, expected)
+    except tarfile.TarError as exc:
+        raise _bad(f"the archive is not a plain tar: {exc}") from exc
+
+    if len(samples) != expected:
+        raise _bad(f"{len(samples)} bytes of samples where the header says {expected}")
+
+    return Snapshot(
+        analysis_date=day.isoformat(),
+        fetched_at_ms=int(time.time() * 1000),
+        samples=samples,
+        **geometry._asdict(),
+    )
+
+
+async def _download(client: httpx.AsyncClient, url: str) -> bytes:
+    """One archive, refused past ``MAX_ARCHIVE_BYTES`` before it is all held.
+
+    Streamed rather than read with ``.content``, which buffers whatever the
+    server sends. A declared length over the bound refuses before any body is
+    read, and the count of bytes received refuses an answer that declares none.
+    """
+    async with client.stream("GET", url) as response:
+        response.raise_for_status()
+        declared = response.headers.get("content-length")
+        if declared is not None and declared.isdigit() and int(declared) > MAX_ARCHIVE_BYTES:
+            raise _bad(f"{url} declares {declared} bytes, past {MAX_ARCHIVE_BYTES}")
+        chunks: list[bytes] = []
+        received = 0
+        async for chunk in response.aiter_bytes():
+            received += len(chunk)
+            if received > MAX_ARCHIVE_BYTES:
+                raise _bad(f"{url} runs past {MAX_ARCHIVE_BYTES} bytes")
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _held() -> Snapshot | Refused | None:
     """Whatever the module's own cache holds. Passed as a default rather than
     read inline so a test can hand the fetch a grid of its own."""
     return GRID.snapshot_or_none
 
 
 async def fetch_snapshot(
-    held: Callable[[], Snapshot | None] = _held,
+    held: Callable[[], Snapshot | Refused | None] = _held,
     now: datetime | None = None,
-) -> Snapshot:
+) -> Snapshot | Refused:
     """The current analysis, downloading only when the held one is not it.
 
     Two days are tried, today and yesterday, because the day's archive is
@@ -364,7 +519,13 @@ async def fetch_snapshot(
 
     The held-date check is what makes the refresh cheap on the common path: for
     most of the day the answer is "the grid you already have", and re-reading
-    64 MiB to learn that would be the whole cost of the TTL.
+    64 MiB to learn that would be the whole cost of the TTL. A refused day is
+    held the same way, so it costs NSIDC one download rather than one per
+    hourly check.
+
+    A refused file answers :class:`Refused` for its own day. It does not fall
+    back to the day before, which would serve an older grid in its place, and
+    it is counted as a failed refresh, so the refresh-failure panel sees it.
     """
     today = (now or datetime.now(UTC)).date()
     current = held()
@@ -378,10 +539,19 @@ async def fetch_snapshot(
                 log.info("SNODAS has no archive for %s yet; falling back a day", day.isoformat())
                 continue
             probe.raise_for_status()
-            response = await client.get(url)
-            response.raise_for_status()
-            return await asyncio.to_thread(read_tar, response.content, day)
+            try:
+                payload = await _download(client, url)
+                return await asyncio.to_thread(read_tar, payload, day)
+            except RefusedGrid:
+                telemetry.SNAPSHOT_REFRESH_FAILURES.labels(provider=PROVIDER).inc()
+                return Refused(day.isoformat())
     raise UpstreamError("Snow depth data is unavailable. Try again later.")
+
+
+def _describe(held: Snapshot | Refused) -> str:
+    if isinstance(held, Refused):
+        return f"no grid for {held.analysis_date}: the file was refused"
+    return f"{held.columns}x{held.rows} grid analyzed {held.analysis_date}"
 
 
 snow_cache = cache_factory(
@@ -389,7 +559,7 @@ snow_cache = cache_factory(
     fetch=fetch_snapshot,
     ttl_s=TTL_S,
     retry_after_failure_s=RETRY_AFTER_FAILURE_S,
-    describe=lambda s: f"{s.columns}x{s.rows} grid analyzed {s.analysis_date}",
+    describe=_describe,
 )
 
 GRID = snow_cache()
@@ -408,15 +578,26 @@ def fill_snow_depth(destinations: list[dict]) -> str | None:
     The return is the date the numbers came from rather than a flag, because a
     snow ranking states it on screen and a stale grid is only honest if it says
     which day it is.
+
+    A refused day, and a grid whose lookup raises, read the same as no grid:
+    null on every row and no date. Snow depth is one column of a report, and
+    nothing about the grid may fail the discovery or the analysis it rides on
+    (#629). The header checks are what keep a grid that raises out of the
+    cache; this is the backstop if one gets past them.
     """
-    snapshot = GRID.current_or_schedule()
-    for destination in destinations:
-        destination["snow_depth_in"] = (
-            None
-            if snapshot is None
-            else snapshot.depth_in(destination["latitude"], destination["longitude"])
-        )
-    return None if snapshot is None else snapshot.analysis_date
+    held = GRID.current_or_schedule()
+    depths: list[float | None] = [None] * len(destinations)
+    analysis_date: str | None = None
+    if isinstance(held, Snapshot):
+        try:
+            depths = [held.depth_in(d["latitude"], d["longitude"]) for d in destinations]
+            analysis_date = held.analysis_date
+        except Exception as exc:  # noqa: BLE001 — a bad grid must never fail the route it rides on
+            log.warning("SNODAS grid for %s could not answer a lookup: %r", held.analysis_date, exc)
+            depths = [None] * len(destinations)
+    for destination, depth in zip(destinations, depths, strict=True):
+        destination["snow_depth_in"] = depth
+    return analysis_date
 
 
 async def warm_up() -> None:
