@@ -1638,3 +1638,181 @@ describe('fetchAqi pacing', () => {
     expect(onPace).not.toHaveBeenCalled()
   })
 })
+
+// ── Elevations still being looked up (#643) ────────────────────────────────
+//
+// A pasted list's elevations come from the pod, which can take seconds on a
+// busy map server. Open-Meteo is never sent an elevation, so the requests
+// leave at once and each batch is reduced when the lookup answers.
+
+describe('elevations a lookup is still out for (#643)', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    let reject!: (reason: unknown) => void
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+  const tick = () => new Promise<void>((r) => setTimeout(r, 0))
+
+  // The level winds of the #257 test: 8,000 ft reads 22.6 mph, and a place
+  // with no elevation keeps the 10 m mean of 6.0.
+  function windyPayload(elevationM?: number) {
+    const payload = hourlyPayload() as ReturnType<typeof hourlyPayload> & { elevation?: number }
+    if (elevationM !== undefined) payload.elevation = elevationM
+    Object.assign(payload.hourly, {
+      wind_speed_925hPa: [7.0, 7.0],
+      wind_speed_850hPa: [10.0, 10.0],
+      wind_speed_700hPa: [30.0, 30.0],
+      wind_speed_600hPa: [40.0, 40.0],
+      wind_speed_500hPa: [50.0, 50.0],
+    })
+    return payload
+  }
+  const PLACE = [{ latitude: 47.5, longitude: -121.9 }]
+
+  it('asks at once, and reduces at the elevation the lookup returns', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(windyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const heights = deferred<(number | null)[]>()
+    const onProgress = vi.fn()
+    let done = false
+    const pending = fetchWeather(PLACE, WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      heights: heights.promise,
+      onProgress,
+    }).then((out) => {
+      done = true
+      return out
+    })
+    await tick()
+    // The request has left and been counted, with the lookup still out.
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(onProgress).toHaveBeenLastCalledWith(1, 1)
+    expect(done).toBe(false)
+
+    heights.resolve([8000])
+    expect((await pending)[0]?.wind_avg_mph).toBe(22.6)
+  })
+
+  it('keeps asking past the pool width while the lookup is out', async () => {
+    // Five batches against four request slots. A reduce that held its slot
+    // while it waited would stop the fifth from ever being asked.
+    const many = Array.from({ length: 201 }, (_, i) => ({ latitude: i / 100, longitude: 1 }))
+    const fetchSpy = vi.fn(async (url: string) => {
+      const count = new URL(url).searchParams.get('latitude')!.split(',').length
+      return jsonResponse(Array.from({ length: count }, () => hourlyPayload()))
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+    const heights = deferred<(number | null)[]>()
+    const pending = fetchWeather(many, WINDOW.startMs, WINDOW.endMs, { ...OPTS, heights: heights.promise })
+    await tick()
+    await tick()
+    expect(fetchSpy).toHaveBeenCalledTimes(5)
+    heights.resolve(many.map(() => null))
+    expect(await pending).toHaveLength(201)
+  })
+
+  it('hands rows to onPartial only once they have their elevation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(windyPayload())))
+    const heights = deferred<(number | null)[]>()
+    const winds: (number | null | undefined)[] = []
+    const pending = fetchWeather(PLACE, WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      heights: heights.promise,
+      onPartial: (results) => winds.push(results[0]?.wind_avg_mph),
+    })
+    await tick()
+    expect(winds).toEqual([])
+    heights.resolve([8000])
+    await pending
+    expect(winds).toEqual([22.6])
+  })
+
+  it('falls back to the terrain height where the lookup found nothing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(windyPayload(2438.4))))
+    const out = await fetchWeather(
+      [{ ...PLACE[0], terrainFallback: true }],
+      WINDOW.startMs,
+      WINDOW.endMs,
+      { ...OPTS, heights: Promise.resolve([null]) },
+    )
+    expect(out[0]?.wind_avg_mph).toBe(22.6)
+  })
+
+  it('writes the cache under the elevation that arrived, and never reads it for a place still waiting', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(windyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(PLACE, WINDOW.startMs, WINDOW.endMs, { ...OPTS, heights: Promise.resolve([8000]) })
+    // The same place claimed at that elevation is the entry just written.
+    const claimed = await fetchWeather(
+      [{ ...PLACE[0], elevation_ft: 8000 }],
+      WINDOW.startMs,
+      WINDOW.endMs, OPTS,
+    )
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(claimed[0]?.wind_avg_mph).toBe(22.6)
+    // A place whose elevation is not known yet cannot name its entry.
+    await fetchWeather(PLACE, WINDOW.startMs, WINDOW.endMs, { ...OPTS, heights: Promise.resolve([8000]) })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('still reads the cache for a place that carries its own elevation', async () => {
+    const fetchSpy = vi.fn(async () => jsonResponse(windyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const known = [{ ...PLACE[0], elevation_ft: 8000 }]
+    await fetchWeather(known, WINDOW.startMs, WINDOW.endMs, OPTS)
+    // Served whole from the cache, so the lookup is never waited on.
+    const out = await fetchWeather(known, WINDOW.startMs, WINDOW.endMs, {
+      ...OPTS,
+      heights: new Promise(() => {}),
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(out[0]?.wind_avg_mph).toBe(22.6)
+  })
+
+  it('fails when the lookup rejects, which is what an abort does to it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse(windyPayload())))
+    const heights = deferred<(number | null)[]>()
+    const pending = fetchWeather(PLACE, WINDOW.startMs, WINDOW.endMs, { ...OPTS, heights: heights.promise })
+    await tick()
+    heights.reject(new DOMException('Aborted', 'AbortError'))
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('holds the cloud column to the same rules', async () => {
+    const cloudBody = [
+      {
+        hourly_units: CLOUD_UNITS,
+        hourly: {
+          time: ['2026-07-21T00:00', '2026-07-21T01:00'],
+          cloud_cover: [40, 60],
+          relative_humidity_2m: [70, 70],
+          temperature_2m: [12, 12],
+          dew_point_2m: [4, 4],
+        },
+      },
+    ]
+    const fetchSpy = vi.fn(async () => jsonResponse(cloudBody))
+    vi.stubGlobal('fetch', fetchSpy)
+    const heights = deferred<(number | null)[]>()
+    const cloudOpts = { model: 'gfs_seamless', nowMs: WINDOW.startMs }
+    let done = false
+    const pending = fetchCloud(PLACE, WINDOW.startMs, WINDOW.endMs, { ...cloudOpts, heights: heights.promise }).then(
+      (out) => {
+        done = true
+        return out
+      },
+    )
+    await tick()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(done).toBe(false)
+    heights.resolve([328])
+    expect((await pending)[0]?.cloud_cover_avg_pct).toBe(50)
+    // Cached under the elevation that arrived.
+    await fetchCloud([{ ...PLACE[0], elevation_ft: 328 }], WINDOW.startMs, WINDOW.endMs, cloudOpts)
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+})

@@ -7,7 +7,7 @@ import type {
   DiscoveredDestination,
   RefusalFields,
 } from '../types'
-import { AnalysisRefusalError, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
+import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
@@ -76,16 +76,12 @@ export interface Discovered {
   snowAnalysisDate: string | null
 }
 
-// One server call answers two different questions. A polygon is *discovered*
-// (what is in here?); a custom list is *resolved* (what does OSM know about
-// these coordinates?), which is the only way a pasted CSV row can learn its
-// elevation, since a coordinate pair carries none (issue #207).
+// A polygon run's one server call: what is in here? A run with no polygon
+// never comes this way. Its field is the list it was sent, and
+// `runAnalysisPipeline` resolves that list beside the forecasts instead
+// (`resolveCustomOnly`, #643).
 export async function discoverCandidates(request: AnalyzeRequest, signal: AbortSignal): Promise<Discovered> {
   const customList = request.custom_destinations ?? []
-  if (!request.polygon) {
-    const resolved = await resolveCustomOnly(customList, signal)
-    return { candidates: resolved.destinations, totalFound: null, truncated: false, snowAnalysisDate: resolved.snowAnalysisDate }
-  }
   const discoveryRequest: DestinationsRequest = {
     polygon: request.polygon,
     destination_types: request.destination_types,
@@ -125,8 +121,14 @@ export interface PipelineOptions {
   // Read at the start (the window and the reuse decision) and at the end (the
   // held field's clock). Injectable for tests.
   now?: () => number
-  // Discovery settled: the field is known, before any forecast is fetched.
+  // The field is known, before any forecast is fetched. A polygon run reports
+  // it when discovery settles. A run with no polygon reports it at once, off
+  // the request's own rows, with no snow date yet.
   onDiscovered: (found: Discovered) => void
+  // The lookup behind a run with no polygon has answered (#643): the same
+  // field with what OSM and the snow grid know about it. Fires before any row
+  // of the report is shown.
+  onResolved?: (found: Discovered) => void
   // The field so far, shaped as the report the screen shows. Its counts are a
   // floor: `total_queried` is what has been forecast so far.
   onPartial: (data: AnalyzeResponse, fieldSoFar: DestinationResult[]) => void
@@ -153,12 +155,35 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   const asked = { ...window, model: request.forecast_model }
   const reuse = reusableForecasts(held, asked, now())
 
-  const discovered = await discoverCandidates(request, signal)
-  const found = { ...discovered, candidates: withKnownTypes(discovered.candidates, options.knownTypes ?? {}) }
+  const typed = (discovered: Discovered): Discovered => ({
+    ...discovered,
+    candidates: withKnownTypes(discovered.candidates, options.knownTypes ?? {}),
+  })
+  let found: Discovered
+  let resolving: Promise<readonly DiscoveredDestination[]> | undefined
+  if (request.polygon) {
+    found = typed(await discoverCandidates(request, signal))
+  } else {
+    // A run with no polygon discovers nothing: its field is the list it was
+    // sent, and the one server call only fills in what OSM and the snow grid
+    // know about each row. So the forecasts are asked for at once and the
+    // lookup runs beside them rather than ahead of them (#643). On a busy map
+    // server it takes up to the pod's 8 s deadline, against about 1.5 s of
+    // forecasts for 100 rows (measured 2026-10-06).
+    const custom = request.custom_destinations ?? []
+    const listed = { totalFound: null, truncated: false }
+    found = typed({ ...listed, candidates: customRows(custom), snowAnalysisDate: null })
+    resolving = resolveCustomOnly(custom, signal).then((resolved) => {
+      const answered = typed({ ...listed, candidates: resolved.destinations, snowAnalysisDate: resolved.snowAnalysisDate })
+      options.onResolved?.(answered)
+      return answered.candidates
+    })
+  }
   onDiscovered(found)
 
   const { response, universe, aqiFailed } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
     signal,
+    resolving,
     maxDestinations: options.maxDestinations,
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
