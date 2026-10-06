@@ -49,7 +49,12 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(T0)
   ranked.mockReset()
-  ranked.mockResolvedValue({ response: DATA, universe: ROWS, aqiFailed: new Set() })
+  // The real ranking never returns before the lookup it was handed has
+  // answered (#643), and the hook's snow date depends on that order.
+  ranked.mockImplementation(async (_request, _candidates, _startMs, _endMs, callbacks) => {
+    await callbacks?.resolving
+    return { response: DATA, universe: ROWS, aqiFailed: new Set<string>() }
+  })
   stubResolve()
 })
 afterEach(() => {
@@ -163,13 +168,13 @@ describe('one analysis', () => {
 })
 
 describe('what the reader sees', () => {
-  // A run with no polygon waits first on the pod's elevation lookup, and says
-  // so rather than claiming to be retrieving forecasts already (#579).
-  it('opens a ring on the search label and a custom list on the elevation label', async () => {
+  // A run with no polygon asks for its forecasts at once, beside the pod's
+  // elevation lookup (#643), so that is what it opens on.
+  it('opens a ring on the search label and a custom list on the forecast label', async () => {
     const ring: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
     const cases: [AnalyzeRequest, string][] = [
       [{ ...REQUEST, polygon: ring, destination_types: ['peak'] }, SEARCHING_MESSAGE],
-      [REQUEST, 'Retrieving elevation…'],
+      [REQUEST, 'Retrieving forecasts…'],
     ]
     for (const [request, seed] of cases) {
       // The server holds its answer, so the label the run opened on is on screen.
