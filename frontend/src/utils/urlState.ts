@@ -239,21 +239,25 @@ export function decodeAutoAnalyze(search: string): boolean {
 }
 
 /**
- * The published limits a link is read against. Only the candidate cap so far:
- * it bounds the pasted list a link carries, which has to be refused before it
- * enters state rather than clamped afterwards the way `limit` is, because the
- * cost is in parsing it (#622). Passed in rather than imported, so the number
- * is the deployment's (`useCapabilities`) and never a compiled copy.
+ * The published limits a link is read against. The candidate cap bounds the
+ * pasted list a link carries, which has to be refused before it enters state
+ * rather than clamped afterwards the way `limit` is, because the cost is in
+ * parsing it (#622). The ring cap drops a polygon the server would refuse
+ * (#619). Passed in rather than imported, so each number is the deployment's
+ * (`useCapabilities`) and never a compiled copy.
  */
 export interface DecodeLimits {
   maxDestinations: number
+  /** The most positions a ring may carry, its closing point included. */
+  maxPolygonPoints: number
 }
 
 /**
  * Parse a location.search string back into a partial state. Tolerant by design:
  * unknown or malformed values are dropped rather than throwing, so a user
  * pasting a truncated or hand-edited link still gets whatever survived. Returns
- * null when nothing usable was found.
+ * null when nothing usable was found. `limits` are the published bounds a value
+ * is held to; a ring over its cap is dropped like a malformed one.
  */
 export function decodeState(search: string, limits: DecodeLimits): Partial<ShareableState> | null {
   const query = search.startsWith('?') ? search.slice(1) : search

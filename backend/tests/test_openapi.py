@@ -98,8 +98,9 @@ def test_the_stream_declares_only_the_statuses_it_sends(schema):
     # The key is tested once the stream is already open, so a refused one is an
     # `error` event on the 200 (test_a_refused_key_ends_the_stream_with_an_error_event)
     # and a declared 401 would promise a generated client a status it never meets.
+    # A 413 is sent: the body is measured before the route runs (#618).
     responses = schema["paths"]["/api/analyze/stream"]["post"]["responses"]
-    assert set(responses) == {"200", "422", "429"}
+    assert set(responses) == {"200", "413", "422", "429"}
 
 
 def test_no_other_route_asks_for_the_key(schema):

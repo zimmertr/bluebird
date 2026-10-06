@@ -189,6 +189,9 @@ interface Props {
   // the note below Analyze (#580). A state setter, so stable: the watch is
   // registered once, with the map, and keeps the one it was handed.
   onBasemapFailed: (failed: boolean) => void
+  // The most positions a ring may carry (`limits.max_polygon_points`): the draw
+  // tool places no point past it (#619).
+  maxPolygonPoints: number
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -238,6 +241,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       restoredView,
       onCameraMove,
       onBasemapFailed,
+      maxPolygonPoints,
     },
     ref,
   ) => {
@@ -293,6 +297,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onRemovePoi,
       cameraPadBottomPx,
       onCameraMove,
+      maxPolygonPoints,
     }
     const [controller] = useState(() => createMapController(inputs))
     // Declared before every other effect so it runs first in a commit, and any

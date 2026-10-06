@@ -20,7 +20,7 @@ from pydantic import (
 )
 from pydantic_core import CoreSchema, core_schema
 
-from app.limits import MAX_ANALYZE_PEAKS, MAX_POLYGON_AREA_KM2
+from app.limits import MAX_ANALYZE_PEAKS, MAX_POLYGON_AREA_KM2, MAX_POLYGON_POINTS
 
 
 class DestinationType(str, Enum):
@@ -169,7 +169,18 @@ def _position_schema(_source: Any, _handler: GetCoreSchemaHandler) -> CoreSchema
 
 
 _Position = Annotated[tuple[float, float], GetPydanticSchema(_position_schema)]
-_Ring = Annotated[list[_Position], Field(min_length=4)]
+# The maximum is MAX_POLYGON_POINTS, published by /api/capabilities (#619): every
+# position is copied into every clause of the Overpass query, and the area cap
+# reads only the box around the ring, so it cannot see a dense one.
+_Ring = Annotated[list[_Position], Field(min_length=4, max_length=MAX_POLYGON_POINTS)]
+
+# How many rings a polygon may carry, and how many types a request may list
+# (#618). Only the outer ring is read and only three types exist, so each bound
+# is a schema statement rather than a published limit: both are far above what
+# a real request sends, and only stop a list from growing until the body cap.
+# Ten types rather than three because a duplicate is accepted and ignored.
+_MAX_RINGS = 10
+_MAX_TYPES_LISTED = 10
 
 
 class GeoPolygon(BaseModel):
@@ -180,6 +191,7 @@ class GeoPolygon(BaseModel):
     type: Literal["Polygon"]
     coordinates: list[_Ring] = Field(
         min_length=1,
+        max_length=_MAX_RINGS,
         description=(
             "GeoJSON coordinate rings. Only the outer ring is read. Positions "
             "are `[longitude, latitude]`, which is GeoJSON order and the "
@@ -195,6 +207,7 @@ class GeoPolygon(BaseModel):
     # nothing.
     bbox: list[float] | None = Field(
         default=None,
+        max_length=6,
         description=(
             "Optional GeoJSON bounding box (four or six numbers), accepted and "
             "ignored: the search area is always read from `coordinates`."
@@ -335,6 +348,7 @@ class _DiscoveryFields(BaseModel):
     )
     destination_types: list[DestinationType] = Field(
         default_factory=list,
+        max_length=_MAX_TYPES_LISTED,
         description=(
             "What to discover inside the polygon, as a set — several types are "
             "found in one Overpass query rather than one request each, so "
@@ -360,6 +374,7 @@ class _DiscoveryFields(BaseModel):
     )
     custom_destinations: list[CustomDestination] | None = Field(
         default=None,
+        max_length=MAX_ANALYZE_PEAKS,
         description=(
             "Your own destinations, merged into whatever the polygon discovers. "
             "A custom row matching a discovered one by name or by coordinates "
@@ -414,20 +429,27 @@ class _DiscoveryFields(BaseModel):
             return v
         return _check_polygon_area(v)
 
-    @field_validator("custom_destinations")
+    @field_validator("custom_destinations", mode="wrap")
     @classmethod
-    def custom_list_cap(cls, v: list[CustomDestination] | None) -> list[CustomDestination] | None:
+    def custom_list_cap(
+        cls, v: Any, handler: ValidatorFunctionWrapHandler
+    ) -> list[CustomDestination] | None:
         # The same door-level ceiling on both endpoints: resolving a list is
         # cheaper than analyzing one, but an unbounded payload is still an
         # unbounded payload, and a list too big to analyze is not worth
-        # resolving.
-        if v is not None and len(v) > MAX_ANALYZE_PEAKS:
+        # resolving. The bound is the field's `max_length`, so the schema
+        # states it and the list stops being validated at it (#618); this
+        # keeps the approved sentence a caller reads when it is broken.
+        try:
+            return handler(v)
+        except ValidationError as exc:
+            if not any(e["type"] == "too_long" and e["loc"] == () for e in exc.errors()):
+                raise
             raise ValueError(
                 f"Too many custom destinations ({len(v):,}). Maximum is "
                 f"{MAX_ANALYZE_PEAKS:,}. Trim the list or split it into multiple "
                 f"{cls._split_noun}."
-            )
-        return v
+            ) from None
 
     @classmethod
     def _range_pairs(cls) -> list[tuple[str, str]]:

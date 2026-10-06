@@ -25,11 +25,15 @@ import { urlNeedsSync } from './urlSync'
 import { MAX_CUSTOMZ_CHARS, escapeQueryText, unescapeQueryText } from './urlParams'
 import { compressToEncodedURIComponent } from 'lz-string'
 import { place } from '../testSupport/fixtures'
+import { MAX_POLYGON_POINTS } from './drawGeometry'
 
 // The candidate cap as the app hands it over at mount, which is the hook's
 // fallback until /api/capabilities answers. Tests that are about the cap pass
 // a small one of their own.
-const LIMITS: DecodeLimits = { maxDestinations: MAX_ANALYZE_DESTINATIONS }
+const LIMITS: DecodeLimits = {
+  maxDestinations: MAX_ANALYZE_DESTINATIONS,
+  maxPolygonPoints: MAX_POLYGON_POINTS,
+}
 const decodeState = (search: string, limits: DecodeLimits = LIMITS) => decodeWithLimits(search, limits)
 
 const polygon: GeoPolygon = {
@@ -861,15 +865,15 @@ describe('the compressed list is bounded', () => {
     // Comment text, so no row bound is involved: only the inflated length.
     const value = customz(`#${'a'.repeat(1_000_000)}`)
     expect(value.length).toBeLessThan(MAX_CUSTOMZ_CHARS)
-    expect(decodeState(value, { maxDestinations: 3 })?.customCsv).toBeUndefined()
+    expect(decodeState(value, { ...LIMITS, maxDestinations: 3 })?.customCsv).toBeUndefined()
   })
 
   it('drops a list with more rows than the published candidate cap', () => {
-    expect(decodeState(customz(rows(4)), { maxDestinations: 3 })?.customCsv).toBeUndefined()
+    expect(decodeState(customz(rows(4)), { ...LIMITS, maxDestinations: 3 })?.customCsv).toBeUndefined()
   })
 
   it('keeps a list at the cap exactly', () => {
-    expect(decodeState(customz(rows(3)), { maxDestinations: 3 })?.customCsv).toBe(rows(3))
+    expect(decodeState(customz(rows(3)), { ...LIMITS, maxDestinations: 3 })?.customCsv).toBe(rows(3))
   })
 })
 
@@ -892,6 +896,30 @@ describe('decodeState tolerance', () => {
 
   it('drops a polygon with fewer than 3 vertices', () => {
     expect(decodeState('poly=-121.5,46.8;-121.4,46.2')).toBeNull()
+  })
+
+  // A link carries the ring without its closing point, which decoding adds
+  // back, so `n` pairs make a ring of `n + 1` positions: the count the server
+  // caps (#619).
+  const polyOf = (pairs: number) =>
+    'type=peak&poly=' +
+    Array.from({ length: pairs }, (_, i) => `${-121 - i / 1e4},${46 + (i % 2) / 1e4}`).join(';')
+
+  it('drops a ring one point over the cap and keeps the rest of the link', () => {
+    const out = decodeState(polyOf(MAX_POLYGON_POINTS))
+    expect(out!.polygon).toBeUndefined()
+    expect(out!.destinationTypes).toEqual(['peak'])
+  })
+
+  it('keeps a ring exactly at the cap', () => {
+    expect(decodeState(polyOf(MAX_POLYGON_POINTS - 1))!.polygon!.coordinates[0]).toHaveLength(
+      MAX_POLYGON_POINTS,
+    )
+  })
+
+  it('drops a ring over the cap the deployment published', () => {
+    expect(decodeState(polyOf(5), { ...LIMITS, maxPolygonPoints: 5 })!.polygon).toBeUndefined()
+    expect(decodeState(polyOf(4), { ...LIMITS, maxPolygonPoints: 5 })!.polygon!.coordinates[0]).toHaveLength(5)
   })
 
   it('rejects an unknown destination type but keeps valid neighbors', () => {

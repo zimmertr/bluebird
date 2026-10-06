@@ -36,6 +36,8 @@ export interface MapInputs {
   // Where the settled camera goes, and whether the reader moved it
   // (`map/camera.ts`). The share link's writer, which never renders.
   onCameraMove: (view: CameraView, readerMove: boolean) => void
+  // The most positions a ring may carry, as /api/capabilities publishes it.
+  maxPolygonPoints: number
 }
 
 export interface MapController {

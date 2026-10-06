@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Security
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 
-from app import ratelimit
+from app import body_limit, ratelimit
 from app.error_codes import ApiError, ErrorCode
 from app.models import (
     AnalysisRefusal,
@@ -233,6 +233,7 @@ async def _run_analysis(
     # No 401: Open-Meteo tests the key only once the stream is open, so a
     # refused key arrives as an `error` event on the 200.
     responses={
+        413: body_limit.TOO_LARGE_RESPONSE,
         429: {
             "model": ErrorResponse,
             "description": (
@@ -300,6 +301,7 @@ async def analyze_stream(
     ),
     dependencies=[Depends(ratelimit.analyze_rate_limit)],
     responses={
+        413: body_limit.TOO_LARGE_RESPONSE,
         401: {
             "model": ErrorResponse,
             "description": "Open-Meteo rejected the API key.",

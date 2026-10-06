@@ -1,9 +1,10 @@
 # Limits
 
-Bluebird Forecast caps five things: the area of a search polygon, how many
-destinations one analysis may forecast, how many rows a response returns, how
-far back in time a window may reach, and how fast a single client may ask. Every
-one of those numbers is published as JSON by
+Bluebird Forecast caps seven things: the area of a search polygon, how many
+points its ring may carry, how many destinations one analysis may forecast, how
+many rows a response returns, how far back in time a window may reach, how large
+a request body may be, and how fast a single client may ask. Every one of those
+numbers is published as JSON by
 `GET /api/capabilities`, read from the same constants the validators enforce,
 so it cannot drift from what the service actually does:
 
@@ -33,6 +34,17 @@ the backend validates it again and answers `422`, so a bypassed frontend gains
 nothing. The figure shown is a bounding-box approximation rather than true
 polygon area, so an irregular shape often queries less terrain than the number
 suggests.
+
+**Points in a polygon.** The area cap measures only the box around a ring, and
+every point of the ring is copied into each clause of the map query, so a dense
+ring inside a small box would still send the donated Overpass servers an
+enormous query from this deployment's one address. A ring with more points than
+`limits.max_polygon_points` is refused with a `422` carrying Pydantic's own
+message, and the count includes the closing repeat of the first point, as
+GeoJSON writes a ring. A ring drawn by hand needs dozens, and the cap sits above
+the most a shared link can carry through the edge's URL limit. In the web app
+the draw tool stops placing points at the cap, and a shared link whose ring is
+longer opens without its polygon, the way a malformed one does.
 
 **Destinations per analysis.** Discovery is never sampled. Every named feature
 inside the polygon gets a real forecast, which is what makes the winners the
@@ -68,7 +80,18 @@ it costs two upstream requests rather than one and refuses nothing.
 [DATA.md](DATA.md#open-meteo) has what else is different about an archive
 answer.
 
-**A long archive window without a key.** Not a sixth published number, because
+**Request body size.** The service has to read and parse a JSON body before
+anything can look at it, its own per-address budget included, and the parse
+costs many times the body's size in memory. So a body larger than
+`limits.max_request_bytes` is answered `413` before a byte of it is read, or, if
+it arrives chunked with no declared length, at the moment it passes the cap. The
+cap sits above the largest request the schema accepts: the most custom
+destinations, every name at its longest, every character one that needs four
+bytes and written as escapes. Nothing a valid request can carry meets it. Every
+list inside a request has its own maximum too, stated in the schema, so a body
+under the size cap with an over-long list gets Pydantic's `422` naming the list.
+
+**A long archive window without a key.** Not another published number, because
 it is not one: it is what the deployment's weighted pacer can serve, and that
 depends on both the window and the candidate count. A request costs more
 weighted calls the longer its window, so over an archive window of a couple of
@@ -89,7 +112,7 @@ them anyway, and can sidestep them entirely by running its own container, where
 every limit is tunable or off.
 
 An Open-Meteo key changes exactly one of these limits, and it is not one of
-the five. The deployment's weighted pacer, which spreads a large fan-out over
+the seven. The deployment's weighted pacer, which spreads a large fan-out over
 minutes so the shared free-tier quota is never exhausted, does not meter a
 request that carries a caller's key: that request spends the key's quota, which
 the pacer knows nothing about and cannot protect. Everything else still applies
@@ -118,7 +141,8 @@ is and whether waiting helps:
 |---|---|
 | `400` | The request is runnable in shape but not as asked. Past the candidate cap it carries the remedies above; naming a regional forecast model for somewhere outside its grid is a second case, and there the fix is a different model rather than a smaller area. |
 | `401` | The weather service refused the API key an analyze request carried. Nothing here can fix it and no retry helps. |
-| `422` | A field would not parse or failed a bound: a polygon over the area cap, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
+| `413` | The request body is larger than the published size cap, and was refused before it was read. Only a smaller body helps. |
+| `422` | A field would not parse or failed a bound: a polygon over the area cap, a ring with too many points, a list longer than its maximum, a `limit` out of range, a window outside the horizon, a malformed `bbox`. Only the caller can change the outcome. |
 | `429` | Either you are asking faster than your per-address budget, or the weather service rate-limited this deployment mid-analysis, or the edge rate rule in front of `bluebirdforecast.com` refused the request before the pod saw it (see [TRAFFIC.md](TRAFFIC.md)). `Retry-After` is honest in every case. |
 | `502` | An upstream failed outright. Every Overpass mirror was unreachable, or the weather service did not answer. Transient, worth retrying. |
 | `503` | This instance stayed at capacity long enough that it shed the request instead of queueing it forever. From `GET /api/wildfires`, `GET /api/smoke` and `GET /api/closures` it means something narrower: this instance has never once fetched that dataset successfully, so it has nothing to serve, not even stale. Transient either way, and carries `Retry-After`. |
