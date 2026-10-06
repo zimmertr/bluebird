@@ -192,10 +192,12 @@ jobs:
   # the half TRIVY_PLATFORM names. No Docker Hub login, because the image is
   # public and this job then holds no credential for Trivy's code to see.
   #
-  # Both bump jobs need this one, so a failed scan holds production and the
-  # chart's default image on the previous release. The image, the tag and the
-  # GitHub release stay published, as with any failure after the push: the fix
-  # is the next release (docs/CICD.md, When a release is bad).
+  # Every later job needs this one, so a failed scan holds production and the
+  # chart's default image on the previous release, and makes no GitHub
+  # release: bluebird-helm reads the chart's default image from Latest, so a
+  # release here would carry the failed version into the next chart. The
+  # image and the tag stay published, as with any failure after the push: the
+  # fix is the next release (docs/CICD.md, The release scan).
   scan:
     name: Scan Pushed Image
     runs-on: ubuntu-latest
@@ -255,7 +257,7 @@ jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [determine-version, build-and-push]
+    needs: [determine-version, build-and-push, scan]
     if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     permissions:
       contents: write
