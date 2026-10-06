@@ -71,15 +71,20 @@ updates:
     cooldown:
       default-days: 7
 
+  # Every action is pinned to a commit SHA with its version in a comment
+  # (#632). Dependabot reads that comment, proposes the next release, and
+  # rewrites the SHA and the comment together, so a pin moves only by PR.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
 
-  # Base image bumps (python/node in the Dockerfile). Patch tag updates ride
-  # the existing auto-merge; these PRs are also the standing remediation path
-  # when the scheduled image scan flags a fixable CVE in the released image.
+  # Base image bumps (python/node in the Dockerfile). Both are pinned as
+  # tag@digest, so a rebuild of the image under the same tag arrives here as
+  # a digest PR rather than silently at the next build. These PRs are also the
+  # standing remediation path when the scheduled image scan flags a fixable
+  # CVE in the released image.
   - package-ecosystem: docker
     directory: /
     schedule:
