@@ -59,7 +59,7 @@ export function checkRunning(status: FireProximityStatus): boolean {
 
 /**
  * Whether a failed check owes the panel its line below Analyze (#642, record
- * 0100). Only while the layer drawing the same data is on: a reader who never
+ * 0106). Only while the layer drawing the same data is on: a reader who never
  * asked for it on the map is not told the map's source is unreachable, and the
  * column's own `N/A` cells still say the check has no answer. Shared by the
  * wildfire and closure checks, each against its own layer. `rowCount` because
