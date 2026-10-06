@@ -3,12 +3,14 @@ import { paceWaitLine } from './pacing'
 // Composes the full-screen loading overlay for an Analyze operation — a single
 // ranked analysis (searched places and CSV rows ride inside it as custom
 // destinations). Two destination-type-agnostic phases:
-//   1. "Searching for destinations…"  — Overpass discovery (backend status), or
-//      "Retrieving elevation…" for a run with no polygon, whose one wait before
-//      the forecasts is the pod's elevation lookup of its listed destinations
+//   1. "Searching for destinations…"  — Overpass discovery (backend status).
+//      A run with no polygon has no such phase and opens on the next one
 //   2. "Retrieving {N} forecasts…"    — the weather fetch (a lone forecast
 //        reads "Retrieving forecast…")
-//   3. "Retrieving air quality…", then "Retrieving cloud data…" — only when
+//   3. "Retrieving elevation…" — a run with no polygon, only when the pod's
+//      elevation lookup of its listed destinations is still out after the
+//      weather has answered
+//   4. "Retrieving air quality…", then "Retrieving cloud data…" — only when
 //      either fetch is still out after the weather has answered (`tailMessage`)
 //
 // The message carries only the TOTAL, not a live "x of y" fraction; the filling
@@ -39,11 +41,12 @@ export interface OverlayInputs {
 // second copy of the string drifting.
 export const SEARCHING_MESSAGE = 'Searching for destinations…'
 
-// The first phase of a run with no polygon (#579, the maintainer's words,
-// 2026-10-01). Such a run discovers nothing: it waits on POST
-// /api/destinations to look up the elevation of every pasted, searched or
-// clicked destination, which can take seconds, and it used to say it was
-// retrieving forecasts the whole time. A polygon run makes the same lookup
+// The wait a run with no polygon can end on (#579, the maintainer's words,
+// 2026-10-01). Such a run discovers nothing: POST /api/destinations looks up
+// the elevation of every pasted, searched or clicked destination, which can
+// take seconds. The forecasts are fetched beside that lookup (#643), and no
+// row can be reduced without its elevation, so this label stands once the
+// forecasts are in and the lookup is not. A polygon run makes the same lookup
 // inside its discovery request, where the browser cannot tell the two apart,
 // so it keeps the searching label.
 export const ELEVATION_MESSAGE = 'Retrieving elevation…'
@@ -66,7 +69,7 @@ export function tailMessage(open: { aqi: boolean; cloud: boolean }): string | nu
   return null
 }
 
-const TAIL_MESSAGES: readonly string[] = [AQI_TAIL_MESSAGE, CLOUD_TAIL_MESSAGE]
+const TAIL_MESSAGES: readonly string[] = [ELEVATION_MESSAGE, AQI_TAIL_MESSAGE, CLOUD_TAIL_MESSAGE]
 
 // Staged reassurance, tiered to the measured mirror behavior (issue #180):
 // overpass-api.de answers big polygons in 12-42s; a failover adds the backup
@@ -84,9 +87,8 @@ function retrievingLabel(total: number): string {
 export function composeOverlay(i: OverlayInputs): OverlayView {
   if (!i.analyzeLoading) return { visible: false }
   // No batch progress yet — show the phase status ("Searching for
-  // destinations…" or "Retrieving elevation…", then "Retrieving forecasts…"
-  // in the brief gap before the first weather batch, where the total isn't
-  // known yet).
+  // destinations…", then "Retrieving forecasts…" in the brief gap before the
+  // first weather batch, where the total isn't known yet).
   if (!i.rankedProgress) {
     const message = i.statusMessage ?? RETRIEVING_MESSAGE
     // Staged copy only while genuinely searching — in the retrieval gap it
