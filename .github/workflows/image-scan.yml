@@ -28,8 +28,9 @@ jobs:
       # wanted from the repo is trivy.yaml: the same file-level exclusions the
       # PR gate applied. Without it a release could pass pr.yml and then fail
       # here on findings that gate deliberately ruled out.
-      - uses: actions/checkout@v7
-
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Resolve latest release tag
         id: release
         env:
@@ -40,7 +41,7 @@ jobs:
           echo "Scanning zimmertr/bluebird:${TAG#v}"
 
       - name: Scan image (Trivy)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: zimmertr/bluebird:${{ steps.release.outputs.semver }}
           format: sarif
@@ -49,7 +50,7 @@ jobs:
           trivy-config: trivy.yaml
 
       - name: Upload results to the Security tab
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           sarif_file: trivy.sarif
           category: trivy-released-image
@@ -57,10 +58,12 @@ jobs:
       # Rendered from the SARIF's source scan re-run as JSON so the gate uses
       # the same ignore-unfixed filtering; trivy is on PATH via the action above.
       - name: Re-scan as JSON
+        env:
+          SEMVER: ${{ steps.release.outputs.semver }}
         run: |
           trivy image --format json --output trivy.json --ignore-unfixed \
             --config trivy.yaml \
-            zimmertr/bluebird:${{ steps.release.outputs.semver }}
+            "zimmertr/bluebird:${SEMVER}"
 
       - name: Count Critical/High vulnerabilities
         id: crit
@@ -71,9 +74,10 @@ jobs:
       - name: Fail on fixable Critical/High vulnerabilities
         env:
           CRIT_HIGH: ${{ steps.crit.outputs.count }}
+          SEMVER: ${{ steps.release.outputs.semver }}
         run: |
           if [ "$CRIT_HIGH" -gt 0 ]; then
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${{ steps.release.outputs.semver }}. Merge the open Dependabot base-image PR and release. If there is none, the base tag is current and the packages under it are not: clear the buildx cache, then release. See docs/CICD.md."
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${SEMVER}. Merge the open Dependabot base-image PR and release. If there is none, the base tag is current and the packages under it are not: clear the buildx cache, then release. See docs/CICD.md."
             exit 1
           fi
           echo "No fixable Critical/High vulnerabilities." >> "$GITHUB_STEP_SUMMARY"

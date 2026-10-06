@@ -4,7 +4,10 @@ on:
   push:
     branches:
       - main
-  # Allow manual triggering from the Actions tab for testing without a real merge
+  # Manual triggering from the Actions tab, from main only: every job below
+  # checks the ref, because a dispatch from another branch would otherwise
+  # build that branch, push its image, and open the production bump with it
+  # (GitVersion gives a branch a prerelease version that sorts above main's).
   workflow_dispatch:
 
 # Serialize releases so concurrent runs don't race on the manifest update
@@ -24,18 +27,24 @@ jobs:
   determine-version:
     name: Determine Version
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     outputs:
       semVer: ${{ steps.gitversion.outputs.semVer }}
       released: ${{ steps.published.outputs.released }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0  # GitVersion needs the full history to calculate the version
-      - uses: gittools/actions/gitversion/setup@v4
+          persist-credentials: false
+      - uses: gittools/actions/gitversion/setup@7417b1089e2c7de93510f1901d656ddf60bb024f # v4.7.0
         with:
-          versionSpec: '6.x'
+          # Exact, not '6.x': the version this computes is pasted into tags,
+          # branch names and commit messages, so the engine that computes it
+          # moves only through a reviewed change. Not seen by Dependabot; bump
+          # it by hand, and test_release_titles.py names the same version.
+          versionSpec: '6.8.2'
       - id: gitversion
-        uses: gittools/actions/gitversion/execute@v4
+        uses: gittools/actions/gitversion/execute@7417b1089e2c7de93510f1901d656ddf60bb024f # v4.7.0
       # A release is three things made in order: the image, the git tag, the
       # GitHub release. Only when all three exist is there nothing left to do.
       # A guard on the image alone cannot finish a run that died between the
@@ -68,7 +77,7 @@ jobs:
     name: Build & Push
     runs-on: ubuntu-latest
     needs: determine-version
-    if: needs.determine-version.outputs.released == 'false'
+    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     # Releases serialize on one concurrency group, so a hung registry push here
     # dams every queued release until GitHub's 6h default kills the job (it
     # blocked deploys for 2.5h on 2026-07-25). Normal multi-arch builds take
@@ -77,11 +86,13 @@ jobs:
     permissions:
       contents: write  # Required to push the git tag
     steps:
-      - uses: actions/checkout@v7
+      # The one checkout that keeps its token in .git/config, because the
+      # tag step below pushes with it. Every other checkout drops it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # QEMU provides the arm64 emulation for the multi-platform build below
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -113,7 +124,7 @@ jobs:
       - id: stamp
         if: steps.image.outputs.exists == 'false'
         run: echo "built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v7
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         if: steps.image.outputs.exists == 'false'
         with:
           context: .
@@ -175,7 +186,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [determine-version, build-and-push]
-    if: needs.determine-version.outputs.released == 'false'
+    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     permissions:
       contents: write
     steps:
@@ -219,11 +230,27 @@ jobs:
     name: Update Kubernetes Manifests
     runs-on: ubuntu-latest
     needs: [determine-version, build-and-push]
-    if: needs.determine-version.outputs.released == 'false'
+    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     steps:
-      - uses: imranismail/setup-kustomize@v3
-        with:
-          kustomize-version: '5.4.3'
+      # The upstream release binary, checked against its published SHA-256,
+      # rather than a setup action: any action in this job could rewrite the
+      # next step through $GITHUB_PATH or $GITHUB_ENV, and the next step holds
+      # GH_PAT. Neither value is seen by Dependabot; to move them, take both
+      # from the release's checksums.txt in the same change.
+      - name: Install kustomize
+        env:
+          KUSTOMIZE_VERSION: 5.4.3
+          KUSTOMIZE_SHA256: 3669470b454d865c8184d6bce78df05e977c9aea31c30df3c669317d43bcc7a7
+        run: |
+          TARBALL="kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$TARBALL" \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/${TARBALL}"
+          echo "${KUSTOMIZE_SHA256}  $RUNNER_TEMP/$TARBALL" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$TARBALL" -C "$RUNNER_TEMP/bin" kustomize
+          # Ahead of the runner image's own kustomize on PATH.
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/kustomize" version
 
       - name: Open or update the image bump PR
         env:
@@ -247,7 +274,7 @@ jobs:
           # Fresh off main every time, so the branch is always exactly one commit
           # carrying the newest tag, never a stack of prior bumps.
           git checkout -B "$BR" origin/main
-          (cd public/bluebird && kustomize edit set image zimmertr/bluebird=zimmertr/bluebird:${SEMVER})
+          (cd public/bluebird && kustomize edit set image "zimmertr/bluebird=zimmertr/bluebird:${SEMVER}")
           if git diff --quiet; then
             echo "Manifests already at ${SEMVER} — nothing to bump."
             exit 0
@@ -283,11 +310,10 @@ jobs:
   # happened to change. The chart pipeline's own package-time resolver is the
   # correctness backstop if newer app releases land before this one lands.
   #
-  # This goes through a self-merging PR rather than a direct push (the way
-  # update-manifests above pushes straight to Kubernetes-Manifests) only because
-  # bluebird-helm/main is protected by a required review AND a required "Lint &
-  # render" check. GitHub enforces both on direct pushes, and that check only
-  # triggers on pull_request, so a push could never satisfy it. Arming auto-merge
+  # This goes through a self-merging PR, like update-manifests above, because
+  # bluebird-helm/main requires a pull request (with no approving review) and
+  # a required "Lint & render" check. GitHub enforces both on direct pushes, and
+  # that check only triggers on pull_request, so a push could never satisfy it. Arming auto-merge
   # gets the same hands-off result while keeping helm lint as a gate.
   #
   # Dependabot-style: a fixed branch is force-pushed each release and only one
@@ -303,7 +329,7 @@ jobs:
     name: Bump Helm Chart appVersion
     runs-on: ubuntu-latest
     needs: [determine-version, build-and-push, create-release]
-    if: needs.determine-version.outputs.released == 'false'
+    if: github.ref == 'refs/heads/main' && needs.determine-version.outputs.released == 'false'
     steps:
       - name: Open or update the appVersion bump PR
         env:
