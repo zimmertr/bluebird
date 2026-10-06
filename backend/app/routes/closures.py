@@ -2,16 +2,21 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from app import ratelimit
 from app.models import ErrorResponse
-from app.services import usfs_closures
+from app.services import held_body, usfs_closures
 from app.services.bbox import parse_bbox
 from app.services.snapshot import snapshot_or_503
 
 router = APIRouter()
+
+# The gzipped whole set of each kind at each fidelity, held per snapshot: the
+# wildfire route's #628, on a route of the same shape. Region 6's full-detail
+# trails alone were 5.8 MB on 2026-09-30, a third of the national perimeters.
+_WHOLE_SET = held_body.HeldBodies()
 
 
 class ClosureCollection(BaseModel):
@@ -142,6 +147,7 @@ class ClosureCollection(BaseModel):
     dependencies=[Depends(ratelimit.closures_rate_limit)],
 )
 async def closures(
+    request: Request,
     bbox: str = Query(
         ...,
         description=(
@@ -172,7 +178,22 @@ async def closures(
 ) -> Response:
     box = parse_bbox(bbox)
     snapshot = await snapshot_or_503(usfs_closures.CLOSURES, event="closures_unavailable")
-    found = snapshot.within(box, kind, coarse=detail == "coarse")
+    coarse = detail == "coarse"
+    found = snapshot.within(box, kind, coarse=coarse)
+    if kind == "area":
+        everything = snapshot.areas_coarse if coarse else snapshot.areas_full
+    else:
+        everything = snapshot.trails_coarse if coarse else snapshot.trails_full
+    # A box that takes in every closure of a kind is the same bytes for every
+    # such box until the snapshot changes, so it is compressed once and held.
+    if len(found) == len(everything) and held_body.takes_gzip(request):
+        return held_body.respond(
+            await _WHOLE_SET.gzipped(
+                snapshot,
+                (kind, detail),
+                lambda: usfs_closures.collection_json(snapshot, found, kind),
+            )
+        )
     # Returned as a Response so FastAPI passes the stored feature text through
     # untouched; `response_model` above still documents the shape.
     return Response(

@@ -836,3 +836,54 @@ async def test_the_cache_serves_the_last_good_snapshot_after_a_failed_refresh():
 def test_the_cache_ttl_is_half_an_hour_by_default():
     # The orders are edited by hand a few times a week (#550).
     assert usfs_closures.TTL_S == 1800
+
+
+# ── The sentence scan's cost (#630) ────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "unit",
+    [
+        # Many sentence ends: each one used to search the whole text before it
+        # for an abbreviation, so the scan was quadratic in the length.
+        "Trail x. ",
+        # Many entry matches in one sentence: each one used to look for its
+        # sentence among every end and re-read the same sentence.
+        "closed to entry ",
+        # Dotted single letters, the abbreviation pattern's own shape.
+        "a.a.a.a. ",
+    ],
+)
+def test_the_sentence_scan_is_linear_in_the_descriptions_length(unit):
+    # About 60 KB. The quadratic scan took 7.4, 3.2 and 14.1 seconds over
+    # these three in the backend test container (measured 2026-10-06); the
+    # bound sits far above what a linear scan needs, so it holds on a slow
+    # runner too.
+    text = unit * (60_000 // len(unit))
+    started = time.perf_counter()
+    usfs_closures._entry_sentences(text)
+    assert time.perf_counter() - started < 1.0
+
+
+@pytest.mark.parametrize(
+    "text,readings",
+    [
+        # Sentences split at a period before a space or the end, and nowhere
+        # an abbreviation ends: the permit clause stays in its own sentence.
+        ("Going into or being upon the area. A permit is required.", ["closed"]),
+        ("Going into or being upon the area without a permit.", ["permit"]),
+        ("Going into or being upon the area, per 36 C.F.R. 261.53, without a permit.", ["permit"]),
+        ("Going into or being upon Mt. Baker without a permit.", ["permit"]),
+        ("Going into or being upon No. 4 Rd. without a permit.", ["permit"]),
+        ("Going into or being upon the area at 6 A.M. without a permit.", ["permit"]),
+        ("Going into or being upon the area. Unless you hold a permit.", ["closed"]),
+        (
+            "Going into or being upon the area. Going into or being upon it with a motorized vehicle.",
+            ["closed", "scoped"],
+        ),
+        ("Closed to entry. Closed to entry. Closed to entry.", ["closed"] * 3),
+        ("Bruno. Going into or being upon the area without a permit", ["permit"]),
+    ],
+)
+def test_the_sentence_scan_keeps_its_reading(text, readings):
+    assert usfs_closures._entry_sentences(text) == readings

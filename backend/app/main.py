@@ -108,13 +108,14 @@ _access_log = logging.getLogger("bluebird_forecast.access")
 
 
 def _client_ip(request: Request) -> str:
-    """The client identity for the access log.
+    """The client address for the access log.
 
-    Delegates to the rate limiter's key function so what the log prints is
-    exactly what enforcement counted — a mismatch there would make throttle
-    log lines impossible to correlate.
+    Read from the same headers rate limiting reads, so the log and enforcement
+    agree on who sent a request. It is the whole address, where enforcement
+    counts an IPv6 client by its /64: a throttle line prints both, which is
+    what ties the two together.
     """
-    return ratelimit.client_key(request)
+    return ratelimit.client_address(request)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 

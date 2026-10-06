@@ -33,6 +33,13 @@ def test_client_ip_takes_rightmost_forwarded_hop():
     assert _client_ip(req) == "10.0.0.6"
 
 
+def test_client_ip_prints_the_whole_ipv6_address():
+    # Rate limiting counts an IPv6 client by its /64 (#627); the log still
+    # names the address that sent the request.
+    req = _request(headers={"cf-connecting-ip": "2001:db8::1:2:3:4"})
+    assert _client_ip(req) == "2001:db8::1:2:3:4"
+
+
 def test_client_ip_falls_back_to_peer():
     assert _client_ip(_request(client_host="192.168.1.1")) == "192.168.1.1"
 

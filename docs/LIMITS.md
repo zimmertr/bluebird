@@ -124,7 +124,11 @@ body.
 **Request pacing.** Analyze, discovery, search, wildfire perimeters, smoke
 plumes, and closure orders hold separate per-address budgets, so a burst of map searches cannot
 starve somebody's analysis. Past one you get a `429` with `Retry-After`. They are sized
-so a person iterating on a map never meets them. A script should stay well under
+so a person iterating on a map never meets them. An IPv6 address counts by its
+/64, the smallest block an IPv6 connection is assigned, so the addresses inside
+one block share one budget. Discovery also runs one at a time per address: a second
+discovery from the same address waits for the first, and gets the same `429` if
+it waits too long, while another address's goes ahead. A script should stay well under
 them anyway, and can sidestep them entirely by running its own container, where
 every limit is tunable or off.
 

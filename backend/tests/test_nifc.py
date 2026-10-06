@@ -11,6 +11,7 @@ import asyncio
 import json
 import threading
 import time
+import zlib
 
 import httpx
 import pytest
@@ -450,13 +451,14 @@ def test_collection_json_carries_the_coverage_member():
 def served(monkeypatch):
     """Install a cache that answers from fixed features without any network."""
 
-    def install(*features: dict, fetched_at_ms: int = 1_722_470_000_000) -> None:
+    def install(*features: dict, fetched_at_ms: int = 1_722_470_000_000) -> nifc.Snapshot:
         snapshot = _snapshot(*features, fetched_at_ms=fetched_at_ms)
 
         async def fetch() -> nifc.Snapshot:
             return snapshot
 
         monkeypatch.setattr(nifc, "PERIMETERS", nifc.perimeter_cache(fetch=fetch))
+        return snapshot
 
     return install
 
@@ -492,6 +494,77 @@ def test_route_defaults_to_coarse_and_accepts_full(served):
             ).status_code
             == 422
         )
+
+
+def counting_calls(monkeypatch, module, name: str) -> list[int]:
+    """Count calls to ``module.name`` while still calling through to it."""
+    calls: list[int] = []
+    real = getattr(module, name)
+
+    def counted(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module, name, counted)
+    return calls
+
+
+@pytest.mark.parametrize("detail", ["full", "coarse"])
+def test_the_national_answer_is_joined_and_compressed_once_per_snapshot(
+    served, monkeypatch, detail
+):
+    # A box that takes in every perimeter used to join the whole national set
+    # and gzip it again for every request: about half a CPU-second per request
+    # at full detail (#628). The answer is the same bytes until the snapshot
+    # changes, so it is built once and held.
+    snapshot = served(
+        _polygon(-121.9, 46.7, -121.5, 47.0, name="Rainier Fire"),
+        _polygon(-80.0, 25.0, -79.0, 26.0, name="Florida Fire"),
+    )
+    joins = counting_calls(monkeypatch, nifc, "collection_json")
+    compressions = counting_calls(monkeypatch, zlib, "compressobj")
+    params = {"bbox": "-180,-90,180,90", "detail": detail}
+    with TestClient(app) as client:
+        first = client.get("/api/wildfires", params=params, headers={"Accept-Encoding": "gzip"})
+        second = client.get("/api/wildfires", params=params, headers={"Accept-Encoding": "gzip"})
+    assert len(joins) == 1
+    assert len(compressions) == 1
+    for response in (first, second):
+        assert response.status_code == 200
+        assert response.headers["content-encoding"] == "gzip"
+        assert "Accept-Encoding" in response.headers["vary"]
+        # The content is what the per-request join produced.
+        assert response.json() == json.loads(nifc.collection_json(snapshot, list(snapshot.full)))
+
+
+def test_a_client_that_takes_no_gzip_gets_the_same_national_answer(served):
+    served(_polygon(-121.9, 46.7, -121.5, 47.0, name="Rainier Fire"))
+    with TestClient(app) as client:
+        plain = client.get(
+            "/api/wildfires",
+            params={"bbox": "-180,-90,180,90", "detail": "full"},
+            headers={"Accept-Encoding": "identity"},
+        )
+        packed = client.get(
+            "/api/wildfires",
+            params={"bbox": "-180,-90,180,90", "detail": "full"},
+            headers={"Accept-Encoding": "gzip"},
+        )
+    assert "content-encoding" not in plain.headers
+    assert plain.json() == packed.json()
+
+
+def test_a_new_snapshot_gets_a_new_national_answer(served):
+    params = {"bbox": "-180,-90,180,90", "detail": "full"}
+    served(_polygon(-121.9, 46.7, -121.5, 47.0, name="Rainier Fire"), fetched_at_ms=1)
+    with TestClient(app) as client:
+        before = client.get("/api/wildfires", params=params).json()
+    served(_polygon(-80.0, 25.0, -79.0, 26.0, name="Florida Fire"), fetched_at_ms=2)
+    with TestClient(app) as client:
+        after = client.get("/api/wildfires", params=params).json()
+    assert [f["properties"]["attr_IncidentName"] for f in before["features"]] == ["Rainier Fire"]
+    assert [f["properties"]["attr_IncidentName"] for f in after["features"]] == ["Florida Fire"]
+    assert after["fetched_at"] == 2
 
 
 @pytest.mark.parametrize(

@@ -7,8 +7,11 @@ two answer alike, plus the one parameter this route adds.
 
 from __future__ import annotations
 
+import zlib
+
 import pytest
 from fastapi.testclient import TestClient
+from test_nifc import counting_calls
 
 from app import ratelimit
 from app.main import app
@@ -115,6 +118,40 @@ def test_detail_defaults_to_coarse_and_accepts_full(served):
             assert _names(response) == expected, params
         response = client.get("/api/closures", params={"bbox": BOX, "kind": "area", "detail": "sketch"})
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("kind", "detail", "expected"),
+    [
+        ("area", "full", ["Eagle Creek"]),
+        ("area", "coarse", ["Eagle Creek (coarse)"]),
+        ("trail", "full", ["Trail 440", "Wahtum Lake TH", "Far TH"]),
+    ],
+)
+def test_the_whole_set_is_joined_and_compressed_once_per_snapshot(
+    served, monkeypatch, kind, detail, expected
+):
+    # The wildfire route's #628, on the route of the same shape: a box that
+    # takes in every closure of a kind is the same answer until the snapshot
+    # changes, so it is built once rather than joined and gzipped per request.
+    joins = counting_calls(monkeypatch, usfs_closures, "collection_json")
+    compressions = counting_calls(monkeypatch, zlib, "compressobj")
+    params = {"bbox": "-180,-90,180,90", "kind": kind, "detail": detail}
+    with TestClient(app) as client:
+        responses = [
+            client.get("/api/closures", params=params, headers={"Accept-Encoding": "gzip"})
+            for _ in range(2)
+        ]
+        plain = client.get("/api/closures", params=params, headers={"Accept-Encoding": "identity"})
+    # One join for the held answer, and one for the client that takes no gzip,
+    # which costs no compression.
+    assert len(joins) == 2
+    assert len(compressions) == 1
+    for response in responses:
+        assert response.headers["content-encoding"] == "gzip"
+        assert _names(response) == expected
+    assert "content-encoding" not in plain.headers
+    assert plain.json() == responses[0].json()
 
 
 def test_bbox_is_required(served):

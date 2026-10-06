@@ -9,11 +9,13 @@ arithmetic are exercised against the shape they will actually meet.
 
 from __future__ import annotations
 
+import dataclasses
 import gzip
 import io
 import struct
 import tarfile
 import time
+import tracemalloc
 from datetime import UTC, date, datetime
 
 import httpx
@@ -179,6 +181,106 @@ def test_reads_the_divisor_out_of_the_declared_units():
     assert metres.depth_in(39.5, -98.5) == 39370.1
 
 
+@pytest.mark.parametrize(
+    "header",
+    [
+        # Issue #629. `float()` reads all four of these, and every `<= 0` check
+        # passes NaN, so a grid built on one answered every lookup with a
+        # ValueError or an OverflowError instead of a depth.
+        header_text(min_x="nan"),
+        header_text(max_y="inf"),
+        header_text(res="nan"),
+        header_text(res="inf"),
+        header_text().replace("/ 1000.000000", "/ nan"),
+        header_text().replace("/ 1000.000000", "/ inf"),
+        header_text().replace("No data value: -9999.00000000000", "No data value: inf"),
+        header_text(maximum="inf"),
+    ],
+    ids=["origin x nan", "origin y inf", "resolution nan", "resolution inf",
+         "divisor nan", "divisor inf", "no data inf", "maximum inf"],
+)
+def test_refuses_a_header_number_that_is_not_finite(header):
+    with pytest.raises(UpstreamError):
+        snodas.read_tar(build_tar(header=header), datetime.now(UTC).date())
+
+
+# ── Bounds on what the file may cost ───────────────────────────────────────
+
+
+def _peak_bytes(action) -> int:
+    """The most memory Python allocated while `action` ran."""
+    tracemalloc.start()
+    try:
+        action()
+        return tracemalloc.get_traced_memory()[1]
+    finally:
+        tracemalloc.stop()
+
+
+def _refused(payload: bytes) -> None:
+    with pytest.raises(UpstreamError):
+        snodas.read_tar(payload, datetime.now(UTC).date())
+
+
+def test_refuses_a_data_member_larger_than_its_header_without_inflating_it():
+    # Issue #629. The header says three by three, 18 bytes; the member inflates
+    # to 32 MiB of zeros from about 32 KB on the wire. The size check used to
+    # run only after the whole member was in memory.
+    tar = build_tar(samples=bytes(32 * 2**20))
+    assert _peak_bytes(lambda: _refused(tar)) < 4 * 2**20
+
+
+def test_refuses_a_header_member_that_inflates_past_any_real_header():
+    tar = build_tar(header=header_text() + "x" * (32 * 2**20))
+    assert _peak_bytes(lambda: _refused(tar)) < 4 * 2**20
+
+
+def test_refuses_a_grid_too_large_to_hold_before_reading_it():
+    # A header can declare any geometry, and the size it declares is what the
+    # data member is inflated against, so the declaration is bounded first.
+    tar = build_tar(header=header_text(columns=10**6, rows=10**6), samples=bytes(32 * 2**20))
+    assert _peak_bytes(lambda: _refused(tar)) < 4 * 2**20
+
+
+def test_refuses_a_compressed_outer_archive():
+    # NSIDC publishes a plain tar. `tarfile.open` would otherwise unwrap a gzip,
+    # bz2 or xz layer around it, a second expansion before the members' own.
+    _refused(gzip.compress(build_tar()))
+
+
+def test_reads_a_data_member_written_as_several_gzip_members():
+    # `gzip.decompress` reads concatenated members, which the format allows,
+    # so the bounded reader has to as well or a valid file reads as truncated.
+    data = sample_bytes()
+    split = gzip.compress(data[:8]) + gzip.compress(data[8:])
+    buffer = io.BytesIO()
+    stem = "zz_ssmv11036tS__T0001TTNATS2026092205HP001"
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        for name, payload in (
+            (f"{stem}.txt.gz", gzip.compress(header_text().encode())),
+            (f"{stem}.dat.gz", split),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
+    snapshot = snodas.read_tar(buffer.getvalue(), date(2026, 9, 22))
+    assert snapshot.depth_in(39.5, -98.5) == 39.37
+
+
+def test_refuses_a_truncated_data_member():
+    stem = "zz_ssmv11036tS__T0001TTNATS2026092205HP001"
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        for name, payload in (
+            (f"{stem}.txt.gz", gzip.compress(header_text().encode())),
+            (f"{stem}.dat.gz", gzip.compress(sample_bytes())[:-12]),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
+    _refused(buffer.getvalue())
+
+
 # ── Selecting the depth product ────────────────────────────────────────────
 
 
@@ -272,9 +374,10 @@ def test_records_the_day_it_was_analyzed():
 # ── Fetching ───────────────────────────────────────────────────────────────
 
 
-def _transport(answers: dict[str, int]):
+def _transport(answers: dict[str, int], body=build_tar):
     """An httpx transport that answers each URL with the status it is given,
-    and with a real archive where that status is 200."""
+    and with an archive where that status is 200: a real one unless `body`
+    builds the response itself."""
     seen: list[tuple[str, str]] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -282,7 +385,10 @@ def _transport(answers: dict[str, int]):
         status = answers.get(str(request.url), 404)
         if status != 200 or request.method == "HEAD":
             return httpx.Response(status)
-        return httpx.Response(200, content=build_tar())
+        answer = body()
+        if isinstance(answer, httpx.Response):
+            return answer
+        return httpx.Response(200, content=answer)
 
     return httpx.MockTransport(handle), seen
 
@@ -291,8 +397,8 @@ def _transport(answers: dict[str, int]):
 def stub_client(monkeypatch):
     """Point the fetch's own client at a transport the test owns."""
 
-    def install(answers: dict[str, int]):
-        transport, seen = _transport(answers)
+    def install(answers: dict[str, int], body=build_tar):
+        transport, seen = _transport(answers, body)
         real = httpx.AsyncClient
 
         def build(*args, **kwargs):
@@ -383,6 +489,83 @@ async def test_keeps_yesterdays_held_grid_while_today_is_unpublished(stub_client
     assert seen == [("HEAD", TODAY_URL)]
 
 
+# ── A refused file (#629, decision 0104) ──────────────────────────────────
+
+
+def _nan_tar() -> bytes:
+    return build_tar(header=header_text(min_x="nan"))
+
+
+async def test_a_refused_file_stands_for_its_day_as_no_grid(stub_client):
+    stub_client({TODAY_URL: 200}, body=_nan_tar)
+    refused = await snodas.fetch_snapshot(held=lambda: None, now=NOW)
+    assert isinstance(refused, snodas.Refused)
+    assert refused.analysis_date == "2026-09-22"
+
+
+async def test_a_refused_file_replaces_yesterdays_grid_rather_than_keeping_it(stub_client):
+    # The maintainer's call on #629: a refused day reads null, and the day
+    # before is not served in its place, because its date would then caption
+    # a column the reader takes for today's.
+    held = a_snapshot("2026-09-21")
+    seen = stub_client({TODAY_URL: 200, YESTERDAY_URL: 200}, body=_nan_tar)
+    refused = await snodas.fetch_snapshot(held=lambda: held, now=NOW)
+    assert isinstance(refused, snodas.Refused)
+    # Today's file was the answer, refused or not; yesterday's is not fetched
+    # to stand in for it.
+    assert seen == [("HEAD", TODAY_URL), ("GET", TODAY_URL)]
+
+
+async def test_a_refused_day_is_not_downloaded_again(stub_client):
+    # The hourly check finds the day in hand, as it does for a good grid, so a
+    # bad file costs NSIDC one download a day rather than one per backoff.
+    seen = stub_client({TODAY_URL: 200})
+    held = snodas.Refused("2026-09-22")
+    assert await snodas.fetch_snapshot(held=lambda: held, now=NOW) is held
+    assert seen == []
+
+
+async def test_the_next_days_file_replaces_a_refused_one(stub_client):
+    stub_client({TODAY_URL: 200})
+    fresh = await snodas.fetch_snapshot(held=lambda: snodas.Refused("2026-09-21"), now=NOW)
+    assert isinstance(fresh, snodas.Snapshot)
+    assert fresh.analysis_date == "2026-09-22"
+
+
+async def test_a_refused_refresh_leaves_every_row_null_and_no_date(monkeypatch, stub_client):
+    stub_client({TODAY_URL: 200}, body=_nan_tar)
+    cache = _install(monkeypatch, a_snapshot("2026-09-21"), fresh=False)
+    cache._fetch = lambda: snodas.fetch_snapshot(now=NOW)
+    rows = [{"latitude": 39.5, "longitude": -98.5}]
+    snodas.fill_snow_depth(rows)
+    await cache.settle()
+    assert snodas.fill_snow_depth(rows) is None
+    assert rows[0]["snow_depth_in"] is None
+
+
+async def test_refuses_a_download_that_declares_more_than_the_cap(monkeypatch, stub_client):
+    monkeypatch.setattr(snodas, "MAX_ARCHIVE_BYTES", 1024, raising=False)
+    stub_client({TODAY_URL: 200})
+    assert isinstance(
+        await snodas.fetch_snapshot(held=lambda: None, now=NOW), snodas.Refused
+    )
+
+
+async def test_refuses_a_download_that_runs_past_the_cap_without_declaring_it(
+    monkeypatch, stub_client
+):
+    # No Content-Length, as a chunked answer has none, so the cap is counted
+    # as the bytes arrive rather than read off a header.
+    monkeypatch.setattr(snodas, "MAX_ARCHIVE_BYTES", 1024, raising=False)
+    stub_client(
+        {TODAY_URL: 200},
+        body=lambda: httpx.Response(200, stream=httpx.ByteStream(build_tar())),
+    )
+    assert isinstance(
+        await snodas.fetch_snapshot(held=lambda: None, now=NOW), snodas.Refused
+    )
+
+
 # ── The fill step, and never waiting for a grid ────────────────────────────
 
 
@@ -425,6 +608,16 @@ def test_fill_answers_nulls_and_no_date_with_no_grid_held(monkeypatch):
     rows = [{"latitude": 39.5, "longitude": -98.5}]
     assert snodas.fill_snow_depth(rows) is None
     assert rows[0]["snow_depth_in"] is None
+
+
+def test_fill_degrades_to_nulls_when_the_grid_cannot_answer(monkeypatch):
+    # Issue #629: a grid whose lookup raises must not take the route with it.
+    # The header checks keep a NaN origin out of a real snapshot; this one is
+    # built past them, which is the case the fill exists to survive.
+    _install(monkeypatch, dataclasses.replace(a_snapshot(), min_x=float("nan")))
+    rows = [{"latitude": 39.5, "longitude": -98.5}, {"latitude": 38.5, "longitude": -99.5}]
+    assert snodas.fill_snow_depth(rows) is None
+    assert [r["snow_depth_in"] for r in rows] == [None, None]
 
 
 async def test_fill_never_waits_for_a_cold_grid(monkeypatch):

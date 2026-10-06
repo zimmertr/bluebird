@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -22,6 +23,13 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 # User-Agent — something a browser fetch can't set. That, plus getting search
 # queries into the server logs, is why the SPA doesn't call Nominatim directly.
 PROVIDER = "Nominatim (place search)"
+
+# The whole of one search, connect to last byte. The value is the per-operation
+# timeout this call has always carried, now applied as a total as well: httpx's
+# own restarts its read timer on every chunk, so a server that kept sending
+# slowly was never cut off (#630). A visitor is waiting on this one, so it is
+# short beside the other upstreams'.
+TIMEOUT_S = 10.0
 
 
 @router.get(
@@ -95,7 +103,10 @@ async def geocode(
             headers={"Retry-After": str(exc.retry_after_s)},
         ) from None
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with (
+            httpx.AsyncClient(timeout=TIMEOUT_S) as client,
+            asyncio.timeout(TIMEOUT_S),
+        ):
             resp = await client.get(
                 NOMINATIM_URL,
                 # extratags carries the raw OSM tags — notably `ele`, which is
@@ -106,8 +117,12 @@ async def geocode(
             )
             resp.raise_for_status()
             rows = resp.json()
-    except httpx.HTTPError as exc:
-        log.warning("Nominatim request failed: %s", exc)
+    # TimeoutError is the total deadline; ValueError and RecursionError are a
+    # body that does not decode, such as an HTML block page on a 200. Each is
+    # the 502 this route documents rather than an unhandled 500 (#630), and
+    # `classify_http_error` words each one.
+    except (httpx.HTTPError, TimeoutError, ValueError, RecursionError) as exc:
+        log.warning("Nominatim request failed: %s", str(exc) or type(exc).__name__)
         raise ApiError(
             status_code=502,
             detail=classify_http_error(exc, PROVIDER),
