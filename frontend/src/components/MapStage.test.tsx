@@ -6,6 +6,7 @@ import type { MapViewHandle } from './MapView'
 import { render } from '../testSupport/render'
 import { resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
 // about is what reaches it: the props of every render are kept here.
@@ -108,6 +109,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     urlSync: URL_SYNC,
     restoredView: null,
     onBasemapFailed: ON_BASEMAP_FAILED,
+    maxPolygonPoints: MAX_POLYGON_POINTS,
     onOpenControls: NOOP,
     searchPointed: false,
     poisPointed: false,

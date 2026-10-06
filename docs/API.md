@@ -952,7 +952,9 @@ curl -s https://bluebirdforecast.com/api/capabilities | jq
 It reports the searchable destination types (narrower than the enum in the
 schema, since not every modelled type is discoverable yet, and `custom` names
 rows you supply rather than something to find), the sort keys, the
-maximum polygon area, the cap on destinations per analysis, the accepted `limit`
+maximum polygon area and the most points its ring may carry
+(`limits.max_polygon_points`), the largest request body read at all
+(`limits.max_request_bytes`), the cap on destinations per analysis, the accepted `limit`
 range, how far forward and back a window may reach, the selectable forecast
 models with each one's reach and whether it blends two grids (under
 `forecast_models`), how far ahead air quality reaches
@@ -1055,7 +1057,8 @@ curl -s https://bluebirdforecast.com/api/destinations \
 | `401` | `invalid_api_key` | Open-Meteo refused the `X-Open-Meteo-Key` this analyze request carried. Only `POST /api/analyze` answers it as a status; on the stream the same failure arrives as a terminal `error` event. No retry helps. |
 | `404` | `not_found` | No such endpoint. The body names the path and points at `/docs`. On `bluebirdforecast.com` an analyze request with no `X-Open-Meteo-Key` header gets this from the gateway, so a `404` on a path that exists means the header was missing. The gateway's body says "this path" where the app's names it, because a fixed answer at the edge cannot repeat the request; the `error` object and the headers are the same. |
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
-| `422` | `validation`, or absent | Request validation failed. Polygon too large, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
+| `413` | `validation` | The request body is larger than `limits.max_request_bytes`. It is refused before it is read, whether it declares a `Content-Length` or arrives chunked: `"Request body is too large. Maximum is {limits.max_request_bytes} bytes."`, the number written with thousands separators. |
+| `422` | `validation`, or absent | Request validation failed. Polygon too large, a ring with more points than `limits.max_polygon_points`, a list longer than the maximum the schema states, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
 | `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |
@@ -1072,8 +1075,9 @@ from Bluebird Forecast, and means the analysis outran that proxy's patience. Ret
 identically will usually outrun it again; use `POST /api/analyze/stream`, whose
 progress and keepalive events hold the connection open, or narrow the search.
 
-On `POST /api/analyze/stream`, a `429` arrives as a plain HTTP response because
-rate limiting runs before the stream opens. A capacity problem discovered
+On `POST /api/analyze/stream`, a `413` or a `429` arrives as a plain HTTP
+response because the size cap and rate limiting both run before the stream
+opens. A capacity problem discovered
 mid-analysis, though, arrives as an `error` event on the already-open `200`
 stream, exactly like any other upstream failure. A refused API key is one of
 those: the key is only tested when the first forecast batch goes out, which is
@@ -1102,7 +1106,7 @@ the outcome, so a retry loop will spin forever.
 
 | `error.code` | Status | `retryable` | Raised when |
 | --- | --- | --- | --- |
-| `validation` | `400`, `422` | `false` | The request does not describe runnable work: an inverted window, a polygon missing beside `destination_types`, a `bbox` that will not parse. |
+| `validation` | `400`, `413`, `422` | `false` | The request does not describe runnable work: an inverted window, a polygon missing beside `destination_types`, a `bbox` that will not parse, a body over the size cap. |
 | `refusal` | `400` | `false` | The search covers more candidates than the analysis cap allows, or, without a key, more than a long archive window can take. Carries the remedy fields above. |
 | `model_coverage` | `400` | `false` | A regional `forecast_model` was asked about somewhere outside its grid. |
 | `invalid_api_key` | `401` | `false` | Open-Meteo refused the key in `X-Open-Meteo-Key`. |

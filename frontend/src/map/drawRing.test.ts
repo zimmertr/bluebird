@@ -40,6 +40,7 @@ vi.mock('maplibre-gl', () => ({
 import { mountDrawRing } from './drawRing'
 import { createMapController, type MapInputs } from './controller'
 import { stubMap } from '../testSupport/stubMap'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 type Pts = [number, number][]
 const TRI: Pts = [
@@ -65,7 +66,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function setup(points: Pts = TRI, drawing = true) {
+function setup(points: Pts = TRI, drawing = true, maxPolygonPoints = MAX_POLYGON_POINTS) {
   const stub = stubMap()
   const inputs: MapInputs = {
     drawing,
@@ -81,6 +82,7 @@ function setup(points: Pts = TRI, drawing = true) {
     onRemovePoi: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
+    maxPolygonPoints,
   }
   const ring = { current: points }
   const deps = {
@@ -167,6 +169,37 @@ describe('mountDrawRing', () => {
     expect(deps.onDrawUpdate).toHaveBeenLastCalledWith(4)
     listeners.get('mousemove')!({ clientX: 5, clientY: -2 })
     expect(ring.current[1]).toEqual([5, -2])
+  })
+
+  // The cap counts positions as the server does, the closing repeat of the
+  // first point included, so a ring of `cap - 1` points is full (#619).
+  const fullRing = (cap: number): Pts => Array.from({ length: cap - 1 }, (_, i) => [i, i % 2])
+
+  it('places a point until the ring reaches the cap, then no more', () => {
+    const { ring, deps, drawRing } = setup(fullRing(5).slice(0, -1), true, 5)
+    drawRing.addPoint([9, 9])
+    expect(ring.current).toHaveLength(4)
+    expect(deps.onDrawUpdate).toHaveBeenLastCalledWith(4)
+    deps.onDrawUpdate.mockClear()
+    drawRing.addPoint([20, 20])
+    expect(ring.current).toHaveLength(4)
+    expect(deps.onDrawUpdate).not.toHaveBeenCalled()
+  })
+
+  it('inserts no midpoint and starts no drag on a full ring', () => {
+    const { stub, ring, deps } = setup(fullRing(5), true, 5)
+    const before = ring.current
+    stub.fire('mousedown', 'draw-midpoints', handle({ segment: 0 }, { lng: 0.5, lat: 0.5 }))
+    expect(ring.current).toBe(before)
+    expect(deps.onDrawUpdate).not.toHaveBeenCalled()
+    expect(listeners.size).toBe(0)
+  })
+
+  it('stops at the cap the deployment published, read when the click lands', () => {
+    const { ring, deps, drawRing } = setup(fullRing(5))
+    deps.controller.update({ ...deps.controller.inputs, maxPolygonPoints: 5 })
+    drawRing.addPoint([20, 20])
+    expect(ring.current).toHaveLength(4)
   })
 
   it('removes a vertex from the popup a click on it opens', () => {

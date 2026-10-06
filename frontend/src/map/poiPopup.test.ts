@@ -51,6 +51,7 @@ import { POI_LAYERS, poiFromFeature, poiToPlace } from '../utils/basemapPoi'
 import { poiPopupHtml } from '../utils/poiPopup'
 import type { Place } from '../utils/geocode'
 import { stubMap } from '../testSupport/stubMap'
+import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 const PEAK_LAYER = 'ofm-peaks'
 const SUMMIT: [number, number] = [-121.76, 46.85]
@@ -91,6 +92,7 @@ function setup({
     onRemovePoi: vi.fn(),
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
+    maxPolygonPoints: MAX_POLYGON_POINTS,
   }
   const controller = createMapController(inputs)
   const restCursor = vi.fn()

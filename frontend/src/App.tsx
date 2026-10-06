@@ -82,8 +82,17 @@ export default function App() {
 
   // Restore any prior session encoded in the URL once, at mount. Feeding each
   // useState a lazy initializer avoids a redraw flash — the restored values are
-  // the initial render, not a post-mount setState.
-  const restoredRef = useRef(decodeState(window.location.search))
+  // the initial render, not a post-mount setState. The caps a pasted list and
+  // a ring are read against are the hook's values at mount, which are its
+  // fallbacks until /api/capabilities answers: both have to be bounded before
+  // they enter state, and each fallback is the backend's own cap, held in
+  // lockstep by `mirrored_constants.json`.
+  const restoredRef = useRef(
+    decodeState(window.location.search, {
+      maxDestinations: caps.maxDestinations,
+      maxPolygonPoints: caps.maxPolygonPoints,
+    }),
+  )
   const restored = restoredRef.current
   // The camera a link names: stable for the session, like `restored`.
   const restoredView = restored?.view ?? null
@@ -577,6 +586,7 @@ export default function App() {
           urlSync={urlSync}
           restoredView={restoredView}
           onBasemapFailed={setBasemapFailed}
+          maxPolygonPoints={caps.maxPolygonPoints}
         />
 
         <ResultsSheet

@@ -20,6 +20,7 @@ import {
   makeDrawData,
   moveVertex,
   removeVertex,
+  ringHasRoom,
   ringPolygon,
 } from '../utils/drawGeometry'
 import { addVertex } from '../utils/polygonEdit'
@@ -217,9 +218,19 @@ export function mountDrawRing(
     }, 0)
   })
 
+  // Whether the ring can take another point. Read from the controller at the
+  // moment a point would be added, because the cap arrives from
+  // /api/capabilities after the map has mounted. At the cap a click or a
+  // midpoint grab simply does nothing: the server refuses a longer ring.
+  function hasRoom() {
+    return ringHasRoom(ring.current, deps.controller.inputs.maxPolygonPoints)
+  }
+
   // Midpoint: mousedown or touchstart inserts a vertex on that segment, then
-  // drags it.
+  // drags it. On a full ring it is left to the map, which pans as it would
+  // anywhere else.
   function startMidpointDrag(e: maplibregl.MapLayerMouseEvent | maplibregl.MapLayerTouchEvent) {
+    if (!hasRoom()) return
     e.preventDefault()
     const segIdx = Number(e.features?.[0]?.properties?.segment)
     edit(insertOnSegment(ring.current, segIdx, [e.lngLat.lng, e.lngLat.lat]))
@@ -244,7 +255,7 @@ export function mountDrawRing(
 
   return {
     addPoint(pt) {
-      edit(addVertex(ring.current, pt))
+      if (hasRoom()) edit(addVertex(ring.current, pt))
     },
     setDrawing(drawing) {
       for (const id of ['draw-vertices', 'draw-midpoints']) {

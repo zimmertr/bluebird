@@ -130,6 +130,30 @@ WindowSource = Literal["forecast", "archive", "spanning"]
 MIN_LIMIT = 1
 MAX_LIMIT = MAX_ANALYZE_PEAKS
 
+# The largest request body read at all (issue #618). FastAPI reads and parses
+# the whole body before a route's rate limit runs, at roughly 16 bytes of
+# Python objects per body byte, so without a ceiling one request could take a
+# pod's 2 GiB. Sized from the largest body the models accept rather than from
+# a typical one: measured 2026-10-06 with the models themselves, 1,500 custom
+# destinations at 255-character names plus every analyze field and a full
+# ring is 0.57 MiB with ASCII names, 1.65 MiB with four-byte characters sent
+# as raw UTF-8 (the browser), and 4.59 MiB with the same characters escaped
+# as `\u` pairs (Python's `json.dumps` default). 8 MiB clears that last one by
+# three quarters, so no body the schema accepts is refused, and its worst parse
+# is about 130 MB. Published as `limits.max_request_bytes`.
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
+
+# The most positions a polygon's ring may carry, the closing repeat included
+# (issue #619). The area cap reads only the bounding box, and every position is
+# copied into every clause of the Overpass query (up to nine), so a dense ring
+# inside a small box was an unbounded query sent from the pod's one address to
+# donated servers. A ring is drawn click by click and needs dozens; a share
+# link is held to about 800 by Cloudflare's 16 KB URL limit at about 20 bytes a
+# position, so 1,000 refuses nothing the app can make. Published as
+# `limits.max_polygon_points`; the browser's fallback is `MAX_POLYGON_POINTS` in
+# `frontend/src/utils/drawGeometry.ts`.
+MAX_POLYGON_POINTS = 1_000
+
 
 def _as_utc(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)

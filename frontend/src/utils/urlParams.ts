@@ -23,7 +23,8 @@ import type { Place } from './geocode'
 import { decodeView, encodeView } from './mapView'
 import { geoKey } from './points'
 import { isSortKey } from './tableColumns'
-import type { ShareableState } from './urlState'
+import { parseCustomCsv } from './customDestinations'
+import type { DecodeLimits, ShareableState } from './urlState'
 
 /**
  * One query parameter.
@@ -39,12 +40,15 @@ import type { ShareableState } from './urlState'
  * the writer copies as it is, and `decode` is handed the raw query text rather
  * than the percent-decoded value. Every other row deals in plain text and the
  * writer escapes it with `escapeQueryText`.
+ *
+ * `limits` are the deployment's published ones, for the rows whose value is
+ * only bounded by a cap the server sets (`customz`, `poly`).
  */
 export interface ParamCodec {
   key: string
   escaped?: true
   encode?: (state: ShareableState) => string | null
-  decode?: (raw: string, out: Partial<ShareableState>) => void
+  decode?: (raw: string, out: Partial<ShareableState>, limits: DecodeLimits) => void
 }
 
 // Control defaults: they must mirror the initial useState values in the hooks
@@ -111,6 +115,27 @@ const MODEL_ID = /^[a-z0-9_]+$/
 
 const POLY_PRECISION = 5 // ~1 m; keeps the URL short without visible drift
 
+// Whether a link's coordinate is on the globe: the bounds `view` and `removed`
+// hold theirs to, and the ones the CSV parser holds a pasted row to. MapLibre
+// throws on a latitude past a pole, and a restored ring or pin is framed in the
+// map's load handler, so one such value left the map with no markers, no
+// drawing and no overlays on every load of the link (#622).
+function onGlobe(lng: number, lat: number): boolean {
+  return Number.isFinite(lng) && Number.isFinite(lat) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+}
+
+// An OSM id in the shape the app writes one (`node/349018340`): the popup's
+// link-out puts it in the path of an openstreetmap.org url, so an id from a
+// link's text is held to what discovery and the geocoder produce (#621).
+const OSM_ID = /^(node|way|relation)\/\d+$/
+
+// A place kind as the geocoder's word for a feature, underscores already
+// humanized (`mountain pass`), or the app's own (`coordinates`). Open-ended,
+// because Nominatim names thousands of kinds, so this holds the shape rather
+// than a list: letters, digits and spaces. Anything else reads as no kind,
+// which the row's type shows as `custom`.
+const PLACE_KIND = /^[\p{L}\p{N} ]*$/u
+
 function round(n: number): number {
   const f = 10 ** POLY_PRECISION
   return Math.round(n * f) / f
@@ -140,20 +165,21 @@ function encodePolygon(polygon: GeoPolygon): string {
   return pts.map(([lng, lat]) => `${round(lng)},${round(lat)}`).join(';')
 }
 
-function decodePolygon(raw: string): GeoPolygon | null {
+// A ring over the cap is dropped like any malformed one rather than cut short:
+// the server would refuse it, and the first N points of a ring are not the
+// area its author drew.
+function decodePolygon(raw: string, maxPoints: number): GeoPolygon | null {
+  const pairs = raw.split(';')
+  // The link leaves out the closing point and decoding adds it back.
+  if (pairs.length + 1 > maxPoints) return null
   const pts: [number, number][] = []
-  for (const pair of raw.split(';')) {
+  for (const pair of pairs) {
     const [lngStr, latStr] = pair.split(',')
     const lng = Number(lngStr)
     const lat = Number(latStr)
-    if (
-      lngStr === undefined ||
-      latStr === undefined ||
-      !Number.isFinite(lng) ||
-      !Number.isFinite(lat)
-    ) {
-      return null
-    }
+    // A vertex off the globe drops the ring, as a malformed one does: dropping
+    // the vertex alone would restore a different shape than the one shared.
+    if (lngStr === undefined || latStr === undefined || !onGlobe(lng, lat)) return null
     pts.push([lng, lat])
   }
   if (pts.length < 3) return null
@@ -190,8 +216,10 @@ function encodePins(places: Place[]): string {
 // Parse the pins param back into Places. It reads the RAW query text: the
 // delimiters are split first, while a label's own `,` and `;` are still
 // escaped, and each field is then decoded once. Tolerant like the rest of
-// decodeState: an entry without a finite lon/lat, or with a malformed escape,
-// is skipped rather than failing the whole list. A restored pin has no
+// decodeState: an entry without a lon/lat on the globe, or with a malformed
+// escape, is skipped rather than failing the whole list. An id or a kind that
+// is not in the shape the app writes is dropped and the pin kept, since the
+// place is still where the link says it is. A restored pin has no
 // `description` or `bbox`: it needs neither the disambiguation line nor the
 // fly-to extent, so a link does not carry them.
 //
@@ -214,16 +242,16 @@ function decodePinList(raw: string): Place[] {
     const [lonStr, latStr, kind, elevStr, osmId, label] = parts as string[]
     const lon = Number(lonStr)
     const lat = Number(latStr)
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue
+    if (!onGlobe(lon, lat)) continue
     const elev = Number(elevStr)
     out.push({
       label: label || `${lat.toFixed(5)}, ${lon.toFixed(5)}`,
       description: '',
-      kind,
+      kind: PLACE_KIND.test(kind) ? kind : '',
       lat,
       lon,
       ...(elevStr !== '' && Number.isFinite(elev) ? { elevationFt: elev } : {}),
-      ...(osmId ? { osmId } : {}),
+      ...(OSM_ID.test(osmId) ? { osmId } : {}),
     })
   }
   return out
@@ -306,6 +334,31 @@ function removedPair(key: string): string {
   const [lat, lon] = key.split(',')
   return `${Number(lon)},${Number(lat)}`
 }
+
+/**
+ * The longest `customz` value a link may carry, in characters, checked before
+ * it is inflated.
+ *
+ * lz-string inflates with no output limit, and a run of one character is the
+ * input it inflates most (n codes become about n^2/2 characters), so the work
+ * an inflation can cost is set by this number and nothing else. Measured
+ * 2026-10-06 with this repo's lz-string 1.5.0 on node 26: a 15,978-character
+ * value of that shape inflates to 32,000,000 characters in 14 ms and 66 MB of
+ * heap. 16 KiB is about the edge's URL limit as issue #622 states it (not
+ * measured here), so a longer value could not reach the page through
+ * bluebirdforecast.com anyway; a synthetic 1,500-row list with short names
+ * already compresses to 20,943 characters (measured the same day).
+ */
+export const MAX_CUSTOMZ_CHARS = 16_384
+
+/**
+ * Characters one row of the pasted list may take once inflated: the 255 the
+ * API allows a custom destination's name, two coordinates and their commas,
+ * with room to spare. Multiplied by the candidate cap it bounds the inflated
+ * text before anything splits it, so a value that inflated past what its cap
+ * of rows could fill is refused without being parsed.
+ */
+const CUSTOM_ROW_CHARS = 512
 
 /**
  * Every parameter, in the order a link writes them. The order is part of the
@@ -468,9 +521,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   {
     key: 'poly',
     encode: (state) => (hasPolygon(state) && state.polygon ? encodePolygon(state.polygon) : null),
-    decode: (raw, out) => {
+    decode: (raw, out, limits) => {
       if (!raw) return
-      const decoded = decodePolygon(raw)
+      const decoded = decodePolygon(raw, limits.maxPolygonPoints)
       if (decoded) out.polygon = decoded
     },
   },
@@ -478,6 +531,14 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // off Firefox's address-bar / ingress limits). Only this field is opaque:
   // every other param stays plain text and hand-editable. decompress returns
   // null on a garbled value, which is dropped.
+  //
+  // Bounded three times, because inflation has no limit of its own (#622): the
+  // value before it is inflated, the text it inflated to before anything
+  // splits it, and then its rows, against the candidate cap the deployment
+  // publishes. Over any of them the list is dropped whole rather than cut,
+  // for the reason `removed` gives: a link that dropped some rows would share
+  // a different list. A list over the cap could not be analyzed as it stands
+  // anyway, since the cap counts every row.
   //
   // Written as lz-string's own output, six bits a character from
   // `A-Za-z0-9+-`, all legal in a query. The `+` is the one an escape would
@@ -489,11 +550,13 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     key: 'customz',
     escaped: true,
     encode: (state) => (hasCustomCsv(state) ? compressToEncodedURIComponent(state.customCsv) : null),
-    decode: (raw, out) => {
+    decode: (raw, out, { maxDestinations }) => {
       const text = unescapeQueryText(raw)
-      if (!text) return
+      if (!text || text.length > MAX_CUSTOMZ_CHARS) return
       const decoded = decompressFromEncodedURIComponent(text)
-      if (decoded) out.customCsv = decoded
+      if (!decoded || decoded.length > maxDestinations * CUSTOM_ROW_CHARS) return
+      if (parseCustomCsv(decoded).length > maxDestinations) return
+      out.customCsv = decoded
     },
   },
   flag('fires', 'showWildfires'),

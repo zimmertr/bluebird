@@ -95,6 +95,8 @@ export interface MapStageProps {
   restoredView: CameraView | null
   /** Reports whether the basemap style is failing to load; a state setter. */
   onBasemapFailed: (failed: boolean) => void
+  /** The most positions a drawn ring may carry, from /api/capabilities. */
+  maxPolygonPoints: number
 }
 
 /**
@@ -128,6 +130,7 @@ export default function MapStage({
   urlSync,
   restoredView,
   onBasemapFailed,
+  maxPolygonPoints,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   const { registerPlace } = removals
@@ -235,6 +238,7 @@ export default function MapStage({
         restoredView={restoredView}
         onCameraMove={urlSync.reportView}
         onBasemapFailed={onBasemapFailed}
+        maxPolygonPoints={maxPolygonPoints}
       />
       {/* The legends render BEFORE the button column below on purpose.
           Both are map chrome at the same layer, so paint order is DOM

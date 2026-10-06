@@ -22,6 +22,8 @@ from app.limits import (
     MAX_ANALYZE_PEAKS,
     MAX_LIMIT,
     MAX_POLYGON_AREA_KM2,
+    MAX_POLYGON_POINTS,
+    MAX_REQUEST_BYTES,
     MIN_LIMIT,
     PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
@@ -59,6 +61,8 @@ from app.models.destinations import (
 
 __all__ = [
     "MAX_POLYGON_AREA_KM2",
+    "MAX_POLYGON_POINTS",
+    "MAX_REQUEST_BYTES",
     "MAX_ANALYZE_PEAKS",
     "ARCHIVE_DATA_DAYS",
     "PAST_LIMIT_SLACK_DAYS",

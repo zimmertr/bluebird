@@ -34,6 +34,7 @@ from app.models import (
     DEFAULT_FORECAST_MODEL,
     FUTURE_LIMIT_SLACK_DAYS,
     MAX_ANALYZE_PEAKS,
+    MAX_POLYGON_POINTS,
     MODEL_INFO,
     PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
@@ -69,6 +70,9 @@ def render() -> str:
         "constants": {
             "N_VARIABLES": N_VARIABLES,
             "MAX_ANALYZE_PEAKS": MAX_ANALYZE_PEAKS,
+            # Published, like the candidate cap above, so the browser's copy is
+            # only the fallback until /api/capabilities answers (#619).
+            "MAX_POLYGON_POINTS": MAX_POLYGON_POINTS,
             "COARSE_OFFSET_DEG": COARSE_OFFSET_DEG,
             "PAST_DATA_DAYS": PAST_DATA_DAYS,
             "PAST_LIMIT_SLACK_DAYS": PAST_LIMIT_SLACK_DAYS,

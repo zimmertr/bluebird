@@ -15,6 +15,8 @@ from app.models import (
     MAX_ANALYZE_PEAKS,
     MAX_LIMIT,
     MAX_POLYGON_AREA_KM2,
+    MAX_POLYGON_POINTS,
+    MAX_REQUEST_BYTES,
     MIN_LIMIT,
     MODEL_INFO,
     PAST_DATA_DAYS,
@@ -53,6 +55,8 @@ def test_limits_mirror_the_constants_the_validators_enforce():
         "past_data_days": PAST_DATA_DAYS,
         "archive_days": ARCHIVE_DATA_DAYS,
         "aqi_forecast_days": MAX_FORECAST_DAYS,
+        "max_request_bytes": MAX_REQUEST_BYTES,
+        "max_polygon_points": MAX_POLYGON_POINTS,
         "max_destination_hours": limits.MAX_ANALYZE_DESTINATION_HOURS,
         # Rate limits come from the live limiter instances (patched off in
         # conftest), not env constants — value plumbing is asserted with real

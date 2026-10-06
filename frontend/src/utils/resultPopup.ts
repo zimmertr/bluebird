@@ -91,7 +91,7 @@ export function resultPopupHtml(d: {
   const closure = !d.closure
     ? ''
     : d.closure.url
-      ? popupLink(escapeHtml(d.closure.url), closureLine, 'color:#f59e0b;display:block')
+      ? popupLink(d.closure.url, closureLine, 'color:#f59e0b;display:block')
       : `<div style="color:#f59e0b">${closureLine}</div>`
 
   // What the destination IS, above the rule. The type and the model share one

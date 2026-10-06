@@ -10,6 +10,8 @@ from app.models import (
     MAX_ANALYZE_PEAKS,
     MAX_LIMIT,
     MAX_POLYGON_AREA_KM2,
+    MAX_POLYGON_POINTS,
+    MAX_REQUEST_BYTES,
     MIN_LIMIT,
     MODEL_INFO,
     PAST_DATA_DAYS,
@@ -244,6 +246,21 @@ class Limits(BaseModel):
             "never fails because of it."
         )
     )
+    max_request_bytes: int = Field(
+        description=(
+            "Largest request body accepted, in bytes. A larger one is answered "
+            "413 before it is read, whether it declares a `Content-Length` or "
+            "arrives chunked. Sized so the largest request the schema allows "
+            "fits beneath it."
+        )
+    )
+    max_polygon_points: int = Field(
+        description=(
+            "Most positions a polygon's outer ring may carry, counting the "
+            "closing repeat of the first position. A longer ring is rejected "
+            "with 422."
+        )
+    )
     max_destination_hours: int = Field(
         description=(
             "Ceiling on candidates times window hours in a single analysis, "
@@ -369,6 +386,8 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
             past_data_days=PAST_DATA_DAYS,
             archive_days=ARCHIVE_DATA_DAYS,
             aqi_forecast_days=AQI_FORECAST_DAYS,
+            max_request_bytes=MAX_REQUEST_BYTES,
+            max_polygon_points=MAX_POLYGON_POINTS,
             max_destination_hours=MAX_ANALYZE_DESTINATION_HOURS,
             # Read from the live limiter instances, not the env constants, so
             # what this publishes is what enforcement actually counts.
