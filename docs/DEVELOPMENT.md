@@ -44,7 +44,7 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 |---|---|
 | `make typecheck` | `npx tsc --noEmit` over the frontend |
 | `make lint-frontend` | `npm run lint` (ESLint), then the self-test that proves the rules are not vacuous |
-| `make test-frontend` | `npm ci && npm test` (Vitest) |
+| `make test-frontend` | `npm ci --ignore-scripts && npm test` (Vitest) |
 | `make check-api` | `npm run check:api`: the frontend API types still match the committed OpenAPI snapshot |
 | `make test-backend` | `pytest` |
 | `make check-openapi` | `python scripts/generate_openapi.py --check`: the committed snapshot still matches the app |
@@ -58,7 +58,7 @@ This is `make test-frontend`, typed out:
 
 ```bash
 docker run --rm -v "$PWD":/repo -w /repo/frontend node:$(cat .node-version)-alpine \
-  sh -c "npm ci && npm test"
+  sh -c "npm ci --ignore-scripts && npm test"
 ```
 
 One Vitest run covers two projects, split by file extension: `node` runs every
@@ -90,6 +90,41 @@ Five things that shape follows from:
   live in `backend/ruff.toml`, and `known-first-party = ["app"]` there is what
   makes the import order the same from either working directory. Ruff is
   pinned because its default rule set changes between releases.
+- **Every `npm ci` passes `--ignore-scripts`**, here, in CI and in the image
+  build (#633). No package in the four lockfiles needs its install script on
+  Linux: the app's has two, `fsevents` (macOS only) and `@scarf/scarf`, which
+  only reports the install to scarf.sh, and esbuild and the other native tools
+  ship their binaries as optional dependencies. `test_dependency_lock.py` fails
+  an `npm ci` without the flag in the `Dockerfile`, the `Makefile`, a workflow
+  or `frontend/package.json`.
+
+### The backend's dependency lock
+
+`backend/requirements.in` holds the backend's direct pins, and it is the file
+to edit. `backend/requirements.txt` is pip-compile's lock of it: every
+distribution the image installs, the indirect ones such as Starlette included,
+each with its hashes. The image installs it with `--require-hashes`, and
+GitHub's dependency graph reads it, which is what lets an advisory against an
+indirect package raise an alert. `requirements-dev.in` adds the test tools on
+top, constrained to that lock, and `requirements-dev.txt` is its lock, so the
+suite runs against the versions the image ships. Never edit either `.txt` by
+hand. After changing a pin in a `.in` file, rewrite both locks and commit all
+four files:
+
+```bash
+make lock-backend
+```
+
+The target runs pip-compile on `python:3.14-alpine`, the image's own base, so
+every environment marker resolves for the platform that installs the lock. It
+keeps every pin the locks already hold; to move one indirect package, add
+`--upgrade-package NAME` to both `pip-compile` commands in the target. The
+version of pip-tools is the one Dependabot runs, because Dependabot rewrites
+the same two files from their `.in` files and its header must read the same
+way. `backend/tests/test_dependency_lock.py` fails when a pin in a `.in` file
+is missing from its lock or locked at another version, when the dev lock
+differs from the runtime lock on a package they share, and when a locked
+package has no hash.
 
 ### Where a source check lives
 

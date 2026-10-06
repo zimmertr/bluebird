@@ -1,16 +1,30 @@
 version: 2
 updates:
+  # Every npm and pip entry waits seven days after a release before proposing
+  # it (#633). A patch bump auto-merges and a merge to main deploys, so without
+  # the wait a release published the day before the weekly run is live the same
+  # morning; the npm worms of 2025 were pulled within hours to days. Security
+  # updates do not wait: GitHub documents cooldown as version updates only.
+  #
+  # The pip entry reads requirements.in (the direct pins) and recompiles the
+  # hashed requirements.txt and requirements-dev.txt from it with pip-compile,
+  # which is what lets the dependency graph and its alerts see Starlette and
+  # the rest of the indirect set.
   - package-ecosystem: pip
     directory: /backend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   # The OpenAPI type generator is a package apart from the app because
   # openapi-typescript needs the TypeScript 5 compiler API and the app runs
@@ -20,6 +34,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     ignore:
       # TypeScript stays on 5 here for as long as openapi-typescript peers on
       # ^5.x. A major bump is the one update this package must never take: it
@@ -35,6 +51,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     ignore:
       # TypeScript stays on 6 here for as long as typescript-eslint refuses 7.
       # It throws on import rather than degrading, so a major bump here is a
@@ -50,6 +68,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   # Every action is pinned to a commit SHA with its version in a comment
   # (#632). Dependabot reads that comment, proposes the next release, and

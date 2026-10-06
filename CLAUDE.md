@@ -27,7 +27,7 @@ the README linking to it. It was split out of a 560-line README in #192
 | [`docs/CICD.md`](docs/CICD.md) | The pipeline from merge to production, with diagrams |
 | [`docs/STYLES.md`](docs/STYLES.md) | The design system: roles, enforcement, measured numbers; keep it current like CICD.md |
 | [`docs/decisions/`](docs/decisions/README.md) | One file per design decision: context, decision, evidence, date, decider. The README is the index |
-| [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses, whose two tables `backend/tests/test_notices.py` holds to `frontend/package.json` and `backend/requirements.txt` |
+| [`NOTICES.md`](NOTICES.md) | Third-party attribution, at the repo root: the data-provider half transcribes `frontend/src/utils/dataSources.ts` (change one, change both in the same PR), plus bundled-software licenses, whose two tables `backend/tests/test_notices.py` holds to `frontend/package.json` and `backend/requirements.in` |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How the project accepts work, at the repo root so GitHub surfaces it on new PRs: one maintainer, an issue before code, and the short list of rules a change must meet |
 | [`backend/CLAUDE.md`](backend/CLAUDE.md) | Every module under `backend/`: what it owns and why it is separate |
 | [`frontend/src/CLAUDE.md`](frontend/src/CLAUDE.md) | The same for the modules directly in `frontend/src/` and in `src/testSupport/`, and for each bullet that names modules in two directories under it |
@@ -58,7 +58,13 @@ does. The Node major lives in `.node-version` alone; CI reads it through
 to it. Since #379 the rules live in `backend/ruff.toml` (E, F, I, B,
 UP) and `known-first-party = ["app"]` there makes the import order the same from
 either working directory; without it isort reads `app` as third-party from the root
-and first-party from inside `backend/`.
+and first-party from inside `backend/`. The backend's direct pins live in
+`backend/requirements.in`, and `requirements.txt` and `requirements-dev.txt` are
+pip-compile's hashed locks of them, which the image installs with
+`--require-hashes`: a pin changes in the `.in` file, and `make lock-backend`
+rewrites both locks in the same PR. Every `npm ci` passes `--ignore-scripts`,
+and every npm and pip Dependabot entry waits seven days before proposing a
+release (#633). Record: [0099](docs/decisions/0099-locked-installs-no-install-scripts.md)
 
 Two suites: the frontend under Vitest, in two projects split by file extension, pure logic in node (`frontend/src/utils/*.test.ts`, e.g. URL state serialization in `urlState.ts` and marker colors in `colors.ts`) and components in jsdom (`frontend/src/components/*.test.tsx`, which render a component and drive it with Testing Library), and the backend under pytest (`backend/tests/`, covering weather/AQI aggregation, request validation, ranking/elevation filtering, upstream-error mapping, and the routes with the external APIs stubbed). A third suite operates the built image in a browser: Playwright under `frontend/e2e/`, a package of its own with its own lockfile, which draws a ring, analyzes, opens a share link, clicks the map under the legend stack and runs axe on three states with every third-party host answered from fixtures (#412). Its local run uses the pinned Playwright image and is in `docs/DEVELOPMENT.md` too. CI validates via TypeScript typecheck, ESLint (`npm run lint`, over `src` and `e2e`), the Vitest unit tests, mypy over `backend/app` (settings in `backend/mypy.ini`), pytest, Python ruff lint, a full Docker build followed by a Trivy vulnerability scan of the built image, Lighthouse budgets and accessibility score on the cold load, and the browser suite.
 
@@ -154,7 +160,7 @@ The FastAPI backend handles `POST /api/analyze`, which:
 
 ## CI/CD pipeline
 
-[`docs/CICD.md`](docs/CICD.md) is the whole flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments), and it owns the per-workflow summaries and the PR title → bump table. The one thing to carry into every change here: **a squash-merge to `main` releases**, and the PR title alone decides the bump: a `!` before the colon (`fix!:`, `feat(api)!:`) is a major, `feat` a minor, every other prefix a patch, and nothing in the body counts, a `BREAKING CHANGE:` footer included. Record: [0080](docs/decisions/0080-major-from-the-title-only.md) The `PR Title` check fails a title the pipeline cannot read, and a failed release is finished by re-running it (`docs/CICD.md`, Finishing a failed release). Every action in the three repositories is pinned to a full commit SHA with its version in a comment, the Dockerfile's base images to a digest, and every release job runs on `main` only, so no job holding a write credential runs code that a moved tag or another branch chose. Record: [0099](docs/decisions/0099-pinned-actions-main-only-release.md)
+[`docs/CICD.md`](docs/CICD.md) is the whole flow with diagrams (bluebird → bluebird-helm → Kubernetes-Manifests → Argo CD / Argo Rollouts, plus Docker Hub, Artifact Hub, and the PR preview environments), and it owns the per-workflow summaries and the PR title → bump table. The one thing to carry into every change here: **a squash-merge to `main` releases**, and the PR title alone decides the bump: a `!` before the colon (`fix!:`, `feat(api)!:`) is a major, `feat` a minor, every other prefix a patch, and nothing in the body counts, a `BREAKING CHANGE:` footer included. Record: [0080](docs/decisions/0080-major-from-the-title-only.md) The `PR Title` check fails a title the pipeline cannot read, and a failed release is finished by re-running it (`docs/CICD.md`, Finishing a failed release). Every action in the three repositories is pinned to a full commit SHA with its version in a comment, the Dockerfile's base images to a digest, and every release job runs on `main` only, so no job holding a write credential runs code that a moved tag or another branch chose. Record: [0100](docs/decisions/0100-pinned-actions-main-only-release.md)
 
 ## Kubernetes deployment
 

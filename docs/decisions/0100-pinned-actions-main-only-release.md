@@ -1,4 +1,4 @@
-# 0099. Every action is pinned to a commit, the base images to a digest, and only `main` releases
+# 0100. Every action is pinned to a commit, the base images to a digest, and only `main` releases
 
 - Status: Accepted
 - Date: 2026-10-06
