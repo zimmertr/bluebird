@@ -70,8 +70,8 @@ flowchart TD
     dev -.->|merge app PR| bbMain
     bbMain --> bbRel
     bbRel -->|GitVersion, then build| dhImage
-    bbRel --> ghRelease
     bbRel --> bbScan
+    bbScan -->|passed| ghRelease
     dhImage -.->|pushed digest, both platforms| bbScan
     bbScan -->|passed: open/update PR: image newTag| kmImagePR
     bbScan -->|passed: open/update PR| helmPR
@@ -157,15 +157,16 @@ the newest release (#632).
 3. **Scan Pushed Image** — Trivy, once per platform (`linux/amd64` and
    `linux/arm64`), against `zimmertr/bluebird@<digest>` from step 2, with the
    same `trivy.yaml` and `.github/actions/trivy-crit-high` as the PR gate and
-   the weekly scan. It fails on a fixable Critical/High finding. Steps 5 and 6
-   need it, so production and the chart's default image move only onto a
-   scanned digest; step 4 does not, so the release is still published. See
+   the weekly scan. It fails on a fixable Critical/High finding. Steps 4, 5
+   and 6 all need it, so production, the chart's default image and the GitHub
+   release move only onto a scanned digest. See
    [The release scan](#the-release-scan).
 4. **Create GitHub Release** — auto-generated notes, through `gh release
    create --verify-tag`, skipped when the release already exists. It is marked
    **Latest** unless a newer release already is, so a release finished late
    does not move `releases/latest`, which the chart's `appVersion` resolver
-   reads. Runs in parallel with steps 3 and 5, which do not depend on it.
+   reads. Waits on step 3, then runs in parallel with step 5, which does not
+   depend on it.
 5. **Update Kubernetes-Manifests** — starts as soon as the scan passes,
    because nothing here needs the GitHub Release to exist. A **self-merging
    PR** on the fixed `chore/bluebird-image` branch sets `images.newTag:
@@ -317,22 +318,25 @@ before production moves (#634):
 - **No credential.** The image is public, so the job does not log in to
   Docker Hub and holds nothing a scanner could read.
 
-`Update Kubernetes Manifests` and `Bump Helm Chart appVersion` both need the
-scan. A scan that fails therefore leaves production and the chart's default
-image on the previous release, while the image, the `v<semver>` tag and the
-GitHub release stay published, as with any failure after the push. The fix is
+`Create GitHub Release`, `Update Kubernetes Manifests` and `Bump Helm Chart
+appVersion` all need the scan. A scan that fails therefore leaves production
+and the chart's default image on the previous release and makes no GitHub
+release, while the image and the `v<semver>` tag stay published, as with any
+failure after the push. The release is held as well as the two bumps because
+`bluebird-helm`'s own release resolves the chart's `appVersion` from
+`releases/latest` at package time: a failed version marked Latest would
+become the chart's default image at the next chart release, whatever the
+bump job did (maintainer, 2026-10-06). The fix is
 the next release, the same remedy as the [scheduled image
 scan](#scheduled-image-scan): merge the open Dependabot base-image PR, or if
 there is none, clear the buildx cache and release. Re-running the run does
 not help a real finding; it does help a scan that failed on a download, and
 "Re-run failed jobs" keeps `Build & Push`'s digest from the first attempt.
 
-One thing it does not hold: the GitHub release is still created and marked
-Latest, and `bluebird-helm`'s own release resolves the chart's `appVersion`
-from `releases/latest` at package time. A chart release that runs before the
-fix ships would publish the failed version as the chart's default image.
-Production is not affected, because Kubernetes-Manifests pins the image tag
-itself.
+A version whose scan failed is left as an image and a tag with no release,
+like the image-without-a-tag case under [Finishing a failed
+release](#finishing-a-failed-release), and the weekly scan, which reads the
+Latest release, keeps scanning the version production runs.
 
 The job is newer than the [release path](#the-release-path) measurements
 below, and adds its time to every release and to the merge-to-live path.
@@ -1005,7 +1009,7 @@ gh cache list --limit 100 --json id,ref --jq '.[] | select(.ref | startswith("re
 | **whole run** | **151 s** | 88–311 s |
 
 `Scan Pushed Image` (#634) is newer than these runs and is not in the table;
-it runs between `Build & Push` and the two bump jobs, so its time adds to the
+it runs between `Build & Push` and every later job, so its time adds to the
 whole run and to the first segment of [Merge to live](#merge-to-live).
 
 `Build & Push` is the multi-arch build, and within it one step dominates.
