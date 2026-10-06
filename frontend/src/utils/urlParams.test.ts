@@ -1,15 +1,21 @@
 import { describe, it, expect } from 'vitest'
-import { decodeState, encodeState, type ShareableState } from './urlState'
+import { decodeState as decodeWithLimits, encodeState, type ShareableState } from './urlState'
 import { FIELD_PARAMS, URL_PARAMS } from './urlParams'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { NO_CONSTRAINTS } from './constraints'
+import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { place } from '../testSupport/fixtures'
+
+// The candidate cap as the app hands it over at mount.
+const decodeState = (search: string) =>
+  decodeWithLimits(search, { maxDestinations: MAX_ANALYZE_DESTINATIONS, maxPolygonPoints: MAX_POLYGON_POINTS })
 // What `decodeState` answers for each state and link below, captured before
 // the codec was a table. A share link is text someone already sent, so this
 // pins the codec to those answers. Only a settled decision moves one: the
 // retired keys read as nothing, and a default ranking or results cap is not
 // written (#292).
 import golden from './urlParams.golden.json'
+import { MAX_POLYGON_POINTS } from './drawGeometry'
 
 const DEFAULT_MODEL = 'ecmwf_ifs025'
 

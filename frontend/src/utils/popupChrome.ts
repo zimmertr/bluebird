@@ -108,9 +108,14 @@ export const LINK_COLOR = '#0369a1'
  * `extra` is appended AFTER the colour, so a caller that owns its own colour —
  * the fire warning, which is amber before it is a link — overrides it by
  * declaring it again rather than by not using this.
+ *
+ * `href` is the raw url and is escaped here, as `linkIcon`'s is: an attribute
+ * value is the one place in this markup where a quote mark ends the value and
+ * whatever follows it becomes markup, so the link cannot leave it to every
+ * caller to remember (#621). `inner` is markup the caller has already built.
  */
 export function popupLink(href: string, inner: string, extra = ''): string {
-  return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:${LINK_COLOR};text-decoration:underline;${extra}">${inner}</a>`
+  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:${LINK_COLOR};text-decoration:underline;${extra}">${inner}</a>`
 }
 
 /**
@@ -245,9 +250,13 @@ export function popupWidth(canvasWidthPx: number): string {
  * without anything noticing: the component lint reads the React tree, and this
  * file has none. The linter's `style-popup-glyph` check now fails a glyph
  * spelled here at all.
+ *
+ * The url is escaped here for the reason `popupLink` gives. It is usually built
+ * from numbers and OSM's own `type/id`, but a pin restored from a share link
+ * carries its id from the link's text, and so does a place the geocoder named.
  */
 export function linkIcon(url: string): string {
-  return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
 /**
@@ -276,8 +285,11 @@ export function popupShell(title: string, url: string, body: string, meta = ''):
 }
 
 /**
- * Third-party text on its way to setHTML — OSM names, NIFC incident names.
- * Every string a provider chose passes through here.
+ * Third-party text on its way to setHTML — OSM names, NIFC incident names —
+ * and every url on its way into an href. Every string a provider chose passes
+ * through here. The quote mark is escaped because an attribute value is
+ * double-quoted here throughout; text between elements needs only the first
+ * three.
  */
 export function escapeHtml(s: string): string {
   return s

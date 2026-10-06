@@ -11,9 +11,7 @@ import { ForecastSelection } from './calendar'
 import { Place } from './geocode'
 import { type CameraView } from './mapView'
 import { type SortKey } from './tableColumns'
-import { MAX_POLYGON_POINTS } from './drawGeometry'
 import {
-  type DecodeLimits,
   DEFAULT_LIMIT,
   DEFAULT_SORT,
   URL_PARAMS,
@@ -240,10 +238,19 @@ export function decodeAutoAnalyze(search: string): boolean {
   }
 }
 
-// What a link is read against when the caller names no limits: the browser's
-// own copies of the published numbers, which are also what `useCapabilities`
-// holds until the deployment answers.
-const FALLBACK_DECODE_LIMITS: DecodeLimits = { maxPolygonPoints: MAX_POLYGON_POINTS }
+/**
+ * The published limits a link is read against. The candidate cap bounds the
+ * pasted list a link carries, which has to be refused before it enters state
+ * rather than clamped afterwards the way `limit` is, because the cost is in
+ * parsing it (#622). The ring cap drops a polygon the server would refuse
+ * (#619). Passed in rather than imported, so each number is the deployment's
+ * (`useCapabilities`) and never a compiled copy.
+ */
+export interface DecodeLimits {
+  maxDestinations: number
+  /** The most positions a ring may carry, its closing point included. */
+  maxPolygonPoints: number
+}
 
 /**
  * Parse a location.search string back into a partial state. Tolerant by design:
@@ -252,10 +259,7 @@ const FALLBACK_DECODE_LIMITS: DecodeLimits = { maxPolygonPoints: MAX_POLYGON_POI
  * null when nothing usable was found. `limits` are the published bounds a value
  * is held to; a ring over its cap is dropped like a malformed one.
  */
-export function decodeState(
-  search: string,
-  limits: DecodeLimits = FALLBACK_DECODE_LIMITS,
-): Partial<ShareableState> | null {
+export function decodeState(search: string, limits: DecodeLimits): Partial<ShareableState> | null {
   const query = search.startsWith('?') ? search.slice(1) : search
   let params: URLSearchParams
   try {

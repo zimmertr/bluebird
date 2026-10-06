@@ -155,9 +155,18 @@ export const test = base.extend<{ traffic: Traffic }>({
     async ({ page, baseURL }, use, testInfo) => {
       await page.addInitScript(() => localStorage.setItem('bluebird_forecast_welcomed', '1'))
       const traffic = await installRoutes(page, new URL(baseURL!).host)
+      // The image serves its own Content-Security-Policy, so every test here
+      // is also a load under that policy. Chromium reports what the policy
+      // refused on the console; a refused style or script is a page that
+      // renders wrong under the header production sends (#621).
+      const refused: string[] = []
+      page.on('console', (message) => {
+        if (message.type() === 'error' && /Content Security Policy/.test(message.text())) refused.push(message.text())
+      })
       await use(traffic)
       testInfo.annotations.push({ type: 'third-party requests answered', description: JSON.stringify(traffic.answered) })
       expect(traffic.leaks, 'requests that would have reached a third-party host').toEqual([])
+      expect(refused, 'what the served Content-Security-Policy refused').toEqual([])
     },
     { auto: true },
   ],
