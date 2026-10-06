@@ -103,9 +103,11 @@ def client_address(request: Request) -> str:
     the rightmost ``X-Forwarded-For`` hop: every proxy appends to the right,
     so the rightmost entry is the peer our own edge actually saw, while the
     leftmost is whatever the client typed (rotating it must not mint a fresh
-    bucket per request). Direct-to-origin traffic can still forge both
-    headers until #148 puts the origin behind Cloudflare Tunnel; the
-    upstream budgets bound what a spoofer gains in the meantime.
+    bucket per request). The Cloudflare Tunnel (#148) is the only inbound
+    path, so no request reaches a pod without Cloudflare overwriting the
+    header. A caller already inside the cluster can still set it, which is
+    why the pod-wide upstream budgets stay a backstop: they do not care who
+    a caller claims to be (``docs/TRAFFIC.md``).
     """
     cf = request.headers.get("cf-connecting-ip")
     if cf:

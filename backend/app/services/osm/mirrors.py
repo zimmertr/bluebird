@@ -53,10 +53,13 @@ class OverpassMirror:
     """
 
     url: str
-    # Per-request timeout, and also the `[timeout:N]` the query carries on this
-    # mirror, so the server stops working on a query the pod has stopped
-    # waiting for. A longer server timeout held one of the address's two slots
-    # busy for up to 35s after the pod gave up (#545).
+    # The whole of one attempt, from connect to the last byte of the answer,
+    # and also the `[timeout:N]` the query carries on this mirror, so the
+    # server stops working on a query the pod has stopped waiting for. A longer
+    # server timeout held one of the address's two slots busy for up to 35s
+    # after the pod gave up (#545). A total rather than httpx's own timeout,
+    # which is per operation and restarts its read timer on every chunk, so a
+    # mirror that trickled its answer held a pod-wide slot without limit (#630).
     timeout_s: float
     # Pod-wide cap on in-flight calls to THIS mirror. Limits are per operator,
     # not per provider: overpass-api.de documents ~2 slots per IP, and the
@@ -269,7 +272,9 @@ def _attempt_outcome(exc: Exception) -> str:
     retuned from (TimeoutException must be tested first: it IS an HTTPError)."""
     if isinstance(exc, PartialResultError):
         return "partial"
-    if isinstance(exc, httpx.TimeoutException):
+    # The attempt's own deadline ends in the builtin TimeoutError, which is the
+    # same fact as httpx timing out one operation of it.
+    if isinstance(exc, (httpx.TimeoutException, TimeoutError)):
         return "timeout"
     if isinstance(exc, httpx.HTTPStatusError):
         return "http_error"
@@ -309,9 +314,13 @@ async def _post_with_fallback(
                 async with mirror.budget.slot():
                     attempt_start = time.perf_counter()
                     try:
-                        resp = await client.post(
-                            mirror.url, data={"data": body}, timeout=mirror.timeout_s
-                        )
+                        # httpx's own timeout stays beside the total, so an
+                        # attempt that stalls in one phase still fails as an
+                        # httpx timeout whose message names that phase.
+                        async with asyncio.timeout(mirror.timeout_s):
+                            resp = await client.post(
+                                mirror.url, data={"data": body}, timeout=mirror.timeout_s
+                            )
                     finally:
                         elapsed = time.perf_counter() - attempt_start
                 resp.raise_for_status()
@@ -348,7 +357,9 @@ async def _post_with_fallback(
                 _last_failure[mirror.url] = _clock()
                 if i < total:
                     telemetry.OVERPASS_FALLBACK.labels(mirror=host).inc()
-                log.warning("Overpass endpoint %s failed: %s", mirror.url, exc)
+                # The total deadline's TimeoutError carries no message.
+                reason = str(exc) or f"no answer within {mirror.timeout_s:.0f}s"
+                log.warning("Overpass endpoint %s failed: %s", mirror.url, reason)
                 last_exc = exc
             except asyncio.CancelledError:
                 # The caller's deadline ended this attempt, not the mirror

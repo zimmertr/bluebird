@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import time
 
 import httpx
@@ -473,6 +474,18 @@ def test_answers_nulls_and_no_date_while_no_grid_is_held(monkeypatch):
     body = client.post("/api/destinations", json=_payload()).json()
     assert body["snow_analysis_date"] is None
     assert body["destinations"][0]["snow_depth_in"] is None
+
+
+def test_a_grid_that_cannot_answer_reads_null_rather_than_failing_discovery(monkeypatch):
+    # Issue #629: a NaN in the held grid's origin answered every lookup with a
+    # ValueError, and this route with a 500, until the next day's file.
+    _stub_osm(monkeypatch, [_in_grid("Alpha")])
+    _hold_grid(monkeypatch, dataclasses.replace(a_snapshot("2026-09-22"), min_x=float("nan")))
+    resp = client.post("/api/destinations", json=_payload())
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["destinations"][0]["snow_depth_in"] is None
+    assert body["snow_analysis_date"] is None
 
 
 def test_fills_a_resolved_custom_row_too(monkeypatch):

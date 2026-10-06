@@ -55,6 +55,7 @@ request is a filter and a join rather than a re-encode.
 from __future__ import annotations
 
 import asyncio
+import bisect
 import json
 import logging
 import re
@@ -246,8 +247,16 @@ EXCLUDED_ORDERS = frozenset(
 # abbreviation ("36 C.F.R. §", "6 A.M.") or after "Mt.", "Rd." or "No." does
 # not end one either: splitting there would move a permit clause into another
 # sentence, and the entry words would then read as a closure (#568).
-SENTENCE_END = re.compile(r"\.(?=\s|$)")
-NOT_A_SENTENCE_END = re.compile(r"(?:\b[A-Za-z]\.)+[A-Za-z]\Z|\b(?:Mt|Rd|No)\Z")
+#
+# Both exceptions are lookbehinds on the period itself, so the whole split is
+# one pass over the text. They were a second search over everything before each
+# period, which made a long description quadratic: 60 KB of short sentences
+# took seconds on the thread the closure refresh runs in (#630). A dotted
+# abbreviation is recognized by its last letter-dot-letter alone, because any
+# longer run of them ends in one.
+SENTENCE_END = re.compile(
+    r"(?<!\b[A-Za-z]\.[A-Za-z])(?<!\b(?:Mt|Rd|No))\.(?=\s|$)"
+)
 
 # The layers' own maxRecordCount. Sending it explicitly makes paging
 # deterministic instead of dependent on a server default that can change.
@@ -500,18 +509,27 @@ def _entry_sentences(text: str) -> list[str]:
     has. ``scoped`` limits the entry words to a vehicle or to posted ground,
     which vetoes the citation too.
     """
-    ends = [m.start() for m in SENTENCE_END.finditer(text) if not NOT_A_SENTENCE_END.search(text, 0, m.start())]
+    ends = [m.start() for m in SENTENCE_END.finditer(text)]
     readings = []
+    # A sentence with several entry matches in it is read once, not once per
+    # match: re-reading it was the other quadratic in a long description.
+    read: dict[tuple[int, int], str] = {}
     for match in TEXT_ENTRY_CLOSURE.finditer(text):
-        start = max((end + 1 for end in ends if end < match.start()), default=0)
-        stop = min((end for end in ends if end >= match.end()), default=len(text))
-        sentence = text[start:stop]
-        if TEXT_SCOPE_VETO.search(sentence):
-            readings.append("scoped")
-        elif TEXT_PERMIT_EXCEPTION.search(sentence):
-            readings.append("permit")
-        else:
-            readings.append("closed")
+        # `ends` is in text order, so the sentence around a match is found by
+        # bisection rather than by a scan over every end.
+        before = bisect.bisect_left(ends, match.start())
+        start = ends[before - 1] + 1 if before else 0
+        after = bisect.bisect_left(ends, match.end())
+        stop = ends[after] if after < len(ends) else len(text)
+        if (start, stop) not in read:
+            sentence = text[start:stop]
+            if TEXT_SCOPE_VETO.search(sentence):
+                read[start, stop] = "scoped"
+            elif TEXT_PERMIT_EXCEPTION.search(sentence):
+                read[start, stop] = "permit"
+            else:
+                read[start, stop] = "closed"
+        readings.append(read[start, stop])
     return readings
 
 

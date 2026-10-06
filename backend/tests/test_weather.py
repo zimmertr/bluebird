@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import inspect
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -597,7 +598,9 @@ def _stub_openmeteo(
             if isinstance(behavior, Exception):
                 raise behavior
             if callable(behavior):
-                return behavior(url, params or {})
+                answer = behavior(url, params or {})
+                # A coroutine behavior is one that takes real time to answer.
+                return await answer if inspect.isawaitable(answer) else answer
             if isinstance(behavior, tuple):
                 ticks, payload = behavior
                 for _ in range(ticks):
@@ -1105,6 +1108,31 @@ async def test_a_transport_failure_is_an_upstream_error(monkeypatch):
     _stub_openmeteo(monkeypatch, [httpx.ConnectError("no route to host")])
     with pytest.raises(UpstreamError):
         await fetch_weather_batch(_dests(1), START, END)
+
+
+async def test_a_body_that_is_not_json_is_an_upstream_error(monkeypatch):
+    # Issue #630: an HTML page from something in front of the API, on a 200.
+    # It fails the batch with the sentence every other unusable Open-Meteo
+    # answer gets, rather than escaping as a JSONDecodeError.
+    _stub_openmeteo(monkeypatch, [lambda url, params: fake_response(None, text="<html>busy</html>")])
+    with pytest.raises(UpstreamError) as exc:
+        await fetch_weather_batch(_dests(1), START, END)
+    assert exc.value.message == "Open-Meteo request failed. Try again later."
+
+
+async def test_a_request_past_its_total_deadline_is_an_upstream_error(monkeypatch):
+    # Issue #630: httpx's timeout is per operation, so an answer that keeps
+    # arriving slowly never trips it. The whole request has a deadline.
+    monkeypatch.setattr(weather.http, "TIMEOUT_S", 0.05)
+
+    async def slow(url, params):
+        await asyncio.sleep(1)
+        return fake_response(_payload([0.5]))
+
+    _stub_openmeteo(monkeypatch, [slow])
+    with pytest.raises(UpstreamError) as exc:
+        await fetch_weather_batch(_dests(1), START, END)
+    assert exc.value.message == "Open-Meteo took too long. Try again later."
 
 
 async def test_a_failed_batch_does_not_poison_the_cache(monkeypatch):
