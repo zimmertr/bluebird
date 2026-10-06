@@ -114,7 +114,12 @@ Istio VirtualService publishes the API by allowlist
 app itself calls, plus `/api/version` for checking which build answers, are
 forwarded (`/api/destinations`, `/api/capabilities`, `/api/version`,
 `/api/geocode`, `/api/wildfires`, `/api/smoke`, `/api/closures`, `/api/config`), and every
-other `/api` path answers the app's own JSON `404` at the edge. The analyze routes are a second, narrower rule
+other path under `/api/` answers the app's own JSON `404` at the edge. The gateway matches
+those prefixes as literal text and does not decode `%2F`, while the pod does, so
+on their own they let `/api%2Fanalyze` through to the analyze route without a key.
+The chart's `-api-internal` route therefore also matches `/api%2F` in either case,
+and the pod answers the same `404` to any path whose slash is written as `%2F`
+(#620). The analyze routes are a second, narrower rule
 (`ingress.keyedApiPrefixes`, #317): the gateway forwards them when the request
 carries an `X-Open-Meteo-Key` header, and answers the same `404` when it does
 not. The header is what makes the request affordable, because a keyed batch
@@ -133,7 +138,9 @@ The pod has one other inbound surface, and it is deliberately outside all of
 this: the Prometheus registry is served on its own port (`METRICS_PORT`, 9464)
 from the lifespan, never as a route on 8000. The chart keeps that port off the
 Service, so the gateway cannot reach it, and scrapes it in-cluster through a
-PodMonitor. That placement is what makes the `/api/*` allowlist sufficient.
+PodMonitor. That placement is why the `/api` rules above, the literal
+prefixes and the encoded-slash match together, are all the gateway needs: port
+8000 serves nothing else that is not meant to be public.
 
 **Pod-wide upstream budgets** capping what all concurrent requests may have
 in flight against each provider. Saturation queues up to
