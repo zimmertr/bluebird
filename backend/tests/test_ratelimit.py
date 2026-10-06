@@ -187,6 +187,68 @@ def test_client_key_dash_without_peer():
     assert ratelimit.client_key(_request(peer=None)) == "-"
 
 
+def _key_for(address: str) -> str:
+    return ratelimit.client_key(_request({"cf-connecting-ip": address}))
+
+
+def test_ipv6_addresses_in_one_slash_64_share_a_key():
+    # Every IPv6 client holds at least a /64, so a key per address let one
+    # client mint a fresh bucket per request from its own block (#627).
+    assert _key_for("2001:db8::1") == _key_for("2001:db8::ffff:2")
+    assert _key_for("2001:db8::1") == _key_for("2001:db8:0:0:abcd:ef01:2345:6789")
+    assert _key_for("2001:db8::1") != _key_for("2001:db8:0:1::1")
+
+
+def test_two_spellings_of_one_ipv6_address_are_one_key():
+    assert _key_for("2001:DB8::1") == _key_for("2001:db8:0::1")
+
+
+def test_ipv4_keys_stay_whole_addresses():
+    assert _key_for("203.0.113.9") != _key_for("203.0.113.10")
+    # An IPv4 client written in IPv6's mapped form is the same client.
+    assert _key_for("::ffff:203.0.113.9") == _key_for("203.0.113.9")
+
+
+def test_ipv6_addresses_in_one_slash_64_share_one_bucket(monkeypatch):
+    monkeypatch.setattr(ratelimit.client, "GEOCODE_LIMITER", ratelimit.RateLimiter(60, 1))
+
+    class _FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def get(self, url, params=None, headers=None):
+            return fake_response([])
+
+    monkeypatch.setattr(geocode_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
+
+    def search(address: str, q: str) -> int:
+        return client.get(
+            "/api/geocode", params={"q": q}, headers={"cf-connecting-ip": address}
+        ).status_code
+
+    assert search("2001:db8::1", "a1") == 200
+    # The next address in the same /64 finds the bucket the first one emptied.
+    assert search("2001:db8::2", "a2") == 429
+    # A different /64 is a different client.
+    assert search("2001:db8:0:1::1", "a3") == 200
+
+
+def test_the_geocode_bucket_books_the_gate_no_faster_than_it_serves():
+    # One address must not be able to keep the pod-wide Nominatim gate booked
+    # ahead and shed every other visitor's search (#627). Over its first
+    # minute a bucket spends its burst plus a minute's refill, which has to fit
+    # in the slots the gate opens in that minute. Read off the defaults, since
+    # conftest swaps the live limiter and gate for disabled ones.
+    gate_per_minute = 60_000 / ratelimit.upstream.NOMINATIM_MIN_INTERVAL_MS
+    first_minute = (
+        ratelimit.client.RATE_LIMIT_GEOCODE_PER_MINUTE + ratelimit.client.RATE_LIMIT_GEOCODE_BURST
+    )
+    assert first_minute <= gate_per_minute
+
+
 # ── Route enforcement: 429 ─────────────────────────────────────────────────
 
 

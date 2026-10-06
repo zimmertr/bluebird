@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import time
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from test_snodas import a_snapshot
@@ -158,6 +160,107 @@ def test_has_its_own_rate_limit_bucket(monkeypatch):
     assert resp.json()["error"] == {"code": "rate_limited", "retryable": True}
     # The analyze bucket was never touched by either discovery request.
     assert ratelimit.client.ANALYZE_LIMITER.check("client")[0]
+
+
+# ── One discovery in flight per address (#627) ────────────────────────────────
+
+
+def _held_discovery(monkeypatch):
+    """Overpass held open until released, recording which polygon got in.
+
+    Each caller below sends its own polygon, offset by its own west edge, so
+    the record says whose discovery reached Overpass and in what order.
+    """
+    entered: list[float] = []
+    release = asyncio.Event()
+
+    async def fake(polygon, destination_types, on_status=None, **_):
+        entered.append(polygon.coordinates[0][0][0])
+        await release.wait()
+        return []
+
+    monkeypatch.setattr(osm_mod, "query_osm", fake)
+    return entered, release
+
+
+def _offset_payload(west: float) -> dict:
+    ring = [[west, 0], [west + 0.1, 0], [west + 0.1, 0.1], [west, 0.1], [west, 0]]
+    return _payload(polygon={"type": "Polygon", "coordinates": [ring]})
+
+
+async def _until(condition, *, turns: int = 200) -> None:
+    for _ in range(turns):
+        if condition():
+            return
+        await asyncio.sleep(0.005)
+    raise AssertionError("condition never held")
+
+
+async def test_one_address_holds_one_discovery_at_a_time(monkeypatch):
+    # Overpass slots are pod-wide, two per mirror. One address sending
+    # distinct polygons inside its bucket could hold all of them and leave
+    # every other visitor queueing, so a second discovery from the same
+    # address waits for its first while another address goes straight in.
+    entered, release = _held_discovery(monkeypatch)
+    transport = httpx.ASGITransport(app=app)
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+
+            def post(address: str, west: float):
+                return asyncio.ensure_future(
+                    http.post(
+                        "/api/destinations",
+                        json=_offset_payload(west),
+                        headers={"cf-connecting-ip": address},
+                    )
+                )
+
+            first = post("203.0.113.1", 1.0)
+            await _until(lambda: entered == [1.0])
+            second = post("203.0.113.1", 2.0)
+            other = post("198.51.100.2", 3.0)
+            await _until(lambda: 3.0 in entered)
+            # Give the second request every chance to get in as well.
+            for _ in range(20):
+                await asyncio.sleep(0.005)
+            assert entered == [1.0, 3.0]
+
+            release.set()
+            responses = await asyncio.gather(first, second, other)
+    finally:
+        release.set()
+    assert [r.status_code for r in responses] == [200, 200, 200]
+    # The waiting request ran its own discovery once the first one finished.
+    assert entered == [1.0, 3.0, 2.0]
+
+
+async def test_a_discovery_that_waits_too_long_gets_the_existing_429(monkeypatch):
+    entered, release = _held_discovery(monkeypatch)
+    monkeypatch.setattr(
+        ratelimit.client,
+        "DESTINATIONS_IN_FLIGHT",
+        ratelimit.client.InFlightLimiter(1, name="destinations_in_flight", wait_s=0.05),
+    )
+    transport = httpx.ASGITransport(app=app)
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            headers = {"cf-connecting-ip": "203.0.113.1"}
+            first = asyncio.ensure_future(
+                http.post("/api/destinations", json=_offset_payload(1.0), headers=headers)
+            )
+            await _until(lambda: entered == [1.0])
+            second = await http.post(
+                "/api/destinations", json=_offset_payload(2.0), headers=headers
+            )
+            release.set()
+            assert (await first).status_code == 200
+    finally:
+        release.set()
+    assert second.status_code == 429
+    assert second.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
+    assert second.json()["detail"] == "Too many requests from this connection. Try again later."
+    assert second.json()["error"] == {"code": "rate_limited", "retryable": True}
+    assert entered == [1.0]
 
 
 # ── Resolving caller-supplied destinations (issue #207) ───────────────────────
