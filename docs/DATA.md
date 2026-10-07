@@ -75,6 +75,11 @@ follow from that, all of them visible in the Elevation column:
   blank elevation and the analysis runs regardless, so a blank means "nobody
   could say" rather than "something broke". The lookup also stops waiting after
   eight seconds, because a pasted list waits on it before any forecast starts.
+  Those seconds are split evenly between the two mirrors described below, so a
+  busy first mirror leaves the second its turn rather than the whole wait. The
+  even split is a starting point: the second mirror's share is not measured
+  yet, and the Overpass metrics count the lookup's attempts apart from
+  discovery's so that it can be.
 
 An elevation you supply yourself in the API's `elevation_ft` is never
 overwritten by this.
@@ -88,7 +93,8 @@ and each query asks the server to give up at the same moment the app stops
 waiting, so a query nobody is waiting for never holds one of the operator's
 slots. That moment is a total for the whole attempt, not a limit on the gap
 between bytes, so a mirror that trickles its answer is given up on at the same
-time as one that sends nothing. A mirror that has just failed is asked last for the next two minutes and
+time as one that sends nothing. A mirror that has just failed, or that was
+still working when the elevation lookup ran out of time, is asked last for the next two minutes and
 leads again after its first success, so a busy spell costs one slow attempt
 rather than one per analysis, and no mirror is ever skipped outright. Discovery
 results are cached for several minutes, and a resolved coordinate set is cached

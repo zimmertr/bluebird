@@ -49,6 +49,28 @@ CUSTOM_ENRICH_CHUNK = 500
 # and drops the wait on a busy server, which used to reach a minute.
 ENRICH_DEADLINE_S = 8.0
 
+
+def _attempt_timeout_s() -> float:
+    """Each mirror's slice of the lookup's deadline: equal shares, one per mirror.
+
+    The deadline is shorter than one mirror's own 25 s timeout, so without a
+    slice it fired inside the first attempt and the backup was never asked
+    (#655, measured 2026-10-06: a busy primary blanked every pasted list for
+    over an hour). With two mirrors this is 4 s each. The primary's 4 s keeps
+    the half of its healthy answers that land under 5 s (#545). The backup's
+    4 s is NOT measured: on 2026-10-06 it sent nothing back inside 8 s in three
+    tries, and no figure supports any other number either. The `path` label on
+    the Overpass metrics is what will retune both: the `enrichment` series give
+    each mirror's success rate inside its slice and its latency when it answers.
+
+    Read at call time rather than bound at import, so the slices follow the
+    deadline and the mirror table wherever either is set. The deadline stays
+    the ceiling around the whole chain: a wait for a mirror's slot is outside
+    any slice, and the last attempt usually ends on the ceiling rather than on
+    its own slice.
+    """
+    return ENRICH_DEADLINE_S / len(mirrors.OVERPASS_MIRRORS)
+
 _EARTH_RADIUS_M = 6_371_000.0
 
 
@@ -93,7 +115,9 @@ async def _lookup_peaks(points: list[dict[str, Any]]) -> dict[str, dict[str, Any
         # Per request rather than per list: the measurement behind the deadline
         # is how long one query takes, and a list long enough to split is rare.
         async with asyncio.timeout(ENRICH_DEADLINE_S):
-            data = await mirrors._post_with_fallback(query)
+            data = await mirrors._post_with_fallback(
+                query, path="enrichment", attempt_timeout_s=_attempt_timeout_s()
+            )
 
         # Overpass returns the union of every around clause, deduplicated, so
         # the nearest node per point has to be picked back out here.
