@@ -154,9 +154,9 @@ def analyses(monkeypatch):
     calls: list[str | None] = []
     real = analyze_route._run_analysis
 
-    def spy(request, api_key):
+    def spy(request, api_key, http_request):
         calls.append(api_key)
-        return real(request, api_key)
+        return real(request, api_key, http_request)
 
     monkeypatch.setattr(analyze_route, "_run_analysis", spy)
     return calls

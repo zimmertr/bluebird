@@ -137,8 +137,8 @@ the eight. The deployment's weighted pacer, which spreads a large fan-out over
 minutes so the shared free-tier quota is never exhausted, does not meter a
 request that carries a caller's key: that request spends the key's quota, which
 the pacer knows nothing about and cannot protect. Everything else still applies
-to it. The per-address analyze budget above holds, the cap on in-flight
-upstream calls holds, and the candidate cap, the destination-hour cap, the
+to it. The per-address analyze budget above holds, and so does one discovery
+at a time; the cap on in-flight upstream calls holds, and the candidate cap, the destination-hour cap, the
 polygon cap, and the row cap are all unchanged. A key buys a quota, not an exemption.
 
 The wildfire, smoke and closure budgets are the loosest, because the requests they pace

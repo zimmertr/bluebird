@@ -190,7 +190,17 @@ TEXT_ENTRY_CLOSURE = re.compile(
 # Salmon River ... with float boating equipment without a permit" (review of
 # #551). So a text match does not count when its own sentence names a permit
 # as the way in.
-TEXT_PERMIT_EXCEPTION = re.compile(r"without (a |an )?(valid )?permit|unless .* permit", re.IGNORECASE)
+#
+# "unless ... permit" holds on a line when the line's FIRST "unless" has a
+# " permit" after it, so that is the only one read: the atomic group stops at
+# it and is never re-entered. Read from every "unless" to the end of the line,
+# it was quadratic in a long line that repeats the word, 0.22 s for 60 KB and
+# 0.86 s for 120 KB in the backend test container (#660, measured 2026-10-06).
+# `.` stops at a line break, as before, and MULTILINE gives each line its `^`.
+TEXT_PERMIT_EXCEPTION = re.compile(
+    r"without (a |an )?(valid )?permit|^(?>.*?unless ).* permit",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 # Some orders cite paragraph (e), or use the entry words, for something
 # narrower than a person on foot, and say so in their own words. Those words

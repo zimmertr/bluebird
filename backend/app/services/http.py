@@ -26,6 +26,16 @@ import httpx
 # Matches the per-request timeout the services used when each built its own
 # client. It is generous because a 50-location, 16-day batch is a real payload
 # (measured ~700 KB), not because upstream is expected to be slow.
+#
+# `request_openmeteo` also applies it as a total, so it has to cover the
+# largest answer one request can bring: a keyed 50-location batch over a
+# 366-day archive window. Built from the archive's own shape (14 variables, 11
+# of them nulls), that body is 38.8 MB of JSON and 3.1 MB gzipped, and inside
+# the deadline the pod only receives it and gunzips it (0.04 s). Decoding it
+# takes 0.24 s and aggregating it 1.5 s, both after the deadline has ended
+# (python:3.14-alpine on an Apple M4 Pro, 2026-10-06, #660). So the floor under
+# 60 s is Open-Meteo's own time to build a year for 50 locations, which was not
+# measured, because measuring it needs a real key.
 TIMEOUT_S = 60.0
 
 # Who Bluebird Forecast says it is to every upstream that asks. Overpass, NIFC

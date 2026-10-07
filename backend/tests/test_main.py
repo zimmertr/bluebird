@@ -62,8 +62,8 @@ def test_the_api_description_states_the_key_requirement():
 
 def test_gzip_compresses_at_the_measured_level():
     # Starlette's default is 9, which on this service's largest body (the
-    # national wildfire snapshot, 1,550,397 bytes) spends 124 ms more
-    # event-loop CPU per request than 6 to save 0.4% of the bytes. The whole
+    # national wildfire snapshot, 1,550,397 bytes) spends 124 ms more CPU
+    # per request than 6 to save 0.4% of the bytes. The whole
     # measurement is in the comment beside the middleware; this pins the
     # decision so a re-measurement is what moves it (#337, finding 11).
     gzip_middleware = next(

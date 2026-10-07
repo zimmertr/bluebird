@@ -932,7 +932,10 @@ the JSON routes answer with, since a stream that has already opened has no
 status code left to fail with. It also carries the refusal remedy fields when
 the search was over-limit, or `scope` and `retry_after_s` when an upstream rate
 limit ended the analysis. A key Open-Meteo refuses ends it the same way, with
-`Open-Meteo rejected the API key.` in `message`.
+`Open-Meteo rejected the API key.` in `message`. So does a discovery that
+waited too long behind another discovery from the same address: the stream is
+open by the time discovery starts, so that `429` arrives as an `error` event
+with the `rate_limited` code.
 
 One important catch: **check the status code first, then the stream.** A request
 that fails validation is rejected with a `422` before the stream opens, exactly
@@ -1060,7 +1063,7 @@ curl -s https://bluebirdforecast.com/api/destinations \
 | `405` | `method_not_allowed` | Right path, wrong method. The `Allow` header lists what the path accepts. |
 | `413` | `validation` | The request body is larger than `limits.max_request_bytes`. It is refused before it is read, whether it declares a `Content-Length` or arrives chunked: `"Request body is too large. Maximum is {limits.max_request_bytes} bytes."`, the number written with thousands separators. |
 | `422` | `validation`, or absent | Request validation failed. Polygon too large, a ring with more points than `limits.max_polygon_points`, a list longer than the maximum the schema states, `limit` out of range, a window outside the servable horizon, a minimum above its maximum, or a field the request body does not declare. |
-| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. An IPv6 address counts by its /64. Destinations also runs one request at a time per address: a second waits for the first and gets this `429` if it waits too long. |
+| `429` | `rate_limited`, `upstream_rate_limited` | Either this client is sending faster than the per-address limit, or the upstream weather service rate-limited the quota the analysis was spending mid-analysis: the deployment's own, or your key's when the request carries `X-Open-Meteo-Key`. The `Retry-After` header says how many seconds to wait in both cases. Analyze (both analyze routes share one), destinations, geocode, wildfires, smoke and closures each have their own per-address bucket; `GET /api/capabilities` publishes them under `limits.rate`. An IPv6 address counts by its /64. Discovery also runs one at a time per address, whether `POST /api/destinations` or either analyze route asks for it: a second waits for the first and gets this `429` if it waits too long. On the analyze routes only the discovery waits, not the forecast fetch after it. |
 | `500` | `internal` | The service failed in a way none of the other statuses describes. The body has the same `{detail, error}` shape as every other error and never carries the failure's own text. On the stream the same failure arrives as a terminal `error` event. |
 | `502` | `upstream_unavailable` | An upstream failed. Every Overpass mirror was unreachable, or the weather API did not answer. Transient, and worth retrying. |
 | `503` | `busy`, `snapshot_unavailable` | The instance is at capacity, or a national overlay has nothing cached yet: a budget of in-flight upstream calls stayed saturated too long and the request was shed rather than queued forever, or this instance has never once completed its NIFC, NOAA or Forest Service fetch. Transient by nature; `Retry-After` says when a retry is worthwhile. |

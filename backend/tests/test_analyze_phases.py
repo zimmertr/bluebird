@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import dest
+from fastapi import Request
 
 from app import limits, ratelimit
 from app.models import MAX_ANALYZE_PEAKS, AnalyzeRequest, DestinationResult
@@ -37,6 +38,10 @@ from app.routes.analyze.phases import (
 from app.routes.analyze.route import _run_analysis
 from app.services import air_quality, osm, weather
 from app.services.errors import InvalidApiKeyError, UpstreamError, UpstreamRateLimited
+
+# The HTTP request an analysis came in on, which keys its discovery slot. A
+# bare scope is enough: the slot reads only the headers and the peer.
+_HTTP_REQUEST = Request({"type": "http", "headers": [], "client": ("testclient", 50000)})
 
 POLYGON = {"type": "Polygon", "coordinates": [[[0, 0], [0.1, 0], [0.1, 0.1], [0, 0.1], [0, 0]]]}
 
@@ -296,7 +301,7 @@ async def test_a_refused_analysis_spends_nothing(paced, monkeypatch):
         start_datetime=end - timedelta(days=ARCHIVE_DAYS),
         end_datetime=end,
     )
-    events = await _collect(_run_analysis(request, None))
+    events = await _collect(_run_analysis(request, None, _HTTP_REQUEST))
     assert isinstance(events[-1], Refusal)
     assert events[-1].body["found"] == 300
     assert calls == []
@@ -474,7 +479,7 @@ async def test_closing_the_analysis_cancels_the_phase_tasks_before_it_returns(
     monkeypatch.setattr(weather, "fetch_cloud_batch", hang)
     request = _request(destination_types=["peak"], polygon=POLYGON, custom_destinations=None, **fields)
 
-    analysis = _run_analysis(request, None)
+    analysis = _run_analysis(request, None, _HTTP_REQUEST)
     # Read up to the event the hanging call relays, so the analysis is
     # suspended inside the phase with every task in flight.
     async for event in analysis:
