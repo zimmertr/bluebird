@@ -31,19 +31,25 @@ describe('reusableForecasts', () => {
 
 describe('holdForecasts', () => {
   it('starts the clock at this fetch when nothing was reused', () => {
-    const held = holdForecasts(null, HELD.rows, HELD.times, ASKED, T0 + 5 * MIN, new Set())
-    expect(held).toEqual({ ...HELD, fetchedAtMs: T0 + 5 * MIN, aqiFailed: new Set() })
+    const held = holdForecasts(null, HELD.rows, HELD.times, ASKED, T0 + 5 * MIN, new Set(), new Map())
+    expect(held).toEqual({ ...HELD, fetchedAtMs: T0 + 5 * MIN, aqiFailed: new Set(), columns: new Map() })
   })
 
   // #580: the next run asks these rows for air quality again.
   it('holds which rows failed air quality', () => {
     const failed = new Set(['47.00000,-121.00000'])
-    expect(holdForecasts(null, HELD.rows, HELD.times, ASKED, T0, failed).aqiFailed).toBe(failed)
+    expect(holdForecasts(null, HELD.rows, HELD.times, ASKED, T0, failed, new Map()).aqiFailed).toBe(failed)
+  })
+
+  // #673: the next run reduces these at the height its own lookup returns.
+  it('holds the raw columns of the rows still waiting on their elevation', () => {
+    const columns = new Map([['47.00000,-121.00000', { weather: { hourly: { time: [] } } }]])
+    expect(holdForecasts(null, HELD.rows, HELD.times, ASKED, T0, new Set(), columns).columns).toBe(columns)
   })
 
   it('keeps the first fetch clock across a reuse, so a field cannot be kept alive', () => {
     // Re-analyzed at +14 min, reusing the field fetched at T0.
-    const second = holdForecasts(HELD, HELD.rows, HELD.times, ASKED, T0 + 14 * MIN, new Set())
+    const second = holdForecasts(HELD, HELD.rows, HELD.times, ASKED, T0 + 14 * MIN, new Set(), new Map())
     expect(second.fetchedAtMs).toBe(T0)
     // Two minutes after that re-analysis, sixteen after the first fetch.
     expect(reusableForecasts(second, ASKED, T0 + 16 * MIN)).toBeNull()

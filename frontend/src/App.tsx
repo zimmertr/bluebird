@@ -27,10 +27,14 @@ import type { DestinationResult } from './types'
 // tutorial's demonstration report is on screen rather than a fresh one per
 // render.
 const NO_ROWS: DestinationResult[] = []
+// The same for the rows waiting on an elevation: one empty set, so the
+// memoized table sees no change between renders where nothing waits.
+const NO_WAITING: ReadonlySet<string> = new Set()
 import { useTour } from './tour/useTour'
 import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
+import { useElevationLookup } from './hooks/useElevationLookup'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
@@ -211,6 +215,8 @@ export default function App() {
     discardSeq,
     fireField,
     fireSeq,
+    pendingHeights,
+    placeHeld,
     loading,
     arriving,
     error,
@@ -218,6 +224,21 @@ export default function App() {
     response,
     universe,
   } = analysis
+  // The elevation lookup for the coordinates box, run as soon as the box
+  // holds rows (#673): usually done before Analyze is pressed, and an answer
+  // that lands after a report is placed on it.
+  const elevations = useElevationLookup({ csvRows, places, cap: caps.maxDestinations, onPlaced: placeHeld })
+  // The committed rows whose height-read cells tick: waiting on an elevation
+  // the lookup still means to answer. A row the lookup has given up on stops
+  // ticking and reads blank, and a row placed is no longer waiting.
+  const waitingHeights = useMemo(() => {
+    if (!pendingHeights.size || !elevations.inquiring.size) return NO_WAITING
+    const both = new Set<string>()
+    pendingHeights.forEach((k) => {
+      if (elevations.inquiring.has(k)) both.add(k)
+    })
+    return both.size ? both : NO_WAITING
+  }, [pendingHeights, elevations.inquiring])
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
   // While the tutorial's last step is open, the results sheet, the chart and
@@ -306,6 +327,7 @@ export default function App() {
     activeRemovedKeys,
     places,
     csvRows,
+    identity: elevations.identity,
     restoredTableSort: restored?.tableSort ?? null,
   })
   const {
@@ -391,6 +413,7 @@ export default function App() {
     includeUnnamedPeaks,
     csvRows,
     places,
+    identity: elevations,
     destinationScope,
     forecastModel,
     comparedModels,
@@ -609,6 +632,7 @@ export default function App() {
           movePlayheadTo={movePlayheadTo}
           fire={fire}
           closure={closure}
+          pendingHeights={waitingHeights}
           modelId={analyzed?.forecastModel ?? forecastModel}
         />
       </main>

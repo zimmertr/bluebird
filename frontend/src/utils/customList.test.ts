@@ -99,6 +99,25 @@ function covered(...points: { latitude: number; longitude: number }[]): Readonly
   return new Set(points.map((p) => geoKey(p.latitude, p.longitude)))
 }
 
+// #673: what the paste-time lookup learned rides on the pending rows and the
+// request list, so a row shows its elevation before any analysis and the pod
+// skips the map server for it.
+describe('the learned identities', () => {
+  const key = geoKey(csv[0].latitude, csv[0].longitude)
+  const identity = new Map([[key, { elevation_ft: 5000, osm_id: 'node/9' }]])
+
+  it('fill a pending CSV row and the request row at that coordinate', () => {
+    const [pending] = pendingDestinations([csv[0]], [], new Set(), new Set(), identity)
+    expect([pending.elevation_ft, pending.osmId]).toEqual([5000, 'node/9'])
+    expect(buildCustomList([csv[0]], [], identity)[0]).toEqual({ ...csv[0], elevation_ft: 5000 })
+  })
+
+  it('never override what a row already carries', () => {
+    const [pending] = pendingDestinations([{ ...csv[0], elevation_ft: 1 }], [], new Set(), new Set(), identity)
+    expect(pending.elevation_ft).toBe(1)
+  })
+})
+
 describe('pendingDestinations', () => {
   const none = new Set<string>()
 

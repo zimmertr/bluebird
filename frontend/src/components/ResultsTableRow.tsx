@@ -1,7 +1,15 @@
 import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DestinationResult } from '../types'
-import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY, type ColDef } from '../utils/tableColumns'
+import {
+  CLOSURE_KEY,
+  MODEL_KEY,
+  TERRAIN_HEIGHT_MARK,
+  WILDFIRE_KEY,
+  heightDependentKey,
+  readAtTerrainHeight,
+  type ColDef,
+} from '../utils/tableColumns'
 import {
   checkRunning,
   fireLoadingFrame,
@@ -94,6 +102,54 @@ function ChartToggle({ row, on, color, box }: { row: DestinationResult; on: bool
 // asks `checkRunning` of its own check, so an answered column stays still.
 const FireFrame = createContext<string | null>(null)
 
+/**
+ * The ids of the table's two footnotes, so a mark on a cell can be a link to
+ * the line that explains it. The table provides them; a row drawn with no
+ * table around it (the tests) has none, and its marks are plain text.
+ */
+export interface NoteTargets {
+  model: string
+  terrain: string
+}
+export const NoteTargetsContext = createContext<NoteTargets | null>(null)
+
+// Takes a reader to a footnote without touching the page's address: the hash
+// a plain `#id` link would write is not part of the app's URL state, and the
+// results sheet is its own scroll box, so the note is scrolled into view and
+// focused where it stands, which also moves a screen reader to it.
+function jumpToNote(id: string) {
+  const note = document.getElementById(id)
+  if (!note) return
+  note.scrollIntoView({ block: 'nearest' })
+  note.focus({ preventScroll: true })
+}
+
+// A raised footnote mark that links to its line under the table. Its text is
+// the glyph alone, which is what a sighted reader sees, and the click lands a
+// screen reader on the sentence itself; the note is visible, so it is not one
+// of the hidden twins the `disabled-reason-twin` check counts.
+function FootnoteMark({ glyph, target }: { glyph: string; target: keyof NoteTargets }) {
+  const id = useContext(NoteTargetsContext)?.[target]
+  return (
+    <sup className={TABLE.mark}>
+      {id ? (
+        <a
+          href={`#${id}`}
+          className={LINK_ACTION}
+          onClick={(event) => {
+            event.preventDefault()
+            jumpToNote(id)
+          }}
+        >
+          {glyph}
+        </a>
+      ) : (
+        glyph
+      )}
+    </sup>
+  )
+}
+
 export function FireClock({ running, children }: { running: boolean; children: ReactNode }) {
   const [tick, setTick] = useState(0)
   useEffect(() => {
@@ -157,6 +213,8 @@ interface CellContext {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
+  // The row's elevation lookup is still out (#673).
+  heightPending: boolean
   // Centres the map on the row: the name button's fly-to.
   onCenter: () => void
   // The row's own id, from `useId`, so it holds still across renders of a
@@ -274,8 +332,20 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
 // Wildfire and Closure columns included.
 function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: CellContext }) {
   const key = col.key as string
+  const frame = useContext(FireFrame)
   if (col.key === WILDFIRE_KEY) return <FireTd colKey={key} ctx={ctx} />
   if (col.key === CLOSURE_KEY) return <ClosureTd colKey={key} ctx={ctx} />
+  // A row whose elevation is still being looked up has a forecast, but its
+  // elevation and the numbers read at that elevation are not yet what the
+  // lookup will make them (#673), so those cells tick the flag columns' dots
+  // rather than print a number the answer replaces.
+  if (ctx.heightPending && frame !== null && heightDependentKey(key)) {
+    return (
+      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+        {sized(ctx.widths, key, <span className={TEXT.caption}>{frame}</span>)}
+      </td>
+    )
+  }
   // Virtual like the wildfire column: the value rides beside the row. A model
   // that ends inside the window is marked here, once, rather than on each of
   // its numbers (#508): the mark is about the model, and a number with a mark
@@ -290,11 +360,29 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           isPartialRow(row) ? (
             <>
               {label}
-              <sup className={TABLE.mark}>*</sup>
+              <FootnoteMark glyph="*" target="model" />
             </>
           ) : (
             label
           ),
+        )}
+      </td>
+    )
+  }
+  // A place with no recorded elevation shows the terrain height its numbers
+  // were read at, marked, rather than a blank over numbers read somewhere
+  // (#673, decision 0116). The mark is on this cell because the height is this
+  // cell's; the note it points at is the table's.
+  if (key === 'elevation_ft' && readAtTerrainHeight(row)) {
+    return (
+      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+        {sized(
+          ctx.widths,
+          key,
+          <>
+            {Number(row.terrain_ft).toLocaleString()}
+            <FootnoteMark glyph={TERRAIN_HEIGHT_MARK} target="terrain" />
+          </>,
         )}
       </td>
     )
@@ -387,6 +475,7 @@ interface RowProps {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
+  heightPending: boolean
   // Absent when the table has no chart column.
   chartBox?: ChartBox
   charted: boolean
@@ -411,6 +500,7 @@ function ResultsTableRow({
   closureStatus,
   closureWarning,
   closureUncovered,
+  heightPending,
   chartBox,
   charted,
   chartColor,
@@ -431,6 +521,7 @@ function ResultsTableRow({
     closureStatus,
     closureWarning,
     closureUncovered,
+    heightPending,
     onCenter: () => onFocusResult?.(row),
     rowId,
   }

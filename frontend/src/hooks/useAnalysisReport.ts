@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { geoKey } from '../utils/points'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import type { AnalyzedView } from './analyzeTypes'
 
@@ -18,6 +19,9 @@ interface Committed {
   fireField: Point[] | null
 }
 const NOTHING_COMMITTED: Committed = { response: null, universe: null, analyzed: null, fireField: null }
+// One frozen empty set, so a report with nothing pending hands every reader
+// the same value.
+const NO_PENDING: ReadonlySet<string> = new Set()
 
 export function useAnalysisReport() {
   const [response, setResponse] = useState<AnalyzeResponse | null>(null)
@@ -39,6 +43,10 @@ export function useAnalysisReport() {
   // the popups over the standing report open. Apart from `analysisSeq`,
   // which must not move for a run that never committed (#560).
   const [discardSeq, setDiscardSeq] = useState(0)
+  // The rows of the committed report, by `geoKey`, whose elevation the run's
+  // lookup had not answered when the report committed (#673): their
+  // height-read cells tick until `patch` lands the answer. Empty between.
+  const [pendingHeights, setPendingHeights] = useState<ReadonlySet<string>>(NO_PENDING)
   // The wildfire check's field, published the moment discovery settles so the
   // NIFC lookup runs concurrently with the weather fetch instead of after it
   // (TJ, PR #275 review). It is the candidate list, a superset of the
@@ -69,11 +77,17 @@ export function useAnalysisReport() {
   // `fullField` is required rather than defaulted: a path that cannot supply
   // the full field has to say so at the call site, since silently passing the
   // trimmed rows as the universe is exactly the #177 bug.
-  function commit(data: AnalyzeResponse, fullField: DestinationResult[], view: AnalyzedView) {
+  function commit(
+    data: AnalyzeResponse,
+    fullField: DestinationResult[],
+    view: AnalyzedView,
+    pending: ReadonlySet<string> = NO_PENDING,
+  ) {
     setResponse(data)
     setUniverse(fullField)
     setArriving(false)
     setAnalyzed(view)
+    setPendingHeights(pending)
     committedRef.current = { response: data, universe: fullField, analyzed: view, fireField: publishedRef.current }
     shownPartialRef.current = false
     // A fresh report, which is not the same event as a fresh row array: live
@@ -102,6 +116,39 @@ export function useAnalysisReport() {
     setArriving(false)
   }
 
+  // A lookup's answer, landed on the committed report (#673): each row in
+  // `rows` replaces the committed row at its coordinate, in the universe and
+  // in the response's rows alike, and the snapshot takes the view that knows
+  // the snow date. The same objects stand everywhere else, so a row the lookup
+  // left alone redraws nothing. No sequence moves: the report is the one that
+  // committed, with some of its numbers filled in. Answers land a few rows at
+  // a time (the tiles, then the pod, then a retry), so only the rows placed
+  // stop waiting.
+  function patch(rows: readonly DestinationResult[], view: AnalyzedView) {
+    const was = committedRef.current
+    if (!was.response || !was.universe) return
+    const swap = new Map(rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+    const replaced = (list: DestinationResult[]) => list.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r)
+    const universe = replaced(was.universe)
+    const response = { ...was.response, results: replaced(was.response.results) }
+    committedRef.current = { ...was, response, universe, analyzed: view }
+    setResponse(response)
+    setUniverse(universe)
+    setAnalyzed(view)
+    setPendingHeights((pending) => {
+      if (!pending.size) return pending
+      const next = new Set(pending)
+      rows.forEach((r) => next.delete(geoKey(r.latitude, r.longitude)))
+      return next.size ? next : NO_PENDING
+    })
+  }
+
+  // The run's own call never answered (an abort, or a reset): nothing is
+  // coming from it for the rows that were waiting.
+  function settleHeights() {
+    setPendingHeights(NO_PENDING)
+  }
+
   function publishCandidates(points: Point[]) {
     publishedRef.current = points
     setFireField(points)
@@ -122,6 +169,8 @@ export function useAnalysisReport() {
     setAnalyzed(was.analyzed)
     setArriving(false)
     setFireField(was.fireField)
+    // The report put back is the one whose lookup `patch` may still land on,
+    // so its pending rows stay as they were.
     if (shownPartialRef.current) setDiscardSeq((n) => n + 1)
     shownPartialRef.current = false
   }
@@ -135,6 +184,7 @@ export function useAnalysisReport() {
     setArriving(false)
     setAnalyzed(null)
     setFireField(null)
+    setPendingHeights(NO_PENDING)
   }
 
   return {
@@ -142,9 +192,12 @@ export function useAnalysisReport() {
     commitArriving,
     settle,
     publishCandidates,
+    patch,
+    settleHeights,
     discard,
     clear,
     response,
+    pendingHeights,
     universe,
     analyzed,
     arriving,

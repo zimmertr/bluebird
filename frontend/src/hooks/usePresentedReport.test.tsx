@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type PresentedReportInputs, usePresentedReport } from './usePresentedReport'
 import { analyzedSnapshot, place, resultRow } from '../testSupport/fixtures'
+import { NO_IDENTITY } from '../utils/elevationLookup'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { NOUN } from '../metrics'
@@ -32,6 +33,7 @@ function inputs(over: Partial<PresentedReportInputs> = {}): PresentedReportInput
     universe: FIELD,
     response: RESPONSE,
     analyzed: SNAPSHOT,
+    identity: NO_IDENTITY,
     coverage: SNAPSHOT,
     analysisSeq: 1,
     arriving: false,

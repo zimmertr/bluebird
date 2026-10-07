@@ -17,6 +17,7 @@ import {
 } from './clientAnalyze'
 import { type Constraints, constraintFields } from './constraints'
 import { buildCustomList } from './customList'
+import type { ElevationLookup } from '../hooks/useElevationLookup'
 import type { Place } from './geocode'
 import { geoKey } from './points'
 import { discoveryKeys } from './present'
@@ -37,6 +38,8 @@ export interface AnalyzeInputs {
   includeUnnamedPeaks: boolean
   csvRows: CustomDestination[]
   places: Place[]
+  /** The elevations looked up ahead of the click (#673). */
+  identity: ElevationLookup
   /** The user-authored scope a removal is recorded under. */
   destinationScope: string
   forecastModel: string
@@ -118,7 +121,7 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
   const bounds = constraintFields(inputs.constraints)
   // The custom side of the analysis is the pasted CSV ∪ the searched places.
   // With a complete ring the backend unions discovery in too.
-  const custom = buildCustomList(csvRows, places)
+  const custom = buildCustomList(csvRows, places, inputs.identity.identity)
   const shared = {
     start_datetime: window.start,
     end_datetime: window.end,
@@ -130,6 +133,7 @@ export function planAnalysis(inputs: AnalyzeInputs): AnalyzePlan {
   const options: AnalyzeOptions = {
     compareModels: comparedModels,
     knownTypes: knownTypes(inputs.universe, places),
+    identity: inputs.identity,
   }
 
   // Removals reset only when the user changed a discovery input. Searched

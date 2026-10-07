@@ -89,6 +89,7 @@ export function useAnalyzeCommand(inputs: AnalyzeCommandInputs) {
       includeUnnamedPeaks: inputs.includeUnnamedPeaks,
       csvRows: inputs.csvRows,
       places: inputs.places,
+      identity: inputs.identity,
       destinationScope: inputs.destinationScope,
       forecastModel: inputs.forecastModel,
       comparedModels: inputs.comparedModels,

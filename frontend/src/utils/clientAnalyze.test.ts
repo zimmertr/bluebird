@@ -20,11 +20,12 @@ import {
   truncateTopElevation,
   withCloud,
   withKnownTypes,
+  withWeather,
 } from './clientAnalyze'
 import { geoKey } from './points'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { fakeResponse, place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
+import { fakeResponse, place, resultRow, series, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -101,7 +102,7 @@ describe('resolveCustomOnly', () => {
     expect(out.snowAnalysisDate).toBe('2026-09-22')
   })
 
-  it('asks for a resolve, never a discovery', async () => {
+  it('asks for a resolve, never a discovery, and says whether the pod may look up', async () => {
     const spy = stubFetch(() => ({
       ok: true,
       json: async () => ({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }),
@@ -110,6 +111,9 @@ describe('resolveCustomOnly', () => {
     const body = sentBody(spy)
     expect(body.destination_types).toEqual([])
     expect(body.custom_destinations).toHaveLength(1)
+    expect(body.elevation_lookup).toBe(true)
+    await resolveCustomOnly(ROWS, undefined, false)
+    expect(JSON.parse(String(spy.mock.calls[1][1].body)).elevation_lookup).toBe(false)
     // The band and the cap stay client-side on this path, so sending them
     // would hand the server a say it is not being asked for.
     expect(body.polygon).toBeUndefined()
@@ -149,7 +153,7 @@ describe('resolveCustomOnly', () => {
 
   it('makes no call at all for an empty list', async () => {
     const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
-    expect(await resolveCustomOnly([])).toEqual({ destinations: [], snowAnalysisDate: null })
+    expect(await resolveCustomOnly([])).toEqual({ destinations: [], snowAnalysisDate: null, lookupComplete: true })
     expect(spy).not.toHaveBeenCalled()
   })
 
@@ -775,6 +779,8 @@ describe('runClientAnalysis', () => {
     expect(out).toEqual({
       response: { results: [], total_queried: 0, total_matched: 0 },
       universe: [],
+      columns: new Map(),
+      late: null,
       aqiFailed: new Set(),
     })
   })
@@ -1295,13 +1301,14 @@ describe('isDiscoveryRefresh', () => {
 
 // The fetches that trail the weather, named while they keep the run waiting
 // (#579). The weather has answered when this runs.
-// ── A lookup still in flight (#643) ────────────────────────────────────────
+// ── A lookup still in flight (#643, #673) ──────────────────────────────────
 //
 // A run with no polygon asks the pod what OSM and the snow grid know about its
-// rows. That lookup runs beside the forecasts, and every row takes its
-// identity from it before it is assembled.
+// rows. That lookup runs beside the forecasts, the report lands when the
+// forecasts do, and the lookup's answer lands on the report afterwards: each
+// row it placed is reduced again from its kept column at that height.
 
-describe('runClientAnalysis with a lookup still in flight (#643)', () => {
+describe('runClientAnalysis with a lookup still in flight (#673)', () => {
   function deferred<T>() {
     let resolve!: (value: T) => void
     let reject!: (reason: unknown) => void
@@ -1316,127 +1323,175 @@ describe('runClientAnalysis with a lookup still in flight (#643)', () => {
   const endMs = Date.parse('2026-07-21T02:00:00Z')
   const SENT = customRows(THREE)
   // What the pod answers: the same rows, with an elevation, an id and a depth.
+  // The elevations sit near 8,000 ft, where the level winds below read 22.6
+  // mph against the 10 m mean of 6.0 (#257), so a re-reduce is visible.
   const ANSWERED: DiscoveredDestination[] = SENT.map((d, i) => ({
     ...d,
-    elevation_ft: 5000 + i,
+    elevation_ft: 8000 + i,
     osm_id: `node/${i}`,
     snow_depth_in: 10 + i,
   }))
   const openMeteoCalls = () => vi.mocked(fetch).mock.calls.length
+  const keyOf = (d: { latitude: number; longitude: number }) => geoKey(d.latitude, d.longitude)
 
-  it('fetches before the lookup answers, and gives every row what the lookup found', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
-    const lookup = deferred<DiscoveredDestination[]>()
-    let done = false
-    const pending = runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, resolving: lookup.promise }).then(
-      (out) => {
-        done = true
-        return out
-      },
+  function stubWindy(precips: number[]) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const isWeather = new URL(url).hostname === 'api.open-meteo.com'
+        const count = new URL(url).searchParams.get('latitude')!.split(',').length
+        const bodies = weatherBody(precips.slice(0, count)).map((b) => ({
+          ...b,
+          hourly: {
+            ...b.hourly,
+            wind_speed_925hPa: [7.0, 7.0],
+            wind_speed_850hPa: [10.0, 10.0],
+            wind_speed_700hPa: [30.0, 30.0],
+            wind_speed_600hPa: [40.0, 40.0],
+            wind_speed_500hPa: [50.0, 50.0],
+          },
+        }))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => (isWeather ? bodies : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))),
+        }
+      }),
     )
-    await tick()
-    // Weather and air quality have both been asked for, with the lookup out.
-    expect(openMeteoCalls()).toBe(2)
-    expect(done).toBe(false)
+  }
 
-    lookup.resolve(ANSWERED)
-    const out = await pending
-    expect(out.universe.map((r) => [r.name, r.elevation_ft, r.osm_id, r.snow_depth_in])).toEqual([
-      ['Dry', 5001, 'node/1', 11],
-      ['Mid', 5002, 'node/2', 12],
-      ['Wet', 5000, 'node/0', 10],
-    ])
-  })
-
-  it('names the lookup once the forecasts are in and it is not', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
+  it('lands the report before the lookup answers, every row as it was sent, and keeps their columns', async () => {
+    stubWindy(THREE_PRECIPS)
     const lookup = deferred<DiscoveredDestination[]>()
     const labels: string[] = []
-    const pending = runClientAnalysis(REQUEST, SENT, startMs, endMs, {
+    const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
       nowMs: startMs,
       resolving: lookup.promise,
       onTail: (m) => labels.push(m),
     })
-    await tick()
-    expect(labels).toEqual(['Retrieving elevation…'])
-    lookup.resolve(ANSWERED)
-    await pending
-    expect(labels).toEqual(['Retrieving elevation…'])
-  })
-
-  it('names nothing when the lookup answers first', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
-    const labels: string[] = []
-    await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
-      nowMs: startMs,
-      resolving: Promise.resolve(ANSWERED),
-      onTail: (m) => labels.push(m),
-    })
+    expect(openMeteoCalls()).toBe(2)
     expect(labels).toEqual([])
+    expect(out.universe.map((r) => [r.name, r.elevation_ft, r.osm_id, r.wind_avg_mph])).toEqual([
+      ['Dry', null, null, 6.0],
+      ['Mid', null, null, 6.0],
+      ['Wet', null, null, 6.0],
+    ])
+    expect([...out.columns.keys()].sort()).toEqual(SENT.map(keyOf).sort())
+    expect(out.late).not.toBeNull()
+    lookup.resolve(ANSWERED)
+    await out.late
   })
 
-  it('shows no partial row before it has its identity', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
+  it('patches each row with what the lookup found, reduced again at its height', async () => {
+    stubWindy(THREE_PRECIPS)
+    const lookup = deferred<DiscoveredDestination[]>()
+    const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, resolving: lookup.promise })
+    lookup.resolve(ANSWERED)
+    const patch = await out.late!
+    expect(patch.rows.map((r) => [r.name, r.elevation_ft, r.osm_id, r.snow_depth_in])).toEqual([
+      ['Wet', 8000, 'node/0', 10],
+      ['Dry', 8001, 'node/1', 11],
+      ['Mid', 8002, 'node/2', 12],
+    ])
+    for (const r of patch.rows) {
+      expect(r.wind_avg_mph).toBeCloseTo(22.6, 1)
+      expect(r.series?.wind_mph.every((w) => w !== null && w > 20)).toBe(true)
+      // The precipitation and the hours are the column's, untouched.
+      expect(r.series?.precip_in).toEqual(out.universe.find((u) => u.name === r.name)!.series?.precip_in)
+    }
+    // Every row has its elevation now, so no column is worth holding.
+    expect(patch.columns.size).toBe(0)
+  })
+
+  it('produces the rows a run that waited would have', async () => {
+    stubWindy(THREE_PRECIPS)
+    const lookup = deferred<DiscoveredDestination[]>()
+    const early = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, resolving: lookup.promise })
+    lookup.resolve(ANSWERED)
+    const patch = await early.late!
+    resetOpenMeteoState()
+    stubWindy(THREE_PRECIPS)
+    const waited = await runClientAnalysis(REQUEST, ANSWERED, startMs, endMs, { nowMs: startMs })
+    for (const r of patch.rows) {
+      expect(r).toEqual(waited.universe.find((u) => u.name === r.name))
+    }
+  })
+
+  it('shows the partial field before the lookup answers', async () => {
+    stubWindy(THREE_PRECIPS)
     const lookup = deferred<DiscoveredDestination[]>()
     const rounds: (number | null)[][] = []
-    const pending = runClientAnalysis(REQUEST, SENT, startMs, endMs, {
+    const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
       nowMs: startMs,
       resolving: lookup.promise,
       onPartial: (rows) => rounds.push(rows.map((r) => r.elevation_ft)),
     })
-    await tick()
-    expect(rounds).toEqual([])
+    expect(rounds).toEqual([[null, null, null]])
     lookup.resolve(ANSWERED)
-    await pending
-    expect(rounds).toEqual([[5001, 5002, 5000]])
+    await out.late
   })
 
-  it('keeps the row it sent when the answer is about somewhere else', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
+  it('does not wait for the lookup under a height ranking either: the patch reorders the field', async () => {
+    stubWindy(THREE_PRECIPS)
+    const lookup = deferred<DiscoveredDestination[]>()
+    const labels: string[] = []
+    const out = await runClientAnalysis({ ...REQUEST, sort_by: 'wind_avg_mph', max_wind_mph: 30 }, SENT, startMs, endMs, {
+      nowMs: startMs,
+      resolving: lookup.promise,
+      onTail: (m) => labels.push(m),
+    })
+    expect(labels).toEqual([])
+    expect(out.universe.map((r) => r.wind_avg_mph)).toEqual([6.0, 6.0, 6.0])
+    // The patched rows carry the numbers the ranking and the bound read, so
+    // present.ts re-ranks the field once they replace the provisional ones.
+    lookup.resolve(ANSWERED)
+    const patch = await out.late!
+    expect(patch.rows).toHaveLength(3)
+    for (const r of patch.rows) expect(r.wind_avg_mph).toBeCloseTo(22.6, 1)
+  })
+
+  it('keeps the row it sent when the answer is about somewhere else, and holds its column', async () => {
+    stubWindy(THREE_PRECIPS)
     const moved = ANSWERED.map((d, i) => (i === 0 ? { ...d, latitude: 9 } : d))
     const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
       nowMs: startMs,
       resolving: Promise.resolve(moved),
     })
-    const wet = out.universe.find((r) => r.name === 'Wet')!
-    expect([wet.latitude, wet.elevation_ft, wet.osm_id]).toEqual([1, null, null])
-    expect(out.universe.find((r) => r.name === 'Dry')!.elevation_ft).toBe(5001)
+    const patch = await out.late!
+    expect(patch.rows.map((r) => r.name).sort()).toEqual(['Dry', 'Mid'])
+    expect([...patch.columns.keys()]).toEqual([keyOf(SENT[0])])
     // A list of another length describes some other field altogether.
     resetOpenMeteoState()
+    stubWindy(THREE_PRECIPS)
     const short = await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
       nowMs: startMs,
       resolving: Promise.resolve(ANSWERED.slice(1)),
     })
-    expect(short.universe.map((r) => r.elevation_ft)).toEqual([null, null, null])
+    const none = await short.late!
+    expect(none.rows).toEqual([])
+    expect(none.columns.size).toBe(3)
   })
 
-  it('gives held rows the lookup\'s identity too, and waits for it with nothing to fetch', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
-    const first = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs })
-    const asked = openMeteoCalls()
-    const lookup = deferred<DiscoveredDestination[]>()
-    const labels: string[] = []
-    let done = false
-    const pending = runClientAnalysis(REQUEST, SENT, startMs, endMs, {
+  it('reduces a held row again from the column the last run kept, with nothing to fetch', async () => {
+    stubWindy(THREE_PRECIPS)
+    const first = await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
       nowMs: startMs,
-      reuse: { rows: first.universe, times: first.response.times ?? [] },
-      resolving: lookup.promise,
-      onTail: (m) => labels.push(m),
-    }).then((out) => {
-      done = true
-      return out
+      resolving: new Promise(() => {}),
     })
-    await tick()
-    expect(done).toBe(false)
-    expect(labels).toEqual(['Retrieving elevation…'])
-    lookup.resolve(ANSWERED)
-    const out = await pending
+    const asked = openMeteoCalls()
+    const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, {
+      nowMs: startMs,
+      reuse: { rows: first.universe, times: first.response.times ?? [], columns: first.columns },
+      resolving: Promise.resolve(ANSWERED),
+    })
     expect(openMeteoCalls()).toBe(asked)
-    expect(out.universe.map((r) => r.elevation_ft)).toEqual([5001, 5002, 5000])
+    const patch = await out.late!
+    expect(patch.rows.map((r) => r.elevation_ft).sort()).toEqual([8000, 8001, 8002])
+    for (const r of patch.rows) expect(r.wind_avg_mph).toBeCloseTo(22.6, 1)
   })
 
   it('refuses an over-cap list without waiting for the lookup', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
+    stubWindy(THREE_PRECIPS)
     await expect(
       runClientAnalysis(REQUEST, SENT, startMs, endMs, {
         nowMs: startMs,
@@ -1448,7 +1503,7 @@ describe('runClientAnalysis with a lookup still in flight (#643)', () => {
   })
 
   it('waits for the elevations before it keeps the highest of an over-cap list', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
+    stubWindy(THREE_PRECIPS)
     const lookup = deferred<DiscoveredDestination[]>()
     const labels: string[] = []
     const pending = runClientAnalysis({ ...REQUEST, top_by_elevation: true }, SENT, startMs, endMs, {
@@ -1463,18 +1518,31 @@ describe('runClientAnalysis with a lookup still in flight (#643)', () => {
     expect(labels).toEqual(['Retrieving elevation…'])
     lookup.resolve(ANSWERED)
     const out = await pending
-    // Dry (5001) and Mid (5002) outrank Wet (5000).
+    // Dry (8001) and Mid (8002) outrank Wet (8000).
     expect(out.universe.map((r) => r.name).sort()).toEqual(['Dry', 'Mid'])
     expect(out.response).toMatchObject({ truncated: true, total_found: 3 })
+    expect(out.late).toBeNull()
   })
 
-  it('ends as a cancel when the lookup is aborted', async () => {
-    stubOpenMeteo(THREE_PRECIPS)
+  it('rejects the patch, and nothing else, when the lookup is aborted after the report', async () => {
+    stubWindy(THREE_PRECIPS)
     const lookup = deferred<DiscoveredDestination[]>()
-    const pending = runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, resolving: lookup.promise })
-    await tick()
+    const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, resolving: lookup.promise })
     lookup.reject(new DOMException('Aborted', 'AbortError'))
-    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(out.late).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
+describe('withWeather', () => {
+  it('replaces the aggregates and the weather series, and keeps the rest of the row', () => {
+    const row = resultRow({ name: 'A', aqi_max: 42, series: series({ precip_in: [0.1, 0.2], aqi: [1, 2] }) })
+    const wx = weatherResult({ wind_avg_mph: 22.6, series: { ...series({ wind_mph: [20, 25] }), times: [] } })
+    const next = withWeather(row, wx)
+    expect(next.wind_avg_mph).toBe(22.6)
+    expect(next.aqi_max).toBe(42)
+    expect(next.series?.wind_mph).toEqual([20, 25])
+    expect(next.series?.aqi).toEqual([1, 2])
+    expect(withWeather(row, null)).toBe(row)
   })
 })
 
@@ -1550,5 +1618,17 @@ describe('following the tail', () => {
     aqi.resolve()
     await done
     expect(labels).toEqual([])
+  })
+})
+
+// The height a row was read at, when it was the terrain's (decision 0116):
+// carried onto the row by the reduce that read there, and taken off by the
+// reduce at the place's own elevation once a lookup has placed it.
+describe('withWeather and the terrain height', () => {
+  it('carries the terrain height the reduce read at, and drops it once the row is read at its own', () => {
+    const atTerrain = withWeather(resultRow({ elevation_ft: null }), { ...weatherResult(), terrain_ft: 7119 })
+    expect(atTerrain.terrain_ft).toBe(7119)
+    const placed = withWeather({ ...atTerrain, elevation_ft: 7300 }, weatherResult())
+    expect(placed).not.toHaveProperty('terrain_ft')
   })
 })

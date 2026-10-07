@@ -854,6 +854,12 @@ export interface components {
              */
             destination_types?: components["schemas"]["DestinationType"][];
             /**
+             * Elevation Lookup
+             * @description Whether to look up the elevation and OSM id of each `custom_destinations` row sent without an `elevation_ft`. `false` skips the map server: those rows come back as sent, with today's snow depth, in milliseconds, and a request that also discovers nothing takes no discovery slot. The bundled web app sends `false` from an analysis, because it looks its rows up itself as they are pasted, from the basemap's own tiles first and this endpoint second, and `elevation_lookup_complete` is then true only when no row needed a lookup.
+             * @default true
+             */
+            elevation_lookup?: boolean;
+            /**
              * Include Unnamed Peaks
              * @description Also discover summits OSM knows only by their height, named after it (`Peak 5961`). Off by default because it is not a small addition: measured over one 8x10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so this roughly triples the candidate count — every candidate being a weighted upstream call and a step closer to the analysis ceiling. Ignored unless `peak` is among `destination_types`.
              * @default false
@@ -888,6 +894,12 @@ export interface components {
              * @description Every named match inside the polygon, never sampled, plus any resolved `custom_destinations`. Order is OSM's with the caller's own rows last, not a ranking; ranking is the caller's job once forecasts are attached.
              */
             destinations: components["schemas"]["DiscoveredDestination"][];
+            /**
+             * Elevation Lookup Complete
+             * @description Whether every `custom_destinations` row sent without an `elevation_ft` was looked up, matched to a peak or not. False when the map server was busy or unreachable and the lookup gave up, in which case those rows come back exactly as sent and asking again later may place them; a null elevation under true means no peak stands within the match radius.
+             * @default true
+             */
+            elevation_lookup_complete: boolean;
             /**
              * Snow Analysis Date
              * @description The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildResultsCsv, csvFilename, isoLocalMinute } from './resultsCsv'
 import { PARTIAL_COVERAGE_NOTE } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
-import { CLOSURE_COL, COLUMNS, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
+import { CLOSURE_COL, COLUMNS, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, displayedColumns, withModelColumn } from './tableColumns'
 import { FireWarning } from './fireProximity'
 import { geoKey } from './points'
 import { DestinationResult } from '../types'
@@ -924,5 +924,72 @@ describe('the forecast window in the file', () => {
       expect(csv.endsWith('\r\n')).toBe(true)
       expect(csv).not.toMatch(/[^\r]\n/)
     })
+  })
+})
+
+// A place with no recorded elevation (decision 0116): the height its numbers
+// were read at goes in the Elevation column as a plain number, the dagger
+// rides the Name cell as the model mark rides the Model cell, and the note
+// follows the window rows behind its own blank row.
+describe('a place with no recorded elevation', () => {
+  const TZ = 'America/Los_Angeles'
+  const WIN = { startMs: Date.UTC(2026, 8, 18, 7), endMs: Date.UTC(2026, 8, 22, 6, 59) }
+  const NAME_AT = ['Rank', ...WINDOW_COLUMNS.map((c) => c.label)].indexOf('Name')
+  const ELEVATION_AT = ['Rank', ...WINDOW_COLUMNS.map((c) => c.label)].indexOf('Elevation (ft)')
+  const placed = row()
+  const terrain = row({ name: 'Raven Ridge', latitude: 48.6, longitude: -120.9, elevation_ft: null, terrain_ft: 7119 })
+
+  it('writes the terrain height plain and marks the name, leaving the placed row alone', () => {
+    const [placedRow, terrainRow] = lines(buildResultsCsv([placed, terrain], WINDOW_COLUMNS, NO_FIRES, { window: WIN, timeZone: TZ }))
+      .slice(1, 3)
+      .map(cells)
+    expect(terrainRow[NAME_AT]).toBe('Raven Ridge†')
+    expect(terrainRow[ELEVATION_AT]).toBe('7119')
+    expect(terrainRow.filter((c, i) => i !== NAME_AT && c.includes('†'))).toEqual([])
+    expect(placedRow[NAME_AT]).toBe(placed.name)
+    expect(placedRow[ELEVATION_AT]).toBe('14411')
+  })
+
+  it('writes the note behind its own blank row after the window rows', () => {
+    const all = lines(buildResultsCsv([placed, terrain], WINDOW_COLUMNS, NO_FIRES, { window: WIN, timeZone: TZ }))
+    const end = all.findIndex((l) => l.startsWith('Forecast end,'))
+    expect(end).toBeGreaterThan(0)
+    expect(all[end + 1]).toBe('')
+    expect(all[end + 2]).toBe(TERRAIN_HEIGHT_NOTE)
+    expect(all[end + 3]).toBe('')
+    expect(all.filter((l) => l === TERRAIN_HEIGHT_NOTE)).toHaveLength(1)
+  })
+
+  it('writes neither mark nor note when every row has its elevation', () => {
+    const all = lines(buildResultsCsv([placed], WINDOW_COLUMNS, NO_FIRES, { window: WIN, timeZone: TZ }))
+    expect(all.some((l) => l.includes('†'))).toBe(false)
+  })
+
+  // The number lives in the Elevation column, so a file without it has
+  // nothing to mark and nothing to explain.
+  it('writes neither mark nor note without the Elevation column', () => {
+    const without = WINDOW_COLUMNS.filter((c) => c.key !== 'elevation_ft')
+    const all = lines(buildResultsCsv([placed, terrain], without, NO_FIRES, { window: WIN, timeZone: TZ }))
+    expect(all.some((l) => l.includes('†'))).toBe(false)
+    expect(cells(all[2])[NAME_AT]).toBe('Raven Ridge')
+  })
+
+  // Both notes, the model's first, each behind its own blank row.
+  it('follows the model coverage note when a short model row shares the file', () => {
+    const MODEL_COLUMNS = withModelColumn(WINDOW_COLUMNS, true)
+    const hrrrEnd = Date.UTC(2026, 8, 20, 9)
+    const short = { ...placed, modelId: 'gfs_hrrr', modelLabel: 'NOAA HRRR', rank: 1, coverageEndMs: hrrrEnd }
+    const tagged = { ...terrain, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 2 }
+    const all = lines(
+      buildResultsCsv([short, tagged], MODEL_COLUMNS, NO_FIRES, {
+        window: WIN,
+        timeZone: TZ,
+        modelEnds: [{ label: 'NOAA HRRR', endMs: hrrrEnd }],
+      }),
+    )
+    const model = all.indexOf(PARTIAL_COVERAGE_NOTE)
+    expect(model).toBeGreaterThan(0)
+    expect(all[model + 1]).toBe('')
+    expect(all[model + 2]).toBe(TERRAIN_HEIGHT_NOTE)
   })
 })

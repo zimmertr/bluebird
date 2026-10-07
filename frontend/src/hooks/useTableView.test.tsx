@@ -171,6 +171,23 @@ describe('useTableView', () => {
     expect(result.current.tableRows[0]).toBe(first[0])
   })
 
+  // The Elevation column sorts by the number its cell shows (decision 0116): a
+  // place with no recorded elevation sorts by the terrain height it was read
+  // at, and only a row with neither lands last.
+  it('sorts the Elevation column by the height shown, terrain height included', () => {
+    const rows = [
+      resultRow({ name: 'Placed', latitude: 47.4, longitude: -121.4, elevation_ft: 9000 }),
+      resultRow({ name: 'Terrain', latitude: 47.5, longitude: -121.5, elevation_ft: null, terrain_ft: 7119 }),
+      resultRow({ name: 'Blank', latitude: 47.6, longitude: -121.6, elevation_ft: null }),
+    ]
+    const { result, rerender } = renderHook((p: TableViewInputs) => useTableView(p), {
+      initialProps: inputs({ results: rows, detailSort: { key: 'elevation_ft', dir: 'asc' } }),
+    })
+    expect(result.current.tableRows.map((r) => r.name)).toEqual(['Terrain', 'Placed', 'Blank'])
+    rerender(inputs({ results: rows, detailSort: { key: 'elevation_ft', dir: 'desc' } }))
+    expect(result.current.tableRows.map((r) => r.name)).toEqual(['Placed', 'Terrain', 'Blank'])
+  })
+
   // The Closure key is virtual too, and sorts by the order's name, with a
   // cleared row last in both directions.
   it('sorts the Closure column by name with cleared rows last', () => {

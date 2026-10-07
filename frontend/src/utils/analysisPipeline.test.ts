@@ -70,7 +70,7 @@ function options(over: Partial<PipelineOptions> = {}): PipelineOptions {
 
 beforeEach(() => {
   ranked.mockReset()
-  ranked.mockResolvedValue({ response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] }, universe: ROWS, aqiFailed: new Set() })
+  ranked.mockResolvedValue({ response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] }, universe: ROWS, aqiFailed: new Set(), columns: new Map(), late: null })
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -150,7 +150,7 @@ describe('runAnalysisPipeline', () => {
     ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
       order.push(`ranked ${candidates.map((c) => `${c.name}:${c.elevation_ft}`).join()}`)
       handed = cb!.resolving
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
     const resolved: (string | null)[] = []
     await runAnalysisPipeline(
@@ -177,6 +177,108 @@ describe('runAnalysisPipeline', () => {
     expect(resolved).toEqual(['2026-07-19', 'peak'])
   })
 
+  // #673: the ranking lands before the lookup; what the lookup changes rides
+  // on `late` with the snow date the lookup answered, and the rows waiting
+  // on it ride on `pending`.
+  it('hands the late patch on with the snow date, and names the rows waiting on it', async () => {
+    const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        fakeResponse({
+          destinations: [discovered({ name: 'Mine', type: 'custom', latitude: 47, longitude: -121, elevation_ft: 6000 })],
+          total: 1,
+          snow_analysis_date: '2026-07-19',
+        }),
+      ),
+    )
+    const patched = resultRow({ name: 'Mine', latitude: 47, longitude: -121, elevation_ft: 6000 })
+    ranked.mockImplementation(async (_r, _c, _s, _e, cb) => ({
+      response: { results: [], total_queried: 1, total_matched: 1 },
+      universe: [],
+      aqiFailed: new Set<string>(),
+      columns: new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]]),
+      late: cb!.resolving!.then(() => ({ rows: [patched], columns: new Map() })),
+    }))
+    const out = await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
+    expect([...out.pending]).toEqual([geoKey(47, -121)])
+    expect(out.held.columns?.size).toBe(1)
+    expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+  })
+
+  // #673: the list goes to the pod at once, with the elevations the browser's
+  // own lookup has learned by now and no lookup asked for, so the call answers
+  // from the snow grid alone. The lookup's later answers reach the report
+  // through the hook, never through this call.
+  it('resolves the list with what the lookup has learned, asking the pod for no lookup, without waiting', async () => {
+    const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }, { name: 'Other', latitude: 48, longitude: -122 }]
+    const bodies: { custom_destinations: { name: string; elevation_ft?: number }[]; elevation_lookup?: boolean }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string))
+        return fakeResponse({
+          destinations: custom.map((c) => discovered({ ...c, type: 'custom', elevation_ft: c.name === 'Mine' ? 6000 : null, osm_id: null })),
+          total: 2,
+          elevation_lookup_complete: false,
+        })
+      }),
+    )
+    const learned = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/1' }]])
+    const identity = { latest: () => learned }
+    const order: string[] = []
+    ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
+      order.push(`ranked ${candidates.map((c) => String(c.elevation_ft)).join()}`)
+      await cb!.resolving
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
+    })
+    const onResolved = vi.fn()
+    await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity, onResolved }))
+    // The field carries what was learned from the start.
+    expect(order).toEqual(['ranked 6000,null'])
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0].custom_destinations.map((c) => c.elevation_ft)).toEqual([6000, undefined])
+    expect(bodies[0].elevation_lookup).toBe(false)
+    expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ candidates: expect.any(Array) }))
+  })
+
+  // The one run that asks the pod to look up: an over-cap list keeping its
+  // highest cannot choose without every elevation.
+  it('asks the pod to look up for an over-cap list keeping its highest', async () => {
+    const custom = Array.from({ length: 3 }, (_, i) => ({ name: `Row ${i}`, latitude: 47 + i, longitude: -121 }))
+    const bodies: { elevation_lookup?: boolean }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string))
+        return fakeResponse({ destinations: custom.map((c) => discovered({ ...c, type: 'custom' })), total: 3 })
+      }),
+    )
+    ranked.mockResolvedValue({ response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null })
+    await runAnalysisPipeline(
+      { ...REQUEST, polygon: undefined, custom_destinations: custom, top_by_elevation: true },
+      options({ maxDestinations: 2 }),
+    )
+    expect(bodies[0].elevation_lookup).toBe(true)
+  })
+
+  it('names no row as waiting when the ranking already waited for the lookup', async () => {
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    const held = new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]])
+    ranked.mockResolvedValueOnce({
+      response: { results: [], total_queried: 1, total_matched: 1 },
+      universe: [],
+      aqiFailed: new Set<string>(),
+      columns: held,
+      late: null,
+    })
+    const out = await runAnalysisPipeline(REQUEST, options())
+    expect(out.pending.size).toBe(0)
+    expect(out.late).toBeNull()
+    // The columns are still held for a later run's lookup.
+    expect(out.held.columns).toBe(held)
+  })
+
   it('hands a ring no lookup: discovery already answered', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     await runAnalysisPipeline(REQUEST, options())
@@ -188,7 +290,7 @@ describe('runAnalysisPipeline', () => {
     const order: string[] = []
     ranked.mockImplementation(async () => {
       order.push('ranked')
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
     await runAnalysisPipeline(REQUEST, options({ onDiscovered: (f) => order.push(`found ${f.candidates.length}`) }))
     expect(order).toEqual(['found 1', 'ranked'])
@@ -198,7 +300,7 @@ describe('runAnalysisPipeline', () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     ranked.mockImplementation(async (_r, _c, _s, _e, cb) => {
       cb!.onPartial!(ROWS, [7])
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
     const onPartial = vi.fn()
     await runAnalysisPipeline(REQUEST, options({ onPartial }))
@@ -227,6 +329,8 @@ describe('runAnalysisPipeline', () => {
       response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] },
       universe: ROWS,
       aqiFailed: stillFailed,
+      columns: new Map(),
+      late: null,
     })
     const out = await runAnalysisPipeline(REQUEST, options({ held }))
     // The rows whose air quality failed go to the run that may ask again

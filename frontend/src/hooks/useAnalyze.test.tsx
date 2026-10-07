@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import type { AnalyzeRequest, DestinationResult, GeoPolygon } from '../types'
 import { useAnalyze } from './useAnalyze'
-import { runClientAnalysis } from '../utils/clientAnalyze'
+import { runClientAnalysis, type HeldColumns } from '../utils/clientAnalyze'
 import { discoveryKeys } from '../utils/present'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
 import { SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
+import { geoKey } from '../utils/points'
 
 // The ranking is clientAnalyze.ts's and has its own suite. A spy here shows
 // what the hook hands it: above all, whether a held field rides along.
@@ -53,7 +54,7 @@ beforeEach(() => {
   // answered (#643), and the hook's snow date depends on that order.
   ranked.mockImplementation(async (_request, _candidates, _startMs, _endMs, callbacks) => {
     await callbacks?.resolving
-    return { response: DATA, universe: ROWS, aqiFailed: new Set<string>() }
+    return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null }
   })
   stubResolve()
 })
@@ -68,7 +69,7 @@ describe('the forecast reuse', () => {
     await analyzeAt(result, T0)
     await analyzeAt(result, T0 + 14 * MIN)
     await analyzeAt(result, T0 + 16 * MIN)
-    expect(reuses()).toEqual([null, { rows: ROWS, times: [1], aqiFailed: new Set() }, null])
+    expect(reuses()).toEqual([null, { rows: ROWS, times: [1], aqiFailed: new Set(), columns: new Map() }, null])
   })
 
   it('refuses at exactly fifteen minutes', async () => {
@@ -167,6 +168,149 @@ describe('one analysis', () => {
   })
 })
 
+// #673: a lookup that answers after the report lands on the committed report
+// and on the held field, unless the report it belonged to is gone.
+describe('a lookup that answers after the report', () => {
+  const KEY = geoKey(PROBE.latitude, PROBE.longitude)
+  const PATCHED = resultRow({ ...PROBE, elevation_ft: 6000 })
+  function deferred() {
+    let resolve!: (p: { rows: DestinationResult[]; columns: Map<string, HeldColumns>; snowAnalysisDate: string | null }) => void
+    let reject!: (e: unknown) => void
+    const promise = new Promise<{ rows: DestinationResult[]; columns: Map<string, HeldColumns>; snowAnalysisDate: string | null }>(
+      (res, rej) => {
+        resolve = res
+        reject = rej
+      },
+    )
+    return { promise, resolve, reject }
+  }
+  function rankLate(late: Promise<{ rows: DestinationResult[]; columns: Map<string, HeldColumns>; snowAnalysisDate: string | null }>) {
+    ranked.mockImplementationOnce(async () => ({
+      response: DATA,
+      universe: ROWS,
+      aqiFailed: new Set<string>(),
+      columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]),
+      late,
+    }))
+  }
+
+  it('lands the answer on the committed report, the snapshot and the held field', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    // The date rides on the patch from the lookup's own answer.
+    stubResolve('2026-07-19')
+    const late = deferred()
+    rankLate(late.promise)
+    await analyzeAt(result, T0)
+    expect([...result.current.pendingHeights]).toEqual([KEY])
+    expect(result.current.analyzed?.snowAnalysisDate).toBeNull()
+    await act(async () => {
+      late.resolve({ rows: [PATCHED], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+      await late.promise
+    })
+    expect(result.current.universe?.[0]).toBe(PATCHED)
+    expect(result.current.response?.results[0]).toBe(PATCHED)
+    expect(result.current.pendingHeights.size).toBe(0)
+    expect(result.current.analyzed?.snowAnalysisDate).toBe('2026-07-19')
+    // The same report, filled in, rather than another one.
+    expect(result.current.analysisSeq).toBe(1)
+    await analyzeAt(result, T0 + MIN)
+    expect(reuses()[1]?.rows[0]).toBe(PATCHED)
+    expect(reuses()[1]?.columns?.size).toBe(0)
+  })
+
+  it('drops an answer that arrives after a reset or after the next run', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const first = deferred()
+    rankLate(first.promise)
+    await analyzeAt(result, T0)
+    act(() => result.current.reset())
+    await act(async () => {
+      first.resolve({ rows: [PATCHED], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+      await first.promise
+    })
+    expect(result.current.universe).toBeNull()
+    expect(result.current.pendingHeights.size).toBe(0)
+
+    const second = deferred()
+    rankLate(second.promise)
+    await analyzeAt(result, T0 + MIN)
+    await analyzeAt(result, T0 + 2 * MIN)
+    await act(async () => {
+      second.resolve({ rows: [PATCHED], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+      await second.promise
+    })
+    expect(result.current.universe?.[0]).toBe(ROWS[0])
+    expect(result.current.analyzed?.snowAnalysisDate).toBeNull()
+  })
+
+  it('places held rows from an answer that arrives after the lookup gave up', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const late = deferred()
+    rankLate(late.promise)
+    await analyzeAt(result, T0)
+    // The run's own call placed nothing, the column still held.
+    await act(async () => {
+      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]), snowAnalysisDate: null })
+      await late.promise
+    })
+    expect(result.current.pendingHeights.size).toBe(1)
+    expect(result.current.universe?.[0].elevation_ft).toBeNull()
+    // The paste-time lookup's retry answers: the row takes its elevation.
+    act(() => result.current.placeHeld([discovered({ ...PROBE, type: 'custom', elevation_ft: 6000, osm_id: 'node/1' })]))
+    expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000, osm_id: 'node/1' })
+    await analyzeAt(result, T0 + MIN)
+    expect(reuses()[1]?.rows[0]).toMatchObject({ elevation_ft: 6000 })
+  })
+
+  // #673: the lookup placed the row while the run was fetching, after the
+  // run had read what was known; the commit takes that answer at once.
+  it('places a waiting row from what the lookup learned during the run', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const late = deferred()
+    rankLate(late.promise)
+    const learned = new Map([[KEY, { elevation_ft: 6000, osm_id: 'node/1' }]])
+    vi.setSystemTime(T0)
+    await act(() => result.current.analyze(REQUEST, 'days', { identity: { identity: new Map(), latest: () => learned, inquiring: new Set() } }))
+    expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000, osm_id: 'node/1' })
+    expect(result.current.pendingHeights.size).toBe(0)
+    await act(async () => {
+      late.resolve({ rows: [], columns: new Map(), snowAnalysisDate: null })
+      await late.promise
+    })
+    expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000 })
+  })
+
+  it('keeps a row waiting that a patch did not place', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const late = deferred()
+    rankLate(late.promise)
+    await analyzeAt(result, T0)
+    expect([...result.current.pendingHeights]).toEqual([KEY])
+    // The run's own call changed nothing about the row: still waiting on the lookup.
+    await act(async () => {
+      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]), snowAnalysisDate: null })
+      await late.promise
+    })
+    expect([...result.current.pendingHeights]).toEqual([KEY])
+    act(() => result.current.placeHeld([discovered({ ...PROBE, type: 'custom', elevation_ft: 6000, osm_id: 'node/1' })]))
+    expect(result.current.pendingHeights.size).toBe(0)
+  })
+
+  it('stops the waiting cells when the lookup is aborted', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const late = deferred()
+    rankLate(late.promise)
+    await analyzeAt(result, T0)
+    expect(result.current.pendingHeights.size).toBe(1)
+    await act(async () => {
+      late.reject(new DOMException('Aborted', 'AbortError'))
+      await late.promise.catch(() => {})
+    })
+    expect(result.current.pendingHeights.size).toBe(0)
+    expect(result.current.universe).toBe(ROWS)
+  })
+})
+
 describe('what the reader sees', () => {
   // A run with no polygon asks for its forecasts at once, beside the pod's
   // elevation lookup (#643), so that is what it opens on.
@@ -186,7 +330,10 @@ describe('what the reader sees', () => {
         done = result.current.analyze(request)
       })
       expect(result.current.statusMessage).toBe(seed)
+      // The custom list is sent once the paste-time lookup has settled, which
+      // is a tick after the click (#673).
       await act(async () => {
+        await vi.waitFor(() => expect(answer).toBeDefined())
         answer(fakeResponse({ destinations: [discovered({ ...PROBE })], total: 1 }))
         await done
       })
@@ -222,8 +369,8 @@ describe('the returned API', () => {
   it('is the same set of names in the same order', () => {
     const { result } = renderHook(() => useAnalyze())
     expect(Object.keys(result.current)).toEqual([
-      'analyze', 'cancel', 'retry', 'reset', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
-      'arriving', 'error', 'refusal', 'response', 'universe', 'statusMessage', 'progress', 'paceRemainingS',
+      'analyze', 'cancel', 'retry', 'reset', 'placeHeld', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
+      'arriving', 'error', 'refusal', 'response', 'universe', 'pendingHeights', 'statusMessage', 'progress', 'paceRemainingS',
     ])
   })
 })

@@ -1,6 +1,7 @@
 import { CustomDestination, DestinationResult } from '../types'
 import { Place } from './geocode'
 import { geoKey } from './points'
+import type { IdentityMap } from './elevationLookup'
 
 // A custom destination plus the bits only the UI needs: where it came from
 // (a CSV row is removed by editing the textarea, so it gets no × ) and the
@@ -32,8 +33,11 @@ export function distinctRows(rows: readonly CustomDestination[]): CustomDestinat
 
 // The custom side of an analysis: pasted CSV rows ∪ searched places, deduped by
 // coordinate. A searched place wins a collision — it carries identity (kind,
-// OSM id) and often an elevation the CSV line lacks.
-function mergeCustom(csvRows: CustomDestination[], places: Place[]): PendingDestination[] {
+// OSM id) and often an elevation the CSV line lacks. A row the browser has
+// already looked up (#673) carries what the lookup said, so a pending row
+// shows its elevation before any analysis and the request sends it, which
+// is what lets the pod skip the map server for that row.
+function mergeCustom(csvRows: CustomDestination[], places: Place[], identity?: IdentityMap): PendingDestination[] {
   const placeKeys = new Set(places.map((p) => geoKey(p.lat, p.lon)))
   const fromCsv: PendingDestination[] = distinctRows(csvRows)
     .filter((r) => !placeKeys.has(geoKey(r.latitude, r.longitude)))
@@ -47,7 +51,17 @@ function mergeCustom(csvRows: CustomDestination[], places: Place[]): PendingDest
     osmId: p.osmId,
     source: 'search',
   }))
-  return [...fromCsv, ...fromPlaces]
+  const merged = [...fromCsv, ...fromPlaces]
+  if (!identity?.size) return merged
+  return merged.map((d) => {
+    const known = identity.get(geoKey(d.latitude, d.longitude))
+    if (!known) return d
+    return {
+      ...d,
+      elevation_ft: d.elevation_ft ?? known.elevation_ft ?? undefined,
+      osmId: d.osmId ?? known.osm_id ?? undefined,
+    }
+  })
 }
 
 // The same list narrowed to the wire shape. Deliberately re-projected rather
@@ -56,8 +70,9 @@ function mergeCustom(csvRows: CustomDestination[], places: Place[]): PendingDest
 export function buildCustomList(
   csvRows: CustomDestination[],
   places: Place[],
+  identity?: IdentityMap,
 ): CustomDestination[] {
-  return mergeCustom(csvRows, places).map(({ name, latitude, longitude, elevation_ft }) => ({
+  return mergeCustom(csvRows, places, identity).map(({ name, latitude, longitude, elevation_ft }) => ({
     name,
     latitude,
     longitude,
@@ -103,8 +118,9 @@ export function pendingDestinations(
   places: Place[],
   analyzed: ReadonlySet<string>,
   removed: ReadonlySet<string>,
+  identity?: IdentityMap,
 ): PendingDestination[] {
-  return mergeCustom(csvRows, places).filter((d) => {
+  return mergeCustom(csvRows, places, identity).filter((d) => {
     const key = geoKey(d.latitude, d.longitude)
     // `removed` carries the weight for CSV rows: × on a searched place also
     // deregisters it, but a CSV row's text stays in the textarea, so without

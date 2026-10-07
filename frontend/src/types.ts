@@ -133,6 +133,9 @@ export interface DestinationsRequest {
   max_elevation_ft?: number | null
   top_by_elevation?: boolean
   custom_destinations?: CustomDestination[]
+  // Whether the pod may ask the map server about a row sent without an
+  // elevation (#673); absent reads as true.
+  elevation_lookup?: boolean
 }
 
 // Per-hour values over the analyzed window, aligned index-for-index to
@@ -201,6 +204,13 @@ export interface DestinationResult {
   cloud_deck_min_ft: number | null
   cloud_deck_avg_ft: number | null
   cloud_deck_max_ft: number | null
+  // The terrain height Open-Meteo resolved for the coordinate, in whole feet,
+  // when the row's wind, temperature and cloud deck were read at it because
+  // the place has no recorded elevation (#673, decision 0116): the Elevation
+  // cell shows it marked rather than a blank over numbers read somewhere.
+  // Null once a lookup has placed the row. Client-populated; the API never
+  // sends it.
+  terrain_ft?: number | null
   // Hourly series backing the comparison chart, aligned to AnalyzeResponse.times.
   series?: HourlySeries | null
   // Timestamps for `series` when the row came from its own analyze response
@@ -263,4 +273,6 @@ export interface DestinationsResponse {
   total_found?: number | null
   truncated?: boolean
   snow_analysis_date?: string | null
+  // Whether the pod's elevation lookup finished (#673); absent reads as true.
+  elevation_lookup_complete?: boolean
 }

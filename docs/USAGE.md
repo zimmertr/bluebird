@@ -18,7 +18,7 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
-An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in during that analysis, by matching the point to the nearest mapped feature the way a pasted coordinate is.
+An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in as soon as it is added, by the same lookup a pasted coordinate gets: the map's own tiles first, then the map server for whatever they cannot place.
 
 Five things are worth knowing about what you can click:
 
@@ -68,7 +68,7 @@ Paste a CSV of your own coordinates to add them to the analysis — alongside wh
 
 The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. A latitude must be between -90 and 90 and a longitude between -180 and 180. A line outside those ranges is dropped, the way a line that is not two numbers is, so it is not counted in the parsed total under the box and is not analyzed. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it. A line pasted twice at the same coordinates is analyzed once, under the first line's name.
 
-You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation once you analyze, the same figure a polygon search shows for it. A point with no mapped peak beside it stays blank, and rides along like any other row. The ready-made lists in [`examples/`](../examples/) are formatted this way.
+You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation, the same figure a polygon search shows for it. That match starts the moment the box holds rows, however they got there (a paste, a typed line, a shared link, an example), and it reads the map's own tiles first, which answer in well under a second for almost every summit, so the pending rows under the box show their elevation before you have picked a window. Whatever the tiles cannot place goes to the map server, which can be slow; the analysis never waits for it. The rows land as soon as their forecasts do, and while a row's match is still on its way its Elevation cell and the cells that depend on it (wind, temperature, cloud deck and snow depth) show the same ticking dots the Wildfire column shows while its check runs, and fill in when it answers. A ranking on one of those columns reorders once at that moment. A point with no mapped peak beside it shows the terrain height its forecast was read at, marked with a dagger that one line under the table explains (the dagger is a link to that line), and rides along like any other row. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 
 ## Forecast
 
@@ -386,7 +386,7 @@ The results table carries the comparison too. With models compared it grows a **
 
 Every line on the chart runs to its own model's reach, so a model that stops before the analyzed window ends simply stops, and the other lines keep going. A dashed line in the axis color stands at the hour where it stops, labeled with the model's name, the same way the **Now** line is drawn. Two models that end on the same hour share one line, and its label names both. Hide a model and its dashed line goes with its lines.
 
-The results table marks the same thing. On the rows of a model that ends before the window does, every weather number is aggregated over fewer hours than the rows beside it, so the row's **Model** cell carries a raised asterisk after the model's name. The mark is on the name, once per row, and never on a number. Air quality, snow depth and the cloud columns on those rows still cover the whole window, because they are the same whatever model the row names. One line under the table says what the mark means: `* Data is aggregated over a subset of the forecast window due to the model's limited range.` The model that ranks never carries the mark, because the calendar already shortens the window to its reach. The mark rides the **Model** column, so hiding that column in the **Columns** picker hides the marks and the line under the table together. The downloaded CSV carries the same mark and the same line (see [Downloading the Table](#downloading-the-table)).
+The results table marks the same thing. On the rows of a model that ends before the window does, every weather number is aggregated over fewer hours than the rows beside it, so the row's **Model** cell carries a raised asterisk after the model's name. The mark is on the name, once per row, and never on a number. Air quality, snow depth and the cloud columns on those rows still cover the whole window, because they are the same whatever model the row names. One line under the table says what the mark means: `* Data is aggregated over a subset of the forecast window due to the model's limited range.` The mark is a link, and clicking it takes you to that line. The model that ranks never carries the mark, because the calendar already shortens the window to its reach. The mark rides the **Model** column, so hiding that column in the **Columns** picker hides the marks and the line under the table together. The downloaded CSV carries the same mark and the same line (see [Downloading the Table](#downloading-the-table)).
 
 A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric dropdown, which is never the same as drawing a flat one. Its rows leave the table too, so whenever the chart is not on screen the same note stands under the results bar. A model you have hidden leaves no note, because its lines are missing by your own instruction.
 
@@ -414,7 +414,7 @@ Destinations you name yourself are candidates like any other. A searched place a
 
 Click **Analyze**. Results appear in a sortable table below the map and as color-coded markers on the map itself. If none of the rows is on the map you are looking at, the map moves to show them; if at least one is, the map stays where you left it.
 
-While it runs, a line over the map says what it is waiting on. With a polygon it reads `Searching for destinations…` while the map service finds what is inside it. Then it reads `Retrieving forecasts…`, with the count once it is known. With only pasted, searched or clicked destinations there is nothing to search for, so it opens on the forecasts, and each destination's elevation is looked up while they are fetched. If that lookup is still on its way after the forecasts arrive, the line reads `Retrieving elevation…`. If air quality or cloud data is still on its way after that, it reads `Retrieving air quality…` and then `Retrieving cloud data…` until each arrives.
+While it runs, a line over the map says what it is waiting on. With a polygon it reads `Searching for destinations…` while the map service finds what is inside it. Then it reads `Retrieving forecasts…`, with the count once it is known. With only pasted, searched or clicked destinations there is nothing to search for, so it opens on the forecasts. Each destination's elevation was looked up when the list was pasted, from the map's own tiles and then the map server, and the analysis never waits for that lookup: the rows whose elevation is still out show ticking dots in the cells that depend on it until it answers. The one time the line reads `Retrieving elevation…` is a list over the analysis cap that keeps its highest destinations, since those cannot be chosen until every elevation is known. If air quality or cloud data is still on its way after that, it reads `Retrieving air quality…` and then `Retrieving cloud data…` until each arrives.
 
 A large area arrives in pieces. Forecasts are fetched in batches, and each batch that lands is ranked and shown at once rather than held back until the last one returns, so the first rows are up in well under a second where the whole run can take a minute or more. While that is happening the results bar marks its count **so far** (`946 of 946 so far`), because both numbers are a floor and the order still moves as the rest arrive. The words go when the analysis finishes.
 
@@ -469,7 +469,7 @@ Hovering a row reveals a × at its end (always visible on touch screens, and sho
 | Column | Description |
 |---|---|
 | Name | Destination name. Click it to center the map on the destination, before or after an analysis; the ↗ beside it opens the destination on Peakbagger or OpenStreetMap |
-| Elevation (ft) | Elevation in feet, from the OSM `ele` tag |
+| Elevation (ft) | Elevation in feet, from the OSM `ele` tag. Where OSM records none, the terrain height the row was read at, with a dagger and one note under the table |
 | Precipitation · Total (in) | Sum of hourly precipitation over the window, in inches |
 | Precipitation · Avg (in/hr) | Average hourly precipitation rate |
 | Precipitation · Max (in/hr) | Peak single-hour precipitation rate |
@@ -621,6 +621,16 @@ Forecast end (NOAA HRRR),2026-09-20T02:00-07:00
 * Data is aggregated over a subset of the forecast window due to the model's limited range.
 ```
 
+A row whose place has no recorded elevation is written on the same terms: the
+terrain height its numbers were read at goes in the Elevation column as a plain
+number, the table's dagger goes on the Name cell, as `Raven Ridge†`, and its
+note follows behind one blank row when the file carries the Elevation column
+and at least one such row:
+
+```
+† Elevation data is unavailable for this destination. This value is estimated based on nearby terrain.
+```
+
 The window is the same one the caption above the table states. The file name carries
 the download time instead, so without these two rows a file opened a week later
 named no days at all. They are rows rather than columns because the window is
@@ -646,7 +656,9 @@ instead. Windy carries only some agencies' regional models, and where it has non
 your destination it falls back to its own default.
 
 A blank cell means no value, never a zero. AQI is blank past its forecast
-horizon, and elevation is blank where OpenStreetMap has no `ele` tag. The
+horizon. Elevation is blank only where OpenStreetMap has no `ele` tag and no
+terrain height came back with the forecast; where one did, the column carries
+it and the row's name carries the dagger described above. The
 freezing-level columns are the exception and write `N/A` rather than a blank,
 because there the absence is the model carrying no such variable rather than a
 number that came back empty, and a file is read with nothing around it to say

@@ -8,6 +8,9 @@ import type {
   RefusalFields,
 } from '../types'
 import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
+import type { LatePatch } from './clientAnalyze'
+import { NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
+import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
@@ -125,10 +128,16 @@ export interface PipelineOptions {
   // it when discovery settles. A run with no polygon reports it at once, off
   // the request's own rows, with no snow date yet.
   onDiscovered: (found: Discovered) => void
-  // The lookup behind a run with no polygon has answered (#643): the same
-  // field with what OSM and the snow grid know about it. Fires before any row
-  // of the report is shown.
+  // The pod's one call about a run with no polygon has answered (#643): the
+  // same field with the snow grid's number for each row and the elevations
+  // the run sent echoed back. Fires before any row of the report is shown.
   onResolved?: (found: Discovered) => void
+  // What the browser's own lookup has learned about the rows (#673). A run
+  // reads it as it starts and never waits for it: the list goes to the pod
+  // with every elevation learned so far and with `elevation_lookup` off, so
+  // the pod answers from its snow grid alone, in milliseconds, and the rows
+  // still unknown take their answer from that lookup when it lands.
+  identity?: Pick<ElevationLookup, 'latest'>
   // The field so far, shaped as the report the screen shows. Its counts are a
   // floor: `total_queried` is what has been forecast so far.
   onPartial: (data: AnalyzeResponse, fieldSoFar: DestinationResult[]) => void
@@ -147,6 +156,14 @@ export interface PipelineResult {
   field: DestinationResult[]
   // What the next run may reuse.
   held: HeldForecasts
+  // The rows, by `geoKey`, whose elevation the lookup had not answered as the
+  // report was assembled (#673). Empty when every row had one, or when the
+  // run waited for the lookup.
+  pending: ReadonlySet<string>
+  // The lookup's answer, when it was still out as the report was assembled:
+  // the rows it changed (each reduced again at its height), the columns
+  // still worth holding, and the snow grid's date. Rejects only on abort.
+  late: Promise<LatePatch & { snowAnalysisDate: string | null }> | null
 }
 
 export async function runAnalysisPipeline(request: AnalyzeRequest, options: PipelineOptions): Promise<PipelineResult> {
@@ -165,29 +182,40 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     found = typed(await discoverCandidates(request, signal))
   } else {
     // A run with no polygon discovers nothing: its field is the list it was
-    // sent, and the one server call only fills in what OSM and the snow grid
-    // know about each row. So the forecasts are asked for at once and the
-    // lookup runs beside them rather than ahead of them (#643). On a busy map
-    // server it takes up to the pod's 8 s deadline, against about 1.5 s of
-    // forecasts for 100 rows (measured 2026-10-06).
+    // sent, with the elevations the browser's own lookup has learned, and
+    // the one server call fills in today's snow depth. So the forecasts are
+    // asked for at once and that call runs beside them (#643), and the report
+    // lands when the forecasts do (#673). The call asks the pod for no
+    // elevation lookup, so it answers in milliseconds whatever the map
+    // server is doing; a row still unknown takes the browser's lookup's
+    // answer when it lands. The one exception is an over-cap list keeping
+    // its highest, which cannot choose without every elevation and so asks
+    // the pod to look up what is still missing, the way every custom run
+    // once did.
     const custom = request.custom_destinations ?? []
     const listed = { totalFound: null, truncated: false }
-    found = typed({ ...listed, candidates: customRows(custom), snowAnalysisDate: null })
-    resolving = resolveCustomOnly(custom, signal).then((resolved) => {
+    const known = options.identity?.latest() ?? NO_IDENTITY
+    found = typed({ ...listed, candidates: withIdentity(customRows(custom), known), snowAnalysisDate: null })
+    const lookup = (request.top_by_elevation ?? false) && custom.length > options.maxDestinations
+    resolving = resolveCustomOnly(withLearnedElevation(custom, known), signal, lookup).then((resolved) => {
       const answered = typed({ ...listed, candidates: resolved.destinations, snowAnalysisDate: resolved.snowAnalysisDate })
+      snowAnalysisDate = answered.snowAnalysisDate
       options.onResolved?.(answered)
       return answered.candidates
     })
   }
   onDiscovered(found)
+  // What the lookup says the snow grid's date is, once it has said; a run
+  // with a polygon learns it from discovery, which is settled by here.
+  let snowAnalysisDate: string | null = found.snowAnalysisDate
 
-  const { response, universe, aqiFailed } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
+  const { response, universe, aqiFailed, columns, late } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
     signal,
     resolving,
     maxDestinations: options.maxDestinations,
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
-    reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed },
+    reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed, columns: reuse.columns },
     cloud: requestsCloud(request),
     onPace: options.onPace,
     onPartial: (rows, times) =>
@@ -207,6 +235,13 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
       truncated: response.truncated || found.truncated,
     },
     field: universe,
-    held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed),
+    held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed, columns),
+    // Only while an answer is still coming: a run that waited for the lookup
+    // holds the columns of the rows it could not place for a later run, and
+    // those rows have nothing left to wait for.
+    pending: late ? new Set(columns.keys()) : new Set(),
+    // The lookup's `then` above has run by the time the patch resolves, so
+    // the date rides with it rather than through a second callback.
+    late: late && late.then((patch) => ({ ...patch, snowAnalysisDate })),
   }
 }

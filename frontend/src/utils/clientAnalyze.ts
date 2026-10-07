@@ -38,9 +38,11 @@ import {
   fetchAqi,
   fetchCloud,
   fetchWeather,
+  reduceCloud,
+  reduceWeather,
   terrainFallbackFor,
 } from './openMeteo'
-import type { CloudSeries } from './openMeteoAggregate'
+import type { CloudSeries, HourlyPayload } from './openMeteoAggregate'
 import { nullsLast } from './sortResults'
 
 // The forecast bounds live in constraints.ts. They are re-exported here because
@@ -131,6 +133,10 @@ export function customRows(custom: readonly CustomDestination[]): DiscoveredDest
 export interface ResolvedCustom {
   destinations: DiscoveredDestination[]
   snowAnalysisDate: string | null
+  // Whether the pod's elevation lookup finished (#673): false when it gave up
+  // or the call failed, so a null elevation says nothing and the row may be
+  // asked about again; true when every null is a genuine no-peak-here.
+  lookupComplete: boolean
 }
 
 // The custom-only analysis path's one server call, and what it asks for.
@@ -152,30 +158,44 @@ export interface ResolvedCustom {
 // and every failure path returns the rows unresolved with no date. An abort is
 // the exception: that is the user's own doing and has to propagate rather than
 // masquerade as a resolved-nothing result.
+//
+// `lookup` is whether the pod may ask the map server about a row sent without
+// an elevation (#673). The paste-time lookup says yes, because asking is its
+// job; an analysis says no, because it only reads what that lookup learned,
+// so its one call answers in milliseconds and takes no discovery slot. The
+// one analysis that says yes is an over-cap list keeping its highest, which
+// cannot choose without every elevation.
 export async function resolveCustomOnly(
   custom: readonly CustomDestination[],
   signal?: AbortSignal,
+  lookup = true,
 ): Promise<ResolvedCustom> {
   const rows = customRows(custom)
-  if (!rows.length) return { destinations: rows, snowAnalysisDate: null }
+  if (!rows.length) return { destinations: rows, snowAnalysisDate: null, lookupComplete: true }
   const resolveRequest: DestinationsRequest = {
     destination_types: [],
     custom_destinations: [...custom],
+    elevation_lookup: lookup,
   }
+  const unresolved: ResolvedCustom = { destinations: rows, snowAnalysisDate: null, lookupComplete: false }
   try {
     const res = await postDestinations(resolveRequest, signal)
-    if (!res.ok) return { destinations: rows, snowAnalysisDate: null }
+    if (!res.ok) return unresolved
     const body = (await res.json()) as DestinationsResponse
     // A short answer means the server dropped rows this path never asked it
     // to drop, so trust the list we already hold over a surprising one — and
     // take no date with it, since the rows it would describe are not the ones
     // being returned.
     return body.destinations?.length === rows.length
-      ? { destinations: body.destinations, snowAnalysisDate: body.snow_analysis_date ?? null }
-      : { destinations: rows, snowAnalysisDate: null }
+      ? {
+          destinations: body.destinations,
+          snowAnalysisDate: body.snow_analysis_date ?? null,
+          lookupComplete: body.elevation_lookup_complete ?? true,
+        }
+      : unresolved
   } catch (err) {
     if (signal?.aborted) throw err
-    return { destinations: rows, snowAnalysisDate: null }
+    return unresolved
   }
 }
 
@@ -405,6 +425,10 @@ export interface ClientAnalysisCallbacks {
     rows: readonly DestinationResult[]
     times: readonly number[]
     aqiFailed?: ReadonlySet<string>
+    // The raw columns behind held rows that still have no elevation, by
+    // `geoKey`, so this run's lookup can reduce them at a height the last
+    // one never learned (#673).
+    columns?: ReadonlyMap<string, HeldColumns>
   } | null
   /**
    * The ranked field as it arrives, once per landed batch (#337, finding 2).
@@ -431,19 +455,45 @@ export interface ClientAnalysisCallbacks {
    */
   cloud?: boolean
   /**
-   * The same destinations, index for index, once a lookup still in flight has
-   * said what it knows about them: elevation, OSM identity, snow depth (#643).
+   * The same destinations, index for index, once the pod's one call about
+   * them has answered: today's snow depth, and whatever elevation and OSM
+   * identity it echoes or, for an over-cap list keeping its highest, looks
+   * up (#643, #673).
    *
    * A list of coordinates is enough to ask Open-Meteo, so the fetches start on
-   * the rows as given and every row takes its identity from this before it is
-   * assembled, partial rows included. The elevation lookup of a pasted list
-   * runs to 8 s on a busy map server against about 1.5 s of forecasts for 100
-   * rows (measured 2026-10-06), and the two used to run end to end.
+   * the rows as given and the report is assembled as soon as they land. The
+   * raw column of every row whose elevation is still unknown is kept, and
+   * when an answer places such a row it is reduced again at the height
+   * returned (`placeRows`, through `late` for this call and through
+   * `useAnalyze.placeHeld` for the paste-time lookup's), the same arithmetic
+   * the fetch ran: the numbers are what waiting would have produced, without
+   * the wait. The report waits for this only for an over-cap list keeping its
+   * highest, which cannot choose without every elevation.
    *
    * A row that comes back at a different coordinate is ignored in favour of
    * the one sent. Must settle when `signal` aborts.
    */
   resolving?: Promise<readonly DiscoveredDestination[]>
+}
+
+/**
+ * The raw Open-Meteo columns behind a row whose elevation is still unknown,
+ * kept so the row can be reduced again once a lookup says where it stands
+ * (#673). Dropped as soon as the row has an elevation: the forecast cache
+ * holds reduced rows, so this is the only copy of the column there is.
+ */
+export interface HeldColumns {
+  weather: HourlyPayload
+  cloud?: HourlyPayload
+}
+
+/** What a lookup that answered after the report changes about it. */
+export interface LatePatch {
+  // The rows the lookup changed, each replacing the row at its coordinate.
+  rows: DestinationResult[]
+  // The columns still worth holding: those of rows that still have no
+  // elevation, for a lookup a later run may make.
+  columns: Map<string, HeldColumns>
 }
 
 export interface ClientAnalysis {
@@ -465,6 +515,119 @@ export interface ClientAnalysis {
   // The rows of `universe`, by `geoKey`, whose air quality failed rather than
   // answered: what the next run's `reuse.aqiFailed` should be.
   aqiFailed: Set<string>
+  // The raw columns behind every row whose elevation is unknown as the report
+  // commits, by `geoKey` (#673): what the next run's `reuse.columns` should
+  // be, and, while `late` is out, which rows are waiting on the lookup.
+  columns: Map<string, HeldColumns>
+  // What the lookup changes once it answers, when it was still out as the
+  // report committed; null when nothing was out. Rejects only when the lookup
+  // does, which is on abort.
+  late: Promise<LatePatch> | null
+}
+
+/**
+ * A row with the weather of another reduce of the same column (#673): the
+ * aggregates and the hourly weather series replaced, everything else, air
+ * quality and its alignment included, kept. The hours are the column's, so the
+ * grid the air quality was aligned to is unchanged.
+ */
+export function withWeather(row: DestinationResult, wx: WeatherResult): DestinationResult {
+  if (wx === null) return row
+  const { series, terrain_ft, ...aggregates } = wx
+  const next: DestinationResult = { ...row, ...aggregates }
+  // The height the row was read at is the terrain's only while this reduce
+  // says so (decision 0116): a reduce at the place's own elevation drops it.
+  if (terrain_ft != null) next.terrain_ft = terrain_ft
+  else delete next.terrain_ft
+  if (row.series && series) {
+    next.series = {
+      ...row.series,
+      precip_in: series.precip_in,
+      temp_f: series.temp_f,
+      wind_mph: series.wind_mph,
+      freeze_ft: series.freeze_ft,
+      ...(series.wind_dir_deg ? { wind_dir_deg: series.wind_dir_deg } : {}),
+    }
+  }
+  return next
+}
+
+/** What a reduce of a kept column needs beside the column. */
+export interface PlaceOptions {
+  startMs: number
+  endMs: number
+  // The report's hourly grid, which the cloud series is aligned to.
+  times: readonly number[]
+  model: string
+  nowMs?: number
+  windowLimits?: WindowLimits
+}
+
+// The identity a row takes from a lookup's answer about it. The pod echoes a
+// row it did not look up (one that carried its elevation) with no OSM id and
+// the kind `custom`, so neither of those can take away what the row knows.
+function placedIdentity(row: DestinationResult, r: DiscoveredDestination) {
+  return {
+    name: r.name,
+    type: r.type === 'custom' ? row.type : r.type,
+    elevation_ft: r.elevation_ft ?? row.elevation_ft,
+    osm_id: r.osm_id ?? row.osm_id,
+    snow_depth_in: r.snow_depth_in ?? row.snow_depth_in ?? null,
+  }
+}
+
+/**
+ * A lookup's answer landed on forecast rows (#673): each row the answer
+ * changes takes its name, kind, elevation, OSM id and snow depth, and a row
+ * whose elevation changed is reduced again from its kept column at that
+ * height, the same arithmetic the fetch ran. Rows the answer leaves as they
+ * are are not in the patch, so nothing redraws for them. `columns` is by
+ * `geoKey`; the ones returned are those still worth holding, for rows that
+ * still have no elevation.
+ */
+export function placeRows(
+  rows: readonly DestinationResult[],
+  columns: ReadonlyMap<string, HeldColumns>,
+  resolved: readonly DiscoveredDestination[],
+  { startMs, endMs, times, model, nowMs, windowLimits }: PlaceOptions,
+): LatePatch {
+  const byKey = new Map(rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+  const reduceOptions = { model, nowMs, windowLimits }
+  const patched = new Map<string, DestinationResult>()
+  for (const r of resolved) {
+    const key = geoKey(r.latitude, r.longitude)
+    const row = byKey.get(key)
+    if (!row) continue
+    const identity = placedIdentity(row, r)
+    if (
+      identity.name === row.name &&
+      identity.type === row.type &&
+      identity.elevation_ft === row.elevation_ft &&
+      identity.osm_id === row.osm_id &&
+      identity.snow_depth_in === (row.snow_depth_in ?? null)
+    ) {
+      continue
+    }
+    let next: DestinationResult = { ...row, ...identity }
+    const held = columns.get(key)
+    if (held && identity.elevation_ft !== row.elevation_ft) {
+      const c: Coordinate = {
+        latitude: r.latitude,
+        longitude: r.longitude,
+        elevation_ft: identity.elevation_ft,
+        terrainFallback: terrainFallbackFor(identity.type),
+      }
+      next = withWeather(next, reduceWeather(held.weather, c, startMs, endMs, reduceOptions))
+      if (held.cloud) next = withCloud(next, reduceCloud(held.cloud, c, startMs, endMs, reduceOptions), times)
+    }
+    patched.set(key, next)
+  }
+  const remaining = new Map<string, HeldColumns>()
+  columns.forEach((held, key) => {
+    const row = patched.get(key) ?? byKey.get(key)
+    if (row && row.elevation_ft == null) remaining.set(key, held)
+  })
+  return { rows: [...patched.values()], columns: remaining }
 }
 
 // The rows a lookup returned, laid over the rows it was asked about. Position
@@ -510,7 +673,13 @@ export async function runClientAnalysis(
   // abort that rejects it there would otherwise be reported as unhandled.
   resolving?.catch(() => {})
   if (destinations.length === 0) {
-    return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set() }
+    return {
+      response: { results: [], total_queried: 0, total_matched: 0 },
+      universe: [],
+      aqiFailed: new Set(),
+      columns: new Map(),
+      late: null,
+    }
   }
   const cap = maxDestinations ?? MAX_ANALYZE_DESTINATIONS
   const noun = analysisNoun(request)
@@ -535,6 +704,7 @@ export async function runClientAnalysis(
       throw new AnalysisRefusalError(capDetail(candidates.length, noun, cap))
     }
   }
+  const sortBy = request.sort_by ?? 'precip_total_in'
 
   // Split the field into what is already forecast and what still has to be
   // fetched. With no reusable rows this is the whole list and the analysis runs
@@ -544,65 +714,41 @@ export async function runClientAnalysis(
   // candidate: discovery may have learned an elevation since (a pasted
   // coordinate resolved against OSM), and the forecast is the expensive half,
   // not the name.
-  //
-  // The split is by coordinate, which a lookup cannot change, so it is made
-  // once and keeps positions; `bind` then reads the two halves' identity off
-  // whichever rows are current, the ones given or the ones the lookup returned.
   const heldRows = new Map<string, DestinationResult>()
   for (const r of reuse?.rows ?? []) heldRows.set(geoKey(r.latitude, r.longitude), r)
   const reusedAt: number[] = []
-  const reusedHits: DestinationResult[] = []
+  const reused: DestinationResult[] = []
   const unforecastAt: number[] = []
+  const unforecast: DiscoveredDestination[] = []
   candidates.forEach((d, i) => {
     const hit = heldRows.get(geoKey(d.latitude, d.longitude))
     if (hit) {
       reusedAt.push(i)
-      reusedHits.push(hit)
+      reused.push({
+        ...hit,
+        name: d.name,
+        type: d.type,
+        elevation_ft: d.elevation_ft,
+        osm_id: d.osm_id,
+      })
     } else {
       unforecastAt.push(i)
+      unforecast.push(d)
     }
   })
-  let reused: DestinationResult[] = []
-  let unforecast: DiscoveredDestination[] = []
-  const bind = (rows: readonly DiscoveredDestination[]) => {
-    reused = reusedAt.map((at, i) => ({
-      ...reusedHits[i],
-      name: rows[at].name,
-      type: rows[at].type,
-      elevation_ft: rows[at].elevation_ft,
-      osm_id: rows[at].osm_id,
-    }))
-    unforecast = unforecastAt.map((at) => rows[at])
-  }
-  bind(candidates)
-  // Settles once the rows carry the lookup's answer. Everything that reads a
-  // row's identity runs after it: the reduces wait on the heights derived from
-  // it, and the two awaits below cover a field with nothing left to fetch.
-  const provisional = candidates
-  const bound: Promise<void> | null = lookup
-    ? lookup.then((rows) => {
-        bind(resolvedOver(provisional, rows))
-        lookup = null
-      })
-    : null
-  // The elevations the fetches wait on, in each fetch's own coordinate order.
-  // Every derived promise is marked handled: a fetch that returns early (an
-  // empty list, a field served from its cache) never reads the one it was
-  // handed, and an abort would otherwise surface there as unhandled.
-  const heightsOf = (rows: () => ReadonlyArray<{ elevation_ft: number | null }>) => {
-    if (!bound) return undefined
-    const heights = bound.then(() => rows().map((r) => r.elevation_ft))
-    heights.catch(() => {})
-    return heights
-  }
-  bound?.catch(() => {})
-  const weatherHeights = heightsOf(() => unforecast)
-  const cloudHeights = heightsOf(() => [...reused, ...unforecast])
-  // Names the lookup while it is the one thing the run still waits on.
-  const awaitLookup = async () => {
-    if (!bound) return
-    if (lookup) onTail?.(ELEVATION_MESSAGE)
-    await bound
+  // The raw columns of the rows the lookup may still place, by candidate
+  // index: this run's own fetches fill them in, and a held row brings the
+  // column the last run kept for it.
+  const columns = new Map<number, HeldColumns>()
+  reusedAt.forEach((at, i) => {
+    const held = reuse?.columns?.get(geoKey(reused[i].latitude, reused[i].longitude))
+    if (held && reused[i].elevation_ft == null) columns.set(at, { ...held })
+  })
+  const keepColumn = (at: number, column: HourlyPayload, kind: keyof HeldColumns) => {
+    if (candidates[at].elevation_ft != null || !lookup) return
+    const entry = columns.get(at)
+    if (kind === 'weather') columns.set(at, { ...entry, weather: column })
+    else if (entry) entry.cloud = column
   }
 
   const coords: Coordinate[] = unforecast.map((d) => ({
@@ -649,8 +795,6 @@ export async function runClientAnalysis(
   let cloudFailure: unknown = null
 
   try {
-    const sortBy = request.sort_by ?? 'precip_total_in'
-
     // The cloud column rides beside the weather over every candidate, reused
     // ones included, and only when asked (#117). Started first so its batches
     // overlap the weather's rather than trailing them; it spends the same
@@ -673,7 +817,8 @@ export async function runClientAnalysis(
           model: request.forecast_model,
           nowMs,
           windowLimits,
-          heights: cloudHeights,
+          onColumn: (k, column) =>
+            keepColumn(k < reused.length ? reusedAt[k] : unforecastAt[k - reused.length], column, 'cloud'),
         }).catch((e: unknown) => {
           if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
           internal.abort()
@@ -760,23 +905,16 @@ export async function runClientAnalysis(
         // half silently moved to the archive endpoint (2026-09-14).
         nowMs,
         windowLimits,
-        heights: weatherHeights,
-        onProgress: (processed, total) => {
+        onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'weather'),
+        onProgress: (processed, total) =>
           onProgress?.(
             processed,
             total,
             // Byte-identical to the analyze route's progress copy, so the
             // app and a direct API caller read alike.
             `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
-          )
-          // Every forecast is in hand and the rows cannot be reduced until
-          // the lookup answers, so the label says which wait this is.
-          if (processed === total && lookup) onTail?.(ELEVATION_MESSAGE)
-        },
+          ),
       })
-      // A field served whole from the fetch's cache returns without reading
-      // the heights, so the wait is made explicit before a row is assembled.
-      await awaitLookup()
       await followTail(aqiPending, cloud ? cloudPending : null, onTail)
       // Never null on this branch: the new candidates are in `aqiCoords`.
       const aqi = (await aqiPending) ?? { results: [], failed: [] }
@@ -808,9 +946,6 @@ export async function runClientAnalysis(
     if (coords.length === 0 && (cloud || aqiPending !== null)) {
       await followTail(aqiPending, cloud ? cloudPending : null, onTail)
     }
-    // A field with nothing to fetch never waited on the lookup above, and its
-    // held rows still take their identity from it.
-    await awaitLookup()
     const heldCloud = await cloudPending
     if (cloudFailure !== null) throw cloudFailure
     const retried = aqiPending === null ? null : await aqiPending
@@ -827,6 +962,25 @@ export async function runClientAnalysis(
       if (fetchedAqiFailed[i]) aqiFailed.add(geoKey(r.latitude, r.longitude))
     })
     const results = [...held, ...fetched]
+
+    // What the lookup's answer changes about the report (#673): the rows it
+    // placed, reduced again from their kept columns at the height it returned.
+    // The provisional rows are the ones sent, so an answer about somewhere
+    // else is ignored in favour of them (`resolvedOver`), and a row the
+    // lookup left as it was is untouched. The report never waits for it: a
+    // ranking on a height-read number reorders once when the answer lands.
+    const pendingColumns = new Map<string, HeldColumns>()
+    columns.forEach((held, i) => pendingColumns.set(geoKey(candidates[i].latitude, candidates[i].longitude), held))
+    const placeOptions = { startMs, endMs, times, model: request.forecast_model, nowMs, windowLimits }
+    const sent = candidates
+    let late: Promise<LatePatch> | null = null
+    if (lookup) {
+      late = lookup.then((rows) => placeRows(results, pendingColumns, resolvedOver(sent, rows), placeOptions))
+      // Awaited by the caller, which may have stopped listening by the time
+      // it settles; an abort must not surface here as unhandled.
+      late.catch(() => {})
+    }
+
     results.sort(rankComparator(sortBy, request.sort_desc ?? false))
     const top = results.slice(0, request.limit)
 
@@ -845,6 +999,8 @@ export async function runClientAnalysis(
       },
       universe: results,
       aqiFailed,
+      columns: pendingColumns,
+      late,
     }
   } catch (e) {
     internal.abort()

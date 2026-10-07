@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from app import body_limit, ratelimit, telemetry
@@ -22,7 +24,7 @@ from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
     _refusal_body,
-    _resolve_custom,
+    _resolve_custom_reporting,
     _suggest_elevation_floor,
     discover,
 )
@@ -30,6 +32,23 @@ from app.services.ranking import _noun, _truncate_top_elevation
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@asynccontextmanager
+async def _overpass_slot(http_request: Request, needed: bool) -> AsyncIterator[None]:
+    """The client's discovery slot while `needed`, else nothing.
+
+    The wait that runs out is the same 429 the analyze routes answer
+    (`ratelimit.discovery_in_flight`); raised here rather than yielded,
+    because this route has not started answering when it takes the slot.
+    """
+    if not needed:
+        yield
+        return
+    async with ratelimit.discovery_in_flight(http_request) as refused:
+        if refused is not None:
+            raise refused
+        yield
 
 
 @router.post(
@@ -55,10 +74,7 @@ router = APIRouter()
         "a client and want ranked forecasts in one call, `POST /api/analyze` "
         "remains the endpoint for that."
     ),
-    dependencies=[
-        Depends(ratelimit.destinations_rate_limit),
-        Depends(ratelimit.destinations_in_flight),
-    ],
+    dependencies=[Depends(ratelimit.destinations_rate_limit)],
     responses={
         413: body_limit.TOO_LARGE_RESPONSE,
         400: {
@@ -95,7 +111,9 @@ router = APIRouter()
         },
     },
 )
-async def destinations(request: DestinationsRequest) -> DestinationsResponse | JSONResponse:
+async def destinations(
+    request: DestinationsRequest, http_request: Request
+) -> DestinationsResponse | JSONResponse:
     parts = [
         f"types={','.join(t.value for t in request.destination_types) or 'none'}"
     ]
@@ -120,7 +138,6 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse | J
                 ),
                 code=ErrorCode.validation,
             )
-        found: list[dict] = []
     elif request.polygon is None:
         raise ApiError(
             status_code=400,
@@ -131,17 +148,35 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse | J
             ),
             code=ErrorCode.validation,
         )
-    else:
-        found = await discover(
-            request.polygon,
-            request.destination_types,
-            include_unnamed_peaks=request.include_unnamed_peaks,
-        )
 
-    # Resolved before the band filter, so an elevation the caller never knew
-    # is one the band can actually act on.
-    if request.custom_destinations:
-        found = _merge_custom(found, await _resolve_custom(request.custom_destinations))
+    # One discovery per client address at a time, shared with the analyze
+    # routes (#627, #660), held around what asks Overpass and nothing else: a
+    # polygon's discovery, and a custom list's lookup when the request asks
+    # for one and a row needs it. A request that asks the map server nothing
+    # (the web app's own analysis, which sends `elevation_lookup: false` and
+    # every elevation it has learned) is answered from the pod's snow grid
+    # alone and takes no slot, so it never waits behind that address's
+    # lookup in flight (#673).
+    needs_lookup = bool(request.custom_destinations) and request.elevation_lookup and any(
+        d.elevation_ft is None for d in request.custom_destinations or []
+    )
+    async with _overpass_slot(http_request, bool(request.destination_types) or needs_lookup):
+        found: list[dict] = []
+        if request.destination_types and request.polygon is not None:
+            found = await discover(
+                request.polygon,
+                request.destination_types,
+                include_unnamed_peaks=request.include_unnamed_peaks,
+            )
+
+        # Resolved before the band filter, so an elevation the caller never
+        # knew is one the band can actually act on.
+        lookup_complete = True
+        if request.custom_destinations:
+            custom, lookup_complete = await _resolve_custom_reporting(
+                request.custom_destinations, lookup=request.elevation_lookup
+            )
+            found = _merge_custom(found, custom)
 
     found = _filter_elevation(
         found, request.min_elevation_ft, request.max_elevation_ft
@@ -198,4 +233,5 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse | J
         total_found=total_found,
         truncated=truncated,
         snow_analysis_date=snow_analysis_date,
+        elevation_lookup_complete=lookup_complete,
     )

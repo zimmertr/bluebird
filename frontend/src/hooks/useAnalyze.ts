@@ -1,10 +1,14 @@
 import { useRef } from 'react'
-import type { AnalyzeRequest } from '../types'
+import { geoKey } from '../utils/points'
+import type { AnalyzeRequest, DiscoveredDestination } from '../types'
 import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
 import { runAnalysisPipeline } from '../utils/analysisPipeline'
+import { placeRows } from '../utils/clientAnalyze'
+import { answered } from '../utils/elevationLookup'
+import type { AnalyzedView } from './analyzeTypes'
 import type { HeldForecasts } from '../utils/forecastReuse'
 import { AQI_LIMIT_DAYS, SelectionKind } from '../utils/calendar'
 import { discoveryKeys } from '../utils/present'
@@ -40,6 +44,37 @@ export function useAnalyze(
   // Set only once a run has finished and committed, so a run that does not
   // finish leaves the forecasts of the report it puts back (#560).
   const heldForecastsRef = useRef<HeldForecasts | null>(null)
+  // Which run is current, so a lookup that answers after the next Analyze or
+  // a reset lands on nothing (#673): the report it belonged to is gone.
+  const runSeqRef = useRef(0)
+  // The last run's snapshot builder, for an answer that lands after it.
+  const viewRef = useRef<(() => AnalyzedView) | null>(null)
+
+  // The paste-time lookup's answer landed on the committed report (#673):
+  // rows the tiles or the pod placed after the run had read what was known.
+  // Each row it placed is reduced again from the column the run kept for it,
+  // and the held field takes the same rows.
+  function placeHeld(resolved: readonly DiscoveredDestination[]) {
+    const held = heldForecastsRef.current
+    const view = viewRef.current
+    if (!held || !view || !held.columns?.size) return
+    const patch = placeRows(held.rows, held.columns, resolved, {
+      startMs: held.startMs,
+      endMs: held.endMs,
+      times: held.times,
+      model: held.model,
+      nowMs: Date.now(),
+      windowLimits,
+    })
+    if (!patch.rows.length) return
+    report.patch(patch.rows, view())
+    const swap = new Map(patch.rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+    heldForecastsRef.current = {
+      ...held,
+      rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
+      columns: patch.columns,
+    }
+  }
 
   // Re-run the most recent request (the "Try again" button on transient
   // errors; a deterministic refusal gets no retry, because run verbatim it can
@@ -53,6 +88,7 @@ export function useAnalyze(
   // Analyze so a stale ranking (e.g. from a since-deleted polygon) doesn't
   // linger in the table and on the map above the refetched pins.
   function reset() {
+    runSeqRef.current += 1
     report.clear()
     run.clearEvents()
     lastRequestRef.current = null
@@ -72,8 +108,9 @@ export function useAnalyze(
     kind: SelectionKind = 'days',
     options: AnalyzeOptions = {},
   ): Promise<boolean> {
-    const { discovery, compareModels = [], onCommit } = options
+    const { discovery, compareModels = [], onCommit, identity } = options
     lastRequestRef.current = { request, kind, options }
+    const runSeq = ++runSeqRef.current
     // Derived off the request unless the caller says otherwise: the weather-
     // only refresh re-fetches a polygon report through the custom path, so its
     // request carries no polygon. The snow date is this run's alone, so a
@@ -86,6 +123,7 @@ export function useAnalyze(
       snowAnalysisDate: null,
     }
     const view = () => analyzedView(request, kind, facts, Date.now(), windowLimits)
+    viewRef.current = view
     // Seed the first-phase label so nothing generic ("Starting…") flashes in
     // the click-to-first-event gap: a polygon run opens on discovery, and a
     // custom or refresh run on the forecasts, which it asks for at once while
@@ -107,6 +145,7 @@ export function useAnalyze(
           windowLimits,
           aqiForecastDays,
           knownTypes: options.knownTypes,
+          identity,
           onDiscovered: (found) => {
             facts.snowAnalysisDate = found.snowAnalysisDate
             run.announce(found.candidates.length)
@@ -123,11 +162,42 @@ export function useAnalyze(
           onPace: run.onPace,
         })
         heldForecastsRef.current = out.held
-        report.commit(out.response, out.field, view())
+        report.commit(out.response, out.field, view(), out.pending)
         // In the same render as the commit, so the report never shows a
         // frame under the bookkeeping of the one before it, and inside the
         // run rather than after the click, so a retry's commit applies it too.
         onCommit?.()
+        // The lookup may have placed a waiting row while the run was
+        // fetching, after the run had read what was known: that answer
+        // reached no report, so the commit takes it now (#673).
+        if (out.pending.size && identity) {
+          const known = identity.latest()
+          const waiting = out.field.filter((r) => out.pending.has(geoKey(r.latitude, r.longitude)))
+          const landed = answered(waiting, known)
+          if (landed.length) placeHeld(landed)
+        }
+        // The lookup was still out when the report committed (#673): its
+        // answer lands on the committed report, and on the held field a later
+        // run would reuse, unless another run or a reset has replaced both.
+        out.late?.then(
+          (patch) => {
+            if (runSeqRef.current !== runSeq) return
+            facts.snowAnalysisDate = patch.snowAnalysisDate
+            report.patch(patch.rows, view())
+            const held = heldForecastsRef.current
+            if (held) {
+              const swap = new Map(patch.rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+              heldForecastsRef.current = {
+                ...held,
+                rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
+                columns: patch.columns,
+              }
+            }
+          },
+          () => {
+            if (runSeqRef.current === runSeq) report.settleHeights()
+          },
+        )
       },
       { onFailure: report.discard, onSettled: report.settle },
     )
@@ -138,6 +208,7 @@ export function useAnalyze(
     cancel: run.cancel,
     retry,
     reset,
+    placeHeld,
     analyzed: report.analyzed,
     analysisSeq: report.analysisSeq,
     // Moves when a run that showed partial rows is put back (#560).
@@ -151,6 +222,8 @@ export function useAnalyze(
     refusal: run.refusal,
     response: report.response,
     universe: report.universe,
+    // The committed rows still waiting on their elevation (#673).
+    pendingHeights: report.pendingHeights,
     statusMessage: run.statusMessage,
     progress: run.progress,
     paceRemainingS: run.paceRemainingS,

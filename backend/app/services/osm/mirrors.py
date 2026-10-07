@@ -373,8 +373,15 @@ async def _post_with_fallback(
                 _last_failure[mirror.url] = _clock()
                 if i < total:
                     telemetry.OVERPASS_FALLBACK.labels(mirror=host, path=path).inc()
-                # The total deadline's TimeoutError carries no message.
-                reason = str(exc) or f"no answer within {timeout_s:.0f}s"
+                # The total deadline's TimeoutError carries no message, and
+                # neither does a connection the server reset (seen 2026-10-07
+                # from overpass-api.de), which is not a timeout and must not
+                # read as one in the log.
+                reason = str(exc) or (
+                    f"no answer within {timeout_s:.0f}s"
+                    if isinstance(exc, TimeoutError)
+                    else type(exc).__name__
+                )
                 log.warning("Overpass endpoint %s failed: %s", mirror.url, reason)
                 last_exc = exc
             except asyncio.CancelledError:

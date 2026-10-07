@@ -6,6 +6,7 @@ import {
   familyOf,
   formatPrecipRate,
   formatPrecipTotal,
+  HEIGHT_FAMILIES,
   ON_REQUEST_FAMILIES,
   isOnRequestFamily,
   metricLabel,
@@ -106,6 +107,18 @@ export type SortDir = 'asc' | 'desc'
 export const LEAD_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'elevation_ft'])
 
 /**
+ * Whether a column's value is read at the destination's height, and so is
+ * not yet known for a row whose elevation lookup is still out (#673): the
+ * elevation itself, and every metric in `HEIGHT_FAMILIES`. Read off the
+ * family table rather than through `familyOf`, which throws on a lead or
+ * virtual key.
+ */
+export function heightDependentKey(key: string): boolean {
+  if (key === 'elevation_ft') return true
+  return HEIGHT_FAMILIES.some((family) => (FAMILY_KEYS[family] as readonly string[]).includes(key))
+}
+
+/**
  * The same columns with `Model` inserted, or unchanged when nothing is
  * compared.
  *
@@ -156,6 +169,27 @@ export const ELEVATION_COL: ColDef = {
   label: 'Elevation (ft)',
   format: (v) => (v != null ? Number(v).toLocaleString() : '—'),
   csv: (v) => String(v),
+}
+
+/**
+ * A row whose place has no recorded elevation reads its wind, temperature,
+ * cloud deck and snow depth at the terrain height Open-Meteo resolves for the
+ * coordinate (`terrainFallbackFor` and the analysis's `terrainElevation` in
+ * openMeteo.ts), and its Elevation cell shows that height rather than a blank
+ * over numbers read somewhere, with the mark raised beside it and the note
+ * once under the table (#673, decision 0116). A dagger because a compared row
+ * can carry the Model cell's `*` at the same time, and two notes opening with
+ * one sign would read as one. The file writes the height plain and puts the
+ * mark on the Name cell, as the model mark rides the Model cell (#508), so
+ * the Elevation column stays numbers a spreadsheet can sort. The wording is
+ * the maintainer's (2026-10-07).
+ */
+export const TERRAIN_HEIGHT_MARK = '†'
+export const TERRAIN_HEIGHT_NOTE = `${TERRAIN_HEIGHT_MARK} Elevation data is unavailable for this destination. This value is estimated based on nearby terrain.`
+
+/** Whether a row's Elevation cell shows the terrain height its numbers were read at. */
+export function readAtTerrainHeight(row: DestinationResult): boolean {
+  return row.elevation_ft == null && row.terrain_ft != null
 }
 
 /**

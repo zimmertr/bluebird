@@ -26,6 +26,7 @@ import { COVERAGE_MESSAGE_TAIL, COVERAGE_PHRASE } from './openMeteoErrors'
 import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { MAX_POLYGON_POINTS } from './drawGeometry'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
+import { PEAK_MATCH_RADIUS_M } from './peakTiles'
 import { SNOW_DEPTH_CEILING_IN } from './snowCeiling'
 import {
   ARCHIVE_STRADDLE_DAYS,
@@ -64,6 +65,10 @@ describe('the constants the backend publishes for this side to match', () => {
 
   it('stops a ring where the server stops one', () => {
     expect(MAX_POLYGON_POINTS).toBe(constants.MAX_POLYGON_POINTS)
+  })
+
+  it('matches a pasted coordinate to a peak at the distance the backend does', () => {
+    expect(PEAK_MATCH_RADIUS_M).toBe(constants.CUSTOM_MATCH_RADIUS_M)
   })
 
   it('believes the wildfire simplification the backend applies', () => {

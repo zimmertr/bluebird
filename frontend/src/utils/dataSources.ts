@@ -84,7 +84,7 @@ export const DATA_SOURCES: readonly DataSource[] = [
   {
     name: 'OpenFreeMap',
     href: 'https://openfreemap.org',
-    provides: 'The vector tiles the basemap is drawn from.',
+    provides: 'The vector tiles the basemap is drawn from, and the peaks a pasted coordinate is matched to.',
   },
   {
     name: 'Nominatim',

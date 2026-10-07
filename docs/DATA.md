@@ -6,7 +6,7 @@
 | [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, the humidity column behind the cloud deck (on request), and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
-| [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
+| [OpenFreeMap](https://openfreemap.org) | Vector map tiles, and the peak a pasted coordinate stands on | Free | None |
 | [Nominatim](https://nominatim.org) | Map search box place lookup | Free (1 req/s max, no autocomplete) | None |
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) | Active wildfire perimeters, United States only | Free (quota shared across all consumers) | None |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) | Analyst-traced smoke plumes, North America | Free (public-domain files, no quota) | None |
@@ -58,28 +58,52 @@ whatever OSM does not know, you can paste.
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so each one is matched to the nearest mapped
-peak within about 150 metres and takes that peak's `ele` tag. Three things
-follow from that, all of them visible in the Elevation column:
+peak within about 150 metres and takes that peak's `ele` tag. The app asks two
+sources the same question, in order. First the basemap's own vector tiles: at
+zoom 14 OpenFreeMap's peak layer carries every OSM peak and volcano node with
+its elevation and its node id, so the browser reads the handful of tiles
+around each pasted point, static files served from a cache, and places almost
+every summit in well under a second, with the same number and the same OSM
+node Overpass would give (measured 2026-10-07 on the 100-peak Washington
+list: 96 placed, every elevation and node identical). A row the tiles leave,
+because the nearest node carries no elevation or the point stands on a node
+mapped since the tiles were last built, goes to the server's Overpass lookup
+described below, which is the only source for a direct API caller. Three
+things follow from that, all of them visible in the Elevation column:
 
-- **A point with no mapped peak beside it stays blank.** Against the bundled
-  100-peak Washington lists the match rate is 97%; the misses are summits no
-  volunteer has mapped as a node, not failures of the lookup. The app still
-  forecasts such a point at the terrain height Open-Meteo reports for its
-  coordinate, as it does a peak with no elevation, and the Elevation column
-  stays blank because that height is the model's ground, not the peak's.
+- **A point with no mapped peak beside it shows the terrain height, marked.**
+  Against the bundled 100-peak Washington lists the match rate is 97%; the
+  misses are summits no volunteer has mapped as a node, not failures of the
+  lookup. The app forecasts such a point at the terrain height Open-Meteo
+  reports for its coordinate, as it does a peak with no elevation, and the
+  Elevation column shows that height with a dagger and one note under the
+  table saying it is estimated from the terrain, because that height is the
+  model's ground, not the peak's
+  ([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
 - **The number is OSM's, not your guidebook's.** Where the two disagree, the
   column shows what OSM says, which is the same figure a polygon search shows
   for that peak. Agreement between the two ways of asking is the point;
-  agreement with any particular book is not on offer.
-- **It is best-effort.** If Overpass cannot be reached the rows simply keep a
-  blank elevation and the analysis runs regardless, so a blank means "nobody
-  could say" rather than "something broke". The lookup also stops waiting after
-  eight seconds, because a pasted list waits on it before any forecast starts.
-  Those seconds are split evenly between the two mirrors described below, so a
-  busy first mirror leaves the second its turn rather than the whole wait. The
-  even split is a starting point: the second mirror's share is not measured
-  yet, and the Overpass metrics count the lookup's attempts apart from
-  discovery's so that it can be.
+  agreement with any particular book is not on offer. The tiles are rebuilt
+  weekly, so an `ele` tag edited in the last week or so reaches a pasted row
+  only through the Overpass lookup, which is asked only about the rows the
+  tiles could not place.
+- **It is best-effort.** If neither source can be reached the rows simply
+  keep a blank elevation and the analysis runs regardless, so a blank means
+  "nobody could say" rather than "something broke". The server's response
+  says which it was: `elevation_lookup_complete` is false when its lookup
+  gave up, so the app asks once more a little later, and true when a blank
+  means no peak within the radius. That lookup stops waiting at a deadline,
+  split evenly between the two mirrors described below, so a busy first mirror
+  leaves the second its turn rather than the whole wait. No row waits on
+  either source: the app asks as soon as the coordinates box holds rows, an
+  analysis sends the server the elevations it has learned and asks it for no
+  lookup of its own, the table lands when the forecasts do, and until a row's
+  answer arrives its Elevation cell and the cells read at that elevation tick,
+  the way the Wildfire column does while its check runs. The deadline is
+  therefore how long those cells may tick, and it gives each mirror the time a
+  busy one was measured to need (9 to 15 s on 2026-10-06) rather than a slice
+  neither met. The Overpass metrics count the lookup's attempts apart from
+  discovery's, so the share can be re-measured.
 
 An elevation you supply yourself in the API's `elevation_ft` is never
 overwritten by this.
@@ -602,6 +626,20 @@ publishes no quota and asks for nothing but the OpenStreetMap credit, which
 arrives through the tile server's own TileJSON and is drawn in the map's corner
 control rather than by the app. The tiles carry OpenStreetMap data under the
 ODbL, which is why that credit links to OpenStreetMap's copyright page.
+
+The same tiles are the first source of a pasted coordinate's elevation
+([above](#openstreetmap)): when the coordinates box holds rows, the browser
+reads the zoom-14 tile under each point and any neighbour within the match
+radius, and decodes the peak layer itself. That is one to four small static
+files a row, the same files the map would load if you zoomed to the point,
+read from the dated tile path the TileJSON names so a repeat comes from the
+browser's cache; a 100-row list reads about 135 tiles and 350 KB. It is the
+reader's own use of the map data, not a bulk collection of it, and the
+elevation it yields is the same OSM number the map already draws beside the
+summit. If the TileJSON or a tile cannot be read the rows go to the server's
+lookup instead, and nothing is said about it. What the lookup relies on in
+those tiles, and what happens when OpenFreeMap changes one of those things, is
+[record 0115](decisions/0115-elevation-lookup-depends-on-openfreemap-zoom-14-peaks.md).
 
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each

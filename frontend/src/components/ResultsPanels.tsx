@@ -65,6 +65,8 @@ export interface ResultsPanelsProps {
   fire: FireProximity
   /** The closure check (`useClosureProximity`). */
   closure: ClosureProximity
+  /** The committed rows whose elevation lookup is still out (`useAnalyze`, #673). */
+  pendingHeights: ReadonlySet<string>
   /** The model the report was analyzed under. */
   modelId: string
   /** A pending row's remove button, and a row's press that centres the map on it. */
@@ -98,6 +100,7 @@ export default function ResultsPanels({
   movePlayheadTo,
   fire,
   closure,
+  pendingHeights,
   modelId,
   onRemovePending,
   onFocusResult,
@@ -265,6 +268,7 @@ export default function ResultsPanels({
               closureWarnings={closure.warnings}
               closureUncovered={closure.uncovered}
               closureStatus={closure.status}
+              pendingHeights={pendingHeights}
               pending={pending}
               onRemove={removeResult}
               onRemovePending={onRemovePending}

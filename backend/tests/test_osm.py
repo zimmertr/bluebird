@@ -12,7 +12,7 @@ from prometheus_client import REGISTRY
 
 from app import ratelimit
 from app.models import DestinationType, GeoPolygon, bbox_area_km2
-from app.services import osm
+from app.services import cache, osm
 from app.services.errors import UpstreamError
 
 POLY = GeoPolygon(
@@ -537,6 +537,7 @@ async def test_a_budget_shed_does_not_cool_the_mirror(monkeypatch):
 # a live Overpass call. These tests are the ones that mean to exercise it, so
 # they hold the real function, captured at import time before that fixture runs.
 _enrich_custom = osm.enrich_custom
+_enrich_custom_reporting = osm.enrich_custom_reporting
 
 
 # ~110 m and ~1.1 km north of the probe point: inside and outside the match
@@ -642,6 +643,36 @@ async def test_enrich_custom_degrades_rather_than_raising_on_budget_exhaustion(m
     assert row["elevation_ft"] is None
 
 
+async def test_a_reset_connection_is_logged_as_what_it_was(monkeypatch, caplog):
+    # A reset carries no message, and the empty-message fallback used to call
+    # it a timeout (2026-10-07, overpass-api.de resetting every TLS handshake).
+    _script(monkeypatch, [ConnectionResetError(), fake_response({"elements": []})])
+    with caplog.at_level(logging.WARNING, logger="app.services.osm"):
+        await osm._post_with_fallback("q")
+    assert any("failed: ConnectionResetError" in r.message for r in caplog.records)
+    assert not any("no answer within" in r.message for r in caplog.records)
+
+
+# #673: a null elevation says "no peak here" only when the lookup finished.
+async def test_enrich_custom_reporting_says_whether_the_lookup_finished(monkeypatch):
+    _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0)])
+    rows, complete = await _enrich_custom_reporting([_row(47.0, -121.0), _row(48.0, -122.0)])
+    assert complete is True
+    assert [r["elevation_ft"] for r in rows] == [3281.0, None]
+
+    async def saturated(query, on_status=None, **_kwargs):
+        raise ratelimit.BudgetExhausted("OpenStreetMap (Overpass)")
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", saturated)
+    cache.ENRICH_CACHE.clear()
+    rows, complete = await _enrich_custom_reporting([_row(49.0, -123.0)])
+    assert complete is False
+    assert rows[0]["elevation_ft"] is None
+    # A list with nothing to look up finished before it started.
+    rows, complete = await _enrich_custom_reporting([_row(49.0, -123.0, elevation_ft=100.0)])
+    assert complete is True
+
+
 async def test_enrich_custom_does_not_mutate_the_rows_it_was_given(monkeypatch):
     _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0)])
     original = _row(47.0, -121.0)
@@ -687,11 +718,13 @@ async def test_enrich_custom_queries_peaks_and_volcanoes_within_the_radius(monke
     assert "volcano" in query
 
 
-def test_enrich_deadline_is_the_measured_eight_seconds():
-    # Half the primary's healthy answers land under 5s and its "too busy"
-    # arrives after 8-16s (2026-09-30), which is where the note in
-    # osm/enrich.py puts the line. Re-measure before changing.
-    assert osm.ENRICH_DEADLINE_S == 8.0
+def test_enrich_deadline_is_twelve_seconds_a_mirror():
+    # No row waits on the lookup since #673, so the deadline is what a busy
+    # mirror needs to answer at all: 9 to 15s measured on 2026-10-06, which
+    # the 4s slice of an 8s deadline never reached. The note in osm/enrich.py
+    # has the numbers. Re-measure before changing.
+    assert osm.ENRICH_DEADLINE_S == 24.0
+    assert osm.ENRICH_DEADLINE_S / len(osm.mirrors.OVERPASS_MIRRORS) == 12.0
 
 
 def _count(name: str, **labels: str) -> float:
@@ -835,8 +868,8 @@ async def test_the_enrichment_query_asks_each_server_for_its_slice(monkeypatch):
     # The server stops working when the pod stops waiting, as on discovery.
     fake = _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
     await _enrich_custom([_row(47.0, -121.0)])
-    assert [b.splitlines()[0] for b in fake.bodies] == ["[out:json][timeout:4];"] * 2
-    assert fake.timeouts == [4.0, 4.0]
+    assert [b.splitlines()[0] for b in fake.bodies] == ["[out:json][timeout:12];"] * 2
+    assert fake.timeouts == [12.0, 12.0]
 
 
 async def test_discovery_keeps_the_mirror_table_timeouts(monkeypatch):

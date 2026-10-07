@@ -1,4 +1,6 @@
 import type { DestinationResult, DiscoveredDestination, HourlySeries } from '../types'
+import { type IdentityMap, NO_IDENTITY } from '../utils/elevationLookup'
+import type { ElevationLookup } from '../hooks/useElevationLookup'
 import type { AnalyzedView } from '../hooks/analyzeTypes'
 import type { Capabilities, ForecastModelOption } from '../hooks/useCapabilities'
 import { NO_CONSTRAINTS } from '../utils/constraints'
@@ -348,4 +350,13 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
     cloudFetched: false,
     ...over,
   }
+}
+
+/**
+ * The paste-time elevation lookup as a test hands it to an analysis (#673):
+ * what it knows, as of now and of the last render alike, with nothing still
+ * being asked about.
+ */
+export function elevationLookup(identity: IdentityMap = NO_IDENTITY): ElevationLookup {
+  return { identity, latest: () => identity, inquiring: new Set() }
 }

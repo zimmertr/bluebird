@@ -5,6 +5,7 @@ import { analyzedView } from '../utils/analysisSnapshot'
 import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { discoveryKeys } from '../utils/present'
 import { resultRow } from '../testSupport/fixtures'
+import { geoKey } from '../utils/points'
 
 const ROWS = [resultRow({ name: 'A' }), resultRow({ name: 'B', latitude: 47 })]
 const DATA = { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2 }
@@ -101,6 +102,41 @@ describe('useAnalysisReport', () => {
     act(() => result.current.commitArriving(DATA, ROWS, VIEW))
     act(() => result.current.discard())
     expect(result.current).toMatchObject({ response: null, universe: null, analyzed: null })
+  })
+
+  // #673: the lookup's answer lands on the committed report in place.
+  it('lands a patch on the committed report, and on what a discard puts back', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    const key = geoKey(ROWS[0].latitude, ROWS[0].longitude)
+    act(() => result.current.commit(DATA, ROWS, VIEW, new Set([key])))
+    expect([...result.current.pendingHeights]).toEqual([key])
+    const patched = { ...ROWS[0], elevation_ft: 6000 }
+    const view = { ...VIEW, snowAnalysisDate: '2026-07-19' }
+    act(() => result.current.patch([patched], view))
+    expect(result.current.universe?.[0]).toBe(patched)
+    expect(result.current.universe?.[1]).toBe(ROWS[1])
+    expect(result.current.response?.results[0]).toBe(patched)
+    expect(result.current.analyzed).toBe(view)
+    expect(result.current.pendingHeights.size).toBe(0)
+    expect(result.current.analysisSeq).toBe(1)
+    const partial = { results: [resultRow({ name: 'C', latitude: 40 })], total_queried: 9, total_matched: 9 }
+    act(() => {
+      result.current.commitArriving(partial, partial.results, VIEW)
+      result.current.discard()
+    })
+    expect(result.current.universe?.[0]).toBe(patched)
+  })
+
+  it('clears the waiting rows with the report, and takes no patch over no report', () => {
+    const { result } = renderHook(() => useAnalysisReport())
+    act(() => result.current.commit(DATA, ROWS, VIEW, new Set(['a'])))
+    act(() => result.current.clear())
+    expect(result.current.pendingHeights.size).toBe(0)
+    act(() => result.current.patch([ROWS[0]], VIEW))
+    expect(result.current.universe).toBeNull()
+    act(() => result.current.commit(DATA, ROWS, VIEW, new Set(['a'])))
+    act(() => result.current.settleHeights())
+    expect(result.current.pendingHeights.size).toBe(0)
   })
 
   it('clears the report and keeps the counters', () => {

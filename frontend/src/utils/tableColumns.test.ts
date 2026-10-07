@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { resultRow } from '../testSupport/fixtures'
 import {
   CLOSURE_COL,
   CLOSURE_KEY,
@@ -17,6 +18,10 @@ import {
   orderColumns,
   visibleColumns,
   withModelColumn,
+  heightDependentKey,
+  TERRAIN_HEIGHT_MARK,
+  TERRAIN_HEIGHT_NOTE,
+  readAtTerrainHeight,
 } from './tableColumns'
 import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
@@ -356,6 +361,21 @@ describe('WILDFIRE_COL', () => {
   })
 })
 
+// #673: the cells a row cannot print until its elevation lookup answers.
+describe('heightDependentKey', () => {
+  it('names the elevation and every wind, temperature, cloud and snow column', () => {
+    for (const key of ['elevation_ft', 'wind_max_mph', 'temp_min_f', 'cloud_deck_avg_ft', 'snow_depth_in']) {
+      expect(heightDependentKey(key)).toBe(true)
+    }
+  })
+
+  it('leaves the identity, the flag columns and the metrics that stand at no elevation', () => {
+    for (const key of ['name', 'type', 'precip_total_in', 'aqi_max', 'freeze_min_ft', WILDFIRE_KEY, CLOSURE_KEY, MODEL_KEY]) {
+      expect(heightDependentKey(key)).toBe(false)
+    }
+  })
+})
+
 describe('CLOSURE_COL', () => {
   it('carries the approved label under its virtual key', () => {
     expect(CLOSURE_COL.key).toBe(CLOSURE_KEY)
@@ -571,5 +591,24 @@ describe('a new metric family needs no second list', () => {
     for (const col of collapsed) {
       expect(col.label.startsWith(NOUN[familyOf(col.key as string)])).toBe(true)
     }
+  })
+})
+
+// A place with no recorded elevation shows the terrain height its numbers were
+// read at (decision 0116). One predicate for the table and the file, a dagger
+// so the note cannot be confused with the model coverage note's asterisk, and
+// the maintainer's words after it.
+describe('the terrain height mark', () => {
+  it('names a row with no recorded elevation and a terrain height, and no other', () => {
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: null, terrain_ft: 7119 }))).toBe(true)
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: 7300, terrain_ft: 7119 }))).toBe(false)
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: null }))).toBe(false)
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: null, terrain_ft: null }))).toBe(false)
+  })
+
+  it('opens the note with the dagger and uses no dash', () => {
+    expect(TERRAIN_HEIGHT_MARK).toBe('†')
+    expect(TERRAIN_HEIGHT_NOTE.startsWith(`${TERRAIN_HEIGHT_MARK} `)).toBe(true)
+    expect(TERRAIN_HEIGHT_NOTE).not.toMatch(/[—–]/)
   })
 })

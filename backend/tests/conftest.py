@@ -122,7 +122,11 @@ def _no_live_enrichment(monkeypatch):
     async def passthrough(destinations):
         return [dict(d) for d in destinations]
 
+    async def passthrough_reporting(destinations):
+        return [dict(d) for d in destinations], True
+
     monkeypatch.setattr(osm, "enrich_custom", passthrough)
+    monkeypatch.setattr(osm, "enrich_custom_reporting", passthrough_reporting)
 
 
 @pytest.fixture(autouse=True)

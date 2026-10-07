@@ -396,7 +396,10 @@ async def discovery_in_flight(request: Request) -> AsyncIterator[ApiError | None
     `POST /api/destinations` and one from an analyze route queue behind each
     other: both spend the same pod-wide Overpass slots. Yielded rather than
     raised because an analyze stream is already open when its discovery
-    starts, and it reports the refusal as its terminal event.
+    starts, and it reports the refusal as its terminal event; the
+    destinations route raises it, around its discovery and its custom list's
+    lookup alone, so a request that asks Overpass nothing takes no slot
+    (#673).
     """
     key = client_key(request)
     async with DESTINATIONS_IN_FLIGHT.slot(key) as admitted:
@@ -404,19 +407,6 @@ async def discovery_in_flight(request: Request) -> AsyncIterator[ApiError | None
             yield None
         else:
             yield _refusal(DESTINATIONS_IN_FLIGHT.name, request, key, SHED_RETRY_AFTER_S)
-
-
-async def destinations_in_flight(request: Request) -> AsyncIterator[None]:
-    """Route dependency: one discovery in flight per client key.
-
-    Listed after the bucket, so a request the bucket refuses never queues.
-    Held for the whole request because custom destinations are resolved
-    against Overpass too, not only a polygon's discovery.
-    """
-    async with discovery_in_flight(request) as refused:
-        if refused is not None:
-            raise refused
-        yield
 
 
 async def geocode_rate_limit(request: Request) -> None:

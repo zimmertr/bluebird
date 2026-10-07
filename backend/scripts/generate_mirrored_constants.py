@@ -46,6 +46,7 @@ from app.services.aggregation import (
 )
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.openmeteo_fetch import BATCH_SIZE, MAX_CONCURRENT_BATCHES
+from app.services.osm.enrich import CUSTOM_MATCH_RADIUS_M
 from app.services.snodas import SNOW_DEPTH_CEILING_IN
 from app.services.weather import (
     N_CLOUD_VARIABLES,
@@ -78,6 +79,12 @@ def render() -> str:
             # only the fallback until /api/capabilities answers (#619).
             "MAX_POLYGON_POINTS": MAX_POLYGON_POINTS,
             "COARSE_OFFSET_DEG": COARSE_OFFSET_DEG,
+            # How far a pasted coordinate may stand from the peak it is
+            # matched to. The browser matches from the basemap's tiles first
+            # and the pod from Overpass second (#673), and the two must reach
+            # the same distance or a row the tiles leave would be one the pod
+            # places by a longer arm, or the other way round.
+            "CUSTOM_MATCH_RADIUS_M": CUSTOM_MATCH_RADIUS_M,
             "PAST_DATA_DAYS": PAST_DATA_DAYS,
             "PAST_LIMIT_SLACK_DAYS": PAST_LIMIT_SLACK_DAYS,
             "FUTURE_LIMIT_SLACK_DAYS": FUTURE_LIMIT_SLACK_DAYS,

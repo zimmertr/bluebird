@@ -83,6 +83,20 @@ class DestinationsRequest(_DiscoveryFields):
             "reports `truncated: true` and the pre-cut count in `total_found`."
         ),
     )
+    elevation_lookup: bool = Field(
+        default=True,
+        description=(
+            "Whether to look up the elevation and OSM id of each "
+            "`custom_destinations` row sent without an `elevation_ft`. "
+            "`false` skips the map server: those rows come back as sent, with "
+            "today's snow depth, in milliseconds, and a request that also "
+            "discovers nothing takes no discovery slot. The bundled web app "
+            "sends `false` from an analysis, because it looks its rows up "
+            "itself as they are pasted, from the basemap's own tiles first and "
+            "this endpoint second, and `elevation_lookup_complete` is then "
+            "true only when no row needed a lookup."
+        ),
+    )
 
 
 class DiscoveredDestination(BaseModel):
@@ -148,4 +162,15 @@ class DestinationsResponse(BaseModel):
     )
     snow_analysis_date: str | None = Field(
         default=None, description=_SNOW_DATE_DESCRIPTION
+    )
+    elevation_lookup_complete: bool = Field(
+        default=True,
+        description=(
+            "Whether every `custom_destinations` row sent without an "
+            "`elevation_ft` was looked up, matched to a peak or not. False "
+            "when the map server was busy or unreachable and the lookup gave "
+            "up, in which case those rows come back exactly as sent and asking "
+            "again later may place them; a null elevation under true means no "
+            "peak stands within the match radius."
+        ),
     )

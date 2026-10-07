@@ -1,8 +1,8 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useId, useMemo, useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { selectionState } from '../utils/chartData'
-import { MODEL_KEY, SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
+import { MODEL_KEY, SortDir, SortKey, TERRAIN_HEIGHT_NOTE, displayedColumns, readAtTerrainHeight, ColDef } from '../utils/tableColumns'
 import { checkRunning, type FireProximityStatus, type FireWarning } from '../utils/fireProximity'
 import type { ClosureProximityStatus, ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
@@ -11,7 +11,7 @@ import { pendingChartRow, rankText, rowKeys } from '../utils/resultsCells'
 import { useChartBox } from '../hooks/useChartBox'
 import { TEXT } from '../styles'
 import ResultsTableHeader from './ResultsTableHeader'
-import ResultsTableRow, { FireClock, PendingRow } from './ResultsTableRow'
+import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, PendingRow } from './ResultsTableRow'
 
 // Hoisted so a table with no widths set hands every row the same empty map,
 // which is what lets a memoized row skip.
@@ -79,6 +79,10 @@ interface Props {
   closureWarnings: Map<string, ClosureWarning>
   closureUncovered: Set<string>
   closureStatus: ClosureProximityStatus
+  // Rows, by `geoKey`, whose elevation lookup is still out (#673): their
+  // elevation and every cell read at the destination's height tick the
+  // flag columns' dots until it answers. One set per report, like the maps.
+  pendingHeights: ReadonlySet<string>
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
   // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
@@ -132,6 +136,7 @@ function ResultsTable({
   closureWarnings,
   closureUncovered,
   closureStatus,
+  pendingHeights,
   pending,
   onRemovePending,
   onRemove,
@@ -155,9 +160,10 @@ function ResultsTable({
     [columns, pointSample, sortBy],
   )
 
-  // One clock for both flag columns, running while EITHER check waits; each
-  // cell decides from its own check whether to show the frame.
-  const checksLoading = checkRunning(fireStatus) || checkRunning(closureStatus)
+  // One clock for both flag columns and the height-read cells, running while
+  // ANY of them waits; each cell decides from its own state whether to show
+  // the frame.
+  const checksLoading = checkRunning(fireStatus) || checkRunning(closureStatus) || pendingHeights.size > 0
 
   // The leading checkbox column only appears once an analysis has returned
   // series to chart; rows without series (e.g. pinned search forecasts) render
@@ -175,7 +181,30 @@ function ResultsTable({
   )
   const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
 
-  const footnote = orderedColumns.some((c) => c.key === MODEL_KEY) ? partialNote : null
+  // The lines under the table, each explaining a mark on a column it is drawn
+  // with: the model coverage note while the Model column is (#508), and the
+  // terrain height note while the Elevation column is and a row on display
+  // shows one (#673, decision 0116).
+  // A row still ticking for its lookup shows no mark yet, so it raises no note.
+  const terrainShown = useMemo(
+    () => results.some((r) => readAtTerrainHeight(r) && !pendingHeights.has(geoKey(r.latitude, r.longitude))),
+    [results, pendingHeights],
+  )
+  // Each note has an id the marks on its column link to, built from one
+  // `useId` so two tables on a page cannot share a target.
+  const noteBase = useId()
+  const noteTargets = useMemo<NoteTargets>(
+    () => ({ model: `${noteBase}-model-note`, terrain: `${noteBase}-terrain-note` }),
+    [noteBase],
+  )
+  const footnotes = useMemo(() => {
+    const notes: { id: string; text: string }[] = []
+    if (partialNote && orderedColumns.some((c) => c.key === MODEL_KEY)) notes.push({ id: noteTargets.model, text: partialNote })
+    if (terrainShown && orderedColumns.some((c) => c.key === 'elevation_ft')) {
+      notes.push({ id: noteTargets.terrain, text: TERRAIN_HEIGHT_NOTE })
+    }
+    return notes
+  }, [orderedColumns, partialNote, terrainShown, noteTargets])
 
   // Every data cell is sized by the same widths the header resizes.
   const widths = columnWidths ?? NO_WIDTHS
@@ -207,6 +236,7 @@ function ResultsTable({
           onChartRange={onChartRange}
         />
         <tbody>
+          <NoteTargetsContext.Provider value={noteTargets}>
           <FireClock running={checksLoading}>
             {pending?.map((d) => {
               const charted = showChartCol && (isCharted?.(pendingChartRow(d)) ?? false)
@@ -245,6 +275,7 @@ function ResultsTable({
                   closureStatus={closureStatus}
                   closureWarning={closureWarnings.get(at)}
                   closureUncovered={closureUncovered.has(at)}
+                  heightPending={pendingHeights.has(at)}
                   chartBox={showChartCol ? chartBox : undefined}
                   charted={charted}
                   chartColor={charted ? chartColor?.(row) : undefined}
@@ -270,8 +301,9 @@ function ResultsTable({
               </tr>
             )}
           </FireClock>
+          </NoteTargetsContext.Provider>
         </tbody>
-        {footnote && (
+        {footnotes.length > 0 && (
           <tfoot>
             <tr>
               {/* A table row rather than a line after the table, for the
@@ -281,7 +313,18 @@ function ResultsTable({
                   soon as a wide comparison table is scrolled sideways, which
                   every one on a phone is. */}
               <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
-                <div className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>{footnote}</div>
+                {footnotes.map((note) => (
+                  // Focusable so a mark's link can land a reader on it; out of
+                  // the Tab order, since nothing on it acts.
+                  <div
+                    key={note.id}
+                    id={note.id}
+                    tabIndex={-1}
+                    className={`sticky left-0 w-[100cqi] px-3 first:pt-1.5 last:pb-1.5 ${TEXT.micro}`}
+                  >
+                    {note.text}
+                  </div>
+                ))}
               </td>
             </tr>
           </tfoot>

@@ -4,6 +4,7 @@ import type { AnalyzedView } from './analyzeTypes'
 import { NOUN, familyOf, isSnapshotFamily } from '../metrics'
 import { snapshotCaption, windowCaption } from '../utils/calendar'
 import { pendingDestinations } from '../utils/customList'
+import type { IdentityMap } from '../utils/elevationLookup'
 import { type Place, placeType } from '../utils/geocode'
 import { geoKey } from '../utils/points'
 import { type PresentationKnobs, presentResults } from '../utils/present'
@@ -41,6 +42,9 @@ export interface PresentedReportInputs {
   activeRemovedKeys: ReadonlySet<string>
   places: Place[]
   csvRows: CustomDestination[]
+  // What the paste-time lookup has learned (#673), so a pending row shows
+  // its elevation before any analysis.
+  identity: IdentityMap
   /** The header sort a link carried, read once at mount. */
   restoredTableSort: { key: SortKey; desc: boolean } | null
 }
@@ -67,6 +71,7 @@ export function usePresentedReport({
   activeRemovedKeys,
   places,
   csvRows,
+  identity,
   restoredTableSort,
 }: PresentedReportInputs) {
   // Remembers each row's real identity (type + osm_id) by coordinate: from
@@ -217,8 +222,9 @@ export function usePresentedReport({
         places,
         coverage?.customKeys ?? NO_CUSTOM,
         activeRemovedKeys,
+        identity,
       ),
-    [csvRows, places, coverage, activeRemovedKeys],
+    [csvRows, places, coverage, activeRemovedKeys, identity],
   )
 
   // The table bar's row count: shown, of what the knobs admit, and (only when

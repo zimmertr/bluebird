@@ -4,7 +4,7 @@ import { discoveryBase } from './clientAnalyze'
 import { NO_CONSTRAINTS } from './constraints'
 import { geoKey } from './points'
 import { discoveryKeys } from './present'
-import { place, resultRow } from '../testSupport/fixtures'
+import { elevationLookup, place, resultRow } from '../testSupport/fixtures'
 import type { GeoPolygon } from '../types'
 
 const RING: GeoPolygon = {
@@ -21,6 +21,7 @@ function inputs(over: Partial<AnalyzeInputs> = {}): AnalyzeInputs {
     kind: 'days',
     window: WINDOW,
     polygon: RING,
+    identity: elevationLookup(),
     destinationTypes: ['peak'],
     includeUnnamedPeaks: false,
     csvRows: [],
