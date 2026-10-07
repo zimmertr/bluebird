@@ -222,7 +222,10 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     },
     field: universe,
     held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed, columns),
-    pending: new Set(columns.keys()),
+    // Only while an answer is still coming: a run that waited for the lookup
+    // holds the columns of the rows it could not place for a later run, and
+    // those rows have nothing left to wait for.
+    pending: late ? new Set(columns.keys()) : new Set(),
     // The lookup's `then` above has run by the time the patch resolves, so
     // the date rides with it rather than through a second callback.
     late: late && late.then((patch) => ({ ...patch, snowAnalysisDate })),

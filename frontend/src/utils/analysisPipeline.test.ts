@@ -206,6 +206,23 @@ describe('runAnalysisPipeline', () => {
     expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: '2026-07-19' })
   })
 
+  it('names no row as waiting when the ranking already waited for the lookup', async () => {
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    const held = new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]])
+    ranked.mockResolvedValueOnce({
+      response: { results: [], total_queried: 1, total_matched: 1 },
+      universe: [],
+      aqiFailed: new Set<string>(),
+      columns: held,
+      late: null,
+    })
+    const out = await runAnalysisPipeline(REQUEST, options())
+    expect(out.pending.size).toBe(0)
+    expect(out.late).toBeNull()
+    // The columns are still held for a later run's lookup.
+    expect(out.held.columns).toBe(held)
+  })
+
   it('hands a ring no lookup: discovery already answered', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     await runAnalysisPipeline(REQUEST, options())
