@@ -105,11 +105,13 @@ def client_address(request: Request) -> str:
     leftmost is whatever the client typed (rotating it must not mint a fresh
     bucket per request). The Cloudflare Tunnel (#148) is the only inbound
     path from the internet, so no request from outside reaches a pod without
-    Cloudflare overwriting the header. A device on the home network that
-    sends its request straight to the gateway, or a caller already inside
-    the cluster, can still set it (#631), which is why the pod-wide upstream
-    budgets stay a backstop: they do not care who a caller claims to be
-    (``docs/TRAFFIC.md``).
+    Cloudflare overwriting the header. The gateway removes it from every
+    request that did not come through the tunnel, so a device on the home
+    network that sends its request straight to the gateway is counted under
+    the address the gateway saw (#631, record 0109). Only a caller inside
+    the cluster, or one routed into the pod network, can still set it, which
+    is why the pod-wide upstream budgets stay a backstop: they do not care
+    who a caller claims to be (``docs/TRAFFIC.md``).
     """
     cf = request.headers.get("cf-connecting-ip")
     if cf:
