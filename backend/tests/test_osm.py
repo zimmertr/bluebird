@@ -789,13 +789,27 @@ async def test_after_a_busy_lookup_the_next_list_starts_on_the_backup(monkeypatc
 
 
 async def test_a_deadline_cut_moves_the_mirror_behind_the_next(monkeypatch):
-    # The caller's deadline ended the attempt, but the mirror still did not
-    # answer in the time it had, so the next call should not wait on it first.
+    # The caller's deadline ended a sliced attempt, but the mirror still did
+    # not answer in the time it had, so the next call should not wait on it
+    # first. The slice is longer than the cut, so the cut is what ends it.
     _script(monkeypatch, [_stall])
     with pytest.raises(TimeoutError):
         async with asyncio.timeout(0.05):
-            await osm._post_with_fallback("q")
+            await osm._post_with_fallback("q", path="enrichment", attempt_timeout_s=25.0)
     assert [m.url for m in osm._attempt_order()] == [SECONDARY, PRIMARY]
+
+
+async def test_a_cancelled_discovery_does_not_cool_the_mirror(monkeypatch):
+    # Discovery runs no slice, so what cancels it is a caller going away (an
+    # analyze stream whose client disconnected), which says nothing about the
+    # mirror it was waiting on.
+    _script(monkeypatch, [_stall])
+    task = asyncio.create_task(osm._post_with_fallback("q"))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert [m.url for m in osm._attempt_order()] == [PRIMARY, SECONDARY]
 
 
 async def test_a_cut_while_queued_for_a_slot_does_not_cool_the_mirror(monkeypatch):
