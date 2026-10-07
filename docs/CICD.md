@@ -957,9 +957,11 @@ cache keys, which fed straight into the budget problem below. The trade is that
 a branch pushed with no pull request open gets no checks until one is opened.
 Every check branch protection requires is a `pull_request` check anyway.
 
-Branch protection requires five contexts: `Python Lint`, `Docker Build`,
-`Frontend Typecheck & Tests`, `Backend Tests` and `Browser Smoke & Axe`
-(read from the branch protection API on 2026-10-01). **A job here cannot be
+Branch protection requires seven contexts: `Python Lint`, `Docker Build`,
+`Frontend Typecheck & Tests`, `Backend Tests`, `Browser Smoke & Axe`,
+`PR Title` and `Lighthouse Budgets` (read from the branch protection API on
+2026-10-06; `Lighthouse Budgets` joined the list that day under #375, after
+54 passes and 0 failures over its first 60 PR runs). **A job here cannot be
 renamed or deleted on its own**: branch protection matches the name exactly,
 and a name it requires that no longer reports strands every open pull request.
 `Aggregation vectors in sync` was required too from 2026-09-15 until #380 deleted
@@ -1182,8 +1184,15 @@ flowchart LR
   weather report: every third-party host is blocked (a gate that goes red when
   OpenFreeMap is slow teaches everyone to ignore it), and the default mobile
   preset is used, whose throttling is a simulation and therefore reproducible to
-  the millisecond. It reports as `Lighthouse Budgets`, and adding it to branch
-  protection is a manual step in the repository settings. It also asserts the
+  the millisecond. It reports as `Lighthouse Budgets` and is a required check
+  (#375, 2026-10-06), which is what closes the one path around it: a
+  Dependabot patch bump arms auto-merge, and GitHub completes that on `main`'s
+  required checks alone, so before this a bump that crossed a budget could
+  merge and release with the job red. It became required only after its
+  spread was measured, and the measurement is in the comment at the top of
+  `lighthouserc.js`: every byte budget identical to the byte across 12 CI
+  runs, the timing medians well inside theirs, and 54 passes with 0 failures
+  over the 60 PR runs before that. It also asserts the
   **accessibility category** as an error, because that score is a set of pass
   or fail markup checks rather than a timing curve.
 - `pr.yml`'s **Browser Smoke & Axe** job (issue #412) also runs after
@@ -1214,8 +1223,8 @@ flowchart LR
   `backend/tests/test_release_titles.py` holds them to the table the engine was
   run on. It needs no secret, so fork and Dependabot PRs run it the same way.
   Each run notes the bump the merge will release, and a major as a warning.
-  It is not a required check; adding it to branch protection is a manual step
-  in each repository's settings.
+  It is a required check in this repository (read from the branch protection
+  API on 2026-10-06); adding it is a manual step in each repository's settings.
 - `pr-preview.yml` runs under **`pull_request_target`** (so it can reach the base
   repo's secrets to push images) behind a **hard same-repo gate** — fork PRs
   never execute with secrets. It builds `zimmertr/bluebird-pr:pr-<N>-<head_sha>`,
