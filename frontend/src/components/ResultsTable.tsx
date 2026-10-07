@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useId, useMemo, useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { selectionState } from '../utils/chartData'
@@ -11,7 +11,7 @@ import { pendingChartRow, rankText, rowKeys } from '../utils/resultsCells'
 import { useChartBox } from '../hooks/useChartBox'
 import { TEXT } from '../styles'
 import ResultsTableHeader from './ResultsTableHeader'
-import ResultsTableRow, { FireClock, PendingRow } from './ResultsTableRow'
+import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, PendingRow } from './ResultsTableRow'
 
 // Hoisted so a table with no widths set hands every row the same empty map,
 // which is what lets a memoized row skip.
@@ -190,12 +190,21 @@ function ResultsTable({
     () => results.some((r) => readAtTerrainHeight(r) && !pendingHeights.has(geoKey(r.latitude, r.longitude))),
     [results, pendingHeights],
   )
+  // Each note has an id the marks on its column link to, built from one
+  // `useId` so two tables on a page cannot share a target.
+  const noteBase = useId()
+  const noteTargets = useMemo<NoteTargets>(
+    () => ({ model: `${noteBase}-model-note`, terrain: `${noteBase}-terrain-note` }),
+    [noteBase],
+  )
   const footnotes = useMemo(() => {
-    const notes: string[] = []
-    if (partialNote && orderedColumns.some((c) => c.key === MODEL_KEY)) notes.push(partialNote)
-    if (terrainShown && orderedColumns.some((c) => c.key === 'elevation_ft')) notes.push(TERRAIN_HEIGHT_NOTE)
+    const notes: { id: string; text: string }[] = []
+    if (partialNote && orderedColumns.some((c) => c.key === MODEL_KEY)) notes.push({ id: noteTargets.model, text: partialNote })
+    if (terrainShown && orderedColumns.some((c) => c.key === 'elevation_ft')) {
+      notes.push({ id: noteTargets.terrain, text: TERRAIN_HEIGHT_NOTE })
+    }
     return notes
-  }, [orderedColumns, partialNote, terrainShown])
+  }, [orderedColumns, partialNote, terrainShown, noteTargets])
 
   // Every data cell is sized by the same widths the header resizes.
   const widths = columnWidths ?? NO_WIDTHS
@@ -227,6 +236,7 @@ function ResultsTable({
           onChartRange={onChartRange}
         />
         <tbody>
+          <NoteTargetsContext.Provider value={noteTargets}>
           <FireClock running={checksLoading}>
             {pending?.map((d) => {
               const charted = showChartCol && (isCharted?.(pendingChartRow(d)) ?? false)
@@ -291,6 +301,7 @@ function ResultsTable({
               </tr>
             )}
           </FireClock>
+          </NoteTargetsContext.Provider>
         </tbody>
         {footnotes.length > 0 && (
           <tfoot>
@@ -303,8 +314,15 @@ function ResultsTable({
                   every one on a phone is. */}
               <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
                 {footnotes.map((note) => (
-                  <div key={note} className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>
-                    {note}
+                  // Focusable so a mark's link can land a reader on it; out of
+                  // the Tab order, since nothing on it acts.
+                  <div
+                    key={note.id}
+                    id={note.id}
+                    tabIndex={-1}
+                    className={`sticky left-0 w-[100cqi] px-3 first:pt-1.5 last:pb-1.5 ${TEXT.micro}`}
+                  >
+                    {note.text}
                   </div>
                 ))}
               </td>

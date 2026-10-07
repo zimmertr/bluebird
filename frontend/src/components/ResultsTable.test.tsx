@@ -1,6 +1,6 @@
 import { Profiler, type ComponentProps, type ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
 import { displayedColumns, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
@@ -352,8 +352,12 @@ describe('a place with no recorded elevation', () => {
       { ...RAVEN, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 2 },
     ]
     render(<ResultsTable {...props({ results: rows, columns: withModelColumn(COLUMNS, true), partialNote: NOTE })} />)
-    const lines = [...document.querySelectorAll('tfoot div')].map((d) => d.textContent)
-    expect(lines).toEqual([NOTE, TERRAIN_HEIGHT_NOTE])
+    const divs = [...document.querySelectorAll('tfoot div')]
+    expect(divs.map((d) => d.textContent)).toEqual([NOTE, TERRAIN_HEIGHT_NOTE])
+    // Stacked without a blank line between: the stack wears one padding.
+    for (const d of divs) expect(d.classList).not.toContain('py-1.5')
+    expect(divs[0].classList).toContain('first:pt-1.5')
+    expect(divs[1].classList).toContain('last:pb-1.5')
   })
 
   // While the lookup may still answer, the cell ticks and the note waits: the
@@ -368,5 +372,38 @@ describe('a place with no recorded elevation', () => {
     rerender(table(NO_KEYS))
     expect(cellUnder(screen.getAllByRole('row')[2], 'Elevation').textContent).toBe('7,119†')
     expect(screen.getByText(TERRAIN_HEIGHT_NOTE)).toBeTruthy()
+  })
+})
+
+// A mark is a link to the line that explains it: the model coverage asterisk
+// and the terrain height dagger alike. The click scrolls the note into view
+// inside the results sheet and focuses it, and leaves the page's address
+// alone, since a hash is not part of the app's URL state.
+describe('a footnote mark', () => {
+  const RAVEN = resultRow({ name: 'Raven Ridge', latitude: 48.6, longitude: -120.9, elevation_ft: null, terrain_ft: 7119 })
+  const NOTE = "* Data is aggregated over a subset of the forecast window due to the model's limited range."
+  const rows = [
+    { ...ROWS[0], modelId: 'gfs_hrrr', modelLabel: 'NOAA HRRR', rank: 1, coverageEndMs: Date.UTC(2026, 8, 26, 9) },
+    { ...RAVEN, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 2 },
+  ]
+
+  it.each([
+    ['*', NOTE],
+    ['†', TERRAIN_HEIGHT_NOTE],
+  ])('%s links to its note, and a click lands the reader on it without moving the address', (glyph, text) => {
+    const scrolled = vi.fn()
+    Element.prototype.scrollIntoView = scrolled
+    render(<ResultsTable {...props({ results: rows, columns: withModelColumn(COLUMNS, true), partialNote: NOTE })} />)
+    const note = screen.getByText(text)
+    expect(note.id).not.toBe('')
+    expect(note.tabIndex).toBe(-1)
+    const link = screen.getByRole('link', { name: glyph })
+    expect(link.getAttribute('href')).toBe(`#${note.id}`)
+    expect(link.closest('sup')?.className).toBe(TABLE.mark)
+    const hash = window.location.hash
+    fireEvent.click(link)
+    expect(scrolled).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(note)
+    expect(window.location.hash).toBe(hash)
   })
 })

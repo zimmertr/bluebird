@@ -102,6 +102,54 @@ function ChartToggle({ row, on, color, box }: { row: DestinationResult; on: bool
 // asks `checkRunning` of its own check, so an answered column stays still.
 const FireFrame = createContext<string | null>(null)
 
+/**
+ * The ids of the table's two footnotes, so a mark on a cell can be a link to
+ * the line that explains it. The table provides them; a row drawn with no
+ * table around it (the tests) has none, and its marks are plain text.
+ */
+export interface NoteTargets {
+  model: string
+  terrain: string
+}
+export const NoteTargetsContext = createContext<NoteTargets | null>(null)
+
+// Takes a reader to a footnote without touching the page's address: the hash
+// a plain `#id` link would write is not part of the app's URL state, and the
+// results sheet is its own scroll box, so the note is scrolled into view and
+// focused where it stands, which also moves a screen reader to it.
+function jumpToNote(id: string) {
+  const note = document.getElementById(id)
+  if (!note) return
+  note.scrollIntoView({ block: 'nearest' })
+  note.focus({ preventScroll: true })
+}
+
+// A raised footnote mark that links to its line under the table. Its text is
+// the glyph alone, which is what a sighted reader sees, and the click lands a
+// screen reader on the sentence itself; the note is visible, so it is not one
+// of the hidden twins the `disabled-reason-twin` check counts.
+function FootnoteMark({ glyph, target }: { glyph: string; target: keyof NoteTargets }) {
+  const id = useContext(NoteTargetsContext)?.[target]
+  return (
+    <sup className={TABLE.mark}>
+      {id ? (
+        <a
+          href={`#${id}`}
+          className={LINK_ACTION}
+          onClick={(event) => {
+            event.preventDefault()
+            jumpToNote(id)
+          }}
+        >
+          {glyph}
+        </a>
+      ) : (
+        glyph
+      )}
+    </sup>
+  )
+}
+
 export function FireClock({ running, children }: { running: boolean; children: ReactNode }) {
   const [tick, setTick] = useState(0)
   useEffect(() => {
@@ -312,7 +360,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           isPartialRow(row) ? (
             <>
               {label}
-              <sup className={TABLE.mark}>*</sup>
+              <FootnoteMark glyph="*" target="model" />
             </>
           ) : (
             label
@@ -333,7 +381,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           key,
           <>
             {Number(row.terrain_ft).toLocaleString()}
-            <sup className={TABLE.mark}>{TERRAIN_HEIGHT_MARK}</sup>
+            <FootnoteMark glyph={TERRAIN_HEIGHT_MARK} target="terrain" />
           </>,
         )}
       </td>
