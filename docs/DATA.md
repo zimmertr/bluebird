@@ -634,7 +634,9 @@ browser's cache; a 100-row list reads about 135 tiles and 350 KB. It is the
 reader's own use of the map data, not a bulk collection of it, and the
 elevation it yields is the same OSM number the map already draws beside the
 summit. If the TileJSON or a tile cannot be read the rows go to the server's
-lookup instead, and nothing is said about it.
+lookup instead, and nothing is said about it. What the lookup relies on in
+those tiles, and what happens when OpenFreeMap changes one of those things, is
+[record 0115](decisions/0115-elevation-lookup-depends-on-openfreemap-zoom-14-peaks.md).
 
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each
