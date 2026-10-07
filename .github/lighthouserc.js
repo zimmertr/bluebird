@@ -25,6 +25,18 @@
  * because the simulation's inputs still include the runner's own CPU, and a
  * flaky gate is worse than no gate. Both are errors. Re-measure and move a
  * number when a change earns it; never widen one to make a red run green.
+ *
+ * This job is a required check on `main` (issue #375). It became one after
+ * its run-to-run spread was read off 12 CI runs, 36 audits, on 2026-10-06
+ * (Lighthouse 12.6.1, the amd64 runner, every budget at the values below):
+ * every byte value was identical to the byte in all 36; the per-run medians
+ * the gate reads ran FCP 3,479–3,637 ms, LCP 3,652–4,486 ms, TBT 8–45 ms
+ * and CLS 0.024 in every run; accessibility scored 1.0 in all 36. One single
+ * audit's TBT reached 2,097 ms, which is why the gate reads the median of
+ * three rather than any one run. Over the 60 PR runs before that (2026-09-24
+ * to 2026-09-30) the job passed 54 and failed 0; the other 6 were cancelled
+ * by concurrency. Nothing in that record earned a move from `error` to
+ * `warn`, so no assertion was relaxed to make the gate required.
  */
 module.exports = {
   ci: {
@@ -65,8 +77,9 @@ module.exports = {
         'largest-contentful-paint': ['error', { maxNumericValue: 6_000 }],
         'total-blocking-time': ['error', { maxNumericValue: 600 }],
         // 0.1 is the Core Web Vitals "good" boundary rather than a local
-        // measurement. The app sits at 0, and it stays there by giving every
-        // image its intrinsic size.
+        // measurement. The app measures 0.024 on the CI runner (every one of
+        // 36 audits, 2026-10-06), and it stays low by giving every image its
+        // intrinsic size.
         'cumulative-layout-shift': ['error', { maxNumericValue: 0.1 }],
 
         // The score moves with Lighthouse's own scoring curve, which changes
