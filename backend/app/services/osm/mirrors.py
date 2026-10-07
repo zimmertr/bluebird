@@ -378,17 +378,21 @@ async def _post_with_fallback(
                 log.warning("Overpass endpoint %s failed: %s", mirror.url, reason)
                 last_exc = exc
             except asyncio.CancelledError:
-                # The caller's deadline ended this attempt, not the mirror's
-                # timeout, so it is no outcome to count: "error" here would read
-                # as the mirror breaking, and a duration cut short by someone
-                # else's deadline would understate the mirror's latency. It
-                # still cools the mirror down, because the mirror did not answer
-                # in the time it was given and the next caller should start on
-                # another one (#655). Only an attempt whose request was in
-                # flight: a cut while queued for the slot asked the mirror
-                # nothing, the same as a shed.
+                # The caller ended this attempt, not the mirror's timeout, so it
+                # is no outcome to count: "error" here would read as the mirror
+                # breaking, and a duration cut short by someone else would
+                # understate the mirror's latency. A caller that runs a slice
+                # (the elevation lookup) cancels only on its own deadline, so
+                # there the cut means the mirror did not answer in the time it
+                # was given, and it cools down so the next caller starts on
+                # another one (#655). Without a slice the cancellation is a
+                # caller going away, such as an analyze stream whose client
+                # disconnected mid-discovery, which says nothing about the
+                # mirror. Only an attempt whose request was in flight either
+                # way: a cut while queued for the slot asked the mirror nothing,
+                # the same as a shed.
                 cancelled = True
-                if elapsed is not None:
+                if attempt_timeout_s is not None and elapsed is not None:
                     _last_failure[mirror.url] = _clock()
                 raise
             finally:

@@ -14,7 +14,7 @@ A pasted list's elevations come from one Overpass query that `enrich_custom` wra
 ## Decision
 
 - **A.** `_post_with_fallback` takes an optional `attempt_timeout_s` that replaces every mirror's `timeout_s` for one chain, in the attempt's `asyncio.timeout` total (#630) and in the `[timeout:N]` the query carries. The lookup passes `_attempt_timeout_s()`, which is `ENRICH_DEADLINE_S` over the number of mirrors: 4 s each with today's two. The 8 s deadline stays around the whole chain as its ceiling. Discovery passes nothing and keeps the table's 25 s.
-- **B.** An attempt the caller's cancellation ends while its request is in flight records the mirror's failure for `MIRROR_COOLDOWN_S`, so the next chain starts on another mirror. It still counts no metric outcome and observes no duration. A cut while queued for the mirror's slot records nothing, the same as a budget shed, because nothing was asked.
+- **B.** On a chain that runs a slice (`attempt_timeout_s` set, which today is the lookup alone), an attempt the caller's cancellation ends while its request is in flight records the mirror's failure for `MIRROR_COOLDOWN_S`, so the next chain starts on another mirror. It still counts no metric outcome and observes no duration. A cut while queued for the mirror's slot records nothing, the same as a budget shed, because nothing was asked. A chain without a slice, discovery, records nothing on cancellation, as before: what cancels it is a caller going away, which says nothing about the mirror.
 - **D.** `bluebird_forecast_overpass_requests_total`, `bluebird_forecast_overpass_request_duration_seconds` and `bluebird_forecast_overpass_fallback_total` carry a `path` label, `discovery` or `enrichment`, set by the caller.
 
 ## Evidence
@@ -35,14 +35,15 @@ No busy spell was reproduced for this change; the tests stub both mirrors.
 - **Unequal slices.** No measurement supports any particular split, and equal shares derive from the one measured constant.
 - **Lengthening or shortening `ENRICH_DEADLINE_S`.** It was measured in #545, and the lookup runs beside the forecasts since #643, so it is the whole wait in the busy case.
 - **Counting the cut as an outcome.** "error" would read as the mirror breaking, and the cut is the caller's deadline rather than an answer.
+- **Cooling the mirror on every cancellation.** The first version of this change did, and the review turned it down: a client that disconnects from an analyze stream mid-discovery would have sent a healthy mirror to the back for two minutes.
 
 ## Consequences
 
-`tests/test_osm.py` holds it: a stalled primary is followed by the backup inside the deadline for a 100-row list, the next lookup after a busy primary starts on the backup, a cut cools its mirror and a cut while queued does not, the enrichment query asks for `[timeout:4]`, discovery keeps 25 s, and the metrics carry the path.
+`tests/test_osm.py` holds it: a stalled primary is followed by the backup inside the deadline for a 100-row list, the next lookup after a busy primary starts on the backup, a cut of a sliced attempt cools its mirror, while a cut while queued and a cancelled discovery do not, the enrichment query asks for `[timeout:4]`, discovery keeps 25 s, and the metrics carry the path.
 
 What it costs:
 
 - With equal slices the last attempt usually ends on the 8 s ceiling a moment before its own slice, so a slow backup is never counted as a `timeout` on the `enrichment` path. Its cuts are read as the primary's `enrichment` failovers minus the backup's `enrichment` outcomes.
 - When both mirrors fail, both are cooling and the chain returns to table order, so the next list starts on the primary again.
-- A cancellation from anywhere, not only a deadline, now cools the mirror in flight: an analyze stream whose client goes away mid-discovery cools that mirror for two minutes.
+- The cooldown on a cut is keyed on the slice, not on who cancelled. A future caller that passes `attempt_timeout_s` and can also be cancelled for another reason, a client going away, would cool its mirror on that too.
 - The new label adds series. The production dashboard's three Overpass panels sum `by (mirror, outcome)`, `by (mirror, le)` and `by (mirror)`, so they keep their shape and add the two paths together.
