@@ -4,6 +4,7 @@
 // reading the hook that produces them.
 
 import type { WindowSource } from '../utils/forecastWindow'
+import type { ElevationLookup } from './useElevationLookup'
 import type { SelectionKind } from '../utils/calendar'
 import type { AnalyzedSnapshot } from '../utils/present'
 
@@ -123,6 +124,11 @@ export interface AnalyzeOptions {
    * (`knownTypes` in clientAnalyze.ts, #545).
    */
   knownTypes?: Readonly<Record<string, string>>
+  /**
+   * The elevations the browser looked up ahead of the click (#673): what it
+   * knows now, when it will know more, and where this run's own answer goes.
+   */
+  identity?: ElevationLookup
   /**
    * What the click that started this run changes once it commits: the
    * discovery record and the removal scope (#560). Carried on the options

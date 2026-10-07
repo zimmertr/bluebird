@@ -80,6 +80,21 @@ async def _resolve_custom(custom_destinations) -> list[dict]:
     return await osm.enrich_custom(_distinct_by_coord(_custom_dicts(custom_destinations)))
 
 
+async def _resolve_custom_reporting(custom_destinations) -> tuple[list[dict], bool]:
+    """`_resolve_custom`, and whether the elevation lookup finished (#673).
+
+    The destinations route reports the flag so a browser that asked ahead of
+    its analysis knows whether to ask again; the analyze routes, which rank
+    whatever came back, read the rows alone through `_resolve_custom`. Each
+    calls its own entry point on the package, so a test or the golden script
+    patching `enrich_custom` keeps the analyze routes off the network and one
+    patching `enrich_custom_reporting` keeps this route off it.
+    """
+    return await osm.enrich_custom_reporting(
+        _distinct_by_coord(_custom_dicts(custom_destinations))
+    )
+
+
 def _coord_key(dest) -> str:
     return f"{dest['latitude']:.5f},{dest['longitude']:.5f}"
 

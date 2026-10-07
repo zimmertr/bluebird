@@ -18,6 +18,7 @@ from app.services.osm.enrich import (
     _lookup_peaks,
     _point_key,
     enrich_custom,
+    enrich_custom_reporting,
 )
 from app.services.osm.mirrors import (
     MIRROR_COOLDOWN_S,
@@ -68,6 +69,7 @@ __all__ = [
     "_distance_m",
     "_lookup_peaks",
     "enrich_custom",
+    "enrich_custom_reporting",
     "_attempt_order",
     "_attempt_outcome",
     "_post_with_fallback",

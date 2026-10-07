@@ -164,9 +164,25 @@ async def enrich_custom(destinations: list[dict[str, Any]]) -> list[dict[str, An
     (a blank column), whereas raising would fail an entire analysis over a
     column that is not what was asked for.
     """
+    rows, _complete = await enrich_custom_reporting(destinations)
+    return rows
+
+
+async def enrich_custom_reporting(
+    destinations: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """`enrich_custom`, and whether the lookup finished.
+
+    A row the lookup could not place and a row the lookup never reached look
+    the same in the rows alone: a null elevation. The flag tells them apart
+    for a caller that asks again later only when asking again can help (#673):
+    True when every row sent without an elevation was looked up, matched or
+    not, and False when the lookup gave up or failed and those rows came back
+    as sent.
+    """
     pending = [d for d in destinations if d.get("elevation_ft") is None]
     if not pending:
-        return [dict(d) for d in destinations]
+        return [dict(d) for d in destinations], True
 
     cache_key = cache.custom_enrich_key(
         [(d["latitude"], d["longitude"]) for d in pending]
@@ -181,7 +197,7 @@ async def enrich_custom(destinations: list[dict[str, Any]]) -> list[dict[str, An
             # rows come back exactly as sent, which is what they looked like
             # before any of this existed.
             log.warning("Custom destination elevation lookup unavailable: %s", exc)
-            return [dict(d) for d in destinations]
+            return [dict(d) for d in destinations], False
         except TimeoutError:
             # Only the deadline raises this here (httpx's own timeouts are a
             # different class and end in UpstreamError above), and a busy
@@ -190,13 +206,13 @@ async def enrich_custom(destinations: list[dict[str, Any]]) -> list[dict[str, An
                 "Custom destination elevation lookup gave up after %.0fs",
                 ENRICH_DEADLINE_S,
             )
-            return [dict(d) for d in destinations]
+            return [dict(d) for d in destinations], False
         except Exception:
             # Not an upstream problem, so it is a bug here. Still not fatal —
             # an optional column must not take an analysis down — but logged
             # with a traceback so it cannot hide behind the quiet path above.
             log.exception("Custom destination elevation lookup failed unexpectedly")
-            return [dict(d) for d in destinations]
+            return [dict(d) for d in destinations], False
         # No deep copy, unlike DISCOVERY_CACHE: the matches are read into
         # freshly built rows below and never handed to a caller, so there is
         # nothing shared for a caller to mutate.
@@ -217,4 +233,4 @@ async def enrich_custom(destinations: list[dict[str, Any]]) -> list[dict[str, An
             row["elevation_ft"] = match["elevation_ft"]
             row["osm_id"] = row.get("osm_id") or match["osm_id"]
         enriched.append(row)
-    return enriched
+    return enriched, True

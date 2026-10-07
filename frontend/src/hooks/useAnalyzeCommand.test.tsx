@@ -6,7 +6,7 @@ import type { MapViewHandle } from '../components/MapView'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { runClientAnalysis } from '../utils/clientAnalyze'
 import { discoveryChanges, discoveryKeys } from '../utils/present'
-import { discovered, fakeResponse, place, resultRow } from '../testSupport/fixtures'
+import { discovered, elevationLookup, fakeResponse, place, resultRow } from '../testSupport/fixtures'
 import type { AnalyzeOptions } from './analyzeTypes'
 import type { AnalyzeRequest, DestinationsRequest, DestinationResult, GeoPolygon } from '../types'
 
@@ -42,6 +42,7 @@ function recorder(over: Partial<AnalyzeCommandInputs> = {}) {
   const inputs: AnalyzeCommandInputs = {
     selection: { kind: 'now' },
     polygon: RING,
+    identity: elevationLookup(),
     drawPointCount: 3,
     mapRef: { current: map as unknown as MapViewHandle },
     destinationTypes: ['peak'],

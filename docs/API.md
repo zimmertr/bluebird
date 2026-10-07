@@ -1016,6 +1016,17 @@ grid around 13:15 UTC, and before that the previous day's is the current one.
 `POST /api/destinations` carries both fields too, because the number comes from
 discovery rather than from the forecast fetch.
 
+`POST /api/destinations` also answers `elevation_lookup_complete`. A
+`custom_destinations` row sent without an `elevation_ft` is matched to the
+nearest OSM peak, and a row with no peak beside it comes back with a null
+elevation. So does a row the lookup never reached, because the map server was
+busy or unreachable and the server stopped waiting, and the rows alone cannot
+tell the two apart. The flag can: `true` means every such row was looked up and
+a null is the answer; `false` means the lookup gave up, those rows came back
+exactly as sent, and asking again later may place them. A row that carries its
+own `elevation_ft` is never looked up and never counts against the flag, which
+is how a client that already knows an elevation gets an answer in milliseconds.
+
 It is `null` in two cases that mean the same thing: the destination is outside
 the grid, which covers the contiguous United States, southern Canada and
 northern Mexico, or this instance holds no grid yet. Neither is a statement

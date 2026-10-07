@@ -73,7 +73,7 @@ def test_the_record_reads_the_cases_it_claims_to():
 _STUBBED = {
     "app.services.weather": {"fetch_weather_batch", "fetch_cloud_batch"},
     "app.services.air_quality": {"fetch_aqi_batch"},
-    "app.services.osm": {"query_osm", "enrich_custom"},
+    "app.services.osm": {"query_osm", "enrich_custom", "enrich_custom_reporting"},
 }
 # The osm package's inner modules that define the two discovery fetches. The
 # package re-exports both and a test patches them there, so reaching either

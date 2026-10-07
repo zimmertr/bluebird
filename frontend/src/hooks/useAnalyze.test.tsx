@@ -243,6 +243,25 @@ describe('a lookup that answers after the report', () => {
     expect(result.current.analyzed?.snowAnalysisDate).toBeNull()
   })
 
+  it('places held rows from an answer that arrives after the lookup gave up', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const late = deferred()
+    rankLate(late.promise)
+    await analyzeAt(result, T0)
+    // The run's own lookup gave up: nothing placed, the column still held.
+    await act(async () => {
+      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]), snowAnalysisDate: null })
+      await late.promise
+    })
+    expect(result.current.pendingHeights.size).toBe(0)
+    expect(result.current.universe?.[0].elevation_ft).toBeNull()
+    // The paste-time lookup's retry answers: the row takes its elevation.
+    act(() => result.current.placeHeld([discovered({ ...PROBE, type: 'custom', elevation_ft: 6000, osm_id: 'node/1' })]))
+    expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000, osm_id: 'node/1' })
+    await analyzeAt(result, T0 + MIN)
+    expect(reuses()[1]?.rows[0]).toMatchObject({ elevation_ft: 6000 })
+  })
+
   it('stops the waiting cells when the lookup is aborted', async () => {
     const { result } = renderHook(() => useAnalyze())
     const late = deferred()
@@ -277,7 +296,10 @@ describe('what the reader sees', () => {
         done = result.current.analyze(request)
       })
       expect(result.current.statusMessage).toBe(seed)
+      // The custom list is sent once the paste-time lookup has settled, which
+      // is a tick after the click (#673).
       await act(async () => {
+        await vi.waitFor(() => expect(answer).toBeDefined())
         answer(fakeResponse({ destinations: [discovered({ ...PROBE })], total: 1 }))
         await done
       })
@@ -313,7 +335,7 @@ describe('the returned API', () => {
   it('is the same set of names in the same order', () => {
     const { result } = renderHook(() => useAnalyze())
     expect(Object.keys(result.current)).toEqual([
-      'analyze', 'cancel', 'retry', 'reset', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
+      'analyze', 'cancel', 'retry', 'reset', 'placeHeld', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
       'arriving', 'error', 'refusal', 'response', 'universe', 'pendingHeights', 'statusMessage', 'progress', 'paceRemainingS',
     ])
   })

@@ -263,4 +263,6 @@ export interface DestinationsResponse {
   total_found?: number | null
   truncated?: boolean
   snow_analysis_date?: string | null
+  // Whether the pod's elevation lookup finished (#673); absent reads as true.
+  elevation_lookup_complete?: boolean
 }

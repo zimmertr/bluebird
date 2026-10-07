@@ -8,7 +8,6 @@ import {
   filterConstraints,
   hasConstraints,
   namesOnRequestMetric,
-  namesHeightMetric,
 } from './constraints'
 import { resultRow } from '../testSupport/fixtures'
 
@@ -236,27 +235,6 @@ describe('namesOnRequestMetric', () => {
   it('answers no when nothing names a cloud metric', () => {
     expect(namesOnRequestMetric('precip_total_in', NO_CONSTRAINTS)).toBe(false)
     expect(namesOnRequestMetric('freeze_min_ft', { ...NO_CONSTRAINTS, maxWindMph: 20 })).toBe(false)
-  })
-})
-
-// #673: a report with rows still waiting on their elevation waits for the
-// lookup only where a number read at that elevation decides the report.
-describe('namesHeightMetric', () => {
-  it('answers yes for a wind, temperature, cloud or snow ranking', () => {
-    for (const key of ['wind_max_mph', 'temp_min_f', 'cloud_deck_avg_ft', 'snow_depth_in'] as const) {
-      expect(namesHeightMetric(key, NO_CONSTRAINTS)).toBe(true)
-    }
-  })
-
-  it('answers yes for a bound on one of those under any ranking', () => {
-    expect(namesHeightMetric('precip_total_in', { ...NO_CONSTRAINTS, maxWindMph: 20 })).toBe(true)
-    expect(namesHeightMetric('aqi_avg', { ...NO_CONSTRAINTS, minSnowDepthIn: 6 })).toBe(true)
-    expect(namesHeightMetric('precip_total_in', { ...NO_CONSTRAINTS, minTempF: 20 })).toBe(true)
-  })
-
-  it('answers no for precipitation, air quality and the freezing level, which stand at no elevation', () => {
-    expect(namesHeightMetric('precip_total_in', NO_CONSTRAINTS)).toBe(false)
-    expect(namesHeightMetric('aqi_max', { ...NO_CONSTRAINTS, maxFreezeFt: 9000, maxPrecipTotalIn: 1 })).toBe(false)
   })
 })
 

@@ -94,6 +94,16 @@ export function isOnRequestFamily(family: MetricFamily): family is OnRequestFami
  * second such metric is one entry in this list.
  */
 export const SNAPSHOT_FAMILIES = ['snow'] as const
+
+/**
+ * The families whose numbers are read at the destination's height: the wind
+ * and temperature interpolated to its elevation, the cloud deck walked with
+ * its 2 m point at that height, and the snow depth sampled there (#673). A
+ * row whose elevation lookup has not answered carries provisional numbers in
+ * these columns, so they tick until it does, and a ranking on one of them
+ * reorders once when it does.
+ */
+export const HEIGHT_FAMILIES: readonly MetricFamily[] = ['wind', 'temp', 'cloud_deck', 'snow']
 export type SnapshotFamily = (typeof SNAPSHOT_FAMILIES)[number]
 
 export function isSnapshotFamily(family: MetricFamily): family is SnapshotFamily {

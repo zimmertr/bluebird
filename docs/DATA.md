@@ -73,16 +73,19 @@ follow from that, all of them visible in the Elevation column:
   agreement with any particular book is not on offer.
 - **It is best-effort.** If Overpass cannot be reached the rows simply keep a
   blank elevation and the analysis runs regardless, so a blank means "nobody
-  could say" rather than "something broke". The lookup also stops waiting at a
-  deadline, split evenly between the two mirrors described below, so a busy
-  first mirror leaves the second its turn rather than the whole wait. No row
-  waits on it: the table lands when the forecasts do, and until the lookup
-  answers the Elevation cell and the cells read at that elevation tick, the way
-  the Wildfire column does while its check runs. The deadline is therefore how
-  long those cells may tick, and it gives each mirror the time a busy one was
-  measured to need (9 to 15 s on 2026-10-06) rather than a slice neither met.
-  The Overpass metrics count the lookup's attempts apart from discovery's, so
-  the share can be re-measured.
+  could say" rather than "something broke". The response says which it was:
+  `elevation_lookup_complete` is false when the lookup gave up, so the app
+  asks once more a little later, and true when a blank means no peak within
+  the radius. The lookup stops waiting at a deadline, split evenly between the
+  two mirrors described below, so a busy first mirror leaves the second its
+  turn rather than the whole wait. No row waits on it: the app asks as soon as
+  the coordinates box holds rows, the table lands when the forecasts do, and
+  until the lookup answers the Elevation cell and the cells read at that
+  elevation tick, the way the Wildfire column does while its check runs. The
+  deadline is therefore how long those cells may tick, and it gives each
+  mirror the time a busy one was measured to need (9 to 15 s on 2026-10-06)
+  rather than a slice neither met. The Overpass metrics count the lookup's
+  attempts apart from discovery's, so the share can be re-measured.
 
 An elevation you supply yourself in the API's `elevation_ft` is never
 overwritten by this.

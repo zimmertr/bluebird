@@ -385,7 +385,11 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: d
     grid._fresh_until = float("inf")
 
     mp.setattr(osm, "query_osm", query_osm)
+    async def enrich_custom_reporting(destinations):
+        return await enrich_custom(destinations), True
+
     mp.setattr(osm, "enrich_custom", enrich_custom)
+    mp.setattr(osm, "enrich_custom_reporting", enrich_custom_reporting)
     mp.setattr(weather, "fetch_weather_batch", fetch_weather_batch)
     mp.setattr(weather, "fetch_cloud_batch", fetch_cloud_batch)
     mp.setattr(air_quality, "fetch_aqi_batch", fetch_aqi_batch)

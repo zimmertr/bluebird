@@ -206,6 +206,45 @@ describe('runAnalysisPipeline', () => {
     expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: '2026-07-19' })
   })
 
+  // #673: the list goes to the pod with the elevations the paste-time lookup
+  // learned, after any lookup still in flight, and the pod's verdict on the
+  // rest goes back to that lookup.
+  it('resolves the list with what the paste-time lookup learned, once it has settled', async () => {
+    const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }, { name: 'Other', latitude: 48, longitude: -122 }]
+    const bodies: { custom_destinations: { name: string; elevation_ft?: number }[] }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string))
+        return fakeResponse({
+          destinations: custom.map((c) => discovered({ ...c, type: 'custom', elevation_ft: c.name === 'Mine' ? 6000 : null, osm_id: null })),
+          total: 2,
+          elevation_lookup_complete: false,
+        })
+      }),
+    )
+    const learnedLater = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/1' }]])
+    let release!: () => void
+    const identity = {
+      identity: new Map(),
+      settled: () => new Promise<typeof learnedLater>((r) => (release = () => r(learnedLater))),
+    }
+    const order: string[] = []
+    ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
+      order.push(`ranked ${candidates.map((c) => String(c.elevation_ft)).join()}`)
+      await cb!.resolving
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
+    })
+    const onResolved = vi.fn()
+    const run = runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity, onResolved }))
+    await vi.waitFor(() => expect(order).toEqual(['ranked null,null']))
+    expect(bodies).toEqual([])
+    release()
+    await run
+    expect(bodies[0].custom_destinations.map((c) => c.elevation_ft)).toEqual([6000, undefined])
+    expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ candidates: expect.any(Array) }), false)
+  })
+
   it('names no row as waiting when the ranking already waited for the lookup', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     const held = new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]])

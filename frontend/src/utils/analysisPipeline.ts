@@ -9,6 +9,8 @@ import type {
 } from '../types'
 import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
 import type { LatePatch } from './clientAnalyze'
+import { NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
+import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
@@ -129,7 +131,12 @@ export interface PipelineOptions {
   // The lookup behind a run with no polygon has answered (#643): the same
   // field with what OSM and the snow grid know about it. Fires before any row
   // of the report is shown.
-  onResolved?: (found: Discovered) => void
+  onResolved?: (found: Discovered, lookupComplete: boolean) => void
+  // The elevations the browser looked up ahead of the click (#673). The
+  // custom list is resolved after any lookup still in flight has settled, with
+  // everything learned by then, so the pod is never asked about the same rows
+  // twice at once and skips the map server for every row that has an answer.
+  identity?: Pick<ElevationLookup, 'settled' | 'identity'>
   // The field so far, shaped as the report the screen shows. Its counts are a
   // floor: `total_queried` is what has been forecast so far.
   onPartial: (data: AnalyzeResponse, fieldSoFar: DestinationResult[]) => void
@@ -182,13 +189,17 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     // against about 1.5 s of forecasts for 100 rows (measured 2026-10-06).
     const custom = request.custom_destinations ?? []
     const listed = { totalFound: null, truncated: false }
-    found = typed({ ...listed, candidates: customRows(custom), snowAnalysisDate: null })
-    resolving = resolveCustomOnly(custom, signal).then((resolved) => {
-      const answered = typed({ ...listed, candidates: resolved.destinations, snowAnalysisDate: resolved.snowAnalysisDate })
-      snowAnalysisDate = answered.snowAnalysisDate
-      options.onResolved?.(answered)
-      return answered.candidates
-    })
+    const known = options.identity?.identity ?? NO_IDENTITY
+    found = typed({ ...listed, candidates: withIdentity(customRows(custom), known), snowAnalysisDate: null })
+    const settled = options.identity?.settled() ?? Promise.resolve(known)
+    resolving = settled
+      .then((learned) => resolveCustomOnly(withLearnedElevation(custom, learned), signal))
+      .then((resolved) => {
+        const answered = typed({ ...listed, candidates: resolved.destinations, snowAnalysisDate: resolved.snowAnalysisDate })
+        snowAnalysisDate = answered.snowAnalysisDate
+        options.onResolved?.(answered, resolved.lookupComplete)
+        return answered.candidates
+      })
   }
   onDiscovered(found)
   // What the lookup says the snow grid's date is, once it has said; a run

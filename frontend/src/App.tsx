@@ -31,6 +31,7 @@ import { useTour } from './tour/useTour'
 import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
 import { useAnalyze } from './hooks/useAnalyze'
+import { useElevationLookup } from './hooks/useElevationLookup'
 import { useCapabilities } from './hooks/useCapabilities'
 import { useForecastSelection } from './hooks/useForecastSelection'
 import { useRankingKnobs } from './hooks/useRankingKnobs'
@@ -212,6 +213,7 @@ export default function App() {
     fireField,
     fireSeq,
     pendingHeights,
+    placeHeld,
     loading,
     arriving,
     error,
@@ -219,6 +221,10 @@ export default function App() {
     response,
     universe,
   } = analysis
+  // The elevation lookup for the coordinates box, run as soon as the box
+  // holds rows (#673): usually done before Analyze is pressed, and an answer
+  // that lands after a report is placed on it.
+  const elevations = useElevationLookup({ csvRows, places, cap: caps.maxDestinations, onPlaced: placeHeld })
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
   // While the tutorial's last step is open, the results sheet, the chart and
@@ -307,6 +313,7 @@ export default function App() {
     activeRemovedKeys,
     places,
     csvRows,
+    identity: elevations.identity,
     restoredTableSort: restored?.tableSort ?? null,
   })
   const {
@@ -392,6 +399,7 @@ export default function App() {
     includeUnnamedPeaks,
     csvRows,
     places,
+    identity: elevations,
     destinationScope,
     forecastModel,
     comparedModels,

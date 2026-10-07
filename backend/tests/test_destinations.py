@@ -271,7 +271,7 @@ def _custom(name: str, lat: float, lon: float, **extra) -> dict:
     return {"name": name, "latitude": lat, "longitude": lon, **extra}
 
 
-def _stub_enrich(monkeypatch, elevations: dict[str, float | None]):
+def _stub_enrich(monkeypatch, elevations: dict[str, float | None], complete: bool = True):
     """Resolve by name, so a test says what OSM knows without geometry."""
 
     async def fake(destinations):
@@ -284,7 +284,11 @@ def _stub_enrich(monkeypatch, elevations: dict[str, float | None]):
             rows.append(row)
         return rows
 
+    async def fake_reporting(destinations):
+        return await fake(destinations), complete
+
     monkeypatch.setattr(osm_mod, "enrich_custom", fake)
+    monkeypatch.setattr(osm_mod, "enrich_custom_reporting", fake_reporting)
 
 
 def test_custom_only_request_resolves_without_discovering(monkeypatch):
@@ -306,6 +310,43 @@ def test_custom_only_request_resolves_without_discovering(monkeypatch):
     assert row["elevation_ft"] == 5165.0
     assert row["type"] == "custom"
     assert row["osm_id"] == "node/42"
+    assert resp.json()["elevation_lookup_complete"] is True
+
+
+def test_the_response_says_when_the_elevation_lookup_gave_up(monkeypatch):
+    # #673: a null elevation under a lookup that gave up says nothing about
+    # the place, so the browser asks again; under one that finished it is
+    # the answer.
+    _stub_enrich(monkeypatch, {}, complete=False)
+    resp = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [_custom("Nowhere", 47.0, -121.0)],
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["destinations"][0]["elevation_ft"] is None
+    assert body["elevation_lookup_complete"] is False
+
+
+def test_a_list_that_carries_its_elevations_reports_a_complete_lookup(monkeypatch):
+    def unreachable(*args, **kwargs):
+        raise AssertionError("a row with an elevation is never looked up")
+
+    monkeypatch.setattr(osm_mod.mirrors, "_post_with_fallback", unreachable)
+    real = osm_mod.enrich.enrich_custom_reporting
+    monkeypatch.setattr(osm_mod, "enrich_custom_reporting", real)
+    resp = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [{**_custom("Known", 47.0, -121.0), "elevation_ft": 5000}],
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["elevation_lookup_complete"] is True
 
 
 # A line pasted twice is one destination: OSM is asked about the point once,
@@ -315,9 +356,9 @@ def test_a_repeated_custom_row_is_looked_up_once(monkeypatch):
 
     async def fake(destinations):
         asked.append([d["name"] for d in destinations])
-        return [dict(d) for d in destinations]
+        return [dict(d) for d in destinations], True
 
-    monkeypatch.setattr(osm_mod, "enrich_custom", fake)
+    monkeypatch.setattr(osm_mod, "enrich_custom_reporting", fake)
     resp = client.post(
         "/api/destinations",
         json={

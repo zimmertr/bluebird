@@ -1,11 +1,13 @@
 import { useRef } from 'react'
 import { geoKey } from '../utils/points'
-import type { AnalyzeRequest } from '../types'
+import type { AnalyzeRequest, DiscoveredDestination } from '../types'
 import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
 import { runAnalysisPipeline } from '../utils/analysisPipeline'
+import { placeRows } from '../utils/clientAnalyze'
+import type { AnalyzedView } from './analyzeTypes'
 import type { HeldForecasts } from '../utils/forecastReuse'
 import { AQI_LIMIT_DAYS, SelectionKind } from '../utils/calendar'
 import { discoveryKeys } from '../utils/present'
@@ -44,6 +46,34 @@ export function useAnalyze(
   // Which run is current, so a lookup that answers after the next Analyze or
   // a reset lands on nothing (#673): the report it belonged to is gone.
   const runSeqRef = useRef(0)
+  // The last run's snapshot builder, for an answer that lands after it.
+  const viewRef = useRef<(() => AnalyzedView) | null>(null)
+
+  // A lookup's answer landed on the committed report after the run (#673):
+  // the paste-time lookup retrying a set the pod gave up on during the
+  // analysis. Each row it placed is reduced again from the column the run
+  // kept for it, and the held field takes the same rows.
+  function placeHeld(resolved: readonly DiscoveredDestination[]) {
+    const held = heldForecastsRef.current
+    const view = viewRef.current
+    if (!held || !view || !held.columns?.size) return
+    const patch = placeRows(held.rows, held.columns, resolved, {
+      startMs: held.startMs,
+      endMs: held.endMs,
+      times: held.times,
+      model: held.model,
+      nowMs: Date.now(),
+      windowLimits,
+    })
+    if (!patch.rows.length) return
+    report.patch(patch.rows, view())
+    const swap = new Map(patch.rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+    heldForecastsRef.current = {
+      ...held,
+      rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
+      columns: patch.columns,
+    }
+  }
 
   // Re-run the most recent request (the "Try again" button on transient
   // errors; a deterministic refusal gets no retry, because run verbatim it can
@@ -77,7 +107,7 @@ export function useAnalyze(
     kind: SelectionKind = 'days',
     options: AnalyzeOptions = {},
   ): Promise<boolean> {
-    const { discovery, compareModels = [], onCommit } = options
+    const { discovery, compareModels = [], onCommit, identity } = options
     lastRequestRef.current = { request, kind, options }
     const runSeq = ++runSeqRef.current
     // Derived off the request unless the caller says otherwise: the weather-
@@ -92,6 +122,7 @@ export function useAnalyze(
       snowAnalysisDate: null,
     }
     const view = () => analyzedView(request, kind, facts, Date.now(), windowLimits)
+    viewRef.current = view
     // Seed the first-phase label so nothing generic ("Starting…") flashes in
     // the click-to-first-event gap: a polygon run opens on discovery, and a
     // custom or refresh run on the forecasts, which it asks for at once while
@@ -113,6 +144,7 @@ export function useAnalyze(
           windowLimits,
           aqiForecastDays,
           knownTypes: options.knownTypes,
+          identity,
           onDiscovered: (found) => {
             facts.snowAnalysisDate = found.snowAnalysisDate
             run.announce(found.candidates.length)
@@ -120,8 +152,11 @@ export function useAnalyze(
           },
           // A run with no polygon learns its snow date after it has announced
           // its field, and before the first row commits.
-          onResolved: (found) => {
+          onResolved: (found, lookupComplete) => {
             facts.snowAnalysisDate = found.snowAnalysisDate
+            // What this run's own call learned goes to the lookup that
+            // started ahead of it, so no later run asks about the rows again.
+            identity?.learn(found.candidates, lookupComplete)
           },
           onPartial: (data, fieldSoFar) => report.commitArriving(data, fieldSoFar, view()),
           onProgress: run.onProgress,
@@ -166,6 +201,7 @@ export function useAnalyze(
     cancel: run.cancel,
     retry,
     reset,
+    placeHeld,
     analyzed: report.analyzed,
     analysisSeq: report.analysisSeq,
     // Moves when a run that showed partial rows is put back (#560).

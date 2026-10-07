@@ -149,3 +149,14 @@ class DestinationsResponse(BaseModel):
     snow_analysis_date: str | None = Field(
         default=None, description=_SNOW_DATE_DESCRIPTION
     )
+    elevation_lookup_complete: bool = Field(
+        default=True,
+        description=(
+            "Whether every `custom_destinations` row sent without an "
+            "`elevation_ft` was looked up, matched to a peak or not. False "
+            "when the map server was busy or unreachable and the lookup gave "
+            "up, in which case those rows come back exactly as sent and asking "
+            "again later may place them; a null elevation under true means no "
+            "peak stands within the match radius."
+        ),
+    )

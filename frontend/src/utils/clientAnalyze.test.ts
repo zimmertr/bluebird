@@ -150,7 +150,7 @@ describe('resolveCustomOnly', () => {
 
   it('makes no call at all for an empty list', async () => {
     const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
-    expect(await resolveCustomOnly([])).toEqual({ destinations: [], snowAnalysisDate: null })
+    expect(await resolveCustomOnly([])).toEqual({ destinations: [], snowAnalysisDate: null, lookupComplete: true })
     expect(spy).not.toHaveBeenCalled()
   })
 
@@ -1428,54 +1428,23 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     await out.late
   })
 
-  it('waits for the lookup when the ranking reads a number at the destination\'s height', async () => {
+  it('does not wait for the lookup under a height ranking either: the patch reorders the field', async () => {
     stubWindy(THREE_PRECIPS)
     const lookup = deferred<DiscoveredDestination[]>()
     const labels: string[] = []
-    const rounds: number[] = []
-    let done = false
-    const pending = runClientAnalysis({ ...REQUEST, sort_by: 'wind_avg_mph' }, SENT, startMs, endMs, {
+    const out = await runClientAnalysis({ ...REQUEST, sort_by: 'wind_avg_mph', max_wind_mph: 30 }, SENT, startMs, endMs, {
       nowMs: startMs,
       resolving: lookup.promise,
       onTail: (m) => labels.push(m),
-      onPartial: (rows) => rounds.push(rows.length),
-    }).then((out) => {
-      done = true
-      return out
     })
-    await tick()
-    await tick()
-    // The forecasts are in and the report is not: the wait is named, and no
-    // partial field was shown on numbers the answer would change.
-    expect(openMeteoCalls()).toBe(2)
-    expect(done).toBe(false)
-    expect(labels).toEqual(['Retrieving elevation…'])
-    expect(rounds).toEqual([])
+    expect(labels).toEqual([])
+    expect(out.universe.map((r) => r.wind_avg_mph)).toEqual([6.0, 6.0, 6.0])
+    // The patched rows carry the numbers the ranking and the bound read, so
+    // present.ts re-ranks the field once they replace the provisional ones.
     lookup.resolve(ANSWERED)
-    const out = await pending
-    expect(out.late).toBeNull()
-    expect(out.columns.size).toBe(0)
-    expect(out.universe.map((r) => r.elevation_ft)).toEqual([8000, 8001, 8002])
-    for (const r of out.universe) expect(r.wind_avg_mph).toBeCloseTo(22.6, 1)
-  })
-
-  it('waits for a bound on such a number too, and not for one on another', async () => {
-    stubWindy(THREE_PRECIPS)
-    const bounded = await runClientAnalysis({ ...REQUEST, max_wind_mph: 30 }, SENT, startMs, endMs, {
-      nowMs: startMs,
-      resolving: Promise.resolve(ANSWERED),
-    })
-    expect(bounded.late).toBeNull()
-    expect(bounded.universe.map((r) => r.elevation_ft).sort()).toEqual([8000, 8001, 8002])
-    resetOpenMeteoState()
-    stubWindy(THREE_PRECIPS)
-    const other = await runClientAnalysis({ ...REQUEST, max_precip_total_in: 1 }, SENT, startMs, endMs, {
-      nowMs: startMs,
-      resolving: Promise.resolve(ANSWERED),
-    })
-    expect(other.late).not.toBeNull()
-    expect(other.universe.map((r) => r.elevation_ft)).toEqual([null, null, null])
-    await other.late
+    const patch = await out.late!
+    expect(patch.rows).toHaveLength(3)
+    for (const r of patch.rows) expect(r.wind_avg_mph).toBeCloseTo(22.6, 1)
   })
 
   it('keeps the row it sent when the answer is about somewhere else, and holds its column', async () => {
@@ -1558,18 +1527,6 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, resolving: lookup.promise })
     lookup.reject(new DOMException('Aborted', 'AbortError'))
     await expect(out.late).rejects.toMatchObject({ name: 'AbortError' })
-  })
-
-  it('ends as a cancel when the lookup it waits for is aborted', async () => {
-    stubWindy(THREE_PRECIPS)
-    const lookup = deferred<DiscoveredDestination[]>()
-    const pending = runClientAnalysis({ ...REQUEST, sort_by: 'wind_avg_mph' }, SENT, startMs, endMs, {
-      nowMs: startMs,
-      resolving: lookup.promise,
-    })
-    await tick()
-    lookup.reject(new DOMException('Aborted', 'AbortError'))
-    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
   })
 })
 

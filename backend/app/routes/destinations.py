@@ -22,7 +22,7 @@ from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
     _refusal_body,
-    _resolve_custom,
+    _resolve_custom_reporting,
     _suggest_elevation_floor,
     discover,
 )
@@ -140,8 +140,10 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse | J
 
     # Resolved before the band filter, so an elevation the caller never knew
     # is one the band can actually act on.
+    lookup_complete = True
     if request.custom_destinations:
-        found = _merge_custom(found, await _resolve_custom(request.custom_destinations))
+        custom, lookup_complete = await _resolve_custom_reporting(request.custom_destinations)
+        found = _merge_custom(found, custom)
 
     found = _filter_elevation(
         found, request.min_elevation_ft, request.max_elevation_ft
@@ -198,4 +200,5 @@ async def destinations(request: DestinationsRequest) -> DestinationsResponse | J
         total_found=total_found,
         truncated=truncated,
         snow_analysis_date=snow_analysis_date,
+        elevation_lookup_complete=lookup_complete,
     )

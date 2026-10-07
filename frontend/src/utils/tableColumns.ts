@@ -6,12 +6,12 @@ import {
   familyOf,
   formatPrecipRate,
   formatPrecipTotal,
+  HEIGHT_FAMILIES,
   ON_REQUEST_FAMILIES,
   isOnRequestFamily,
   metricLabel,
 } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
-import { HEIGHT_FAMILIES } from './constraints'
 
 /**
  * One column of the results table.

@@ -5,7 +5,7 @@
 // makes each one a live knob rather than another Analyze.
 
 import type { AnalyzeRequest, DestinationResult, SortBy } from '../types'
-import { familyOf, isOnRequestFamily, type MetricFamily } from '../metrics'
+import { familyOf, isOnRequestFamily } from '../metrics'
 
 /**
  * The forecast bounds an analysis is narrowed by, mirroring the sixteen optional
@@ -144,28 +144,6 @@ export function namesOnRequestMetric(sortBy: SortBy, c: Constraints): boolean {
   if (isOnRequestFamily(familyOf(sortBy))) return true
   return [...LOWER_BOUNDS, ...UPPER_BOUNDS].some(
     ([k, field]) => c[k] !== null && isOnRequestFamily(familyOf(field)),
-  )
-}
-
-/**
- * The families whose numbers are read at the destination's height: the wind
- * and temperature interpolated to its elevation, the cloud deck walked with
- * its 2 m point at that height, and the snow depth sampled there (#673). A
- * row whose elevation a lookup has yet to answer carries provisional numbers
- * in these columns, so a ranking or a bound on one of them is decided by the
- * lookup and waits for it; every other family is the same number either way.
- */
-export const HEIGHT_FAMILIES: readonly MetricFamily[] = ['wind', 'temp', 'cloud_deck', 'snow']
-
-/**
- * Whether the ranking or any bound reads a family in `HEIGHT_FAMILIES`: the
- * one case a report with rows still awaiting their elevation must wait for
- * the lookup, since a row's provisional number would decide its place.
- */
-export function namesHeightMetric(sortBy: SortBy, c: Constraints): boolean {
-  if (HEIGHT_FAMILIES.includes(familyOf(sortBy))) return true
-  return [...LOWER_BOUNDS, ...UPPER_BOUNDS].some(
-    ([k, field]) => c[k] !== null && HEIGHT_FAMILIES.includes(familyOf(field)),
   )
 }
 

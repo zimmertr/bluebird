@@ -12,7 +12,7 @@ from prometheus_client import REGISTRY
 
 from app import ratelimit
 from app.models import DestinationType, GeoPolygon, bbox_area_km2
-from app.services import osm
+from app.services import cache, osm
 from app.services.errors import UpstreamError
 
 POLY = GeoPolygon(
@@ -537,6 +537,7 @@ async def test_a_budget_shed_does_not_cool_the_mirror(monkeypatch):
 # a live Overpass call. These tests are the ones that mean to exercise it, so
 # they hold the real function, captured at import time before that fixture runs.
 _enrich_custom = osm.enrich_custom
+_enrich_custom_reporting = osm.enrich_custom_reporting
 
 
 # ~110 m and ~1.1 km north of the probe point: inside and outside the match
@@ -640,6 +641,26 @@ async def test_enrich_custom_degrades_rather_than_raising_on_budget_exhaustion(m
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", saturated)
     [row] = await _enrich_custom([_row(47.0, -121.0)])
     assert row["elevation_ft"] is None
+
+
+# #673: a null elevation says "no peak here" only when the lookup finished.
+async def test_enrich_custom_reporting_says_whether_the_lookup_finished(monkeypatch):
+    _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0)])
+    rows, complete = await _enrich_custom_reporting([_row(47.0, -121.0), _row(48.0, -122.0)])
+    assert complete is True
+    assert [r["elevation_ft"] for r in rows] == [3281.0, None]
+
+    async def saturated(query, on_status=None, **_kwargs):
+        raise ratelimit.BudgetExhausted("OpenStreetMap (Overpass)")
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", saturated)
+    cache.ENRICH_CACHE.clear()
+    rows, complete = await _enrich_custom_reporting([_row(49.0, -123.0)])
+    assert complete is False
+    assert rows[0]["elevation_ft"] is None
+    # A list with nothing to look up finished before it started.
+    rows, complete = await _enrich_custom_reporting([_row(49.0, -123.0, elevation_ft=100.0)])
+    assert complete is True
 
 
 async def test_enrich_custom_does_not_mutate_the_rows_it_was_given(monkeypatch):
