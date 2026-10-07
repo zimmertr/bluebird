@@ -31,16 +31,9 @@ const LEAD = new Set(['name', 'type', 'elevation_ft'])
 // table that had gained or lost a column. It is a module export now (the CSV
 // export writes the same columns), so the fixture can be the thing itself.
 const KEYS = COLUMNS.map((c) => c.key)
-// The six columns a report carries only when it was asked for them (#117),
-// last in the canonical order.
-const CLOUD_KEYS = [
-  'cloud_base_min_ft',
-  'cloud_base_max_ft',
-  'cloud_base_avg_ft',
-  'cloud_cover_min_pct',
-  'cloud_cover_max_pct',
-  'cloud_cover_avg_pct',
-]
+// The three columns a report carries only when it was asked for them (#117,
+// #670), last in the canonical order.
+const CLOUD_KEYS = ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft']
 
 const keys = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy).map((c) => c.key)
 
@@ -77,9 +70,9 @@ describe('COLUMNS', () => {
       'freeze_max_ft',
       'freeze_avg_ft',
       'snow_depth_in',
-      'cloud_base_min_ft',
-      'cloud_base_max_ft',
-      'cloud_base_avg_ft',
+      'cloud_deck_min_ft',
+      'cloud_deck_max_ft',
+      'cloud_deck_avg_ft',
     ])
   })
 
@@ -213,8 +206,7 @@ describe('pointModeColumns', () => {
       // and is the same column here, under the same label (#449).
       'snow_depth_in',
       'aqi_avg',
-      'cloud_base_avg_ft',
-      'cloud_cover_avg_pct',
+      'cloud_deck_avg_ft',
     ])
   })
 
@@ -226,8 +218,7 @@ describe('pointModeColumns', () => {
     expect(labels.get('freeze_avg_ft')).toBe('Freezing level (ft)')
     expect(labels.get('snow_depth_in')).toBe('Snow depth (in)')
     expect(labels.get('aqi_avg')).toBe('AQI')
-    expect(labels.get('cloud_base_avg_ft')).toBe('Cloud base (ft)')
-    expect(labels.get('cloud_cover_avg_pct')).toBe('Cloud cover (%)')
+    expect(labels.get('cloud_deck_avg_ft')).toBe('Cloud deck (ft)')
     // No aggregate means no separator to hang one off.
     for (const label of labels.values()) expect(label).not.toContain(SEP)
     // Identity columns keep their labels untouched.
@@ -245,8 +236,7 @@ describe('pointModeColumns', () => {
       'wind_avg_mph',
       'freeze_avg_ft',
       'snow_depth_in',
-      'cloud_base_avg_ft',
-      'cloud_cover_avg_pct',
+      'cloud_deck_avg_ft',
     ])
   })
 })
@@ -264,12 +254,12 @@ describe('displayedColumns', () => {
   // Measured rather than named: the collapse is keyed on the window covering one
   // hourly stamp, not on a mode, so "a day narrowed to one hour" collapses too.
   it('collapses a point sample and nothing else', () => {
-    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(11)
+    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(10)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 
-  // #117: a report analyzed without the cloud column shows none of its six,
-  // rather than six columns of dashes it never asked for.
+  // #117: a report analyzed without the cloud column shows none of its three,
+  // rather than three columns of dashes it never asked for.
   it('leaves the cloud columns out of a report that does not hold them', () => {
     const without = displayedColumns(false, 'precip_total_in', false).map((c) => c.key)
     expect(without).toHaveLength(KEYS.length - CLOUD_KEYS.length)
@@ -279,10 +269,10 @@ describe('displayedColumns', () => {
 
   // The ranked group is always shown, and a cloud ranking over a report
   // without clouds is exactly the moment the panel's cue asks for an Analyze.
-  it('keeps a cloud ranking\'s own group, and only that one', () => {
-    const keysOf = displayedColumns(false, 'cloud_base_min_ft', false).map((c) => c.key)
-    expect(keysOf.slice(3, 6)).toEqual(['cloud_base_min_ft', 'cloud_base_max_ft', 'cloud_base_avg_ft'])
-    expect(keysOf).not.toContain('cloud_cover_avg_pct')
+  it('keeps a cloud ranking\'s own group', () => {
+    const keysOf = displayedColumns(false, 'cloud_deck_min_ft', false).map((c) => c.key)
+    expect(keysOf.slice(3, 6)).toEqual(['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft'])
+    expect(keysOf).toHaveLength(KEYS.length)
   })
 })
 
@@ -296,16 +286,16 @@ describe('keepUnlistedChoices', () => {
   })
 
   it('keeps an earlier choice about a column the picker could not list', () => {
-    const prior = new Set(['name', 'cloud_base_min_ft'])
+    const prior = new Set(['name', 'cloud_deck_min_ft'])
     const out = keepUnlistedChoices(new Set(['name']), listed, prior)
-    expect(out.has('cloud_base_min_ft')).toBe(true)
-    expect(out.has('cloud_cover_avg_pct')).toBe(false)
+    expect(out.has('cloud_deck_min_ft')).toBe(true)
+    expect(out.has('cloud_deck_avg_ft')).toBe(false)
   })
 
   it('leaves a listed column to the choice itself', () => {
-    const shown = new Set([...listed, 'cloud_base_min_ft'])
+    const shown = new Set([...listed, 'cloud_deck_min_ft'])
     const out = keepUnlistedChoices(new Set(['name']), shown, null)
-    expect(out.has('cloud_base_min_ft')).toBe(false)
+    expect(out.has('cloud_deck_min_ft')).toBe(false)
   })
 })
 

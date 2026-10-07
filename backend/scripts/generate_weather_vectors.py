@@ -565,26 +565,17 @@ WEATHER_INPUTS = [
     },
 ]
 
-def _cl(times, cover, rh2m, t2m, td2m, levels=None, units=None) -> dict:
-    """A cloud payload (issue #117): cloud cover, the 2 m humidity pair and the
-    2 m temperature in Celsius, and `levels` mapping `relative_humidity_{p}hPa`
-    names to hourly arrays. Every payload declares the 2 m pair in Celsius, as
-    a real one does, because the aggregation refuses a number whose unit it
-    cannot confirm. `units` adds to that, which only the archive case does: it
-    answers the levels it does not serve with the unit `undefined`."""
-    hourly = {
-        "time": times,
-        "cloud_cover": cover,
-        "relative_humidity_2m": rh2m,
-        "temperature_2m": t2m,
-        "dew_point_2m": td2m,
-    }
+def _cl(times, rh2m, levels=None, units=None) -> dict:
+    """A cloud payload (issue #670): the 2 m humidity, and `levels` mapping
+    `relative_humidity_{p}hPa` names to hourly arrays. `units` is the
+    `hourly_units` block, which only the archive case sends: it answers the
+    levels it does not serve with the unit `undefined`."""
+    hourly = {"time": times, "relative_humidity_2m": rh2m}
     if levels:
         hourly.update(levels)
-    payload: dict = {
-        "hourly": hourly,
-        "hourly_units": {**aggregation._CLOUD_DECLARED_UNITS, **(units or {})},
-    }
+    payload: dict = {"hourly": hourly}
+    if units:
+        payload["hourly_units"] = units
     return payload
 
 
@@ -595,165 +586,162 @@ def _rh(**by_level) -> dict:
 
 _ALL_LEVELS = (1000, 925, 850, 700, 600, 500, 400, 300)
 
+
+def _dry(n: int, rh: float = 30.0, **wet) -> dict:
+    """Every level at `rh` for `n` hours, with the levels named in `wet`
+    replaced: the column a case starts from, so each one states only what
+    differs from a dry sky."""
+    return _rh(**{**{f"p{p}": [rh] * n for p in _ALL_LEVELS}, **wet})
+
+
 CLOUD_INPUTS = [
     {
-        # The 2 m point is saturated at every hour: the destination is in
-        # cloud, so the base is its own elevation whatever the levels say.
-        "name": "in_cloud_at_2m_is_the_destination_elevation",
+        # 8,000 ft is 2438.4 m. A saturated layer at 850 hPa (1457 m) sits
+        # under the destination and the air above it is dry, so the deck is
+        # below the summit: interpolated between 925 hPa (762 m) and 850 hPa
+        # where the humidity crosses 95 %. Three different crossings, so the
+        # three aggregates differ. A walk that started at the destination
+        # could not see this layer at all.
+        "name": "deck_below_the_destination_with_dry_air_above",
+        "window": _win(H[0], H[2]),
+        "elevation_ft": 8000.0,
+        "payload": _cl(
+            H[:3],
+            [40.0, 45.0, 50.0],
+            _dry(3, p1000=[60.0, 60.0, 60.0], p925=[80.0, 90.0, 70.0], p850=[99.0, 96.0, 100.0]),
+        ),
+    },
+    {
+        # 5,000 ft is 1524 m, 67 m above 850 hPa. Every level is dry and the
+        # 2 m point is saturated: the destination is in cloud, and the deck is
+        # interpolated between 850 hPa and the 2 m point, a few metres under
+        # the destination. The last hour is saturated at 2 m with the level
+        # below it null, so the walk spans back to 925 hPa.
+        "name": "destination_in_cloud_at_its_2m_point",
         "window": _win(H[0], H[2]),
         "elevation_ft": 5000.0,
         "payload": _cl(
             H[:3],
-            [100, 95, 90],
             [97.0, 95.0, 99.0],
-            [2.0, 2.0, 2.0],
-            [1.5, 1.2, 1.9],
-            _rh(p850=[40.0, 40.0, 40.0], p700=[30.0, 30.0, 30.0]),
+            _dry(3, p850=[70.0, 70.0, None], p925=[60.0, 60.0, 60.0]),
         ),
     },
     {
-        # 4,000 ft is 1219.2 m. The 2 m point and 850 hPa are dry, 700 hPa is
-        # saturated, so the base lies between 1457 m and 3012 m where the
-        # humidity crosses 95 %. Three different crossings, so the three
-        # aggregates differ.
+        # 4,000 ft is 1219.2 m, between 925 hPa (762 m) and 850 hPa (1457 m).
+        # The 2 m point is dry, 700 hPa is saturated, so the deck lies between
+        # 850 hPa and 700 hPa where the humidity crosses 95 %, and in the last
+        # hour 850 hPa itself is exactly at 95 %.
         "name": "interpolated_between_the_bracketing_levels",
         "window": _win(H[0], H[2]),
         "elevation_ft": 4000.0,
         "payload": _cl(
             H[:3],
-            [80, 85.5, 72],
             [70.0, 75.0, 72.0],
-            [8.0, 8.0, 8.0],
-            [3.0, 3.0, 3.0],
             _rh(
                 p1000=[20.0, 20.0, 20.0],
                 p925=[20.0, 20.0, 20.0],
-                p850=[80.0, 90.0, 94.0],
+                p850=[80.0, 90.0, 95.0],
                 p700=[99.0, 100.0, 95.0],
                 p600=[100.0, 100.0, 100.0],
             ),
         ),
     },
     {
-        # 8,000 ft is 2438.4 m, above 1000, 925 and 850 hPa. Those three are
-        # saturated (a valley fog) and must be skipped: the base is read from
-        # the 2 m point up, between 700 hPa (dry) and 600 hPa (saturated).
-        "name": "levels_below_the_destination_are_skipped",
+        # The lowest level is saturated: the deck is its own standard height,
+        # 111 m, with nothing below it to interpolate from. This is the case
+        # docs/DATA.md bounds, because 1000 hPa is under the ground at most
+        # mountain cells and its humidity is the model's extrapolation.
+        "name": "saturated_bottom_level_is_its_own_height",
         "window": _win(H[0], H[1]),
-        "elevation_ft": 8000.0,
-        "payload": _cl(
-            H[:2],
-            [60, 65],
-            [50.0, 55.0],
-            [-2.0, -2.0],
-            [-9.0, -9.0],
-            _rh(
-                p1000=[100.0, 100.0],
-                p925=[100.0, 100.0],
-                p850=[100.0, 100.0],
-                p700=[60.0, 70.0],
-                p600=[96.0, 98.0],
-            ),
-        ),
+        "elevation_ft": 6000.0,
+        "payload": _cl(H[:2], [50.0, 50.0], _dry(2, p1000=[100.0, 96.0])),
     },
     {
-        # Nothing saturated anywhere in the column: the base falls back to
-        # the destination's own parcel base, 125 m per degree of spread.
-        # Spreads of 8, 12.5 and 0 degrees; the last is a saturated parcel
-        # under a dry column, which puts the base at the destination.
-        "name": "dry_column_falls_back_to_the_parcel_base",
+        # 100 ft is 30.48 m, under the lowest level: the 2 m point is the
+        # first point of the column, and a saturated one is the deck.
+        "name": "destination_below_the_lowest_level",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 100.0,
+        "payload": _cl(H[:2], [96.0, 60.0], _dry(2, p1000=[60.0, 100.0])),
+    },
+    {
+        # Nothing saturated anywhere in the column: every hour reads the
+        # ceiling, the standard height of 300 hPa in feet.
+        "name": "dry_column_reads_the_ceiling",
         "window": _win(H[0], H[2]),
         "elevation_ft": 6000.0,
-        "payload": _cl(
-            H[:3],
-            [0, 5, 10],
-            [60.0, 50.0, 90.0],
-            [10.0, 15.0, 4.0],
-            [2.0, 2.5, 4.0],
-            _rh(**{f"p{p}": [30.0, 30.0, 30.0] for p in _ALL_LEVELS}),
-        ),
+        "payload": _cl(H[:3], [60.0, 50.0, 90.0], _dry(3)),
     },
     {
-        # No level variable at all: the column did not answer, so the base
-        # is null at every hour even with a saturated 2 m point, and the
-        # cloud cover still aggregates on its own.
-        "name": "no_level_answered_is_a_null_base",
+        # No level variable at all: the column did not answer, so the deck
+        # is null at every hour even with a saturated 2 m point.
+        "name": "no_level_answered_is_a_null_deck",
         "window": _win(H[0], H[2]),
         "elevation_ft": 5000.0,
-        "payload": _cl(H[:3], [40, 50, 70], [99.0, 60.0, 60.0], [5.0, 5.0, 5.0], [4.0, 1.0, 1.0]),
+        "payload": _cl(H[:3], [99.0, 60.0, 60.0]),
     },
     {
         # The archive shape: every level accepted and answered null under the
-        # unit `undefined`. The base is null, the cover is served, and the
-        # 2 m pair is not enough to stand in for a column.
-        "name": "archive_undefined_levels_null_base_cover_served",
+        # unit `undefined`. The deck is null, and the 2 m point is not enough
+        # to stand in for a column.
+        "name": "archive_undefined_levels_null_deck",
         "window": _win(H[0], H[1]),
         "elevation_ft": 5000.0,
         "payload": _cl(
             H[:2],
-            [20, 30],
-            [60.0, 60.0],
-            [5.0, 5.0],
-            [1.0, 1.0],
+            [99.0, 60.0],
             _rh(**{f"p{p}": [None, None] for p in _ALL_LEVELS}),
             units={
-                "cloud_cover": "%",
                 "relative_humidity_2m": "%",
-                "temperature_2m": "°C",
-                "dew_point_2m": "°C",
                 **{f"relative_humidity_{p}hPa": "undefined" for p in _ALL_LEVELS},
             },
         ),
     },
     {
         # 3,000 ft is 914.4 m. 850 hPa is null, so the walk spans the gap it
-        # leaves: the base is interpolated between the 2 m point and 700 hPa.
+        # leaves: the deck is interpolated between the 2 m point and 700 hPa.
         "name": "null_level_mid_column_is_spanned",
         "window": _win(H[0], H[0]),
         "elevation_ft": 3000.0,
         "payload": _cl(
             H[:1],
-            [90],
             [60.0],
-            [6.0],
-            [0.0],
             _rh(p1000=[20.0], p925=[20.0], p850=[None], p700=[99.0]),
         ),
     },
     {
-        # A destination with no known elevation: the walk has nowhere to
-        # start, so the base is null while the cover aggregates.
-        "name": "no_elevation_is_a_null_base",
+        # A destination with no known elevation walks the levels alone: the
+        # saturated 2 m point is not in the column, and the deck is read off
+        # 925 hPa and 850 hPa.
+        "name": "no_elevation_walks_the_levels_alone",
         "window": _win(H[0], H[1]),
         "payload": _cl(
             H[:2],
-            [10, 11],
             [99.0, 99.0],
-            [5.0, 5.0],
-            [5.0, 5.0],
-            _rh(p850=[99.0, 99.0]),
+            _dry(2, p925=[50.0, 80.0], p850=[99.0, 99.0]),
         ),
     },
     {
-        # A null hour of cover and a null 2 m point: each quantity drops only
-        # its own null hour, and the series keeps every hour.
-        "name": "each_quantity_drops_only_its_own_null_hours",
+        # The middle hour's column did not answer: that hour alone drops out
+        # of the reduction, and the series keeps it as a null.
+        "name": "an_unanswered_hour_drops_out_alone",
         "window": _win(H[0], H[2]),
         "elevation_ft": 2000.0,
         "payload": _cl(
             H[:3],
-            [25, None, 75],
-            [None, 99.0, 50.0],
-            [5.0, 5.0, None],
-            [1.0, 1.0, 1.0],
-            _rh(p925=[99.0, 50.0, 50.0], p850=[99.0, 50.0, 50.0]),
+            [50.0, 99.0, None],
+            _rh(
+                **{f"p{p}": [30.0, None, 30.0] for p in _ALL_LEVELS if p not in (925, 850)},
+                p925=[99.0, None, 50.0],
+                p850=[99.0, None, 50.0],
+            ),
         ),
     },
     {
         "name": "empty_payload_is_null_null",
         "window": _win(H[0], H[2]),
         "elevation_ft": 5000.0,
-        "payload": _cl([], [], [], [], []),
+        "payload": _cl([], []),
     },
 ]
 

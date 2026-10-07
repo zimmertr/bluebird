@@ -3,7 +3,7 @@
 | Source | Usage | Cost | Auth |
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
-| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, cloud cover and the humidity column behind the cloud base (both on request), and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, the humidity column behind the cloud deck (on request), and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles | Free | None |
@@ -458,98 +458,123 @@ Air quality is also best-effort throughout. An outage or a rate limit there
 blanks those columns and never fails the analysis, because a missing AQI should
 not cost you a forecast.
 
-## Cloud base and cloud cover
+## Cloud deck
 
-Both come from Open-Meteo, in a second request beside the weather one, and only
-when the ranking or a bound names one of them. Most analyses never ask, and the
-request costs a second weighted call per location, so it is not made by default.
+The cloud deck comes from Open-Meteo, in a second request beside the weather
+one, and only when the ranking or a bound names it. Most analyses never ask,
+and the request costs a second weighted call per location (nine variables, a
+weight of 1), so it is not made by default.
 
-**Cloud cover** is the model's total cloud cover for the grid cell, 0 to 100 %,
-over every layer at once. It says nothing about height: a sheet of cirrus at
-30,000 ft and fog on the summit both read 100 %.
+**Cloud deck** is the lowest height in the model's air column over the
+destination where the air is close to saturated, in feet above sea level. Each
+hour walks up the whole column, from below the destination as readily as from
+above it:
 
-**Cloud base** is the lowest height at or above the destination where the
-model's air is close to saturated, in feet above sea level. Each hour walks up
-the air column from the destination:
+1. The column is the relative humidity at every standard pressure level from
+   1000 hPa to 300 hPa. Each level stands at its height in the International
+   Standard Atmosphere, the same table the elevation-adjusted wind and
+   temperature use.
+2. When the destination's elevation is known, its own 2 m relative humidity is
+   inserted into the column at that elevation.
+3. The walk starts at the bottom. The first point where the humidity reaches
+   95 % is the deck. Between that point and the last dry one below it, the
+   height is interpolated linearly in humidity; a saturated bottom level is its
+   own height.
+4. If no point in the column reaches 95 %, the hour reads the deck's ceiling,
+   30,066 ft, the standard height of the 300 hPa level. A plain number rather
+   than a blank, the device the snow depth uses for permanent ice, so a clear
+   window ranks as the highest deck and takes the top colour band.
 
-1. It starts at the destination's own elevation, with the 2 m relative humidity.
-2. It then reads the relative humidity at every standard pressure level above the
-   destination, from 1000 hPa to 300 hPa. Each level stands at its height in the
-   International Standard Atmosphere, the same table the elevation-adjusted wind
-   and temperature use.
-3. The first point where the humidity reaches 95 % is the base. Between two
-   levels, the height is interpolated linearly in humidity.
-4. If no point in the column reaches 95 %, the base is the height a parcel lifted
-   from the destination would condense at: the destination's elevation plus
-   125 m for each degree Celsius between the 2 m temperature and dew point
-   (Espy's rule).
+Compare the number with the **Elevation (ft)** column. A deck below it is a
+layer of cloud under the destination: an undercast from a summit, and from a
+valley trailhead a sky that is clear above the cloud. A deck at about the
+elevation is the destination in cloud. A deck above it is cloud overhead.
 
-A base at the destination's own elevation means the model has the destination
-in cloud. Compare the number with the **Elevation (ft)** column: a base equal to
-it is a summit in cloud. For a destination with a known elevation the base is
-never lower than that, because the walk starts there.
-
-The hour is null when no level above the destination answered, and when the
-destination has no known elevation, except that the app measures a peak or a
-pasted point with none from the terrain height Open-Meteo reports for its
-coordinate.
-Archive windows publish no pressure levels, so an archive hour has a cloud
-cover and no base.
+The hour is null when no pressure level answered, whatever the 2 m humidity
+says: archive windows publish no pressure levels, so an archive hour has no
+deck. A destination with no known elevation walks the levels alone and still
+gets one, and the app measures a peak or a pasted point with none from the
+terrain height Open-Meteo reports for its coordinate.
 
 What the method cannot do:
 
-- **It cannot see below the destination.** The column is read at and above the
-  destination only, so a cloud deck below a summit does not show. A summit that
-  stands above an undercast reads the next saturated layer above it, or Espy's
-  fallback when the air above is dry, the same as a summit under a clear sky,
-  and a ranking on the base cannot tell the two apart.
+- **The lowest levels can be under the ground.** 1000 hPa stands at 111 m and
+  925 hPa at 762 m in the standard atmosphere, which is below the model's
+  ground at most mountain cells, and the humidity a model reports there is its
+  own extrapolation. A saturated 1000 hPa reading under a clear valley reads as
+  a deck near sea level. The measurement below bounds how often that happens,
+  and it depends on the model.
+- **The 2 m point is the model's, not a sensor's.** On a calm clear night some
+  models put the 2 m humidity at 95 % or more while the air is not saturated,
+  and the deck then reads the destination's own elevation.
 - **The levels are far apart.** Above 850 hPa they stand 1,100 to 2,000 m apart,
   and a thin deck between two of them is interpolated rather than seen.
 - **The heights are standard, not measured.** A real 850 hPa surface moves by
   a few hundred metres with the weather. The standard table is what keeps the
   column cheap to fetch.
-- **The fallback does not know if a cloud exists.** When the column is dry, the
-  answer is where a cumulus cloud would form from the destination's own air.
-  Under a high overcast that answer is far below the real deck. Read the base
-  with the cover: a low base under a low cover is a clear sky.
+- **The ceiling is not a claim of a clear sky.** It says the model's column
+  never reached 95 %. Under high cirrus the models rarely do, so a deck at
+  the ceiling can sit under a real overcast near 25,000 ft.
 
-Measured on 2026-09-22 against 72 hours of METARs at KSEA, KBFI and KPAE
-(59 hours with a broken or overcast ceiling, GFS Seamless): under a ceiling
-below 3,000 ft, the base was a median 499 ft from the reported ceiling. Under
-ceilings from 3,000 to 8,000 ft it read a median 2,100 ft low. Under the 15
-high ceilings, all cirrus near 23,000 ft, it answered the fallback's low
-cumulus base. The column reached 95 % in 13 of the 59 hours. A lower threshold
-did not help: at 80 to 90 % the median error against the ceiling grew from
-1,976 ft to between 2,365 and 3,000 ft.
+Measured on 2026-10-06 against 72 hours of routine METARs at KSEA, KBFI and
+KPAE (2026-10-04 05Z to 2026-10-07 04Z, 216 station-hours), with the deck
+computed by the app's own walk from one direct Open-Meteo request per model at
+the three stations' coordinates and elevations. 67 hours reported a broken or
+overcast ceiling: 61 below 3,000 ft (median 645 ft above sea level, 223 to
+1,223 ft, a marine deck), one at 5,377 ft, and five cirrus decks near 23,000
+to 25,000 ft.
 
-The detector was chosen by testing its alternatives on the same hours, so do
-not run these again without new data:
+| | GFS Seamless | ECMWF IFS 0.25° |
+| --- | --- | --- |
+| Ceilings below 3,000 ft where the walk found a deck | 47 of 61 | 50 of 61 |
+| Of those, within 1,000 ft of the ceiling | 47 | 47 |
+| Median distance from the ceiling | 280 ft, under it | 280 ft, under it |
+| Hits that came from a saturated 1000 hPa | 46 | 46 |
+| Cirrus ceilings near 23,000 ft that read the deck's ceiling | 5 of 5 | 4 of 5 |
+| Hours with no ceiling (149) that read the deck's ceiling | 145 | 88 |
+| Hours with no ceiling that read a deck under 3,000 ft | 4 | 56 |
+| ... of those, from 1000 hPa, from the 2 m point | 4, 0 | 37, 19 |
+| ... of those, with FEW or SCT cloud reported under 3,000 ft | 4 | 11 |
+
+Under the low marine deck both models find the cloud, and the 1000 hPa level is
+what finds it: the deck there reads the level's own height, 364 ft, in 33 of
+GFS's 47 hits. The risk the list above names is real and is the model's. On
+GFS the four hours with no ceiling that read a low deck all had fog in the
+vicinity or scattered cloud under 3,000 ft. On ECMWF 56 of 149 hours with no
+ceiling read a deck under 3,000 ft, nearly all at night under a clear sky: its
+1000 hPa level saturated in 37 of them and its 2 m humidity in 19. The walk
+has no floor, so no level is skipped for sitting under the ground; whether it
+needs one is open.
+
+The sample is small: three lowland stations near Seattle, one 72-hour weather
+pattern dominated by a night-time marine deck, and 67 ceiling hours. It says
+nothing about a summit standing above the deck, which no METAR reports.
+
+The detector is the one #117 chose, and its alternatives were tested then on
+72 hours of the same stations (2026-09-22), so do not run these again without
+new data:
 
 - **The model's own cloud fraction is not a second opinion.** Open-Meteo's
   `cloud_cover_{p}hPa` is a fixed function of the relative humidity at that
   level, the same on GFS and ECMWF: 0 % up to 77 % RH, 16 % at 84, 31 % at 89,
   49 % at 94, 53 % at 95, 70 % at 98 and 100 % at 100. A cover threshold is an
   RH threshold under another name.
+- **A lower threshold does not help.** At 80 to 90 % the median error against
+  the ceiling grew from 1,976 ft to between 2,365 and 3,000 ft.
 - **The mid-deck error is the model's dry column, not the detector.** Under
   ceilings from 3,000 to 8,000 ft, GFS never saturated in 18 of 24 hours, so no
   threshold or level set can find the deck. ECMWF, with the same detector,
   missed by a median 756 ft there.
 - **Finer levels do not pay.** Twelve levels (adding 975, 950, 900 and 800 hPa)
-  raise the request from 12 to 16 variables, a third more weight. On GFS that
-  moved the 3,000 to 8,000 ft hits within 1,000 ft from 4 to 7 of 24 and left
-  the median where it was. ECMWF and JMA do not serve those levels at all.
+  add four variables to the request, a weight factor of 1.3 rather than 1. On
+  GFS that moved the 3,000 to 8,000 ft hits within 1,000 ft from 4 to 7 of 24
+  and left the median where it was. ECMWF and JMA do not serve those levels at
+  all.
 - **RH over ice finds cirrus but costs the low decks.** Converting RH to RH over
-  ice at 500 to 300 hPa put the base on the cirrus deck in 9 of 15 ECMWF hours,
+  ice at 500 to 300 hPa put the answer on the cirrus deck in 9 of 15 ECMWF hours,
   against 3. It also replaced the low answer under a low deck with the cirrus
   above it, and ECMWF hits under ceilings below 3,000 ft fell from 15 to 10 of
   20 (within one level spacing). A low deck is the question a summit asks.
-- **Blanking the fallback under a high cover loses more than it saves.** Making
-  the base null when the column is dry and total cover is at or above 50, 70 or
-  90 % halved the GFS hits under ceilings below 3,000 ft, from 16 to 8 of 20.
-  Under a marine deck the fallback's low answer is often right.
-
-The sample is small: three lowland stations near Seattle, one 72-hour weather
-pattern and 59 ceiling hours.
 
 ## Nominatim
 

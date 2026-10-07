@@ -608,20 +608,15 @@ async def _attach_cloud(
         for field in _CLOUD_FIELDS:
             setattr(row, field, cloud.get(field))
         if row.series is not None:
-            row.series.cloud_base_ft, row.series.cloud_cover_pct = _aligned_cloud(
-                times, cloud.get("series")
-            )
+            row.series.cloud_deck_ft = _aligned_cloud(times, cloud.get("series"))
 
 
-# The six aggregate fields a cloud answer carries, in the order the result
+# The three aggregate fields a cloud answer carries, in the order the result
 # model declares them.
 _CLOUD_FIELDS = (
-    "cloud_base_min_ft",
-    "cloud_base_avg_ft",
-    "cloud_base_max_ft",
-    "cloud_cover_min_pct",
-    "cloud_cover_avg_pct",
-    "cloud_cover_max_pct",
+    "cloud_deck_min_ft",
+    "cloud_deck_avg_ft",
+    "cloud_deck_max_ft",
 )
 
 

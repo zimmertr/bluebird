@@ -131,13 +131,11 @@ def _aqi(d: dict) -> dict:
 def _cloud(d: dict) -> dict:
     k = _k(d)
     return {
-        "cloud_base_min_ft": 1000.0 * k, "cloud_base_avg_ft": 1000.0 * k + 500,
-        "cloud_base_max_ft": 1000.0 * k + 1000, "cloud_cover_min_pct": 10.0 * k,
-        "cloud_cover_avg_pct": 10.0 * k + 5, "cloud_cover_max_pct": 10.0 * k + 10,
+        "cloud_deck_min_ft": 1000.0 * k, "cloud_deck_avg_ft": 1000.0 * k + 500,
+        "cloud_deck_max_ft": 1000.0 * k + 1000,
         "series": {
             "times": STAMPS,
-            "cloud_base_ft": [1000.0 * k, None, 1000.0 * k + 1000],
-            "cloud_cover_pct": [10.0 * k, 10.0 * k + 5, 10.0 * k + 10],
+            "cloud_deck_ft": [1000.0 * k, None, 1000.0 * k + 1000],
         },
     }
 
@@ -244,7 +242,7 @@ CASES = [
     Case("weather_busy", _custom(), weather=ratelimit.BudgetExhausted("Open-Meteo (weather service)")),
     Case("aqi_sort", _peaks(sort_by="aqi_max", sort_desc=True, limit=2), discovered=PEAKS),
     Case("aqi_bound", _peaks(max_aqi=60), discovered=PEAKS),
-    Case("cloud_sort", _peaks(sort_by="cloud_base_min_ft", sort_desc=True, limit=2), discovered=PEAKS),
+    Case("cloud_sort", _peaks(sort_by="cloud_deck_min_ft", sort_desc=True, limit=2), discovered=PEAKS),
     Case("cloud_display_only", _peaks(include_clouds=True, limit=2), discovered=PEAKS, headers=KEY),
     Case("late_aqi_key_refused", _custom(), aqi=InvalidApiKeyError(), headers=KEY),
     # Open-Meteo answers the late air-quality request with a 429. The service

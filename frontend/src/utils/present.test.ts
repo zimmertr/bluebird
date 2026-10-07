@@ -234,7 +234,7 @@ describe('panelCommitCues', () => {
       polygon: { coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] },
       destinationTypes: ['peak', 'lake'],
       pendingCount: 1,
-      sortBy: 'cloud_cover_max_pct',
+      sortBy: 'cloud_deck_max_ft',
     })
     expect(panelCommitCues(report, all)).toEqual([
       'model-changed',

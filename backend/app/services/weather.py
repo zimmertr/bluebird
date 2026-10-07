@@ -54,15 +54,14 @@ CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
 # The five level temperatures (#443) are what took it over the floor of 10;
 # the five level winds and the freezing level before them rode inside it.
 N_VARIABLES = 14
-# The cloud request's own count (issue #117): cloud cover, the 2 m humidity,
-# temperature and dew point, and the humidity at eight levels. It is a second
-# request over the same locations, made only when a ranking or a bound names a
-# cloud metric, so its factor of 1.2 is spent on top of the weather's 1.4 and
-# never by an analysis that did not ask.
-N_CLOUD_VARIABLES = 12
+# The cloud request's own count (issue #670): the humidity at 2 m and at eight
+# levels. It is a second request over the same locations, made only when a
+# ranking or a bound names the cloud deck, so its factor of 1 (9 variables, at
+# the floor) is spent on top of the weather's 1.4 and never by an analysis that
+# did not ask.
+N_CLOUD_VARIABLES = 9
 # The units every weather request is quoted in. The cloud request sends none of
-# them: it carries no wind and no precipitation, and its temperature pair is
-# read in the Celsius Espy's rule is stated in.
+# them: humidity has one unit, and no parameter selects another.
 _WEATHER_UNITS = {
     "temperature_unit": "fahrenheit",
     "wind_speed_unit": "mph",
@@ -270,12 +269,12 @@ async def fetch_cloud_batch(
     source: WindowSource = "forecast",
     boundary: datetime | None = None,
 ) -> list[dict[str, Any] | None]:
-    """Each destination's windowed cloud base and cloud cover (issue #117).
+    """Each destination's windowed cloud deck (issues #117 and #670).
 
     The weather fetch's twin over the same endpoints, spans, pacer and cache,
     with its own variable list and its own cache entries. It exists apart
     rather than as more variables on the weather request because the price of
-    a request follows its variable count: twelve more on every analysis would
+    a request follows its variable count: nine more on every analysis would
     charge every caller for a metric few of them rank by.
 
     `on_error="raise"` for the weather fetch's reason. The caller only asks for
@@ -289,7 +288,7 @@ async def fetch_cloud_batch(
 
     def key(dest: dict[str, Any]) -> tuple:
         # The weather key's fields under a kind of its own: elevation is in it
-        # because the walk up the column starts at the destination's height,
+        # because the walk inserts the destination's 2 m point at its height,
         # and `source` because the archive half answers no levels.
         return cache.forecast_key(
             "cloud",

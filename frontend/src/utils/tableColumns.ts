@@ -217,16 +217,13 @@ export const COLUMNS: ColDef[] = [
   { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  // The two families a report carries only when asked (#117), last so the
-  // columns every report has keep the places they always had. The base is
+  // The family a report carries only when asked (#117, #670), last so the
+  // columns every report has keep the places they always had. The deck is
   // feet above sea level and grouped like the elevation it is read against;
-  // Windy's own names for the layers are `cbase` and `clouds`.
-  { key: 'cloud_base_min_ft', unit: UNIT.cloud_base, label: metricLabel('cloud_base', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
-  { key: 'cloud_base_max_ft', unit: UNIT.cloud_base, label: metricLabel('cloud_base', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
-  { key: 'cloud_base_avg_ft', unit: UNIT.cloud_base, label: metricLabel('cloud_base', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
-  { key: 'cloud_cover_min_pct', unit: UNIT.cloud_cover, label: metricLabel('cloud_cover', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'clouds' },
-  { key: 'cloud_cover_max_pct', unit: UNIT.cloud_cover, label: metricLabel('cloud_cover', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'clouds' },
-  { key: 'cloud_cover_avg_pct', unit: UNIT.cloud_cover, label: metricLabel('cloud_cover', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'clouds' },
+  // Windy's nearest layer is its cloud base, `cbase`.
+  { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
+  { key: 'cloud_deck_max_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
+  { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
 ]
 
 // Every key a header click can sort on: the table's columns and the three
@@ -274,8 +271,7 @@ const POINT_LABELS: Record<string, string> = {
   // from it disappears from the narrow table.
   snow_depth_in: metricLabel('snow'),
   aqi_avg: metricLabel('aqi'),
-  cloud_base_avg_ft: metricLabel('cloud_base'),
-  cloud_cover_avg_pct: metricLabel('cloud_cover'),
+  cloud_deck_avg_ft: metricLabel('cloud_deck'),
 }
 
 /**
@@ -308,9 +304,9 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
  * would be one value three times.
  *
  * `cloudHeld` is whether the report carries the cloud column (#117). Without
- * it the cloud columns are left out rather than drawn as six columns of
+ * it the cloud columns are left out rather than drawn as three columns of
  * dashes: the report never asked for them, so they would say nothing about
- * the weather and cost six columns of width saying it. A cloud RANKING keeps
+ * the weather and cost three columns of width saying it. A cloud RANKING keeps
  * its own group either way, because the ranked group is always shown and the
  * panel's cue is already saying the next Analyze fills it. The default is the
  * whole set, which is what a caller with no report to ask about wants.
@@ -353,10 +349,10 @@ export function visibleColumns(
  * they were.
  *
  * The picker lists only the columns a report can show, and a report analyzed
- * without the cloud column shows none of its six (#117). A choice made then
+ * without the cloud column shows none of its three (#117, #670). A choice made then
  * says nothing about them, so each keeps the answer it had before the choice,
  * which for a reader who never chose (`prior` null) is shown. Without this,
- * one untick on a report without clouds would hide all six on every report
+ * one untick on a report without clouds would hide all three on every report
  * after it.
  */
 export function keepUnlistedChoices(

@@ -24,7 +24,7 @@ import {
 import { geoKey } from './points'
 import { WeatherResult, fetchAqi, resetOpenMeteoState } from './openMeteo'
 import vectors from '../../../backend/tests/data/weather_vectors.json'
-import { CLOUD_UNITS, fakeResponse, place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
+import { fakeResponse, place, resultRow, WEATHER_UNITS, weatherResult } from '../testSupport/fixtures'
 
 // ── Vector-pinned: the AQI-onto-weather-grid alignment ─────────────────────
 
@@ -783,8 +783,9 @@ describe('runClientAnalysis', () => {
     // Every location answers from terrain 2438.4 m (8,000 ft), between the 850
     // and 700 hPa levels. A peak or pasted point with no elevation of its own
     // reads the wind interpolated there: 10 + 20 x (981.4 / 1555) = 22.6 mph.
-    // A lake or trailhead with none keeps the 10 m wind, 6.0, and no cloud
-    // base, because it sits on the terrain the surface values describe. A row
+    // A lake or trailhead with none keeps the 10 m wind, 6.0, because it sits
+    // on the terrain the surface values describe, and its cloud deck walks the
+    // levels without a 2 m point, so it still has one (#670). A row
     // that carries an elevation keeps it: 1,000 ft is under the lowest level,
     // so its wind stays at 6.0 whatever the terrain says.
     stubTerrain()
@@ -808,11 +809,11 @@ describe('runClientAnalysis', () => {
     const byName = new Map(out.universe.map((r) => [r.name, r]))
     expect(byName.get('Pasted')?.wind_avg_mph).toBe(22.6)
     expect(byName.get('Nameless')?.wind_avg_mph).toBe(22.6)
-    expect(byName.get('Pasted')?.cloud_base_min_ft).not.toBeNull()
+    expect(byName.get('Pasted')?.cloud_deck_min_ft).not.toBeNull()
     expect(byName.get('Tarn')?.wind_avg_mph).toBe(6)
     expect(byName.get('Lot')?.wind_avg_mph).toBe(6)
-    expect(byName.get('Tarn')?.cloud_base_min_ft).toBeNull()
-    expect(byName.get('Lot')?.cloud_base_min_ft).toBeNull()
+    expect(byName.get('Tarn')?.cloud_deck_min_ft).toBe(DECK_AT_RH_925[50])
+    expect(byName.get('Lot')?.cloud_deck_min_ft).toBe(DECK_AT_RH_925[50])
     expect(byName.get('Low')?.wind_avg_mph).toBe(6)
     // The terrain height is the forecast's, not the destination's: the
     // Elevation column still says only what OSM or the list said.
@@ -852,22 +853,20 @@ describe('runClientAnalysis', () => {
   })
 })
 
-// ── The cloud column, fetched only on request (#117) ───────────────────────
+// ── The cloud column, fetched only on request (#117, #670) ─────────────────
 
-// One cloud body per location: saturated at 850 hPa (1457 m) every hour, so a
-// destination at sea level reads a base between the 925 and 850 levels, and a
-// cover that differs per location so a ranking has something to order.
-function cloudBody(covers: number[]) {
-  return covers.map((c) => ({
-    hourly_units: CLOUD_UNITS,
+// One cloud body per location: saturated at 850 hPa (1457 m) every hour, and
+// a 925 hPa humidity (762 m) that differs per location, so each reads a deck
+// between the two levels at a height of its own and a ranking has something
+// to order. Every destination here stands below 925 hPa, so the deck is the
+// same whether or not its 2 m point is in the column.
+function cloudBody(rh925s: number[]) {
+  return rh925s.map((rh) => ({
     hourly: {
       time: ['2026-07-21T00:00', '2026-07-21T01:00'],
-      cloud_cover: [c, c],
       relative_humidity_2m: [70, 70],
-      temperature_2m: [12, 12],
-      dew_point_2m: [6, 6],
       relative_humidity_1000hPa: [72, 72],
-      relative_humidity_925hPa: [80, 80],
+      relative_humidity_925hPa: [rh, rh],
       relative_humidity_850hPa: [100, 100],
       relative_humidity_700hPa: [60, 60],
       relative_humidity_600hPa: [50, 50],
@@ -884,7 +883,11 @@ function isCloudRequest(url: string) {
   return (new URL(url).searchParams.get('hourly') ?? '').includes('relative_humidity_2m')
 }
 
-function stubWithCloud(precips: number[], covers: number[], cloudCounts: number[] = []) {
+// The deck each 925 hPa humidity puts between 762 m and 1457 m, in whole feet:
+// 762 + 695 x (95 - rh) / (100 - rh) metres.
+const DECK_AT_RH_925: Record<number, number> = { 50: 4552, 60: 4495, 80: 4210, 90: 3640 }
+
+function stubWithCloud(precips: number[], rh925s: number[], cloudCounts: number[] = []) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
@@ -895,7 +898,7 @@ function stubWithCloud(precips: number[], covers: number[], cloudCounts: number[
         body = Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } }))
       } else if (isCloudRequest(url)) {
         cloudCounts.push(count)
-        body = cloudBody(covers.slice(0, count))
+        body = cloudBody(rh925s.slice(0, count))
       } else {
         body = weatherBody(precips.slice(0, count))
       }
@@ -984,7 +987,7 @@ describe('the kind of a place the server calls custom (#545)', () => {
     const byName = new Map(out.universe.map((r) => [r.name, r]))
     expect(byName.get('Tarn')?.type).toBe('lake')
     expect(byName.get('Tarn')?.wind_avg_mph).toBe(6)
-    expect(byName.get('Tarn')?.cloud_base_min_ft).toBeNull()
+    expect(byName.get('Tarn')?.cloud_deck_min_ft).toBe(DECK_AT_RH_925[50])
     expect(byName.get('Summit')?.type).toBe('peak')
     expect(byName.get('Summit')?.wind_avg_mph).toBe(22.6)
     // A pasted coordinate has no kind to learn, so it keeps the peak's side.
@@ -995,33 +998,29 @@ describe('the kind of a place the server calls custom (#545)', () => {
 
 describe('alignCloud', () => {
   it('lays each hour on its own stamp and leaves a missing one null', () => {
-    const out = alignCloud([1, 2, 3], { times: [1, 3], cloud_base_ft: [4000, 5000], cloud_cover_pct: [20, 90] })
-    expect(out).toEqual({ base: [4000, null, 5000], cover: [20, null, 90] })
+    const out = alignCloud([1, 2, 3], { times: [1, 3], cloud_deck_ft: [4000, 5000] })
+    expect(out).toEqual([4000, null, 5000])
   })
 
-  it('carries no arrays at all for a row never asked for clouds', () => {
-    expect(alignCloud([1, 2], null)).toEqual({ base: null, cover: null })
+  it('carries no array at all for a row never asked for clouds', () => {
+    expect(alignCloud([1, 2], null)).toBeNull()
   })
 })
 
 describe('withCloud', () => {
   const cloud = {
-    cloud_base_min_ft: 4000,
-    cloud_base_avg_ft: 4500,
-    cloud_base_max_ft: 5000,
-    cloud_cover_min_pct: 20,
-    cloud_cover_avg_pct: 55,
-    cloud_cover_max_pct: 90,
-    series: { times: [1, 2], cloud_base_ft: [4000, 5000], cloud_cover_pct: [20, 90] },
+    cloud_deck_min_ft: 4000,
+    cloud_deck_avg_ft: 4500,
+    cloud_deck_max_ft: 5000,
+    series: { times: [1, 2], cloud_deck_ft: [4000, 5000] },
   }
 
   it('lays a cloud answer over a held row', () => {
     const row = resultRow({ series: { precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], aqi: [null, null] } })
     const out = withCloud(row, cloud, [1, 2])
-    expect(out.cloud_base_min_ft).toBe(4000)
-    expect(out.cloud_cover_avg_pct).toBe(55)
-    expect(out.series?.cloud_base_ft).toEqual([4000, 5000])
-    expect(out.series?.cloud_cover_pct).toEqual([20, 90])
+    expect(out.cloud_deck_min_ft).toBe(4000)
+    expect(out.cloud_deck_avg_ft).toBe(4500)
+    expect(out.series?.cloud_deck_ft).toEqual([4000, 5000])
   })
 
   // A report carries the column for every row or for none, so a row held from
@@ -1033,10 +1032,9 @@ describe('withCloud', () => {
       [1, 2],
     )
     const out = withCloud(held, null, [1, 2])
-    expect(out.cloud_base_min_ft).toBeNull()
-    expect(out.cloud_cover_max_pct).toBeNull()
-    expect(out.series).not.toHaveProperty('cloud_base_ft')
-    expect(out.series).not.toHaveProperty('cloud_cover_pct')
+    expect(out.cloud_deck_min_ft).toBeNull()
+    expect(out.cloud_deck_max_ft).toBeNull()
+    expect(out.series).not.toHaveProperty('cloud_deck_ft')
     expect(out.series?.precip_in).toEqual([0, 0])
   })
 })
@@ -1047,41 +1045,42 @@ describe('runClientAnalysis and the cloud column', () => {
 
   it('asks for no cloud column unless told to', async () => {
     const cloudCounts: number[] = []
-    stubWithCloud(THREE_PRECIPS, [10, 50, 90], cloudCounts)
+    stubWithCloud(THREE_PRECIPS, [90, 60, 80], cloudCounts)
     const out = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs })
     expect(cloudCounts).toEqual([])
-    expect(out.universe.every((r) => r.cloud_base_min_ft === null && r.cloud_cover_avg_pct === null)).toBe(true)
-    expect(out.universe.every((r) => r.series && !('cloud_base_ft' in r.series))).toBe(true)
+    expect(out.universe.every((r) => r.cloud_deck_min_ft === null && r.cloud_deck_avg_ft === null)).toBe(true)
+    expect(out.universe.every((r) => r.series && !('cloud_deck_ft' in r.series))).toBe(true)
   })
 
   it('fetches it for every candidate and ranks on it when told to', async () => {
     const cloudCounts: number[] = []
-    stubWithCloud(THREE_PRECIPS, [90, 10, 50], cloudCounts)
-    // The walk starts at the destination, so a row needs an elevation to
-    // have a base at all. 328 ft is 100 m, under the 1000 hPa level.
+    stubWithCloud(THREE_PRECIPS, [90, 60, 80], cloudCounts)
+    // 328 ft is 100 m, under the 1000 hPa level: the 2 m point is the bottom
+    // of the column and dry.
     const dests = customRows(THREE).map((d) => ({ ...d, elevation_ft: 328 }))
     const out = await runClientAnalysis(
-      { ...REQUEST, sort_by: 'cloud_cover_avg_pct' },
+      { ...REQUEST, sort_by: 'cloud_deck_avg_ft' },
       dests,
       startMs,
       endMs,
       { nowMs: startMs, cloud: true },
     )
     expect(cloudCounts).toEqual([3])
-    // Wet 90%, Dry 10%, Mid 50%: ascending cover is Dry, Mid, Wet.
-    expect(out.universe.map((r) => r.name)).toEqual(['Dry', 'Mid', 'Wet'])
-    expect(out.universe[0].cloud_cover_avg_pct).toBe(10)
+    // Wet 90%, Dry 60%, Mid 80% at 925 hPa: the wetter the layer under the
+    // saturated one, the lower the deck, so ascending is Wet, Mid, Dry.
+    expect(out.universe.map((r) => r.name)).toEqual(['Wet', 'Mid', 'Dry'])
+    expect(out.universe[0].cloud_deck_avg_ft).toBe(DECK_AT_RH_925[90])
     // 80% at 762 m and 100% at 1457 m put 95% three quarters of the way up:
     // 1283.25 m, which is 4210 ft.
-    expect(out.universe[0].cloud_base_min_ft).toBe(4210)
-    expect(out.universe[0].series?.cloud_cover_pct).toEqual([10, 10])
+    expect(out.universe[1].cloud_deck_min_ft).toBe(4210)
+    expect(out.universe[0].series?.cloud_deck_ft).toEqual([3640, 3640])
   })
 
   it('announces no partial field under a cloud ranking', async () => {
-    stubWithCloud(THREE_PRECIPS, [90, 10, 50])
+    stubWithCloud(THREE_PRECIPS, [90, 60, 80])
     const rounds: number[] = []
     await runClientAnalysis(
-      { ...REQUEST, sort_by: 'cloud_base_min_ft' },
+      { ...REQUEST, sort_by: 'cloud_deck_min_ft' },
       customRows(THREE),
       startMs,
       endMs,
@@ -1091,22 +1090,22 @@ describe('runClientAnalysis and the cloud column', () => {
   })
 
   it('covers held rows too, so the column is whole', async () => {
-    stubWithCloud(THREE_PRECIPS, [90, 10, 50])
+    stubWithCloud(THREE_PRECIPS, [90, 60, 80])
     const first = await runClientAnalysis({ ...REQUEST, limit: 10 }, customRows(THREE), startMs, endMs, {
       nowMs: startMs,
     })
     resetOpenMeteoState()
     const cloudCounts: number[] = []
-    stubWithCloud(THREE_PRECIPS, [90, 10, 50], cloudCounts)
+    stubWithCloud(THREE_PRECIPS, [90, 60, 80], cloudCounts)
     const out = await runClientAnalysis(
-      { ...REQUEST, limit: 10, sort_by: 'cloud_cover_avg_pct' },
+      { ...REQUEST, limit: 10, sort_by: 'cloud_deck_avg_ft' },
       customRows(THREE),
       startMs,
       endMs,
       { nowMs: startMs, cloud: true, reuse: { rows: first.universe, times: first.response.times ?? [] } },
     )
     expect(cloudCounts).toEqual([3])
-    expect(out.universe.map((r) => r.cloud_cover_avg_pct)).toEqual([10, 50, 90])
+    expect(out.universe.map((r) => r.cloud_deck_avg_ft)).toEqual([3640, 4210, 4495])
   })
 
   // The cloud failure aborts the weather fetch, and the weather fetch then
@@ -1129,7 +1128,7 @@ describe('runClientAnalysis and the cloud column', () => {
       }),
     )
     const err = await runClientAnalysis(
-      { ...REQUEST, sort_by: 'cloud_base_min_ft' },
+      { ...REQUEST, sort_by: 'cloud_deck_min_ft' },
       customRows(THREE),
       startMs,
       endMs,

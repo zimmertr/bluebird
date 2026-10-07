@@ -131,10 +131,8 @@ const EXTREME: Readonly<Record<string, Extreme>> = {
   freeze_max_ft: { field: 'freeze_ft', lowest: false },
   aqi_min: { field: 'aqi', lowest: true },
   aqi_max: { field: 'aqi', lowest: false },
-  cloud_base_min_ft: { field: 'cloud_base_ft', lowest: true },
-  cloud_base_max_ft: { field: 'cloud_base_ft', lowest: false },
-  cloud_cover_min_pct: { field: 'cloud_cover_pct', lowest: true },
-  cloud_cover_max_pct: { field: 'cloud_cover_pct', lowest: false },
+  cloud_deck_min_ft: { field: 'cloud_deck_ft', lowest: true },
+  cloud_deck_max_ft: { field: 'cloud_deck_ft', lowest: false },
 }
 
 /**

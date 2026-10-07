@@ -76,8 +76,8 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0053](0053-snow-depth-ceiling.md) | A snow depth at the file's ceiling prints as a bound, not a number | 2026-09-22 | Accepted | Frontend: `snowCeiling.ts` |
 | [0054](0054-snodas-snow-depth.md) | Snow depth comes from one national SNODAS grid the pod holds | 2026-09-22 | Accepted | Backend: `snodas.py` |
 | [0055](0055-app-split-by-concern.md) | App.tsx and MapView.tsx are split into modules by concern | 2026-09-22 | Accepted | Frontend: `MapView.tsx`; the hooks cut out of `App.tsx` |
-| [0056](0056-cloud-base-from-rh.md) | Cloud base is detected on relative humidity, not on level cloud fraction | 2026-09-23 | Accepted | Root: The Python and TypeScript mirrors |
-| [0057](0057-cloud-fetched-on-request.md) | The cloud column is fetched only when a ranking or a bound names it | 2026-09-23 | Accepted | Root: The cloud column |
+| [0056](0056-cloud-base-from-rh.md) | Cloud base is detected on relative humidity, not on level cloud fraction | 2026-09-23 | Superseded by 0113 | Root: The Python and TypeScript mirrors |
+| [0057](0057-cloud-fetched-on-request.md) | The cloud column is fetched only when a ranking or a bound names it | 2026-09-23 | Amended by 0113 | Root: The cloud column |
 | [0058](0058-compare-reach-and-mark.md) | A compared line runs to its own model's reach, with one mark per short row | 2026-09-23 | Accepted | Frontend: `modelCompare.ts` |
 | [0059](0059-not-found-page-no-explanation.md) | The 404 page explains nothing | 2026-07-28 | Accepted | Frontend: `NotFoundPage.tsx` |
 | [0060](0060-overlay-reassurance-tiers.md) | The discovery wait is narrated in tiers set by measured mirror times, with no promised ceiling | 2026-07-29 | Accepted | Frontend: `analyzeOverlay.ts` |
@@ -131,3 +131,4 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0110](0110-previews-live-while-labelled.md) | A preview environment lives for as long as its PR carries the label, in a namespace of its own | 2026-10-06 | Accepted | `docs/CICD.md`: PR preview environments |
 | [0111](0111-enrichment-deadline-split-across-mirrors.md) | The elevation lookup splits its deadline evenly across the mirrors, and a cut attempt cools its mirror | 2026-10-06 | Accepted | Backend: `app/services/osm/` |
 | [0112](0112-colour-values-have-owners.md) | Every colour value and popup style has an owning module, and the linter reaches the four channels the stylesheet never sees | 2026-10-06 | Accepted | Root: the design-system rule; `docs/STYLES.md` |
+| [0113](0113-cloud-deck.md) | The one cloud metric is the cloud deck, read over the whole column, and a dry column reads a ceiling | 2026-10-06 | Accepted | Root: The Python and TypeScript mirrors; The cloud column |

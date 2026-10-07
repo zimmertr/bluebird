@@ -39,7 +39,11 @@ from app.models import (
     PAST_DATA_DAYS,
     PAST_LIMIT_SLACK_DAYS,
 )
-from app.services.aggregation import CLOUD_SATURATION_RH, ESPY_M_PER_C, ISA_HEIGHT_M
+from app.services.aggregation import (
+    CLOUD_DECK_CEILING_FT,
+    CLOUD_SATURATION_RH,
+    ISA_HEIGHT_M,
+)
 from app.services.nifc import COARSE_OFFSET_DEG
 from app.services.openmeteo_fetch import BATCH_SIZE, MAX_CONCURRENT_BATCHES
 from app.services.snodas import SNOW_DEPTH_CEILING_IN
@@ -87,13 +91,14 @@ def render() -> str:
             # two sides must agree on where the source file stops counting.
             "SNOW_DEPTH_CEILING_IN": SNOW_DEPTH_CEILING_IN,
             # The cloud request's own variable count, priced apart from the
-            # weather's (issue #117).
+            # weather's (issues #117 and #670).
             "N_CLOUD_VARIABLES": N_CLOUD_VARIABLES,
-            # The cloud base's two numbers. The vectors pin the walk that uses
-            # them; these pin the numbers themselves, so a retune on one side
-            # fails here by name rather than as a changed expectation.
+            # The cloud deck's two numbers (issue #670). The vectors pin the
+            # walk that uses them; these pin the numbers themselves, so a
+            # retune on one side fails here by name rather than as a changed
+            # expectation.
             "CLOUD_SATURATION_RH": CLOUD_SATURATION_RH,
-            "ESPY_M_PER_C": ESPY_M_PER_C,
+            "CLOUD_DECK_CEILING_FT": CLOUD_DECK_CEILING_FT,
             # Level and height pairs, in the order the column is walked. A list
             # rather than an object, because JSON would turn the levels into
             # strings and an object's order is not a promise.

@@ -208,10 +208,8 @@ describe('constraint round trips', () => {
       minFreezeFt: 6000,
       maxFreezeFt: 12000,
       maxAqi: 100,
-      minCloudBaseFt: 5000,
-      maxCloudBaseFt: 20000,
-      minCloudCoverPct: 10,
-      maxCloudCoverPct: 80,
+      minCloudDeckFt: 5000,
+      maxCloudDeckFt: 20000,
     })
     expect(constraintsFromRequest({ ...REQUEST, ...constraintFields(c) })).toEqual(c)
   })
@@ -225,13 +223,13 @@ describe('constraint round trips', () => {
 
 describe('namesOnRequestMetric', () => {
   it('answers yes for a cloud ranking', () => {
-    expect(namesOnRequestMetric('cloud_base_min_ft', NO_CONSTRAINTS)).toBe(true)
-    expect(namesOnRequestMetric('cloud_cover_avg_pct', NO_CONSTRAINTS)).toBe(true)
+    expect(namesOnRequestMetric('cloud_deck_min_ft', NO_CONSTRAINTS)).toBe(true)
+    expect(namesOnRequestMetric('cloud_deck_avg_ft', NO_CONSTRAINTS)).toBe(true)
   })
 
   it('answers yes for a cloud bound under any ranking', () => {
-    expect(namesOnRequestMetric('precip_total_in', { ...NO_CONSTRAINTS, minCloudBaseFt: 6000 })).toBe(true)
-    expect(namesOnRequestMetric('aqi_avg', { ...NO_CONSTRAINTS, maxCloudCoverPct: 50 })).toBe(true)
+    expect(namesOnRequestMetric('precip_total_in', { ...NO_CONSTRAINTS, minCloudDeckFt: 6000 })).toBe(true)
+    expect(namesOnRequestMetric('aqi_avg', { ...NO_CONSTRAINTS, maxCloudDeckFt: 9000 })).toBe(true)
   })
 
   it('answers no when nothing names a cloud metric', () => {
@@ -241,18 +239,18 @@ describe('namesOnRequestMetric', () => {
 })
 
 // The cloud bounds read the window's extremes like the wind's, and a row the
-// report never fetched clouds for carries nulls, which pass (#117).
+// report never fetched clouds for carries nulls, which pass (#117, #670).
 describe('filterConstraints on the cloud bounds', () => {
-  const low = resultRow({ name: 'Low', cloud_base_min_ft: 3000, cloud_base_max_ft: 9000, cloud_cover_min_pct: 50, cloud_cover_max_pct: 100 })
-  const high = resultRow({ name: 'High', cloud_base_min_ft: 8000, cloud_base_max_ft: 12000, cloud_cover_min_pct: 0, cloud_cover_max_pct: 40 })
+  const low = resultRow({ name: 'Low', cloud_deck_min_ft: 3000, cloud_deck_max_ft: 9000 })
+  const high = resultRow({ name: 'High', cloud_deck_min_ft: 8000, cloud_deck_max_ft: 30066 })
   const none = resultRow({ name: 'None' })
   const names = (rows: readonly DestinationResult[]) => rows.map((r) => r.name)
 
-  it('keeps a base floor to the rows whose lowest base clears it', () => {
-    expect(names(filterConstraints([low, high, none], { ...NO_CONSTRAINTS, minCloudBaseFt: 6000 }))).toEqual(['High', 'None'])
+  it('keeps a deck floor to the rows whose lowest deck clears it', () => {
+    expect(names(filterConstraints([low, high, none], { ...NO_CONSTRAINTS, minCloudDeckFt: 6000 }))).toEqual(['High', 'None'])
   })
 
-  it('keeps a cover ceiling to the rows never more covered than it', () => {
-    expect(names(filterConstraints([low, high, none], { ...NO_CONSTRAINTS, maxCloudCoverPct: 60 }))).toEqual(['High', 'None'])
+  it('keeps a deck ceiling to the rows whose highest deck stays under it', () => {
+    expect(names(filterConstraints([low, high, none], { ...NO_CONSTRAINTS, maxCloudDeckFt: 10000 }))).toEqual(['Low', 'None'])
   })
 })

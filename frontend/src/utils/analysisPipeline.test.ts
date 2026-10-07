@@ -251,7 +251,7 @@ describe('runAnalysisPipeline', () => {
   it('fetches the cloud column only when the request names it', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     await runAnalysisPipeline(REQUEST, options())
-    await runAnalysisPipeline({ ...REQUEST, sort_by: 'cloud_base_min_ft' }, options())
+    await runAnalysisPipeline({ ...REQUEST, sort_by: 'cloud_deck_min_ft' }, options())
     expect(ranked.mock.calls.map((c) => c[4]!.cloud)).toEqual([false, true])
   })
 

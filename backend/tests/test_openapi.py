@@ -217,9 +217,6 @@ def test_the_schema_publishes_the_ranges_the_validators_enforce(schema):
     assert (custom["longitude"]["minimum"], custom["longitude"]["maximum"]) == (-180, 180)
     [elevation, _null] = custom["elevation_ft"]["anyOf"]
     assert (elevation["minimum"], elevation["maximum"]) == (-1500, 30_000)
-    for field in ("min_cloud_cover_pct", "max_cloud_cover_pct"):
-        [cover, _null] = schemas["AnalyzeRequest"]["properties"][field]["anyOf"]
-        assert (cover["minimum"], cover["maximum"]) == (0, 100)
 
 
 def test_analyze_request_carries_a_worked_example(schema):

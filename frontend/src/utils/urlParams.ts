@@ -496,12 +496,15 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     encode: ({ selection }) => (selection.kind === 'days' && selection.hours ? selection.hours.end : null),
   },
   // The forecast bounds, spelled out rather than abbreviated the way
-  // `minel`/`maxel` were: sixteen terse keys would be sixteen guesses in the
+  // `minel`/`maxel` were: fourteen terse keys would be fourteen guesses in the
   // address bar, and readability is what the URL convention buys (#210).
   // `minel` and `maxel` have no row, so they are deliberately not read. They
   // carried the elevation band the panel dropped in #341, so an old link still
   // parses and simply analyzes the whole range, the reading every other
-  // retired parameter gets.
+  // retired parameter gets. `mincloudbase`, `maxcloudbase`, `mincloudcover`
+  // and `maxcloudcover` are retired the same way, with the `cloud_base` and
+  // `cloud_cover` aggregate params: the cloud deck replaced both families
+  // (#670), and a bound on a number the app no longer computes is no bound.
   bound('minprecip', 'minPrecipTotalIn'),
   bound('maxprecip', 'maxPrecipTotalIn'),
   bound('mintemp', 'minTempF'),
@@ -514,10 +517,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   bound('maxsnow', 'maxSnowDepthIn'),
   bound('minaqi', 'minAqi'),
   bound('maxaqi', 'maxAqi'),
-  bound('mincloudbase', 'minCloudBaseFt'),
-  bound('maxcloudbase', 'maxCloudBaseFt'),
-  bound('mincloudcover', 'minCloudCoverPct'),
-  bound('maxcloudcover', 'maxCloudCoverPct'),
+  bound('minclouddeck', 'minCloudDeckFt'),
+  bound('maxclouddeck', 'maxCloudDeckFt'),
   {
     key: 'poly',
     encode: (state) => (hasPolygon(state) && state.polygon ? encodePolygon(state.polygon) : null),
@@ -690,7 +691,7 @@ export const FIELD_PARAMS = {
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
     'minfreeze', 'maxfreeze', 'minsnow', 'maxsnow', 'minaqi', 'maxaqi',
-    'mincloudbase', 'maxcloudbase', 'mincloudcover', 'maxcloudcover',
+    'minclouddeck', 'maxclouddeck',
   ],
   limit: ['limit'],
   customCsv: ['customz'],

@@ -39,10 +39,10 @@ const WEATHER_UNITS: Record<string, string> = {
   ...units(vectors.weather, 'wind_and_temperature_levels_together'),
   ...units(vectors.weather, 'freezing_level_in_feet_is_not_converted'),
 }
-// The cloud request sends no unit parameters, so its 2 m pair is Celsius.
-const CLOUD_UNITS: Record<string, string> = { temperature_2m: '°C', dew_point_2m: '°C' }
+// The cloud request asks for humidity alone, which carries no unit to check.
+const CLOUD_UNITS: Record<string, string> = {}
 const isCloud = (r: Route) =>
-  (new URL(r.request().url()).searchParams.get('hourly') ?? '').includes('dew_point_2m')
+  (new URL(r.request().url()).searchParams.get('hourly') ?? '').includes('relative_humidity_2m')
 const AQI_INPUTS = vector(vectors.aqi, 'simple_aggregation')
 
 function hourStamps(start: string, end: string): string[] {

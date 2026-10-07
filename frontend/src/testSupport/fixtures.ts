@@ -43,12 +43,23 @@ export const WEATHER_UNITS: Readonly<Record<string, string>> = {
 }
 
 /**
- * The same for the cloud request, which sends no unit parameters and so gets
- * its 2 m temperature and dew point back in Celsius (measured 2026-10-01).
+ * One location's answer to the cloud request (#670): the 2 m humidity and the
+ * humidity at all eight levels, every one of them `rh`, so the column is dry
+ * (and reads the deck's ceiling) unless a caller asks otherwise.
  */
-export const CLOUD_UNITS: Readonly<Record<string, string>> = {
-  temperature_2m: '°C',
-  dew_point_2m: '°C',
+export function cloudAnswer(times: string[], rh = 30): { hourly: Record<string, unknown> } {
+  return {
+    hourly: {
+      time: times,
+      relative_humidity_2m: times.map(() => rh),
+      ...Object.fromEntries(
+        [1000, 925, 850, 700, 600, 500, 400, 300].map((p) => [
+          `relative_humidity_${p}hPa`,
+          times.map(() => rh),
+        ]),
+      ),
+    },
+  }
 }
 
 /** Every hourly array, so a caller spells only the series it charts. */
@@ -86,12 +97,9 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     aqi_min: null,
     aqi_max: null,
     snow_depth_in: null,
-    cloud_base_min_ft: null,
-    cloud_base_avg_ft: null,
-    cloud_base_max_ft: null,
-    cloud_cover_min_pct: null,
-    cloud_cover_avg_pct: null,
-    cloud_cover_max_pct: null,
+    cloud_deck_min_ft: null,
+    cloud_deck_avg_ft: null,
+    cloud_deck_max_ft: null,
     ...over,
   }
 }

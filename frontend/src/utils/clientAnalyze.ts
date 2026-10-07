@@ -197,39 +197,21 @@ export function alignAqi(
 export function alignCloud(
   timesMs: readonly number[],
   cloudSeries: CloudSeries | null,
-): { base: (number | null)[] | null; cover: (number | null)[] | null } {
-  if (!cloudSeries) return { base: null, cover: null }
-  const base = new Map<number, number | null>()
-  const cover = new Map<number, number | null>()
-  cloudSeries.times.forEach((t, i) => {
-    base.set(t, cloudSeries.cloud_base_ft[i] ?? null)
-    cover.set(t, cloudSeries.cloud_cover_pct[i] ?? null)
-  })
-  return {
-    base: timesMs.map((t) => base.get(t) ?? null),
-    cover: timesMs.map((t) => cover.get(t) ?? null),
-  }
+): (number | null)[] | null {
+  if (!cloudSeries) return null
+  const deck = new Map<number, number | null>()
+  cloudSeries.times.forEach((t, i) => deck.set(t, cloudSeries.cloud_deck_ft[i] ?? null))
+  return timesMs.map((t) => deck.get(t) ?? null)
 }
 
 /** A row's cloud aggregates and hourly arrays, or their absence. */
 function cloudFields(
   cloud: CloudResult,
-): Pick<
-  DestinationResult,
-  | 'cloud_base_min_ft'
-  | 'cloud_base_avg_ft'
-  | 'cloud_base_max_ft'
-  | 'cloud_cover_min_pct'
-  | 'cloud_cover_avg_pct'
-  | 'cloud_cover_max_pct'
-> {
+): Pick<DestinationResult, 'cloud_deck_min_ft' | 'cloud_deck_avg_ft' | 'cloud_deck_max_ft'> {
   return {
-    cloud_base_min_ft: cloud?.cloud_base_min_ft ?? null,
-    cloud_base_avg_ft: cloud?.cloud_base_avg_ft ?? null,
-    cloud_base_max_ft: cloud?.cloud_base_max_ft ?? null,
-    cloud_cover_min_pct: cloud?.cloud_cover_min_pct ?? null,
-    cloud_cover_avg_pct: cloud?.cloud_cover_avg_pct ?? null,
-    cloud_cover_max_pct: cloud?.cloud_cover_max_pct ?? null,
+    cloud_deck_min_ft: cloud?.cloud_deck_min_ft ?? null,
+    cloud_deck_avg_ft: cloud?.cloud_deck_avg_ft ?? null,
+    cloud_deck_max_ft: cloud?.cloud_deck_max_ft ?? null,
   }
 }
 
@@ -247,12 +229,9 @@ export function withCloud(
 ): DestinationResult {
   const next: DestinationResult = { ...row, ...cloudFields(cloud) }
   if (row.series) {
-    const { cloud_base_ft: _b, cloud_cover_pct: _c, ...rest } = row.series
+    const { cloud_deck_ft: _d, ...rest } = row.series
     const aligned = alignCloud(times, cloud?.series ?? null)
-    next.series =
-      aligned.base === null
-        ? rest
-        : { ...rest, cloud_base_ft: aligned.base, cloud_cover_pct: aligned.cover }
+    next.series = aligned === null ? rest : { ...rest, cloud_deck_ft: aligned }
   }
   return next
 }
@@ -329,9 +308,7 @@ export function assemble(
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
         // Absent rather than a column of nulls when the cloud column was
         // never fetched, which is the server's shape too.
-        ...(aligned.base !== null
-          ? { cloud_base_ft: aligned.base, cloud_cover_pct: aligned.cover }
-          : {}),
+        ...(aligned !== null ? { cloud_deck_ft: aligned } : {}),
         // Present only on the browser path, which is the only one that asks
         // Open-Meteo for it. Spread rather than assigned so a row from a
         // response without it carries no key at all, rather than an explicit
@@ -683,8 +660,8 @@ export async function runClientAnalysis(
         latitude: r.latitude,
         longitude: r.longitude,
         elevation_ft: r.elevation_ft,
-        // The weather's rule, for the reason given there: the cloud base walks
-        // up the column from the same height the wind is read at.
+        // The weather's rule, for the reason given there: the cloud deck walk
+        // inserts the 2 m point at the same height the wind is read at.
         terrainFallback: terrainFallbackFor(r.type),
       })),
       ...coords,

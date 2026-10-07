@@ -803,11 +803,11 @@ export type FetchCloudOptions = Pick<
   'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation' | 'heights'
 >
 
-// The cloud column (#117): the weather fetch's twin over the same endpoints,
+// The cloud column (#117, #670): the weather fetch's twin over the same endpoints,
 // spans, pacer and cache, asking for the cloud variables alone. A request of
-// its own rather than twelve more variables on the weather one, because the
+// its own rather than nine more variables on the weather one, because the
 // price of a request follows its variable count and only an analysis that
-// ranks or bounds by a cloud metric needs these.
+// ranks or bounds by the cloud deck needs these.
 //
 // Fails the way the weather fetch fails: it is only ever called because the
 // reader asked for a cloud metric, and a ranking by cloud with no cloud in it
@@ -865,8 +865,7 @@ export async function fetchCloud(
           ...(span.archive ? {} : { models: model }),
           hourly: CLOUD_VARIABLES.join(','),
           timeformat: 'unixtime',
-          // No temperature_unit: the 2 m pair arrives in Celsius, the unit
-          // Espy's rule is stated in.
+          // No unit parameter: humidity has one unit, and none selects another.
           start_hour: utcHour(span.startMs),
           end_hour: utcHour(span.endMs),
           timezone: 'UTC',
