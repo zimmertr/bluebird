@@ -37,10 +37,13 @@ export default function PrivacyPage() {
             server so it can find destinations. When you press Analyze, it receives the area you
             draw, the kinds of destination you pick, and the coordinates of any place you paste,
             search for or click on the map, and it checks each destination for nearby fires and
-            closures. Destination searches are answered by public OpenStreetMap servers: one run
-            by FOSSGIS in Germany and, when it is unavailable, one run by VK (maps.mail.ru). A
-            place name you type in the search box goes to the server too, which looks it up with
-            Nominatim. The fire and closure layers send the server the area on screen.
+            closures. A coordinate you paste or click is looked up as soon as it is in the box:
+            your browser reads the map tiles around it from OpenFreeMap, and sends the server any
+            it could not place. Destination searches are answered by public OpenStreetMap
+            servers: one run by FOSSGIS in Germany and, when it is unavailable, one run by VK
+            (maps.mail.ru). A place name you type in the search box goes to the server too, which
+            looks it up with Nominatim. The fire and closure layers send the server the area on
+            screen.
           </li>
           <li>
             <span className={PROSE.strong}>The page's address</span> holds what is on screen:
@@ -107,7 +110,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 2 October 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 7 October 2026.</p>
     </PageShell>
   )
 }

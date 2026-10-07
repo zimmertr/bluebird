@@ -345,7 +345,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 2 October 2026\./)
+    expect(privacyPage).toMatch(/Last updated 7 October 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -477,6 +477,24 @@ describe('the privacy copy, held to the code', () => {
     const sentence = text.match(/Destination searches are answered by public OpenStreetMap servers: (.+?)\. /)?.[1]
     expect(sentence).toBeDefined()
     expect((sentence ?? '').match(/\bone run by\b/g)?.length).toBe(hosts.length)
+  })
+
+  // #673 looks a pasted coordinate up as soon as the box holds it, from the
+  // basemap's tiles and then the server, so the server receives coordinates
+  // before Analyze is pressed and OpenFreeMap receives tile requests for
+  // places that are not on screen. The sentence is held to the hook that
+  // watches the box, the host it reads and the rows it sends on.
+  it('says a pasted coordinate is looked up before Analyze, from the tiles and then the server', () => {
+    const hook = appSources['./hooks/useElevationLookup.ts']
+    const tiles = appSources['./utils/peakTiles.ts']
+    expect(hook).toMatch(/LOOKUP_DEBOUNCE_MS/)
+    expect(hook).toMatch(/tiles\.lookupPeaks\(rows,/)
+    expect(hook).toMatch(/resolveCustomOnly\(left, controller\.signal, true\)/)
+    expect(tiles).toMatch(/TILEJSON_URL = 'https:\/\/tiles\.openfreemap\.org\/planet'/)
+
+    expect(text).toMatch(
+      /A coordinate you paste or click is looked up as soon as it is in the box: your browser reads the map tiles around it from OpenFreeMap, and sends the server any it could not place\./,
+    )
   })
 
   // The page says when the logs go, and that rests on a measurement rather
