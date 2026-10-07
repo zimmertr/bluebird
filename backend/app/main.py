@@ -365,11 +365,14 @@ app.add_middleware(body_limit.BodySizeLimitMiddleware, max_bytes=MAX_REQUEST_BYT
 #     level 1: 495,122 B    7 ms       level 6: 412,821 B    37 ms
 #     level 5: 415,668 B   21 ms       level 9: 411,260 B   161 ms
 #
-# Level 9 spends 124 ms more event-loop CPU per request than level 6 to save
-# 1,561 bytes, which is 0.4%. That CPU is not free time: it is the loop every
-# other request on the pod is waiting for. 6 is zlib's own default and is where
-# this body stops gaining size and starts costing latency. Re-measure on the
-# same body before moving it; the shape of the curve belongs to the data.
+# Level 9 spends 124 ms more CPU per request than level 6 to save 1,561 bytes,
+# which is 0.4%. Starlette compresses a body of 128 KiB or more on a worker
+# thread (`thread_minimum_size`), so a body this size no longer holds the event
+# loop (longest loop gap 7.4 ms through the middleware, measured in #653 on
+# 2026-10-06), but that time is still the pod's CPU and still the response's
+# latency. 6 is zlib's own default and is where this body stops gaining size
+# and starts costing time. Re-measure on the same body before moving it; the
+# shape of the curve belongs to the data.
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 app.add_middleware(

@@ -9,10 +9,12 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 import pytest
 from conftest import FAKE_API_KEY, assert_no_key_logged, fake_response
 from fastapi.testclient import TestClient
 from prometheus_client import REGISTRY
+from test_destinations import _held_discovery, _offset_payload, _until
 from test_snodas import a_snapshot
 
 from app import models, ratelimit
@@ -1826,6 +1828,176 @@ def test_analyze_passes_the_boundary_it_classified_against(monkeypatch):
     source, boundary = seen[0]
     assert source == "spanning"
     assert boundary == models.archive_boundary(datetime.now(UTC))
+
+
+# ── One discovery in flight per address, on the analyze routes too (#660) ──
+
+
+def _held_analysis_body(west: float) -> dict:
+    """A one-peak analysis over its own polygon, so `_held_discovery`'s record
+    says whose discovery reached Overpass. Offset rings also miss the
+    discovery cache, which would otherwise answer the second request."""
+    start, end = _window()
+    ring = [[west, 0], [west + 0.1, 0], [west + 0.1, 0.1], [west, 0.1], [west, 0]]
+    return {
+        "destination_types": ["peak"],
+        "start_datetime": start,
+        "end_datetime": end,
+        "polygon": {"type": "Polygon", "coordinates": [ring]},
+    }
+
+
+async def test_one_address_runs_one_analyze_discovery_at_a_time(monkeypatch, stub_upstreams):
+    # The analyze routes run the same Overpass discovery as POST
+    # /api/destinations, against the same pod-wide slots, so the same address
+    # waits for its first discovery on either route while another address
+    # goes straight in.
+    entered, release = _held_discovery(monkeypatch)
+    transport = httpx.ASGITransport(app=app)
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+
+            def post(path: str, address: str, west: float):
+                return asyncio.ensure_future(
+                    http.post(
+                        path,
+                        json=_held_analysis_body(west),
+                        headers={"cf-connecting-ip": address},
+                    )
+                )
+
+            first = post("/api/analyze", "203.0.113.1", 1.0)
+            await _until(lambda: entered == [1.0])
+            second = post("/api/analyze/stream", "203.0.113.1", 2.0)
+            other = post("/api/analyze", "198.51.100.2", 3.0)
+            await _until(lambda: 3.0 in entered)
+            # Give the second request every chance to get in as well.
+            for _ in range(20):
+                await asyncio.sleep(0.005)
+            assert entered == [1.0, 3.0]
+
+            release.set()
+            responses = await asyncio.gather(first, second, other)
+    finally:
+        release.set()
+    assert [r.status_code for r in responses] == [200, 200, 200]
+    assert entered == [1.0, 3.0, 2.0]
+
+
+async def test_an_analyze_discovery_waits_behind_a_destinations_discovery(monkeypatch, stub_upstreams):
+    # One limit across the routes: a discovery is a discovery, whichever
+    # route asked for it.
+    entered, release = _held_discovery(monkeypatch)
+    transport = httpx.ASGITransport(app=app)
+    headers = {"cf-connecting-ip": "203.0.113.1"}
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            first = asyncio.ensure_future(
+                http.post("/api/destinations", json=_offset_payload(1.0), headers=headers)
+            )
+            await _until(lambda: entered == [1.0])
+            second = asyncio.ensure_future(
+                http.post("/api/analyze", json=_held_analysis_body(2.0), headers=headers)
+            )
+            for _ in range(20):
+                await asyncio.sleep(0.005)
+            assert entered == [1.0]
+            release.set()
+            responses = await asyncio.gather(first, second)
+    finally:
+        release.set()
+    assert [r.status_code for r in responses] == [200, 200]
+    assert entered == [1.0, 2.0]
+
+
+async def test_the_forecast_fetch_does_not_hold_the_discovery_slot(monkeypatch):
+    # The slot covers discovery and nothing after it. A keyed caller's
+    # forecasts spend the caller's own quota, so holding the slot through
+    # them would serialize one address's analyses for no pod-wide saving
+    # (record 0103).
+    async def one_peak(polygon, destination_types, on_status=None, **_):
+        entered.append(polygon.coordinates[0][0][0])
+        return [
+            {"name": "pk", "latitude": 1.0, "longitude": 2.0, "elevation_ft": None,
+             "osm_id": "node/1", "type": "peak"}
+        ]
+
+    weather_started = asyncio.Event()
+    weather_release = asyncio.Event()
+
+    async def held_wx(destinations, *args, **kwargs):
+        weather_started.set()
+        await weather_release.wait()
+        return [_wx(d["latitude"]) for d in destinations]
+
+    async def no_aqi(destinations, start, end, api_key=None):
+        return [None] * len(destinations)
+
+    entered: list[float] = []
+    monkeypatch.setattr(osm, "query_osm", one_peak)
+    monkeypatch.setattr(weather, "fetch_weather_batch", held_wx)
+    monkeypatch.setattr(air_quality, "fetch_aqi_batch", no_aqi)
+    transport = httpx.ASGITransport(app=app)
+    headers = {"cf-connecting-ip": "203.0.113.1"}
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            first = asyncio.ensure_future(
+                http.post("/api/analyze", json=_held_analysis_body(1.0), headers=headers)
+            )
+            await asyncio.wait_for(weather_started.wait(), timeout=2)
+            second = asyncio.ensure_future(
+                http.post("/api/analyze", json=_held_analysis_body(2.0), headers=headers)
+            )
+            await _until(lambda: entered == [1.0, 2.0])
+            weather_release.set()
+            responses = await asyncio.gather(first, second)
+    finally:
+        weather_release.set()
+    assert [r.status_code for r in responses] == [200, 200]
+
+
+@pytest.mark.parametrize("route", ["/api/analyze", "/api/analyze/stream"])
+async def test_an_analyze_discovery_that_waits_too_long_gets_the_existing_429(
+    monkeypatch, stub_upstreams, route
+):
+    entered, release = _held_discovery(monkeypatch)
+    monkeypatch.setattr(
+        ratelimit.client,
+        "DESTINATIONS_IN_FLIGHT",
+        ratelimit.client.InFlightLimiter(1, name="destinations_in_flight", wait_s=0.05),
+    )
+    transport = httpx.ASGITransport(app=app)
+    headers = {"cf-connecting-ip": "203.0.113.1"}
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            first = asyncio.ensure_future(
+                http.post("/api/analyze", json=_held_analysis_body(1.0), headers=headers)
+            )
+            await _until(lambda: entered == [1.0])
+            second = await asyncio.wait_for(
+                http.post(route, json=_held_analysis_body(2.0), headers=headers), timeout=2
+            )
+            release.set()
+            assert (await first).status_code == 200
+    finally:
+        release.set()
+    sentence = "Too many requests from this connection. Try again later."
+    rate_limited = {"code": "rate_limited", "retryable": True}
+    if route == "/api/analyze":
+        assert second.status_code == 429
+        assert second.headers["retry-after"] == str(ratelimit.SHED_RETRY_AFTER_S)
+        assert second.json()["detail"] == sentence
+        assert second.json()["error"] == rate_limited
+    else:
+        # The stream is already open by the time discovery starts, so the
+        # refusal is its terminal `error` event, as any mid-analysis failure is.
+        events = [
+            json.loads(line[len("data: "):])
+            for line in second.text.splitlines()
+            if line.startswith("data: ")
+        ]
+        assert events[-1] == {"type": "error", "message": sentence, "error": rate_limited}
+    assert entered == [1.0]
 
 
 # ── One discovery failure, three routes, one answer (issue #384) ───────────

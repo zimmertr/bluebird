@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-06
 - Decider: the maintainer (TJ), on issue #627, 2026-10-06: option A as recommended, meaning IPv6 keyed on its /64, the geocode bucket at about 10 a minute with a burst of 3, and one in-flight Overpass discovery per address
-- Issues and PRs: #627, #595, #180, #148, #75
+- Issues and PRs: #627, #595, #180, #148, #75, #660
 - Cited in code as: #627
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, analyze step 2, the sentence "`POST /api/destinations` runs one discovery at a time per client address"; [`backend/CLAUDE.md`](../../backend/CLAUDE.md), the `app/ratelimit/` bullet
 
@@ -20,6 +20,8 @@ Two buckets were also sized against the request's own cost rather than against t
 The geocode bucket defaults to 10 a minute with a burst of 3, so its first minute, a burst plus a minute's refill, books fewer gate slots than the gate opens in that minute.
 
 `POST /api/destinations` holds one discovery in flight per key (`DISCOVERY_IN_FLIGHT_PER_CLIENT`, not an env knob). A second request from the same key waits for the first, up to `UPSTREAM_BUDGET_WAIT_S`, and then gets the bucket's own `429`, `Too many requests from this connection. Try again later.`, with `Retry-After: SHED_RETRY_AFTER_S`. The slot is held for the whole request, because a custom list is resolved against Overpass as well. The analyze routes do not take part.
+
+Extended on #660 (2026-10-06): the two analyze routes take the same slot, keyed the same way, around their discovery and the custom list's lookup only. It is let go before the forecasts, so the reason below for leaving them out, that a slot held for a whole analysis would serialize its forecast fetch, still holds. A wait that runs out is the same `429` on `POST /api/analyze` and an `error` event with the same sentence and code on the stream, which is already open by then.
 
 ## Evidence
 

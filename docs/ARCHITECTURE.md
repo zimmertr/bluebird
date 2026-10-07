@@ -57,9 +57,13 @@ the request that triggered it. What it cannot do is keep an `async` function
 that never awaits from holding the loop, which blocks every other request on
 the pod for the length of the parse. Responses are compressed at gzip level 6
 rather than Starlette's default of 9, measured on the largest body this service
-sends: level 9 costs 124 ms more event-loop CPU per request and saves 0.4% of
-the bytes. The largest of those bodies, an overlay's whole national set, is
-not compressed per request at all: `app/services/held_body.py` gzips it once
+sends: level 9 costs 124 ms more CPU per request (measured 2026-09-14) and
+saves 0.4% of the bytes. That CPU is spent on a worker thread rather than on
+the loop, because Starlette compresses any body of 128 KiB or more there (the
+longest loop gap through the middleware was 7.4 ms, measured 2026-10-06 in
+#653), so what level 9 would cost is pod CPU and response time. The largest
+of those bodies, an overlay's whole national set, is not compressed per
+request at all: `app/services/held_body.py` gzips it once
 per snapshot, on a worker thread, and the wildfire and closure routes send the
 held bytes to every client that takes gzip (#628).
 

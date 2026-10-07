@@ -347,7 +347,12 @@ def _throttle(limiter: RateLimiter, request: Request) -> None:
 
 
 def _refuse(bucket: str, request: Request, key: str, seconds: int) -> None:
-    """The one 429 a per-client limit answers, whichever limit refused."""
+    """Raise the one 429 a per-client limit answers, whichever limit refused."""
+    raise _refusal(bucket, request, key, seconds)
+
+
+def _refusal(bucket: str, request: Request, key: str, seconds: int) -> ApiError:
+    """The one 429 a per-client limit answers, counted and logged."""
     telemetry.THROTTLED.labels(bucket=bucket or "unnamed").inc()
     # The address as the access log prints it, and the key it was counted
     # under, so a throttle line finds its request and its neighbours in a /64.
@@ -358,7 +363,7 @@ def _refuse(bucket: str, request: Request, key: str, seconds: int) -> None:
         key,
         seconds,
     )
-    raise ApiError(
+    return ApiError(
         status_code=429,
         detail="Too many requests from this connection. Try again later.",
         code=ErrorCode.rate_limited,
@@ -381,6 +386,24 @@ async def destinations_rate_limit(request: Request) -> None:
     _throttle(DESTINATIONS_LIMITER, request)
 
 
+@asynccontextmanager
+async def discovery_in_flight(request: Request) -> AsyncIterator[ApiError | None]:
+    """Hold the client's one discovery slot; yields the 429 when the wait ran out.
+
+    One slot per key across every route that discovers, so a discovery from
+    `POST /api/destinations` and one from an analyze route queue behind each
+    other: both spend the same pod-wide Overpass slots. Yielded rather than
+    raised because an analyze stream is already open when its discovery
+    starts, and it reports the refusal as its terminal event.
+    """
+    key = client_key(request)
+    async with DESTINATIONS_IN_FLIGHT.slot(key) as admitted:
+        if admitted:
+            yield None
+        else:
+            yield _refusal(DESTINATIONS_IN_FLIGHT.name, request, key, SHED_RETRY_AFTER_S)
+
+
 async def destinations_in_flight(request: Request) -> AsyncIterator[None]:
     """Route dependency: one discovery in flight per client key.
 
@@ -388,10 +411,9 @@ async def destinations_in_flight(request: Request) -> AsyncIterator[None]:
     Held for the whole request because custom destinations are resolved
     against Overpass too, not only a polygon's discovery.
     """
-    key = client_key(request)
-    async with DESTINATIONS_IN_FLIGHT.slot(key) as admitted:
-        if not admitted:
-            _refuse(DESTINATIONS_IN_FLIGHT.name, request, key, SHED_RETRY_AFTER_S)
+    async with discovery_in_flight(request) as refused:
+        if refused is not None:
+            raise refused
         yield
 
 

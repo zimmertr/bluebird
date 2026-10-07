@@ -2,7 +2,7 @@ import logging
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import aclosing
 
-from fastapi import APIRouter, Depends, Security
+from fastapi import APIRouter, Depends, Request, Security
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 
@@ -123,7 +123,7 @@ def _summarize_request(request: AnalyzeRequest) -> str:
 
 
 async def _run_analysis(
-    request: AnalyzeRequest, api_key: str | None
+    request: AnalyzeRequest, api_key: str | None, http_request: Request
 ) -> AsyncGenerator[AnalyzeEvent]:
     """Run one analysis, reporting what happens as it happens.
 
@@ -147,13 +147,24 @@ async def _run_analysis(
     # "destinations" rather than any one type's noun.
     noun = _noun(request.destination_types, has_custom=bool(request.custom_destinations))
 
+    # One discovery per client address at a time, shared with
+    # `POST /api/destinations`, because every discovery spends the same
+    # pod-wide Overpass slots (#627). The slot covers discovery and the
+    # caller's own list, which is resolved against Overpass too, and nothing
+    # after: the forecasts a keyed caller asks for spend its own quota, so
+    # holding the slot through them would serialize one address's analyses
+    # for no pod-wide saving (record 0103).
     found: list[dict] | None = None
-    async with aclosing(_find_candidates(request)) as discovery:
-        async for event in discovery:
-            if isinstance(event, Done):
-                found = event.value
-            else:
-                yield event
+    async with ratelimit.discovery_in_flight(http_request) as turned_away:
+        if turned_away is not None:
+            yield Failure(turned_away)
+            return
+        async with aclosing(_find_candidates(request)) as discovery:
+            async for event in discovery:
+                if isinstance(event, Done):
+                    found = event.value
+                else:
+                    yield event
     if found is None:
         return
 
@@ -225,7 +236,10 @@ async def _run_analysis(
         "Exactly one `result` or one `error` ends the stream.\n\n"
         "Rate limiting applies before the stream opens: a client past the "
         "per-address limit gets a plain **429 with `Retry-After`**, exactly as "
-        "on `POST /api/analyze`. Capacity problems found mid-analysis (the "
+        "on `POST /api/analyze`. A second discovery from the same address "
+        "waits for its first, and one that waits too long ends the stream "
+        "with an `error` event carrying the `rate_limited` code. Capacity "
+        "problems found mid-analysis (the "
         "instance-wide upstream budget saturating) arrive as an `error` event, "
         "since the stream is already open."
     ),
@@ -266,12 +280,13 @@ async def _run_analysis(
 )
 async def analyze_stream(
     request: AnalyzeRequest,
+    http_request: Request,
     api_key: str | None = Security(open_meteo_key),
 ) -> StreamingResponse:
     async def generate() -> AsyncIterator[str]:
         log.info("Analyze request (stream): %s", _summarize_request(request))
         try:
-            async with aclosing(_run_analysis(request, api_key)) as events:
+            async with aclosing(_run_analysis(request, api_key, http_request)) as events:
                 async for event in events:
                     yield _render_sse(event)
         except Exception:
@@ -312,7 +327,8 @@ async def analyze_stream(
                 "Either this client is analyzing faster than the per-address "
                 "limit (shared with `POST /api/analyze/stream`), or the "
                 "upstream weather service rate-limited this deployment "
-                "mid-analysis. `Retry-After` says how many seconds to wait "
+                "mid-analysis, or a second discovery from this address waited "
+                "too long behind its first. `Retry-After` says how many seconds to wait "
                 "in both cases. `GET /api/capabilities` publishes the "
                 "per-address limit."
             ),
@@ -360,6 +376,7 @@ async def analyze_stream(
 )
 async def analyze(
     request: AnalyzeRequest,
+    http_request: Request,
     api_key: str | None = Security(open_meteo_key),
 ) -> AnalyzeResponse | JSONResponse:
     log.info("Analyze request: %s", _summarize_request(request))
@@ -369,7 +386,7 @@ async def analyze(
     # the generator's own `finally` blocks cancel in-flight upstream tasks, and
     # abandoning it would defer those to collection. Status and progress are
     # the stream's to show; a single response has nowhere to put them.
-    async with aclosing(_run_analysis(request, api_key)) as events:
+    async with aclosing(_run_analysis(request, api_key, http_request)) as events:
         async for event in events:
             if isinstance(event, (Failure, Refusal, Result)):
                 terminal = event
