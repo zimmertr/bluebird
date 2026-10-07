@@ -7,6 +7,7 @@ import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { analyzedView, type RecordedFacts } from '../utils/analysisSnapshot'
 import { runAnalysisPipeline } from '../utils/analysisPipeline'
 import { placeRows } from '../utils/clientAnalyze'
+import { answered } from '../utils/elevationLookup'
 import type { AnalyzedView } from './analyzeTypes'
 import type { HeldForecasts } from '../utils/forecastReuse'
 import { AQI_LIMIT_DAYS, SelectionKind } from '../utils/calendar'
@@ -49,10 +50,10 @@ export function useAnalyze(
   // The last run's snapshot builder, for an answer that lands after it.
   const viewRef = useRef<(() => AnalyzedView) | null>(null)
 
-  // A lookup's answer landed on the committed report after the run (#673):
-  // the paste-time lookup retrying a set the pod gave up on during the
-  // analysis. Each row it placed is reduced again from the column the run
-  // kept for it, and the held field takes the same rows.
+  // The paste-time lookup's answer landed on the committed report (#673):
+  // rows the tiles or the pod placed after the run had read what was known.
+  // Each row it placed is reduced again from the column the run kept for it,
+  // and the held field takes the same rows.
   function placeHeld(resolved: readonly DiscoveredDestination[]) {
     const held = heldForecastsRef.current
     const view = viewRef.current
@@ -152,11 +153,8 @@ export function useAnalyze(
           },
           // A run with no polygon learns its snow date after it has announced
           // its field, and before the first row commits.
-          onResolved: (found, lookupComplete) => {
+          onResolved: (found) => {
             facts.snowAnalysisDate = found.snowAnalysisDate
-            // What this run's own call learned goes to the lookup that
-            // started ahead of it, so no later run asks about the rows again.
-            identity?.learn(found.candidates, lookupComplete)
           },
           onPartial: (data, fieldSoFar) => report.commitArriving(data, fieldSoFar, view()),
           onProgress: run.onProgress,
@@ -169,6 +167,15 @@ export function useAnalyze(
         // frame under the bookkeeping of the one before it, and inside the
         // run rather than after the click, so a retry's commit applies it too.
         onCommit?.()
+        // The lookup may have placed a waiting row while the run was
+        // fetching, after the run had read what was known: that answer
+        // reached no report, so the commit takes it now (#673).
+        if (out.pending.size && identity) {
+          const known = identity.latest()
+          const waiting = out.field.filter((r) => out.pending.has(geoKey(r.latitude, r.longitude)))
+          const landed = answered(waiting, known)
+          if (landed.length) placeHeld(landed)
+        }
         // The lookup was still out when the report committed (#673): its
         // answer lands on the committed report, and on the held field a later
         // run would reuse, unless another run or a reset has replaced both.

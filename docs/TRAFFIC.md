@@ -139,11 +139,16 @@ cost ([#627](https://github.com/zimmertr/bluebird/issues/627), record
   running on the pod, which is why the second one waits rather than being
   refused outright. The two analyze routes run the same discovery and take the
   same slot, so one address has one discovery in flight across all three
-  routes ([#660](https://github.com/zimmertr/bluebird/issues/660)). There the
-  slot covers discovery and the custom list's lookup and is let go before the
-  forecasts, because a keyed analysis spends the caller's own Open-Meteo
-  quota, and holding it longer would make one address's analyses queue for no
-  saving to the pod. A wait that runs out is the same `429` on
+  routes ([#660](https://github.com/zimmertr/bluebird/issues/660)). On every
+  route the slot covers discovery and the custom list's lookup and nothing
+  else: the analyze routes let it go before the forecasts, because a keyed
+  analysis spends the caller's own Open-Meteo quota, and holding it longer
+  would make one address's analyses queue for no saving to the pod, and a
+  destinations request that asks Overpass nothing (`elevation_lookup: false`
+  and no polygon, which is what the web app's analysis sends since
+  [#673](https://github.com/zimmertr/bluebird/issues/673)) takes no slot at
+  all, so it is answered from the pod's snow grid while that address's own
+  elevation lookup waits on a busy map server. A wait that runs out is the same `429` on
   `POST /api/analyze`; the stream is already open by then, so it ends with an
   `error` event carrying the same sentence and `rate_limited` code.
 
@@ -529,7 +534,7 @@ release.
 
 | Provider | Called by | From | Policy | Governor |
 | --- | --- | --- | --- | --- |
-| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (`overpass-api.de`, `maps.mail.ru`) | backend (`services/osm/`), 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste), 2-mirror failover. Discovery gives each mirror its 25 s; the coordinate lookup splits its 8 s deadline evenly across the mirrors, so it asks the second one inside that deadline and each attempt asks the server for no more than its own share | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
+| [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) (`overpass-api.de`, `maps.mail.ru`) | backend (`services/osm/`), 1 query per discovery/analysis plus 1 to resolve a custom list's coordinates (batched, so one query covers a whole 100-row paste; since #673 the web app sends only the rows the basemap's tiles could not place, a few per list), 2-mirror failover. Discovery gives each mirror its 25 s; the coordinate lookup splits its 24 s deadline evenly across the mirrors, so it asks the second one inside that deadline and each attempt asks the server for no more than its own share | cluster egress IP | ~2 slots per IP **per mirror operator** (overpass-api.de documents 2) | `UPSTREAM_CONCURRENCY_OVERPASS=2` per pod **per mirror** — one budget per endpoint, slot held only while that mirror's request is in flight, released before failover |
 | [Open-Meteo forecast](https://open-meteo.com) | **browser** (`openMeteo.ts`) for the web app; backend (`weather.py`) only for unkeyed API callers | each visitor's own IP; cluster egress IP for the server path | **weighted calls** per IP: 600/min, 5,000/hr, 10,000/day (see accounting below), non-commercial | browser: a pacer that spends at most ~550 weighted calls in any 60 seconds on the visitor's own quota, a 15-min per-location result cache, one automatic minutely-429 resume, and abort-on-first-failure so nothing spends after the outcome is decided. Server path: `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER=550` per pod, held the same way to any 60 seconds — the full safe rate on **every** pod, not a per-replica share, because one analysis runs end to end on one pod and must cover its whole fan-out. The cluster can therefore exceed 550/min when several pods fetch at once; accepted, since this path is the exception and the per-minute pacer never bounded the hourly or daily quotas anyway (issue #65's shared store is the exact fix) + in-flight cap 4 + the same cache |
 | [Open-Meteo air quality](https://open-meteo.com/en/docs/air-quality-api) | same split, best-effort on both paths. The **browser** fetches AQI for the whole field alongside the weather, because air quality is metered as its own per-visitor quota and an AQI ranking must be a live knob; the **server** path fetches it lazily, for the displayed rows only, unless the ranking key or a bound is an AQI metric | same split | same accounting, metered separately | browser and server: same pacing shape (`UPSTREAM_WEIGHT_PER_MINUTE_AQI=550` per pod, undivided for the same reason), failures degrade to null, and the first 429 short-circuits the remaining AQI batches |
 | [Open-Meteo archive](https://open-meteo.com/en/docs/historical-weather-api) (`archive-api.open-meteo.com`, and `customer-archive-api` for a keyed caller) | the same two callers as the row above, for a window older than `limits.past_data_days` (issue #123). A window that crosses that boundary is fetched from both, one request per endpoint per batch, so it costs two calls where an ordinary window costs one | same split | same weighted accounting, and the same quota the forecast endpoint spends | identical to the row above: the same pacer, the same in-flight cap, and the same 15-min per-location cache, which keys on WHICH endpoint answered so the two cannot serve each other's rows |

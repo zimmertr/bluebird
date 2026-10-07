@@ -248,18 +248,52 @@ describe('a lookup that answers after the report', () => {
     const late = deferred()
     rankLate(late.promise)
     await analyzeAt(result, T0)
-    // The run's own lookup gave up: nothing placed, the column still held.
+    // The run's own call placed nothing, the column still held.
     await act(async () => {
       late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]), snowAnalysisDate: null })
       await late.promise
     })
-    expect(result.current.pendingHeights.size).toBe(0)
+    expect(result.current.pendingHeights.size).toBe(1)
     expect(result.current.universe?.[0].elevation_ft).toBeNull()
     // The paste-time lookup's retry answers: the row takes its elevation.
     act(() => result.current.placeHeld([discovered({ ...PROBE, type: 'custom', elevation_ft: 6000, osm_id: 'node/1' })]))
     expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000, osm_id: 'node/1' })
     await analyzeAt(result, T0 + MIN)
     expect(reuses()[1]?.rows[0]).toMatchObject({ elevation_ft: 6000 })
+  })
+
+  // #673: the lookup placed the row while the run was fetching, after the
+  // run had read what was known; the commit takes that answer at once.
+  it('places a waiting row from what the lookup learned during the run', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const late = deferred()
+    rankLate(late.promise)
+    const learned = new Map([[KEY, { elevation_ft: 6000, osm_id: 'node/1' }]])
+    vi.setSystemTime(T0)
+    await act(() => result.current.analyze(REQUEST, 'days', { identity: { identity: new Map(), latest: () => learned, inquiring: new Set() } }))
+    expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000, osm_id: 'node/1' })
+    expect(result.current.pendingHeights.size).toBe(0)
+    await act(async () => {
+      late.resolve({ rows: [], columns: new Map(), snowAnalysisDate: null })
+      await late.promise
+    })
+    expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000 })
+  })
+
+  it('keeps a row waiting that a patch did not place', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    const late = deferred()
+    rankLate(late.promise)
+    await analyzeAt(result, T0)
+    expect([...result.current.pendingHeights]).toEqual([KEY])
+    // The run's own call changed nothing about the row: still waiting on the lookup.
+    await act(async () => {
+      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]), snowAnalysisDate: null })
+      await late.promise
+    })
+    expect([...result.current.pendingHeights]).toEqual([KEY])
+    act(() => result.current.placeHeld([discovered({ ...PROBE, type: 'custom', elevation_ft: 6000, osm_id: 'node/1' })]))
+    expect(result.current.pendingHeights.size).toBe(0)
   })
 
   it('stops the waiting cells when the lookup is aborted', async () => {

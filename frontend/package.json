@@ -14,8 +14,10 @@
     "check:api": "npm --prefix tools/api-types ci --ignore-scripts && npm --prefix tools/api-types run check"
   },
   "dependencies": {
+    "@mapbox/vector-tile": "^3.0.0",
     "lz-string": "^1.5.0",
     "maplibre-gl": "^6.11.2",
+    "pbf": "^5.1.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "recharts": "^3.10.1"

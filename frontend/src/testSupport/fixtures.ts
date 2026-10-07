@@ -354,8 +354,9 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
 
 /**
  * The paste-time elevation lookup as a test hands it to an analysis (#673):
- * what it knows, settled at once, and learning nothing.
+ * what it knows, as of now and of the last render alike, with nothing still
+ * being asked about.
  */
 export function elevationLookup(identity: IdentityMap = NO_IDENTITY): ElevationLookup {
-  return { identity, settled: () => Promise.resolve(identity), learn: () => {} }
+  return { identity, latest: () => identity, inquiring: new Set() }
 }

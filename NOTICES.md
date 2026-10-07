@@ -33,9 +33,10 @@ services the data comes from, and the software bundled into the shipped image.
   processing, and the underlying information is provided under the Copernicus
   licence.
 - [OpenFreeMap](https://openfreemap.org): serves the basemap's vector tiles,
-  which are drawn from OpenStreetMap data in the OpenMapTiles schema. The map
-  corner credits OpenFreeMap, OpenMapTiles, and OpenStreetMap through the
-  attribution the tile metadata declares.
+  which are drawn from OpenStreetMap data in the OpenMapTiles schema, and
+  which the app also reads to match a pasted coordinate to the peak it stands
+  on. The map corner credits OpenFreeMap, OpenMapTiles, and OpenStreetMap
+  through the attribution the tile metadata declares.
 - [Nominatim](https://nominatim.org): place lookup for the map search box. Its
   results derive from OpenStreetMap data, under the same ODbL.
 - [NIFC](https://www.nifc.gov): active wildfire perimeters from the WFIGS
@@ -100,6 +101,8 @@ Frontend (npm), bundled into the served JavaScript:
 | maplibre-gl | BSD-3-Clause |
 | recharts | MIT |
 | lz-string | MIT |
+| @mapbox/vector-tile | BSD-3-Clause |
+| pbf | BSD-3-Clause |
 
 The stylesheet is generated at build time by [tailwindcss](https://www.npmjs.com/package/tailwindcss) (MIT), whose preflight rules ship in it.
 

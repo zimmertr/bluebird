@@ -593,6 +593,13 @@ Three things worth knowing about resolution:
   could say", never "the request failed".
 - **Not every point resolves.** A coordinate with no OSM peak beside it keeps
   a null elevation. That is a real answer about OSM's coverage, not an error.
+- **You can ask for no lookup at all.** `"elevation_lookup": false` skips the
+  map server: every row comes back exactly as sent, with today's snow depth,
+  in milliseconds, and a request that also discovers nothing takes no
+  discovery slot, so it never waits behind a discovery of yours in flight.
+  The bundled web app sends it from every analysis, because it has looked its
+  rows up already as they were pasted, from the basemap's own tiles first and
+  this endpoint second. The default is `true`.
 
 The same resolution runs inside `POST /api/analyze` and
 `POST /api/analyze/stream`, so a custom row is ranked and filtered on the
@@ -1026,6 +1033,8 @@ a null is the answer; `false` means the lookup gave up, those rows came back
 exactly as sent, and asking again later may place them. A row that carries its
 own `elevation_ft` is never looked up and never counts against the flag, which
 is how a client that already knows an elevation gets an answer in milliseconds.
+A request sent with `"elevation_lookup": false` made no lookup, so its flag is
+`true` only when no row needed one: the same statement, read the same way.
 
 It is `null` in two cases that mean the same thing: the destination is outside
 the grid, which covers the contiguous United States, southern Canada and

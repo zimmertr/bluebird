@@ -80,7 +80,9 @@ async def _resolve_custom(custom_destinations) -> list[dict]:
     return await osm.enrich_custom(_distinct_by_coord(_custom_dicts(custom_destinations)))
 
 
-async def _resolve_custom_reporting(custom_destinations) -> tuple[list[dict], bool]:
+async def _resolve_custom_reporting(
+    custom_destinations, *, lookup: bool = True
+) -> tuple[list[dict], bool]:
     """`_resolve_custom`, and whether the elevation lookup finished (#673).
 
     The destinations route reports the flag so a browser that asked ahead of
@@ -89,10 +91,16 @@ async def _resolve_custom_reporting(custom_destinations) -> tuple[list[dict], bo
     calls its own entry point on the package, so a test or the golden script
     patching `enrich_custom` keeps the analyze routes off the network and one
     patching `enrich_custom_reporting` keeps this route off it.
+
+    With `lookup` off (the request's `elevation_lookup: false`) the map
+    server is not asked at all: the rows come back as sent, and the flag is
+    true only when none of them needed a lookup, which is the same statement
+    the flag makes when every row was looked up.
     """
-    return await osm.enrich_custom_reporting(
-        _distinct_by_coord(_custom_dicts(custom_destinations))
-    )
+    rows = _distinct_by_coord(_custom_dicts(custom_destinations))
+    if not lookup:
+        return rows, all(r.get("elevation_ft") is not None for r in rows)
+    return await osm.enrich_custom_reporting(rows)
 
 
 def _coord_key(dest) -> str:

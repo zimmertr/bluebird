@@ -116,12 +116,14 @@ export function useAnalysisReport() {
     setArriving(false)
   }
 
-  // The lookup's answer, landed on the committed report (#673): each row in
+  // A lookup's answer, landed on the committed report (#673): each row in
   // `rows` replaces the committed row at its coordinate, in the universe and
   // in the response's rows alike, and the snapshot takes the view that knows
   // the snow date. The same objects stand everywhere else, so a row the lookup
   // left alone redraws nothing. No sequence moves: the report is the one that
-  // committed, with some of its numbers filled in.
+  // committed, with some of its numbers filled in. Answers land a few rows at
+  // a time (the tiles, then the pod, then a retry), so only the rows placed
+  // stop waiting.
   function patch(rows: readonly DestinationResult[], view: AnalyzedView) {
     const was = committedRef.current
     if (!was.response || !was.universe) return
@@ -133,11 +135,16 @@ export function useAnalysisReport() {
     setResponse(response)
     setUniverse(universe)
     setAnalyzed(view)
-    setPendingHeights(NO_PENDING)
+    setPendingHeights((pending) => {
+      if (!pending.size) return pending
+      const next = new Set(pending)
+      rows.forEach((r) => next.delete(geoKey(r.latitude, r.longitude)))
+      return next.size ? next : NO_PENDING
+    })
   }
 
-  // The lookup never answered (an abort, or a reset): nothing is coming for
-  // the rows that were waiting on it.
+  // The run's own call never answered (an abort, or a reset): nothing is
+  // coming from it for the rows that were waiting.
   function settleHeights() {
     setPendingHeights(NO_PENDING)
   }

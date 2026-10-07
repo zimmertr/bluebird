@@ -48,10 +48,12 @@ CUSTOM_ENRICH_CHUNK = 500
 # the time and says "too busy" only after 8-16s, so 8s kept the fast answers
 # and dropped the wait on a busy server, which used to reach a minute. Since
 # #673 no row waits on this lookup (the report lands when the forecasts do and
-# takes the answer when it comes), so the deadline bounds how long a row's
-# elevation cells tick rather than how long the reader waits for any row, and
-# 24s gives each of the two mirrors (#655) the 12s a busy one measured at
-# (15.3s, 11.4s and 9s on 2026-10-06) rather than a slice neither met.
+# takes the answer when it comes), and the web app sends only the rows the
+# basemap's own tiles could not place, a few per list, so the deadline bounds
+# how long those rows' elevation cells tick rather than how long the reader
+# waits for any row, and 24s gives each of the two mirrors (#655) the 12s a
+# busy one measured at (15.3s, 11.4s and 9s on 2026-10-06) rather than a
+# slice neither met.
 ENRICH_DEADLINE_S = 24.0
 
 

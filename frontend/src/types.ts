@@ -133,6 +133,9 @@ export interface DestinationsRequest {
   max_elevation_ft?: number | null
   top_by_elevation?: boolean
   custom_destinations?: CustomDestination[]
+  // Whether the pod may ask the map server about a row sent without an
+  // elevation (#673); absent reads as true.
+  elevation_lookup?: boolean
 }
 
 // Per-hour values over the analyzed window, aligned index-for-index to

@@ -158,15 +158,24 @@ export interface ResolvedCustom {
 // and every failure path returns the rows unresolved with no date. An abort is
 // the exception: that is the user's own doing and has to propagate rather than
 // masquerade as a resolved-nothing result.
+//
+// `lookup` is whether the pod may ask the map server about a row sent without
+// an elevation (#673). The paste-time lookup says yes, because asking is its
+// job; an analysis says no, because it only reads what that lookup learned,
+// so its one call answers in milliseconds and takes no discovery slot. The
+// one analysis that says yes is an over-cap list keeping its highest, which
+// cannot choose without every elevation.
 export async function resolveCustomOnly(
   custom: readonly CustomDestination[],
   signal?: AbortSignal,
+  lookup = true,
 ): Promise<ResolvedCustom> {
   const rows = customRows(custom)
   if (!rows.length) return { destinations: rows, snowAnalysisDate: null, lookupComplete: true }
   const resolveRequest: DestinationsRequest = {
     destination_types: [],
     custom_destinations: [...custom],
+    elevation_lookup: lookup,
   }
   const unresolved: ResolvedCustom = { destinations: rows, snowAnalysisDate: null, lookupComplete: false }
   try {
@@ -446,19 +455,20 @@ export interface ClientAnalysisCallbacks {
    */
   cloud?: boolean
   /**
-   * The same destinations, index for index, once a lookup still in flight has
-   * said what it knows about them: elevation, OSM identity, snow depth (#643,
-   * #673).
+   * The same destinations, index for index, once the pod's one call about
+   * them has answered: today's snow depth, and whatever elevation and OSM
+   * identity it echoes or, for an over-cap list keeping its highest, looks
+   * up (#643, #673).
    *
    * A list of coordinates is enough to ask Open-Meteo, so the fetches start on
    * the rows as given and the report is assembled as soon as they land. The
    * raw column of every row whose elevation is still unknown is kept, and
-   * when the lookup answers each such row is reduced again at the height it
-   * returned (`late`), the same arithmetic the fetch ran: the numbers are what
-   * waiting would have produced, without the wait. The report waits for the
-   * lookup only where a row's provisional numbers would decide something: a
-   * ranking or a bound on a metric read at the destination's height
-   * (`namesHeightMetric`), or an over-cap list keeping its highest.
+   * when an answer places such a row it is reduced again at the height
+   * returned (`placeRows`, through `late` for this call and through
+   * `useAnalyze.placeHeld` for the paste-time lookup's), the same arithmetic
+   * the fetch ran: the numbers are what waiting would have produced, without
+   * the wait. The report waits for this only for an over-cap list keeping its
+   * highest, which cannot choose without every elevation.
    *
    * A row that comes back at a different coordinate is ignored in favour of
    * the one sent. Must settle when `signal` aborts.

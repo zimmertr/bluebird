@@ -102,7 +102,7 @@ describe('resolveCustomOnly', () => {
     expect(out.snowAnalysisDate).toBe('2026-09-22')
   })
 
-  it('asks for a resolve, never a discovery', async () => {
+  it('asks for a resolve, never a discovery, and says whether the pod may look up', async () => {
     const spy = stubFetch(() => ({
       ok: true,
       json: async () => ({ destinations: [resolved('McClellan Butte', 5165)], total: 1 }),
@@ -111,6 +111,9 @@ describe('resolveCustomOnly', () => {
     const body = sentBody(spy)
     expect(body.destination_types).toEqual([])
     expect(body.custom_destinations).toHaveLength(1)
+    expect(body.elevation_lookup).toBe(true)
+    await resolveCustomOnly(ROWS, undefined, false)
+    expect(JSON.parse(String(spy.mock.calls[1][1].body)).elevation_lookup).toBe(false)
     // The band and the cap stay client-side on this path, so sending them
     // would hand the server a say it is not being asked for.
     expect(body.polygon).toBeUndefined()

@@ -349,6 +349,116 @@ def test_a_list_that_carries_its_elevations_reports_a_complete_lookup(monkeypatc
     assert resp.json()["elevation_lookup_complete"] is True
 
 
+# #673: the web app's own analysis has looked its rows up already (from the
+# basemap's tiles, then this endpoint), so it asks for no lookup here and the
+# call answers from the snow grid alone.
+def test_a_request_that_asks_for_no_lookup_never_reaches_the_map_server(monkeypatch):
+    def unreachable(*args, **kwargs):
+        raise AssertionError("elevation_lookup: false must not ask the map server")
+
+    monkeypatch.setattr(osm_mod, "enrich_custom_reporting", unreachable)
+    monkeypatch.setattr(osm_mod, "enrich_custom", unreachable)
+    resp = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [
+                {**_custom("Known", 47.0, -121.0), "elevation_ft": 5000},
+                _custom("Unknown", 47.1, -121.1),
+            ],
+            "elevation_lookup": False,
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [d["elevation_ft"] for d in body["destinations"]] == [5000.0, None]
+    assert [d["type"] for d in body["destinations"]] == ["custom", "custom"]
+    # A row needed a lookup and none was made: the flag says so, the same
+    # way it would for a lookup that gave up.
+    assert body["elevation_lookup_complete"] is False
+
+
+def test_a_no_lookup_request_whose_rows_all_carry_elevations_reports_complete(monkeypatch):
+    resp = client.post(
+        "/api/destinations",
+        json={
+            "destination_types": [],
+            "custom_destinations": [{**_custom("Known", 47.0, -121.0), "elevation_ft": 5000}],
+            "elevation_lookup": False,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["elevation_lookup_complete"] is True
+
+
+async def test_a_no_lookup_request_takes_no_discovery_slot(monkeypatch):
+    # The same address holds a discovery open; a request that asks Overpass
+    # nothing is answered meanwhile rather than queueing behind it, which is
+    # what lets the web app's analysis answer in milliseconds while its own
+    # elevation lookup waits on a busy map server.
+    entered, release = _held_discovery(monkeypatch)
+    transport = httpx.ASGITransport(app=app)
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            headers = {"cf-connecting-ip": "203.0.113.1"}
+            first = asyncio.ensure_future(
+                http.post("/api/destinations", json=_offset_payload(1.0), headers=headers)
+            )
+            await _until(lambda: entered == [1.0])
+            meanwhile = await asyncio.wait_for(
+                http.post(
+                    "/api/destinations",
+                    json={
+                        "destination_types": [],
+                        "custom_destinations": [_custom("Unknown", 47.1, -121.1)],
+                        "elevation_lookup": False,
+                    },
+                    headers=headers,
+                ),
+                timeout=2.0,
+            )
+            release.set()
+            assert (await first).status_code == 200
+    finally:
+        release.set()
+    assert meanwhile.status_code == 200
+    assert meanwhile.json()["destinations"][0]["elevation_ft"] is None
+
+
+async def test_a_lookup_request_waits_for_the_address_s_discovery(monkeypatch):
+    # The other way round: a list that asks for a lookup spends the same
+    # Overpass slots as a discovery, so it queues behind one.
+    entered, release = _held_discovery(monkeypatch)
+    _stub_enrich(monkeypatch, {"Unknown": 4000.0})
+    transport = httpx.ASGITransport(app=app)
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            headers = {"cf-connecting-ip": "203.0.113.1"}
+            first = asyncio.ensure_future(
+                http.post("/api/destinations", json=_offset_payload(1.0), headers=headers)
+            )
+            await _until(lambda: entered == [1.0])
+            second = asyncio.ensure_future(
+                http.post(
+                    "/api/destinations",
+                    json={
+                        "destination_types": [],
+                        "custom_destinations": [_custom("Unknown", 47.1, -121.1)],
+                    },
+                    headers=headers,
+                )
+            )
+            for _ in range(20):
+                await asyncio.sleep(0.005)
+            assert not second.done()
+            release.set()
+            responses = await asyncio.gather(first, second)
+    finally:
+        release.set()
+    assert [r.status_code for r in responses] == [200, 200]
+    assert responses[1].json()["destinations"][0]["elevation_ft"] == 4000.0
+
+
 # A line pasted twice is one destination: OSM is asked about the point once,
 # and one row comes back, under the first line's name (#579).
 def test_a_repeated_custom_row_is_looked_up_once(monkeypatch):

@@ -4,6 +4,7 @@ import {
   LOOKUP_DEBOUNCE_MS,
   LOOKUP_RETRY_MS,
   NO_IDENTITY,
+  answered,
   learn,
   rowsKey,
   unanswered,
@@ -17,7 +18,7 @@ const A = { name: 'A', latitude: 47.1, longitude: -121.1 }
 const B = { name: 'B', latitude: 47.2, longitude: -121.2 }
 const KEY_A = geoKey(A.latitude, A.longitude)
 const KEY_B = geoKey(B.latitude, B.longitude)
-const answered = (over: Partial<DiscoveredDestination>) =>
+const fromPod = (over: Partial<DiscoveredDestination>) =>
   discovered({ type: 'custom', elevation_ft: null, osm_id: null, ...over })
 
 describe('unanswered', () => {
@@ -44,20 +45,20 @@ describe('unanswered', () => {
 
 describe('learn', () => {
   it('keeps every answer when the lookup finished, a no-peak null included', () => {
-    const next = learn(NO_IDENTITY, [answered({ ...A, elevation_ft: 5000, osm_id: 'node/1' }), answered({ ...B, elevation_ft: null, osm_id: null })], true)
+    const next = learn(NO_IDENTITY, [fromPod({ ...A, elevation_ft: 5000, osm_id: 'node/1' }), fromPod({ ...B, elevation_ft: null, osm_id: null })], true)
     expect(next.get(KEY_A)).toEqual({ elevation_ft: 5000, osm_id: 'node/1' })
     expect(next.get(KEY_B)).toEqual({ elevation_ft: null, osm_id: null })
   })
 
   it('keeps only the placed rows when the lookup gave up, so the rest can be asked again', () => {
-    const next = learn(NO_IDENTITY, [answered({ ...A, elevation_ft: 5000, osm_id: 'node/1' }), answered({ ...B })], false)
+    const next = learn(NO_IDENTITY, [fromPod({ ...A, elevation_ft: 5000, osm_id: 'node/1' }), fromPod({ ...B })], false)
     expect(next.has(KEY_A)).toBe(true)
     expect(next.has(KEY_B)).toBe(false)
   })
 
   it('never takes a known elevation away', () => {
     const known = new Map([[KEY_A, { elevation_ft: 5000, osm_id: 'node/1' }]])
-    expect(learn(known, [answered({ ...A })], true).get(KEY_A)).toEqual({ elevation_ft: 5000, osm_id: 'node/1' })
+    expect(learn(known, [fromPod({ ...A })], true).get(KEY_A)).toEqual({ elevation_ft: 5000, osm_id: 'node/1' })
   })
 })
 
@@ -73,7 +74,7 @@ describe('withIdentity and withLearnedElevation', () => {
   const known = new Map([[KEY_A, { elevation_ft: 5000, osm_id: 'node/1' }]])
 
   it('fills a candidate row with what was learned and leaves the rest', () => {
-    const [a, b] = withIdentity([answered(A), answered(B)], known)
+    const [a, b] = withIdentity([fromPod(A), fromPod(B)], known)
     expect([a.elevation_ft, a.osm_id]).toEqual([5000, 'node/1'])
     expect([b.elevation_ft, b.osm_id]).toEqual([null, null])
   })
@@ -93,5 +94,28 @@ describe('the two delays', () => {
   it('sends after the box has been still for under a second, and retries a give-up after twenty', () => {
     expect(LOOKUP_DEBOUNCE_MS).toBe(800)
     expect(LOOKUP_RETRY_MS).toBe(20_000)
+  })
+})
+
+describe('answered', () => {
+  it('projects the rows an identity places as the pod would answer them, and skips the rest', () => {
+    const identity = new Map([
+      [geoKey(47.1, -121.1), { elevation_ft: 5000, osm_id: 'node/1' }],
+      [geoKey(47.2, -121.2), { elevation_ft: null, osm_id: null }],
+    ])
+    const rows = [
+      { name: 'A', latitude: 47.1, longitude: -121.1 },
+      { name: 'B', latitude: 47.2, longitude: -121.2 },
+      { name: 'C', latitude: 47.3, longitude: -121.3 },
+    ]
+    expect(answered(rows, identity)).toEqual([
+      { name: 'A', type: 'custom', latitude: 47.1, longitude: -121.1, elevation_ft: 5000, osm_id: 'node/1' },
+    ])
+  })
+
+  it('keeps a row\'s own kind and snow depth, so a committed row loses neither', () => {
+    const identity = new Map([[geoKey(47.1, -121.1), { elevation_ft: 5000, osm_id: 'node/1' }]])
+    const [row] = answered([{ name: 'A', type: 'peak', latitude: 47.1, longitude: -121.1, snow_depth_in: 12 }], identity)
+    expect(row).toMatchObject({ type: 'peak', snow_depth_in: 12 })
   })
 })

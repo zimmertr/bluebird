@@ -206,12 +206,13 @@ describe('runAnalysisPipeline', () => {
     expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: '2026-07-19' })
   })
 
-  // #673: the list goes to the pod with the elevations the paste-time lookup
-  // learned, after any lookup still in flight, and the pod's verdict on the
-  // rest goes back to that lookup.
-  it('resolves the list with what the paste-time lookup learned, once it has settled', async () => {
+  // #673: the list goes to the pod at once, with the elevations the browser's
+  // own lookup has learned by now and no lookup asked for, so the call answers
+  // from the snow grid alone. The lookup's later answers reach the report
+  // through the hook, never through this call.
+  it('resolves the list with what the lookup has learned, asking the pod for no lookup, without waiting', async () => {
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }, { name: 'Other', latitude: 48, longitude: -122 }]
-    const bodies: { custom_destinations: { name: string; elevation_ft?: number }[] }[] = []
+    const bodies: { custom_destinations: { name: string; elevation_ft?: number }[]; elevation_lookup?: boolean }[] = []
     vi.stubGlobal(
       'fetch',
       vi.fn(async (_u: string, init: RequestInit) => {
@@ -223,12 +224,8 @@ describe('runAnalysisPipeline', () => {
         })
       }),
     )
-    const learnedLater = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/1' }]])
-    let release!: () => void
-    const identity = {
-      identity: new Map(),
-      settled: () => new Promise<typeof learnedLater>((r) => (release = () => r(learnedLater))),
-    }
+    const learned = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/1' }]])
+    const identity = { latest: () => learned }
     const order: string[] = []
     ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
       order.push(`ranked ${candidates.map((c) => String(c.elevation_ft)).join()}`)
@@ -236,13 +233,33 @@ describe('runAnalysisPipeline', () => {
       return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
     const onResolved = vi.fn()
-    const run = runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity, onResolved }))
-    await vi.waitFor(() => expect(order).toEqual(['ranked null,null']))
-    expect(bodies).toEqual([])
-    release()
-    await run
+    await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity, onResolved }))
+    // The field carries what was learned from the start.
+    expect(order).toEqual(['ranked 6000,null'])
+    expect(bodies).toHaveLength(1)
     expect(bodies[0].custom_destinations.map((c) => c.elevation_ft)).toEqual([6000, undefined])
-    expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ candidates: expect.any(Array) }), false)
+    expect(bodies[0].elevation_lookup).toBe(false)
+    expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ candidates: expect.any(Array) }))
+  })
+
+  // The one run that asks the pod to look up: an over-cap list keeping its
+  // highest cannot choose without every elevation.
+  it('asks the pod to look up for an over-cap list keeping its highest', async () => {
+    const custom = Array.from({ length: 3 }, (_, i) => ({ name: `Row ${i}`, latitude: 47 + i, longitude: -121 }))
+    const bodies: { elevation_lookup?: boolean }[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_u: string, init: RequestInit) => {
+        bodies.push(JSON.parse(init.body as string))
+        return fakeResponse({ destinations: custom.map((c) => discovered({ ...c, type: 'custom' })), total: 3 })
+      }),
+    )
+    ranked.mockResolvedValue({ response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null })
+    await runAnalysisPipeline(
+      { ...REQUEST, polygon: undefined, custom_destinations: custom, top_by_elevation: true },
+      options({ maxDestinations: 2 }),
+    )
+    expect(bodies[0].elevation_lookup).toBe(true)
   })
 
   it('names no row as waiting when the ranking already waited for the lookup', async () => {

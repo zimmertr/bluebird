@@ -4,10 +4,13 @@ import { buildCustomList } from './customList'
 import { geoKey } from './points'
 
 /**
- * What the pod's lookup says about a coordinate the reader supplied (#673):
- * the peak within the match radius, or that there is none. Keyed by `geoKey`
- * wherever it is held. A null elevation here is an answer, not a gap: the
- * lookup finished and found no peak, so the row is never asked about again.
+ * What a lookup says about a coordinate the reader supplied (#673): the peak
+ * within the match radius, or that there is none. Two sources answer, the
+ * basemap's tiles first (`peakTiles.ts`) and the pod's map-server lookup for
+ * whatever they leave, and an answer reads the same from either. Keyed by
+ * `geoKey` wherever it is held. A null elevation here is an answer, not a
+ * gap: the pod's lookup finished and found no peak, so the row is never asked
+ * about again.
  */
 export interface Identity {
   elevation_ft: number | null
@@ -30,11 +33,20 @@ export const LOOKUP_DEBOUNCE_MS = 800
 // 200 in 1 s), and a second failure means waiting for the reader's next edit.
 export const LOOKUP_RETRY_MS = 20_000
 
+/** The least a row must say about itself to be answered for. */
+export interface Locatable {
+  name: string
+  type?: string
+  latitude: number
+  longitude: number
+  snow_depth_in?: number | null
+}
+
 /**
- * The rows worth asking the pod about: every distinct coordinate the reader
- * supplied that carries no elevation and that the browser has no answer for.
- * Empty above the cap, because the analysis would refuse such a list and a
- * lookup for it would only hold the reader's discovery slot.
+ * The rows worth looking up: every distinct coordinate the reader supplied
+ * that carries no elevation and that the browser has no answer for. Empty
+ * above the cap, because the analysis would refuse such a list and a lookup
+ * for it would only hold the reader's discovery slot.
  */
 export function unanswered(
   csvRows: readonly CustomDestination[],
@@ -51,7 +63,9 @@ export function unanswered(
  * The identities after a lookup's answer: every row that came back is an
  * answer, a null elevation included, EXCEPT when the lookup did not finish,
  * where a null elevation says nothing and the row stays unanswered so it can
- * be asked again. A row that came back placed is learned either way.
+ * be asked again. A row that came back placed is learned either way. The
+ * tiles answer only placed rows, under `complete`, so a row they leave is
+ * one the pod is asked about.
  */
 export function learn(
   identity: IdentityMap,
@@ -93,6 +107,30 @@ export function withLearnedElevation(
     const known = identity.get(geoKey(c.latitude, c.longitude))
     return known?.elevation_ft != null ? { ...c, elevation_ft: known.elevation_ft } : c
   })
+}
+
+/**
+ * The rows among `rows` that `identity` places, as the pod would have
+ * answered them: what a committed report takes through `placeHeld`, whether
+ * the tiles placed the row, the pod did, or the row's answer arrived while
+ * the run that holds it was still fetching.
+ */
+export function answered(rows: readonly Locatable[], identity: IdentityMap): DiscoveredDestination[] {
+  const out: DiscoveredDestination[] = []
+  for (const r of rows) {
+    const known = identity.get(geoKey(r.latitude, r.longitude))
+    if (known?.elevation_ft == null) continue
+    out.push({
+      name: r.name,
+      type: r.type ?? 'custom',
+      latitude: r.latitude,
+      longitude: r.longitude,
+      elevation_ft: known.elevation_ft,
+      osm_id: known.osm_id,
+      ...(r.snow_depth_in !== undefined ? { snow_depth_in: r.snow_depth_in } : {}),
+    })
+  }
+  return out
 }
 
 /** The same rows with the elevation and OSM id the browser has learned. */

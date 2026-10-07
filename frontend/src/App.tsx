@@ -27,6 +27,9 @@ import type { DestinationResult } from './types'
 // tutorial's demonstration report is on screen rather than a fresh one per
 // render.
 const NO_ROWS: DestinationResult[] = []
+// The same for the rows waiting on an elevation: one empty set, so the
+// memoized table sees no change between renders where nothing waits.
+const NO_WAITING: ReadonlySet<string> = new Set()
 import { useTour } from './tour/useTour'
 import { TUTORIAL_PATH } from './utils/tourSteps'
 import PreviewBanner from './components/PreviewBanner'
@@ -225,6 +228,17 @@ export default function App() {
   // holds rows (#673): usually done before Analyze is pressed, and an answer
   // that lands after a report is placed on it.
   const elevations = useElevationLookup({ csvRows, places, cap: caps.maxDestinations, onPlaced: placeHeld })
+  // The committed rows whose height-read cells tick: waiting on an elevation
+  // the lookup still means to answer. A row the lookup has given up on stops
+  // ticking and reads blank, and a row placed is no longer waiting.
+  const waitingHeights = useMemo(() => {
+    if (!pendingHeights.size || !elevations.inquiring.size) return NO_WAITING
+    const both = new Set<string>()
+    pendingHeights.forEach((k) => {
+      if (elevations.inquiring.has(k)) both.add(k)
+    })
+    return both.size ? both : NO_WAITING
+  }, [pendingHeights, elevations.inquiring])
 
   // ── The map timeline (#121) ───────────────────────────────────────────────
   // While the tutorial's last step is open, the results sheet, the chart and
@@ -618,7 +632,7 @@ export default function App() {
           movePlayheadTo={movePlayheadTo}
           fire={fire}
           closure={closure}
-          pendingHeights={pendingHeights}
+          pendingHeights={waitingHeights}
           modelId={analyzed?.forecastModel ?? forecastModel}
         />
       </main>
