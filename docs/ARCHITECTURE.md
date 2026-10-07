@@ -55,7 +55,14 @@ feeds, and in `app/services/hms.py`, issue #337). The fire payload is 16.5 MB of
 861k coordinates, and `app/services/snapshot.py` already keeps that refresh off
 the request that triggered it. What it cannot do is keep an `async` function
 that never awaits from holding the loop, which blocks every other request on
-the pod for the length of the parse. Responses are compressed at gzip level 6
+the pod for the length of the parse. The analyze routes parse and aggregate
+their Open-Meteo batches on a worker thread for the same reason
+(`app/services/openmeteo_fetch.py` and `app/services/weather.py`, issue #662).
+The aggregation yields to the loop as
+it runs and the parse does not, because the C JSON parser holds the GIL for the
+whole body, so the largest batch the keyed route can send still stalls the loop
+for about 0.23 s where it used to stall it for 1.9 s (measured 2026-10-06).
+Responses are compressed at gzip level 6
 rather than Starlette's default of 9, measured on the largest body this service
 sends: level 9 costs 124 ms more CPU per request (measured 2026-09-14) and
 saves 0.4% of the bytes. That CPU is spent on a worker thread rather than on
