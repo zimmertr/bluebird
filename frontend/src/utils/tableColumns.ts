@@ -172,6 +172,27 @@ export const ELEVATION_COL: ColDef = {
 }
 
 /**
+ * A row whose place has no recorded elevation reads its wind, temperature,
+ * cloud deck and snow depth at the terrain height Open-Meteo resolves for the
+ * coordinate (`terrainFallbackFor` and the analysis's `terrainElevation` in
+ * openMeteo.ts), and its Elevation cell shows that height rather than a blank
+ * over numbers read somewhere, with the mark raised beside it and the note
+ * once under the table (#673, decision 0116). A dagger because a compared row
+ * can carry the Model cell's `*` at the same time, and two notes opening with
+ * one sign would read as one. The file writes the height plain and puts the
+ * mark on the Name cell, as the model mark rides the Model cell (#508), so
+ * the Elevation column stays numbers a spreadsheet can sort. The wording is
+ * the maintainer's (2026-10-07).
+ */
+export const TERRAIN_HEIGHT_MARK = '†'
+export const TERRAIN_HEIGHT_NOTE = `${TERRAIN_HEIGHT_MARK} Elevation data is unavailable for this destination. This value is estimated based on nearby terrain.`
+
+/** Whether a row's Elevation cell shows the terrain height its numbers were read at. */
+export function readAtTerrainHeight(row: DestinationResult): boolean {
+  return row.elevation_ft == null && row.terrain_ft != null
+}
+
+/**
  * Precipitation's other unit.
  *
  * The family reports a window TOTAL in inches and its three other columns as a

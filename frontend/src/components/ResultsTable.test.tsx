@@ -2,7 +2,7 @@ import { Profiler, type ComponentProps, type ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, within } from '@testing-library/react'
 import ResultsTable from './ResultsTable'
-import { displayedColumns, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
+import { displayedColumns, TERRAIN_HEIGHT_NOTE, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
 import { geoKey } from '../utils/points'
@@ -303,5 +303,70 @@ describe('what a render redraws', () => {
     rerender(table('ready'))
     expect(vi.getTimerCount()).toBe(0)
     expect(screen.queryByText(fireLoadingFrame(0))).toBeNull()
+  })
+})
+
+// A place with no recorded elevation (decision 0116): the terrain height its
+// numbers were read at, a raised dagger beside it, and one line under the
+// table, drawn with the Elevation column and gone with it.
+describe('a place with no recorded elevation', () => {
+  const RAVEN = resultRow({ name: 'Raven Ridge', latitude: 48.6, longitude: -120.9, elevation_ft: null, terrain_ft: 7119 })
+  const TERRAIN = [ROWS[0], RAVEN]
+  const cellUnder = (row: HTMLElement, label: string) => {
+    const heads = screen.getAllByRole('columnheader').map((h) => h.textContent ?? '')
+    return within(row).getAllByRole('cell')[heads.findIndex((t) => t.startsWith(label))]
+  }
+
+  it('shows the terrain height marked on its cell and prints the note once', () => {
+    render(<ResultsTable {...props({ results: TERRAIN })} />)
+    const [placed, terrain] = screen.getAllByRole('row').slice(1, 3)
+    const cell = cellUnder(terrain, 'Elevation')
+    expect(cell.textContent).toBe('7,119†')
+    const mark = cell.querySelector('sup')
+    expect(mark?.textContent).toBe('†')
+    expect(mark?.className).toBe(TABLE.mark)
+    expect(cellUnder(placed, 'Elevation').textContent).toBe('14,411')
+    expect(cellUnder(placed, 'Elevation').querySelector('sup')).toBeNull()
+    const note = screen.getByText(TERRAIN_HEIGHT_NOTE)
+    for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(note.classList).toContain(cls)
+    expect(note.closest('tfoot')).not.toBeNull()
+  })
+
+  it('prints no note when every row has its elevation', () => {
+    render(<ResultsTable {...props()} />)
+    expect(screen.queryByText(TERRAIN_HEIGHT_NOTE)).toBeNull()
+  })
+
+  // The mark is on the Elevation cell, so hiding that column takes the mark
+  // and the note away together.
+  it('prints neither mark nor note without the Elevation column', () => {
+    render(<ResultsTable {...props({ results: TERRAIN, columns: COLUMNS.filter((c) => c.key !== 'elevation_ft') })} />)
+    expect(screen.queryByText(TERRAIN_HEIGHT_NOTE)).toBeNull()
+    expect(document.querySelector('sup')).toBeNull()
+  })
+
+  it('prints both notes, each on its own line, beside a model that ends early', () => {
+    const NOTE = "* Data is aggregated over a subset of the forecast window due to the model's limited range."
+    const rows = [
+      { ...ROWS[0], modelId: 'gfs_hrrr', modelLabel: 'NOAA HRRR', rank: 1, coverageEndMs: Date.UTC(2026, 8, 26, 9) },
+      { ...RAVEN, modelId: 'gfs_seamless', modelLabel: 'NOAA GFS', rank: 2 },
+    ]
+    render(<ResultsTable {...props({ results: rows, columns: withModelColumn(COLUMNS, true), partialNote: NOTE })} />)
+    const lines = [...document.querySelectorAll('tfoot div')].map((d) => d.textContent)
+    expect(lines).toEqual([NOTE, TERRAIN_HEIGHT_NOTE])
+  })
+
+  // While the lookup may still answer, the cell ticks and the note waits: the
+  // terrain height is the answer only once nobody is still asking.
+  it('ticks rather than showing the terrain height while the lookup may still answer', () => {
+    vi.useFakeTimers()
+    const waiting = new Set([geoKey(RAVEN.latitude, RAVEN.longitude)])
+    const table = (pendingHeights: ReadonlySet<string>) => <ResultsTable {...props({ results: TERRAIN, pendingHeights })} />
+    const { rerender } = render(table(waiting))
+    expect(screen.getAllByText(fireLoadingFrame(0))).toHaveLength(1)
+    expect(screen.queryByText(TERRAIN_HEIGHT_NOTE)).toBeNull()
+    rerender(table(NO_KEYS))
+    expect(cellUnder(screen.getAllByRole('row')[2], 'Elevation').textContent).toBe('7,119†')
+    expect(screen.getByText(TERRAIN_HEIGHT_NOTE)).toBeTruthy()
   })
 })

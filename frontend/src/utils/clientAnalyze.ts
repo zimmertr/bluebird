@@ -533,8 +533,12 @@ export interface ClientAnalysis {
  */
 export function withWeather(row: DestinationResult, wx: WeatherResult): DestinationResult {
   if (wx === null) return row
-  const { series, ...aggregates } = wx
+  const { series, terrain_ft, ...aggregates } = wx
   const next: DestinationResult = { ...row, ...aggregates }
+  // The height the row was read at is the terrain's only while this reduce
+  // says so (decision 0116): a reduce at the place's own elevation drops it.
+  if (terrain_ft != null) next.terrain_ft = terrain_ft
+  else delete next.terrain_ft
   if (row.series && series) {
     next.series = {
       ...row.series,

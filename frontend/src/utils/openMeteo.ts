@@ -308,7 +308,10 @@ export function terrainFallbackFor(type: string): boolean {
   return type === 'peak' || type === 'custom'
 }
 
-export type WeatherResult = (WeatherAggregates & { series: WeatherSeries | null }) | null
+// `terrain_ft` is the whole-foot terrain height the row was read at when the
+// place has none of its own (decision 0116), absent when it was read at the
+// place's elevation or at the surface; the table shows it marked.
+export type WeatherResult = (WeatherAggregates & { series: WeatherSeries | null; terrain_ft?: number | null }) | null
 export type AqiResult = (AqiAggregates & { series: AqiSeries | null }) | null
 export type CloudResult = (CloudAggregates & { series: CloudSeries | null }) | null
 
@@ -621,7 +624,11 @@ export function reduceWeather(
   if (metrics !== null) {
     const series = weatherSeries(column, startMs, endMs, elevationFt)
     const bearings = series && windDirectionSeries(column, startMs, endMs)
-    result = { ...metrics, series: series && (bearings ? { ...series, wind_dir_deg: bearings } : series) }
+    result = {
+      ...metrics,
+      series: series && (bearings ? { ...series, wind_dir_deg: bearings } : series),
+      ...(c.elevation_ft == null && elevationFt !== null ? { terrain_ft: Math.round(elevationFt) } : {}),
+    }
   }
   const source = windowSource(startMs, endMs, nowMs, windowLimits)
   cachePut(cacheKey('weather', c, startMs, endMs, model, terrainElevation, source), result ?? NO_DATA)

@@ -13,7 +13,17 @@
 // not be unit-tested at all; the download itself is `downloadCsv` in exportCsv.ts.
 
 import { DestinationResult } from '../types'
-import { CLOSURE_COL, CLOSURE_KEY, ColDef, MODEL_KEY, WILDFIRE_COL, WILDFIRE_KEY } from './tableColumns'
+import {
+  CLOSURE_COL,
+  CLOSURE_KEY,
+  ColDef,
+  MODEL_KEY,
+  TERRAIN_HEIGHT_MARK,
+  TERRAIN_HEIGHT_NOTE,
+  WILDFIRE_COL,
+  WILDFIRE_KEY,
+  readAtTerrainHeight,
+} from './tableColumns'
 import { isPartialRow, PARTIAL_COVERAGE_NOTE, type ModelEnd, type ModelRow } from './modelCompare'
 import { DATA_SOURCES } from './dataSources'
 import { FireWarning } from './fireProximity'
@@ -125,7 +135,7 @@ function escapeCell(value: string): string {
  * claim about the file's own columns and has to survive being read detached
  * from the app.
  */
-function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null): string {
+function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null, terrainMarks = false): string {
   // The two flag columns never reach here (this module appends each with its
   // own cell), but their keys are virtual and must not index a row.
   if (col.key === WILDFIRE_KEY || col.key === CLOSURE_KEY) return ''
@@ -138,6 +148,14 @@ function cell(row: DestinationResult, col: ColDef, modelFallback?: string | null
   if (col.key === MODEL_KEY) {
     const label = (row as ModelRow).modelLabel ?? modelFallback ?? ''
     return isPartialRow(row) ? `${label}*` : label
+  }
+  // A place with no recorded elevation (#673, decision 0116): the height its
+  // numbers were read at goes in the Elevation column as a plain number, and
+  // the mark that says so rides the Name cell, the row's one text cell, as the
+  // model mark rides the Model cell.
+  if (terrainMarks && readAtTerrainHeight(row)) {
+    if (col.key === 'name') return `${row.name}${TERRAIN_HEIGHT_MARK}`
+    if (col.key === 'elevation_ft') return String(row.terrain_ft)
   }
   const raw = row[col.key]
   if (raw == null) return col.csvNull ?? ''
@@ -403,6 +421,10 @@ export function buildResultsCsv(
   // file without that column, or without a marked row, has nothing for the
   // note to explain.
   const marked = columns.some((c) => c.key === MODEL_KEY) && rows.some(isPartialRow)
+  // The terrain note follows the same rule on the Elevation column: a file
+  // without that column shows no terrain height, so it marks no name and
+  // carries no note.
+  const terrainMarks = columns.some((c) => c.key === 'elevation_ft') && rows.some(readAtTerrainHeight)
   const windowRows = window
     ? [
         [''],
@@ -411,6 +433,7 @@ export function buildResultsCsv(
         ...modelEnds.map((m) => [modelEndLabel(m.label), isoLocalMinute(m.endMs, timeZone)]),
         // Behind its own blank row, so the note reads apart from the dates.
         ...(marked ? [[''], [PARTIAL_COVERAGE_NOTE]] : []),
+        ...(terrainMarks ? [[''], [TERRAIN_HEIGHT_NOTE]] : []),
       ]
     : []
   // Pending rows first with an empty Rank, mirroring the table, which draws
@@ -429,7 +452,7 @@ export function buildResultsCsv(
     // and a header sort reorders the rows, so a position would name another
     // place in either case.
     const rank = (row as ModelRow).rank ?? i + 1
-    const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel))]
+    const cells = [String(rank), ...columns.map((c) => cell(row, c, modelLabel, terrainMarks))]
     if (fireWarnings) cells.push(fireCell(row, fireWarnings, fireUncovered))
     if (closureWarnings) cells.push(closureCell(row, closureWarnings, closureUncovered))
     return cells

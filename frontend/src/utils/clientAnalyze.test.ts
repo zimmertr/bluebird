@@ -1620,3 +1620,15 @@ describe('following the tail', () => {
     expect(labels).toEqual([])
   })
 })
+
+// The height a row was read at, when it was the terrain's (decision 0116):
+// carried onto the row by the reduce that read there, and taken off by the
+// reduce at the place's own elevation once a lookup has placed it.
+describe('withWeather and the terrain height', () => {
+  it('carries the terrain height the reduce read at, and drops it once the row is read at its own', () => {
+    const atTerrain = withWeather(resultRow({ elevation_ft: null }), { ...weatherResult(), terrain_ft: 7119 })
+    expect(atTerrain.terrain_ft).toBe(7119)
+    const placed = withWeather({ ...atTerrain, elevation_ft: 7300 }, weatherResult())
+    expect(placed).not.toHaveProperty('terrain_ft')
+  })
+})

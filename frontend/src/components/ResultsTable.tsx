@@ -2,7 +2,7 @@ import { memo, useMemo, useRef } from 'react'
 import { DestinationResult, SortBy } from '../types'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { selectionState } from '../utils/chartData'
-import { MODEL_KEY, SortDir, SortKey, displayedColumns, ColDef } from '../utils/tableColumns'
+import { MODEL_KEY, SortDir, SortKey, TERRAIN_HEIGHT_NOTE, displayedColumns, readAtTerrainHeight, ColDef } from '../utils/tableColumns'
 import { checkRunning, type FireProximityStatus, type FireWarning } from '../utils/fireProximity'
 import type { ClosureProximityStatus, ClosureWarning } from '../utils/closureProximity'
 import type { PendingDestination } from '../utils/customList'
@@ -181,7 +181,21 @@ function ResultsTable({
   )
   const headState = selectionState(chartableRows, (r) => isCharted?.(r) ?? false)
 
-  const footnote = orderedColumns.some((c) => c.key === MODEL_KEY) ? partialNote : null
+  // The lines under the table, each explaining a mark on a column it is drawn
+  // with: the model coverage note while the Model column is (#508), and the
+  // terrain height note while the Elevation column is and a row on display
+  // shows one (#673, decision 0116).
+  // A row still ticking for its lookup shows no mark yet, so it raises no note.
+  const terrainShown = useMemo(
+    () => results.some((r) => readAtTerrainHeight(r) && !pendingHeights.has(geoKey(r.latitude, r.longitude))),
+    [results, pendingHeights],
+  )
+  const footnotes = useMemo(() => {
+    const notes: string[] = []
+    if (partialNote && orderedColumns.some((c) => c.key === MODEL_KEY)) notes.push(partialNote)
+    if (terrainShown && orderedColumns.some((c) => c.key === 'elevation_ft')) notes.push(TERRAIN_HEIGHT_NOTE)
+    return notes
+  }, [orderedColumns, partialNote, terrainShown])
 
   // Every data cell is sized by the same widths the header resizes.
   const widths = columnWidths ?? NO_WIDTHS
@@ -278,7 +292,7 @@ function ResultsTable({
             )}
           </FireClock>
         </tbody>
-        {footnote && (
+        {footnotes.length > 0 && (
           <tfoot>
             <tr>
               {/* A table row rather than a line after the table, for the
@@ -288,7 +302,11 @@ function ResultsTable({
                   soon as a wide comparison table is scrolled sideways, which
                   every one on a phone is. */}
               <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
-                <div className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>{footnote}</div>
+                {footnotes.map((note) => (
+                  <div key={note} className={`sticky left-0 w-[100cqi] px-3 py-1.5 ${TEXT.micro}`}>
+                    {note}
+                  </div>
+                ))}
               </td>
             </tr>
           </tfoot>

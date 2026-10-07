@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { resultRow } from '../testSupport/fixtures'
 import {
   CLOSURE_COL,
   CLOSURE_KEY,
@@ -18,6 +19,9 @@ import {
   visibleColumns,
   withModelColumn,
   heightDependentKey,
+  TERRAIN_HEIGHT_MARK,
+  TERRAIN_HEIGHT_NOTE,
+  readAtTerrainHeight,
 } from './tableColumns'
 import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
@@ -587,5 +591,24 @@ describe('a new metric family needs no second list', () => {
     for (const col of collapsed) {
       expect(col.label.startsWith(NOUN[familyOf(col.key as string)])).toBe(true)
     }
+  })
+})
+
+// A place with no recorded elevation shows the terrain height its numbers were
+// read at (decision 0116). One predicate for the table and the file, a dagger
+// so the note cannot be confused with the model coverage note's asterisk, and
+// the maintainer's words after it.
+describe('the terrain height mark', () => {
+  it('names a row with no recorded elevation and a terrain height, and no other', () => {
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: null, terrain_ft: 7119 }))).toBe(true)
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: 7300, terrain_ft: 7119 }))).toBe(false)
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: null }))).toBe(false)
+    expect(readAtTerrainHeight(resultRow({ elevation_ft: null, terrain_ft: null }))).toBe(false)
+  })
+
+  it('opens the note with the dagger and uses no dash', () => {
+    expect(TERRAIN_HEIGHT_MARK).toBe('†')
+    expect(TERRAIN_HEIGHT_NOTE.startsWith(`${TERRAIN_HEIGHT_MARK} `)).toBe(true)
+    expect(TERRAIN_HEIGHT_NOTE).not.toMatch(/[—–]/)
   })
 })

@@ -434,6 +434,8 @@ describe('fetchWeather', () => {
     )
     // Same interpolation as a destination at 8,000 ft: 10 + 20 * (981.4/1555).
     expect(out[0]?.wind_avg_mph).toBe(22.6)
+    // And the row says which height that was, in whole feet (decision 0116).
+    expect(out[0]?.terrain_ft).toBe(8000)
 
     // Without the option, the same coordinate keeps the 10 m wind — and the
     // two answers live under different cache keys, so neither poisons the
@@ -444,6 +446,7 @@ describe('fetchWeather', () => {
       WINDOW.endMs, OPTS,
     )
     expect(plain[0]?.wind_avg_mph).toBe(6.0) // mean of 5, 7
+    expect(plain[0]).not.toHaveProperty('terrain_ft')
   })
 
   it('lets a claimed elevation beat the terrain option', async () => {
@@ -464,6 +467,8 @@ describe('fetchWeather', () => {
       WINDOW.endMs, { ...OPTS, terrainElevation: true },
     )
     expect(out[0]?.wind_avg_mph).toBe(22.6)
+    // Read at its own height, so no terrain height to show.
+    expect(out[0]).not.toHaveProperty('terrain_ft')
   })
 
   it('reads one place at terrain height and another at the surface, and keys them apart (#545)', async () => {

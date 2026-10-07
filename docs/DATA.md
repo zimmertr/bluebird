@@ -71,12 +71,15 @@ mapped since the tiles were last built, goes to the server's Overpass lookup
 described below, which is the only source for a direct API caller. Three
 things follow from that, all of them visible in the Elevation column:
 
-- **A point with no mapped peak beside it stays blank.** Against the bundled
-  100-peak Washington lists the match rate is 97%; the misses are summits no
-  volunteer has mapped as a node, not failures of the lookup. The app still
-  forecasts such a point at the terrain height Open-Meteo reports for its
-  coordinate, as it does a peak with no elevation, and the Elevation column
-  stays blank because that height is the model's ground, not the peak's.
+- **A point with no mapped peak beside it shows the terrain height, marked.**
+  Against the bundled 100-peak Washington lists the match rate is 97%; the
+  misses are summits no volunteer has mapped as a node, not failures of the
+  lookup. The app forecasts such a point at the terrain height Open-Meteo
+  reports for its coordinate, as it does a peak with no elevation, and the
+  Elevation column shows that height with a dagger and one note under the
+  table saying it is estimated from the terrain, because that height is the
+  model's ground, not the peak's
+  ([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
 - **The number is OSM's, not your guidebook's.** Where the two disagree, the
   column shows what OSM says, which is the same figure a polygon search shows
   for that peak. Agreement between the two ways of asking is the point;

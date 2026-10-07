@@ -1,7 +1,15 @@
 import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DestinationResult } from '../types'
-import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY, heightDependentKey, type ColDef } from '../utils/tableColumns'
+import {
+  CLOSURE_KEY,
+  MODEL_KEY,
+  TERRAIN_HEIGHT_MARK,
+  WILDFIRE_KEY,
+  heightDependentKey,
+  readAtTerrainHeight,
+  type ColDef,
+} from '../utils/tableColumns'
 import {
   checkRunning,
   fireLoadingFrame,
@@ -309,6 +317,24 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
           ) : (
             label
           ),
+        )}
+      </td>
+    )
+  }
+  // A place with no recorded elevation shows the terrain height its numbers
+  // were read at, marked, rather than a blank over numbers read somewhere
+  // (#673, decision 0116). The mark is on this cell because the height is this
+  // cell's; the note it points at is the table's.
+  if (key === 'elevation_ft' && readAtTerrainHeight(row)) {
+    return (
+      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+        {sized(
+          ctx.widths,
+          key,
+          <>
+            {Number(row.terrain_ft).toLocaleString()}
+            <sup className={TABLE.mark}>{TERRAIN_HEIGHT_MARK}</sup>
+          </>,
         )}
       </td>
     )
