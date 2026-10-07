@@ -107,6 +107,7 @@ export default function ResultsSheet({
   movePlayheadTo,
   fire,
   closure,
+  pendingHeights,
   modelId,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
@@ -201,6 +202,7 @@ export default function ResultsSheet({
               movePlayheadTo={movePlayheadTo}
               fire={fire}
               closure={closure}
+              pendingHeights={pendingHeights}
               modelId={modelId}
               onRemovePending={onRemovePending}
               onFocusResult={onFocusResult}

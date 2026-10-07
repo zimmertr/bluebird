@@ -211,6 +211,7 @@ export default function App() {
     discardSeq,
     fireField,
     fireSeq,
+    pendingHeights,
     loading,
     arriving,
     error,
@@ -609,6 +610,7 @@ export default function App() {
           movePlayheadTo={movePlayheadTo}
           fire={fire}
           closure={closure}
+          pendingHeights={pendingHeights}
           modelId={analyzed?.forecastModel ?? forecastModel}
         />
       </main>

@@ -1,4 +1,5 @@
 import type { DestinationResult } from '../types'
+import type { HeldColumns } from './clientAnalyze'
 
 // Whether a field the browser already holds may stand in for a fresh fetch,
 // and what to hold once a run finishes. Pure so the one rule that spends or
@@ -24,6 +25,10 @@ export interface HeldForecasts {
   // The rows, by `geoKey`, whose air quality FAILED rather than answered
   // null. A reuse asks those again (#580); absent means none did.
   aqiFailed?: ReadonlySet<string>
+  // The raw Open-Meteo columns behind the rows, by `geoKey`, whose elevation
+  // no lookup has answered yet, so a run that reuses the row can reduce it
+  // at the height its own lookup returns (#673). Absent means none.
+  columns?: ReadonlyMap<string, HeldColumns>
 }
 
 /** The window and model a run asks for, after the window is resolved. */
@@ -61,6 +66,7 @@ export function holdForecasts(
   asked: ForecastQuestion,
   nowMs: number,
   aqiFailed: ReadonlySet<string>,
+  columns: ReadonlyMap<string, HeldColumns>,
 ): HeldForecasts {
-  return { rows, times, ...asked, fetchedAtMs: reused?.fetchedAtMs ?? nowMs, aqiFailed }
+  return { rows, times, ...asked, fetchedAtMs: reused?.fetchedAtMs ?? nowMs, aqiFailed, columns }
 }

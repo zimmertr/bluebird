@@ -70,7 +70,7 @@ function options(over: Partial<PipelineOptions> = {}): PipelineOptions {
 
 beforeEach(() => {
   ranked.mockReset()
-  ranked.mockResolvedValue({ response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] }, universe: ROWS, aqiFailed: new Set() })
+  ranked.mockResolvedValue({ response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] }, universe: ROWS, aqiFailed: new Set(), columns: new Map(), late: null })
 })
 afterEach(() => vi.unstubAllGlobals())
 
@@ -150,7 +150,7 @@ describe('runAnalysisPipeline', () => {
     ranked.mockImplementation(async (_r, candidates, _s, _e, cb) => {
       order.push(`ranked ${candidates.map((c) => `${c.name}:${c.elevation_ft}`).join()}`)
       handed = cb!.resolving
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
     const resolved: (string | null)[] = []
     await runAnalysisPipeline(
@@ -177,6 +177,35 @@ describe('runAnalysisPipeline', () => {
     expect(resolved).toEqual(['2026-07-19', 'peak'])
   })
 
+  // #673: the ranking lands before the lookup; what the lookup changes rides
+  // on `late` with the snow date the lookup answered, and the rows waiting
+  // on it ride on `pending`.
+  it('hands the late patch on with the snow date, and names the rows waiting on it', async () => {
+    const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        fakeResponse({
+          destinations: [discovered({ name: 'Mine', type: 'custom', latitude: 47, longitude: -121, elevation_ft: 6000 })],
+          total: 1,
+          snow_analysis_date: '2026-07-19',
+        }),
+      ),
+    )
+    const patched = resultRow({ name: 'Mine', latitude: 47, longitude: -121, elevation_ft: 6000 })
+    ranked.mockImplementation(async (_r, _c, _s, _e, cb) => ({
+      response: { results: [], total_queried: 1, total_matched: 1 },
+      universe: [],
+      aqiFailed: new Set<string>(),
+      columns: new Map([[geoKey(47, -121), { weather: { hourly: { time: [] } } }]]),
+      late: cb!.resolving!.then(() => ({ rows: [patched], columns: new Map() })),
+    }))
+    const out = await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
+    expect([...out.pending]).toEqual([geoKey(47, -121)])
+    expect(out.held.columns?.size).toBe(1)
+    expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+  })
+
   it('hands a ring no lookup: discovery already answered', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     await runAnalysisPipeline(REQUEST, options())
@@ -188,7 +217,7 @@ describe('runAnalysisPipeline', () => {
     const order: string[] = []
     ranked.mockImplementation(async () => {
       order.push('ranked')
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
     await runAnalysisPipeline(REQUEST, options({ onDiscovered: (f) => order.push(`found ${f.candidates.length}`) }))
     expect(order).toEqual(['found 1', 'ranked'])
@@ -198,7 +227,7 @@ describe('runAnalysisPipeline', () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1 })
     ranked.mockImplementation(async (_r, _c, _s, _e, cb) => {
       cb!.onPartial!(ROWS, [7])
-      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>() }
+      return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
     const onPartial = vi.fn()
     await runAnalysisPipeline(REQUEST, options({ onPartial }))
@@ -227,6 +256,8 @@ describe('runAnalysisPipeline', () => {
       response: { results: ROWS.slice(0, 1), total_queried: 2, total_matched: 2, times: [1] },
       universe: ROWS,
       aqiFailed: stillFailed,
+      columns: new Map(),
+      late: null,
     })
     const out = await runAnalysisPipeline(REQUEST, options({ held }))
     // The rows whose air quality failed go to the run that may ask again

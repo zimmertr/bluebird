@@ -1,6 +1,6 @@
 # 0101. A run with no polygon fetches its forecasts beside the elevation lookup, not after it
 
-- Status: Accepted
+- Status: Accepted; the wait for the lookup is superseded by [0114](0114-report-lands-before-the-elevation-lookup.md), the overlap stands
 - Date: 2026-10-06
 - Decider: the maintainer (TJ), on issue #643 (option A; option B, a longer-lived elevation cache on the pod, declined the same day)
 - Issues and PRs: #643, #207, #545, #579

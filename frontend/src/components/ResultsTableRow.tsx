@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { DestinationResult } from '../types'
-import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY, type ColDef } from '../utils/tableColumns'
+import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY, heightDependentKey, type ColDef } from '../utils/tableColumns'
 import {
   checkRunning,
   fireLoadingFrame,
@@ -157,6 +157,8 @@ interface CellContext {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
+  // The row's elevation lookup is still out (#673).
+  heightPending: boolean
   // Centres the map on the row: the name button's fly-to.
   onCenter: () => void
   // The row's own id, from `useId`, so it holds still across renders of a
@@ -274,8 +276,20 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
 // Wildfire and Closure columns included.
 function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: CellContext }) {
   const key = col.key as string
+  const frame = useContext(FireFrame)
   if (col.key === WILDFIRE_KEY) return <FireTd colKey={key} ctx={ctx} />
   if (col.key === CLOSURE_KEY) return <ClosureTd colKey={key} ctx={ctx} />
+  // A row whose elevation is still being looked up has a forecast, but its
+  // elevation and the numbers read at that elevation are not yet what the
+  // lookup will make them (#673), so those cells tick the flag columns' dots
+  // rather than print a number the answer replaces.
+  if (ctx.heightPending && frame !== null && heightDependentKey(key)) {
+    return (
+      <td className={`${TABLE.cell} whitespace-nowrap font-mono`}>
+        {sized(ctx.widths, key, <span className={TEXT.caption}>{frame}</span>)}
+      </td>
+    )
+  }
   // Virtual like the wildfire column: the value rides beside the row. A model
   // that ends inside the window is marked here, once, rather than on each of
   // its numbers (#508): the mark is about the model, and a number with a mark
@@ -387,6 +401,7 @@ interface RowProps {
   closureStatus: ClosureProximityStatus
   closureWarning?: ClosureWarning
   closureUncovered: boolean
+  heightPending: boolean
   // Absent when the table has no chart column.
   chartBox?: ChartBox
   charted: boolean
@@ -411,6 +426,7 @@ function ResultsTableRow({
   closureStatus,
   closureWarning,
   closureUncovered,
+  heightPending,
   chartBox,
   charted,
   chartColor,
@@ -431,6 +447,7 @@ function ResultsTableRow({
     closureStatus,
     closureWarning,
     closureUncovered,
+    heightPending,
     onCenter: () => onFocusResult?.(row),
     rowId,
   }

@@ -17,6 +17,7 @@ import {
   orderColumns,
   visibleColumns,
   withModelColumn,
+  heightDependentKey,
 } from './tableColumns'
 import { FAMILY_KEYS, RANKED_FAMILIES, familyOf, NOUN, SEP } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
@@ -353,6 +354,21 @@ describe('WILDFIRE_COL', () => {
   it('is not part of the row-backed column set', () => {
     expect(COLUMNS.map((c) => c.key)).not.toContain(WILDFIRE_KEY)
     expect(displayedColumns(false, 'precip_total_in').map((c) => c.key)).not.toContain(WILDFIRE_KEY)
+  })
+})
+
+// #673: the cells a row cannot print until its elevation lookup answers.
+describe('heightDependentKey', () => {
+  it('names the elevation and every wind, temperature, cloud and snow column', () => {
+    for (const key of ['elevation_ft', 'wind_max_mph', 'temp_min_f', 'cloud_deck_avg_ft', 'snow_depth_in']) {
+      expect(heightDependentKey(key)).toBe(true)
+    }
+  })
+
+  it('leaves the identity, the flag columns and the metrics that stand at no elevation', () => {
+    for (const key of ['name', 'type', 'precip_total_in', 'aqi_max', 'freeze_min_ft', WILDFIRE_KEY, CLOSURE_KEY, MODEL_KEY]) {
+      expect(heightDependentKey(key)).toBe(false)
+    }
   })
 })
 

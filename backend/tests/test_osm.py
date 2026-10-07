@@ -687,11 +687,13 @@ async def test_enrich_custom_queries_peaks_and_volcanoes_within_the_radius(monke
     assert "volcano" in query
 
 
-def test_enrich_deadline_is_the_measured_eight_seconds():
-    # Half the primary's healthy answers land under 5s and its "too busy"
-    # arrives after 8-16s (2026-09-30), which is where the note in
-    # osm/enrich.py puts the line. Re-measure before changing.
-    assert osm.ENRICH_DEADLINE_S == 8.0
+def test_enrich_deadline_is_twelve_seconds_a_mirror():
+    # No row waits on the lookup since #673, so the deadline is what a busy
+    # mirror needs to answer at all: 9 to 15s measured on 2026-10-06, which
+    # the 4s slice of an 8s deadline never reached. The note in osm/enrich.py
+    # has the numbers. Re-measure before changing.
+    assert osm.ENRICH_DEADLINE_S == 24.0
+    assert osm.ENRICH_DEADLINE_S / len(osm.mirrors.OVERPASS_MIRRORS) == 12.0
 
 
 def _count(name: str, **labels: str) -> float:
@@ -835,8 +837,8 @@ async def test_the_enrichment_query_asks_each_server_for_its_slice(monkeypatch):
     # The server stops working when the pod stops waiting, as on discovery.
     fake = _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
     await _enrich_custom([_row(47.0, -121.0)])
-    assert [b.splitlines()[0] for b in fake.bodies] == ["[out:json][timeout:4];"] * 2
-    assert fake.timeouts == [4.0, 4.0]
+    assert [b.splitlines()[0] for b in fake.bodies] == ["[out:json][timeout:12];"] * 2
+    assert fake.timeouts == [12.0, 12.0]
 
 
 async def test_discovery_keeps_the_mirror_table_timeouts(monkeypatch):

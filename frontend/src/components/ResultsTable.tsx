@@ -79,6 +79,10 @@ interface Props {
   closureWarnings: Map<string, ClosureWarning>
   closureUncovered: Set<string>
   closureStatus: ClosureProximityStatus
+  // Rows, by `geoKey`, whose elevation lookup is still out (#673): their
+  // elevation and every cell read at the destination's height tick the
+  // flag columns' dots until it answers. One set per report, like the maps.
+  pendingHeights: ReadonlySet<string>
   // Custom destinations awaiting their first analysis — pasted CSV rows and
   // searched places alike — shown immediately as un-forecasted rows (name +
   // elevation, "—" metrics) so both inputs have feedback before Analyze runs.
@@ -132,6 +136,7 @@ function ResultsTable({
   closureWarnings,
   closureUncovered,
   closureStatus,
+  pendingHeights,
   pending,
   onRemovePending,
   onRemove,
@@ -155,9 +160,10 @@ function ResultsTable({
     [columns, pointSample, sortBy],
   )
 
-  // One clock for both flag columns, running while EITHER check waits; each
-  // cell decides from its own check whether to show the frame.
-  const checksLoading = checkRunning(fireStatus) || checkRunning(closureStatus)
+  // One clock for both flag columns and the height-read cells, running while
+  // ANY of them waits; each cell decides from its own state whether to show
+  // the frame.
+  const checksLoading = checkRunning(fireStatus) || checkRunning(closureStatus) || pendingHeights.size > 0
 
   // The leading checkbox column only appears once an analysis has returned
   // series to chart; rows without series (e.g. pinned search forecasts) render
@@ -245,6 +251,7 @@ function ResultsTable({
                   closureStatus={closureStatus}
                   closureWarning={closureWarnings.get(at)}
                   closureUncovered={closureUncovered.has(at)}
+                  heightPending={pendingHeights.has(at)}
                   chartBox={showChartCol ? chartBox : undefined}
                   charted={charted}
                   chartColor={charted ? chartColor?.(row) : undefined}

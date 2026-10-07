@@ -8,6 +8,7 @@ import type {
   RefusalFields,
 } from '../types'
 import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
+import type { LatePatch } from './clientAnalyze'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
@@ -147,6 +148,14 @@ export interface PipelineResult {
   field: DestinationResult[]
   // What the next run may reuse.
   held: HeldForecasts
+  // The rows, by `geoKey`, whose elevation the lookup had not answered as the
+  // report was assembled (#673). Empty when every row had one, or when the
+  // run waited for the lookup.
+  pending: ReadonlySet<string>
+  // The lookup's answer, when it was still out as the report was assembled:
+  // the rows it changed (each reduced again at its height), the columns
+  // still worth holding, and the snow grid's date. Rejects only on abort.
+  late: Promise<LatePatch & { snowAnalysisDate: string | null }> | null
 }
 
 export async function runAnalysisPipeline(request: AnalyzeRequest, options: PipelineOptions): Promise<PipelineResult> {
@@ -167,27 +176,32 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     // A run with no polygon discovers nothing: its field is the list it was
     // sent, and the one server call only fills in what OSM and the snow grid
     // know about each row. So the forecasts are asked for at once and the
-    // lookup runs beside them rather than ahead of them (#643). On a busy map
-    // server it takes up to the pod's 8 s deadline, against about 1.5 s of
-    // forecasts for 100 rows (measured 2026-10-06).
+    // lookup runs beside them rather than ahead of them (#643), and the report
+    // lands when the forecasts do, taking the lookup's answer when it comes
+    // (#673): on a busy map server the lookup takes up to the pod's deadline,
+    // against about 1.5 s of forecasts for 100 rows (measured 2026-10-06).
     const custom = request.custom_destinations ?? []
     const listed = { totalFound: null, truncated: false }
     found = typed({ ...listed, candidates: customRows(custom), snowAnalysisDate: null })
     resolving = resolveCustomOnly(custom, signal).then((resolved) => {
       const answered = typed({ ...listed, candidates: resolved.destinations, snowAnalysisDate: resolved.snowAnalysisDate })
+      snowAnalysisDate = answered.snowAnalysisDate
       options.onResolved?.(answered)
       return answered.candidates
     })
   }
   onDiscovered(found)
+  // What the lookup says the snow grid's date is, once it has said; a run
+  // with a polygon learns it from discovery, which is settled by here.
+  let snowAnalysisDate: string | null = found.snowAnalysisDate
 
-  const { response, universe, aqiFailed } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
+  const { response, universe, aqiFailed, columns, late } = await runClientAnalysis(request, found.candidates, window.startMs, window.endMs, {
     signal,
     resolving,
     maxDestinations: options.maxDestinations,
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
-    reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed },
+    reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed, columns: reuse.columns },
     cloud: requestsCloud(request),
     onPace: options.onPace,
     onPartial: (rows, times) =>
@@ -207,6 +221,10 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
       truncated: response.truncated || found.truncated,
     },
     field: universe,
-    held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed),
+    held: holdForecasts(reuse, universe, response.times ?? [], asked, now(), aqiFailed, columns),
+    pending: new Set(columns.keys()),
+    // The lookup's `then` above has run by the time the patch resolves, so
+    // the date rides with it rather than through a second callback.
+    late: late && late.then((patch) => ({ ...patch, snowAnalysisDate })),
   }
 }

@@ -5,6 +5,7 @@ import ResultsTable from './ResultsTable'
 import { displayedColumns, WILDFIRE_COL, CLOSURE_COL, withModelColumn } from '../utils/tableColumns'
 import { fireLoadingFrame } from '../utils/fireProximity'
 import { resultRow, series } from '../testSupport/fixtures'
+import { geoKey } from '../utils/points'
 import { render } from '../testSupport/render'
 import { TABLE, TEXT } from '../styles'
 
@@ -57,6 +58,7 @@ function props(over: Partial<Props> = {}): Props {
     closureWarnings: NO_WARNINGS,
     closureUncovered: NO_KEYS,
     closureStatus: 'ready',
+    pendingHeights: NO_KEYS,
     ...over,
   }
 }
@@ -270,6 +272,21 @@ describe('what a render redraws', () => {
     rerender(table('ready'))
     expect(vi.getTimerCount()).toBe(0)
     expect(screen.queryByText(fireLoadingFrame(1))).toBeNull()
+  })
+
+  // #673: the same clock runs for a row still waiting on its elevation.
+  it('keeps the clock running for a row still waiting on its elevation, and stops once it is placed', () => {
+    vi.useFakeTimers()
+    const waiting = new Set([geoKey(ROWS[0].latitude, ROWS[0].longitude)])
+    const table = (pendingHeights: ReadonlySet<string>) => <ResultsTable {...props({ pendingHeights })} />
+    const { rerender } = render(table(waiting))
+    // The waiting row's elevation cell alone ticks.
+    expect(screen.getAllByText(fireLoadingFrame(0))).toHaveLength(1)
+    expect(screen.queryByText('14,411')).toBeNull()
+    expect(screen.getByText('12,281')).toBeTruthy()
+    rerender(table(NO_KEYS))
+    expect(vi.getTimerCount()).toBe(0)
+    expect(screen.getByText('14,411')).toBeTruthy()
   })
 
   // One clock for both flag columns: it runs while EITHER check waits, and

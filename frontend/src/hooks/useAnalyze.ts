@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { geoKey } from '../utils/points'
 import type { AnalyzeRequest } from '../types'
 import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
@@ -40,6 +41,9 @@ export function useAnalyze(
   // Set only once a run has finished and committed, so a run that does not
   // finish leaves the forecasts of the report it puts back (#560).
   const heldForecastsRef = useRef<HeldForecasts | null>(null)
+  // Which run is current, so a lookup that answers after the next Analyze or
+  // a reset lands on nothing (#673): the report it belonged to is gone.
+  const runSeqRef = useRef(0)
 
   // Re-run the most recent request (the "Try again" button on transient
   // errors; a deterministic refusal gets no retry, because run verbatim it can
@@ -53,6 +57,7 @@ export function useAnalyze(
   // Analyze so a stale ranking (e.g. from a since-deleted polygon) doesn't
   // linger in the table and on the map above the refetched pins.
   function reset() {
+    runSeqRef.current += 1
     report.clear()
     run.clearEvents()
     lastRequestRef.current = null
@@ -74,6 +79,7 @@ export function useAnalyze(
   ): Promise<boolean> {
     const { discovery, compareModels = [], onCommit } = options
     lastRequestRef.current = { request, kind, options }
+    const runSeq = ++runSeqRef.current
     // Derived off the request unless the caller says otherwise: the weather-
     // only refresh re-fetches a polygon report through the custom path, so its
     // request carries no polygon. The snow date is this run's alone, so a
@@ -123,11 +129,33 @@ export function useAnalyze(
           onPace: run.onPace,
         })
         heldForecastsRef.current = out.held
-        report.commit(out.response, out.field, view())
+        report.commit(out.response, out.field, view(), out.pending)
         // In the same render as the commit, so the report never shows a
         // frame under the bookkeeping of the one before it, and inside the
         // run rather than after the click, so a retry's commit applies it too.
         onCommit?.()
+        // The lookup was still out when the report committed (#673): its
+        // answer lands on the committed report, and on the held field a later
+        // run would reuse, unless another run or a reset has replaced both.
+        out.late?.then(
+          (patch) => {
+            if (runSeqRef.current !== runSeq) return
+            facts.snowAnalysisDate = patch.snowAnalysisDate
+            report.patch(patch.rows, view())
+            const held = heldForecastsRef.current
+            if (held) {
+              const swap = new Map(patch.rows.map((r) => [geoKey(r.latitude, r.longitude), r]))
+              heldForecastsRef.current = {
+                ...held,
+                rows: held.rows.map((r) => swap.get(geoKey(r.latitude, r.longitude)) ?? r),
+                columns: patch.columns,
+              }
+            }
+          },
+          () => {
+            if (runSeqRef.current === runSeq) report.settleHeights()
+          },
+        )
       },
       { onFailure: report.discard, onSettled: report.settle },
     )
@@ -151,6 +179,8 @@ export function useAnalyze(
     refusal: run.refusal,
     response: report.response,
     universe: report.universe,
+    // The committed rows still waiting on their elevation (#673).
+    pendingHeights: report.pendingHeights,
     statusMessage: run.statusMessage,
     progress: run.progress,
     paceRemainingS: run.paceRemainingS,

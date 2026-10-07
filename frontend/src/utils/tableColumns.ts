@@ -11,6 +11,7 @@ import {
   metricLabel,
 } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
+import { HEIGHT_FAMILIES } from './constraints'
 
 /**
  * One column of the results table.
@@ -104,6 +105,18 @@ export type SortDir = 'asc' | 'desc'
 // which answer a row is, so it belongs with what identifies a row rather than
 // among the numbers it qualifies.
 export const LEAD_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'elevation_ft'])
+
+/**
+ * Whether a column's value is read at the destination's height, and so is
+ * not yet known for a row whose elevation lookup is still out (#673): the
+ * elevation itself, and every metric in `HEIGHT_FAMILIES`. Read off the
+ * family table rather than through `familyOf`, which throws on a lead or
+ * virtual key.
+ */
+export function heightDependentKey(key: string): boolean {
+  if (key === 'elevation_ft') return true
+  return HEIGHT_FAMILIES.some((family) => (FAMILY_KEYS[family] as readonly string[]).includes(key))
+}
 
 /**
  * The same columns with `Model` inserted, or unchanged when nothing is

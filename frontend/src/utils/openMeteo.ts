@@ -533,19 +533,19 @@ export interface FetchWeatherOptions {
    */
   terrainElevation?: boolean
   /**
-   * Elevations a lookup is still out for, one per coordinate and in the same
-   * order: what each coordinate with no `elevation_ft` of its own turns out
-   * to stand at, or null where nothing knows (#643). The requests leave at
-   * once and each batch is reduced when this settles, so a slow lookup and the
-   * fetch share one wait. Open-Meteo is never sent an elevation; it is read
-   * only by the reduce, which is what makes the two independent.
+   * Each coordinate's raw column as it lands, before it is reduced (#673):
+   * the joined Open-Meteo payload, by the coordinate's index in
+   * `destinations`. A caller keeps it to reduce the same answer again later,
+   * at an elevation a lookup has not returned yet (`reduceWeather`), because
+   * Open-Meteo is never sent an elevation and the reduce is the only thing
+   * that reads one.
    *
-   * A coordinate still waiting on this skips the cache read, because the
-   * elevation is part of its key and is not known yet; its entry is written
-   * under the elevation that arrives. It must settle when `signal` aborts, or
-   * a cancelled fetch waits on it for good.
+   * While this is set, a coordinate with no `elevation_ft` skips the cache
+   * read, so its column is always in hand: the cache holds reduced rows under
+   * the elevation they were reduced at, and a hit there would have nothing to
+   * reduce again (0101).
    */
-  heights?: Promise<ReadonlyArray<number | null | undefined>>
+  onColumn?: (index: number, column: HourlyPayload) => void
 }
 
 // The longest a minutely 429 is waited out before the one resume, the pod's
@@ -586,16 +586,69 @@ async function getJsonWithResume(
   }
 }
 
-// Whether this coordinate's elevation is still being looked up, which is when
-// its cache entry cannot be named: the elevation is part of the key.
-function heightPending(c: Coordinate, heights: FetchWeatherOptions['heights']): boolean {
-  return heights !== undefined && c.elevation_ft == null
+/** What a reduce needs beside the window: the model, the clock and the limits. */
+export type ReduceOptions = Pick<FetchWeatherOptions, 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation'>
+
+// The height a column is read at: the coordinate's own elevation, else the
+// terrain height the response reports when the fetch or the place asks for
+// it, else none (the 10 m wind and the 2 m temperature).
+function heightOf(c: Coordinate, column: HourlyPayload, terrainElevation: boolean): number | null {
+  return (
+    c.elevation_ft ??
+    ((terrainElevation || c.terrainFallback === true) && typeof column.elevation === 'number'
+      ? column.elevation / FT_TO_M
+      : null)
+  )
 }
 
-// The coordinate as the reduce read it, for the cache key: its own elevation
-// where it had one, else the one a lookup returned.
-function withHeight(c: Coordinate, late: number | null | undefined): Coordinate {
-  return c.elevation_ft == null && late != null ? { ...c, elevation_ft: late } : c
+/**
+ * One coordinate's weather row from its raw column, cached under the
+ * elevation it was read at. The fetch below reduces every batch through this,
+ * and a caller that kept the column (`onColumn`) reduces it again through the
+ * same function once a lookup has said where the place stands (#673): one
+ * reduce, two paths, the same number either way.
+ */
+export function reduceWeather(
+  column: HourlyPayload,
+  c: Coordinate,
+  startMs: number,
+  endMs: number,
+  { model, nowMs = Date.now(), windowLimits = FALLBACK_WINDOW_LIMITS, terrainElevation = false }: ReduceOptions,
+): WeatherResult {
+  const elevationFt = heightOf(c, column, terrainElevation)
+  const metrics = weatherMetrics(column, startMs, endMs, elevationFt)
+  let result: WeatherResult = null
+  if (metrics !== null) {
+    const series = weatherSeries(column, startMs, endMs, elevationFt)
+    const bearings = series && windDirectionSeries(column, startMs, endMs)
+    result = { ...metrics, series: series && (bearings ? { ...series, wind_dir_deg: bearings } : series) }
+  }
+  const source = windowSource(startMs, endMs, nowMs, windowLimits)
+  cachePut(cacheKey('weather', c, startMs, endMs, model, terrainElevation, source), result ?? NO_DATA)
+  return result
+}
+
+/** The cloud column's twin of `reduceWeather`, over the cloud variables. */
+export function reduceCloud(
+  column: HourlyPayload,
+  c: Coordinate,
+  startMs: number,
+  endMs: number,
+  { model, nowMs = Date.now(), windowLimits = FALLBACK_WINDOW_LIMITS, terrainElevation = false }: ReduceOptions,
+): CloudResult {
+  const elevationFt = heightOf(c, column, terrainElevation)
+  const metrics = cloudMetrics(column, startMs, endMs, elevationFt)
+  const result: CloudResult = metrics === null ? null : { ...metrics, series: cloudSeries(column, startMs, endMs, elevationFt) }
+  const source = windowSource(startMs, endMs, nowMs, windowLimits)
+  cachePut(cacheKey('cloud', c, startMs, endMs, model, terrainElevation, source), result ?? NO_DATA)
+  return result
+}
+
+// Whether this coordinate must be fetched rather than read from the cache: a
+// caller keeping columns needs the column of every place whose elevation is
+// still unknown, and the cache has none to give.
+function columnWanted(c: Coordinate, onColumn: FetchWeatherOptions['onColumn']): boolean {
+  return onColumn !== undefined && c.elevation_ft == null
 }
 
 // Port of weather.fetch_weather_batch: cache first, then paced fetches for
@@ -614,7 +667,7 @@ export async function fetchWeather(
     nowMs = Date.now(),
     windowLimits = FALLBACK_WINDOW_LIMITS,
     terrainElevation = false,
-    heights,
+    onColumn,
   }: FetchWeatherOptions,
 ): Promise<WeatherResult[]> {
   if (destinations.length === 0) return []
@@ -626,6 +679,7 @@ export async function fetchWeather(
   // a third answer at the same coordinates rather than either half.
   const source = windowSource(startMs, endMs, nowMs, windowLimits)
   const spans = fetchSpans(startMs, endMs, nowMs, windowLimits)
+  const reduceOptions: ReduceOptions = { model, nowMs, windowLimits, terrainElevation }
 
   const results: WeatherResult[] = new Array(destinations.length).fill(null)
   // Which entries of `results` are answers. A cache hit is settled the moment
@@ -633,7 +687,7 @@ export async function fetchWeather(
   const settled: boolean[] = new Array(destinations.length).fill(false)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
-    const hit = heightPending(c, heights)
+    const hit = columnWanted(c, onColumn)
       ? undefined
       : cacheGet(cacheKey('weather', c, startMs, endMs, model, terrainElevation, source))
     if (hit === undefined) missIdx.push(i)
@@ -657,54 +711,7 @@ export async function fetchWeather(
     at += chunks[i].length
   }
 
-  // One batch's responses into its rows. `late` is what `heights` settled to,
-  // or null when the fetch was given none.
-  const reduce = (
-    chunk: readonly Coordinate[],
-    chunkIndex: number,
-    perSpan: HourlyPayload[][],
-    late: ReadonlyArray<number | null | undefined> | null,
-  ): WeatherResult[] => {
-    const chunkResults = chunk.map((_c, j): WeatherResult => {
-      const item = joinHours(perSpan.map((items) => items[j]))
-      const elevationFt =
-        chunk[j].elevation_ft ??
-        late?.[missIdx[chunkStart[chunkIndex] + j]] ??
-        ((terrainElevation || chunk[j].terrainFallback === true) &&
-        typeof item.elevation === 'number'
-          ? item.elevation / FT_TO_M
-          : null)
-      const metrics = weatherMetrics(item, startMs, endMs, elevationFt)
-      if (metrics === null) return null
-      const series = weatherSeries(item, startMs, endMs, elevationFt)
-      const bearings = series && windDirectionSeries(item, startMs, endMs)
-      return {
-        ...metrics,
-        series: series && (bearings ? { ...series, wind_dir_deg: bearings } : series),
-      }
-    })
-    // Land this batch in the full-length array before announcing it, so the
-    // caller sees rows rather than a count (#337, finding 2). The same writes
-    // used to happen after every batch had returned; doing them here is the
-    // whole change, because each index is written exactly once either way.
-    if (onPartial) {
-      chunkResults.forEach((r, j) => {
-        const at = missIdx[chunkStart[chunkIndex] + j]
-        results[at] = r
-        settled[at] = true
-      })
-      onPartial([...results], [...settled])
-    }
-    return chunkResults
-  }
-
-  // Each batch's rows, in chunk order. Filled by the task that fetched the
-  // batch and awaited after the pool, because a reduce waiting on `heights`
-  // must not hold one of the pool's request slots: a long list would stop
-  // asking after its first four batches until the lookup answered (#643).
-  const reducing: Promise<WeatherResult[]>[] = []
-
-  const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<void> => {
+  const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<WeatherResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
       // Fifteen variables, not the backend's fourteen: the browser also asks
@@ -767,31 +774,29 @@ export async function fetchWeather(
       }
       perSpan.push(items)
     }
-    // Counted when the answer arrives rather than when it is reduced, so the
-    // bar fills on the fetch's own clock while a lookup is still out.
+    const chunkResults = chunk.map((c, j): WeatherResult => {
+      const column = joinHours(perSpan.map((items) => items[j]))
+      onColumn?.(missIdx[chunkStart[chunkIndex] + j], column)
+      return reduceWeather(column, c, startMs, endMs, reduceOptions)
+    })
     processed += chunk.length
     onProgress?.(processed, destinations.length)
-    if (heights === undefined) {
-      const rows = reduce(chunk, chunkIndex, perSpan, null)
-      reducing[chunkIndex] = Promise.resolve(rows)
-    } else {
-      const rows = heights.then((late) => reduce(chunk, chunkIndex, perSpan, late))
-      // Awaited below, after the pool. Marked handled here so a rejection in
-      // that gap is not reported as unhandled.
-      rows.catch(() => {})
-      reducing[chunkIndex] = rows
+    // Land this batch in the full-length array before announcing it, so the
+    // caller sees rows rather than a count (#337, finding 2). The same writes
+    // used to happen after every batch had returned; doing them here is the
+    // whole change, because each index is written exactly once either way.
+    if (onPartial) {
+      chunkResults.forEach((r, j) => {
+        const at = missIdx[chunkStart[chunkIndex] + j]
+        results[at] = r
+        settled[at] = true
+      })
+      onPartial([...results], [...settled])
     }
+    return chunkResults
   })
 
-  await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)
-  const fetched = (await Promise.all(reducing)).flat()
-  const late = heights === undefined ? null : await heights
-  fetched.forEach((r, j) => {
-    cachePut(
-      cacheKey('weather', withHeight(misses[j], late?.[missIdx[j]]), startMs, endMs, model, terrainElevation, source),
-      r ?? NO_DATA,
-    )
-  })
+  const fetched = (await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)).flat()
   missIdx.forEach((i, j) => {
     results[i] = fetched[j]
   })
@@ -800,7 +805,7 @@ export async function fetchWeather(
 
 export type FetchCloudOptions = Pick<
   FetchWeatherOptions,
-  'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation' | 'heights'
+  'signal' | 'onPace' | 'model' | 'nowMs' | 'windowLimits' | 'terrainElevation' | 'onColumn'
 >
 
 // The cloud column (#117, #670): the weather fetch's twin over the same endpoints,
@@ -823,17 +828,18 @@ export async function fetchCloud(
     nowMs = Date.now(),
     windowLimits = FALLBACK_WINDOW_LIMITS,
     terrainElevation = false,
-    heights,
+    onColumn,
   }: FetchCloudOptions,
 ): Promise<CloudResult[]> {
   if (destinations.length === 0) return []
   const source = windowSource(startMs, endMs, nowMs, windowLimits)
   const spans = fetchSpans(startMs, endMs, nowMs, windowLimits)
+  const reduceOptions: ReduceOptions = { model, nowMs, windowLimits, terrainElevation }
 
   const results: CloudResult[] = new Array(destinations.length).fill(null)
   const missIdx: number[] = []
   destinations.forEach((c, i) => {
-    const hit = heightPending(c, heights)
+    const hit = columnWanted(c, onColumn)
       ? undefined
       : cacheGet(cacheKey('cloud', c, startMs, endMs, model, terrainElevation, source))
     if (hit === undefined) missIdx.push(i)
@@ -842,15 +848,13 @@ export async function fetchCloud(
   const misses = missIdx.map((i) => destinations[i])
   if (misses.length === 0) return results
 
-  // Reduced outside the pool's slots, for the reason the weather fetch gives.
-  const reducing: Promise<CloudResult[]>[] = []
-  const tasks = chunked(misses, BATCH_SIZE).map((chunk, chunkIndex) => async (): Promise<void> => {
+  const tasks = chunked(misses, BATCH_SIZE).map((chunk, chunkIndex) => async (): Promise<CloudResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
-      // Twelve variables at one model: factor 1.2, spent on the WEATHER
-      // budget, because Open-Meteo meters per service and this is the weather
-      // endpoint. Read off the list, for the reason the weather fetch reads its
-      // own count off `HOURLY_VARIABLES`.
+      // Nine variables at one model: inside the floor of 1, spent on the
+      // WEATHER budget, because Open-Meteo meters per service and this is the
+      // weather endpoint. Read off the list, for the reason the weather fetch
+      // reads its own count off `HOURLY_VARIABLES`.
       const spend = () =>
         weatherBudget.acquire(
           callWeight(chunk.length, span.startMs, span.endMs, CLOUD_VARIABLES.length, 1),
@@ -878,41 +882,18 @@ export async function fetchCloud(
       if (items.length !== chunk.length) throw new OpenMeteoBadBody(BAD_BODY_MESSAGE)
       perSpan.push(items)
     }
-    const reduce = (late: ReadonlyArray<number | null | undefined> | null): CloudResult[] =>
-      chunk.map((_c, j): CloudResult => {
-        const item = joinHours(
-          perSpan.map((items) => items[j]),
-          CLOUD_VARIABLES,
-        )
-        const elevationFt =
-          chunk[j].elevation_ft ??
-          late?.[missIdx[chunkIndex * BATCH_SIZE + j]] ??
-          ((terrainElevation || chunk[j].terrainFallback === true) &&
-          typeof item.elevation === 'number'
-            ? item.elevation / FT_TO_M
-            : null)
-        const metrics = cloudMetrics(item, startMs, endMs, elevationFt)
-        if (metrics === null) return null
-        return { ...metrics, series: cloudSeries(item, startMs, endMs, elevationFt) }
-      })
-    if (heights === undefined) {
-      const rows = reduce(null)
-      reducing[chunkIndex] = Promise.resolve(rows)
-    } else {
-      const rows = heights.then(reduce)
-      rows.catch(() => {})
-      reducing[chunkIndex] = rows
-    }
+    return chunk.map((c, j): CloudResult => {
+      const column = joinHours(
+        perSpan.map((items) => items[j]),
+        CLOUD_VARIABLES,
+      )
+      onColumn?.(missIdx[chunkIndex * BATCH_SIZE + j], column)
+      return reduceCloud(column, c, startMs, endMs, reduceOptions)
+    })
   })
 
-  await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)
-  const fetched = (await Promise.all(reducing)).flat()
-  const late = heights === undefined ? null : await heights
+  const fetched = (await pooled(tasks, MAX_CONCURRENT_BATCHES, signal)).flat()
   fetched.forEach((r, j) => {
-    cachePut(
-      cacheKey('cloud', withHeight(misses[j], late?.[missIdx[j]]), startMs, endMs, model, terrainElevation, source),
-      r ?? NO_DATA,
-    )
     results[missIdx[j]] = r
   })
   return results

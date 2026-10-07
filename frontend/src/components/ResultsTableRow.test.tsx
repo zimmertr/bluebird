@@ -57,6 +57,7 @@ function props(over: Partial<Props> = {}): Props {
     fireUncovered: false,
     closureStatus: 'ready',
     closureUncovered: false,
+    heightPending: false,
     charted: false,
     ...over,
   }
@@ -172,6 +173,35 @@ describe('a ranked row', () => {
     expect(remove.className).not.toMatch(/(^|\s)invisible(\s|$)/)
     await user.tab()
     expect(document.activeElement).toBe(remove)
+  })
+})
+
+// #673: a row whose elevation lookup is still out has a forecast, but its
+// elevation and the numbers read at that elevation tick until it answers.
+describe('a row still waiting on its elevation', () => {
+  const WIND = displayedColumns(false, 'wind_max_mph').find((c) => c.key === 'wind_max_mph')!
+  it('ticks the elevation and the height-read cells, and prints the rest', () => {
+    inTable(
+      <FireClock running>
+        <ResultsTableRow {...props({ columns: [...COLUMNS, WIND], heightPending: true })} />
+      </FireClock>,
+    )
+    const cells = within(screen.getByRole('row')).getAllByRole('cell')
+    // rank, name, elevation, precip, wildfire, wind
+    expect(cells[2].textContent).toBe(fireLoadingFrame(0))
+    expect(cells[3].textContent).not.toBe(fireLoadingFrame(0))
+    expect(cells[4].textContent).toBe('—')
+    expect(cells[5].textContent).toBe(fireLoadingFrame(0))
+  })
+
+  it('prints its elevation once the lookup has answered', () => {
+    inTable(
+      <FireClock running>
+        <ResultsTableRow {...props({ heightPending: false })} />
+      </FireClock>,
+    )
+    expect(screen.queryByText(fireLoadingFrame(0))).toBeNull()
+    expect(screen.getByText('12,281')).toBeTruthy()
   })
 })
 
