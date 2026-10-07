@@ -24,8 +24,14 @@ import {
   ringPolygon,
 } from '../utils/drawGeometry'
 import { addVertex } from '../utils/polygonEdit'
-
-export const DRAW_COLOR = '#38bdf8'
+import { popupButton } from '../utils/popupChrome'
+import {
+  DRAW_COLOR,
+  DRAW_FILL_OPACITY,
+  DRAW_LINE_WIDTH,
+  MIDPOINT_HANDLE_PAINT,
+  VERTEX_HANDLE_PAINT,
+} from './mapStyles'
 
 type Pts = [number, number][]
 
@@ -65,13 +71,13 @@ export function mountDrawRing(
     type: 'fill',
     source: 'draw',
     filter: ['==', ['get', 'kind'], 'polygon'],
-    paint: { 'fill-color': DRAW_COLOR, 'fill-opacity': 0.12 },
+    paint: { 'fill-color': DRAW_COLOR, 'fill-opacity': DRAW_FILL_OPACITY },
   })
   map.addLayer({
     id: 'draw-line',
     type: 'line',
     source: 'draw',
-    paint: { 'line-color': DRAW_COLOR, 'line-width': 2 },
+    paint: { 'line-color': DRAW_COLOR, 'line-width': DRAW_LINE_WIDTH },
   })
   // Midpoints render below vertices so vertices are always on top.
   //
@@ -91,13 +97,7 @@ export function mountDrawRing(
     source: 'draw',
     filter: ['==', ['get', 'kind'], 'midpoint'],
     layout: handleVisibility,
-    paint: {
-      'circle-radius': 5,
-      'circle-color': '#fff',
-      'circle-stroke-color': DRAW_COLOR,
-      'circle-stroke-width': 2,
-      'circle-opacity': 0.85,
-    },
+    paint: MIDPOINT_HANDLE_PAINT,
   })
   map.addLayer({
     id: 'draw-vertices',
@@ -105,12 +105,7 @@ export function mountDrawRing(
     source: 'draw',
     filter: ['==', ['get', 'kind'], 'vertex'],
     layout: handleVisibility,
-    paint: {
-      'circle-radius': 6,
-      'circle-color': DRAW_COLOR,
-      'circle-stroke-color': '#fff',
-      'circle-stroke-width': 2,
-    },
+    paint: VERTEX_HANDLE_PAINT,
   })
 
   function redraw() {
@@ -200,9 +195,7 @@ export function mountDrawRing(
     popup?.remove()
     const opened = new Popup({ offset: [0, -8], closeButton: false })
       .setLngLat(e.lngLat)
-      .setHTML(
-        '<button data-rm style="background:#ef4444;color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:sans-serif;font-weight:600">✕ Remove point</button>',
-      )
+      .setHTML(popupButton('data-rm', 'danger', '✕ Remove point'))
       .addTo(map)
     popup = opened
 

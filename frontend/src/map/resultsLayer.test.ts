@@ -55,6 +55,7 @@ import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { closureWarningText } from '../utils/closureProximity'
 import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
+import { MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 
 // A full card's size, and a map tall enough to hold one below a centred marker.
@@ -129,6 +130,19 @@ describe('mountResultsLayer', () => {
       'pending-destinations-labels',
     ])
     expect(stub.layout['results-wind'].visibility).toBe('none')
+  })
+
+  // The result marker and the pending dot were one recipe spelled twice, so a
+  // change to one could miss the other (#365). Both now spread MARKER_PAINT,
+  // and only the colour differs; the labels under them read one recipe too.
+  it('draws the ranked marker and the pending dot from one recipe', () => {
+    const { stub } = setup()
+    const ranked = stub.paint[RESULT_MARKER_LAYER]
+    const pending = stub.paint['pending-destinations-circles']
+    expect(ranked).toEqual({ ...MARKER_PAINT, 'circle-color': ['get', 'color'] })
+    expect(pending).toEqual({ ...MARKER_PAINT, 'circle-color': PENDING_COLOR })
+    expect(stub.paint['results-labels']).toEqual(MARKER_LABEL_PAINT)
+    expect(stub.paint['pending-destinations-labels']).toEqual(MARKER_LABEL_PAINT)
   })
 
   it('draws the rows the results table ranks, for the hour under the playhead', () => {

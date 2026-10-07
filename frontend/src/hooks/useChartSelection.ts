@@ -7,7 +7,7 @@ import {
   debutRows,
   metricForSort,
 } from '../utils/chartData'
-import { allocateColors } from '../utils/chartColors'
+import { UNASSIGNED_LINE_COLOR, allocateColors } from '../utils/chartColors'
 
 // Chart selection for the results table and the chart-only legend: which
 // destinations are overlaid, their stable line colors, and the active metric.
@@ -121,7 +121,7 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
   )
 
   const colorFor = useCallback(
-    (row: DestinationResult): string => colorByKey[chartKey(row)] ?? '#94a3b8',
+    (row: DestinationResult): string => colorByKey[chartKey(row)] ?? UNASSIGNED_LINE_COLOR,
     [colorByKey],
   )
 

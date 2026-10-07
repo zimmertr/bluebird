@@ -28,11 +28,11 @@ import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closu
 import type { LabelledScale } from '../utils/colors'
 import { gridPaints } from '../utils/forecastGrid'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
-import { IEM_HREF } from '../utils/radar'
+import { IEM_HREF, radarSwatchCss } from '../utils/radar'
 import { legendBottomPx } from '../utils/resultsSheet'
 import { HMS_HREF, SMOKE_DENSITIES, SMOKE_EDGE, smokeSwatch } from '../utils/smoke'
 import { NOHRSC_HREF, SNOW_LABEL, SNOW_RAMP, snowRampCss, snowTicks } from '../utils/snowDepth'
-import { NIFC_HREF } from '../utils/wildfires'
+import { NIFC_HREF, wildfireSwatch } from '../utils/wildfires'
 
 /**
  * One section of the map's legend box: what it keys, who it came from, and the
@@ -263,10 +263,7 @@ export default function MapLegend({
             swatch: (
               <span
                 className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
-                style={{
-                  backgroundColor: 'rgba(220,38,38,0.35)',
-                  borderColor: '#b91c1c',
-                }}
+                style={wildfireSwatch()}
               />
             ),
           },
@@ -346,8 +343,7 @@ export default function MapLegend({
               <span
                 className={`inline-block h-3.5 w-3.5 flex-shrink-0 ${RADIUS.control} border`}
                 style={{
-                  backgroundImage:
-                    'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)',
+                  backgroundImage: radarSwatchCss(),
                   borderColor: SWATCH_EDGE,
                 }}
               />

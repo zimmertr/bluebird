@@ -12,6 +12,7 @@ import {
   popupLink,
   popupShell,
   row,
+  WARNING_COLOR,
 } from './popupChrome'
 import { ColDef } from './tableColumns'
 import { popupGroups, popupIdentity } from './popupRows'
@@ -78,7 +79,7 @@ export function resultPopupHtml(d: {
     ? popupLink(
         nifcFireUrl(d.warning.longitude, d.warning.latitude, FIRE_LINK_ZOOM),
         `<div style="font-weight:600;margin-bottom:2px">⚠️ ${escapeHtml(fireWarningText(d.warning))}</div>`,
-        'color:#f59e0b;display:block',
+        `color:${WARNING_COLOR};display:block`,
       )
     : ''
   // The closure line, after the fire line and in its markup: one statement
@@ -91,8 +92,8 @@ export function resultPopupHtml(d: {
   const closure = !d.closure
     ? ''
     : d.closure.url
-      ? popupLink(d.closure.url, closureLine, 'color:#f59e0b;display:block')
-      : `<div style="color:#f59e0b">${closureLine}</div>`
+      ? popupLink(d.closure.url, closureLine, `color:${WARNING_COLOR};display:block`)
+      : `<div style="color:${WARNING_COLOR}">${closureLine}</div>`
 
   // What the destination IS, above the rule. The type and the model share one
   // line because each is a word rather than a measurement, and the separator

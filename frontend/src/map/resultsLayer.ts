@@ -21,6 +21,16 @@ import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeat
 import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
+import {
+  MARKER_LABEL_LAYOUT,
+  MARKER_LABEL_PAINT,
+  MARKER_PAINT,
+  PENDING_COLOR,
+  RANK_LAYOUT,
+  RANK_PAINT,
+  WIND_ARROW_FILL,
+  WIND_ARROW_OUTLINE,
+} from './mapStyles'
 import { placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
@@ -61,8 +71,8 @@ export function makeArrowImage(): ImageData | null {
   ctx.lineTo(mid + 1.5, 12)
   ctx.lineTo(mid + 5, 12)
   ctx.closePath()
-  ctx.fillStyle = 'rgba(255,255,255,0.95)'
-  ctx.strokeStyle = 'rgba(15,23,42,0.85)'
+  ctx.fillStyle = WIND_ARROW_FILL
+  ctx.strokeStyle = WIND_ARROW_OUTLINE
   ctx.lineWidth = 1.5
   ctx.fill()
   ctx.stroke()
@@ -133,13 +143,7 @@ export function mountResultsLayer(
     id: RESULT_MARKER_LAYER,
     type: 'circle',
     source: 'results',
-    paint: {
-      'circle-radius': 10,
-      'circle-color': ['get', 'color'],
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#fff',
-      'circle-opacity': 0.9,
-    },
+    paint: { ...MARKER_PAINT, 'circle-color': ['get', 'color'] },
   })
   // Wind arrows, shown only while playback is scrubbing a wind ranking.
   // On the same source as the circles, so a scrub sets one lot of GeoJSON
@@ -169,30 +173,20 @@ export function mountResultsLayer(
     id: 'results-rank',
     type: 'symbol',
     source: 'results',
-    layout: { 'text-field': ['get', 'rank'], 'text-size': 10, 'text-font': ['Noto Sans Bold'] },
-    paint: { 'text-color': '#fff' },
+    layout: { 'text-field': ['get', 'rank'], ...RANK_LAYOUT },
+    paint: RANK_PAINT,
   })
   map.addLayer({
     id: 'results-labels',
     type: 'symbol',
     source: 'results',
-    layout: {
-      'text-field': ['get', 'name'],
-      'text-offset': [0, 1.6],
-      'text-size': 11,
-      'text-anchor': 'top',
-      'text-font': ['Noto Sans Regular'],
-    },
-    paint: {
-      'text-color': '#f8fafc',
-      'text-halo-color': '#0f172a',
-      'text-halo-width': 1.5,
-    },
+    layout: { 'text-field': ['get', 'name'], ...MARKER_LABEL_LAYOUT },
+    paint: MARKER_LABEL_PAINT,
   })
 
   // ── Pending custom destinations ────────────────────────────────
   // A pasted CSV row or searched place not yet in the displayed analysis:
-  // a neutral bluebird-forecast-blue dot so the point never vanishes, no forecast
+  // a neutral dot (`PENDING_COLOR`) so the point never vanishes, no forecast
   // popup yet. Absent from the blocked-click list on purpose — a pending
   // dot must never swallow a polygon click while you draw around a
   // just-added spot; it starts blocking (opening a popup) once it ranks in.
@@ -204,30 +198,14 @@ export function mountResultsLayer(
     id: 'pending-destinations-circles',
     type: 'circle',
     source: 'pending-destinations',
-    paint: {
-      'circle-radius': 10,
-      'circle-color': '#3b82f6',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#fff',
-      'circle-opacity': 0.9,
-    },
+    paint: { ...MARKER_PAINT, 'circle-color': PENDING_COLOR },
   })
   map.addLayer({
     id: 'pending-destinations-labels',
     type: 'symbol',
     source: 'pending-destinations',
-    layout: {
-      'text-field': ['get', 'name'],
-      'text-offset': [0, 1.6],
-      'text-size': 11,
-      'text-anchor': 'top',
-      'text-font': ['Noto Sans Regular'],
-    },
-    paint: {
-      'text-color': '#f8fafc',
-      'text-halo-color': '#0f172a',
-      'text-halo-width': 1.5,
-    },
+    layout: { 'text-field': ['get', 'name'], ...MARKER_LABEL_LAYOUT },
+    paint: MARKER_LABEL_PAINT,
   })
 
   const openResultPopup = (e: maplibregl.MapLayerMouseEvent) => {

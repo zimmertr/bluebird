@@ -20,7 +20,7 @@
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { escapeHtml } from './popupChrome'
+import { escapeHtml, fineprint, POPUP_FACE, POPUP_TITLE_SIZE } from './popupChrome'
 
 const SMOKE_URL = '/api/smoke'
 
@@ -212,9 +212,9 @@ export function formatObserved(
 export function smokePopupHtml(props: SmokeProps): string {
   const observed = formatObserved(props.observed_start, props.observed_end)
   const satellite = (props.satellite ?? '').trim()
-  return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
+  return `<div style="${POPUP_FACE};${POPUP_TITLE_SIZE}">
       <strong>🌫️ ${densityOf(props)} smoke</strong>
       ${satellite ? `<br>Traced from ${escapeHtml(satellite)} imagery` : ''}
-      ${observed ? `<br><span style="color:#94a3b8;font-size:11px;font-style:italic">${escapeHtml(observed)}</span>` : ''}
+      ${observed ? `<br>${fineprint(escapeHtml(observed))}` : ''}
     </div>`
 }

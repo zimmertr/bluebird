@@ -1,7 +1,7 @@
 import { BasemapPoi, LAKE_CLASS } from './basemapPoi'
 import { destinationUrl } from './destinationUrl'
 import { isPeakKind } from './geocode'
-import { coordinateRow, escapeHtml, metaBand, popupShell, row } from './popupChrome'
+import { coordinateRow, escapeHtml, metaBand, popupButton, popupShell, row } from './popupChrome'
 import { ELEVATION_COL } from './tableColumns'
 
 // The popup a clicked basemap peak or lake opens (#119).
@@ -19,8 +19,9 @@ import { ELEVATION_COL } from './tableColumns'
 // matched.
 export const POI_ACTION_ATTR = 'data-poi-action'
 
-const BUTTON_BASE =
-  'border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;font-family:sans-serif;font-weight:600;margin-top:6px'
+// The button sits under the elevation row, so it keeps a margin above it that
+// the ring's own remove-point button, alone in its popup, does not.
+const BUTTON_GAP = 'margin-top:6px'
 
 /**
  * Where a clicked feature links out to.
@@ -47,8 +48,8 @@ function poiUrl(poi: BasemapPoi): string {
  */
 export function poiPopupHtml(poi: BasemapPoi, added: boolean): string {
   const action = added
-    ? `<button ${POI_ACTION_ATTR}="remove" style="${BUTTON_BASE};background:#334155;color:#e2e8f0">Remove from analysis</button>`
-    : `<button ${POI_ACTION_ATTR}="add" style="${BUTTON_BASE};background:#0284c7;color:#fff">Add to analysis</button>`
+    ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis', BUTTON_GAP)
+    : popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis', BUTTON_GAP)
 
   // The kind used to have a line of its own under the title. It said "Peak"
   // beneath the name of a peak, which the icon on the map had already said and

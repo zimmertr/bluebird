@@ -13,6 +13,9 @@ import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
 import {
   COARSE_TOLERANCE_DEG,
+  WILDFIRE_EDGE,
+  WILDFIRE_FILL,
+  WILDFIRE_FILL_OPACITY,
   fetchWildfires,
   fireIdentity,
   nifcFireUrl,
@@ -79,13 +82,13 @@ export function mountWildfires(
     id: WILDFIRE_FILL_LAYER,
     type: 'fill',
     source: 'wildfires',
-    paint: { 'fill-color': '#dc2626', 'fill-opacity': 0.3 },
+    paint: { 'fill-color': WILDFIRE_FILL, 'fill-opacity': WILDFIRE_FILL_OPACITY },
   })
   map.addLayer({
     id: 'wildfire-outline',
     type: 'line',
     source: 'wildfires',
-    paint: { 'line-color': '#b91c1c', 'line-width': 1.5, 'line-opacity': 0.9 },
+    paint: { 'line-color': WILDFIRE_EDGE, 'line-width': 1.5, 'line-opacity': 0.9 },
   })
 
   let popup: Popup | null = null

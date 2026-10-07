@@ -250,8 +250,31 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
 | No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `CARRIED` are the three fades |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
+| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or `rgb()` in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `popupChrome.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
+| No popup spells its own type size, padding, radius or background | `checks/styles.js` | `value-inline-style` bans `font-size:`, `padding:`, `border-radius:` and `background:` in any string or template under `src/`, tests aside, outside `popupChrome.ts`, which owns the popup's three sizes, its button and its rule |
+| The app's own layers read their paint from one module | `checks/styles.js` | `map-paint-named` bans a numeric literal under a `circle-`, `line-`, `fill-`, `text-` or `icon-` key in `map/*.ts` outside `mapStyles.ts` and `basemap.ts`; the result and pending markers and the ring's handles spread one recipe each |
 
-**NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts. These are decided per feature.
+**NOT enforced:** custom spacing between components (only recessed surface and controls are architected), component-specific layouts, and the numbers inside an overlay's own paint (a fire outline's width, a smoke fill's opacity), which each overlay's pure module owns beside its popup and its legend swatch. These are decided per feature.
+
+### The four channels the stylesheet never sees
+
+Every rule in the table reads a Tailwind class or a React element, except the
+last three, and a Tailwind class is not the only way pixels reach the screen.
+Four channels bypass the stylesheet, and each has one module that owns its
+values (#365):
+
+| Channel | Owner | What it holds |
+|---|---|---|
+| MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
+| Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
+| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the rule, the label, link, glyph, fine-print and warning colours, and the one button recipe in three variants |
+| Recharts props | `utils/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
+
+A colour in one of those channels is measured against the surface it actually
+lands on, which for a popup is the white MapLibre draws rather than the app's
+slate; `popupChrome.ts` records each measurement beside its value, including
+the three that sit under AA as shipped (`FINE_COLOR`, `LINK_ICON_COLOR`,
+`WARNING_COLOR`), which #365 named without recolouring.
 
 ### Two enforcers, split by what they know
 
