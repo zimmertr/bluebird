@@ -222,22 +222,24 @@ The home network is the other path that never passes Cloudflare. The shared
 Istio gateway is also a LAN address, and it serves the public
 `bluebirdforecast.com` host there as well as the internal `*.sol.milkyway`
 name, because the tunnel forwards to that same gateway. So a device on the home
-network that sends its request straight to the gateway skips the tunnel, can
-set `CF-Connecting-IP` to any address it likes, and the limiter counts the
-request against that address. Inside the cluster the reach is wider than the
-mesh: no `PeerAuthentication` exists, so mutual TLS is permissive and a pod
+network that sends its request straight to the gateway skips the tunnel, and
+without the gateway rule below could set `CF-Connecting-IP` to any address it
+likes and be counted against that address. Inside the cluster the reach is
+wider than the mesh: no `PeerAuthentication` exists, so mutual TLS is permissive and a pod
 outside the mesh reaches a bluebird pod's port directly, and the cluster runs
 unrelated sites, so a compromise of any of them inherits that reach. A
 `NetworkPolicy` closes neither today, because the cluster's CNI enforces none
 ([Kubernetes-Manifests#1310](https://github.com/zimmertr/Kubernetes-Manifests/issues/1310)).
-Two remedies for the LAN path are open, and the choice between them is the
-maintainer's ([#631](https://github.com/zimmertr/bluebird/issues/631)): the
-gateway can drop `CF-Connecting-IP` from every request that did not arrive
-through cloudflared, which leaves the app unchanged; or the app can believe the
-header only from a configured trusted peer, which is a new setting and first
-needs a check of which peer address the pod actually sees behind its Istio
-sidecar. Until one of them lands, a forged address is bounded by the same
-pod-wide upstream budgets that bound one from inside the mesh.
+The gateway now removes `CF-Connecting-IP` from every request whose peer is not
+a cloudflared pod
+([bluebird-helm#331](https://github.com/zimmertr/bluebird-helm/pull/331),
+`ingress.tunnel.peerRegex`), so a device on the home network that sends its
+request straight to the gateway is counted under the address the gateway saw,
+not the one it claims
+([#631](https://github.com/zimmertr/bluebird/issues/631)). Only a caller
+inside the cluster, or a LAN device routed into the pod network itself, can
+still set the header, and the pod-wide upstream budgets bound that path as
+before.
 
 ## Request logs and how long they last
 
