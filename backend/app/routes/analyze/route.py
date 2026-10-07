@@ -236,7 +236,10 @@ async def _run_analysis(
         "Exactly one `result` or one `error` ends the stream.\n\n"
         "Rate limiting applies before the stream opens: a client past the "
         "per-address limit gets a plain **429 with `Retry-After`**, exactly as "
-        "on `POST /api/analyze`. Capacity problems found mid-analysis (the "
+        "on `POST /api/analyze`. A second discovery from the same address "
+        "waits for its first, and one that waits too long ends the stream "
+        "with an `error` event carrying the `rate_limited` code. Capacity "
+        "problems found mid-analysis (the "
         "instance-wide upstream budget saturating) arrive as an `error` event, "
         "since the stream is already open."
     ),
@@ -324,7 +327,8 @@ async def analyze_stream(
                 "Either this client is analyzing faster than the per-address "
                 "limit (shared with `POST /api/analyze/stream`), or the "
                 "upstream weather service rate-limited this deployment "
-                "mid-analysis. `Retry-After` says how many seconds to wait "
+                "mid-analysis, or a second discovery from this address waited "
+                "too long behind its first. `Retry-After` says how many seconds to wait "
                 "in both cases. `GET /api/capabilities` publishes the "
                 "per-address limit."
             ),
