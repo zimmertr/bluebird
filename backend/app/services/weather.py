@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any, NamedTuple
@@ -340,6 +341,19 @@ async def _fetch_cloud_chunk(
         for span in spans
     ]
     _check_counts(per_span, destinations)
+    # Off the loop for the weather batch's reason (`_fetch_chunk`).
+    return await asyncio.to_thread(
+        _aggregate_cloud, destinations, per_span, start_dt, end_dt
+    )
+
+
+def _aggregate_cloud(
+    destinations: list[dict[str, Any]],
+    per_span: list[list[dict[str, Any]]],
+    start_dt: datetime,
+    end_dt: datetime,
+) -> list[dict[str, Any] | None]:
+    """Each location's cloud row, its spans joined first."""
     results: list[dict[str, Any] | None] = []
     for dest, parts in zip(destinations, zip(*per_span, strict=True), strict=True):
         elevation_ft = dest.get("elevation_ft")
@@ -380,6 +394,30 @@ async def _fetch_chunk(
     ]
 
     _check_counts(per_span, destinations)
+    # On a worker thread, because it is the one part of a batch that costs
+    # real CPU, and every other request on the pod waits while the loop runs
+    # it. The cache write-back stays on the loop, in `fetch_batched`. Measured
+    # 2026-10-06 in python:3.14-alpine, median of 5 (#662): on the largest
+    # batch the keyed route can send (50 locations x 366 days) the loop's
+    # longest gap fell from 1.90 s to 0.23 s, which is the parse in
+    # `request_openmeteo`, and on a 16-day batch from 96 ms to 15 ms. Wall
+    # time stayed inside the run-to-run spread at both sizes (1.90 s to
+    # 1.90 s, 97 ms to 99 ms), so no batch is small enough to keep on the
+    # loop and there is no size threshold.
+    results = await asyncio.to_thread(
+        _aggregate_weather, destinations, per_span, start_dt, end_dt
+    )
+    log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
+    return results
+
+
+def _aggregate_weather(
+    destinations: list[dict[str, Any]],
+    per_span: list[list[dict[str, Any]]],
+    start_dt: datetime,
+    end_dt: datetime,
+) -> list[dict[str, Any] | None]:
+    """Each location's weather row, its spans joined first."""
     results: list[dict[str, Any] | None] = []
     for dest, parts in zip(destinations, zip(*per_span, strict=True), strict=True):
         elevation_ft = dest.get("elevation_ft")
@@ -391,7 +429,6 @@ async def _fetch_chunk(
             # no re-query. The aggregates in `_weather_metrics` stay byte-for-byte.
             m = {**m, "series": _weather_series(item, start_dt, end_dt, elevation_ft)}
         results.append(m)
-    log.trace("Open-Meteo batch returned %d result(s)", sum(1 for r in results if r is not None))  # type: ignore[attr-defined]
     return results
 
 

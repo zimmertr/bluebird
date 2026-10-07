@@ -470,7 +470,16 @@ async def request_openmeteo(
         service=service, outcome="success", quota=quota
     ).inc()
     try:
-        return resp.json()
+        # On a worker thread, like the aggregation behind it (#662), but on
+        # the GIL build the image runs this moves nothing off the loop: the C
+        # parser holds the GIL for the whole body, so the loop waits out the
+        # parse wherever it runs. On the largest batch the keyed route can
+        # send (50 locations x 366 days, 38.8 MB) the loop's longest gap was
+        # 235 ms with the parse here inline and 231 ms on the thread
+        # (2026-10-06, python:3.14-alpine, median of 5). It stays on the
+        # thread because that cost nothing measurable, and on a free-threaded
+        # build (not measured) the parse would leave the loop as well.
+        return await asyncio.to_thread(resp.json)
     except (ValueError, RecursionError) as exc:
         # A proxy's HTML page on a 200, or JSON nested past the parser's
         # depth. The HTTP attempt succeeded, which is what the counter above
