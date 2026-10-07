@@ -1,6 +1,6 @@
 # 0056. Cloud base is detected on relative humidity, not on level cloud fraction
 
-- Status: Accepted
+- Status: Superseded by 0113
 - Date: 2026-09-23 (git: the merge of #483)
 - Decider: TJ (git: author and merger of #483)
 - Issues and PRs: #117, #483

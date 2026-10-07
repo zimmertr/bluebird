@@ -645,8 +645,7 @@ number or omitted, and they combine as an AND:
 | `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
 | `min_snow_depth_in` / `max_snow_depth_in` | its `snow_depth_in` is inside the range |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
-| `min_cloud_base_ft` / `max_cloud_base_ft` | its `cloud_base_min_ft` is at or above the floor **and** its `cloud_base_max_ft` at or below the ceiling |
-| `min_cloud_cover_pct` / `max_cloud_cover_pct` | its `cloud_cover_min_pct` is at or above the floor **and** its `cloud_cover_max_pct` at or below the ceiling |
+| `min_cloud_deck_ft` / `max_cloud_deck_ft` | its `cloud_deck_min_ft` is at or above the floor **and** its `cloud_deck_max_ft` at or below the ceiling |
 
 ```bash
 # $START and $END as set under "Choosing a forecast window".
@@ -698,9 +697,8 @@ in `GET /api/capabilities`) or the best-effort fetch failed. The three `freeze_*
 model that publishes no freezing level, which is most of them. An absent
 number is not evidence of bad air, and a model that carries no freezing level
 says nothing about the weather, so those rows are kept, exactly as an untagged
-summit survives an elevation band. The cloud base is null for a destination
-with no known elevation and over archive hours, and it passes for the same
-reason.
+summit survives an elevation band. The cloud deck is null over archive hours,
+and it passes for the same reason.
 
 **An AQI bound costs more than the others.** Air quality is normally fetched
 only for the rows being returned. Bounding it forces the fetch for every
@@ -779,12 +777,9 @@ EOF
     "aqi_min": 18,
     "aqi_max": 47,
     "snow_depth_in": 1290,
-    "cloud_base_min_ft": null,
-    "cloud_base_max_ft": null,
-    "cloud_base_avg_ft": null,
-    "cloud_cover_min_pct": null,
-    "cloud_cover_max_pct": null,
-    "cloud_cover_avg_pct": null,
+    "cloud_deck_min_ft": null,
+    "cloud_deck_avg_ft": null,
+    "cloud_deck_max_ft": null,
     "series": null
   }
 }
@@ -802,22 +797,32 @@ always saw. The other request defaults a caller may lean on: `limit` is 10,
 `sort_by` is `precip_total_in`, and `sort_desc` is `false`, so an analysis with
 no ranking fields returns the ten driest destinations.
 
-## Cloud base and cloud cover
+## Cloud deck
 
-Six more fields describe the sky: `cloud_base_min_ft`, `cloud_base_max_ft` and
-`cloud_base_avg_ft` (the lowest height at or above the destination where the model's
-air is close to saturated, in feet above sea level), and `cloud_cover_min_pct`,
-`cloud_cover_max_pct` and `cloud_cover_avg_pct` (the model's total cloud cover,
-0 to 100). How the base is worked out, and what it cannot tell you, is in
-[DATA.md](DATA.md#cloud-base-and-cloud-cover).
+Three more fields describe the sky: `cloud_deck_min_ft`, `cloud_deck_avg_ft`
+and `cloud_deck_max_ft`, the lowest height in the model's air column over the
+destination where the air is close to saturated, in feet above sea level. The
+column is read from the 1000 hPa level up, so a deck below a summit reads below
+its `elevation_ft`. A column with nothing saturated in it reads 30066, the
+standard height of the 300 hPa level, rather than null, so a clear window ranks
+as the highest deck. How the deck is worked out, and what it cannot tell you,
+is in [DATA.md](DATA.md#cloud-deck).
+
+Until #670 the response carried six other fields here, `cloud_base_*_ft` and
+`cloud_cover_*_pct`, with `cloud_base_*`/`cloud_cover_*` sort keys and the
+bounds `min_cloud_base_ft`, `max_cloud_base_ft`, `min_cloud_cover_pct` and
+`max_cloud_cover_pct`. All of them are gone: a request that still sends one of
+those bounds is refused with a `422` naming the field, and one of those sort
+keys is refused the same way. The series fields `cloud_base_ft` and
+`cloud_cover_pct` are now the one `cloud_deck_ft`.
 
 They cost a second upstream request per location, so they are null unless
 something asks for them. Three things do:
 
 | You send | The cloud variables are fetched for |
 | --- | --- |
-| a `sort_by` naming a cloud field | every candidate, before the ranking |
-| any cloud bound | every candidate, before the bounds |
+| a `sort_by` naming a cloud deck field | every candidate, before the ranking |
+| either cloud deck bound | every candidate, before the bounds |
 | `include_clouds: true` and neither of the above | the returned rows only, after the `limit` cut, the way air quality is |
 
 ```bash
@@ -825,15 +830,15 @@ something asks for them. Three things do:
 curl -s https://bluebirdforecast.com/api/analyze \
   -H 'Content-Type: application/json' \
   -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
-  -d @- <<EOF | jq '[.results[] | {name, cloud_base_min_ft, cloud_cover_max_pct}]'
+  -d @- <<EOF | jq '[.results[] | {name, elevation_ft, cloud_deck_min_ft}]'
 {
   "destination_types": [],
   "forecast_mode": "window",
   "start_datetime": "$START",
   "end_datetime":   "$END",
-  "sort_by": "cloud_base_min_ft",
+  "sort_by": "cloud_deck_min_ft",
   "sort_desc": true,
-  "max_cloud_cover_pct": 80,
+  "min_cloud_deck_ft": 5000,
   "include_series": false,
   "custom_destinations": [
     { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
@@ -843,12 +848,12 @@ curl -s https://bluebirdforecast.com/api/analyze \
 EOF
 ```
 
-That ranks the destinations whose cloud came down least, among those never
-more than 80 % covered. With series on, each row's `series` also carries
-`cloud_base_ft` and `cloud_cover_pct`, aligned to `times`; on a row that was
-not asked for clouds both are null. The cloud request is priced by
-Open-Meteo like any other: twelve hourly variables at one model, a weight of
-1.2 per location against the weather request's 1.4.
+That ranks the destinations whose cloud came down least, among those whose
+deck never fell below 5,000 ft. With series on, each row's `series` also
+carries `cloud_deck_ft`, aligned to `times`; on a row that was not asked for
+clouds it is null. The cloud request is priced by Open-Meteo like any other:
+nine hourly variables at one model, a weight of 1 per location against the
+weather request's 1.4.
 
 ## When a search finds too much
 

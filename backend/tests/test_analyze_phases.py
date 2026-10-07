@@ -316,8 +316,9 @@ async def test_a_refused_analysis_spends_nothing(paced, monkeypatch):
         ({}, Eager(aqi=False, cloud=False)),
         ({"sort_by": "aqi_max"}, Eager(aqi=True, cloud=False)),
         ({"max_aqi": 50}, Eager(aqi=True, cloud=False)),
-        ({"sort_by": "cloud_base_min_ft"}, Eager(aqi=False, cloud=True)),
-        ({"min_cloud_cover_pct": 10}, Eager(aqi=False, cloud=True)),
+        ({"sort_by": "cloud_deck_min_ft"}, Eager(aqi=False, cloud=True)),
+        ({"min_cloud_deck_ft": 4000}, Eager(aqi=False, cloud=True)),
+        ({"max_cloud_deck_ft": 9000}, Eager(aqi=False, cloud=True)),
         ({"include_clouds": True}, Eager(aqi=False, cloud=False)),
     ],
 )
@@ -446,7 +447,7 @@ def test_result_reports_the_counts_the_phases_carried():
         ("retrieval", {}, 1),
         # Air quality and the cloud fields both fetched for every candidate,
         # so three upstream tasks run side by side and all three must stop.
-        ("retrieval", {"sort_by": "aqi_max", "include_clouds": True, "min_cloud_cover_pct": 0}, 3),
+        ("retrieval", {"sort_by": "aqi_max", "include_clouds": True, "min_cloud_deck_ft": 0}, 3),
     ],
     ids=["discovery", "retrieval", "retrieval-with-eager-fetches"],
 )

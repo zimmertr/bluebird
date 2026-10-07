@@ -43,8 +43,7 @@ _LOWER_BOUNDS = (
     ("min_freeze_ft", "freeze_min_ft"),
     ("min_snow_depth_in", "snow_depth_in"),
     ("min_aqi", "aqi_max"),
-    ("min_cloud_base_ft", "cloud_base_min_ft"),
-    ("min_cloud_cover_pct", "cloud_cover_min_pct"),
+    ("min_cloud_deck_ft", "cloud_deck_min_ft"),
 )
 _UPPER_BOUNDS = (
     ("max_precip_total_in", "precip_total_in"),
@@ -53,8 +52,7 @@ _UPPER_BOUNDS = (
     ("max_freeze_ft", "freeze_max_ft"),
     ("max_snow_depth_in", "snow_depth_in"),
     ("max_aqi", "aqi_max"),
-    ("max_cloud_base_ft", "cloud_base_max_ft"),
-    ("max_cloud_cover_pct", "cloud_cover_max_pct"),
+    ("max_cloud_deck_ft", "cloud_deck_max_ft"),
 )
 
 
@@ -217,8 +215,8 @@ def _aligned_aqi(times_ms: list[int], aqi_series: dict | None) -> list[int | Non
 
 def _aligned_cloud(
     times_ms: list[int], cloud_series: dict | None
-) -> tuple[list[float | None] | None, list[float | None] | None]:
-    """Cloud base and cloud cover aligned onto the weather grid, null where absent.
+) -> list[float | None] | None:
+    """The cloud deck aligned onto the weather grid, null where absent.
 
     The two requests ask for the same hours, so the grids agree whenever both
     answered; aligning by stamp rather than by index is what keeps a short or
@@ -227,10 +225,9 @@ def _aligned_cloud(
     the cloud fields carries: a column of nulls would be bytes that say less.
     """
     if not cloud_series:
-        return None, None
-    base = dict(zip(cloud_series["times"], cloud_series["cloud_base_ft"], strict=False))
-    cover = dict(zip(cloud_series["times"], cloud_series["cloud_cover_pct"], strict=False))
-    return [base.get(t) for t in times_ms], [cover.get(t) for t in times_ms]
+        return None
+    deck = dict(zip(cloud_series["times"], cloud_series["cloud_deck_ft"], strict=False))
+    return [deck.get(t) for t in times_ms]
 
 
 def _assemble(
@@ -270,15 +267,13 @@ def _assemble(
         cloud_stats = {k: v for k, v in cloud.items() if k != "series"}
         series = None
         if wx_series and include_series:
-            cloud_base, cloud_cover = _aligned_cloud(wx_series["times"], cloud.get("series"))
             series = HourlySeries(
                 precip_in=wx_series["precip_in"],
                 temp_f=wx_series["temp_f"],
                 wind_mph=wx_series["wind_mph"],
                 freeze_ft=wx_series["freeze_ft"],
                 aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
-                cloud_base_ft=cloud_base,
-                cloud_cover_pct=cloud_cover,
+                cloud_deck_ft=_aligned_cloud(wx_series["times"], cloud.get("series")),
             )
         results.append(
             DestinationResult(

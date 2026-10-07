@@ -128,8 +128,7 @@ describe('popupGroups over a Current lookup', () => {
       // triplet to collapse (#449).
       `${NOUN.snow} (${UNIT.snow})`,
       NOUN.aqi,
-      `${NOUN.cloud_base} (${UNIT.cloud_base})`,
-      `${NOUN.cloud_cover} (${UNIT.cloud_cover})`,
+      `${NOUN.cloud_deck} (${UNIT.cloud_deck})`,
     ])
   })
 })

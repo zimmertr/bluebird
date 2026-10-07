@@ -427,23 +427,20 @@ describe('pairCells', () => {
   // and a cell then paints it on the same hours as every other metric.
   it('lays a cloud answer onto the cell when one is given', () => {
     const cloud: CloudResult = {
-      cloud_base_min_ft: 4000,
-      cloud_base_avg_ft: 4500,
-      cloud_base_max_ft: 5000,
-      cloud_cover_min_pct: 20,
-      cloud_cover_avg_pct: 55,
-      cloud_cover_max_pct: 90,
-      series: { times: [1000, 2000], cloud_base_ft: [4000, 5000], cloud_cover_pct: [20, 90] },
+      cloud_deck_min_ft: 4000,
+      cloud_deck_avg_ft: 4500,
+      cloud_deck_max_ft: 5000,
+      series: { times: [1000, 2000], cloud_deck_ft: [4000, 5000] },
     }
     const cells = pairCells(spec, [0], [wx([0.1, 0.2])], [null], [1000, 2000], [cloud])
-    expect(cells[0].row.cloud_base_min_ft).toBe(4000)
-    expect(cells[0].row.series?.cloud_cover_pct).toEqual([20, 90])
+    expect(cells[0].row.cloud_deck_min_ft).toBe(4000)
+    expect(cells[0].row.series?.cloud_deck_ft).toEqual([4000, 5000])
   })
 
   it('carries no cloud column when none was fetched', () => {
     const cells = pairCells(spec, [0], [wx([0.1, 0.2])], [null], [1000, 2000])
-    expect(cells[0].row.cloud_base_min_ft).toBeNull()
-    expect(cells[0].row.series).not.toHaveProperty('cloud_base_ft')
+    expect(cells[0].row.cloud_deck_min_ft).toBeNull()
+    expect(cells[0].row.series).not.toHaveProperty('cloud_deck_ft')
   })
 })
 

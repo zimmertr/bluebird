@@ -16,9 +16,9 @@ import { describe, expect, it } from 'vitest'
 import manifest from '../../../backend/tests/data/mirrored_constants.json'
 import { BATCH_SIZE, MAX_CONCURRENT_BATCHES } from './openMeteo'
 import {
+  CLOUD_DECK_CEILING_FT,
   CLOUD_SATURATION_RH,
   CLOUD_VARIABLES,
-  ESPY_M_PER_C,
   HOURLY_VARIABLES,
   ISA_HEIGHT_M,
 } from './openMeteoAggregate'
@@ -91,7 +91,7 @@ describe('the constants the backend publishes for this side to match', () => {
   })
 })
 
-describe('the cloud base both sides compute (#117)', () => {
+describe('the cloud deck both sides compute (#670)', () => {
   it('prices a cloud request on the variables the backend asks for', () => {
     // No wind bearing here: the cloud request is the same list on both sides.
     expect(CLOUD_VARIABLES.length).toBe(constants.N_CLOUD_VARIABLES)
@@ -99,11 +99,14 @@ describe('the cloud base both sides compute (#117)', () => {
 
   it('calls a level saturated where the backend does', () => {
     expect(CLOUD_SATURATION_RH).toBe(constants.CLOUD_SATURATION_RH)
-    expect(ESPY_M_PER_C).toBe(constants.ESPY_M_PER_C)
+  })
+
+  it('reads a dry column at the backend\'s ceiling', () => {
+    expect(CLOUD_DECK_CEILING_FT).toBe(constants.CLOUD_DECK_CEILING_FT)
   })
 
   it('stands every pressure level at the backend\'s height', () => {
-    // The wind, the temperature and the cloud base all read this one table,
+    // The wind, the temperature and the cloud deck all read this one table,
     // so a height moved on one side would move three columns at once.
     const browser = Object.entries(ISA_HEIGHT_M).map(([p, m]) => [Number(p), m])
     const sort = (pairs: number[][]) => [...pairs].sort((a, b) => b[0] - a[0])

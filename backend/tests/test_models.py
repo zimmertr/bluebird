@@ -446,12 +446,22 @@ def test_every_request_shape_refuses_a_field_it_does_not_declare(build):
     assert [e["type"] for e in caught.value.errors()] == ["extra_forbidden"]
 
 
-@pytest.mark.parametrize("field", ["min_cloud_cover_pct", "max_cloud_cover_pct"])
-def test_a_cloud_cover_bound_stops_at_100(field):
-    assert getattr(_valid_request(**{field: 100}), field) == 100
+@pytest.mark.parametrize(
+    "field",
+    ["min_cloud_base_ft", "max_cloud_base_ft", "min_cloud_cover_pct", "max_cloud_cover_pct"],
+)
+def test_the_retired_cloud_bounds_are_refused(field):
+    # The cloud deck replaced #117's two families (#670). A caller still
+    # sending one learns so rather than having the bound silently ignored.
     with pytest.raises(ValidationError) as caught:
-        _valid_request(**{field: 100.5})
-    assert [e["type"] for e in caught.value.errors()] == ["less_than_equal"]
+        _valid_request(**{field: 10})
+    assert [e["type"] for e in caught.value.errors()] == ["extra_forbidden"]
+
+
+@pytest.mark.parametrize("sort_by", ["cloud_base_min_ft", "cloud_cover_max_pct"])
+def test_the_retired_cloud_sort_keys_are_refused(sort_by):
+    with pytest.raises(ValidationError):
+        _valid_request(sort_by=sort_by)
 
 
 # The ranges moved onto the fields so the schema publishes them. The sentence a
@@ -526,8 +536,7 @@ _EXPECTED_PAIRS = {
         ("min_freeze_ft", "max_freeze_ft"),
         ("min_snow_depth_in", "max_snow_depth_in"),
         ("min_aqi", "max_aqi"),
-        ("min_cloud_base_ft", "max_cloud_base_ft"),
-        ("min_cloud_cover_pct", "max_cloud_cover_pct"),
+        ("min_cloud_deck_ft", "max_cloud_deck_ft"),
     },
     "DestinationsRequest": {("min_elevation_ft", "max_elevation_ft")},
 }

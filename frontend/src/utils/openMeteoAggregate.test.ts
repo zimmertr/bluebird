@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   aqiMetrics,
   aqiSeries,
-  cloudBaseM,
+  CLOUD_DECK_CEILING_FT,
+  cloudDeckFt,
   cloudMetrics,
   cloudSeries,
   parseTs,
@@ -76,42 +77,53 @@ describe('cloud vectors', () => {
   }
 })
 
-// #117. The vectors pin the walk as a number at the end; these state its rules
+// #670. The vectors pin the walk as a number at the end; these state its rules
 // one at a time. Levels are 1000 to 300 hPa, bottom to top; elevations in feet.
-describe('cloudBaseM', () => {
+describe('cloudDeckFt', () => {
   const DRY = [30, 30, 30, 30, 30, 30, 30, 30]
 
-  it('is the destination itself when its own air is saturated', () => {
-    expect(cloudBaseM(5000, 95, 2, 2, DRY)).toBeCloseTo(5000 * 0.3048, 9)
+  it('is the destination itself when its own air is the first saturated point', () => {
+    // 500 ft is 152.4 m, just above 1000 hPa (111 m) and below 925 hPa.
+    const levels = [94, 30, 30, 30, 30, 30, 30, 30]
+    expect(cloudDeckFt(500, 99, levels)).toBeCloseTo(
+      (111 + (152.4 - 111) * ((95 - 94) / (99 - 94))) / 0.3048,
+      9,
+    )
+    expect(cloudDeckFt(50, 95, DRY)).toBeCloseTo(50, 9)
   })
 
   it('interpolates in humidity between the last dry point and the first wet one', () => {
     // 850 hPa at 80 % (1457 m), 700 hPa at 100 % (3012 m): 95 % is three
     // quarters of the way up.
     const levels = [20, 20, 80, 100, 100, 100, 100, 100]
-    expect(cloudBaseM(4000, 50, 5, 0, levels)).toBeCloseTo(1457 + 0.75 * (3012 - 1457), 9)
+    expect(cloudDeckFt(4000, 50, levels)).toBeCloseTo((1457 + 0.75 * (3012 - 1457)) / 0.3048, 9)
   })
 
-  it('ignores a saturated level below the destination', () => {
-    const fog = [100, 100, 100, 30, 30, 30, 30, 30]
-    // Dry above 8,000 ft, so the parcel base: 125 m per degree of spread.
-    expect(cloudBaseM(8000, 50, 10, 2, fog)).toBeCloseTo(8000 * 0.3048 + 1000, 9)
+  it('finds a saturated level below the destination', () => {
+    // A layer at 850 hPa under an 8,000 ft summit, dry air above it.
+    const undercast = [30, 30, 100, 30, 30, 30, 30, 30]
+    expect(cloudDeckFt(8000, 50, undercast)).toBeCloseTo(
+      (762 + (1457 - 762) * ((95 - 30) / (100 - 30))) / 0.3048,
+      9,
+    )
   })
 
-  it('is null when no level above the destination answered', () => {
+  it('reads the ceiling for a column that answered and is dry all the way up', () => {
+    expect(CLOUD_DECK_CEILING_FT).toBe(30066)
+    expect(cloudDeckFt(5000, 50, DRY)).toBe(CLOUD_DECK_CEILING_FT)
+    expect(cloudDeckFt(5000, null, DRY)).toBe(CLOUD_DECK_CEILING_FT)
+  })
+
+  it('is null when no level answered, whatever the 2 m point says', () => {
     const archive = [null, null, null, null, null, null, null, null]
-    expect(cloudBaseM(5000, 99, 5, 5, archive)).toBeNull()
-    expect(cloudBaseM(5000, 99, 5, 5, [])).toBeNull()
+    expect(cloudDeckFt(5000, 99, archive)).toBeNull()
+    expect(cloudDeckFt(5000, 99, [])).toBeNull()
   })
 
-  it('is null with no elevation to start from', () => {
-    expect(cloudBaseM(null, 99, 5, 5, DRY)).toBeNull()
-  })
-
-  it('never puts the parcel base under the destination', () => {
-    // A dew point above the temperature is not physical, and the spread is
-    // floored rather than read as a negative height.
-    expect(cloudBaseM(5000, 50, 2, 4, DRY)).toBeCloseTo(5000 * 0.3048, 9)
+  it('walks the levels alone with no elevation', () => {
+    expect(cloudDeckFt(null, 99, DRY)).toBe(CLOUD_DECK_CEILING_FT)
+    const levels = [100, 30, 30, 30, 30, 30, 30, 30]
+    expect(cloudDeckFt(null, 30, levels)).toBeCloseTo(111 / 0.3048, 9)
   })
 })
 

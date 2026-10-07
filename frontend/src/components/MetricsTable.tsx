@@ -125,22 +125,15 @@ const BOUNDS: Record<
     lower: 'minSnowDepthIn',
     upper: 'maxSnowDepthIn',
   },
-  // The two cloud rows reuse the freezing level's sentences word for word,
-  // because they bound the same thing: a floor on the window's lowest hour and
-  // a ceiling on its highest (#117).
-  cloud_base: {
-    id: 'cloud-base',
+  // The cloud row reuses the freezing level's sentences word for word,
+  // because it bounds the same thing: a floor on the window's lowest hour and
+  // a ceiling on its highest (#117, #670).
+  cloud_deck: {
+    id: 'cloud-deck',
     step: 100,
     hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
-    lower: 'minCloudBaseFt',
-    upper: 'maxCloudBaseFt',
-  },
-  cloud_cover: {
-    id: 'cloud-cover',
-    step: 1,
-    hint: ['The lowest hour must be at least this.', 'The highest hour must be at most this.'],
-    lower: 'minCloudCoverPct',
-    upper: 'maxCloudCoverPct',
+    lower: 'minCloudDeckFt',
+    upper: 'maxCloudDeckFt',
   },
   aqi: {
     id: 'air-quality',

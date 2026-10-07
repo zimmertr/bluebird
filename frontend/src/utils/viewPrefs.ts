@@ -29,7 +29,7 @@ export type ResultsMode = 'chart' | 'table' | 'both'
  * reader's sake only — nothing here is trusted, and every accessor below
  * re-checks the value it takes.
  *
- * `columns` through `columns5` are the retired generations of the column set. The
+ * `columns` through `columns6` are the retired generations of the column set. The
  * `mode` field older builds wrote beside `modeChosen` is absent here because
  * nothing reads it (see `readViewPrefs`); it is left in storage rather than
  * deleted, since tidying up after a build nobody runs is not this module's job.
@@ -42,6 +42,7 @@ interface StoredView {
   columns4?: string[]
   columns5?: string[]
   columns6?: string[]
+  columns7?: string[]
   modelColumn?: boolean
   columnOrder?: string[]
 }
@@ -75,17 +76,19 @@ function isMode(value: unknown): value is ResultsMode {
  * otherwise be told apart from a deliberate choice to hide the newest column:
  * `columns` predates the wildfire column joining the picker (#288),
  * `columns2` predates the freezing level (#295), `columns3` predates snow
- * depth (#449), `columns4` predates the two cloud families (#117) and
- * `columns5` predates the Closure column (#550), so reading any of them
+ * depth (#449), `columns4` predates the cloud columns (#117), `columns5`
+ * predates the Closure column (#550) and `columns6` predates the cloud deck
+ * that replaced #117's two cloud families (#670), so reading any of them
  * verbatim would hide a new column from everyone who has
  * ever touched the picker. Each migrates with the newer keys added, which is
  * what those users were already seeing.
  */
 function storedColumns(stored: StoredView): Set<string> | null {
-  const cloud = [...FAMILY_KEYS.cloud_base, ...FAMILY_KEYS.cloud_cover]
+  const cloud = FAMILY_KEYS.cloud_deck
   try {
-    if (stored.columns6) return new Set(stored.columns6)
-    if (stored.columns5) return new Set<string>([...stored.columns5, CLOSURE_KEY])
+    if (stored.columns7) return new Set(stored.columns7)
+    if (stored.columns6) return new Set<string>([...stored.columns6, ...cloud])
+    if (stored.columns5) return new Set<string>([...stored.columns5, ...cloud, CLOSURE_KEY])
     if (stored.columns4) return new Set<string>([...stored.columns4, ...cloud, CLOSURE_KEY])
     if (stored.columns3)
       return new Set<string>([...stored.columns3, ...FAMILY_KEYS.snow, ...cloud, CLOSURE_KEY])
@@ -160,7 +163,8 @@ export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
       delete stored.columns3
       delete stored.columns4
       delete stored.columns5
-      stored.columns6 = patch.columns ? [...patch.columns] : undefined
+      delete stored.columns6
+      stored.columns7 = patch.columns ? [...patch.columns] : undefined
     }
     localStorage.setItem(VIEW_KEY, JSON.stringify(stored))
   } catch {

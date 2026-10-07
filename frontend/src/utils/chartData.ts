@@ -26,17 +26,16 @@ export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   wind: 'wind_mph',
   freeze: 'freeze_ft',
   aqi: 'aqi',
-  cloud_base: 'cloud_base_ft',
-  cloud_cover: 'cloud_cover_pct',
+  cloud_deck: 'cloud_deck_ft',
 }
 
 // The chart's metric select, in option order. No aggregate: these plot the raw
 // hourly series, so a point is that hour's own value rather than anything
-// reduced over the window. The two cloud metrics come last (#117): they are
-// the two a report carries only when it was asked for them, so an option that
-// can draw nothing sits under every option that always draws.
+// reduced over the window. The cloud deck comes last (#117, #670): it is the
+// one a report carries only when it was asked for it, so an option that can
+// draw nothing sits under every option that always draws.
 export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
-  ['precip', 'temp', 'wind', 'freeze', 'aqi', 'cloud_base', 'cloud_cover'] as const
+  ['precip', 'temp', 'wind', 'freeze', 'aqi', 'cloud_deck'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))
 
 /** Whichever metric the chart opens on when the ranking names none it can draw. */
@@ -156,10 +155,7 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       aqi: remap(row.series.aqi),
       // Present only on a report that fetched the cloud column (#117), and
       // spread for the reason the bearings below are.
-      ...(row.series.cloud_base_ft ? { cloud_base_ft: remap(row.series.cloud_base_ft) } : {}),
-      ...(row.series.cloud_cover_pct
-        ? { cloud_cover_pct: remap(row.series.cloud_cover_pct) }
-        : {}),
+      ...(row.series.cloud_deck_ft ? { cloud_deck_ft: remap(row.series.cloud_deck_ft) } : {}),
       // Remapped rather than dropped, and spread so a row that never carried
       // bearings still carries no key. The chart does not read them, but the
       // forecast grid aligns its cells through here (#246) and a silently
@@ -273,15 +269,8 @@ export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): numb
 export function formatMetricValue(v: number, metric: ChartMetric): string {
   if (metric === 'precip') return formatPrecipRate(v)
   // Whole units: an AQI is an integer index, and a freezing level or a cloud
-  // base in feet, or a cloud cover in percent, carries no decimal the model
-  // could support.
-  if (
-    metric === 'aqi' ||
-    metric === 'freeze' ||
-    metric === 'cloud_base' ||
-    metric === 'cloud_cover'
-  )
-    return v.toFixed(0)
+  // deck in feet carries no decimal the model could support.
+  if (metric === 'aqi' || metric === 'freeze' || metric === 'cloud_deck') return v.toFixed(0)
   return v.toFixed(1)
 }
 

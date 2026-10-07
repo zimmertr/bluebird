@@ -175,6 +175,27 @@ describe('encodeState / decodeState round-trip', () => {
     expect(out!.destinationTypes).toEqual(base.destinationTypes)
   })
 
+  // The cloud deck replaced the cloud base and cloud cover (#670), so a link
+  // written before carries bound keys, aggregate params and a sort nothing
+  // reads. It parses as an ordinary link and bounds nothing.
+  it('ignores the retired cloud base and cloud cover parameters', () => {
+    const params = new URLSearchParams(encodeState(base, DEFAULT_MODEL))
+    params.set('mincloudbase', '3000')
+    params.set('maxcloudbase', '15000')
+    params.set('mincloudcover', '5')
+    params.set('maxcloudcover', '60')
+    params.set('cloud_base', 'max')
+    params.set('cloud_cover', 'min')
+    const out = decodeState(params.toString())
+    expect(out).not.toBeNull()
+    // No bound the link names survives, so the decoded state sets none.
+    expect(out!.constraints).toBeUndefined()
+    expect(Object.keys(out!.rowKeys ?? {})).not.toContain('cloud_base')
+    expect(Object.keys(out!.rowKeys ?? {})).not.toContain('cloud_cover')
+    expect(out!.destinationTypes).toEqual(base.destinationTypes)
+    expect(decodeState('type=peak&sort=cloud_cover_avg_pct')?.sortBy).toBeUndefined()
+  })
+
   // Read off RANKING_KEYS rather than a list here, so a new ranking key cannot
   // be offered in the picker and refused by the address bar.
   it('restores every sortable metric', () => {
@@ -467,10 +488,8 @@ describe('encodeState', () => {
       maxSnowDepthIn: 60,
       minAqi: 10,
       maxAqi: 100,
-      minCloudBaseFt: 5000,
-      maxCloudBaseFt: 14000,
-      minCloudCoverPct: 0,
-      maxCloudCoverPct: 40,
+      minCloudDeckFt: 5000,
+      maxCloudDeckFt: 14000,
     }
     const qs = encodeState({ ...base, constraints }, DEFAULT_MODEL)
     // Plain numbers under names you can guess, which is the whole convention:
@@ -479,8 +498,8 @@ describe('encodeState', () => {
     expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
     expect(new URLSearchParams(qs).get('minsnow')).toBe('2')
-    expect(new URLSearchParams(qs).get('mincloudbase')).toBe('5000')
-    expect(new URLSearchParams(qs).get('maxcloudcover')).toBe('40')
+    expect(new URLSearchParams(qs).get('minclouddeck')).toBe('5000')
+    expect(new URLSearchParams(qs).get('maxclouddeck')).toBe('14000')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
   })
 
@@ -974,7 +993,7 @@ describe('decodeState tolerance', () => {
           ...DEFAULT_FAMILY_KEY,
           wind: 'wind_max_mph',
           temp: 'temp_min_f',
-          cloud_cover: 'cloud_cover_max_pct',
+          cloud_deck: 'cloud_deck_max_ft',
         },
       })
       expect(out!.rowKeys).toEqual({
@@ -984,8 +1003,7 @@ describe('decodeState tolerance', () => {
         freeze: 'freeze_min_ft',
         snow: 'snow_depth_in',
         aqi: 'aqi_avg',
-        cloud_base: 'cloud_base_min_ft',
-        cloud_cover: 'cloud_cover_max_pct',
+        cloud_deck: 'cloud_deck_max_ft',
       })
       expect(out!.sortBy).toBe('precip_total_in')
     })

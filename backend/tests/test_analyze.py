@@ -29,7 +29,7 @@ from app.models import (
 )
 from app.routes.analyze.route import API_KEY_HEADER, _summarize_request
 from app.routes.analyze.sse import _sse
-from app.services import air_quality, osm, ranking, snodas, weather
+from app.services import aggregation, air_quality, osm, ranking, snodas, weather
 from app.services.candidates import _coord_key, _filter_elevation, _merge_custom
 from app.services.errors import (
     InvalidApiKeyError,
@@ -1660,17 +1660,17 @@ _REFUSED_KEY = _keyed_answer(400, {"error": True, "reason": "The supplied API ke
     ("fields", "side_answer"),
     [
         pytest.param({"sort_by": "aqi_max", "sort_desc": True}, _REFUSED_KEY, id="aqi-refused-key"),
-        pytest.param({"sort_by": "cloud_cover_avg_pct"}, _REFUSED_KEY, id="cloud-refused-key"),
+        pytest.param({"sort_by": "cloud_deck_avg_ft"}, _REFUSED_KEY, id="cloud-refused-key"),
         pytest.param(
-            {"sort_by": "cloud_cover_avg_pct"},
+            {"sort_by": "cloud_deck_avg_ft"},
             _keyed_answer(429, {"reason": "Hourly API request limit exceeded"}),
             id="cloud-rate-limit",
         ),
         pytest.param(
-            {"sort_by": "cloud_cover_avg_pct"}, _keyed_answer(502, {}), id="cloud-upstream-error"
+            {"sort_by": "cloud_deck_avg_ft"}, _keyed_answer(502, {}), id="cloud-upstream-error"
         ),
         pytest.param(
-            {"sort_by": "cloud_cover_avg_pct"},
+            {"sort_by": "cloud_deck_avg_ft"},
             _keyed_answer(400, {"error": True, "reason": "No data is available for this location"}),
             id="cloud-model-coverage",
         ),
@@ -2272,21 +2272,20 @@ def test_analyze_reports_no_snow_while_no_grid_is_held(stub_upstreams):
     assert {r["snow_depth_in"] for r in body["results"]} == {None}
 
 
-# ── Cloud fields, fetched only when asked (issue #117) ──────────────────────
+# ── Cloud fields, fetched only when asked (issues #117 and #670) ────────────
 
 
-def _cloud(base, cover=50.0):
-    """A cloud answer whose every aggregate is `base` / `cover`."""
+def _cloud(deck):
+    """A cloud answer whose every aggregate is `deck`."""
     return {
-        "cloud_base_min_ft": base, "cloud_base_avg_ft": base, "cloud_base_max_ft": base,
-        "cloud_cover_min_pct": cover, "cloud_cover_avg_pct": cover,
-        "cloud_cover_max_pct": cover, "series": None,
+        "cloud_deck_min_ft": deck, "cloud_deck_avg_ft": deck, "cloud_deck_max_ft": deck,
+        "series": None,
     }
 
 
 @pytest.fixture
 def cloud_calls(monkeypatch, stub_upstreams):
-    """Stubbed cloud fetch: base = latitude x 1,000 ft. Records batch sizes."""
+    """Stubbed cloud fetch: deck = latitude x 1,000 ft. Records batch sizes."""
     calls: list[int] = []
 
     async def fake_cloud(
@@ -2315,24 +2314,45 @@ def test_analyze_without_a_cloud_ask_makes_no_cloud_request(cloud_calls):
     assert resp.status_code == 200
     assert cloud_calls == []
     row = resp.json()["results"][0]
-    assert row["cloud_base_min_ft"] is None
-    assert row["cloud_cover_avg_pct"] is None
+    assert row["cloud_deck_min_ft"] is None
+    assert row["cloud_deck_avg_ft"] is None
+    # #117's six fields are gone from the row, not merely null (#670).
+    assert not any(k.startswith(("cloud_base", "cloud_cover")) for k in row)
 
 
 def test_analyze_cloud_ranking_fetches_every_candidate(cloud_calls):
     resp = client.post(
-        "/api/analyze", json=_cloud_body(sort_by="cloud_base_min_ft", sort_desc=True)
+        "/api/analyze", json=_cloud_body(sort_by="cloud_deck_min_ft", sort_desc=True)
     )
     assert resp.status_code == 200
     assert cloud_calls == [5]
     assert [r["name"] for r in resp.json()["results"]] == ["e", "d"]
 
 
+def test_a_dry_column_ranks_first_under_highest_deck_min(monkeypatch, stub_upstreams):
+    # A dry column reads the ceiling rather than null (#670), so Highest
+    # `Cloud deck · Min` puts the clear window on top instead of last.
+    async def fake_cloud(destinations, *args, **kwargs):
+        return [
+            _cloud(aggregation.CLOUD_DECK_CEILING_FT if d["name"] == "c" else d["latitude"] * 1000)
+            for d in destinations
+        ]
+
+    monkeypatch.setattr(weather, "fetch_cloud_batch", fake_cloud)
+    resp = client.post(
+        "/api/analyze", json=_cloud_body(sort_by="cloud_deck_min_ft", sort_desc=True)
+    )
+    assert resp.status_code == 200
+    rows = resp.json()["results"]
+    assert [r["name"] for r in rows] == ["c", "e"]
+    assert rows[0]["cloud_deck_min_ft"] == 30066
+
+
 def test_analyze_cloud_bound_fetches_every_candidate(cloud_calls):
-    resp = client.post("/api/analyze", json=_cloud_body(min_cloud_base_ft=3500))
+    resp = client.post("/api/analyze", json=_cloud_body(min_cloud_deck_ft=3500))
     assert resp.status_code == 200
     assert cloud_calls == [5]
-    # Bases are 1,000 to 5,000 ft, so only d and e clear a 3,500 ft floor.
+    # Decks are 1,000 to 5,000 ft, so only d and e clear a 3,500 ft floor.
     assert resp.json()["total_matched"] == 2
 
 
@@ -2341,7 +2361,7 @@ def test_analyze_include_clouds_fetches_only_the_returned_rows(cloud_calls):
     assert resp.status_code == 200
     assert cloud_calls == [2]
     rows = resp.json()["results"]
-    assert [r["cloud_base_min_ft"] for r in rows] == [1000.0, 2000.0]
+    assert [r["cloud_deck_min_ft"] for r in rows] == [1000.0, 2000.0]
 
 
 def test_analyze_cloud_failure_answers_like_a_weather_failure(monkeypatch, stub_upstreams):
@@ -2349,7 +2369,7 @@ def test_analyze_cloud_failure_answers_like_a_weather_failure(monkeypatch, stub_
         raise UpstreamError("Open-Meteo request failed. Try again later.")
 
     monkeypatch.setattr(weather, "fetch_cloud_batch", refuse)
-    resp = client.post("/api/analyze", json=_cloud_body(sort_by="cloud_cover_avg_pct"))
+    resp = client.post("/api/analyze", json=_cloud_body(sort_by="cloud_deck_avg_ft"))
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "upstream_unavailable"
     lazy = client.post("/api/analyze", json=_cloud_body(include_clouds=True))
@@ -2362,20 +2382,16 @@ def test_cloud_eager_reads_the_ranking_and_every_cloud_bound():
             "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}]}
     assert not ranking._cloud_eager(AnalyzeRequest(**base))
     assert not ranking._cloud_eager(AnalyzeRequest(**base, include_clouds=True))
-    assert ranking._cloud_eager(AnalyzeRequest(**base, sort_by="cloud_cover_max_pct"))
-    for bound in ("min_cloud_base_ft", "max_cloud_base_ft",
-                  "min_cloud_cover_pct", "max_cloud_cover_pct"):
+    assert ranking._cloud_eager(AnalyzeRequest(**base, sort_by="cloud_deck_max_ft"))
+    for bound in ("min_cloud_deck_ft", "max_cloud_deck_ft"):
         assert ranking._cloud_eager(AnalyzeRequest(**base, **{bound: 10}))
     assert not ranking._cloud_eager(AnalyzeRequest(**base, max_aqi=10))
 
 
 def test_aligned_cloud_maps_by_stamp_and_nulls_the_rest():
-    assert ranking._aligned_cloud([1, 2, 3], None) == (None, None)
-    series = {"times": [2, 3], "cloud_base_ft": [9000.0, None], "cloud_cover_pct": [40, 60]}
-    assert ranking._aligned_cloud([1, 2, 3], series) == (
-        [None, 9000.0, None],
-        [None, 40, 60],
-    )
+    assert ranking._aligned_cloud([1, 2, 3], None) is None
+    series = {"times": [2, 3], "cloud_deck_ft": [9000.0, None]}
+    assert ranking._aligned_cloud([1, 2, 3], series) == [None, 9000.0, None]
 
 
 def test_summary_logs_the_clouds_opt_in():

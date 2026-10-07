@@ -12,9 +12,9 @@ import {
   terrainFallbackFor,
 } from './openMeteo'
 import {
+  CLOUD_DECK_CEILING_FT,
   CLOUD_VARIABLES,
   cloudMetrics,
-  cloudSeries,
   weatherMetrics,
   weatherSeries,
 } from './openMeteoAggregate'
@@ -30,7 +30,7 @@ import {
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
 import { archiveBoundaryMs, windowSource } from './forecastWindow'
-import { CLOUD_UNITS, WEATHER_UNITS } from '../testSupport/fixtures'
+import { cloudAnswer, WEATHER_UNITS } from '../testSupport/fixtures'
 // `?raw` gives a file's text without executing it, the drift-guard idiom
 // `styles.test.ts` and `metrics.test.ts` use. Both surfaces that say the
 // model-coverage sentence compose it inside a React hook, which a node-env
@@ -143,37 +143,16 @@ describe('freezing level unit', () => {
   })
 })
 
-// The cloud request's 2 m pair (#581): no unit parameters are sent, so it is
-// Celsius, "°C" (measured 2026-10-01). Espy's rule is stated per degree
-// Celsius, so a pair in Fahrenheit would stretch the parcel base by 1.8.
+// The cloud request's units (#581, #670). What is left of it is humidity,
+// which has one unit and no parameter that selects another, so an answer with
+// no `hourly_units` at all is read as it stands.
 describe('cloud units', () => {
-  const payload = (units: Record<string, string> | undefined) => ({
-    ...(units ? { hourly_units: units } : {}),
-    hourly: {
-      time: ['2026-07-21T00:00'],
-      cloud_cover: [40],
-      relative_humidity_2m: [70],
-      temperature_2m: [12],
-      dew_point_2m: [4],
-    },
-  })
   const startMs = Date.parse('2026-07-21T00:00:00Z')
   const endMs = Date.parse('2026-07-21T00:01:00Z')
 
-  it('lets the measured units through', () => {
-    expect(cloudMetrics(payload(CLOUD_UNITS) as never, startMs, endMs, 2000)?.cloud_cover_avg_pct).toBe(40)
-  })
-
-  it.each(['temperature_2m', 'dew_point_2m'])('fails the batch on %s in Fahrenheit', (column) => {
-    const p = payload({ ...CLOUD_UNITS, [column]: '°F' })
-    expect(() => cloudMetrics(p as never, startMs, endMs, 2000)).toThrow(OpenMeteoBadBody)
-    expect(() => cloudSeries(p as never, startMs, endMs, 2000)).toThrow(OpenMeteoBadBody)
-  })
-
-  it('fails when the pair carries numbers and declares no unit', () => {
-    expect(() => cloudMetrics(payload(undefined) as never, startMs, endMs, 2000)).toThrow(
-      OpenMeteoBadBody,
-    )
+  it('needs no declared unit', () => {
+    const p = cloudAnswer(['2026-07-21T00:00'])
+    expect(cloudMetrics(p as never, startMs, endMs, 2000)?.cloud_deck_avg_ft).toBe(CLOUD_DECK_CEILING_FT)
   })
 })
 
@@ -1401,29 +1380,20 @@ describe('the messages the Open-Meteo modules throw', () => {
   })
 })
 
-// The cloud request (#117): a request of its own so an analysis that never
-// ranks by cloud never pays for it.
+// The cloud request (#117, #670): a request of its own so an analysis that
+// never ranks by cloud never pays for it.
 describe('fetchCloud', () => {
   const startMs = Date.parse('2026-07-21T00:00:00Z')
   const endMs = Date.parse('2026-07-21T01:00:00Z')
   const body = (n: number) =>
-    Array.from({ length: n }, () => ({
-      hourly_units: CLOUD_UNITS,
-      hourly: {
-        time: ['2026-07-21T00:00', '2026-07-21T01:00'],
-        cloud_cover: [40, 60],
-        relative_humidity_2m: [70, 70],
-        temperature_2m: [12, 12],
-        dew_point_2m: [4, 4],
-      },
-    }))
+    Array.from({ length: n }, () => cloudAnswer(['2026-07-21T00:00', '2026-07-21T01:00']))
 
   afterEach(() => {
     vi.unstubAllGlobals()
     resetOpenMeteoState()
   })
 
-  it('asks for the cloud variables alone, in Celsius', async () => {
+  it('asks for the cloud variables alone, with no unit parameter', async () => {
     const urls: URL[] = []
     vi.stubGlobal(
       'fetch',
@@ -1439,11 +1409,11 @@ describe('fetchCloud', () => {
     const out = await fetchCloud(coords, startMs, endMs, { model: 'gfs_seamless', nowMs: startMs })
     expect(urls).toHaveLength(1)
     expect(urls[0].searchParams.get('hourly')).toBe(CLOUD_VARIABLES.join(','))
-    // Espy's rule is stated in Celsius, so the pair must not arrive in °F.
+    // Humidity alone: the request carries no unit parameter at all.
     expect(urls[0].searchParams.has('temperature_unit')).toBe(false)
-    expect(out[0]?.cloud_cover_avg_pct).toBe(50)
-    // No level answered, so no hour has a base: the column is null, not Espy's.
-    expect(out[0]?.cloud_base_min_ft).toBeNull()
+    expect(CLOUD_VARIABLES).toHaveLength(9)
+    // A dry column that answered reads the ceiling, not null.
+    expect(out[0]?.cloud_deck_min_ft).toBe(CLOUD_DECK_CEILING_FT)
   })
 
   it('answers a second ask from the cache', async () => {
@@ -1455,11 +1425,11 @@ describe('fetchCloud', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('costs 1.2 weighted calls a location, beside the weather request\'s 1.5', () => {
-    // 200 destinations over three days: 240 for the cloud column against 300
-    // for the weather it rides beside.
+  it('costs 1 weighted call a location, beside the weather request\'s 1.5', () => {
+    // 200 destinations over three days: 200 for the cloud column against 300
+    // for the weather it rides beside. Nine variables sit at the floor of 10.
     const three = 3 * 24 * 3600 * 1000
-    expect(callWeight(200, 0, three, CLOUD_VARIABLES.length, 1)).toBeCloseTo(240, 6)
+    expect(callWeight(200, 0, three, CLOUD_VARIABLES.length, 1)).toBeCloseTo(200, 6)
   })
 })
 
@@ -1783,18 +1753,7 @@ describe('elevations a lookup is still out for (#643)', () => {
   })
 
   it('holds the cloud column to the same rules', async () => {
-    const cloudBody = [
-      {
-        hourly_units: CLOUD_UNITS,
-        hourly: {
-          time: ['2026-07-21T00:00', '2026-07-21T01:00'],
-          cloud_cover: [40, 60],
-          relative_humidity_2m: [70, 70],
-          temperature_2m: [12, 12],
-          dew_point_2m: [4, 4],
-        },
-      },
-    ]
+    const cloudBody = [cloudAnswer(['2026-07-21T00:00', '2026-07-21T01:00'])]
     const fetchSpy = vi.fn(async () => jsonResponse(cloudBody))
     vi.stubGlobal('fetch', fetchSpy)
     const heights = deferred<(number | null)[]>()
@@ -1810,7 +1769,7 @@ describe('elevations a lookup is still out for (#643)', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     expect(done).toBe(false)
     heights.resolve([328])
-    expect((await pending)[0]?.cloud_cover_avg_pct).toBe(50)
+    expect((await pending)[0]?.cloud_deck_avg_ft).toBe(CLOUD_DECK_CEILING_FT)
     // Cached under the elevation that arrived.
     await fetchCloud([{ ...PLACE[0], elevation_ft: 328 }], WINDOW.startMs, WINDOW.endMs, cloudOpts)
     expect(fetchSpy).toHaveBeenCalledTimes(1)

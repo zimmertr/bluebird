@@ -1867,23 +1867,19 @@ async def test_fetch_weather_batch_fails_on_an_unreadable_unit(monkeypatch):
         await fetch_weather_batch(_dests(1), _RAINIER_START, _RAINIER_END)
 
 
-# ── fetch_cloud_batch (issue #117) ─────────────────────────────────────────
+# ── fetch_cloud_batch (issues #117 and #670) ───────────────────────────────
 
 
 def _cloud_location() -> dict[str, Any]:
-    """One location's cloud block: saturated at 700 hPa, dry below it."""
+    """One location's cloud block: saturated from 700 hPa up, dry below it."""
     times = ["2026-07-21T00:00", "2026-07-21T01:00", "2026-07-21T02:00"]
     hourly: dict[str, Any] = {
         "time": times,
-        "cloud_cover": [80, 90, 100],
         "relative_humidity_2m": [60.0, 60.0, 60.0],
-        "temperature_2m": [5.0, 5.0, 5.0],
-        "dew_point_2m": [0.0, 0.0, 0.0],
     }
     for p in aggregation.ISA_HEIGHT_M:
         hourly[f"relative_humidity_{p}hPa"] = [100.0 if p <= 700 else 50.0] * 3
-    # The 2 m pair in Celsius, declared as a real answer declares it.
-    return {"hourly": hourly, "hourly_units": {"temperature_2m": "°C", "dew_point_2m": "°C"}}
+    return {"hourly": hourly}
 
 
 async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
@@ -1892,15 +1888,15 @@ async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
 
     hourly = calls[0]["hourly"].split(",")
     assert hourly == aggregation.CLOUD_VARIABLES.split(",")
-    # Twelve variables is weight factor 1.2 on top of the weather's 1.4, which
-    # is the whole reason it is a request of its own (issue #117).
-    assert len(hourly) == weather.N_CLOUD_VARIABLES == 12
-    # Celsius: Espy's rule is stated per degree Celsius, so no unit is sent.
+    # Nine variables is weight factor 1 on top of the weather's 1.4, which is
+    # the whole reason it is a request of its own (issues #117 and #670).
+    assert len(hourly) == weather.N_CLOUD_VARIABLES == 9
+    # Humidity alone, which no unit parameter changes, so none is sent.
     assert "temperature_unit" not in calls[0]
     assert "precipitation_unit" not in calls[0]
 
 
-async def test_fetch_cloud_batch_reads_the_base_off_the_column(monkeypatch):
+async def test_fetch_cloud_batch_reads_the_deck_off_the_column(monkeypatch):
     _stub_openmeteo(monkeypatch, [[_cloud_location()]])
     [row] = await weather.fetch_cloud_batch(
         [dest(46.85, -121.76, elevation_ft=2000.0)], START, END
@@ -1908,9 +1904,11 @@ async def test_fetch_cloud_batch_reads_the_base_off_the_column(monkeypatch):
     assert row is not None
     # 850 hPa (1457 m) at 50 % and 700 hPa (3012 m) at 100 %: 95 % is 90 % of
     # the way up, 2856.5 m, which is 9,372 ft.
-    assert row["cloud_base_min_ft"] == 9372
-    assert row["cloud_cover_avg_pct"] == 90
-    assert row["series"]["cloud_base_ft"] == [9372, 9372, 9372]
+    assert row["cloud_deck_min_ft"] == 9372
+    assert row["cloud_deck_max_ft"] == 9372
+    assert row["series"]["cloud_deck_ft"] == [9372, 9372, 9372]
+    assert set(row) == {"cloud_deck_min_ft", "cloud_deck_avg_ft", "cloud_deck_max_ft", "series"}
+    assert set(row["series"]) == {"times", "cloud_deck_ft"}
 
 
 async def test_fetch_cloud_batch_is_cached_apart_from_the_weather(monkeypatch):
@@ -1966,41 +1964,15 @@ async def test_a_short_cloud_answer_fails_the_batch(monkeypatch):
         await weather.fetch_cloud_batch(_dests(2), START, END)
 
 
-# ── The cloud request's units (issue #581) ─────────────────────────────────
+# ── The cloud request's units (issues #581 and #670) ───────────────────────
 #
-# It sends no unit parameters, so its 2 m temperature and dew point come back
-# in Celsius, "°C" (measured 2026-10-01 on all eight models and the archive).
-# Espy's rule is stated per degree Celsius: a pair in Fahrenheit would put the
-# parcel base 1.8 times as far above the destination.
+# #581 checked the 2 m temperature and dew point the parcel base read in
+# Celsius. Both went with it (#670): what is left is humidity, which has one
+# unit and no parameter that selects another, so the cloud request checks no
+# unit at all and an answer without `hourly_units` is read as it stands.
 
 
-@pytest.mark.parametrize("column", ["temperature_2m", "dew_point_2m"])
-def test_a_cloud_pair_in_another_unit_fails_the_batch(column):
+def test_a_cloud_answer_needs_no_declared_unit():
     payload = _cloud_location()
-    payload["hourly_units"][column] = "°F"
-    with pytest.raises(UpstreamError):
-        aggregation._cloud_metrics(payload, START, END, 2000.0)
-    with pytest.raises(UpstreamError):
-        aggregation._cloud_series(payload, START, END, 2000.0)
-
-
-def test_a_cloud_pair_with_no_declared_unit_fails_the_batch():
-    payload = _cloud_location()
-    del payload["hourly_units"]
-    with pytest.raises(UpstreamError):
-        aggregation._cloud_metrics(payload, START, END, 2000.0)
-
-
-def test_the_cloud_units_the_aggregation_expects_are_the_measured_ones():
-    assert aggregation._CLOUD_DECLARED_UNITS == {
-        "temperature_2m": "°C",
-        "dew_point_2m": "°C",
-    }
-
-
-async def test_a_cloud_batch_in_fahrenheit_fails_the_analysis(monkeypatch):
-    block = _cloud_location()
-    block["hourly_units"]["temperature_2m"] = "°F"
-    _stub_openmeteo(monkeypatch, [[block]])
-    with pytest.raises(UpstreamError):
-        await weather.fetch_cloud_batch([dest(46.85, -121.76)], START, END)
+    assert "hourly_units" not in payload
+    assert aggregation._cloud_metrics(payload, START, END, 2000.0) is not None

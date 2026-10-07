@@ -53,7 +53,7 @@ const full: ShareableState = {
     temp: 'temp_max_f',
     precip: 'precip_avg_in_hr',
     aqi: 'aqi_max',
-    cloud_cover: 'cloud_cover_min_pct',
+    cloud_deck: 'cloud_deck_max_ft',
   },
   constraints: {
     minPrecipTotalIn: 0,
@@ -68,10 +68,8 @@ const full: ShareableState = {
     maxSnowDepthIn: 80,
     minAqi: 0,
     maxAqi: 50,
-    minCloudBaseFt: 3000,
-    maxCloudBaseFt: 15000,
-    minCloudCoverPct: 5,
-    maxCloudCoverPct: 60,
+    minCloudDeckFt: 3000,
+    maxCloudDeckFt: 15000,
   },
   limit: 50,
   customCsv: 'Name,Lat,Lon\nA peak,46.85,-121.76\n',
@@ -106,7 +104,7 @@ const nowOnly: ShareableState = {
   sortBy: 'aqi_avg',
   sortDesc: false,
   rowKeys: { ...DEFAULT_FAMILY_KEY },
-  constraints: { ...NO_CONSTRAINTS, maxCloudCoverPct: 60 },
+  constraints: { ...NO_CONSTRAINTS, maxCloudDeckFt: 9000 },
   limit: 200,
   customCsv: '',
   showWildfires: false,
@@ -139,12 +137,12 @@ const dateless: ShareableState = {
 describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
-      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_cover=min&precip=avg&temp=max' +
+      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&temp=max' +
         '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
         '&minfreeze=4000&maxfreeze=12000&minsnow=2&maxsnow=80&minaqi=0&maxaqi=50' +
-        '&mincloudbase=3000&maxcloudbase=15000&mincloudcover=5&maxcloudcover=60' +
+        '&minclouddeck=3000&maxclouddeck=15000' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
         '&fires=1&closedareas=1&closedtrails=1&radar=1&smoke=1&snow=1&grid=smooth&reach=40&player=0&unnamed=1' +
@@ -152,7 +150,7 @@ describe('the codec table against the links it wrote before', () => {
         ';-118.2,36.12346,coordinates,,,' +
         '&removed=-121.76041,46.85289;-121.11391,48.1&tsort=elevation_ft&tdesc=1&view=-121.6123,47.1,9.46',
     )
-    expect(encodeState(nowOnly, DEFAULT_MODEL)).toBe('model=icon_seamless&mode=now&maxcloudcover=60&player=1')
+    expect(encodeState(nowOnly, DEFAULT_MODEL)).toBe('model=icon_seamless&mode=now&maxclouddeck=9000&player=1')
     expect(encodeState(dateless, DEFAULT_MODEL)).toBe(
       'sort=temp_min_f&model=ecmwf_ifs025&mode=days&h1=00:00&h2=23:59&grid=blocks',
     )
@@ -185,8 +183,7 @@ describe('the codec table', () => {
       'sort',
       'desc',
       'aqi',
-      'cloud_base',
-      'cloud_cover',
+      'cloud_deck',
       'freeze',
       'precip',
       'temp',
@@ -211,10 +208,8 @@ describe('the codec table', () => {
       'maxsnow',
       'minaqi',
       'maxaqi',
-      'mincloudbase',
-      'maxcloudbase',
-      'mincloudcover',
-      'maxcloudcover',
+      'minclouddeck',
+      'maxclouddeck',
       'poly',
       'customz',
       'fires',

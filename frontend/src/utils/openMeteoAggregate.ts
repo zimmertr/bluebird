@@ -172,20 +172,18 @@ export interface HourlyPayload {
     temperature_600hPa?: (number | null)[]
     temperature_500hPa?: (number | null)[]
     us_aqi?: (number | null)[]
-    // The cloud request's own variables (#117). The level humidities are read
+    // The cloud request's own variables (#670). The level humidities are read
     // by name through `CLOUD_LEVELS`, so they are covered by the index
     // signature rather than spelled eight times here.
-    cloud_cover?: (number | null)[]
     relative_humidity_2m?: (number | null)[]
-    dew_point_2m?: (number | null)[]
     [level: `relative_humidity_${number}hPa`]: (number | null)[] | undefined
   }
 }
 
 // Port of aggregation.ISA_HEIGHT_M: each standard pressure level's height in
 // the ICAO standard atmosphere, in metres, bottom to top. The wind and the
-// temperature read the five from 925 to 500 hPa; the cloud base walks all
-// eight (#117). Exported because `mirroredConstants.test.ts` holds it to the
+// temperature read the five from 925 to 500 hPa; the cloud deck walks all
+// eight (#670). Exported because `mirroredConstants.test.ts` holds it to the
 // backend's table.
 export const ISA_HEIGHT_M = {
   1000: 111,
@@ -277,35 +275,28 @@ const DECLARED_UNITS: Readonly<Record<string, string>> = {
   ...Object.fromEntries(TEMP_LEVELS.map(([name]) => [name, '°F'])),
 }
 
-// Port of aggregation.CLOUD_SATURATION_RH (#117): the relative humidity at or
+// Port of aggregation.CLOUD_SATURATION_RH (#670): the relative humidity at or
 // above which a point in the column counts as in cloud. The reasons for 95
 // rather than 100 are in aggregation.py; the value is pinned to the backend's
 // through `mirrored_constants.json`.
 export const CLOUD_SATURATION_RH = 95
-// Port of aggregation.ESPY_M_PER_C: the parcel base rises about 125 m per
-// degree Celsius of spread between temperature and dew point.
-export const ESPY_M_PER_C = 125
+// Port of aggregation.CLOUD_DECK_CEILING_FT: what a column that answered and is
+// dry all the way up reads, the standard height of 300 hPa in whole feet. A
+// plain number rather than a null, so the ranking, the bounds, the chart and
+// the colour scale need no null case for a clear sky. Pinned to the backend's
+// through `mirrored_constants.json`.
+export const CLOUD_DECK_CEILING_FT = roundHalfEven(ISA_HEIGHT_M[300] / FT_TO_M, 0)
 const CLOUD_LEVELS = ISA_LEVELS.map((p) => [`relative_humidity_${p}hPa`, ISA_HEIGHT_M[p]] as const)
-// The cloud request's variables (#117), a request of its own rather than more
+// The cloud request's variables (#670), a request of its own rather than more
 // variables on the weather one, because the price of a request follows its
-// variable count and most analyses never rank by cloud. Exported for the
-// weight, which reads its length, and for the join, which keeps these arrays
-// parallel.
+// variable count and most analyses never rank by cloud. Humidity carries no
+// unit a request parameter selects, so the request sends none and its numbers
+// need no declared-unit check. Exported for the weight, which reads its
+// length, and for the join, which keeps these arrays parallel.
 export const CLOUD_VARIABLES = [
-  'cloud_cover',
   'relative_humidity_2m',
-  'temperature_2m',
-  'dew_point_2m',
   ...CLOUD_LEVELS.map(([name]) => name),
 ] as const
-
-// Port of aggregation._CLOUD_DECLARED_UNITS: the cloud request sends no unit
-// parameters, so its 2 m pair comes back in the Celsius Espy's rule is stated
-// in. Measured 2026-10-01 on all eight models and the archive: "°C" for both.
-const CLOUD_DECLARED_UNITS: Readonly<Record<string, string>> = {
-  temperature_2m: '°C',
-  dew_point_2m: '°C',
-}
 
 // What the archive endpoint writes in `hourly_units` for a variable it does not
 // serve. The column beside it is all nulls, so the unit carries no information.
@@ -512,7 +503,7 @@ function freezeFtInWindow(
 
 // Port of aggregation._check_units: a number in a unit the request did not ask
 // for fails the batch, the way an unreadable freezing level does. `expected`
-// is the request's own table (DECLARED_UNITS or CLOUD_DECLARED_UNITS). A
+// is the request's own table, DECLARED_UNITS; the cloud request has none. A
 // column of nulls needs no unit, because the archive answers the levels it
 // does not serve that way under the unit "undefined". The whole column is
 // read rather than the window, which keeps the two ports trivially equal.
@@ -762,86 +753,75 @@ export function aqiSeries(
   }
 }
 
-// ── The cloud column (#117) ────────────────────────────────────────────────
+// ── The cloud column (#670) ────────────────────────────────────────────────
 
 export interface CloudAggregates {
-  cloud_base_min_ft: number | null
-  cloud_base_max_ft: number | null
-  cloud_base_avg_ft: number | null
-  cloud_cover_min_pct: number | null
-  cloud_cover_max_pct: number | null
-  cloud_cover_avg_pct: number | null
+  cloud_deck_min_ft: number | null
+  cloud_deck_max_ft: number | null
+  cloud_deck_avg_ft: number | null
 }
 
 export interface CloudSeries {
   times: number[]
-  cloud_base_ft: (number | null)[]
-  cloud_cover_pct: (number | null)[]
+  cloud_deck_ft: (number | null)[]
 }
 
-// Port of aggregation._cloud_base_m: one hour's base in metres above sea level,
-// walked up from the destination's 2 m point through every level above it. The
-// first saturated point ends the walk (the destination itself, or a height
+// Port of aggregation._cloud_deck_ft: one hour's deck in feet above sea level,
+// walked up every level from 1000 hPa with the destination's 2 m point
+// inserted at its elevation when it is known. The first saturated point ends
+// the walk (its own height when nothing below it answered, else a height
 // interpolated in humidity from the last dry point); a dry column that answered
-// falls back to Espy's parcel base; a column that did not answer, or a
-// destination with no elevation, is null.
-export function cloudBaseM(
+// reads CLOUD_DECK_CEILING_FT; a column that did not answer is null.
+export function cloudDeckFt(
   elevationFt: number | null | undefined,
   rh2m: number | null,
-  t2m: number | null,
-  td2m: number | null,
   levels: readonly (number | null)[],
 ): number | null {
-  if (elevationFt == null) return null
-  const elevM = elevationFt * FT_TO_M
-  const column: Array<[number, number | null]> = [[elevM, rh2m]]
-  let answered = false
-  for (let k = 0; k < CLOUD_LEVELS.length; k++) {
-    const height = CLOUD_LEVELS[k][1]
-    if (height <= elevM) continue
-    const rh = k < levels.length ? (levels[k] ?? null) : null
-    if (rh != null) answered = true
-    column.push([height, rh])
+  if (!levels.some((rh) => rh != null)) return null
+  const column: Array<[number, number | null]> = CLOUD_LEVELS.map(([, height], k) => [
+    height,
+    k < levels.length ? (levels[k] ?? null) : null,
+  ])
+  if (elevationFt != null) {
+    const elevM = elevationFt * FT_TO_M
+    const found = column.findIndex(([h]) => h > elevM)
+    column.splice(found === -1 ? column.length : found, 0, [elevM, rh2m])
   }
-  if (!answered) return null
   let prev: [number, number] | null = null
   for (const [height, rh] of column) {
     if (rh == null) continue
     if (rh >= CLOUD_SATURATION_RH) {
-      if (prev === null) return height
+      if (prev === null) return height / FT_TO_M
       const [loH, loRh] = prev
-      return loH + (height - loH) * ((CLOUD_SATURATION_RH - loRh) / (rh - loRh))
+      const deckM = loH + (height - loH) * ((CLOUD_SATURATION_RH - loRh) / (rh - loRh))
+      return deckM / FT_TO_M
     }
     prev = [height, rh]
   }
-  if (t2m == null || td2m == null) return null
-  return elevM + ESPY_M_PER_C * Math.max(0, t2m - td2m)
+  return CLOUD_DECK_CEILING_FT
 }
 
 function cloudLevelArrays(hourly: NonNullable<HourlyPayload['hourly']>): (number | null)[][] {
   return CLOUD_LEVELS.map(([name]) => hourly[name] ?? [])
 }
 
-// Port of aggregation._cloud_base_ft_at.
-function cloudBaseFtAt(
+// Port of aggregation._cloud_deck_ft_at.
+function cloudDeckFtAt(
   hourly: NonNullable<HourlyPayload['hourly']>,
   i: number,
   elevationFt: number | null | undefined,
   levels: readonly (number | null)[][],
 ): number | null {
-  const base = cloudBaseM(
+  return cloudDeckFt(
     elevationFt,
     at(hourly.relative_humidity_2m ?? [], i),
-    at(hourly.temperature_2m ?? [], i),
-    at(hourly.dew_point_2m ?? [], i),
     levels.map((arr) => at(arr, i)),
   )
-  return base === null ? null : base / FT_TO_M
 }
 
-// Port of aggregation._cloud_metrics: times-driven, each quantity dropping only
-// its own null hours, so an archive hour keeps its cover without a base. Null
-// only for a window holding no hours at all.
+// Port of aggregation._cloud_metrics: times-driven, an hour with no deck
+// dropping out of the reduction alone. Null only for a window holding no
+// hours at all.
 export function cloudMetrics(
   payload: HourlyPayload,
   startMs: number,
@@ -849,54 +829,36 @@ export function cloudMetrics(
   elevationFt: number | null = null,
 ): CloudAggregates | null {
   try {
-    checkUnits(payload, CLOUD_DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
-    const cover = hourly.cloud_cover ?? []
     const levels = cloudLevelArrays(hourly)
 
     let hours = 0
-    const bases: number[] = []
-    const covers: number[] = []
+    const decks: number[] = []
     for (let i = 0; i < times.length; i++) {
       const t = parseTs(times[i])
       if (t === null || t < startMs || t > endMs) continue
       hours += 1
-      const c = at(cover, i)
-      if (c != null) covers.push(c)
-      const base = cloudBaseFtAt(hourly, i, elevationFt, levels)
-      if (base !== null) bases.push(base)
+      const deck = cloudDeckFtAt(hourly, i, elevationFt, levels)
+      if (deck !== null) decks.push(deck)
     }
     if (hours === 0) return null
     // Left-to-right passes in input order, matching Python's sum(), min() and
     // max() exactly, the way `weatherMetrics` reduces its own columns.
-    let bSum = 0
-    let bMin = Infinity
-    let bMax = -Infinity
-    for (const b of bases) {
-      bSum += b
-      if (b < bMin) bMin = b
-      if (b > bMax) bMax = b
-    }
-    let cSum = 0
-    let cMin = Infinity
-    let cMax = -Infinity
-    for (const c of covers) {
-      cSum += c
-      if (c < cMin) cMin = c
-      if (c > cMax) cMax = c
+    let dSum = 0
+    let dMin = Infinity
+    let dMax = -Infinity
+    for (const d of decks) {
+      dSum += d
+      if (d < dMin) dMin = d
+      if (d > dMax) dMax = d
     }
     return {
-      cloud_base_min_ft: bases.length === 0 ? null : roundHalfEven(bMin, 0),
-      cloud_base_max_ft: bases.length === 0 ? null : roundHalfEven(bMax, 0),
-      cloud_base_avg_ft: bases.length === 0 ? null : roundHalfEven(bSum / bases.length, 0),
-      cloud_cover_min_pct: covers.length === 0 ? null : roundHalfEven(cMin, 0),
-      cloud_cover_max_pct: covers.length === 0 ? null : roundHalfEven(cMax, 0),
-      cloud_cover_avg_pct: covers.length === 0 ? null : roundHalfEven(cSum / covers.length, 0),
+      cloud_deck_min_ft: decks.length === 0 ? null : roundHalfEven(dMin, 0),
+      cloud_deck_max_ft: decks.length === 0 ? null : roundHalfEven(dMax, 0),
+      cloud_deck_avg_ft: decks.length === 0 ? null : roundHalfEven(dSum / decks.length, 0),
     }
-  } catch (e) {
-    // The unit refusal, for the weather's reason.
-    if (e instanceof OpenMeteoBadBody) throw e
+  } catch {
     return null
   }
 }
@@ -909,27 +871,21 @@ export function cloudSeries(
   elevationFt: number | null = null,
 ): CloudSeries | null {
   try {
-    checkUnits(payload, CLOUD_DECLARED_UNITS)
     const hourly = payload?.hourly ?? {}
     const times = hourly.time ?? []
-    const cover = hourly.cloud_cover ?? []
     const levels = cloudLevelArrays(hourly)
 
     const grid: number[] = []
-    const bOut: (number | null)[] = []
-    const cOut: (number | null)[] = []
+    const dOut: (number | null)[] = []
     for (let i = 0; i < times.length; i++) {
       const t = parseTs(times[i])
       if (t === null || t < startMs || t > endMs) continue
       grid.push(t)
-      bOut.push(roundOrNull(cloudBaseFtAt(hourly, i, elevationFt, levels), 0))
-      cOut.push(roundOrNull(at(cover, i), 0))
+      dOut.push(roundOrNull(cloudDeckFtAt(hourly, i, elevationFt, levels), 0))
     }
     if (grid.length === 0) return null
-    return { times: grid, cloud_base_ft: bOut, cloud_cover_pct: cOut }
-  } catch (e) {
-    // The unit refusal, for the weather's reason.
-    if (e instanceof OpenMeteoBadBody) throw e
+    return { times: grid, cloud_deck_ft: dOut }
+  } catch {
     return null
   }
 }

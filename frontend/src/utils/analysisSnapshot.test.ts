@@ -63,12 +63,13 @@ describe('analyzedView', () => {
 describe('requestsCloud', () => {
   it('fetches the cloud column only when the ranking or a bound names it', () => {
     expect(requestsCloud(REQUEST)).toBe(false)
-    expect(requestsCloud({ ...REQUEST, sort_by: 'cloud_base_min_ft' })).toBe(true)
-    expect(requestsCloud({ ...REQUEST, max_cloud_cover_pct: 50 })).toBe(true)
+    expect(requestsCloud({ ...REQUEST, sort_by: 'cloud_deck_min_ft' })).toBe(true)
+    expect(requestsCloud({ ...REQUEST, max_cloud_deck_ft: 9000 })).toBe(true)
+    expect(requestsCloud({ ...REQUEST, min_cloud_deck_ft: 4000 })).toBe(true)
   })
 
   it('is what the snapshot records', () => {
-    const cloudy = { ...REQUEST, sort_by: 'cloud_cover_avg_pct' as const }
+    const cloudy = { ...REQUEST, sort_by: 'cloud_deck_avg_ft' as const }
     expect(analyzedView(cloudy, 'days', FACTS, NOW, FALLBACK_WINDOW_LIMITS).cloudFetched).toBe(true)
   })
 })
