@@ -165,7 +165,7 @@ _POLY = GeoPolygon(
 async def test_query_osm_serves_repeat_from_cache(monkeypatch):
     calls = 0
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         nonlocal calls
         calls += 1
         return {
@@ -196,7 +196,7 @@ async def test_partial_results_are_never_cached(monkeypatch):
 
     calls = 0
 
-    async def flaky_post(query, on_status=None):
+    async def flaky_post(query, on_status=None, **_kwargs):
         nonlocal calls
         calls += 1
         if calls == 1:

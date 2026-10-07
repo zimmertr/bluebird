@@ -5,7 +5,8 @@ place and the cardinality test can police it. Two label vocabularies name the
 upstreams, on purpose:
 
 - The fetch layers (``osm``, ``weather.py``, ``air_quality.py``) use short
-  slugs: ``service`` is ``weather``/``aqi``, ``mirror`` is the Overpass host.
+  slugs: ``service`` is ``weather``/``aqi``, ``mirror`` is the Overpass host,
+  and ``path`` is ``discovery``/``enrichment``, the question Overpass was asked.
 - The pacing layer (``ratelimit``) uses each budget's ``provider`` string
   verbatim ("Open-Meteo (air quality)", …). Those strings already uniquely
   name every budget instance, and mapping them to slugs here would be a
@@ -127,26 +128,30 @@ DESTINATIONS_RETURNED = Histogram(
     buckets=_FIELD_BUCKETS,
 )
 
-# ── Overpass (discovery) ──────────────────────────────────────────────────────
+# ── Overpass (discovery and the elevation lookup) ─────────────────────────────
 
+# `path` says which question was asked: `discovery` for a polygon's features,
+# `enrichment` for the peak beside each pasted point (osm/enrich.py). The two
+# queries differ in size and in how long the asker waits, and the lookup's
+# per-mirror slices are retuned from its own series alone (#655).
 OVERPASS_REQUESTS = Counter(
     "bluebird_forecast_overpass_requests_total",
-    "Overpass HTTP attempts, by mirror host and outcome.",
-    ["mirror", "outcome"],
+    "Overpass HTTP attempts, by mirror host, outcome and path.",
+    ["mirror", "outcome", "path"],
 )
 # Reaches well past the mirrors' client timeouts, because the point of
 # this family (per the mirror-table comment in osm/mirrors.py) is re-tuning those
 # timeouts from measurement instead of a one-day sample.
 OVERPASS_DURATION = Histogram(
     "bluebird_forecast_overpass_request_duration_seconds",
-    "Overpass HTTP attempt duration, by mirror host.",
-    ["mirror"],
+    "Overpass HTTP attempt duration, by mirror host and path.",
+    ["mirror", "path"],
     buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 15.0, 25.0, 45.0, 60.0, 90.0, 120.0),
 )
 OVERPASS_FALLBACK = Counter(
     "bluebird_forecast_overpass_fallback_total",
-    "Times the mirror chain moved past a failed mirror, by the mirror it left.",
-    ["mirror"],
+    "Times the mirror chain moved past a failed mirror, by the mirror it left and the path.",
+    ["mirror", "path"],
 )
 
 # ── Open-Meteo (weather + air quality) ────────────────────────────────────────

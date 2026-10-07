@@ -618,28 +618,18 @@ def test_overpass_failure_counts_fallback_and_success_counts_mirror(monkeypatch)
 
     monkeypatch.setattr(osm_mod.mirrors.httpx, "AsyncClient", _Client)
 
-    fallback_before = _value("bluebird_forecast_overpass_fallback_total", {"mirror": first})
-    timeout_before = _value(
-        "bluebird_forecast_overpass_requests_total", {"mirror": first, "outcome": "timeout"}
-    )
-    ok_before = _value(
-        "bluebird_forecast_overpass_requests_total", {"mirror": second, "outcome": "success"}
-    )
+    # A call that names no path is discovery's, so its series say so.
+    left = {"mirror": first, "path": "discovery"}
+    timed_out = {"mirror": first, "outcome": "timeout", "path": "discovery"}
+    answered = {"mirror": second, "outcome": "success", "path": "discovery"}
+    fallback_before = _value("bluebird_forecast_overpass_fallback_total", left)
+    timeout_before = _value("bluebird_forecast_overpass_requests_total", timed_out)
+    ok_before = _value("bluebird_forecast_overpass_requests_total", answered)
     data = asyncio.run(osm_mod._post_with_fallback("[out:json];"))
     assert data == {"elements": []}
-    assert _value("bluebird_forecast_overpass_fallback_total", {"mirror": first}) == fallback_before + 1
-    assert (
-        _value(
-            "bluebird_forecast_overpass_requests_total", {"mirror": first, "outcome": "timeout"}
-        )
-        == timeout_before + 1
-    )
-    assert (
-        _value(
-            "bluebird_forecast_overpass_requests_total", {"mirror": second, "outcome": "success"}
-        )
-        == ok_before + 1
-    )
+    assert _value("bluebird_forecast_overpass_fallback_total", left) == fallback_before + 1
+    assert _value("bluebird_forecast_overpass_requests_total", timed_out) == timeout_before + 1
+    assert _value("bluebird_forecast_overpass_requests_total", answered) == ok_before + 1
 
 
 def urlhost(url: str) -> str:
@@ -655,7 +645,7 @@ def urlhost(url: str) -> str:
 # no label VALUE may look like an IP address or a bare coordinate.
 ALLOWED_LABEL_NAMES = {
     "route", "method", "status", "client",  # HTTP surface
-    "mirror", "service", "outcome", "scope", "quota",  # suppliers
+    "mirror", "service", "outcome", "scope", "quota", "path",  # suppliers
     "reason", "bucket", "provider", "mechanism",  # degradation and pacing
     "cache",                               # caches
     "version", "commit",                   # build info

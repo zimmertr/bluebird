@@ -12,7 +12,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import httpx
@@ -42,6 +42,9 @@ PROVIDER = "OpenStreetMap (Overpass)"
 # only progress signal available for the search phase.
 StatusCallback = Callable[[str], Awaitable[None]]
 
+# Which question a chain is asking, as the Overpass metrics label it.
+OverpassPath = Literal["discovery", "enrichment"]
+
 
 @dataclass(frozen=True)
 class OverpassMirror:
@@ -54,6 +57,7 @@ class OverpassMirror:
 
     url: str
     # The whole of one attempt, from connect to the last byte of the answer,
+    # unless the caller passes a shorter `attempt_timeout_s` to the chain,
     # and also the `[timeout:N]` the query carries on this mirror, so the
     # server stops working on a query the pod has stopped waiting for. A longer
     # server timeout held one of the address's two slots busy for up to 35s
@@ -195,7 +199,7 @@ async def query_osm(
     log.trace("Overpass query:\n%s", query)  # type: ignore[attr-defined]
     # Budgets are per mirror and acquired per attempt inside the failover
     # chain, so a failover releases mirror A before it queues on mirror B.
-    data = await _post_with_fallback(query, on_status)
+    data = await _post_with_fallback(query, on_status, path="discovery")
 
     results: list[dict[str, Any]] = []
     seen_names: set[str] = set()
@@ -286,7 +290,18 @@ def _attempt_outcome(exc: Exception) -> str:
 async def _post_with_fallback(
     query: str,
     on_status: StatusCallback | None = None,
+    *,
+    path: OverpassPath = "discovery",
+    attempt_timeout_s: float | None = None,
 ) -> dict[str, Any]:
+    """Ask each mirror in turn until one answers.
+
+    ``attempt_timeout_s`` replaces every mirror's own ``timeout_s`` for this
+    chain, in the attempt's total and in its ``[timeout:N]`` alike. It exists
+    for a caller whose whole wait is shorter than one mirror's timeout: without
+    it that caller's deadline fires inside the first attempt and the next
+    mirror is never asked (#655).
+    """
     last_exc: Exception = RuntimeError("No Overpass mirrors configured")
     order = _attempt_order()
     total = len(order)
@@ -295,9 +310,10 @@ async def _post_with_fallback(
     async with httpx.AsyncClient(timeout=None, headers=HEADERS) as client:
         for i, mirror in enumerate(order, start=1):
             host = urlparse(mirror.url).hostname or mirror.url
+            timeout_s = mirror.timeout_s if attempt_timeout_s is None else attempt_timeout_s
             # A plain replace rather than str.format: Overpass QL is full of
             # braces and quotes, and only this one token is the mirror's to fill.
-            body = query.replace(SERVER_TIMEOUT_TOKEN, str(int(mirror.timeout_s)))
+            body = query.replace(SERVER_TIMEOUT_TOKEN, str(int(timeout_s)))
             # Failover is news the user can act on (the wait just got longer);
             # the healthy first attempt needs no narration.
             if i > 1 and on_status is not None:
@@ -317,9 +333,9 @@ async def _post_with_fallback(
                         # httpx's own timeout stays beside the total, so an
                         # attempt that stalls in one phase still fails as an
                         # httpx timeout whose message names that phase.
-                        async with asyncio.timeout(mirror.timeout_s):
+                        async with asyncio.timeout(timeout_s):
                             resp = await client.post(
-                                mirror.url, data={"data": body}, timeout=mirror.timeout_s
+                                mirror.url, data={"data": body}, timeout=timeout_s
                             )
                     finally:
                         elapsed = time.perf_counter() - attempt_start
@@ -346,7 +362,7 @@ async def _post_with_fallback(
                 # already counted where it happened, in ratelimit).
                 if i == total:
                     raise
-                telemetry.OVERPASS_FALLBACK.labels(mirror=host).inc()
+                telemetry.OVERPASS_FALLBACK.labels(mirror=host, path=path).inc()
                 log.warning(
                     "Overpass mirror %s budget saturated; trying next mirror", mirror.url
                 )
@@ -356,23 +372,36 @@ async def _post_with_fallback(
                 # about the mirror, so only a real request failure lands here.
                 _last_failure[mirror.url] = _clock()
                 if i < total:
-                    telemetry.OVERPASS_FALLBACK.labels(mirror=host).inc()
+                    telemetry.OVERPASS_FALLBACK.labels(mirror=host, path=path).inc()
                 # The total deadline's TimeoutError carries no message.
-                reason = str(exc) or f"no answer within {mirror.timeout_s:.0f}s"
+                reason = str(exc) or f"no answer within {timeout_s:.0f}s"
                 log.warning("Overpass endpoint %s failed: %s", mirror.url, reason)
                 last_exc = exc
             except asyncio.CancelledError:
-                # The caller's deadline ended this attempt, not the mirror
-                # (enrichment stops waiting long before a mirror's timeout), so
-                # it is neither a failure to cool down nor an outcome to count:
-                # "error" here would read as the mirror breaking.
+                # The caller ended this attempt, not the mirror's timeout, so it
+                # is no outcome to count: "error" here would read as the mirror
+                # breaking, and a duration cut short by someone else would
+                # understate the mirror's latency. A caller that runs a slice
+                # (the elevation lookup) cancels only on its own deadline, so
+                # there the cut means the mirror did not answer in the time it
+                # was given, and it cools down so the next caller starts on
+                # another one (#655). Without a slice the cancellation is a
+                # caller going away, such as an analyze stream whose client
+                # disconnected mid-discovery, which says nothing about the
+                # mirror. Only an attempt whose request was in flight either
+                # way: a cut while queued for the slot asked the mirror nothing,
+                # the same as a shed.
                 cancelled = True
+                if attempt_timeout_s is not None and elapsed is not None:
+                    _last_failure[mirror.url] = _clock()
                 raise
             finally:
                 # `elapsed` stays None when the budget shed before any HTTP
                 # left the pod — nothing was asked, so nothing is recorded.
                 if elapsed is not None and not cancelled:
-                    telemetry.OVERPASS_DURATION.labels(mirror=host).observe(elapsed)
-                    telemetry.OVERPASS_REQUESTS.labels(mirror=host, outcome=outcome).inc()
+                    telemetry.OVERPASS_DURATION.labels(mirror=host, path=path).observe(elapsed)
+                    telemetry.OVERPASS_REQUESTS.labels(
+                        mirror=host, outcome=outcome, path=path
+                    ).inc()
     # Every mirror failed — surface the last failure as an actionable message.
     raise UpstreamError(classify_http_error(last_exc, PROVIDER)) from last_exc
