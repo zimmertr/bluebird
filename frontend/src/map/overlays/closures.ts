@@ -26,6 +26,7 @@ import {
   type ClosureProps,
 } from '../../utils/closures'
 import type { BBox } from '../../utils/wildfires'
+import { MARKER_STROKE } from '../mapStyles'
 import { overlayRecovery, retryAfterOf } from './recovery'
 
 /** Each kind's source id. */
@@ -94,7 +95,7 @@ function layersFor(kind: ClosureKind, source: string): { specs: maplibregl.Layer
         paint: {
           'circle-radius': 4.5,
           'circle-color': CLOSURE_COLOR,
-          'circle-stroke-color': '#ffffff',
+          'circle-stroke-color': MARKER_STROKE,
           'circle-stroke-width': 1.5,
         },
       },

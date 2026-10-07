@@ -15,7 +15,14 @@
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { escapeHtml } from './popupChrome'
+import {
+  escapeHtml,
+  fineprint,
+  LINK_ICON_COLOR,
+  POPUP_FACE,
+  POPUP_TITLE_SIZE,
+  popupLink,
+} from './popupChrome'
 
 const WILDFIRES_URL = '/api/wildfires'
 
@@ -48,6 +55,32 @@ const NIFC_EXPLORE_URL =
  * credit from the module that owns the data (#454).
  */
 export const NIFC_HREF = 'https://data-nifc.opendata.arcgis.com/'
+
+/**
+ * How a fire perimeter draws, and the one place that decides it (#365).
+ *
+ * Red, the one hue a fire can be: Tailwind's red-600 for the fill, one step
+ * darker for the outline, the way the smoke and closure layers pair theirs.
+ * It lives here rather than in `styles.ts` for `SMOKE_FILL`'s reason: these
+ * are MapLibre paint values handed to the GL renderer, not Tailwind utilities,
+ * and the legend reads the same constants so the picture and its key cannot
+ * disagree.
+ */
+export const WILDFIRE_FILL = '#dc2626'
+export const WILDFIRE_EDGE = '#b91c1c'
+/** The fill's opacity on the map: enough to read as burned ground under labels. */
+export const WILDFIRE_FILL_OPACITY = 0.3
+
+/**
+ * The legend's swatch: the fill at a step more opacity than the map gives it,
+ * because a 14px chip on the legend's dark panel needs more ink than an acre
+ * of map does to read as the same red. The closure swatch takes its alpha from
+ * this one.
+ */
+export function wildfireSwatch(): { backgroundColor: string; borderColor: string } {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(WILDFIRE_FILL.slice(i, i + 2), 16))
+  return { backgroundColor: `rgba(${r},${g},${b},0.35)`, borderColor: WILDFIRE_EDGE }
+}
 
 /**
  * How close the NIFC map opens on a fire linked from a surface that has no map
@@ -221,10 +254,13 @@ export function formatRevised(ms: number | null | undefined): string | null {
 export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
   const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
   const revised = formatRevised(props.attr_ModifiedOnDateTime_dt)
-  return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
+  // The link keeps the lighter sky and no underline it shipped with, written
+  // as an override on `popupLink` so the departure from `LINK_COLOR` is on the
+  // line that makes it rather than hidden in a second anchor recipe.
+  return `<div style="${POPUP_FACE};${POPUP_TITLE_SIZE}">
       <strong>🔥 ${escapeHtml(name)}</strong>
       <br>${formatAcres(props.poly_GISAcres)} · ${formatContainment(props.attr_PercentContained)}
-      <br><a href="${nifcUrl}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">View on NIFC map ↗</a>
-      ${revised ? `<br><span style="color:#94a3b8;font-size:11px;font-style:italic">${escapeHtml(revised)}</span>` : ''}
+      <br>${popupLink(nifcUrl, 'View on NIFC map ↗', `color:${LINK_ICON_COLOR};text-decoration:none`)}
+      ${revised ? `<br>${fineprint(escapeHtml(revised))}` : ''}
     </div>`
 }

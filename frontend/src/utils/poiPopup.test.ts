@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { POI_ACTION_ATTR, poiPopupHtml } from './poiPopup'
 import { ELEVATION_COL } from './tableColumns'
-import { POPUP_MAX_WIDTH_PX, popupWidth } from './popupChrome'
+import { POPUP_MAX_WIDTH_PX, fineprint, popupButton, popupWidth } from './popupChrome'
 
 const RAINIER = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
 
@@ -21,6 +21,35 @@ describe('poiPopupHtml', () => {
 
   // Same chrome as a ranked result, because they are one destination at two
   // stages: a rule under the title, a link out, and coordinates.
+  // The add and remove buttons are popupChrome's one button recipe in two of
+  // its three variants (#365), with the gap above them that a button under
+  // rows needs and the ring's lone remove-point button does not.
+  it('dresses its buttons through popupButton', () => {
+    expect(poiPopupHtml(RAINIER, false)).toContain(
+      popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis', 'margin-top:6px'),
+    )
+    expect(poiPopupHtml(RAINIER, true)).toContain(
+      popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis', 'margin-top:6px'),
+    )
+  })
+
+  it('keeps one recipe across the three button variants', () => {
+    const [primary, secondary, danger] = (['primary', 'secondary', 'danger'] as const).map((v) =>
+      popupButton('data-x', v, 'Go'),
+    )
+    const look = (html: string) => html.replace(/background:#[0-9a-f]{6};color:#[0-9a-f]{3,6}/, '')
+    expect(look(primary)).toBe(look(secondary))
+    expect(look(primary)).toBe(look(danger))
+    expect(primary).toContain('<button data-x style="')
+    expect(popupButton('data-x', 'danger', 'Go', 'margin-top:6px')).toMatch(/;margin-top:6px">Go<\/button>$/)
+  })
+
+  it('sets fine print small, italic and stepped back', () => {
+    expect(fineprint('Last updated: today')).toBe(
+      '<span style="color:#94a3b8;font-size:11px;font-style:italic">Last updated: today</span>',
+    )
+  })
+
   it('wears the shared popup chrome', () => {
     const html = poiPopupHtml(RAINIER, false)
     expect(html).toContain('<hr')

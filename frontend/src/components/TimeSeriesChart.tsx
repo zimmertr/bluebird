@@ -32,6 +32,7 @@ import {
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
 import { nearestIndex } from '../utils/timeline'
+import { CHART_AXIS_COLOR, CHART_GRID_COLOR, CHART_PLAYHEAD_COLOR } from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -275,21 +276,21 @@ function TimeSeriesChart({
             onClick={onPlayheadChange ? handleClick : undefined}
             className={onPlayheadChange ? 'cursor-pointer' : undefined}
           >
-            <CartesianGrid stroke="#334155" strokeDasharray="3 3" />
+            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" />
             <XAxis
               dataKey="t"
               type="number"
               scale="time"
               domain={['dataMin', 'dataMax']}
               height={X_AXIS_HEIGHT}
-              stroke="#94a3b8"
+              stroke={CHART_AXIS_COLOR}
               tick={{ fontSize: 10 }}
               tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
             />
             <YAxis
               domain={[yMin, yMax]}
               width={Y_AXIS_WIDTH}
-              stroke="#94a3b8"
+              stroke={CHART_AXIS_COLOR}
               tick={{ fontSize: 10 }}
               tickFormatter={(v: any) => formatMetricValue(v, metric)}
             />
@@ -299,9 +300,9 @@ function TimeSeriesChart({
             {nowMs !== null && (
               <ReferenceLine
                 x={nowMs}
-                stroke="#94a3b8"
+                stroke={CHART_AXIS_COLOR}
                 strokeDasharray="4 3"
-                label={{ value: 'Now', position: 'insideTopLeft', fill: '#94a3b8', fontSize: 10 }}
+                label={{ value: 'Now', position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: 10 }}
               />
             )}
             {/* Where a compared model's forecast ends. Chrome marking where
@@ -313,9 +314,9 @@ function TimeSeriesChart({
               <ReferenceLine
                 key={end.endMs}
                 x={end.endMs}
-                stroke="#94a3b8"
+                stroke={CHART_AXIS_COLOR}
                 strokeDasharray="4 3"
-                label={{ value: end.label, position: 'insideTopLeft', fill: '#94a3b8', fontSize: 10 }}
+                label={{ value: end.label, position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: 10 }}
               />
             ))}
             {/* The map's playhead. Solid and in the accent where the "Now"
@@ -325,7 +326,7 @@ function TimeSeriesChart({
                 and a second copy of it would move with the line across a chart
                 that is mostly line already. */}
             {playheadMs !== null && (
-              <ReferenceLine x={playheadMs} stroke="#38bdf8" strokeWidth={1.5} />
+              <ReferenceLine x={playheadMs} stroke={CHART_PLAYHEAD_COLOR} strokeWidth={1.5} />
             )}
             <Tooltip
               isAnimationActive={false}

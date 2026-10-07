@@ -18,7 +18,7 @@
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { escapeHtml } from './popupChrome'
+import { escapeHtml, LINK_ICON_COLOR, POPUP_FACE, POPUP_TITLE_SIZE, popupLink } from './popupChrome'
 import type { BBox, FireDetail } from './wildfires'
 
 const CLOSURES_URL = '/api/closures'
@@ -225,11 +225,11 @@ export function closurePopupHtml(props: ClosureProps): string {
   const route = [text(props.RouteName), text(props.RouteNum)].filter(Boolean).join(' ')
   const dates = formatClosureDates(props.ClosureStartDate, props.ClosureEndDate)
   const url = closureUrl(props)
-  return `<div style="font-family:sans-serif;font-size:13px;line-height:1.5">
+  return `<div style="${POPUP_FACE};${POPUP_TITLE_SIZE}">
       <strong>🚫 ${escapeHtml(closureName(props))}</strong>
       ${forest ? `<br>${escapeHtml(forest)}` : ''}
       ${route ? `<br>${escapeHtml(route)}` : ''}
       ${dates ? `<br>${escapeHtml(dates)}` : ''}
-      ${url ? `<br><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:none">View closure order ↗</a>` : ''}
+      ${url ? `<br>${popupLink(url, 'View closure order ↗', `color:${LINK_ICON_COLOR};text-decoration:none`)}` : ''}
     </div>`
 }

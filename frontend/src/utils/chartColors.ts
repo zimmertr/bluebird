@@ -1,6 +1,29 @@
 // Categorical line colors for the comparison chart. Deliberately separate from
 // colors.ts, which encodes metric *intensity* (green→red) on the map and table.
 // Here each destination just needs its own distinguishable hue.
+//
+// The chart's CHROME lives here too (#365): Recharts takes a `stroke` or a
+// `fill` as a prop, not a class, so the design system in styles.ts cannot
+// reach it, and the axis colour was spelled five times in two files before it
+// had a name. These are the Tailwind slate steps the surrounding panel wears.
+
+/** Axes, their tick labels, and the dashed seams (Now, a model's end): slate-400. */
+export const CHART_AXIS_COLOR = '#94a3b8'
+/** The grid behind the lines: slate-700, a step over the panel and under the axes. */
+export const CHART_GRID_COLOR = '#334155'
+/**
+ * The map's playhead: solid and in the accent (sky-400) where the Now seam is
+ * dashed and in the axis colour, because this one is a control's position and
+ * that one is a fact about the data.
+ */
+export const CHART_PLAYHEAD_COLOR = '#38bdf8'
+/**
+ * A line asked for its colour before the allocator has given it one: a render
+ * in the moment between a selection and the effect that persists its colours.
+ * The axis colour, so an unassigned line reads as chrome rather than as a
+ * destination that happens to be grey.
+ */
+export const UNASSIGNED_LINE_COLOR = CHART_AXIS_COLOR
 
 // A curated, reasonably colorblind-aware palette used first — where distinction
 // matters most (the common case of a handful of lines).

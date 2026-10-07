@@ -8,6 +8,40 @@ const SOURCES = ['src/App.tsx', 'src/components/*.tsx', 'src/map/**/*.{ts,tsx}']
 // A component's test renders the rules rather than breaking them.
 const TESTS = ['src/**/*.test.ts', 'src/**/*.test.tsx']
 
+// Every source the app ships, test files aside: the reach of the value bans
+// below, which is wider than SOURCES because a hex colour in a hook or a util
+// reaches the screen as surely as one in a component (#365).
+const SHIPPED = ['src/**/*.ts', 'src/**/*.tsx']
+
+// The modules that OWN a colour, each for a stated reason: the metric scales
+// and the chart palette, the design system itself, the popup chrome (handed to
+// MapLibre's setHTML, outside the stylesheet), the map's own paint and the
+// basemap's terrain-matched labels, each overlay's pure module (which feeds
+// the map layer and the legend swatch from one constant), the two keys to a
+// third party's ramp (NOAA's snow bands, IEM's reflectivity), and the SVG
+// sources, whose fills are the glyph. Everything else composes them.
+const COLOR_OWNERS = [
+  'src/styles.ts',
+  'src/utils/colors.ts',
+  'src/utils/chartColors.ts',
+  'src/utils/resultFeatures.ts',
+  'src/utils/popupChrome.ts',
+  'src/map/mapStyles.ts',
+  'src/map/basemap.ts',
+  'src/utils/wildfires.ts',
+  'src/utils/smoke.ts',
+  'src/utils/closures.ts',
+  'src/utils/snowDepth.ts',
+  'src/utils/radar.ts',
+  'src/iconPaths.ts',
+  'src/logo.ts',
+]
+
+// A colour value: a hex triplet or sextet where CSS or a paint spec would put
+// one, or an rgb() call. Three-digit hex is matched only after a `:`, `(` or
+// `,`, because `#123` is also how a string names an issue.
+const COLOR_VALUE = String.raw`#[0-9a-fA-F]{6}(?![0-9a-zA-Z])|[:(,]\s*#[0-9a-fA-F]{3}(?![0-9a-zA-Z])|^#[0-9a-fA-F]{3}$|\brgba?\(`
+
 // How many interpolations into one template the helpers below look through.
 // No class template in the app comes near it.
 const SLOTS = 8
@@ -635,6 +669,57 @@ export const STYLES = [
         selector: 'MemberExpression[property.name="row"]:matches([object.name="TABLE"], [object.property.name="TABLE"])',
         count: 2,
         message: 'Both kinds of body row wear TABLE.row.',
+      },
+    ],
+  },
+  {
+    // The design system stops at the Tailwind class, and four channels put
+    // pixels on the screen without one: MapLibre paint, canvas drawing, popup
+    // HTML and Recharts props. The hue ban in eslint.config.js cannot see a
+    // hex literal, which is how `#3b82f6` (blue-500, which would fail that ban
+    // as `bg-blue-500`) sat in the map's paint for a year (#365). A colour is
+    // written in one of the owners above and composed everywhere else.
+    name: 'value-hex',
+    files: SHIPPED,
+    ignores: [...TESTS, ...COLOR_OWNERS],
+    probe: 'src/hooks/useChartSelection.ts',
+    ban: [
+      {
+        selector: text(COLOR_VALUE),
+        message: 'Name a colour in the module that owns it (colors.ts, chartColors.ts, popupChrome.ts, map/mapStyles.ts or an overlay module), never at the call site.',
+      },
+    ],
+  },
+  {
+    // Popup markup is handed to MapLibre's setHTML, so its type ramp cannot be
+    // a TEXT role. popupChrome.ts owns the three sizes, the button and the
+    // rule; a `font-size:` spelled anywhere else is how the popups came to
+    // carry one size in five files.
+    name: 'value-inline-style',
+    files: SHIPPED,
+    ignores: [...TESTS, 'src/utils/popupChrome.ts'],
+    probe: 'src/utils/poiPopup.ts',
+    ban: [
+      {
+        selector: text(String.raw`\b(font-size|padding|border-radius|background)\s*:`),
+        message: 'Compose popup type, padding, radius and background from popupChrome.ts, never inline.',
+      },
+    ],
+  },
+  {
+    // The app's own layers (results, pending, the ring) read their paint from
+    // map/mapStyles.ts, so a radius or a halo cannot be spelled twice the way
+    // the result and pending markers' were. The overlays are not under this
+    // check: each one's pure module is already the one place its look lives,
+    // and the basemap's numbers match OpenFreeMap rather than the app.
+    name: 'map-paint-named',
+    files: ['src/map/*.ts'],
+    ignores: [...TESTS, 'src/map/mapStyles.ts', 'src/map/basemap.ts'],
+    probe: 'src/map/resultsLayer.ts',
+    ban: [
+      {
+        selector: 'Property[key.value=/^(circle|line|fill|text|icon)-/] > Literal[value=type(number)]',
+        message: 'Name a paint number in map/mapStyles.ts rather than spelling it in a layer.',
       },
     ],
   },

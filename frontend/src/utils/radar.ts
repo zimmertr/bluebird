@@ -119,6 +119,18 @@ export function radarOffsetLabel(offsetMin: number): string {
 }
 
 /** The two ends of the scale under the scrubber. */
+/**
+ * The legend's swatch: four stops read off NEXRAD's own reflectivity ramp
+ * (green through yellow to orange), as a gradient rather than banded chips,
+ * because the ramp is continuous and a key that invented boundaries would
+ * assert thresholds Bluebird Forecast does not know. These are IEM's colours
+ * and not the app's, which is why they live here beside the tile URL rather
+ * than in `colors.ts` (#365).
+ */
+export function radarSwatchCss(): string {
+  return 'linear-gradient(90deg,#1c8a3c,#40b450,#e7c000,#eb7814)'
+}
+
 export function radarScaleEnds(): [string, string] {
   return [`-${RADAR_OLDEST_MIN} min`, 'Now']
 }

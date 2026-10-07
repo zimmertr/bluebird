@@ -31,6 +31,7 @@ import { addAttribution, addControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchBasemap } from '../map/basemapWatch'
 import { createPopupBoard } from '../map/popups'
+import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
 import type { GridCell, GridSpec, GridStyle } from '../utils/forecastGrid'
 
 /** Where the map stands, enough to put it back (#536). */
@@ -198,11 +199,11 @@ interface Props {
 // a larger extent (cities, parks, rivers) get their whole bounding box instead.
 const SEARCH_VIEW_MILES = 10
 
-// Breathing room around a multi-point fit, and how long that fit stays
-// re-appliable while the surrounding layout settles — long enough to cover the
-// results panel opening in response to the same paste, short enough that a
-// later panel drag isn't mistaken for it.
-const FIT_PADDING_PX = 60
+// How long a multi-point fit stays re-appliable while the surrounding layout
+// settles — long enough to cover the results panel opening in response to the
+// same paste, short enough that a later panel drag isn't mistaken for it. The
+// padding around the fit, and every camera move's duration, are the map's
+// paint decisions and live in `map/mapStyles.ts`.
 const REFIT_WINDOW_MS = 1_000
 
 const MapView = forwardRef<MapViewHandle, Props>(
@@ -349,7 +350,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         // Pull back one zoom level from the tight fit so the whole area
         // clears the viewport with margin — a snug fit can clip vertices
         // behind the controls drawer or browser chrome on small screens.
-        const pad = framePadding(60, controller.inputs.cameraPadBottomPx)
+        const pad = framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx)
         const camera = map.cameraForBounds(bounds, { padding: pad })
         if (camera?.zoom !== undefined) {
           map.jumpTo({ center: camera.center, zoom: camera.zoom - 1 })
@@ -372,7 +373,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       refitTimerRef.current = setTimeout(() => (refitPointsRef.current = null), REFIT_WINDOW_MS)
       map.fitBounds(bounds, {
         padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
-        duration: 1500,
+        duration: CAMERA_MS.fit,
       })
     }
 
@@ -413,7 +414,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         )
         map.fitBounds(bounds, {
           padding: framePadding(FIT_PADDING_PX, cameraPadBottomPx),
-          duration: 600,
+          duration: CAMERA_MS.reveal,
           maxZoom: map.getZoom(),
         })
       },
@@ -446,8 +447,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
           return
         }
         map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), {
-          padding: framePadding(40, cameraPadBottomPx),
-          duration: 1500,
+          padding: framePadding(PLACE_PADDING_PX, cameraPadBottomPx),
+          duration: CAMERA_MS.fit,
         })
       },
       // Frame a pasted custom CSV list whole. Deferred like a pre-load search
@@ -475,7 +476,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         map.flyTo({
           center: [at.longitude, at.latitude],
           zoom: Math.max(map.getZoom(), 10),
-          duration: 800,
+          duration: CAMERA_MS.focus,
           // The offset `focusResult` explains below: a padding handed to flyTo
           // is interpolated onto the transform and stays there.
           offset: [0, -cameraPadBottomPx / 2],
@@ -516,7 +517,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         map.flyTo({
           center: [result.longitude, result.latitude],
           zoom: Math.max(map.getZoom(), 10),
-          duration: instant ? 0 : 800,
+          duration: instant ? 0 : CAMERA_MS.focus,
           // The one framing call that centres rather than fits, so it clears
           // the sheet with `offset` instead of `padding`: a padding handed to
           // `flyTo` is interpolated onto the transform and STAYS there, and the
@@ -562,7 +563,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         if (bounds) {
           map.fitBounds(bounds, {
             padding: framePadding(FIT_PADDING_PX, controller.inputs.cameraPadBottomPx),
-            duration: 1500,
+            duration: CAMERA_MS.fit,
           })
         }
       })
@@ -594,8 +595,8 @@ const MapView = forwardRef<MapViewHandle, Props>(
 
         if (pendingSearchRef.current) {
           map.fitBounds(boundsAround(pendingSearchRef.current, SEARCH_VIEW_MILES), {
-            padding: framePadding(40, controller.inputs.cameraPadBottomPx),
-            duration: 1500,
+            padding: framePadding(PLACE_PADDING_PX, controller.inputs.cameraPadBottomPx),
+            duration: CAMERA_MS.fit,
           })
           pendingSearchRef.current = null
         }

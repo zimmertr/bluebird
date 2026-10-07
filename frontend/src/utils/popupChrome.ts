@@ -15,6 +15,23 @@
 import { externalLinkMarkup } from '../iconPaths'
 
 /**
+ * The popup's type ramp, and the face everything in it is set in.
+ *
+ * Three sizes and no more: the title at 13px, the body a step down at 12px so
+ * the details do not compete with the thing they describe (and so the widest
+ * row, the coordinates, fits a narrower card), and 11px for the one line that
+ * qualifies the rest, an overlay's "last updated" date. The same three numbers
+ * were spelled in five files before #365 (`popupChrome.ts`, `poiPopup.ts`,
+ * `smoke.ts`, `wildfires.ts`, `closures.ts`), which is how a popup gets a
+ * fourth size: the linter's inline-style ban now fails a `font-size:` written
+ * outside this file.
+ */
+export const POPUP_FACE = 'font-family:sans-serif;line-height:1.5'
+export const POPUP_TITLE_SIZE = 'font-size:13px'
+export const POPUP_BODY_SIZE = 'font-size:12px'
+export const POPUP_FINE_SIZE = 'font-size:11px'
+
+/**
  * The face a value is set in. Monospace, because that is what the results table
  * already does — every metric cell is mono there and only the name is sans — so
  * the same numbers look the same in both places, and a column of them lines up
@@ -129,6 +146,75 @@ export function popupLink(href: string, inner: string, extra = ''): string {
 export const SEPARATOR_COLOR = '#64748b'
 
 /**
+ * The rule between a popup's title and its body: slate-300, a hairline that
+ * parts the two without reading as a row of its own.
+ */
+export const RULE_COLOR = '#cbd5e1'
+
+/**
+ * The amber a safety warning wears in a popup: the fire line and the closure
+ * line, which are flags rather than measurements. Amber-500, the popup-side
+ * counterpart of the `STATUS` amber the table's Wildfire column wears in the
+ * stylesheet. It is the colour the warning shipped with and #365 only named
+ * it; on white it measures about 2.2:1, so whether it should darken is a
+ * colour decision for the maintainer rather than a move.
+ */
+export const WARNING_COLOR = '#f59e0b'
+
+/**
+ * The colour of the one line that qualifies a card rather than adding to it:
+ * an overlay popup's "last updated" date, set small and italic in slate-400.
+ * It is the colour those popups shipped with and #365 only named it; on the
+ * white MapLibre draws a popup on it measures 2.98:1, under AA for text, and
+ * raising it is a colour decision for the maintainer rather than a move.
+ */
+export const FINE_COLOR = '#94a3b8'
+
+/**
+ * The lighter sky the title row's link-out glyph wears, and the colour the
+ * overlay popups' links shipped with (see `LINK_COLOR` for why a text link in
+ * the body does not).
+ */
+export const LINK_ICON_COLOR = '#38bdf8'
+
+/**
+ * A line of fine print: small, italic, stepped back. The overlay popups end on
+ * one, because a survey date qualifies everything above it rather than being
+ * another fact in the list. The text is escaped by the caller.
+ */
+export function fineprint(inner: string): string {
+  return `<span style="color:${FINE_COLOR};${POPUP_FINE_SIZE};font-style:italic">${inner}</span>`
+}
+
+/**
+ * A button inside a popup.
+ *
+ * MapLibre's popup is outside the stylesheet, so `BUTTON_PRIMARY` and its
+ * siblings in `styles.ts` cannot dress it; these are their popup-side
+ * counterparts, one recipe with the colour as the only variable, where three
+ * files used to spell three near-identical buttons (#365). `primary` acts
+ * (sky-600 under white), `secondary` undoes (slate-700 under slate-200), and
+ * `danger` removes (red-500 under white). `attr` is the attribute the map
+ * handler finds the button by, written whole (`data-rm`, or
+ * `data-poi-action="add"`); `extra` is appended last, as `popupLink`'s is, for
+ * the one button that sits under rows and needs a margin above it.
+ */
+export type PopupButtonVariant = 'primary' | 'secondary' | 'danger'
+const POPUP_BUTTON_LOOK: Record<PopupButtonVariant, string> = {
+  primary: 'background:#0284c7;color:#fff',
+  secondary: 'background:#334155;color:#e2e8f0',
+  danger: 'background:#ef4444;color:#fff',
+}
+export function popupButton(
+  attr: string,
+  variant: PopupButtonVariant,
+  label: string,
+  extra = '',
+): string {
+  return `<button ${attr} style="border:none;padding:5px 12px;border-radius:4px;cursor:pointer;${POPUP_BODY_SIZE};font-family:sans-serif;font-weight:600;${POPUP_BUTTON_LOOK[variant]}${extra ? ';' + extra : ''}">${label}</button>`
+}
+
+/**
  * The band between the title and the rule: what the destination IS, ahead of
  * what the forecast says about it (TJ, 2026-09-14).
  *
@@ -144,7 +230,7 @@ export const SEPARATOR_COLOR = '#64748b'
 export function metaBand(lines: string[]): string {
   const shown = lines.filter(Boolean)
   if (shown.length === 0) return ''
-  return `<div style="font-size:12px;${LABEL_COLOR}">${shown.join('\n    ')}</div>`
+  return `<div style="${POPUP_BODY_SIZE};${LABEL_COLOR}">${shown.join('\n    ')}</div>`
 }
 
 /**
@@ -256,7 +342,7 @@ export function popupWidth(canvasWidthPx: number): string {
  * carries its id from the link's text, and so does a place the geocoder named.
  */
 export function linkIcon(url: string): string {
-  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:${LINK_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
 /**
@@ -276,11 +362,11 @@ export function popupShell(title: string, url: string, body: string, meta = ''):
   // `meta` sits between the title and the rule, so the rule separates what the
   // destination IS from what the forecast says about it. It is optional: the
   // basemap POI popup shares this shell and has no analysis behind it.
-  return `<div style="font-family:sans-serif;line-height:1.5">
-    <div style="display:flex;align-items:center;gap:6px;font-size:13px"><strong>${title}</strong>${linkIcon(url)}</div>
+  return `<div style="${POPUP_FACE}">
+    <div style="display:flex;align-items:center;gap:6px;${POPUP_TITLE_SIZE}"><strong>${title}</strong>${linkIcon(url)}</div>
     ${meta}
-    <hr style="border:none;border-top:1px solid #cbd5e1;margin:5px 0" />
-    <div style="font-size:12px">${body}</div>
+    <hr style="border:none;border-top:1px solid ${RULE_COLOR};margin:5px 0" />
+    <div style="${POPUP_BODY_SIZE}">${body}</div>
   </div>`
 }
 
