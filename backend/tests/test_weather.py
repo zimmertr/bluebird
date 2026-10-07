@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import gc
 import inspect
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -853,6 +854,83 @@ async def test_batches_share_one_client_instead_of_one_each(monkeypatch):
     results = await fetch_weather_batch(_dests(120), START, END)
 
     assert len(results) == 120
+
+
+# Issue #662: a batch's CPU work runs on a worker thread, so the event loop
+# keeps serving every other request while it runs. The work is made slow by a
+# stub rather than by a body big enough to be slow on its own (the real one is
+# 38.8 MB and takes 1.9 s), and the stub sleeps rather than spins: a sleep
+# releases the GIL, so these prove WHERE the work runs, and nothing about how
+# often a thread holding the GIL lets the loop in. The real aggregation is
+# Python code and yields every few milliseconds; the real parse does not
+# (`request_openmeteo` has the measurement).
+_SLOW_S = 0.5
+# Well under `_SLOW_S`, and far over a free loop's lateness, so a slow CI
+# runner cannot fail it and the work on the loop cannot pass it.
+_STALL_BOUND_S = 0.2
+
+
+def _slowly(fn: Callable[..., Any]) -> Callable[..., Any]:
+    def slow(*args: Any, **kwargs: Any) -> Any:
+        time.sleep(_SLOW_S)
+        return fn(*args, **kwargs)
+
+    return slow
+
+
+async def _longest_stall(work: Any) -> float:
+    """How late, at worst, a coroutine scheduled beside `work` woke up."""
+    done = False
+    worst = 0.0
+
+    async def ticker() -> None:
+        nonlocal worst
+        while not done:
+            asked = time.perf_counter()
+            await asyncio.sleep(0.01)
+            worst = max(worst, time.perf_counter() - asked - 0.01)
+
+    task = asyncio.create_task(ticker())
+    await asyncio.sleep(0)  # into its first sleep before the work starts
+    try:
+        await work
+    finally:
+        done = True
+        await task
+    return worst
+
+
+async def test_a_batch_decodes_off_the_event_loop(monkeypatch):
+    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    monkeypatch.setattr(httpx.Response, "json", _slowly(httpx.Response.json))
+
+    stall = await _longest_stall(fetch_weather_batch(_dests(1), START, END))
+
+    assert stall < _STALL_BOUND_S
+
+
+async def test_a_batch_aggregates_off_the_event_loop(monkeypatch):
+    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    monkeypatch.setattr(weather, "_weather_metrics", _slowly(_weather_metrics))
+    results: list[Any] = []
+
+    async def fetch() -> None:
+        results.extend(await fetch_weather_batch(_dests(1), START, END))
+
+    stall = await _longest_stall(fetch())
+
+    assert stall < _STALL_BOUND_S
+    # The thread hands back the row the loop would have built.
+    assert results[0]["precip_total_in"] == 0.1
+
+
+async def test_a_cloud_batch_aggregates_off_the_event_loop(monkeypatch):
+    _stub_openmeteo(monkeypatch, [_payload([0.1])])
+    monkeypatch.setattr(weather, "_cloud_metrics", _slowly(lambda *args: None))
+
+    stall = await _longest_stall(weather.fetch_cloud_batch(_dests(1), START, END))
+
+    assert stall < _STALL_BOUND_S
 
 
 async def test_fetch_weather_batch_reassembles_by_index_not_arrival(monkeypatch):
