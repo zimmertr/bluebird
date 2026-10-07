@@ -375,7 +375,9 @@ subdomain is covered, and why the pod is not a second voice on the same claim:
 a second source makes a wrong value harder to withdraw. Decision record
 [0084](decisions/0084-hsts-at-the-edge-six-months.md) has the reasoning. A
 self-hosted instance that terminates its own TLS sets the header at whatever
-terminates it, for the same reason.
+terminates it, for the same reason. The zone's TLS floor, DNS records and WAF
+state sit beside these settings, and are recorded under "Zone TLS, DNS and
+WAF" below.
 
 The policy for the app:
 
@@ -446,6 +448,27 @@ It reads `frontend/src` as text and fails on any host there that is neither in
 overlay's host is a decision somebody has to make rather than one that happens
 by omission. That check needs both trees, so it runs in CI and in any local run
 that mounts the repository rather than `backend/` alone.
+
+## Zone TLS, DNS and WAF
+
+Everything in this section is a setting or record on the Cloudflare zone
+`bluebirdforecast.com`, read and set through the Cloudflare API on 2026-10-06
+([#636](https://github.com/zimmertr/bluebird/issues/636)). Like HSTS above, it
+lives in no repository until
+[#314](https://github.com/zimmertr/bluebird/issues/314) puts the zone in code,
+so a change in the dashboard changes this table in the same breath.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Minimum TLS version | `1.2` (was `1.0` until 2026-10-06) | No current browser offers TLS 1.0 or 1.1, so the floor costs no visitor anything and drops the legacy protocols and their cipher suites. Cipher list is Cloudflare's default. |
+| TLS 1.3 | on | |
+| SSL/TLS mode | `full`, deliberately not `strict` | The mode governs how the edge checks an origin it reaches by address, and the zone has none: its only proxied records are the two CNAMEs to the tunnel. cloudflared verifies the gateway's Let's Encrypt certificate itself (`public/cloudflared/files/config.yaml` in `Kubernetes-Manifests`). Switch to Full (strict) if a record that points at an address is ever added. |
+| IPv6 | on, with Pseudo IPv4 off | The edge answers AAAA for both hostnames, so an IPv6 visitor's own address reaches the pod in `CF-Connecting-IP`. "Client identity" above is how the app keys those. |
+| CAA | `issue` and `issuewild` for `letsencrypt.org`, `pki.goog; cansignhttpexchanges=yes`, `ssl.com` and `sectigo.com`; no `iodef` | Let's Encrypt is cert-manager's issuer for the gateway's certificate (DNS-01). The other three are the authorities Cloudflare's documentation names for Universal SSL and its backup certificates; the edge certificate served on 2026-10-06 is Google Trust Services'. Once any CAA record exists, Cloudflare also answers `comodoca.com` and `digicert.com` for the apex itself, so `dig CAA` shows six authorities while the API lists four. |
+| Mail | Cloudflare Email Routing: three `route*.mx.cloudflare.net` MX records, SPF `v=spf1 include:_spf.mx.cloudflare.net ~all`, DKIM selector `cf2024-1` | The domain receives mail through Email Routing, so the MX and SPF records stay as Email Routing set them. |
+| DMARC | `_dmarc` TXT `v=DMARC1; p=quarantine`, no report address | Mail claiming to be from the domain now meets a published policy. Moving to `p=reject` and naming a `rua` address are the owner's calls. |
+| DNSSEC | on since 2026-10-06, ECDSA P-256 (algorithm 13), key tag `2371` | The domain is registered with Cloudflare Registrar, which publishes the DS record at `.com` itself. |
+| WAF | no custom rule; the one zone rule is the rate rule above | The zone has no `http_request_firewall_custom` entrypoint. The "Cloudflare Managed Free Ruleset" is listed among the zone's rulesets, but no zone entrypoint in `http_request_firewall_managed` deploys it, so whether it runs is not readable through the API; the dashboard's Security, WAF, Managed rules page answers it. |
 
 ## Cache headers
 
