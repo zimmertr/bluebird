@@ -1,6 +1,6 @@
 # 0108. A preview environment is torn down after 14 days without an update, by removing its label
 
-- Status: Accepted
+- Status: Reversed by 0110
 - Date: 2026-10-06
 - Decider: Claude, in the 2026-10-06 security fix pass, under the maintainer's instruction to pick N for #637 and flag it; the 14 days awaits the maintainer's confirmation
 - Issues and PRs: #637, #595, #330

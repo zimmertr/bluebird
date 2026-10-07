@@ -18,7 +18,7 @@ three repositories and the supporting services that automate the path.
 | **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
-| **Cluster** | Argo CD (`argo-system`) syncing into `bluebird-system`; Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`. |
+| **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`. |
 
 Everything consumes the chart **OCI-natively** (kustomize `helmCharts` and an
 Argo CD `repoURL: oci://…`); nothing uses a classic Helm repo index.
@@ -1092,14 +1092,13 @@ flowchart LR
         preview["pr-preview.yml<br/>pull_request_target (same-repo gate)"]
         label["label: create pr container"]
         comment["sticky preview-URL comment"]
-        ageout["preview-age-out.yml<br/>daily: label off quiet PRs"]
     end
 
     dhpr["Docker Hub<br/>zimmertr/bluebird-pr:pr-N-headsha"]
 
     subgraph CL["Cluster"]
         appset["ApplicationSet bluebird-pr<br/>pullRequest generator"]
-        app["Application bluebird-pr-N"]
+        app["Application bluebird-pr-N<br/>namespace bluebird-pr-system"]
         env(["pr-N.ganymede.sol.milkyway"])
     end
 
@@ -1114,8 +1113,7 @@ flowchart LR
     appset --> app
     dhpr -->|image override| app
     app --> env
-    pr -.->|PR closed: automated prune| env
-    ageout -.->|removes| label
+    pr -.->|PR closed or label removed: automated prune| env
 ```
 
 - `pr.yml`'s backend job runs `scripts/generate_openapi.py --check` after pytest.
@@ -1228,7 +1226,7 @@ flowchart LR
   workflow.** `zimmertr/bluebird` and the chart repository have immutable
   tags on (rule `.*`); `zimmertr/bluebird-pr` did not when #634 was filed. Without it, anyone
   holding the Docker Hub token can replace the image behind a live preview's
-  tag, and previews run in `bluebird-system` beside production. Turning it on
+  tag, and a preview's image reaches the same cluster as production. Turning it on
   is the maintainer's step (Docker Hub, `zimmertr/bluebird-pr`, Settings,
   immutable tags with the rule `.*`); the existing-tag skip above is what keeps
   a re-run from failing once it is on.
@@ -1243,24 +1241,24 @@ flowchart LR
   (surfaced by `/api/config` → the SPA banner) plus `LOG_LEVEL=TRACE`. Closing
   the PR prunes the environment, and `cache-cleanup.yml` deletes that PR's
   Actions caches.
-- **A preview ages out after 14 days without an update.** `preview-age-out.yml`
-  runs daily (and on demand) with `pull-requests: write` and nothing else, lists
-  the open PRs carrying `create pr container`, and removes the label from each
-  whose `updatedAt` is older than `PREVIEW_MAX_AGE_DAYS`, the one constant at the
-  top of the workflow. Removing the label is the whole teardown: the generator
-  stops templating `bluebird-pr-<N>` on its next poll, the ApplicationSet deletes
-  the Application, and its resources finalizer prunes what it deployed. Any
-  update counts as activity (a push, a comment, a label, a review), and a push to
-  an owner's PR re-adds the label through `pr-preview.yml`, so a preview comes
-  back with the next commit or by adding the label by hand. Before this, a
-  preview lived for as long as its PR stayed open: #330's had been up for 19 days
-  on 2026-10-01, on an image that predated four fixes (#637). Record: [0108](decisions/0108-previews-age-out.md)
-- Two calls from #637 are still the maintainer's. One is removing the label
-  from #330 (or closing it); the workflow's first run does the same on its own,
-  because #330 has not been updated since 2026-09-14. The other is whether
-  previews keep `LOG_LEVEL=TRACE`, which Kubernetes-Manifests sets and which
-  stays until the maintainer says otherwise. The 14 days is a pick awaiting the
-  same confirmation.
+- **A preview lives for as long as its PR carries `create pr container`.** It
+  has no age limit. The maintainer ends one by removing the label or closing the
+  PR; the generator then stops templating `bluebird-pr-<N>` on its next poll, the
+  ApplicationSet deletes the Application, and its resources finalizer prunes what
+  it deployed. A push to an owner's PR re-adds the label through
+  `pr-preview.yml`, so a preview whose label was removed comes back with the next
+  commit, or by adding the label by hand. Previews keep `LOG_LEVEL=TRACE`.
+  Record: [0110](decisions/0110-previews-live-while-labelled.md)
+- **Previews run in their own namespace, `bluebird-pr-system`**, after
+  Kubernetes-Manifests#1391; until it merges they run in `bluebird-system`
+  beside production. The namespace is created by `root-appprojects` from
+  `public/bluebird-pr/appproject.yml`, with `istio-injection: enabled` and Pod
+  Security `restricted` on `enforce`, `warn` and `audit`, so the `bluebird-pr`
+  project holds no cluster-scoped permission. Each preview's Gateway,
+  VirtualService, Service and Deployment are rendered into it by the chart,
+  which takes every namespace from the release; previews serve plain HTTP on
+  their LAN hostnames, so no certificate is involved.
+  Record: [0110](decisions/0110-previews-live-while-labelled.md)
 
 ## Unattended maintenance
 
