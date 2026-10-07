@@ -643,6 +643,16 @@ async def test_enrich_custom_degrades_rather_than_raising_on_budget_exhaustion(m
     assert row["elevation_ft"] is None
 
 
+async def test_a_reset_connection_is_logged_as_what_it_was(monkeypatch, caplog):
+    # A reset carries no message, and the empty-message fallback used to call
+    # it a timeout (2026-10-07, overpass-api.de resetting every TLS handshake).
+    _script(monkeypatch, [ConnectionResetError(), fake_response({"elements": []})])
+    with caplog.at_level(logging.WARNING, logger="app.services.osm"):
+        await osm._post_with_fallback("q")
+    assert any("failed: ConnectionResetError" in r.message for r in caplog.records)
+    assert not any("no answer within" in r.message for r in caplog.records)
+
+
 # #673: a null elevation says "no peak here" only when the lookup finished.
 async def test_enrich_custom_reporting_says_whether_the_lookup_finished(monkeypatch):
     _stub_overpass(monkeypatch, [_node(1, 47.0, -121.0)])
