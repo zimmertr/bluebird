@@ -40,7 +40,7 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
         ]
     }
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         return canned
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
@@ -56,7 +56,7 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
 async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
     canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0, "tags": {"name": "X", "ele": "1000"}}]}
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         return canned
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
@@ -68,7 +68,7 @@ async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
 async def test_query_osm_bad_elevation_tag_is_ignored(monkeypatch):
     canned = {"elements": [{"type": "node", "id": 1, "lat": 1.0, "lon": 2.0, "tags": {"name": "X", "ele": "high"}}]}
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         return canned
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
@@ -81,7 +81,7 @@ async def test_query_osm_peak_query_includes_volcanoes(monkeypatch):
     # natural=volcano, not natural=peak — the peak query must ask for both.
     captured: dict[str, str] = {}
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         captured["query"] = query
         return {"elements": []}
 
@@ -104,7 +104,7 @@ async def test_query_osm_unimplemented_type_raises():
 async def test_several_types_are_one_query_not_one_each(monkeypatch):
     calls = []
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         calls.append(query)
         return {"elements": []}
 
@@ -134,7 +134,7 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
         ]
     }
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         return canned
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
@@ -150,7 +150,7 @@ async def test_type_order_does_not_change_the_query_or_the_cache_key(monkeypatch
     # a second cache entry for the same question.
     queries = []
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         queries.append(query)
         return {"elements": []}
 
@@ -171,7 +171,7 @@ async def test_a_polygons_bbox_is_neither_queried_nor_keyed(monkeypatch):
     # one query and one cache entry.
     queries = []
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         queries.append(query)
         return {"elements": []}
 
@@ -188,7 +188,7 @@ async def test_a_positions_altitude_is_neither_queried_nor_keyed(monkeypatch):
     # an altitude is the same area, the same query and one cache entry.
     queries = []
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         queries.append(query)
         return {"elements": []}
 
@@ -205,7 +205,7 @@ async def test_a_positions_altitude_is_neither_queried_nor_keyed(monkeypatch):
 
 
 async def test_no_types_asks_nothing(monkeypatch):
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         raise AssertionError("no types requested, so Overpass must not be called")
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
@@ -565,7 +565,7 @@ def _node(node_id: int, lat: float, lon: float, ele: str | None = "1000") -> dic
 
 
 def _stub_overpass(monkeypatch, elements, spy: list | None = None):
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         if spy is not None:
             spy.append(query)
         return {"elements": elements}
@@ -622,7 +622,7 @@ async def test_enrich_custom_never_overwrites_a_known_elevation(monkeypatch):
 
 
 async def test_enrich_custom_returns_rows_unchanged_when_overpass_fails(monkeypatch):
-    async def boom(query, on_status=None):
+    async def boom(query, on_status=None, **_kwargs):
         raise UpstreamError("Every Overpass mirror failed")
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", boom)
@@ -634,7 +634,7 @@ async def test_enrich_custom_returns_rows_unchanged_when_overpass_fails(monkeypa
 async def test_enrich_custom_degrades_rather_than_raising_on_budget_exhaustion(monkeypatch):
     # Enrichment must never turn a saturated Overpass budget into a 503 for an
     # analysis that only wanted forecasts.
-    async def saturated(query, on_status=None):
+    async def saturated(query, on_status=None, **_kwargs):
         raise ratelimit.BudgetExhausted("OpenStreetMap (Overpass)")
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", saturated)
@@ -694,26 +694,41 @@ def test_enrich_deadline_is_the_measured_eight_seconds():
     assert osm.ENRICH_DEADLINE_S == 8.0
 
 
+def _count(name: str, **labels: str) -> float:
+    value = REGISTRY.get_sample_value(name, labels)
+    return 0.0 if value is None else value
+
+
+_REQUESTS = "bluebird_forecast_overpass_requests_total"
+_FALLBACK = "bluebird_forecast_overpass_fallback_total"
+_DURATIONS = "bluebird_forecast_overpass_request_duration_seconds_count"
+PRIMARY_HOST = "overpass-api.de"
+SECONDARY_HOST = "maps.mail.ru"
+
+
+async def _stall():
+    await asyncio.sleep(30)
+
+
 async def test_enrich_custom_goes_on_without_a_lookup_that_misses_its_deadline(
     monkeypatch, caplog
 ):
     # Through the real chain, so the cancellation is proven to release the
-    # mirror's slot rather than just to reach enrich_custom.
+    # mirror's slot rather than just to reach enrich_custom. Both mirrors
+    # stall: the primary runs out its own slice and the deadline cuts the
+    # backup's, which is the busy spell #655 measured.
     budget = ratelimit.UpstreamBudget("test (enrich deadline)", 1)
     mirrors = [dataclasses.replace(m, budget=budget) for m in osm.OVERPASS_MIRRORS]
     monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
     monkeypatch.setattr(osm.enrich, "ENRICH_DEADLINE_S", 0.05)
 
-    async def hang():
-        await asyncio.sleep(30)
-
-    fake = _script(monkeypatch, [hang, fake_response({"elements": []})])
-    host = "overpass-api.de"
-    counted_before = {
-        outcome: REGISTRY.get_sample_value(
-            "bluebird_forecast_overpass_requests_total", {"mirror": host, "outcome": outcome}
-        )
-        for outcome in ("error", "timeout", "success")
+    fake = _script(monkeypatch, [_stall, _stall])
+    outcomes = ("error", "timeout", "success")
+    primary_before = {
+        o: _count(_REQUESTS, mirror=PRIMARY_HOST, outcome=o, path="enrichment") for o in outcomes
+    }
+    backup_before = {
+        o: _count(_REQUESTS, mirror=SECONDARY_HOST, outcome=o, path="enrichment") for o in outcomes
     }
 
     started = time.perf_counter()
@@ -723,19 +738,122 @@ async def test_enrich_custom_goes_on_without_a_lookup_that_misses_its_deadline(
     assert time.perf_counter() - started < 5
     assert row == _row(47.0, -121.0)
     assert "gave up" in caplog.text
-    # The deadline stopped the whole lookup; it did not fall over to mirror 2.
-    assert fake.calls == 1
-    # The cancelled attempt gave its slot back.
+    # The deadline still bounds the whole lookup, but the backup was asked.
+    assert fake.calls == 2
+    # The cut attempt gave its slot back.
     assert budget._sem._value == budget.capacity
-    # Our deadline is not the mirror's failure: no cooldown, no outcome counted.
+    # The primary's own slice ran out, which is a timeout like any other...
+    assert (
+        _count(_REQUESTS, mirror=PRIMARY_HOST, outcome="timeout", path="enrichment")
+        == primary_before["timeout"] + 1
+    )
+    # ...and the deadline's cut of the backup is no outcome at all, since
+    # "error" would read as the mirror breaking. It still cools the backup.
+    for outcome, before in backup_before.items():
+        assert _count(_REQUESTS, mirror=SECONDARY_HOST, outcome=outcome, path="enrichment") == before
+    assert set(osm.mirrors._last_failure) == {PRIMARY, SECONDARY}
+
+
+# ── The lookup's deadline is split across the mirrors (#655) ─────────────
+
+
+async def test_a_stalled_primary_leaves_the_backup_its_slice_of_the_deadline(monkeypatch):
+    # On 2026-10-06 a busy primary blanked every 100-row list: the deadline
+    # fired inside the first attempt, so the backup was never asked.
+    monkeypatch.setattr(osm.enrich, "ENRICH_DEADLINE_S", 0.4)
+    rows = [_row(47.0 + i * _FAR_DEG, -121.0, f"P{i}") for i in range(100)]
+    nodes = [_node(i + 1, r["latitude"] + _NEAR_DEG, r["longitude"]) for i, r in enumerate(rows)]
+    fake = _script(monkeypatch, [_stall, fake_response({"elements": nodes})])
+
+    enriched = await _enrich_custom(rows)
+
+    assert fake.urls == [PRIMARY, SECONDARY]
+    # Equal slices of the deadline, one per mirror.
+    assert fake.timeouts == [0.2, 0.2]
+    assert [r["elevation_ft"] for r in enriched] == [3281.0] * 100
+
+
+async def test_after_a_busy_lookup_the_next_list_starts_on_the_backup(monkeypatch):
+    clock = _Clock()
+    monkeypatch.setattr(osm.mirrors, "_clock", clock)
+    monkeypatch.setattr(osm.enrich, "ENRICH_DEADLINE_S", 0.4)
+    _script(monkeypatch, [_stall, fake_response({"elements": []})])
+    await _enrich_custom([_row(47.0, -121.0)])
+
+    clock.now += 10
+    fake = _script(monkeypatch, [fake_response({"elements": [_node(1, 46.0, -121.0)]})])
+    [row] = await _enrich_custom([_row(46.0, -121.0)])
+
+    assert fake.urls == [SECONDARY]
+    assert row["elevation_ft"] == 3281.0
+
+
+async def test_a_deadline_cut_moves_the_mirror_behind_the_next(monkeypatch):
+    # The caller's deadline ended the attempt, but the mirror still did not
+    # answer in the time it had, so the next call should not wait on it first.
+    _script(monkeypatch, [_stall])
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.05):
+            await osm._post_with_fallback("q")
+    assert [m.url for m in osm._attempt_order()] == [SECONDARY, PRIMARY]
+
+
+async def test_a_cut_while_queued_for_a_slot_does_not_cool_the_mirror(monkeypatch):
+    # Waiting on the pod's own budget asks the mirror nothing, the same as a
+    # shed, so a cut there is no news about the mirror.
+    held = ratelimit.UpstreamBudget("test (held)", 1, wait_s=30)
+    await held._sem.acquire()
+    mirrors = [
+        dataclasses.replace(osm.OVERPASS_MIRRORS[0], budget=held),
+        *osm.OVERPASS_MIRRORS[1:],
+    ]
+    monkeypatch.setattr(osm.mirrors, "OVERPASS_MIRRORS", mirrors)
+    fake = _script(monkeypatch, [])
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.05):
+            await osm._post_with_fallback("q")
+    held._sem.release()
+    assert fake.calls == 0
     assert [m.url for m in osm._attempt_order()] == [PRIMARY, SECONDARY]
-    for outcome, before in counted_before.items():
-        assert (
-            REGISTRY.get_sample_value(
-                "bluebird_forecast_overpass_requests_total", {"mirror": host, "outcome": outcome}
-            )
-            == before
+
+
+async def test_the_enrichment_query_asks_each_server_for_its_slice(monkeypatch):
+    # The server stops working when the pod stops waiting, as on discovery.
+    fake = _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
+    await _enrich_custom([_row(47.0, -121.0)])
+    assert [b.splitlines()[0] for b in fake.bodies] == ["[out:json][timeout:4];"] * 2
+    assert fake.timeouts == [4.0, 4.0]
+
+
+async def test_discovery_keeps_the_mirror_table_timeouts(monkeypatch):
+    fake = _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
+    await osm.query_osm(POLY, [DestinationType.peak])
+    assert [b.splitlines()[0] for b in fake.bodies] == ["[out:json][timeout:25];"] * 2
+    assert fake.timeouts == [25.0, 25.0]
+
+
+async def test_the_overpass_metrics_say_which_path_asked(monkeypatch):
+    # The enrichment query and a polygon's discovery query are different
+    # questions with different latencies, and the slices are retuned from the
+    # enrichment path's numbers alone.
+    def counts(path: str) -> tuple[float, float, float, float]:
+        return (
+            _count(_REQUESTS, mirror=PRIMARY_HOST, outcome="network_error", path=path),
+            _count(_REQUESTS, mirror=SECONDARY_HOST, outcome="success", path=path),
+            _count(_FALLBACK, mirror=PRIMARY_HOST, path=path),
+            _count(_DURATIONS, mirror=SECONDARY_HOST, path=path),
         )
+
+    before = {path: counts(path) for path in ("enrichment", "discovery")}
+
+    _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
+    await _enrich_custom([_row(47.0, -121.0)])
+    osm.reset_mirror_health()
+    _script(monkeypatch, [httpx.ConnectError("down"), fake_response({"elements": []})])
+    await osm.query_osm(POLY, [DestinationType.peak])
+
+    for path, was in before.items():
+        assert counts(path) == tuple(n + 1 for n in was), path
 
 
 def test_custom_match_radius_is_the_measured_150_m():
@@ -781,7 +899,7 @@ def _unnamed(id_: int, ele: str, lat: float = 47.5):
 
 
 async def test_unnamed_peaks_are_skipped_unless_asked_for(monkeypatch):
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         assert '["ele"]' not in query
         return {"elements": [_unnamed(1, "1000")]}
 
@@ -790,7 +908,7 @@ async def test_unnamed_peaks_are_skipped_unless_asked_for(monkeypatch):
 
 
 async def test_unnamed_peaks_are_named_for_their_height(monkeypatch):
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         assert '["ele"]' in query
         return {"elements": [_unnamed(1, "1817.2")]}
 
@@ -806,7 +924,7 @@ async def test_unnamed_peaks_are_named_for_their_height(monkeypatch):
 async def test_two_unnamed_peaks_at_one_height_are_two_destinations(monkeypatch):
     # Name is the identity rule for mapped features and cannot be for generated
     # ones: every unnamed 5,961 ft summit in a range would collapse into one.
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         return {"elements": [_unnamed(1, "1000", 47.5), _unnamed(2, "1000", 47.6)]}
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
@@ -817,7 +935,7 @@ async def test_two_unnamed_peaks_at_one_height_are_two_destinations(monkeypatch)
 
 
 async def test_an_unnamed_peak_with_no_height_has_nothing_to_be_called(monkeypatch):
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         return {"elements": [{"type": "node", "id": 9, "lat": 47.5, "lon": -121.5, "tags": {"natural": "peak"}}]}
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
@@ -827,7 +945,7 @@ async def test_an_unnamed_peak_with_no_height_has_nothing_to_be_called(monkeypat
 async def test_the_two_questions_do_not_share_a_cache_entry(monkeypatch):
     queries = []
 
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         queries.append(query)
         return {"elements": []}
 
@@ -838,7 +956,7 @@ async def test_the_two_questions_do_not_share_a_cache_entry(monkeypatch):
 
 
 async def test_the_flag_is_ignored_when_peaks_were_not_asked_for(monkeypatch):
-    async def fake_post(query, on_status=None):
+    async def fake_post(query, on_status=None, **_kwargs):
         assert "natural" not in query or '"peak"' not in query
         return {"elements": []}
 
