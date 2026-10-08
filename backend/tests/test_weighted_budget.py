@@ -224,16 +224,17 @@ def test_default_budget_clears_a_worst_case_batch_without_pacing():
     # The invariant that rules out dividing the budget by replica count: a
     # budget below one batch's cost cannot fit two batches in a minute and
     # would pace every batch after the first even on a completely idle pod.
-    # A 1/10 share (55) sits under the 85.7 a full 50-location 16-day batch
+    # A 1/10 share (55) sits under the 91.4 a full 50-location 16-day batch
     # costs; the undivided 550 clears it outright.
     #
-    # 85.7 rather than the 57.1 this read before #443: the five level
-    # temperatures took the variable factor from 1 to 1.4 and snowfall (#678)
-    # to 1.5, and every capacity number that reads N_VARIABLES moves with it.
+    # 91.4 rather than the 57.1 this read before #443: the five level
+    # temperatures took the variable factor from 1 to 1.4, snowfall (#678) to
+    # 1.5 and the gust (#584) to 1.6, and every capacity number that reads
+    # N_VARIABLES moves with it.
     worst_batch = call_weight(
         BATCH_SIZE, date(2026, 1, 1), date(2026, 1, 16), weather.N_VARIABLES
     )
-    assert worst_batch == pytest.approx(85.71, abs=0.01)
+    assert worst_batch == pytest.approx(91.43, abs=0.01)
 
     idle = ratelimit.WeightedBudget("test", ratelimit.UPSTREAM_WEIGHT_PER_MINUTE_WEATHER)
     assert idle.wait_estimate_s(worst_batch) == 0.0

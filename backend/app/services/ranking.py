@@ -26,7 +26,7 @@ from app.models import (
 #
 # A ceiling reads the window's worst hour and a floor its best, so a bound is a
 # promise about every hour rather than about an average that can hide a bad
-# afternoon: max_wind_mph=20 admits no destination that gusts to 45 at noon.
+# afternoon: max_gust_mph=30 admits no destination that gusts to 45 at noon.
 # The freezing level reads the same way in the one family where neither end is
 # the bad one: its floor asks that the level never dropped below the value and
 # its ceiling that it never rose above it.
@@ -37,6 +37,7 @@ _LOWER_BOUNDS = (
     ("min_precip_total_in", "precip_total_in"),
     ("min_temp_f", "temp_min_f"),
     ("min_wind_mph", "wind_min_mph"),
+    ("min_gust_mph", "gust_min_mph"),
     ("min_freeze_ft", "freeze_min_ft"),
     ("min_snowfall_total_in", "snowfall_total_in"),
     ("min_aqi", "aqi_max"),
@@ -46,6 +47,7 @@ _UPPER_BOUNDS = (
     ("max_precip_total_in", "precip_total_in"),
     ("max_temp_f", "temp_max_f"),
     ("max_wind_mph", "wind_max_mph"),
+    ("max_gust_mph", "gust_max_mph"),
     ("max_freeze_ft", "freeze_max_ft"),
     ("max_snowfall_total_in", "snowfall_total_in"),
     ("max_aqi", "aqi_max"),
@@ -74,12 +76,12 @@ def _filter_constraints(
     that already matches: "the ten driest destinations that stay under 20 mph",
     never "whichever of the ten driest happened to be calm".
 
-    A null value passes every bound. Two fields can be null here. A missing
-    AQI means the window outran the ~5-day air-quality horizon or a best-effort
-    fetch failed; a missing freezing level means the chosen model publishes
-    none at all. Neither is evidence about the weather, and dropping those
-    rows would quietly empty every long-window analysis that set an AQI
-    ceiling, or every analysis under a model that carries no freezing level.
+    A null value passes every bound. A missing AQI means the window outran the
+    ~5-day air-quality horizon or a best-effort fetch failed; a missing
+    freezing level or gust means the chosen model publishes none at all.
+    Neither is evidence about the weather, and dropping those rows would
+    quietly empty every long-window analysis that set an AQI ceiling, or every
+    analysis under a model that carries no freezing level or no gust.
     It is the same call `_filter_elevation` makes for an untagged
     summit and `_sort_key` makes for a nullable ranking key.
     """
@@ -247,6 +249,7 @@ def _assemble(
                 wind_mph=wx_series["wind_mph"],
                 freeze_ft=wx_series["freeze_ft"],
                 snowfall_in=wx_series["snowfall_in"],
+                gust_mph=wx_series["gust_mph"],
                 aqi=_aligned_aqi(wx_series["times"], aqi.get("series")),
                 cloud_deck_ft=_aligned_cloud(wx_series["times"], cloud.get("series")),
             )

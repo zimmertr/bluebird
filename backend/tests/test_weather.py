@@ -33,7 +33,9 @@ from app.services.openmeteo_weight import call_weight
 from app.services.weather import fetch_weather_batch
 
 
-def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m", snowfall=None):
+def _hourly(
+    times, precip, temp, wind, freeze=None, freeze_unit="m", snowfall=None, gust=None
+):
     hourly = {
         "time": times,
         "precipitation": precip,
@@ -48,6 +50,7 @@ def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m", snowfall=No
         "snowfall": "inch",
         "temperature_2m": "°F",
         "wind_speed_10m": "mp/h",
+        "wind_gusts_10m": "mp/h",
         **{name: "mp/h" for name, _ in aggregation._WIND_LEVELS},
         **{name: "°F" for name, _ in aggregation._TEMP_LEVELS},
     }
@@ -64,6 +67,8 @@ def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m", snowfall=No
             units["freezing_level_height"] = freeze_unit
     if snowfall is not None:
         hourly["snowfall"] = snowfall
+    if gust is not None:
+        hourly["wind_gusts_10m"] = gust
     return payload
 
 
@@ -100,6 +105,10 @@ def test_metrics_aggregates_full_window():
         "snowfall_avg_in_hr": None,
         "snowfall_min_in_hr": None,
         "snowfall_max_in_hr": None,
+        # Nor any gust, which is reduced on its own the same way (#584).
+        "gust_min_mph": None,
+        "gust_max_mph": None,
+        "gust_avg_mph": None,
     }
 
 
@@ -308,6 +317,77 @@ def test_series_carries_snowfall_and_its_gaps():
     assert absent["snowfall_in"] == [None, None, None]
 
 
+# ── Wind gust (issue #584) ─────────────────────────────────────────────────
+#
+# Seven of the eight models and the archive publish `wind_gusts_10m`; JMA
+# answers a column of nulls under the unit "undefined" (measured 2026-10-08).
+# So it is reduced outside the precip/temp/wind zip, the freezing level's way,
+# and it is the 10 m value whatever the destination's elevation.
+
+
+def test_metrics_reduce_the_gust_like_the_wind():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.0], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
+        gust=[14.0, 31.25, 9.0],
+    )
+    m = _weather_metrics(data, START, END)
+    assert m["gust_min_mph"] == 9.0
+    # 31.25 is a tie at the first decimal, and the wind's half-even rounding
+    # takes it to 31.2.
+    assert m["gust_max_mph"] == 31.2
+    assert m["gust_avg_mph"] == round((14.0 + 31.25 + 9.0) / 3, 1)
+
+
+def test_metrics_skip_a_null_gust_hour_without_dropping_it():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
+        gust=[12.0, None, 20.0],
+    )
+    m = _weather_metrics(data, START, END)
+    # The middle hour's precipitation and wind still count.
+    assert m["precip_total_in"] == 0.6
+    assert m["wind_avg_mph"] == 7.0
+    assert m["gust_avg_mph"] == 16.0
+
+
+def test_metrics_a_model_with_no_gust_keeps_its_other_aggregates():
+    # JMA's answer: a column of nulls under "undefined". It needs no unit,
+    # and every other figure is what a payload with no gust at all gives.
+    args = (_TIMES_3H, [0.1, 0.2, 0.0], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
+    jma = _hourly(*args, gust=[None, None, None])
+    jma["hourly_units"]["wind_gusts_10m"] = "undefined"
+    nulled = _weather_metrics(jma, START, END)
+    assert nulled == _weather_metrics(_hourly(*args), START, END)
+    assert nulled["gust_max_mph"] is None
+    assert nulled["wind_max_mph"] == 9.0
+
+
+def test_the_gust_is_not_carried_to_the_destinations_elevation():
+    # Free-air winds strong enough to lift the summit wind well past the 10 m
+    # value. No level gust exists to lift the gust with it, so it stays the
+    # surface number and here reads under the wind.
+    data = _hourly(
+        _TIMES_3H, [0.0] * 3, [20.0] * 3, [10.0] * 3, gust=[22.0, 24.0, 26.0],
+    )
+    data["hourly"].update({name: [60.0] * 3 for name, _ in aggregation._WIND_LEVELS})
+    m = _weather_metrics(data, START, END, elevation_ft=14000.0)
+    assert m["wind_min_mph"] == 60.0
+    assert m["gust_max_mph"] == 26.0
+    s = _weather_series(data, START, END, elevation_ft=14000.0)
+    assert s["gust_mph"] == [22.0, 24.0, 26.0]
+
+
+def test_series_carries_the_gust_and_its_gaps():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
+        gust=[18.26, None, 30.0],
+    )
+    s = _weather_series(data, START, END)
+    assert s["gust_mph"] == [18.3, None, 30.0]
+    absent = _weather_series(_hourly(_TIMES_3H, [0.1, 0.2, 0.3], [20.0] * 3, [5.0] * 3), START, END)
+    assert absent["gust_mph"] == [None, None, None]
+
+
 # ── The freezing level's unit (issue #295 review) ──────────────────────────
 #
 # Open-Meteo quotes the height in the unit `precipitation_unit` selects and
@@ -385,7 +465,7 @@ def _declared(**overrides):
     payload["hourly"].update(
         {name: [40.0] for name, _ in aggregation._WIND_LEVELS}
         | {name: [20.0] for name, _ in aggregation._TEMP_LEVELS}
-        | {"snowfall": [0.5]}
+        | {"snowfall": [0.5], "wind_gusts_10m": [30.0]}
     )
     payload["hourly_units"].update(overrides)
     return payload
@@ -399,6 +479,10 @@ def test_the_units_the_aggregation_expects_are_the_measured_ones():
         "snowfall": "inch",
         "temperature_2m": "°F",
         "wind_speed_10m": "mp/h",
+        # The gust follows `wind_speed_unit` like the wind (#584): "mp/h" on
+        # the seven models that serve it and on the archive, measured
+        # 2026-10-08.
+        "wind_gusts_10m": "mp/h",
         **{f"wind_speed_{p}hPa": "mp/h" for p in (925, 850, 700, 600, 500)},
         **{f"temperature_{p}hPa": "°F" for p in (925, 850, 700, 600, 500)},
     }
@@ -426,6 +510,7 @@ def test_the_measured_units_pass():
         ("snowfall", "cm"),
         ("temperature_2m", "°C"),
         ("wind_speed_10m", "km/h"),
+        ("wind_gusts_10m", "km/h"),
         ("wind_speed_700hPa", "km/h"),
         ("temperature_600hPa", "°C"),
     ],
@@ -779,11 +864,12 @@ async def test_fetch_weather_batch_requests_the_level_winds_and_temperatures(
         assert name in hourly
     assert aggregation._FREEZING_LEVEL in hourly
     assert aggregation._SNOWFALL in hourly
-    # 15 variables at one model is weight factor 1.5: max(1, vars x models/10).
+    assert aggregation._GUST in hourly
+    # 16 variables at one model is weight factor 1.6: max(1, vars x models/10).
     # The five level temperatures (#443) are what took the request over the
-    # floor of 1, and snowfall (#678) added a tenth.
+    # floor of 1, and snowfall (#678) and the gust (#584) added a tenth each.
     assert len(hourly) == weather.N_VARIABLES
-    assert weather.N_VARIABLES == 15
+    assert weather.N_VARIABLES == 16
 
 
 async def test_fetch_weather_batch_adjusts_wind_to_the_destinations_elevation(
@@ -1513,8 +1599,8 @@ async def test_an_unkeyed_batch_still_pays_the_weighted_pacer(monkeypatch):
     _stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END)
 
-    # One location over one day at 15 variables: 1 x 1 x 1.5 (#443, #678).
-    assert pacer.acquired == [pytest.approx(1.5)]
+    # One location over one day at 16 variables: 1 x 1 x 1.6 (#443, #678, #584).
+    assert pacer.acquired == [pytest.approx(1.6)]
 
 
 async def test_a_keyed_batch_still_takes_an_in_flight_slot(monkeypatch):
@@ -1953,7 +2039,7 @@ async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
 
     hourly = calls[0]["hourly"].split(",")
     assert hourly == aggregation.CLOUD_VARIABLES.split(",")
-    # Nine variables is weight factor 1 on top of the weather's 1.5, which is
+    # Nine variables is weight factor 1 on top of the weather's 1.6, which is
     # the whole reason it is a request of its own (issues #117 and #670).
     assert len(hourly) == weather.N_CLOUD_VARIABLES == 9
     # Humidity alone, which no unit parameter changes, so none is sent.

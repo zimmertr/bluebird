@@ -240,6 +240,19 @@
             "description": "Drop rows whose `freeze_max_ft` is above this, i.e. keep only destinations whose freezing level never rose above it during the window. A row with a null `freeze_max_ft` passes either bound: only some forecast models publish a freezing level at all, so a missing number says which model answered rather than what the weather did, and dropping those rows would empty the whole result under every other model.",
             "title": "Max Freeze Ft"
           },
+          "max_gust_mph": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `gust_max_mph` is above this, i.e. keep only destinations whose gusts never exceed it during the window. Nulls pass: one forecast model publishes no gust, and dropping its rows would empty the whole result under it.",
+            "title": "Max Gust Mph"
+          },
           "max_precip_total_in": {
             "anyOf": [
               {
@@ -339,6 +352,19 @@
             ],
             "description": "Drop rows whose `freeze_min_ft` is below this, i.e. keep only destinations whose freezing level never fell below it during the window. Not bounded below: a freezing level of 0 is a reading, not a gap.",
             "title": "Min Freeze Ft"
+          },
+          "min_gust_mph": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Drop rows whose `gust_min_mph` is below this. A row with a null `gust_min_mph` passes either bound.",
+            "title": "Min Gust Mph"
           },
           "min_precip_total_in": {
             "anyOf": [
@@ -851,6 +877,42 @@
             "description": "Lowest freezing level in the window, feet above sea level. Read against `elevation_ft`: below the destination, the whole destination was below freezing at that hour. Zero means the freezing level reached sea level, not that there is no value. Null for every hour of a forecast model that does not publish the variable, which is five of the eight; an absent freezing level never affects the other figures on this row.",
             "title": "Freeze Min Ft"
           },
+          "gust_avg_mph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mean gust across the window, miles per hour. Null under the same terms.",
+            "title": "Gust Avg Mph"
+          },
+          "gust_max_mph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Strongest gust in the window, miles per hour. Open-Meteo's 10 m surface gust at the destination's coordinates, not adjusted to `elevation_ft` the way the wind is: no forecast model publishes a gust above the surface, so this can read below `wind_max_mph` on a summit. Read apart from precipitation, temperature and wind: an hour with no gust drops out of the three gust figures alone. Null when no hour in the window carried one, which is every hour of the one forecast model that does not publish the variable.",
+            "title": "Gust Max Mph"
+          },
+          "gust_min_mph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Weakest gust in the window, miles per hour. Null under the same terms as `gust_max_mph`.",
+            "title": "Gust Min Mph"
+          },
           "latitude": {
             "description": "Latitude in decimal degrees.",
             "title": "Latitude",
@@ -1010,6 +1072,9 @@
           "wind_min_mph",
           "wind_max_mph",
           "wind_avg_mph",
+          "gust_min_mph",
+          "gust_max_mph",
+          "gust_avg_mph",
           "freeze_min_ft",
           "freeze_max_ft",
           "freeze_avg_ft",
@@ -1487,6 +1552,21 @@
             "title": "Freeze Ft",
             "type": "array"
           },
+          "gust_mph": {
+            "description": "Strongest gust in the hour, 10 m above the ground, miles per hour. Null at an hour the forecast carried no gust for; see `gust_max_mph` on the result.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Gust Mph",
+            "type": "array"
+          },
           "precip_in": {
             "description": "Precipitation, inches.",
             "items": {
@@ -1554,6 +1634,7 @@
           "wind_mph",
           "freeze_ft",
           "snowfall_in",
+          "gust_mph",
           "aqi",
           "cloud_deck_ft"
         ],
@@ -1815,6 +1896,9 @@
           "wind_min_mph",
           "wind_avg_mph",
           "wind_max_mph",
+          "gust_min_mph",
+          "gust_avg_mph",
+          "gust_max_mph",
           "temp_min_f",
           "temp_avg_f",
           "temp_max_f",

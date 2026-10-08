@@ -192,6 +192,12 @@ def test_snowfall_is_rankable_and_snow_depth_is_not():
     assert "snow_depth_in" not in keys
 
 
+def test_the_gust_is_rankable_on_all_three_aggregates():
+    # Its own family since #584, beside the wind rather than inside it.
+    keys = _capabilities()["sort_keys"]
+    assert {"gust_min_mph", "gust_avg_mph", "gust_max_mph"} <= set(keys)
+
+
 def test_capabilities_is_documented_and_tagged():
     operation = app.openapi()["paths"]["/api/capabilities"]["get"]
     assert operation["tags"] == ["metadata"]

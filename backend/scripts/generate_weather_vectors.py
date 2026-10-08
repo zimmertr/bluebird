@@ -43,7 +43,7 @@ def _win(start: str, end: str) -> dict[str, str]:
 
 def _wx(
     times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m", units=None,
-    snowfall=None,
+    snowfall=None, gust=None,
 ) -> dict:
     """A weather payload; `levels` maps pressure-level variable names
     (`wind_speed_925hPa` … `wind_speed_500hPa` for the elevation-adjusted wind
@@ -56,7 +56,9 @@ def _wx(
     Open-Meteo's unit for this variable follows `precipitation_unit` and the
     aggregation reads it rather than assuming either one. `snowfall` is the
     hourly new snow (issue #678), omitted where a payload stands for a
-    response without it, and declared in inches like every request's.
+    response without it, and declared in inches like every request's. `gust`
+    is the hourly 10 m gust (issue #584), omitted the same way and declared in
+    mph.
 
     Every column is declared in the unit the request asks for, as a real
     response declares it, because the aggregation refuses a number whose unit
@@ -72,6 +74,8 @@ def _wx(
         hourly.update(levels)
     if snowfall is not None:
         hourly["snowfall"] = snowfall
+    if gust is not None:
+        hourly["wind_gusts_10m"] = gust
     declared = {
         name: unit
         for name, unit in aggregation._DECLARED_UNITS.items()
@@ -621,6 +625,88 @@ WEATHER_INPUTS = [
             [20.0, 22.0, 24.0],
             [5.0, 7.0, 9.0],
             snowfall=[0.123456],
+        ),
+    },
+    # ── Wind gust (issue #584) ────────────────────────────────────────────
+    # Every vector above omits it. Reduced outside the zip, like the freezing
+    # level, to the wind's three aggregates at one decimal.
+    {
+        "name": "gust_aggregates_at_one_decimal",
+        "window": _win(H8[0], H8[7]),
+        # The mean is exactly 17.25 and the minimum exactly 9.75, so both land
+        # on a tie at the first decimal and the half-even rounding rides the
+        # contract (17.2 and 9.8).
+        "payload": _wx(
+            H8,
+            [0.0] * 8,
+            [30.0] * 8,
+            [8.0] * 8,
+            gust=[12.0, 18.5, 25.25, 30.0, 22.5, 10.0, 10.0, 9.75],
+        ),
+    },
+    {
+        # A summit where the free-air wind outruns the 10 m gust. The wind is
+        # carried to the destination's elevation and the gust is not, because
+        # no model publishes a gust above the surface: the gust reads below
+        # the wind, as docs/DATA.md says it can.
+        "name": "gust_not_adjusted_to_elevation",
+        "window": _win(H[0], H[1]),
+        "elevation_ft": 14000.0,
+        "payload": _wx(
+            H[:2],
+            [0.0, 0.0],
+            [20.0, 21.0],
+            [10.0, 12.0],
+            {
+                "wind_speed_925hPa": [12.0, 12.0],
+                "wind_speed_850hPa": [18.0, 18.0],
+                "wind_speed_700hPa": [30.0, 32.0],
+                "wind_speed_600hPa": [40.0, 44.0],
+                "wind_speed_500hPa": [50.0, 52.0],
+            },
+            gust=[22.0, 26.0],
+        ),
+    },
+    {
+        # A null gust hour, and a gust outside the window: both drop out of the
+        # gust figures alone, and the hour's other numbers still count.
+        "name": "gust_null_hour_skipped_not_dropped",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:4],
+            [0.1, 0.2, 0.3, 0.4],
+            [20.0, 22.0, 24.0, 26.0],
+            [5.0, 7.0, 9.0, 11.0],
+            gust=[14.0, None, 22.0, 60.0],
+        ),
+    },
+    {
+        # JMA's answer, measured 2026-10-08: a column of nulls under the unit
+        # "undefined". The three gust aggregates are null and every other
+        # figure is as it was; the unit check lets a column with no number in
+        # it pass whatever it declares.
+        "name": "gust_null_column_under_undefined_leaves_the_other_metrics",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.0],
+            [50.0, 52.0, 54.0],
+            [5.0, 7.0, 9.0],
+            units={"wind_gusts_10m": "undefined"},
+            gust=[None, None, None],
+        ),
+    },
+    {
+        # Shorter than times: the aggregates zip to the shortest and the
+        # series pads with nulls, as the freezing level's do.
+        "name": "gust_short_array_zip_vs_series_padding",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.3],
+            [20.0, 22.0, 24.0],
+            [5.0, 7.0, 9.0],
+            gust=[18.26],
         ),
     },
 ]

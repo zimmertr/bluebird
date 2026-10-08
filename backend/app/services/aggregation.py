@@ -63,8 +63,8 @@ def _round_or_none(v: float | None, ndigits: int) -> float | None:
 # stood 127 to 192 m above its standard height over three days, which puts the
 # summit temperature 0.7 to 1.3 °C cold, where Open-Meteo's terrain height sat
 # 12 m under the summit. Fetching the real heights would add five variables to
-# every request (a weight factor of 2.0 rather than 1.5 here, 2.1 rather than
-# 1.6 in the browser), and docs/DATA.md states the error instead. The wind and temperature
+# every request (a weight factor of 2.1 rather than 1.6 here, 2.2 rather than
+# 1.7 in the browser), and docs/DATA.md states the error instead. The wind and temperature
 # read the five from 925 to 500 hPa; the cloud deck reads all eight, because a
 # saturated layer can sit under the lowest summit (1000 hPa) and a clear column
 # has to be checked to the top of every summit on Earth (300 hPa, 30,066 ft).
@@ -155,8 +155,19 @@ _FREEZING_LEVEL = "freezing_level_height"
 # an hour missing only snowfall never takes the other numbers of that hour
 # with it.
 _SNOWFALL = "snowfall"
+# The strongest gust in each hour (issue #584), 10 m above the model's ground
+# and in the unit `wind_speed_unit` selects, so mph here. It is NOT carried to
+# the destination's elevation the way the wind is: Open-Meteo has no gust on
+# pressure levels (`wind_gusts_925hPa` answers HTTP 400, measured 2026-10-08),
+# so the only honest number is the surface one, and docs/DATA.md states the
+# height. Measured 2026-10-08 at Rainier, seven of the eight models and the
+# archive serve it in "mp/h"; JMA answers a column of nulls under the unit
+# "undefined", the archive freezing level's shape. So it is reduced outside
+# the precip/temp/wind zip for the freezing level's reason: an hour without a
+# gust must never take that hour's other numbers with it.
+_GUST = "wind_gusts_10m"
 HOURLY_VARIABLES = ",".join(
-    ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL, _SNOWFALL]
+    ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL, _SNOWFALL, _GUST]
     + [name for name, _ in _WIND_LEVELS]
     + [name for name, _ in _TEMP_LEVELS]
 )
@@ -178,6 +189,7 @@ _DECLARED_UNITS: dict[str, str] = {
     _SNOWFALL: "inch",
     "temperature_2m": "°F",
     "wind_speed_10m": "mp/h",
+    _GUST: "mp/h",
     **{name: "mp/h" for name, _ in _WIND_LEVELS},
     **{name: "°F" for name, _ in _TEMP_LEVELS},
 }
@@ -467,6 +479,29 @@ def _snowfall_in_window(
     ]
 
 
+def _gust_in_window(
+    hourly: dict[str, Any],
+    start: datetime,
+    end: datetime,
+) -> list[float]:
+    """Every in-window hour that HAS a gust, in mph.
+
+    Read against its own pair of arrays for `_freeze_ft_in_window`'s reason:
+    JMA publishes no gust, and an hour dropped for a null gust would take that
+    hour's precipitation, temperature and wind with it, which on JMA is every
+    hour. No conversion, because `_check_units` has already refused any column
+    not declared in mph, and no elevation adjustment, for the reason `_GUST`
+    records.
+    """
+    return [
+        v
+        for ts, v in zip(hourly.get("time", []), hourly.get(_GUST, []), strict=False)
+        if v is not None
+        and (parsed := _parse_ts(ts)) is not None
+        and start <= parsed <= end
+    ]
+
+
 def _check_units(data: dict[str, Any], expected: dict[str, str]) -> None:
     """Refuse a payload whose numbers are not in the units the request asked for.
 
@@ -536,6 +571,7 @@ def _weather_metrics(
         p_vals, t_vals, w_vals = zip(*filtered, strict=False)
         f_vals = _freeze_ft_in_window(hourly, start, end, _freeze_unit(data))
         s_vals = _snowfall_in_window(hourly, start, end)
+        g_vals = _gust_in_window(hourly, start, end)
 
         return {
             "precip_total_in": round(sum(p_vals), 4),
@@ -561,6 +597,11 @@ def _weather_metrics(
             "snowfall_avg_in_hr": round(sum(s_vals) / len(s_vals), 4) if s_vals else None,
             "snowfall_min_in_hr": round(min(s_vals), 4) if s_vals else None,
             "snowfall_max_in_hr": round(max(s_vals), 4) if s_vals else None,
+            # The wind's one decimal, each null on its own like the freezing
+            # level's, because one model publishes no gust at all.
+            "gust_min_mph": round(min(g_vals), 1) if g_vals else None,
+            "gust_max_mph": round(max(g_vals), 1) if g_vals else None,
+            "gust_avg_mph": round(sum(g_vals) / len(g_vals), 1) if g_vals else None,
         }
     except UpstreamError:
         # A unit nothing can read is not one bad hour to skip past: every
@@ -577,7 +618,7 @@ def _weather_series(
     end_dt: datetime,
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
-    """Per-hour precip/temp/wind/freezing level/snowfall over the window, on one grid.
+    """Per-hour precip/temp/wind/freezing level/snowfall/gust over the window, on one grid.
 
     Unlike `_weather_metrics` — which drops any hour missing a value and collapses the
     rest into aggregates — this keeps every in-window hour and preserves each
@@ -598,6 +639,7 @@ def _weather_series(
         freeze = hourly.get(_FREEZING_LEVEL, [])
         freeze_unit = _freeze_unit(data)
         snowfall = hourly.get(_SNOWFALL, [])
+        gust = hourly.get(_GUST, [])
         levels = _level_arrays(hourly)
         t_levels = _temp_level_arrays(hourly)
 
@@ -610,6 +652,7 @@ def _weather_series(
         w_out: list[float | None] = []
         f_out: list[float | None] = []
         s_out: list[float | None] = []
+        g_out: list[float | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
@@ -641,6 +684,7 @@ def _weather_series(
                 )
             )
             s_out.append(_round_or_none(_at(snowfall, i), 4))
+            g_out.append(_round_or_none(_at(gust, i), 1))
 
         if not grid:
             return None
@@ -651,6 +695,7 @@ def _weather_series(
             "wind_mph": w_out,
             "freeze_ft": f_out,
             "snowfall_in": s_out,
+            "gust_mph": g_out,
         }
     except UpstreamError:
         # The one failure this function does not absorb, for the reason

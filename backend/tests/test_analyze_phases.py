@@ -168,8 +168,9 @@ def test_apply_cap_cuts_to_the_highest_when_asked():
 #
 # The pod's pacer is disabled for the suite (conftest), so each test here gives
 # it back its production budget. A window ARCHIVE_DAYS long costs each full
-# batch of 50 about 5.4 weighted calls a day, 321 at 60 days: the fourth and
-# later batches queue past the two-minute bound behind their own siblings.
+# weather batch of 50 about 5.7 weighted calls a day and its cloud batch 3.6,
+# 343 and 214 at 60 days: the later batches queue past the two-minute bound
+# behind their own siblings.
 
 ARCHIVE_DAYS = 60
 

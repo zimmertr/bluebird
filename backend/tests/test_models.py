@@ -533,6 +533,7 @@ _EXPECTED_PAIRS = {
         ("min_precip_total_in", "max_precip_total_in"),
         ("min_temp_f", "max_temp_f"),
         ("min_wind_mph", "max_wind_mph"),
+        ("min_gust_mph", "max_gust_mph"),
         ("min_freeze_ft", "max_freeze_ft"),
         ("min_snowfall_total_in", "max_snowfall_total_in"),
         ("min_aqi", "max_aqi"),

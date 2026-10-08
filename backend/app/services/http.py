@@ -34,9 +34,9 @@ import httpx
 # the deadline the pod only receives it and gunzips it (0.04 s). Decoding it
 # takes 0.24 s and aggregating it 1.5 s, both after the deadline has ended
 # (python:3.14-alpine on an Apple M4 Pro, 2026-10-06, #660). The measurement
-# predates snowfall (#678), which made the archive's shape 15 variables, the
-# fourth carrying numbers, so today's body is somewhat larger and was not
-# measured again. So the floor under
+# predates snowfall (#678) and the gust (#584), which made the archive's shape
+# 16 variables, five of them carrying numbers, so today's body is somewhat
+# larger and was not measured again. So the floor under
 # 60 s is Open-Meteo's own time to build a year for 50 locations, which was not
 # measured, because measuring it needs a real key.
 TIMEOUT_S = 60.0

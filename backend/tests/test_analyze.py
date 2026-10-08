@@ -92,6 +92,8 @@ def _result(
     freeze_min=None,
     freeze_max=None,
     snowfall=None,
+    gust_min=None,
+    gust_max=None,
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
@@ -103,6 +105,7 @@ def _result(
         freeze_avg_ft=freeze_min,
         aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
         snowfall_total_in=snowfall,
+        gust_min_mph=gust_min, gust_max_mph=gust_max, gust_avg_mph=gust_min,
     )
 
 
@@ -195,7 +198,7 @@ def test_filter_constraints_temp_floor_reads_the_coldest_hour():
     assert [r.name for r in kept] == ["mild"]
 
 
-def test_filter_constraints_wind_ceiling_reads_the_gustiest_hour():
+def test_filter_constraints_wind_ceiling_reads_the_windiest_hour():
     rows = [
         _result("calm", wind_min=2.0, wind_max=12.0, wind_avg=6.0),
         _result("gusty", wind_min=1.0, wind_max=45.0, wind_avg=6.0),
@@ -252,6 +255,37 @@ def test_filter_constraints_snowfall_bounds_compare_the_window_total():
     rows = [_result("dry", snowfall=0.0), _result("dumped", snowfall=8.4)]
     assert [r.name for r in _filter_constraints(rows, _bounded(min_snowfall_total_in=2))] == ["dumped"]
     assert [r.name for r in _filter_constraints(rows, _bounded(max_snowfall_total_in=2))] == ["dry"]
+
+
+def test_filter_constraints_gust_bounds_read_the_calmest_and_gustiest_hours():
+    # The wind's shape (#584): the floor reads the calmest hour's gust and the
+    # ceiling the strongest gust in the window.
+    rows = [
+        _result("sheltered", gust_min=4.0, gust_max=18.0),
+        _result("exposed", gust_min=12.0, gust_max=45.0),
+    ]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_gust_mph=10))] == ["exposed"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_gust_mph=30))] == ["sheltered"]
+
+
+def test_filter_constraints_null_gust_passes_either_bound():
+    # One model publishes no gust at all, so a missing number says which model
+    # answered rather than how hard it blew.
+    rows = [_result("unknown"), _result("exposed", gust_min=12.0, gust_max=45.0)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(min_gust_mph=20))] == ["unknown"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_gust_mph=30))] == ["unknown"]
+
+
+def test_sort_key_ranks_gust_with_nulls_last():
+    rows = [
+        _result("unknown"),
+        _result("exposed", gust_min=12.0, gust_max=45.0),
+        _result("sheltered", gust_min=4.0, gust_max=18.0),
+    ]
+    rows.sort(key=_sort_key(SortBy.gust_max.value, descending=False))
+    assert [r.name for r in rows] == ["sheltered", "exposed", "unknown"]
+    rows.sort(key=_sort_key(SortBy.gust_max.value, descending=True))
+    assert [r.name for r in rows] == ["exposed", "sheltered", "unknown"]
 
 
 def test_filter_constraints_null_snowfall_passes_either_bound():
@@ -1079,13 +1113,14 @@ def _dest(name, lat):
     return {"name": name, "latitude": lat, "longitude": 0.0, "elevation_ft": None, "osm_id": None}
 
 
-def _wx_series(precip_total, times, precip, temp, wind, freeze=None):
+def _wx_series(precip_total, times, precip, temp, wind, freeze=None, gust=None):
     return {**_wx(precip_total), "series": {
         "times": times, "precip_in": precip, "temp_f": temp, "wind_mph": wind,
         # All-null by default, which is what the models that do not publish
         # the freezing level return — the series carries the key either way.
         "freeze_ft": freeze if freeze is not None else [None] * len(times),
         "snowfall_in": [None] * len(times),
+        "gust_mph": gust if gust is not None else [None] * len(times),
     }}
 
 
@@ -1093,7 +1128,9 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     times = [1000, 2000]
     dests = [_dest("a", 1.0), _dest("b", 2.0)]
     wx_list = [
-        _wx_series(0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0], [9000.0, None]),
+        _wx_series(
+            0.1, times, [0.1, None], [50.0, 51.0], [5.0, 6.0], [9000.0, None], [14.0, None]
+        ),
         _wx_series(0.2, times, [0.2, 0.3], [40.0, 41.0], [7.0, 8.0]),
     ]
     aqi_list = [
@@ -1108,9 +1145,11 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     assert a.series.temp_f == [50.0, 51.0]
     assert a.series.aqi == [40, None]         # AQI present at 1000, null past horizon
     assert a.series.freeze_ft == [9000.0, None]
+    assert a.series.gust_mph == [14.0, None]
     # The second row's model published no freezing level, which nulls that
     # series alone and nothing else on the row.
     assert results[1].series.freeze_ft == [None, None]
+    assert results[1].series.gust_mph == [None, None]
     assert results[1].series.temp_f == [40.0, 41.0]
     assert a.aqi_avg == 40                    # aggregates still flow through
     # Second row had no AQI → all-null AQI series, but the row still has a series.
@@ -1339,8 +1378,12 @@ def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
         "/api/analyze", json={**body, "include_series": False}, headers=headers
     )
     assert len(with_hours.json()["results"]) == MAX_ANALYZE_PEAKS
-    assert len(with_hours.content) > 10_000_000  # measured 12.92 MB
-    assert len(without.content) < 1_000_000  # measured 0.61 MB
+    # Measured 2026-10-08 with the gust's three fields and its hourly series
+    # (#584): 22.1 MB and 1.06 MB, up from 19.1 MB and 0.97 MB the day before.
+    # The ceiling sits well clear of the second, so the next row field moves
+    # the number without failing the claim, which is the ratio below.
+    assert len(with_hours.content) > 10_000_000
+    assert len(without.content) < 1_500_000
     assert len(with_hours.content) > 15 * len(without.content)
 
 
@@ -2278,6 +2321,47 @@ def test_analyze_bounds_the_field_on_snowfall(snowfall_upstreams):
     assert sorted(r["name"] for r in body["results"]) == ["light", "unknown"]
     assert body["total_matched"] == 2
     assert body["total_queried"] == 3
+
+
+# ── Wind gust on the analyze route (#584) ───────────────────────────────────
+
+
+@pytest.fixture
+def gust_upstreams(monkeypatch, stub_upstreams):
+    """Weather whose gusts are ten times the latitude, and null at latitude 0,
+    which stands for the one model that publishes none."""
+
+    async def fake_wx(
+        destinations, start, end, on_progress=None, on_pace=None, model=None,
+        api_key=None, source="forecast", boundary=None,
+    ):
+        def gust(lat):
+            v = lat * 10 or None
+            return {"gust_min_mph": v, "gust_avg_mph": v, "gust_max_mph": v}
+
+        return [{**_wx(d["latitude"]), **gust(d["latitude"])} for d in destinations]
+
+    monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
+
+
+def test_analyze_ranks_by_gust_with_nulls_last(gust_upstreams):
+    body = client.post(
+        "/api/analyze", json=_snowfall_request(sort_by="gust_max_mph")
+    ).json()
+    assert [r["name"] for r in body["results"]] == ["light", "heavy", "unknown"]
+    assert [r["gust_max_mph"] for r in body["results"]] == [10.0, 60.0, None]
+
+
+def test_analyze_bounds_the_field_on_gust(gust_upstreams):
+    body = client.post("/api/analyze", json=_snowfall_request(max_gust_mph=30)).json()
+    # The row with no gust passes the bound, as a null does on every other.
+    assert sorted(r["name"] for r in body["results"]) == ["light", "unknown"]
+    assert body["total_matched"] == 2
+
+
+def test_analyze_refuses_an_inverted_gust_range(stub_upstreams):
+    resp = client.post("/api/analyze", json=_snowfall_request(min_gust_mph=40, max_gust_mph=30))
+    assert resp.status_code == 422
 
 
 @pytest.mark.parametrize(
