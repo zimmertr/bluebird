@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { parseCustomCsv } from './customDestinations'
+import bulgerCsv from '../../../examples/washington-bulger-list.csv?raw'
 
 describe('parseCustomCsv', () => {
   it('names each destination by its coordinate pair', () => {
@@ -71,41 +72,25 @@ describe('parseCustomCsv', () => {
   })
 
   // The "Custom (CSV)" destination type must accept a real, full-sized paste.
-  // examples/bulger-list.csv (the Bulger List — Washington's 100 highest peaks)
-  // is the canonical example dataset; this feeds a representative slice of it
-  // through the parser to prove the destination type handles that data. The
-  // slice mirrors the real file's shape — a "#" header, a blank line, six-decimal
-  // coordinates, and an elevation comma embedded in every name — and the
-  // assertions are about parser behavior, not any particular peak's numbers.
-  describe('Custom (CSV) with example Bulger List data', () => {
-    const sample = [
-      "# The Bulger List — Washington's 100 highest peaks, ordered highest to lowest.",
-      '# into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name',
-      '',
-      '46.851731, -121.760395, 1. Mount Rainier (14,406 ft)',
-      '46.202494, -121.490746, 2. Mount Adams (12,280 ft)',
-      '48.111844, -121.114120, 5. Glacier Peak (10,550 ft)',
-      '48.507000, -120.488130, 22. Gardner Mountain (8,902 ft)',
-    ].join('\n')
+  // It reads examples/washington-bulger-list.csv itself, so the test follows the
+  // file a reader actually pastes rather than a hand-kept copy of a few rows.
+  describe('Custom (CSV) with the example Bulger List', () => {
+    const out = parseCustomCsv(bulgerCsv)
 
-    it('skips the "#" header and blank lines, keeping only the data rows', () => {
-      const out = parseCustomCsv(sample)
-      expect(out).toHaveLength(4)
+    it('reads all 100 peaks and skips the "#" headline', () => {
+      expect(out).toHaveLength(100)
       expect(out.some((d) => d.name.startsWith('#'))).toBe(false)
     })
 
     it('reads every data row as a finite coordinate pair', () => {
-      const out = parseCustomCsv(sample)
       expect(out.every((d) => Number.isFinite(d.latitude) && Number.isFinite(d.longitude))).toBe(true)
     })
 
-    it('keeps each name whole even though its elevation contains a comma', () => {
-      expect(parseCustomCsv(sample).map((d) => d.name)).toEqual([
-        '1. Mount Rainier (14,406 ft)',
-        '2. Mount Adams (12,280 ft)',
-        '5. Glacier Peak (10,550 ft)',
-        '22. Gardner Mountain (8,902 ft)',
-      ])
+    // The results table numbers its rows itself, so a list number in the name
+    // would read "1 23. Foobar Mountain".
+    it('names each peak without a list number', () => {
+      expect(out[0].name).toBe('Mount Rainier')
+      expect(out.filter((d) => /^\d+\.\s/.test(d.name))).toEqual([])
     })
   })
 })

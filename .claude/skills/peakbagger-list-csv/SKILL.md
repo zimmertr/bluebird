@@ -13,14 +13,14 @@ truncation.
 
 ```
 # <List Title> — ordered highest to lowest.
-# Source: peakbagger.com list <lid>. Coordinates (WGS84 decimal degrees, 6 places)
-# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
-# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
-46.851731, -121.760395, 1. Mount Rainier
+46.851731, -121.760395, Mount Rainier
 ```
 
-Four comment lines, then `Lat, Lon, N. Name`. The name carries **no** elevation: Bluebird Forecast
-matches each coordinate to its OSM peak and fills the Elevation column itself (issue #207),
+One comment line (the list's title) and nothing else, no source or format notes, then
+`Lat, Lon, Name` in the list's own order. The name carries **no** list number: Bluebird
+Forecast ranks the rows and numbers them itself, so a `23.` prefix shows up as
+`1 23. Foobar Mountain` in the results table. It carries **no** elevation either: Bluebird
+Forecast matches each coordinate to its OSM peak and fills the Elevation column itself (issue #207),
 so a figure here would only be a second number to disagree with the one on screen.
 
 ## The one thing that makes this hard
@@ -112,7 +112,7 @@ its `lid`, the target output path, the plausible lat/lon box for the region, an 
 python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/examples
 ```
 
-Derives the filename and header from the list title. Override with `--out name.csv` and
+Derives the filename and the headline from the list title. Override with `--out name.csv` and
 `--headline '# ...'`. It **refuses to write** if any peak lacks coordinates — a partial file is
 never acceptable, so report the gap instead of working around the guard.
 
@@ -126,8 +126,8 @@ python3 <SKILL_DIR>/scripts/verify_csv.py <lid> /path/to/examples/<slug>.csv \
 Exits non-zero and lists every problem. It cross-checks each row's **name against
 `peaks<lid>.json`** (not just the file's shape), so a coordinate bound to the wrong peak or a
 dropped row is caught, and uses the list page's own elevations to check that the rows run highest
-to lowest — plus row-count, 6-decimal formatting, gapless numbering, duplicate coordinate pairs,
-and the optional bounding box. The CSV itself carries no elevation to check.
+to lowest — plus row-count, 6-decimal formatting, duplicate coordinate pairs, and the optional
+bounding box. The CSV itself carries no elevation to check.
 
 Then spot-check two or three peaks against their peak pages by eye. Sanity anchor: Mount
 Rainier is `46.851731, -121.760395`.
@@ -150,14 +150,15 @@ Rainier is `46.851731, -121.760395`.
   peaks fail, stop and probe one by hand before burning retry rounds — check whether the page
   actually returns 200 and contains `WGS84`. That is how the ordering bug above was caught.
 
-- **Number by row position, not peakbagger's rank column.** That column contains ties and gaps
-  on some lists; `seq` in `peaks<lid>.json` is already the row position.
+- **Order by row position, not peakbagger's rank column.** That column contains ties and gaps
+  on some lists; `seq` in `peaks<lid>.json` is already the row position. Neither number goes
+  into the name.
 - **Elevation commas are the list page's, not the CSV's.** `peaks<lid>.json` stores `elev` as the
   page's string (`14,406`); `verify_csv.py` strips the commas to check the ordering. The CSV carries
   no elevation at all.
 - **Duplicate peak names are real.** Lists legitimately contain two "Granite Mountain" or two
-  "Red Mountain" at different elevations and pids. The `N.` prefix disambiguates them; do not
-  dedupe.
+  "Red Mountain" at different elevations and pids. Their coordinates tell them apart (Bluebird
+  Forecast keys a row by its coordinate, not its name); do not dedupe or rename them.
 - **A famous peak may be absent.** List 5045 ("100 Peaks at Mount Rainier N.P.") genuinely does
   not include Mount Rainier. Verify against the source before "correcting" an omission.
 - **Commas in names are safe.** Bluebird Forecast's Custom (CSV) parser splits on the first two commas

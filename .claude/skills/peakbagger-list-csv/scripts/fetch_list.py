@@ -54,7 +54,7 @@ def main():
         title = html.unescape(re.search(r'<title>(.*?)</title>', d, re.S | re.I).group(1))
         title = title.replace(' - Peakbagger.com', '').strip()
         peaks = [{
-            'seq': i,                                   # row position; use this for numbering
+            'seq': i,                                   # row position; use this for ordering
             'pb_rank': m.group(1).rstrip('.'),          # peakbagger's own rank (can tie/gap)
             'pid': int(m.group(2)),
             'name': html.unescape(re.sub(r'<[^>]+>', '', m.group(3))).strip(),
