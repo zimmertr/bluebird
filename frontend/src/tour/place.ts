@@ -48,8 +48,31 @@ export const SHEET_MAX_W = 720
  */
 export function sheetEdge(light: Box | null, cardHeight: number, viewportHeight: number): 'top' | 'bottom' {
   if (light === null) return 'bottom'
-  const band = viewportHeight - cardHeight - 2 * VIEWPORT_MARGIN
-  return light.top + light.height > band ? 'top' : 'bottom'
+  return light.top + light.height > sheetBand(cardHeight, viewportHeight) ? 'top' : 'bottom'
+}
+
+/** The line a spotlight's bottom may not pass for the sheet to keep the bottom edge. */
+function sheetBand(cardHeight: number, viewportHeight: number): number {
+  return viewportHeight - cardHeight - 2 * VIEWPORT_MARGIN
+}
+
+/**
+ * What a target placed on the map must keep clear of for the sheet to stay
+ * at the bottom, in the viewport's pixels: the card itself and the margin
+ * above it that `sheetEdge` reads, less the spotlight's pad, which the light
+ * adds around the target. Handed to the popup's fit as the card's obstacle
+ * rather than the card's own box, because a popup fitted only clear of the
+ * card left its light inside the band, and the card then jumped to the top
+ * edge and stood on the popup's title (measured on a 360x740 phone,
+ * 2026-10-08: the light's bottom at 565.5 against a band at 562, #678).
+ */
+export function sheetKeepOut(card: { left: number; right: number }, cardHeight: number, viewportHeight: number, pad: number) {
+  return {
+    left: card.left,
+    right: card.right,
+    top: sheetBand(cardHeight, viewportHeight) - pad,
+    bottom: viewportHeight - VIEWPORT_MARGIN,
+  }
 }
 
 /** Whether the card is a box beside its target or a sheet along the bottom. */

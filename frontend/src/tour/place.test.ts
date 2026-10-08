@@ -10,6 +10,7 @@ import {
   sectionBox,
   SHEET_MAX_W,
   sheetEdge,
+  sheetKeepOut,
   SPOTLIGHT_PAD,
   spotlight,
   unionBox,
@@ -53,6 +54,18 @@ describe('the sheet', () => {
     expect(sheetEdge({ top: 100, left: 0, width: 300, height: 40 }, 160, 800)).toBe('bottom')
     expect(sheetEdge({ top: 700, left: 0, width: 300, height: 40 }, 160, 800)).toBe('top')
     expect(sheetEdge(null, 160, 800)).toBe('bottom')
+  })
+
+  // The room a popup must leave the card (#678): a target ending at the
+  // keep-out's top lights up to the band and the card stays at the bottom;
+  // one pixel lower and it would move to the top, onto the target. The
+  // numbers are the 360x740 phone the tutorial was measured on.
+  it('keeps the card at the bottom for a target that stops at its keep-out', () => {
+    const keepOut = sheetKeepOut({ left: 16, right: 344 }, 146, 740, SPOTLIGHT_PAD)
+    expect(keepOut).toEqual({ left: 16, right: 344, top: 556, bottom: 724 })
+    const reaching = (bottom: number) => spotlight({ top: 160, left: 40, width: 280, height: bottom - 160 })
+    expect(sheetEdge(reaching(keepOut.top), 146, 740)).toBe('bottom')
+    expect(sheetEdge(reaching(keepOut.top + 1), 146, 740)).toBe('top')
   })
 })
 

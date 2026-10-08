@@ -2,7 +2,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
 import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
 import type { DemoReport } from './demoReport'
-import { cardMode } from './place'
+import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
 
 interface Args {
   isDesktop: boolean
@@ -158,11 +158,12 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   // The marker step cuts to the first demonstration row and opens its popup,
   // the same framing a click on its rank in the table makes but with no
   // flight: a tour that flies reads as the app doing something, and the
-  // reader waits on it. Two frames first, so a phone's sheet has collapsed
-  // and reported its height before the framing reads it. The framing is
+  // reader waits on it. Two frames first, so the results have collapsed and
+  // reported their height before the framing reads it. The framing is
   // handed the one thing over the map it cannot know about: this card,
-  // where it is a sheet along the screen's edge; the button column it finds
-  // for itself. The popup is taken down when the step is left, whichever
+  // where it is a sheet along the screen's edge, as the room the card needs
+  // to keep that edge (`sheetKeepOut`); the button column it finds for
+  // itself. The popup is taken down when the step is left, whichever
   // way it is left.
   const showingMarker = step?.reveal === 'marker'
   useEffect(() => {
@@ -171,7 +172,8 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
     let frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => {
         const card = cardMode(window.innerWidth) === 'sheet' ? document.querySelector('[data-tour-card]') : null
-        const avoid = card ? [card.getBoundingClientRect()] : []
+        const box = card?.getBoundingClientRect()
+        const avoid = box ? [sheetKeepOut(box, box.height, window.innerHeight, SPOTLIGHT_PAD)] : []
         map?.focusResult(demo.universe[0], { instant: true, avoid })
       })
     })
@@ -193,11 +195,13 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
     /** The results sheet shows this instead of the real report for its steps. */
     demo,
     /**
-     * On a phone the marker step collapses the sheet to its bar: the open
-     * sheet stands where the popup needs to be, and the table is a swipe away.
-     * On desktop the sheet is docked under the map and stays as it is.
+     * The marker step collapses the results to their bar at every width: on a
+     * phone the open sheet stands where the popup needs to be, and on a
+     * desktop the docked results leave the map about 400px on a 720px screen,
+     * shorter than the popup since snowfall joined it (#678). The table is a
+     * swipe or a chevron away.
      */
-    sheetCollapsed: showingMarker && !isDesktop ? true : null,
+    sheetCollapsed: showingMarker ? true : null,
     /** The chart's tooltip stands on this hour while the demonstration is up, or follows the mouse. */
     chartTooltipIndex: showingResults ? CHART_TOOLTIP_INDEX : null,
   }
