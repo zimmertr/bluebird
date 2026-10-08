@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { buildGrid, type GridCell, type GridSpec } from './forecastGridLattice'
-import { gridPaints, gridRaster } from './forecastGridRaster'
+import { gridRaster } from './forecastGridRaster'
 import { resultsFeatureCollection } from './resultFeatures'
-import { gridCell, gridRow } from '../testSupport/fixtures'
+import { gridCell, gridRow, series } from '../testSupport/fixtures'
 
 // A field of destinations, as coordinates — the only part of a result the
 // lattice reads.
@@ -89,16 +89,18 @@ function pixelHex(raster: { width: number; rgba: Uint8ClampedArray }, x = 0, y =
 }
 
 describe('gridRaster', () => {
-  // Snow depth is matched to a destination at discovery, which no lattice cell
-  // goes through, so the grid draws nothing under it, even over cells that
-  // happen to carry a number (#579). Every forecast family still paints.
-  it('draws no field under a ranking the grid cannot paint', () => {
+  // Every ranking paints since snowfall replaced snow depth (#678): snow depth
+  // was matched to a destination at discovery, which no lattice cell goes
+  // through, where snowfall is in every forecast a cell fetches.
+  it('paints a snowfall ranking like any other forecast family', () => {
     const spec = buildGrid(CASCADES, 25)!
-    const snowy = spec.points.map((_, i) => gridCell(spec.cells[i], gridRow({ snow_depth_in: 40 }), spec.indices[i]))
-    expect(gridPaints('snow_depth_in')).toBe(false)
-    expect(gridRaster(spec, snowy, 'snow_depth_in', null)).toBeNull()
-    expect(gridPaints('temp_avg_f')).toBe(true)
-    expect(gridPaints('precip_total_in')).toBe(true)
+    const snowy = spec.points.map((_, i) =>
+      gridCell(spec.cells[i], gridRow({ snowfall_total_in: 4 }), spec.indices[i]),
+    )
+    const raster = gridRaster(spec, snowy, 'snowfall_total_in', null)!
+    expect(raster).not.toBeNull()
+    const marker = resultsFeatureCollection([gridRow({ snowfall_total_in: 4 })], 'snowfall_total_in')
+    expect(pixelHex(raster)).toBe(marker.features[0].properties!.color)
   })
 
   it('is one pixel per sample, the lattice\'s own shape', () => {
@@ -178,7 +180,7 @@ describe('gridRaster', () => {
     // which read different scales.
     const row = gridRow({
       precip_total_in: 0.3,
-      series: { precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], freeze_ft: [9000, 9500], aqi: [10, 20] },
+      series: series({ precip_in: [0, 0.4], temp_f: [40, 60], wind_mph: [1, 9], freeze_ft: [9000, 9500], aqi: [10, 20] }),
     })
     const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]
     for (const hour of [null, 0, 1]) {

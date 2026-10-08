@@ -27,12 +27,9 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
 
   // The metric follows each new ranking; a same-ranking refresh leaves a
-  // manually chosen metric alone (the dep is the value, not the report). A
-  // ranking the chart cannot draw leaves it alone too, which is what the
-  // updater form is for: `metricForSort` is handed what is on screen, so a
-  // snow ranking keeps the reader's last metric rather than resetting it.
+  // manually chosen metric alone (the dep is the value, not the report).
   useEffect(() => {
-    setMetric((current) => metricForSort(sortBy, current))
+    setMetric(metricForSort(sortBy))
   }, [sortBy])
 
   // Debut rule, applied whenever the displayed set changes (live state is read

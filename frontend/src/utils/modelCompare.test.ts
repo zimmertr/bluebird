@@ -181,6 +181,7 @@ describe('modelSeriesOnGrid', () => {
     temp_f: [30, 31],
     wind_mph: [5, 6],
     freeze_ft: [8000, 8100],
+    snowfall_in: [0, 0.4],
   }
 
   it('re-indexes a clamped fetch onto the chart’s grid', () => {
@@ -189,6 +190,8 @@ describe('modelSeriesOnGrid', () => {
     expect(series.temp_f).toEqual([null, 30, 31, null])
     expect(series.wind_mph).toEqual([null, 5, 6, null])
     expect(series.freeze_ft).toEqual([null, 8000, 8100, null])
+    // Each model's own snowfall, so it compares where snow depth could not.
+    expect(series.snowfall_in).toEqual([null, 0, 0.4, null])
   })
 
   // Air quality has one model, so there is no second answer to draw.
@@ -244,6 +247,7 @@ describe('compareSeries', () => {
       temp_f: values,
       wind_mph: values,
       freeze_ft: values,
+      snowfall_in: values,
       aqi: values.map(() => null),
     }
   }

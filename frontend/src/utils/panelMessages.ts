@@ -77,11 +77,6 @@ function blockerText(
       // control in the panel: the reader can see the one the sentence is
       // about (TJ, 2026-09-14).
       return `${NOUN.freeze} data is not available for ${listPhrase(freezeGaps)}.`
-    case 'compare-snow':
-      // The air-quality line's twin, and for the same reason: one source
-      // answers whatever model ranks the field, so there is nothing for a
-      // second chip to draw (TJ, 2026-09-22).
-      return `${NOUN.snow} is retrieved independently of the model and cannot be compared.`
   }
 }
 

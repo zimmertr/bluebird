@@ -4,7 +4,6 @@ import { CLOSURE_KEY, ColDef, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './table
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
 import { isUnavailableKey, unavailableCellText } from './unavailableCell'
-import { isSnowDepthKey, snowCellText } from './snowCeiling'
 
 /**
  * A marker popup's body, derived from the columns the results table is showing
@@ -61,11 +60,10 @@ export type PopupIdentity = {
  * The value a column reads on a row, formatted exactly as the table's cell
  * formats it.
  *
- * Two metrics can be empty for a reason that is not the weather — the model
- * publishes no freezing level, or the destination is outside the snow grid.
- * Both keep the table's N/A mark rather than the dash a genuinely missing hour
- * gets, and neither carries a link: a mark saying a number was never available
- * has nothing for Windy to show.
+ * One metric can be empty for a reason that is not the weather — the model
+ * publishes no freezing level. It keeps the table's N/A mark rather than the
+ * dash a genuinely missing hour gets, and carries no link: a mark saying a
+ * number was never available has nothing for Windy to show.
  */
 function cellText(col: ColDef, row: DestinationResult): { text: string; linkable: boolean } {
   const raw = row[col.key as keyof DestinationResult]
@@ -79,10 +77,6 @@ function cellText(col: ColDef, row: DestinationResult): { text: string; linkable
   // table's own cell draws. The link stays, matching the table, which links a
   // cell by its column rather than by whether the hour had a value.
   if (raw == null) return { text: '—', linkable: true }
-  // The table's "at least" mark, for the same reason and with the same link:
-  // the row is still a real destination with a real depth under it.
-  const clipped = isSnowDepthKey(col.key as string) ? snowCellText(raw) : null
-  if (clipped !== null) return { text: clipped, linkable: true }
   return { text: col.format ? col.format(raw) : String(raw), linkable: true }
 }
 
@@ -90,10 +84,10 @@ function cellText(col: ColDef, row: DestinationResult): { text: string; linkable
  * The heading a family's values sit under.
  *
  * The unit goes on the heading when every visible column in the group reports
- * in the same one, and on each value when they do not. Precipitation is the
- * only family that splits: its window total is inches and its other three
- * columns are a rate, so a shared unit on the heading would be wrong for three
- * values out of four (TJ, 2026-09-14).
+ * in the same one, and on each value when they do not. Precipitation and
+ * snowfall split: each window total is inches and the other three columns are
+ * a rate, so a shared unit on the heading would be wrong for three values out
+ * of four (TJ, 2026-09-14; snowfall since #678).
  */
 function groupUnit(cols: ColDef[]): string | null {
   const units = cols.map((c) => c.unit ?? '')

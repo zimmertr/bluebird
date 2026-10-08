@@ -172,8 +172,8 @@ export const ELEVATION_COL: ColDef = {
 }
 
 /**
- * A row whose place has no recorded elevation reads its wind, temperature,
- * cloud deck and snow depth at the terrain height Open-Meteo resolves for the
+ * A row whose place has no recorded elevation reads its wind, temperature and
+ * cloud deck at the terrain height Open-Meteo resolves for the
  * coordinate (`terrainFallbackFor` and the analysis's `terrainElevation` in
  * openMeteo.ts), and its Elevation cell shows that height rather than a blank
  * over numbers read somewhere, with the mark raised beside it and the note
@@ -196,11 +196,13 @@ export function readAtTerrainHeight(row: DestinationResult): boolean {
  * Precipitation's other unit.
  *
  * The family reports a window TOTAL in inches and its three other columns as a
- * rate, so it is the one family whose columns do not share a unit. Named here
+ * rate, so its columns do not share a unit (nor do snowfall's, below). Named here
  * because four column definitions and the popup's grouping rule all have to
  * agree on the spelling.
  */
 const PRECIP_RATE = 'in/hr'
+// Snowfall's, for the same reason: a total over the window and three rates.
+const SNOWFALL_RATE = `${UNIT.snowfall}/hr`
 
 export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
@@ -237,17 +239,16 @@ export const COLUMNS: ColDef[] = [
   { key: 'freeze_min_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
   { key: 'freeze_max_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
   { key: 'freeze_avg_ft', unit: UNIT.freeze, label: metricLabel('freeze', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'deg0' },
-  // Today's depth, and the one column that is not a reading of the analyzed
-  // window (#449). It sits where the ranked-group lift and the family order
-  // would put it anyway — after the freezing level's group, ahead of the AQI
-  // columns — because `orderColumns` moves whichever group is ranked to the
-  // front and leaves the rest in this file's order. Whole inches, grouped like
-  // the elevation column beside which it is read: the grid resolves 1 km, and
-  // a tenth of an inch on a summit would be a precision nothing measured.
-  // Null is the row outside the grid or the pod with no grid, and both
-  // surfaces draw it as N/A — never the dash a missing hour gets. Windy's own
-  // name for the layer is `snowcover`.
-  { key: 'snow_depth_in', unit: UNIT.snow, label: metricLabel('snow'), format: (v) => (v != null ? Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'), csv: (v) => String(v), csvNull: UNAVAILABLE, windyLayer: 'snowcover' },
+  // New snow over the window (#678), shaped like precipitation's group: a
+  // total in inches, three rates in inches per hour, at precipitation's
+  // digits. A null is an hour the forecast left blank (HRRR past its hour 45),
+  // so it draws the dash a missing hour gets. Windy's layer is its new-snow
+  // accumulation, `snowAccu` (read off a live Windy tab 2026-10-07: the token
+  // whose `trans` is NEWSNOW, and the URL rewrites to /-New-snow-snowAccu).
+  { key: 'snowfall_total_in', unit: UNIT.snowfall, label: metricLabel('snowfall', AGGREGATE.total, UNIT.snowfall), format: formatPrecipTotal, windyLayer: 'snowAccu' },
+  { key: 'snowfall_avg_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.average, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
+  { key: 'snowfall_min_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.minimum, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
+  { key: 'snowfall_max_in_hr', unit: SNOWFALL_RATE, label: metricLabel('snowfall', AGGREGATE.maximum, SNOWFALL_RATE), format: formatPrecipRate, windyLayer: 'snowAccu' },
   { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
@@ -299,11 +300,7 @@ const POINT_LABELS: Record<string, string> = {
   temp_avg_f: metricLabel('temp'),
   wind_avg_mph: metricLabel('wind'),
   freeze_avg_ft: metricLabel('freeze'),
-  // A snapshot has nothing to collapse: it was one column and one label in
-  // window mode too. It is listed rather than left out because this map is
-  // also what decides which columns a point sample KEEPS, and a metric absent
-  // from it disappears from the narrow table.
-  snow_depth_in: metricLabel('snow'),
+  snowfall_avg_in_hr: metricLabel('snowfall', undefined, SNOWFALL_RATE),
   aqi_avg: metricLabel('aqi'),
   cloud_deck_avg_ft: metricLabel('cloud_deck'),
 }

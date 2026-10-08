@@ -84,32 +84,32 @@ describe('filterConstraints', () => {
     ])
   })
 
-  // Both ends read one field, and for a third reason: today\'s depth is a
-  // single reading rather than a reduction over hours, so there is no best or
-  // worst hour to choose between (#449).
-  it('bounds snow depth on today\'s one number', () => {
+  // Both ends read the window total, as precipitation's do: snowfall has no
+  // minimum aggregate worth reading, and a floor is the powder a skier wants
+  // where a ceiling is the snow a hiker wants to miss (#678).
+  it('bounds snowfall on the window total at both ends', () => {
     const rows = [
-      boundRow('bare', { snow_depth_in: 0 }),
-      boundRow('deep', { snow_depth_in: 42 }),
+      boundRow('dry', { snowfall_total_in: 0, snowfall_max_in_hr: 0 }),
+      boundRow('dump', { snowfall_total_in: 14, snowfall_max_in_hr: 2.1 }),
     ]
-    expect(filterConstraints(rows, bounded({ minSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
-      'deep',
+    expect(filterConstraints(rows, bounded({ minSnowfallTotalIn: 6 })).map((r) => r.name)).toEqual([
+      'dump',
     ])
-    expect(filterConstraints(rows, bounded({ maxSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
-      'bare',
+    expect(filterConstraints(rows, bounded({ maxSnowfallTotalIn: 6 })).map((r) => r.name)).toEqual([
+      'dry',
     ])
   })
 
-  // A row outside the grid, or every row while the pod holds no grid. The
-  // absence says where the destination is, not what is on the ground.
-  it('passes a row with no snow depth through either bound', () => {
-    const rows = [boundRow('outside', {}), boundRow('deep', { snow_depth_in: 42 })]
-    expect(filterConstraints(rows, bounded({ minSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
-      'outside',
-      'deep',
+  // A model that left the window's hours blank answers no total, and the
+  // absence says nothing about the snow, so the row passes either bound.
+  it('passes a row with no snowfall through either bound', () => {
+    const rows = [boundRow('blank', { snowfall_total_in: null }), boundRow('dump', { snowfall_total_in: 14 })]
+    expect(filterConstraints(rows, bounded({ minSnowfallTotalIn: 6 })).map((r) => r.name)).toEqual([
+      'blank',
+      'dump',
     ])
-    expect(filterConstraints(rows, bounded({ maxSnowDepthIn: 12 })).map((r) => r.name)).toEqual([
-      'outside',
+    expect(filterConstraints(rows, bounded({ maxSnowfallTotalIn: 6 })).map((r) => r.name)).toEqual([
+      'blank',
     ])
   })
 

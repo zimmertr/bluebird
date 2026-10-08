@@ -349,6 +349,7 @@ describe('pairCells', () => {
         temp_f: [40, 60],
         wind_mph: [1, 9],
         freeze_ft: [9000, 9500],
+        snowfall_in: [0, 0],
         wind_dir_deg: [90, 270],
       },
     })

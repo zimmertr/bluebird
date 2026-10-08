@@ -52,6 +52,7 @@ const full: ShareableState = {
     wind: 'wind_max_mph',
     temp: 'temp_max_f',
     precip: 'precip_avg_in_hr',
+    snowfall: 'snowfall_max_in_hr',
     aqi: 'aqi_max',
     cloud_deck: 'cloud_deck_max_ft',
   },
@@ -64,8 +65,8 @@ const full: ShareableState = {
     maxWindMph: 30,
     minFreezeFt: 4000,
     maxFreezeFt: 12000,
-    minSnowDepthIn: 2,
-    maxSnowDepthIn: 80,
+    minSnowfallTotalIn: 2,
+    maxSnowfallTotalIn: 80,
     minAqi: 0,
     maxAqi: 50,
     minCloudDeckFt: 3000,
@@ -137,11 +138,11 @@ const dateless: ShareableState = {
 describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
-      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&temp=max' +
+      'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&snowfall=max&temp=max' +
         '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
-        '&minfreeze=4000&maxfreeze=12000&minsnow=2&maxsnow=80&minaqi=0&maxaqi=50' +
+        '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minaqi=0&maxaqi=50' +
         '&minclouddeck=3000&maxclouddeck=15000' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
         '&customz=HIQwtgpgNAMiAusD2A7AUAQQAQAcIgGsoAWANgDoAOAVigFoBGAJgfIHZS0g' +
@@ -169,6 +170,18 @@ describe('the codec table against the links it wrote before', () => {
   it.each(golden.links)('reads "$q" as it did', ({ q, dec }) => {
     expect(decodeState(q)).toEqual(dec)
   })
+
+  // Snow depth left the ranking in #678. A link sent before then ranked on it
+  // or bounded it, and must still open: on the default ranking, with the old
+  // bounds read as nothing and the rest of the link kept.
+  it('opens a link ranked on snow depth with the default ranking', () => {
+    const out = decodeState('sort=snow_depth_in&desc=1&minsnow=2&maxsnow=80&limit=50&snow=1')
+    expect(out).not.toBeNull()
+    expect(out?.sortBy).toBeUndefined()
+    expect(out?.rowKeys).toBeUndefined()
+    expect(out?.constraints).toBeUndefined()
+    expect(out).toMatchObject({ sortDesc: true, limit: 50, showSnow: true })
+  })
 })
 
 describe('the codec table', () => {
@@ -186,6 +199,7 @@ describe('the codec table', () => {
       'cloud_deck',
       'freeze',
       'precip',
+      'snowfall',
       'temp',
       'wind',
       'limit',
@@ -204,8 +218,8 @@ describe('the codec table', () => {
       'maxwind',
       'minfreeze',
       'maxfreeze',
-      'minsnow',
-      'maxsnow',
+      'minsnowfall',
+      'maxsnowfall',
       'minaqi',
       'maxaqi',
       'minclouddeck',

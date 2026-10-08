@@ -40,6 +40,10 @@ const KEYS = COLUMNS.map((c) => c.key)
 // #670), last in the canonical order.
 const CLOUD_KEYS = ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft']
 
+// Snowfall's four (#678), in precipitation's shape, where the snow depth
+// column stood.
+const SNOWFALL_KEYS = ['snowfall_total_in', 'snowfall_avg_in_hr', 'snowfall_min_in_hr', 'snowfall_max_in_hr'] as const
+
 const keys = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy).map((c) => c.key)
 
 const METRICS: SortBy[] = [
@@ -47,7 +51,7 @@ const METRICS: SortBy[] = [
   'wind_avg_mph',
   'temp_avg_f',
   'freeze_min_ft',
-  'snow_depth_in',
+  'snowfall_total_in',
   'aqi_avg',
 ]
 
@@ -64,9 +68,8 @@ describe('COLUMNS', () => {
   // the value the API uses rather than the one the table title-cases for
   // reading. Adding a third means a file cell changed shape.
   // Elevation is the first case — a grouped number puts a comma inside a
-  // comma-separated cell — and the three freezing-level columns and the snow
-  // depth are the same case for the same reason, being grouped numbers
-  // formatted the same way.
+  // comma-separated cell — and the three freezing-level columns are the same
+  // case for the same reason, being grouped numbers formatted the same way.
   it('overrides the display formatter for exactly the columns that need it', () => {
     expect(COLUMNS.filter((c) => c.csv).map((c) => c.key)).toEqual([
       'type',
@@ -74,7 +77,6 @@ describe('COLUMNS', () => {
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
-      'snow_depth_in',
       'cloud_deck_min_ft',
       'cloud_deck_max_ft',
       'cloud_deck_avg_ft',
@@ -87,14 +89,12 @@ describe('COLUMNS', () => {
   // app that could say so. So the three declare the mark the screen uses and
   // nothing else does.
   it('declares a file mark for exactly the columns that can be unavailable', () => {
-    // The two metrics whose cells can be empty for a reason that is not the
-    // weather: the model publishes no freezing level, or the destination is
-    // outside the snow grid.
+    // The one metric whose cells can be empty for a reason that is not the
+    // weather: the model publishes no freezing level.
     expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
-      'snow_depth_in',
     ])
     for (const col of COLUMNS.filter((c) => c.csvNull)) {
       expect(col.csvNull).toBe(UNAVAILABLE)
@@ -109,12 +109,25 @@ describe('COLUMNS', () => {
     expect(layers.get('freeze_min_ft')).toBe('deg0')
     expect(layers.get('freeze_max_ft')).toBe('deg0')
     expect(layers.get('freeze_avg_ft')).toBe('deg0')
-    // Windy's own name for snow on the ground (TJ, 2026-09-22).
-    expect(layers.get('snow_depth_in')).toBe('snowcover')
+    // Windy's new-snow accumulation, read off a live Windy tab on 2026-10-07
+    // (#678): the token whose name Windy shows as "New snow".
+    for (const key of SNOWFALL_KEYS) expect(layers.get(key)).toBe('snowAccu')
     for (const col of COLUMNS) {
       if (LEAD.has(col.key as string)) continue
       expect(col.windyLayer, `${col.key} links to no layer`).toBeTruthy()
     }
+  })
+})
+
+// The window-mode headers are composed from metrics.ts like every other
+// family's, precipitation's shape on snowfall's noun (#678).
+describe('the snowfall headers', () => {
+  it('reads a total in inches and three rates in inches per hour', () => {
+    const labels = new Map(COLUMNS.map((c) => [c.key, c.label]))
+    expect(labels.get('snowfall_total_in')).toBe(`Snowfall ${SEP} Total (in)`)
+    expect(labels.get('snowfall_avg_in_hr')).toBe(`Snowfall ${SEP} Avg (in/hr)`)
+    expect(labels.get('snowfall_min_in_hr')).toBe(`Snowfall ${SEP} Min (in/hr)`)
+    expect(labels.get('snowfall_max_in_hr')).toBe(`Snowfall ${SEP} Max (in/hr)`)
   })
 })
 
@@ -144,7 +157,7 @@ describe('orderColumns', () => {
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
-      'snow_depth_in',
+      ...SNOWFALL_KEYS,
       ...CLOUD_KEYS,
     ])
   })
@@ -167,7 +180,7 @@ describe('orderColumns', () => {
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
-      'snow_depth_in',
+      ...SNOWFALL_KEYS,
       'aqi_avg',
       'aqi_min',
       'aqi_max',
@@ -207,9 +220,8 @@ describe('pointModeColumns', () => {
       'temp_avg_f',
       'wind_avg_mph',
       'freeze_avg_ft',
-      // A snapshot has nothing to collapse: it was one column in window mode
-      // and is the same column here, under the same label (#449).
-      'snow_depth_in',
+      // Collapsed onto its rate, as precipitation is (#678).
+      'snowfall_avg_in_hr',
       'aqi_avg',
       'cloud_deck_avg_ft',
     ])
@@ -221,7 +233,7 @@ describe('pointModeColumns', () => {
     expect(labels.get('temp_avg_f')).toBe('Temperature (°F)')
     expect(labels.get('wind_avg_mph')).toBe('Wind (mph)')
     expect(labels.get('freeze_avg_ft')).toBe('Freezing level (ft)')
-    expect(labels.get('snow_depth_in')).toBe('Snow depth (in)')
+    expect(labels.get('snowfall_avg_in_hr')).toBe('Snowfall (in/hr)')
     expect(labels.get('aqi_avg')).toBe('AQI')
     expect(labels.get('cloud_deck_avg_ft')).toBe('Cloud deck (ft)')
     // No aggregate means no separator to hang one off.
@@ -240,7 +252,7 @@ describe('pointModeColumns', () => {
       'temp_avg_f',
       'wind_avg_mph',
       'freeze_avg_ft',
-      'snow_depth_in',
+      'snowfall_avg_in_hr',
       'cloud_deck_avg_ft',
     ])
   })
@@ -363,14 +375,16 @@ describe('WILDFIRE_COL', () => {
 
 // #673: the cells a row cannot print until its elevation lookup answers.
 describe('heightDependentKey', () => {
-  it('names the elevation and every wind, temperature, cloud and snow column', () => {
-    for (const key of ['elevation_ft', 'wind_max_mph', 'temp_min_f', 'cloud_deck_avg_ft', 'snow_depth_in']) {
+  it('names the elevation and every wind, temperature and cloud column', () => {
+    for (const key of ['elevation_ft', 'wind_max_mph', 'temp_min_f', 'cloud_deck_avg_ft']) {
       expect(heightDependentKey(key)).toBe(true)
     }
   })
 
   it('leaves the identity, the flag columns and the metrics that stand at no elevation', () => {
-    for (const key of ['name', 'type', 'precip_total_in', 'aqi_max', 'freeze_min_ft', WILDFIRE_KEY, CLOSURE_KEY, MODEL_KEY]) {
+    // Snowfall is the cell's surface value at the destination, like the rain
+    // (#678), where the snow depth it replaced was read at the elevation.
+    for (const key of ['name', 'type', 'precip_total_in', 'snowfall_total_in', 'aqi_max', 'freeze_min_ft', WILDFIRE_KEY, CLOSURE_KEY, MODEL_KEY]) {
       expect(heightDependentKey(key)).toBe(false)
     }
   })

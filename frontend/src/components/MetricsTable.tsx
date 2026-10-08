@@ -28,7 +28,6 @@ import {
   RANKED_FAMILIES,
   UNIT,
   familyOf,
-  isSnapshotFamily,
   windowAggregate,
 } from '../metrics'
 import { Constraints, hasConstraints } from '../utils/clientAnalyze'
@@ -61,9 +60,9 @@ const EDGES = [
 // they are: the wind, temperature and freezing-level rows bound each row's own
 // extremes, so a ceiling of 20 on the wind row holds the table's gustiest-hour
 // column at or below 20. Two cells stretch that reading, deliberately.
-// Precipitation is bounded on the window TOTAL in both columns, because a
-// per-hour floor would be 0.000 almost everywhere and the noun already means
-// the total in its aggregate dropdown. And the air-quality floor reads the
+// Precipitation and snowfall are bounded on the window TOTAL in both columns,
+// because a per-hour floor would be 0.000 almost everywhere and the noun
+// already means the total in its aggregate dropdown. And the air-quality floor reads the
 // worst hour too, there being no other aggregate to read.
 //
 // The hint is the accessible name's second sentence: a floor reads the window's
@@ -116,14 +115,15 @@ const BOUNDS: Record<
     lower: 'minFreezeFt',
     upper: 'maxFreezeFt',
   },
-  snow: {
-    id: 'snow-depth',
-    step: 1,
-    // No aggregate to name at either end: the row bounds today's one number,
-    // which is why it is also the row with no dropdown beside it.
-    hint: ["Today's depth must be at least this.", "Today's depth must be at most this."],
-    lower: 'minSnowDepthIn',
-    upper: 'maxSnowDepthIn',
+  // Precipitation's sentences word for word, because it bounds the same
+  // thing: the window total at both ends (#678). A tenth of an inch per step
+  // rather than a hundredth, because snow is reported in tenths.
+  snowfall: {
+    id: 'snowfall',
+    step: 0.1,
+    hint: ['The total over the window must be at least this.', 'The total over the window must be at most this.'],
+    lower: 'minSnowfallTotalIn',
+    upper: 'maxSnowfallTotalIn',
   },
   // The cloud row reuses the freezing level's sentences word for word,
   // because it bounds the same thing: a floor on the window's lowest hour and
@@ -356,15 +356,7 @@ export default function MetricsTable({
                 />
                 <span className="truncate">{NOUN[family]}</span>
               </label>
-              {!pointSample && isSnapshotFamily(family) && (
-                // A snapshot has one column, so there is nothing to choose
-                // between and no dropdown to choose it with. The cell
-                // stays, empty: the grid's four tracks are what line the
-                // bound boxes up with the section above, and a row that
-                // spanned two of them would pull its boxes out of column.
-                <div aria-hidden="true" />
-              )}
-              {!pointSample && !isSnapshotFamily(family) && (
+              {!pointSample && (
                 // flex, not block: an inline-level select in a block
                 // wrapper reserves baseline descender space below itself,
                 // which read as the dropdown sitting ~1px lower than the

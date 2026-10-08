@@ -1,7 +1,6 @@
 import type { AnalyzedView } from '../hooks/analyzeTypes'
 import { analyzedSnapshot, resultRow, series } from '../testSupport/fixtures'
 import type { AnalyzeResponse, DestinationResult } from '../types'
-import { SNOW_DEPTH_CEILING_IN } from '../utils/snowCeiling'
 
 /**
  * The report the tutorial's last step shows (#536). A first-visit tour runs
@@ -37,16 +36,16 @@ interface Summit {
   aqi: [number, number]
   /** The freezing level over the window, in feet, lowest and highest hour. */
   freeze: [number, number]
-  /** Snow on the ground today, in inches; the ceiling on a glaciated summit, as SNODAS reads one. */
-  snow: number
+  /** New snow over the window, in inches: at most ten times the precipitation. */
+  snowfall: number
 }
 
 const SUMMITS: Summit[] = [
-  { name: 'Mount Baker', latitude: 48.7768, longitude: -121.8144, elevation_ft: 10781, precip: 0, temp: [21, 34], wind: [12, 26], aqi: [18, 24], freeze: [9800, 11400], snow: SNOW_DEPTH_CEILING_IN },
-  { name: 'Glacier Peak', latitude: 48.1125, longitude: -121.1138, elevation_ft: 10541, precip: 0.02, temp: [24, 36], wind: [10, 22], aqi: [22, 31], freeze: [10000, 11600], snow: 640 },
-  { name: 'Mount Stuart', latitude: 47.4751, longitude: -120.9026, elevation_ft: 9415, precip: 0, temp: [31, 47], wind: [8, 15], aqi: [35, 52], freeze: [10400, 12000], snow: 4 },
-  { name: 'Mount Adams', latitude: 46.2024, longitude: -121.4909, elevation_ft: 12281, precip: 0.11, temp: [19, 30], wind: [18, 34], aqi: [58, 96], freeze: [9600, 11200], snow: 210 },
-  { name: 'Mount St. Helens', latitude: 46.1914, longitude: -122.1956, elevation_ft: 8363, precip: 0.24, temp: [33, 44], wind: [14, 29], aqi: [71, 118], freeze: [9900, 11500], snow: 0 },
+  { name: 'Mount Baker', latitude: 48.7768, longitude: -121.8144, elevation_ft: 10781, precip: 0, temp: [21, 34], wind: [12, 26], aqi: [18, 24], freeze: [9800, 11400], snowfall: 0 },
+  { name: 'Glacier Peak', latitude: 48.1125, longitude: -121.1138, elevation_ft: 10541, precip: 0.02, temp: [24, 36], wind: [10, 22], aqi: [22, 31], freeze: [10000, 11600], snowfall: 0.2 },
+  { name: 'Mount Stuart', latitude: 47.4751, longitude: -120.9026, elevation_ft: 9415, precip: 0, temp: [31, 47], wind: [8, 15], aqi: [35, 52], freeze: [10400, 12000], snowfall: 0 },
+  { name: 'Mount Adams', latitude: 46.2024, longitude: -121.4909, elevation_ft: 12281, precip: 0.11, temp: [19, 30], wind: [18, 34], aqi: [58, 96], freeze: [9600, 11200], snowfall: 1.1 },
+  { name: 'Mount St. Helens', latitude: 46.1914, longitude: -122.1956, elevation_ft: 8363, precip: 0.24, temp: [33, 44], wind: [14, 29], aqi: [71, 118], freeze: [9900, 11500], snowfall: 0.6 },
 ]
 
 export function demoReport(now = Date.now()): DemoReport {
@@ -64,6 +63,7 @@ export function demoReport(now = Date.now()): DemoReport {
     const wind = ramp(s.wind[0], s.wind[1])
     const aqi = ramp(s.aqi[0], s.aqi[1])
     const perHour = s.precip / HOURS
+    const snowPerHour = s.snowfall / HOURS
     return resultRow({
       name: s.name,
       latitude: s.latitude,
@@ -88,12 +88,16 @@ export function demoReport(now = Date.now()): DemoReport {
       freeze_min_ft: s.freeze[0],
       freeze_max_ft: s.freeze[1],
       freeze_avg_ft: Math.round((s.freeze[0] + s.freeze[1]) / 2),
-      snow_depth_in: s.snow,
+      snowfall_total_in: s.snowfall,
+      snowfall_avg_in_hr: Math.round(snowPerHour * 1000) / 1000,
+      snowfall_min_in_hr: 0,
+      snowfall_max_in_hr: Math.round(snowPerHour * 4 * 1000) / 1000,
       series: series({
         precip_in: times.map((_, i) => (i % 4 === 3 ? Math.round(perHour * 4 * 1000) / 1000 : 0)),
         temp_f: temp,
         wind_mph: wind,
         freeze_ft: ramp(s.freeze[0], s.freeze[1]).map(Math.round),
+        snowfall_in: times.map((_, i) => (i % 4 === 3 ? Math.round(snowPerHour * 4 * 1000) / 1000 : 0)),
         aqi: aqi.map(Math.round),
       }),
     })

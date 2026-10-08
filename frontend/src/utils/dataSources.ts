@@ -111,8 +111,7 @@ export const DATA_SOURCES: readonly DataSource[] = [
   {
     name: 'NOAA NOHRSC',
     href: 'https://www.nohrsc.noaa.gov/nsa/',
-    provides:
-      'Snow depth from the National Snow Analysis, for the optional snow overlay and the snow depth metric.',
+    provides: 'Snow depth from the National Snow Analysis, for the optional snow overlay.',
   },
   {
     name: 'US Forest Service',

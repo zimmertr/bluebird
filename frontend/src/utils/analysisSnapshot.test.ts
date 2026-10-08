@@ -18,7 +18,6 @@ const REQUEST: AnalyzeRequest = {
 const FACTS: RecordedFacts = {
   discovery: discoveryKeys(REQUEST.polygon, REQUEST.destination_types, false),
   compareModels: ['icon_seamless'],
-  snowAnalysisDate: '2026-07-20',
 }
 const NOW = Date.parse('2026-07-20T12:00:00Z')
 
@@ -47,7 +46,6 @@ describe('analyzedView', () => {
       polygonKey: FACTS.discovery.polygonKey,
       typesKey: FACTS.discovery.typesKey,
       compareModels: ['icon_seamless'],
-      snowAnalysisDate: '2026-07-20',
     })
   })
 

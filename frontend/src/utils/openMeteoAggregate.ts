@@ -114,6 +114,12 @@ export interface WeatherAggregates {
   freeze_min_ft: number | null
   freeze_max_ft: number | null
   freeze_avg_ft: number | null
+  // Nullable for the freezing level's reason, one step removed: every model
+  // publishes snowfall, but HRRR answers null past its hour 45 (#678).
+  snowfall_total_in: number | null
+  snowfall_avg_in_hr: number | null
+  snowfall_min_in_hr: number | null
+  snowfall_max_in_hr: number | null
 }
 
 export interface WeatherSeries {
@@ -122,6 +128,7 @@ export interface WeatherSeries {
   temp_f: (number | null)[]
   wind_mph: (number | null)[]
   freeze_ft: (number | null)[]
+  snowfall_in: (number | null)[]
   /**
    * Wind bearing per hour, for the map's playback arrows (#121).
    *
@@ -161,6 +168,7 @@ export interface HourlyPayload {
     wind_speed_10m?: (number | null)[]
     wind_direction_10m?: (number | null)[]
     freezing_level_height?: (number | null)[]
+    snowfall?: (number | null)[]
     wind_speed_925hPa?: (number | null)[]
     wind_speed_850hPa?: (number | null)[]
     wind_speed_700hPa?: (number | null)[]
@@ -244,6 +252,11 @@ export const FT_TO_M = 0.3048
 // the factor between them is 3.28 and a freezing level 3.28 times too high is
 // a plausible-looking altitude rather than an obvious fault.
 const FREEZING_LEVEL = 'freezing_level_height'
+// Port of aggregation._SNOWFALL: new snow per hour (#678), in the unit
+// `precipitation_unit` selects, so inches here. Every model and the archive
+// serve it (measured 2026-10-07); it is reduced outside the metrics loop for
+// the freezing level's reason.
+const SNOWFALL = 'snowfall'
 
 // The hourly variables every weather request asks for. Spelled once because it
 // is three things: what a request asks for, which arrays a joined half-window
@@ -256,6 +269,7 @@ export const HOURLY_VARIABLES = [
   'wind_speed_10m',
   'wind_direction_10m',
   FREEZING_LEVEL,
+  SNOWFALL,
   ...WIND_LEVELS.map(([name]) => name),
   ...TEMP_LEVELS.map(([name]) => name),
 ] as const
@@ -269,6 +283,7 @@ export const HOURLY_VARIABLES = [
 // `freezeToFeet` converts it.
 const DECLARED_UNITS: Readonly<Record<string, string>> = {
   precipitation: 'inch',
+  [SNOWFALL]: 'inch',
   temperature_2m: '°F',
   wind_speed_10m: 'mp/h',
   ...Object.fromEntries(WIND_LEVELS.map(([name]) => [name, 'mp/h'])),
@@ -501,6 +516,29 @@ function freezeFtInWindow(
   return out
 }
 
+// Port of aggregation._snowfall_in_window: every in-window hour that HAS a
+// snowfall, in inches. Its own pass for `freezeFtInWindow`'s reason; no unit
+// conversion, because `checkUnits` has already refused any column not
+// declared in inches.
+function snowfallInWindow(
+  hourly: NonNullable<HourlyPayload['hourly']>,
+  startMs: number,
+  endMs: number,
+): number[] {
+  const times = hourly.time ?? []
+  const snowfall = hourly[SNOWFALL] ?? []
+  const out: number[] = []
+  const n = Math.min(times.length, snowfall.length)
+  for (let i = 0; i < n; i++) {
+    const v = snowfall[i]
+    if (v == null) continue
+    const t = parseTs(times[i])
+    if (t === null || t < startMs || t > endMs) continue
+    out.push(v)
+  }
+  return out
+}
+
 // Port of aggregation._check_units: a number in a unit the request did not ask
 // for fails the batch, the way an unreadable freezing level does. `expected`
 // is the request's own table, DECLARED_UNITS; the cloud request has none. A
@@ -556,6 +594,7 @@ export function weatherMetrics(
     }
     if (rows.length === 0) return null
     const fVals = freezeFtInWindow(hourly, startMs, endMs, freezeUnit(payload))
+    const sVals = snowfallInWindow(hourly, startMs, endMs)
 
     // Left-to-right sums in input order, matching Python's sum() exactly.
     let pSum = 0
@@ -588,6 +627,15 @@ export function weatherMetrics(
       if (f < fMin) fMin = f
       if (f > fMax) fMax = f
     }
+    let sSum = 0
+    let sMin = Infinity
+    let sMax = -Infinity
+    for (const v of sVals) {
+      sSum += v
+      if (v < sMin) sMin = v
+      if (v > sMax) sMax = v
+    }
+    const snowed = sVals.length > 0
 
     const len = rows.length
     return {
@@ -608,6 +656,12 @@ export function weatherMetrics(
       freeze_min_ft: fVals.length === 0 ? null : roundHalfEven(fMin, 0),
       freeze_max_ft: fVals.length === 0 ? null : roundHalfEven(fMax, 0),
       freeze_avg_ft: fVals.length === 0 ? null : roundHalfEven(fSum / fVals.length, 0),
+      // Precipitation's four, at precipitation's four decimals, each null on
+      // its own like the freezing level's.
+      snowfall_total_in: snowed ? roundHalfEven(sSum, 4) : null,
+      snowfall_avg_in_hr: snowed ? roundHalfEven(sSum / sVals.length, 4) : null,
+      snowfall_min_in_hr: snowed ? roundHalfEven(sMin, 4) : null,
+      snowfall_max_in_hr: snowed ? roundHalfEven(sMax, 4) : null,
     }
   } catch (e) {
     // A unit nothing can read is not one bad hour to skip past: every number
@@ -637,6 +691,7 @@ export function weatherSeries(
     const wind = hourly.wind_speed_10m ?? []
     const freeze = hourly[FREEZING_LEVEL] ?? []
     const fUnit = freezeUnit(payload)
+    const snowfall = hourly[SNOWFALL] ?? []
     const levels = levelArrays(hourly)
     const tLevels = tempLevelArrays(hourly)
 
@@ -645,6 +700,7 @@ export function weatherSeries(
     const tOut: (number | null)[] = []
     const wOut: (number | null)[] = []
     const fOut: (number | null)[] = []
+    const sOut: (number | null)[] = []
     for (let i = 0; i < times.length; i++) {
       const t = parseTs(times[i])
       if (t === null || t < startMs || t > endMs) continue
@@ -662,9 +718,17 @@ export function weatherSeries(
       wOut.push(roundOrNull(wAdj, 1))
       const fRaw = at(freeze, i)
       fOut.push(roundOrNull(fRaw === null ? null : freezeToFeet(fRaw, fUnit), 0))
+      sOut.push(roundOrNull(at(snowfall, i), 4))
     }
     if (grid.length === 0) return null
-    return { times: grid, precip_in: pOut, temp_f: tOut, wind_mph: wOut, freeze_ft: fOut }
+    return {
+      times: grid,
+      precip_in: pOut,
+      temp_f: tOut,
+      wind_mph: wOut,
+      freeze_ft: fOut,
+      snowfall_in: sOut,
+    }
   } catch (e) {
     // The one failure this function does not absorb, for the reason
     // `weatherMetrics` does not absorb it either.

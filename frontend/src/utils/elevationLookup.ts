@@ -39,7 +39,6 @@ export interface Locatable {
   type?: string
   latitude: number
   longitude: number
-  snow_depth_in?: number | null
 }
 
 /**
@@ -127,7 +126,6 @@ export function answered(rows: readonly Locatable[], identity: IdentityMap): Dis
       longitude: r.longitude,
       elevation_ft: known.elevation_ft,
       osm_id: known.osm_id,
-      ...(r.snow_depth_in !== undefined ? { snow_depth_in: r.snow_depth_in } : {}),
     })
   }
   return out

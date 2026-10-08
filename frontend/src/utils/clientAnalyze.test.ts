@@ -87,21 +87,6 @@ describe('resolveCustomOnly', () => {
     expect(out.destinations[0].osm_id).toBe('node/1')
   })
 
-  // The second thing only the pod can answer about a bare coordinate (#449).
-  it('carries back the snow depth and the grid it came from', async () => {
-    stubFetch(() => ({
-      ok: true,
-      json: async () => ({
-        destinations: [{ ...resolved('McClellan Butte', 5165), snow_depth_in: 12 }],
-        total: 1,
-        snow_analysis_date: '2026-09-22',
-      }),
-    }))
-    const out = await resolveCustomOnly(ROWS)
-    expect(out.destinations[0].snow_depth_in).toBe(12)
-    expect(out.snowAnalysisDate).toBe('2026-09-22')
-  })
-
   it('asks for a resolve, never a discovery, and says whether the pod may look up', async () => {
     const spy = stubFetch(() => ({
       ok: true,
@@ -125,7 +110,6 @@ describe('resolveCustomOnly', () => {
     const out = await resolveCustomOnly(ROWS)
     expect(out.destinations.map((d) => d.name)).toEqual(['McClellan Butte'])
     expect(out.destinations[0].elevation_ft).toBeNull()
-    expect(out.snowAnalysisDate).toBeNull()
   })
 
   it('falls back to unresolved rows when the request cannot be made', async () => {
@@ -153,30 +137,25 @@ describe('resolveCustomOnly', () => {
 
   it('makes no call at all for an empty list', async () => {
     const spy = stubFetch(() => ({ ok: true, json: async () => ({ destinations: [] }) }))
-    expect(await resolveCustomOnly([])).toEqual({ destinations: [], snowAnalysisDate: null, lookupComplete: true })
+    expect(await resolveCustomOnly([])).toEqual({ destinations: [], lookupComplete: true })
     expect(spy).not.toHaveBeenCalled()
   })
 
   // The pins-only refresh used to skip the call, because elevation was the
   // only question and a searched place already carries Nominatim's answer.
-  // Snow depth is a second question it cannot answer for itself (#449), and
-  // skipping would leave a pinned summit reading N/A beside the same summit
-  // inside a drawn ring reading a number.
+  // Snow depth lifted the skip (#449) and left in #678; the skip did not come
+  // back, because the pod still merges the list and answers it in
+  // milliseconds when no lookup is asked for.
   it('still asks when every row already knows its elevation', async () => {
     const spy = stubFetch(() => ({
       ok: true,
-      json: async () => ({
-        destinations: [{ ...resolved('Pinned', 6000), snow_depth_in: 4 }],
-        total: 1,
-        snow_analysis_date: '2026-09-22',
-      }),
+      json: async () => ({ destinations: [resolved('Pinned', 6000)], total: 1 }),
     }))
     const out = await resolveCustomOnly([
       { name: 'Pinned', latitude: 47.5, longitude: -121.9, elevation_ft: 6000 },
     ])
     expect(spy).toHaveBeenCalledTimes(1)
     expect(out.destinations[0].elevation_ft).toBe(6000)
-    expect(out.destinations[0].snow_depth_in).toBe(4)
   })
 
   it('still asks when only some rows know their elevation', async () => {
@@ -247,18 +226,17 @@ describe('rankComparator', () => {
     expect(rows.map((r) => r.name)).toEqual(['c', 'a', 'b'])
   })
 
-  // The one ranking key that is not a window aggregate, and a null there is a
-  // destination outside the grid rather than a gap in a forecast — so it sorts
-  // last either way, like every other nullable key (#449).
-  it('ranks snow depth with nulls last in both directions', () => {
-    const rows = [row('outside', null), row('bare', null), row('deep', null)]
-    rows[0].snow_depth_in = null
-    rows[1].snow_depth_in = 0
-    rows[2].snow_depth_in = 42
-    rows.sort(rankComparator('snow_depth_in', false))
-    expect(rows.map((r) => r.name)).toEqual(['bare', 'deep', 'outside'])
-    rows.sort(rankComparator('snow_depth_in', true))
-    expect(rows.map((r) => r.name)).toEqual(['deep', 'bare', 'outside'])
+  // A null snowfall is a window the model left blank (HRRR past its reach),
+  // so it sorts last either way, like every other nullable key (#678).
+  it('ranks snowfall with nulls last in both directions', () => {
+    const rows = [row('blank', null), row('dry', null), row('dump', null)]
+    rows[0].snowfall_total_in = null
+    rows[1].snowfall_total_in = 0
+    rows[2].snowfall_total_in = 14
+    rows.sort(rankComparator('snowfall_total_in', false))
+    expect(rows.map((r) => r.name)).toEqual(['dry', 'dump', 'blank'])
+    rows.sort(rankComparator('snowfall_total_in', true))
+    expect(rows.map((r) => r.name)).toEqual(['dump', 'dry', 'blank'])
   })
 })
 
@@ -279,12 +257,17 @@ const WX: WeatherResult = weatherResult({
   freeze_min_ft: 9000,
   freeze_max_ft: 9500,
   freeze_avg_ft: 9250,
+  snowfall_total_in: 1.2,
+  snowfall_avg_in_hr: 0.6,
+  snowfall_min_in_hr: 0.5,
+  snowfall_max_in_hr: 0.7,
   series: {
     times: [1784592000000, 1784595600000],
     precip_in: [0.1, 0.2],
     temp_f: [50, 52],
     wind_mph: [5, 7],
     freeze_ft: [9000, 9500],
+    snowfall_in: [0.5, 0.7],
   },
 })
 
@@ -310,18 +293,13 @@ describe('assemble', () => {
     expect(results[0].series?.aqi).toEqual([60, null])
   })
 
-  // The snow depth rides on the DISCOVERED row, where every aggregate above
-  // came from Open-Meteo: the pod reads its grid once per candidate when the
-  // candidate list comes back (#449).
-  it('copies the snow depth off the discovered destination', () => {
-    const dest = { ...discovered('Snowy'), snow_depth_in: 42 }
-    const { results } = assemble([dest], [WX], [null])
-    expect(results[0].snow_depth_in).toBe(42)
-  })
-
-  it('leaves the snow depth null when discovery reported none', () => {
-    const { results } = assemble([discovered('Unknown')], [WX], [null])
-    expect(results[0].snow_depth_in).toBeNull()
+  // Snowfall is Open-Meteo's like every aggregate above (#678), where the snow
+  // depth it replaced rode on the discovered row.
+  it('copies the snowfall off the weather answer', () => {
+    const { results } = assemble([discovered('Snowy')], [WX], [null])
+    expect(results[0].snowfall_total_in).toBe(1.2)
+    expect(results[0].snowfall_max_in_hr).toBe(0.7)
+    expect(results[0].series?.snowfall_in).toEqual([0.5, 0.7])
   })
 
   it('canonicalTimes takes the first row carrying a series', () => {
@@ -1022,7 +1000,7 @@ describe('withCloud', () => {
   }
 
   it('lays a cloud answer over a held row', () => {
-    const row = resultRow({ series: { precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], aqi: [null, null] } })
+    const row = resultRow({ series: series({ precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], snowfall_in: [0, 0], aqi: [null, null] }) })
     const out = withCloud(row, cloud, [1, 2])
     expect(out.cloud_deck_min_ft).toBe(4000)
     expect(out.cloud_deck_avg_ft).toBe(4500)
@@ -1033,7 +1011,7 @@ describe('withCloud', () => {
   // a cloud analysis loses it when the next analysis did not ask.
   it('strips a cloud answer the new report did not ask for', () => {
     const held = withCloud(
-      resultRow({ series: { precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], aqi: [null, null] } }),
+      resultRow({ series: series({ precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], snowfall_in: [0, 0], aqi: [null, null] }) }),
       cloud,
       [1, 2],
     )
@@ -1303,7 +1281,7 @@ describe('isDiscoveryRefresh', () => {
 // (#579). The weather has answered when this runs.
 // ── A lookup still in flight (#643, #673) ──────────────────────────────────
 //
-// A run with no polygon asks the pod what OSM and the snow grid know about its
+// A run with no polygon asks the pod what OSM knows about its
 // rows. That lookup runs beside the forecasts, the report lands when the
 // forecasts do, and the lookup's answer lands on the report afterwards: each
 // row it placed is reduced again from its kept column at that height.
@@ -1329,7 +1307,6 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     ...d,
     elevation_ft: 8000 + i,
     osm_id: `node/${i}`,
-    snow_depth_in: 10 + i,
   }))
   const openMeteoCalls = () => vi.mocked(fetch).mock.calls.length
   const keyOf = (d: { latitude: number; longitude: number }) => geoKey(d.latitude, d.longitude)
@@ -1388,10 +1365,10 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
     const out = await runClientAnalysis(REQUEST, SENT, startMs, endMs, { nowMs: startMs, resolving: lookup.promise })
     lookup.resolve(ANSWERED)
     const patch = await out.late!
-    expect(patch.rows.map((r) => [r.name, r.elevation_ft, r.osm_id, r.snow_depth_in])).toEqual([
-      ['Wet', 8000, 'node/0', 10],
-      ['Dry', 8001, 'node/1', 11],
-      ['Mid', 8002, 'node/2', 12],
+    expect(patch.rows.map((r) => [r.name, r.elevation_ft, r.osm_id])).toEqual([
+      ['Wet', 8000, 'node/0'],
+      ['Dry', 8001, 'node/1'],
+      ['Mid', 8002, 'node/2'],
     ])
     for (const r of patch.rows) {
       expect(r.wind_avg_mph).toBeCloseTo(22.6, 1)

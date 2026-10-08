@@ -113,9 +113,9 @@ describe('answered', () => {
     ])
   })
 
-  it('keeps a row\'s own kind and snow depth, so a committed row loses neither', () => {
+  it('keeps a row\'s own kind, so a committed row does not lose it', () => {
     const identity = new Map([[geoKey(47.1, -121.1), { elevation_ft: 5000, osm_id: 'node/1' }]])
-    const [row] = answered([{ name: 'A', type: 'peak', latitude: 47.1, longitude: -121.1, snow_depth_in: 12 }], identity)
-    expect(row).toMatchObject({ type: 'peak', snow_depth_in: 12 })
+    const [row] = answered([{ name: 'A', type: 'peak', latitude: 47.1, longitude: -121.1 }], identity)
+    expect(row).toMatchObject({ type: 'peak', elevation_ft: 5000 })
   })
 })

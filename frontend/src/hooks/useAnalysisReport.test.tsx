@@ -18,7 +18,7 @@ const VIEW = analyzedView(
     limit: 1,
   },
   'days',
-  { discovery: discoveryKeys(null, [], false), compareModels: [], snowAnalysisDate: null },
+  { discovery: discoveryKeys(null, [], false), compareModels: [] },
   Date.parse('2026-07-20T12:00:00Z'),
   FALLBACK_WINDOW_LIMITS,
 )
@@ -111,7 +111,7 @@ describe('useAnalysisReport', () => {
     act(() => result.current.commit(DATA, ROWS, VIEW, new Set([key])))
     expect([...result.current.pendingHeights]).toEqual([key])
     const patched = { ...ROWS[0], elevation_ft: 6000 }
-    const view = { ...VIEW, snowAnalysisDate: '2026-07-19' }
+    const view = { ...VIEW }
     act(() => result.current.patch([patched], view))
     expect(result.current.universe?.[0]).toBe(patched)
     expect(result.current.universe?.[1]).toBe(ROWS[1])

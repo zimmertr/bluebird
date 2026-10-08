@@ -121,14 +121,13 @@ describe('readErrorBody', () => {
 })
 
 // A polygon run reads the basemap's tiles first (#675): what they answer
-// rides to the pod as custom rows for its snow depth, the pod discovers the
-// trailheads alone, and the rows come back with the kinds and ids the tiles
+// rides to the pod as custom rows, the pod discovers the trailheads alone, and the rows come back with the kinds and ids the tiles
 // gave them. When the tiles cannot answer, the run takes the map server's
 // path as before.
 describe('a polygon run and the tiles', () => {
   const ALPHA = discovered({ name: 'Alpha', type: 'peak', latitude: 47.45, longitude: -121.8, elevation_ft: 8000, osm_id: 'node/1' })
   const TARN = discovered({ name: 'Tarn', type: 'lake', latitude: 47.5, longitude: -121.75, elevation_ft: null, osm_id: 'way/2' })
-  const asCustom = (d: typeof ALPHA) => ({ ...d, type: 'custom', osm_id: null, snow_depth_in: 12 })
+  const asCustom = (d: typeof ALPHA) => ({ ...d, type: 'custom', osm_id: null })
   const found = () => {
     const seen: Awaited<ReturnType<typeof discoverCandidates>>[] = []
     ranked.mockResolvedValue({ response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null })
@@ -145,7 +144,7 @@ describe('a polygon run and the tiles', () => {
   it('sends the pod the tile rows and the trailheads to find, and puts the kinds and ids back', async () => {
     fromTiles.mockResolvedValue([ALPHA, TARN])
     const trailhead = discovered({ name: 'Gate', type: 'trailhead', latitude: 47.46, longitude: -121.79, elevation_ft: 3000, osm_id: 'node/9' })
-    stubDestinations({ destinations: [trailhead, asCustom(ALPHA), asCustom(TARN)], total: 3, snow_analysis_date: '2026-07-19' })
+    stubDestinations({ destinations: [trailhead, asCustom(ALPHA), asCustom(TARN)], total: 3 })
     const { seen, onDiscovered } = found()
     await runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'lake', 'trailhead'] }, options({ onDiscovered }))
     expect(posted[0]).toMatchObject({
@@ -157,12 +156,8 @@ describe('a polygon run and the tiles', () => {
       ],
     })
     expect(posted[0].custom_destinations?.[1]).not.toHaveProperty('elevation_ft')
-    expect(seen[0].candidates).toEqual([
-      trailhead,
-      { ...ALPHA, snow_depth_in: 12 },
-      { ...TARN, snow_depth_in: 12 },
-    ])
-    expect(seen[0]).toMatchObject({ totalFound: null, truncated: false, snowAnalysisDate: '2026-07-19' })
+    expect(seen[0].candidates).toEqual([trailhead, ALPHA, TARN])
+    expect(seen[0]).toMatchObject({ totalFound: null, truncated: false })
   })
 
   it('asks the pod for no kind at all when the tiles answered every one', async () => {
@@ -222,11 +217,11 @@ describe('a polygon run and the tiles', () => {
 
 describe('discoverCandidates', () => {
   it('sends the discovery knobs with their defaults, and custom rows only when there are some', async () => {
-    stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 9, truncated: true, snow_analysis_date: '2026-07-19' })
+    stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 9, truncated: true })
     const found = await discoverCandidates(REQUEST, signal)
     expect(posted[0]).toMatchObject({ include_unnamed_peaks: false, top_by_elevation: false })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
-    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true, snowAnalysisDate: '2026-07-19' })
+    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true })
 
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
     await discoverCandidates({ ...REQUEST, custom_destinations: custom }, signal)
@@ -273,35 +268,29 @@ describe('runAnalysisPipeline', () => {
       handed = cb!.resolving
       return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
-    const resolved: (string | null)[] = []
     await runAnalysisPipeline(
       { ...REQUEST, polygon: undefined, custom_destinations: custom },
       options({
         knownTypes: { [geoKey(47, -121)]: 'peak' },
-        onDiscovered: (f) => order.push(`found ${f.candidates.length} ${f.snowAnalysisDate}`),
-        onResolved: (f) => resolved.push(f.snowAnalysisDate, ...f.candidates.map((c) => c.type)),
+        onDiscovered: (f) => order.push(`found ${f.candidates.length}`),
       }),
     )
     // Announced and ranked while the server has said nothing.
-    expect(order).toEqual(['found 1 null', 'ranked Mine:null'])
-    expect(resolved).toEqual([])
+    expect(order).toEqual(['found 1', 'ranked Mine:null'])
 
     answer(
       fakeResponse({
         destinations: [discovered({ name: 'Mine', type: 'custom', latitude: 47, longitude: -121, elevation_ft: 6000 })],
         total: 1,
-        snow_analysis_date: '2026-07-19',
       }),
     )
     // The lookup's rows reach the ranking with the browser's own kinds on them.
     expect(await handed).toMatchObject([{ name: 'Mine', type: 'peak', elevation_ft: 6000 }])
-    expect(resolved).toEqual(['2026-07-19', 'peak'])
   })
 
   // #673: the ranking lands before the lookup; what the lookup changes rides
-  // on `late` with the snow date the lookup answered, and the rows waiting
-  // on it ride on `pending`.
-  it('hands the late patch on with the snow date, and names the rows waiting on it', async () => {
+  // on `late`, and the rows waiting on it ride on `pending`.
+  it('hands the late patch on, and names the rows waiting on it', async () => {
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
     vi.stubGlobal(
       'fetch',
@@ -309,7 +298,6 @@ describe('runAnalysisPipeline', () => {
         fakeResponse({
           destinations: [discovered({ name: 'Mine', type: 'custom', latitude: 47, longitude: -121, elevation_ft: 6000 })],
           total: 1,
-          snow_analysis_date: '2026-07-19',
         }),
       ),
     )
@@ -324,12 +312,12 @@ describe('runAnalysisPipeline', () => {
     const out = await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options())
     expect([...out.pending]).toEqual([geoKey(47, -121)])
     expect(out.held.columns?.size).toBe(1)
-    expect(await out.late).toEqual({ rows: [patched], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+    expect(await out.late).toEqual({ rows: [patched], columns: new Map() })
   })
 
   // #673: the list goes to the pod at once, with the elevations the browser's
   // own lookup has learned by now and no lookup asked for, so the call answers
-  // from the snow grid alone. The lookup's later answers reach the report
+  // at once. The lookup's later answers reach the report
   // through the hook, never through this call.
   it('resolves the list with what the lookup has learned, asking the pod for no lookup, without waiting', async () => {
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }, { name: 'Other', latitude: 48, longitude: -122 }]
@@ -353,14 +341,12 @@ describe('runAnalysisPipeline', () => {
       await cb!.resolving
       return { response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null }
     })
-    const onResolved = vi.fn()
-    await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity, onResolved }))
+    await runAnalysisPipeline({ ...REQUEST, polygon: undefined, custom_destinations: custom }, options({ identity }))
     // The field carries what was learned from the start.
     expect(order).toEqual(['ranked 6000,null'])
     expect(bodies).toHaveLength(1)
     expect(bodies[0].custom_destinations.map((c) => c.elevation_ft)).toEqual([6000, undefined])
     expect(bodies[0].elevation_lookup).toBe(false)
-    expect(onResolved).toHaveBeenCalledWith(expect.objectContaining({ candidates: expect.any(Array) }))
   })
 
   // The one run that asks the pod to look up: an over-cap list keeping its

@@ -138,7 +138,6 @@ describe('blocker severities', () => {
       dates: 'info',
       'compare-aqi': 'warn',
       'compare-freeze': 'warn',
-      'compare-snow': 'warn',
       destinations: 'info',
       polygon: 'info',
       types: 'info',

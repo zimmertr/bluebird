@@ -15,7 +15,6 @@ import {
 import { FIRE_UNAVAILABLE_NOTE, FIRE_UNCOVERED_NOTE, fireWarningText } from './fireProximity'
 import { CLOSURE_UNAVAILABLE_NOTE, CLOSURE_UNCOVERED_NOTE, closureWarningText } from './closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE } from './freezingLevel'
-import { SNOW_DEPTH_CEILING_IN, snowCellText } from './snowCeiling'
 import { cellStyle, scaleFor } from './colors'
 import { displayedColumns, type ColDef } from './tableColumns'
 import { windyUrl } from './windy'
@@ -89,8 +88,11 @@ describe('unavailableCell', () => {
     expect(unavailableCell('freeze_min_ft', null)).toEqual({ text: 'N/A', cause: FREEZE_UNAVAILABLE_NOTE })
   })
 
-  it('reads an empty snow depth N/A with no hover text', () => {
-    expect(unavailableCell('snow_depth_in', null)).toEqual({ text: 'N/A', cause: undefined })
+  // A missing snowfall is a gap in the forecast, like a missing rain total,
+  // so it draws the dash a gap gets rather than the N/A of a metric that
+  // declined to answer (#678).
+  it('leaves an empty snowfall to the dash', () => {
+    expect(unavailableCell('snowfall_total_in', null)).toBeNull()
   })
 
   it('lets a number and every other column through', () => {
@@ -100,8 +102,9 @@ describe('unavailableCell', () => {
 })
 
 describe('cellText', () => {
-  it('prints a clipped snow depth as the shared ceiling mark', () => {
-    expect(cellText(column('snow_depth_in'), SNOW_DEPTH_CEILING_IN)).toBe(snowCellText(SNOW_DEPTH_CEILING_IN))
+  it('prints snowfall the way precipitation prints, and a dash for none', () => {
+    expect(cellText(column('snowfall_total_in'), 2.5)).toBe(cellText(column('precip_total_in'), 2.5))
+    expect(cellText(column('snowfall_total_in'), null)).toBe('—')
   })
 
   it('formats through the column, and prints a dash for a missing value', () => {

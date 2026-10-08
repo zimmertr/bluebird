@@ -5,8 +5,6 @@ import { analyzedSnapshot, place, resultRow } from '../testSupport/fixtures'
 import { NO_IDENTITY } from '../utils/elevationLookup'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import { NO_CONSTRAINTS } from '../utils/constraints'
-import { NOUN } from '../metrics'
-import { snapshotCaption } from '../utils/calendar'
 import { geoKey } from '../utils/points'
 import type { PresentationKnobs } from '../utils/present'
 
@@ -144,15 +142,16 @@ describe('usePresentedReport', () => {
     expect(result.current.emptyReason).toBe('No destinations match these filters. 3 were analyzed.')
   })
 
-  // A snapshot ranking (#449) captions the day its grid is from, and nothing
-  // when the report carries no date.
-  it('captions a snow ranking with its grid date', () => {
-    const view = { sortBy: 'snow_depth_in' as const, sortDesc: true }
-    const dated = analyzedSnapshot({ snowAnalysisDate: '2026-07-19' })
-    const withDate = renderHook(() => usePresentedReport(inputs({ view, analyzed: dated })))
-    expect(withDate.result.current.windowTitle).toBe(snapshotCaption(NOUN.snow, '2026-07-19'))
-    const undated = renderHook(() => usePresentedReport(inputs({ view })))
-    expect(undated.result.current.windowTitle).toBeNull()
+  // Snowfall is reduced over the window like every other family (#678), so
+  // its caption is the window's, where snow depth captioned its grid's date.
+  it('captions a snowfall ranking with the window, as any other ranking', () => {
+    const snowfall = renderHook(() =>
+      usePresentedReport(inputs({ view: { sortBy: 'snowfall_total_in', sortDesc: true } })),
+    )
+    const precip = renderHook(() =>
+      usePresentedReport(inputs({ view: { sortBy: 'precip_total_in', sortDesc: true } })),
+    )
+    expect(snowfall.result.current.windowTitle).toBe(precip.result.current.windowTitle)
   })
 })
 

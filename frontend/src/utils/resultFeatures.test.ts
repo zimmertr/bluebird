@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { NO_VALUE, fillColor, resultsFeatureCollection, windArrowsShowing } from './resultFeatures'
 import { markerColor } from './colors'
 import type { DestinationResult } from '../types'
-import { resultRow } from '../testSupport/fixtures'
+import { resultRow, series } from '../testSupport/fixtures'
 
 // The coordinates are spelled out because this suite asserts that a feature
 // carries them unrounded, first at five places and then at nine.
@@ -79,6 +79,8 @@ describe('resultsFeatureCollection', () => {
         temp_f: [50, 52, 51],
         wind_mph: [3, 30, 4],
         freeze_ft: [9000, 9200, null],
+        // A dusting, then a dump, then a gap the model left blank.
+        snowfall_in: [0.1, 2.5, null],
         aqi: [40, null, 45],
         wind_dir_deg: [0, 90, null],
       },
@@ -124,7 +126,11 @@ describe('resultsFeatureCollection', () => {
     const gap = resultsFeatureCollection([hourly()], 'wind_avg_mph', true, 2).features[0]
     expect(gap.properties!.bearing).toBeUndefined()
     const serverRow = resultsFeatureCollection(
-      [hourly({ series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], aqi: [40] } })],
+      [
+        hourly({
+          series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], snowfall_in: [0], aqi: [40] },
+        }),
+      ],
       'wind_avg_mph',
       true,
       0,
@@ -150,30 +156,24 @@ describe('resultsFeatureCollection', () => {
   })
 })
 
-// A snapshot ranking has no hours to read, so playback leaves its markers on
-// the value they rank by (#449). That is the honest picture rather than a
-// special case: the playhead moves over a grid of forecasts, and today's snow
-// depth is the same number at every one of them.
-describe('fillColor under a snapshot ranking', () => {
-  const snowy = result({ snow_depth_in: 60, series: null })
-
-  it('colors by the ranked value whether or not the playhead is moving', () => {
-    const atRest = fillColor(snowy, 'snow_depth_in', null)
-    expect(atRest).not.toBe(NO_VALUE)
-    expect(fillColor(snowy, 'snow_depth_in', 0)).toBe(atRest)
-    expect(fillColor(snowy, 'snow_depth_in', 12)).toBe(atRest)
+// Snowfall plays back the way precipitation does (#678): an hour of it is a
+// rate, so a total ranking reads the hour under the playhead on the snowfall
+// rate scale rather than holding the window's colour, as snow depth did.
+describe('fillColor under a snowfall ranking', () => {
+  const snowy = result({
+    snowfall_total_in: 2.6,
+    // A dusting, then a dump, then a gap the model left blank.
+    series: series({ snowfall_in: [0.1, 2.5, null] }),
   })
 
-  it('reads the bands the ranking reads, so the legend still explains it', () => {
-    expect(fillColor(snowy, 'snow_depth_in', 5)).toBe(markerColor(60, 'snow_depth_in'))
+  it('colors by the hour under the playhead, on the rate scale', () => {
+    expect(fillColor(snowy, 'snowfall_total_in', null)).toBe(markerColor(2.6, 'snowfall_total_in'))
+    expect(fillColor(snowy, 'snowfall_total_in', 1)).toBe(markerColor(2.5, 'snowfall_avg_in_hr'))
+    expect(fillColor(snowy, 'snowfall_total_in', 0)).not.toBe(fillColor(snowy, 'snowfall_total_in', 1))
   })
 
-  // A destination outside the grid takes the neutral fill and keeps its place
-  // on the map, the same answer a missing AQI hour gets.
-  it('falls back to the no-value fill for a row outside the grid', () => {
-    const outside = result({ snow_depth_in: null, series: null })
-    expect(fillColor(outside, 'snow_depth_in', null)).toBe(NO_VALUE)
-    expect(fillColor(outside, 'snow_depth_in', 3)).toBe(NO_VALUE)
+  it('takes the no-value fill for an hour the model left blank', () => {
+    expect(fillColor(snowy, 'snowfall_total_in', 2)).toBe(NO_VALUE)
   })
 })
 

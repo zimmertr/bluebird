@@ -118,17 +118,21 @@ describe('the Analyze button', () => {
       { hasPins: true, sortBy: DEFAULT_FAMILY_KEY.freeze, comparedModels: ['ecmwf_ifs025'] },
       /ECMWF IFS/,
     ],
-    [
-      'snow depth compared across models',
-      { hasPins: true, sortBy: DEFAULT_FAMILY_KEY.snow, comparedModels: ['ecmwf_ifs025'] },
-      /cannot be compared/,
-    ],
   ]
 
   it.each(blocked)('is disabled for %s, and says why under it', (_case, over, line) => {
     render(<ControlPanel {...props(over)} />)
     expect((analyze() as HTMLButtonElement).disabled).toBe(true)
     expect(messages().join(' ')).toMatch(line)
+  })
+
+  // Snowfall is each model's own forecast, so unlike the snow depth it
+  // replaced it compares the way precipitation does (#678).
+  it('analyzes a snowfall ranking with models compared', () => {
+    const over: Partial<Props> = { hasPins: true, sortBy: DEFAULT_FAMILY_KEY.snowfall, comparedModels: ['ecmwf_ifs025'] }
+    render(<ControlPanel {...props(over)} />)
+    expect((analyze() as HTMLButtonElement).disabled).toBe(false)
+    expect(messages().join(' ')).not.toMatch(/cannot be compared/)
   })
 
   // A line pasted twice is one destination, in the count under the box too.

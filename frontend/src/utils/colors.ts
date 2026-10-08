@@ -59,7 +59,7 @@ export type ColoredFamily = MetricFamily
 // because they measure something a hiker wants less of and the purple top is
 // where "less of" stops being advice (#445); AQI adds the EPA's maroon past
 // it. Temperature has a bad end on both sides and its green in the middle;
-// the freezing level, snow depth and cloud deck encode a quantity rather than
+// the freezing level, snowfall and cloud deck encode a quantity rather than
 // a verdict; each says why on its own entry.
 //
 // Every scale has SIX bands, and the count is what `scaleTicks` in
@@ -72,9 +72,9 @@ export type ColoredFamily = MetricFamily
 // Keyed by family rather than by ranking key (#291): a family's aggregates
 // share one scale (a windy hour is windy whether it was the average or the
 // peak), so the rankable keys would be one copy of a scale each. The
-// exception is precipitation's rate columns, which measure a different
-// quantity and carry their own scale below (PRECIP_RATE); `rankedScale` is
-// the per-key reading that knows this.
+// exception is the rate columns of precipitation and snowfall, which measure
+// a different quantity and carry their own scales below (PRECIP_RATE,
+// SNOWFALL_RATE); `rankedScale` is the per-key reading that knows this.
 export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   // The purple top band is the one AQI's Very Unhealthy band wears, so purple
   // means the same thing on every scale that has it: past the end of the
@@ -159,33 +159,24 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   },
   // The freezing level's six shades, run the other way: cyan at the bottom
   // through sky, blue, indigo and violet to purple at the top. Not a verdict,
-  // for the reason that ramp is not one — deep snow is what a skier drove out
-  // for and what stops a scrambler at the trailhead — so the hue encodes DEPTH
-  // and the two cold ramps read as one family seen from either end.
+  // for the reason that ramp is not one: new snow is what a skier drove out
+  // for and what stops a scrambler at the trailhead, so the hue encodes the
+  // AMOUNT and the two cold ramps read as one family seen from either end.
   //
-  // The thresholds are the snow LAYER's own tick numbers (`snowDepth.ts`,
-  // NOAA's classes) plus one at 20 inches. The layer's numbers are what a
-  // reader meets on the map, so a marker banding somewhere else would be two
-  // scales over one quantity; the extra boundary is there because the map
-  // legend prints every OTHER threshold (`scaleTicks`), and five of them is
-  // what makes 1, 20 and 400 the three printed — a foot of snow, a season's
-  // pack, and the year-round ice a glaciated summit reads.
-  //
-  // 400 inches is not a typo and not an outlier to clip. Over permanent ice
-  // SNODAS accumulates year over year, so Mount Rainier's summit reads 1,290
-  // inches — which is the source file's int16 millimetre CEILING rather than a
-  // measurement (measured 2026-09-22; 86 cells sit on it). A top band that
-  // stopped at a season's depth would paint every glacier in the Cascades one
-  // colour.
+  // The thresholds are ten times precipitation's window scale, from 0.1 to
+  // 10 inches over the window (#678), by the 10:1 snow-to-liquid rule of
+  // thumb, so a window that would read wet in rain reads deep in snow at the
+  // same band. Snowfall is a per-hour amount like precipitation, so the rate
+  // columns carry their own scale below (SNOWFALL_RATE).
   //
   // EVERY STEP IS A 300 OR A 400, which is the freezing level's contrast
   // constraint inherited whole: `cellStyle` paints the band as the text, text
   // owes 4.5:1, and these six clear it at 4.57 to 6.02. The measurements are
   // pinned in `colors.test.ts` against the same three surfaces.
-  snow: {
-    thresholds: [1, 4, 20, 40, 400],
+  snowfall: {
+    thresholds: [0.1, 1.0, 2.5, 5.0, 10.0],
     colors: ['#67e8f9', '#38bdf8', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe'],
-    unit: UNIT.snow,
+    unit: UNIT.snowfall,
   },
   // The freezing level's six shades in the freezing level's order, purple at
   // the bottom to cyan at the top (#117, kept for the deck by #670), because
@@ -251,6 +242,30 @@ const PRECIP_RATE: LabelledScale = {
 }
 
 /**
+ * Snowfall read as an intensity rather than as a total, for `PRECIP_RATE`'s
+ * reason: an inch over three days is a dusting and an inch an hour is a storm.
+ *
+ * Ten times precipitation's rate boundaries, by the same 10:1 snow-to-liquid
+ * rule the window scale uses (#678), on the window scale's cold shades, so a
+ * playback hour and a rate cell read on the ramp the snowfall total does.
+ */
+const SNOWFALL_RATE: LabelledScale = {
+  // Spelled rather than multiplied, so no boundary is a float product.
+  thresholds: [0.1, 1.0, 3.0, 5.0, 10.0],
+  colors: METRIC_SCALE.snowfall.colors,
+  unit: `${UNIT.snowfall}/hr`,
+}
+
+/**
+ * Each family's window-total key and the rate column one hour of it is read
+ * on, for the two families whose total is not an hourly quantity.
+ */
+const HOURLY_OF_TOTAL: Partial<Record<SortBy, SortBy>> = {
+  precip_total_in: 'precip_avg_in_hr',
+  snowfall_total_in: 'snowfall_avg_in_hr',
+}
+
+/**
  * Which scale scores a given column, derived from the scales above crossed
  * with each family's own column list rather than restated: every colorable
  * column is already named in exactly one `FAMILY_KEYS` entry, and a second
@@ -266,6 +281,9 @@ const COLUMN_SCALE: Record<string, LabelledScale> = {
   precip_avg_in_hr: PRECIP_RATE,
   precip_min_in_hr: PRECIP_RATE,
   precip_max_in_hr: PRECIP_RATE,
+  snowfall_avg_in_hr: SNOWFALL_RATE,
+  snowfall_min_in_hr: SNOWFALL_RATE,
+  snowfall_max_in_hr: SNOWFALL_RATE,
 }
 
 /**
@@ -287,9 +305,10 @@ export function rankedScale(sortBy: SortBy): LabelledScale | null {
  * Playback colors a marker by that hour's own number rather than by the
  * window's, so a total ranking has to leave the total scale: 0.30" spread
  * across three days is drizzle and 0.30 in/hr is a downpour, and coloring the
- * second like the first would say they were the same weather. Hence the one
- * remapping: the window-total key reads its hour on the average-rate column's
- * scale. Every other key already names an hourly quantity — one hour's
+ * second like the first would say they were the same weather. Hence the
+ * remapping in `HOURLY_OF_TOTAL`: a window-total key, precipitation's or
+ * snowfall's, reads its hour on its average-rate column's scale. Every other
+ * key already names an hourly quantity — one hour's
  * minimum, average and maximum are the same reading — so it is its own hourly
  * column. It reads the same `COLUMN_SCALE` the table does, so a marker under
  * the playhead and the cell beside it in the table cannot be scored
@@ -300,7 +319,7 @@ export function rankedScale(sortBy: SortBy): LabelledScale | null {
  * never the whole window.
  */
 export function hourlyScale(sortBy: SortBy): LabelledScale | null {
-  return COLUMN_SCALE[sortBy === 'precip_total_in' ? 'precip_avg_in_hr' : sortBy] ?? null
+  return COLUMN_SCALE[HOURLY_OF_TOTAL[sortBy] ?? sortBy] ?? null
 }
 
 /**
@@ -315,13 +334,10 @@ export function hourlyScale(sortBy: SortBy): LabelledScale | null {
  * the same number.
  */
 export function scaleFor(key: string, pointSample: boolean): ColorScale | null {
-  if (
-    pointSample &&
-    (key === 'precip_avg_in_hr' || key === 'precip_min_in_hr' || key === 'precip_max_in_hr')
-  ) {
-    return METRIC_SCALE.precip
-  }
-  return COLUMN_SCALE[key] ?? null
+  const scale = COLUMN_SCALE[key] ?? null
+  if (pointSample && scale === PRECIP_RATE) return METRIC_SCALE.precip
+  if (pointSample && scale === SNOWFALL_RATE) return METRIC_SCALE.snowfall
+  return scale
 }
 
 function hexToRgb(hex: string): [number, number, number] {

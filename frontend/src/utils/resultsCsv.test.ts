@@ -7,6 +7,7 @@ import { FireWarning } from './fireProximity'
 import { geoKey } from './points'
 import { DestinationResult } from '../types'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
+import { SEP } from '../metrics'
 import { archiveBoundaryMs, normalizeWindow, windowSource } from './forecastWindow'
 
 // The coordinates are spelled out because this suite asserts on them: the file
@@ -60,8 +61,8 @@ describe('the file a spreadsheet opens', () => {
     const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv.endsWith('\r\n')).toBe(true)
     expect(csv).not.toMatch(/[^\r]\n/)
-    // Header, two data rows, then the blank row and four credit lines.
-    expect(lines(csv)).toHaveLength(8)
+    // Header, two data rows, then the blank row and three credit lines.
+    expect(lines(csv)).toHaveLength(7)
   })
 
   it('puts the headers in the first row, where a spreadsheet looks for them', () => {
@@ -168,11 +169,10 @@ describe('values a spreadsheet can compute over', () => {
   // The columns whose empty cell is not blank, and the same rule the wildfire
   // column's N/A follows: a blank asserts something. Everywhere else it
   // asserts "no value measured", which is true of a forecast that fell short;
-  // here it would assert that the freezing level or the snow depth was
-  // measured and came back empty, when the truth is that the chosen model
-  // publishes no such variable and that the destination is outside the snow
-  // grid. The file is read detached from the app, with nothing around it to
-  // say which, so it carries the mark the screen shows.
+  // here it would assert that the freezing level was measured and came back
+  // empty, when the truth is that the chosen model publishes no such variable.
+  // The file is read detached from the app, with nothing around it to say
+  // which, so it carries the mark the screen shows.
   it('writes the screen mark for a value that was never available', () => {
     const csv = buildResultsCsv(
       [row({ freeze_min_ft: null, freeze_max_ft: null, freeze_avg_ft: null })],
@@ -181,8 +181,8 @@ describe('values a spreadsheet can compute over', () => {
     )
     const marked = WINDOW_COLUMNS.filter((c) => c.csvNull)
 
-    expect(marked).toHaveLength(4)
-    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(4)
+    expect(marked).toHaveLength(3)
+    expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(3)
   })
 
   // A row whose numbers ARE there writes numbers, so the mark above can only
@@ -194,7 +194,6 @@ describe('values a spreadsheet can compute over', () => {
           freeze_min_ft: 9843,
           freeze_max_ft: 10171,
           freeze_avg_ft: 10007,
-          snow_depth_in: 62,
         }),
       ],
       WINDOW_COLUMNS,
@@ -203,20 +202,21 @@ describe('values a spreadsheet can compute over', () => {
     expect(csv).not.toContain('N/A')
   })
 
-  // A depth at the source file's int16 ceiling is not a measurement, so the
-  // file says "at least" rather than printing the number it was clipped to.
-  // Ungrouped, like every other number here: a spreadsheet reads `1,290` as
-  // text.
-  it('marks a snow depth the source file could not hold', () => {
-    const csv = buildResultsCsv([row({ snow_depth_in: 1290.04 })], WINDOW_COLUMNS, NO_FIRES)
-    expect(csv).toContain('\u22651290')
-    expect(csv).not.toContain('1290.04')
-  })
-
-  it('writes a depth below that ceiling as the measurement it is', () => {
-    const csv = buildResultsCsv([row({ snow_depth_in: 1290.03 })], WINDOW_COLUMNS, NO_FIRES)
-    expect(csv).toContain('1290.03')
-    expect(csv).not.toContain('\u2265')
+  // A missing snowfall is a gap in the forecast, as a missing rain total is,
+  // so its cell is blank rather than the mark above (#678).
+  it('writes snowfall like precipitation, and a blank for none', () => {
+    const csv = buildResultsCsv([row({ snowfall_total_in: 2.5 })], WINDOW_COLUMNS, NO_FIRES)
+    expect(csv).toContain('2.500')
+    const none = buildResultsCsv(
+      [row({ snowfall_total_in: null, snowfall_avg_in_hr: null, snowfall_min_in_hr: null, snowfall_max_in_hr: null })],
+      WINDOW_COLUMNS,
+      NO_FIRES,
+    )
+    const header = cells(lines(none)[0])
+    const data = cells(lines(none)[1])
+    const at = header.indexOf(`Snowfall ${SEP} Total (in)`)
+    expect(at).toBeGreaterThan(0)
+    expect(data.slice(at, at + 4)).toEqual(['', '', '', ''])
   })
 
   it('keeps the precision the table displays rather than the float behind it', () => {
@@ -254,8 +254,8 @@ describe('quoting', () => {
   it('quotes a name carrying a line break rather than splitting the row', () => {
     const csv = buildResultsCsv([row({ name: 'Two\nLines' })], WINDOW_COLUMNS, NO_FIRES)
     expect(csv).toContain('"Two\nLines"')
-    // Header and one data row; the trailer is the blank row and four credits.
-    expect(lines(csv)).toHaveLength(7)
+    // Header and one data row; the trailer is the blank row and three credits.
+    expect(lines(csv)).toHaveLength(6)
   })
 
   it('leaves a name needing no quotes unquoted', () => {
@@ -394,9 +394,9 @@ describe('the wildfire column', () => {
       const csv = buildResultsCsv([row(), row({ name: 'Glacier Peak' })], WINDOW_COLUMNS, null)
       expect(csv.charCodeAt(0)).toBe(0xfeff)
       expect(cells(lines(csv)[0])[0]).toBe('Rank')
-      // Header, two data rows, the blank row, and three credits: no NIFC line,
+      // Header, two data rows, the blank row, and two credits: no NIFC line,
       // because a file with no wildfire column must not credit its supplier.
-      expect(lines(csv)).toHaveLength(7)
+      expect(lines(csv)).toHaveLength(6)
     })
   })
 })
@@ -472,7 +472,7 @@ describe('the supplier credits', () => {
   // clickable; the same URL inside a sentence is text a reader has to retype.
   it('put the license URI in its own cell, with no parentheses', () => {
     const credits = lines(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).slice(3)
-    expect(credits).toHaveLength(4)
+    expect(credits).toHaveLength(3)
     // The words are one quoted cell (their own comma forces the quotes) and
     // the URI is the whole of the next, which needs none.
     expect(credits[0]).toBe(
@@ -481,7 +481,7 @@ describe('the supplier credits', () => {
     for (const [line, source] of [
       [credits[0], openMeteo],
       [credits[1], osm],
-      [credits[3], nifc],
+      [credits[2], nifc],
     ] as const) {
       expect(line).not.toContain('(http')
       expect(line.endsWith(`",${source.licenseHref}`)).toBe(true)
@@ -495,25 +495,14 @@ describe('the supplier credits', () => {
     expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).not.toContain('NIFC')
   })
 
-  // SNODAS is a federal work with no license, so its row wears the Forest
-  // Service's shape: the words, then the source's own link where a license URI
-  // would stand. It follows the snow depth column the way NIFC's follows the
-  // wildfire column, because a file without the numbers has no supplier to name.
-  it('credit the snow depth supplier exactly when the file carries the snow depth column', () => {
-    const nohrsc = DATA_SOURCES.find((s) => s.name === 'NOAA NOHRSC')!
-    expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).toContain(
-      'Snow depth data by NOAA NOHRSC,https://www.nohrsc.noaa.gov/nsa/',
-    )
-    expect(buildResultsCsv([row()], WINDOW_COLUMNS, null)).toContain(
-      `Snow depth data by ${nohrsc.name},${nohrsc.href}`,
-    )
-    const noSnow = WINDOW_COLUMNS.filter((c) => c.key !== 'snow_depth_in')
-    expect(noSnow).toHaveLength(WINDOW_COLUMNS.length - 1)
-    expect(buildResultsCsv([row()], noSnow, null)).not.toContain('NOHRSC')
+  // Snow depth's NOHRSC credit left with its column (#678): snowfall is
+  // Open-Meteo's, which the first credit row already names.
+  it('credit no snow supplier, the snowfall being Open-Meteo\'s', () => {
+    expect(buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES)).not.toContain('NOHRSC')
   })
 
-  // The order the columns they credit stand in: the snow depth column is a
-  // metric among the others, and the wildfire and Closure columns close the row.
+  // The order the columns they credit stand in: the wildfire and Closure
+  // columns close the row.
   it('credit the column suppliers in the order their columns stand', () => {
     const all = lines(
       buildResultsCsv([row()], WINDOW_COLUMNS, NO_FIRES, { closureWarnings: new Map() }),
@@ -521,7 +510,6 @@ describe('the supplier credits', () => {
     expect(all.slice(3).map((l) => l.replace(/^"/, '').split(' data')[0])).toEqual([
       'Weather',
       'Destination',
-      'Snow depth',
       'Wildfire',
       'Closure',
     ])
@@ -693,9 +681,8 @@ describe('the forecast window in the file', () => {
       expect(all[5]).toBe('')
       expect(all[6]).toContain('Open-Meteo')
       expect(all[7]).toContain('OpenStreetMap')
-      expect(all[8]).toContain('NOAA NOHRSC')
-      expect(all[9]).toContain('NIFC')
-      expect(all).toHaveLength(10)
+      expect(all[8]).toContain('NIFC')
+      expect(all).toHaveLength(9)
     })
 
     // The whole point of the block: no column carries the window, so the row a

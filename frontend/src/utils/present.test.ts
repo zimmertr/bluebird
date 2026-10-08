@@ -391,30 +391,30 @@ describe('presentResults', () => {
     expect(rows.map((r) => r.name)).toEqual(['Dry', 'Untagged'])
   })
 
-  // The one derivation every surface reads, so a snapshot metric ranks and
-  // bounds through it like any other rather than needing a path of its own
-  // (#449). The bounds and the comparator already carry it; this is what
-  // proves the derivation does not have to learn anything.
-  it('ranks and bounds a snapshot metric with no new logic', () => {
+  // The one derivation every surface reads, so snowfall ranks and bounds
+  // through it like any other family (#678): the bounds and the comparator
+  // already carry it, and this is what proves the derivation does not have to
+  // learn anything.
+  it('ranks and bounds snowfall with no new logic', () => {
     const field = [
-      at('Bare', 5, { snow_depth_in: 0 }),
-      at('Deep', 6, { snow_depth_in: 60 }),
-      at('Outside', 7, { snow_depth_in: null }),
-      at('Ankle', 8, { snow_depth_in: 3 }),
+      at('Dry', 5, { snowfall_total_in: 0 }),
+      at('Dump', 6, { snowfall_total_in: 14 }),
+      at('Blank', 7, { snowfall_total_in: null }),
+      at('Dusting', 8, { snowfall_total_in: 0.4 }),
     ]
-    const knobs: PresentationKnobs = { ...KNOBS, sortBy: 'snow_depth_in', sortDesc: true }
+    const knobs: PresentationKnobs = { ...KNOBS, sortBy: 'snowfall_total_in', sortDesc: true }
     // Nulls rank last in either direction, as they do on every nullable key.
     expect(presentResults(field, knobs, NONE).rows.map((r) => r.name)).toEqual([
-      'Deep',
-      'Ankle',
-      'Bare',
-      'Outside',
+      'Dump',
+      'Dusting',
+      'Dry',
+      'Blank',
     ])
-    const bounded: Constraints = { ...NO_CONSTRAINTS, minSnowDepthIn: 12 }
+    const bounded: Constraints = { ...NO_CONSTRAINTS, minSnowfallTotalIn: 6 }
     const out = presentResults(field, { ...knobs, constraints: bounded }, NONE)
-    // The row with no depth passes the bound, so it survives the cut and is
+    // The row with no total passes the bound, so it survives the cut and is
     // ranked last rather than dropped.
-    expect(out.rows.map((r) => r.name)).toEqual(['Deep', 'Outside'])
+    expect(out.rows.map((r) => r.name)).toEqual(['Dump', 'Blank'])
     expect(out.eligible).toBe(2)
   })
 
