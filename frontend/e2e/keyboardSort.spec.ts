@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, DESTINATION_NAMES } from './fixtures'
+import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
 
 // A sortable header has to be reached and operated with the keyboard alone
 // (WCAG 2.1.1). Axe cannot see this: a header cell with only a click handler
@@ -21,7 +21,7 @@ async function tabTo(page: Page, key: string) {
   throw new Error(`Tab never reached the ${key} header in ${MAX_TABS} presses`)
 }
 
-const firstRow = (page: Page) => page.locator('table tbody tr').first()
+const firstRow = (page: Page) => resultRows(page).first()
 
 for (const viewport of [
   { width: 1280, height: 720 },
@@ -33,7 +33,7 @@ for (const viewport of [
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
     await page.getByRole('button', { name: 'Analyze' }).click()
-    await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+    await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
 
     const name = page.locator('th[data-col="name"]')
     await page.locator('body').focus()

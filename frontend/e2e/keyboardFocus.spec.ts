@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, DESTINATION_NAMES } from './fixtures'
+import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
 
 // Where the keyboard goes in a real browser (#575, #576). The unit suites hold
 // each rule in jsdom, which implements neither `inert` nor a hidden element's
@@ -22,7 +22,7 @@ async function analyzeFromTheKeyboard(page: Page) {
   const analyze = page.getByRole('button', { name: 'Analyze' })
   await analyze.focus()
   await page.keyboard.press('Enter')
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
   return analyze
 }
 
@@ -33,7 +33,7 @@ test('the keyboard comes back to Analyze, and reaches a row remove and a value b
   await expect(analyze).toBeFocused()
 
   // The value is the link's name, and the sentence its description.
-  const value = page.locator('table tbody tr').first().locator('a[href*="windy.com"]').first()
+  const value = resultRows(page).first().locator('a[href*="windy.com"]').first()
   await expect(value).toHaveAccessibleName((await value.textContent()) ?? '')
   await expect(value).toHaveAccessibleDescription(/ on Windy\. Opens in a new tab\.$/)
 

@@ -173,3 +173,29 @@
   margin-top: 0;
   margin-bottom: 0;
 }
+
+/* A marker popup too tall for the free map area scrolls its body under its
+   title (TJ, 2026-10-08; `capPopupBody` in utils/popupChrome.ts sets the
+   height). The bar stays drawn while the body overflows, because overlay
+   scrollbars vanish until scrolled and a card cut mid-list would give no hint
+   there is more: `scrollbar-color` gives Chrome and Firefox a classic bar and
+   the -webkit-* rules cover Safari, as `.results-scrollbars` does for the
+   results panel. Slate-500 on slate-100, 4.34:1, a pass for a UI boundary on
+   the white card. The gutter keeps the right-aligned numbers clear of it. */
+.popup-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #f1f5f9;
+}
+.popup-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.popup-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.popup-scroll::-webkit-scrollbar-thumb {
+  background-color: #64748b;
+  border-radius: 3px;
+}

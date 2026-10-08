@@ -23,6 +23,7 @@ import {
   chartKey,
   computeYDomain,
   formatMetricValue,
+  formatTooltipValue,
   nearestKey,
   pixelToTime,
   pixelToValue,
@@ -457,7 +458,7 @@ function ChartTooltip({
             <span className={`h-2 w-2 ${RADIUS.control}`} style={{ backgroundColor: it.line.color }} />
             {it.line.label}
           </span>
-          <span className="font-mono">{formatMetricValue(it.value, metric)}</span>
+          <span className="font-mono">{formatTooltipValue(it.value, metric)}</span>
         </div>
       ))}
       {rest > 0 && <div className={`${TEXT.micro} mt-0.5`}>+{rest} more</div>}

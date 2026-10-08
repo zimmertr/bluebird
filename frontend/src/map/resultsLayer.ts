@@ -31,7 +31,8 @@ import {
   WIND_ARROW_FILL,
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
-import { placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
+import { capHeight, placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
+import { POPUP_BODY_ATTR, capPopupBody } from '../utils/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -275,7 +276,9 @@ export function mountResultsLayer(
   // hanging below its marker, measured, and rebuilt above it only when the
   // fit says so, all before a frame is drawn, because MapLibre fixes a
   // popup's side at construction and this is the one moment its size is
-  // known. Never closeOnClick: it is fixed at construction too, so an
+  // known. A card too tall to stand whole in the free map area has its body
+  // capped first and scrolls (`capHeight`, TJ 2026-10-08), so the fit then
+  // places the card the reader will actually see. Never closeOnClick: it is fixed at construction too, so an
   // already-open popup could not be told to survive the click that pins a
   // second one — the first shift-click always lost the card it was meant to
   // keep. Dismissal is the board's (`map/popups.ts`).
@@ -287,8 +290,11 @@ export function mountResultsLayer(
     const build = (anchor: 'top' | 'bottom') =>
       new Popup({ ...popupOptions(map), closeOnClick: false, anchor }).setLngLat(at).setHTML(html).addTo(map)
     let popup = build('top')
-    const el = popup.getElement()
-    const size = { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
+    const measure = () => {
+      const el = popup.getElement()
+      return { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
+    }
+    let size = measure()
     const canvas = map.getCanvas()
     // The part of the map a card can be seen in: above the results sheet.
     const region = {
@@ -297,10 +303,25 @@ export function mountResultsLayer(
       right: canvas.clientWidth,
       bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx,
     }
-    const placed = placePopup(markerAt ?? map.project(at), size, region, obstacles(avoid))
+    const marker = markerAt ?? map.project(at)
+    const standing = obstacles(avoid)
+    // The body's height under the cap: whatever the card must lose comes off
+    // the body alone, so the title and the band under it stay in view.
+    const cap = capHeight(marker, size, region, standing)
+    const bodyOf = () => popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
+    const first = cap === null ? null : bodyOf()
+    const capped = cap === null || first === null ? null : first.offsetHeight - (size.height - cap)
+    const applyCap = () => {
+      const body = capped === null ? null : bodyOf()
+      if (body) capPopupBody(body, capped!)
+    }
+    applyCap()
+    if (capped !== null) size = measure()
+    const placed = placePopup(marker, size, region, standing)
     if (placed.anchor !== 'top') {
       popup.remove()
       popup = build('bottom')
+      applyCap()
     }
     // The tutorial's marker step frames this popup (#536).
     popup.getElement()?.setAttribute('data-tour', 'marker')

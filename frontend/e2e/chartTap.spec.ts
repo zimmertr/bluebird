@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect, resultRows } from './fixtures'
 import type { Page } from '@playwright/test'
 
 // A tap on the chart moves the map's playhead to the hour under it (#517).
@@ -22,7 +22,7 @@ async function openChart(page: Page) {
   await page.goto(`/?player=1&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).tap()
-  await expect(page.locator('table tbody tr').first()).toBeAttached()
+  await expect(resultRows(page).first()).toBeAttached()
   await page.getByRole('button', { name: 'Show chart only' }).tap()
   const surface = page.locator('svg.recharts-surface').first()
   await expect(surface).toBeVisible()

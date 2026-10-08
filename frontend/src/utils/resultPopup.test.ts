@@ -135,9 +135,10 @@ describe('resultPopupHtml mirrors the table', () => {
     // hour, and the popup follows it.
     expect(html).not.toContain(SEP)
     expect(html).toContain(`${NOUN.temp} (°F)`)
-    // One line per family plus the elevation, each a plain label/value pair.
-    const pairs = html.match(/<div><span style="[^"]*">[^<>:]+<\/span>: /g) ?? []
-    expect(pairs).toHaveLength(8)
+    // One line per family plus the elevation, each a label and its value, and
+    // no aggregate columns to head, because every family is one number.
+    expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(8)
+    expect(html).not.toContain('scope="col"')
   })
 
   it('leads with the family the report is ranked by', () => {
@@ -145,44 +146,55 @@ describe('resultPopupHtml mirrors the table', () => {
     expect(html.indexOf(NOUN.aqi)).toBeLessThan(html.indexOf(NOUN.precip))
   })
 
-  // A family's values sit on one line under one heading, which is what keeps a
-  // sixteen-value card inside the 280px width ceiling (TJ, 2026-09-14).
-  it('sets a family heading over an indented values line', () => {
+  // A grid: a row per family, a column per aggregate, the aggregate words said
+  // once at the top rather than on every family (TJ, 2026-10-08), which is what
+  // keeps the card short enough to stand beside a phone's controls.
+  it('lays the families out as a grid, one row each', () => {
     const html = resultPopupHtml({ ...base })
-    // The heading is the family's noun and unit, alone on its line, and the
-    // values line under it is the indented one.
-    expect(html).toContain(`<span style="${LABEL_COLOR}">${NOUN.temp} (°F)</span></div>`)
-    expect(html).toMatch(/<div style="padding-left:8px">/)
-    // All seven families are parted from what sits above them. None is the
-    // first block here: the elevation leads, as a plain label/value line.
-    expect((html.match(/margin-top:4px/g) ?? []).length).toBe(7)
+    const heads = [...html.matchAll(/<th scope="col"[^>]*>([^<]*)<\/th>/g)].map((m) => m[1])
+    expect(heads).toEqual(['Min', 'Max', 'Avg'])
+    // Under the elevation, which is a fact about the place and not a column.
+    expect(html.indexOf('scope="col"')).toBeGreaterThan(html.indexOf('Elevation (ft)'))
+    expect(html.indexOf('scope="col"')).toBeLessThan(html.indexOf(`>${NOUN.precip}</th>`))
+    // The temperature's three numbers stand under those three heads, in order.
+    const temp = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.temp} \\(°F\\)</th>(.*?)</tr>`))![1]
+    expect([...temp.matchAll(/>([\d.,]+)</g)].map((m) => m[1])).toEqual(['21.4', '38.9', '30.1'])
+    // The elevation, five three-value families, and a total line and a rate
+    // line each for precipitation and snowfall.
+    expect(html.match(/<th scope="row"/g) ?? []).toHaveLength(10)
+  })
+
+  // An AQI ranking's table leads its family with Avg; the grid keeps one order
+  // for every family, so its Avg moves under the Avg head with the others.
+  it('keeps one aggregate order for every family', () => {
+    const html = resultPopupHtml({ ...base, columns: displayedColumns(false, 'aqi_avg') })
+    const aqi = html.match(new RegExp(`<tr><th scope="row"[^>]*>${NOUN.aqi}</th>(.*?)</tr>`))![1]
+    expect([...aqi.matchAll(/>(\d+)</g)].map((m) => m[1])).toEqual(['11', '31', '24'])
   })
 
   // Precipitation and snowfall (#678) are the families whose columns do not
-  // share a unit, so the heading is the bare noun and each value carries its
-  // own.
-  it('spells a unit per value where a family mixes two', () => {
+  // share a unit: the window total takes a line of its own in inches, and the
+  // rates a line under it labelled by their unit, which a screen reader hears
+  // with the family's name.
+  it('gives a mixed family a total line and a rate line', () => {
     const html = resultPopupHtml({ ...base })
-    expect(html).toContain(`<span style="${LABEL_COLOR}">${NOUN.precip}</span>`)
-    expect(html).toContain(`<span style="${LABEL_COLOR}">${NOUN.snowfall}</span>`)
+    expect(html).toContain(`>${NOUN.precip}</th>`)
+    expect(html).toContain(`>${NOUN.snowfall}</th>`)
+    expect(html).toContain(`<span style="${LABEL_COLOR}">Total</span>: <a`)
     expect(html).toContain('0.123 in<')
-    expect(html).toContain('0.004 in/hr<')
+    expect(html).toContain(`aria-label="${NOUN.precip} (in/hr)">(in/hr)</th>`)
+    expect(html).toContain('>0.004<')
+    expect(html).not.toContain('in/hr<')
   })
 
-  // A values line may break between pairs and nowhere else. Unprotected, the
-  // precipitation line broke between "0.000" and "in/hr" and left a bare unit
-  // on the next line, which is the failure that split the old shared
-  // wind-and-temperature row.
+  // A number never wraps: only the label column gives way, so a value and its
+  // unit stay one thing. Unprotected, the old values line broke between
+  // "0.000" and "in/hr" and left a bare unit on the next line.
   it('never breaks a line inside one measurement', () => {
     const html = resultPopupHtml({ ...base })
-    const lines = html.match(/<div style="padding-left:8px">.*/g) ?? []
-    expect(lines).toHaveLength(7)
-    for (const line of lines) {
-      const pairs = line.match(/<span style="white-space:nowrap">/g) ?? []
-      const separators = line.match(/> \| </g) ?? []
-      // Every pair is protected, and the separators are the only gaps left.
-      expect(pairs.length).toBe(separators.length + 1)
-    }
+    const cells = html.match(/<td [^>]*>/g) ?? []
+    expect(cells.length).toBeGreaterThan(0)
+    for (const cell of cells) expect(cell).toContain('white-space:nowrap')
   })
 })
 
@@ -225,7 +237,7 @@ describe('resultPopupHtml type', () => {
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toContain(`<span style="${LABEL_COLOR}">Elevation (ft)</span>: <span`)
+    expect(html).toMatch(new RegExp(`<th scope="row" style="[^"]*${LABEL_COLOR}">Elevation \\(ft\\)</th>`))
   })
 
   // The popup's only bold is its title. Precip-total and AQI-avg wore
@@ -239,9 +251,13 @@ describe('resultPopupHtml type', () => {
 
   // Colour rather than weight, because under this card's `sans-serif` only two
   // faces exist and both are wrong: one is invisible against the value, the
-  // other is the title's own. See LABEL_COLOR for the measurement.
+  // other is the title's own. See LABEL_COLOR for the measurement. The grid's
+  // header cells are bold by default, so the one weight they may spell is the
+  // one that undoes it.
   it('never sets a weight below the title', () => {
-    expect(resultPopupHtml({ ...base })).not.toContain('font-weight')
+    const weights = resultPopupHtml({ ...base }).match(/font-weight:[a-z0-9]+/g) ?? []
+    expect(weights.length).toBeGreaterThan(0)
+    for (const w of weights) expect(w).toBe('font-weight:normal')
   })
 })
 
@@ -329,7 +345,7 @@ describe('resultPopupHtml links out', () => {
   // href, so a substring search for them finds the one anchor that is correct.
   it('leaves the elevation and the coordinates unlinked', () => {
     const html = resultPopupHtml({ ...linked })
-    const elevation = html.match(/<div><span style="[^"]*">Elevation \(ft\)<\/span>:[^\n]*/)![0]
+    const elevation = html.match(/<tr><th scope="row"[^>]*>Elevation \(ft\)<\/th>.*?<\/tr>/)![0]
     expect(elevation).not.toContain('<a ')
     const coordinates = html.match(/<div style="white-space:nowrap[^"]*">[^<]*<\/div>/)![0]
     expect(coordinates).not.toContain('<a ')

@@ -13,6 +13,7 @@
 // sees. Keeping it out of the component is also what makes it unit-testable
 // without pulling maplibre-gl into a node test.
 import { externalLinkMarkup } from '../iconPaths'
+import type { PopupGrid } from './popupRows'
 
 /**
  * The popup's type ramp, and the face everything in it is set in.
@@ -136,16 +137,6 @@ export function popupLink(href: string, inner: string, extra = ''): string {
 }
 
 /**
- * The colour a separator takes between two values on one line.
- *
- * Slate-500, which measures 4.76:1 on the white MapLibre draws a popup on. It
- * is a pass for text and a step lighter than `LABEL_COLOR`, which is what the
- * pipe wants to be: present enough to part two numbers, quiet enough that a
- * row of them does not read as a third column of content.
- */
-export const SEPARATOR_COLOR = '#64748b'
-
-/**
  * The rule between a popup's title and its body: slate-300, a hairline that
  * parts the two without reading as a row of its own.
  */
@@ -249,47 +240,71 @@ export function coordinateRow(latitude: number, longitude: number): string {
 }
 
 /**
- * A metric family: a heading line, then its values indented under it.
+ * The popup's measurements as a grid: a row per metric family, a column per
+ * aggregate, headed once at the top (TJ, 2026-10-08, at every width). It
+ * replaced a heading line per family with its "Min: … | Max: … | Avg: …"
+ * values indented under it, which spelled the aggregate words on every family
+ * and took two lines each. On a phone that card grew past the map under the
+ * top control stack once the cloud deck joined every report (#683).
  *
- * Two lines rather than one (TJ, 2026-09-14). A family's three aggregates and
- * their noun do not fit the card's 280px ceiling on one line — the temperature
- * runs past it and the freezing level's comma-grouped feet run further — and a
- * wrapped line breaks between a label and the number it names. Splitting the
- * noun off puts every values line inside the ceiling and costs one line per
- * family against the four it saves.
- *
- * The indent is what binds the values to their heading rather than to the
- * family above them, and it is the only structure the card needs: the heading
- * already sits in the label colour and the values already sit in the mono face.
+ * A real table, so a screen reader hears each number with its row and column:
+ * the family is the row header, the aggregate the column header, and a rate
+ * line under a total carries its whole name in `aria-label`, since "(in/hr)"
+ * names nothing on its own. The label column takes the room the numbers leave
+ * and wraps there, a long noun such as "Freezing level (ft)" onto two lines,
+ * and every cell sits on the bottom line, so a wrapped noun's numbers stand
+ * beside its last line. Numbers never wrap and are right-aligned, so a column
+ * lines up on its last digit in the mono face, the way the table's do.
  */
-export function groupBlock(label: string, values: string[], first: boolean): string {
-  const joined = values.join(
-    `<span style="color:${SEPARATOR_COLOR}"> | </span>`,
-  )
-  return `<div style="${first ? '' : 'margin-top:4px'}">${rowLabel(label)}</div>
-    <div style="padding-left:8px">${joined}</div>`
+export function metricGrid(grid: PopupGrid): string {
+  const span = Math.max(1, grid.columns.length)
+  const cell = (c: { text: string; href: string | null }) => {
+    const shown = `<span style="${VALUE_FACE}">${c.text}</span>`
+    return c.href ? popupLink(c.href, shown) : shown
+  }
+  const head = grid.columns.length
+    ? `<tr><td></td>${grid.columns.map((c) => `<th scope="col" style="${GRID_HEAD}">${c}</th>`).join('')}</tr>`
+    : ''
+  const rows = grid.rows.map((r) => {
+    if (r.kind === 'aggregates') {
+      const label = `<th scope="row" style="${GRID_LABEL}${r.nested ? ';padding-left:8px' : ''}"${
+        r.nested ? ` aria-label="${escapeHtml(r.fullLabel)}"` : ''
+      }>${r.label}</th>`
+      return `<tr>${label}${r.cells.map((c) => `<td style="${GRID_VALUE}">${c ? cell(c) : ''}</td>`).join('')}</tr>`
+    }
+    const value = r.kind === 'total' ? `${rowLabel(r.aggregate)}: ${cell(r.cell)}` : cell(r.cell)
+    return `<tr><th scope="row" style="${GRID_LABEL}">${r.label}</th><td colspan="${span}" style="${GRID_VALUE}">${value}</td></tr>`
+  })
+  // The aggregate heads go over the first line that has aggregates, so the
+  // elevation, a fact about the place that leads the grid, does not read as
+  // one of their columns.
+  const at = grid.rows.findIndex((r) => r.kind !== 'value')
+  if (head && at !== -1) rows.splice(at, 0, head)
+  return `<table style="border-collapse:collapse;width:100%">${rows.join('')}</table>`
 }
 
+// The grid's three cell kinds. Every cell sits on the bottom line, which is
+// where a wrapped label ends.
+const GRID_LABEL = `text-align:left;font-weight:normal;padding:0;vertical-align:bottom;${LABEL_COLOR}`
+const GRID_HEAD = `text-align:right;font-weight:normal;padding:0 0 0 8px;vertical-align:bottom;${LABEL_COLOR}`
+const GRID_VALUE = 'text-align:right;white-space:nowrap;padding:0 0 0 8px;vertical-align:bottom'
+
 /**
- * One measurement inside a values line: how it was reduced, then the number.
- *
- * The aggregate wears the label colour and the value wears the mono face, the
- * same split every "label: value" row uses, so a values line is legible as
- * pairs rather than as a run of numbers.
- *
- * The pair is `nowrap`, which leaves the separators between pairs as the only
- * places a values line may break. Precipitation is what proved it necessary:
- * it is the one family whose values carry their own units, so its line is long
- * enough to wrap, and unprotected it broke between "0.0000" and "in/hr" and
- * left a bare unit on the next line. That is the same failure that split the
- * old shared wind-and-temperature row, and the rule is the same one the
- * coordinate line already states: a value and what names it are one thing.
+ * The class a too-tall marker popup's body wears while it scrolls, and the
+ * attribute that finds that body. `map.css` draws the scrollbar it keeps
+ * visible; `map/resultsLayer.ts` sets the height (`capPopupBody`).
  */
-export function groupValue(aggregate: string | null, value: string, href?: string | null): string {
-  const shown = `<span style="${VALUE_FACE}">${value}</span>`
-  const linked = href ? popupLink(href, shown) : shown
-  const pair = aggregate ? `${rowLabel(aggregate)}: ${linked}` : linked
-  return `<span style="white-space:nowrap">${pair}</span>`
+export const POPUP_SCROLL_CLASS = 'popup-scroll'
+export const POPUP_BODY_ATTR = 'data-popup-body'
+
+/**
+ * Cap a popup's body so the whole card stands in the free map area, and let
+ * the body scroll inside it. The title and the band under it stay put, so a
+ * reader always sees which destination the numbers belong to.
+ */
+export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
+  body.classList.add(POPUP_SCROLL_CLASS)
+  body.style.maxHeight = `${Math.floor(maxHeightPx)}px`
 }
 
 /**
@@ -307,9 +322,11 @@ export function groupValue(aggregate: string | null, value: string, href?: strin
  * map. So a popup measures itself against the canvas it opens on and takes
  * whichever is smaller.
  *
- * Height is deliberately unbounded. A tall card on a short map is easier to
- * live with than one that has to be scrolled inside a popup on a map that
- * itself scrolls.
+ * Height is bounded only where it must be: a card that cannot stand whole in
+ * the free map area caps its body and scrolls it (`capPopupBody`, TJ,
+ * 2026-10-08). That reversed the rule that height was never bounded, which
+ * held that a tall card was easier to live with than one scrolled inside a
+ * map that itself scrolls; on a phone the tall card covered the controls.
  */
 export const POPUP_MAX_WIDTH_PX = 280
 
@@ -366,7 +383,7 @@ export function popupShell(title: string, url: string, body: string, meta = ''):
     <div style="display:flex;align-items:center;gap:6px;${POPUP_TITLE_SIZE}"><strong>${title}</strong>${linkIcon(url)}</div>
     ${meta}
     <hr style="border:none;border-top:1px solid ${RULE_COLOR};margin:5px 0" />
-    <div style="${POPUP_BODY_SIZE}">${body}</div>
+    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE}">${body}</div>
   </div>`
 }
 

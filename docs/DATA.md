@@ -564,6 +564,11 @@ layer of cloud under the destination: an undercast from a summit, and from a
 valley trailhead a sky that is clear above the cloud. A deck at about the
 elevation is the destination in cloud. A deck above it is cloud overhead.
 
+The two edges of the walk print as bounds rather than as heights: the ceiling
+as `≥30,000` and a saturated bottom level as `≤364`, the standard height of
+1000 hPa, since the deck there is at that height or lower. The API answers
+the plain number in both cases.
+
 The hour is null when no pressure level answered, whatever the 2 m humidity
 says: archive windows publish no pressure levels, so an archive hour has no
 deck. A destination with no known elevation walks the levels alone and still

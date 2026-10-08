@@ -1,4 +1,4 @@
-import { test, expect, redrawRing, DESTINATION_NAMES } from './fixtures'
+import { test, expect, redrawRing, DESTINATION_NAMES, resultRows } from './fixtures'
 import type { Page, Route } from '@playwright/test'
 
 // #560: a run that does not finish changes nothing. Ring A is analyzed, the
@@ -85,7 +85,7 @@ async function ringBDiscovery(page: Page, count: number, holdFirst: boolean) {
 }
 
 const rowNames = (page: Page) =>
-  page.locator('table tbody tr').evaluateAll((rows) => rows.map((r) => r.textContent ?? ''))
+  resultRows(page).evaluateAll((rows) => rows.map((r) => r.textContent ?? ''))
 const onlyRing = (names: string[], expected: string[]) =>
   names.length === expected.length && names.every((text) => expected.some((name) => text.includes(name)))
 
@@ -93,7 +93,7 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   const d1 = isoDay(1)
   const discovery = await ringBDiscovery(page, 3, true)
   await page.goto(`/?mode=days&d1=${d1}&d2=${d1}&type=peak&poly=${RING_A}&${LINK_VIEW}&analyze=1`)
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
 
   await redrawRing(page, await ringBPixels(page))
   // A card over ring A's report, which a run that showed nothing new leaves open.
@@ -131,13 +131,13 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
     return route.fallback()
   })
   await page.goto(`/?mode=days&d1=${d1}&d2=${d1}&type=peak&sort=precip_total_in&poly=${RING_A}&${LINK_VIEW}&analyze=1`)
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
 
   await redrawRing(page, await ringBPixels(page))
   holdWeather = true
   await page.getByRole('button', { name: 'Analyze' }).click()
   await expect(page.getByText(/so far/)).toBeVisible()
-  await expect(page.locator('table tbody tr')).toHaveCount(50)
+  await expect(resultRows(page)).toHaveCount(50)
   // A card over a partial row, which names a row the report put back does not hold.
   const popup = page.locator('.maplibregl-popup')
   await page.getByRole('button', { name: /^Center map on / }).first().click()

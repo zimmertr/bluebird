@@ -10,6 +10,7 @@ import {
   metricLabel,
 } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
+import { cloudDeckMark } from './cloudDeckMark'
 
 /**
  * One column of the results table.
@@ -202,6 +203,13 @@ const PRECIP_RATE = 'in/hr'
 // Snowfall's, for the same reason: a total over the window and three rates.
 const SNOWFALL_RATE = `${UNIT.snowfall}/hr`
 
+// A cloud deck at either edge of the walk prints as a bound rather than as the
+// level's height (`cloudDeckMark`), on screen, in the popup that reads these
+// formatters, and in the downloaded file, which groups no thousands.
+const cloudDeckCell = (v: unknown): string =>
+  v == null ? '—' : (cloudDeckMark(v) ?? Number(v).toLocaleString())
+const cloudDeckCsv = (v: unknown): string => cloudDeckMark(v, false) ?? String(v)
+
 export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
   // What a row *is*, which stopped being obvious the moment one polygon
@@ -254,9 +262,9 @@ export const COLUMNS: ColDef[] = [
   // before it keep the places they always had. The deck is
   // feet above sea level and grouped like the elevation it is read against;
   // Windy's nearest layer is its cloud base, `cbase`.
-  { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
-  { key: 'cloud_deck_max_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
-  { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
+  { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
+  { key: 'cloud_deck_max_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.maximum), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
+  { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
 ]
 
 // Every key a header click can sort on: the table's columns and the three

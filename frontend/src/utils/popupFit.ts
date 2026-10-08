@@ -170,3 +170,49 @@ export function placePopup(marker: Point, size: Size, region: Rect, obstacles: r
   }
   return best!
 }
+
+/**
+ * The least a capped card may keep, in pixels: the title band and a few lines
+ * of the body under it. A shorter cap would leave a keyhole to scroll through,
+ * and below it the title-first fit of the whole card serves a reader better.
+ * It is the threshold the user named on 2026-10-08, "when resolution reaches a
+ * certain small threshold": a card caps only when the free map area is too
+ * short for it and still tall enough for this.
+ */
+export const MIN_CAPPED_PX = 200
+
+/** Does a card of this size, placed as well as it can be, show all of itself? */
+export function fitsWhole(marker: Point, size: Size, region: Rect, obstacles: readonly Rect[] = []): boolean {
+  const placed = placePopup(marker, size, region, obstacles)
+  const figure = shifted(figureOf(marker, size, placed.anchor), placed.dx, placed.dy)
+  const whole = (figure.right - figure.left) * (figure.bottom - figure.top)
+  return visibleArea(figure, region, obstacles) >= whole - 0.5
+}
+
+/**
+ * The height to cap a card at so that it stands whole in the free map area
+ * (TJ, 2026-10-08), or null when it already does, or when no card of at least
+ * `MIN_CAPPED_PX` would. The caller scrolls whatever the cap cuts off.
+ *
+ * Found by bisection over whole pixels: a shorter card never fits worse than a
+ * taller one of the same width, so the answer is one edge.
+ */
+export function capHeight(
+  marker: Point,
+  size: Size,
+  region: Rect,
+  obstacles: readonly Rect[] = [],
+  min = MIN_CAPPED_PX,
+): number | null {
+  if (fitsWhole(marker, size, region, obstacles)) return null
+  const at = (height: number) => fitsWhole(marker, { width: size.width, height }, region, obstacles)
+  if (min >= size.height || !at(min)) return null
+  let lo = min
+  let hi = Math.floor(size.height)
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (at(mid)) lo = mid
+    else hi = mid
+  }
+  return lo
+}

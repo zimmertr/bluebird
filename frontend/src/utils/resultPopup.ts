@@ -6,16 +6,14 @@ import { type ClosureWarning, closureWarningText } from './closureProximity'
 import {
   coordinateRow,
   escapeHtml,
-  groupBlock,
-  groupValue,
   metaBand,
+  metricGrid,
   popupLink,
   popupShell,
-  row,
   WARNING_COLOR,
 } from './popupChrome'
 import { ColDef } from './tableColumns'
-import { popupGroups, popupIdentity } from './popupRows'
+import { popupGrid, popupGroups, popupIdentity } from './popupRows'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
 
 // Popup body shared by a marker click and a table-rank click (focusResult), so
@@ -105,23 +103,10 @@ export function resultPopupHtml(d: {
     coordinateRow(r.latitude, r.longitude),
   ])
 
-  const groups = popupGroups(r, d.columns, { modelId: d.modelId, times: d.times })
-  const body = [
-    fire,
-    closure,
-    ...groups.map((g, at) =>
-      // One value reads as a plain "label: value" line, which is every group
-      // over a Current lookup and the elevation over any report. Two or more
-      // take the heading-and-values shape.
-      g.single
-        ? row(g.label, g.values[0].text, g.values[0].href)
-        : groupBlock(
-            g.label,
-            g.values.map((v) => groupValue(v.aggregate, v.text, v.href)),
-            at === 0 && !d.warning && !d.closure,
-          ),
-    ),
-  ]
+  // The measurements as one grid, a row per family and a column per aggregate
+  // (TJ, 2026-10-08), under the two safety lines.
+  const grid = popupGrid(popupGroups(r, d.columns, { modelId: d.modelId, times: d.times }))
+  const body = [fire, closure, grid.rows.length ? metricGrid(grid) : '']
     .filter(Boolean)
     .join('\n    ')
 

@@ -3,15 +3,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // MapLibre's Popup needs a DOM. This one records where it opened, what it says
 // and its options, and fires `close` when removed, as MapLibre's does.
 // Hoisted, because `vi.mock` runs before the imports.
+type FakeBody = { offsetHeight: number; style: { maxHeight?: string }; classes: string[]; classList: { add: (c: string) => void } }
 const { popups } = vi.hoisted(() => ({
-  popups: [] as { at: unknown; html: string; options: unknown; removed: boolean; attrs: Record<string, string> }[],
+  popups: [] as {
+    at: unknown
+    html: string
+    options: unknown
+    removed: boolean
+    attrs: Record<string, string>
+    body: FakeBody
+  }[],
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
-    state: { at: unknown; html: string; options: unknown; removed: boolean; attrs: Record<string, string> }
+    state: (typeof popups)[number]
     closers: (() => void)[] = []
     constructor(options: unknown) {
-      this.state = { at: null, html: '', options, removed: false, attrs: {} }
+      const classes: string[] = []
+      const body: FakeBody = { offsetHeight: BODY_H, style: {}, classes, classList: { add: (c) => classes.push(c) } }
+      this.state = { at: null, html: '', options, removed: false, attrs: {}, body }
       popups.push(this.state)
     }
     setLngLat(at: unknown) {
@@ -26,12 +36,16 @@ vi.mock('maplibre-gl', () => ({
       return this
     }
     // The element MapLibre would own, at the size a full card measures; the
-    // fit reads it and the tutorial marks it (#536).
+    // fit reads it and the tutorial marks it (#536). Its body is what a cap
+    // shortens, and the card shrinks by what the body loses.
     getElement() {
+      const body = this.state.body
+      const shown = body.style.maxHeight ? Math.min(BODY_H, parseFloat(body.style.maxHeight)) : BODY_H
       return {
         offsetWidth: CARD_W,
-        offsetHeight: CARD_H,
+        offsetHeight: CARD_H - BODY_H + shown,
         setAttribute: (k: string, v: string) => (this.state.attrs[k] = v),
+        querySelector: () => body,
       }
     }
     on(_type: string, fn: () => void) {
@@ -61,6 +75,8 @@ import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 // A full card's size, and a map tall enough to hold one below a centred marker.
 const CARD_W = 280
 const CARD_H = 360
+// The part of the card under the title band, which a cap shortens.
+const BODY_H = 270
 const MAP_W = 1280
 const MAP_H = 900
 
@@ -240,6 +256,30 @@ describe('mountResultsLayer', () => {
     expect(popups).toHaveLength(1)
     expect(popups[0].options).toMatchObject({ anchor: 'top', closeOnClick: false })
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+
+  // A card too tall for the free map area keeps its title and scrolls its body
+  // (TJ, 2026-10-08), and is placed at the height it will be drawn at.
+  it('caps a card the free map cannot hold, and scrolls its body under the title', () => {
+    const { layer, controller } = setup()
+    // The visible map is 330 tall: a 360 card cannot stand whole in it.
+    controller.update({ ...controller.inputs, cameraPadBottomPx: MAP_H - 330 })
+    layer.openPopup(RAINIER, { markerAt: { x: 640, y: 100 } })
+    const shown = popups.filter((p) => !p.removed)
+    expect(shown).toHaveLength(1)
+    const body = shown[0].body
+    expect(body.classes).toEqual(['popup-scroll'])
+    // The tallest card that stands whole: the map less the margin the fit
+    // keeps at its top edge, the tip, and the marker's square.
+    const cap = 330 - 8 - 10 - 8
+    expect(body.style.maxHeight).toBe(`${BODY_H - (CARD_H - cap)}px`)
+  })
+
+  it('leaves a card that fits alone', () => {
+    const { layer } = setup()
+    layer.openPopup(RAINIER)
+    expect(popups[0].body.classes).toEqual([])
+    expect(popups[0].body.style.maxHeight).toBeUndefined()
   })
 
   it('rebuilds the card above a marker near the bottom, before a frame is drawn', () => {

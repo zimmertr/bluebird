@@ -1,4 +1,4 @@
-import { test, expect, DESTINATION_NAMES } from './fixtures'
+import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
 import type { Locator } from '@playwright/test'
 
 // A result popup is built once from the report it opened over, so a new
@@ -27,7 +27,7 @@ test('a popup clears the forecast player, and the next analysis closes it', asyn
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const analyze = page.getByRole('button', { name: 'Analyze' })
   await analyze.click()
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
   // Table alone, which leaves the map the height a desktop reader works at.
   await page.getByRole('button', { name: 'Show table only' }).click()
 
@@ -51,6 +51,6 @@ test('a popup clears the forecast player, and the next analysis closes it', asyn
   }).toPass({ timeout: 10_000 })
 
   await analyze.click()
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
   await expect(popup).toHaveCount(0)
 })
