@@ -32,7 +32,7 @@ import {
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
 import { capHeight, placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
-import { POPUP_BODY_ATTR, capPopupBody } from '../utils/popupChrome'
+import { POPUP_BODY_ATTR, RESULT_POPUP_CLASS, capPopupBody } from '../utils/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -288,7 +288,7 @@ export function mountResultsLayer(
     { markerAt, avoid = [] }: { markerAt?: ScreenPoint; avoid?: readonly Rect[] },
   ): PopupPlacement => {
     const build = (anchor: 'top' | 'bottom') =>
-      new Popup({ ...popupOptions(map, { result: true }), closeOnClick: false, anchor }).setLngLat(at).setHTML(html).addTo(map)
+      new Popup({ ...popupOptions(map, { result: true }), closeOnClick: false, anchor, className: RESULT_POPUP_CLASS }).setLngLat(at).setHTML(html).addTo(map)
     let popup = build('top')
     const measure = () => {
       const el = popup.getElement()

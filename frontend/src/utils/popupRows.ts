@@ -112,12 +112,13 @@ function groupUnit(cols: ColDef[]): string | null {
 }
 
 /**
- * The popup's groups, in the order the table shows their columns.
+ * The popup's groups, alphabetical by label.
  *
- * Family order is first appearance, so an AQI ranking puts AQI at the top of
- * the card exactly as `orderColumns` puts it at the left of the table. Within
- * a family the aggregates keep the columns' own order, which is the reader's
- * if they have dragged one.
+ * Which families appear follows the table's columns, but not their order: the
+ * card lists them A to Z whatever the ranking or the reader's column order
+ * (TJ, 2026-10-08, replacing the first-appearance order of #370, which put
+ * the ranked family first), so a reader finds a family in the same place on
+ * every card. Within a family the aggregates are the grid's fixed columns.
  *
  * Four column kinds never become a group. `name` is the popup's title.
  * `type`, the elevation and the model ride in the band above the rule, where
@@ -192,7 +193,9 @@ export function popupGroups(
       single,
     })
   }
-  return out
+  // Alphabetical by label, whatever the ranking or the table's column order
+  // (TJ, 2026-10-08), so a family stands in the same place on every card.
+  return out.sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }))
 }
 
 /**

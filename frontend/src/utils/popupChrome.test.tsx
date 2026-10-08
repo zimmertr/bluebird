@@ -3,8 +3,11 @@ import { within } from '@testing-library/react'
 import { render } from '../testSupport/render'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 import {
+  FINE_COLOR,
   GRID_BAND_COLOR,
   GRID_GUTTER_COLOR,
+  HEADER_BAND_COLOR,
+  HEADER_ICON_COLOR,
   LABEL_COLOR,
   LINK_COLOR,
   RESULT_POPUP_MAX_WIDTH_PX,
@@ -99,9 +102,10 @@ describe('the popup grid', () => {
       columns: [AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total],
       rows: [{ kind: 'value', label: 'Cloud deck (ft)', cell: { text: '≥30,000', href: null } }],
     })
-    const cells = [...html.matchAll(/<td colspan="(\d)"|<td style/g)]
-    expect(html).toContain('<td colspan="3"')
-    expect(cells).toHaveLength(2)
+    // The value row alone: the corner over the labels is the head row's.
+    const valueRow = html.slice(html.indexOf('<th scope="row"'))
+    expect(valueRow).toContain('<td colspan="3"')
+    expect(valueRow.match(/<td /g)).toHaveLength(2)
   })
 
   // Every label stays on one line; the card is sized for the widest.
@@ -111,6 +115,41 @@ describe('the popup grid', () => {
       rows: [{ kind: 'aggregates', label: 'Precipitation (in/hr)', cells: [{ text: '0.000', href: null }] }],
     })
     expect(html).toMatch(/<th scope="row" style="[^"]*white-space:nowrap[^"]*">Precipitation \(in\/hr\)<\/th>/)
+  })
+})
+
+// The result card's header band (TJ, 2026-10-08): every colour on it measured.
+describe('the header band', () => {
+  it('keeps its text above AA and its link glyph above the 3:1 an icon owes', () => {
+    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), HEADER_BAND_COLOR))).toBe(6.6)
+    expect(round2(contrast('#000000', HEADER_BAND_COLOR))).toBe(18.3)
+    expect(round2(contrast(HEADER_ICON_COLOR, HEADER_BAND_COLOR))).toBe(3.57)
+    // The pipes are decoration, hidden from a screen reader; they need only show.
+    expect(round2(contrast(FINE_COLOR, HEADER_BAND_COLOR))).toBe(2.23)
+  })
+
+  it('keeps the close button\'s lane, which map.css widens on a touch screen', () => {
+    const html = popupShell('Title', 'https://example.com', '', '', { resultCard: true })
+    expect(html).toContain(`background:${HEADER_BAND_COLOR}`)
+    expect(html).toContain('padding:10px var(--popup-close-lane, 2rem) 8px 10px')
+    expect(html).not.toContain('<hr')
+  })
+})
+
+// A name too long for the card ends in an ellipsis on one line, as the results
+// table's does, rather than wrapping the rank away and running off the edge.
+describe('a popup title', () => {
+  const NAME = 'Taumatawhakatangihangakōauauotamateapōkaiwhenuakitānatahu'
+  it('keeps a long name on one line, ending in an ellipsis, on both shells', () => {
+    for (const resultCard of [false, true]) {
+      const popup = document.createElement('div')
+      popup.innerHTML = popupShell(`#1 ${NAME}`, 'https://example.com', '', '', { resultCard })
+      const title = popup.querySelector('strong')!
+      expect(title.textContent).toBe(`#1 ${NAME}`)
+      expect(title.getAttribute('style')).toContain('text-overflow:ellipsis')
+      expect(title.getAttribute('style')).toContain('white-space:nowrap')
+      expect(title.getAttribute('style')).toContain('min-width:0')
+    }
   })
 })
 

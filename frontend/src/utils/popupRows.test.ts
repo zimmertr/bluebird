@@ -8,7 +8,7 @@ import {
   displayedColumns,
   visibleColumns,
 } from './tableColumns'
-import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT, familyOf } from '../metrics'
+import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT } from '../metrics'
 import type { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
 
@@ -120,24 +120,26 @@ describe('popupGroups over a Current lookup', () => {
       expect(g.values[0].aggregate).toBeNull()
     }
     expect(labelsOf(groups.map((g) => ({ label: g.label })))).toEqual([
-      `${NOUN.precip} (in/hr)`,
-      `${NOUN.temp} (${UNIT.temp})`,
-      `${NOUN.wind} (${UNIT.wind})`,
-      `${NOUN.freeze} (${UNIT.freeze})`,
-      // An hour of new snow is a rate, as an hour of rain is (#678).
-      `${NOUN.snowfall} (in/hr)`,
       NOUN.aqi,
       `${NOUN.cloud_deck} (${UNIT.cloud_deck})`,
+      `${NOUN.freeze} (${UNIT.freeze})`,
+      `${NOUN.precip} (in/hr)`,
+      // An hour of new snow is a rate, as an hour of rain is (#678).
+      `${NOUN.snowfall} (in/hr)`,
+      `${NOUN.temp} (${UNIT.temp})`,
+      `${NOUN.wind} (${UNIT.wind})`,
     ])
   })
 })
 
 describe('popupGroups follows the table', () => {
-  it('leads with the ranked family, as orderColumns does', () => {
-    const groups = popupGroups(row, displayedColumns(false, 'aqi_max'))
-    // The ranked family is the first group, exactly as it is the first metric
-    // column.
-    expect(groups[0].label).toBe(NOUN.aqi)
+  // Which families show follows the table; their order does not. A to Z,
+  // whatever the ranking (TJ, 2026-10-08).
+  it('orders the families alphabetically rather than by the ranking', () => {
+    const groups = popupGroups(row, displayedColumns(false, 'wind_max_mph'))
+    const labels = groups.map((g) => g.label)
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })))
+    expect(labels[0]).toBe(NOUN.aqi)
   })
 
   it('drops a value the Columns picker hides', () => {
@@ -303,16 +305,12 @@ describe('a new metric family reaches the popup on its own', () => {
     }
   })
 
-  // The ranking is what decides which family leads, and it reads the sort key's
-  // own family rather than a position written down anywhere.
-  it('leads with whichever family the report is ranked by', () => {
-    for (const family of RANKED_FAMILIES) {
-      const sortBy = FAMILY_KEYS[family][0]
-      const groups = popupGroups(row, displayedColumns(false, sortBy))
-      const first = groups.filter((g) => !g.label.startsWith('Elevation'))[0]
-      expect(familyOf(FAMILY_KEYS[family][0])).toBe(family)
-      expect(first.label.startsWith(NOUN[family]), `${family} did not lead`).toBe(true)
-    }
+  // A new family takes its alphabetical place, whatever the report ranks by.
+  it('keeps one order whichever family the report is ranked by', () => {
+    const orders = RANKED_FAMILIES.map((family) =>
+      popupGroups(row, displayedColumns(false, FAMILY_KEYS[family][0])).map((g) => g.label),
+    )
+    for (const order of orders) expect(order).toEqual(orders[0])
   })
 })
 

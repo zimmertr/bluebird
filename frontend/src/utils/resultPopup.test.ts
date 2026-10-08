@@ -3,7 +3,7 @@ import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
 import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
-import { LABEL_COLOR } from './popupChrome'
+import { HEADER_BAND_COLOR, LABEL_COLOR } from './popupChrome'
 import { displayedColumns } from './tableColumns'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 
@@ -102,13 +102,13 @@ describe('resultPopupHtml closure line', () => {
 describe('resultPopupHtml rank prefix', () => {
   it('shows "#N name" for a ranked result', () => {
     const html = resultPopupHtml({ ...base, rank: 3 })
-    expect(html).toContain('<strong>#3 Mount Rainier</strong>')
+    expect(html).toMatch(/<strong[^>]*>#3 Mount Rainier<\/strong>/)
   })
 
   it('drops the "#" for an unranked (searched) destination', () => {
     // The title carries no rank prefix (hex colors elsewhere still use '#').
     const html = resultPopupHtml({ ...base, rank: '' })
-    expect(html).toContain('<strong>Mount Rainier</strong>')
+    expect(html).toMatch(/<strong[^>]*>Mount Rainier<\/strong>/)
   })
 })
 
@@ -141,9 +141,14 @@ describe('resultPopupHtml mirrors the table', () => {
     expect(html).not.toContain('scope="col"')
   })
 
-  it('leads with the family the report is ranked by', () => {
-    const html = resultPopupHtml({ ...base, columns: displayedColumns(false, 'aqi_max') })
-    expect(html.indexOf(NOUN.aqi)).toBeLessThan(html.indexOf(NOUN.precip))
+  // A to Z whatever the ranking (TJ, 2026-10-08).
+  it('lists the families alphabetically, whatever the ranking', () => {
+    for (const sortBy of ['aqi_max', 'wind_max_mph', 'precip_total_in'] as const) {
+      const html = resultPopupHtml({ ...base, columns: displayedColumns(false, sortBy) })
+      const labels = [...html.matchAll(/<th scope="row"[^>]*>([^<]*)<\/th>/g)].map((m) => m[1])
+      expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })))
+      expect(labels[0]).toBe(NOUN.aqi)
+    }
   })
 
   // A grid: a row per family, a column per aggregate, the aggregate words said
@@ -189,8 +194,9 @@ describe('resultPopupHtml mirrors the table', () => {
   // "0.000" and "in/hr" and left a bare unit on the next line.
   it('never breaks a line inside one measurement', () => {
     const html = resultPopupHtml({ ...base })
-    const cells = html.match(/<td [^>]*>/g) ?? []
-    expect(cells.length).toBeGreaterThan(0)
+    // Every cell holding a number; the empty corner over the labels holds none.
+    const cells = html.match(/<td [^>]*>(?=<a |<span )/g) ?? []
+    expect(cells.length).toBeGreaterThan(20)
     for (const cell of cells) expect(cell).toContain('white-space:nowrap')
   })
 })
@@ -199,11 +205,15 @@ describe('resultPopupHtml mirrors the table', () => {
 // rather than measure it, so the rule now parts what a destination IS from what
 // the forecast says about it.
 describe('resultPopupHtml identity band', () => {
-  it('puts the type and the coordinates above the rule', () => {
+  // On the header band, above the body, which the band's edge and shadow part
+  // from it (TJ, 2026-10-08) where other popups draw a rule.
+  it('puts the type and the coordinates on the header band, above the body', () => {
     const html = resultPopupHtml({ ...base })
-    const rule = html.indexOf('<hr')
-    expect(html.indexOf('Peak')).toBeLessThan(rule)
-    expect(html.indexOf('46.85173, -121.76040')).toBeLessThan(rule)
+    const body = html.indexOf('data-popup-body')
+    expect(html).not.toContain('<hr')
+    expect(html.indexOf(HEADER_BAND_COLOR)).toBeLessThan(html.indexOf('Peak'))
+    expect(html.indexOf('Peak')).toBeLessThan(body)
+    expect(html.indexOf('46.85173, -121.76040')).toBeLessThan(body)
   })
 
   // The type, the elevation and the coordinates share one line under the name,
@@ -249,19 +259,23 @@ describe('resultPopupHtml type', () => {
   // by no rule.
   it('bolds the name and nothing else', () => {
     const html = resultPopupHtml({ ...base })
-    expect(html.match(/<strong>/g)).toHaveLength(1)
-    expect(html.indexOf('<strong>')).toBeLessThan(html.indexOf('Mount Rainier'))
+    expect(html.match(/<strong[ >]/g)).toHaveLength(1)
+    expect(html.indexOf('<strong')).toBeLessThan(html.indexOf('Mount Rainier'))
   })
 
-  // Colour rather than weight, because under this card's `sans-serif` only two
-  // faces exist and both are wrong: one is invisible against the value, the
-  // other is the title's own. See LABEL_COLOR for the measurement. The grid's
-  // header cells are bold by default, so the one weight they may spell is the
-  // one that undoes it.
-  it('never sets a weight below the title', () => {
-    const weights = resultPopupHtml({ ...base }).match(/font-weight:[a-z0-9]+/g) ?? []
-    expect(weights.length).toBeGreaterThan(0)
-    for (const w of weights) expect(w).toBe('font-weight:normal')
+  // Colour rather than weight for a label, because under this card's
+  // `sans-serif` only two faces exist: one is invisible against the value, the
+  // other is the title's own. See LABEL_COLOR for the measurement. The column
+  // heads are the one exception: bold, a size under the title, so they read
+  // as the grid's heads rather than as one more label (TJ, 2026-10-08).
+  it('keeps every label regular and only the column heads bold', () => {
+    const html = resultPopupHtml({ ...base })
+    const rowHeads = html.match(/<th scope="row" style="[^"]*"/g) ?? []
+    expect(rowHeads.length).toBeGreaterThan(0)
+    for (const th of rowHeads) expect(th).toContain('font-weight:normal')
+    const colHeads = html.match(/<th scope="col" style="[^"]*"/g) ?? []
+    expect(colHeads).toHaveLength(4)
+    for (const th of colHeads) expect(th).toContain('font-weight:700')
   })
 })
 

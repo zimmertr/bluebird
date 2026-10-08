@@ -243,13 +243,15 @@ export function coordinateRow(latitude: number, longitude: number): string {
 /**
  * A ranked destination's facts on one line under its name: the type, the
  * elevation and the coordinates, parted by a light pipe (TJ, 2026-10-08).
- * The pipe is drawn in `RULE_COLOR` and hidden from a screen reader, which
+ * The pipe is drawn in `FINE_COLOR`, which shows on the header band where
+ * `RULE_COLOR` all but vanishes, and is hidden from a screen reader, which
  * hears the three facts as a list; it is a divider, not a character to read.
- * The line never wraps for the coordinate row's reason, and the card is wide
- * enough for a trailhead's, the longest (278.7px measured on macOS).
+ * The line never wraps for the coordinate row's reason. A trailhead's is the
+ * longest, 274.7px measured on macOS with the pipes' 5px, which the 340px card
+ * holds beside a touch screen's close-button lane.
  */
 export function factsRow(type: string | null, elevation: string | null, latitude: number, longitude: number): string {
-  const pipe = `<span aria-hidden="true" style="color:${RULE_COLOR};padding:0 6px">|</span>`
+  const pipe = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:0 5px">|</span>`
   const coords = `<span style="${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`
   const parts = [
     type ? escapeHtml(type) : '',
@@ -287,16 +289,18 @@ export function metricGrid(grid: PopupGrid): string {
   const hasTotal = grid.columns[grid.columns.length - 1] === AGGREGATE.total
   const lead = Math.max(1, grid.columns.length - (hasTotal ? 1 : 0))
   const head = grid.columns.length
-    ? `<tr><td></td>${grid.columns.map((c) => `<th scope="col" style="${GRID_HEAD}">${c}</th>`).join('')}</tr>`
+    ? `<tr><td style="${GRID_HEAD_RULE}"></td>${grid.columns.map((c) => `<th scope="col" style="${GRID_HEAD}">${c}</th>`).join('')}</tr>`
     : ''
-  const rows = grid.rows.map((r) => {
+  // A hairline under every line but the last, which the card's edge closes.
+  const rows = grid.rows.map((r, i) => {
+    const line = i < grid.rows.length - 1 ? GRID_ROW_RULE : ''
     if (r.kind === 'aggregates') {
-      return `<tr><th scope="row" style="${GRID_LABEL}">${r.label}</th>${r.cells
-        .map((c) => `<td style="${GRID_VALUE}">${c ? cell(c) : ''}</td>`)
+      return `<tr><th scope="row" style="${GRID_LABEL}${line}">${r.label}</th>${r.cells
+        .map((c) => `<td style="${GRID_VALUE}${line}">${c ? cell(c) : ''}</td>`)
         .join('')}</tr>`
     }
-    const rest = hasTotal ? `<td style="${GRID_VALUE}"></td>` : ''
-    return `<tr><th scope="row" style="${GRID_LABEL_LOOSE}">${r.label}</th><td colspan="${lead}" style="${GRID_VALUE}">${cell(r.cell)}</td>${rest}</tr>`
+    const rest = hasTotal ? `<td style="${GRID_VALUE}${line}"></td>` : ''
+    return `<tr><th scope="row" style="${GRID_LABEL_LOOSE}${line}">${r.label}</th><td colspan="${lead}" style="${GRID_VALUE}${line}">${cell(r.cell)}</td>${rest}</tr>`
   })
   return `<table style="border-collapse:separate;border-spacing:0;width:100%">${head}${rows.join('')}</table>`
 }
@@ -312,13 +316,26 @@ export const GRID_BAND_COLOR = '#f1f5f9'
 /** The gutter between bands is the card's own white, which MapLibre paints. */
 export const GRID_GUTTER_COLOR = '#ffffff'
 
+/**
+ * The hairline between the grid's lines, slate-200, and the firmer rule under
+ * its heads, `RULE_COLOR` (TJ, 2026-10-08: "very thin minimal lines"). The
+ * heads take a rule rather than an underline because every number in the grid
+ * is an underlined link, and an underlined head would read as one more.
+ */
+export const GRID_LINE_COLOR = '#e2e8f0'
+
 // The grid's cells. The 2px gutter and 3px inset add up to the 8px the
-// columns stood apart by before they had bands.
-const GRID_LABEL_LOOSE = `text-align:left;font-weight:normal;padding:0;vertical-align:bottom;${LABEL_COLOR}`
+// columns stood apart by before they had bands. A head is centred over its
+// band and bold, the one weight the popup's sans-serif has besides regular
+// (TJ, 2026-10-08), while the numbers stay right-aligned so a column lines up
+// on its last digit, the way a table of figures does.
+const GRID_LABEL_LOOSE = `text-align:left;font-weight:normal;padding:1px 0;vertical-align:bottom;${LABEL_COLOR}`
 const GRID_LABEL = `${GRID_LABEL_LOOSE};white-space:nowrap`
-const GRID_BAND = `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:0 3px`
-const GRID_HEAD = `text-align:right;font-weight:normal;vertical-align:bottom;white-space:nowrap;${GRID_BAND};${LABEL_COLOR}`
+const GRID_BAND = `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:1px 3px`
+const GRID_HEAD_RULE = `border-bottom:1px solid ${RULE_COLOR}`
+const GRID_HEAD = `text-align:center;font-weight:700;vertical-align:bottom;white-space:nowrap;${GRID_BAND};${GRID_HEAD_RULE};${LABEL_COLOR}`
 const GRID_VALUE = `text-align:right;white-space:nowrap;vertical-align:bottom;${GRID_BAND}`
+const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
 
 /**
  * The class a too-tall marker popup's body wears while it scrolls, and the
@@ -326,6 +343,8 @@ const GRID_VALUE = `text-align:right;white-space:nowrap;vertical-align:bottom;${
  * visible; `map/resultsLayer.ts` sets the height (`capPopupBody`).
  */
 export const POPUP_SCROLL_CLASS = 'popup-scroll'
+/** The class a ranked destination's popup wears, which `map.css` frames (`resultCardShell`). */
+export const RESULT_POPUP_CLASS = 'result-popup'
 export const POPUP_BODY_ATTR = 'data-popup-body'
 
 /**
@@ -406,8 +425,8 @@ export function popupWidth(canvasWidthPx: number): string {
  * from numbers and OSM's own `type/id`, but a pin restored from a share link
  * carries its id from the link's text, and so does a place the geocoder named.
  */
-export function linkIcon(url: string): string {
-  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:${LINK_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
+export function linkIcon(url: string, color = LINK_ICON_COLOR): string {
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:${color};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
 /**
@@ -423,7 +442,7 @@ export function popupShell(
   url: string,
   body: string,
   meta = '',
-  { bodyUnderLane = false }: { bodyUnderLane?: boolean } = {},
+  { resultCard = false }: { resultCard?: boolean } = {},
 ): string {
   // The name stays at the reading size and everything under it steps down one.
   // Setting both the same made the details compete with the thing they
@@ -433,27 +452,65 @@ export function popupShell(
   // `meta` sits between the title and the rule, so the rule separates what the
   // destination IS from what the forecast says about it. It is optional: the
   // basemap POI popup shares this shell and has no analysis behind it.
+  if (resultCard) return resultCardShell(title, url, body, meta)
   return `<div style="${POPUP_FACE}">
-    <div style="display:flex;align-items:center;gap:6px;${POPUP_TITLE_SIZE}"><strong>${title}</strong>${linkIcon(url)}</div>
+    <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url)}</div>
     ${meta}
-    <hr style="border:none;border-top:1px solid ${RULE_COLOR};margin:5px ${bodyUnderLane ? `-${CLOSE_LANE_PX}px` : '0'} 5px 0" />
-    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE}${bodyUnderLane ? BODY_UNDER_LANE : ''}">${body}</div>
+    <hr style="border:none;border-top:1px solid ${RULE_COLOR};margin:5px 0" />
+    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE}">${body}</div>
   </div>`
 }
 
 /**
- * The close button's lane, given back to a body below the rule.
+ * A ranked destination's card: the name and its facts on a band of Bluebird
+ * Forecast's sky, shadowed onto the grid below it, so what the place IS reads
+ * apart from what the forecast says about it (TJ, 2026-10-08). It replaces
+ * the rule the other popups keep.
  *
- * `map.css` pads the card's right side by 2rem so the title cannot run under
- * the close button, against 10px on its left. Below the rule the button is
- * out of the way, at 44px tall on a touch screen too, so the marker popup's
- * grid takes the lane back and stands 10px from both edges, and the rule
- * over it runs as far, so the two end on one line (TJ, 2026-10-08).
- * The scroll is for a phone narrower than the grid, where the columns slide
- * rather than spill out of the card.
+ * The card draws its own padding (`map.css` zeroes MapLibre's for
+ * `.result-popup`), so the band can run edge to edge and the grid can stand
+ * 10px from both sides. The band keeps a lane on its right for the close
+ * button, `--popup-close-lane` in `map.css`: 2rem, or 3.375rem on a touch
+ * screen, where the button is 44px and reaches past the name's line into the
+ * facts line below it. The body is `border-box` because the scroll cap sets
+ * its height from its measured outer height (`capPopupBody`), and it scrolls
+ * sideways on a map narrower than its grid.
  */
-const CLOSE_LANE_PX = 22
-const BODY_UNDER_LANE = `;margin-right:-${CLOSE_LANE_PX}px;overflow-x:auto`
+function resultCardShell(title: string, url: string, body: string, meta: string): string {
+  return `<div style="${POPUP_FACE}">
+    <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
+      <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url, HEADER_ICON_COLOR)}</div>
+      ${meta}
+    </div>
+    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>
+  </div>`
+}
+
+/**
+ * The title row and the name in it. A name keeps one line and ends in an
+ * ellipsis where it outruns the card, which is what the results table does
+ * with the same name (TJ, 2026-10-08). A long name used to wrap the rank onto
+ * a line of its own and then run past the card's edge, since a single word as
+ * long as `Taumatawhakatangihangakōauauotamateapōkaiwhenuakitānatahu` has no
+ * place to break. The full name stays in the markup for a screen reader, and
+ * the link-out glyph never shrinks, so it stays beside the visible part.
+ */
+const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_TITLE_SIZE}`
+const TITLE_TEXT = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
+
+/**
+ * The result card's header band, sky-100, under an edge of sky-200 and a
+ * shadow tinted the same blue. The labels on it measure 6.6:1 and the title
+ * 18.3:1 (pinned in `popupChrome.test.tsx`).
+ */
+export const HEADER_BAND_COLOR = '#e0f2fe'
+export const HEADER_EDGE_COLOR = '#bae6fd'
+export const HEADER_SHADOW_COLOR = 'rgba(3,105,161,0.15)'
+/**
+ * The link-out glyph on the band, sky-600 at 3.57:1. `LINK_ICON_COLOR`'s
+ * sky-400 would fall to 1.87:1 there, under the 3:1 an icon owes.
+ */
+export const HEADER_ICON_COLOR = '#0284c7'
 
 /**
  * Third-party text on its way to setHTML — OSM names, NIFC incident names —

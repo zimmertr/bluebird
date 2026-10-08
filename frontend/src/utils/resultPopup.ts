@@ -110,5 +110,5 @@ export function resultPopupHtml(d: {
     .join('\n    ')
 
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(r.name)}`
-  return popupShell(title, url, body, meta, { bodyUnderLane: true })
+  return popupShell(title, url, body, meta, { resultCard: true })
 }
