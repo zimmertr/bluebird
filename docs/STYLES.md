@@ -546,7 +546,7 @@ relabels the strip with its bands.
 
 **A tick stands on the strip, and that is what the scrim is for.** No single ink
 clears AA over a ramp that runs the whole hue circle: white measures 1.45:1 on
-the wind scale's cyan-300 and slate-900 measures 2.04:1 on its purple, and every
+the freezing level's cyan-300 and slate-900 measures 2.04:1 on its purple, and every
 metric ramp and all eleven snow bands have an end like each of those. So the
 numbers sit on a `bg-slate-900/70` band along the strip's bottom edge, where
 slate-200 measures **6.49:1** against the worst band under it. A text shadow was
@@ -556,7 +556,7 @@ opacity and the number has to be taken again.
 
 **The marker's rank digit stays white on its band, with no halo.** It lands on
 every band colour every scale has, and white measures 1.05:1 to 3.96:1 on all but
-AQI's maroon and the no-value grey. A 1.5px slate-900 halo would lift it to
+the verdict ramp's maroon and the no-value grey. A 1.5px slate-900 halo would lift it to
 17.85:1 and was built for #576; the maintainer declined it on sight as too heavy
 (2026-10-01). The ratios are dated evidence in the record, so the next session
 does not re-propose the same fix blind.
