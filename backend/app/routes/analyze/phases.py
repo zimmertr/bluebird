@@ -304,8 +304,8 @@ def _check_pacing(
     The pacer bound holds an unkeyed caller alone (#581). The weighted pacer
     sheds any acquire that would wait longer than `UPSTREAM_WEIGHT_MAX_WAIT_S`,
     and on a long archive window an analysis's OWN batches pass that bound on
-    an idle pod: each costs five weighted calls a day, and the fourth or later
-    batch queues behind the ones before it. It used to spend those first
+    an idle pod: each costs about 5.4 weighted calls a day, and the fourth or
+    later batch queues behind the ones before it. It used to spend those first
     batches and then answer a 503 whose Retry-After no retry could honour.
     `plan_max_wait_s` runs the analysis's own weights through a scratch copy of
     the pacer, so the refusal and the shed are one rule and cannot drift. A

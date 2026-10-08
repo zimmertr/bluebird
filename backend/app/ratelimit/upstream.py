@@ -47,11 +47,11 @@ NOMINATIM_MIN_INTERVAL_MS = env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
 #
 # Every pod gets the whole 550 rather than a 1/replicas share. Dividing was
 # wrong in both directions. It under-serves, because one analysis is handled
-# end to end by a single pod and can cost ~2,400 weighted calls (1,500
-# locations across a 16-day window at the factor of 1.4), so the budget must
+# end to end by a single pod and can cost ~2,570 weighted calls (1,500
+# locations across a 16-day window at the factor of 1.5), so the budget must
 # cover one request's entire fan-out rather than a fair slice of aggregate
 # traffic — and a divided share is floor-limited anyway, since 550/10 = 55 sits
-# below the 80.0 a single 16-day batch costs, which would pace every batch on
+# below the 85.7 a single 16-day batch costs, which would pace every batch on
 # an otherwise idle pod. It also over-protects, because since the client path
 # shipped the SPA fetches Open-Meteo from the browser on the visitor's own IP;
 # the server path runs only for an unkeyed API caller, so pod-originated spend
@@ -65,7 +65,7 @@ NOMINATIM_MIN_INTERVAL_MS = env_int("NOMINATIM_MIN_INTERVAL_MS", 3500)
 # store is the durable fix that makes this exact instead of approximate.
 #
 # 0 disables pacing, and is worse than any positive value: unpaced, four
-# concurrent batches fire ~320 weighted calls at once, trip the minute ceiling,
+# concurrent batches fire ~340 weighted calls at once, trip the minute ceiling,
 # burn the single automatic resume in openmeteo_fetch.py and fail the analysis
 # outright.
 UPSTREAM_WEIGHT_PER_MINUTE_WEATHER = env_int("UPSTREAM_WEIGHT_PER_MINUTE_WEATHER", 550)
@@ -73,13 +73,17 @@ UPSTREAM_WEIGHT_PER_MINUTE_AQI = env_int("UPSTREAM_WEIGHT_PER_MINUTE_AQI", 550)
 # A single acquire that would have to wait longer than this sheds instead, so
 # a stampede cannot stack waiters without bound. It is passed in two ways, and
 # only one of them is a wedge. A forecast window never passes it: a worst-case
-# 16-day batch costs 80.0, six of them fit in one minute's 550, and an
-# analysis's four in-flight batches are all booked inside that minute. A long
-# ARCHIVE window does: past 55 days at the pod's fourteen variables a
-# 50-location batch costs more than half of 550 (50 x 1.4 x 56/14 = 280), so
+# 16-day batch costs 85.7, six of them fit in one minute's 550, and an
+# analysis's four in-flight batches are all booked inside that minute. With
+# the cloud column fetched eagerly beside them it runs eight at once, and at
+# 16 days those come to 571 (four at 85.7 and four at 57.1), so the last is
+# booked a minute out and the plan's longest wait is the bound exactly, which
+# does not pass it (measured 2026-10-07 through `plan_max_wait_s`, #678). A
+# long ARCHIVE window does: past 51 days at the pod's fifteen variables a
+# 50-location batch costs more than half of 550 (50 x 1.5 x 52/14 = 278.6), so
 # only one fits in any 60 seconds, the fourth in-flight batch is booked three
-# minutes out, and an analysis of more than 150 destinations over 56 days or
-# more (111 at 101 to 150, 221 at 51 to 100) would shed on every retry, idle
+# minutes out, and an analysis of more than 150 destinations over 52 days or
+# more (103 at 101 to 150, 206 at 51 to 100) would shed on every retry, idle
 # pod or not. So an unkeyed analysis is first run through `plan_max_wait_s`
 # against this same bound and refused before it spends anything
 # (`_check_pacing` in routes/analyze/phases.py), and a shed is left meaning
