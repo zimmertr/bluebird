@@ -19,6 +19,7 @@ import type { ClosureWarning } from '../utils/closureProximity'
 import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
 import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
+import type { ViewBounds } from '../utils/layerCoverage'
 import type { PendingDestination } from '../utils/customList'
 // The plain-data half of this component, which is where anything testable
 // belongs: Vitest has no DOM, so a helper defined here cannot be reached at all
@@ -29,6 +30,7 @@ import { createMapController, type MapInputs } from '../map/controller'
 import { STYLE } from '../map/basemap'
 import { addAttribution, addControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
+import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
 import { createPopupBoard } from '../map/popups'
 import { CAMERA_MS, FIT_PADDING_PX, PLACE_PADDING_PX } from '../map/mapStyles'
@@ -54,6 +56,12 @@ export interface MapCamera {
 export interface MapViewHandle {
   /** The camera as it stands, or null before the map exists. */
   getCamera: () => MapCamera | null
+  // The view's bounds now and after each settled move, for the Layers menu's
+  // coverage test (`useLayerReach`), until the returned function is called.
+  // A subscription rather than a value on React state, for the reason the
+  // share link's camera is written without state (`map/camera.ts`): a pan
+  // would otherwise render every child of the map's parent.
+  watchBounds: (onBounds: (bounds: ViewBounds) => void) => () => void
   /** Put the camera back where `getCamera` found it, with no animation. */
   setCamera: (camera: MapCamera) => void
   framePolygon: () => void
@@ -378,6 +386,10 @@ const MapView = forwardRef<MapViewHandle, Props>(
     }
 
     useImperativeHandle(ref, () => ({
+      watchBounds(onBounds) {
+        const map = mapRef.current
+        return map ? watchView(map, onBounds) : () => {}
+      },
       // Bring the drawn ring back into view. Editing a polygon you cannot see
       // is the one gesture the draw/idle split made possible: you finish, pan
       // away to read the results, and then press Edit Polygon with the shape

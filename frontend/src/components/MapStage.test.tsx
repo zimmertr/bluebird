@@ -90,6 +90,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
     layersForcedOpen: false,
     mapRef: MAP_REF,
+    coverage: {},
     drawMode: DRAW,
     destinationInputs: INPUTS,
     removals: REMOVALS,

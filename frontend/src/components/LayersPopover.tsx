@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState, type RefObject } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { IconLayers } from './icons'
@@ -26,6 +26,9 @@ import {
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { useLayerReach } from '../hooks/useLayerReach'
+import type { LayerCoverage } from '../utils/layerCoverage'
+import type { MapViewHandle } from './MapView'
 
 // One row of the Layers popover: a checkbox and what it switches. The seven
 // overlays and the forecast player share it, because they are the same kind of
@@ -86,6 +89,10 @@ interface LayersPopoverProps {
   >
   /** Whether anything spans time, so the player row can be ticked. */
   playerOffered: boolean
+  /** The map, for the view each bounded row is tested against while the menu is open. */
+  mapRef: RefObject<Pick<MapViewHandle, 'watchBounds'> | null>
+  /** The server's outlines for the three snapshot layers (`useCapabilities`). */
+  coverage: LayerCoverage
   /** The tutorial holds the menu open for its Layers step (#536). */
   forcedOpen?: boolean
 }
@@ -98,7 +105,14 @@ interface LayersPopoverProps {
  * left column is where the app's own map controls live, which
  * makes the split legible. Left is ours, right is the library's.
  */
-export default function LayersPopover({ overlays, grid, playerOffered, forcedOpen = false }: LayersPopoverProps) {
+export default function LayersPopover({
+  overlays,
+  grid,
+  playerOffered,
+  mapRef,
+  coverage,
+  forcedOpen = false,
+}: LayersPopoverProps) {
   const {
     showWildfires,
     setShowWildfires,
@@ -134,6 +148,11 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
   // gesture rather than a picture.
   const [layersOpen, setLayersOpen] = useState(false)
   const open = layersOpen || forcedOpen
+  // The rows whose layer can draw nothing over the view, watched while the
+  // menu is open. A label used to carry this ("US only", "OR/WA", "West"),
+  // three ways at once and none of them true of the area feeds' eight states;
+  // a grey row is the one way that is true everywhere (#676).
+  const outOfView = useLayerReach(mapRef, coverage, open)
   const layersRef = useRef<HTMLDivElement>(null)
   // A close by Escape or by a press elsewhere unmounts the menu under a
   // keyboard that was inside it, so the focus comes back to the button that
@@ -171,14 +190,17 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
   // question — what is on the map — and nothing about the report follows it,
   // so it is no more a knob than the overlays beside it.
   const MAP_LAYERS = [
-    // Three Forest Service regions, and the label says so: outside the eight
-    // western states the area feeds cover, an empty layer means "not covered"
-    // rather than "open" (#551). The trail layer is still Region 6 alone.
+    // The six layers whose data has an edge grey over a view wholly outside
+    // it, the way the player greys when nothing spans time: outside the
+    // Forest Service feeds an empty layer means "not covered" rather than
+    // "open" (#551), and a grey row says so where a label could not. No
+    // `note`, for the player's reason: the grey row is the whole message.
     {
       key: 'closedareas',
-      label: 'Area closures (West)',
+      label: 'Area closures',
       checked: showAreaClosures,
       onChange: setShowAreaClosures,
+      disabled: outOfView.has('closedareas'),
     },
     {
       key: 'grid',
@@ -202,16 +224,29 @@ export default function LayersPopover({ overlays, grid, playerOffered, forcedOpe
       onChange: setShowPlayer,
       disabled: !playerOffered,
     },
-    { key: 'radar', label: 'Rain radar', checked: showRadar, onChange: setShowRadar },
-    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke },
-    { key: 'snow', label: 'Snow depth (US only)', checked: showSnow, onChange: setShowSnow },
+    {
+      key: 'radar',
+      label: 'Rain radar',
+      checked: showRadar,
+      onChange: setShowRadar,
+      disabled: outOfView.has('radar'),
+    },
+    { key: 'smoke', label: 'Smoke', checked: showSmoke, onChange: setShowSmoke, disabled: outOfView.has('smoke') },
+    { key: 'snow', label: 'Snow depth', checked: showSnow, onChange: setShowSnow, disabled: outOfView.has('snow') },
     {
       key: 'closedtrails',
-      label: 'Trail closures (OR/WA)',
+      label: 'Trail closures',
       checked: showTrailClosures,
       onChange: setShowTrailClosures,
+      disabled: outOfView.has('closedtrails'),
     },
-    { key: 'fires', label: 'Wildfires (US only)', checked: showWildfires, onChange: setShowWildfires },
+    {
+      key: 'fires',
+      label: 'Wildfires',
+      checked: showWildfires,
+      onChange: setShowWildfires,
+      disabled: outOfView.has('fires'),
+    },
   ]
 
   return (

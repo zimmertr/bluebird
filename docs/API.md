@@ -976,10 +976,14 @@ models with each one's reach and whether it blends two grids (under
 `forecast_models`), how far ahead air quality reaches
 (`limits.aqi_forecast_days`), the header an Open-Meteo key travels in
 (`api_key_header`), the per-address request pacing behind `429` responses
-(under `limits.rate`), and the data providers behind every answer (under
-`data_sources`, one `{name, url, provides}` entry each). Those values are read
-from the same constants the validators and limiters enforce, so they cannot
-drift.
+(under `limits.rate`), where the three snapshot layers' data has meaning
+(under `coverage`: `wildfires`, `area_closures` and `trail_closures`, each a
+GeoJSON MultiPolygon, the same outlines that ride every `/api/wildfires` and
+`/api/closures` response, so a client can tell before it fetches a layer
+whether its view is somewhere the layer could draw anything), and the data
+providers behind every answer (under `data_sources`, one `{name, url,
+provides}` entry each). Those values are read from the same constants the
+validators and limiters enforce, so they cannot drift.
 
 Three of the window limits look redundant and are not. `limits.max_past_days` is
 how far back a request is *accepted*. `limits.past_data_days` is where the

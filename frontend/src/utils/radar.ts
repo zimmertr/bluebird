@@ -49,6 +49,28 @@ const TILE_BASE = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0'
 export const IEM_HREF = 'https://mesonet.agron.iastate.edu/ogc/'
 
 /**
+ * Where the mosaic has radars under it, as coarse boxes: the WSR-88D network,
+ * which is the contiguous states and Alaska, Hawaii, Puerto Rico and Guam.
+ *
+ * The docs call the composite "CONUS" and its grid is one (IEM states it as
+ * 12200 × 5400 pixels at 0.005°, which is the first box), but the tile layer
+ * paints past it: probed 2026-10-07, the tiles over Anchorage, Hawaii, San
+ * Juan and Guam each carried echoes, and those over the open Pacific, Korea,
+ * Bermuda, Iceland and Europe were the same 334-byte empty image. The four
+ * extra boxes are drawn around the radar sites with the ~230 km a radar
+ * reaches, rounded outward: the Layers menu reads these to grey the row over
+ * a view none of them touches, and an edge drawn too tight would grey a row
+ * the mosaic could still paint. `[west, south, east, north]`.
+ */
+export const RADAR_EXTENTS: readonly [number, number, number, number][] = [
+  [-126, 23, -65, 50],
+  [-170, 51, -130, 72],
+  [-161, 17, -153, 23],
+  [-69, 16, -63, 20],
+  [142, 11, 147, 16],
+]
+
+/**
  * Minutes between frames, and the oldest offset that serves.
  *
  * The reach is the service's: `m55m` serves and `m60m` 404s, so 55 minutes is

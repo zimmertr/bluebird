@@ -209,6 +209,8 @@ export function capabilities(over: Partial<Capabilities> = {}): Capabilities {
     windowLimits: FALLBACK_WINDOW_LIMITS,
     forecastModels: [forecastModel()],
     defaultForecastModel: 'gfs_seamless',
+    // No outlines, so no Layers row greys: a test that wants one says so.
+    coverage: {},
     ...over,
   }
 }

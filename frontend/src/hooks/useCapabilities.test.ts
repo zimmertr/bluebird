@@ -105,7 +105,25 @@ describe('parseCapabilities', () => {
         },
       ],
       defaultForecastModel: 'gfs_seamless',
+      coverage: {},
     })
+  })
+
+  // The outlines the Layers menu greys its rows on. Each is kept only as a
+  // MultiPolygon: an older build publishes none, and a shape nothing can cast
+  // against greys nothing rather than everything.
+  it('keeps each coverage outline that is a MultiPolygon, and no other', () => {
+    const ring = [[[[-125, 42], [-116, 42], [-116, 49], [-125, 49], [-125, 42]]]]
+    const parsed = parseCapabilities({
+      ...body,
+      coverage: {
+        wildfires: { type: 'MultiPolygon', coordinates: ring },
+        area_closures: { type: 'Polygon', coordinates: ring[0] },
+        trail_closures: 'OR/WA',
+      },
+    })
+    expect(parsed.coverage).toEqual({ wildfires: { type: 'MultiPolygon', coordinates: ring } })
+    expect(parseCapabilities({ ...body, coverage: null }).coverage).toEqual({})
   })
 
   // The regression this pair caught while it was being written: the model

@@ -222,6 +222,22 @@ export type CapabilitiesCarryLimitsAndModels = Assert<
   >
 >
 
+// The outlines the Layers menu greys its rows on (#676): `parseCoverage`
+// keeps each only when it is a MultiPolygon, so a renamed member would fall
+// back to greying nothing.
+export type CapabilitiesCarryCoverage = Assert<
+  Extends<
+    Schema['CapabilitiesResponse'],
+    {
+      coverage: {
+        wildfires: Record<string, unknown>
+        area_closures: Record<string, unknown>
+        trail_closures: Record<string, unknown>
+      }
+    }
+  >
+>
+
 export type ParsedLimitsAreNumbers = Assert<
   Extends<
     Schema['Limits'],
@@ -279,6 +295,7 @@ type Mirrored =
   | 'CapabilitiesResponse'
   | 'ClosureCollection'
   | 'ConfigResponse'
+  | 'Coverage'
   | 'CustomDestination'
   | 'DestinationResult'
   | 'DestinationType'

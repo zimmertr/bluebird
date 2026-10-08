@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
@@ -21,6 +23,8 @@ from app.models import (
 from app.routes.analyze import API_KEY_HEADER
 from app.services.air_quality import MAX_FORECAST_DAYS as AQI_FORECAST_DAYS
 from app.services.osm import IMPLEMENTED_TYPES
+from app.services.usfs_coverage import COVERAGE_FOR as CLOSURE_COVERAGE
+from app.services.wfigs_coverage import COVERAGE as WILDFIRE_COVERAGE
 
 router = APIRouter()
 
@@ -280,6 +284,39 @@ class Limits(BaseModel):
     )
 
 
+class Coverage(BaseModel):
+    """Where each map layer's data has meaning, as GeoJSON MultiPolygon geometries.
+
+    The same outlines ride every `/api/wildfires` and `/api/closures` response
+    beside the data they qualify. Published here too so a client can tell,
+    before it fetches any layer, whether its view is somewhere the layer
+    could draw anything: outside an outline an empty layer means "not
+    covered", never "nothing there". Static per release; the closure
+    response's copy may be narrower when a regional feed is failing.
+    """
+
+    wildfires: dict[str, Any] = Field(
+        description=(
+            "The area WFIGS covers: a coarse (±50 km, biased outward) outline "
+            "of the United States, with Alaska split at the antimeridian so no "
+            "ring wraps 180°."
+        )
+    )
+    area_closures: dict[str, Any] = Field(
+        description=(
+            "The area the Forest Service closure order feeds cover, with "
+            "every regional feed answering: Regions 3, 4 and 6, as coarse "
+            "outlines biased about 0.2° outward on land."
+        )
+    )
+    trail_closures: dict[str, Any] = Field(
+        description=(
+            "The area the closed trail, road and site feed covers: Region 6, "
+            "Oregon and Washington, as one coarse outline."
+        )
+    )
+
+
 class CapabilitiesResponse(BaseModel):
     """What this deployment can do, and the bounds it enforces."""
 
@@ -316,6 +353,7 @@ class CapabilitiesResponse(BaseModel):
         )
     )
     limits: Limits
+    coverage: Coverage
     data_sources: list[DataSource]
 
 
@@ -405,6 +443,14 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 closures_per_minute=ratelimit.client.CLOSURES_LIMITER.per_minute,
                 closures_burst=ratelimit.client.CLOSURES_LIMITER.burst,
             ),
+        ),
+        # The same static geometries the overlay routes ride, read from the
+        # modules that own them, so the outline a client greys a layer on is
+        # the outline the layer's own answer carries.
+        coverage=Coverage(
+            wildfires=WILDFIRE_COVERAGE,
+            area_closures=CLOSURE_COVERAGE["area"],
+            trail_closures=CLOSURE_COVERAGE["trail"],
         ),
         data_sources=[
             DataSource(

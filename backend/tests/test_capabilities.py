@@ -30,6 +30,8 @@ from app.models import (
 from app.routes.analyze import API_KEY_HEADER
 from app.services.air_quality import MAX_FORECAST_DAYS
 from app.services.osm import IMPLEMENTED_TYPES
+from app.services.usfs_coverage import COVERAGE_FOR
+from app.services.wfigs_coverage import COVERAGE
 
 client = TestClient(app)
 
@@ -38,6 +40,19 @@ def _capabilities() -> dict:
     response = client.get("/api/capabilities")
     assert response.status_code == 200
     return response.json()
+
+
+def test_coverage_is_the_outline_each_layer_route_rides():
+    # The Layers menu greys a row whose view lies wholly outside its layer's
+    # outline, so the outline published here must be the one the layer's own
+    # response carries, or the menu and the map could disagree about where a
+    # layer can draw.
+    assert _capabilities()["coverage"] == {
+        "wildfires": COVERAGE,
+        "area_closures": COVERAGE_FOR["area"],
+        "trail_closures": COVERAGE_FOR["trail"],
+    }
+    assert _capabilities()["coverage"]["wildfires"]["type"] == "MultiPolygon"
 
 
 def test_limits_mirror_the_constants_the_validators_enforce():

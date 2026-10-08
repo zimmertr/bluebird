@@ -27,6 +27,18 @@ const SMOKE_URL = '/api/smoke'
 /** NOAA's own page for the product, for the legend credit. */
 export const HMS_HREF = 'https://www.ospo.noaa.gov/Products/land/hms.html'
 
+/**
+ * Where HMS analysts look, as one coarse box: "North America, Hawaii, and the
+ * Caribbean" in NOAA's own words (the product page, read 2026-10-07), drawn
+ * generously because the edge of an analyst's product is where the analysts
+ * stop looking rather than where a sensor ends. The Layers menu reads it to
+ * grey the Smoke row over a view wholly outside it, so it errs wide: a plume
+ * off Mexico or over Newfoundland keeps its row, and only another continent
+ * greys it. The western Aleutians past the antimeridian are the one piece of
+ * the domain left out. `[west, south, east, north]`.
+ */
+export const SMOKE_EXTENT: [number, number, number, number] = [-180, 5, -50, 75]
+
 /** The three densities HMS publishes, lightest first. */
 export const SMOKE_DENSITIES = ['Light', 'Medium', 'Heavy'] as const
 export type SmokeDensity = (typeof SMOKE_DENSITIES)[number]

@@ -4,6 +4,8 @@ import { AQI_LIMIT_DAYS } from '../utils/calendar'
 import { MAX_ANALYZE_DESTINATIONS } from '../utils/clientAnalyze'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
 import { FALLBACK_WINDOW_LIMITS, type WindowLimits } from '../utils/forecastWindow'
+import type { LayerCoverage } from '../utils/layerCoverage'
+import type { MultiPolygon } from 'geojson'
 
 // The live limits this deployment enforces, from GET /api/capabilities. The
 // SPA reads its ceilings (analysis cap, results-knob maximum) from here so a
@@ -62,6 +64,15 @@ export interface Capabilities {
   /** Best first, in the order the server ranked them. Render as given. */
   forecastModels: readonly ForecastModelOption[]
   defaultForecastModel: string
+  /**
+   * Where the three snapshot layers' data has meaning, as the server publishes
+   * it: the Layers menu greys a row whose view lies wholly outside its outline
+   * (`layerCoverage.ts`). The one published value here that is not a number,
+   * and the one with no compiled fallback: an outline the server never sent
+   * is absent, and an absent outline greys nothing, which is what the menu
+   * did before the server published any.
+   */
+  coverage: LayerCoverage
 }
 
 // Fallback for the polygon-area gate. Lives here rather than beside the map
@@ -120,6 +131,7 @@ const FALLBACK: Capabilities = {
   windowLimits: FALLBACK_WINDOW_LIMITS,
   forecastModels: FALLBACK_FORECAST_MODELS,
   defaultForecastModel: FALLBACK_FORECAST_MODEL.id,
+  coverage: {},
 }
 
 /**
@@ -178,6 +190,29 @@ function parseModels(body: unknown): Pick<
     // would land on nothing selected.
     defaultForecastModel: fallbackDefault || models[0].id,
   }
+}
+
+/**
+ * The coverage outlines a body publishes, each kept only when it is a
+ * MultiPolygon with rings to cast against. A deployment on an older build
+ * publishes none, and a malformed one is dropped rather than greying a row on
+ * a shape nothing can test.
+ */
+function parseCoverage(body: unknown): LayerCoverage {
+  const raw = (body as { coverage?: Record<string, unknown> } | null)?.coverage
+  if (!raw || typeof raw !== 'object') return {}
+  const outline = (key: string): MultiPolygon | undefined => {
+    const g = raw[key] as { type?: unknown; coordinates?: unknown } | undefined
+    return g?.type === 'MultiPolygon' && Array.isArray(g.coordinates) ? (g as MultiPolygon) : undefined
+  }
+  const out: LayerCoverage = {}
+  const wildfires = outline('wildfires')
+  const areaClosures = outline('area_closures')
+  const trailClosures = outline('trail_closures')
+  if (wildfires) out.wildfires = wildfires
+  if (areaClosures) out.areaClosures = areaClosures
+  if (trailClosures) out.trailClosures = trailClosures
+  return out
 }
 
 /**
@@ -255,6 +290,7 @@ export function parseCapabilities(body: unknown): Capabilities {
       pastDataDays: num('past_data_days', FALLBACK.windowLimits.pastDataDays),
     },
     ...parseModels(body),
+    coverage: parseCoverage(body),
   }
 }
 

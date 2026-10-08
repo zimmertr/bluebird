@@ -593,6 +593,7 @@ export default function App() {
           destinationInputs={destinationInputs}
           removals={removals}
           overlays={overlays}
+          coverage={caps.coverage}
           grid={gridLayer}
           timeline={timeline}
           report={report}
