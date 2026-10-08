@@ -460,13 +460,13 @@ Marker colors follow the ranked metric. Under the default ranking that is total 
 | Color | Precip Total |
 |---|---|
 | Green | 0.01 in or less |
-| Lime | 0.01 in to 0.10 in |
-| Yellow | 0.10 in to 0.25 in |
-| Orange | 0.25 in to 0.50 in |
-| Red | 0.50 in to 1.00 in |
-| Purple | more than 1.00 in |
+| Yellow | 0.01 in to 0.10 in |
+| Orange | 0.10 in to 0.25 in |
+| Red | 0.25 in to 0.50 in |
+| Purple | 0.50 in to 1.00 in |
+| Maroon | more than 1.00 in |
 
-Wind uses the same six colors, with red from 35 to 50 mph and purple above 50 mph. Purple is the same color the AQI scale gives its Very Unhealthy band, so wherever you meet it the reading is the same: past the end of the ramp. Temperature is the one scale with a bad end on both sides: purple at or below 30°F, through sky blue and cyan, green from 60 to 75°F, then orange and red above 90°F.
+These six are the US EPA's air quality colors, and every metric with a plain good end and bad end uses them. Wind is green at or below 5 mph, yellow to 15, orange to 25, red to 35, purple to 50 and maroon above 50. Purple and maroon are the EPA's Very Unhealthy and Hazardous, so wherever you meet them the reading is the same: past the point of weighing an option. Temperature is the one scale with a bad end on both sides: purple at or below 30°F, through sky blue and cyan, green from 60 to 75°F, then orange and red above 90°F.
 
 Click a marker for a popup carrying the same columns the results table is showing, in the table's order. The map moves so the popup shows as much of itself as it can: above the results sheet, clear of the buttons at the map's top left, the legend and the forecast player, and title first where the whole card does not fit. A new analysis closes every open popup, pinned ones included, because a popup is drawn from the report it was opened over. Centring a destination from the table does the same, with the marker flown to the middle of the map first. A Current lookup shows one value per metric, because the table collapses its aggregates for a single hour; a date range shows every aggregate, grouped one metric per heading with its values on the line below. Hiding a column in the **Columns** picker hides it in the popup too, and changing the ranking moves that metric to the top of the card. The type, the model and the coordinates sit above the rule, ahead of the numbers. The freezing-level value reads `N/A` under a model that publishes none, the same mark the table's cells carry. Every one of those numbers is a link to Windy, on the same terms the table's cells use: the same overlay, the same forecast model, and for the freezing-level minimum and the AQI maximum the hour that produced the value. A wildfire warning stays a banner at the top of the popup rather than a line among the metrics, and links to that fire on the NIFC map. A closure warning follows it on the same terms, linked to the order's page when there is one. The elevation and the coordinates carry no link, because neither is a forecast. When you sort by AQI instead, the marker thresholds switch to the US EPA category boundaries (50 / 100 / 150 / 200 / 300). When you sort by the freezing level they switch again, to six bands of 4,000 ft apiece running purple for the lowest freezing line, through indigo and blue, to cyan for the highest. That ramp is deliberately not green to red: a freezing level is a height rather than a verdict, and a skier and a rock climber want opposite ends of it. The map's legend always names the metric it is drawing and the numbers its scale turns on.
 
@@ -525,8 +525,9 @@ cell is shaded by its own number** rather than by the ranking. So a destination
 with a low precipitation total and one violent hour inside it shows a green
 total beside a red peak, which is the spread those extra columns exist to show.
 
-The freezing-level columns are shaded on a scale of their own, and it is the one
-scale in the app that does not run green to red. A height is not a verdict:
+The freezing-level columns are shaded on a scale of their own, one of three
+that do not use the air quality colors (temperature and snow depth are the
+other two). A height is not a verdict:
 9,000 ft is a solid night below a 9,500 ft summit and a wasted one below an
 8,000 ft col, so a ramp with a bad end would have picked a side. The colours say
 only how high the freezing line stands, running purple at the bottom through
@@ -558,16 +559,19 @@ forecast player's markers on the one number they rank by, because today's depth
 has no hours to scrub through, and the forecast chart keeps whatever metric it
 was showing: there is no hourly series to draw.
 
-The cloud deck columns wear the freezing level's shades too, low to high in
-even steps of 3,000 ft, because a deck is a height like it and has no good end
-of its own: a low deck is the summit in cloud to one reader and the undercast
-another drove up for. A clear sky reads the ceiling and takes the top band.
+The cloud deck columns use the air quality colors upside down, because a high
+deck is the good end: maroon at or below 3,000 ft, purple to 6,000, red to
+9,000, orange to 12,000, yellow to 15,000 and green above that. A clear sky
+reads the ceiling and is green. The deck is the bottom of the lowest cloud, not
+its top, so a deck far below a high summit may be an undercast the summit
+stands clear above; the colors read it as the summit in cloud, which is the
+hiker's reading of it rather than the photographer's.
 
 The two per-hour precipitation columns are read on a rainfall-intensity scale
 rather than on the totals scale the markers and the map legend use, because
 they measure a different quantity: 0.30" spread over three days is drizzle and
 0.30 in/hr is a downpour. Their boundaries at 0.10 / 0.30 / 0.50 in/hr are the
-National Weather Service's intensity classes, with a purple band above 1.00
+National Weather Service's intensity classes, with a maroon band above 1.00
 in/hr. Every other group shares one unit across its columns, and so shares one
 scale.
 

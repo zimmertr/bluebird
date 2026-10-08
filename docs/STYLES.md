@@ -556,7 +556,7 @@ opacity and the number has to be taken again.
 
 **The marker's rank digit stays white on its band, with no halo.** It lands on
 every band colour every scale has, and white measures 1.05:1 to 3.96:1 on all but
-AQI's maroon and the no-value grey. A 1.5px slate-900 halo would lift it to
+the verdict ramp's maroon and the no-value grey. A 1.5px slate-900 halo would lift it to
 17.85:1 and was built for #576; the maintainer declined it on sight as too heavy
 (2026-10-01). The ratios are dated evidence in the record, so the next session
 does not re-propose the same fix blind.

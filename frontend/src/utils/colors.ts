@@ -16,7 +16,7 @@ export type ColorScale = {
   // values past the last threshold extrapolate into the final color over one
   // more last-band width, then clamp.
   thresholds: number[]
-  colors: string[]
+  colors: readonly string[]
 }
 
 /**
@@ -53,14 +53,58 @@ export type LabelledScale = ColorScale & { unit: string }
  */
 export type ColoredFamily = MetricFamily
 
+/**
+ * The one ramp every verdict wears: the US EPA's six AQI categories, Good,
+ * Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy and
+ * Hazardous, in that order and in the app's hues (#510).
+ *
+ * Borrowed rather than designed, for the reason the rate scale borrows the
+ * NWS's boundaries: a reader may already know what it means, and the air
+ * quality column wears it either way, so any other verdict ramp would be a
+ * second meaning for the same colours one column over.
+ *
+ * Lime is not on it, and that is the EPA's count rather than a taste. The
+ * precipitation and wind ramps ran green, lime, yellow, orange, red and purple
+ * until #510. The EPA has six categories, every scale here has six bands
+ * (`scaleTicks` in `legendRamp.ts` reads the count, and its three tick
+ * positions were measured for six), so a ramp that kept lime AND took maroon
+ * would need a seventh band and a seventh AQI category that does not exist.
+ */
+export const VERDICT_RAMP: readonly string[] = [
+  '#22c55e',
+  '#eab308',
+  '#f97316',
+  '#ef4444',
+  '#a855f7',
+  '#991b1b',
+]
+
+/**
+ * The verdict ramp for a family whose GOOD end is the high one, so green still
+ * means the best of it and maroon the worst. The cloud deck is the only such
+ * family today.
+ */
+export const VERDICT_RAMP_REVERSED: readonly string[] = [...VERDICT_RAMP].reverse()
+
 // Scales are anchored to absolute conditions, not to the chosen ranking
-// direction — ranking "highest" simply surfaces the far end of the same scale
-// first. Three of the seven run green (dry/calm/clean) through red to purple,
-// because they measure something a hiker wants less of and the purple top is
-// where "less of" stops being advice (#445); AQI adds the EPA's maroon past
-// it. Temperature has a bad end on both sides and its green in the middle;
-// the freezing level, snow depth and cloud deck encode a quantity rather than
-// a verdict; each says why on its own entry.
+// direction: ranking "highest" simply surfaces the far end of the same scale
+// first.
+//
+// THE RULE (#510, TJ 2026-10-07): a family with an obvious good end and an
+// obvious bad end wears VERDICT_RAMP, or VERDICT_RAMP_REVERSED when its good
+// end is the high one. One ramp is what lets a colour say one thing across the
+// whole table: green is the best of it, and purple and maroon are where a
+// reader stops weighing an option, whichever column they are reading.
+// Precipitation (both of its scales), wind, air quality and the cloud deck
+// wear it.
+//
+// Three families are exceptions, and each says why on its own entry:
+// temperature, a verdict with a bad end on both sides and so its green in the
+// middle; and the freezing level and snow depth, whose good end depends on the
+// sport, so either ramp direction would pick one reader over another. A new
+// family takes VERDICT_RAMP, or its reverse when high is good, unless it joins
+// this list with its reason on its entry and a decision record beside it.
+// `colors.test.ts` holds the list.
 //
 // Every scale has SIX bands, and the count is what `scaleTicks` in
 // `legendRamp.ts` reads the map legend's three tick positions off — its
@@ -76,36 +120,40 @@ export type ColoredFamily = MetricFamily
 // quantity and carry their own scale below (PRECIP_RATE); `rankedScale` is
 // the per-key reading that knows this.
 export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
-  // The purple top band is the one AQI's Very Unhealthy band wears, so purple
-  // means the same thing on every scale that has it: past the end of the
-  // ramp, where a reader is no longer weighing an option. An inch over a
-  // window is the boundary here because the totals scale is read over windows
-  // of days, where 0.50 in is a wet weekend and 1.00 in is a washout.
+  // An inch over a window is the last boundary because the totals scale is
+  // read over windows of days, where 0.50 in is a wet weekend and 1.00 in is a
+  // washout; past it is maroon, which on the air quality column is Hazardous
+  // and here is a weekend spent indoors. The boundaries are #445's, and #510
+  // moved the hues along them rather than move them, so every band reads one
+  // step further along the ramp than it did.
   precip: {
     thresholds: [0.01, 0.10, 0.25, 0.50, 1.00],
-    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
+    colors: VERDICT_RAMP,
     // "in" rather than an inch mark (TJ, 2026-09-16): the column header, the
     // bound boxes and the rate scale below all spell the unit, and the legend
     // was the one surface that did not.
     unit: UNIT.precip,
   },
-  // Purple above 50 mph (#445): red used to start at 35 and never stop, so a
-  // 40 mph ridge and a 60 mph one were the same colour, and the difference
-  // between those two is whether a person can stand up.
+  // A band above 50 mph (#445), maroon on the verdict ramp: red used to start
+  // at 35 and never stop, so a 40 mph ridge and a 60 mph one were the same
+  // colour, and the difference between those two is whether a person can
+  // stand up.
   wind: {
     thresholds: [5, 15, 25, 35, 50],
-    colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
+    colors: VERDICT_RAMP,
     unit: UNIT.wind,
   },
-  // Cold to hot, with green in the MIDDLE rather than at the cold end. The
+  // An exception to the verdict ramp, because a temperature has a bad end on
+  // both sides: cold to hot, with green in the MIDDLE rather than at either
+  // end. The
   // scale used to paint 30°F green, which called the rain-to-snow band the
   // best condition on the map (#262, #445). Green still means "the best of
   // this" here, as it does on every other scale, and TJ put it at the
   // temperature a person on foot is comfortable at (2026-09-16): the band
-  // reaching 75°F, so 70 reads green. Both ends are then the ramp's bad ends
-  // — cold in the purple the freezing level starts on, hot in the orange and
-  // red every other ramp ends in — so a reader who learned the other scales
-  // reads this one unchanged.
+  // reaching 75°F, so 70 reads green. Both ends are then bad ends: cold in the
+  // purple the freezing level starts on, hot in the verdict ramp's own orange
+  // and red, so a reader who learned the other scales reads this one
+  // unchanged.
   //
   // 15°F steps: purple at or below 30, then sky and cyan up to 60, green to
   // 75, orange to 90, red past it. No yellow: the ramp has six slots and the
@@ -115,15 +163,16 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   // The cold half is drawn from the 300/400 shades for the reason the freezing
   // level's is: `cellStyle` paints the band as the text, and these clear 4.5:1
   // in a cell (5.24, 4.57, 6.02, measured 2026-09-16 and pinned in
-  // `colors.test.ts`). The green and the warm half carry the shared ramp's own
-  // numbers (4.46, 3.94, 3.23), a pre-existing state of every scale that uses
-  // them rather than a choice made here.
+  // `colors.test.ts`). The green and the warm half carry the verdict ramp's
+  // own numbers (4.46, 3.94, 3.23), a pre-existing state of every scale that
+  // uses them rather than a choice made here.
   temp: {
     thresholds: [30, 45, 60, 75, 90],
     colors: ['#d8b4fe', '#38bdf8', '#67e8f9', '#22c55e', '#f97316', '#ef4444'],
     unit: UNIT.temp,
   },
-  // Not green-to-red, because it is not a verdict.
+  // An exception to the verdict ramp, because it is not a verdict, and the
+  // reason is the sport rather than the physics (TJ, 2026-09-14, kept on #510).
   //
   // The hue encodes the air column's HEIGHT, not whether the weather is good,
   // so it serves a winter reader and a summer one alike (TJ, 2026-09-14): a low
@@ -157,11 +206,14 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     colors: ['#d8b4fe', '#c4b5fd', '#a5b4fc', '#93c5fd', '#38bdf8', '#67e8f9'],
     unit: UNIT.freeze,
   },
-  // The freezing level's six shades, run the other way: cyan at the bottom
-  // through sky, blue, indigo and violet to purple at the top. Not a verdict,
-  // for the reason that ramp is not one — deep snow is what a skier drove out
-  // for and what stops a scrambler at the trailhead — so the hue encodes DEPTH
-  // and the two cold ramps read as one family seen from either end.
+  // An exception to the verdict ramp for the freezing level's reason: deep
+  // snow is what a skier drove out for and what stops a scrambler at the
+  // trailhead, so a ramp with a good end would pick one of them. TJ kept it an
+  // exception on #510 (2026-10-07), when the rule was written.
+  //
+  // So the freezing level's six shades, run the other way: cyan at the bottom
+  // through sky, blue, indigo and violet to purple at the top. The hue encodes
+  // DEPTH, and the two cold ramps read as one family seen from either end.
   //
   // The thresholds are the snow LAYER's own tick numbers (`snowDepth.ts`,
   // NOAA's classes) plus one at 20 inches. The layer's numbers are what a
@@ -187,29 +239,36 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     colors: ['#67e8f9', '#38bdf8', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe'],
     unit: UNIT.snow,
   },
-  // The freezing level's six shades in the freezing level's order, purple at
-  // the bottom to cyan at the top (#117, kept for the deck by #670), because
-  // both encode a height in the air column over the destination and neither
-  // is a verdict: a low deck is the summit in cloud to a hiker and the
-  // undercast a photographer drove up for. 3,000 ft steps from 3,000 to
-  // 15,000, which is the band the summits of the contiguous US stand in, so a
-  // deck at a summit's own height lands in the middle of the ramp rather than
-  // at one end. A dry column reads CLOUD_DECK_CEILING_FT, past the top, and
-  // takes the top band, which is what it should say.
+  // The verdict ramp reversed (#510, which amends record 0113's colour
+  // sentence): green at the top, because a high deck or a dry column is a
+  // clear summit for every reader of this app, and maroon at the bottom.
+  // 3,000 ft steps from 3,000 to 15,000 (#117, kept by #670), the band the
+  // summits of the contiguous US stand in, so a deck at a summit's own height
+  // lands in the middle of the ramp rather than at one end. A dry column reads
+  // CLOUD_DECK_CEILING_FT, past the top, and takes the green band.
   //
-  // The contrast is the freezing level's, measured shade for shade, because the
-  // shades are the same six (pinned in `colors.test.ts`).
+  // The low end is a bet. The deck is the BASE of the lowest cloud, not its
+  // top, so a deck on the valley floor under a high summit could be an
+  // undercast the summit stands clear above, and the ramp reads it as the
+  // summit in cloud. That is the hiker's reading, chosen over the
+  // photographer's on #510; the photographer's is why #117 gave the deck a
+  // height ramp with no verdict.
+  //
+  // The contrast is the verdict ramp's, shade for shade (pinned in
+  // `colors.test.ts`), so the cold ramps' 4.5:1 cell floor does not come with
+  // it.
   cloud_deck: {
     thresholds: [3000, 6000, 9000, 12000, 15000],
-    colors: ['#d8b4fe', '#c4b5fd', '#a5b4fc', '#93c5fd', '#38bdf8', '#67e8f9'],
+    colors: VERDICT_RAMP_REVERSED,
     unit: UNIT.cloud_deck,
   },
-  // All six US EPA AQI categories — Good / Moderate / Sensitive / Unhealthy /
-  // Very Unhealthy / Hazardous — in the app's hues. The purple/maroon top
-  // bands exist so an AQI of 250 and one of 350 never look the same.
+  // The scale the verdict ramp was taken from: the EPA's six categories on the
+  // EPA's own boundaries, so this is the one scale where a band means exactly
+  // what the EPA says it does. The purple and maroon top bands exist so an AQI
+  // of 250 and one of 350 never look the same.
   aqi: {
     thresholds: [50, 100, 150, 200, 300],
-    colors: ['#22c55e', '#eab308', '#f97316', '#ef4444', '#a855f7', '#991b1b'],
+    colors: VERDICT_RAMP,
     // The one scale with no unit at all: the index is unitless, so the map
     // legend's label for it is the bare noun where every other scale's reads
     // `Temperature (°F)`.
@@ -230,19 +289,16 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
  * Service's rainfall-intensity classes (light, moderate, heavy, violent),
  * borrowed rather than invented so a reader can look up what a boundary means.
  * A split of the light class at 0.05 in/hr was built and reverted in #445 (TJ,
- * 2026-09-16, deferring to the NWS); note that 0.05 reads LESS green on the
- * NWS boundaries than it did split, because inside the 0.01–0.10 band it is
- * already blending from lime toward yellow, where a boundary at 0.05 pinned it
- * to pure lime. Purple past 1.00 in/hr is the app's own top (#445), because
- * the old scale ran out of colours at 0.50 and a downpour and a cloudburst
- * were one red.
+ * 2026-09-16, deferring to the NWS). The boundary at 1.00 in/hr is the app's
+ * own (#445), because the old scale ran out of colours at 0.50 and a downpour
+ * and a cloudburst were one red; past it is the verdict ramp's maroon.
  *
- * Shares the hues of every other scale, so green still means "nothing going on"
- * across the whole table.
+ * Wears the verdict ramp like the totals scale, so green still means "nothing
+ * going on" across the whole table.
  */
 const PRECIP_RATE: LabelledScale = {
   thresholds: [0.01, 0.10, 0.30, 0.50, 1.00],
-  colors: ['#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#a855f7'],
+  colors: VERDICT_RAMP,
   // "in/hr" against the window scale's "in": the difference is the whole point
   // of this scale existing, and the map legend shows one or the other with
   // nothing beside it to compare against — so the unit has to say which
