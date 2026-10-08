@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AnalyzeRequest } from '../types'
-import { analyzedView, requestsCloud, type RecordedFacts } from './analysisSnapshot'
+import { analyzedView, type RecordedFacts } from './analysisSnapshot'
 import { constraintsFromRequest } from './clientAnalyze'
 import { FALLBACK_WINDOW_LIMITS, windowSource } from './forecastWindow'
 import { discoveryKeys } from './present'
@@ -55,19 +55,5 @@ describe('analyzedView', () => {
     const out = analyzedView(refresh, 'days', FACTS, NOW, FALLBACK_WINDOW_LIMITS)
     expect(out.polygonKey).toBe(FACTS.discovery.polygonKey)
     expect(out.polygonKey).not.toBe(discoveryKeys(null, [], false).polygonKey)
-  })
-})
-
-describe('requestsCloud', () => {
-  it('fetches the cloud column only when the ranking or a bound names it', () => {
-    expect(requestsCloud(REQUEST)).toBe(false)
-    expect(requestsCloud({ ...REQUEST, sort_by: 'cloud_deck_min_ft' })).toBe(true)
-    expect(requestsCloud({ ...REQUEST, max_cloud_deck_ft: 9000 })).toBe(true)
-    expect(requestsCloud({ ...REQUEST, min_cloud_deck_ft: 4000 })).toBe(true)
-  })
-
-  it('is what the snapshot records', () => {
-    const cloudy = { ...REQUEST, sort_by: 'cloud_deck_avg_ft' as const }
-    expect(analyzedView(cloudy, 'days', FACTS, NOW, FALLBACK_WINDOW_LIMITS).cloudFetched).toBe(true)
   })
 })

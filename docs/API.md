@@ -709,8 +709,8 @@ and it passes for the same reason.
 **An AQI bound costs more than the others.** Air quality is normally fetched
 only for the rows being returned. Bounding it forces the fetch for every
 candidate, since a bound cannot be applied to a value that was never fetched.
-A cloud bound does the same for the cloud variables, which are otherwise not
-fetched at all (see below).
+A cloud bound costs nothing extra: the cloud variables are fetched for every
+candidate of every analysis (see below).
 
 `total_matched` in the response is how many candidates satisfied the bounds
 before `limit` cut the list; `total_queried` stays what it always was, how many
@@ -786,9 +786,9 @@ EOF
     "snowfall_avg_in_hr": 0.0323,
     "snowfall_min_in_hr": 0,
     "snowfall_max_in_hr": 0.11,
-    "cloud_deck_min_ft": null,
-    "cloud_deck_avg_ft": null,
-    "cloud_deck_max_ft": null,
+    "cloud_deck_min_ft": 6200,
+    "cloud_deck_avg_ft": 11850,
+    "cloud_deck_max_ft": 30066,
     "series": null
   }
 }
@@ -825,14 +825,15 @@ those bounds is refused with a `422` naming the field, and one of those sort
 keys is refused the same way. The series fields `cloud_base_ft` and
 `cloud_cover_pct` are now the one `cloud_deck_ft`.
 
-They cost a second upstream request per location, so they are null unless
-something asks for them. Three things do:
+They cost a second upstream request per location, and every analysis makes
+it for every candidate, so every row carries them whatever the request ranks
+or bounds by. They are null over archive hours, which carry no pressure levels
+to read, and for a location the cloud request answered nothing for.
 
-| You send | The cloud variables are fetched for |
-| --- | --- |
-| a `sort_by` naming a cloud deck field | every candidate, before the ranking |
-| either cloud deck bound | every candidate, before the bounds |
-| `include_clouds: true` and neither of the above | the returned rows only, after the `limit` cut, the way air quality is |
+`include_clouds` is accepted and ignored. Through 0.98 the cloud variables were
+fetched only for a cloud deck `sort_by`, a cloud deck bound, or the returned
+rows of a request that set it; the field stays so such a request is still
+accepted, and it will be removed in a major release.
 
 ```bash
 # $START and $END as set under "Choosing a forecast window".
@@ -859,8 +860,7 @@ EOF
 
 That ranks the destinations whose cloud came down least, among those whose
 deck never fell below 5,000 ft. With series on, each row's `series` also
-carries `cloud_deck_ft`, aligned to `times`; on a row that was not asked for
-clouds it is null. The cloud request is priced by Open-Meteo like any other:
+carries `cloud_deck_ft`, aligned to `times`. The cloud request is priced by Open-Meteo like any other:
 nine hourly variables at one model, a weight of 1 per location against the
 weather request's 1.5.
 

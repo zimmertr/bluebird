@@ -159,14 +159,6 @@ export interface ForecastGridInputs {
   windowLimits: WindowLimits
   /** How far ahead air quality reaches, from `/api/capabilities` (#393). */
   aqiForecastDays: number
-  /**
-   * Did the analysis fetch the cloud column (#117)? Taken from the `analyzed`
-   * snapshot like the window and model, and for their reason: the lattice
-   * carries the cloud column exactly when the markers above it do. Never read
-   * off the ranking, which is a live knob; until the report carries clouds, a
-   * cloud ranking paints no cell.
-   */
-  cloud: boolean
 }
 
 export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
@@ -183,7 +175,6 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     arriving,
     windowLimits,
     aqiForecastDays,
-    cloud,
   } = inputs
   const [state, setState] = useState<GridFetch>(IDLE)
   const { paceRemainingS, onPace, clear: clearPace } = usePacedFetch()
@@ -338,24 +329,23 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
               if (!cancelled) onPace(seconds)
             },
           })
-          // The cloud column for the same chunk, when the report carries
-          // one (#117). Awaited before the paint rather than beside it, so a
-          // cell is never painted once without its cloud and again with it.
-          const gotCloud = cloud
-            ? await fetchCloud(chunk, startMs, endMs, {
-                model,
-                windowLimits,
-                terrainElevation: true,
-                signal: ac.signal,
-                onPace: (seconds) => {
-                  if (!cancelled) onPace(seconds)
-                },
-              })
-            : null
+          // The cloud column for the same chunk, which the markers above
+          // carry for every row (#117, #683). Awaited before the paint rather
+          // than beside it, so a cell is never painted once without its cloud
+          // and again with it.
+          const gotCloud = await fetchCloud(chunk, startMs, endMs, {
+            model,
+            windowLimits,
+            terrainElevation: true,
+            signal: ac.signal,
+            onPace: (seconds) => {
+              if (!cancelled) onPace(seconds)
+            },
+          })
           if (cancelled) return
           got.forEach((w, j) => {
             wx[indices[j]] = w
-            if (gotCloud) clouds[indices[j]] = gotCloud[j]
+            clouds[indices[j]] = gotCloud[j]
           })
           // A chunk in hand is a chunk the pacer has let through, so whatever
           // wait it reported is over. Clearing on the FIRST paint alone left a
@@ -404,9 +394,7 @@ export function useForecastGrid(inputs: ForecastGridInputs): ForecastGrid {
     // body returns before touching anything, so the shrink direction costs no
     // teardown. `displayReachKm` is deliberately absent: display is the
     // memo's job below, and keying the fetch on it would abort a grow because
-    // the thumb wiggled. `cloud` is absent for the reason `field` is: it is a
-    // fact about the analysis, recorded in the same commit that bumps
-    // `analysisSeq`, and a batch still arriving can record it first.
+    // the thumb wiggled.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, analysisSeq, pitchKm, reachKm, arriving])
 

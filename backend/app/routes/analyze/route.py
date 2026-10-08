@@ -86,8 +86,6 @@ def _summarize_request(request: AnalyzeRequest) -> str:
     # the same analysis yesterday is traceable to the request that asked for it.
     if not request.include_series:
         parts.append("series=off")
-    if request.include_clouds:
-        parts.append("clouds=on")
     if request.min_elevation_ft is not None:
         parts.append(f"min_elev_ft={request.min_elevation_ft:.0f}")
     if request.max_elevation_ft is not None:
@@ -174,7 +172,7 @@ async def _run_analysis(
         return
 
     eager = _eager_fetches(request)
-    refused = _check_pacing(capped.destinations, window, api_key, noun, eager)
+    refused = _check_pacing(capped.destinations, window, api_key, noun)
     if refused is not None:
         yield refused
         return
@@ -191,7 +189,7 @@ async def _run_analysis(
         return
 
     ranked = _rank_and_cut(capped.destinations, fetched, request)
-    failure = await _attach_late(ranked, window, request, api_key, eager)
+    failure = await _attach_late(ranked, window, api_key, eager)
     if failure is not None:
         yield failure
         return

@@ -153,10 +153,8 @@ the **Snow depth** layer on the map, which is an analysis of today rather than a
 forecast and so ranks nothing. How far to trust the number is in
 [DATA.md](DATA.md#open-meteo).
 
-**The cloud deck costs a second request**, so an analysis fetches it only
-when you rank by it or bound it. Pick its row over a report analyzed without it
-and the line under the Analyze button asks for a new analysis; until you run
-it, the table shows no cloud numbers. The deck is the height where cloud forms
+**The cloud deck is in every analysis**, like every other metric, so you can
+rank by it or bound it at any time without analyzing again. The deck is the height where cloud forms
 over the destination, in feet above sea level, read over the whole air column
 from near sea level up: a deck at 4,000 ft under a 7,000 ft summit is a layer
 of cloud below you, and a view above it. A column with no cloud in it reads

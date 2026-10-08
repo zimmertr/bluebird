@@ -23,7 +23,7 @@ import {
   GeoPolygon,
   HourlySeries,
 } from '../types'
-import { familyOf, isOnRequestFamily } from '../metrics'
+import { familyOf } from '../metrics'
 import { AQI_TAIL_MESSAGE, ELEVATION_MESSAGE, tailMessage } from './analyzeOverlay'
 import { postDestinations } from './apiFetch'
 import { type Place, placeType } from './geocode'
@@ -53,7 +53,6 @@ export {
   constraintsFromRequest,
   filterConstraints,
   hasConstraints,
-  namesOnRequestMetric,
   type Constraints,
 } from './constraints'
 
@@ -227,11 +226,10 @@ function cloudFields(
 }
 
 /**
- * The same row with its cloud answer laid over it, or with none.
- *
- * A held row can carry a cloud answer its new report did not ask for. Stripping
- * it keeps the rule that a report carries the cloud column exactly when its
- * snapshot says it does, so a ranking can never read half a column.
+ * The same row with its cloud answer laid over it, or with none: a held row
+ * reduced again from its kept column once the lookup places it (`placeRows`).
+ * The row's own cloud fields are replaced rather than kept under the answer,
+ * so a reduce that answered nothing leaves no stale series behind.
  */
 export function withCloud(
   row: DestinationResult,
@@ -433,15 +431,6 @@ export interface ClientAnalysisCallbacks {
    * would be ranked on nulls.
    */
   onPartial?: (rows: DestinationResult[], times: number[]) => void
-  /**
-   * Fetch the cloud column for the whole field (#117). The caller decides,
-   * from the ranking and the bounds (`namesOnRequestMetric`), because this is
-   * the one request an analysis makes only when asked. Held rows are covered
-   * too: their weather is reused, but a report either carries the column for
-   * every row or for none, and the per-location cache makes a row that already
-   * has it cost nothing. Off, every row comes back without it.
-   */
-  cloud?: boolean
   /**
    * The same destinations, index for index, once the pod's one call about
    * them has answered: whatever elevation and OSM identity it echoes or, for
@@ -651,7 +640,6 @@ export async function runClientAnalysis(
     windowLimits,
     aqiForecastDays,
     reuse,
-    cloud = false,
     resolving,
   }: ClientAnalysisCallbacks = {},
 ): Promise<ClientAnalysis> {
@@ -781,36 +769,25 @@ export async function runClientAnalysis(
   let cloudFailure: unknown = null
 
   try {
-    // The cloud column rides beside the weather over every candidate, reused
-    // ones included, and only when asked (#117). Started first so its batches
-    // overlap the weather's rather than trailing them; it spends the same
-    // weather budget, so the pacer still sees one analysis's worth of spend.
-    const cloudCoords: Coordinate[] = [
-      ...reused.map((r) => ({
-        latitude: r.latitude,
-        longitude: r.longitude,
-        elevation_ft: r.elevation_ft,
-        // The weather's rule, for the reason given there: the cloud deck walk
-        // inserts the 2 m point at the same height the wind is read at.
-        terrainFallback: terrainFallbackFor(r.type),
-      })),
-      ...coords,
-    ]
-    const cloudPending: Promise<CloudResult[] | null> = cloud
-      ? fetchCloud(cloudCoords, startMs, endMs, {
-          signal: internal.signal,
-          onPace,
-          model: request.forecast_model,
-          nowMs,
-          windowLimits,
-          onColumn: (k, column) =>
-            keepColumn(k < reused.length ? reusedAt[k] : unforecastAt[k - reused.length], column, 'cloud'),
-        }).catch((e: unknown) => {
-          if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
-          internal.abort()
-          return null
-        })
-      : Promise.resolve(null)
+    // The cloud column rides beside the weather over the same candidates
+    // (#117, #683): every analysis fetches it, so a held row carries it the
+    // way it carries its weather and is not asked again. Started first so
+    // its batches overlap the weather's rather than trailing them; it spends
+    // the same weather budget, so the pacer still sees one analysis's worth
+    // of spend. The deck walk inserts the 2 m point at the same height the
+    // wind is read at, which is what the shared `coords` carry.
+    const cloudPending: Promise<CloudResult[] | null> = fetchCloud(coords, startMs, endMs, {
+      signal: internal.signal,
+      onPace,
+      model: request.forecast_model,
+      nowMs,
+      windowLimits,
+      onColumn: (k, column) => keepColumn(unforecastAt[k], column, 'cloud'),
+    }).catch((e: unknown) => {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) cloudFailure = e
+      internal.abort()
+      return null
+    })
 
     // AQI rides ALONGSIDE weather for the whole field rather than trailing the
     // ranking for the displayed rows. Open-Meteo bills weighted calls per
@@ -858,8 +835,7 @@ export async function runClientAnalysis(
       // The cloud column resolves at the end too, so the same holds for a
       // cloud ranking.
       const rankFamily = familyOf(sortBy)
-      const partialsWanted =
-        onPartial != null && rankFamily !== 'aqi' && !isOnRequestFamily(rankFamily)
+      const partialsWanted = onPartial != null && rankFamily !== 'aqi' && rankFamily !== 'cloud_deck'
       const wxList = await fetchWeather(coords, startMs, endMs, {
         signal: internal.signal,
         onPace,
@@ -901,18 +877,13 @@ export async function runClientAnalysis(
             `Retrieving forecasts: ${processed} of ${total} ${noun}s…`,
           ),
       })
-      await followTail(aqiPending, cloud ? cloudPending : null, onTail)
+      await followTail(aqiPending, cloudPending, onTail)
       // Never null on this branch: the new candidates are in `aqiCoords`.
       const aqi = (await aqiPending) ?? { results: [], failed: [] }
       const cloudList = await cloudPending
       if (cloudFailure !== null) throw cloudFailure
       const aqiList = aqi.results.slice(aqiRetry.length)
-      const assembled = assemble(
-        unforecast,
-        wxList,
-        aqiList,
-        cloudList && cloudList.slice(reused.length),
-      )
+      const assembled = assemble(unforecast, wxList, aqiList, cloudList)
       fetched = assembled.results
       times = assembled.times
       // `assemble` drops the rows with no weather, so the flags are carried
@@ -927,22 +898,17 @@ export async function runClientAnalysis(
     // analysis fetched nothing, and the two are the same grid either way.
     if (times.length === 0) times = [...(reuse?.times ?? [])]
 
-    // A re-rank that fetched no weather can still wait on the held rows' cloud,
-    // and on their air quality where it failed last time.
-    if (coords.length === 0 && (cloud || aqiPending !== null)) {
-      await followTail(aqiPending, cloud ? cloudPending : null, onTail)
-    }
-    const heldCloud = await cloudPending
-    if (cloudFailure !== null) throw cloudFailure
+    // A re-rank that fetched no weather can still wait on the held rows' air
+    // quality where it failed last time.
+    if (coords.length === 0 && aqiPending !== null) await followTail(aqiPending, null, onTail)
     const retried = aqiPending === null ? null : await aqiPending
     const retryAt = new Map(aqiRetry.map((i, k) => [i, k]))
     const aqiFailed = new Set<string>()
     const held = reused.map((r, i) => {
-      const row = withCloud(r, heldCloud?.[i] ?? null, times)
       const k = retryAt.get(i)
-      if (k === undefined || retried === null) return row
+      if (k === undefined || retried === null) return r
       if (retried.failed[k]) aqiFailed.add(geoKey(r.latitude, r.longitude))
-      return withAqi(row, retried.results[k], times)
+      return withAqi(r, retried.results[k], times)
     })
     fetched.forEach((r, i) => {
       if (fetchedAqiFailed[i]) aqiFailed.add(geoKey(r.latitude, r.longitude))

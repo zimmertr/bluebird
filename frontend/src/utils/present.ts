@@ -15,7 +15,6 @@
 import { DestinationResult, SortBy } from '../types'
 import type { AnalyzedView } from '../hooks/analyzeTypes'
 import { Constraints, filterConstraints, rankComparator } from './clientAnalyze'
-import { namesOnRequestMetric } from './constraints'
 import { compareAdded } from './modelCompare'
 import { geoKey } from './points'
 import { isPointSample } from './forecastWindow'
@@ -54,7 +53,6 @@ export type CommitReason =
   | 'polygon-changed'
   | 'types-changed'
   | 'destination-added'
-  | 'cloud-needed'
 
 /**
  * The change flags `commitNeeded` cannot compute from the knobs it holds: each
@@ -69,29 +67,6 @@ export interface CommitChanges {
   polygon: boolean
   types: boolean
   destinationAdded: boolean
-  /**
-   * The ranking or a bound names a cloud metric and the report was analyzed
-   * without the cloud column (#117). `cloudNeeded` below is the one spelling
-   * of that comparison.
-   */
-  cloud: boolean
-}
-
-/**
- * Has a live knob asked for data the report does not hold (#117)?
- *
- * The cloud column is the one piece of a report fetched only on request, so
- * choosing a cloud ranking or typing a cloud bound over a report without it is
- * the one way a PRESENTATION knob can stop being live. Read against the
- * snapshot rather than the rows: a report whose rows all carry null cloud
- * fields may still have fetched them (every hour in the archive, say), and
- * asking for an Analyze there would buy the same nulls again.
- */
-export function cloudNeeded(
-  analyzed: { cloudFetched: boolean } | null,
-  namesCloud: boolean,
-): boolean {
-  return analyzed !== null && !analyzed.cloudFetched && namesCloud
 }
 
 /**
@@ -187,11 +162,10 @@ export function discoveryChanges(
  *   never covered (`pendingDestinations` is the caller's predicate — the same
  *   one behind the map's pending dots, so the cue and the dots cannot
  *   disagree).
- * - `'cloud-needed'`: the ranking or a bound names a cloud metric the report
- *   was analyzed without (#117). The only reason a presentation knob raises,
- *   and last for that reason: every cue above names a data input that moved,
- *   and any of those Analyzes fetches the cloud column too, so when one of
- *   them shows this line is the smaller half of the same click.
+ *
+ * No presentation knob raises a cue: every analysis fetches every column the
+ * ranking and the bounds can read, the cloud deck included since #683, so a
+ * sort, a bound or a limit is live over every committed report.
  *
  * ALL that apply, not the first (TJ, 2026-08-22): a user who changed both the
  * window and the model is owed both sentences, and the notice box bullets
@@ -213,7 +187,6 @@ export function commitNeeded(
   if (changed.polygon) reasons.push('polygon-changed')
   if (changed.types) reasons.push('types-changed')
   if (changed.destinationAdded) reasons.push('destination-added')
-  if (changed.cloud) reasons.push('cloud-needed')
   return reasons
 }
 
@@ -276,7 +249,6 @@ export function panelCommitCues(analyzed: AnalyzedView | null, panel: PanelState
     // The same set behind the map's pending dots, so the cue and the dots
     // cannot disagree about what an analysis has not covered.
     destinationAdded: panel.pendingCount > 0,
-    cloud: cloudNeeded(analyzed, namesOnRequestMetric(panel.sortBy, panel.constraints)),
   })
 }
 

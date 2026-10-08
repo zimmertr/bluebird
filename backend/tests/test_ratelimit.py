@@ -328,6 +328,7 @@ def test_analyze_503_when_weather_budget_sheds(monkeypatch):
 
     monkeypatch.setattr(osm_mod, "query_osm", one_peak)
     monkeypatch.setattr(weather_mod, "fetch_weather_batch", shed)
+    monkeypatch.setattr(weather_mod, "fetch_cloud_batch", no_aqi)
     monkeypatch.setattr(aqi_mod, "fetch_aqi_batch", no_aqi)
     resp = client.post("/api/analyze", json=_analyze_payload(inverted=False))
     assert resp.status_code == 503

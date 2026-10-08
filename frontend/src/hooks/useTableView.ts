@@ -29,7 +29,6 @@ import {
   WILDFIRE_KEY,
   applyColumnOrder,
   displayedColumns,
-  keepUnlistedChoices,
   moveColumn,
   visibleColumns,
   withModelColumn,
@@ -53,7 +52,7 @@ export interface TableViewInputs {
   sortDesc: boolean
   /** Whether the window is a single hour, which relabels every metric column. */
   pointSample: boolean
-  /** The committed report's snapshot: its model, its window, and whether it carries cloud. */
+  /** The committed report's snapshot: its model and its window. */
   analyzed: AnalyzedView | null
   /** The deployment's models (`/api/capabilities`), for the analysis model's label. */
   models: readonly ForecastModelOption[]
@@ -170,13 +169,7 @@ export function useTableView({
     )
   }, [pointSample])
 
-  // Whether the report carries the cloud column (#117). Before any report,
-  // nothing does, which leaves the cloud columns out of an empty table too.
-  const cloudHeld = analyzed?.cloudFetched ?? false
-  const csvColumns = useMemo(
-    () => displayedColumns(pointSample, sortBy, cloudHeld),
-    [pointSample, sortBy, cloudHeld],
-  )
+  const csvColumns = useMemo(() => displayedColumns(pointSample, sortBy), [pointSample, sortBy])
   // Every column is on by default: the table scrolls sideways rather than
   // opening narrowed (TJ's call in the #242 review). A stored choice from the
   // Columns picker still wins; null means "all of them".
@@ -310,10 +303,10 @@ export function useTableView({
   // once its check answered AND the column is shown, because a file's columns
   // must not disagree with the screen's.
   const tableColumns = useMemo(() => {
-    const cols = visibleColumns(pointSample, sortBy, effectiveVisibleKeys, cloudHeld)
+    const cols = visibleColumns(pointSample, sortBy, effectiveVisibleKeys)
     const flags = FLAG_COLS.filter((c) => effectiveVisibleKeys.has(c.key as string))
     return applyColumnOrder(withModelColumn([...cols, ...flags], modelColumnOn), columnOrder)
-  }, [pointSample, sortBy, effectiveVisibleKeys, cloudHeld, modelColumnOn, columnOrder])
+  }, [pointSample, sortBy, effectiveVisibleKeys, modelColumnOn, columnOrder])
 
   // Every column there is, in the reader's order: what the Columns picker
   // lists, and the list a move is made within.
@@ -345,11 +338,9 @@ export function useTableView({
       if (wanted !== modelColumnOn) setModelColumn(wanted)
       const rest = new Set(keys)
       rest.delete(MODEL_KEY)
-      setColumnVisibility(
-        keepUnlistedChoices(rest, new Set(allColumns.map((c) => c.key as string)), columnVisibility),
-      )
+      setColumnVisibility(rest)
     },
-    [modelColumnOn, allColumns, columnVisibility],
+    [modelColumnOn],
   )
 
   // Download the displayed report (#125): the table's rows and columns, so the

@@ -53,11 +53,6 @@ _UPPER_BOUNDS = (
 )
 
 
-# Every cloud field leads with this, which is how a ranking key or a bound's
-# field is recognized as one the cloud request must answer.
-_CLOUD_PREFIX = "cloud_"
-
-
 def _aqi_bounded(request: AnalyzeRequest) -> bool:
     """Does this request bound AQI, and therefore need it for every candidate?
 
@@ -68,24 +63,6 @@ def _aqi_bounded(request: AnalyzeRequest) -> bool:
     that asked for it.
     """
     return request.min_aqi is not None or request.max_aqi is not None
-
-
-def _cloud_eager(request: AnalyzeRequest) -> bool:
-    """Does the ranking or a bound need the cloud fields for every candidate?
-
-    The same question `_aqi_bounded` asks, for the same reason, with the ranking
-    folded in: the cloud variables are a second request per location (issue
-    #117), so they are fetched for the whole field only when the order or the
-    filter cannot be known without them. A bound on a value never fetched
-    would drop nothing, since nulls pass.
-    """
-    if request.sort_by.value.startswith(_CLOUD_PREFIX):
-        return True
-    return any(
-        getattr(request, attr) is not None
-        for attr, field in (*_LOWER_BOUNDS, *_UPPER_BOUNDS)
-        if field.startswith(_CLOUD_PREFIX)
-    )
 
 
 def _filter_constraints(

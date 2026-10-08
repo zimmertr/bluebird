@@ -7,8 +7,6 @@ import {
   formatPrecipRate,
   formatPrecipTotal,
   HEIGHT_FAMILIES,
-  ON_REQUEST_FAMILIES,
-  isOnRequestFamily,
   metricLabel,
 } from '../metrics'
 import { UNAVAILABLE } from './unavailableCell'
@@ -252,8 +250,8 @@ export const COLUMNS: ColDef[] = [
   { key: 'aqi_avg', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_min', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
   { key: 'aqi_max', unit: UNIT.aqi, label: metricLabel('aqi', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(0) : '—'), windyLayer: 'pm2p5' },
-  // The family a report carries only when asked (#117, #670), last so the
-  // columns every report has keep the places they always had. The deck is
+  // The family that joined last (#117, #670), last so the columns that came
+  // before it keep the places they always had. The deck is
   // feet above sea level and grouped like the elevation it is read against;
   // Windy's nearest layer is its cloud base, `cbase`.
   { key: 'cloud_deck_min_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toLocaleString() : '—'), csv: (v) => String(v), windyLayer: 'cbase' },
@@ -334,29 +332,12 @@ export function pointModeColumns<T extends { key: string; label: string }>(colum
  * the honest question anyway — the columns collapse exactly when the aggregates
  * would be one value three times.
  *
- * `cloudHeld` is whether the report carries the cloud column (#117). Without
- * it the cloud columns are left out rather than drawn as three columns of
- * dashes: the report never asked for them, so they would say nothing about
- * the weather and cost three columns of width saying it. A cloud RANKING keeps
- * its own group either way, because the ranked group is always shown and the
- * panel's cue is already saying the next Analyze fills it. The default is the
- * whole set, which is what a caller with no report to ask about wants.
+ * Every metric column is listed for every report: an analysis fetches every
+ * column, the cloud deck included since #683, so there is no report a column
+ * would say nothing about.
  */
-export function displayedColumns(
-  pointSample: boolean,
-  sortBy: SortBy,
-  cloudHeld = true,
-): ColDef[] {
-  const base = pointSample ? pointModeColumns(COLUMNS) : COLUMNS
-  const ranked = familyOf(sortBy)
-  const kept = cloudHeld
-    ? base
-    : base.filter((c) => {
-        if (LEAD_KEYS.has(c.key)) return true
-        const family = familyOf(c.key)
-        return !isOnRequestFamily(family) || family === ranked
-      })
-  return orderColumns(kept, sortBy)
+export function displayedColumns(pointSample: boolean, sortBy: SortBy): ColDef[] {
+  return orderColumns(pointSample ? pointModeColumns(COLUMNS) : COLUMNS, sortBy)
 }
 
 /**
@@ -367,35 +348,11 @@ export function visibleColumns(
   pointSample: boolean,
   sortBy: SortBy,
   visibleKeys?: Set<string> | null,
-  cloudHeld = true,
 ): ColDef[] {
-  const allCols = displayedColumns(pointSample, sortBy, cloudHeld)
+  const allCols = displayedColumns(pointSample, sortBy)
   if (!visibleKeys) return allCols
   const group = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
   return allCols.filter((c) => visibleKeys.has(c.key) || group.has(c.key))
-}
-
-/**
- * A choice from the Columns picker, with the columns it could not list kept as
- * they were.
- *
- * The picker lists only the columns a report can show, and a report analyzed
- * without the cloud column shows none of its three (#117, #670). A choice made then
- * says nothing about them, so each keeps the answer it had before the choice,
- * which for a reader who never chose (`prior` null) is shown. Without this,
- * one untick on a report without clouds would hide all three on every report
- * after it.
- */
-export function keepUnlistedChoices(
-  chosen: ReadonlySet<string>,
-  listed: ReadonlySet<string>,
-  prior: ReadonlySet<string> | null,
-): Set<string> {
-  const out = new Set(chosen)
-  for (const key of ON_REQUEST_FAMILIES.flatMap((f) => FAMILY_KEYS[f])) {
-    if (!listed.has(key) && (prior === null || prior.has(key))) out.add(key)
-  }
-  return out
 }
 
 /**

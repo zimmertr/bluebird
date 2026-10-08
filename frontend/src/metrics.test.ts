@@ -11,8 +11,6 @@ import {
   UNIT,
   aggregateToken,
   familyOf,
-  ON_REQUEST_FAMILIES,
-  isOnRequestFamily,
   formatPrecipRate,
   formatPrecipTotal,
   metricLabel,
@@ -204,12 +202,6 @@ describe('the vocabulary', () => {
     // #117's retired keys belong to no family (#670).
     expect(() => familyOf('cloud_base_min_ft')).toThrow(/cloud_base_min_ft/)
     expect(() => familyOf('cloud_cover_avg_pct')).toThrow(/cloud_cover_avg_pct/)
-  })
-
-  it('names the cloud deck as the one family fetched on request', () => {
-    expect([...ON_REQUEST_FAMILIES]).toEqual(['cloud_deck'])
-    expect(isOnRequestFamily('cloud_deck')).toBe(true)
-    expect(isOnRequestFamily('freeze')).toBe(false)
   })
 
   // Nouns are identity and spell out; aggregates are modifiers and wear the

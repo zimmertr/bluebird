@@ -140,7 +140,12 @@ def _stub_weather(monkeypatch):
     ):
         return _wx(len(destinations))
 
+    # Every analysis fetches the cloud column beside the weather (#683).
+    async def no_cloud(destinations, *args, **kwargs):
+        return [None] * len(destinations)
+
     monkeypatch.setattr(weather, "fetch_weather_batch", fake_weather)
+    monkeypatch.setattr(weather, "fetch_cloud_batch", no_cloud)
 
 
 def _stub_aqi(monkeypatch, calls: list[int]):

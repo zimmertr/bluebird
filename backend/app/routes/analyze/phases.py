@@ -73,10 +73,8 @@ from app.services.errors import (
 from app.services.openmeteo_fetch import MAX_CONCURRENT_BATCHES
 from app.services.ranking import (
     _aligned_aqi,
-    _aligned_cloud,
     _aqi_bounded,
     _assemble,
-    _cloud_eager,
     _filter_constraints,
     _sort_key,
     _truncate_top_elevation,
@@ -110,10 +108,10 @@ class Capped:
 @dataclass(slots=True, frozen=True)
 class Eager:
     """Which second fetches run for every candidate before the cut, rather
-    than for the returned rows after it."""
+    than for the returned rows after it. Only air quality asks: the cloud
+    column is fetched for every candidate of every analysis (#683)."""
 
     aqi: bool
-    cloud: bool
 
 
 @dataclass(slots=True)
@@ -122,7 +120,7 @@ class Fetched:
 
     wx: list[dict[str, Any] | None]
     aqi: list[dict[str, Any] | None]
-    cloud: list[dict[str, Any] | None] | None
+    cloud: list[dict[str, Any] | None]
 
 
 @dataclass(slots=True)
@@ -291,7 +289,6 @@ def _check_pacing(
     window: Window,
     api_key: str | None,
     noun: str,
-    eager: Eager,
 ) -> Refusal | None:
     """Refuse an analysis too large to run, before it spends anything.
 
@@ -316,7 +313,9 @@ def _check_pacing(
     refused a second time.
     """
     budget = ratelimit.WEATHER_WEIGHT
-    concurrency = MAX_CONCURRENT_BATCHES * (2 if eager.cloud else 1)
+    # The cloud batches run beside the weather ones on the same quota (#683),
+    # so twice the batches are in flight and the plan prices both columns.
+    concurrency = MAX_CONCURRENT_BATCHES * 2
     most = MAX_ANALYZE_DESTINATION_HOURS // max(1, window_hours(window.start, window.end))
 
     def fits(n: int) -> bool:
@@ -330,7 +329,7 @@ def _check_pacing(
             window.end,
             source=window.source,
             boundary=window.boundary,
-            cloud=eager.cloud,
+            cloud=True,
         )
         return budget.plan_max_wait_s(plan, concurrency) <= ratelimit.UPSTREAM_WEIGHT_MAX_WAIT_S
 
@@ -374,15 +373,12 @@ def _eager_fetches(request: AnalyzeRequest) -> Eager:
     default-sort analysis that is the difference between ~1,800 and ~1,000
     weighted calls.
 
-    The cloud variables are the same question one step further: a second
-    request per location that the ranking or a bound can depend on (issue
-    #117). Fetched eagerly for every candidate only then, alongside the
-    weather; a caller who only asked to SEE them gets them after the cut.
+    The cloud column is not asked about: it is a second request per location
+    the ranking or a bound can depend on, and since #683 it is fetched for
+    every candidate of every analysis, alongside the weather, so every row
+    carries it the way it carries the weather.
     """
-    return Eager(
-        aqi=request.sort_by.value.startswith("aqi") or _aqi_bounded(request),
-        cloud=_cloud_eager(request),
-    )
+    return Eager(aqi=request.sort_by.value.startswith("aqi") or _aqi_bounded(request))
 
 
 async def _fetch_forecasts(
@@ -464,20 +460,16 @@ async def _fetch_forecasts(
         if eager.aqi
         else None
     )
-    cloud_task = (
-        asyncio.create_task(
-            weather.fetch_cloud_batch(
-                destinations,
-                window.start,
-                window.end,
-                request.forecast_model,
-                api_key=api_key,
-                source=window.source,
-                boundary=window.boundary,
-            )
+    cloud_task = asyncio.create_task(
+        weather.fetch_cloud_batch(
+            destinations,
+            window.start,
+            window.end,
+            request.forecast_model,
+            api_key=api_key,
+            source=window.source,
+            boundary=window.boundary,
         )
-        if eager.cloud
-        else None
     )
     fetch_task = asyncio.create_task(run_fetch())
     try:
@@ -488,7 +480,7 @@ async def _fetch_forecasts(
         aqi_list: list[dict[str, Any] | None] = (
             await aqi_task if aqi_task is not None else [None] * len(destinations)
         )
-        cloud_list = await cloud_task if cloud_task is not None else None
+        cloud_list = await cloud_task
     except Exception as e:
         yield _upstream_failure(e)
         return
@@ -561,70 +553,16 @@ async def _attach_aqi(
             row.series.aqi = _aligned_aqi(times, aqi.get("series"))
 
 
-async def _attach_cloud(
-    results: list[DestinationResult],
-    times: list[int],
-    start_dt,
-    end_dt,
-    request: AnalyzeRequest,
-    api_key: str | None,
-    source: WindowSource,
-    boundary: datetime,
-) -> None:
-    """Fetch the cloud fields for exactly the rows being returned.
-
-    The lazy half, for a caller who asked for the columns (`include_clouds`)
-    without ranking or bounding by them: the fields are display data for the
-    returned rows, so fetching them for every candidate would spend a second
-    request per location on rows nobody sees. Raises like the weather fetch,
-    because the caller asked for these by name.
-    """
-    if not results:
-        return
-    dests = [
-        {"latitude": r.latitude, "longitude": r.longitude, "elevation_ft": r.elevation_ft}
-        for r in results
-    ]
-    cloud_list = await weather.fetch_cloud_batch(
-        dests,
-        start_dt,
-        end_dt,
-        request.forecast_model,
-        api_key=api_key,
-        source=source,
-        boundary=boundary,
-    )
-    for row, cloud in zip(results, cloud_list, strict=False):
-        if not cloud:
-            continue
-        for field in _CLOUD_FIELDS:
-            setattr(row, field, cloud.get(field))
-        if row.series is not None:
-            row.series.cloud_deck_ft = _aligned_cloud(times, cloud.get("series"))
-
-
-# The three aggregate fields a cloud answer carries, in the order the result
-# model declares them.
-_CLOUD_FIELDS = (
-    "cloud_deck_min_ft",
-    "cloud_deck_avg_ft",
-    "cloud_deck_max_ft",
-)
-
-
 async def _attach_late(
     ranked: Ranked,
     window: Window,
-    request: AnalyzeRequest,
     api_key: str | None,
     eager: Eager,
 ) -> Failure | None:
-    """The second fetches `eager` left for the returned rows alone.
+    """The second fetch `eager` left for the returned rows alone.
 
     Air quality is best-effort and its service absorbs every failure except a
-    refused key, so that is the one error caught here. The cloud fields were
-    asked for by name, so any failure there fails the analysis like the
-    weather does.
+    refused key, so that is the one error caught here.
     """
     if not eager.aqi:
         try:
@@ -632,20 +570,6 @@ async def _attach_late(
         except InvalidApiKeyError as e:
             # Reachable when the weather half answered entirely from cache, so
             # the first upstream call the key made was the air-quality one.
-            return _upstream_failure(e)
-    if request.include_clouds and not eager.cloud:
-        try:
-            await _attach_cloud(
-                ranked.results,
-                ranked.times,
-                window.start,
-                window.end,
-                request,
-                api_key,
-                window.source,
-                window.boundary,
-            )
-        except Exception as e:
             return _upstream_failure(e)
     return None
 

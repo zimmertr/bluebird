@@ -356,7 +356,6 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
     polygonKey: '',
     typesKey: '',
     compareModels: [],
-    cloudFetched: false,
     ...over,
   }
 }

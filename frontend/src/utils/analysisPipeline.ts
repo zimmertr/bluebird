@@ -25,7 +25,6 @@ import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
 import { holdForecasts, reusableForecasts, type HeldForecasts } from './forecastReuse'
-import { requestsCloud } from './analysisSnapshot'
 
 // One browser analysis from request to report. `clientAnalyze.ts` fetches,
 // aggregates and ranks a field it is handed; this module is everything around
@@ -308,7 +307,6 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     windowLimits: options.windowLimits,
     aqiForecastDays: options.aqiForecastDays,
     reuse: reuse && { rows: reuse.rows, times: reuse.times, aqiFailed: reuse.aqiFailed, columns: reuse.columns },
-    cloud: requestsCloud(request),
     onPace: options.onPace,
     onPartial: (rows, times) =>
       onPartial(

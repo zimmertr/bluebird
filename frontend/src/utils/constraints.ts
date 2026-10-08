@@ -4,8 +4,7 @@
 // fetches anything: every bound re-reads rows already in hand, which is what
 // makes each one a live knob rather than another Analyze.
 
-import type { AnalyzeRequest, DestinationResult, SortBy } from '../types'
-import { familyOf, isOnRequestFamily } from '../metrics'
+import type { AnalyzeRequest, DestinationResult } from '../types'
 
 /**
  * The forecast bounds an analysis is narrowed by, mirroring the fourteen optional
@@ -129,20 +128,6 @@ export function constraintFields(c: Constraints) {
     min_cloud_deck_ft: c.minCloudDeckFt,
     max_cloud_deck_ft: c.maxCloudDeckFt,
   }
-}
-
-/**
- * Does the ranking or any bound name a metric the analysis fetches only on
- * request (#117, #670)? The browser's half of the backend's `_cloud_eager`: the
- * answer decides whether an Analyze fetches the cloud column, and, read against
- * a report's snapshot, whether a live knob has asked for data the report does
- * not hold.
- */
-export function namesOnRequestMetric(sortBy: SortBy, c: Constraints): boolean {
-  if (isOnRequestFamily(familyOf(sortBy))) return true
-  return [...LOWER_BOUNDS, ...UPPER_BOUNDS].some(
-    ([k, field]) => c[k] !== null && isOnRequestFamily(familyOf(field)),
-  )
 }
 
 /**

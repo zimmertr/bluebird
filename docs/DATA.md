@@ -3,7 +3,7 @@
 | Source | Usage | Cost | Auth |
 |---|---|---|---|
 | [OpenStreetMap](https://www.openstreetmap.org) via [Overpass API](https://overpass-api.de) | Destination names, coordinates, elevation | Free | None |
-| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, the humidity column behind the cloud deck (on request), and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
+| [Open-Meteo](https://open-meteo.com) | Hourly precipitation, temperature, wind, freezing level, the humidity column behind the cloud deck, and (in the browser only) the wind bearing the map's playback arrows draw | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Historical Weather](https://open-meteo.com/en/docs/historical-weather-api) (reanalysis) | Hourly precipitation, 2 m temperature and 10 m wind for windows older than the forecast endpoint's own history | Free (non-commercial) | None, or a caller's own key |
 | [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) ([CAMS](https://atmosphere.copernicus.eu/) data) | Hourly US AQI | Free (non-commercial) | None, or a caller's own key |
 | [OpenFreeMap](https://openfreemap.org) | Vector map tiles, and the peak a pasted coordinate stands on | Free | None |
@@ -535,9 +535,9 @@ not cost you a forecast.
 ## Cloud deck
 
 The cloud deck comes from Open-Meteo, in a second request beside the weather
-one, and only when the ranking or a bound names it. Most analyses never ask,
-and the request costs a second weighted call per location (nine variables, a
-weight of 1), so it is not made by default.
+one, for every destination of every analysis. The request costs a second
+weighted call per location (nine variables, a weight of 1), which is about two
+thirds more of your Open-Meteo quota than the weather alone.
 
 **Cloud deck** is the lowest height in the model's air column over the
 destination where the air is close to saturated, in feet above sea level. Each

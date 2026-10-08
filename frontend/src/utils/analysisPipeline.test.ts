@@ -459,13 +459,6 @@ describe('runAnalysisPipeline', () => {
     expect(out.held.fetchedAtMs).toBe(NOW)
   })
 
-  it('fetches the cloud column only when the request names it', async () => {
-    stubDestinations({ destinations: [CANDIDATE], total: 1 })
-    await runAnalysisPipeline(REQUEST, options())
-    await runAnalysisPipeline({ ...REQUEST, sort_by: 'cloud_deck_min_ft' }, options())
-    expect(ranked.mock.calls.map((c) => c[4]!.cloud)).toEqual([false, true])
-  })
-
   it('refuses a window outside the limits before it asks the server anything', async () => {
     stubDestinations({ destinations: [], total: 0 })
     const late = { ...REQUEST, start_datetime: '2027-07-21T00:00:00Z', end_datetime: '2027-07-21T02:00:00Z' }

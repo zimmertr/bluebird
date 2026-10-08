@@ -1,7 +1,7 @@
 import type { AnalyzeRequest } from '../types'
 import type { AnalyzedView } from '../hooks/analyzeTypes'
 import type { SelectionKind } from './calendar'
-import { constraintsFromRequest, namesOnRequestMetric } from './clientAnalyze'
+import { constraintsFromRequest } from './clientAnalyze'
 import { windowSource, type WindowLimits } from './forecastWindow'
 import { geoKey } from './points'
 import type { DiscoveryKeys } from './present'
@@ -17,13 +17,6 @@ export interface RecordedFacts {
   // carries no polygon and the caller passes the panel's keys instead.
   discovery: DiscoveryKeys
   compareModels: readonly string[]
-}
-
-// Whether an analysis fetches the cloud column (#117): only when its ranking
-// or one of its bounds names a cloud metric. Read off the request, so the
-// fetch and the snapshot that records it cannot disagree.
-export function requestsCloud(request: AnalyzeRequest): boolean {
-  return namesOnRequestMetric(request.sort_by ?? 'precip_total_in', constraintsFromRequest(request))
 }
 
 /**
@@ -52,6 +45,5 @@ export function analyzedView(
     polygonKey: facts.discovery.polygonKey,
     typesKey: facts.discovery.typesKey,
     compareModels: facts.compareModels,
-    cloudFetched: requestsCloud(request),
   }
 }

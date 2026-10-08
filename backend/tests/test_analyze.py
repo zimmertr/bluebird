@@ -412,6 +412,21 @@ def stub_upstreams(monkeypatch):
     monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
     monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
+# Kept before any stub replaces it, for the test that needs the real fetch.
+_REAL_FETCH_CLOUD_BATCH = weather.fetch_cloud_batch
+
+
+@pytest.fixture(autouse=True)
+def _cloud_column_stub(monkeypatch):
+    """Every analysis fetches the cloud column (#683), so every test here
+    answers it: no deck for any destination, which is what a test that never
+    mentions the column expects. A test about the column stubs its own."""
+
+    async def no_cloud(destinations, *args, **kwargs):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(weather, "fetch_cloud_batch", no_cloud)
+
 
 def test_analyze_custom_ranks_and_limits(stub_upstreams):
     start, end = _window()
@@ -1389,7 +1404,7 @@ def test_analyze_rejects_a_model_this_deployment_does_not_serve():
 @pytest.fixture
 def record_key(monkeypatch):
     """Capture the api_key both fetch layers were called with."""
-    seen: dict[str, list] = {"weather": [], "aqi": []}
+    seen: dict[str, list] = {"weather": [], "aqi": [], "cloud": []}
 
     async def fake_wx(
         destinations, start, end, on_progress=None, on_pace=None, model=None,
@@ -1402,8 +1417,13 @@ def record_key(monkeypatch):
         seen["aqi"].append(api_key)
         return [None] * len(destinations)
 
+    async def fake_cloud(destinations, start, end, model=None, api_key=None, **kwargs):
+        seen["cloud"].append(api_key)
+        return [None] * len(destinations)
+
     monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
     monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
+    monkeypatch.setattr(weather, "fetch_cloud_batch", fake_cloud)
     return seen
 
 
@@ -1427,6 +1447,8 @@ def test_the_header_reaches_both_fetch_layers(record_key):
     assert record_key["weather"] == ["secret-key"]
     # Lazy AQI still carries it: the displayed rows are fetched after the cut.
     assert record_key["aqi"] == ["secret-key"]
+    # So does the cloud column, fetched beside the weather on every analysis.
+    assert record_key["cloud"] == ["secret-key"]
 
 
 def test_the_header_reaches_both_fetch_layers_on_the_stream(record_key):
@@ -1696,6 +1718,9 @@ def test_a_side_fetch_failing_first_logs_no_key(monkeypatch, caplog, route, fiel
 
     stub = _Client()
     monkeypatch.setattr(air_quality.http, "client", lambda: stub)
+    # The real cloud fetch, behind the stubbed client: its failure is the one
+    # under test in the cloud cases, and the module's stub would answer first.
+    monkeypatch.setattr(weather, "fetch_cloud_batch", _REAL_FETCH_CLOUD_BATCH)
     with caplog.at_level(5):  # TRACE
         resp = client.post(
             route,
@@ -2305,17 +2330,18 @@ def _cloud_body(**extra):
     }
 
 
-def test_analyze_without_a_cloud_ask_makes_no_cloud_request(cloud_calls):
-    # The cost rule: an analysis that never names a cloud field spends
-    # exactly what it spent before the cloud fields existed.
+def test_analyze_fetches_the_cloud_column_for_every_candidate(cloud_calls):
+    # The cloud deck is a weather column like the others (#683): fetched for
+    # every candidate of an analysis that names no cloud field, and on every
+    # returned row.
     resp = client.post("/api/analyze", json=_cloud_body())
     assert resp.status_code == 200
-    assert cloud_calls == []
-    row = resp.json()["results"][0]
-    assert row["cloud_deck_min_ft"] is None
-    assert row["cloud_deck_avg_ft"] is None
+    assert cloud_calls == [5]
+    rows = resp.json()["results"]
+    assert [r["cloud_deck_min_ft"] for r in rows] == [1000.0, 2000.0]
+    assert all(r["cloud_deck_avg_ft"] is not None for r in rows)
     # #117's six fields are gone from the row, not merely null (#670).
-    assert not any(k.startswith(("cloud_base", "cloud_cover")) for k in row)
+    assert not any(k.startswith(("cloud_base", "cloud_cover")) for k in rows[0])
 
 
 def test_analyze_cloud_ranking_fetches_every_candidate(cloud_calls):
@@ -2354,12 +2380,14 @@ def test_analyze_cloud_bound_fetches_every_candidate(cloud_calls):
     assert resp.json()["total_matched"] == 2
 
 
-def test_analyze_include_clouds_fetches_only_the_returned_rows(cloud_calls):
-    resp = client.post("/api/analyze", json=_cloud_body(include_clouds=True))
-    assert resp.status_code == 200
-    assert cloud_calls == [2]
-    rows = resp.json()["results"]
-    assert [r["cloud_deck_min_ft"] for r in rows] == [1000.0, 2000.0]
+def test_analyze_include_clouds_is_accepted_and_changes_nothing(cloud_calls):
+    # Kept on the request model so a caller written against 0.97 is still
+    # accepted under `extra="forbid"`; the column is fetched either way (#683).
+    with_flag = client.post("/api/analyze", json=_cloud_body(include_clouds=True))
+    without = client.post("/api/analyze", json=_cloud_body())
+    assert with_flag.status_code == without.status_code == 200
+    assert cloud_calls == [5, 5]
+    assert with_flag.json()["results"] == without.json()["results"]
 
 
 def test_analyze_cloud_failure_answers_like_a_weather_failure(monkeypatch, stub_upstreams):
@@ -2370,36 +2398,15 @@ def test_analyze_cloud_failure_answers_like_a_weather_failure(monkeypatch, stub_
     resp = client.post("/api/analyze", json=_cloud_body(sort_by="cloud_deck_avg_ft"))
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "upstream_unavailable"
-    lazy = client.post("/api/analyze", json=_cloud_body(include_clouds=True))
-    assert lazy.status_code == 502
-
-
-def test_cloud_eager_reads_the_ranking_and_every_cloud_bound():
-    start, end = _window()
-    base = {"destination_types": [], "start_datetime": start, "end_datetime": end,
-            "custom_destinations": [{"name": "a", "latitude": 1.0, "longitude": 2.0}]}
-    assert not ranking._cloud_eager(AnalyzeRequest(**base))
-    assert not ranking._cloud_eager(AnalyzeRequest(**base, include_clouds=True))
-    assert ranking._cloud_eager(AnalyzeRequest(**base, sort_by="cloud_deck_max_ft"))
-    for bound in ("min_cloud_deck_ft", "max_cloud_deck_ft"):
-        assert ranking._cloud_eager(AnalyzeRequest(**base, **{bound: 10}))
-    assert not ranking._cloud_eager(AnalyzeRequest(**base, max_aqi=10))
+    # Under any ranking: the column is part of every analysis (#683).
+    plain = client.post("/api/analyze", json=_cloud_body())
+    assert plain.status_code == 502
 
 
 def test_aligned_cloud_maps_by_stamp_and_nulls_the_rest():
     assert ranking._aligned_cloud([1, 2, 3], None) is None
     series = {"times": [2, 3], "cloud_deck_ft": [9000.0, None]}
     assert ranking._aligned_cloud([1, 2, 3], series) == [None, 9000.0, None]
-
-
-def test_summary_logs_the_clouds_opt_in():
-    start, end = _window()
-    req = AnalyzeRequest(
-        destination_types=[], start_datetime=start, end_datetime=end,
-        custom_destinations=[{"name": "a", "latitude": 1.0, "longitude": 2.0}],
-        include_clouds=True,
-    )
-    assert "clouds=on" in _summarize_request(req)
 
 
 def _logger_names_in_code() -> set[str]:
