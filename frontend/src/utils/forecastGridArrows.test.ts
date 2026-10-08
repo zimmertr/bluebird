@@ -9,6 +9,7 @@ describe('gridArrowFeatures', () => {
     wind_mph: [1, 9],
     freeze_ft: [9000, 9500],
     snowfall_in: [0, 0],
+    gust_mph: [0, 0],
     aqi: [10, 20],
   }
   const box: [number, number, number, number] = [-121.8, 46.3, -121.6, 46.5]

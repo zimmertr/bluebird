@@ -127,13 +127,15 @@ export function resultsFeatureCollection(
 }
 
 /**
- * Whether the wind arrows are drawn: on a wind ranking, while the playhead is
- * on an hour.
+ * Whether the wind arrows are drawn: on a wind or a wind gust ranking, while
+ * the playhead is on an hour.
  *
  * Any wind ranking, minimum and maximum as well as average: the arrows read the
  * hour's bearing, which no reduction changes, so tying them to one key hid the
  * direction under the two rankings a reader picks to find the calm or the gusty
- * summit.
+ * summit. A gust ranking draws them too (#584), because a gust blows from the
+ * bearing of the wind it rides on, and that bearing is the hour's 10 m one the
+ * arrows already read; Open-Meteo publishes no separate gust direction.
  *
  * On any other metric an arrow would be a second variable nobody asked about,
  * drawn over the one they did. The markers' arrows and the forecast grid's both
@@ -141,5 +143,7 @@ export function resultsFeatureCollection(
  * direction worth drawing.
  */
 export function windArrowsShowing(sortBy: SortBy, hourIndex: number | null): boolean {
-  return hourIndex !== null && familyOf(sortBy) === 'wind'
+  if (hourIndex === null) return false
+  const family = familyOf(sortBy)
+  return family === 'wind' || family === 'gust'
 }

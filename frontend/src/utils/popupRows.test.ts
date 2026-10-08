@@ -128,6 +128,7 @@ describe('popupGroups over a Current lookup', () => {
       `${NOUN.snowfall} (in/hr)`,
       `${NOUN.temp} (${UNIT.temp})`,
       `${NOUN.wind} (${UNIT.wind})`,
+      `${NOUN.gust} (${UNIT.gust})`,
     ])
   })
 })
@@ -296,7 +297,10 @@ describe('a new metric family reaches the popup on its own', () => {
   it('composes every heading from the metric vocabulary', () => {
     const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'))
     for (const g of groups.filter((x) => !x.label.startsWith('Elevation'))) {
-      const family = RANKED_FAMILIES.find((f) => g.label.startsWith(NOUN[f]))!
+      // A whole noun, not a prefix: `Wind gust (mph)` starts with `Wind` too.
+      const family = RANKED_FAMILIES.find(
+        (f) => g.label === NOUN[f] || g.label.startsWith(`${NOUN[f]} (`),
+      )!
       const unit = UNIT[family]
       // The noun with its shared unit, or, where a window total is in the
       // unit and the other columns are a rate (precipitation, snowfall), the

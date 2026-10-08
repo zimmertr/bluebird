@@ -83,10 +83,13 @@ export function modelCellText(row: DestinationResult, fallback: string | null | 
 
 /**
  * A metric that declined to answer for a reason that is not the weather: the
- * model publishes no freezing level. Null when the cell has a number to print.
+ * model publishes no freezing level, or no gust (#584). Null when the cell has
+ * a number to print.
  *
- * The hover text names the cause because it is one a reader can act on: the
- * model is a control in the panel (TJ, 2026-09-22).
+ * The freezing level's hover text names the cause because it is one a reader
+ * can act on: the model is a control in the panel (TJ, 2026-09-22). The gust's
+ * mark carries none, which is the snow depth precedent in record 0052, until a
+ * cause sentence for it is approved.
  */
 export function unavailableCell(key: string, raw: unknown): { text: string; cause?: string } | null {
   const text = isUnavailableKey(key) ? unavailableCellText(raw) : null

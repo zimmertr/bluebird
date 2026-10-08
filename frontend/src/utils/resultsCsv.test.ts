@@ -27,6 +27,9 @@ function row(over: Partial<DestinationResult> = {}): DestinationResult {
     wind_min_mph: 4.1,
     wind_max_mph: 22.7,
     wind_avg_mph: 12.3,
+    gust_min_mph: 9.8,
+    gust_max_mph: 31.4,
+    gust_avg_mph: 18.6,
     aqi_avg: 31,
     aqi_min: 44,
     aqi_max: 44,
@@ -181,8 +184,25 @@ describe('values a spreadsheet can compute over', () => {
     )
     const marked = WINDOW_COLUMNS.filter((c) => c.csvNull)
 
-    expect(marked).toHaveLength(3)
+    // The freezing level's three and the gust's three (#584).
+    expect(marked).toHaveLength(6)
     expect(cells(lines(csv)[1]).filter((c) => c === 'N/A')).toHaveLength(3)
+  })
+
+  // JMA answers the gust with a column of nulls under the unit `undefined`
+  // (measured 2026-10-08), the same shape as five models' freezing level, so
+  // its file carries the same mark rather than a blank that reads as calm.
+  it('writes the screen mark for a gust the model never published', () => {
+    const csv = buildResultsCsv(
+      [row({ gust_min_mph: null, gust_max_mph: null, gust_avg_mph: null })],
+      WINDOW_COLUMNS,
+      NO_FIRES,
+    )
+    const header = cells(lines(csv)[0])
+    const values = cells(lines(csv)[1])
+    for (const label of header.filter((h) => h.startsWith('Wind gust'))) {
+      expect(values[header.indexOf(label)], label).toBe('N/A')
+    }
   })
 
   // A row whose numbers ARE there writes numbers, so the mark above can only

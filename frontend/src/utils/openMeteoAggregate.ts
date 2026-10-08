@@ -120,6 +120,11 @@ export interface WeatherAggregates {
   snowfall_avg_in_hr: number | null
   snowfall_min_in_hr: number | null
   snowfall_max_in_hr: number | null
+  // Nullable for the freezing level's reason: JMA publishes no gust (#584),
+  // and a row from it still carries every other figure.
+  gust_min_mph: number | null
+  gust_max_mph: number | null
+  gust_avg_mph: number | null
 }
 
 export interface WeatherSeries {
@@ -129,6 +134,7 @@ export interface WeatherSeries {
   wind_mph: (number | null)[]
   freeze_ft: (number | null)[]
   snowfall_in: (number | null)[]
+  gust_mph: (number | null)[]
   /**
    * Wind bearing per hour, for the map's playback arrows (#121).
    *
@@ -169,6 +175,7 @@ export interface HourlyPayload {
     wind_direction_10m?: (number | null)[]
     freezing_level_height?: (number | null)[]
     snowfall?: (number | null)[]
+    wind_gusts_10m?: (number | null)[]
     wind_speed_925hPa?: (number | null)[]
     wind_speed_850hPa?: (number | null)[]
     wind_speed_700hPa?: (number | null)[]
@@ -257,6 +264,12 @@ const FREEZING_LEVEL = 'freezing_level_height'
 // serve it (measured 2026-10-07); it is reduced outside the metrics loop for
 // the freezing level's reason.
 const SNOWFALL = 'snowfall'
+// Port of aggregation._GUST: the strongest gust in each hour (#584), 10 m above
+// the model's ground, in mph. Not carried to the destination's elevation like
+// the wind, because no model publishes a gust above the surface. JMA answers a
+// column of nulls (measured 2026-10-08), so it is reduced outside the metrics
+// loop for the freezing level's reason.
+const GUST = 'wind_gusts_10m'
 
 // The hourly variables every weather request asks for. Spelled once because it
 // is three things: what a request asks for, which arrays a joined half-window
@@ -270,6 +283,7 @@ export const HOURLY_VARIABLES = [
   'wind_direction_10m',
   FREEZING_LEVEL,
   SNOWFALL,
+  GUST,
   ...WIND_LEVELS.map(([name]) => name),
   ...TEMP_LEVELS.map(([name]) => name),
 ] as const
@@ -286,6 +300,7 @@ const DECLARED_UNITS: Readonly<Record<string, string>> = {
   [SNOWFALL]: 'inch',
   temperature_2m: '°F',
   wind_speed_10m: 'mp/h',
+  [GUST]: 'mp/h',
   ...Object.fromEntries(WIND_LEVELS.map(([name]) => [name, 'mp/h'])),
   ...Object.fromEntries(TEMP_LEVELS.map(([name]) => [name, '°F'])),
 }
@@ -539,6 +554,28 @@ function snowfallInWindow(
   return out
 }
 
+// Port of aggregation._gust_in_window: every in-window hour that HAS a gust,
+// in mph. Its own pass for `freezeFtInWindow`'s reason; no conversion and no
+// elevation adjustment, for the reasons `GUST` records.
+function gustInWindow(
+  hourly: NonNullable<HourlyPayload['hourly']>,
+  startMs: number,
+  endMs: number,
+): number[] {
+  const times = hourly.time ?? []
+  const gust = hourly[GUST] ?? []
+  const out: number[] = []
+  const n = Math.min(times.length, gust.length)
+  for (let i = 0; i < n; i++) {
+    const v = gust[i]
+    if (v == null) continue
+    const t = parseTs(times[i])
+    if (t === null || t < startMs || t > endMs) continue
+    out.push(v)
+  }
+  return out
+}
+
 // Port of aggregation._check_units: a number in a unit the request did not ask
 // for fails the batch, the way an unreadable freezing level does. `expected`
 // is the request's own table, DECLARED_UNITS; the cloud request has none. A
@@ -595,6 +632,7 @@ export function weatherMetrics(
     if (rows.length === 0) return null
     const fVals = freezeFtInWindow(hourly, startMs, endMs, freezeUnit(payload))
     const sVals = snowfallInWindow(hourly, startMs, endMs)
+    const gVals = gustInWindow(hourly, startMs, endMs)
 
     // Left-to-right sums in input order, matching Python's sum() exactly.
     let pSum = 0
@@ -636,6 +674,15 @@ export function weatherMetrics(
       if (v > sMax) sMax = v
     }
     const snowed = sVals.length > 0
+    let gSum = 0
+    let gMin = Infinity
+    let gMax = -Infinity
+    for (const v of gVals) {
+      gSum += v
+      if (v < gMin) gMin = v
+      if (v > gMax) gMax = v
+    }
+    const gusted = gVals.length > 0
 
     const len = rows.length
     return {
@@ -662,6 +709,11 @@ export function weatherMetrics(
       snowfall_avg_in_hr: snowed ? roundHalfEven(sSum / sVals.length, 4) : null,
       snowfall_min_in_hr: snowed ? roundHalfEven(sMin, 4) : null,
       snowfall_max_in_hr: snowed ? roundHalfEven(sMax, 4) : null,
+      // The wind's one decimal, each null on its own like the freezing
+      // level's, because one model publishes no gust at all.
+      gust_min_mph: gusted ? roundHalfEven(gMin, 1) : null,
+      gust_max_mph: gusted ? roundHalfEven(gMax, 1) : null,
+      gust_avg_mph: gusted ? roundHalfEven(gSum / gVals.length, 1) : null,
     }
   } catch (e) {
     // A unit nothing can read is not one bad hour to skip past: every number
@@ -692,6 +744,7 @@ export function weatherSeries(
     const freeze = hourly[FREEZING_LEVEL] ?? []
     const fUnit = freezeUnit(payload)
     const snowfall = hourly[SNOWFALL] ?? []
+    const gust = hourly[GUST] ?? []
     const levels = levelArrays(hourly)
     const tLevels = tempLevelArrays(hourly)
 
@@ -701,6 +754,7 @@ export function weatherSeries(
     const wOut: (number | null)[] = []
     const fOut: (number | null)[] = []
     const sOut: (number | null)[] = []
+    const gOut: (number | null)[] = []
     for (let i = 0; i < times.length; i++) {
       const t = parseTs(times[i])
       if (t === null || t < startMs || t > endMs) continue
@@ -719,6 +773,7 @@ export function weatherSeries(
       const fRaw = at(freeze, i)
       fOut.push(roundOrNull(fRaw === null ? null : freezeToFeet(fRaw, fUnit), 0))
       sOut.push(roundOrNull(at(snowfall, i), 4))
+      gOut.push(roundOrNull(at(gust, i), 1))
     }
     if (grid.length === 0) return null
     return {
@@ -728,6 +783,7 @@ export function weatherSeries(
       wind_mph: wOut,
       freeze_ft: fOut,
       snowfall_in: sOut,
+      gust_mph: gOut,
     }
   } catch (e) {
     // The one failure this function does not absorb, for the reason

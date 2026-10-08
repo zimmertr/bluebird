@@ -322,6 +322,7 @@ describe('alignRowToGrid', () => {
         wind_mph: [10, 11],
         freeze_ft: [9000, 9500],
         snowfall_in: [0.2, 0.4],
+        gust_mph: [18, 24],
         aqi: [40, 41],
       }),
       series_times: [2000, 3000],
@@ -331,6 +332,7 @@ describe('alignRowToGrid', () => {
     expect(Object.keys(aligned).sort()).toEqual([
       'aqi',
       'freeze_ft',
+      'gust_mph',
       'precip_in',
       'snowfall_in',
       'temp_f',

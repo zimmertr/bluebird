@@ -29,7 +29,7 @@ export type ResultsMode = 'chart' | 'table' | 'both'
  * reader's sake only — nothing here is trusted, and every accessor below
  * re-checks the value it takes.
  *
- * `columns` through `columns7` are the retired generations of the column set. The
+ * `columns` through `columns8` are the retired generations of the column set. The
  * `mode` field older builds wrote beside `modeChosen` is absent here because
  * nothing reads it (see `readViewPrefs`); it is left in storage rather than
  * deleted, since tidying up after a build nobody runs is not this module's job.
@@ -44,6 +44,7 @@ interface StoredView {
   columns6?: string[]
   columns7?: string[]
   columns8?: string[]
+  columns9?: string[]
   modelColumn?: boolean
   columnOrder?: string[]
 }
@@ -79,8 +80,9 @@ function isMode(value: unknown): value is ResultsMode {
  * `columns2` predates the freezing level (#295), `columns3` predates snow
  * depth (#449), `columns4` predates the cloud columns (#117), `columns5`
  * predates the Closure column (#550), `columns6` predates the cloud deck
- * that replaced #117's two cloud families (#670) and `columns7` predates the
- * snowfall columns that replaced snow depth (#678), so reading any of them
+ * that replaced #117's two cloud families (#670), `columns7` predates the
+ * snowfall columns that replaced snow depth (#678) and `columns8` predates the
+ * wind gust (#584), so reading any of them
  * verbatim would hide a new column from everyone who has
  * ever touched the picker. Each migrates with the newer keys added, which is
  * what those users were already seeing. A key a stored set still holds for a
@@ -89,16 +91,19 @@ function isMode(value: unknown): value is ResultsMode {
 function storedColumns(stored: StoredView): Set<string> | null {
   const cloud = FAMILY_KEYS.cloud_deck
   const snowfall = FAMILY_KEYS.snowfall
+  const gust = FAMILY_KEYS.gust
   try {
-    if (stored.columns8) return new Set(stored.columns8)
-    if (stored.columns7) return new Set<string>([...stored.columns7, ...snowfall])
-    if (stored.columns6) return new Set<string>([...stored.columns6, ...cloud, ...snowfall])
+    if (stored.columns9) return new Set(stored.columns9)
+    if (stored.columns8) return new Set<string>([...stored.columns8, ...gust])
+    if (stored.columns7) return new Set<string>([...stored.columns7, ...snowfall, ...gust])
+    if (stored.columns6)
+      return new Set<string>([...stored.columns6, ...cloud, ...snowfall, ...gust])
     if (stored.columns5)
-      return new Set<string>([...stored.columns5, ...cloud, CLOSURE_KEY, ...snowfall])
+      return new Set<string>([...stored.columns5, ...cloud, CLOSURE_KEY, ...snowfall, ...gust])
     if (stored.columns4)
-      return new Set<string>([...stored.columns4, ...cloud, CLOSURE_KEY, ...snowfall])
+      return new Set<string>([...stored.columns4, ...cloud, CLOSURE_KEY, ...snowfall, ...gust])
     if (stored.columns3)
-      return new Set<string>([...stored.columns3, ...snowfall, ...cloud, CLOSURE_KEY])
+      return new Set<string>([...stored.columns3, ...snowfall, ...cloud, CLOSURE_KEY, ...gust])
     if (stored.columns2)
       return new Set<string>([
         ...stored.columns2,
@@ -106,6 +111,7 @@ function storedColumns(stored: StoredView): Set<string> | null {
         ...snowfall,
         ...cloud,
         CLOSURE_KEY,
+        ...gust,
       ])
     if (stored.columns)
       return new Set<string>([
@@ -115,6 +121,7 @@ function storedColumns(stored: StoredView): Set<string> | null {
         ...snowfall,
         ...cloud,
         CLOSURE_KEY,
+        ...gust,
       ])
   } catch {
     // A value no older build could have written. The default set is a better
@@ -172,7 +179,8 @@ export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
       delete stored.columns5
       delete stored.columns6
       delete stored.columns7
-      stored.columns8 = patch.columns ? [...patch.columns] : undefined
+      delete stored.columns8
+      stored.columns9 = patch.columns ? [...patch.columns] : undefined
     }
     localStorage.setItem(VIEW_KEY, JSON.stringify(stored))
   } catch {

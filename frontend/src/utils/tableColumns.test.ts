@@ -43,11 +43,15 @@ const CLOUD_KEYS = ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft
 // column stood.
 const SNOWFALL_KEYS = ['snowfall_total_in', 'snowfall_avg_in_hr', 'snowfall_min_in_hr', 'snowfall_max_in_hr'] as const
 
+// The gust's three (#584), in wind's shape and straight after it.
+const GUST_KEYS = ['gust_min_mph', 'gust_max_mph', 'gust_avg_mph'] as const
+
 const keys = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy).map((c) => c.key)
 
 const METRICS: SortBy[] = [
   'precip_total_in',
   'wind_avg_mph',
+  'gust_max_mph',
   'temp_avg_f',
   'freeze_min_ft',
   'snowfall_total_in',
@@ -83,14 +87,16 @@ describe('COLUMNS', () => {
   })
 
   // A blank cell is how a spreadsheet spells "no value", which is the truth
-  // for every metric but this one: a freezing level is absent because the
-  // model carries no such variable, and the file is read detached from the
-  // app that could say so. So the three declare the mark the screen uses and
-  // nothing else does.
+  // for every metric but these two: a freezing level or a gust is absent
+  // because the model carries no such variable, and the file is read detached
+  // from the app that could say so. So their six declare the mark the screen
+  // uses and nothing else does.
   it('declares a file mark for exactly the columns that can be unavailable', () => {
-    // The one metric whose cells can be empty for a reason that is not the
-    // weather: the model publishes no freezing level.
+    // The two metrics whose cells can be empty for a reason that is not the
+    // weather: five models publish no freezing level, and JMA no gust
+    // (measured 2026-10-08, #584).
     expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
+      ...GUST_KEYS,
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
@@ -111,6 +117,9 @@ describe('COLUMNS', () => {
     // Windy's new-snow accumulation, read off a live Windy tab on 2026-10-07
     // (#678): the token whose name Windy shows as "New snow".
     for (const key of SNOWFALL_KEYS) expect(layers.get(key)).toBe('snowAccu')
+    // Windy's gust layer, read off its index.js v51.3.2 on 2026-10-08 (#584):
+    // the token whose name Windy shows as "Wind gusts".
+    for (const key of GUST_KEYS) expect(layers.get(key)).toBe('gust')
     for (const col of COLUMNS) {
       if (LEAD.has(col.key as string)) continue
       expect(col.windyLayer, `${col.key} links to no layer`).toBeTruthy()
@@ -153,6 +162,7 @@ describe('orderColumns', () => {
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
+      ...GUST_KEYS,
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
@@ -176,6 +186,7 @@ describe('orderColumns', () => {
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
+      ...GUST_KEYS,
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
@@ -218,6 +229,7 @@ describe('pointModeColumns', () => {
       'precip_avg_in_hr',
       'temp_avg_f',
       'wind_avg_mph',
+      'gust_avg_mph',
       'freeze_avg_ft',
       // Collapsed onto its rate, as precipitation is (#678).
       'snowfall_avg_in_hr',
@@ -250,6 +262,7 @@ describe('pointModeColumns', () => {
       'precip_avg_in_hr',
       'temp_avg_f',
       'wind_avg_mph',
+      'gust_avg_mph',
       'freeze_avg_ft',
       'snowfall_avg_in_hr',
       'cloud_deck_avg_ft',
@@ -270,7 +283,7 @@ describe('displayedColumns', () => {
   // Measured rather than named: the collapse is keyed on the window covering one
   // hourly stamp, not on a mode, so "a day narrowed to one hour" collapses too.
   it('collapses a point sample and nothing else', () => {
-    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(10)
+    expect(displayedColumns(true, 'precip_total_in')).toHaveLength(11)
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 

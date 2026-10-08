@@ -311,14 +311,18 @@ describe('fetchWeather', () => {
       'temperature_500hPa',
       'freezing_level_height',
       'snowfall',
+      'wind_gusts_10m',
     ]) {
       expect(hourly).toContain(name)
     }
-    // Sixteen variables is weight factor 1.6: max(1, vars x models/10) with
+    // Seventeen variables is weight factor 1.7: max(1, vars x models/10) with
     // one model. The five level temperatures (#443) are what took the request
     // over the floor of 1; every set before them rode inside it. Snowfall
-    // (#678) is the sixteenth.
-    expect(hourly).toHaveLength(16)
+    // (#678) is the sixteenth and the 10 m gust (#584) the seventeenth.
+    expect(hourly).toHaveLength(17)
+    // The surface gust and no level gust: Open-Meteo answers
+    // `wind_gusts_925hPa` with a 400 (measured 2026-10-08).
+    expect(hourly.filter((name) => name.startsWith('wind_gusts'))).toEqual(['wind_gusts_10m'])
   })
 
   it('fails the fetch when the freezing level unit is unreadable', async () => {
@@ -1027,15 +1031,15 @@ describe('callWeight', () => {
     expect(callWeight(10, d, d, 8, 3)).toBeCloseTo(10 * 2.4)
   })
 
-  it('prices the browser weather request at 1.6 calls per location', () => {
-    // The cost of #443 and #678, stated as a number rather than left to the
-    // formula: the request carried ten variables and rode inside the floor of
-    // 1, the five level temperatures took it to fifteen and a factor of 1.5,
-    // and snowfall takes it to sixteen and 1.6.
+  it('prices the browser weather request at 1.7 calls per location', () => {
+    // The cost of #443, #678 and #584, stated as a number rather than left to
+    // the formula: the request carried ten variables and rode inside the floor
+    // of 1, the five level temperatures took it to fifteen and a factor of
+    // 1.5, snowfall to sixteen and 1.6, and the gust to seventeen and 1.7.
     const d = day('2026-07-29')
     expect(callWeight(10, d, d, 10, 1)).toBe(10)
     expect(callWeight(10, d, d, 15, 1)).toBeCloseTo(10 * 1.5)
-    expect(callWeight(10, d, d, HOURLY_VARIABLES.length, 1)).toBeCloseTo(10 * 1.6)
+    expect(callWeight(10, d, d, HOURLY_VARIABLES.length, 1)).toBeCloseTo(10 * 1.7)
   })
 
   it('still floors three models at three variables to one call', () => {
@@ -1118,7 +1122,7 @@ describe('a window older than the forecast endpoint holds', () => {
     expect(url.searchParams.get('models')).toBeNull()
     // Everything else about the request is unchanged.
     expect(url.searchParams.get('start_hour')).toBe('2026-01-02T00:00')
-    expect(url.searchParams.get('hourly')?.split(',')).toHaveLength(16)
+    expect(url.searchParams.get('hourly')?.split(',')).toHaveLength(17)
   })
 
   it('keeps a recent window on the forecast endpoint', async () => {
@@ -1438,8 +1442,8 @@ describe('fetchCloud', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('costs 1 weighted call a location, beside the weather request\'s 1.6', () => {
-    // 200 destinations over three days: 200 for the cloud column against 320
+  it('costs 1 weighted call a location, beside the weather request\'s 1.7', () => {
+    // 200 destinations over three days: 200 for the cloud column against 340
     // for the weather it rides beside. Nine variables sit at the floor of 10.
     const three = 3 * 24 * 3600 * 1000
     expect(callWeight(200, 0, three, CLOUD_VARIABLES.length, 1)).toBeCloseTo(200, 6)

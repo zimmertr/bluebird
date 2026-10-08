@@ -7,7 +7,7 @@
 import type { AnalyzeRequest, DestinationResult } from '../types'
 
 /**
- * The forecast bounds an analysis is narrowed by, mirroring the fourteen optional
+ * The forecast bounds an analysis is narrowed by, mirroring the sixteen optional
  * fields on `AnalyzeRequest`.
  *
  * Elevation is deliberately NOT in here, and the app sends no elevation bound
@@ -24,6 +24,8 @@ export interface Constraints {
   maxTempF: number | null
   minWindMph: number | null
   maxWindMph: number | null
+  minGustMph: number | null
+  maxGustMph: number | null
   minFreezeFt: number | null
   maxFreezeFt: number | null
   minSnowfallTotalIn: number | null
@@ -41,6 +43,8 @@ export const NO_CONSTRAINTS: Constraints = {
   maxTempF: null,
   minWindMph: null,
   maxWindMph: null,
+  minGustMph: null,
+  maxGustMph: null,
   minFreezeFt: null,
   maxFreezeFt: null,
   minSnowfallTotalIn: null,
@@ -57,7 +61,8 @@ export const NO_CONSTRAINTS: Constraints = {
 //
 // A ceiling reads the window's worst hour and a floor its best, so a bound is
 // a promise about every hour rather than about an average that can hide a bad
-// afternoon: a 20 mph ceiling admits no destination that gusts to 45 at noon.
+// afternoon: a 30 mph gust ceiling admits no destination that gusts to 45 at
+// noon.
 // The freezing level reads the same way, in the one family where neither end
 // is the bad one: its floor asks that the level never dropped below the value
 // and its ceiling that it never rose above it.
@@ -69,6 +74,7 @@ const LOWER_BOUNDS = [
   ['minPrecipTotalIn', 'precip_total_in'],
   ['minTempF', 'temp_min_f'],
   ['minWindMph', 'wind_min_mph'],
+  ['minGustMph', 'gust_min_mph'],
   ['minFreezeFt', 'freeze_min_ft'],
   ['minSnowfallTotalIn', 'snowfall_total_in'],
   ['minAqi', 'aqi_max'],
@@ -79,6 +85,7 @@ const UPPER_BOUNDS = [
   ['maxPrecipTotalIn', 'precip_total_in'],
   ['maxTempF', 'temp_max_f'],
   ['maxWindMph', 'wind_max_mph'],
+  ['maxGustMph', 'gust_max_mph'],
   ['maxFreezeFt', 'freeze_max_ft'],
   ['maxSnowfallTotalIn', 'snowfall_total_in'],
   ['maxAqi', 'aqi_max'],
@@ -99,6 +106,8 @@ export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
     maxTempF: request.max_temp_f ?? null,
     minWindMph: request.min_wind_mph ?? null,
     maxWindMph: request.max_wind_mph ?? null,
+    minGustMph: request.min_gust_mph ?? null,
+    maxGustMph: request.max_gust_mph ?? null,
     minFreezeFt: request.min_freeze_ft ?? null,
     maxFreezeFt: request.max_freeze_ft ?? null,
     minSnowfallTotalIn: request.min_snowfall_total_in ?? null,
@@ -119,6 +128,8 @@ export function constraintFields(c: Constraints) {
     max_temp_f: c.maxTempF,
     min_wind_mph: c.minWindMph,
     max_wind_mph: c.maxWindMph,
+    min_gust_mph: c.minGustMph,
+    max_gust_mph: c.maxGustMph,
     min_freeze_ft: c.minFreezeFt,
     max_freeze_ft: c.maxFreezeFt,
     min_snowfall_total_in: c.minSnowfallTotalIn,
@@ -138,7 +149,8 @@ export function constraintFields(c: Constraints) {
  * best-effort fetch failed; a missing freezing level means the chosen model
  * publishes none at all, which is five of the eight, so dropping those rows
  * would empty the table outright for anyone who set the bound under the wrong
- * model; a missing snowfall means the forecast left those hours blank (HRRR
+ * model; a missing gust says the same of JMA, the one model that publishes none
+ * (#584); a missing snowfall means the forecast left those hours blank (HRRR
  * past its hour 45, #678). It is the same call `rankComparator` makes for a
  * nullable ranking key.
  */

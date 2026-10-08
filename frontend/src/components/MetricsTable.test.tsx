@@ -85,6 +85,27 @@ describe('MetricsTable', () => {
     expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindMph: null })
   })
 
+  // The gust row binds its own pair, and its ceiling names the gust rather
+  // than the wind the row sits under (#584, wording TJ's).
+  it('bounds the gust on its own boxes, apart from the wind', () => {
+    const setConstraints = vi.fn()
+    render(<MetricsTable {...props({ setConstraints })} />)
+    const wind = screen.getByRole('spinbutton', {
+      name: `${NOUN.wind} ${AGGREGATE.maximum}. The windiest hour must be at most this.`,
+    })
+    const floor = screen.getByRole('spinbutton', {
+      name: `${NOUN.gust} ${AGGREGATE.minimum}. The calmest hour must be at least this.`,
+    })
+    const ceiling = screen.getByRole('spinbutton', {
+      name: `${NOUN.gust} ${AGGREGATE.maximum}. The gustiest hour must be at most this.`,
+    })
+    expect(wind).not.toBe(ceiling)
+    fireEvent.change(floor, { target: { value: '10' } })
+    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, minGustMph: 10 })
+    fireEvent.change(ceiling, { target: { value: '45' } })
+    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxGustMph: 45 })
+  })
+
   it('clamps the results cap to the published ceiling, and reads empty as the default', () => {
     const setLimit = vi.fn()
     const { rerender } = render(<MetricsTable {...props({ setLimit })} />)

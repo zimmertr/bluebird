@@ -95,8 +95,8 @@ export const VERDICT_RAMP_REVERSED: readonly string[] = [...VERDICT_RAMP].revers
 // end is the high one. One ramp is what lets a colour say one thing across the
 // whole table: green is the best of it, and purple and maroon are where a
 // reader stops weighing an option, whichever column they are reading.
-// Precipitation (both of its scales), wind, air quality and the cloud deck
-// wear it.
+// Precipitation (both of its scales), wind, the wind gust, air quality and
+// the cloud deck wear it.
 //
 // Three families are exceptions, and each says why on its own entry:
 // temperature, a verdict with a bad end on both sides and so its green in the
@@ -142,6 +142,19 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     thresholds: [5, 15, 25, 35, 50],
     colors: VERDICT_RAMP,
     unit: UNIT.wind,
+  },
+  // The wind's ramp on its own boundaries (TJ, #584), because a gust runs
+  // well above the sustained wind it rides on: on the wind's 5/15/25/35/50 an
+  // ordinary breezy afternoon would paint orange or worse. The top two are the
+  // National Weather Service's own gust criteria, 46 mph for a Wind Advisory
+  // and 58 mph for a High Wind Warning, borrowed for the reason the rate scale
+  // borrows the NWS's rainfall classes: a reader can look up what a boundary
+  // means. Below them, 15, 25 and 35 mph are ten-mph steps that keep a calm
+  // day green and a gusty one yellow before an advisory paints it purple.
+  gust: {
+    thresholds: [15, 25, 35, 46, 58],
+    colors: VERDICT_RAMP,
+    unit: UNIT.gust,
   },
   // An exception to the verdict ramp, because a temperature has a bad end on
   // both sides: cold to hot, with green in the MIDDLE rather than at either

@@ -9,6 +9,7 @@
     "rowKeys": {
       "precip": "precip_avg_in_hr",
       "wind": "wind_max_mph",
+      "gust": "gust_min_mph",
       "temp": "temp_max_f",
       "freeze": "freeze_min_ft",
       "snowfall": "snowfall_max_in_hr",
@@ -37,6 +38,8 @@
       "maxTempF": 85.5,
       "minWindMph": 1,
       "maxWindMph": 30,
+      "minGustMph": 5.5,
+      "maxGustMph": 45,
       "minFreezeFt": 4000,
       "maxFreezeFt": 12000,
       "minSnowfallTotalIn": 2,
@@ -125,6 +128,8 @@
       "maxTempF": null,
       "minWindMph": null,
       "maxWindMph": null,
+      "minGustMph": null,
+      "maxGustMph": null,
       "minFreezeFt": null,
       "maxFreezeFt": null,
       "minSnowfallTotalIn": null,
@@ -141,6 +146,7 @@
     "rowKeys": {
       "precip": "precip_total_in",
       "wind": "wind_avg_mph",
+      "gust": "gust_max_mph",
       "temp": "temp_min_f",
       "freeze": "freeze_min_ft",
       "snowfall": "snowfall_total_in",
@@ -168,6 +174,7 @@
         "rowKeys": {
           "precip": "precip_total_in",
           "wind": "wind_max_mph",
+          "gust": "gust_max_mph",
           "temp": "temp_avg_f",
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
@@ -202,6 +209,8 @@
           "maxTempF": null,
           "minWindMph": null,
           "maxWindMph": null,
+          "minGustMph": null,
+          "maxGustMph": null,
           "minFreezeFt": null,
           "maxFreezeFt": null,
           "minSnowfallTotalIn": null,
@@ -224,6 +233,7 @@
         "rowKeys": {
           "precip": "precip_total_in",
           "wind": "wind_avg_mph",
+          "gust": "gust_max_mph",
           "temp": "temp_avg_f",
           "freeze": "freeze_max_ft",
           "snowfall": "snowfall_total_in",
@@ -275,6 +285,7 @@
         "rowKeys": {
           "precip": "precip_total_in",
           "wind": "wind_avg_mph",
+          "gust": "gust_max_mph",
           "temp": "temp_avg_f",
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
@@ -289,6 +300,7 @@
         "rowKeys": {
           "precip": "precip_avg_in_hr",
           "wind": "wind_avg_mph",
+          "gust": "gust_max_mph",
           "temp": "temp_avg_f",
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
@@ -304,6 +316,7 @@
         "rowKeys": {
           "precip": "precip_total_in",
           "wind": "wind_avg_mph",
+          "gust": "gust_max_mph",
           "temp": "temp_max_f",
           "freeze": "freeze_min_ft",
           "snowfall": "snowfall_total_in",
@@ -404,6 +417,8 @@
           "maxTempF": null,
           "minWindMph": null,
           "maxWindMph": -5,
+          "minGustMph": null,
+          "maxGustMph": null,
           "minFreezeFt": null,
           "maxFreezeFt": null,
           "minSnowfallTotalIn": null,

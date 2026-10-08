@@ -73,7 +73,7 @@ describe('filterConstraints', () => {
     ])
   })
 
-  it('reads the gustiest hour for a wind ceiling', () => {
+  it('reads the windiest hour for a wind ceiling', () => {
     const rows = [
       boundRow('calm', { wind_min_mph: 2, wind_max_mph: 12, wind_avg_mph: 6 }),
       boundRow('gusty', { wind_min_mph: 1, wind_max_mph: 45, wind_avg_mph: 6 }),
@@ -81,6 +81,35 @@ describe('filterConstraints', () => {
     expect(filterConstraints(rows, bounded({ maxWindMph: 20 })).map((r) => r.name)).toEqual([
       'calm',
     ])
+  })
+
+  // The gust's own pair, apart from the wind's (#584): the floor reads the
+  // calmest hour's gust and the ceiling the gustiest, so a sustained 10 mph
+  // under a 45 mph gust is held back by the gust bound alone.
+  it('bounds the gust on its own extremes, not the sustained wind', () => {
+    const rows = [
+      boundRow('steady', { wind_max_mph: 12, gust_min_mph: 8, gust_max_mph: 20 }),
+      boundRow('squally', { wind_max_mph: 12, gust_min_mph: 3, gust_max_mph: 45 }),
+    ]
+    expect(filterConstraints(rows, bounded({ maxGustMph: 30 })).map((r) => r.name)).toEqual([
+      'steady',
+    ])
+    expect(filterConstraints(rows, bounded({ minGustMph: 5 })).map((r) => r.name)).toEqual([
+      'steady',
+    ])
+    expect(filterConstraints(rows, bounded({ maxWindMph: 15 })).map((r) => r.name)).toEqual([
+      'steady',
+      'squally',
+    ])
+  })
+
+  // JMA publishes no gust (measured 2026-10-08), and the absence says nothing
+  // about the wind, so the row passes either bound as a missing freezing level
+  // does.
+  it('passes a row with no gust through either bound', () => {
+    const rows = [boundRow('jma', { gust_min_mph: null, gust_max_mph: null })]
+    expect(filterConstraints(rows, bounded({ minGustMph: 5 })).map((r) => r.name)).toEqual(['jma'])
+    expect(filterConstraints(rows, bounded({ maxGustMph: 30 })).map((r) => r.name)).toEqual(['jma'])
   })
 
   // Both ends read the window total, as precipitation's do: snowfall has no
@@ -209,6 +238,8 @@ describe('constraint round trips', () => {
       maxAqi: 100,
       minCloudDeckFt: 5000,
       maxCloudDeckFt: 20000,
+      minGustMph: 4,
+      maxGustMph: 45,
     })
     expect(constraintsFromRequest({ ...REQUEST, ...constraintFields(c) })).toEqual(c)
   })

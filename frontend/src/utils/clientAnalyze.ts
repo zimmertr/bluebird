@@ -315,6 +315,7 @@ export function assemble(
         wind_mph: wxSeries.wind_mph,
         freeze_ft: wxSeries.freeze_ft,
         snowfall_in: wxSeries.snowfall_in,
+        gust_mph: wxSeries.gust_mph,
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
         // Absent rather than a column of nulls when the cloud column was
         // never fetched, which is the server's shape too.
@@ -523,6 +524,7 @@ export function withWeather(row: DestinationResult, wx: WeatherResult): Destinat
       wind_mph: series.wind_mph,
       freeze_ft: series.freeze_ft,
       snowfall_in: series.snowfall_in,
+      gust_mph: series.gust_mph,
       ...(series.wind_dir_deg ? { wind_dir_deg: series.wind_dir_deg } : {}),
     }
   }

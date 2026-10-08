@@ -14,6 +14,7 @@ export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',
+  gust: 'gust_mph',
   freeze: 'freeze_ft',
   snowfall: 'snowfall_in',
   aqi: 'aqi',
@@ -24,9 +25,10 @@ export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
 // hourly series, so a point is that hour's own value rather than anything
 // reduced over the window. The cloud deck comes last (#117, #670): it is the
 // one a report carries only when it was asked for it, so an option that can
-// draw nothing sits under every option that always draws.
+// draw nothing sits under every option that always draws. The wind gust sits
+// beside the wind (#584), the quantity a reader compares it with.
 export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
-  ['precip', 'temp', 'wind', 'freeze', 'snowfall', 'aqi', 'cloud_deck'] as const
+  ['precip', 'temp', 'wind', 'gust', 'freeze', 'snowfall', 'aqi', 'cloud_deck'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))
 
 // The chart opens on whatever metric the results were ranked by.
@@ -133,6 +135,7 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       precip_in: remap(row.series.precip_in),
       temp_f: remap(row.series.temp_f),
       wind_mph: remap(row.series.wind_mph),
+      gust_mph: remap(row.series.gust_mph),
       freeze_ft: remap(row.series.freeze_ft),
       snowfall_in: remap(row.series.snowfall_in),
       aqi: remap(row.series.aqi),

@@ -721,12 +721,13 @@ export async function fetchWeather(
   const tasks = chunks.map((chunk, chunkIndex) => async (): Promise<WeatherResult[]> => {
     const perSpan: HourlyPayload[][] = []
     for (const span of spans) {
-      // Fifteen variables, not the backend's fourteen: the browser also asks
+      // Seventeen variables, not the backend's sixteen: the browser also asks
       // for wind direction, which only the map's playback arrows use. The count
       // is read off the list rather than written again, because the two must
       // move together and the weight is what a drift would silently get wrong.
-      // At fifteen the factor is 1.5 — max(1, vars x models/10) — where every
-      // set before the level temperatures (#443) rode inside the floor of 1.
+      // At seventeen the factor is 1.7, max(1, vars x models/10), where every
+      // set before the level temperatures (#443) rode inside the floor of 1;
+      // snowfall (#678) and the gust (#584) added a tenth each.
       // The model count is spelled here rather than defaulted, because this is
       // where `models=` is built: a request naming more than one model returns
       // a series per model and costs that multiple.

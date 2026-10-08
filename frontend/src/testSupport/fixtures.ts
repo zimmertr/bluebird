@@ -41,6 +41,7 @@ export const WEATHER_UNITS: Readonly<Record<string, string>> = {
   snowfall: 'inch',
   temperature_2m: '°F',
   wind_speed_10m: 'mp/h',
+  wind_gusts_10m: 'mp/h',
   ...Object.fromEntries([925, 850, 700, 600, 500].map((p) => [`wind_speed_${p}hPa`, 'mp/h'])),
   ...Object.fromEntries([925, 850, 700, 600, 500].map((p) => [`temperature_${p}hPa`, '°F'])),
 }
@@ -67,7 +68,16 @@ export function cloudAnswer(times: string[], rh = 30): { hourly: Record<string, 
 
 /** Every hourly array, so a caller spells only the series it charts. */
 export function series(over: Partial<HourlySeries> = {}): HourlySeries {
-  return { precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], snowfall_in: [], aqi: [], ...over }
+  return {
+    precip_in: [],
+    temp_f: [],
+    wind_mph: [],
+    freeze_ft: [],
+    snowfall_in: [],
+    gust_mph: [],
+    aqi: [],
+    ...over,
+  }
 }
 
 /**
@@ -93,6 +103,9 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     wind_min_mph: 0,
     wind_max_mph: 0,
     wind_avg_mph: 0,
+    gust_min_mph: null,
+    gust_max_mph: null,
+    gust_avg_mph: null,
     freeze_min_ft: null,
     freeze_max_ft: null,
     freeze_avg_ft: null,
@@ -169,6 +182,9 @@ export function weatherResult(over: Partial<PresentWeather> = {}): PresentWeathe
     snowfall_avg_in_hr: null,
     snowfall_min_in_hr: null,
     snowfall_max_in_hr: null,
+    gust_min_mph: null,
+    gust_max_mph: null,
+    gust_avg_mph: null,
     series: null,
     ...over,
   }
@@ -180,7 +196,16 @@ export function weatherResult(over: Partial<PresentWeather> = {}): PresentWeathe
  * variable. Empty unless a caller spells the hours its assertions read.
  */
 export function fetchedSeries(over: Partial<WeatherSeries> = {}): WeatherSeries {
-  return { times: [], precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], snowfall_in: [], ...over }
+  return {
+    times: [],
+    precip_in: [],
+    temp_f: [],
+    wind_mph: [],
+    freeze_ft: [],
+    snowfall_in: [],
+    gust_mph: [],
+    ...over,
+  }
 }
 
 /**

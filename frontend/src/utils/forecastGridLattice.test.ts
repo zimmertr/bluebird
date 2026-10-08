@@ -343,6 +343,9 @@ describe('pairCells', () => {
       freeze_min_ft: 9000,
       freeze_max_ft: 9500,
       freeze_avg_ft: 9250,
+      gust_min_mph: 12,
+      gust_max_mph: 20,
+      gust_avg_mph: 16,
       series: {
         times: [1000, 2000],
         precip_in: precip,
@@ -350,6 +353,7 @@ describe('pairCells', () => {
         wind_mph: [1, 9],
         freeze_ft: [9000, 9500],
         snowfall_in: [0, 0],
+        gust_mph: [12, 20],
         wind_dir_deg: [90, 270],
       },
     })
@@ -415,6 +419,28 @@ describe('pairCells', () => {
     const cells = pairCells(spec, [0], [empty], [null], [1000, 2000])
     expect(fillColor(cells[0].row, 'freeze_min_ft', null)).toBe(NO_VALUE)
     expect(fillColor(cells[0].row, 'freeze_min_ft', 1)).toBe(NO_VALUE)
+  })
+
+  // The gust rides the same one request (#584), so a gust ranking paints too,
+  // and JMA, which answers it with a column of nulls, paints nothing.
+  it('carries the gust onto the lattice, and paints nothing where it is absent', () => {
+    const cells = pairCells(spec, [0, 1], [wx([0.1, 0.2]), null], noAqi, [1000, 2000])
+    expect(cells[0].row.gust_max_mph).toBe(20)
+    expect(cells[0].row.series!.gust_mph).toEqual([12, 20])
+    expect(fillColor(cells[0].row, 'gust_max_mph', null)).not.toBe(NO_VALUE)
+    expect(fillColor(cells[0].row, 'gust_max_mph', 1)).not.toBe(NO_VALUE)
+
+    const base = wx([0, 0])!
+    const empty: WeatherResult = {
+      ...base,
+      gust_min_mph: null,
+      gust_max_mph: null,
+      gust_avg_mph: null,
+      series: { ...base.series!, gust_mph: [null, null] },
+    }
+    const blank = pairCells(spec, [0], [empty], [null], [1000, 2000])
+    expect(fillColor(blank[0].row, 'gust_max_mph', null)).toBe(NO_VALUE)
+    expect(fillColor(blank[0].row, 'gust_max_mph', 1)).toBe(NO_VALUE)
   })
 
   it('leaves no stale series_times on an aligned sample', () => {

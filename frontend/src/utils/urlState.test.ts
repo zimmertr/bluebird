@@ -486,6 +486,8 @@ describe('encodeState', () => {
       maxFreezeFt: 12000,
       minSnowfallTotalIn: 2,
       maxSnowfallTotalIn: 60,
+      minGustMph: 4,
+      maxGustMph: 45,
       minAqi: 10,
       maxAqi: 100,
       minCloudDeckFt: 5000,
@@ -998,6 +1000,7 @@ describe('decodeState tolerance', () => {
           wind: 'wind_max_mph',
           temp: 'temp_min_f',
           cloud_deck: 'cloud_deck_max_ft',
+          gust: 'gust_avg_mph',
         },
       })
       expect(out!.rowKeys).toEqual({
@@ -1008,6 +1011,7 @@ describe('decodeState tolerance', () => {
         snowfall: 'snowfall_total_in',
         aqi: 'aqi_avg',
         cloud_deck: 'cloud_deck_max_ft',
+        gust: 'gust_avg_mph',
       })
       expect(out!.sortBy).toBe('precip_total_in')
     })

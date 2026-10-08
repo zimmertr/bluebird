@@ -82,8 +82,37 @@ describe('reading the stored view', () => {
 // six inline reads, so a preference read anywhere else inherited none of it.
 describe('the column-set migration', () => {
   it('reads the current generation verbatim', () => {
-    withStored({ columns8: ['name', 'precip_total_in'] })
+    withStored({ columns9: ['name', 'precip_total_in'] })
     expect([...readViewPrefs().columns!]).toEqual(['name', 'precip_total_in'])
+  })
+
+  // `columns8` predates the gust (#584), and every older generation predates
+  // it too. A set stored then hid no gust column, because none existed, so
+  // the three start shown.
+  it.each([
+    ['columns8'],
+    ['columns7'],
+    ['columns6'],
+    ['columns5'],
+    ['columns4'],
+    ['columns3'],
+    ['columns2'],
+    ['columns'],
+  ])('adds the gust columns to a set stored as %s', (generation) => {
+    withStored({ [generation]: ['name', 'precip_total_in'] })
+    const columns = readViewPrefs().columns!
+    expect(columns.has('name')).toBe(true)
+    expect(columns.has('precip_total_in')).toBe(true)
+    for (const key of FAMILY_KEYS.gust) expect(columns.has(key)).toBe(true)
+    expect(columns.has('wind_min_mph')).toBe(false)
+  })
+
+  // Hiding a gust column is a choice the current generation can record.
+  it('keeps a gust column hidden when columns9 hid it', () => {
+    withStored({ columns9: ['name', 'gust_max_mph'] })
+    const columns = readViewPrefs().columns!
+    expect(columns.has('gust_max_mph')).toBe(true)
+    expect(columns.has('gust_min_mph')).toBe(false)
   })
 
   // `columns5` predates the Closure column (#550), so every older set comes
@@ -102,7 +131,7 @@ describe('the column-set migration', () => {
   })
 
   it('keeps the Closure column hidden when the current generation hid it', () => {
-    withStored({ columns8: ['name', WILDFIRE_KEY] })
+    withStored({ columns9: ['name', WILDFIRE_KEY] })
     expect(readViewPrefs().columns!.has(CLOSURE_KEY)).toBe(false)
   })
 
@@ -178,7 +207,8 @@ describe('the column-set migration', () => {
       columns5: ['elevation_ft'],
       columns6: ['osm_id'],
       columns7: ['type'],
-      columns8: ['name'],
+      columns8: ['latitude'],
+      columns9: ['name'],
     })
     expect([...readViewPrefs().columns!]).toEqual(['name'])
   })
@@ -213,10 +243,11 @@ describe('writing a preference', () => {
       columns5: ['osm_id'],
       columns6: ['name'],
       columns7: ['type'],
+      columns8: ['latitude'],
       modeChosen: 'both',
     })
     writeViewPrefs({ columns: new Set(['longitude']) })
-    expect(stored(storage)).toEqual({ modeChosen: 'both', columns8: ['longitude'] })
+    expect(stored(storage)).toEqual({ modeChosen: 'both', columns9: ['longitude'] })
   })
 
   it('round-trips a whole table shape', () => {

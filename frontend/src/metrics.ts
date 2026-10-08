@@ -1,10 +1,10 @@
 import { SortBy } from './types'
 
 /**
- * One vocabulary for the seven things Bluebird Forecast measures.
+ * One vocabulary for the eight things Bluebird Forecast measures.
  *
- * Bluebird Forecast measures precipitation, temperature, wind, the freezing
- * level, snowfall, air quality and the cloud deck, and names
+ * Bluebird Forecast measures precipitation, temperature, wind, the wind gust,
+ * the freezing level, snowfall, air quality and the cloud deck, and names
  * them on six surfaces: the map legend, the ranking picker, the results header,
  * the results table, the forecast chart's radios, and a marker's popup. Before
  * this module each surface spelled them itself, so the same metric appeared as
@@ -29,7 +29,7 @@ import { SortBy } from './types'
  */
 
 /**
- * The seven metrics, keyed the way the forecast chart already keyed them.
+ * The eight metrics, keyed the way the forecast chart already keyed them.
  *
  * Reusing those keys is what lets `chartData.ts` alias this type instead of
  * maintaining a parallel union and a mapping between the two.
@@ -44,6 +44,7 @@ export type MetricFamily =
   | 'precip'
   | 'temp'
   | 'wind'
+  | 'gust'
   | 'freeze'
   | 'snowfall'
   | 'aqi'
@@ -59,6 +60,7 @@ const FAMILIES: readonly MetricFamily[] = [
   'precip',
   'temp',
   'wind',
+  'gust',
   'freeze',
   'snowfall',
   'aqi',
@@ -71,6 +73,8 @@ const FAMILIES: readonly MetricFamily[] = [
  * with its 2 m point at that height (#673). A row whose elevation lookup has
  * not answered carries provisional numbers in these columns, so they tick
  * until it does, and a ranking on one of them reorders once when it does.
+ * The wind gust is not one: it is the 10 m value as served, the same at any
+ * elevation the lookup could answer (#584).
  */
 export const HEIGHT_FAMILIES: readonly MetricFamily[] = ['wind', 'temp', 'cloud_deck']
 
@@ -95,6 +99,7 @@ export const RANKED_FAMILIES: readonly MetricFamily[] = [
   'snowfall',
   'temp',
   'wind',
+  'gust',
 ]
 
 /**
@@ -107,6 +112,7 @@ export const RANKED_FAMILIES: readonly MetricFamily[] = [
 export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
   precip: ['precip_avg_in_hr', 'precip_max_in_hr', 'precip_min_in_hr', 'precip_total_in'],
   wind: ['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'],
+  gust: ['gust_avg_mph', 'gust_max_mph', 'gust_min_mph'],
   temp: ['temp_avg_f', 'temp_max_f', 'temp_min_f'],
   freeze: ['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'],
   snowfall: ['snowfall_avg_in_hr', 'snowfall_max_in_hr', 'snowfall_min_in_hr', 'snowfall_total_in'],
@@ -124,6 +130,10 @@ export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
 export const DEFAULT_FAMILY_KEY: Record<MetricFamily, SortBy> = {
   precip: 'precip_total_in',
   wind: 'wind_avg_mph',
+  // The strongest gust, not the mean (TJ, #584). A gust is an extreme by
+  // nature, and the hour it peaks is the one that knocks a climber off a
+  // ridge; a mean of gusts is a number nobody plans against.
+  gust: 'gust_max_mph',
   temp: 'temp_avg_f',
   // The one default that is not a historical carry-over. The question this
   // metric was added to answer is the overnight refreeze (#295), and the
@@ -163,6 +173,11 @@ export const NOUN: Record<MetricFamily, string> = {
   precip: 'Precipitation',
   temp: 'Temperature',
   wind: 'Wind',
+  // Its own noun rather than a fourth aggregate on the wind's (#584), because
+  // it is read at another height: the 10 m surface gust, where the wind is
+  // read at the destination's elevation. It sorts under `Wind` in the
+  // Metrics table, which is where a reader looking for it already is.
+  gust: 'Wind gust',
   freeze: 'Freezing level',
   // New snow over the window, Open-Meteo's own name for the variable (#678),
   // which no reader mistakes for the depth on the ground.
@@ -182,6 +197,7 @@ export const UNIT: Record<MetricFamily, string> = {
   precip: 'in',
   temp: '°F',
   wind: 'mph',
+  gust: 'mph',
   // Feet above sea level, the same unit and datum the elevation column uses,
   // because the whole reading is the comparison between the two.
   freeze: 'ft',
@@ -363,7 +379,10 @@ export function resultsHeading(
  * the coordinate's own 90 m DEM height by default: every metric column stands
  * at the destination's elevation, so a datum on two of them read as a
  * difference in place where the difference is the method. `docs/DATA.md`
- * carries the method, as it does the grid's terrain-height caveat.
+ * carries the method, as it does the grid's terrain-height caveat. The wind
+ * gust is the one column read 10 m above the model's ground rather than at
+ * the summit (#584), and it follows the same rule: its height is stated in
+ * `docs/DATA.md`, never in its header.
  */
 export function metricLabel(
   family: MetricFamily,

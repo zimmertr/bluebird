@@ -81,6 +81,7 @@ describe('resultsFeatureCollection', () => {
         freeze_ft: [9000, 9200, null],
         // A dusting, then a dump, then a gap the model left blank.
         snowfall_in: [0.1, 2.5, null],
+        gust_mph: [8, 41, null],
         aqi: [40, null, 45],
         wind_dir_deg: [0, 90, null],
       },
@@ -128,7 +129,7 @@ describe('resultsFeatureCollection', () => {
     const serverRow = resultsFeatureCollection(
       [
         hourly({
-          series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], snowfall_in: [0], aqi: [40] },
+          series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], snowfall_in: [0], gust_mph: [6], aqi: [40] },
         }),
       ],
       'wind_avg_mph',
@@ -189,5 +190,14 @@ describe('windArrowsShowing', () => {
     expect(windArrowsShowing('wind_min_mph', 3)).toBe(true)
     expect(windArrowsShowing('wind_max_mph', 3)).toBe(true)
     expect(windArrowsShowing('wind_max_mph', null)).toBe(false)
+  })
+
+  // A gust blows from the bearing of the wind it rides on, and Open-Meteo
+  // publishes no gust direction of its own, so a gust ranking shows the same
+  // 10 m arrows (#584).
+  it('draws arrows under a gust ranking too', () => {
+    expect(windArrowsShowing('gust_max_mph', 3)).toBe(true)
+    expect(windArrowsShowing('gust_min_mph', 0)).toBe(true)
+    expect(windArrowsShowing('gust_avg_mph', null)).toBe(false)
   })
 })

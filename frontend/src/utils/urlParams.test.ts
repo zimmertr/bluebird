@@ -55,6 +55,7 @@ const full: ShareableState = {
     snowfall: 'snowfall_max_in_hr',
     aqi: 'aqi_max',
     cloud_deck: 'cloud_deck_max_ft',
+    gust: 'gust_min_mph',
   },
   constraints: {
     minPrecipTotalIn: 0,
@@ -63,6 +64,8 @@ const full: ShareableState = {
     maxTempF: 85.5,
     minWindMph: 1,
     maxWindMph: 30,
+    minGustMph: 5.5,
+    maxGustMph: 45,
     minFreezeFt: 4000,
     maxFreezeFt: 12000,
     minSnowfallTotalIn: 2,
@@ -139,9 +142,11 @@ describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
       'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&snowfall=max&temp=max' +
+        '&gust=min' +
         '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
+        '&mingust=5.5&maxgust=45' +
         '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minaqi=0&maxaqi=50' +
         '&minclouddeck=3000&maxclouddeck=15000' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
@@ -202,6 +207,7 @@ describe('the codec table', () => {
       'snowfall',
       'temp',
       'wind',
+      'gust',
       'limit',
       'model',
       'compare',
@@ -216,6 +222,8 @@ describe('the codec table', () => {
       'maxtemp',
       'minwind',
       'maxwind',
+      'mingust',
+      'maxgust',
       'minfreeze',
       'maxfreeze',
       'minsnowfall',

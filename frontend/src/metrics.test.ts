@@ -95,7 +95,7 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(23)
+    expect(RANKING_KEYS).toHaveLength(26)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
@@ -114,6 +114,8 @@ describe('the rankable keys', () => {
       // #670, TJ's default: the lowest deck, the hour the cloud came closest
       // to the ground.
       cloud_deck: 'cloud_deck_min_ft',
+      // #584: the gustiest hour, the one a ridge walker plans around.
+      gust: 'gust_max_mph',
     })
     for (const family of RANKED_FAMILIES) {
       expect(FAMILY_KEYS[family]).toContain(DEFAULT_FAMILY_KEY[family])
@@ -141,7 +143,7 @@ describe('aggregateToken', () => {
       [AGGREGATE.maximum]: 'max',
     }
 
-    expect(RANKING_KEYS).toHaveLength(23)
+    expect(RANKING_KEYS).toHaveLength(26)
     for (const key of RANKING_KEYS) {
       expect(aggregateToken(key)).toBe(TOKENS[windowAggregate(key)])
     }
@@ -170,6 +172,7 @@ describe('the vocabulary', () => {
       'aqi',
       'cloud_deck',
       'freeze',
+      'gust',
       'precip',
       'snowfall',
       'temp',
@@ -191,6 +194,10 @@ describe('the vocabulary', () => {
     // The noun and unit TJ approved for #670.
     expect(NOUN.cloud_deck).toBe('Cloud deck')
     expect(UNIT.cloud_deck).toBe('ft')
+    // The noun and unit TJ approved for #584. Two words, so the row sorts
+    // straight after Wind and the two read as one subject.
+    expect(NOUN.gust).toBe('Wind gust')
+    expect(UNIT.gust).toBe('mph')
   })
 
   // The approved wire keys lead with `cloud_deck`, so a family is a whole

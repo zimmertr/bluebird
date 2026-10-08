@@ -32,12 +32,16 @@ const units = (list: Vector[], name: string) => payloadOf(list, name).hourly_uni
 const WEATHER_INPUTS: Record<string, unknown[]> = {
   ...vector(vectors.weather, 'wind_and_temperature_levels_together'),
   ...vector(vectors.weather, 'freezing_level_in_feet_is_not_converted'),
+  // The gust column alone, so the table shows a gust rather than N/A without
+  // the case's other columns replacing the two above (#584).
+  wind_gusts_10m: vector(vectors.weather, 'gust_aggregates_at_one_decimal').wind_gusts_10m,
   // The one variable only the browser asks for, so no vector carries it.
   wind_direction_10m: [0, 90, 180, 270],
 }
 const WEATHER_UNITS: Record<string, string> = {
   ...units(vectors.weather, 'wind_and_temperature_levels_together'),
   ...units(vectors.weather, 'freezing_level_in_feet_is_not_converted'),
+  wind_gusts_10m: units(vectors.weather, 'gust_aggregates_at_one_decimal').wind_gusts_10m,
 }
 // The cloud request asks for humidity alone, which carries no unit to check.
 const CLOUD_UNITS: Record<string, string> = {}

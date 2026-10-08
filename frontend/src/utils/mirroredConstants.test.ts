@@ -41,7 +41,7 @@ describe('the constants the backend publishes for this side to match', () => {
     // The browser also asks for `wind_direction_10m`, which only the map's
     // playback arrows read, so this pair is off by exactly one rather than
     // equal. Both counts are past the floor of max(1, vars/10), so the two
-    // weight factors differ too (1.6 here, 1.5 on the pod), and the extra
+    // weight factors differ too (1.7 here, 1.6 on the pod), and the extra
     // variable costs a tenth of a weighted call per location. Each side prices
     // its own request off its own count, so the gap is a price, not a drift;
     // a variable added to one side alone is what this test fails.

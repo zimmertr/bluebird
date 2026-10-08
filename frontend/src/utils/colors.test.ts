@@ -234,6 +234,11 @@ describe('scaleFor', () => {
       expect(scaleFor(key, false)).toBe(METRIC_SCALE.wind)
       expect(scaleFor(key, true)).toBe(METRIC_SCALE.wind)
     }
+    // The gust has no rate to swap in: every aggregate is a speed (#584).
+    for (const key of ['gust_min_mph', 'gust_max_mph', 'gust_avg_mph']) {
+      expect(scaleFor(key, false)).toBe(METRIC_SCALE.gust)
+      expect(scaleFor(key, true)).toBe(METRIC_SCALE.gust)
+    }
     for (const key of ['temp_min_f', 'temp_max_f', 'temp_avg_f']) {
       expect(scaleFor(key, false)).toBe(METRIC_SCALE.temp)
     }
@@ -257,13 +262,14 @@ describe('scaleFor', () => {
 })
 
 describe('METRIC_SCALE', () => {
-  // All five families. The freezing level joined on 2026-09-14, reversing
+  // Every family. The freezing level joined on 2026-09-14, reversing
   // #295, so an absence here is now a missing scale rather than a decision.
   it('exposes every metric family', () => {
     expect(Object.keys(METRIC_SCALE).sort()).toEqual([
       'aqi',
       'cloud_deck',
       'freeze',
+      'gust',
       'precip',
       'snowfall',
       'temp',
@@ -306,6 +312,9 @@ describe('METRIC_SCALE', () => {
     expect(METRIC_SCALE.wind.thresholds).toEqual([5, 15, 25, 35, 50])
     expect(METRIC_SCALE.temp.thresholds).toEqual([30, 45, 60, 75, 90])
     expect(METRIC_SCALE.freeze.thresholds).toEqual([4000, 8000, 12000, 16000, 20000])
+    // The top two are the National Weather Service's own gust criteria: a
+    // Wind Advisory from 46 mph and a High Wind Warning from 58 (#584).
+    expect(METRIC_SCALE.gust.thresholds).toEqual([15, 25, 35, 46, 58])
   })
 
   // Precipitation and wind wear the AQI scale's own six, so purple and maroon
@@ -314,6 +323,8 @@ describe('METRIC_SCALE', () => {
   it('puts precipitation and wind on the six the AQI scale wears', () => {
     expect(METRIC_SCALE.precip.colors).toEqual([GREEN, YELLOW, ORANGE, RED, PURPLE, MAROON])
     expect(METRIC_SCALE.wind.colors).toEqual(METRIC_SCALE.precip.colors)
+    // A gust is wind, so it reads on wind's ramp: red is as bad on either.
+    expect(METRIC_SCALE.gust.colors).toEqual(METRIC_SCALE.precip.colors)
     expect(METRIC_SCALE.aqi.colors).toEqual(METRIC_SCALE.precip.colors)
   })
 
@@ -325,6 +336,7 @@ describe('METRIC_SCALE', () => {
   it('prints the moved scales as the boundaries they switch on', () => {
     expect(labelsOf(METRIC_SCALE.temp)).toEqual(['30', '60', '90'])
     expect(labelsOf(METRIC_SCALE.wind)).toEqual(['5', '25', '50'])
+    expect(labelsOf(METRIC_SCALE.gust)).toEqual(['15', '35', '58'])
     expect(labelsOf(METRIC_SCALE.precip)).toEqual(['0.01', '0.25', '1.00'])
     expect(labelsOf(hourlyScale('precip_total_in')!)).toEqual(['0.01', '0.30', '1.00'])
   })
