@@ -66,8 +66,8 @@ MAX_STALE_S = 24 * 60 * 60
 # operation only (60 to 120 s), and a paged feed is several of them in series.
 # Measured 2026-10-01 from a home network, cold, three runs each: perimeters
 # 1.2 to 5.5 s (6.7 s when #203 measured it), smoke 0.1 to 0.4 s, closures 0.5
-# to 1.1 s, the snow grid 1.1 to 1.3 s. 60 s is about ten times the slowest of
-# those, and leaves the edge 40 s for the lock wait and the response itself.
+# to 1.1 s. 60 s is about ten times the slowest of those, and leaves the edge
+# 40 s for the lock wait and the response itself.
 REFRESH_DEADLINE_S = 60.0
 
 
@@ -179,39 +179,6 @@ class SnapshotCache[T]:
             if held is None:
                 raise self._last_error or UpstreamError(f"{self._label} is unavailable.")
             return held
-
-    def current_or_schedule(self) -> T | None:
-        """The best snapshot available right now, without ever waiting for one.
-
-        The counterpart to :meth:`get` for a caller that has something useful
-        to say about "no answer yet". ``get`` makes the first caller after a
-        cold start wait out the whole fetch, which is the right trade for an
-        overlay whose only other answer is a blank map; it is the wrong one for
-        a value attached to rows a request is already assembling, where the
-        column simply reads as unknown and the next request has a grid.
-
-        A refresh is scheduled whenever the freshness window has passed, which
-        covers both the aged case and the never-fetched one, and the same
-        window is what a failed refresh pushes out — so an outage is retried on
-        its backoff rather than once per request.
-
-        `MAX_STALE_S` does not apply here. The one caller is the snow depth
-        fill, whose answer carries the grid's own analysis date onto the
-        screen, so an old grid is a dated answer rather than a hidden one.
-        """
-        if self._clock() >= self._fresh_until:
-            try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                # No loop to schedule on, which is a caller outside the server
-                # rather than a failure: the contract here is to answer with
-                # whatever is held, and a refresh that cannot be started is one
-                # the next request inside the app starts instead. Asked before
-                # the task is built, so no coroutine is left unawaited.
-                log.debug("%s refresh not scheduled: no running event loop", self._label)
-            else:
-                self._schedule_refresh()
-        return self._snapshot
 
     def _schedule_refresh(self) -> None:
         """Start a background refresh unless one is already running.
