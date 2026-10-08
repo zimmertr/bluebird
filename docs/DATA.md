@@ -206,8 +206,9 @@ above its standard height over three days, where Open-Meteo's terrain height
 sat 12 m under the summit. Read at the summit, the fixed heights put the
 temperature 0.7 to 1.3 °C (1.3 to 2.3 °F) cold. Fetching the real heights
 would add five variables to every request and raise its weight factor from
-1.5 to 2.0. Two caveats. This is still
-a model's free-air wind, not a gust or a summit anemometer, and local
+1.7 to 2.2. Two caveats. This is still
+a model's free-air wind, not a gust or a summit anemometer (the gust is a
+metric of its own, read at 10 m, below), and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
 sample — wind and temperature alike — to the terrain height Open-Meteo resolves
 for that coordinate (its ~90 m elevation model, reported on every response)
@@ -342,6 +343,57 @@ the way to see it. Open-Meteo also publishes a snow depth variable, which was
 measured on 2026-09-16 at the same summit and declined as a ranking metric:
 GFS and HRRR answered 26.86 m, GEM 0.13 m, ECMWF 0.01 m, ICON 0, and three
 models nothing.
+
+**The wind gust is the surface gust, not one at the summit.** Each hourly
+fetch carries Open-Meteo's `wind_gusts_10m`, the strongest gust the model
+expects in each hour at 10 m above its own terrain, and the table reports it
+the way it reports the wind: the least, the most and the average in miles per
+hour, on a ranking row of its own (issue #584). Unlike the wind it is not
+adjusted to the destination's elevation, because there is nothing to
+interpolate between: Open-Meteo publishes no gust on a pressure level, and a
+request for `wind_gusts_925hPa` answers HTTP 400 (measured 2026-10-08). So a
+summit's gust is the gust over the model's ground at that coordinate, which for
+a peak standing above its grid cell is a reading from lower down, and it can sit
+under the free-air wind the wind columns report for the same hour. The header
+names no height, for the reason no other column's does; this page is where the
+height is stated. It is reduced apart from precipitation, temperature and wind,
+as the freezing level is, so a model that publishes no gust leaves the other
+columns alone. It costs a tenth of a weighted call per location, the request
+moving from sixteen variables to seventeen in the browser and from fifteen to
+sixteen on the server.
+
+Seven of the eight models publish it, and so does the archive. Measured
+2026-10-08 at the summit of Mount Rainier (46.8523, -121.7603) over 72 hours,
+with `wind_speed_unit=mph`:
+
+| Model | Unit | Hours with a gust | 10 m wind, average (mph) | Gust, average (mph) | Gust, most (mph) |
+|---|---|---|---|---|---|
+| GFS Seamless | `mp/h` | 72 of 72 | 11.6 | 18.8 | 49.9 |
+| GEM | `mp/h` | 72 of 72 | 6.6 | 8.3 | 44.1 |
+| ECMWF IFS 0.25° | `mp/h` | 72 of 72 | 4.0 | 14.3 | 33.8 |
+| HRRR | `mp/h` | 67 of 72 | 12.2 | 20.1 | 49.9 |
+| UK Met Office | `mp/h` | 72 of 72 | 3.7 | 9.2 | 25.5 |
+| ICON | `mp/h` | 72 of 72 | 5.3 | 34.6 | 78.1 |
+| JMA | `undefined` | 0 of 72 | 6.3 | none | none |
+| Météo-France | `mp/h` | 72 of 72 | 3.1 | 12.0 | 31.3 |
+| Archive, 2026-07-01 to 07-03 | `mp/h` | 72 of 72 | not measured | 24.5 | 31.5 |
+
+JMA answers a column of nulls under the unit `undefined`, the shape the
+archive's freezing level has, so a JMA report shows `N/A` in the three gust
+columns and nothing else, on screen and in a downloaded file alike. A gust
+ranking under JMA therefore has nothing to order by and leaves its rows where
+the ranking puts a missing value. The model comparison blocks **Analyze** when a
+freezing-level ranking compares a model that publishes none; a gust ranking
+that compares JMA has no such check.
+
+How far a gust stands above its wind is the model's answer, not a constant.
+ICON's average gust above was six and a half times its average wind (34.6
+against 5.3), ECMWF's three and a half, the Met Office's two and a half and
+GFS's under two. A gust ranking compares destinations under one model fairly,
+but gusts compared across models on the chart differ as much in how each model
+estimates a gust as in the weather. The legend's top two bands are the National
+Weather Service's own gust criteria: 46 mph and up is a Wind Advisory, 58 mph
+and up a High Wind Warning.
 
 ### History, and the boundary inside it
 
@@ -498,9 +550,9 @@ change there; the list is the one place a new model has to be added.
 The cost is real rather than free, which is why a comparison is bought by
 Analyze rather than as you browse. Open-Meteo prices a request at
 `locations × max(1, days/14) × max(1, variables × models/10)`, the browser asks
-for fifteen hourly variables, and the analysis model's numbers are already
+for seventeen hourly variables, and the analysis model's numbers are already
 held: a comparison buys one model series per displayed destination per added
-model, 1.5 weighted calls each, against the hundreds an analysis of a polygon
+model, 1.7 weighted calls each, against the hundreds an analysis of a polygon
 spends. Displayed rather than charted, because the results table shows
 one row per model and a blank cell there would read as a forecast rather than as
 a row nobody fetched. Unticking a model buys nothing back and needs no Analyze, since

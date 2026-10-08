@@ -648,6 +648,7 @@ number or omitted, and they combine as an AND:
 | `min_precip_total_in` / `max_precip_total_in` | its `precip_total_in` is inside the range |
 | `min_temp_f` / `max_temp_f` | its `temp_min_f` is at or above the floor **and** its `temp_max_f` at or below the ceiling |
 | `min_wind_mph` / `max_wind_mph` | its `wind_min_mph` is at or above the floor **and** its `wind_max_mph` at or below the ceiling |
+| `min_gust_mph` / `max_gust_mph` | its `gust_min_mph` is at or above the floor **and** its `gust_max_mph` at or below the ceiling |
 | `min_freeze_ft` / `max_freeze_ft` | its `freeze_min_ft` is at or above the floor **and** its `freeze_max_ft` at or below the ceiling |
 | `min_snowfall_total_in` / `max_snowfall_total_in` | its `snowfall_total_in` is inside the range |
 | `min_aqi` / `max_aqi` | its `aqi_max` is inside the range |
@@ -680,7 +681,8 @@ Five things are worth knowing before relying on them.
 
 **A ceiling reads the worst hour, a floor the best.** `max_wind_mph: 20` does
 not mean "averages under 20", it means "never exceeds 20", so a destination
-that gusts to 45 at noon is gone. That is the only reading you can plan
+that blows 30 at noon is gone. The gust is bounded apart from the wind:
+`max_gust_mph: 40` is what drops a destination that gusts to 45 at noon. That is the only reading you can plan
 against. The freezing level is the one family where neither end is the bad
 one, and it reads straight: the floor asks that the level never dropped below
 the value, the ceiling that it never rose above it. Precipitation and air
@@ -703,7 +705,8 @@ in `GET /api/capabilities`) or the best-effort fetch failed. The three `freeze_*
 model that publishes no freezing level, which is most of them. An absent
 number is not evidence of bad air, and a model that carries no freezing level
 says nothing about the weather, so those rows are kept, exactly as an untagged
-summit survives an elevation band. The cloud deck is null over archive hours,
+summit survives an elevation band. The three `gust_*` fields are null under
+`jma_seamless`, which publishes no gust, and are kept the same way. The cloud deck is null over archive hours,
 and it passes for the same reason.
 
 **An AQI bound costs more than the others.** Air quality is normally fetched
@@ -776,6 +779,9 @@ EOF
     "wind_min_mph": 12.6,
     "wind_max_mph": 41.2,
     "wind_avg_mph": 24.8,
+    "gust_min_mph": 15.2,
+    "gust_max_mph": 47.9,
+    "gust_avg_mph": 29.6,
     "freeze_min_ft": 9800,
     "freeze_max_ft": 11400,
     "freeze_avg_ft": 10650,
@@ -862,7 +868,7 @@ That ranks the destinations whose cloud came down least, among those whose
 deck never fell below 5,000 ft. With series on, each row's `series` also
 carries `cloud_deck_ft`, aligned to `times`. The cloud request is priced by Open-Meteo like any other:
 nine hourly variables at one model, a weight of 1 per location against the
-weather request's 1.5.
+weather request's 1.6.
 
 ## When a search finds too much
 
@@ -1058,6 +1064,43 @@ EOF
 
 That ranks the destinations expecting the most new snow, among those expecting
 at least two inches over the window.
+
+The wind gust is read at 10 m above the model's terrain and is not adjusted to
+`elevation_ft`, because Open-Meteo publishes no gust on a pressure level.
+`gust_min_mph`, `gust_avg_mph` and `gust_max_mph` are the hourly gust's least,
+average and most over the window in miles per hour, and `series.gust_mph`
+carries it per hour. Seven of the eight models and the archive publish it;
+`jma_seamless` does not (measured 2026-10-08), so its rows carry null in all
+three, and the aggregation reduces it apart from precipitation, temperature
+and wind, so a missing gust costs the row nothing else. A null passes either
+bound and ranks last in either direction. `min_gust_mph` reads `gust_min_mph`
+and `max_gust_mph` reads `gust_max_mph`, and all three fields are accepted by
+`sort_by`. [DATA.md](DATA.md#open-meteo) has the measurement and how far the
+models disagree.
+
+```bash
+# $START and $END as set under "Choosing a forecast window".
+curl -s https://bluebirdforecast.com/api/analyze \
+  -H 'Content-Type: application/json' \
+  -H "X-Open-Meteo-Key: $OPEN_METEO_KEY" \
+  -d @- <<EOF | jq '[.results[] | {name, wind_max_mph, gust_max_mph}]'
+{
+  "destination_types": [],
+  "forecast_mode": "window",
+  "start_datetime": "$START",
+  "end_datetime": "$END",
+  "sort_by": "gust_max_mph",
+  "max_gust_mph": 40,
+  "custom_destinations": [
+    { "name": "Mt Rainier", "latitude": 46.8529, "longitude": -121.7604 },
+    { "name": "Mt Baker",   "latitude": 48.7768, "longitude": -121.8145 }
+  ]
+}
+EOF
+```
+
+That ranks the least gusty destinations first, among those whose gust never
+passed 40 mph.
 
 `POST /api/destinations` also answers `elevation_lookup_complete`. A
 `custom_destinations` row sent without an `elevation_ft` is matched to the

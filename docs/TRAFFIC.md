@@ -620,15 +620,17 @@ Open-Meteo prices what comes back; their own call calculator on the pricing
 page takes Models beside Variables and multiplies the two. Every request this
 service makes today names one model, so that term is 1.
 
-**The variable factor is no longer 1.** A weather request carries 15 variables
-from the pod and 16 from the browser — the browser adds the wind bearing the
-map's playback arrows read — so the factor is 1.5 and 1.6 respectively. Every
+**The variable factor is no longer 1.** A weather request carries 16 variables
+from the pod and 17 from the browser — the browser adds the wind bearing the
+map's playback arrows read — so the factor is 1.6 and 1.7 respectively. Every
 set before the five level temperatures
 ([#443](https://github.com/zimmertr/bluebird/issues/443)) rode inside the floor
 of 1, which is why the numbers below rose by half then, and snowfall
-([#678](https://github.com/zimmertr/bluebird/issues/678)) added a tenth more.
-The same 50-location 16-day batch therefore costs 85.7 weighted calls from the
-pod (50 × 16/14 × 1.5) and 91.4 from the browser (50 × 16/14 × 1.6), not 57. The air-quality
+([#678](https://github.com/zimmertr/bluebird/issues/678)) and the wind gust
+([#584](https://github.com/zimmertr/bluebird/issues/584)) added a tenth more
+each. The same 50-location 16-day batch therefore costs 91.4 weighted calls
+from the pod (50 × 16/14 × 1.6) and 97.1 from the browser (50 × 16/14 × 1.7),
+not 57. The air-quality
 request is one variable and is unaffected. **Every capacity
 number in this file is written in this unit** — the 2026-07-29 incident
 happened because three layers of this system priced spend in HTTP requests
@@ -637,11 +639,11 @@ and were consistently wrong by the batch factor of 50.
 ## Worst-case math
 
 One analysis at the candidate cap (`limits.max_destinations`; 1,500 when this
-was written) over the full 16-day window costs ~2,740 weighted weather calls
-from the browser (1,500 × 16/14 × 1.6), plus ~1,710 for the cloud column
+was written) over the full 16-day window costs ~2,910 weighted weather calls
+from the browser (1,500 × 16/14 × 1.7), plus ~1,710 for the cloud column
 (1,500 × 16/14 × 1: nine variables, so the variable factor stays 1), which
 every analysis fetches on the same weather budget. Against a 600/minute/IP
-budget that the browser paces at 550, that is **~8 minutes of paced fetching,
+budget that the browser paces at 550, that is **~8.4 minutes of paced fetching,
 worst case**, narrated in the UI with a countdown. On the browser path a further ~1,500 weighted calls are spent on air
 quality (1,500 × 1 × 1: one variable, so the variable factor stays 1, and the
 request is clamped to the air-quality horizon, `limits.aqi_forecast_days`,
@@ -659,9 +661,9 @@ pod's budget untouched.
 
 The forecast grid overlay adds at most one more fan-out to that, on the
 visitor's own IP and only while the layer is on: 600 cells over the full
-16-day window is ~1,100 weighted calls for weather (600 × 16/14 × 1.6), ~690 for
+16-day window is ~1,170 weighted calls for weather (600 × 16/14 × 1.7), ~690 for
 the cloud column (600 × 16/14 × 1) and ~600 for air quality, which the same
-pacers spread over roughly a further three minutes *after* the
+pacers spread over roughly a further three and a half minutes *after* the
 ranking has landed. It is
 never on the critical path — the fetch starts when the report commits — so
 the worst case above is unchanged for the numbers a user is waiting on.
