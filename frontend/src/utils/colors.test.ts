@@ -32,6 +32,11 @@ const COLORED_KEYS: string[] = (Object.keys(METRIC_SCALE) as ColoredFamily[]).fl
 const TOTAL_THRESHOLDS = [0.01, 0.1, 0.25, 0.5, 1]
 const RATE_THRESHOLDS = [0.01, 0.1, 0.3, 0.5, 1]
 
+// Snowfall's two, each ten times its precipitation twin by the 10:1
+// snow-to-liquid rule of thumb (#678).
+const SNOWFALL_TOTAL_THRESHOLDS = [0.1, 1, 2.5, 5, 10]
+const SNOWFALL_RATE_THRESHOLDS = [0.1, 1, 3, 5, 10]
+
 // The verdict ramp's anchors, lowest (green) to highest: the US EPA's six AQI
 // categories, which precipitation, wind and air quality wear in this order and
 // the cloud deck wears reversed (#510).
@@ -210,6 +215,20 @@ describe('scaleFor', () => {
     expect(scaleFor('precip_max_in_hr', true)).toBe(METRIC_SCALE.precip)
   })
 
+  // Snowfall is reduced the way precipitation is, so it carries the same two
+  // scales for the same reason: an inch over three days is a dusting and an
+  // inch an hour is a storm (#678).
+  it('scores the per-hour snowfall columns on their own rate scale', () => {
+    for (const key of ['snowfall_avg_in_hr', 'snowfall_min_in_hr', 'snowfall_max_in_hr']) {
+      const rate = scaleFor(key, false)
+      expect(rate?.thresholds).toEqual(SNOWFALL_RATE_THRESHOLDS)
+      expect(rate?.colors).toEqual(METRIC_SCALE.snowfall.colors)
+      // One hour of a point sample is the window, as precipitation's is.
+      expect(scaleFor(key, true)).toBe(METRIC_SCALE.snowfall)
+    }
+    expect(scaleFor('snowfall_total_in', false)).toBe(METRIC_SCALE.snowfall)
+  })
+
   it('leaves the other metrics on one scale per family either way', () => {
     for (const key of ['wind_min_mph', 'wind_max_mph', 'wind_avg_mph']) {
       expect(scaleFor(key, false)).toBe(METRIC_SCALE.wind)
@@ -246,7 +265,7 @@ describe('METRIC_SCALE', () => {
       'cloud_deck',
       'freeze',
       'precip',
-      'snow',
+      'snowfall',
       'temp',
       'wind',
     ])
@@ -421,6 +440,18 @@ describe('hourlyScale', () => {
     expect(METRIC_SCALE.precip.unit).toBe('in')
   })
 
+  // Snowfall's window total is precipitation's case over again (#678): the
+  // playback hour is a rate, so it leaves the total's scale for the rate one.
+  it('moves the snowfall total onto the snowfall rate scale', () => {
+    const rate = hourlyScale('snowfall_total_in')!
+    expect(rate.thresholds).toEqual(SNOWFALL_RATE_THRESHOLDS)
+    expect(rate.unit).toBe('in/hr')
+    expect(METRIC_SCALE.snowfall.unit).toBe('in')
+    for (const key of ['snowfall_avg_in_hr', 'snowfall_min_in_hr', 'snowfall_max_in_hr'] as const) {
+      expect(hourlyScale(key)).toBe(rate)
+    }
+  })
+
   it('advertises the boundaries the rate scale actually switches on', () => {
     const cfg = hourlyScale('precip_total_in')!
     const advertised = labelsOf(cfg).map((label) =>
@@ -440,7 +471,7 @@ describe('the verdict ramp', () => {
   // exceptions are spelled here so that adding one is a deliberate edit with
   // its reason on the family's entry in colors.ts and a decision record beside
   // it, and so that an exception which quietly moved onto the ramp fails too.
-  const EXCEPTIONS: ColoredFamily[] = ['temp', 'freeze', 'snow']
+  const EXCEPTIONS: ColoredFamily[] = ['temp', 'freeze', 'snowfall']
 
   it('colours every family on it, or names the family as an exception', () => {
     for (const family of Object.keys(METRIC_SCALE) as ColoredFamily[]) {
@@ -661,46 +692,49 @@ describe('the temperature ramp', () => {
   })
 })
 
-describe('the snow depth ramp', () => {
+describe('the snowfall ramp', () => {
   // One family of blues seen from the other end: the freezing level runs
   // purple at the bottom to cyan at the top, and this runs cyan at the bottom
   // to purple at the top. Both encode a quantity rather than a verdict, which
   // is why neither has a red end, and sharing the six shades is what makes
-  // them read as one system (TJ, 2026-09-22).
+  // them read as one system (TJ, 2026-09-22, for the snow depth column these
+  // shades were drawn for; snowfall took them over in #678).
   it('is the freezing level\'s six shades, the other way round', () => {
-    expect(METRIC_SCALE.snow.colors).toEqual([...METRIC_SCALE.freeze.colors].reverse())
+    expect(METRIC_SCALE.snowfall.colors).toEqual([...METRIC_SCALE.freeze.colors].reverse())
   })
 
-  // The boundaries are the snow LAYER's own tick numbers plus one at 20, so a
-  // marker and the raster under it band on the same depths, and the strip's
-  // three printed numbers land on a foot, a season's pack and the year-round
-  // ice a glaciated summit reads.
-  it('bands on the layer\'s numbers and prints three of them', () => {
-    expect(METRIC_SCALE.snow.thresholds).toEqual([1, 4, 20, 40, 400])
-    expect(labelsOf(METRIC_SCALE.snow)).toEqual(['1', '20', '400'])
-    expect(METRIC_SCALE.snow.unit).toBe('in')
+  // Precipitation's window boundaries times ten, by the 10:1 snow-to-liquid
+  // rule of thumb, so the strip's three numbers are a dusting, a few inches
+  // and ten inches over the window.
+  it('bands on ten times precipitation\'s window boundaries', () => {
+    expect(METRIC_SCALE.snowfall.thresholds).toEqual(SNOWFALL_TOTAL_THRESHOLDS)
+    expect(METRIC_SCALE.snowfall.thresholds).toEqual(
+      METRIC_SCALE.precip.thresholds.map((t) => Math.round(t * 1000) / 100),
+    )
+    expect(labelsOf(METRIC_SCALE.snowfall)).toEqual(['0.1', '2.5', '10.0'])
+    expect(METRIC_SCALE.snowfall.unit).toBe('in')
   })
 
   it('hits each anchor exactly at its threshold boundary', () => {
-    const [b0, b1, b2, b3, b4, b5] = METRIC_SCALE.snow.colors
-    // Bare ground and everything at or below the first boundary.
-    expect(markerColor(0, 'snow_depth_in')).toBe(b0)
-    expect(markerColor(1, 'snow_depth_in')).toBe(b0)
-    expect(markerColor(4, 'snow_depth_in')).toBe(b1)
-    expect(markerColor(20, 'snow_depth_in')).toBe(b2)
-    expect(markerColor(40, 'snow_depth_in')).toBe(b3)
-    expect(markerColor(400, 'snow_depth_in')).toBe(b4)
-    // One more band of extrapolation past the last threshold, then clamped —
-    // which is where a summit reading over a thousand inches of glacier ice
-    // lands (Mount Rainier measured 1,290 in on 2026-09-22).
-    expect(markerColor(760, 'snow_depth_in')).toBe(b5)
-    expect(markerColor(1290, 'snow_depth_in')).toBe(b5)
+    const [b0, b1, b2, b3, b4, b5] = METRIC_SCALE.snowfall.colors
+    // No new snow and everything at or below the first boundary.
+    expect(markerColor(0, 'snowfall_total_in')).toBe(b0)
+    expect(markerColor(0.1, 'snowfall_total_in')).toBe(b0)
+    expect(markerColor(1, 'snowfall_total_in')).toBe(b1)
+    expect(markerColor(2.5, 'snowfall_total_in')).toBe(b2)
+    expect(markerColor(5, 'snowfall_total_in')).toBe(b3)
+    expect(markerColor(10, 'snowfall_total_in')).toBe(b4)
+    // One more band of extrapolation past the last threshold, then clamped.
+    expect(markerColor(15, 'snowfall_total_in')).toBe(b5)
+    expect(markerColor(40, 'snowfall_total_in')).toBe(b5)
   })
 
-  // Measured 2026-09-22 and pinned the way the freezing level's table is:
-  // recomputed from the constants, so a shade that moves fails here and forces
-  // a re-measurement. Same three surfaces, and the same numbers in reverse,
-  // because these are the same six shades.
+  // Measured 2026-09-22, for the snow depth column these shades were drawn
+  // for, and pinned the way the freezing level's table is: recomputed from the
+  // constants, so a shade that moves fails here and forces a re-measurement.
+  // Same three surfaces, and the same numbers in reverse, because these are
+  // the same six shades. Snowfall (#678) prints on the same cells, rings and
+  // swatches, so the numbers carry over unchanged.
   const SLATE_800 = '#1d293d'
   const MEASURED = [
     { color: '#67e8f9', cellText: 6.02, markerRing: 1.45, legendSwatch: 10.08 },
@@ -712,7 +746,7 @@ describe('the snow depth ramp', () => {
   ]
 
   it('still measures what the comment above says it measures', () => {
-    expect(MEASURED.map((m) => m.color)).toEqual(METRIC_SCALE.snow.colors)
+    expect(MEASURED.map((m) => m.color)).toEqual(METRIC_SCALE.snowfall.colors)
     for (const m of MEASURED) {
       const tinted = mixOver(m.color, SLATE_800, 0.2)
       expect(round2(contrast(m.color, tinted)), `${m.color} cell text`).toBe(m.cellText)

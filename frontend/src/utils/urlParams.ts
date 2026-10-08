@@ -14,7 +14,6 @@ import {
   RANKING_KEYS,
   aggregateToken,
   familyOf,
-  isSnapshotFamily,
 } from '../metrics'
 import { type Constraints, NO_CONSTRAINTS } from './constraints'
 import { GRID_REACH_DEFAULT_FRAC, isGridStyle } from './forecastGrid'
@@ -293,8 +292,8 @@ function aggregateRow(family: MetricFamily): ParamCodec {
     key: family,
     encode: (state) => {
       if (family === familyOf(state.sortBy)) return null
-      const token = aggregateToken(state.rowKeys[family])
-      return token !== null && state.rowKeys[family] !== DEFAULT_FAMILY_KEY[family] ? token : null
+      const key = state.rowKeys[family]
+      return key !== DEFAULT_FAMILY_KEY[family] ? aggregateToken(key) : null
     },
     decode: (raw, out) => {
       const key = FAMILY_KEYS[family].find((k) => aggregateToken(k) === raw)
@@ -403,9 +402,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     },
   },
   flag('desc', 'sortDesc'),
-  // A snapshot family has one key and no dropdown, so there is no choice to
-  // carry and no param to write (#449).
-  ...RANKED_FAMILIES.filter((family) => !isSnapshotFamily(family)).map(aggregateRow),
+  // Snow depth's key left the ranking keys in #678, so an old link ranked on
+  // it fails the check above and opens on the default ranking.
+  ...RANKED_FAMILIES.map(aggregateRow),
   // Shape only, no ceiling: a link asking for more rows than this deployment
   // allows gets clamped down by the caller, never discarded. Dropping it here
   // is what made a shared `limit=500` open silently at the default instead of
@@ -505,6 +504,9 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   // and `maxcloudcover` are retired the same way, with the `cloud_base` and
   // `cloud_cover` aggregate params: the cloud deck replaced both families
   // (#670), and a bound on a number the app no longer computes is no bound.
+  // `minsnow` and `maxsnow` bounded the snow depth snowfall replaced (#678),
+  // and are retired on the same terms rather than read as a snowfall bound,
+  // which is a different quantity in the same unit.
   bound('minprecip', 'minPrecipTotalIn'),
   bound('maxprecip', 'maxPrecipTotalIn'),
   bound('mintemp', 'minTempF'),
@@ -513,8 +515,8 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   bound('maxwind', 'maxWindMph'),
   bound('minfreeze', 'minFreezeFt'),
   bound('maxfreeze', 'maxFreezeFt'),
-  bound('minsnow', 'minSnowDepthIn'),
-  bound('maxsnow', 'maxSnowDepthIn'),
+  bound('minsnowfall', 'minSnowfallTotalIn'),
+  bound('maxsnowfall', 'maxSnowfallTotalIn'),
   bound('minaqi', 'minAqi'),
   bound('maxaqi', 'maxAqi'),
   bound('minclouddeck', 'minCloudDeckFt'),
@@ -687,10 +689,10 @@ export const FIELD_PARAMS = {
   compareModels: ['compare'],
   sortBy: ['sort'],
   sortDesc: ['desc'],
-  rowKeys: ['sort', ...RANKED_FAMILIES.filter((family) => !isSnapshotFamily(family))],
+  rowKeys: ['sort', ...RANKED_FAMILIES],
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
-    'minfreeze', 'maxfreeze', 'minsnow', 'maxsnow', 'minaqi', 'maxaqi',
+    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minaqi', 'maxaqi',
     'minclouddeck', 'maxclouddeck',
   ],
   limit: ['limit'],

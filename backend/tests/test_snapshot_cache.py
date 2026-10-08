@@ -134,18 +134,6 @@ async def test_the_age_limit_respects_the_failure_backoff():
     assert await cache.get() == "second"
 
 
-def test_the_snow_fill_path_has_no_age_limit():
-    # `current_or_schedule` answers whatever is held: its one caller states
-    # the grid's analysis date on screen, so an old grid is a dated answer.
-    clock = _Clock()
-    cache, _ = _cache(clock, [])
-    cache._snapshot = "grid"
-    cache._fetched_at = clock.now
-    cache._fresh_until = clock.now + 10 * MAX_STALE_S
-    clock.now += 2 * MAX_STALE_S
-    assert cache.current_or_schedule() == "grid"
-
-
 async def test_a_cold_refresh_ends_at_its_deadline_with_the_timeout_sentence():
     async def hang() -> str:
         await asyncio.sleep(30)

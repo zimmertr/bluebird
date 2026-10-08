@@ -87,12 +87,6 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // therefore cues a commit and unticking applies at once: the held field can
   // always answer a smaller question and never a larger one.
   compareModels: readonly string[]
-  // Which day's snow analysis the field's `snow_depth_in` values came from,
-  // and null while the pod holds no grid (#449). Recorded here rather than
-  // read back off a row, because it is a fact about the whole report: the
-  // results header states it in place of the window caption while snow ranks,
-  // and a report of rows that all fall outside the grid still has a date.
-  snowAnalysisDate: string | null
   // Whether every row carries the cloud column (#117), which an analysis
   // fetches only when its ranking or a bound names a cloud metric. A data
   // fact like the window, recorded for the same reason: a live knob can ask

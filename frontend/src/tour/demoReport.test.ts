@@ -28,7 +28,8 @@ describe('the tutorial report', () => {
       expect(row.freeze_min_ft).not.toBeNull()
       expect(row.freeze_max_ft).not.toBeNull()
       expect(row.freeze_avg_ft).not.toBeNull()
-      expect(row.snow_depth_in).not.toBeNull()
+      expect(row.snowfall_total_in).not.toBeNull()
+      expect(row.series?.snowfall_in).toHaveLength(n)
       expect(row.elevation_ft).not.toBeNull()
     }
   })

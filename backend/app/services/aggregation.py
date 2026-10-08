@@ -63,8 +63,8 @@ def _round_or_none(v: float | None, ndigits: int) -> float | None:
 # stood 127 to 192 m above its standard height over three days, which puts the
 # summit temperature 0.7 to 1.3 °C cold, where Open-Meteo's terrain height sat
 # 12 m under the summit. Fetching the real heights would add five variables to
-# every request (a weight factor of 1.9 rather than 1.4 here, 2.0 rather than
-# 1.5 in the browser), and docs/DATA.md states the error instead. The wind and temperature
+# every request (a weight factor of 2.0 rather than 1.5 here, 2.1 rather than
+# 1.6 in the browser), and docs/DATA.md states the error instead. The wind and temperature
 # read the five from 925 to 500 hPa; the cloud deck reads all eight, because a
 # saturated layer can sit under the lowest summit (1000 hPa) and a clear column
 # has to be checked to the top of every summit on Earth (300 hPa, 30,066 ft).
@@ -147,8 +147,16 @@ _TEMP_LEVELS: list[tuple[str, float]] = [
 # nullable on their own and are never reduced inside the precip/temp/wind zip
 # below.
 _FREEZING_LEVEL = "freezing_level_height"
+# New snow per hour (issue #678), in the unit `precipitation_unit` selects:
+# inches here, centimetres without the parameter. Measured 2026-10-07 at
+# Rainier's summit, every model and the archive serve it and declare "inch";
+# HRRR answers null past its 45th hour, as it does for every variable. It is
+# reduced outside the precip/temp/wind zip for the freezing level's reason, so
+# an hour missing only snowfall never takes the other numbers of that hour
+# with it.
+_SNOWFALL = "snowfall"
 HOURLY_VARIABLES = ",".join(
-    ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL]
+    ["precipitation", "temperature_2m", "wind_speed_10m", _FREEZING_LEVEL, _SNOWFALL]
     + [name for name, _ in _WIND_LEVELS]
     + [name for name, _ in _TEMP_LEVELS]
 )
@@ -167,6 +175,7 @@ _JOIN_KEYS: tuple[str, ...] = ("time", *HOURLY_VARIABLES.split(","))
 # unit legitimately varies and `_freeze_to_ft` converts it.
 _DECLARED_UNITS: dict[str, str] = {
     "precipitation": "inch",
+    _SNOWFALL: "inch",
     "temperature_2m": "°F",
     "wind_speed_10m": "mp/h",
     **{name: "mp/h" for name, _ in _WIND_LEVELS},
@@ -197,9 +206,9 @@ _DECLARED_UNITS: dict[str, str] = {
 CLOUD_SATURATION_RH = 95.0
 # What a column that answered and is dry all the way up reads: the standard
 # height of its top level, 300 hPa, in whole feet. A plain number rather than a
-# null, the device `SNOW_DEPTH_CEILING_IN` uses for permanent ice, so ranking,
-# bounds, the chart and the colour scale need no null case for the common one:
-# a dry column is most hours (85 of 96 at Rainier, measured 2026-10-06). It is
+# null, so ranking, bounds, the chart and the colour scale need no null case
+# for the common one: a dry column is most hours (85 of 96 at Rainier,
+# measured 2026-10-06). It is
 # also the top of anything the walk can interpolate to, so no deck it finds
 # reads above it. Mirrored in the browser and pinned by `mirrored_constants.json`.
 CLOUD_DECK_CEILING_FT = round(ISA_HEIGHT_M[300] / _FT_TO_M, 0)
@@ -209,9 +218,9 @@ _CLOUD_LEVELS: list[tuple[str, float]] = [
 _CLOUD_RH_2M = "relative_humidity_2m"
 # The cloud variables ride a request of their own, made only when a ranking or
 # a bound asks for the deck: nine more variables on every analysis would take
-# the weighted price of each from 1.5 to 2.4 (issue #117). Humidity carries no
-# unit a request parameter selects, so this request sends none and its numbers
-# need no declared-unit check.
+# the weighted price of each from 1.6 to 2.5 in the browser (issue #117).
+# Humidity carries no unit a request parameter selects, so this request sends
+# none and its numbers need no declared-unit check.
 CLOUD_VARIABLES = ",".join([_CLOUD_RH_2M] + [name for name, _ in _CLOUD_LEVELS])
 CLOUD_JOIN_KEYS: tuple[str, ...] = ("time", *CLOUD_VARIABLES.split(","))
 
@@ -437,6 +446,27 @@ def _freeze_ft_in_window(
     ]
 
 
+def _snowfall_in_window(
+    hourly: dict[str, Any],
+    start: datetime,
+    end: datetime,
+) -> list[float]:
+    """Every in-window hour that HAS a snowfall, in inches.
+
+    Read against its own pair of arrays for `_freeze_ft_in_window`'s reason:
+    an hour dropped for a null snowfall would take that hour's precipitation,
+    temperature and wind with it. The unit needs no conversion here, because
+    `_check_units` has already refused any column not declared in inches.
+    """
+    return [
+        v
+        for ts, v in zip(hourly.get("time", []), hourly.get(_SNOWFALL, []), strict=False)
+        if v is not None
+        and (parsed := _parse_ts(ts)) is not None
+        and start <= parsed <= end
+    ]
+
+
 def _check_units(data: dict[str, Any], expected: dict[str, str]) -> None:
     """Refuse a payload whose numbers are not in the units the request asked for.
 
@@ -505,6 +535,7 @@ def _weather_metrics(
 
         p_vals, t_vals, w_vals = zip(*filtered, strict=False)
         f_vals = _freeze_ft_in_window(hourly, start, end, _freeze_unit(data))
+        s_vals = _snowfall_in_window(hourly, start, end)
 
         return {
             "precip_total_in": round(sum(p_vals), 4),
@@ -524,6 +555,12 @@ def _weather_metrics(
             "freeze_min_ft": round(min(f_vals), 0) if f_vals else None,
             "freeze_max_ft": round(max(f_vals), 0) if f_vals else None,
             "freeze_avg_ft": round(sum(f_vals) / len(f_vals), 0) if f_vals else None,
+            # Precipitation's four, at precipitation's four decimals, each
+            # null on its own like the freezing level's.
+            "snowfall_total_in": round(sum(s_vals), 4) if s_vals else None,
+            "snowfall_avg_in_hr": round(sum(s_vals) / len(s_vals), 4) if s_vals else None,
+            "snowfall_min_in_hr": round(min(s_vals), 4) if s_vals else None,
+            "snowfall_max_in_hr": round(max(s_vals), 4) if s_vals else None,
         }
     except UpstreamError:
         # A unit nothing can read is not one bad hour to skip past: every
@@ -540,7 +577,7 @@ def _weather_series(
     end_dt: datetime,
     elevation_ft: float | None = None,
 ) -> dict[str, Any] | None:
-    """Per-hour precip/temp/wind/freezing level over the window, on one grid.
+    """Per-hour precip/temp/wind/freezing level/snowfall over the window, on one grid.
 
     Unlike `_weather_metrics` — which drops any hour missing a value and collapses the
     rest into aggregates — this keeps every in-window hour and preserves each
@@ -560,6 +597,7 @@ def _weather_series(
         wind = hourly.get("wind_speed_10m", [])
         freeze = hourly.get(_FREEZING_LEVEL, [])
         freeze_unit = _freeze_unit(data)
+        snowfall = hourly.get(_SNOWFALL, [])
         levels = _level_arrays(hourly)
         t_levels = _temp_level_arrays(hourly)
 
@@ -571,6 +609,7 @@ def _weather_series(
         t_out: list[float | None] = []
         w_out: list[float | None] = []
         f_out: list[float | None] = []
+        s_out: list[float | None] = []
         for i, ts in enumerate(times):
             parsed = _parse_ts(ts)
             if parsed is None or not (start <= parsed <= end):
@@ -601,6 +640,7 @@ def _weather_series(
                     None if f_raw is None else _freeze_to_ft(f_raw, freeze_unit), 0
                 )
             )
+            s_out.append(_round_or_none(_at(snowfall, i), 4))
 
         if not grid:
             return None
@@ -610,6 +650,7 @@ def _weather_series(
             "temp_f": t_out,
             "wind_mph": w_out,
             "freeze_ft": f_out,
+            "snowfall_in": s_out,
         }
     except UpstreamError:
         # The one failure this function does not absorb, for the reason

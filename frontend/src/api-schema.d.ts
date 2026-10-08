@@ -427,10 +427,10 @@ export interface components {
              */
             max_precip_total_in?: number | null;
             /**
-             * Max Snow Depth In
-             * @description Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.
+             * Max Snowfall Total In
+             * @description Drop rows whose `snowfall_total_in` is above this. Nulls pass.
              */
-            max_snow_depth_in?: number | null;
+            max_snowfall_total_in?: number | null;
             /**
              * Max Temp F
              * @description Drop rows whose `temp_max_f` is above this, i.e. keep only destinations that stay at or below it for the whole window.
@@ -467,10 +467,10 @@ export interface components {
              */
             min_precip_total_in?: number | null;
             /**
-             * Min Snow Depth In
-             * @description Drop rows whose `snow_depth_in` is below this. A row with a null `snow_depth_in` passes either bound: the destination is outside the snow grid, or this instance holds no grid, and neither says anything about how much snow is on the ground.
+             * Min Snowfall Total In
+             * @description Drop rows whose `snowfall_total_in` is below this. A row with a null `snowfall_total_in` passes either bound.
              */
-            min_snow_depth_in?: number | null;
+            min_snowfall_total_in?: number | null;
             /**
              * Min Temp F
              * @description Drop rows whose `temp_min_f` is below this, i.e. keep only destinations that stay at or above it for the whole window. Not bounded below: a floor of -40 is a real request.
@@ -516,11 +516,6 @@ export interface components {
              * @description Ranked destinations, best first, at most `limit` of them.
              */
             results: components["schemas"]["DestinationResult"][];
-            /**
-             * Snow Analysis Date
-             * @description The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.
-             */
-            snow_analysis_date: string | null;
             /**
              * Times
              * @description Shared hourly grid for every row's `series`, as epoch milliseconds UTC. Sent once because it is identical across destinations for a given window, and sent in both shapes: under `include_series: false` it is the only statement of which hours the aggregates reduced.
@@ -815,10 +810,25 @@ export interface components {
             /** @description Hourly detail behind the summary figures above, aligned to `times`. Null when the upstream forecast carried no hours inside the window, and on every row when the request set `include_series: false`. */
             series: components["schemas"]["HourlySeries"] | null;
             /**
-             * Snow Depth In
-             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.
+             * Snowfall Avg In Hr
+             * @description Mean hourly snowfall, inches. Null under the same terms.
              */
-            snow_depth_in: number | null;
+            snowfall_avg_in_hr: number | null;
+            /**
+             * Snowfall Max In Hr
+             * @description Snowiest single hour in the window, inches. Null under the same terms.
+             */
+            snowfall_max_in_hr: number | null;
+            /**
+             * Snowfall Min In Hr
+             * @description Least snowfall in a single hour, inches. Zero for any window with one hour without snow. Null under the same terms.
+             */
+            snowfall_min_in_hr: number | null;
+            /**
+             * Snowfall Total In
+             * @description Total snowfall across the window, inches. Read apart from precipitation, temperature and wind: an hour with no snowfall drops out of the four snowfall figures alone and never affects the other figures on this row. Null when no hour in the window carried one.
+             */
+            snowfall_total_in: number | null;
             /**
              * Temp Avg F
              * @description Mean temperature, degrees Fahrenheit.
@@ -890,7 +900,7 @@ export interface components {
             destination_types?: components["schemas"]["DestinationType"][];
             /**
              * Elevation Lookup
-             * @description Whether to look up the elevation and OSM id of each `custom_destinations` row sent without an `elevation_ft`. `false` skips the map server: those rows come back as sent, with today's snow depth, in milliseconds, and a request that also discovers nothing takes no discovery slot. The bundled web app sends `false` from an analysis, because it looks its rows up itself as they are pasted, from the basemap's own tiles first and this endpoint second, and `elevation_lookup_complete` is then true only when no row needed a lookup.
+             * @description Whether to look up the elevation and OSM id of each `custom_destinations` row sent without an `elevation_ft`. `false` skips the map server: those rows come back as sent, in milliseconds, and a request that also discovers nothing takes no discovery slot. The bundled web app sends `false` from an analysis, because it looks its rows up itself as they are pasted, from the basemap's own tiles first and this endpoint second, and `elevation_lookup_complete` is then true only when no row needed a lookup.
              * @default true
              */
             elevation_lookup?: boolean;
@@ -935,11 +945,6 @@ export interface components {
              * @default true
              */
             elevation_lookup_complete: boolean;
-            /**
-             * Snow Analysis Date
-             * @description The date of the SNODAS analysis behind every `snow_depth_in` on this response, as `YYYY-MM-DD`. Null when this instance holds no grid, which is also when every row's `snow_depth_in` is null.
-             */
-            snow_analysis_date: string | null;
             /**
              * Total
              * @description Same as `len(destinations)`, for convenience.
@@ -987,11 +992,6 @@ export interface components {
              * @description OpenStreetMap identifier such as `node/12345`.
              */
             osm_id: string | null;
-            /**
-             * Snow Depth In
-             * @description Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. One number per destination that ignores the analyzed window entirely: it is the current analysis rather than a forecast, so it has no minimum, mean or maximum and no hourly series. Null outside the grid, which covers the contiguous United States, southern Canada and northern Mexico, and null while this instance holds no grid. Over permanent ice SNODAS accumulates year over year, so a glaciated summit reads hundreds of inches in every season; that is ice rather than this season's snow. The value saturates at 1290.04, the 16-bit integer millimetre ceiling of the source file, so a row at that number holds at least that much and is permanent ice.
-             */
-            snow_depth_in: number | null;
             /**
              * Type
              * @description The discovery type this row matched, or `custom` for a caller-supplied row.
@@ -1155,6 +1155,11 @@ export interface components {
              * @description Precipitation, inches.
              */
             precip_in: (number | null)[];
+            /**
+             * Snowfall In
+             * @description Snowfall, inches. Null at an hour the forecast carried no snowfall for; see `snowfall_total_in` on the result.
+             */
+            snowfall_in: (number | null)[];
             /**
              * Temp F
              * @description Temperature, degrees Fahrenheit.
@@ -1362,7 +1367,7 @@ export interface components {
          * SortBy
          * @enum {string}
          */
-        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max" | "cloud_deck_min_ft" | "cloud_deck_avg_ft" | "cloud_deck_max_ft" | "snow_depth_in";
+        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max" | "cloud_deck_min_ft" | "cloud_deck_avg_ft" | "cloud_deck_max_ft" | "snowfall_total_in" | "snowfall_avg_in_hr" | "snowfall_min_in_hr" | "snowfall_max_in_hr";
         /** ValidationError */
         ValidationError: {
             /** Context */

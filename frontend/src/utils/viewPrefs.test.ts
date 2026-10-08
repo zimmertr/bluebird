@@ -82,7 +82,7 @@ describe('reading the stored view', () => {
 // six inline reads, so a preference read anywhere else inherited none of it.
 describe('the column-set migration', () => {
   it('reads the current generation verbatim', () => {
-    withStored({ columns7: ['name', 'precip_total_in'] })
+    withStored({ columns8: ['name', 'precip_total_in'] })
     expect([...readViewPrefs().columns!]).toEqual(['name', 'precip_total_in'])
   })
 
@@ -102,7 +102,7 @@ describe('the column-set migration', () => {
   })
 
   it('keeps the Closure column hidden when the current generation hid it', () => {
-    withStored({ columns7: ['name', WILDFIRE_KEY] })
+    withStored({ columns8: ['name', WILDFIRE_KEY] })
     expect(readViewPrefs().columns!.has(CLOSURE_KEY)).toBe(false)
   })
 
@@ -126,23 +126,35 @@ describe('the column-set migration', () => {
     expect(readViewPrefs().columns!.has(CLOSURE_KEY)).toBe(false)
   })
 
-  // `columns3` predates snow depth (#449).
-  it('adds the snow column to a set an older build stored', () => {
-    withStored({ columns3: ['name', WILDFIRE_KEY] })
-    const columns = readViewPrefs().columns!
-    expect(columns.has('name')).toBe(true)
-    expect(columns.has(WILDFIRE_KEY)).toBe(true)
-    for (const key of FAMILY_KEYS.snow) expect(columns.has(key)).toBe(true)
-  })
+  // `columns7` predates snowfall (#678), and every older generation predates
+  // it too.
+  it.each([
+    ['columns7'],
+    ['columns6'],
+    ['columns5'],
+    ['columns4'],
+    ['columns3'],
+    ['columns2'],
+    ['columns'],
+  ])(
+    'adds the snowfall columns to a set stored as %s',
+    (generation) => {
+      withStored({ [generation]: ['name', WILDFIRE_KEY] })
+      const columns = readViewPrefs().columns!
+      expect(columns.has('name')).toBe(true)
+      expect(columns.has(WILDFIRE_KEY)).toBe(true)
+      for (const key of FAMILY_KEYS.snowfall) expect(columns.has(key)).toBe(true)
+    },
+  )
 
   // `columns2` predates the freezing level (#295).
-  it('adds the freezing-level and snow columns to a set an older build stored', () => {
+  it('adds the freezing-level and snowfall columns to a set an older build stored', () => {
     withStored({ columns2: ['name', WILDFIRE_KEY] })
     const columns = readViewPrefs().columns!
     expect(columns.has('name')).toBe(true)
     expect(columns.has(WILDFIRE_KEY)).toBe(true)
     for (const key of FAMILY_KEYS.freeze) expect(columns.has(key)).toBe(true)
-    for (const key of FAMILY_KEYS.snow) expect(columns.has(key)).toBe(true)
+    for (const key of FAMILY_KEYS.snowfall) expect(columns.has(key)).toBe(true)
   })
 
   // `columns` predates the wildfire column joining the picker (#288), so it
@@ -153,7 +165,7 @@ describe('the column-set migration', () => {
     expect(columns.has('name')).toBe(true)
     expect(columns.has(WILDFIRE_KEY)).toBe(true)
     for (const key of FAMILY_KEYS.freeze) expect(columns.has(key)).toBe(true)
-    for (const key of FAMILY_KEYS.snow) expect(columns.has(key)).toBe(true)
+    for (const key of FAMILY_KEYS.snowfall) expect(columns.has(key)).toBe(true)
     for (const key of FAMILY_KEYS.cloud_deck) expect(columns.has(key)).toBe(true)
   })
 
@@ -165,7 +177,8 @@ describe('the column-set migration', () => {
       columns4: ['longitude'],
       columns5: ['elevation_ft'],
       columns6: ['osm_id'],
-      columns7: ['name'],
+      columns7: ['type'],
+      columns8: ['name'],
     })
     expect([...readViewPrefs().columns!]).toEqual(['name'])
   })
@@ -199,10 +212,11 @@ describe('writing a preference', () => {
       columns4: ['elevation_ft'],
       columns5: ['osm_id'],
       columns6: ['name'],
+      columns7: ['type'],
       modeChosen: 'both',
     })
     writeViewPrefs({ columns: new Set(['longitude']) })
-    expect(stored(storage)).toEqual({ modeChosen: 'both', columns7: ['longitude'] })
+    expect(stored(storage)).toEqual({ modeChosen: 'both', columns8: ['longitude'] })
   })
 
   it('round-trips a whole table shape', () => {

@@ -484,8 +484,8 @@ describe('encodeState', () => {
       maxWindMph: 20,
       minFreezeFt: 6000,
       maxFreezeFt: 12000,
-      minSnowDepthIn: 2,
-      maxSnowDepthIn: 60,
+      minSnowfallTotalIn: 2,
+      maxSnowfallTotalIn: 60,
       minAqi: 10,
       maxAqi: 100,
       minCloudDeckFt: 5000,
@@ -497,17 +497,21 @@ describe('encodeState', () => {
     expect(new URLSearchParams(qs).get('maxaqi')).toBe('100')
     expect(new URLSearchParams(qs).get('minfreeze')).toBe('6000')
     expect(new URLSearchParams(qs).get('maxprecip')).toBe('0.1')
-    expect(new URLSearchParams(qs).get('minsnow')).toBe('2')
+    expect(new URLSearchParams(qs).get('minsnowfall')).toBe('2')
     expect(new URLSearchParams(qs).get('minclouddeck')).toBe('5000')
     expect(new URLSearchParams(qs).get('maxclouddeck')).toBe('14000')
     expect(decodeState(`?${qs}`)?.constraints).toEqual(constraints)
   })
 
-  // A snapshot has one key and no dropdown, so there is no aggregate choice to
-  // carry and no family param to write (#449).
-  it('writes no family param for a snapshot row', () => {
-    const qs = encodeState({ ...base, sortBy: 'precip_total_in' }, DEFAULT_MODEL)
+  // Snowfall's row has a dropdown like precipitation's (#678), so a choice
+  // off its default rides the link under the family's own name, which is
+  // not the snow overlay's `snow`.
+  it('writes the snowfall row\'s aggregate under its own name', () => {
+    const rowKeys = { ...DEFAULT_FAMILY_KEY, snowfall: 'snowfall_max_in_hr' as const }
+    const qs = encodeState({ ...base, sortBy: 'precip_total_in', rowKeys }, DEFAULT_MODEL)
+    expect(new URLSearchParams(qs).get('snowfall')).toBe('max')
     expect(new URLSearchParams(qs).get('snow')).toBeNull()
+    expect(decodeState(`?${qs}`)?.rowKeys?.snowfall).toBe('snowfall_max_in_hr')
   })
 
   it('leaves a bound out of the decode when the link carries none', () => {
@@ -1001,7 +1005,7 @@ describe('decodeState tolerance', () => {
         wind: 'wind_max_mph',
         temp: 'temp_min_f',
         freeze: 'freeze_min_ft',
-        snow: 'snow_depth_in',
+        snowfall: 'snowfall_total_in',
         aqi: 'aqi_avg',
         cloud_deck: 'cloud_deck_max_ft',
       })

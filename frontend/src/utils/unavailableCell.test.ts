@@ -4,14 +4,14 @@ import { COLUMNS } from './tableColumns'
 import { FAMILY_KEYS } from '../metrics'
 
 describe('isUnavailableKey', () => {
-  // Two metrics can be empty for a reason that is not the weather, and only
-  // two: the model publishes no freezing level, or the destination is outside
-  // the snow grid.
+  // One metric can be empty for a reason that is not the weather: the model
+  // publishes no freezing level. Snow depth was the second until #678, and
+  // snowfall is a forecast like any other, whose gap is a dash.
   it('answers for those columns and nothing else', () => {
-    for (const key of [...FAMILY_KEYS.freeze, ...FAMILY_KEYS.snow]) {
+    for (const key of [...FAMILY_KEYS.freeze]) {
       expect(isUnavailableKey(key)).toBe(true)
     }
-    const marked = new Set<string>([...FAMILY_KEYS.freeze, ...FAMILY_KEYS.snow])
+    const marked = new Set<string>([...FAMILY_KEYS.freeze])
     for (const col of COLUMNS) {
       if (marked.has(col.key as string)) continue
       expect(isUnavailableKey(col.key as string), `${String(col.key)} reads as unavailable`).toBe(
@@ -23,10 +23,10 @@ describe('isUnavailableKey', () => {
     expect(isUnavailableKey('name')).toBe(false)
   })
 
-  // Read off the families' own key lists, so an aggregate added to either one
+  // Read off the family's own key list, so an aggregate added to it
   // cannot be marked in the table and missed here.
   it('is derived from the family key lists rather than a second list', () => {
-    const fromFamilies = [...FAMILY_KEYS.freeze, ...FAMILY_KEYS.snow]
+    const fromFamilies = [...FAMILY_KEYS.freeze]
     expect(COLUMNS.filter((c) => isUnavailableKey(c.key as string)).map((c) => c.key).sort()).toEqual(
       [...fromFamilies].sort(),
     )
@@ -43,8 +43,7 @@ describe('unavailableCellText', () => {
     expect(unavailableCellText(9000)).toBeNull()
   })
 
-  // Bare ground is a measurement, and so is a freezing level at sea level.
-  // Neither is a missing answer.
+  // A freezing level at sea level is a measurement, not a missing answer.
   it('treats zero as a reading, not a gap', () => {
     expect(unavailableCellText(0)).toBeNull()
   })

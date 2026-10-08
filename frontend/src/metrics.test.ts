@@ -8,13 +8,11 @@ import {
   RANKED_FAMILIES,
   RANKING_KEYS,
   SEP,
-  SNAPSHOT_FAMILIES,
   UNIT,
   aggregateToken,
   familyOf,
   ON_REQUEST_FAMILIES,
   isOnRequestFamily,
-  isSnapshotFamily,
   formatPrecipRate,
   formatPrecipTotal,
   metricLabel,
@@ -56,7 +54,7 @@ const SORTS: SortBy[] = [
   'wind_avg_mph',
   'temp_avg_f',
   'freeze_min_ft',
-  'snow_depth_in',
+  'snowfall_total_in',
   'aqi_avg',
 ]
 
@@ -75,11 +73,15 @@ describe('the rankable keys', () => {
     expect(FAMILY_KEYS.wind).toEqual(['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'])
     expect(FAMILY_KEYS.temp).toEqual(['temp_avg_f', 'temp_max_f', 'temp_min_f'])
     expect(FAMILY_KEYS.freeze).toEqual(['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'])
-    // One key, because a snapshot has no aggregates to choose between (#449).
-    expect(FAMILY_KEYS.snow).toEqual(['snow_depth_in'])
+    // Precipitation's four, because new snow is reduced the way rain is (#678).
+    expect(FAMILY_KEYS.snowfall).toEqual([
+      'snowfall_avg_in_hr',
+      'snowfall_max_in_hr',
+      'snowfall_min_in_hr',
+      'snowfall_total_in',
+    ])
     expect(FAMILY_KEYS.aqi).toEqual(['aqi_avg', 'aqi_max', 'aqi_min'])
     for (const family of RANKED_FAMILIES) {
-      if (isSnapshotFamily(family)) continue
       const words = FAMILY_KEYS[family].map(windowAggregate)
       expect(words).toEqual([...words].sort())
     }
@@ -95,7 +97,7 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(20)
+    expect(RANKING_KEYS).toHaveLength(23)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
@@ -108,7 +110,8 @@ describe('the rankable keys', () => {
       wind: 'wind_avg_mph',
       temp: 'temp_avg_f',
       freeze: 'freeze_min_ft',
-      snow: 'snow_depth_in',
+      // The window's total, as precipitation's is: how much fell (#678).
+      snowfall: 'snowfall_total_in',
       aqi: 'aqi_avg',
       // #670, TJ's default: the lowest deck, the hour the cloud came closest
       // to the ground.
@@ -140,32 +143,26 @@ describe('aggregateToken', () => {
       [AGGREGATE.maximum]: 'max',
     }
 
-    expect(RANKING_KEYS).toHaveLength(20)
+    expect(RANKING_KEYS).toHaveLength(23)
     for (const key of RANKING_KEYS) {
-      const word = windowAggregate(key)
-      // A snapshot key reduces nothing, so it has no token and no word. The
-      // two answer null together or the surfaces disagree about whether the
-      // metric has an aggregate at all.
-      if (word === null) {
-        expect(aggregateToken(key)).toBeNull()
-        expect(isSnapshotFamily(familyOf(key))).toBe(true)
-        continue
-      }
-      expect(aggregateToken(key)).toBe(TOKENS[word])
+      expect(aggregateToken(key)).toBe(TOKENS[windowAggregate(key)])
     }
-    // Precipitation is the one family with a fourth, and the only Total.
-    expect(RANKING_KEYS.filter((k) => aggregateToken(k) === 'total')).toEqual(['precip_total_in'])
+    // Precipitation and snowfall are the two families with a fourth, and the
+    // only Totals: both are amounts that add up over the window.
+    expect(RANKING_KEYS.filter((k) => aggregateToken(k) === 'total')).toEqual([
+      'precip_total_in',
+      'snowfall_total_in',
+    ])
   })
 
   it('throws on a key with no aggregate segment', () => {
     expect(() => aggregateToken('elevation_ft' as SortBy)).toThrow(/elevation_ft/)
   })
 
-  // A snapshot answers null rather than throwing: it is a metric with one
-  // column, not a caller mistake.
-  it('answers null for a snapshot key', () => {
-    expect(aggregateToken('snow_depth_in')).toBeNull()
-    expect(windowAggregate('snow_depth_in')).toBeNull()
+  // Snow depth's key left the app with its column (#678), so it names no
+  // family and has no aggregate to read.
+  it('throws on the retired snow depth key', () => {
+    expect(() => aggregateToken('snow_depth_in' as SortBy)).toThrow(/snow_depth_in/)
   })
 })
 
@@ -176,7 +173,7 @@ describe('the vocabulary', () => {
       'cloud_deck',
       'freeze',
       'precip',
-      'snow',
+      'snowfall',
       'temp',
       'wind',
     ])
@@ -186,8 +183,8 @@ describe('the vocabulary', () => {
     // Sentence case, like every other string in the app: it is a noun phrase
     // rather than a proper name, and the height it names is its second word.
     expect(NOUN.freeze).toBe('Freezing level')
-    // Two words for the same reason: the quantity is the depth, not the snow.
-    expect(NOUN.snow).toBe('Snow depth')
+    // Open-Meteo's own name for the variable, and one word (#678).
+    expect(NOUN.snowfall).toBe('Snowfall')
     // The one initialism: a word people read as a word, not a clipped noun.
     // Deliberately not "AQI (PM2.5)" — air_quality.py fetches Open-Meteo's
     // `us_aqi`, the EPA index combined across every pollutant, so naming one
@@ -230,13 +227,14 @@ describe('the vocabulary', () => {
     // The same unit and datum as the elevation column, because the reading is
     // the comparison between the two.
     expect(UNIT.freeze).toBe('ft')
-    expect(UNIT.snow).toBe('in')
+    // Inches of snow, not of the water in it.
+    expect(UNIT.snowfall).toBe('in')
   })
 })
 
 describe('familyOf', () => {
   it('resolves every ranking key', () => {
-    expect(SORTS.map(familyOf)).toEqual(['precip', 'wind', 'temp', 'freeze', 'snow', 'aqi'])
+    expect(SORTS.map(familyOf)).toEqual(['precip', 'wind', 'temp', 'freeze', 'snowfall', 'aqi'])
   })
 
   // Every column the results table can show, so a new field cannot reach a
@@ -256,7 +254,10 @@ describe('familyOf', () => {
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
-      'snow_depth_in',
+      'snowfall_total_in',
+      'snowfall_avg_in_hr',
+      'snowfall_min_in_hr',
+      'snowfall_max_in_hr',
       'aqi_avg',
       'aqi_min',
       'aqi_max',
@@ -269,6 +270,7 @@ describe('familyOf', () => {
   it('throws on a key that names no metric', () => {
     expect(() => familyOf('elevation_ft')).toThrow(/elevation_ft/)
     expect(() => familyOf('name')).toThrow()
+    expect(() => familyOf('snow_depth_in')).toThrow(/snow_depth_in/)
   })
 })
 
@@ -281,12 +283,8 @@ describe('windowAggregate', () => {
     expect(windowAggregate('aqi_max')).toBe('Max')
   })
 
-  it('answers with an AGGREGATE word for every rankable key that has one', () => {
+  it('answers with an AGGREGATE word for every rankable key', () => {
     for (const key of RANKING_KEYS) {
-      if (isSnapshotFamily(familyOf(key))) {
-        expect(windowAggregate(key)).toBeNull()
-        continue
-      }
       expect(Object.values(AGGREGATE)).toContain(windowAggregate(key))
     }
   })
@@ -316,40 +314,8 @@ describe('rankedNoun', () => {
     expect(rankedNoun('precip_total_in', true)).toBe('Precipitation')
     expect(rankedNoun('wind_max_mph', true)).toBe('Wind')
     expect(rankedNoun('aqi_avg', true)).toBe('AQI')
-  })
-
-  // A snapshot was never reduced over the window, so there is no word to put
-  // in front of it in either mode, and the caption beside it says which day
-  // the number is (#449).
-  it('leaves a snapshot bare in both modes', () => {
-    expect(rankedNoun('snow_depth_in', false)).toBe(NOUN.snow)
-    expect(rankedNoun('snow_depth_in', true)).toBe(NOUN.snow)
-  })
-})
-
-describe('snapshot families', () => {
-  // One list, read by every surface that composes a name, reads an aggregate
-  // or asks for a series, so a second such metric is one entry rather than a
-  // new special case in six files.
-  it('names snow depth and nothing else', () => {
-    expect([...SNAPSHOT_FAMILIES]).toEqual(['snow'])
-    for (const family of RANKED_FAMILIES) {
-      expect(isSnapshotFamily(family)).toBe(family === 'snow')
-    }
-  })
-
-  // A snapshot has exactly one column, which is what makes it one: there is
-  // no reduction, so there is nothing to offer a dropdown.
-  it('gives every snapshot family a single key', () => {
-    for (const family of SNAPSHOT_FAMILIES) {
-      expect(FAMILY_KEYS[family]).toHaveLength(1)
-      expect(DEFAULT_FAMILY_KEY[family]).toBe(FAMILY_KEYS[family][0])
-    }
-  })
-
-  it('labels a snapshot column with its bare noun and unit', () => {
-    expect(metricLabel('snow')).toBe(`${NOUN.snow} (${UNIT.snow})`)
-    expect(metricLabel('snow')).not.toContain(SEP)
+    expect(rankedNoun('snowfall_total_in', false)).toBe('Total Snowfall')
+    expect(rankedNoun('snowfall_total_in', true)).toBe('Snowfall')
   })
 })
 

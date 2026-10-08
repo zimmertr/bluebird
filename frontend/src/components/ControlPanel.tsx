@@ -239,9 +239,6 @@ export default function ControlPanel({
   // would fetch the same numbers several times and draw one line where the
   // picker shows several chips.
   const compareAqi = rankFamily === 'aqi' && selected.length > 1
-  // The snow analysis is one national grid the pod holds, so it is the second
-  // metric no model answers.
-  const compareSnow = rankFamily === 'snow' && selected.length > 1
   // Named rather than counted: the model is a control in this panel, so the
   // reader can act on a name and cannot act on a fraction.
   const freezeGaps = useMemo(
@@ -260,7 +257,6 @@ export default function ControlPanel({
     hasPins,
     compareAqi,
     compareFreeze: freezeGaps.length > 0,
-    compareSnow,
   }
   const analyzeEnabled = canAnalyze(gate)
 

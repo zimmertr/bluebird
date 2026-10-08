@@ -27,7 +27,6 @@ import { MAX_ANALYZE_DESTINATIONS } from './clientAnalyze'
 import { MAX_POLYGON_POINTS } from './drawGeometry'
 import { COARSE_TOLERANCE_DEG } from './wildfires'
 import { PEAK_MATCH_RADIUS_M } from './peakTiles'
-import { SNOW_DEPTH_CEILING_IN } from './snowCeiling'
 import {
   ARCHIVE_STRADDLE_DAYS,
   FUTURE_LIMIT_SLACK_DAYS,
@@ -42,7 +41,7 @@ describe('the constants the backend publishes for this side to match', () => {
     // The browser also asks for `wind_direction_10m`, which only the map's
     // playback arrows read, so this pair is off by exactly one rather than
     // equal. Both counts are past the floor of max(1, vars/10), so the two
-    // weight factors differ too (1.5 here, 1.4 on the pod), and the extra
+    // weight factors differ too (1.6 here, 1.5 on the pod), and the extra
     // variable costs a tenth of a weighted call per location. Each side prices
     // its own request off its own count, so the gap is a price, not a drift;
     // a variable added to one side alone is what this test fails.
@@ -73,13 +72,6 @@ describe('the constants the backend publishes for this side to match', () => {
 
   it('believes the wildfire simplification the backend applies', () => {
     expect(COARSE_TOLERANCE_DEG).toBe(constants.COARSE_OFFSET_DEG)
-  })
-
-  it('stops the snow depth column where the source file stops', () => {
-    // The browser prints a depth at this number as "at least" rather than as
-    // a measurement, so the mark is only honest while both sides agree on
-    // where SNODAS's int16 millimetres run out.
-    expect(SNOW_DEPTH_CEILING_IN).toBe(constants.SNOW_DEPTH_CEILING_IN)
   })
 
   it('puts the archive boundary where the backend puts it', () => {

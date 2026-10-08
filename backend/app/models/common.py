@@ -39,36 +39,6 @@ class ForecastMode(str, Enum):
     window = "window"
 
 
-
-# What `snow_depth_in` means, on the two models that carry it.
-#
-# One constant rather than the per-class wording `_DiscoveryFields` keeps:
-# those four descriptions differ because the two endpoints genuinely do
-# different things with the same field, and this one is the same statement
-# about the same number wherever it appears.
-_SNOW_DEPTH_DESCRIPTION = (
-    "Snow on the ground today, in inches, from the NOHRSC SNODAS 1 km grid. "
-    "One number per destination that ignores the analyzed window entirely: it "
-    "is the current analysis rather than a forecast, so it has no minimum, "
-    "mean or maximum and no hourly series. Null outside the grid, which covers "
-    "the contiguous United States, southern Canada and northern Mexico, and "
-    "null while this instance holds no grid. Over permanent ice SNODAS "
-    "accumulates year over year, so a glaciated summit reads hundreds of "
-    "inches in every season; that is ice rather than this season's snow. The "
-    "value saturates at 1290.04, the 16-bit integer millimetre ceiling of the "
-    "source file, so a row at that number holds at least that much and is "
-    "permanent ice."
-)
-
-# The grid a report's snow depths came from, on the two responses that carry
-# one. Same wording for the same reason as the field above.
-_SNOW_DATE_DESCRIPTION = (
-    "The date of the SNODAS analysis behind every `snow_depth_in` on this "
-    "response, as `YYYY-MM-DD`. Null when this instance holds no grid, which "
-    "is also when every row's `snow_depth_in` is null."
-)
-
-
 class SortBy(str, Enum):
     # One member per aggregate column a result row carries, so anything the
     # table can show, a caller can rank by (#291).
@@ -93,10 +63,12 @@ class SortBy(str, Enum):
     cloud_deck_min = "cloud_deck_min_ft"
     cloud_deck_avg = "cloud_deck_avg_ft"
     cloud_deck_max = "cloud_deck_max_ft"
-    # The one key that is not a window aggregate: snow depth is today's number
-    # whatever window was analyzed, so the family has one member rather than
-    # three (issue #449).
-    snow_depth = "snow_depth_in"
+    # Snowfall (issue #678): a per-hour amount like precipitation, so it has
+    # precipitation's four aggregates.
+    snowfall_total = "snowfall_total_in"
+    snowfall_avg = "snowfall_avg_in_hr"
+    snowfall_min = "snowfall_min_in_hr"
+    snowfall_max = "snowfall_max_in_hr"
 
 
 # Every request model refuses a field it does not declare (issue #563). Left to

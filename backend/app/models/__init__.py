@@ -42,8 +42,6 @@ from app.models.analyze import (
     HourlySeries,
 )
 from app.models.common import (
-    _SNOW_DATE_DESCRIPTION,
-    _SNOW_DEPTH_DESCRIPTION,
     CustomDestination,
     DestinationType,
     ForecastMode,
@@ -81,8 +79,6 @@ __all__ = [
     "DEFAULT_FORECAST_MODEL",
     "ModelInfo",
     "MODEL_INFO",
-    "_SNOW_DEPTH_DESCRIPTION",
-    "_SNOW_DATE_DESCRIPTION",
     "SortBy",
     "GeoPolygon",
     "bbox_area_km2",

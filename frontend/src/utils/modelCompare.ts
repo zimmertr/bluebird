@@ -237,6 +237,8 @@ export function modelSeriesOnGrid(
     // The freezing level rides too: three of the eight models publish it, and a
     // compared line under one that does not is a line of nulls, drawn as nothing.
     freeze_ft: remap(fetched.freeze_ft),
+    // Snowfall is each model's own answer, so unlike snow depth it compares.
+    snowfall_in: remap(fetched.snowfall_in),
     aqi: times.map(() => null),
   }
 }

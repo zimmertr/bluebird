@@ -4,7 +4,6 @@
 // without a DOM.
 
 import { SortBy } from '../types'
-import { familyOf, isSnapshotFamily } from '../metrics'
 import { NO_VALUE, fillColor } from './resultFeatures'
 import type { GridCell, GridSpec } from './forecastGridLattice'
 
@@ -19,20 +18,6 @@ export const GRID_STYLES: GridStyle[] = ['blocks', 'smooth']
 
 export function isGridStyle(value: string): value is GridStyle {
   return (GRID_STYLES as string[]).includes(value)
-}
-
-/**
- * Whether the grid can paint this ranking at all.
- *
- * The lattice is a field of forecasts, and a snapshot family (snow depth) is
- * not one: the pod matches each destination to its snow grid at discovery,
- * and no lattice cell goes through discovery, so every cell has no value. The
- * one rule both the raster and the legend's grid row read, so the map cannot
- * show a "Forecast grid" row over a field it never drew (#579). The layer's
- * switch keeps its state: another ranking paints again.
- */
-export function gridPaints(sortBy: SortBy): boolean {
-  return !isSnapshotFamily(familyOf(sortBy))
 }
 
 /** A raster ready to be handed to an image source: RGBA, row 0 at the north. */
@@ -67,7 +52,7 @@ export function gridRaster(
   hourIndex: number | null,
   style: GridStyle = 'smooth',
 ): GridRaster | null {
-  if (cells.length === 0 || !gridPaints(sortBy)) return null
+  if (cells.length === 0) return null
   const { cols, rows } = spec
   const rgba = new Uint8ClampedArray(cols * rows * 4)
 

@@ -8,7 +8,7 @@ import type { AnalyzeRequest, DestinationResult, SortBy } from '../types'
 import { familyOf, isOnRequestFamily } from '../metrics'
 
 /**
- * The forecast bounds an analysis is narrowed by, mirroring the sixteen optional
+ * The forecast bounds an analysis is narrowed by, mirroring the fourteen optional
  * fields on `AnalyzeRequest`.
  *
  * Elevation is deliberately NOT in here, and the app sends no elevation bound
@@ -27,8 +27,8 @@ export interface Constraints {
   maxWindMph: number | null
   minFreezeFt: number | null
   maxFreezeFt: number | null
-  minSnowDepthIn: number | null
-  maxSnowDepthIn: number | null
+  minSnowfallTotalIn: number | null
+  maxSnowfallTotalIn: number | null
   minAqi: number | null
   maxAqi: number | null
   minCloudDeckFt: number | null
@@ -44,8 +44,8 @@ export const NO_CONSTRAINTS: Constraints = {
   maxWindMph: null,
   minFreezeFt: null,
   maxFreezeFt: null,
-  minSnowDepthIn: null,
-  maxSnowDepthIn: null,
+  minSnowfallTotalIn: null,
+  maxSnowfallTotalIn: null,
   minAqi: null,
   maxAqi: null,
   minCloudDeckFt: null,
@@ -62,18 +62,16 @@ export const NO_CONSTRAINTS: Constraints = {
 // The freezing level reads the same way, in the one family where neither end
 // is the bad one: its floor asks that the level never dropped below the value
 // and its ceiling that it never rose above it.
-// Precipitation and AQI have no minimum aggregate to read — a per-hour
-// precipitation floor would be 0.000 almost everywhere — so both of their
-// bounds compare one field, and the panel labels those two rows with the table
-// column they compare so the screen says which. Snow depth's two ends also
-// read one field, and for a third reason: it is today's single number rather
-// than a reduction over hours, so there is no best or worst hour to choose.
+// Precipitation, snowfall and AQI have no minimum aggregate worth reading — a
+// per-hour precipitation floor would be 0.000 almost everywhere — so both of
+// their bounds compare one field, and the panel labels those rows with the
+// table column they compare so the screen says which.
 const LOWER_BOUNDS = [
   ['minPrecipTotalIn', 'precip_total_in'],
   ['minTempF', 'temp_min_f'],
   ['minWindMph', 'wind_min_mph'],
   ['minFreezeFt', 'freeze_min_ft'],
-  ['minSnowDepthIn', 'snow_depth_in'],
+  ['minSnowfallTotalIn', 'snowfall_total_in'],
   ['minAqi', 'aqi_max'],
   ['minCloudDeckFt', 'cloud_deck_min_ft'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
@@ -83,7 +81,7 @@ const UPPER_BOUNDS = [
   ['maxTempF', 'temp_max_f'],
   ['maxWindMph', 'wind_max_mph'],
   ['maxFreezeFt', 'freeze_max_ft'],
-  ['maxSnowDepthIn', 'snow_depth_in'],
+  ['maxSnowfallTotalIn', 'snowfall_total_in'],
   ['maxAqi', 'aqi_max'],
   ['maxCloudDeckFt', 'cloud_deck_max_ft'],
 ] as const satisfies readonly (readonly [keyof Constraints, keyof DestinationResult])[]
@@ -104,8 +102,8 @@ export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
     maxWindMph: request.max_wind_mph ?? null,
     minFreezeFt: request.min_freeze_ft ?? null,
     maxFreezeFt: request.max_freeze_ft ?? null,
-    minSnowDepthIn: request.min_snow_depth_in ?? null,
-    maxSnowDepthIn: request.max_snow_depth_in ?? null,
+    minSnowfallTotalIn: request.min_snowfall_total_in ?? null,
+    maxSnowfallTotalIn: request.max_snowfall_total_in ?? null,
     minAqi: request.min_aqi ?? null,
     maxAqi: request.max_aqi ?? null,
     minCloudDeckFt: request.min_cloud_deck_ft ?? null,
@@ -124,8 +122,8 @@ export function constraintFields(c: Constraints) {
     max_wind_mph: c.maxWindMph,
     min_freeze_ft: c.minFreezeFt,
     max_freeze_ft: c.maxFreezeFt,
-    min_snow_depth_in: c.minSnowDepthIn,
-    max_snow_depth_in: c.maxSnowDepthIn,
+    min_snowfall_total_in: c.minSnowfallTotalIn,
+    max_snowfall_total_in: c.maxSnowfallTotalIn,
     min_aqi: c.minAqi,
     max_aqi: c.maxAqi,
     min_cloud_deck_ft: c.minCloudDeckFt,
@@ -150,14 +148,14 @@ export function namesOnRequestMetric(sortBy: SortBy, c: Constraints): boolean {
 /**
  * Port of _filter_constraints: drop rows outside the forecast bounds.
  *
- * A null value passes every bound. Three fields can be null here, and no
- * absence is evidence of anything. A missing AQI means the window outran the
- * ~5-day air-quality horizon or a best-effort fetch failed; a missing freezing
- * level means the chosen model publishes none at all, which is five of the
- * eight, so dropping those rows would empty the table outright for anyone who
- * set the bound under the wrong model; a missing snow depth means the
- * destination is outside the grid, or the pod holds no grid yet. It is the
- * same call `rankComparator` makes for a nullable ranking key.
+ * A null value passes every bound, and no absence is evidence of anything. A
+ * missing AQI means the window outran the ~5-day air-quality horizon or a
+ * best-effort fetch failed; a missing freezing level means the chosen model
+ * publishes none at all, which is five of the eight, so dropping those rows
+ * would empty the table outright for anyone who set the bound under the wrong
+ * model; a missing snowfall means the forecast left those hours blank (HRRR
+ * past its hour 45, #678). It is the same call `rankComparator` makes for a
+ * nullable ranking key.
  */
 export function filterConstraints(
   rows: readonly DestinationResult[],

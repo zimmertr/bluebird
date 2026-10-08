@@ -1,7 +1,7 @@
 {
   "_generated_by": "backend/scripts/generate_mirrored_constants.py \u2014 do not hand-edit",
   "constants": {
-    "N_VARIABLES": 14,
+    "N_VARIABLES": 15,
     "MAX_ANALYZE_PEAKS": 1500,
     "MAX_POLYGON_POINTS": 1000,
     "COARSE_OFFSET_DEG": 0.0005,
@@ -12,7 +12,6 @@
     "ARCHIVE_STRADDLE_DAYS": 1,
     "BATCH_SIZE": 50,
     "MAX_CONCURRENT_BATCHES": 4,
-    "SNOW_DEPTH_CEILING_IN": 1290.04,
     "N_CLOUD_VARIABLES": 9,
     "CLOUD_SATURATION_RH": 95.0,
     "CLOUD_DECK_CEILING_FT": 30066.0,

@@ -55,7 +55,7 @@ from app.routes.analyze.events import (
     Status,
     _drain,
 )
-from app.services import air_quality, snodas, weather
+from app.services import air_quality, weather
 from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
@@ -105,7 +105,6 @@ class Capped:
     destinations: list[dict]
     total_found: int | None
     truncated: bool
-    snow_analysis_date: str | None
 
 
 @dataclass(slots=True, frozen=True)
@@ -260,8 +259,7 @@ async def _find_candidates(
 def _apply_cap(
     destinations: list[dict], request: AnalyzeRequest, noun: str
 ) -> Capped | Refusal | Result:
-    """The empty answer, the over-cap refusal, or the final candidate set with
-    today's snow depth on it."""
+    """The empty answer, the over-cap refusal, or the final candidate set."""
     if not destinations:
         log.info("No destinations to analyze (none found, or none within the elevation band)")
         return Result(AnalyzeResponse(results=[], total_queried=0, total_matched=0))
@@ -275,13 +273,7 @@ def _apply_cap(
         else:
             suggestion = _suggest_elevation_floor(destinations, MAX_ANALYZE_PEAKS)
             return Refusal(_refusal_body(len(destinations), noun, suggestion=suggestion))
-
-    # Today's snow depth, read off the held grid once the candidate set is
-    # final. It is not a forecast and costs no upstream call, so it rides here
-    # rather than beside the weather fetch, and a pod holding no grid answers
-    # nulls instead of waiting for one (`fill_snow_depth`).
-    snow_analysis_date = snodas.fill_snow_depth(destinations)
-    return Capped(destinations, total_found, truncated, snow_analysis_date)
+    return Capped(destinations, total_found, truncated)
 
 
 def _pace_detail(count: int, noun: str, days: int) -> str:
@@ -312,8 +304,8 @@ def _check_pacing(
     The pacer bound holds an unkeyed caller alone (#581). The weighted pacer
     sheds any acquire that would wait longer than `UPSTREAM_WEIGHT_MAX_WAIT_S`,
     and on a long archive window an analysis's OWN batches pass that bound on
-    an idle pod: each costs five weighted calls a day, and the fourth or later
-    batch queues behind the ones before it. It used to spend those first
+    an idle pod: each costs about 5.4 weighted calls a day, and the fourth or
+    later batch queues behind the ones before it. It used to spend those first
     batches and then answer a 503 whose Retry-After no retry could honour.
     `plan_max_wait_s` runs the analysis's own weights through a scratch copy of
     the pacer, so the refusal and the shed are one rule and cannot drift. A
@@ -687,7 +679,6 @@ def _result(ranked: Ranked, capped: Capped, request: AnalyzeRequest) -> Result:
             times=ranked.times,
             total_found=capped.total_found,
             truncated=capped.truncated,
-            snow_analysis_date=capped.snow_analysis_date,
         )
     )
 

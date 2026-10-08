@@ -38,6 +38,7 @@ import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
  */
 export const WEATHER_UNITS: Readonly<Record<string, string>> = {
   precipitation: 'inch',
+  snowfall: 'inch',
   temperature_2m: '°F',
   wind_speed_10m: 'mp/h',
   ...Object.fromEntries([925, 850, 700, 600, 500].map((p) => [`wind_speed_${p}hPa`, 'mp/h'])),
@@ -66,7 +67,7 @@ export function cloudAnswer(times: string[], rh = 30): { hourly: Record<string, 
 
 /** Every hourly array, so a caller spells only the series it charts. */
 export function series(over: Partial<HourlySeries> = {}): HourlySeries {
-  return { precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], aqi: [], ...over }
+  return { precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], snowfall_in: [], aqi: [], ...over }
 }
 
 /**
@@ -98,7 +99,10 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     aqi_avg: null,
     aqi_min: null,
     aqi_max: null,
-    snow_depth_in: null,
+    snowfall_total_in: null,
+    snowfall_avg_in_hr: null,
+    snowfall_min_in_hr: null,
+    snowfall_max_in_hr: null,
     cloud_deck_min_ft: null,
     cloud_deck_avg_ft: null,
     cloud_deck_max_ft: null,
@@ -161,6 +165,10 @@ export function weatherResult(over: Partial<PresentWeather> = {}): PresentWeathe
     freeze_min_ft: null,
     freeze_max_ft: null,
     freeze_avg_ft: null,
+    snowfall_total_in: null,
+    snowfall_avg_in_hr: null,
+    snowfall_min_in_hr: null,
+    snowfall_max_in_hr: null,
     series: null,
     ...over,
   }
@@ -172,7 +180,7 @@ export function weatherResult(over: Partial<PresentWeather> = {}): PresentWeathe
  * variable. Empty unless a caller spells the hours its assertions read.
  */
 export function fetchedSeries(over: Partial<WeatherSeries> = {}): WeatherSeries {
-  return { times: [], precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], ...over }
+  return { times: [], precip_in: [], temp_f: [], wind_mph: [], freeze_ft: [], snowfall_in: [], ...over }
 }
 
 /**
@@ -348,7 +356,6 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
     polygonKey: '',
     typesKey: '',
     compareModels: [],
-    snowAnalysisDate: null,
     cloudFetched: false,
     ...over,
   }

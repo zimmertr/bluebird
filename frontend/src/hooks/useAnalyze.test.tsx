@@ -36,11 +36,11 @@ const REQUEST: AnalyzeRequest = {
 const ROWS: DestinationResult[] = [resultRow({ ...PROBE })]
 const DATA = { results: ROWS, total_queried: 1, total_matched: 1, times: [1] }
 
-// What resolving the custom list answers, with a snow date or without one.
-function stubResolve(snowDate: string | null = null) {
+// What resolving the custom list answers.
+function stubResolve() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => fakeResponse({ destinations: [discovered({ ...PROBE, type: 'custom' })], total: 1, snow_analysis_date: snowDate })),
+    vi.fn(async () => fakeResponse({ destinations: [discovered({ ...PROBE, type: 'custom' })], total: 1 })),
   )
 }
 
@@ -57,7 +57,7 @@ beforeEach(() => {
   vi.setSystemTime(T0)
   ranked.mockReset()
   // The real ranking never returns before the lookup it was handed has
-  // answered (#643), and the hook's snow date depends on that order.
+  // answered (#643).
   ranked.mockImplementation(async (_request, _candidates, _startMs, _endMs, callbacks) => {
     await callbacks?.resolving
     return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null }
@@ -152,16 +152,6 @@ describe('one analysis', () => {
     expect(onCommit).toHaveBeenCalledOnce()
   })
 
-  it('records the snow date of its own discovery, never the last one', async () => {
-    const { result } = renderHook(() => useAnalyze())
-    stubResolve('2026-07-19')
-    await analyzeAt(result, T0)
-    expect(result.current.analyzed?.snowAnalysisDate).toBe('2026-07-19')
-    stubResolve(null)
-    await analyzeAt(result, T0 + MIN)
-    expect(result.current.analyzed?.snowAnalysisDate).toBeNull()
-  })
-
   it('records the discovery a refresh names, and a retry repeats it', async () => {
     const { result } = renderHook(() => useAnalyze())
     const discovery = discoveryKeys({ coordinates: [[[1, 2], [3, 4], [5, 6], [1, 2]]] }, ['peak'], false)
@@ -180,9 +170,9 @@ describe('a lookup that answers after the report', () => {
   const KEY = geoKey(PROBE.latitude, PROBE.longitude)
   const PATCHED = resultRow({ ...PROBE, elevation_ft: 6000 })
   function deferred() {
-    let resolve!: (p: { rows: DestinationResult[]; columns: Map<string, HeldColumns>; snowAnalysisDate: string | null }) => void
+    let resolve!: (p: { rows: DestinationResult[]; columns: Map<string, HeldColumns> }) => void
     let reject!: (e: unknown) => void
-    const promise = new Promise<{ rows: DestinationResult[]; columns: Map<string, HeldColumns>; snowAnalysisDate: string | null }>(
+    const promise = new Promise<{ rows: DestinationResult[]; columns: Map<string, HeldColumns> }>(
       (res, rej) => {
         resolve = res
         reject = rej
@@ -190,7 +180,7 @@ describe('a lookup that answers after the report', () => {
     )
     return { promise, resolve, reject }
   }
-  function rankLate(late: Promise<{ rows: DestinationResult[]; columns: Map<string, HeldColumns>; snowAnalysisDate: string | null }>) {
+  function rankLate(late: Promise<{ rows: DestinationResult[]; columns: Map<string, HeldColumns> }>) {
     ranked.mockImplementationOnce(async () => ({
       response: DATA,
       universe: ROWS,
@@ -202,21 +192,17 @@ describe('a lookup that answers after the report', () => {
 
   it('lands the answer on the committed report, the snapshot and the held field', async () => {
     const { result } = renderHook(() => useAnalyze())
-    // The date rides on the patch from the lookup's own answer.
-    stubResolve('2026-07-19')
     const late = deferred()
     rankLate(late.promise)
     await analyzeAt(result, T0)
     expect([...result.current.pendingHeights]).toEqual([KEY])
-    expect(result.current.analyzed?.snowAnalysisDate).toBeNull()
     await act(async () => {
-      late.resolve({ rows: [PATCHED], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+      late.resolve({ rows: [PATCHED], columns: new Map() })
       await late.promise
     })
     expect(result.current.universe?.[0]).toBe(PATCHED)
     expect(result.current.response?.results[0]).toBe(PATCHED)
     expect(result.current.pendingHeights.size).toBe(0)
-    expect(result.current.analyzed?.snowAnalysisDate).toBe('2026-07-19')
     // The same report, filled in, rather than another one.
     expect(result.current.analysisSeq).toBe(1)
     await analyzeAt(result, T0 + MIN)
@@ -231,7 +217,7 @@ describe('a lookup that answers after the report', () => {
     await analyzeAt(result, T0)
     act(() => result.current.reset())
     await act(async () => {
-      first.resolve({ rows: [PATCHED], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+      first.resolve({ rows: [PATCHED], columns: new Map() })
       await first.promise
     })
     expect(result.current.universe).toBeNull()
@@ -242,11 +228,10 @@ describe('a lookup that answers after the report', () => {
     await analyzeAt(result, T0 + MIN)
     await analyzeAt(result, T0 + 2 * MIN)
     await act(async () => {
-      second.resolve({ rows: [PATCHED], columns: new Map(), snowAnalysisDate: '2026-07-19' })
+      second.resolve({ rows: [PATCHED], columns: new Map() })
       await second.promise
     })
     expect(result.current.universe?.[0]).toBe(ROWS[0])
-    expect(result.current.analyzed?.snowAnalysisDate).toBeNull()
   })
 
   it('places held rows from an answer that arrives after the lookup gave up', async () => {
@@ -256,7 +241,7 @@ describe('a lookup that answers after the report', () => {
     await analyzeAt(result, T0)
     // The run's own call placed nothing, the column still held.
     await act(async () => {
-      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]), snowAnalysisDate: null })
+      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]) })
       await late.promise
     })
     expect(result.current.pendingHeights.size).toBe(1)
@@ -280,7 +265,7 @@ describe('a lookup that answers after the report', () => {
     expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000, osm_id: 'node/1' })
     expect(result.current.pendingHeights.size).toBe(0)
     await act(async () => {
-      late.resolve({ rows: [], columns: new Map(), snowAnalysisDate: null })
+      late.resolve({ rows: [], columns: new Map() })
       await late.promise
     })
     expect(result.current.universe?.[0]).toMatchObject({ elevation_ft: 6000 })
@@ -294,7 +279,7 @@ describe('a lookup that answers after the report', () => {
     expect([...result.current.pendingHeights]).toEqual([KEY])
     // The run's own call changed nothing about the row: still waiting on the lookup.
     await act(async () => {
-      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]), snowAnalysisDate: null })
+      late.resolve({ rows: [], columns: new Map([[KEY, { weather: { hourly: { time: [] } } }]]) })
       await late.promise
     })
     expect([...result.current.pendingHeights]).toEqual([KEY])

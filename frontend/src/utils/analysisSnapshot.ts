@@ -17,8 +17,6 @@ export interface RecordedFacts {
   // carries no polygon and the caller passes the panel's keys instead.
   discovery: DiscoveryKeys
   compareModels: readonly string[]
-  // The grid date discovery reported, or null when it reported none.
-  snowAnalysisDate: string | null
 }
 
 // Whether an analysis fetches the cloud column (#117): only when its ranking
@@ -54,7 +52,6 @@ export function analyzedView(
     polygonKey: facts.discovery.polygonKey,
     typesKey: facts.discovery.typesKey,
     compareModels: facts.compareModels,
-    snowAnalysisDate: facts.snowAnalysisDate,
     cloudFetched: requestsCloud(request),
   }
 }

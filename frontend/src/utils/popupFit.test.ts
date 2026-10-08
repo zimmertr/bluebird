@@ -73,3 +73,44 @@ describe('placePopup', () => {
     })
   })
 })
+
+// The tutorial's marker step on a 360x740 phone, as measured in a browser on
+// 2026-10-08 (#678): the map above the collapsed sheet, the button column, the
+// demonstration's popup element (its height holds the 10px tip, which the
+// figure adds again, so the figure runs 10px past the element), and the marker
+// where the step's camera put it. The fit itself was right: handed the tour
+// card's own box (16..344 x 578..724) it placed the popup clear of it, at
+// 159..559.5. The card then left: `sheetEdge` sends it to the top once the
+// popup's light (the element grown by the 6px spotlight pad, so 565.5) passes
+// its band at 740 - 146 - 32 = 562, and at the top (16..162) it stood on the
+// popup's title. The tour now hands the fit the room the card needs to keep
+// its edge (`sheetKeepOut` in tour/place.ts: 562 less the pad, 556).
+describe('the tutorial popup on a phone', () => {
+  const REGION: Rect = { left: 0, top: 0, right: 360, bottom: 636 }
+  const COLUMN: Rect = { left: 12, top: 12, right: 196, bottom: 128 }
+  const CARD_BOX: Rect = { left: 16, right: 344, top: 578, bottom: 724 }
+  const KEEP_OUT: Rect = { left: 16, right: 344, top: 556, bottom: 724 }
+  const POPUP = { width: 280, height: 401 }
+  const MARKER = { x: 180, y: 318 }
+  const area = (r: Rect) => (r.right - r.left) * (r.bottom - r.top)
+  // The element's bottom, which the light grows by the pad, is the figure's
+  // bottom less the tip the figure counts again.
+  const lightBottom = (placed: { anchor: 'top' | 'bottom'; dy: number }) =>
+    figureOf({ x: MARKER.x, y: MARKER.y + placed.dy }, POPUP, placed.anchor).bottom - 10 + 6
+
+  it('left the light inside the card\'s band when it was handed the card alone', () => {
+    const placed = placePopup(MARKER, POPUP, REGION, [COLUMN, CARD_BOX])
+    expect(placed).toEqual({ anchor: 'top', dx: 0, dy: -159 })
+    // 566 on the measured 401px; the browser drew the element 400.5px tall.
+    expect(lightBottom(placed)).toBe(566)
+    expect(lightBottom(placed)).toBeGreaterThan(562)
+  })
+
+  it('stands between the column and the card\'s keep-out, with its light above the band', () => {
+    const placed = placePopup(MARKER, POPUP, REGION, [COLUMN, KEEP_OUT])
+    const figure = figureOf({ x: MARKER.x, y: MARKER.y + placed.dy }, POPUP, placed.anchor)
+    expect(visibleArea(figure, REGION, [COLUMN, KEEP_OUT])).toBe(area(figure))
+    expect(figure.top).toBeGreaterThanOrEqual(COLUMN.bottom)
+    expect(lightBottom(placed)).toBeLessThanOrEqual(562)
+  })
+})

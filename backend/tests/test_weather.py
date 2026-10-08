@@ -33,7 +33,7 @@ from app.services.openmeteo_weight import call_weight
 from app.services.weather import fetch_weather_batch
 
 
-def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m"):
+def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m", snowfall=None):
     hourly = {
         "time": times,
         "precipitation": precip,
@@ -45,6 +45,7 @@ def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m"):
     # confirm the unit of.
     units: dict[str, str] = {
         "precipitation": "inch",
+        "snowfall": "inch",
         "temperature_2m": "°F",
         "wind_speed_10m": "mp/h",
         **{name: "mp/h" for name, _ in aggregation._WIND_LEVELS},
@@ -61,6 +62,8 @@ def _hourly(times, precip, temp, wind, freeze=None, freeze_unit="m"):
         # body the aggregation must refuse rather than guess at.
         if freeze_unit is not None:
             units["freezing_level_height"] = freeze_unit
+    if snowfall is not None:
+        hourly["snowfall"] = snowfall
     return payload
 
 
@@ -92,6 +95,11 @@ def test_metrics_aggregates_full_window():
         "freeze_min_ft": None,
         "freeze_max_ft": None,
         "freeze_avg_ft": None,
+        # Nor any snowfall, which is reduced on its own the same way (#678).
+        "snowfall_total_in": None,
+        "snowfall_avg_in_hr": None,
+        "snowfall_min_in_hr": None,
+        "snowfall_max_in_hr": None,
     }
 
 
@@ -250,6 +258,56 @@ def test_series_freezing_level_is_all_nulls_when_the_model_omits_it():
     assert s["precip_in"] == [0.1, 0.2, 0.3]
 
 
+# ── Snowfall (issue #678) ──────────────────────────────────────────────────
+#
+# Every model publishes it, but HRRR answers null past its hour 45, so it is
+# reduced outside the precip/temp/wind zip the way the freezing level is: a
+# null snowfall drops out of the snowfall figures alone.
+
+
+def test_metrics_reduce_snowfall_like_precipitation():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.0], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
+        snowfall=[0.5, 1.25, 0.0],
+    )
+    m = _weather_metrics(data, START, END)
+    assert m["snowfall_total_in"] == 1.75
+    assert m["snowfall_avg_in_hr"] == round(1.75 / 3, 4)
+    assert m["snowfall_min_in_hr"] == 0.0
+    assert m["snowfall_max_in_hr"] == 1.25
+
+
+def test_metrics_skip_a_null_snowfall_hour_without_dropping_it():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
+        snowfall=[0.5, None, 1.0],
+    )
+    m = _weather_metrics(data, START, END)
+    # The middle hour's precipitation still counts.
+    assert m["precip_total_in"] == 0.6
+    assert m["snowfall_total_in"] == 1.5
+    assert m["snowfall_avg_in_hr"] == 0.75
+
+
+def test_metrics_all_null_snowfall_leaves_the_other_aggregates():
+    args = (_TIMES_3H, [0.1, 0.2, 0.0], [50.0, 52.0, 54.0], [5.0, 7.0, 9.0])
+    nulled = _weather_metrics(_hourly(*args, snowfall=[None, None, None]), START, END)
+    absent = _weather_metrics(_hourly(*args), START, END)
+    assert nulled == absent
+    assert nulled["snowfall_total_in"] is None
+
+
+def test_series_carries_snowfall_and_its_gaps():
+    data = _hourly(
+        _TIMES_3H, [0.1, 0.2, 0.3], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
+        snowfall=[0.12345, None, 0.4],
+    )
+    s = _weather_series(data, START, END)
+    assert s["snowfall_in"] == [0.1235, None, 0.4]
+    absent = _weather_series(_hourly(_TIMES_3H, [0.1, 0.2, 0.3], [20.0] * 3, [5.0] * 3), START, END)
+    assert absent["snowfall_in"] == [None, None, None]
+
+
 # ── The freezing level's unit (issue #295 review) ──────────────────────────
 #
 # Open-Meteo quotes the height in the unit `precipitation_unit` selects and
@@ -327,6 +385,7 @@ def _declared(**overrides):
     payload["hourly"].update(
         {name: [40.0] for name, _ in aggregation._WIND_LEVELS}
         | {name: [20.0] for name, _ in aggregation._TEMP_LEVELS}
+        | {"snowfall": [0.5]}
     )
     payload["hourly_units"].update(overrides)
     return payload
@@ -335,6 +394,9 @@ def _declared(**overrides):
 def test_the_units_the_aggregation_expects_are_the_measured_ones():
     expected = {
         "precipitation": "inch",
+        # Snowfall follows `precipitation_unit` too (#678): "inch" on every
+        # model and the archive, measured 2026-10-07, and "cm" without it.
+        "snowfall": "inch",
         "temperature_2m": "°F",
         "wind_speed_10m": "mp/h",
         **{f"wind_speed_{p}hPa": "mp/h" for p in (925, 850, 700, 600, 500)},
@@ -360,6 +422,8 @@ def test_the_measured_units_pass():
     ("column", "unit"),
     [
         ("precipitation", "mm"),
+        # What Open-Meteo answers without `precipitation_unit` (#678).
+        ("snowfall", "cm"),
         ("temperature_2m", "°C"),
         ("wind_speed_10m", "km/h"),
         ("wind_speed_700hPa", "km/h"),
@@ -714,11 +778,12 @@ async def test_fetch_weather_batch_requests_the_level_winds_and_temperatures(
     for name, _ in aggregation._TEMP_LEVELS:
         assert name in hourly
     assert aggregation._FREEZING_LEVEL in hourly
-    # 14 variables at one model is weight factor 1.4: max(1, vars x models/10).
+    assert aggregation._SNOWFALL in hourly
+    # 15 variables at one model is weight factor 1.5: max(1, vars x models/10).
     # The five level temperatures (#443) are what took the request over the
-    # floor of 1; every set before them rode inside it.
+    # floor of 1, and snowfall (#678) added a tenth.
     assert len(hourly) == weather.N_VARIABLES
-    assert weather.N_VARIABLES == 14
+    assert weather.N_VARIABLES == 15
 
 
 async def test_fetch_weather_batch_adjusts_wind_to_the_destinations_elevation(
@@ -1448,8 +1513,8 @@ async def test_an_unkeyed_batch_still_pays_the_weighted_pacer(monkeypatch):
     _stub_openmeteo(monkeypatch, [_payload([0.1])])
     await fetch_weather_batch(_dests(1), START, END)
 
-    # One location over one day at 14 variables: 1 x 1 x 1.4 (#443).
-    assert pacer.acquired == [pytest.approx(1.4)]
+    # One location over one day at 15 variables: 1 x 1 x 1.5 (#443, #678).
+    assert pacer.acquired == [pytest.approx(1.5)]
 
 
 async def test_a_keyed_batch_still_takes_an_in_flight_slot(monkeypatch):
@@ -1888,7 +1953,7 @@ async def test_fetch_cloud_batch_asks_for_the_cloud_column_alone(monkeypatch):
 
     hourly = calls[0]["hourly"].split(",")
     assert hourly == aggregation.CLOUD_VARIABLES.split(",")
-    # Nine variables is weight factor 1 on top of the weather's 1.4, which is
+    # Nine variables is weight factor 1 on top of the weather's 1.5, which is
     # the whole reason it is a request of its own (issues #117 and #670).
     assert len(hourly) == weather.N_CLOUD_VARIABLES == 9
     # Humidity alone, which no unit parameter changes, so none is sent.

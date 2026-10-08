@@ -10,8 +10,6 @@ from app.limits import MAX_ANALYZE_PEAKS
 from app.models.common import (
     _MAX_TYPES_LISTED,
     _RESPONSE_CONFIG,
-    _SNOW_DATE_DESCRIPTION,
-    _SNOW_DEPTH_DESCRIPTION,
     CustomDestination,
     DestinationType,
     GeoPolygon,
@@ -88,8 +86,8 @@ class DestinationsRequest(_DiscoveryFields):
         description=(
             "Whether to look up the elevation and OSM id of each "
             "`custom_destinations` row sent without an `elevation_ft`. "
-            "`false` skips the map server: those rows come back as sent, with "
-            "today's snow depth, in milliseconds, and a request that also "
+            "`false` skips the map server: those rows come back as sent, in "
+            "milliseconds, and a request that also "
             "discovers nothing takes no discovery slot. The bundled web app "
             "sends `false` from an analysis, because it looks its rows up "
             "itself as they are pasted, from the basemap's own tiles first and "
@@ -126,9 +124,6 @@ class DiscoveredDestination(BaseModel):
     osm_id: str | None = Field(
         default=None, description="OpenStreetMap identifier such as `node/12345`."
     )
-    snow_depth_in: float | None = Field(
-        default=None, description=_SNOW_DEPTH_DESCRIPTION
-    )
 
 
 class DestinationsResponse(BaseModel):
@@ -159,9 +154,6 @@ class DestinationsResponse(BaseModel):
             "set exceeded the limit, so `destinations` holds the highest "
             "candidates only."
         ),
-    )
-    snow_analysis_date: str | None = Field(
-        default=None, description=_SNOW_DATE_DESCRIPTION
     )
     elevation_lookup_complete: bool = Field(
         default=True,

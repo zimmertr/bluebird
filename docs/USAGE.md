@@ -68,7 +68,7 @@ Paste a CSV of your own coordinates to add them to the analysis — alongside wh
 
 The format is `Lat,Lon` or `Lat,Lon,Name`, one per line; without a name the coordinates are used. A latitude must be between -90 and 90 and a longitude between -180 and 180. A line outside those ranges is dropped, the way a line that is not two numbers is, so it is not counted in the parsed total under the box and is not analyzed. Custom rows compete in the same ranked table as discovered destinations, and a custom row that duplicates a discovered one (same name or same coordinates) replaces it. A line pasted twice at the same coordinates is analyzed once, under the first line's name.
 
-You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation, the same figure a polygon search shows for it. That match starts the moment the box holds rows, however they got there (a paste, a typed line, a shared link, an example), and it reads the map's own tiles first, which answer in well under a second for almost every summit, so the pending rows under the box show their elevation before you have picked a window. Whatever the tiles cannot place goes to the map server, which can be slow; the analysis never waits for it. The rows land as soon as their forecasts do, and while a row's match is still on its way its Elevation cell and the cells that depend on it (wind, temperature, cloud deck and snow depth) show the same ticking dots the Wildfire column shows while its check runs, and fill in when it answers. A ranking on one of those columns reorders once at that moment. A point with no mapped peak beside it shows the terrain height its forecast was read at, marked with a dagger that one line under the table explains (the dagger is a link to that line), and rides along like any other row. The ready-made lists in [`examples/`](../examples/) are formatted this way.
+You do not need to supply an elevation, and there is nowhere in the format to put one. Each pasted coordinate is matched to the nearest mapped peak and shows that peak's elevation, the same figure a polygon search shows for it. That match starts the moment the box holds rows, however they got there (a paste, a typed line, a shared link, an example), and it reads the map's own tiles first, which answer in well under a second for almost every summit, so the pending rows under the box show their elevation before you have picked a window. Whatever the tiles cannot place goes to the map server, which can be slow; the analysis never waits for it. The rows land as soon as their forecasts do, and while a row's match is still on its way its Elevation cell and the cells that depend on it (wind, temperature and cloud deck) show the same ticking dots the Wildfire column shows while its check runs, and fill in when it answers. A ranking on one of those columns reorders once at that moment. A point with no mapped peak beside it shows the terrain height its forecast was read at, marked with a dagger that one line under the table explains (the dagger is a link to that line), and rides along like any other row. The ready-made lists in [`examples/`](../examples/) are formatted this way.
 
 ## Forecast
 
@@ -136,7 +136,7 @@ Once you have set your destinations and forecast window, one table shapes the re
 
 ### Ranking
 
-Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are total precipitation, the averages of the other weather metrics, and the minimum for the freezing level, which is the one that answers the overnight refreeze. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only — the Metrics table is what re-ranks the whole field.
+Sort destinations by any metric, and by any of that metric's aggregates. Each row pairs a metric with a dropdown naming how it is reduced over your window — Avg, Max, and Min for every metric, plus Total for precipitation and snowfall — so "calmest peak wind" (`Wind · Max`, Lowest) is as askable as "calmest average wind". The defaults are the totals of precipitation and snowfall, the averages of the other weather metrics, and the minimum for the freezing level, which is the one that answers the overnight refreeze. Changing a dropdown, a radio, or Lowest/Highest re-ranks every destination in your analyzed area, not just the ones on screen, so the winners really are the extremes of the area; the markers and the map legend follow the chosen aggregate. For a single-hour window the dropdowns disappear: one hour has no minimum, average, or maximum to choose between. Clicking a column header in the table reorders the rows on screen only — the Metrics table is what re-ranks the whole field.
 
 Ranking by a freezing level reads naturally in either direction: Highest
 `Freezing level · Min` finds the destinations whose coldest hour still froze high
@@ -144,12 +144,14 @@ up, and Lowest finds the ones that froze deepest. A destination the model
 publishes no freezing level for ranks last either way, as every missing value
 does.
 
-**Snow depth is the one row with no dropdown**, and the one metric that is not
-a reading of your forecast window. It is how much snow is on the ground today,
-from the NOHRSC snow analysis, so there is no average, minimum or maximum to
-choose between and no hour it belongs to. Rank by it and the caption beside the
-results header says which day the analysis is from, `Snow depth as of Sep 22`,
-in place of the window it would otherwise name.
+**Snowfall is the new snow each forecast expects over your window**, in inches,
+not the snow already on the ground. It reads like precipitation: a total over
+the window, and the average, least and most in any one hour in inches per hour,
+so Highest `Snowfall · Total` finds the destinations expecting the most fresh
+snow and Lowest finds the ones expecting none. The snow already on the ground is
+the **Snow depth** layer on the map, which is an analysis of today rather than a
+forecast and so ranks nothing. How far to trust the number is in
+[DATA.md](DATA.md#open-meteo).
 
 **The cloud deck costs a second request**, so an analysis fetches it only
 when you rank by it or bound it. Pick its row over a report analyzed without it
@@ -170,11 +172,11 @@ Wind and temperature are both reported at each destination's own elevation, not 
 
 ### Bounds
 
-The Min and Max boxes say which destinations you would consider at all: on AQI, the cloud deck, the freezing level, precipitation, snow depth, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** turns on as soon as any box holds a number, and it empties every one of them, the results cap included.
+The Min and Max boxes say which destinations you would consider at all: on AQI, the cloud deck, the freezing level, precipitation, snowfall, temperature and wind. An empty box shows its unit and bounds nothing. **Clear filters** turns on as soon as any box holds a number, and it empties every one of them, the results cap included.
 
-**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For wind, temperature, the freezing level and the cloud deck the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation is bounded on its window total in both columns, because a per-hour minimum would read 0.000 almost everywhere. Snow depth is bounded on today's one number in both columns, there being no hours to reduce.
+**A ceiling is a promise about every hour**, not an average: a 20 mph wind ceiling excludes a destination that gusts to 45 at noon even if it averages 8. A floor is the opposite: a 15 mph wind floor asks for somewhere whose *calmest* hour still blows 15, which almost nowhere satisfies. For wind, temperature, the freezing level and the cloud deck the bounds are exactly the table's Min and Max columns, so a freezing-level floor of 6,000 asks for somewhere the level never dropped below 6,000 ft. Precipitation and snowfall are bounded on their window totals in both columns, because a per-hour minimum would read 0.000 almost everywhere.
 
-**Destinations with unknown AQI, freezing level or snow depth are included.** Air quality is only forecast about five days out, most forecast models publish no freezing level at all, and the snow analysis covers the contiguous United States, southern Canada and northern Mexico and nothing else. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level or the snow analysis never covered the destination.
+**Destinations with unknown AQI, freezing level or snowfall are included.** Air quality is only forecast about five days out, most forecast models publish no freezing level at all, and a model whose reach ends inside your window leaves its later hours blank. Missing values are not evidence of bad conditions, so those rows ride along: the table shows a dash where a number is missing, and `N/A` where the model carries no freezing level.
 
 Every bound applies the instant you type, since the browser already holds forecasts for every destination it found. None of them can ever ask for a forecast the app does not have, so loosening one is as immediate as tightening it.
 
@@ -267,11 +269,9 @@ the points are in hand everything else is free: changing the ranking recolors th
 field without asking for anything new, and so does the timeline. It fills in as it
 arrives rather than appearing all at once. A square stays empty only where the
 model published no number for it, which for a freezing-level ranking is the five
-models that carry no freezing level at all. A snow depth ranking draws no field and
-no grid row in the legend: snow depth comes from a snow analysis matched to each
-destination, not from a forecast at each point. The switch stays on, and the
-field comes back with any other ranking. The **Snow depth** layer draws the snow
-itself.
+models that carry no freezing level at all. A snowfall ranking paints the new snow
+each square's forecast expects; the **Snow depth** layer draws the snow already on
+the ground.
 
 After a very large analysis it can take a while to start, because it shares a
 per-minute allowance with the analysis you just ran and has to wait its turn. The
@@ -343,11 +343,11 @@ It has up to two axes, and a switch to pick between them when both exist:
   time, because the frames are addressed as "ten minutes ago" and the capture
   moment is only known that closely.
 - **The forecast axis**, which the switch labels with the ranked metric —
-  Wind, Precipitation, Temperature, Freezing level, Snow depth, or AQI — appears once an analysis covers
+  Wind, Precipitation, Temperature, Freezing level, Snowfall, or AQI — appears once an analysis covers
   more than one hour, and scrubs the window you asked for. The markers recolor to the hour under the playhead, on the
-  same bands the legend shows, and the legend follows: precipitation switches to
-  inches per hour, since an hour of rain and a window's total are different
-  quantities. Ranking a wind metric also draws an arrow beside each marker,
+  same bands the legend shows, and the legend follows: precipitation and snowfall
+  switch to inches per hour, since an hour of rain or snow and a window's total
+  are different quantities. Ranking a wind metric also draws an arrow beside each marker,
   pointing the way the wind is blowing at that hour. With the forecast grid
   switched on, the field scrubs too, on the same colors and with an arrow of its
   own per sample, so an hour of playback shows the whole picture moving rather
@@ -398,11 +398,11 @@ The results table carries the comparison too. With models compared it grows a **
 
 Every line on the chart runs to its own model's reach, so a model that stops before the analyzed window ends simply stops, and the other lines keep going. A dashed line in the axis color stands at the hour where it stops, labeled with the model's name, the same way the **Now** line is drawn. Two models that end on the same hour share one line, and its label names both. Hide a model and its dashed line goes with its lines.
 
-The results table marks the same thing. On the rows of a model that ends before the window does, every weather number is aggregated over fewer hours than the rows beside it, so the row's **Model** cell carries a raised asterisk after the model's name. The mark is on the name, once per row, and never on a number. Air quality, snow depth and the cloud columns on those rows still cover the whole window, because they are the same whatever model the row names. One line under the table says what the mark means: `* Data is aggregated over a subset of the forecast window due to the model's limited range.` The mark is a link, and clicking it takes you to that line. The model that ranks never carries the mark, because the calendar already shortens the window to its reach. The mark rides the **Model** column, so hiding that column in the **Columns** picker hides the marks and the line under the table together. The downloaded CSV carries the same mark and the same line (see [Downloading the Table](#downloading-the-table)).
+The results table marks the same thing. On the rows of a model that ends before the window does, every weather number is aggregated over fewer hours than the rows beside it, so the row's **Model** cell carries a raised asterisk after the model's name. The mark is on the name, once per row, and never on a number. Air quality and the cloud columns on those rows still cover the whole window, because they are the same whatever model the row names. One line under the table says what the mark means: `* Data is aggregated over a subset of the forecast window due to the model's limited range.` The mark is a link, and clicking it takes you to that line. The model that ranks never carries the mark, because the calendar already shortens the window to its reach. The mark rides the **Model** column, so hiding that column in the **Columns** picker hides the marks and the line under the table together. The downloaded CSV carries the same mark and the same line (see [Downloading the Table](#downloading-the-table)).
 
 A model Open-Meteo has no data for at that spot draws no line and says so in a note beside the chart's metric dropdown, which is never the same as drawing a flat one. Its rows leave the table too, so whenever the chart is not on screen the same note stands under the results bar. A model you have hidden leaves no note, because its lines are missing by your own instruction.
 
-Three metrics cannot be compared at all, and **Analyze** says so rather than selling you a report that cannot answer the question. Ranking by **AQI** with more than one model selected blocks it: `AQI data is retrieved independently of the model and cannot be compared.` So does ranking by **Snow depth**, for the same reason and in the same words: `Snow depth is retrieved independently of the model and cannot be compared.` Ranking by **Freezing level** with any selected model that does not forecast one blocks it too, and names them: `Freezing level data is not available for ECMWF IFS.` Three of the eight models forecast a freezing level; the other five answer with nothing at all, which on a chart is indistinguishable from never having asked. Either way the remedy is yours to choose, rank on something else or change the models, so the message says what is wrong and leaves it there. See [Data Sources](DATA.md) for the rest of the caveats.
+Two metrics cannot always be compared, and **Analyze** says so rather than selling you a report that cannot answer the question. Ranking by **AQI** with more than one model selected blocks it: `AQI data is retrieved independently of the model and cannot be compared.` Ranking by **Freezing level** with any selected model that does not forecast one blocks it too, and names them: `Freezing level data is not available for ECMWF IFS.` Three of the eight models forecast a freezing level; the other five answer with nothing at all, which on a chart is indistinguishable from never having asked. Either way the remedy is yours to choose, rank on something else or change the models, so the message says what is wrong and leaves it there. See [Data Sources](DATA.md) for the rest of the caveats.
 
 The comparison travels in the link as `compare=`, a comma-separated list of model ids in the picker's own order, so the same set of models always reads the same way whoever built the link. A restored link reopens with the boxes ticked and buys the forecasts on your first Analyze, never on load, unless the link carries `analyze=1` (below).
 
@@ -488,7 +488,8 @@ Hovering a row reveals a × at its end (always visible on touch screens, and sho
 | Temperature · Min/Max/Avg (°F) | Temperature range and average over the window, read at the destination's own elevation. The near-ground value over an archive window |
 | Wind · Min/Max/Avg (mph) | Wind speed range and average over the window |
 | Freezing level · Min/Max/Avg (ft) | Height of the freezing level over the window, in feet above sea level. `N/A` on the five models that do not publish it |
-| Snow depth (in) | Snow on the ground today, from the NOHRSC snow analysis. Not a forecast and not a reading of the window. `≥1,290` marks the source file's own ceiling, which is permanent ice rather than a measurement. `N/A` outside the analysis area |
+| Snowfall · Total (in) | New snow over the window, in inches of snow rather than of water |
+| Snowfall · Avg/Min/Max (in/hr) | Average, lightest and heaviest single-hour snowfall rate |
 | AQI · Avg/Max | US AQI over the window, blank past the air quality horizon |
 | Cloud deck · Min/Max/Avg (ft) | The lowest height in the air column over the destination where the model's air is close to saturated, in feet above sea level, below the destination as readily as above it. 30,066 when nothing in the column is saturated. Shown only when the report fetched it. Blank over an archive window |
 
@@ -517,8 +518,8 @@ closure is not flagged, which does not make it open.
 
 A single-hour analysis ("now", or a chosen moment) collapses each of those
 groups to one column, because over one hour the average, the minimum and the
-maximum are the same number three times. Snow depth is already one
-column and stays as it is.
+maximum are the same number three times. Precipitation and snowfall each keep
+their hourly rate, which over one hour is the total too.
 
 The columns belonging to whichever metric you ranked by are shaded, and **each
 cell is shaded by its own number** rather than by the ranking. So a destination
@@ -526,7 +527,7 @@ with a low precipitation total and one violent hour inside it shows a green
 total beside a red peak, which is the spread those extra columns exist to show.
 
 The freezing-level columns are shaded on a scale of their own, one of the
-three scales that do not run the shared ramp (temperature and snow depth are
+three scales that do not run the shared ramp (temperature and snowfall are
 the other two). A height is not a verdict:
 9,000 ft is a solid night below a 9,500 ft summit and a wasted one below an
 8,000 ft col, so a ramp with a bad end would have picked a side. The colours say
@@ -547,17 +548,14 @@ Zero is a reading rather than a gap: it means the freezing level reached sea
 level, so everything above it was below freezing. What the number can and cannot
 tell you about an overnight refreeze is in [DATA.md](DATA.md#open-meteo).
 
-The snow depth column is shaded on the freezing level's six shades, run the
-other way: cyan for bare ground through sky, blue, indigo and violet to purple
-for the deepest, and for the same reason: a depth is not a verdict either. Its
-bands are the snow layer's own numbers, so a marker and the layer under it say
-the same thing. The top band starts at 400 in because SNODAS does not melt
-permanent ice out: a glaciated summit reads hundreds of inches year round, and
-that is ice rather than this season's snow. A destination outside the analysis
-area reads `N/A`, which is not the same as zero. Ranking by it leaves the
-forecast player's markers on the one number they rank by, because today's depth
-has no hours to scrub through, and the forecast chart keeps whatever metric it
-was showing: there is no hourly series to draw.
+The snowfall columns are shaded on the freezing level's six shades, run the
+other way: cyan for none through sky, blue, indigo and violet to purple for the
+most, and for the same reason: an amount of snow is not a verdict either, being
+what a skier drove out for and what turns a scrambler around. The total's bands
+are ten times precipitation's, at 0.1, 1, 2.5, 5 and 10 inches over the window,
+by the rule of thumb that an inch of rain falls as about ten of snow, and the
+hourly columns are ten times precipitation's rates. During playback the markers
+read one hour on the hourly bands, as precipitation's do.
 
 The cloud deck columns use the same six colors in the opposite order, because
 a high deck is the good end: maroon at or below 3,000 ft, purple to 6,000, red to
@@ -586,9 +584,7 @@ What lands in the file:
 - The rows in the order you are reading them, ranking or detail-column sort
   alike, numbered by a leading **Rank** column.
 - Every column, under the same headers, whatever the table is showing, which
-  means a single-hour analysis exports the collapsed set. The **Snow depth (in)**
-  column is one of them in either set, so the credits below the data add
-  `Snow depth data by NOAA NOHRSC` with a link to its snow analysis.
+  means a single-hour analysis exports the collapsed set.
 - The **Wildfire (mi)** column, once the fire check answers and while the
   column is shown. On screen the column is on by default and can be hidden like
   any other: its cells tick while the check runs, then show

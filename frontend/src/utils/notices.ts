@@ -74,7 +74,6 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
   // ranked cannot both be had (TJ, 2026-09-14).
   'compare-aqi': 'warn',
   'compare-freeze': 'warn',
-  'compare-snow': 'warn',
   destinations: 'info',
   polygon: 'info',
   types: 'info',

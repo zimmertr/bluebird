@@ -148,7 +148,7 @@ cost ([#627](https://github.com/zimmertr/bluebird/issues/627), record
   destinations request that asks Overpass nothing (`elevation_lookup: false`
   and no polygon, which is what the web app's analysis sends since
   [#673](https://github.com/zimmertr/bluebird/issues/673)) takes no slot at
-  all, so it is answered from the pod's snow grid while that address's own
+  all, so it is answered at once while that address's own
   elevation lookup waits on a busy map server. A wait that runs out is the same `429` on
   `POST /api/analyze`; the stream is already open by then, so it ends with an
   `error` event carrying the same sentence and `rate_limited` code.
@@ -545,7 +545,6 @@ release.
 | [NIFC WFIGS](https://data-nifc.opendata.arcgis.com) (`services3.arcgis.com`; wildfire overlay and proximity warnings) | backend (`nifc.py`), 2 queries per refresh (full-resolution and simplified copies of the whole country), on demand and never when idle | cluster egress IP | per-minute request-unit quota belonging to **NIFC's** ArcGIS organization, shared with every other consumer of the public dataset | `WILDFIRE_CACHE_TTL_S=600` per pod, one refresh at a time, refreshed behind the request rather than in front of it, last good snapshot served on failure for up to 24 hours, a 60 s deadline on the whole refresh, `WILDFIRE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client wildfires bucket |
 | [US Forest Service Regions 3, 4 and 6](https://www.fs.usda.gov/) (`services1.arcgis.com`; the two closure layers) | backend (`usfs_closures.py`), three feeds and 11 queries per refresh: Region 6's 5 (the closed sites once, and the closed trails and roads and the closed areas each at full resolution and simplified), and 3 for each of Regions 3 and 4 (every live order's attributes, then the geometry of the orders that close an area to entry, once per fidelity; none when no order passes), on demand and never when idle. Region 6's trail lines page, so today the 11 queries are 13 requests (1,536 lines at 1,000 a page, measured 2026-09-30) | cluster egress IP | per-minute request-unit quota belonging to the Forest Service's ArcGIS organization, shared with every other consumer of its public layers | `CLOSURE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, a 60 s deadline on the whole refresh, `CLOSURE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client closures bucket |
 | [NOAA HMS](https://www.ospo.noaa.gov/Products/land/hms.html) (`satepsanone.nesdis.noaa.gov`; smoke overlay) | backend (`hms.py`), 1 file per refresh (the whole day's national analysis), on demand and never when idle | cluster egress IP | none published; a static file server with no quota to exhaust | `SMOKE_CACHE_TTL_S=1800` per pod, one refresh at a time, refreshed behind the request, last good snapshot served on failure for up to 24 hours, a 60 s deadline on the whole refresh, `SMOKE_RETRY_AFTER_FAILURE_S=60` before a failed refresh is retried + per-client smoke bucket |
-| [NSIDC SNODAS](https://nsidc.org/data/g02158) (`noaadata.apps.nsidc.org`; the snow depth column) | backend (`snodas.py`), one archive a day: a check is a HEAD for today's tar and, before it lands, yesterday's, and a GET of that day's tar only when it is not the day already held, so a day costs one download and the rest of its checks are HEADs. Checked once at startup behind everything else, then at most hourly when a discovery or an analysis reads the grid, and never when idle | cluster egress IP | none published; a public file server with no key | `SNODAS_CACHE_TTL_S=3600` per pod, one refresh at a time, refreshed behind the request so no request waits for a grid, a 60 s deadline on the whole refresh, `SNODAS_RETRY_AFTER_FAILURE_S=300` before a failed refresh is retried. The download is streamed and refused past `MAX_ARCHIVE_BYTES`, and the header and the grid inflate under `MAX_HEADER_BYTES` and `MAX_GRID_BYTES`, the grid's size checked against the header before a sample is read ([#629](https://github.com/zimmertr/bluebird/issues/629)). A refused file means no snow depth that day: every row reads null and no analysis date is named, and the day before is not served in its place (record [0104](decisions/0104-refused-snow-file-is-no-grid.md)). An NSIDC that cannot be reached leaves the last good grid standing, dated |
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) (`mapservices.weather.noaa.gov`; snow depth overlay) | **browser**, one server-side render per visible tile | visitor IP | none published; a public National Weather Service GIS endpoint with no key | off by default, and the service refuses caching (`max-age=0, must-revalidate`) so every pan re-renders. Bounded by a 512 px tile rather than 256, which is four times fewer renders per screen at the same ~0.46 s each; by the source's `bounds`, so nothing is requested outside the analysis extent; and by a zoom cap at the point the 1 km analysis has no more detail to give, past which MapLibre magnifies what it holds |
 | Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0 |
@@ -621,13 +620,15 @@ Open-Meteo prices what comes back; their own call calculator on the pricing
 page takes Models beside Variables and multiplies the two. Every request this
 service makes today names one model, so that term is 1.
 
-**The variable factor is no longer 1.** A weather request carries 14 variables
-from the pod and 15 from the browser — the browser adds the wind bearing the
-map's playback arrows read — so the factor is 1.4 and 1.5 respectively. Every
+**The variable factor is no longer 1.** A weather request carries 15 variables
+from the pod and 16 from the browser — the browser adds the wind bearing the
+map's playback arrows read — so the factor is 1.5 and 1.6 respectively. Every
 set before the five level temperatures
 ([#443](https://github.com/zimmertr/bluebird/issues/443)) rode inside the floor
-of 1, which is why the numbers below rose by half. The same 50-location 16-day
-batch therefore costs 80 weighted calls from the pod, not 57. The air-quality
+of 1, which is why the numbers below rose by half then, and snowfall
+([#678](https://github.com/zimmertr/bluebird/issues/678)) added a tenth more.
+The same 50-location 16-day batch therefore costs 85.7 weighted calls from the
+pod (50 × 16/14 × 1.5) and 91.4 from the browser (50 × 16/14 × 1.6), not 57. The air-quality
 request is one variable and is unaffected. **Every capacity
 number in this file is written in this unit** — the 2026-07-29 incident
 happened because three layers of this system priced spend in HTTP requests
@@ -636,9 +637,9 @@ and were consistently wrong by the batch factor of 50.
 ## Worst-case math
 
 One analysis at the candidate cap (`limits.max_destinations`; 1,500 when this
-was written) over the full 16-day window costs ~2,570 weighted weather calls
-from the browser (1,500 × 16/14 × 1.5), against a 600/minute/IP budget — call
-it **~4 minutes of paced fetching, worst case**, narrated in the UI with a
+was written) over the full 16-day window costs ~2,740 weighted weather calls
+from the browser (1,500 × 16/14 × 1.6), against a 600/minute/IP budget that the
+browser paces at 550 — call it **~5 minutes of paced fetching, worst case**, narrated in the UI with a
 countdown. On the browser path a further ~1,500 weighted calls are spent on air
 quality (1,500 × 1 × 1: one variable, so the variable factor stays 1, and the
 request is clamped to the air-quality horizon, `limits.aqi_forecast_days`,
@@ -656,7 +657,7 @@ pod's budget untouched.
 
 The forecast grid overlay adds at most one more fan-out to that, on the
 visitor's own IP and only while the layer is on: 600 cells over the full
-16-day window is ~1,030 weighted calls for weather and ~600 for air quality,
+16-day window is ~1,100 weighted calls for weather (600 × 16/14 × 1.6) and ~600 for air quality,
 which the same pacer spreads over roughly a further two minutes *after* the
 ranking has landed. It is
 never on the critical path — the fetch starts when the report commits — so

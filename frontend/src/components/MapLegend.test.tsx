@@ -74,15 +74,15 @@ describe('MapLegend', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  // The grid cannot paint a snow ranking, so it gets no row then; its switch
-  // stays on, and another ranking brings the row back (#579).
-  it('leaves the grid row out under a ranking the grid cannot paint', () => {
+  // Every ranking paints since snowfall replaced snow depth (#678), the one
+  // the grid could not (#579), so the grid row stands under a snowfall ranking.
+  it('keeps the grid row under a snowfall ranking', () => {
     const PAINTED = { ...NO_GRID, gridPainted: true, gridLegend: { label: 'Forecast grid', value: '3 km', kind: 'pitch' as const } }
-    const snow = render(<MapLegend {...BASE} sortBy="snow_depth_in" markerScale={rankedScale('snow_depth_in')} grid={PAINTED} />)
-    expect(snow.container.textContent).not.toContain('Forecast grid')
-    snow.unmount()
-    const temp = render(<MapLegend {...BASE} grid={PAINTED} />)
-    expect(temp.container.textContent).toContain('Forecast grid')
+    const snowfall = render(
+      <MapLegend {...BASE} sortBy="snowfall_total_in" markerScale={rankedScale('snowfall_total_in')} grid={PAINTED} />,
+    )
+    expect(snowfall.container.textContent).toContain('Forecast grid')
+    expect(snowfall.container.textContent).toContain('Snowfall (in)')
   })
 
   it('credits NIFC beside the wildfire section', () => {

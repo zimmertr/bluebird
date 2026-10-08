@@ -206,7 +206,6 @@ describe('panelMessages', () => {
         'warn',
         `${NOUN.freeze} data is not available for ECMWF IFS and DWD ICON.`,
       ],
-      ['compare-snow', {}, 'warn', `${NOUN.snow} is retrieved independently of the model and cannot be compared.`],
     ]
 
     it.each(BLOCKERS)('says why %s blocks, at its severity', (blocker, over, severity, text) => {

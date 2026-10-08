@@ -245,17 +245,6 @@ export const DATA = [
     ],
   },
   {
-    // The capped snow depth is marked by one module, so the three surfaces that
-    // draw it cannot spell the mark or the ceiling a second way.
-    name: 'snow-mark-shared',
-    files: ['src/utils/resultsCells.ts', 'src/utils/popupRows.ts', 'src/utils/resultsCsv.ts'],
-    ban: [
-      { selector: text('≥'), message: 'Take the snow ceiling mark from snowCellText.' },
-      { selector: spelled('1,?290'), message: 'Take the snow ceiling from snowCeiling.ts.' },
-    ],
-    require: [{ selector: named('snowCellText'), message: 'Draw a snow depth through snowCellText.' }],
-  },
-  {
     // recharts is about 105 KB gzip, and a reader who never opens the chart
     // must not pay for it.
     name: 'chart-lazy',

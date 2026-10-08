@@ -30,7 +30,7 @@ import {
   TOOLTIP_ROW_PX,
   tooltipCapacity,
 } from './chartData'
-import { MetricFamily, RANKING_KEYS, familyOf, isSnapshotFamily } from '../metrics'
+import { RANKED_FAMILIES, RANKING_KEYS, familyOf } from '../metrics'
 import { resultRow, series as seriesOf } from '../testSupport/fixtures'
 
 function row(name: string, lat: number, over: Partial<HourlySeries>): DestinationResult {
@@ -51,30 +51,20 @@ describe('metricForSort', () => {
   // for the other two.
   it('answers with the key’s own family for every rankable key', () => {
     for (const key of RANKING_KEYS) {
-      // A snapshot family has no hourly series, so the chart cannot follow a
-      // ranking on it and keeps what is on screen instead (#449).
-      if (isSnapshotFamily(familyOf(key))) continue
       expect(metricForSort(key)).toBe(familyOf(key))
     }
   })
 
-  // The chart draws hours, and a snapshot has none. Following the ranking
-  // would mean clearing the chart to say what the table already says.
-  it('keeps the metric on screen when the ranking is a snapshot', () => {
-    expect(metricForSort('snow_depth_in', 'wind')).toBe('wind')
-    expect(metricForSort('snow_depth_in', 'aqi')).toBe('aqi')
+  // Snowfall is an hourly series like every other family (#678), so a
+  // snowfall ranking opens the snowfall chart, where snow depth kept the one
+  // on screen.
+  it('follows a snowfall ranking onto the snowfall chart', () => {
+    expect(metricForSort('snowfall_total_in')).toBe('snowfall')
+    expect(metricForSort('snowfall_max_in_hr')).toBe('snowfall')
   })
 
-  it('opens on the first chart metric when a snapshot ranks and nothing is chosen', () => {
-    expect(metricForSort('snow_depth_in')).toBe(CHART_METRICS[0].key)
-  })
-
-  // The chart never offers it, which is what makes the exclusion a type error
-  // rather than an empty line.
-  it('offers no snapshot family in the metric select', () => {
-    for (const { key } of CHART_METRICS) {
-      expect(isSnapshotFamily(key as MetricFamily)).toBe(false)
-    }
+  it('offers every metric family in the metric select', () => {
+    expect(CHART_METRICS.map((m) => m.key).sort()).toEqual([...RANKED_FAMILIES].sort())
   })
 })
 
@@ -194,6 +184,8 @@ describe('formatMetricValue', () => {
     expect(formatMetricValue(0.12345, 'precip')).toBe('0.123')
     expect(formatMetricValue(52.34, 'temp')).toBe('52.3')
     expect(formatMetricValue(87.6, 'aqi')).toBe('88')
+    // Inches an hour, so precipitation's rate digits (#678).
+    expect(formatMetricValue(0.12345, 'snowfall')).toBe(formatMetricValue(0.12345, 'precip'))
   })
 })
 
@@ -329,6 +321,7 @@ describe('alignRowToGrid', () => {
         temp_f: [30, 31],
         wind_mph: [10, 11],
         freeze_ft: [9000, 9500],
+        snowfall_in: [0.2, 0.4],
         aqi: [40, 41],
       }),
       series_times: [2000, 3000],
@@ -339,6 +332,7 @@ describe('alignRowToGrid', () => {
       'aqi',
       'freeze_ft',
       'precip_in',
+      'snowfall_in',
       'temp_f',
       'wind_mph',
     ])

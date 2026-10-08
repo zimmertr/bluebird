@@ -10,6 +10,7 @@ function series(over: Partial<HourlySeries> = {}): HourlySeries {
     temp_f: [30, 21, 38, 25],
     wind_mph: [4, 22, 9, 12],
     freeze_ft: [9000, 8000, 11000, 9500],
+    snowfall_in: [0, 0.4, 1.2, 0],
     aqi: [31, 44, 20, 35],
     ...over,
   }
@@ -78,6 +79,12 @@ describe('which hour produced a cell', () => {
     expect(extremeHourMs('freeze_max_ft', series(), TIMES)).toBe(TIMES[2])
   })
 
+  // Snowfall's peak and lull are hours like precipitation's (#678).
+  it('names the snowiest and the driest hour of new snow', () => {
+    expect(extremeHourMs('snowfall_max_in_hr', series(), TIMES)).toBe(TIMES[2])
+    expect(extremeHourMs('snowfall_min_in_hr', series(), TIMES)).toBe(TIMES[0])
+  })
+
   // A flat run names its beginning rather than an arbitrary hour inside it: a
   // night of no rain starts when it starts.
   it('takes the first hour of a tie', () => {
@@ -85,12 +92,10 @@ describe('which hour produced a cell', () => {
   })
 
   // An average and a window total are every hour at once, so they name none.
-  // Snow depth names none for a different reason: it is today's one number and
-  // has no series at all, so the link opens at Windy's own "now" (#449).
-  it('names no hour for an average, a total or a snapshot', () => {
+  it('names no hour for an average or a total', () => {
     expect(extremeHourMs('temp_avg_f', series(), TIMES)).toBeNull()
     expect(extremeHourMs('precip_total_in', series(), TIMES)).toBeNull()
-    expect(extremeHourMs('snow_depth_in', series(), TIMES)).toBeNull()
+    expect(extremeHourMs('snowfall_total_in', series(), TIMES)).toBeNull()
     expect(extremeHourMs('name', series(), TIMES)).toBeNull()
   })
 

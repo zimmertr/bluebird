@@ -30,9 +30,11 @@ export type SortBy =
   | 'freeze_min_ft'
   | 'freeze_avg_ft'
   | 'freeze_max_ft'
-  // The one key that is not a window aggregate: snow depth is today's single
-  // number, so its family has one member rather than three (#449).
-  | 'snow_depth_in'
+  // New snow over the window (#678), precipitation's four aggregates.
+  | 'snowfall_total_in'
+  | 'snowfall_avg_in_hr'
+  | 'snowfall_min_in_hr'
+  | 'snowfall_max_in_hr'
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
@@ -101,8 +103,8 @@ export interface AnalyzeRequest {
   max_wind_mph?: number | null
   min_freeze_ft?: number | null
   max_freeze_ft?: number | null
-  min_snow_depth_in?: number | null
-  max_snow_depth_in?: number | null
+  min_snowfall_total_in?: number | null
+  max_snowfall_total_in?: number | null
   min_aqi?: number | null
   max_aqi?: number | null
   min_cloud_deck_ft?: number | null
@@ -148,6 +150,9 @@ export interface HourlySeries {
   // Feet above sea level. All null for the forecast models that do not
   // publish the variable, which is five of the eight (#295).
   freeze_ft: (number | null)[]
+  // Inches of new snow (#678). Null at an hour the forecast left blank, which
+  // is every hour of HRRR past its 45th.
+  snowfall_in: (number | null)[]
   aqi: (number | null)[]
   // Feet above sea level (#670). Absent unless the analysis fetched the cloud
   // column, which it does only when asked for the cloud deck.
@@ -191,13 +196,13 @@ export interface DestinationResult {
   aqi_avg: number | null
   aqi_min: number | null
   aqi_max: number | null
-  // Snow on the ground TODAY, in inches, from the NOHRSC SNODAS grid the pod
-  // holds — not a forecast, and not a reading of the analyzed window at all
-  // (#449). Null outside the grid, which covers the contiguous US and southern
-  // Canada, and null while the pod holds no grid; both read N/A rather than as
-  // a gap in the weather. Over permanent ice the model accumulates year over
-  // year, so a glaciated summit reads over a thousand inches.
-  snow_depth_in: number | null
+  // New snow over the window in inches, total and per hour (#678). Reduced
+  // apart from the numbers above, like the freezing level, so a null here is
+  // a forecast that left every hour of it blank and says nothing about them.
+  snowfall_total_in: number | null
+  snowfall_avg_in_hr: number | null
+  snowfall_min_in_hr: number | null
+  snowfall_max_in_hr: number | null
   // The cloud deck in feet above sea level, reduced over the window (#670).
   // Null unless the analysis fetched the cloud column, and for archive hours,
   // which carry no pressure levels. A dry column reads CLOUD_DECK_CEILING_FT.
@@ -236,10 +241,6 @@ export interface AnalyzeResponse {
   // True only when the request opted into top_by_elevation and the found set
   // exceeded the analysis cap.
   truncated?: boolean
-  // Which day's SNODAS analysis every snow_depth_in above came from, as
-  // YYYY-MM-DD. Null when the pod holds no grid, which is also when every
-  // snow_depth_in is null.
-  snow_analysis_date?: string | null
 }
 
 // Structured fields riding on an over-limit 400 (or the stream's error
@@ -261,10 +262,6 @@ export interface DiscoveredDestination {
   longitude: number
   elevation_ft: number | null
   osm_id: string | null
-  // Today's snow depth, filled from the grid the pod holds. It arrives with
-  // discovery rather than with the forecasts because it is not a forecast:
-  // the browser path fetches its own weather and would otherwise never see it.
-  snow_depth_in?: number | null
 }
 
 export interface DestinationsResponse {
@@ -272,7 +269,6 @@ export interface DestinationsResponse {
   total: number
   total_found?: number | null
   truncated?: boolean
-  snow_analysis_date?: string | null
   // Whether the pod's elevation lookup finished (#673); absent reads as true.
   elevation_lookup_complete?: boolean
 }

@@ -129,10 +129,9 @@ export function customRows(custom: readonly CustomDestination[]): DiscoveredDest
   }))
 }
 
-/** What the custom-only path gets back: the rows, and the grid behind them. */
+/** What the custom-only path gets back: the rows, and whether the lookup finished. */
 export interface ResolvedCustom {
   destinations: DiscoveredDestination[]
-  snowAnalysisDate: string | null
   // Whether the pod's elevation lookup finished (#673): false when it gave up
   // or the call failed, so a null elevation says nothing and the row may be
   // asked about again; true when every null is a genuine no-peak-here.
@@ -141,21 +140,19 @@ export interface ResolvedCustom {
 
 // The custom-only analysis path's one server call, and what it asks for.
 //
-// Two things a coordinate pair cannot carry and only the pod can answer. What
-// does OSM know about this point — which is the only way a pasted CSV row can
-// learn its elevation (issue #207) — and how much snow is on the ground there
-// today, from the grid the pod holds (#449).
+// What a coordinate pair cannot carry and only the pod can answer: what OSM
+// knows about this point, which is the only way a pasted CSV row can learn its
+// elevation (issue #207).
 //
-// **Every list now makes the call**, where a list whose rows already knew
-// their elevations used to skip it. The skip was right while elevation was the
-// only question: a pins-only refresh had nothing to ask. It is wrong now, and
-// the cost of keeping it would be that a pinned search reads N/A for snow
-// while the same summit inside a drawn ring reads a number — one report
-// disagreeing with itself about one destination.
+// **Every list makes the call**, a list whose rows already know their
+// elevations included. The skip such a list once took was lifted for today's
+// snow depth (#449); that column left the app in #678 and the skip was not put
+// back with it: with no lookup asked for, the call answers the rows as sent in
+// milliseconds, and the pod still merges the list as it does every union.
 //
 // Deliberately a nicety rather than a dependency, exactly as before. The
 // destination cap runs client-side already, so nothing here is load bearing,
-// and every failure path returns the rows unresolved with no date. An abort is
+// and every failure path returns the rows unresolved. An abort is
 // the exception: that is the user's own doing and has to propagate rather than
 // masquerade as a resolved-nothing result.
 //
@@ -171,27 +168,21 @@ export async function resolveCustomOnly(
   lookup = true,
 ): Promise<ResolvedCustom> {
   const rows = customRows(custom)
-  if (!rows.length) return { destinations: rows, snowAnalysisDate: null, lookupComplete: true }
+  if (!rows.length) return { destinations: rows, lookupComplete: true }
   const resolveRequest: DestinationsRequest = {
     destination_types: [],
     custom_destinations: [...custom],
     elevation_lookup: lookup,
   }
-  const unresolved: ResolvedCustom = { destinations: rows, snowAnalysisDate: null, lookupComplete: false }
+  const unresolved: ResolvedCustom = { destinations: rows, lookupComplete: false }
   try {
     const res = await postDestinations(resolveRequest, signal)
     if (!res.ok) return unresolved
     const body = (await res.json()) as DestinationsResponse
     // A short answer means the server dropped rows this path never asked it
-    // to drop, so trust the list we already hold over a surprising one — and
-    // take no date with it, since the rows it would describe are not the ones
-    // being returned.
+    // to drop, so trust the list we already hold over a surprising one.
     return body.destinations?.length === rows.length
-      ? {
-          destinations: body.destinations,
-          snowAnalysisDate: body.snow_analysis_date ?? null,
-          lookupComplete: body.elevation_lookup_complete ?? true,
-        }
+      ? { destinations: body.destinations, lookupComplete: body.elevation_lookup_complete ?? true }
       : unresolved
   } catch (err) {
     if (signal?.aborted) throw err
@@ -325,6 +316,7 @@ export function assemble(
         temp_f: wxSeries.temp_f,
         wind_mph: wxSeries.wind_mph,
         freeze_ft: wxSeries.freeze_ft,
+        snowfall_in: wxSeries.snowfall_in,
         aqi: alignAqi(wxSeries.times, aqi?.series ?? null),
         // Absent rather than a column of nulls when the cloud column was
         // never fetched, which is the server's shape too.
@@ -344,10 +336,6 @@ export function assemble(
       elevation_ft: dest.elevation_ft,
       osm_id: dest.osm_id,
       ...aggregates,
-      // Off the discovered row rather than out of the weather answer: the
-      // snow grid is the pod's, read once per candidate when the candidate
-      // list came back, where every aggregate above came from Open-Meteo.
-      snow_depth_in: dest.snow_depth_in ?? null,
       aqi_avg: aqi?.aqi_avg ?? null,
       aqi_min: aqi?.aqi_min ?? null,
       aqi_max: aqi?.aqi_max ?? null,
@@ -456,9 +444,8 @@ export interface ClientAnalysisCallbacks {
   cloud?: boolean
   /**
    * The same destinations, index for index, once the pod's one call about
-   * them has answered: today's snow depth, and whatever elevation and OSM
-   * identity it echoes or, for an over-cap list keeping its highest, looks
-   * up (#643, #673).
+   * them has answered: whatever elevation and OSM identity it echoes or, for
+   * an over-cap list keeping its highest, looks up (#643, #673).
    *
    * A list of coordinates is enough to ask Open-Meteo, so the fetches start on
    * the rows as given and the report is assembled as soon as they land. The
@@ -546,6 +533,7 @@ export function withWeather(row: DestinationResult, wx: WeatherResult): Destinat
       temp_f: series.temp_f,
       wind_mph: series.wind_mph,
       freeze_ft: series.freeze_ft,
+      snowfall_in: series.snowfall_in,
       ...(series.wind_dir_deg ? { wind_dir_deg: series.wind_dir_deg } : {}),
     }
   }
@@ -572,13 +560,12 @@ function placedIdentity(row: DestinationResult, r: DiscoveredDestination) {
     type: r.type === 'custom' ? row.type : r.type,
     elevation_ft: r.elevation_ft ?? row.elevation_ft,
     osm_id: r.osm_id ?? row.osm_id,
-    snow_depth_in: r.snow_depth_in ?? row.snow_depth_in ?? null,
   }
 }
 
 /**
  * A lookup's answer landed on forecast rows (#673): each row the answer
- * changes takes its name, kind, elevation, OSM id and snow depth, and a row
+ * changes takes its name, kind, elevation and OSM id, and a row
  * whose elevation changed is reduced again from its kept column at that
  * height, the same arithmetic the fetch ran. Rows the answer leaves as they
  * are are not in the patch, so nothing redraws for them. `columns` is by
@@ -603,8 +590,7 @@ export function placeRows(
       identity.name === row.name &&
       identity.type === row.type &&
       identity.elevation_ft === row.elevation_ft &&
-      identity.osm_id === row.osm_id &&
-      identity.snow_depth_in === (row.snow_depth_in ?? null)
+      identity.osm_id === row.osm_id
     ) {
       continue
     }

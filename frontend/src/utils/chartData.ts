@@ -1,30 +1,20 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
-import {
-  MetricFamily,
-  SnapshotFamily,
-  familyOf,
-  formatPrecipRate,
-  isSnapshotFamily,
-  metricLabel,
-} from '../metrics'
+import { MetricFamily, familyOf, formatPrecipRate, metricLabel } from '../metrics'
 import { setKey } from './points'
 
 /**
- * The families this chart can plot: every one that is an hourly series.
- *
- * A snapshot family is excluded by construction rather than by a check at each
- * call site (#449). Snow depth is one number for today, so there is nothing to
- * draw across an axis of hours, and `SERIES_FIELD` below would have no field
- * to name for it — which is what makes this a type error rather than an empty
- * line on screen.
+ * The families this chart can plot, which is every one: each is an hourly
+ * series. Snow depth was the one exception, as one number for today, until
+ * snowfall replaced it (#678).
  */
-export type ChartMetric = Exclude<MetricFamily, SnapshotFamily>
+export type ChartMetric = MetricFamily
 
 export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',
   freeze: 'freeze_ft',
+  snowfall: 'snowfall_in',
   aqi: 'aqi',
   cloud_deck: 'cloud_deck_ft',
 }
@@ -35,25 +25,16 @@ export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
 // one a report carries only when it was asked for it, so an option that can
 // draw nothing sits under every option that always draws.
 export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
-  ['precip', 'temp', 'wind', 'freeze', 'aqi', 'cloud_deck'] as const
+  ['precip', 'temp', 'wind', 'freeze', 'snowfall', 'aqi', 'cloud_deck'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))
-
-/** Whichever metric the chart opens on when the ranking names none it can draw. */
-const FIRST_CHART_METRIC = CHART_METRICS[0].key
 
 // The chart opens on whatever metric the results were ranked by.
 //
 // Read off the ranking key's own family rather than matched against a list of
 // keys: since #291 a family has three or four rankable keys, and a list
 // naming one of them each opened the precipitation chart for the other two.
-export function metricForSort(sortBy: SortBy, current?: ChartMetric | null): ChartMetric {
-  const family = familyOf(sortBy)
-  // A snapshot ranking leaves the chart where it is (#449): it has no hourly
-  // series, so following it would mean clearing the chart to say something the
-  // table already says. `current` is what the reader last had on screen, and
-  // the first metric is the answer before they have had one.
-  if (isSnapshotFamily(family)) return current ?? FIRST_CHART_METRIC
-  return family
+export function metricForSort(sortBy: SortBy): ChartMetric {
+  return familyOf(sortBy)
 }
 
 // Coordinate-based identity: it survives the table's client-side re-sorting and
@@ -152,6 +133,7 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       temp_f: remap(row.series.temp_f),
       wind_mph: remap(row.series.wind_mph),
       freeze_ft: remap(row.series.freeze_ft),
+      snowfall_in: remap(row.series.snowfall_in),
       aqi: remap(row.series.aqi),
       // Present only on a report that fetched the cloud column (#117), and
       // spread for the reason the bearings below are.
@@ -267,7 +249,7 @@ export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): numb
  * The tooltip and the cell beside it are read in the same glance.
  */
 export function formatMetricValue(v: number, metric: ChartMetric): string {
-  if (metric === 'precip') return formatPrecipRate(v)
+  if (metric === 'precip' || metric === 'snowfall') return formatPrecipRate(v)
   // Whole units: an AQI is an integer index, and a freezing level or a cloud
   // deck in feet carries no decimal the model could support.
   if (metric === 'aqi' || metric === 'freeze' || metric === 'cloud_deck') return v.toFixed(0)
