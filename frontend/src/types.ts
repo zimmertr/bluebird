@@ -38,8 +38,7 @@ export type SortBy =
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
-  // The cloud deck (#670). Ranking by it is what makes an analysis fetch the
-  // cloud variables at all.
+  // The cloud deck (#670), fetched for every candidate since #683.
   | 'cloud_deck_min_ft'
   | 'cloud_deck_avg_ft'
   | 'cloud_deck_max_ft'

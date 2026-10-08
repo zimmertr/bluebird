@@ -30,6 +30,11 @@ describe('the tutorial report', () => {
       expect(row.freeze_avg_ft).not.toBeNull()
       expect(row.snowfall_total_in).not.toBeNull()
       expect(row.series?.snowfall_in).toHaveLength(n)
+      // Every analysis carries the cloud deck since #683, so the tour does too.
+      expect(row.cloud_deck_min_ft).not.toBeNull()
+      expect(row.cloud_deck_max_ft).not.toBeNull()
+      expect(row.cloud_deck_avg_ft).not.toBeNull()
+      expect(row.series?.cloud_deck_ft).toHaveLength(n)
       expect(row.elevation_ft).not.toBeNull()
     }
   })

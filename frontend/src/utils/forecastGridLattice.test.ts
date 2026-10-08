@@ -424,8 +424,8 @@ describe('pairCells', () => {
     expect(cells[0].row.series_times).toBeUndefined()
   })
 
-  // The grid fetches the cloud column only when the report holds one (#117),
-  // and a cell then paints it on the same hours as every other metric.
+  // The grid fetches the cloud column for every chunk (#683), and a cell
+  // paints it on the same hours as every other metric.
   it('lays a cloud answer onto the cell when one is given', () => {
     const cloud: CloudResult = {
       cloud_deck_min_ft: 4000,

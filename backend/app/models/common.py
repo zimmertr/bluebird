@@ -58,8 +58,7 @@ class SortBy(str, Enum):
     aqi_avg = "aqi_avg"
     aqi_min = "aqi_min"
     aqi_max = "aqi_max"
-    # The cloud deck (issue #670). Ranking by it makes the analysis fetch the
-    # cloud variables, which it otherwise skips.
+    # The cloud deck (issue #670), fetched for every candidate since #683.
     cloud_deck_min = "cloud_deck_min_ft"
     cloud_deck_avg = "cloud_deck_avg_ft"
     cloud_deck_max = "cloud_deck_max_ft"

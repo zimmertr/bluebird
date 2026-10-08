@@ -226,9 +226,7 @@ class AnalyzeRequest(_DiscoveryFields):
         description=(
             "Drop rows whose `cloud_deck_min_ft` is below this, i.e. keep only "
             "destinations whose cloud deck never fell below it during the "
-            "window. Setting either cloud deck bound fetches the cloud "
-            "variables for every candidate. A row with a null cloud deck "
-            "passes either bound."
+            "window. A row with a null cloud deck passes either bound."
         ),
     )
     max_cloud_deck_ft: float | None = Field(

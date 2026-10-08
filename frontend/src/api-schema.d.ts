@@ -446,7 +446,7 @@ export interface components {
             min_aqi?: number | null;
             /**
              * Min Cloud Deck Ft
-             * @description Drop rows whose `cloud_deck_min_ft` is below this, i.e. keep only destinations whose cloud deck never fell below it during the window. Setting either cloud deck bound fetches the cloud variables for every candidate. A row with a null cloud deck passes either bound.
+             * @description Drop rows whose `cloud_deck_min_ft` is below this, i.e. keep only destinations whose cloud deck never fell below it during the window. A row with a null cloud deck passes either bound.
              */
             min_cloud_deck_ft?: number | null;
             /**
