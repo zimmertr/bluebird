@@ -56,10 +56,9 @@ CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
 # it, and snowfall (#678) added the last tenth.
 N_VARIABLES = 15
 # The cloud request's own count (issue #670): the humidity at 2 m and at eight
-# levels. It is a second request over the same locations, made only when a
-# ranking or a bound names the cloud deck, so its factor of 1 (9 variables, at
-# the floor) is spent on top of the weather's 1.5 and never by an analysis that
-# did not ask.
+# levels. It is a second request over the same locations, made by every
+# analysis since #683, so its factor of 1 (9 variables, at the floor) is spent
+# on top of the weather's 1.5 for every candidate.
 N_CLOUD_VARIABLES = 9
 # The units every weather request is quoted in. The cloud request sends none of
 # them: humidity has one unit, and no parameter selects another.

@@ -216,9 +216,9 @@ _CLOUD_LEVELS: list[tuple[str, float]] = [
     (f"relative_humidity_{p}hPa", h) for p, h in ISA_HEIGHT_M.items()
 ]
 _CLOUD_RH_2M = "relative_humidity_2m"
-# The cloud variables ride a request of their own, made only when a ranking or
-# a bound asks for the deck: nine more variables on every analysis would take
-# the weighted price of each from 1.6 to 2.5 in the browser (issue #117).
+# The cloud variables ride a request of their own beside the weather one, made
+# by every analysis (#117, #683), so the weather request and its pinned inputs
+# stay as they are.
 # Humidity carries no unit a request parameter selects, so this request sends
 # none and its numbers need no declared-unit check.
 CLOUD_VARIABLES = ",".join([_CLOUD_RH_2M] + [name for name, _ in _CLOUD_LEVELS])
