@@ -206,9 +206,9 @@ _DECLARED_UNITS: dict[str, str] = {
 CLOUD_SATURATION_RH = 95.0
 # What a column that answered and is dry all the way up reads: the standard
 # height of its top level, 300 hPa, in whole feet. A plain number rather than a
-# null, so ranking,
-# bounds, the chart and the colour scale need no null case for the common one:
-# a dry column is most hours (85 of 96 at Rainier, measured 2026-10-06). It is
+# null, so ranking, bounds, the chart and the colour scale need no null case
+# for the common one: a dry column is most hours (85 of 96 at Rainier,
+# measured 2026-10-06). It is
 # also the top of anything the walk can interpolate to, so no deck it finds
 # reads above it. Mirrored in the browser and pinned by `mirrored_constants.json`.
 CLOUD_DECK_CEILING_FT = round(ISA_HEIGHT_M[300] / _FT_TO_M, 0)
