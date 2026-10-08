@@ -13,15 +13,13 @@ truncation.
 
 ```
 # <List Title> — ordered highest to lowest.
-# Source: peakbagger.com list <lid>. Coordinates (WGS84 decimal degrees, 6 places)
-# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
-# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
 46.851731, -121.760395, Mount Rainier
 ```
 
-Four comment lines, then `Lat, Lon, Name`, in the list's own order. The name carries **no**
-list number: Bluebird Forecast ranks the rows and numbers them itself, so a `23.` prefix shows
-up as `1 23. Foobar Mountain` in the results table. It carries **no** elevation either: Bluebird
+One comment line (the list's title) and nothing else, no source or format notes, then
+`Lat, Lon, Name` in the list's own order. The name carries **no** list number: Bluebird
+Forecast ranks the rows and numbers them itself, so a `23.` prefix shows up as
+`1 23. Foobar Mountain` in the results table. It carries **no** elevation either: Bluebird
 Forecast matches each coordinate to its OSM peak and fills the Elevation column itself (issue #207),
 so a figure here would only be a second number to disagree with the one on screen.
 
@@ -114,7 +112,7 @@ its `lid`, the target output path, the plausible lat/lon box for the region, an 
 python3 <SKILL_DIR>/scripts/build_csv.py <lid> /path/to/repo/examples
 ```
 
-Derives the filename and header from the list title. Override with `--out name.csv` and
+Derives the filename and the headline from the list title. Override with `--out name.csv` and
 `--headline '# ...'`. It **refuses to write** if any peak lacks coordinates — a partial file is
 never acceptable, so report the gap instead of working around the guard.
 

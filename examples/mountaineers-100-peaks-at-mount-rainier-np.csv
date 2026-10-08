@@ -1,7 +1,4 @@
 # Mountaineers 100 Peaks at Mount Rainier N.P. — ordered highest to lowest.
-# Source: peakbagger.com list 5045. Coordinates (WGS84 decimal degrees, 6 places)
-# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
-# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
 46.849683, -121.711774, Little Tahoma
 46.872275, -121.731855, Steamboat Prow
 46.829641, -121.725631, Anvil Rock

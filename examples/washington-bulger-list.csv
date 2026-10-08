@@ -1,7 +1,4 @@
 # The Bulger List — Washington's 100 highest peaks, ordered highest to lowest.
-# Source: peakbagger.com list 5003. Coordinates (WGS84 decimal degrees, 6 places)
-# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
-# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
 46.851731, -121.760395, Mount Rainier
 46.202494, -121.490746, Mount Adams
 46.849683, -121.711774, Little Tahoma

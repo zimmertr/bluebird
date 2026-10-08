@@ -22,8 +22,8 @@ head = [l for l in lines if l.startswith('#')]
 data = [l for l in lines if l and not l.startswith('#')]
 problems = []
 
-if len(head) != 4:
-    problems.append(f'expected 4 comment lines, found {len(head)}')
+if len(head) != 1:
+    problems.append(f'expected 1 comment line (the headline), found {len(head)}')
 if len(data) != len(peaks):
     problems.append(f'expected {len(peaks)} data rows, found {len(data)}')
 

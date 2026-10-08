@@ -37,12 +37,7 @@ if missing:
 outfile = os.path.join(outdir, opt('--out') or f'{meta["slug"]}.csv')
 headline = opt('--headline') or f'# {meta["title"]} — ordered highest to lowest.'
 
-lines = [
-    headline,
-    f'# Source: peakbagger.com list {lid}. Coordinates (WGS84 decimal degrees, 6 places)',
-    '# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.',
-    '# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name',
-]
+lines = [headline]
 for p in peaks:
     lat, lon = coords[str(p['pid'])]
     lines.append(f'{lat:.6f}, {lon:.6f}, {p["name"]}')
