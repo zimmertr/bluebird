@@ -111,8 +111,8 @@ under the size cap with an over-long list gets Pydantic's `422` naming the list.
 **A long archive window without a key.** Not another published number, because
 it is not one: it is what the deployment's weighted pacer can serve, and that
 depends on both the window and the candidate count. A request costs more
-weighted calls the longer its window, so over an archive window of a couple of
-months an unkeyed analysis of a few hundred destinations queues its own later
+weighted calls the longer its window, so over an archive window of a month or
+more an unkeyed analysis of a couple of hundred destinations queues its own later
 batches past the pacer's wait bound. Rather than spend its first batches and
 then answer `503` on every retry, such an analysis is refused before any
 forecast is fetched, with a `400` that carries `found` and `limit`, the most

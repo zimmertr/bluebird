@@ -27,4 +27,4 @@ A cloud deck value at the ceiling prints `≥30,000`, and one at the floor print
 
 ## Consequences
 
-The Avg column still averages ceiling hours in, so a mixed window's Avg is no hour's height; that is not decided here. The chart's axis keeps the plain number, because a tick is a scale mark rather than a reading.
+The Avg column averages every hour, a ceiling hour at the ceiling's number, so a window clear for part of the day reports an Avg that is no single hour's height. That is settled: "Avg is avg, it should factor in ceiling hours" (the maintainer, 2026-10-08). The chart's axis keeps the plain number, because a tick is a scale mark rather than a reading.
