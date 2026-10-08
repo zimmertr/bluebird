@@ -195,12 +195,12 @@ again. Each of the six that draw somebody else's data is credited in its own sec
 
 | Layer | What it draws | Coverage |
 |---|---|---|
-| **Area closures (West)** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
-| **Trail closures (OR/WA)** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
-| **Wildfires (US only)** | Active fire perimeters, in red | United States — the label says so because the proximity check shares the limit ([DATA.md](DATA.md#wildfires)) |
-| **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | Continental United States |
-| **Smoke** | Smoke plumes at three densities, in grey | North America |
-| **Snow depth (US only)** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
+| **Area closures** | Ground closed by a Forest Service closure order, in fuchsia | Forest Service orders in Oregon, Washington, Arizona, New Mexico, Utah, most of Nevada, southern Idaho and western Wyoming. No national park, state, BLM or tribal closure is drawn ([DATA.md](DATA.md#closures)) |
+| **Trail closures** | Trails and roads closed by those orders as dashed fuchsia lines, and closed trailheads and sites as dots | Oregon and Washington |
+| **Wildfires** | Active fire perimeters, in red | United States, which the proximity check shares ([DATA.md](DATA.md#wildfires)) |
+| **Rain radar** | The NEXRAD reflectivity mosaic, as a loop of the last 50 minutes | The contiguous states, Alaska, Hawaii, Puerto Rico and Guam |
+| **Smoke** | Smoke plumes at three densities, in grey | North America, Hawaii and the Caribbean |
+| **Snow depth** | Snow on the ground now, in NOAA's own bands from under an inch to 65 feet ([DATA.md](DATA.md#snow-depth)) | Coterminous United States |
 | **Forecast grid** | The ranked metric drawn across the area your analysis covered | Wherever the chosen model reaches |
 
 The rows read in alphabetical order, and one of them draws nothing: **Forecast player** switches the
@@ -211,6 +211,18 @@ you have set it, it rides in the shared link like the seven above. It goes gray 
 nothing on the map spans time, which is a report of one hour with the rain radar
 off. Every row stays in the list whether or not it applies, so the list is the same
 length every time you open it.
+
+The six rows in the table above with a coverage edge go gray the same way, when
+the map you are looking at lies wholly outside it: over Colorado the two closure
+rows gray, because no Forest Service feed here covers it, and over the Alps every
+row but the forecast grid and the player does. A gray row says the layer has
+nothing to draw here, which is the one thing an empty layer cannot say for
+itself: outside a feed's coverage, empty means "not covered", never "open" or
+"clear". Pan back into coverage and the row returns. A layer you switched on
+before panning out stays checked while gray, and draws again where it can. No
+label carries the coverage, because the one row that most needed a word for its
+coverage has none: the area feeds cover eight states, and "West" is not their
+name.
 
 Hovering a closure names its order, the national forest, the trail and its
 number on a closed trail, and the dates the order runs when it states both, with

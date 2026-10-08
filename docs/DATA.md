@@ -689,12 +689,13 @@ for a surveyed product and not a sign of stale data on this end. If you are
 calling the API directly, the response also carries `fetched_at`, saying how
 current the copy itself is; see [API.md](API.md#wildfire-perimeters).
 
-WFIGS is the authoritative national dataset and it is **United States only** —
-the layer's checkbox says so. The API publishes what that means as a
-`coverage` geometry riding every `/api/wildfires` response (a coarse US
-outline, biased slightly outward, split at the antimeridian for the
-Aleutians), and the app compares every analyzed destination against it, row
-by row. A destination outside coverage reads `N/A` in the table's
+WFIGS is the authoritative national dataset and it is **United States only**:
+the layer's row in the Layers menu grays over a view wholly outside it. The
+API publishes what that means as a `coverage` geometry riding every
+`/api/wildfires` response (a coarse US outline, biased slightly outward,
+split at the antimeridian for the Aleutians) and again under `coverage` in
+`GET /api/capabilities`, and the app compares every analyzed destination
+against it, row by row. A destination outside coverage reads `N/A` in the table's
 **Wildfire (mi)** column and in the same column of a downloaded CSV, so a
 missing warning is never mistaken for a clear check (a dash in the table, a
 blank cell in the file) — while a covered destination in the same table keeps
@@ -753,8 +754,12 @@ than silent; see [API.md](API.md#smoke-plumes). A copy is served through a
 failed refresh for up to 24 hours, like the perimeters; past that the layer is
 empty until NOAA answers again.
 
-Coverage is North America, which is what HMS analyzes. Elsewhere the layer is
-empty, and empty means "not covered" rather than "clear air".
+Coverage is North America, Hawaii and the Caribbean, in NOAA's own words, which
+is what HMS analyzes. Elsewhere the layer is empty, and empty means "not
+covered" rather than "clear air", which is why the Smoke row in the Layers menu
+grays over a view wholly outside that domain (`SMOKE_EXTENT` in
+`frontend/src/utils/smoke.ts`, drawn wide on purpose: the edge of an
+analyst's product is where the analysts stop looking).
 
 ## Closures
 
@@ -935,7 +940,14 @@ never requested at all — permanently, with every missing tile answering 200 to
 direct fetch. Six frames also halves the roughly 420 tile requests a full loop
 sends to a donated server, which is its own argument.
 
-Coverage is the continental United States. Reflectivity is not a rainfall rate:
+Coverage is wherever the WSR-88D network has a radar: the contiguous states,
+Alaska, Hawaii, Puerto Rico and Guam. IEM describes the composite as CONUS and
+its grid is one, but the tiles paint past it (probed 2026-10-07: the tiles over
+Anchorage, Honolulu, San Juan and Guam each carried echoes, and those over the
+open Pacific, Korea, Bermuda, Iceland and Europe were the same empty image).
+`RADAR_EXTENTS` in `frontend/src/utils/radar.ts` holds those five areas as
+coarse boxes, and the Layers row grays over a view none of them touches.
+Reflectivity is not a rainfall rate:
 it is what the radar echo measured, which hail, bright-band melting, and beam
 blockage in mountain terrain can all colour. Read it as where the storm is, not
 as how much water is landing on a summit.
@@ -962,8 +974,9 @@ thing that changes over days.
 **Coverage is the coterminous United States**, with the analysis grid running a
 little into southern Canada and northern Mexico. There is no Alaska, no Hawaii
 and nothing outside North America. Outside that extent the layer draws nothing,
-and nothing means "not analyzed" rather than "no snow". The Layers row says
-`US only` for that reason, the way the wildfire row does.
+and nothing means "not analyzed" rather than "no snow". The Layers row grays
+over a view wholly outside that extent for that reason, the way the wildfire
+row does.
 
 The images go **straight from NOAA to your browser** rather than through
 Bluebird Forecast's server. The service has no cached tiles: it renders a PNG

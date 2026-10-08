@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   SMOKE_DENSITIES,
+  SMOKE_EXTENT,
   SMOKE_OPACITY,
   densityOf,
   formatObserved,
@@ -125,5 +126,18 @@ describe('smokePopupHtml', () => {
     })
     expect(html).toContain('Observed')
     expect(html).toContain('font-style:italic')
+  })
+})
+
+describe('SMOKE_EXTENT', () => {
+  // NOAA's own domain, "North America, Hawaii, and the Caribbean", drawn wide:
+  // the edge of an analyst's product is where the analysts stop looking.
+  it('takes in the whole stated domain and no other continent', () => {
+    const [w, s, e, n] = SMOKE_EXTENT
+    const inside = (lng: number, lat: number) => lng >= w && lng <= e && lat >= s && lat <= n
+    expect([inside(-121.8, 46.9), inside(-149.9, 61.2), inside(-157.9, 21.3), inside(-66.1, 18.5), inside(-99, 19.4)]).toEqual(
+      [true, true, true, true, true],
+    )
+    expect([inside(7.7, 46.0), inside(139.7, 35.7)]).toEqual([false, false])
   })
 })

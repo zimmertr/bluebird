@@ -576,6 +576,7 @@ export interface components {
              * @description The request header that carries an Open-Meteo API key on the analyze routes. The public deployment requires it there and forwards the key to Open-Meteo, so the request spends the caller's quota.
              */
             api_key_header: string;
+            coverage: components["schemas"]["Coverage"];
             /** Data Sources */
             data_sources: components["schemas"]["DataSource"][];
             /**
@@ -641,6 +642,40 @@ export interface components {
          */
         ConfigResponse: {
             preview: components["schemas"]["PreviewConfig"];
+        };
+        /**
+         * Coverage
+         * @description Where each map layer's data has meaning, as GeoJSON MultiPolygon geometries.
+         *
+         *     The same outlines ride every `/api/wildfires` and `/api/closures` response
+         *     beside the data they qualify. Published here too so a client can tell,
+         *     before it fetches any layer, whether its view is somewhere the layer
+         *     could draw anything: outside an outline an empty layer means "not
+         *     covered", never "nothing there". Static per release; the closure
+         *     response's copy may be narrower when a regional feed is failing.
+         */
+        Coverage: {
+            /**
+             * Area Closures
+             * @description The area the Forest Service closure order feeds cover, with every regional feed answering: Regions 3, 4 and 6, as coarse outlines biased about 0.2° outward on land.
+             */
+            area_closures: {
+                [key: string]: unknown;
+            };
+            /**
+             * Trail Closures
+             * @description The area the closed trail, road and site feed covers: Region 6, Oregon and Washington, as one coarse outline.
+             */
+            trail_closures: {
+                [key: string]: unknown;
+            };
+            /**
+             * Wildfires
+             * @description The area WFIGS covers: a coarse (±50 km, biased outward) outline of the United States, with Alaska split at the antimeridian so no ring wraps 180°.
+             */
+            wildfires: {
+                [key: string]: unknown;
+            };
         };
         /**
          * CustomDestination

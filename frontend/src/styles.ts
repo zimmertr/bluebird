@@ -1152,7 +1152,8 @@ export const CHART_METRIC_W = 'w-36'
  * 184 leaves 5.4px over the wider of the two. It is 8px narrower than the
  * `w-48` it replaced, which is all the slack there was: at 176 (`w-44`) the
  * wait line wraps and the placeholder clips. Everything else in the column has
- * room to spare — the widest popover row, "Wildfires (US only)", needs 148.9px,
+ * room to spare — the widest popover row, "Forecast player", needs 130.0px
+ * (measured 2026-10-07, after the coverage parentheticals left the labels),
  * and the Controls button 107.6px. Re-measure before lengthening a line in any
  * of them.
  */

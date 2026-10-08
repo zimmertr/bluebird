@@ -27,6 +27,7 @@ import type { Place } from '../utils/geocode'
 import { fieldHasValue } from '../utils/present'
 import type { CameraView } from '../utils/mapView'
 import type { UrlSync } from '../hooks/useUrlSync'
+import type { LayerCoverage } from '../utils/layerCoverage'
 
 export interface MapStageProps {
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
@@ -39,6 +40,8 @@ export interface MapStageProps {
   removals: Pick<Removals, 'registerPlace'>
   /** Which overlays are on, and their setters for the Layers popover. */
   overlays: Omit<MapOverlays, 'showPlayer'>
+  /** The server's outlines for the snapshot layers, which the Layers popover greys its rows on. */
+  coverage: LayerCoverage
   /** The forecast grid's cells and style, its legend state and its Layers row. */
   grid: Pick<GridLayer, 'grid' | 'gridStyle'> &
     ComponentProps<typeof MapLegend>['grid'] &
@@ -111,6 +114,7 @@ export default function MapStage({
   destinationInputs,
   removals,
   overlays,
+  coverage,
   grid,
   timeline,
   report,
@@ -269,6 +273,8 @@ export default function MapStage({
           overlays={overlays}
           grid={grid}
           playerOffered={timeline.playerOffered}
+          mapRef={mapRef}
+          coverage={coverage}
           forcedOpen={layersForcedOpen}
         />
       </MapButtonColumn>

@@ -537,6 +537,9 @@
             "title": "Api Key Header",
             "type": "string"
           },
+          "coverage": {
+            "$ref": "#/components/schemas/Coverage"
+          },
           "data_sources": {
             "items": {
               "$ref": "#/components/schemas/DataSource"
@@ -578,6 +581,7 @@
           "forecast_models",
           "api_key_header",
           "limits",
+          "coverage",
           "data_sources"
         ],
         "title": "CapabilitiesResponse",
@@ -633,6 +637,36 @@
           "preview"
         ],
         "title": "ConfigResponse",
+        "type": "object"
+      },
+      "Coverage": {
+        "description": "Where each map layer's data has meaning, as GeoJSON MultiPolygon geometries.\n\nThe same outlines ride every `/api/wildfires` and `/api/closures` response\nbeside the data they qualify. Published here too so a client can tell,\nbefore it fetches any layer, whether its view is somewhere the layer\ncould draw anything: outside an outline an empty layer means \"not\ncovered\", never \"nothing there\". Static per release; the closure\nresponse's copy may be narrower when a regional feed is failing.",
+        "properties": {
+          "area_closures": {
+            "additionalProperties": true,
+            "description": "The area the Forest Service closure order feeds cover, with every regional feed answering: Regions 3, 4 and 6, as coarse outlines biased about 0.2\u00b0 outward on land.",
+            "title": "Area Closures",
+            "type": "object"
+          },
+          "trail_closures": {
+            "additionalProperties": true,
+            "description": "The area the closed trail, road and site feed covers: Region 6, Oregon and Washington, as one coarse outline.",
+            "title": "Trail Closures",
+            "type": "object"
+          },
+          "wildfires": {
+            "additionalProperties": true,
+            "description": "The area WFIGS covers: a coarse (\u00b150 km, biased outward) outline of the United States, with Alaska split at the antimeridian so no ring wraps 180\u00b0.",
+            "title": "Wildfires",
+            "type": "object"
+          }
+        },
+        "required": [
+          "wildfires",
+          "area_closures",
+          "trail_closures"
+        ],
+        "title": "Coverage",
         "type": "object"
       },
       "CustomDestination": {
