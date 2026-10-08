@@ -1,6 +1,6 @@
 # 0053. A snow depth at the file's ceiling prints as a bound, not a number
 
-- Status: Accepted
+- Status: Superseded by 0119
 - Date: 2026-09-22 (git: shipped in #463)
 - Decider: TJ (git: author and merger of #463)
 - Issues and PRs: #449, #463

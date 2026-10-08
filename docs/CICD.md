@@ -806,7 +806,7 @@ look for in the logs above.
 | --- | --- | --- | --- |
 | Overpass | discovery and pasted coordinates (`POST /api/destinations`, and the API's analyze routes) | `bluebird_forecast_overpass_requests_total` by `mirror`, `outcome` and `path` (`discovery` or `enrichment`, the pasted-coordinate lookup), and `bluebird_forecast_overpass_fallback_total` by `mirror` and `path`; the panels sum over `path`: **Overpass attempts by mirror and outcome**, **Overpass failovers per hour** | `Overpass endpoint <url> failed:` |
 | Open-Meteo | the API's analyze routes only: the canary's `api-test` and keyed callers | `bluebird_forecast_openmeteo_requests_total` by `service`, `outcome` and `quota`, and `bluebird_forecast_openmeteo_rate_limited_total` by `scope`: **Open-Meteo attempts by outcome**, **Open-Meteo 429s per hour by scope** | `request failed:`, `rate limited (` |
-| NIFC, the Forest Service, NOAA HMS, SNODAS | the four overlay snapshots | `bluebird_forecast_snapshot_refresh_failures_total` by `provider`: **Overlay snapshot refresh failures per hour** | `refresh failed (`, `fetch failed with nothing cached to fall back on` |
+| NIFC, the Forest Service, NOAA HMS | the three overlay snapshots | `bluebird_forecast_snapshot_refresh_failures_total` by `provider`: **Overlay snapshot refresh failures per hour** | `refresh failed (`, `fetch failed with nothing cached to fall back on` |
 | Nominatim | the search box (`GET /api/geocode`) | none | `Nominatim request failed:` |
 
 Two cases need a second look:

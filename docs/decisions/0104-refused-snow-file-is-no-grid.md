@@ -1,6 +1,6 @@
 # 0104. A refused snow depth file is no grid for its day, and the grid before it is not served in its place
 
-- Status: Accepted
+- Status: Superseded by 0119
 - Date: 2026-10-06
 - Decider: the maintainer (TJ), on issue #629, 2026-10-06: option A only, "a refused SNODAS file degrades snow depth to null for the day; no stale grid is served"
 - Issues and PRs: #629, #595, #449, #463
