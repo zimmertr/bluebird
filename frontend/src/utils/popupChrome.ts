@@ -13,6 +13,7 @@
 // sees. Keeping it out of the component is also what makes it unit-testable
 // without pulling maplibre-gl into a node test.
 import { externalLinkMarkup } from '../iconPaths'
+import { AGGREGATE } from '../metrics'
 import type { PopupGrid } from './popupRows'
 
 /**
@@ -240,54 +241,84 @@ export function coordinateRow(latitude: number, longitude: number): string {
 }
 
 /**
+ * A ranked destination's facts on one line under its name: the type, the
+ * elevation and the coordinates, parted by a light pipe (TJ, 2026-10-08).
+ * The pipe is drawn in `RULE_COLOR` and hidden from a screen reader, which
+ * hears the three facts as a list; it is a divider, not a character to read.
+ * The line never wraps for the coordinate row's reason, and the card is wide
+ * enough for a trailhead's, the longest (278.7px measured on macOS).
+ */
+export function factsRow(type: string | null, elevation: string | null, latitude: number, longitude: number): string {
+  const pipe = `<span aria-hidden="true" style="color:${RULE_COLOR};padding:0 6px">|</span>`
+  const coords = `<span style="${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`
+  const parts = [
+    type ? escapeHtml(type) : '',
+    elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',
+    coords,
+  ].filter(Boolean)
+  return `<div style="white-space:nowrap">${parts.join(pipe)}</div>`
+}
+
+/**
  * The popup's measurements as a grid: a row per metric family, a column per
- * aggregate, headed once at the top (TJ, 2026-10-08, at every width). It
- * replaced a heading line per family with its "Min: … | Max: … | Avg: …"
- * values indented under it, which spelled the aggregate words on every family
- * and took two lines each. On a phone that card grew past the map under the
- * top control stack once the cloud deck joined every report (#683).
+ * aggregate with the window total last, headed once at the top (TJ,
+ * 2026-10-08, at every width). It replaced a heading line per family with its
+ * "Min: … | Max: … | Avg: …" values indented under it, which spelled the
+ * aggregate words on every family and took two lines each.
  *
  * A real table, so a screen reader hears each number with its row and column:
- * the family is the row header, the aggregate the column header, and a rate
- * line under a total carries its whole name in `aria-label`, since "(in/hr)"
- * names nothing on its own. The label column takes the room the numbers leave
- * and wraps there, a long noun such as "Freezing level (ft)" onto two lines,
- * and every cell sits on the bottom line, so a wrapped noun's numbers stand
- * beside its last line. Numbers never wrap and are right-aligned, so a column
+ * the family is the row header and the aggregate the column header. Each
+ * column is a shaded band with a white gutter on its left, so Min, Max, Avg
+ * and Total read as four columns rather than as numbers that happen to line
+ * up (TJ, 2026-10-08, column bands over striped rows or tiles). A family's
+ * label keeps one line: the card is sized to the widest label beside the
+ * widest numbers (`RESULT_POPUP_MAX_WIDTH_PX`). A line with one value, a
+ * family narrowed to a single column, may break its longer label rather than
+ * push the card wider. Numbers never wrap and are right-aligned, so a column
  * lines up on its last digit in the mono face, the way the table's do.
  */
 export function metricGrid(grid: PopupGrid): string {
-  const span = Math.max(1, grid.columns.length)
   const cell = (c: { text: string; href: string | null }) => {
     const shown = `<span style="${VALUE_FACE}">${c.text}</span>`
     return c.href ? popupLink(c.href, shown) : shown
   }
+  // A one-value line stands across Min, Max and Avg and leaves the Total
+  // column empty, so the number cannot read as a window total.
+  const hasTotal = grid.columns[grid.columns.length - 1] === AGGREGATE.total
+  const lead = Math.max(1, grid.columns.length - (hasTotal ? 1 : 0))
   const head = grid.columns.length
     ? `<tr><td></td>${grid.columns.map((c) => `<th scope="col" style="${GRID_HEAD}">${c}</th>`).join('')}</tr>`
     : ''
   const rows = grid.rows.map((r) => {
     if (r.kind === 'aggregates') {
-      const label = `<th scope="row" style="${GRID_LABEL}${r.nested ? ';padding-left:8px' : ''}"${
-        r.nested ? ` aria-label="${escapeHtml(r.fullLabel)}"` : ''
-      }>${r.label}</th>`
-      return `<tr>${label}${r.cells.map((c) => `<td style="${GRID_VALUE}">${c ? cell(c) : ''}</td>`).join('')}</tr>`
+      return `<tr><th scope="row" style="${GRID_LABEL}">${r.label}</th>${r.cells
+        .map((c) => `<td style="${GRID_VALUE}">${c ? cell(c) : ''}</td>`)
+        .join('')}</tr>`
     }
-    const value = r.kind === 'total' ? `${rowLabel(r.aggregate)}: ${cell(r.cell)}` : cell(r.cell)
-    return `<tr><th scope="row" style="${GRID_LABEL}">${r.label}</th><td colspan="${span}" style="${GRID_VALUE}">${value}</td></tr>`
+    const rest = hasTotal ? `<td style="${GRID_VALUE}"></td>` : ''
+    return `<tr><th scope="row" style="${GRID_LABEL_LOOSE}">${r.label}</th><td colspan="${lead}" style="${GRID_VALUE}">${cell(r.cell)}</td>${rest}</tr>`
   })
-  // The aggregate heads go over the first line that has aggregates, so the
-  // elevation, a fact about the place that leads the grid, does not read as
-  // one of their columns.
-  const at = grid.rows.findIndex((r) => r.kind !== 'value')
-  if (head && at !== -1) rows.splice(at, 0, head)
-  return `<table style="border-collapse:collapse;width:100%">${rows.join('')}</table>`
+  return `<table style="border-collapse:separate;border-spacing:0;width:100%">${head}${rows.join('')}</table>`
 }
 
-// The grid's three cell kinds. Every cell sits on the bottom line, which is
-// where a wrapped label ends.
-const GRID_LABEL = `text-align:left;font-weight:normal;padding:0;vertical-align:bottom;${LABEL_COLOR}`
-const GRID_HEAD = `text-align:right;font-weight:normal;padding:0 0 0 8px;vertical-align:bottom;${LABEL_COLOR}`
-const GRID_VALUE = 'text-align:right;white-space:nowrap;padding:0 0 0 8px;vertical-align:bottom'
+/**
+ * The shade behind each column, slate-100: 5.42:1 under `LINK_COLOR` and
+ * 6.92:1 under `LABEL_COLOR`, against 5.93 and 7.58 on the card's white, so
+ * both stay above AA's 4.5. It is 1.1:1 against the white beside it, which is
+ * enough to read as a band and no more: the heads and the alignment carry the
+ * columns, and the shade only groups them. Pinned in `popupChrome.test.tsx`.
+ */
+export const GRID_BAND_COLOR = '#f1f5f9'
+/** The gutter between bands is the card's own white, which MapLibre paints. */
+export const GRID_GUTTER_COLOR = '#ffffff'
+
+// The grid's cells. The 2px gutter and 3px inset add up to the 8px the
+// columns stood apart by before they had bands.
+const GRID_LABEL_LOOSE = `text-align:left;font-weight:normal;padding:0;vertical-align:bottom;${LABEL_COLOR}`
+const GRID_LABEL = `${GRID_LABEL_LOOSE};white-space:nowrap`
+const GRID_BAND = `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:0 3px`
+const GRID_HEAD = `text-align:right;font-weight:normal;vertical-align:bottom;white-space:nowrap;${GRID_BAND};${LABEL_COLOR}`
+const GRID_VALUE = `text-align:right;white-space:nowrap;vertical-align:bottom;${GRID_BAND}`
 
 /**
  * The class a too-tall marker popup's body wears while it scrolls, and the
@@ -331,6 +362,23 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
+ * How wide a ranked destination's popup may get: 340px, or the map less 10px
+ * a side where the map is narrower (TJ, 2026-10-08).
+ *
+ * Its grid is wider than any other popup's. Measured in Chrome on macOS, the
+ * widest label, `Precipitation (in/hr)`, beside Min, Max, Avg and Total at
+ * their widest numbers (`≥30,000` under Max) needs 316px, 319px with the last
+ * band's inset, and the body has the card less 10px a side. On a 360px phone
+ * that is 94% of the map, which reverses the four-fifths share `popupWidth`
+ * keeps for the other popups; TJ accepted the cost for one grid over two.
+ */
+export const RESULT_POPUP_MAX_WIDTH_PX = 340
+
+export function resultPopupWidth(canvasWidthPx: number): string {
+  return Math.max(180, Math.min(RESULT_POPUP_MAX_WIDTH_PX, canvasWidthPx - 20)) + 'px'
+}
+
+/**
  * A share of the canvas rather than a fixed inset, which is the difference
  * between a card that fits and one that merely does not overflow: subtracting
  * a margin from a 320px phone map still left the 280px ceiling winning, so the
@@ -370,7 +418,13 @@ export function linkIcon(url: string): string {
  * everything under it describes it, and the separation should be visible
  * rather than inferred from weight alone.
  */
-export function popupShell(title: string, url: string, body: string, meta = ''): string {
+export function popupShell(
+  title: string,
+  url: string,
+  body: string,
+  meta = '',
+  { bodyUnderLane = false }: { bodyUnderLane?: boolean } = {},
+): string {
   // The name stays at the reading size and everything under it steps down one.
   // Setting both the same made the details compete with the thing they
   // describe, and the step also narrows the widest row, which is what lets the
@@ -382,10 +436,24 @@ export function popupShell(title: string, url: string, body: string, meta = ''):
   return `<div style="${POPUP_FACE}">
     <div style="display:flex;align-items:center;gap:6px;${POPUP_TITLE_SIZE}"><strong>${title}</strong>${linkIcon(url)}</div>
     ${meta}
-    <hr style="border:none;border-top:1px solid ${RULE_COLOR};margin:5px 0" />
-    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE}">${body}</div>
+    <hr style="border:none;border-top:1px solid ${RULE_COLOR};margin:5px ${bodyUnderLane ? `-${CLOSE_LANE_PX}px` : '0'} 5px 0" />
+    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE}${bodyUnderLane ? BODY_UNDER_LANE : ''}">${body}</div>
   </div>`
 }
+
+/**
+ * The close button's lane, given back to a body below the rule.
+ *
+ * `map.css` pads the card's right side by 2rem so the title cannot run under
+ * the close button, against 10px on its left. Below the rule the button is
+ * out of the way, at 44px tall on a touch screen too, so the marker popup's
+ * grid takes the lane back and stands 10px from both edges, and the rule
+ * over it runs as far, so the two end on one line (TJ, 2026-10-08).
+ * The scroll is for a phone narrower than the grid, where the columns slide
+ * rather than spill out of the card.
+ */
+const CLOSE_LANE_PX = 22
+const BODY_UNDER_LANE = `;margin-right:-${CLOSE_LANE_PX}px;overflow-x:auto`
 
 /**
  * Third-party text on its way to setHTML — OSM names, NIFC incident names —

@@ -1,11 +1,10 @@
 import { DestinationResult } from '../types'
-import { SEP } from '../metrics'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
 import { type ClosureWarning, closureWarningText } from './closureProximity'
 import {
-  coordinateRow,
   escapeHtml,
+  factsRow,
   metaBand,
   metricGrid,
   popupLink,
@@ -93,14 +92,14 @@ export function resultPopupHtml(d: {
       ? popupLink(d.closure.url, closureLine, `color:${WARNING_COLOR};display:block`)
       : `<div style="color:${WARNING_COLOR}">${closureLine}</div>`
 
-  // What the destination IS, above the rule. The type and the model share one
-  // line because each is a word rather than a measurement, and the separator
-  // is the one metrics.ts already uses to part two facts on a line.
+  // What the destination IS, above the rule: its type, elevation and
+  // coordinates on one line (TJ, 2026-10-08). The model a comparison names
+  // takes a line of its own above them, because a model's name can be as long
+  // as the rest of the line together.
   const identity = popupIdentity(r, d.columns, d.modelFallbackLabel)
-  const named = [identity.type, identity.model].filter(Boolean)
   const meta = metaBand([
-    named.length ? `<div>${escapeHtml(named.join(` ${SEP} `))}</div>` : '',
-    coordinateRow(r.latitude, r.longitude),
+    identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
+    factsRow(identity.type, identity.elevation, r.latitude, r.longitude),
   ])
 
   // The measurements as one grid, a row per family and a column per aggregate
@@ -111,5 +110,5 @@ export function resultPopupHtml(d: {
     .join('\n    ')
 
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(r.name)}`
-  return popupShell(title, url, body, meta)
+  return popupShell(title, url, body, meta, { bodyUnderLane: true })
 }

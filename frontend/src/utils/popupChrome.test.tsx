@@ -2,7 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { within } from '@testing-library/react'
 import { render } from '../testSupport/render'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
-import { popupShell, row } from './popupChrome'
+import {
+  GRID_BAND_COLOR,
+  GRID_GUTTER_COLOR,
+  LABEL_COLOR,
+  LINK_COLOR,
+  RESULT_POPUP_MAX_WIDTH_PX,
+  factsRow,
+  metricGrid,
+  popupShell,
+  resultPopupWidth,
+  row,
+} from './popupChrome'
+import { AGGREGATE } from '../metrics'
 import { resultPopupHtml } from './resultPopup'
 import { displayedColumns } from './tableColumns'
 
@@ -72,3 +84,80 @@ describe('a result popup', () => {
     expect(hrefs).toContain(url)
   })
 })
+
+// The grid's column bands (TJ, 2026-10-08). The band sits under every number
+// and every head, so both colours on it must still clear AA.
+describe('the popup grid', () => {
+  it('keeps link and label text above AA on the band', () => {
+    expect(round2(contrast(LINK_COLOR, GRID_BAND_COLOR))).toBe(5.42)
+    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), GRID_BAND_COLOR))).toBe(6.92)
+    expect(GRID_GUTTER_COLOR).toBe('#ffffff')
+  })
+
+  it('stands a one-value line across Min, Max and Avg and leaves Total empty', () => {
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total],
+      rows: [{ kind: 'value', label: 'Cloud deck (ft)', cell: { text: '≥30,000', href: null } }],
+    })
+    const cells = [...html.matchAll(/<td colspan="(\d)"|<td style/g)]
+    expect(html).toContain('<td colspan="3"')
+    expect(cells).toHaveLength(2)
+  })
+
+  // Every label stays on one line; the card is sized for the widest.
+  it('never wraps a family label', () => {
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum],
+      rows: [{ kind: 'aggregates', label: 'Precipitation (in/hr)', cells: [{ text: '0.000', href: null }] }],
+    })
+    expect(html).toMatch(/<th scope="row" style="[^"]*white-space:nowrap[^"]*">Precipitation \(in\/hr\)<\/th>/)
+  })
+})
+
+describe('the facts line', () => {
+  it('parts the type, elevation and coordinates with a pipe a screen reader skips', () => {
+    const popup = mount(factsRow('Trailhead', '3,120 ft', 47.5, -121.25))
+    expect(popup.textContent).toBe('Trailhead|3,120 ft|47.50000, -121.25000')
+    expect(popup.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2)
+  })
+
+  it('drops a part it does not have', () => {
+    expect(mount(factsRow(null, null, 47.5, -121.25)).textContent).toBe('47.50000, -121.25000')
+  })
+})
+
+// The result popup's own width (TJ, 2026-10-08). Measured in Chrome on macOS:
+// the widest label beside the widest Min, Max, Avg and Total needs 316px of
+// grid, and the last band's 3px inset makes 319. The body has the card less
+// 10px a side. A change to the grid's columns or type re-measures this.
+const WIDEST_GRID_PX = 319
+describe('resultPopupWidth', () => {
+  it('fits the widest grid measured on macOS', () => {
+    expect(RESULT_POPUP_MAX_WIDTH_PX - 20).toBeGreaterThanOrEqual(WIDEST_GRID_PX)
+  })
+
+  it('takes the map less 10px a side where the map is narrower', () => {
+    expect(resultPopupWidth(1280)).toBe(`${RESULT_POPUP_MAX_WIDTH_PX}px`)
+    expect(resultPopupWidth(360)).toBe('340px')
+    expect(resultPopupWidth(320)).toBe('300px')
+    expect(resultPopupWidth(0)).toBe('180px')
+  })
+})
+
+// WCAG relative luminance and contrast, for the band above. Small enough to
+// live here, as `colors.test.ts` keeps its own.
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
+}

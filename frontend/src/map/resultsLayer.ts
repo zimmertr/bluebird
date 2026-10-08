@@ -288,7 +288,7 @@ export function mountResultsLayer(
     { markerAt, avoid = [] }: { markerAt?: ScreenPoint; avoid?: readonly Rect[] },
   ): PopupPlacement => {
     const build = (anchor: 'top' | 'bottom') =>
-      new Popup({ ...popupOptions(map), closeOnClick: false, anchor }).setLngLat(at).setHTML(html).addTo(map)
+      new Popup({ ...popupOptions(map, { result: true }), closeOnClick: false, anchor }).setLngLat(at).setHTML(html).addTo(map)
     let popup = build('top')
     const measure = () => {
       const el = popup.getElement()

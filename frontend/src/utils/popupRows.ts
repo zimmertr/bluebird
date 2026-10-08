@@ -1,6 +1,6 @@
 import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, MetricFamily, familyOf, metricLabel, windowAggregate } from '../metrics'
-import { CLOSURE_KEY, ColDef, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
+import { AGGREGATE, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../metrics'
+import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
 import { isUnavailableKey, unavailableCellText } from './unavailableCell'
@@ -32,9 +32,9 @@ export type PopupValue = {
   /** The formatted number, as the table's cell prints it. */
   text: string
   /**
-   * The column's unit where the group's columns disagree on one (a window
-   * total in inches beside rates in inches per hour), so the heading cannot
-   * carry it. Null where the heading does.
+   * The column's unit where the label cannot carry it. Null where it does,
+   * which is every family today: precipitation's and snowfall's labels name
+   * the rate, and their window total stands in the Total column without one.
    */
   unit: string | null
   /** Where the number links, matching the table cell's Windy link. */
@@ -44,10 +44,9 @@ export type PopupValue = {
 /**
  * One label and its values.
  *
- * A group is a metric family, or a lone identity column that is a number
- * rather than a name (the elevation). `single` is what decides the shape: one
- * value is a line of its own in the grid, and two or more spread across the
- * aggregate columns (`popupGrid`).
+ * A group is a metric family. `single` is what decides the shape: one value is
+ * a line of its own in the grid, and two or more spread across the aggregate
+ * columns (`popupGrid`).
  */
 export type PopupGroup = {
   label: string
@@ -61,6 +60,13 @@ export type PopupIdentity = {
   type: string | null
   /** Which model answered this row, only while a comparison is up. */
   model: string | null
+  /**
+   * The elevation with its unit, as `12,281 ft`, or null where the reader hid
+   * the column or the place has none. It sits on the type's line rather than
+   * in the grid because it is a fact about the place, not a forecast (TJ,
+   * 2026-10-08).
+   */
+  elevation: string | null
 }
 
 /**
@@ -88,17 +94,21 @@ function cellText(col: ColDef, row: DestinationResult): { text: string; linkable
 }
 
 /**
- * The heading a family's values sit under.
+ * The unit a family's label names.
  *
- * The unit goes on the heading when every visible column in the group reports
- * in the same one, and on each value when they do not. Precipitation and
- * snowfall split: each window total is inches and the other three columns are
- * a rate, so a shared unit on the heading would be wrong for three values out
- * of four (TJ, 2026-09-14; snowfall since #678).
+ * Every visible column's, when they agree. Precipitation and snowfall do not:
+ * each window total is inches and the other three columns are a rate. Their
+ * label names the rate, `Precipitation (in/hr)`, and the total stands in the
+ * Total column with no unit, which a reader takes from the column (TJ,
+ * 2026-10-08: "We can probably trust users to interpret this"). Only where
+ * the rates themselves disagree does each value keep its own, and no family
+ * does that today.
  */
 function groupUnit(cols: ColDef[]): string | null {
   const units = cols.map((c) => c.unit ?? '')
-  return units.every((u) => u === units[0]) ? units[0] : null
+  if (units.every((u) => u === units[0])) return units[0]
+  const rates = cols.filter((c) => aggregateToken(c.key as SortBy) !== 'total').map((c) => c.unit ?? '')
+  return rates.length > 0 && rates.every((u) => u === rates[0]) ? rates[0] : null
 }
 
 /**
@@ -109,8 +119,9 @@ function groupUnit(cols: ColDef[]): string | null {
  * a family the aggregates keep the columns' own order, which is the reader's
  * if they have dragged one.
  *
- * Three column kinds never become a group. `name` is the popup's title.
- * `type` and the model ride in the band above the rule, where TJ moved them.
+ * Four column kinds never become a group. `name` is the popup's title.
+ * `type`, the elevation and the model ride in the band above the rule, where
+ * TJ moved them.
  * And the two flag columns, wildfire and closure, stay out entirely: the popup
  * says each in amber at the top, because each is a safety flag rather than a
  * measurement, and saying it twice on one card would be the drift this file
@@ -132,6 +143,7 @@ export function popupGroups(
     if (
       key === 'name' ||
       key === 'type' ||
+      key === ELEVATION_COL.key ||
       key === WILDFIRE_KEY ||
       key === CLOSURE_KEY ||
       key === MODEL_KEY
@@ -184,7 +196,7 @@ export function popupGroups(
 }
 
 /**
- * The type and the model, for the band under the title.
+ * The type, the elevation and the model, for the band under the title.
  *
  * Title-cased here the way the table's Type column formats it, off the same
  * `ColDef`, so the two cannot capitalize one word differently.
@@ -196,11 +208,19 @@ export function popupIdentity(
 ): PopupIdentity {
   const typeCol = columns.find((c) => c.key === 'type')
   const modelShown = columns.some((c) => c.key === MODEL_KEY)
+  const elevationCol = columns.find((c) => c.key === ELEVATION_COL.key)
   return {
     type: typeCol ? (typeCol.format ? typeCol.format(row.type) : row.type) : null,
     model: modelShown ? ((row as ModelRow).modelLabel ?? modelFallbackLabel ?? null) : null,
+    elevation:
+      elevationCol && row.elevation_ft != null
+        ? `${elevationCol.format ? elevationCol.format(row.elevation_ft) : row.elevation_ft} ${ELEVATION_UNIT}`
+        : null,
   }
 }
+
+/** The elevation column's unit, which its label spells as `Elevation (ft)`. */
+const ELEVATION_UNIT = 'ft'
 
 /** A value in the grid, or an aggregate the reader's columns leave out. */
 export type PopupCell = { text: string; href: string | null } | null
@@ -208,18 +228,14 @@ export type PopupCell = { text: string; href: string | null } | null
 /**
  * One line of the popup's grid (TJ, 2026-10-08).
  *
- * - `value`: one number for the line, across the aggregate columns. The
- *   elevation always, and every family over a Current lookup.
- * - `total`: a family's window total, on its own line because it is in a unit
- *   of its own (precipitation and snowfall, inches beside inches per hour).
- * - `aggregates`: one cell per aggregate column. `nested` is the rate line
- *   under a total, whose label is the rates' unit alone; `fullLabel` is what a
- *   screen reader hears for it, since "(in/hr)" names nothing on its own.
+ * - `value`: one number for the line, standing across the Min, Max and Avg
+ *   columns. Every family over a Current lookup, a family narrowed to one
+ *   column, and a cloud deck that held at one bound all window.
+ * - `aggregates`: one cell per column, the window total last.
  */
 export type PopupGridRow =
   | { kind: 'value'; label: string; cell: { text: string; href: string | null } }
-  | { kind: 'total'; label: string; aggregate: string; cell: { text: string; href: string | null } }
-  | { kind: 'aggregates'; label: string; fullLabel: string; nested: boolean; cells: PopupCell[] }
+  | { kind: 'aggregates'; label: string; cells: PopupCell[] }
 
 /** The popup's body as a grid: aggregate column headings, then the lines. */
 export type PopupGrid = { columns: string[]; rows: PopupGridRow[] }
@@ -228,17 +244,24 @@ export type PopupGrid = { columns: string[]; rows: PopupGridRow[] }
  * The aggregates that become columns, in one order for every family. A grid
  * cannot keep each family's own column order the way the stacked lines did,
  * so it takes the order most families already have, and an AQI ranking's Avg
- * moves from first to last (TJ chose the grid, 2026-10-08). A window total is
- * never a column: only two families have one, and its unit is not theirs.
+ * moves from first to last (TJ chose the grid, 2026-10-08). The window total
+ * is the last column, filled for precipitation and snowfall alone (TJ,
+ * 2026-10-08, rather than a line of its own above their rates).
  */
-const GRID_AGGREGATES: readonly string[] = [AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average]
+const GRID_AGGREGATES: readonly string[] = [
+  AGGREGATE.minimum,
+  AGGREGATE.maximum,
+  AGGREGATE.average,
+  AGGREGATE.total,
+]
 
 /**
  * The groups laid out as a grid: a row per family, a column per aggregate
  * (TJ, 2026-10-08, replacing the stacked heading-and-values lines at every
  * width). A column appears only when some family shows that aggregate, so a
- * reader who hid every Avg gets two columns, and a Current lookup, where each
- * family is one number, gets none: every line is then a label and its value.
+ * reader who hid every Avg gets no Avg column, and a Current lookup, where
+ * each family is one number, gets none: every line is then a label and its
+ * value.
  */
 export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
   const shown = new Set(
@@ -252,36 +275,29 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
   const rows: PopupGridRow[] = []
   for (const g of groups) {
     if (g.single) {
-      rows.push({ kind: 'value', label: g.label, cell: { text: g.values[0].text, href: g.values[0].href } })
+      rows.push({ kind: 'value', label: g.label, cell: cellOf(g.values[0]) })
       continue
     }
-    const inGrid = g.values.filter((v) => v.aggregate !== null && columns.includes(v.aggregate))
-    const apart = g.values.filter((v) => !inGrid.includes(v))
-    for (const v of apart) {
-      rows.push({ kind: 'total', label: g.label, aggregate: v.aggregate ?? '', cell: cellOf(v) })
-    }
-    if (inGrid.length === 0) continue
-    // Under a total the rates' unit is the line's whole label; without one the
-    // family's heading names it, unless its columns disagree, when each value
-    // keeps its own.
-    const rateUnit = inGrid[0].unit
-    const nested = apart.length > 0 && rateUnit !== null && inGrid.every((v) => v.unit === rateUnit)
-    const label = nested ? `(${rateUnit})` : g.label
     const cells = columns.map((a) => {
-      const v = inGrid.find((x) => x.aggregate === a)
-      if (!v) return null
-      return nested ? { text: v.text, href: v.href } : cellOf(v)
+      const v = g.values.find((x) => x.aggregate === a)
+      return v ? cellOf(v) : null
     })
     // A deck that held at one edge of the walk all window prints the same
-    // bound in every column, and says it once. Three of them are wider than
-    // the card: the bound's glyph falls back to a wider face, and the labels
-    // wrapped onto two lines (measured 2026-10-08, 255px of grid in 238px).
-    const first = cells[0]
-    if (first && cells.length > 1 && isCloudDeckMark(first.text) && cells.every((c) => c?.text === first.text)) {
-      rows.push({ kind: 'value', label, cell: first })
+    // bound in Min, Max and Avg, and says it once across them. Three of them
+    // side by side were wider than the card, and wrapped every label
+    // (measured 2026-10-08). The deck has no total, so nothing is lost.
+    const spread = cells.filter((_, i) => columns[i] !== AGGREGATE.total)
+    const first = spread[0]
+    if (
+      first &&
+      spread.length > 1 &&
+      isCloudDeckMark(first.text) &&
+      spread.every((c) => c?.text === first.text)
+    ) {
+      rows.push({ kind: 'value', label: g.label, cell: first })
       continue
     }
-    rows.push({ kind: 'aggregates', label, fullLabel: nested ? `${g.label} ${label}` : label, nested, cells })
+    rows.push({ kind: 'aggregates', label: g.label, cells })
   }
   return { columns, rows }
 }

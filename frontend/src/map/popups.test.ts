@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createPopupBoard, isPinning, popupOptions, type BoardPopup } from './popups'
-import { popupWidth } from '../utils/popupChrome'
+import { popupWidth, resultPopupWidth } from '../utils/popupChrome'
 import { stubMap } from '../testSupport/stubMap'
 
 // A popup that says whether it is open and fires `close` when taken down, the
@@ -31,6 +31,15 @@ describe('popupOptions', () => {
     for (const width of [320, 1280]) {
       const { map } = stubMap({ canvasWidth: width })
       expect(popupOptions(map)).toEqual({ maxWidth: popupWidth(width) })
+    }
+  })
+})
+
+describe('popupOptions for a result', () => {
+  it('sizes a ranked destination’s popup by its own wider rule', () => {
+    for (const width of [360, 1280]) {
+      const { map } = stubMap({ canvasWidth: width })
+      expect(popupOptions(map, { result: true })).toEqual({ maxWidth: resultPopupWidth(width) })
     }
   })
 })

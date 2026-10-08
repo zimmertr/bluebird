@@ -11,7 +11,7 @@
  * MapLibre is imported for its types only, so a node test can load this file.
  */
 import type * as maplibregl from 'maplibre-gl'
-import { popupWidth } from '../utils/popupChrome'
+import { popupWidth, resultPopupWidth } from '../utils/popupChrome'
 
 /**
  * Whether a click should keep the popups already open.
@@ -25,9 +25,14 @@ export function isPinning(e: { originalEvent?: MouseEvent | { shiftKey?: boolean
   return Boolean((e.originalEvent as { shiftKey?: boolean } | undefined)?.shiftKey)
 }
 
-/** The width option a popup opening on this map should take. */
-export function popupOptions(map: maplibregl.Map) {
-  return { maxWidth: popupWidth(map.getCanvas().clientWidth) }
+/**
+ * The width option a popup opening on this map should take. A ranked
+ * destination's popup has a rule of its own, because its grid needs more room
+ * than any other popup's text (`resultPopupWidth`).
+ */
+export function popupOptions(map: maplibregl.Map, { result = false }: { result?: boolean } = {}) {
+  const canvasWidth = map.getCanvas().clientWidth
+  return { maxWidth: result ? resultPopupWidth(canvasWidth) : popupWidth(canvasWidth) }
 }
 
 /** The part of a MapLibre popup the board needs. */
