@@ -546,7 +546,7 @@ relabels the strip with its bands.
 
 **A tick stands on the strip, and that is what the scrim is for.** No single ink
 clears AA over a ramp that runs the whole hue circle: white measures 1.45:1 on
-the wind scale's cyan-300 and slate-900 measures 2.04:1 on its purple, and every
+the freezing level's cyan-300 and slate-900 measures 2.04:1 on its purple, and every
 metric ramp and all eleven snow bands have an end like each of those. So the
 numbers sit on a `bg-slate-900/70` band along the strip's bottom edge, where
 slate-200 measures **6.49:1** against the worst band under it. A text shadow was

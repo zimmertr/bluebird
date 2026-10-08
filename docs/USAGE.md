@@ -525,9 +525,9 @@ cell is shaded by its own number** rather than by the ranking. So a destination
 with a low precipitation total and one violent hour inside it shows a green
 total beside a red peak, which is the spread those extra columns exist to show.
 
-The freezing-level columns are shaded on a scale of their own, one of three
-that do not use the air quality colors (temperature and snow depth are the
-other two). A height is not a verdict:
+The freezing-level columns are shaded on a scale of their own, one of the
+three scales that do not run the shared ramp (temperature and snow depth are
+the other two). A height is not a verdict:
 9,000 ft is a solid night below a 9,500 ft summit and a wasted one below an
 8,000 ft col, so a ramp with a bad end would have picked a side. The colours say
 only how high the freezing line stands, running purple at the bottom through
@@ -559,8 +559,8 @@ forecast player's markers on the one number they rank by, because today's depth
 has no hours to scrub through, and the forecast chart keeps whatever metric it
 was showing: there is no hourly series to draw.
 
-The cloud deck columns use the air quality colors upside down, because a high
-deck is the good end: maroon at or below 3,000 ft, purple to 6,000, red to
+The cloud deck columns use the same six colors in the opposite order, because
+a high deck is the good end: maroon at or below 3,000 ft, purple to 6,000, red to
 9,000, orange to 12,000, yellow to 15,000 and green above that. A clear sky
 reads the ceiling and is green. The deck is the bottom of the lowest cloud, not
 its top, so a deck far below a high summit may be an undercast the summit

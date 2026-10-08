@@ -145,10 +145,9 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   },
   // An exception to the verdict ramp, because a temperature has a bad end on
   // both sides: cold to hot, with green in the MIDDLE rather than at either
-  // end. The
-  // scale used to paint 30°F green, which called the rain-to-snow band the
-  // best condition on the map (#262, #445). Green still means "the best of
-  // this" here, as it does on every other scale, and TJ put it at the
+  // end. The scale used to paint 30°F green, which called the rain-to-snow
+  // band the best condition on the map (#262, #445). Green still means "the
+  // best of this" here, as it does on every other scale, and TJ put it at the
   // temperature a person on foot is comfortable at (2026-09-16): the band
   // reaching 75°F, so 70 reads green. Both ends are then bad ends: cold in the
   // purple the freezing level starts on, hot in the verdict ramp's own orange
