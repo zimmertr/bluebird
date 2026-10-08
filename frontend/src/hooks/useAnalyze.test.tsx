@@ -10,6 +10,12 @@ import { geoKey } from '../utils/points'
 
 // The ranking is clientAnalyze.ts's and has its own suite. A spy here shows
 // what the hook hands it: above all, whether a held field rides along.
+// A ring's tiles are tileDiscovery.ts's and the pipeline's to test; here the
+// pod's answers ride a stubbed fetch the tiles would otherwise read too.
+vi.mock('../utils/tileDiscovery', async (actual) => ({
+  ...(await actual<typeof import('../utils/tileDiscovery')>()),
+  tileDiscoverable: () => false,
+}))
 vi.mock('../utils/clientAnalyze', async (actual) => ({
   ...(await actual<typeof import('../utils/clientAnalyze')>()),
   runClientAnalysis: vi.fn(),
