@@ -8,7 +8,7 @@ the CSV (Bluebird Forecast resolves it from OSM), so ordering is checked against
 """
 import json, re, sys
 
-ROW = re.compile(r'^(-?\d+\.\d{6}), (-?\d+\.\d{6}), (\d+)\. (.+)$')
+ROW = re.compile(r'^(-?\d+\.\d{6}), (-?\d+\.\d{6}), (.+)$')
 
 lid, csvfile = sys.argv[1], sys.argv[2]
 bbox = None
@@ -33,10 +33,8 @@ for n, line in enumerate(data, 1):
     if not m:
         problems.append(f'row {n}: malformed -> {line!r}')
         continue
-    lat, lon, num, name = m.group(1), m.group(2), int(m.group(3)), m.group(4)
+    lat, lon, name = m.group(1), m.group(2), m.group(3)
 
-    if num != n:
-        problems.append(f'row {n}: numbered {num}, expected {n}')
     if n <= len(peaks):
         want = peaks[n - 1]
         if name != want['name']:

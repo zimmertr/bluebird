@@ -2,103 +2,103 @@
 # Source: peakbagger.com list 5045. Coordinates (WGS84 decimal degrees, 6 places)
 # from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
 # Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
-46.849683, -121.711774, 1. Little Tahoma
-46.872275, -121.731855, 2. Steamboat Prow
-46.829641, -121.725631, 3. Anvil Rock
-46.848215, -121.687105, 4. Whitman Crest
-46.876381, -121.716182, 5. Mount Ruth
-46.901715, -121.806755, 6. Observation Rock
-46.906875, -121.800682, 7. Echo Rock
-46.901675, -121.713535, 8. Burroughs Mountain
-46.839295, -121.840655, 9. Tokaloo Rock
-46.848945, -121.609545, 10. Cowlitz Chimneys
-46.814549, -121.704175, 11. Cowlitz Rocks
-46.851115, -121.620636, 12. Banshee Peak
-46.852461, -121.612379, 13. Cowlitz Chimneys - Central Peak
-46.906285, -121.689685, 14. Second Burroughs Mountain
-46.925515, -121.673035, 15. Mount Fremont North
-46.884292, -121.647693, 16. Goat Island Mountain
-46.858271, -121.662493, 17. Meany Crest
-46.912154, -121.674442, 18. First Burroughs Mountain
-46.925114, -121.750188, 19. Old Desolate
-46.947775, -121.604495, 20. Palisades Peak
-46.927225, -121.698295, 21. Skyscraper Mountain
-46.920098, -121.632278, 22. Antler Peak
-46.945845, -121.737905, 23. Sluiskin Mountain - The Chief
-46.918529, -121.610713, 24. Dege Peak
-46.915975, -121.503905, 25. Crystal Mountain
-46.946195, -121.743995, 26. Sluiskin Mountain - The Squaw
-46.937975, -121.608175, 27. Marcus Peak
-46.806867, -121.812039, 28. Pyramid Peak
-46.746305, -121.701215, 29. Unicorn Peak
-46.897185, -121.510285, 30. Chinook Peak
-46.956875, -121.452785, 31. Norse Peak
-46.928145, -121.647005, 32. McNeeley Peak
-46.908997, -121.496592, 33. Three Way Peak
-46.871955, -121.597475, 34. Tamanos Mountain
-46.741217, -121.697403, 35. Boundary Peak
-46.829558, -121.854839, 36. Andrew Benchmark
-46.948015, -121.761805, 37. Crescent Mountain
-46.841675, -121.484925, 38. Dewey Peak
-46.864720, -121.573252, 39. Governors Ridge
-46.965632, -121.582186, 40. South Slide Mountain
-46.906325, -121.519005, 41. Crystal Peak
-46.864374, -121.477472, 42. Tahtlum Peak
-46.757938, -121.732607, 43. Pinnacle Peak
-46.938480, -121.842184, 44. First Mother Mountain
-46.755223, -121.712709, 45. Foss Peak
-46.746084, -121.676858, 46. Stevens Peak
-46.859518, -121.577170, 47. Barrier Peak
-46.908765, -121.755145, 48. Mineral Mountain
-46.932109, -121.848792, 49. Fay Peak
-46.757715, -121.728505, 50. The Castle
-46.927665, -121.838715, 51. Mount Pleasant
-46.867725, -121.507595, 52. Naches Peak
-46.923659, -121.845368, 53. Hessong Rock
-46.946367, -121.825654, 54. Second Mother Mountain
-46.753455, -121.739525, 55. Plummer Peak
-46.844776, -121.503927, 56. Seymour Peak
-46.950716, -121.585187, 57. Brown Peak
-46.706175, -121.664695, 58. Tatoosh Peak
-46.797546, -121.827688, 59. Copper Mountain
-46.793225, -121.828295, 60. Iron Mountain
-46.746930, -121.766870, 61. Wahpenayo Peak
-46.873385, -121.522675, 62. Yakima Peak
-46.828495, -121.579985, 63. Double Peak
-46.947184, -121.851178, 64. Castle Peak
-46.986997, -121.670343, 65. Scarface
-47.023595, -121.815785, 66. Bearhead Mountain
-46.835445, -121.869405, 67. Aurora Peak
-47.014481, -121.800227, 68. Bearhead Mountain - East Peak
-46.772695, -121.898545, 69. Mount Wow
-46.757985, -121.752965, 70. Lane Peak
-46.757329, -121.743401, 71. Denman Peak
-46.752735, -121.774955, 72. Chutla Peak
-46.789231, -121.852324, 73. Mount Ararat
-46.962288, -121.767463, 74. Tyee Peak
-46.755685, -121.779165, 75. Eagle Peak
-46.958135, -121.877315, 76. Tolmie Peak
-47.037537, -121.856554, 77. Pitcher Mountain
-46.813615, -121.530515, 78. Shriner Peak
-46.953753, -121.813461, 79. Third Mother Mountain
-47.017434, -121.890110, 80. Old Baldy Mountain
-46.982573, -121.797819, 81. Wallace Peak
-46.852595, -121.561505, 82. Buell Peak
-46.957365, -121.728105, 83. Redstone Peak
-46.962218, -121.883067, 84. Howard Peak
-46.777294, -121.837846, 85. Satulick Mountain
-46.971461, -121.901523, 86. Florence Peak
-46.794195, -121.914315, 87. Gobblers Knob
-46.970163, -121.872202, 88. Arthur Peak
-46.787674, -121.592786, 89. Bald Rock
-46.970769, -121.845081, 90. Gove Peak
-46.987895, -121.818475, 91. Tirzah Peak
-46.688179, -121.730072, 92. Dixon Mountain
-46.947137, -121.894100, 93. Berry Peak
-46.941633, -121.909386, 94. Virginia Peak
-46.934175, -121.916615, 95. Martin Peak
-46.924415, -121.897565, 96. Paul Peak
-46.749265, -121.867355, 97. Tumtum Peak
-46.953020, -121.913477, 98. August Peak
-46.983687, -121.910315, 99. Sweet Peak
-46.985805, -121.716783, 100. Pigeon Peak
+46.849683, -121.711774, Little Tahoma
+46.872275, -121.731855, Steamboat Prow
+46.829641, -121.725631, Anvil Rock
+46.848215, -121.687105, Whitman Crest
+46.876381, -121.716182, Mount Ruth
+46.901715, -121.806755, Observation Rock
+46.906875, -121.800682, Echo Rock
+46.901675, -121.713535, Burroughs Mountain
+46.839295, -121.840655, Tokaloo Rock
+46.848945, -121.609545, Cowlitz Chimneys
+46.814549, -121.704175, Cowlitz Rocks
+46.851115, -121.620636, Banshee Peak
+46.852461, -121.612379, Cowlitz Chimneys - Central Peak
+46.906285, -121.689685, Second Burroughs Mountain
+46.925515, -121.673035, Mount Fremont North
+46.884292, -121.647693, Goat Island Mountain
+46.858271, -121.662493, Meany Crest
+46.912154, -121.674442, First Burroughs Mountain
+46.925114, -121.750188, Old Desolate
+46.947775, -121.604495, Palisades Peak
+46.927225, -121.698295, Skyscraper Mountain
+46.920098, -121.632278, Antler Peak
+46.945845, -121.737905, Sluiskin Mountain - The Chief
+46.918529, -121.610713, Dege Peak
+46.915975, -121.503905, Crystal Mountain
+46.946195, -121.743995, Sluiskin Mountain - The Squaw
+46.937975, -121.608175, Marcus Peak
+46.806867, -121.812039, Pyramid Peak
+46.746305, -121.701215, Unicorn Peak
+46.897185, -121.510285, Chinook Peak
+46.956875, -121.452785, Norse Peak
+46.928145, -121.647005, McNeeley Peak
+46.908997, -121.496592, Three Way Peak
+46.871955, -121.597475, Tamanos Mountain
+46.741217, -121.697403, Boundary Peak
+46.829558, -121.854839, Andrew Benchmark
+46.948015, -121.761805, Crescent Mountain
+46.841675, -121.484925, Dewey Peak
+46.864720, -121.573252, Governors Ridge
+46.965632, -121.582186, South Slide Mountain
+46.906325, -121.519005, Crystal Peak
+46.864374, -121.477472, Tahtlum Peak
+46.757938, -121.732607, Pinnacle Peak
+46.938480, -121.842184, First Mother Mountain
+46.755223, -121.712709, Foss Peak
+46.746084, -121.676858, Stevens Peak
+46.859518, -121.577170, Barrier Peak
+46.908765, -121.755145, Mineral Mountain
+46.932109, -121.848792, Fay Peak
+46.757715, -121.728505, The Castle
+46.927665, -121.838715, Mount Pleasant
+46.867725, -121.507595, Naches Peak
+46.923659, -121.845368, Hessong Rock
+46.946367, -121.825654, Second Mother Mountain
+46.753455, -121.739525, Plummer Peak
+46.844776, -121.503927, Seymour Peak
+46.950716, -121.585187, Brown Peak
+46.706175, -121.664695, Tatoosh Peak
+46.797546, -121.827688, Copper Mountain
+46.793225, -121.828295, Iron Mountain
+46.746930, -121.766870, Wahpenayo Peak
+46.873385, -121.522675, Yakima Peak
+46.828495, -121.579985, Double Peak
+46.947184, -121.851178, Castle Peak
+46.986997, -121.670343, Scarface
+47.023595, -121.815785, Bearhead Mountain
+46.835445, -121.869405, Aurora Peak
+47.014481, -121.800227, Bearhead Mountain - East Peak
+46.772695, -121.898545, Mount Wow
+46.757985, -121.752965, Lane Peak
+46.757329, -121.743401, Denman Peak
+46.752735, -121.774955, Chutla Peak
+46.789231, -121.852324, Mount Ararat
+46.962288, -121.767463, Tyee Peak
+46.755685, -121.779165, Eagle Peak
+46.958135, -121.877315, Tolmie Peak
+47.037537, -121.856554, Pitcher Mountain
+46.813615, -121.530515, Shriner Peak
+46.953753, -121.813461, Third Mother Mountain
+47.017434, -121.890110, Old Baldy Mountain
+46.982573, -121.797819, Wallace Peak
+46.852595, -121.561505, Buell Peak
+46.957365, -121.728105, Redstone Peak
+46.962218, -121.883067, Howard Peak
+46.777294, -121.837846, Satulick Mountain
+46.971461, -121.901523, Florence Peak
+46.794195, -121.914315, Gobblers Knob
+46.970163, -121.872202, Arthur Peak
+46.787674, -121.592786, Bald Rock
+46.970769, -121.845081, Gove Peak
+46.987895, -121.818475, Tirzah Peak
+46.688179, -121.730072, Dixon Mountain
+46.947137, -121.894100, Berry Peak
+46.941633, -121.909386, Virginia Peak
+46.934175, -121.916615, Martin Peak
+46.924415, -121.897565, Paul Peak
+46.749265, -121.867355, Tumtum Peak
+46.953020, -121.913477, August Peak
+46.983687, -121.910315, Sweet Peak
+46.985805, -121.716783, Pigeon Peak

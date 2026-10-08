@@ -1,11 +1,13 @@
 """Write a Bluebird Forecast examples/*.csv from peaks<lid>.json + coords<lid>.json.
 
 Row format mirrors examples/washington-bulger-list.csv:
-    Lat, Lon, N. Name
-ordered as the list page presents them (normally highest -> lowest), with N as the row
-position rather than peakbagger's rank column (that column has ties and gaps on some lists).
+    Lat, Lon, Name
+ordered as the list page presents them (normally highest -> lowest).
 
-The name carries no elevation: Bluebird Forecast resolves each coordinate against OpenStreetMap and
+The name carries no list number: Bluebird Forecast ranks the rows and numbers them itself,
+so a "23." prefix would read as "1 23. Foobar Mountain" in the results table.
+
+The name carries no elevation either: Bluebird Forecast resolves each coordinate against OpenStreetMap and
 fills the Elevation column itself (issue #207), so printing the list page's figure here
 would only be a second number to disagree with the one on screen.
 
@@ -41,9 +43,9 @@ lines = [
     '# from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.',
     '# Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name',
 ]
-for i, p in enumerate(peaks, 1):
+for p in peaks:
     lat, lon = coords[str(p['pid'])]
-    lines.append(f'{lat:.6f}, {lon:.6f}, {i}. {p["name"]}')
+    lines.append(f'{lat:.6f}, {lon:.6f}, {p["name"]}')
 
 open(outfile, 'w', encoding='utf-8').write('\n'.join(lines) + '\n')
 print(f'wrote {outfile}: {len(peaks)} peaks, {len(lines)} lines')

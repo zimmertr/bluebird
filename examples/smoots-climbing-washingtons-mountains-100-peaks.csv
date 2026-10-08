@@ -2,103 +2,103 @@
 # Source: peakbagger.com list 5005. Coordinates (WGS84 decimal degrees, 6 places)
 # from each peak page; Bluebird Forecast resolves elevation itself from OpenStreetMap.
 # Paste the rows below into the "Custom (CSV)" destination type. Format: Latitude, Longitude, Name
-46.851731, -121.760395, 1. Mount Rainier
-46.202494, -121.490746, 2. Mount Adams
-46.849683, -121.711774, 3. Little Tahoma
-48.776797, -121.814467, 4. Mount Baker
-48.111844, -121.114120, 5. Glacier Peak
-48.238217, -120.866415, 6. Bonanza Peak
-47.475139, -120.902372, 7. Mount Stuart
-48.162470, -120.807521, 8. Mount Fernow
-48.483086, -120.911491, 9. Goode Mountain
-48.831095, -121.602955, 10. Mount Shuksan
-48.494301, -120.999868, 11. Mount Buckner
-48.536727, -120.952560, 12. Mount Logan
-48.137695, -120.803666, 13. Mount Maude
-48.150595, -120.814325, 14. Seven Fingered Jack
-48.772840, -120.956370, 15. Jack Mountain
-48.523611, -120.816193, 16. Black Peak
-48.515229, -120.501667, 17. North Gardner Mountain
-48.547945, -120.585127, 18. Silver Star Mountain
-48.537596, -121.134277, 19. Eldorado Peak
-48.511643, -121.058324, 20. Forbidden Peak
-47.478944, -120.833163, 21. Dragontail Peak
-48.491055, -121.038495, 22. Sahale Peak
-47.478348, -120.846468, 23. Colchuck Peak
-47.502715, -120.802425, 24. Cannon Mountain
-47.471851, -120.888882, 25. Sherpa Peak
-48.050005, -120.968577, 26. Clark Mountain
-47.558737, -120.847262, 27. Cashmere Mountain
-46.901715, -121.806755, 28. Observation Rock
-46.191444, -122.195816, 29. Mount Saint Helens
-46.488626, -121.408374, 30. Gilbert Peak
-47.702305, -120.934705, 31. Big Chiwaukum
-47.487385, -120.784575, 32. Prusik Peak
-47.683865, -120.932775, 33. Snowgrass Mountain
-47.565031, -121.180891, 34. Mount Daniel
-47.801305, -123.710855, 35. Mount Olympus
-46.512244, -121.454431, 36. Old Snowy Mountain
-46.906875, -121.800682, 37. Echo Rock
-48.041475, -121.340255, 38. Sloan Peak
-47.813335, -123.233255, 39. Mount Deception
-47.662379, -120.832281, 40. Big Jim Mountain
-47.772826, -123.127336, 41. Mount Constance
-48.515465, -120.658373, 42. Liberty Bell Mountain
-47.507122, -121.290115, 43. Chimney Rock
-47.472435, -120.946105, 44. Ingalls Peak
-46.848945, -121.609545, 45. Cowlitz Chimneys
-47.835643, -123.231959, 46. Mount Clark
-47.494045, -121.300945, 47. Lemah Mountain
-47.568595, -121.214785, 48. Mount Hinman
-48.453895, -121.060425, 49. Mixup Peak
-47.523643, -121.268457, 50. Summit Chief Mountain
-48.974915, -121.709665, 51. Tomyhoi Peak
-48.408385, -121.278165, 52. Snowking Mountain
-47.721165, -123.331655, 53. Mount Anderson
-47.964655, -121.333335, 54. Kyes Peak
-48.143121, -121.374437, 55. Mount Pugh
-47.985145, -121.349405, 56. Cadet Peak
-47.961565, -121.361380, 57. Columbia Peak
-47.580795, -121.090415, 58. Granite Mountain
-47.971275, -121.341905, 59. Monte Cristo Peak
-46.925114, -121.750188, 60. Old Desolate
-48.859935, -121.532875, 61. Ruth Mountain
-48.500545, -121.197285, 62. Hidden Lake Peaks
-47.814525, -120.954555, 63. Mount Howard
-46.945845, -121.737905, 64. Sluiskin Mountain - The Chief
-47.894273, -123.649285, 65. Mount Carrie
-48.208485, -121.416885, 66. White Chuck Mountain
-47.475535, -121.311105, 67. Chikamin Peak
-46.746305, -121.701215, 68. Unicorn Peak
-47.653799, -123.140923, 69. The Brothers
-48.169895, -121.687865, 70. Three Fingers
-48.210950, -121.677690, 71. Whitehorse Mountain
-46.871955, -121.597475, 72. Tamanos Mountain
-47.534975, -121.365745, 73. Big Snow Mountain
-47.990685, -121.470475, 74. Del Campo Peak
-48.715405, -121.998295, 75. North Twin
-46.757938, -121.732607, 76. Pinnacle Peak
-47.472245, -121.360605, 77. Mount Thomson
-46.932109, -121.848792, 78. Fay Peak
-47.995285, -123.467305, 79. Mount Angeles
-47.458908, -121.416524, 80. Snoqualmie Mountain
-47.441005, -121.331945, 81. Alta Mountain
-47.462465, -121.478195, 82. Kaleetan Peak
-47.531316, -123.245966, 83. Mount Washington
-47.459786, -121.466860, 84. Chair Peak
-47.816225, -121.447965, 85. Gunn Peak
-48.012985, -121.518005, 86. Vesper Peak
-47.779291, -121.435814, 87. Baring Mountain
-47.801365, -121.432045, 88. Merchant Peak
-47.564407, -123.315692, 89. Mount Cruiser
-47.462815, -121.400305, 90. Lundin Peak
-48.098745, -121.445325, 91. Mount Forgotten
-47.774165, -121.579925, 92. Mount Index
-47.456135, -121.389105, 93. Red Mountain
-47.443098, -121.384853, 94. Kendall Peak
-47.417645, -121.481395, 95. Granite Mountain
-47.445869, -121.454490, 96. The Tooth
-47.790425, -121.611815, 97. Mount Persis
-48.057965, -121.797805, 98. Mount Pilchuck
-47.406905, -121.622215, 99. McClellan Butte
-47.506875, -121.738965, 100. Mount Si
+46.851731, -121.760395, Mount Rainier
+46.202494, -121.490746, Mount Adams
+46.849683, -121.711774, Little Tahoma
+48.776797, -121.814467, Mount Baker
+48.111844, -121.114120, Glacier Peak
+48.238217, -120.866415, Bonanza Peak
+47.475139, -120.902372, Mount Stuart
+48.162470, -120.807521, Mount Fernow
+48.483086, -120.911491, Goode Mountain
+48.831095, -121.602955, Mount Shuksan
+48.494301, -120.999868, Mount Buckner
+48.536727, -120.952560, Mount Logan
+48.137695, -120.803666, Mount Maude
+48.150595, -120.814325, Seven Fingered Jack
+48.772840, -120.956370, Jack Mountain
+48.523611, -120.816193, Black Peak
+48.515229, -120.501667, North Gardner Mountain
+48.547945, -120.585127, Silver Star Mountain
+48.537596, -121.134277, Eldorado Peak
+48.511643, -121.058324, Forbidden Peak
+47.478944, -120.833163, Dragontail Peak
+48.491055, -121.038495, Sahale Peak
+47.478348, -120.846468, Colchuck Peak
+47.502715, -120.802425, Cannon Mountain
+47.471851, -120.888882, Sherpa Peak
+48.050005, -120.968577, Clark Mountain
+47.558737, -120.847262, Cashmere Mountain
+46.901715, -121.806755, Observation Rock
+46.191444, -122.195816, Mount Saint Helens
+46.488626, -121.408374, Gilbert Peak
+47.702305, -120.934705, Big Chiwaukum
+47.487385, -120.784575, Prusik Peak
+47.683865, -120.932775, Snowgrass Mountain
+47.565031, -121.180891, Mount Daniel
+47.801305, -123.710855, Mount Olympus
+46.512244, -121.454431, Old Snowy Mountain
+46.906875, -121.800682, Echo Rock
+48.041475, -121.340255, Sloan Peak
+47.813335, -123.233255, Mount Deception
+47.662379, -120.832281, Big Jim Mountain
+47.772826, -123.127336, Mount Constance
+48.515465, -120.658373, Liberty Bell Mountain
+47.507122, -121.290115, Chimney Rock
+47.472435, -120.946105, Ingalls Peak
+46.848945, -121.609545, Cowlitz Chimneys
+47.835643, -123.231959, Mount Clark
+47.494045, -121.300945, Lemah Mountain
+47.568595, -121.214785, Mount Hinman
+48.453895, -121.060425, Mixup Peak
+47.523643, -121.268457, Summit Chief Mountain
+48.974915, -121.709665, Tomyhoi Peak
+48.408385, -121.278165, Snowking Mountain
+47.721165, -123.331655, Mount Anderson
+47.964655, -121.333335, Kyes Peak
+48.143121, -121.374437, Mount Pugh
+47.985145, -121.349405, Cadet Peak
+47.961565, -121.361380, Columbia Peak
+47.580795, -121.090415, Granite Mountain
+47.971275, -121.341905, Monte Cristo Peak
+46.925114, -121.750188, Old Desolate
+48.859935, -121.532875, Ruth Mountain
+48.500545, -121.197285, Hidden Lake Peaks
+47.814525, -120.954555, Mount Howard
+46.945845, -121.737905, Sluiskin Mountain - The Chief
+47.894273, -123.649285, Mount Carrie
+48.208485, -121.416885, White Chuck Mountain
+47.475535, -121.311105, Chikamin Peak
+46.746305, -121.701215, Unicorn Peak
+47.653799, -123.140923, The Brothers
+48.169895, -121.687865, Three Fingers
+48.210950, -121.677690, Whitehorse Mountain
+46.871955, -121.597475, Tamanos Mountain
+47.534975, -121.365745, Big Snow Mountain
+47.990685, -121.470475, Del Campo Peak
+48.715405, -121.998295, North Twin
+46.757938, -121.732607, Pinnacle Peak
+47.472245, -121.360605, Mount Thomson
+46.932109, -121.848792, Fay Peak
+47.995285, -123.467305, Mount Angeles
+47.458908, -121.416524, Snoqualmie Mountain
+47.441005, -121.331945, Alta Mountain
+47.462465, -121.478195, Kaleetan Peak
+47.531316, -123.245966, Mount Washington
+47.459786, -121.466860, Chair Peak
+47.816225, -121.447965, Gunn Peak
+48.012985, -121.518005, Vesper Peak
+47.779291, -121.435814, Baring Mountain
+47.801365, -121.432045, Merchant Peak
+47.564407, -123.315692, Mount Cruiser
+47.462815, -121.400305, Lundin Peak
+48.098745, -121.445325, Mount Forgotten
+47.774165, -121.579925, Mount Index
+47.456135, -121.389105, Red Mountain
+47.443098, -121.384853, Kendall Peak
+47.417645, -121.481395, Granite Mountain
+47.445869, -121.454490, The Tooth
+47.790425, -121.611815, Mount Persis
+48.057965, -121.797805, Mount Pilchuck
+47.406905, -121.622215, McClellan Butte
+47.506875, -121.738965, Mount Si
