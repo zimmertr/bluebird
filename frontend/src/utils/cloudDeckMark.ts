@@ -49,3 +49,8 @@ export function cloudDeckMark(value: unknown, grouped = true): string | null {
   if (whole === CLOUD_DECK_FLOOR_FT) return `≤${CLOUD_DECK_FLOOR_FT}`
   return null
 }
+
+/** Whether printed text is one of the marks above rather than a height. */
+export function isCloudDeckMark(text: string): boolean {
+  return text.startsWith('≥') || text.startsWith('≤')
+}

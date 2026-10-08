@@ -361,4 +361,24 @@ describe('popupGrid', () => {
     if (deck.kind !== 'aggregates') throw new Error('the cloud deck is a grid row')
     expect(deck.cells.map((c) => c?.text)).toEqual(['≤364', '≥30,000', '11,850'])
   })
+
+  // Three bounds side by side are wider than the card, so a deck that held at
+  // one edge all window says it once, across the columns.
+  it('prints a bound held all window once', () => {
+    for (const [ft, text] of [[30066, '≥30,000'], [364, '≤364']] as const) {
+      const held = { ...row, cloud_deck_min_ft: ft, cloud_deck_max_ft: ft, cloud_deck_avg_ft: ft }
+      const deck = popupGrid(popupGroups(held, cols)).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
+      if (deck.kind !== 'value') throw new Error('a held bound is one value')
+      expect(deck.cell.text).toBe(text)
+    }
+  })
+
+  // Only a bound collapses: three equal heights are three readings, and a
+  // calm hour's equal numbers keep their columns like any other row.
+  it('keeps three equal heights in their columns', () => {
+    const flat = { ...row, cloud_deck_min_ft: 8000, cloud_deck_max_ft: 8000, cloud_deck_avg_ft: 8000 }
+    const deck = popupGrid(popupGroups(flat, cols)).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
+    if (deck.kind !== 'aggregates') throw new Error('equal heights stay a grid row')
+    expect(deck.cells.map((c) => c?.text)).toEqual(['8,000', '8,000', '8,000'])
+  })
 })

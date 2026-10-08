@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CLOUD_DECK_CEILING_SHOWN_FT, CLOUD_DECK_FLOOR_FT, cloudDeckMark } from './cloudDeckMark'
+import { CLOUD_DECK_CEILING_SHOWN_FT, CLOUD_DECK_FLOOR_FT, cloudDeckMark, isCloudDeckMark } from './cloudDeckMark'
 import { CLOUD_DECK_CEILING_FT } from './openMeteoAggregate'
 import { COLUMNS } from './tableColumns'
 import { formatTooltipValue } from './chartData'
@@ -55,5 +55,14 @@ describe('cloudDeckMark', () => {
     expect(formatTooltipValue(30066, 'cloud_deck')).toBe('≥30000')
     expect(formatTooltipValue(4210, 'cloud_deck')).toBe('4210')
     expect(formatTooltipValue(364, 'freeze')).toBe('364')
+  })
+})
+
+describe('isCloudDeckMark', () => {
+  it('tells a mark from a height', () => {
+    expect(isCloudDeckMark(cloudDeckMark(30066)!)).toBe(true)
+    expect(isCloudDeckMark(cloudDeckMark(364)!)).toBe(true)
+    expect(isCloudDeckMark('8,000')).toBe(false)
+    expect(isCloudDeckMark('N/A')).toBe(false)
   })
 })

@@ -4,6 +4,7 @@ import { CLOSURE_KEY, ColDef, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './table
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
 import { isUnavailableKey, unavailableCellText } from './unavailableCell'
+import { isCloudDeckMark } from './cloudDeckMark'
 
 /**
  * A marker popup's body, derived from the columns the results table is showing
@@ -271,6 +272,15 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
       if (!v) return null
       return nested ? { text: v.text, href: v.href } : cellOf(v)
     })
+    // A deck that held at one edge of the walk all window prints the same
+    // bound in every column, and says it once. Three of them are wider than
+    // the card: the bound's glyph falls back to a wider face, and the labels
+    // wrapped onto two lines (measured 2026-10-08, 255px of grid in 238px).
+    const first = cells[0]
+    if (first && cells.length > 1 && isCloudDeckMark(first.text) && cells.every((c) => c?.text === first.text)) {
+      rows.push({ kind: 'value', label, cell: first })
+      continue
+    }
     rows.push({ kind: 'aggregates', label, fullLabel: nested ? `${g.label} ${label}` : label, nested, cells })
   }
   return { columns, rows }
