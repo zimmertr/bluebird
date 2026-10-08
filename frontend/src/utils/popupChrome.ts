@@ -329,7 +329,11 @@ export const GRID_LINE_COLOR = '#e2e8f0'
 // band and bold, the one weight the popup's sans-serif has besides regular
 // (TJ, 2026-10-08), while the numbers stay right-aligned so a column lines up
 // on its last digit, the way a table of figures does.
-const GRID_LABEL_LOOSE = `text-align:left;font-weight:normal;padding:1px 0;vertical-align:bottom;${LABEL_COLOR}`
+// A label keeps 8px clear of the first band. On a phone the card is wider
+// than its grid and the table spreads the spare room into this column; on a
+// desktop the card shrinks to the grid, and without it the longest label sat
+// against the band (TJ, 2026-10-08).
+const GRID_LABEL_LOOSE = `text-align:left;font-weight:normal;padding:1px 8px 1px 0;vertical-align:bottom;${LABEL_COLOR}`
 const GRID_LABEL = `${GRID_LABEL_LOOSE};white-space:nowrap`
 const GRID_BAND = `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:1px 3px`
 const GRID_HEAD_RULE = `border-bottom:1px solid ${RULE_COLOR}`
@@ -381,17 +385,19 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
- * How wide a ranked destination's popup may get: 340px, or the map less 10px
+ * How wide a ranked destination's popup may get: 348px, or the map less 10px
  * a side where the map is narrower (TJ, 2026-10-08).
  *
  * Its grid is wider than any other popup's. Measured in Chrome on macOS, the
  * widest label, `Precipitation (in/hr)`, beside Min, Max, Avg and Total at
- * their widest numbers (`≥30,000` under Max) needs 316px, 319px with the last
- * band's inset, and the body has the card less 10px a side. On a 360px phone
- * that is 94% of the map, which reverses the four-fifths share `popupWidth`
- * keeps for the other popups; TJ accepted the cost for one grid over two.
+ * their widest numbers (`≥30,000` under Max) needs 316px, 327px with the last
+ * band's inset and the label's 8px, and the body has the card less 10px a
+ * side. On a 360px phone the card is 340px, 94% of the map, which reverses
+ * the four-fifths share `popupWidth` keeps for the other popups; TJ accepted
+ * the cost for one grid over two. There the widest grid scrolls sideways by
+ * 7px, which TJ accepted for narrow phones; a typical one fits.
  */
-export const RESULT_POPUP_MAX_WIDTH_PX = 340
+export const RESULT_POPUP_MAX_WIDTH_PX = 348
 
 export function resultPopupWidth(canvasWidthPx: number): string {
   return Math.max(180, Math.min(RESULT_POPUP_MAX_WIDTH_PX, canvasWidthPx - 20)) + 'px'
