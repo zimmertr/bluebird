@@ -166,11 +166,11 @@ describe('the facts line', () => {
 })
 
 // The result popup's own width (TJ, 2026-10-08). Measured in Chrome on macOS:
-// the widest label beside the widest Min, Max, Avg and Total needs 316px of
-// grid, and the last band's 3px inset and the label's 8px make 327. The body
-// has the card less 10px a side. A change to the grid's columns or type
+// the widest label beside the widest Min, Max, Avg and Total, with the
+// label's 8px and each band's 5px insets, is 330.1px of grid. The body has
+// the card less 10px a side. A change to the grid's columns, insets or type
 // re-measures this.
-const WIDEST_GRID_PX = 327
+const WIDEST_GRID_PX = 331
 describe('resultPopupWidth', () => {
   it('fits the widest grid measured on macOS', () => {
     expect(RESULT_POPUP_MAX_WIDTH_PX - 20).toBeGreaterThanOrEqual(WIDEST_GRID_PX)
@@ -178,7 +178,7 @@ describe('resultPopupWidth', () => {
 
   it('takes the map less 10px a side where the map is narrower', () => {
     expect(resultPopupWidth(1280)).toBe(`${RESULT_POPUP_MAX_WIDTH_PX}px`)
-    expect(RESULT_POPUP_MAX_WIDTH_PX).toBe(348)
+    expect(RESULT_POPUP_MAX_WIDTH_PX).toBe(352)
     expect(resultPopupWidth(360)).toBe('340px')
     expect(resultPopupWidth(320)).toBe('300px')
     expect(resultPopupWidth(0)).toBe('180px')
