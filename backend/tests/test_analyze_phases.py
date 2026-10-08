@@ -161,8 +161,6 @@ def test_apply_cap_cuts_to_the_highest_when_asked():
     assert (len(capped.destinations), capped.total_found, capped.truncated) == (
         MAX_ANALYZE_PEAKS, MAX_ANALYZE_PEAKS + 3, True,
     )
-    # The snow fill ran on the final set: every row carries the field.
-    assert all("snow_depth_in" in d for d in capped.destinations)
 
 
 # ── _check_pacing (#581) ────────────────────────────────────────────────────
@@ -430,11 +428,11 @@ async def test_attach_late_fails_on_a_cloud_error(monkeypatch, calls):
 
 
 def test_result_reports_the_counts_the_phases_carried():
-    capped = Capped([dest(1.0, 2.0), dest(3.0, 4.0), dest(5.0, 6.0)], 9, True, "2026-09-22")
+    capped = Capped([dest(1.0, 2.0), dest(3.0, 4.0), dest(5.0, 6.0)], 9, True)
     result = _result(Ranked([_row("a", 1.0)], [1, 2], 2), capped, _request())
     response = result.response
     assert (response.total_queried, response.total_matched, response.total_found) == (3, 2, 9)
-    assert (response.truncated, response.times, response.snow_analysis_date) == (True, [1, 2], "2026-09-22")
+    assert (response.truncated, response.times) == (True, [1, 2])
 
 
 # ── Closing the analysis mid-phase ─────────────────────────────────────────

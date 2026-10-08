@@ -50,14 +50,15 @@ CUSTOMER_FORECAST_URL = "https://customer-api.open-meteo.com/v1/forecast"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
 # Open-Meteo's factor is max(1, vars x models/10) and a request names one
-# model, so 14 variables cost 1.4 weighted calls per location where 9 cost 1.
-# The five level temperatures (#443) are what took it over the floor of 10;
-# the five level winds and the freezing level before them rode inside it.
-N_VARIABLES = 14
+# model, so 15 variables cost 1.5 weighted calls per location where 9 cost 1.
+# The five level temperatures (#443) are what took it over the floor of 10,
+# to 1.4; the five level winds and the freezing level before them rode inside
+# it, and snowfall (#678) added the last tenth.
+N_VARIABLES = 15
 # The cloud request's own count (issue #670): the humidity at 2 m and at eight
 # levels. It is a second request over the same locations, made only when a
 # ranking or a bound names the cloud deck, so its factor of 1 (9 variables, at
-# the floor) is spent on top of the weather's 1.4 and never by an analysis that
+# the floor) is spent on top of the weather's 1.5 and never by an analysis that
 # did not ask.
 N_CLOUD_VARIABLES = 9
 # The units every weather request is quoted in. The cloud request sends none of

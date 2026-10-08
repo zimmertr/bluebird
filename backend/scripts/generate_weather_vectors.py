@@ -42,7 +42,8 @@ def _win(start: str, end: str) -> dict[str, str]:
 
 
 def _wx(
-    times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m", units=None
+    times, precip, temp, wind, levels=None, freeze=None, freeze_unit="m", units=None,
+    snowfall=None,
 ) -> dict:
     """A weather payload; `levels` maps pressure-level variable names
     (`wind_speed_925hPa` … `wind_speed_500hPa` for the elevation-adjusted wind
@@ -53,7 +54,9 @@ def _wx(
     for one of the five models that do not publish it, and quoted in the unit
     `freeze_unit` names — which the payload carries in `hourly_units`, because
     Open-Meteo's unit for this variable follows `precipitation_unit` and the
-    aggregation reads it rather than assuming either one.
+    aggregation reads it rather than assuming either one. `snowfall` is the
+    hourly new snow (issue #678), omitted where a payload stands for a
+    response without it, and declared in inches like every request's.
 
     Every column is declared in the unit the request asks for, as a real
     response declares it, because the aggregation refuses a number whose unit
@@ -67,6 +70,8 @@ def _wx(
     }
     if levels:
         hourly.update(levels)
+    if snowfall is not None:
+        hourly["snowfall"] = snowfall
     declared = {
         name: unit
         for name, unit in aggregation._DECLARED_UNITS.items()
@@ -561,6 +566,61 @@ WEATHER_INPUTS = [
             [50.0, 52.0, 54.0],
             [5.0, 7.0, 9.0],
             freeze=[1500.0],
+        ),
+    },
+    # ── Snowfall (issue #678) ─────────────────────────────────────────────
+    # Every vector above omits it. Reduced outside the zip, like the freezing
+    # level, to precipitation's four aggregates at four decimals.
+    {
+        "name": "snowfall_aggregates_like_precipitation",
+        "window": _win(H8[0], H8[7]),
+        # Eight hours, so the mean of these two-decimal inputs lands on a
+        # fifth decimal (0.38125) and the half-even rounding rides the contract.
+        "payload": _wx(
+            H8,
+            [0.0] * 8,
+            [20.0] * 8,
+            [5.0] * 8,
+            snowfall=[0.0, 0.25, 0.5, 0.75, 0.6, 0.4, 0.3, 0.25],
+        ),
+    },
+    {
+        # A null snowfall hour drops out of the snowfall figures alone; the
+        # hour's precipitation still counts.
+        "name": "snowfall_null_hour_skipped_not_dropped",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.3],
+            [20.0, 22.0, 24.0],
+            [5.0, 7.0, 9.0],
+            snowfall=[0.4, None, 0.2],
+        ),
+    },
+    {
+        # HRRR past its hour 45: a column of nulls nulls the four snowfall
+        # aggregates and leaves every other figure as it was.
+        "name": "snowfall_all_null_leaves_the_other_metrics",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.0],
+            [50.0, 52.0, 54.0],
+            [5.0, 7.0, 9.0],
+            snowfall=[None, None, None],
+        ),
+    },
+    {
+        # Shorter than times: the aggregates zip to the shortest and the
+        # series pads with nulls, as the freezing level's do.
+        "name": "snowfall_short_array_zip_vs_series_padding",
+        "window": _win(H[0], H[2]),
+        "payload": _wx(
+            H[:3],
+            [0.1, 0.2, 0.3],
+            [20.0, 22.0, 24.0],
+            [5.0, 7.0, 9.0],
+            snowfall=[0.123456],
         ),
     },
 ]

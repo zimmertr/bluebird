@@ -24,8 +24,6 @@ from app.limits import (
 )
 from app.models.common import (
     _RESPONSE_CONFIG,
-    _SNOW_DATE_DESCRIPTION,
-    _SNOW_DEPTH_DESCRIPTION,
     ForecastMode,
     SortBy,
     _bound_broken,
@@ -150,7 +148,7 @@ class AnalyzeRequest(_DiscoveryFields):
     # mountaineer can plan against. The freezing level reads the same way in
     # the one family where neither end is the bad one: the floor asks that the
     # level never dropped below the value, the ceiling that it never rose above
-    # it. Precipitation and AQI have no minimum
+    # it. Precipitation, snowfall and AQI have no minimum
     # aggregate to bound (a per-hour precipitation floor would be 0.000 almost
     # everywhere), so their two bounds both compare one named field, and that
     # field is named in the description a caller reads.
@@ -213,20 +211,18 @@ class AnalyzeRequest(_DiscoveryFields):
             "result under every other model."
         ),
     )
-    min_snow_depth_in: float | None = Field(
+    min_snowfall_total_in: float | None = Field(
         default=None,
         ge=0,
         description=(
-            "Drop rows whose `snow_depth_in` is below this. A row with a null "
-            "`snow_depth_in` passes either bound: the destination is outside "
-            "the snow grid, or this instance holds no grid, and neither says "
-            "anything about how much snow is on the ground."
+            "Drop rows whose `snowfall_total_in` is below this. A row with a "
+            "null `snowfall_total_in` passes either bound."
         ),
     )
-    max_snow_depth_in: float | None = Field(
+    max_snowfall_total_in: float | None = Field(
         default=None,
         ge=0,
-        description="Drop rows whose `snow_depth_in` is above this. Nulls pass, under the same terms.",
+        description="Drop rows whose `snowfall_total_in` is above this. Nulls pass.",
     )
     min_cloud_deck_ft: float | None = Field(
         default=None,
@@ -454,6 +450,12 @@ class HourlySeries(BaseModel):
             "the result."
         )
     )
+    snowfall_in: list[float | None] = Field(
+        description=(
+            "Snowfall, inches. Null at an hour the forecast carried no "
+            "snowfall for; see `snowfall_total_in` on the result."
+        )
+    )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
     cloud_deck_ft: list[float | None] | None = Field(
         default=None,
@@ -550,8 +552,30 @@ class DestinationResult(BaseModel):
     aqi_max: int | None = Field(
         default=None, description="Worst single AQI hour. Null under the same terms."
     )
-    snow_depth_in: float | None = Field(
-        default=None, description=_SNOW_DEPTH_DESCRIPTION
+    snowfall_total_in: float | None = Field(
+        default=None,
+        description=(
+            "Total snowfall across the window, inches. Read apart from "
+            "precipitation, temperature and wind: an hour with no snowfall "
+            "drops out of the four snowfall figures alone and never affects "
+            "the other figures on this row. Null when no hour in the window "
+            "carried one."
+        ),
+    )
+    snowfall_avg_in_hr: float | None = Field(
+        default=None,
+        description="Mean hourly snowfall, inches. Null under the same terms.",
+    )
+    snowfall_min_in_hr: float | None = Field(
+        default=None,
+        description=(
+            "Least snowfall in a single hour, inches. Zero for any window "
+            "with one hour without snow. Null under the same terms."
+        ),
+    )
+    snowfall_max_in_hr: float | None = Field(
+        default=None,
+        description="Snowiest single hour in the window, inches. Null under the same terms.",
     )
     cloud_deck_min_ft: float | None = Field(
         default=None,
@@ -737,7 +761,4 @@ class AnalyzeResponse(BaseModel):
             "`include_series: false` it is the only statement of which hours "
             "the aggregates reduced."
         ),
-    )
-    snow_analysis_date: str | None = Field(
-        default=None, description=_SNOW_DATE_DESCRIPTION
     )

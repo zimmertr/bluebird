@@ -185,15 +185,11 @@ def test_data_sources_are_named_and_linked():
         assert source["provides"]
 
 
-def test_publishes_the_snow_grid_as_a_source():
-    # A caller reading a `snow_depth_in` has to be able to find out where the
-    # number came from, and this is the only place the API says so.
-    names = {source["name"] for source in _capabilities()["data_sources"]}
-    assert "NOAA NOHRSC SNODAS" in names
-
-
-def test_snow_depth_is_rankable():
-    assert "snow_depth_in" in _capabilities()["sort_keys"]
+def test_snowfall_is_rankable_and_snow_depth_is_not():
+    # Snowfall replaced snow depth as a ranking metric in #678.
+    keys = _capabilities()["sort_keys"]
+    assert {"snowfall_total_in", "snowfall_avg_in_hr", "snowfall_min_in_hr", "snowfall_max_in_hr"} <= set(keys)
+    assert "snow_depth_in" not in keys
 
 
 def test_capabilities_is_documented_and_tagged():

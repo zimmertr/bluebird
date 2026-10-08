@@ -15,9 +15,8 @@ the service modules and nothing else, and this script imports nothing from the
 analyze route module, which is the code the record checks. A change that is
 MEANT to move an answer regenerates the file in the same PR and says why.
 
-No case depends on the clock. Each window starts at the current hour, the
-stubs answer fixed hour stamps rather than the hours asked for, and the one
-snow grid is a held snapshot with its own date.
+No case depends on the clock. Each window starts at the current hour, and the
+stubs answer fixed hour stamps rather than the hours asked for.
 
 Run:
     cd backend && python scripts/generate_analyze_golden.py
@@ -41,18 +40,16 @@ sys.path.insert(0, str(BACKEND / "tests"))
 
 from conftest import dest, fake_response  # noqa: E402 — after the sys.path inserts above
 from fastapi.testclient import TestClient  # noqa: E402
-from test_snodas import a_snapshot  # noqa: E402
 
 from app import ratelimit  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import MAX_ANALYZE_PEAKS, PAST_DATA_DAYS  # noqa: E402
-from app.services import air_quality, cache, http, osm, snodas, weather  # noqa: E402
+from app.services import air_quality, cache, http, osm, weather  # noqa: E402
 from app.services.errors import (  # noqa: E402
     InvalidApiKeyError,
     UpstreamError,
     UpstreamRateLimited,
 )
-from app.services.snapshot import SnapshotCache  # noqa: E402
 
 OUT = BACKEND / "tests" / "data" / "analyze_golden.json"
 
@@ -85,15 +82,6 @@ CUSTOM = [
     {"name": "Lake", "latitude": 46.8, "longitude": -121.8, "elevation_ft": 4300.0},
 ]
 
-# Inside test_snodas's synthetic grid: one metre, one hundred inches, and a
-# coordinate the grid does not cover.
-SNOW_CUSTOM = [
-    {"name": "metre", "latitude": 39.5, "longitude": -98.5},
-    {"name": "hundred", "latitude": 38.5, "longitude": -99.5},
-    {"name": "outside", "latitude": 10.0, "longitude": 10.0},
-]
-
-
 def _k(d: dict) -> int:
     """A small integer from the latitude alone, so an answer depends on which
     destination was asked about and never on its position in the batch."""
@@ -104,18 +92,24 @@ def _weather(d: dict) -> dict:
     k = _k(d)
     # Odd rows carry no freezing level, as five of the eight models do.
     freeze = None if k % 2 else 5000.0 + 100 * k
+    # Every third row carries no snowfall, which is reduced apart from the
+    # other figures and can be null on its own (#678).
+    snow = None if k % 3 == 0 else round(0.2 * k, 3)
     return {
         "precip_total_in": round(0.1 * k, 3), "precip_avg_in_hr": round(0.03 * k, 3),
         "precip_min_in_hr": 0.0, "precip_max_in_hr": round(0.05 * k, 3),
         "temp_min_f": 20.0 + k, "temp_max_f": 40.0 + k, "temp_avg_f": 30.0 + k,
         "wind_min_mph": 2.0, "wind_max_mph": 10.0 + 2 * k, "wind_avg_mph": 6.0 + k,
         "freeze_min_ft": freeze, "freeze_max_ft": freeze and freeze + 400, "freeze_avg_ft": freeze and freeze + 200,
+        "snowfall_total_in": snow, "snowfall_avg_in_hr": snow and round(snow / 3, 4),
+        "snowfall_min_in_hr": snow and 0.0, "snowfall_max_in_hr": snow and round(snow / 2, 4),
         "series": {
             "times": STAMPS,
             "precip_in": [0.0, round(0.05 * k, 3), 0.01],
             "temp_f": [20.0 + k, 30.0 + k, 40.0 + k],
             "wind_mph": [2.0, 6.0 + k, 10.0 + 2 * k],
             "freeze_ft": [freeze, freeze, freeze],
+            "snowfall_in": [snow and 0.0, snow and round(snow / 2, 4), snow and round(snow / 2, 4)],
         },
     }
 
@@ -177,7 +171,6 @@ class Case:
     # answer the service never gives: it absorbs everything but a refused key.
     aqi_http_status: int | None = None
     cloud: Exception | None = None
-    snow: bool = False
     headers: dict[str, str] = field(default_factory=dict)
 
 
@@ -267,7 +260,13 @@ CASES = [
         },
     ),
     Case("series_off_with_bound", _peaks(include_series=False, max_wind_mph=18, limit=2), discovered=PEAKS),
-    Case("snow_depth", _custom(SNOW_CUSTOM, sort_by="snow_depth_in", sort_desc=True), snow=True),
+    # Snowfall ranks and bounds like precipitation, with its nulls last and
+    # passing the bound (#678).
+    Case(
+        "snowfall_sort_and_bound",
+        _peaks(sort_by="snowfall_total_in", sort_desc=True, max_snowfall_total_in=0.9),
+        discovered=PEAKS,
+    ),
 ]
 
 
@@ -289,7 +288,7 @@ def _window_offsets(start: datetime, end: datetime, origin: datetime) -> list[fl
     return [(start - origin).total_seconds(), (end - origin).total_seconds()]
 
 
-def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: datetime) -> SnapshotCache:
+def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: datetime) -> None:
     """Install one case's upstreams on the service modules the analysis reads.
 
     Each stub records every argument the analysis hands it, not only how many
@@ -372,18 +371,6 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: d
             raise case.cloud
         return [_cloud(d) for d in destinations]
 
-    async def fetch_grid():
-        # Reached only if the analysis waits on the grid. `_run` fails on any
-        # entry here, and on any refresh scheduled behind a request.
-        calls["snow_fetch"].append(case.name)
-        raise RuntimeError("the golden record never fetches a snow grid")
-
-    # Fresh forever, so the analysis never schedules a refresh: the snow case
-    # holds a grid, and every other case holds none and reads nulls.
-    grid = snodas.snow_cache(fetch=fetch_grid)
-    grid._snapshot = a_snapshot("2026-09-22") if case.snow else None
-    grid._fresh_until = float("inf")
-
     mp.setattr(osm, "query_osm", query_osm)
     async def enrich_custom_reporting(destinations):
         return await enrich_custom(destinations), True
@@ -393,7 +380,6 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: d
     mp.setattr(weather, "fetch_weather_batch", fetch_weather_batch)
     mp.setattr(weather, "fetch_cloud_batch", fetch_cloud_batch)
     mp.setattr(air_quality, "fetch_aqi_batch", fetch_aqi_batch)
-    mp.setattr(snodas, "GRID", grid)
     if case.aqi_http_status is not None:
         answer = fake_response({"reason": "Hourly API request limit exceeded"}, case.aqi_http_status)
 
@@ -406,11 +392,10 @@ def _stubs(mp: pytest.MonkeyPatch, case: Case, calls: dict[str, list], origin: d
         # render the same record.
         mp.setattr(ratelimit, "AQI_WEIGHT", ratelimit.WeightedBudget("Open-Meteo (air quality)", 0))
     mp.setattr(ratelimit.client, "ANALYZE_LIMITER", ratelimit.RateLimiter(0, 1))
-    return grid
 
 
 def _fresh_calls() -> dict[str, list]:
-    return {"discovery": [], "enrich": [], "weather": [], "aqi": [], "cloud": [], "snow_fetch": []}
+    return {"discovery": [], "enrich": [], "weather": [], "aqi": [], "cloud": []}
 
 
 def _stream_events(text: str) -> list[str]:
@@ -433,7 +418,7 @@ def _run(client: TestClient, case: Case, now: datetime) -> dict:
             for held in (cache.DISCOVERY_CACHE, cache.ENRICH_CACHE, cache.FORECAST_CACHE):
                 held.clear()
             calls = _fresh_calls()
-            grid = _stubs(mp, case, calls, datetime.fromisoformat(body["start_datetime"]))
+            _stubs(mp, case, calls, datetime.fromisoformat(body["start_datetime"]))
             path = "/api/analyze" if route == "json" else "/api/analyze/stream"
             # Identity encoding, so the record is the body and not its gzip.
             resp = client.post(path, json=body, headers={"accept-encoding": "identity", **case.headers})
@@ -446,9 +431,6 @@ def _run(client: TestClient, case: Case, now: datetime) -> dict:
                 answer["body"] = resp.text
             else:
                 answer["events"] = _stream_events(resp.text)
-            snow_fetches = calls.pop("snow_fetch")
-            assert not snow_fetches, f"{case.name} on the {route} route fetched a snow grid"
-            assert grid._refresh_task is None, f"{case.name} on the {route} route scheduled a snow refresh"
             answer["calls"] = calls
             out[route] = answer
     return out
