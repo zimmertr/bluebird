@@ -1,4 +1,4 @@
-# 0119. Snowfall over the window replaces snow depth as the ranking metric, and the pod holds no snow grid
+# 0120. Snowfall over the window replaces snow depth as the ranking metric, and the pod holds no snow grid
 
 - Status: Accepted. Supersedes 0053, 0054 and 0104.
 - Date: 2026-10-07
