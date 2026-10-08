@@ -1,15 +1,26 @@
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
+  CustomDestination,
   DestinationResult,
   DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
   RefusalFields,
 } from '../types'
-import { AnalysisRefusalError, customRows, resolveCustomOnly, runClientAnalysis, withKnownTypes } from './clientAnalyze'
+import {
+  AnalysisRefusalError,
+  analysisNoun,
+  capDetail,
+  customRows,
+  resolveCustomOnly,
+  runClientAnalysis,
+  truncateTopElevation,
+  withKnownTypes,
+} from './clientAnalyze'
 import type { LatePatch } from './clientAnalyze'
-import { NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
+import { type Identity, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
+import { geoKey } from './points'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
@@ -99,18 +110,114 @@ export async function discoverCandidates(request: AnalyzeRequest, signal: AbortS
     // this merge, because resolving those rows and merging them are one trip.
     ...(customList.length ? { custom_destinations: customList } : {}),
   }
-  const res = await postDestinations(discoveryRequest, signal)
-  if (!res.ok) {
-    const { message, refusal } = await readErrorBody(res)
-    if (refusal) throw new AnalysisRefusalError(message)
-    throw new Error(message)
-  }
-  const discovered = (await res.json()) as DestinationsResponse
+  const discovered = await discoveryAnswer(await postDestinations(discoveryRequest, signal))
   return {
     candidates: discovered.destinations,
     totalFound: discovered.total_found ?? null,
     truncated: discovered.truncated ?? false,
     snowAnalysisDate: discovered.snow_analysis_date ?? null,
+  }
+}
+
+// The pod's answer to a destinations call, or the refusal or error it sent.
+async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
+  if (!res.ok) {
+    const { message, refusal } = await readErrorBody(res)
+    if (refusal) throw new AnalysisRefusalError(message)
+    throw new Error(message)
+  }
+  return (await res.json()) as DestinationsResponse
+}
+
+/**
+ * A polygon run's discovery from the basemap's tiles first (#675, decision
+ * 0118). The peaks and lakes inside the ring are read from the zoom-14 tiles
+ * under it (`tileDiscovery.ts`), in well under a second from a warm edge,
+ * and the pod is sent what the tiles cannot answer: the trailheads, which no
+ * tile carries, discovered through the map server as before, and today's
+ * snow depth for every row, which the pod fills from its grid. The tile rows
+ * and the reader's own list ride as `custom_destinations` with
+ * `elevation_lookup: false`, so the call takes no map-server slot and
+ * answers in milliseconds unless trailheads are ticked; the rows come back
+ * typed `custom`, so their kinds and OSM ids are put back here from what the
+ * tiles said. The cap is applied before the call, as the pod would apply it
+ * to the union: a refusal below the opt-in, the highest kept above it.
+ *
+ * Null when the tiles cannot answer the ring, and the run takes the map
+ * server's path (`discoverCandidates`) as before: a request for trailheads
+ * alone, a ring over `DISCOVERY_TILE_BUDGET`, a tile that could not be read,
+ * or the decoder's chunk failing to load. The decoder and the tile library
+ * load on the first polygon run, so the cold load the Lighthouse gate
+ * measures carries neither.
+ */
+async function discoverFromTilesFirst(
+  request: AnalyzeRequest,
+  options: PipelineOptions,
+  signal: AbortSignal,
+): Promise<Discovered | null> {
+  const ring = request.polygon?.coordinates[0] ?? []
+  const types = request.destination_types
+  let tiles: typeof import('./tileDiscovery')
+  let peakTiles: typeof import('./peakTiles')
+  try {
+    ;[tiles, peakTiles] = await Promise.all([import('./tileDiscovery'), import('./peakTiles')])
+  } catch {
+    return null
+  }
+  if (!tiles.tileDiscoverable(ring, types)) return null
+  const fetchTile = peakTiles.fetchTileWith(await peakTiles.tileTemplate(), signal)
+  const found = await tiles.discoverFromTiles(ring, types, request.include_unnamed_peaks ?? false, fetchTile)
+  if (found === null) return null
+
+  const known = options.identity?.latest() ?? NO_IDENTITY
+  let rows: DiscoveredDestination[] = [...found, ...withIdentity(customRows(request.custom_destinations ?? []), known)]
+  const cap = options.maxDestinations
+  let totalFound: number | null = null
+  let truncated = false
+  if (rows.length > cap) {
+    if (!(request.top_by_elevation ?? false)) throw new AnalysisRefusalError(capDetail(rows.length, analysisNoun(request), cap))
+    totalFound = rows.length
+    rows = truncateTopElevation(rows, cap)
+    truncated = true
+  }
+  // What the pod will not say back: each row's kind and OSM id, by position.
+  const kinds: Record<string, string> = { ...(options.knownTypes ?? {}) }
+  const identity = new Map<string, Identity>()
+  for (const r of rows) {
+    const key = geoKey(r.latitude, r.longitude)
+    if (r.type !== 'custom') kinds[key] = r.type
+    identity.set(key, { elevation_ft: r.elevation_ft, osm_id: r.osm_id })
+  }
+  const sent: CustomDestination[] = rows.map((r) => ({
+    name: r.name,
+    latitude: r.latitude,
+    longitude: r.longitude,
+    ...(r.elevation_ft != null ? { elevation_ft: r.elevation_ft } : {}),
+  }))
+  const answer = await discoveryAnswer(
+    await postDestinations(
+      {
+        polygon: request.polygon,
+        destination_types: tiles.splitTypes(types).server,
+        include_unnamed_peaks: request.include_unnamed_peaks ?? false,
+        min_elevation_ft: request.min_elevation_ft,
+        max_elevation_ft: request.max_elevation_ft,
+        top_by_elevation: request.top_by_elevation ?? false,
+        custom_destinations: sent,
+        elevation_lookup: false,
+      },
+      signal,
+    ),
+  )
+  // The pod truncates the union it saw, tile rows included, and reports what
+  // it saw; otherwise the count is this side's, over the tile rows and the
+  // list before the cut.
+  const podTruncated = answer.truncated ?? false
+  return {
+    candidates: withIdentity(withKnownTypes(answer.destinations, kinds), identity),
+    totalFound: podTruncated ? (answer.total_found ?? null) : totalFound,
+    truncated: truncated || podTruncated,
+    snowAnalysisDate: answer.snow_analysis_date ?? null,
   }
 }
 
@@ -179,7 +286,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
   let found: Discovered
   let resolving: Promise<readonly DiscoveredDestination[]> | undefined
   if (request.polygon) {
-    found = typed(await discoverCandidates(request, signal))
+    found = typed((await discoverFromTilesFirst(request, options, signal)) ?? (await discoverCandidates(request, signal)))
   } else {
     // A run with no polygon discovers nothing: its field is the list it was
     // sent, with the elevations the browser's own lookup has learned, and

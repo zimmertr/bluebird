@@ -56,6 +56,21 @@ by region in exactly the way volunteer mapping is uneven.
 [Coordinates](USAGE.md#d-coordinates) exists for that gap:
 whatever OSM does not know, you can paste.
 
+A drawn area's peaks and lakes are read from the basemap's own tiles rather
+than asked of Overpass ([Map tiles](#map-tiles) below): the zoom-14 tiles
+under the area carry every named summit with its elevation and OSM id, and
+every named water body, so the app has its answer in about a second and asks
+Overpass only for trailheads, which no tile carries, or for an area too large
+to read from the tiles quickly. Measured 2026-10-07 over three rings, the
+peaks were exactly Overpass's (42 of 42, 28 of 28 and 16 of 16, the same
+ids). The lakes are broader than the API's: Overpass is asked for
+`natural=water` with `water=lake`, and the tiles carry tarns, ponds and
+reservoirs under the one class `lake` with no subtype to tell them apart, so
+the app finds every named water body where the API finds the lakes alone (46
+to 40, 16 to 3 and 23 to 4 on the same three rings). A lake from the tiles
+carries no elevation, so its Elevation cell shows the terrain height marked
+([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
+
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so each one is matched to the nearest mapped
 peak within about 150 metres and takes that peak's `ele` tag. The app asks two
@@ -627,8 +642,10 @@ arrives through the tile server's own TileJSON and is drawn in the map's corner
 control rather than by the app. The tiles carry OpenStreetMap data under the
 ODbL, which is why that credit links to OpenStreetMap's copyright page.
 
-The same tiles are the first source of a pasted coordinate's elevation
-([above](#openstreetmap)): when the coordinates box holds rows, the browser
+The same tiles are also what a drawn area is searched from (every zoom-14
+tile under its bounding box, up to a budget of a few hundred, past which the
+area goes to the map server), and the first source of a pasted coordinate's
+elevation ([above](#openstreetmap)): when the coordinates box holds rows, the browser
 reads the zoom-14 tile under each point and any neighbour within the match
 radius, and decodes the peak layer itself. That is one to four small static
 files a row, the same files the map would load if you zoomed to the point,

@@ -12,6 +12,7 @@ import { AnalysisRefusalError, runClientAnalysis } from './clientAnalyze'
 import { FALLBACK_WINDOW_LIMITS } from './forecastWindow'
 import { FORECAST_REUSE_MS, type HeldForecasts } from './forecastReuse'
 import { geoKey } from './points'
+import { discoverFromTiles, tileDiscoverable } from './tileDiscovery'
 import { discovered, fakeResponse, resultRow } from '../testSupport/fixtures'
 
 // The ranking itself is clientAnalyze.ts's, pinned by its own suite. Here it is
@@ -21,6 +22,21 @@ vi.mock('./clientAnalyze', async (actual) => ({
   runClientAnalysis: vi.fn(),
 }))
 const ranked = vi.mocked(runClientAnalysis)
+
+// The tiles' discovery is tileDiscovery.ts's, pinned by its own suite; here
+// what it answers is scripted, and the live tile fetcher is a stub.
+vi.mock('./tileDiscovery', async (actual) => ({
+  ...(await actual<typeof import('./tileDiscovery')>()),
+  discoverFromTiles: vi.fn(async () => null),
+  tileDiscoverable: vi.fn(() => true),
+}))
+vi.mock('./peakTiles', async (actual) => ({
+  ...(await actual<typeof import('./peakTiles')>()),
+  tileTemplate: vi.fn(async () => 'https://tiles.test/{z}/{x}/{y}.pbf'),
+  fetchTileWith: vi.fn(() => async () => new Uint8Array()),
+}))
+const fromTiles = vi.mocked(discoverFromTiles)
+const discoverable = vi.mocked(tileDiscoverable)
 
 const HOUR = 3_600_000
 const NOW = Date.parse('2026-07-20T12:00:00Z')
@@ -39,7 +55,12 @@ const ROWS: DestinationResult[] = [
   resultRow({ name: 'B', latitude: 47.5, longitude: -121.75 }),
 ]
 const signal = new AbortController().signal
-let posted: unknown[] = []
+interface PostedBody {
+  destination_types?: string[]
+  custom_destinations?: Record<string, unknown>[]
+  elevation_lookup?: boolean
+}
+let posted: PostedBody[] = []
 
 function stubDestinations(payload: unknown, status = 200) {
   posted = []
@@ -96,6 +117,106 @@ describe('readErrorBody', () => {
       'Something went wrong. Try again later.',
     )
     expect((await readErrorBody(fakeResponse({}, 503))).message).toBe(UNDESCRIBED_FAILURE_MESSAGE)
+  })
+})
+
+// A polygon run reads the basemap's tiles first (#675): what they answer
+// rides to the pod as custom rows for its snow depth, the pod discovers the
+// trailheads alone, and the rows come back with the kinds and ids the tiles
+// gave them. When the tiles cannot answer, the run takes the map server's
+// path as before.
+describe('a polygon run and the tiles', () => {
+  const ALPHA = discovered({ name: 'Alpha', type: 'peak', latitude: 47.45, longitude: -121.8, elevation_ft: 8000, osm_id: 'node/1' })
+  const TARN = discovered({ name: 'Tarn', type: 'lake', latitude: 47.5, longitude: -121.75, elevation_ft: null, osm_id: 'way/2' })
+  const asCustom = (d: typeof ALPHA) => ({ ...d, type: 'custom', osm_id: null, snow_depth_in: 12 })
+  const found = () => {
+    const seen: Awaited<ReturnType<typeof discoverCandidates>>[] = []
+    ranked.mockResolvedValue({ response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null })
+    return { seen, onDiscovered: (f: (typeof seen)[number]) => seen.push(f) }
+  }
+
+  beforeEach(() => {
+    fromTiles.mockReset()
+    fromTiles.mockResolvedValue(null)
+    discoverable.mockReset()
+    discoverable.mockReturnValue(true)
+  })
+
+  it('sends the pod the tile rows and the trailheads to find, and puts the kinds and ids back', async () => {
+    fromTiles.mockResolvedValue([ALPHA, TARN])
+    const trailhead = discovered({ name: 'Gate', type: 'trailhead', latitude: 47.46, longitude: -121.79, elevation_ft: 3000, osm_id: 'node/9' })
+    stubDestinations({ destinations: [trailhead, asCustom(ALPHA), asCustom(TARN)], total: 3, snow_analysis_date: '2026-07-19' })
+    const { seen, onDiscovered } = found()
+    await runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'lake', 'trailhead'] }, options({ onDiscovered }))
+    expect(posted[0]).toMatchObject({
+      destination_types: ['trailhead'],
+      elevation_lookup: false,
+      custom_destinations: [
+        { name: 'Alpha', latitude: 47.45, longitude: -121.8, elevation_ft: 8000 },
+        { name: 'Tarn', latitude: 47.5, longitude: -121.75 },
+      ],
+    })
+    expect(posted[0].custom_destinations?.[1]).not.toHaveProperty('elevation_ft')
+    expect(seen[0].candidates).toEqual([
+      trailhead,
+      { ...ALPHA, snow_depth_in: 12 },
+      { ...TARN, snow_depth_in: 12 },
+    ])
+    expect(seen[0]).toMatchObject({ totalFound: null, truncated: false, snowAnalysisDate: '2026-07-19' })
+  })
+
+  it('asks the pod for no kind at all when the tiles answered every one', async () => {
+    fromTiles.mockResolvedValue([ALPHA])
+    stubDestinations({ destinations: [asCustom(ALPHA)], total: 1 })
+    const { onDiscovered } = found()
+    await runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'lake'] }, options({ onDiscovered }))
+    expect(posted[0]).toMatchObject({ destination_types: [], elevation_lookup: false })
+    expect(fromTiles.mock.calls[0].slice(0, 3)).toEqual([RING.coordinates[0], ['peak', 'lake'], false])
+  })
+
+  it('carries the reader\'s own list beside the tile rows, with what the lookup learned', async () => {
+    fromTiles.mockResolvedValue([ALPHA])
+    stubDestinations({ destinations: [asCustom(ALPHA), discovered({ name: 'Mine', type: 'custom', latitude: 47, longitude: -121, elevation_ft: 6000, osm_id: null })], total: 2 })
+    const { seen, onDiscovered } = found()
+    const identity = new Map([[geoKey(47, -121), { elevation_ft: 6000, osm_id: 'node/77' }]])
+    await runAnalysisPipeline(
+      { ...REQUEST, custom_destinations: [{ name: 'Mine', latitude: 47, longitude: -121 }] },
+      options({ onDiscovered, identity: { latest: () => identity }, knownTypes: { [geoKey(47, -121)]: 'peak' } }),
+    )
+    expect(posted[0].custom_destinations).toEqual([
+      { name: 'Alpha', latitude: 47.45, longitude: -121.8, elevation_ft: 8000 },
+      { name: 'Mine', latitude: 47, longitude: -121, elevation_ft: 6000 },
+    ])
+    expect(seen[0].candidates[1]).toMatchObject({ name: 'Mine', type: 'peak', elevation_ft: 6000, osm_id: 'node/77' })
+  })
+
+  it('takes the map server\'s path when the tiles cannot answer the ring', async () => {
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    const { onDiscovered } = found()
+    await runAnalysisPipeline(REQUEST, options({ onDiscovered }))
+    expect(posted[0]).toMatchObject({ destination_types: ['peak'] })
+    expect(posted[0]).not.toHaveProperty('elevation_lookup')
+    expect(posted[0]).not.toHaveProperty('custom_destinations')
+
+    discoverable.mockReturnValue(false)
+    fromTiles.mockResolvedValue([ALPHA])
+    await runAnalysisPipeline(REQUEST, options({ onDiscovered }))
+    expect(fromTiles).toHaveBeenCalledTimes(1)
+    expect(posted[1]).toMatchObject({ destination_types: ['peak'] })
+  })
+
+  it('applies the cap before the call, as the pod would to the union', async () => {
+    const many = Array.from({ length: 3 }, (_, i) => discovered({ name: `P${i}`, latitude: 47.4 + i / 100, longitude: -121.8, elevation_ft: 1000 * (i + 1), osm_id: `node/${i}` }))
+    fromTiles.mockResolvedValue(many)
+    stubDestinations({ destinations: [], total: 0 })
+    const { seen, onDiscovered } = found()
+    await expect(runAnalysisPipeline(REQUEST, options({ onDiscovered, maxDestinations: 2 }))).rejects.toBeInstanceOf(AnalysisRefusalError)
+    expect(posted).toEqual([])
+
+    stubDestinations({ destinations: [], total: 0 })
+    await runAnalysisPipeline({ ...REQUEST, top_by_elevation: true }, options({ onDiscovered, maxDestinations: 2 }))
+    expect(posted[0].custom_destinations?.map((c) => c.name)).toEqual(['P2', 'P1'])
+    expect(seen[0]).toMatchObject({ totalFound: 3, truncated: true })
   })
 })
 
