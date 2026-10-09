@@ -396,9 +396,9 @@ GFS's under two. A gust ranking compares destinations under one model fairly,
 but gusts compared across models on the chart differ as much in how each model
 estimates a gust as in the weather. The legend's top two bands are the National
 Weather Service's own gust criteria: 46 mph and up is a Wind Advisory, 58 mph
-and up a High Wind Warning. Under **Wind** the chart draws each destination's
-gust as a dashed line beside its wind, so the two can be read against each
-other hour by hour.
+and up a High Wind Warning. While a report is ranked by the gust, the chart's
+**Wind** draws each destination's gust as a dashed line beside its wind, so the
+two can be read against each other hour by hour.
 
 ### History, and the boundary inside it
 

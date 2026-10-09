@@ -29,6 +29,7 @@ import {
   orderTooltipItems,
   seriesFieldFor,
   withGustLines,
+  drawsGustLines,
   TOOLTIP_CHROME_PX,
   TOOLTIP_MAX_ROWS,
   TOOLTIP_MIN_ROWS,
@@ -364,7 +365,7 @@ describe('withGustLines', () => {
   const other: ChartLine = { ...wind, key: '2,0', label: 'Glacier Peak', color: '#f472b6' }
 
   it('pairs every wind line with a dashed gust in its colour, directly after it', () => {
-    const lines = withGustLines([wind, other], 'wind')
+    const lines = withGustLines([wind, other], 'wind', true)
     expect(lines.map((l) => [l.key, l.label, l.color, l.dashed ?? false])).toEqual([
       ['1,0', 'Mount Baker', '#38bdf8', false],
       ['1,0|gust', 'Mount Baker (gust)', '#38bdf8', true],
@@ -379,20 +380,35 @@ describe('withGustLines', () => {
   it('draws no gust under any other metric', () => {
     for (const metric of RANKED_FAMILIES.filter((f) => f !== 'wind')) {
       const lines = [wind, other]
-      expect(withGustLines(lines, metric)).toBe(lines)
+      expect(withGustLines(lines, metric, true)).toBe(lines)
     }
+  })
+
+  // TJ, 2026-10-09: the gust lines double what the Wind chart draws, so they
+  // are drawn only while the report ranks by the gust, and a Wind Avg, Max or
+  // Min ranking draws the sustained lines alone, as main does.
+  it('draws the gust only under a gust ranking', () => {
+    const lines = [wind, other]
+    expect(drawsGustLines('wind_gust_mph')).toBe(true)
+    expect(withGustLines(lines, 'wind', drawsGustLines('wind_gust_mph'))).toHaveLength(4)
+    for (const key of ['wind_avg_mph', 'wind_max_mph', 'wind_min_mph', 'temp_avg_f', 'precip_total_in'] as const) {
+      expect(drawsGustLines(key), key).toBe(false)
+      expect(withGustLines(lines, 'wind', drawsGustLines(key)), key).toBe(lines)
+    }
+    // Ranked by the gust with the chart switched to another metric, still none.
+    expect(withGustLines(lines, 'temp', drawsGustLines('wind_gust_mph'))).toBe(lines)
   })
 
   // The y range covers the gust, which runs above the wind it rides on, or
   // the tallest dashed line would run off the top of the plot.
   it('stretches the y range to the strongest gust', () => {
-    const [, top] = computeYDomain(withGustLines([wind], 'wind'), 'wind')
+    const [, top] = computeYDomain(withGustLines([wind], 'wind', true), 'wind')
     expect(top).toBeGreaterThanOrEqual(31)
     expect(computeYDomain([wind], 'wind')[1]).toBeLessThan(31)
   })
 
   it('puts a gust in the chart data under its own key', () => {
-    const data = buildChartData([0, 1], withGustLines([wind], 'wind'), 'wind')
+    const data = buildChartData([0, 1], withGustLines([wind], 'wind', true), 'wind')
     expect(data[1]).toEqual({ t: 1, '1,0': 12, [gustLineKey('1,0')]: 31 })
   })
 })

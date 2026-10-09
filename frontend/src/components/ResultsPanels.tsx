@@ -13,6 +13,7 @@ import ResizeGrip from './ResizeGrip'
 import ResultsTable from './ResultsTable'
 import { IconClose } from './icons'
 import { FOCUS_RING, ICON_ACTION, MUTED, RADIUS, TEXT } from '../styles'
+import { drawsGustLines } from '../utils/chartData'
 
 // Lazy, because `recharts` is the one large library the first screen does not
 // need: the map mounts before any chart exists, and a reader who never opens
@@ -166,6 +167,7 @@ export default function ResultsPanels({
                   extraLines={compare.lines}
                   modelEnds={compare.endLines}
                   controls={compareControls}
+                  showGust={drawsGustLines(sortBy)}
                 />
               </Suspense>
             </div>

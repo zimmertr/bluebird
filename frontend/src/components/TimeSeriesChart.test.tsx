@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
+import { CHART_GUST_DASH } from '../utils/chartColors'
 
 // jsdom lays nothing out, so Recharts' ResponsiveContainer measures zero and
 // draws no chart to click. What is under test is the chart's own click
 // handler, so the LineChart is replaced by a stand-in that keeps the handler it
 // was given, and the test calls it the way Recharts does: with the click state
 // first and the React click event second.
-const chart = vi.hoisted(() => ({ onClick: undefined as undefined | ((state: unknown, event: unknown) => void) }))
+const chart = vi.hoisted(() => ({
+  onClick: undefined as undefined | ((state: unknown, event: unknown) => void),
+  lines: [] as { dataKey: string; strokeDasharray?: string }[],
+}))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   const Nothing = () => null
@@ -20,7 +24,10 @@ vi.mock('recharts', () => {
       return <>{props.children}</>
     },
     CartesianGrid: Nothing,
-    Line: Nothing,
+    Line: (props: { dataKey: string; strokeDasharray?: string }) => {
+      chart.lines.push({ dataKey: props.dataKey, strokeDasharray: props.strokeDasharray })
+      return null
+    },
     ReferenceLine: Nothing,
     Tooltip: Nothing,
     XAxis: Nothing,
@@ -100,5 +107,37 @@ describe('TimeSeriesChart click', () => {
   it('takes no click at all with no playhead to move', () => {
     render(<TimeSeriesChart {...props()} />)
     expect(chart.onClick).toBeUndefined()
+  })
+})
+
+// The Wind chart's dashed gust lines are drawn only while the report ranks by
+// the gust (TJ, 2026-10-09, #584), and never under another chart metric.
+describe('TimeSeriesChart gust lines', () => {
+  const WIND_ROWS = [
+    resultRow({
+      name: 'Mount Alpha',
+      series: series({ wind_mph: TIMES.map(() => 10), wind_gust_mph: TIMES.map(() => 25) }),
+    }),
+  ]
+  const drawn = () => {
+    const out = [...chart.lines]
+    chart.lines.length = 0
+    return out
+  }
+
+  it('draws a dashed gust beside each wind line when asked', () => {
+    chart.lines.length = 0
+    render(<TimeSeriesChart {...props({ rows: WIND_ROWS, metric: 'wind', showGust: true })} />)
+    const lines = drawn()
+    expect(lines.map((l) => l.dataKey)).toEqual(expect.arrayContaining([expect.stringMatching(/\|gust$/)]))
+    expect(lines.filter((l) => l.strokeDasharray === CHART_GUST_DASH)).toHaveLength(1)
+  })
+
+  it('draws the sustained lines alone without a gust ranking, or under another metric', () => {
+    chart.lines.length = 0
+    render(<TimeSeriesChart {...props({ rows: WIND_ROWS, metric: 'wind', showGust: false })} />)
+    expect(drawn().some((l) => l.dataKey.endsWith('|gust'))).toBe(false)
+    render(<TimeSeriesChart {...props({ rows: WIND_ROWS, metric: 'temp', showGust: true })} />)
+    expect(drawn().some((l) => l.dataKey.endsWith('|gust'))).toBe(false)
   })
 })

@@ -84,8 +84,9 @@ interface Props {
    * covers is a decision about spend rather than about drawing. Colour is the
    * one channel, the destination's on the ranking model's lines and the
    * model's on every other, and `chartColors.ts` is what keeps the two sets
-   * apart. The wind's gust companions are added here, below, for these lines
-   * as for the rows, so a compared model's gust draws beside its own wind.
+   * apart. Under a gust ranking the wind's gust companions are added here,
+   * below, for these lines as for the rows, so a compared model's gust draws
+   * beside its own wind.
    *
    * A comparison supplies the ranking model's lines here too, and `rows` then
    * arrives empty: every entry has to read alike, so all of them are composed
@@ -100,6 +101,12 @@ interface Props {
   modelEnds?: readonly ModelEndLine[]
   /** The comparison control, rendered beside the metric select. */
   controls?: ReactNode
+  /**
+   * Whether the Wind chart draws each line's gust beside it, which is only
+   * while the report ranks by the gust (`drawsGustLines`). A boolean, so the
+   * memo compares it by value.
+   */
+  showGust?: boolean
 }
 
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
@@ -119,6 +126,7 @@ function TimeSeriesChart({
   extraLines = NO_EXTRA_LINES,
   modelEnds = NO_MODEL_ENDS,
   controls,
+  showGust = false,
 }: Props) {
   const plotRef = useRef<HTMLDivElement>(null)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
@@ -138,8 +146,10 @@ function TimeSeriesChart({
   // cannot answer differently for a row that has not changed: a colour is
   // assigned once per coordinate and never reassigned.
   //
-  // Under the wind every line gains its gust beside it (#584), which doubles
-  // the lines drawn and therefore what `tracksCursor` below is charged for.
+  // Under the wind, while the report ranks by the gust, every line gains its
+  // gust beside it (#584). That doubles the lines drawn and so what
+  // `tracksCursor` below is charged for, which is why it is only then: every
+  // other ranking draws, and pays for, the sustained lines alone.
   const lines: readonly ChartLine[] = useMemo(
     () =>
       withGustLines(
@@ -153,10 +163,11 @@ function TimeSeriesChart({
           ...extraLines,
         ],
         metric,
+        showGust,
       ),
     // Kept: `colorFor` is the omission, and the paragraph above says why.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [aligned, extraLines, metric],
+    [aligned, extraLines, metric, showGust],
   )
   // A point-sample analysis has a one-timestamp grid: there are no segments to
   // stroke, so each series must render as a dot or the chart would come up blank.

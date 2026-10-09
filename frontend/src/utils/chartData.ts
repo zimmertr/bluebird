@@ -34,7 +34,8 @@ export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
 // Read off the ranking key's own family rather than matched against a list of
 // keys: since #291 a family has three or four rankable keys, and a list
 // naming one of them each opened the precipitation chart for the other two.
-// A gust ranking opens the wind, which draws the gust beside every line.
+// A gust ranking opens the wind, which draws the gust beside every line
+// (`drawsGustLines`).
 export function metricForSort(sortBy: SortBy): ChartMetric {
   return familyOf(sortBy)
 }
@@ -50,17 +51,33 @@ export function seriesFieldFor(sortBy: SortBy): keyof HourlySeries {
 }
 
 /**
+ * Whether the Wind chart draws the gust beside its lines: only while the
+ * report is RANKED by the gust (TJ, 2026-10-09, #584), whatever metric the
+ * chart has been switched to by hand. A companion doubles the lines the wind
+ * draws, which measured 48 to 112 ms for a plain 200-row switch to Wind and 111
+ * to 384 ms under a three-model comparison (record 0124), so a reader who
+ * ranks by the sustained wind pays what main pays and sees what main shows.
+ */
+export function drawsGustLines(sortBy: SortBy): boolean {
+  return sortBy === 'wind_gust_mph'
+}
+
+/**
  * The gust's dashed line beside each wind line (TJ, #584): the same colour as
  * its destination's (or its compared model's) wind, so the pair reads as one
  * place, and listed directly after it, which is the order the tooltip keeps.
- * The wind is the only metric that draws one; every other returns its lines
- * untouched.
+ * Only the wind draws one, and only when `show` (`drawsGustLines`) says the
+ * report ranks by the gust; otherwise the lines come back untouched.
  *
  * Here rather than in the component because the node-env suite cannot render
  * the chart, so a pairing decided inside it would be untestable.
  */
-export function withGustLines(lines: readonly ChartLine[], metric: ChartMetric): readonly ChartLine[] {
-  if (metric !== 'wind') return lines
+export function withGustLines(
+  lines: readonly ChartLine[],
+  metric: ChartMetric,
+  show: boolean,
+): readonly ChartLine[] {
+  if (!show || metric !== 'wind') return lines
   return lines.flatMap((line) => [
     line,
     {

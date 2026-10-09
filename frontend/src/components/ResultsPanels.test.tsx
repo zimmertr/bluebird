@@ -67,7 +67,7 @@ const BOTH = layout('both')
 const CHARTS_QUIET = { chart: CHART, compare: QUIET, rowChartColor: NOOP }
 const CHARTS_COMPARING = { chart: CHART, compare: COMPARING, rowChartColor: NOOP }
 
-function props(over: { layout?: unknown; charts?: unknown } = {}): Props {
+function props(over: { layout?: unknown; charts?: unknown; sortBy?: string } = {}): Props {
   return {
     layout: over.layout ?? BOTH,
     charts: over.charts ?? CHARTS_QUIET,
@@ -75,7 +75,7 @@ function props(over: { layout?: unknown; charts?: unknown } = {}): Props {
     report: REPORT,
     pending: [],
     removeResult,
-    sortBy: DEFAULT_FAMILY_KEY.temp,
+    sortBy: over.sortBy ?? DEFAULT_FAMILY_KEY.temp,
     pointSample: false,
     forecastTimes: TIMES,
     playbackIndex: null,
@@ -145,6 +145,19 @@ describe('ResultsPanels', () => {
     rerender(<ResultsPanels {...props({ charts: CHARTS_COMPARING })} />)
     expect(last(seen.chart).rows).toEqual([])
     expect(last(seen.chart).controls).toBeTruthy()
+  })
+
+  // The gust lines follow the RANKING, not the chart's metric (TJ,
+  // 2026-10-09), and reach the memoized chart as a boolean.
+  it('tells the chart to draw the gust only under a gust ranking', async () => {
+    seen.chart.length = 0
+    const { rerender } = render(<ResultsPanels {...props({ sortBy: 'wind_gust_mph' })} />)
+    await screen.findByTestId('chart')
+    expect(last(seen.chart).showGust).toBe(true)
+    for (const sortBy of ['wind_avg_mph', 'wind_max_mph', 'wind_min_mph', 'temp_avg_f']) {
+      rerender(<ResultsPanels {...props({ sortBy })} />)
+      expect(last(seen.chart).showGust, sortBy).toBe(false)
+    }
   })
 
   // Both children are memoized, so a second render from the same inputs must
