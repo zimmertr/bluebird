@@ -1,4 +1,4 @@
-import { test, expect, DESTINATION_NAMES } from './fixtures'
+import { test, expect, DESTINATION_NAMES, resultRows } from './fixtures'
 import type { Page } from '@playwright/test'
 
 function isoDay(offset: number): string {
@@ -36,7 +36,7 @@ test('a link that runs on open fills the table and drops its flag', async ({ pag
   const d1 = isoDay(1)
   await page.goto(`/?mode=days&d1=${d1}&d2=${d1}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55&analyze=1`)
 
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
   await expect.poll(() => new URL(page.url()).searchParams.has('analyze')).toBe(false)
   await expect.poll(() => new URL(page.url()).searchParams.get('d1')).toBe(d1)
 })
@@ -144,7 +144,7 @@ test('a link reopens at its camera, with its removals and its table order', asyn
 
   // The removal survives the link's own first Analyze, and the header sort
   // survives the report it arrives with.
-  const rows = page.locator('table tbody tr')
+  const rows = resultRows(page)
   await expect(rows).toHaveCount(DESTINATION_NAMES.length - 1)
   const names = [...DESTINATION_NAMES].filter((n) => n !== 'Gamma Butte').sort().reverse()
   for (const [i, name] of names.entries()) await expect(rows.nth(i)).toContainText(name)

@@ -11,7 +11,7 @@
  * Read `inputs` inside the handler every time. A value copied out of it when a
  * handler is registered is the stale closure this object exists to prevent.
  */
-import type { DestinationResult } from '../types'
+import type { DestinationResult, SortBy } from '../types'
 import type { ClosureWarning } from '../utils/closureProximity'
 import type { FireWarning } from '../utils/fireProximity'
 import type { Place } from '../utils/geocode'
@@ -27,6 +27,8 @@ export interface MapInputs {
   times: number[]
   modelFallbackLabel: string | null
   popupColumns: readonly ColDef[]
+  // What the report ranks by, whose number a result popup marks.
+  sortBy: SortBy
   fireWarnings: Map<string, FireWarning>
   closureWarnings: Map<string, ClosureWarning>
   searchedPlaces: Place[]

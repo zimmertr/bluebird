@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures'
+import { test, expect, resultRows } from '../fixtures'
 import type { Page } from '@playwright/test'
 
 // The two probes the memo rule in the root CLAUDE.md was measured with: an
@@ -128,7 +128,7 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await page.getByRole('button', { name: 'Analyze' }).click()
   await expect(page.getByText(`${DESTINATIONS} of ${DESTINATIONS})`, { exact: false })).toBeVisible()
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATIONS)
+  await expect(resultRows(page)).toHaveCount(DESTINATIONS)
 
   const box = page.getByRole('textbox', { name: /Custom destination coordinates/ })
   await box.evaluate((el) => el.setAttribute('data-probe', 'keystroke'))
@@ -163,7 +163,7 @@ test('render cost of an overlay toggle, a keystroke and the live knobs at 946 de
     await page.waitForTimeout(300)
   }
   // Each knob moved: the last restore brought every row back.
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATIONS)
+  await expect(resultRows(page)).toHaveCount(DESTINATIONS)
 
   // The pan, after the loop. The Layers popover closes on Escape, so the drag
   // lands on the map.

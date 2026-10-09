@@ -2,7 +2,30 @@ import { describe, expect, it } from 'vitest'
 import { within } from '@testing-library/react'
 import { render } from '../testSupport/render'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
-import { popupShell, row } from './popupChrome'
+import {
+  FINE_COLOR,
+  GRID_BAND_COLOR,
+  GRID_COMPACT_INSET_PX,
+  GRID_COMPACT_LABEL_GAP_PX,
+  GRID_GUTTER_COLOR,
+  GRID_INSET_PX,
+  GRID_LABEL_GAP_PX,
+  GRID_RANKED_COLOR,
+  HEADER_BAND_COLOR,
+  HEADER_ICON_COLOR,
+  LABEL_COLOR,
+  LINK_COLOR,
+  RESULT_CARD_PAD_PX,
+  RESULT_POPUP_MAX_WIDTH_PX,
+  WIDEST_GRID_PX,
+  compactGrid,
+  factsRow,
+  metricGrid,
+  popupShell,
+  resultPopupWidth,
+  row,
+} from './popupChrome'
+import { AGGREGATE } from '../metrics'
 import { resultPopupHtml } from './resultPopup'
 import { displayedColumns } from './tableColumns'
 
@@ -72,3 +95,178 @@ describe('a result popup', () => {
     expect(hrefs).toContain(url)
   })
 })
+
+// The grid's column bands (TJ, 2026-10-08). The band sits under every number
+// and every head, so both colours on it must still clear AA.
+describe('the popup grid', () => {
+  it('keeps link and label text above AA on the band', () => {
+    expect(round2(contrast(LINK_COLOR, GRID_BAND_COLOR))).toBe(5.42)
+    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), GRID_BAND_COLOR))).toBe(6.92)
+    expect(GRID_GUTTER_COLOR).toBe('#ffffff')
+  })
+
+  it('stands a one-value line across Min, Max and Avg and leaves Total empty', () => {
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total],
+      rows: [{ kind: 'value', label: 'Cloud deck (ft)', cell: { text: '≥30,000', href: null, ranked: false } }],
+    })
+    // The value row alone: the corner over the labels is the head row's.
+    const valueRow = html.slice(html.indexOf('<th scope="row"'))
+    expect(valueRow).toContain('<td colspan="3"')
+    expect(valueRow.match(/<td /g)).toHaveLength(2)
+  })
+
+  // Every label stays on one line; the card is sized for the widest.
+  it('never wraps a family label', () => {
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum],
+      rows: [{ kind: 'aggregates', label: 'Precipitation (in/hr)', cells: [{ text: '0.000', href: null, ranked: false }] }],
+    })
+    expect(html).toMatch(/<th scope="row" style="[^"]*white-space:nowrap[^"]*">Precipitation \(in\/hr\)<\/th>/)
+  })
+
+  // The number the report ranks by is bold on a cell one slate darker than
+  // its column (TJ, 2026-10-08). The step is small, so the link on it must
+  // still clear AA, and the bold does the rest.
+  it('marks the ranked number bold on a darker slate, keeping its link above AA', () => {
+    // Slate-200, one step past the column's slate-100, with no hue.
+    expect(GRID_RANKED_COLOR).toBe('#e2e8f0')
+    expect(round2(contrast(GRID_RANKED_COLOR, GRID_BAND_COLOR))).toBe(1.13)
+    expect(round2(contrast(LINK_COLOR, GRID_RANKED_COLOR))).toBe(4.81)
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum, AGGREGATE.maximum],
+      rows: [
+        {
+          kind: 'aggregates',
+          label: 'Wind (mph)',
+          cells: [
+            { text: '3.2', href: null, ranked: false },
+            { text: '41.8', href: null, ranked: true },
+          ],
+        },
+      ],
+    })
+    const cells = mount(html).querySelectorAll('td[style*="text-align:right"]')
+    expect(cells).toHaveLength(2)
+    expect(cells[0].getAttribute('style')).not.toContain(GRID_RANKED_COLOR)
+    expect(cells[0].querySelector('span')!.getAttribute('style')).not.toContain('font-weight:700')
+    expect(cells[1].getAttribute('style')).toContain(`background:${GRID_RANKED_COLOR}`)
+    expect(cells[1].querySelector('span')!.getAttribute('style')).toContain('font-weight:700')
+  })
+
+  it('narrows every band and the label gap when asked', () => {
+    const grid = {
+      columns: [AGGREGATE.minimum],
+      rows: [{ kind: 'aggregates' as const, label: 'Wind (mph)', cells: [{ text: '3.2', href: null, ranked: false }] }],
+    }
+    const full = metricGrid(grid)
+    expect(full).toContain(`padding:1px ${GRID_INSET_PX}px`)
+    expect(full).toContain(`padding:1px ${GRID_LABEL_GAP_PX}px 1px 0`)
+    const compact = metricGrid(grid, { compact: true })
+    expect(compact).toContain(`padding:1px ${GRID_COMPACT_INSET_PX}px`)
+    expect(compact).toContain(`padding:1px ${GRID_COMPACT_LABEL_GAP_PX}px 1px 0`)
+    expect(compact).not.toContain(`padding:1px ${GRID_INSET_PX}px`)
+    expect(compact).not.toContain(`padding:1px ${GRID_LABEL_GAP_PX}px`)
+  })
+})
+
+// The result card's header band (TJ, 2026-10-08): every colour on it measured.
+describe('the header band', () => {
+  it('keeps its text above AA and its link glyph above the 3:1 an icon owes', () => {
+    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), HEADER_BAND_COLOR))).toBe(6.92)
+    expect(round2(contrast('#000000', HEADER_BAND_COLOR))).toBe(19.17)
+    expect(round2(contrast(HEADER_ICON_COLOR, HEADER_BAND_COLOR))).toBe(3.74)
+    // The pipes are decoration, hidden from a screen reader; they need only show.
+    expect(round2(contrast(FINE_COLOR, HEADER_BAND_COLOR))).toBe(2.34)
+    // No hue: the band is the grid's own column slate (option H, TJ 2026-10-08).
+    expect(HEADER_BAND_COLOR).toBe(GRID_BAND_COLOR)
+  })
+
+  it('keeps the close button\'s lane, which map.css widens on a touch screen', () => {
+    const html = popupShell('Title', 'https://example.com', '', '', { resultCard: true })
+    expect(html).toContain(`background:${HEADER_BAND_COLOR}`)
+    expect(html).toContain('padding:10px var(--popup-close-lane, 2rem) 8px 10px')
+    expect(html).not.toContain('<hr')
+  })
+})
+
+// A name too long for the card ends in an ellipsis on one line, as the results
+// table's does, rather than wrapping the rank away and running off the edge.
+describe('a popup title', () => {
+  const NAME = 'Taumatawhakatangihangakōauauotamateapōkaiwhenuakitānatahu'
+  it('keeps a long name on one line, ending in an ellipsis, on both shells', () => {
+    for (const resultCard of [false, true]) {
+      const popup = document.createElement('div')
+      popup.innerHTML = popupShell(`#1 ${NAME}`, 'https://example.com', '', '', { resultCard })
+      const title = popup.querySelector('strong')!
+      expect(title.textContent).toBe(`#1 ${NAME}`)
+      expect(title.getAttribute('style')).toContain('text-overflow:ellipsis')
+      expect(title.getAttribute('style')).toContain('white-space:nowrap')
+      expect(title.getAttribute('style')).toContain('min-width:0')
+    }
+  })
+})
+
+describe('the facts line', () => {
+  it('parts the type, elevation and coordinates with a pipe a screen reader skips', () => {
+    const popup = mount(factsRow('Trailhead', '3,120 ft', 47.5, -121.25))
+    expect(popup.textContent).toBe('Trailhead|3,120 ft|47.50000, -121.25000')
+    expect(popup.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2)
+  })
+
+  it('drops a part it does not have', () => {
+    expect(mount(factsRow(null, null, 47.5, -121.25)).textContent).toBe('47.50000, -121.25000')
+  })
+})
+
+// The result popup's own width (TJ, 2026-10-08), against the widest grid
+// measured in Chrome on macOS, `WIDEST_GRID_PX`.
+describe('resultPopupWidth', () => {
+  it('fits the widest grid measured on macOS', () => {
+    expect(WIDEST_GRID_PX).toBe(345)
+    expect(RESULT_POPUP_MAX_WIDTH_PX - 2 * RESULT_CARD_PAD_PX).toBeGreaterThanOrEqual(WIDEST_GRID_PX)
+  })
+
+  it('takes the map less 10px a side where the map is narrower', () => {
+    expect(resultPopupWidth(1280)).toBe(`${RESULT_POPUP_MAX_WIDTH_PX}px`)
+    expect(RESULT_POPUP_MAX_WIDTH_PX).toBe(366)
+    expect(resultPopupWidth(360)).toBe('340px')
+    expect(resultPopupWidth(320)).toBe('300px')
+    expect(resultPopupWidth(0)).toBe('180px')
+  })
+})
+
+// A map too narrow for the widest grid at full inset takes 3px insets and a
+// 6px label gap (TJ, 2026-10-08). Measured on macOS, a grid with a two-digit
+// window total is then 319.4px, which a 360px phone's 320px of body holds.
+describe('compactGrid', () => {
+  it('keeps the full inset wherever the widest grid fits it', () => {
+    expect(compactGrid(1280)).toBe(false)
+    expect(compactGrid(390)).toBe(false)
+    expect(compactGrid(385)).toBe(false)
+  })
+
+  it('takes the compact inset on a narrower map', () => {
+    expect(compactGrid(384)).toBe(true)
+    expect(compactGrid(360)).toBe(true)
+    expect(parseFloat(resultPopupWidth(360)) - 2 * RESULT_CARD_PAD_PX).toBeGreaterThanOrEqual(319.4)
+  })
+})
+
+// WCAG relative luminance and contrast, for the band above. Small enough to
+// live here, as `colors.test.ts` keeps its own.
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100
+}

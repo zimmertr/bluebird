@@ -817,13 +817,12 @@ export type FetchCloudOptions = Pick<
 
 // The cloud column (#117, #670): the weather fetch's twin over the same endpoints,
 // spans, pacer and cache, asking for the cloud variables alone. A request of
-// its own rather than nine more variables on the weather one, because the
-// price of a request follows its variable count and only an analysis that
-// ranks or bounds by the cloud deck needs these.
+// its own rather than nine more variables on the weather one, so the weather
+// request, its cache and the vector-pinned weather inputs stay as they are;
+// every analysis makes both (#683).
 //
-// Fails the way the weather fetch fails: it is only ever called because the
-// reader asked for a cloud metric, and a ranking by cloud with no cloud in it
-// is not a ranking.
+// Fails the way the weather fetch fails: the column is part of every report,
+// and a ranking by cloud with no cloud in it is not a ranking.
 export async function fetchCloud(
   destinations: readonly Coordinate[],
   startMs: number,

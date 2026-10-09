@@ -220,7 +220,9 @@ function ResultsTable({
     <div>
       {/* The table's base type is set once here so every cell inherits it and
           only the ranked columns' inline colors override. */}
-      <table ref={tableRef} className={`min-w-full ${TEXT.control}`}>
+      {/* The browser suite finds the results by this rather than as the page's
+          only table: a marker popup is a table too since its grid (#683). */}
+      <table ref={tableRef} data-results-table className={`min-w-full ${TEXT.control}`}>
         <ResultsTableHeader
           columns={orderedColumns}
           detailSortKey={detailSortKey}

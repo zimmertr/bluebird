@@ -1,6 +1,6 @@
 # 0113. The one cloud metric is the cloud deck, read over the whole column, and a dry column reads a ceiling
 
-- Status: Accepted. Supersedes 0056. Amends 0057 (the fetch-on-request rule stands; the variable list and the weight change). Amended by 0119 (the colour sentence: the deck wears the verdict ramp reversed).
+- Status: Accepted. Supersedes 0056. Amends 0057 (the fetch-on-request rule stands; the variable list and the weight change); that rule is superseded by 0121. Amended by 0119 (the colour sentence: the deck wears the verdict ramp reversed).
 - Date: 2026-10-06
 - Decider: the maintainer, on #670 (2026-10-06)
 - Issues and PRs: #670, #587, #117, #483

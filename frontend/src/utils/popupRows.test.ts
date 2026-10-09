@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { popupGroups, popupIdentity } from './popupRows'
+import { popupGrid, popupGroups, popupIdentity } from './popupRows'
 import {
   COLUMNS,
   MODEL_COL,
@@ -8,7 +8,7 @@ import {
   displayedColumns,
   visibleColumns,
 } from './tableColumns'
-import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT, familyOf } from '../metrics'
+import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT } from '../metrics'
 import type { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
 
@@ -44,8 +44,11 @@ describe('popupGroups over a date range', () => {
   it('shows every metric the table shows, and no more', () => {
     const groups = popupGroups(row, cols)
     const shown = groups.flatMap((g) => g.values).length
-    // Sixteen metric columns plus the elevation, which is its own group of one.
-    expect(shown).toBe(cols.filter((c) => c.key !== 'name' && c.key !== 'type').length)
+    // Every metric column. The name, the type and the elevation are the
+    // card's title and the line under it.
+    expect(shown).toBe(
+      cols.filter((c) => c.key !== 'name' && c.key !== 'type' && c.key !== 'elevation_ft').length,
+    )
   })
 
   it('groups a family under one heading with its shared unit', () => {
@@ -69,38 +72,36 @@ describe('popupGroups over a date range', () => {
     expect(aqi.values.map((v) => v.text)).toEqual(['42', '18', '91'])
   })
 
-  // Precipitation is the one family whose columns do not share a unit: the
-  // window total is inches and the other three are a rate. A shared unit on the
-  // heading would be wrong for three values out of four, so each value carries
-  // its own (TJ, 2026-09-14).
-  it('puts the unit on each value where a family mixes two', () => {
+  // Precipitation's columns do not share a unit: the window total is inches
+  // and the other three are a rate. The label names the rate and the total
+  // stands in the Total column with no unit, which a reader takes from the
+  // column (TJ, 2026-10-08).
+  it('names the rate on a family whose total is in a unit of its own', () => {
     const groups = popupGroups(row, cols)
     const precip = groups.find((g) => g.label.startsWith(NOUN.precip))!
-    expect(precip.label).toBe(NOUN.precip)
-    expect(precip.values.map((v) => v.text)).toEqual([
-      '0.123 in',
-      '0.004 in/hr',
-      '0.000 in/hr',
-      '0.009 in/hr',
+    expect(precip.label).toBe(`${NOUN.precip} (in/hr)`)
+    expect(precip.values.map((v) => [v.text, v.unit])).toEqual([
+      ['0.123', null],
+      ['0.004', null],
+      ['0.000', null],
+      ['0.009', null],
     ])
+    // A family that shares one leaves it to the heading.
+    const temp = groups.find((g) => g.label.startsWith(NOUN.temp))!
+    expect(temp.values.every((v) => v.unit === null)).toBe(true)
   })
 
-  it('reads the elevation as one line, not a heading and a value', () => {
+  // A fact about the place rather than a forecast, so it moved to the line
+  // under the name (TJ, 2026-10-08).
+  it('leaves the elevation out of the grid', () => {
     const groups = popupGroups(row, cols)
-    const elevation = groups.find((g) => g.label.startsWith('Elevation'))!
-    expect(elevation.single).toBe(true)
-    expect(elevation.values).toHaveLength(1)
-    expect(elevation.values[0].text).toBe('14,406')
-    expect(elevation.values[0].aggregate).toBeNull()
+    expect(groups.some((g) => g.label.startsWith('Elevation'))).toBe(false)
   })
 
   it('links every value the table links, at the same layer', () => {
     const groups = popupGroups(row, cols, { modelId: 'gfs_seamless' })
     const precip = groups.find((g) => g.label.startsWith(NOUN.precip))!
     for (const v of precip.values) expect(v.href).toContain('rain')
-    // The elevation is not a forecast, so it has nowhere to go.
-    const elevation = groups.find((g) => g.label.startsWith('Elevation'))!
-    expect(elevation.values[0].href).toBeNull()
   })
 })
 
@@ -119,25 +120,26 @@ describe('popupGroups over a Current lookup', () => {
       expect(g.values[0].aggregate).toBeNull()
     }
     expect(labelsOf(groups.map((g) => ({ label: g.label })))).toEqual([
-      'Elevation (ft)',
-      `${NOUN.precip} (in/hr)`,
-      `${NOUN.temp} (${UNIT.temp})`,
-      `${NOUN.wind} (${UNIT.wind})`,
-      `${NOUN.freeze} (${UNIT.freeze})`,
-      // An hour of new snow is a rate, as an hour of rain is (#678).
-      `${NOUN.snowfall} (in/hr)`,
       NOUN.aqi,
       `${NOUN.cloud_deck} (${UNIT.cloud_deck})`,
+      `${NOUN.freeze} (${UNIT.freeze})`,
+      `${NOUN.precip} (in/hr)`,
+      // An hour of new snow is a rate, as an hour of rain is (#678).
+      `${NOUN.snowfall} (in/hr)`,
+      `${NOUN.temp} (${UNIT.temp})`,
+      `${NOUN.wind} (${UNIT.wind})`,
     ])
   })
 })
 
 describe('popupGroups follows the table', () => {
-  it('leads with the ranked family, as orderColumns does', () => {
-    const groups = popupGroups(row, displayedColumns(false, 'aqi_max'))
-    // The elevation is an identity column and still leads; the ranked family
-    // is the first METRIC group, exactly as it is the first metric column.
-    expect(groups[1].label).toBe(NOUN.aqi)
+  // Which families show follows the table; their order does not. A to Z,
+  // whatever the ranking (TJ, 2026-10-08).
+  it('orders the families alphabetically rather than by the ranking', () => {
+    const groups = popupGroups(row, displayedColumns(false, 'wind_max_mph'))
+    const labels = groups.map((g) => g.label)
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })))
+    expect(labels[0]).toBe(NOUN.aqi)
   })
 
   it('drops a value the Columns picker hides', () => {
@@ -233,6 +235,18 @@ describe('popupIdentity', () => {
     const cols = [...displayedColumns(false, 'precip_total_in'), MODEL_COL]
     expect(popupIdentity(compared, cols).model).toBe('ECMWF')
   })
+
+  // The elevation sits on the type's line as `14,406 ft` (TJ, 2026-10-08).
+  it('gives the elevation with its unit, when the place has one', () => {
+    const cols = displayedColumns(false, 'precip_total_in')
+    expect(popupIdentity(row, cols).elevation).toBe('14,406 ft')
+    expect(popupIdentity({ ...row, elevation_ft: null }, cols).elevation).toBeNull()
+  })
+
+  it('gives no elevation when the reader hid the column', () => {
+    const cols = displayedColumns(false, 'precip_total_in').filter((c) => c.key !== 'elevation_ft')
+    expect(popupIdentity(row, cols).elevation).toBeNull()
+  })
 })
 
 
@@ -284,21 +298,136 @@ describe('a new metric family reaches the popup on its own', () => {
     for (const g of groups.filter((x) => !x.label.startsWith('Elevation'))) {
       const family = RANKED_FAMILIES.find((f) => g.label.startsWith(NOUN[f]))!
       const unit = UNIT[family]
-      // Either the noun with its shared unit, or the bare noun where the
-      // family's columns report in more than one (precipitation).
-      expect([NOUN[family], unit ? `${NOUN[family]} (${unit})` : NOUN[family]]).toContain(g.label)
+      // The noun with its shared unit, or, where a window total is in the
+      // unit and the other columns are a rate (precipitation, snowfall), the
+      // noun with the rate.
+      expect([NOUN[family], `${NOUN[family]} (${unit})`, `${NOUN[family]} (${unit}/hr)`]).toContain(g.label)
     }
   })
 
-  // The ranking is what decides which family leads, and it reads the sort key's
-  // own family rather than a position written down anywhere.
-  it('leads with whichever family the report is ranked by', () => {
-    for (const family of RANKED_FAMILIES) {
-      const sortBy = FAMILY_KEYS[family][0]
-      const groups = popupGroups(row, displayedColumns(false, sortBy))
-      const first = groups.filter((g) => !g.label.startsWith('Elevation'))[0]
-      expect(familyOf(FAMILY_KEYS[family][0])).toBe(family)
-      expect(first.label.startsWith(NOUN[family]), `${family} did not lead`).toBe(true)
+  // A new family takes its alphabetical place, whatever the report ranks by.
+  it('keeps one order whichever family the report is ranked by', () => {
+    const orders = RANKED_FAMILIES.map((family) =>
+      popupGroups(row, displayedColumns(false, FAMILY_KEYS[family][0])).map((g) => g.label),
+    )
+    for (const order of orders) expect(order).toEqual(orders[0])
+  })
+})
+
+// TJ, 2026-10-08: the popup is a grid at every width, a row per family and a
+// column per aggregate, with the aggregate words said once.
+describe('popupGrid', () => {
+  const cols = displayedColumns(false, 'precip_total_in')
+
+  it('heads the columns Min, Max, Avg and Total, in that order for every family', () => {
+    const grid = popupGrid(popupGroups(row, cols))
+    expect(grid.columns).toEqual([AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total])
+    // AQI's own columns lead with Avg; its cells follow the grid's order.
+    const aqi = grid.rows.find((r) => r.label === NOUN.aqi)!
+    expect(aqi.kind).toBe('aggregates')
+    if (aqi.kind !== 'aggregates') return
+    // A family with no total leaves the Total column empty.
+    expect(aqi.cells.map((c) => c?.text ?? null)).toEqual(['18', '91', '42', null])
+  })
+
+  // One line for a family with a window total, the total last (TJ,
+  // 2026-10-08), rather than a total line with the rates under it.
+  it('puts a window total in the last column of its family’s line', () => {
+    const grid = popupGrid(popupGroups(row, cols))
+    const precip = grid.rows.filter((r) => r.label.startsWith(NOUN.precip))
+    expect(precip).toHaveLength(1)
+    expect(precip[0]).toMatchObject({ kind: 'aggregates', label: `${NOUN.precip} (in/hr)` })
+    if (precip[0].kind !== 'aggregates') return
+    expect(precip[0].cells.map((c) => c?.text)).toEqual(['0.000', '0.009', '0.004', '0.123'])
+  })
+
+  it('has no elevation line', () => {
+    const grid = popupGrid(popupGroups(row, cols))
+    expect(grid.rows.some((r) => r.label.startsWith('Elevation'))).toBe(false)
+  })
+
+  it('heads no columns over a Current lookup, where each family is one number', () => {
+    const grid = popupGrid(popupGroups(row, displayedColumns(true, 'precip_total_in')))
+    expect(grid.columns).toEqual([])
+    expect(grid.rows.every((r) => r.kind === 'value')).toBe(true)
+  })
+
+  it('drops a column the reader hid everywhere, and leaves a hole where one family hid it', () => {
+    const noAvg = cols.filter((c) => !(c.key as string).includes('avg'))
+    expect(popupGrid(popupGroups(row, noAvg)).columns).toEqual([
+      AGGREGATE.minimum,
+      AGGREGATE.maximum,
+      AGGREGATE.total,
+    ])
+    const noTempMax = cols.filter((c) => c.key !== 'temp_max_f')
+    const temp = popupGrid(popupGroups(row, noTempMax)).rows.find((r) => r.label.startsWith(NOUN.temp))!
+    if (temp.kind !== 'aggregates') throw new Error('temperature is a grid row')
+    expect(temp.cells.map((c) => c?.text ?? null)).toEqual(['21.4', null, '30.1', null])
+  })
+
+  // The two edges of the cloud deck's walk print as bounds through the
+  // column's own formatter, so the popup says what the table says (TJ,
+  // 2026-10-08).
+  it('prints the edges of the cloud deck as bounds', () => {
+    const edges = { ...row, cloud_deck_min_ft: 364, cloud_deck_max_ft: 30066, cloud_deck_avg_ft: 11850 }
+    const deck = popupGrid(popupGroups(edges, cols)).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
+    if (deck.kind !== 'aggregates') throw new Error('the cloud deck is a grid row')
+    expect(deck.cells.map((c) => c?.text ?? null)).toEqual(['≤364', '≥30,000', '11,850', null])
+  })
+
+  // Three bounds side by side are wider than the card, so a deck that held at
+  // one edge all window says it once, across the columns.
+  it('prints a bound held all window once', () => {
+    for (const [ft, text] of [[30066, '≥30,000'], [364, '≤364']] as const) {
+      const held = { ...row, cloud_deck_min_ft: ft, cloud_deck_max_ft: ft, cloud_deck_avg_ft: ft }
+      const deck = popupGrid(popupGroups(held, cols)).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
+      if (deck.kind !== 'value') throw new Error('a held bound is one value')
+      expect(deck.cell.text).toBe(text)
     }
+  })
+
+  // Only a bound collapses: three equal heights are three readings, and a
+  // calm hour's equal numbers keep their columns like any other row.
+  it('keeps three equal heights in their columns', () => {
+    const flat = { ...row, cloud_deck_min_ft: 8000, cloud_deck_max_ft: 8000, cloud_deck_avg_ft: 8000 }
+    const deck = popupGrid(popupGroups(flat, cols)).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
+    if (deck.kind !== 'aggregates') throw new Error('equal heights stay a grid row')
+    expect(deck.cells.map((c) => c?.text ?? null)).toEqual(['8,000', '8,000', '8,000', null])
+  })
+
+  // The card marks the number the report ranks by (TJ, 2026-10-08), so it
+  // says why its destination stands where it does.
+  it('marks the number the report ranks by, and no other', () => {
+    const grid = popupGrid(popupGroups(row, cols, { rankedBy: 'wind_max_mph' }))
+    const ranked = grid.rows.flatMap((r) => (r.kind === 'aggregates' ? r.cells : [r.cell])).filter((c) => c?.ranked)
+    expect(ranked.map((c) => c!.text)).toEqual(['41.8'])
+  })
+
+  it('marks nothing without a ranking', () => {
+    const grid = popupGrid(popupGroups(row, cols))
+    expect(grid.rows.flatMap((r) => (r.kind === 'aggregates' ? r.cells : [r.cell])).some((c) => c?.ranked)).toBe(false)
+  })
+
+  // A held bound says the three numbers once, so the one cell carries the
+  // mark whichever of the three the ranking read.
+  it('keeps the mark on a bound held all window', () => {
+    const held = { ...row, cloud_deck_min_ft: 30066, cloud_deck_max_ft: 30066, cloud_deck_avg_ft: 30066 }
+    for (const rankedBy of ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft'] as const) {
+      const deck = popupGrid(popupGroups(held, cols, { rankedBy })).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
+      if (deck.kind !== 'value') throw new Error('a held bound is one value')
+      expect(deck.cell.ranked).toBe(true)
+    }
+  })
+
+  // Over a Current lookup each family is one number, and the ranked family's
+  // is the one marked.
+  it('marks a Current lookup’s ranked family', () => {
+    // The table collapses the family to its Avg column, which is not the
+    // ranked key, and the one number still carries the mark.
+    const point = displayedColumns(true, 'temp_max_f')
+    expect(point.some((c) => c.key === 'temp_max_f')).toBe(false)
+    const grid = popupGrid(popupGroups(row, point, { rankedBy: 'temp_max_f' }))
+    const marked = grid.rows.filter((r) => r.kind === 'value' && r.cell.ranked)
+    expect(marked.map((r) => r.label.startsWith(NOUN.temp))).toEqual([true])
   })
 })

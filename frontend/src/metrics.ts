@@ -66,24 +66,6 @@ const FAMILIES: readonly MetricFamily[] = [
 ]
 
 /**
- * The families an analysis fetches only when asked (#117, #670).
- *
- * Every other hourly variable rides the one weather request. The cloud column
- * is nine more variables, which would take the weighted price of every
- * analysis from 1.6 to 2.5, so it is a second request over the held field,
- * made only when the ranking or a bound names one of these. Whether a report
- * carries them is therefore a property of the report (`cloudFetched` on the
- * analyzed snapshot), and naming one over a report without them is a reason to
- * analyze again rather than a live knob.
- */
-export const ON_REQUEST_FAMILIES = ['cloud_deck'] as const
-export type OnRequestFamily = (typeof ON_REQUEST_FAMILIES)[number]
-
-export function isOnRequestFamily(family: MetricFamily): family is OnRequestFamily {
-  return (ON_REQUEST_FAMILIES as readonly MetricFamily[]).includes(family)
-}
-
-/**
  * The families whose numbers are read at the destination's height: the wind
  * and temperature interpolated to its elevation, and the cloud deck walked
  * with its 2 m point at that height (#673). A row whose elevation lookup has

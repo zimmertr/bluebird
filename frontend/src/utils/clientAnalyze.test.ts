@@ -648,14 +648,17 @@ describe('runClientAnalysis', () => {
       vi.fn(async (url: string) => {
         const count = new URL(url).searchParams.get('latitude')!.split(',').length
         const isWeather = new URL(url).hostname === 'api.open-meteo.com'
-        if (isWeather) asked.push(count)
+        const isCloud = isCloudRequest(url)
+        if (isWeather && !isCloud) asked.push(count)
         return {
           ok: true,
           status: 200,
           json: async () =>
-            isWeather
-              ? weatherBody([0.05])
-              : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
+            isCloud
+              ? cloudBody(new Array(count).fill(50))
+              : isWeather
+                ? weatherBody([0.05])
+                : Array.from({ length: count }, () => ({ hourly: { time: [], us_aqi: [] } })),
         }
       }),
     )
@@ -668,6 +671,8 @@ describe('runClientAnalysis', () => {
       { nowMs: startMs, reuse: { rows: first.universe, times: first.response.times ?? [] } },
     )
     expect(asked).toEqual([1])
+    // The held rows keep the cloud column they carry, like their weather.
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => isCloudRequest(url as string))).toHaveLength(1)
     expect(out.response.total_queried).toBe(4)
     // 'New' at 0.05 doubled is 0.1, so it ranks ahead of Dry's 0.2.
     expect(out.universe.map((r) => r.name)).toEqual(['New', 'Dry', 'Mid', 'Wet'])
@@ -788,7 +793,7 @@ describe('runClientAnalysis', () => {
       ],
       startMs,
       endMs,
-      { nowMs: startMs, cloud: true },
+      { nowMs: startMs },
     )
     const byName = new Map(out.universe.map((r) => [r.name, r]))
     expect(byName.get('Pasted')?.wind_avg_mph).toBe(22.6)
@@ -837,7 +842,7 @@ describe('runClientAnalysis', () => {
   })
 })
 
-// ── The cloud column, fetched only on request (#117, #670) ─────────────────
+// ── The cloud column, fetched on every analysis (#117, #670, #683) ─────────
 
 // One cloud body per location: saturated at 850 hPa (1457 m) every hour, and
 // a 925 hPa humidity (762 m) that differs per location, so each reads a deck
@@ -966,7 +971,7 @@ describe('the kind of a place the server calls custom (#545)', () => {
       withKnownTypes(echoed, knownTypes(null, clicked)),
       startMs,
       endMs,
-      { nowMs: startMs, cloud: true },
+      { nowMs: startMs },
     )
     const byName = new Map(out.universe.map((r) => [r.name, r]))
     expect(byName.get('Tarn')?.type).toBe('lake')
@@ -986,7 +991,7 @@ describe('alignCloud', () => {
     expect(out).toEqual([4000, null, 5000])
   })
 
-  it('carries no array at all for a row never asked for clouds', () => {
+  it('carries no array at all for a row the cloud request answered nothing for', () => {
     expect(alignCloud([1, 2], null)).toBeNull()
   })
 })
@@ -1007,9 +1012,9 @@ describe('withCloud', () => {
     expect(out.series?.cloud_deck_ft).toEqual([4000, 5000])
   })
 
-  // A report carries the column for every row or for none, so a row held from
-  // a cloud analysis loses it when the next analysis did not ask.
-  it('strips a cloud answer the new report did not ask for', () => {
+  // A held row whose cloud fetch answered nothing this time loses the answer
+  // it held, rather than carrying a series from a report that is gone (#683).
+  it('strips a held cloud answer when the new fetch has none', () => {
     const held = withCloud(
       resultRow({ series: series({ precip_in: [0, 0], temp_f: [1, 1], wind_mph: [2, 2], freeze_ft: [null, null], snowfall_in: [0, 0], aqi: [null, null] }) }),
       cloud,
@@ -1027,16 +1032,20 @@ describe('runClientAnalysis and the cloud column', () => {
   const startMs = Date.parse('2026-07-21T00:00:00Z')
   const endMs = Date.parse('2026-07-21T02:00:00Z')
 
-  it('asks for no cloud column unless told to', async () => {
+  // #683: the cloud deck is a weather column like the others, fetched for
+  // every candidate of every analysis, whatever the ranking names.
+  it('fetches the cloud column for every candidate under any ranking', async () => {
     const cloudCounts: number[] = []
     stubWithCloud(THREE_PRECIPS, [90, 60, 80], cloudCounts)
-    const out = await runClientAnalysis(REQUEST, customRows(THREE), startMs, endMs, { nowMs: startMs })
-    expect(cloudCounts).toEqual([])
-    expect(out.universe.every((r) => r.cloud_deck_min_ft === null && r.cloud_deck_avg_ft === null)).toBe(true)
-    expect(out.universe.every((r) => r.series && !('cloud_deck_ft' in r.series))).toBe(true)
+    const dests = customRows(THREE).map((d) => ({ ...d, elevation_ft: 328 }))
+    const out = await runClientAnalysis(REQUEST, dests, startMs, endMs, { nowMs: startMs })
+    expect(REQUEST.sort_by).not.toMatch(/cloud/)
+    expect(cloudCounts).toEqual([3])
+    expect(out.universe.every((r) => r.cloud_deck_min_ft !== null && r.cloud_deck_avg_ft !== null)).toBe(true)
+    expect(out.universe.every((r) => r.series && Array.isArray(r.series.cloud_deck_ft))).toBe(true)
   })
 
-  it('fetches it for every candidate and ranks on it when told to', async () => {
+  it('ranks on it when the ranking names it', async () => {
     const cloudCounts: number[] = []
     stubWithCloud(THREE_PRECIPS, [90, 60, 80], cloudCounts)
     // 328 ft is 100 m, under the 1000 hPa level: the 2 m point is the bottom
@@ -1047,7 +1056,7 @@ describe('runClientAnalysis and the cloud column', () => {
       dests,
       startMs,
       endMs,
-      { nowMs: startMs, cloud: true },
+      { nowMs: startMs },
     )
     expect(cloudCounts).toEqual([3])
     // Wet 90%, Dry 60%, Mid 80% at 925 hPa: the wetter the layer under the
@@ -1068,27 +1077,29 @@ describe('runClientAnalysis and the cloud column', () => {
       customRows(THREE),
       startMs,
       endMs,
-      { nowMs: startMs, cloud: true, onPartial: (rows) => rounds.push(rows.length) },
+      { nowMs: startMs, onPartial: (rows) => rounds.push(rows.length) },
     )
     expect(rounds).toEqual([])
   })
 
-  it('covers held rows too, so the column is whole', async () => {
+  // A held row carries the column already, like its weather, so a re-rank on
+  // the cloud deck over held rows buys nothing and the column is whole (#683).
+  it('keeps the column a held row carries, so a cloud ranking over it fetches nothing', async () => {
     stubWithCloud(THREE_PRECIPS, [90, 60, 80])
-    const first = await runClientAnalysis({ ...REQUEST, limit: 10 }, customRows(THREE), startMs, endMs, {
-      nowMs: startMs,
-    })
+    const dests = customRows(THREE).map((d) => ({ ...d, elevation_ft: 328 }))
+    const first = await runClientAnalysis({ ...REQUEST, limit: 10 }, dests, startMs, endMs, { nowMs: startMs })
     resetOpenMeteoState()
     const cloudCounts: number[] = []
     stubWithCloud(THREE_PRECIPS, [90, 60, 80], cloudCounts)
     const out = await runClientAnalysis(
       { ...REQUEST, limit: 10, sort_by: 'cloud_deck_avg_ft' },
-      customRows(THREE),
+      dests,
       startMs,
       endMs,
-      { nowMs: startMs, cloud: true, reuse: { rows: first.universe, times: first.response.times ?? [] } },
+      { nowMs: startMs, reuse: { rows: first.universe, times: first.response.times ?? [] } },
     )
-    expect(cloudCounts).toEqual([3])
+    expect(cloudCounts).toEqual([])
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled()
     expect(out.universe.map((r) => r.cloud_deck_avg_ft)).toEqual([3640, 4210, 4495])
   })
 
@@ -1116,7 +1127,7 @@ describe('runClientAnalysis and the cloud column', () => {
       customRows(THREE),
       startMs,
       endMs,
-      { nowMs: startMs, cloud: true },
+      { nowMs: startMs },
     ).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(Error)
     expect((err as Error).name).not.toBe('AbortError')
@@ -1346,7 +1357,8 @@ describe('runClientAnalysis with a lookup still in flight (#673)', () => {
       resolving: lookup.promise,
       onTail: (m) => labels.push(m),
     })
-    expect(openMeteoCalls()).toBe(2)
+    // The weather, the air quality and the cloud column, one batch each.
+    expect(openMeteoCalls()).toBe(3)
     expect(labels).toEqual([])
     expect(out.universe.map((r) => [r.name, r.elevation_ft, r.osm_id, r.wind_avg_mph])).toEqual([
       ['Dry', null, null, 6.0],

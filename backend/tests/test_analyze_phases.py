@@ -38,6 +38,7 @@ from app.routes.analyze.phases import (
 from app.routes.analyze.route import _run_analysis
 from app.services import air_quality, osm, weather
 from app.services.errors import InvalidApiKeyError, UpstreamError, UpstreamRateLimited
+from app.services.openmeteo_fetch import MAX_CONCURRENT_BATCHES
 
 # The HTTP request an analysis came in on, which keys its discovery slot. A
 # bare scope is enough: the slot reads only the headers and the peer.
@@ -171,7 +172,18 @@ def test_apply_cap_cuts_to_the_highest_when_asked():
 # later batches queue past the two-minute bound behind their own siblings.
 
 ARCHIVE_DAYS = 60
-NO_EAGER = Eager(aqi=False, cloud=False)
+
+
+@pytest.fixture(autouse=True)
+def _cloud_column_stub(monkeypatch):
+    """Every analysis fetches the cloud column (#683), so every test here
+    answers it: no deck for any destination, which is what a test that never
+    mentions the column expects. A test about the column stubs its own."""
+
+    async def no_cloud(destinations, *args, **kwargs):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(weather, "fetch_cloud_batch", no_cloud)
 
 
 def _archive_window(days: int) -> Window:
@@ -188,7 +200,7 @@ def paced(monkeypatch):
 
 
 def test_check_pacing_refuses_what_its_own_batches_would_shed(paced):
-    refusal = _check_pacing(_field(300), _archive_window(ARCHIVE_DAYS), None, "peak", NO_EAGER)
+    refusal = _check_pacing(_field(300), _archive_window(ARCHIVE_DAYS), None, "peak")
     assert isinstance(refusal, Refusal)
     assert refusal.body["error"] == {"code": "refusal", "retryable": False}
     assert refusal.body["detail"] == (
@@ -199,26 +211,25 @@ def test_check_pacing_refuses_what_its_own_batches_would_shed(paced):
     limit = refusal.body["limit"]
     assert 0 < limit < 300
     window = _archive_window(ARCHIVE_DAYS)
-    assert _check_pacing(_field(limit), window, None, "peak", NO_EAGER) is None
-    assert isinstance(_check_pacing(_field(limit + 1), window, None, "peak", NO_EAGER), Refusal)
+    assert _check_pacing(_field(limit), window, None, "peak") is None
+    assert isinstance(_check_pacing(_field(limit + 1), window, None, "peak"), Refusal)
 
 
 def test_check_pacing_never_refuses_a_keyed_caller(paced):
     # A keyed fetch skips the pacer, so nothing it would shed applies.
     window = _archive_window(ARCHIVE_DAYS)
-    assert _check_pacing(_field(300), window, "caller-key", "peak", NO_EAGER) is None
+    assert _check_pacing(_field(300), window, "caller-key", "peak") is None
 
 
 def test_check_pacing_never_refuses_a_forecast_window(paced):
     # The worst the forecast endpoint can be asked: the analysis cap over its
-    # whole reach, with the cloud column beside it. The browser path offers
-    # exactly this, so neither the pacer nor the destination-hour budget may
-    # refuse it, with a key or without.
+    # whole reach, with the cloud column beside it (every analysis carries it,
+    # #683). The browser path offers exactly this, so neither the pacer nor
+    # the destination-hour budget may refuse it, with a key or without.
     end = datetime(2026, 9, 16, 23, 0, tzinfo=UTC)
     window = Window(end - timedelta(days=15, hours=23), end, "forecast", end)
-    cloud = Eager(aqi=False, cloud=True)
-    assert _check_pacing(_field(MAX_ANALYZE_PEAKS), window, None, "peak", cloud) is None
-    assert _check_pacing(_field(MAX_ANALYZE_PEAKS), window, "caller-key", "peak", cloud) is None
+    assert _check_pacing(_field(MAX_ANALYZE_PEAKS), window, None, "peak") is None
+    assert _check_pacing(_field(MAX_ANALYZE_PEAKS), window, "caller-key", "peak") is None
 
 
 # ── the destination-hour budget (#624) ─────────────────────────────────────
@@ -233,7 +244,7 @@ YEAR_DAYS = 365
 def test_check_pacing_refuses_a_keyed_analysis_over_the_hour_budget():
     window = _archive_window(YEAR_DAYS)
     most = limits.MAX_ANALYZE_DESTINATION_HOURS // (YEAR_DAYS * 24)
-    refusal = _check_pacing(_field(most + 1), window, "caller-key", "peak", NO_EAGER)
+    refusal = _check_pacing(_field(most + 1), window, "caller-key", "peak")
     assert isinstance(refusal, Refusal)
     # The pacing refusal's shape and sentence exactly: one more kind of "too
     # many for one analysis", with the most this window can take as `limit`.
@@ -248,7 +259,7 @@ def test_check_pacing_refuses_a_keyed_analysis_over_the_hour_budget():
         "suggested_min_elevation_ft": None,
         "suggested_keeps": None,
     }
-    assert _check_pacing(_field(most), window, "caller-key", "peak", NO_EAGER) is None
+    assert _check_pacing(_field(most), window, "caller-key", "peak") is None
 
 
 def test_check_pacing_holds_an_unkeyed_caller_to_the_hour_budget_too():
@@ -257,7 +268,7 @@ def test_check_pacing_holds_an_unkeyed_caller_to_the_hour_budget_too():
     # its pacer disabled holds the same series a keyed request does.
     window = _archive_window(YEAR_DAYS)
     most = limits.MAX_ANALYZE_DESTINATION_HOURS // (YEAR_DAYS * 24)
-    refusal = _check_pacing(_field(most + 1), window, None, "peak", NO_EAGER)
+    refusal = _check_pacing(_field(most + 1), window, None, "peak")
     assert isinstance(refusal, Refusal) and refusal.body["limit"] == most
 
 
@@ -270,12 +281,16 @@ def test_the_hour_budget_counts_the_hourly_stamps_a_series_holds():
 
 
 def test_check_pacing_counts_the_cloud_column(paced):
-    # The cloud batches spend the same quota beside the weather ones, so a
-    # window the weather alone fits can be refused once the column is asked for.
+    # The cloud batches spend the same quota beside the weather ones, and every
+    # analysis carries the column (#683), so a window the weather alone would
+    # fit is refused once the column is priced beside it.
     window = _archive_window(40)
-    assert _check_pacing(_field(300), window, None, "peak", NO_EAGER) is None
-    cloud = Eager(aqi=False, cloud=True)
-    assert isinstance(_check_pacing(_field(300), window, None, "peak", cloud), Refusal)
+    weather_alone = weather.planned_weights(
+        300, window.start, window.end, source=window.source, boundary=window.boundary, cloud=False
+    )
+    fits = ratelimit.WEATHER_WEIGHT.plan_max_wait_s(weather_alone, MAX_CONCURRENT_BATCHES)
+    assert fits <= ratelimit.UPSTREAM_WEIGHT_MAX_WAIT_S
+    assert isinstance(_check_pacing(_field(300), window, None, "peak"), Refusal)
 
 
 async def test_a_refused_analysis_spends_nothing(paced, monkeypatch):
@@ -311,13 +326,14 @@ async def test_a_refused_analysis_spends_nothing(paced, monkeypatch):
 @pytest.mark.parametrize(
     ("fields", "expected"),
     [
-        ({}, Eager(aqi=False, cloud=False)),
-        ({"sort_by": "aqi_max"}, Eager(aqi=True, cloud=False)),
-        ({"max_aqi": 50}, Eager(aqi=True, cloud=False)),
-        ({"sort_by": "cloud_deck_min_ft"}, Eager(aqi=False, cloud=True)),
-        ({"min_cloud_deck_ft": 4000}, Eager(aqi=False, cloud=True)),
-        ({"max_cloud_deck_ft": 9000}, Eager(aqi=False, cloud=True)),
-        ({"include_clouds": True}, Eager(aqi=False, cloud=False)),
+        ({}, Eager(aqi=False)),
+        ({"sort_by": "aqi_max"}, Eager(aqi=True)),
+        ({"max_aqi": 50}, Eager(aqi=True)),
+        # The cloud column is no question (#683): fetched for every candidate
+        # whatever the request names.
+        ({"sort_by": "cloud_deck_min_ft"}, Eager(aqi=False)),
+        ({"min_cloud_deck_ft": 4000}, Eager(aqi=False)),
+        ({"include_clouds": True}, Eager(aqi=False)),
     ],
 )
 def test_eager_fetches_reads_the_ranking_and_the_bounds(fields, expected):
@@ -354,14 +370,14 @@ async def test_fetch_forecasts_announces_the_count_then_hands_back_the_forecasts
     request = _request()
     field = [dest(1.0, 2.0), dest(3.0, 4.0)]
     events = await _collect(
-        _fetch_forecasts(field, _window(request), request, None, "destination", Eager(aqi=True, cloud=False))
+        _fetch_forecasts(field, _window(request), request, None, "destination", Eager(aqi=True))
     )
     assert events[0] == Progress(processed=0, total=2, percent=0)
     assert isinstance(events[1], Progress) and events[1].percent == 100
     assert isinstance(events[-1], Done) and isinstance(events[-1].value, Fetched)
-    # The eager decision is the one it was handed: air quality for every row,
-    # no cloud request at all.
-    assert calls == {"weather": [2], "aqi": [2], "cloud": []}
+    # The eager decision is the one it was handed, air quality for every row,
+    # and the cloud column rides beside the weather for every row (#683).
+    assert calls == {"weather": [2], "aqi": [2], "cloud": [2]}
 
 
 async def test_fetch_forecasts_ends_on_the_mapped_failure(monkeypatch, calls):
@@ -371,10 +387,24 @@ async def test_fetch_forecasts_ends_on_the_mapped_failure(monkeypatch, calls):
     monkeypatch.setattr(weather, "fetch_weather_batch", refuse)
     request = _request()
     events = await _collect(
-        _fetch_forecasts([dest(1.0, 2.0)], _window(request), request, None, "destination", Eager(False, False))
+        _fetch_forecasts([dest(1.0, 2.0)], _window(request), request, None, "destination", Eager(False))
     )
     assert isinstance(events[-1], Failure)
     assert (events[-1].error.status_code, events[-1].extra) == (429, {"scope": "hourly", "retry_after_s": 60})
+
+
+async def test_fetch_forecasts_fails_on_a_cloud_error(monkeypatch, calls):
+    # The cloud column is part of every analysis (#683), so its failure is the
+    # analysis's failure, the way the weather's is.
+    async def refuse(*args, **kwargs):
+        raise UpstreamError("Open-Meteo request failed. Try again later.")
+
+    monkeypatch.setattr(weather, "fetch_cloud_batch", refuse)
+    request = _request()
+    events = await _collect(
+        _fetch_forecasts([dest(1.0, 2.0)], _window(request), request, None, "destination", Eager(False))
+    )
+    assert isinstance(events[-1], Failure) and events[-1].error.status_code == 502
 
 
 # ── _rank_and_cut ──────────────────────────────────────────────────────────
@@ -382,7 +412,7 @@ async def test_fetch_forecasts_ends_on_the_mapped_failure(monkeypatch, calls):
 
 def test_rank_and_cut_bounds_before_it_cuts():
     field = [dest(float(i), 0.0, name=n) for i, n in enumerate("abcd", start=1)]
-    fetched = Fetched(wx=[_wx(1.0), _wx(2.0, wind_max=30.0), _wx(3.0), _wx(4.0)], aqi=[None] * 4, cloud=None)
+    fetched = Fetched(wx=[_wx(1.0), _wx(2.0, wind_max=30.0), _wx(3.0), _wx(4.0)], aqi=[None] * 4, cloud=[None] * 4)
     ranked = _rank_and_cut(field, fetched, _request(max_wind_mph=20, limit=2))
     assert [r.name for r in ranked.results] == ["a", "c"]
     assert ranked.total_matched == 3
@@ -394,7 +424,9 @@ def test_rank_and_cut_bounds_before_it_cuts():
 async def test_attach_late_skips_what_was_fetched_eagerly(calls):
     request = _request(include_clouds=True)
     ranked = Ranked([_row("a", 1.0)], [], 1)
-    assert await _attach_late(ranked, _window(request), request, None, Eager(aqi=True, cloud=True)) is None
+    assert await _attach_late(ranked, _window(request), None, Eager(aqi=True)) is None
+    # Nothing is left for the returned rows: air quality was eager, and the
+    # cloud column is never attached late, `include_clouds` or not (#683).
     assert calls["aqi"] == [] and calls["cloud"] == []
 
 
@@ -405,23 +437,12 @@ async def test_attach_late_maps_a_refused_key_through_the_one_ladder(monkeypatch
     monkeypatch.setattr(air_quality, "fetch_aqi_batch", refuse)
     request = _request()
     ranked = Ranked([_row("a", 1.0)], [], 1)
-    failure = await _attach_late(ranked, _window(request), request, "key", Eager(False, False))
+    failure = await _attach_late(ranked, _window(request), "key", Eager(False))
     assert isinstance(failure, Failure)
     error = failure.error
     assert (error.status_code, error.detail, error.code.value, error.headers, failure.extra) == (
         401, "Open-Meteo rejected the API key.", "invalid_api_key", None, None,
     )
-
-
-async def test_attach_late_fails_on_a_cloud_error(monkeypatch, calls):
-    async def refuse(*args, **kwargs):
-        raise UpstreamError("Open-Meteo request failed. Try again later.")
-
-    monkeypatch.setattr(weather, "fetch_cloud_batch", refuse)
-    request = _request(include_clouds=True)
-    ranked = Ranked([_row("a", 1.0)], [], 1)
-    failure = await _attach_late(ranked, _window(request), request, None, Eager(False, False))
-    assert isinstance(failure, Failure) and failure.error.status_code == 502
 
 
 # ── _result ────────────────────────────────────────────────────────────────
@@ -442,12 +463,13 @@ def test_result_reports_the_counts_the_phases_carried():
     ("phase", "fields", "expected_tasks"),
     [
         ("discovery", {}, 1),
-        ("retrieval", {}, 1),
-        # Air quality and the cloud fields both fetched for every candidate,
-        # so three upstream tasks run side by side and all three must stop.
-        ("retrieval", {"sort_by": "aqi_max", "include_clouds": True, "min_cloud_deck_ft": 0}, 3),
+        # The weather and the cloud column, side by side for every analysis.
+        ("retrieval", {}, 2),
+        # Air quality fetched for every candidate too, so three upstream tasks
+        # run side by side and all three must stop.
+        ("retrieval", {"sort_by": "aqi_max"}, 3),
     ],
-    ids=["discovery", "retrieval", "retrieval-with-eager-fetches"],
+    ids=["discovery", "retrieval", "retrieval-with-eager-aqi"],
 )
 async def test_closing_the_analysis_cancels_the_phase_tasks_before_it_returns(
     monkeypatch, phase, fields, expected_tasks

@@ -95,6 +95,11 @@ function destinationsBody(route: Route) {
 
 export const DESTINATION_NAMES = ['Mount Alpha', 'Beta Peak', 'Gamma Butte', 'Delta Point', 'Epsilon Ridge']
 
+// The results table's rows. Named by its own attribute rather than as the
+// page's only table, because an open marker popup is a table too since its
+// grid (#683), and its rows would count as results.
+export const resultRows = (page: Page) => page.locator('[data-results-table] tbody tr')
+
 const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
 const emptyCollection = () => json({ type: 'FeatureCollection', features: [], fetched_at: new Date().toISOString() })
 

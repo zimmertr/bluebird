@@ -13,7 +13,6 @@ import {
   WILDFIRE_COL,
   WILDFIRE_KEY,
   displayedColumns,
-  keepUnlistedChoices,
   pointModeColumns,
   orderColumns,
   visibleColumns,
@@ -275,44 +274,14 @@ describe('displayedColumns', () => {
     expect(displayedColumns(false, 'precip_total_in')).toHaveLength(KEYS.length)
   })
 
-  // #117: a report analyzed without the cloud column shows none of its three,
-  // rather than three columns of dashes it never asked for.
-  it('leaves the cloud columns out of a report that does not hold them', () => {
-    const without = displayedColumns(false, 'precip_total_in', false).map((c) => c.key)
-    expect(without).toHaveLength(KEYS.length - CLOUD_KEYS.length)
-    for (const key of CLOUD_KEYS) expect(without).not.toContain(key)
-    expect(displayedColumns(false, 'precip_total_in', true)).toHaveLength(KEYS.length)
-  })
-
-  // The ranked group is always shown, and a cloud ranking over a report
-  // without clouds is exactly the moment the panel's cue asks for an Analyze.
-  it('keeps a cloud ranking\'s own group', () => {
-    const keysOf = displayedColumns(false, 'cloud_deck_min_ft', false).map((c) => c.key)
-    expect(keysOf.slice(3, 6)).toEqual(['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft'])
+  // #683: every analysis fetches the cloud column, so its three columns are
+  // listed under every ranking, and a cloud ranking leads with them.
+  it('lists the cloud columns under every ranking', () => {
+    const keysOf = displayedColumns(false, 'precip_total_in').map((c) => c.key)
     expect(keysOf).toHaveLength(KEYS.length)
-  })
-})
-
-describe('keepUnlistedChoices', () => {
-  const listed = new Set(['name', 'precip_total_in'])
-
-  it('shows the cloud columns a reader never chose about', () => {
-    const out = keepUnlistedChoices(new Set(['name']), listed, null)
-    for (const key of CLOUD_KEYS) expect(out.has(key)).toBe(true)
-    expect(out.has('precip_total_in')).toBe(false)
-  })
-
-  it('keeps an earlier choice about a column the picker could not list', () => {
-    const prior = new Set(['name', 'cloud_deck_min_ft'])
-    const out = keepUnlistedChoices(new Set(['name']), listed, prior)
-    expect(out.has('cloud_deck_min_ft')).toBe(true)
-    expect(out.has('cloud_deck_avg_ft')).toBe(false)
-  })
-
-  it('leaves a listed column to the choice itself', () => {
-    const shown = new Set([...listed, 'cloud_deck_min_ft'])
-    const out = keepUnlistedChoices(new Set(['name']), shown, null)
-    expect(out.has('cloud_deck_min_ft')).toBe(false)
+    for (const key of CLOUD_KEYS) expect(keysOf).toContain(key)
+    const ranked = displayedColumns(false, 'cloud_deck_min_ft').map((c) => c.key)
+    expect(ranked.slice(3, 6)).toEqual(['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft'])
   })
 })
 

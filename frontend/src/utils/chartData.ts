@@ -1,4 +1,5 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
+import { cloudDeckMark } from './cloudDeckMark'
 import { MetricFamily, familyOf, formatPrecipRate, metricLabel } from '../metrics'
 import { setKey } from './points'
 
@@ -248,6 +249,16 @@ export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): numb
  * come from the shared formatter rather than from a count spelled here (#395).
  * The tooltip and the cell beside it are read in the same glance.
  */
+/**
+ * A tooltip's value: the axis's format, except a cloud deck at either edge of
+ * the walk, which prints as the bound it is (`cloudDeckMark`) rather than as a
+ * level's height. Ungrouped, like the numbers beside it. The axis keeps the
+ * plain format, because a tick is a round number on a scale, not a reading.
+ */
+export function formatTooltipValue(v: number, metric: ChartMetric): string {
+  return (metric === 'cloud_deck' ? cloudDeckMark(v, false) : null) ?? formatMetricValue(v, metric)
+}
+
 export function formatMetricValue(v: number, metric: ChartMetric): string {
   if (metric === 'precip' || metric === 'snowfall') return formatPrecipRate(v)
   // Whole units: an AQI is an integer index, and a freezing level or a cloud

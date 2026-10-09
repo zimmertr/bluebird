@@ -1,21 +1,18 @@
-import { DestinationResult } from '../types'
-import { SEP } from '../metrics'
+import { DestinationResult, SortBy } from '../types'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
 import { type ClosureWarning, closureWarningText } from './closureProximity'
 import {
-  coordinateRow,
   escapeHtml,
-  groupBlock,
-  groupValue,
+  factsRow,
   metaBand,
+  metricGrid,
   popupLink,
   popupShell,
-  row,
   WARNING_COLOR,
 } from './popupChrome'
 import { ColDef } from './tableColumns'
-import { popupGroups, popupIdentity } from './popupRows'
+import { popupGrid, popupGroups, popupIdentity } from './popupRows'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
 
 // Popup body shared by a marker click and a table-rank click (focusResult), so
@@ -55,6 +52,12 @@ export function resultPopupHtml(d: {
   // The model name a row falls back to while one model answered every row. A
   // comparison puts the name on the row itself.
   modelFallbackLabel?: string | null
+  // The key the report ranks by, whose number the grid marks. Optional for
+  // the reason `modelId` is.
+  rankedBy?: SortBy | null
+  // Whether the grid takes its narrow insets, for a map too narrow for the
+  // widest grid at full inset (`compactGrid`).
+  compact?: boolean
 }): string {
   const r = d.row
   const url = destinationUrl({
@@ -95,36 +98,25 @@ export function resultPopupHtml(d: {
       ? popupLink(d.closure.url, closureLine, `color:${WARNING_COLOR};display:block`)
       : `<div style="color:${WARNING_COLOR}">${closureLine}</div>`
 
-  // What the destination IS, above the rule. The type and the model share one
-  // line because each is a word rather than a measurement, and the separator
-  // is the one metrics.ts already uses to part two facts on a line.
+  // What the destination IS, above the rule: its type, elevation and
+  // coordinates on one line (TJ, 2026-10-08). The model a comparison names
+  // takes a line of its own above them, because a model's name can be as long
+  // as the rest of the line together.
   const identity = popupIdentity(r, d.columns, d.modelFallbackLabel)
-  const named = [identity.type, identity.model].filter(Boolean)
   const meta = metaBand([
-    named.length ? `<div>${escapeHtml(named.join(` ${SEP} `))}</div>` : '',
-    coordinateRow(r.latitude, r.longitude),
+    identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
+    factsRow(identity.type, identity.elevation, r.latitude, r.longitude),
   ])
 
-  const groups = popupGroups(r, d.columns, { modelId: d.modelId, times: d.times })
-  const body = [
-    fire,
-    closure,
-    ...groups.map((g, at) =>
-      // One value reads as a plain "label: value" line, which is every group
-      // over a Current lookup and the elevation over any report. Two or more
-      // take the heading-and-values shape.
-      g.single
-        ? row(g.label, g.values[0].text, g.values[0].href)
-        : groupBlock(
-            g.label,
-            g.values.map((v) => groupValue(v.aggregate, v.text, v.href)),
-            at === 0 && !d.warning && !d.closure,
-          ),
-    ),
-  ]
+  // The measurements as one grid, a row per family and a column per aggregate
+  // (TJ, 2026-10-08), under the two safety lines.
+  const grid = popupGrid(
+    popupGroups(r, d.columns, { modelId: d.modelId, times: d.times, rankedBy: d.rankedBy }),
+  )
+  const body = [fire, closure, grid.rows.length ? metricGrid(grid, { compact: d.compact }) : '']
     .filter(Boolean)
     .join('\n    ')
 
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(r.name)}`
-  return popupShell(title, url, body, meta)
+  return popupShell(title, url, body, meta, { resultCard: true })
 }

@@ -299,6 +299,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       times,
       modelFallbackLabel,
       popupColumns,
+      sortBy,
       fireWarnings,
       closureWarnings,
       searchedPlaces,
@@ -660,6 +661,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
     useEffect(() => {
       if (mapReady) featuresRef.current?.results.update({ results, sortBy, playbackIndex })
     }, [results, sortBy, playbackIndex, mapReady])
+
+    // An open result card follows the report the way the table does: its
+    // rank, its ranked mark and its columns (TJ, 2026-10-08). Not on a
+    // playback tick, which changes none of a card's numbers. The controller's
+    // inputs are this render's by now, because its effect is declared first.
+    useEffect(() => {
+      if (mapReady) featuresRef.current?.results.refreshPopups()
+    }, [results, sortBy, popupColumns, modelId, times, modelFallbackLabel, fireWarnings, closureWarnings, mapReady])
 
     // The forecast field and its arrows, on the same contract as the markers
     // above: one redraw per scrub tick, from series the browser already holds.

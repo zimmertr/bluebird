@@ -167,7 +167,7 @@
           },
           "include_clouds": {
             "default": false,
-            "description": "Send the three cloud deck fields (`cloud_deck_*_ft`) and their hourly series on the returned rows. Off by default because the cloud variables are a second upstream request per location: they are fetched only for the rows this response returns, after the ranking and the `limit` cut, the way air quality is.\n\nNot needed to rank or bound by the cloud deck. A `sort_by` naming it, or either cloud deck bound, fetches the cloud variables for every candidate before the ranking, whatever this is set to. With none of the three, the three fields are null.",
+            "description": "Accepted and ignored. Every row carries the three cloud deck fields (`cloud_deck_*_ft`) and their hourly series whatever this is set to: the cloud variables are fetched for every candidate of every analysis, the way the weather is. Through 0.98 they were fetched only for a cloud deck `sort_by`, a cloud deck bound, or the returned rows of a request that set this true, and the field stays declared so such a request is still accepted.",
             "title": "Include Clouds",
             "type": "boolean"
           },
@@ -313,7 +313,7 @@
                 "type": "null"
               }
             ],
-            "description": "Drop rows whose `cloud_deck_min_ft` is below this, i.e. keep only destinations whose cloud deck never fell below it during the window. Setting either cloud deck bound fetches the cloud variables for every candidate. A row with a null cloud deck passes either bound.",
+            "description": "Drop rows whose `cloud_deck_min_ft` is below this, i.e. keep only destinations whose cloud deck never fell below it during the window. A row with a null cloud deck passes either bound.",
             "title": "Min Cloud Deck Ft"
           },
           "min_elevation_ft": {
@@ -800,7 +800,7 @@
                 "type": "null"
               }
             ],
-            "description": "Lowest cloud deck in the window, feet above sea level. Each hour is the lowest height in the model's air column over the destination where the relative humidity reaches 95 %, walked up from the 1000 hPa level through every standard pressure level to 300 hPa, with the destination's own 2 m air inserted at `elevation_ft` when it is known, and interpolated between the two points that bracket it. The walk starts below the destination, so a deck under a summit reads under `elevation_ft`; at or near it, the destination was in cloud. When nothing in the column is saturated the hour reads 30066, the standard height of 300 hPa, so a clear sky ranks as the highest deck rather than as null.\n\nNull unless the cloud variables were fetched (a cloud deck `sort_by`, a cloud deck bound, or `include_clouds`), and for archive hours, which carry no pressure levels to read.",
+            "description": "Lowest cloud deck in the window, feet above sea level. Each hour is the lowest height in the model's air column over the destination where the relative humidity reaches 95 %, walked up from the 1000 hPa level through every standard pressure level to 300 hPa, with the destination's own 2 m air inserted at `elevation_ft` when it is known, and interpolated between the two points that bracket it. The walk starts below the destination, so a deck under a summit reads under `elevation_ft`; at or near it, the destination was in cloud. When nothing in the column is saturated the hour reads 30066, the standard height of 300 hPa, so a clear sky ranks as the highest deck rather than as null.\n\nNull when no hour in the window could be read: every archive hour, which carries no pressure levels, or a location the cloud request answered nothing for.",
             "title": "Cloud Deck Min Ft"
           },
           "elevation_ft": {
@@ -1469,7 +1469,7 @@
                 "type": "null"
               }
             ],
-            "description": "Cloud deck, feet above sea level; see `cloud_deck_min_ft` on the result. Null as a whole unless the cloud variables were fetched.",
+            "description": "Cloud deck, feet above sea level; see `cloud_deck_min_ft` on the result. Null at every archive hour, which carries no pressure levels to read, and null as a whole when the cloud request answered nothing for this location.",
             "title": "Cloud Deck Ft"
           },
           "freeze_ft": {

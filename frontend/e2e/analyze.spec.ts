@@ -1,4 +1,4 @@
-import { test, expect, drawRing, DESTINATION_NAMES } from './fixtures'
+import { test, expect, drawRing, DESTINATION_NAMES, resultRows } from './fixtures'
 
 test('draw a ring, analyze, and see the rows and the chart', async ({ page }) => {
   await page.goto('/')
@@ -10,7 +10,7 @@ test('draw a ring, analyze, and see the rows and the chart', async ({ page }) =>
   await expect(analyze).toBeEnabled()
   await analyze.click()
 
-  const rows = page.locator('table tbody tr')
+  const rows = resultRows(page)
   await expect(rows).toHaveCount(DESTINATION_NAMES.length)
   await expect(rows.first()).toContainText(new RegExp(DESTINATION_NAMES.join('|')))
 

@@ -56,10 +56,9 @@ CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
 # it, and snowfall (#678) added the last tenth.
 N_VARIABLES = 15
 # The cloud request's own count (issue #670): the humidity at 2 m and at eight
-# levels. It is a second request over the same locations, made only when a
-# ranking or a bound names the cloud deck, so its factor of 1 (9 variables, at
-# the floor) is spent on top of the weather's 1.5 and never by an analysis that
-# did not ask.
+# levels. It is a second request over the same locations, made by every
+# analysis since #683, so its factor of 1 (9 variables, at the floor) is spent
+# on top of the weather's 1.5 for every candidate.
 N_CLOUD_VARIABLES = 9
 # The units every weather request is quoted in. The cloud request sends none of
 # them: humidity has one unit, and no parameter selects another.
@@ -274,13 +273,12 @@ async def fetch_cloud_batch(
 
     The weather fetch's twin over the same endpoints, spans, pacer and cache,
     with its own variable list and its own cache entries. It exists apart
-    rather than as more variables on the weather request because the price of
-    a request follows its variable count: nine more on every analysis would
-    charge every caller for a metric few of them rank by.
+    rather than as more variables on the weather request, so the weather
+    request, its cache entries and the vector-pinned weather inputs stay as
+    they are; every analysis makes both requests (#683).
 
-    `on_error="raise"` for the weather fetch's reason. The caller only asks for
-    it when a ranking or a bound needs it, or when the request asked for the
-    columns by name, and a ranking by cloud with no cloud in it is not one.
+    `on_error="raise"` for the weather fetch's reason: the column is part of
+    every analysis, and a ranking by cloud with no cloud in it is not one.
     """
     if not destinations:
         return []

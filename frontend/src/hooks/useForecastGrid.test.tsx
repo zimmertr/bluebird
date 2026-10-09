@@ -62,7 +62,6 @@ function inputs(over: Partial<ForecastGridInputs> = {}): ForecastGridInputs {
     arriving: false,
     windowLimits: FALLBACK_WINDOW_LIMITS,
     aqiForecastDays: 5,
-    cloud: false,
     ...over,
   }
 }
@@ -84,6 +83,8 @@ describe('useForecastGrid', () => {
     expect(result.current.status).toBe('ready')
     expect(result.current.complete).toBe(true)
     expect(result.current.cells).toHaveLength(calls[0].points)
+    // The lattice carries the cloud column like the markers above it (#683).
+    expect(fetchCloud).toHaveBeenCalledTimes(1)
   })
 
   // A new analysis grids a new field over a new window. An answer to the old

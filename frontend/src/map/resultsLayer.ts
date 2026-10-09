@@ -31,7 +31,8 @@ import {
   WIND_ARROW_FILL,
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
-import { placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
+import { capHeight, placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
+import { POPUP_BODY_ATTR, RESULT_POPUP_CLASS, capPopupBody, compactGrid } from '../utils/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -116,6 +117,13 @@ export interface ResultsLayer {
    * flight and a marker click pans by it.
    */
   openPopup(result: DestinationResult, options?: { markerAt?: ScreenPoint; avoid?: readonly Rect[] }): PopupPlacement
+  /**
+   * Redraw every open result card from the inputs as they stand: its rank,
+   * the number it marks as ranked, and the columns it shows. The component
+   * calls it when the ranking, the displayed rows or the columns change, and
+   * never on a playback tick, which changes none of a card's numbers.
+   */
+  refreshPopups(): void
 }
 
 /** How far the marker, and its popup with it, should move across the screen. */
@@ -223,29 +231,14 @@ export function mountResultsLayer(
     // the exact coordinates the feature carries for the fire lookup above
     // rather than on an index, so a source that has re-rendered since the
     // ref last updated cannot pair a popup with the wrong row.
-    const live = controller.inputs
     const row = controller.resultAt(lat, lon)
     const pinned = isPinning(e)
     if (!pinned) popups.closeAll()
-    const { dx, dy } = openFitted(
-      anchor,
-      resultPopupHtml({
-        rank: p.rank,
-        // The matched row is the popup's subject. The feature's own
-        // properties are the fallback for the case the match cannot
-        // happen — they carry no aggregates, so those columns draw the
-        // dash a missing value draws anywhere else rather than a
-        // number nobody fetched.
-        row: row ?? featureRow(p, lat, lon),
-        columns: live.popupColumns,
-        warning: controller.fireWarningAt(lat, lon),
-        closure: controller.closureWarningAt(lat, lon),
-        modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
-        times: row?.series_times ?? live.times,
-        modelFallbackLabel: live.modelFallbackLabel,
-      }),
-      {},
-    )
+    // The matched row is the popup's subject. The feature's own properties
+    // are the fallback for the case the match cannot happen — they carry no
+    // aggregates, so those columns draw the dash a missing value draws
+    // anywhere else rather than a number nobody fetched.
+    const { dx, dy } = openFitted(anchor, row ?? featureRow(p, lat, lon), p.rank, {})
     // The map comes to the card rather than the card unfurling wherever the
     // marker rested (TJ, 2026-09-29): a pan of what the fit asked for, with
     // the marker riding along under its tip. `panBy` moves the camera, so
@@ -275,20 +268,55 @@ export function mountResultsLayer(
   // hanging below its marker, measured, and rebuilt above it only when the
   // fit says so, all before a frame is drawn, because MapLibre fixes a
   // popup's side at construction and this is the one moment its size is
-  // known. Never closeOnClick: it is fixed at construction too, so an
+  // known. A card too tall to stand whole in the free map area has its body
+  // capped first and scrolls (`capHeight`, TJ 2026-10-08), so the fit then
+  // places the card the reader will actually see. Never closeOnClick: it is fixed at construction too, so an
   // already-open popup could not be told to survive the click that pins a
   // second one — the first shift-click always lost the card it was meant to
   // keep. Dismissal is the board's (`map/popups.ts`).
+  // A card's markup from the inputs as they stand. One function for the first
+  // open and every redraw, so a redrawn card cannot differ from a fresh one.
+  // Read from the row's own coordinates, which are the exact ones a marker
+  // carries, so the warnings match on them.
+  const cardHtml = (row: DestinationResult, rank: number | string) => {
+    const live = controller.inputs
+    return resultPopupHtml({
+      rank,
+      row,
+      columns: live.popupColumns,
+      warning: controller.fireWarningAt(row.latitude, row.longitude),
+      closure: controller.closureWarningAt(row.latitude, row.longitude),
+      // A per-model row names its own model; a single-model report has one
+      // for every row. Same rule as the table's cells.
+      modelId: (row as ModelRow).modelId ?? live.modelId,
+      times: row.series_times ?? live.times,
+      modelFallbackLabel: live.modelFallbackLabel,
+      rankedBy: live.sortBy,
+      compact: compactGrid(map.getCanvas().clientWidth),
+    })
+  }
+
+  // The result cards standing on the map, with what redraws each: the row it
+  // was opened on, the markup it shows, and the height its body was capped
+  // to, which a redraw must keep because new markup arrives uncapped.
+  type OpenCard = { popup: Popup; row: DestinationResult; html: string; capped: number | null }
+  let cards: OpenCard[] = []
+
   const openFitted = (
     at: [number, number],
-    html: string,
+    subject: DestinationResult,
+    rank: number | string,
     { markerAt, avoid = [] }: { markerAt?: ScreenPoint; avoid?: readonly Rect[] },
   ): PopupPlacement => {
+    const html = cardHtml(subject, rank)
     const build = (anchor: 'top' | 'bottom') =>
-      new Popup({ ...popupOptions(map), closeOnClick: false, anchor }).setLngLat(at).setHTML(html).addTo(map)
+      new Popup({ ...popupOptions(map, { result: true }), closeOnClick: false, anchor, className: RESULT_POPUP_CLASS }).setLngLat(at).setHTML(html).addTo(map)
     let popup = build('top')
-    const el = popup.getElement()
-    const size = { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
+    const measure = () => {
+      const el = popup.getElement()
+      return { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
+    }
+    let size = measure()
     const canvas = map.getCanvas()
     // The part of the map a card can be seen in: above the results sheet.
     const region = {
@@ -297,16 +325,36 @@ export function mountResultsLayer(
       right: canvas.clientWidth,
       bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx,
     }
-    const placed = placePopup(markerAt ?? map.project(at), size, region, obstacles(avoid))
+    const marker = markerAt ?? map.project(at)
+    const standing = obstacles(avoid)
+    // The body's height under the cap: whatever the card must lose comes off
+    // the body alone, so the title and the band under it stay in view.
+    const cap = capHeight(marker, size, region, standing)
+    const bodyOf = () => popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
+    const first = cap === null ? null : bodyOf()
+    const capped = cap === null || first === null ? null : first.offsetHeight - (size.height - cap)
+    const applyCap = () => {
+      const body = capped === null ? null : bodyOf()
+      if (body) capPopupBody(body, capped!)
+    }
+    applyCap()
+    if (capped !== null) size = measure()
+    const placed = placePopup(marker, size, region, standing)
     if (placed.anchor !== 'top') {
       popup.remove()
       popup = build('bottom')
+      applyCap()
     }
     // The tutorial's marker step frames this popup (#536).
     popup.getElement()?.setAttribute('data-tour', 'marker')
     // On the board like every other popup, so the next table click or map
     // click takes it down rather than stacking a second one beside it.
     popups.track(popup)
+    const card: OpenCard = { popup, row: subject, html, capped }
+    cards.push(card)
+    popup.on('close', () => {
+      cards = cards.filter((c) => c !== card)
+    })
     return { dx: placed.dx, dy: placed.dy }
   }
 
@@ -331,26 +379,56 @@ export function mountResultsLayer(
       setSource(map, 'pending-destinations', pendingFC(pending))
     },
     openPopup(result, options = {}) {
-      const live = controller.inputs
       popups.closeAll()
       // Rank is the analyzed order the markers are labelled with, so the popup
-      // matches the marker it lands on.
+      // matches the marker it lands on. A table row is a copy stamped with
+      // that rank (#579), so it is not among the map's rows and the stamp is
+      // the answer; a row handed over without one is looked up.
+      const stamped = (result as { rank?: number }).rank
       return openFitted(
         [result.longitude, result.latitude],
-        resultPopupHtml({
-          rank: live.results.indexOf(result) + 1,
-          row: result,
-          columns: live.popupColumns,
-          warning: controller.fireWarningAt(result.latitude, result.longitude),
-          closure: controller.closureWarningAt(result.latitude, result.longitude),
-          // A per-model row names its own model; a single-model report has
-          // one for every row. Same rule as the table's cells.
-          modelId: (result as ModelRow).modelId ?? live.modelId,
-          times: result.series_times ?? live.times,
-          modelFallbackLabel: live.modelFallbackLabel,
-        }),
+        result,
+        stamped ?? controller.inputs.results.indexOf(result) + 1,
         options,
       )
+    },
+    // A card follows the report the way the table does (TJ, 2026-10-08):
+    // a new ranking moves its mark and its rank, and a column the reader
+    // hides leaves it. Each card finds its row again in the displayed rows:
+    // the same row where it is still there, else the row at its coordinates
+    // from the same model, since a comparison stands one row per model on
+    // each destination and a card must not swap models. A row the new presentation
+    // no longer displays keeps the numbers it was opened on and loses its
+    // rank, the way a searched destination's card has none, rather than
+    // closing under the reader.
+    refreshPopups() {
+      for (const card of cards) {
+        const shown = controller.inputs.results
+        const model = (card.row as ModelRow).modelId
+        const row = shown.includes(card.row)
+          ? card.row
+          : (shown.find(
+              (r) =>
+                r.latitude === card.row.latitude &&
+                r.longitude === card.row.longitude &&
+                (r as ModelRow).modelId === model,
+            ) ?? null)
+        const html = cardHtml(row ?? card.row, row ? shown.indexOf(row) + 1 : '')
+        if (html === card.html) continue
+        const old = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
+        const scrolled = old?.scrollTop ?? 0
+        // MapLibre moves focus into a popup whenever its content is set. A
+        // redraw answers a change made in the panel, so focus stays there.
+        const focus = card.popup.options.focusAfterOpen
+        card.popup.options.focusAfterOpen = false
+        card.popup.setHTML(html)
+        card.popup.options.focusAfterOpen = focus
+        card.html = html
+        if (row) card.row = row
+        const body = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
+        if (body && card.capped !== null) capPopupBody(body, card.capped)
+        if (body) body.scrollTop = scrolled
+      }
     },
   }
 }

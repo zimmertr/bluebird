@@ -49,6 +49,7 @@ function setup(drawing = false, online: EventTarget | null = null) {
     times: [],
     modelFallbackLabel: null,
     popupColumns: [],
+    sortBy: 'aqi_avg',
     fireWarnings: new Map(),
     closureWarnings: new Map(),
     searchedPlaces: [],

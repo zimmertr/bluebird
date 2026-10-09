@@ -228,6 +228,17 @@ def stub_upstreams(monkeypatch):
     monkeypatch.setattr(weather, "fetch_weather_batch", fake_wx)
     monkeypatch.setattr(air_quality, "fetch_aqi_batch", fake_aqi)
 
+@pytest.fixture(autouse=True)
+def _cloud_column_stub(monkeypatch):
+    """Every analysis fetches the cloud column (#683), so every test here
+    answers it: no deck for any destination, which is what a test that never
+    mentions the column expects. A test about the column stubs its own."""
+
+    async def no_cloud(destinations, *args, **kwargs):
+        return [None] * len(destinations)
+
+    monkeypatch.setattr(weather, "fetch_cloud_batch", no_cloud)
+
 
 def test_analyze_observes_field_size_and_limit(stub_upstreams):
     now = datetime.now(UTC)

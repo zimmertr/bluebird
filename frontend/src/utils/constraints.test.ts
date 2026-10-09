@@ -7,7 +7,6 @@ import {
   constraintsFromRequest,
   filterConstraints,
   hasConstraints,
-  namesOnRequestMetric,
 } from './constraints'
 import { resultRow } from '../testSupport/fixtures'
 
@@ -218,23 +217,6 @@ describe('constraint round trips', () => {
     expect(constraintsFromRequest(REQUEST)).toEqual(NO_CONSTRAINTS)
     expect(hasConstraints(NO_CONSTRAINTS)).toBe(false)
     expect(hasConstraints(bounded({ maxAqi: 100 }))).toBe(true)
-  })
-})
-
-describe('namesOnRequestMetric', () => {
-  it('answers yes for a cloud ranking', () => {
-    expect(namesOnRequestMetric('cloud_deck_min_ft', NO_CONSTRAINTS)).toBe(true)
-    expect(namesOnRequestMetric('cloud_deck_avg_ft', NO_CONSTRAINTS)).toBe(true)
-  })
-
-  it('answers yes for a cloud bound under any ranking', () => {
-    expect(namesOnRequestMetric('precip_total_in', { ...NO_CONSTRAINTS, minCloudDeckFt: 6000 })).toBe(true)
-    expect(namesOnRequestMetric('aqi_avg', { ...NO_CONSTRAINTS, maxCloudDeckFt: 9000 })).toBe(true)
-  })
-
-  it('answers no when nothing names a cloud metric', () => {
-    expect(namesOnRequestMetric('precip_total_in', NO_CONSTRAINTS)).toBe(false)
-    expect(namesOnRequestMetric('freeze_min_ft', { ...NO_CONSTRAINTS, maxWindMph: 20 })).toBe(false)
   })
 })
 

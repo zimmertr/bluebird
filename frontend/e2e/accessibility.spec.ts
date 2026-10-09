@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import type { Page } from '@playwright/test'
-import { test, expect, drawRing, DESTINATION_NAMES } from './fixtures'
+import { test, expect, drawRing, DESTINATION_NAMES, resultRows } from './fixtures'
 
 // Serious and critical fail the test. Minor and moderate are logged on the
 // test's annotations, so they are visible in the report without gating.
@@ -53,7 +53,7 @@ test('axe finds nothing serious on the panel, the results, or a popover', async 
   await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
   await drawRing(page)
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(page.locator('table tbody tr')).toHaveCount(DESTINATION_NAMES.length)
+  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
   await audit(page, 'results open', seen)
 
   await page.getByRole('button', { name: 'Layers' }).click()

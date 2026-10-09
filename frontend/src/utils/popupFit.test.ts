@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { figureOf, fitPan, placePopup, visibleArea, type Rect } from './popupFit'
+import { MIN_CAPPED_PX, capHeight, figureOf, fitPan, fitsWhole, placePopup, visibleArea, type Rect } from './popupFit'
 
 // A phone's map above a collapsed sheet, with the button column at its top
 // left; and a short desktop map, where a card can step sideways instead.
@@ -112,5 +112,41 @@ describe('the tutorial popup on a phone', () => {
     expect(visibleArea(figure, REGION, [COLUMN, KEEP_OUT])).toBe(area(figure))
     expect(figure.top).toBeGreaterThanOrEqual(COLUMN.bottom)
     expect(lightBottom(placed)).toBeLessThanOrEqual(562)
+  })
+})
+
+// A card too tall for the free map area caps its body and scrolls (TJ,
+// 2026-10-08). The tutorial's phone is the case that needed it: with the cloud
+// deck on every report the card measured 451px, 50 more than the 401 the
+// layout above was measured with, and no placement kept it clear of both the
+// column and the tour card's keep-out.
+describe('capHeight', () => {
+  const REGION: Rect = { left: 0, top: 0, right: 360, bottom: 636 }
+  const COLUMN: Rect = { left: 12, top: 12, right: 196, bottom: 128 }
+  const KEEP_OUT: Rect = { left: 16, right: 344, top: 556, bottom: 724 }
+  const MARKER = { x: 180, y: 318 }
+  const TALL = { width: 280, height: 451 }
+
+  it('caps nothing that already stands whole', () => {
+    expect(capHeight(MARKER, { width: 280, height: 401 }, REGION, [COLUMN, KEEP_OUT])).toBeNull()
+    expect(capHeight({ x: 300, y: 200 }, CARD, SHORT_DESKTOP, [DESKTOP_COLUMN])).toBeNull()
+  })
+
+  it('finds the tallest card that stands whole between the column and the keep-out', () => {
+    const obstacles = [COLUMN, KEEP_OUT]
+    expect(fitsWhole(MARKER, TALL, REGION, obstacles)).toBe(false)
+    const cap = capHeight(MARKER, TALL, REGION, obstacles)!
+    expect(cap).toBeLessThan(TALL.height)
+    expect(fitsWhole(MARKER, { width: 280, height: cap }, REGION, obstacles)).toBe(true)
+    expect(fitsWhole(MARKER, { width: 280, height: cap + 1 }, REGION, obstacles)).toBe(false)
+    // The band between the column's foot and the keep-out, less the margin the
+    // fit keeps under the column, the tip, and the marker's square the figure
+    // carries.
+    expect(cap).toBe(556 - 128 - 8 - 10 - 8)
+  })
+
+  it('caps nothing when the room left would be a keyhole', () => {
+    const short: Rect = { left: 0, top: 0, right: 360, bottom: 128 + MIN_CAPPED_PX }
+    expect(capHeight(MARKER, TALL, short, [COLUMN])).toBeNull()
   })
 })

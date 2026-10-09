@@ -38,8 +38,7 @@ export type SortBy =
   | 'aqi_avg'
   | 'aqi_min'
   | 'aqi_max'
-  // The cloud deck (#670). Ranking by it is what makes an analysis fetch the
-  // cloud variables at all.
+  // The cloud deck (#670), fetched for every candidate since #683.
   | 'cloud_deck_min_ft'
   | 'cloud_deck_avg_ft'
   | 'cloud_deck_max_ft'
@@ -109,9 +108,9 @@ export interface AnalyzeRequest {
   max_aqi?: number | null
   min_cloud_deck_ft?: number | null
   max_cloud_deck_ft?: number | null
-  // The server path's opt-in to the cloud fields on the returned rows. The
-  // browser never sends it: it fetches the cloud column when the ranking or a
-  // bound names a cloud metric, which it reads off the fields above.
+  // Accepted by the server and ignored since #683: every analysis fetches the
+  // cloud column. Kept so the type matches a request field that stays until a
+  // major release; the browser never sends it.
   include_clouds?: boolean
   // Explicit opt-in: an over-limit candidate set keeps its highest-elevation
   // rows up to the analysis cap instead of refusing. The response then says
@@ -154,8 +153,8 @@ export interface HourlySeries {
   // is every hour of HRRR past its 45th.
   snowfall_in: (number | null)[]
   aqi: (number | null)[]
-  // Feet above sea level (#670). Absent unless the analysis fetched the cloud
-  // column, which it does only when asked for the cloud deck.
+  // Feet above sea level (#670). Absent when the cloud request answered
+  // nothing for the row; every analysis asks it (#683).
   cloud_deck_ft?: (number | null)[] | null
   // Wind bearing in degrees clockwise from north, the direction the wind blows
   // FROM. Client-populated only: the backend does not fetch it, because nothing

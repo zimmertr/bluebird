@@ -13,6 +13,7 @@ function inputs(over: Partial<MapInputs> = {}): MapInputs {
     times: [],
     modelFallbackLabel: null,
     popupColumns: [],
+    sortBy: 'aqi_avg',
     fireWarnings: new Map(),
     closureWarnings: new Map(),
     searchedPlaces: [],

@@ -118,16 +118,13 @@ class AnalyzeRequest(_DiscoveryFields):
     include_clouds: bool = Field(
         default=False,
         description=(
-            "Send the three cloud deck fields (`cloud_deck_*_ft`) and their "
-            "hourly series on the returned rows. Off by default "
-            "because the cloud variables are a second upstream request per "
-            "location: they are fetched only for the rows this response "
-            "returns, after the ranking and the `limit` cut, the way air "
-            "quality is.\n\n"
-            "Not needed to rank or bound by the cloud deck. A `sort_by` naming "
-            "it, or either cloud deck bound, fetches the cloud variables for "
-            "every candidate before the ranking, whatever this is set to. With "
-            "none of the three, the three fields are null."
+            "Accepted and ignored. Every row carries the three cloud deck "
+            "fields (`cloud_deck_*_ft`) and their hourly series whatever this "
+            "is set to: the cloud variables are fetched for every candidate "
+            "of every analysis, the way the weather is. Through 0.98 they were "
+            "fetched only for a cloud deck `sort_by`, a cloud deck bound, or "
+            "the returned rows of a request that set this true, and the field "
+            "stays declared so such a request is still accepted."
         ),
     )
     # Forecast bounds, applied after aggregation and BEFORE the ranking and the
@@ -229,9 +226,7 @@ class AnalyzeRequest(_DiscoveryFields):
         description=(
             "Drop rows whose `cloud_deck_min_ft` is below this, i.e. keep only "
             "destinations whose cloud deck never fell below it during the "
-            "window. Setting either cloud deck bound fetches the cloud "
-            "variables for every candidate. A row with a null cloud deck "
-            "passes either bound."
+            "window. A row with a null cloud deck passes either bound."
         ),
     )
     max_cloud_deck_ft: float | None = Field(
@@ -461,7 +456,9 @@ class HourlySeries(BaseModel):
         default=None,
         description=(
             "Cloud deck, feet above sea level; see `cloud_deck_min_ft` on the "
-            "result. Null as a whole unless the cloud variables were fetched."
+            "result. Null at every archive hour, which carries no pressure "
+            "levels to read, and null as a whole when the cloud request "
+            "answered nothing for this location."
         ),
     )
 
@@ -593,9 +590,9 @@ class DestinationResult(BaseModel):
             f"{CLOUD_DECK_CEILING_FT:.0f}, the standard height of 300 hPa, so "
             "a clear sky ranks as the "
             "highest deck rather than as null.\n\n"
-            "Null unless the cloud variables were fetched (a cloud deck "
-            "`sort_by`, a cloud deck bound, or `include_clouds`), and for "
-            "archive hours, which carry no pressure levels to read."
+            "Null when no hour in the window could be read: every archive "
+            "hour, which carries no pressure levels, or a location the cloud "
+            "request answered nothing for."
         ),
     )
     cloud_deck_avg_ft: float | None = Field(

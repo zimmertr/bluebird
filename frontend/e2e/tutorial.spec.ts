@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect } from './fixtures'
+import { test, expect, resultRows } from './fixtures'
 
 // The guided tutorial (#536), walked the way a reader walks it. The unit
 // suites pin the steps, the placement arithmetic and the source anchors; this
@@ -115,7 +115,7 @@ test('walks the seven cards from the footer link and puts the app back', async (
     await expectSpotlightOn(page, step.anchor)
     if (step.anchor === 'metrics') await expectSectionInPanel(page, 'metrics')
     if (step.anchor === 'layers') await expect(page.locator('[data-tour="layers-menu"]')).toBeVisible()
-    if (step.anchor === 'results') await expect(page.locator('table tbody tr')).toHaveCount(5)
+    if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(5)
     if (step.anchor === 'marker') await expectPopupClear(page)
     await card(page).getByRole('button', { name: i === STEPS.length - 1 ? 'Done' : 'Next' }).click()
   }
@@ -124,7 +124,7 @@ test('walks the seven cards from the footer link and puts the app back', async (
   await expect(page).not.toHaveURL(/\/tutorial/)
   // The demonstration leaves with the tour.
   await expect(page.locator('[data-tour="marker"]')).toHaveCount(0)
-  await expect(page.locator('table tbody tr')).toHaveCount(0)
+  await expect(resultRows(page)).toHaveCount(0)
 })
 
 test('the browser\'s Back leaves the tour the way it leaves a page', async ({ page }) => {

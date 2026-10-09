@@ -106,7 +106,6 @@ export function useGridLayer({
     arriving,
     windowLimits,
     aqiForecastDays,
-    cloud: analyzed?.cloudFetched ?? false,
   })
   // The pitch the slider's kilometres read from: the analyzed model once a
   // report is held (what the grid actually draws), the panel's pick before one
