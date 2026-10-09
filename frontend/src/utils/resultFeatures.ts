@@ -1,7 +1,7 @@
 import type { FeatureCollection } from 'geojson'
 import { DestinationResult, SortBy } from '../types'
 import { colorOnScale, hourlyScale, markerColor } from './colors'
-import { valueAt } from './chartData'
+import { seriesFieldFor, valueAt } from './chartData'
 import { familyOf } from '../metrics'
 
 // Sorting by AQI can hit rows with no AQI data (beyond its ~5-day horizon), and
@@ -35,7 +35,9 @@ export function fillColor(
 ): string {
   if (hourIndex !== null) {
     const scale = hourlyScale(sortBy)
-    const value = valueAt(row, familyOf(sortBy), hourIndex)
+    // The key's own series rather than its family's, so a gust ranking plays
+    // the hour's gust (#584) where every other wind key plays the wind.
+    const value = valueAt({ series: row.series, field: seriesFieldFor(sortBy) }, familyOf(sortBy), hourIndex)
     return value == null || scale === null ? NO_VALUE : colorOnScale(value, scale)
   }
   // Every metric carries a scale now, so the null branch is the type's rather
@@ -127,15 +129,14 @@ export function resultsFeatureCollection(
 }
 
 /**
- * Whether the wind arrows are drawn: on a wind or a wind gust ranking, while
- * the playhead is on an hour.
+ * Whether the wind arrows are drawn: on a wind ranking, while the playhead is
+ * on an hour.
  *
  * Any wind ranking, minimum and maximum as well as average: the arrows read the
  * hour's bearing, which no reduction changes, so tying them to one key hid the
  * direction under the two rankings a reader picks to find the calm or the gusty
- * summit. A gust ranking draws them too (#584), because a gust blows from the
- * bearing of the wind it rides on, and that bearing is the hour's 10 m one the
- * arrows already read; Open-Meteo publishes no separate gust direction.
+ * summit. The gust is a wind ranking too (#584): a gust blows from the bearing
+ * of the wind it rides on, and Open-Meteo publishes no separate gust direction.
  *
  * On any other metric an arrow would be a second variable nobody asked about,
  * drawn over the one they did. The markers' arrows and the forecast grid's both
@@ -143,7 +144,5 @@ export function resultsFeatureCollection(
  * direction worth drawing.
  */
 export function windArrowsShowing(sortBy: SortBy, hourIndex: number | null): boolean {
-  if (hourIndex === null) return false
-  const family = familyOf(sortBy)
-  return family === 'wind' || family === 'gust'
+  return hourIndex !== null && familyOf(sortBy) === 'wind'
 }

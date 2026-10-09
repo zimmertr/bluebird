@@ -13,7 +13,7 @@ function series(over: Partial<HourlySeries> = {}): HourlySeries {
     snowfall_in: [0, 0.4, 1.2, 0],
     // Its strongest hour is not the wind's, so a gust key read off the wind
     // series would name the wrong hour.
-    gust_mph: [14, 25, 18, 33],
+    wind_gust_mph: [14, 25, 18, 33],
     aqi: [31, 44, 20, 35],
     ...over,
   }
@@ -88,12 +88,12 @@ describe('which hour produced a cell', () => {
     expect(extremeHourMs('snowfall_min_in_hr', series(), TIMES)).toBe(TIMES[0])
   })
 
-  // The gust's hours are its own series, not the sustained wind's (#584).
-  it('names the gustiest and the calmest hour of the gust', () => {
-    expect(extremeHourMs('gust_max_mph', series(), TIMES)).toBe(TIMES[3])
-    expect(extremeHourMs('gust_min_mph', series(), TIMES)).toBe(TIMES[0])
-    expect(extremeHourMs('gust_avg_mph', series(), TIMES)).toBeNull()
-    expect(extremeHourMs('gust_max_mph', series({ gust_mph: [null, null, null, null] }), TIMES)).toBeNull()
+  // The gust's hour is its own series' strongest, not the sustained wind's
+  // (#584): the wind peaks at the second hour and the gust at the fourth.
+  it('names the gustiest hour for the gust', () => {
+    expect(extremeHourMs('wind_max_mph', series(), TIMES)).toBe(TIMES[1])
+    expect(extremeHourMs('wind_gust_mph', series(), TIMES)).toBe(TIMES[3])
+    expect(extremeHourMs('wind_gust_mph', series({ wind_gust_mph: [null, null, null, null] }), TIMES)).toBeNull()
   })
 
   // A flat run names its beginning rather than an arbitrary hour inside it: a

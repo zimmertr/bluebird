@@ -87,8 +87,8 @@ describe('the column-set migration', () => {
   })
 
   // `columns8` predates the gust (#584), and every older generation predates
-  // it too. A set stored then hid no gust column, because none existed, so
-  // the three start shown.
+  // it too. A set stored then hid no gust column, because none existed, so it
+  // starts shown, and the wind's other three keep the reader's choice.
   it.each([
     ['columns8'],
     ['columns7'],
@@ -103,16 +103,16 @@ describe('the column-set migration', () => {
     const columns = readViewPrefs().columns!
     expect(columns.has('name')).toBe(true)
     expect(columns.has('precip_total_in')).toBe(true)
-    for (const key of FAMILY_KEYS.gust) expect(columns.has(key)).toBe(true)
+    expect(columns.has('wind_gust_mph')).toBe(true)
     expect(columns.has('wind_min_mph')).toBe(false)
   })
 
   // Hiding a gust column is a choice the current generation can record.
   it('keeps a gust column hidden when columns9 hid it', () => {
-    withStored({ columns9: ['name', 'gust_max_mph'] })
+    withStored({ columns9: ['name', 'wind_max_mph'] })
     const columns = readViewPrefs().columns!
-    expect(columns.has('gust_max_mph')).toBe(true)
-    expect(columns.has('gust_min_mph')).toBe(false)
+    expect(columns.has('wind_max_mph')).toBe(true)
+    expect(columns.has('wind_gust_mph')).toBe(false)
   })
 
   // `columns5` predates the Closure column (#550), so every older set comes

@@ -16,6 +16,7 @@ import {
   CHART_METRICS,
   ChartLine,
   ChartMetric,
+  TooltipEntry,
   alignRowToGrid,
   axisTimeLabel,
   nowWithinGrid,
@@ -24,16 +25,24 @@ import {
   computeYDomain,
   formatMetricValue,
   formatTooltipValue,
+  lineGroup,
   nearestKey,
+  orderTooltipItems,
   pixelToTime,
   pixelToValue,
   tracksCursor,
   valueAt,
   tooltipCapacity,
+  withGustLines,
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
 import { nearestIndex } from '../utils/timeline'
-import { CHART_AXIS_COLOR, CHART_GRID_COLOR, CHART_PLAYHEAD_COLOR } from '../utils/chartColors'
+import {
+  CHART_AXIS_COLOR,
+  CHART_GRID_COLOR,
+  CHART_GUST_DASH,
+  CHART_PLAYHEAD_COLOR,
+} from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -72,10 +81,11 @@ interface Props {
    * Lines that are not plain destinations: one per (destination, model) pair
    * while a comparison is up (#232). They arrive ready to draw — aligned to
    * `times`, coloured and named, because what a comparison
-   * covers is a decision about spend rather than about drawing. Every line is
-   * solid: colour is the one channel, the destination's on the ranking model's
-   * lines and the model's on every other, and `chartColors.ts` is what keeps
-   * the two sets apart.
+   * covers is a decision about spend rather than about drawing. Colour is the
+   * one channel, the destination's on the ranking model's lines and the
+   * model's on every other, and `chartColors.ts` is what keeps the two sets
+   * apart. The wind's gust companions are added here, below, for these lines
+   * as for the rows, so a compared model's gust draws beside its own wind.
    *
    * A comparison supplies the ranking model's lines here too, and `rows` then
    * arrives empty: every entry has to read alike, so all of them are composed
@@ -127,19 +137,26 @@ function TimeSeriesChart({
   // hover — the exact cost the `data` memo below exists to avoid — and it
   // cannot answer differently for a row that has not changed: a colour is
   // assigned once per coordinate and never reassigned.
-  const lines: ChartLine[] = useMemo(
-    () => [
-      ...aligned.map((row) => ({
-        key: chartKey(row),
-        label: row.name,
-        color: colorFor(row),
-        series: row.series,
-      })),
-      ...extraLines,
-    ],
+  //
+  // Under the wind every line gains its gust beside it (#584), which doubles
+  // the lines drawn and therefore what `tracksCursor` below is charged for.
+  const lines: readonly ChartLine[] = useMemo(
+    () =>
+      withGustLines(
+        [
+          ...aligned.map((row) => ({
+            key: chartKey(row),
+            label: row.name,
+            color: colorFor(row),
+            series: row.series,
+          })),
+          ...extraLines,
+        ],
+        metric,
+      ),
     // Kept: `colorFor` is the omission, and the paragraph above says why.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [aligned, extraLines],
+    [aligned, extraLines, metric],
   )
   // A point-sample analysis has a one-timestamp grid: there are no segments to
   // stroke, so each series must render as a dot or the chart would come up blank.
@@ -169,11 +186,13 @@ function TimeSeriesChart({
   const [yMin, yMax] = useMemo(() => computeYDomain(lines, metric), [lines, metric])
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
-  // computation feeds both the line emphasis and the tooltip ordering.
+  // computation feeds both the line emphasis and the tooltip ordering. The key
+  // is a line's GROUP, its own or its wind line's, so a gust and its wind are
+  // lifted and dimmed together.
   const ordered = focusedKey
     ? [
-        ...lines.filter((l) => l.key !== focusedKey),
-        ...lines.filter((l) => l.key === focusedKey),
+        ...lines.filter((l) => lineGroup(l) !== focusedKey),
+        ...lines.filter((l) => lineGroup(l) === focusedKey),
       ]
     : lines
 
@@ -191,7 +210,9 @@ function TimeSeriesChart({
     const valuesByKey: Record<string, number | null> = {}
     for (const line of lines) valuesByKey[line.key] = valueAt(line, metric, idx)
     setCursorValue(cv)
-    setFocusedKey(nearestKey(valuesByKey, cv))
+    const nearest = nearestKey(valuesByKey, cv)
+    const line = nearest === null ? undefined : lines.find((l) => l.key === nearest)
+    setFocusedKey(line ? lineGroup(line) : null)
   }
 
   function handleLeave() {
@@ -349,7 +370,8 @@ function TimeSeriesChart({
             />
             {ordered.map((line) => {
               const key = line.key
-              const dimmed = focusedKey != null && focusedKey !== key
+              const focused = focusedKey === lineGroup(line)
+              const dimmed = focusedKey != null && !focused
               return (
                 <Line
                   key={key}
@@ -360,7 +382,7 @@ function TimeSeriesChart({
                   dot={
                     pointGrid
                       ? {
-                          r: focusedKey === key ? 4.5 : 3.5,
+                          r: focused ? 4.5 : 3.5,
                           strokeWidth: 0,
                           fill: line.color,
                           fillOpacity: dimmed ? 0.25 : 1,
@@ -369,8 +391,9 @@ function TimeSeriesChart({
                   }
                   connectNulls={false}
                   isAnimationActive={false}
-                  strokeWidth={focusedKey === key ? 2.5 : 1.5}
+                  strokeWidth={focused ? 2.5 : 1.5}
                   strokeOpacity={dimmed ? 0.25 : 1}
+                  strokeDasharray={line.dashed ? CHART_GUST_DASH : undefined}
                 />
               )
             })}
@@ -390,12 +413,6 @@ function fmtTooltipTime(t: number): string {
     hour: 'numeric',
     minute: '2-digit',
   })
-}
-
-interface TooltipItem {
-  key: string
-  value: number
-  line: ChartLine
 }
 
 interface ChartTooltipProps {
@@ -426,20 +443,13 @@ function ChartTooltip({
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null
 
-  const items: TooltipItem[] = []
+  const items: TooltipEntry[] = []
   for (const p of payload) {
     if (p.value == null || p.dataKey == null) continue
     const line = lines.find((l) => l.key === p.dataKey)
     if (line) items.push({ key: p.dataKey, value: p.value, line })
   }
-  items.sort((a, b) => {
-    if (a.key === focusedKey) return -1
-    if (b.key === focusedKey) return 1
-    if (cursorValue == null) return b.value - a.value
-    return Math.abs(a.value - cursorValue) - Math.abs(b.value - cursorValue)
-  })
-
-  const shown = items.slice(0, maxRows)
+  const shown = orderTooltipItems(items, focusedKey, cursorValue).slice(0, maxRows)
   const rest = items.length - shown.length
 
   return (
@@ -451,7 +461,7 @@ function ChartTooltip({
         <div
           key={it.key}
           className={`flex items-center justify-between gap-3 ${
-            it.key === focusedKey ? 'font-semibold text-white' : ''
+            lineGroup(it.line) === focusedKey ? 'font-semibold text-white' : ''
           }`}
         >
           <span className="flex items-center gap-1.5">

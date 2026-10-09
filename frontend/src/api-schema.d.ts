@@ -420,11 +420,6 @@ export interface components {
              */
             max_freeze_ft?: number | null;
             /**
-             * Max Gust Mph
-             * @description Drop rows whose `gust_max_mph` is above this, i.e. keep only destinations whose gusts never exceed it during the window. Nulls pass: one forecast model publishes no gust, and dropping its rows would empty the whole result under it.
-             */
-            max_gust_mph?: number | null;
-            /**
              * Max Precip Total In
              * @description Drop rows whose `precip_total_in` is above this.
              */
@@ -439,6 +434,11 @@ export interface components {
              * @description Drop rows whose `temp_max_f` is above this, i.e. keep only destinations that stay at or below it for the whole window.
              */
             max_temp_f?: number | null;
+            /**
+             * Max Wind Gust Mph
+             * @description Drop rows whose `wind_gust_mph` is above this, i.e. keep only destinations whose gusts never exceed it during the window. Nulls pass: one forecast model publishes no gust, and dropping its rows would empty the whole result under it.
+             */
+            max_wind_gust_mph?: number | null;
             /**
              * Max Wind Mph
              * @description Drop rows whose `wind_max_mph` is above this, i.e. keep only destinations that never exceed it during the window.
@@ -464,11 +464,6 @@ export interface components {
              * @description Drop rows whose `freeze_min_ft` is below this, i.e. keep only destinations whose freezing level never fell below it during the window. Not bounded below: a freezing level of 0 is a reading, not a gap.
              */
             min_freeze_ft?: number | null;
-            /**
-             * Min Gust Mph
-             * @description Drop rows whose `gust_min_mph` is below this. A row with a null `gust_min_mph` passes either bound.
-             */
-            min_gust_mph?: number | null;
             /**
              * Min Precip Total In
              * @description Drop rows whose `precip_total_in` is below this.
@@ -776,21 +771,6 @@ export interface components {
              */
             freeze_min_ft: number | null;
             /**
-             * Gust Avg Mph
-             * @description Mean gust across the window, miles per hour. Null under the same terms.
-             */
-            gust_avg_mph: number | null;
-            /**
-             * Gust Max Mph
-             * @description Strongest gust in the window, miles per hour. Open-Meteo's 10 m surface gust at the destination's coordinates, not adjusted to `elevation_ft` the way the wind is: no forecast model publishes a gust above the surface, so this can read below `wind_max_mph` on a summit. Read apart from precipitation, temperature and wind: an hour with no gust drops out of the three gust figures alone. Null when no hour in the window carried one, which is every hour of the one forecast model that does not publish the variable.
-             */
-            gust_max_mph: number | null;
-            /**
-             * Gust Min Mph
-             * @description Weakest gust in the window, miles per hour. Null under the same terms as `gust_max_mph`.
-             */
-            gust_min_mph: number | null;
-            /**
              * Latitude
              * @description Latitude in decimal degrees.
              */
@@ -877,6 +857,11 @@ export interface components {
              * @description Mean wind speed at the destination's elevation, miles per hour. Each hour interpolates Open-Meteo's free-air wind between the two pressure levels bracketing `elevation_ft`, floored at the 10 m surface wind; rows with no elevation, or below the lowest level (~762 m), report the 10 m wind. All three wind aggregates reduce the same adjusted hourly values.
              */
             wind_avg_mph: number;
+            /**
+             * Wind Gust Mph
+             * @description Strongest gust in the window, miles per hour. Open-Meteo's 10 m surface gust at the destination's coordinates, not adjusted to `elevation_ft` the way the wind is: no forecast model publishes a gust above the surface, so this can read below `wind_max_mph` on a summit. Read apart from precipitation, temperature and wind: an hour with no gust drops out of this figure alone. Null when no hour in the window carried one, which is every hour of the one forecast model that does not publish the variable.
+             */
+            wind_gust_mph: number | null;
             /**
              * Wind Max Mph
              * @description Windiest hour, miles per hour.
@@ -1174,11 +1159,6 @@ export interface components {
              */
             freeze_ft: (number | null)[];
             /**
-             * Gust Mph
-             * @description Strongest gust in the hour, 10 m above the ground, miles per hour. Null at an hour the forecast carried no gust for; see `gust_max_mph` on the result.
-             */
-            gust_mph: (number | null)[];
-            /**
              * Precip In
              * @description Precipitation, inches.
              */
@@ -1193,6 +1173,11 @@ export interface components {
              * @description Temperature, degrees Fahrenheit.
              */
             temp_f: (number | null)[];
+            /**
+             * Wind Gust Mph
+             * @description Strongest gust in the hour, 10 m above the ground, miles per hour. Null at an hour the forecast carried no gust for; see `wind_gust_mph` on the result.
+             */
+            wind_gust_mph: (number | null)[];
             /**
              * Wind Mph
              * @description Wind speed at the destination's elevation, miles per hour. See `wind_avg_mph` on the result for how it is derived.
@@ -1395,7 +1380,7 @@ export interface components {
          * SortBy
          * @enum {string}
          */
-        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "gust_min_mph" | "gust_avg_mph" | "gust_max_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max" | "cloud_deck_min_ft" | "cloud_deck_avg_ft" | "cloud_deck_max_ft" | "snowfall_total_in" | "snowfall_avg_in_hr" | "snowfall_min_in_hr" | "snowfall_max_in_hr";
+        SortBy: "precip_total_in" | "precip_avg_in_hr" | "precip_min_in_hr" | "precip_max_in_hr" | "wind_min_mph" | "wind_avg_mph" | "wind_max_mph" | "wind_gust_mph" | "temp_min_f" | "temp_avg_f" | "temp_max_f" | "freeze_min_ft" | "freeze_avg_ft" | "freeze_max_ft" | "aqi_avg" | "aqi_min" | "aqi_max" | "cloud_deck_min_ft" | "cloud_deck_avg_ft" | "cloud_deck_max_ft" | "snowfall_total_in" | "snowfall_avg_in_hr" | "snowfall_min_in_hr" | "snowfall_max_in_hr";
         /** ValidationError */
         ValidationError: {
             /** Context */

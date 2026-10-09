@@ -95,8 +95,8 @@ export const VERDICT_RAMP_REVERSED: readonly string[] = [...VERDICT_RAMP].revers
 // end is the high one. One ramp is what lets a colour say one thing across the
 // whole table: green is the best of it, and purple and maroon are where a
 // reader stops weighing an option, whichever column they are reading.
-// Precipitation (both of its scales), wind, the wind gust, air quality and
-// the cloud deck wear it.
+// Precipitation (both of its scales), wind (both of its scales), air quality
+// and the cloud deck wear it.
 //
 // Three families are exceptions, and each says why on its own entry:
 // temperature, a verdict with a bad end on both sides and so its green in the
@@ -116,9 +116,10 @@ export const VERDICT_RAMP_REVERSED: readonly string[] = [...VERDICT_RAMP].revers
 // Keyed by family rather than by ranking key (#291): a family's aggregates
 // share one scale (a windy hour is windy whether it was the average or the
 // peak), so the rankable keys would be one copy of a scale each. The
-// exception is the rate columns of precipitation and snowfall, which measure
-// a different quantity and carry their own scales below (PRECIP_RATE,
-// SNOWFALL_RATE); `rankedScale` is the per-key reading that knows this.
+// exceptions are the rate columns of precipitation and snowfall and the
+// wind's gust, which measure a different quantity and carry their own scales
+// below (PRECIP_RATE, SNOWFALL_RATE, WIND_GUST_SCALE); `rankedScale` is the
+// per-key reading that knows this.
 export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   // An inch over a window is the last boundary because the totals scale is
   // read over windows of days, where 0.50 in is a wet weekend and 1.00 in is a
@@ -142,19 +143,6 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
     thresholds: [5, 15, 25, 35, 50],
     colors: VERDICT_RAMP,
     unit: UNIT.wind,
-  },
-  // The wind's ramp on its own boundaries (TJ, #584), because a gust runs
-  // well above the sustained wind it rides on: on the wind's 5/15/25/35/50 an
-  // ordinary breezy afternoon would paint orange or worse. The top two are the
-  // National Weather Service's own gust criteria, 46 mph for a Wind Advisory
-  // and 58 mph for a High Wind Warning, borrowed for the reason the rate scale
-  // borrows the NWS's rainfall classes: a reader can look up what a boundary
-  // means. Below them, 15, 25 and 35 mph are ten-mph steps that keep a calm
-  // day green and a gusty one yellow before an advisory paints it purple.
-  gust: {
-    thresholds: [15, 25, 35, 46, 58],
-    colors: VERDICT_RAMP,
-    unit: UNIT.gust,
   },
   // An exception to the verdict ramp, because a temperature has a bad end on
   // both sides: cold to hot, with green in the MIDDLE rather than at either
@@ -326,6 +314,28 @@ const SNOWFALL_RATE: LabelledScale = {
 }
 
 /**
+ * The wind's gust column on the wind's ramp at its own boundaries (TJ, #584),
+ * because a gust runs well above the sustained wind it rides on: on the wind's
+ * 5/15/25/35/50 an ordinary breezy afternoon would paint orange or worse.
+ *
+ * The top two are the National Weather Service's own gust criteria, 46 mph for
+ * a Wind Advisory and 58 mph for a High Wind Warning, borrowed for the reason
+ * the rate scale borrows the NWS's rainfall classes: a reader can look up what
+ * a boundary means. Below them, 15, 25 and 35 mph are ten-mph steps that keep a
+ * calm day green and a gusty one yellow before an advisory paints it purple.
+ *
+ * A per-key scale like the rate columns' rather than a family's, because the
+ * gust is one option of the Wind row: the markers, the legend, the grid and
+ * playback read it through `rankedScale`/`hourlyScale` the way they read a
+ * rate ranking, and one hour of a gust is that hour's gust, so the two agree.
+ */
+const WIND_GUST_SCALE: LabelledScale = {
+  thresholds: [15, 25, 35, 46, 58],
+  colors: VERDICT_RAMP,
+  unit: UNIT.wind,
+}
+
+/**
  * Each family's window-total key and the rate column one hour of it is read
  * on, for the two families whose total is not an hourly quantity.
  */
@@ -353,6 +363,7 @@ const COLUMN_SCALE: Record<string, LabelledScale> = {
   snowfall_avg_in_hr: SNOWFALL_RATE,
   snowfall_min_in_hr: SNOWFALL_RATE,
   snowfall_max_in_hr: SNOWFALL_RATE,
+  wind_gust_mph: WIND_GUST_SCALE,
 }
 
 /**

@@ -123,8 +123,7 @@ const EXTREME: Readonly<Record<string, Extreme>> = {
   wind_max_mph: { field: 'wind_mph', lowest: false },
   // The gust is the 10 m value Windy's gust layer draws (#584), so unlike the
   // wind its hour is the hour Windy shows.
-  gust_min_mph: { field: 'gust_mph', lowest: true },
-  gust_max_mph: { field: 'gust_mph', lowest: false },
+  wind_gust_mph: { field: 'wind_gust_mph', lowest: false },
   precip_min_in_hr: { field: 'precip_in', lowest: true },
   precip_max_in_hr: { field: 'precip_in', lowest: false },
   snowfall_min_in_hr: { field: 'snowfall_in', lowest: true },

@@ -261,9 +261,7 @@ const WX: WeatherResult = weatherResult({
   snowfall_avg_in_hr: 0.6,
   snowfall_min_in_hr: 0.5,
   snowfall_max_in_hr: 0.7,
-  gust_min_mph: 14,
-  gust_max_mph: 22,
-  gust_avg_mph: 18,
+  wind_gust_mph: 22,
   series: {
     times: [1784592000000, 1784595600000],
     precip_in: [0.1, 0.2],
@@ -271,7 +269,7 @@ const WX: WeatherResult = weatherResult({
     wind_mph: [5, 7],
     freeze_ft: [9000, 9500],
     snowfall_in: [0.5, 0.7],
-    gust_mph: [14, 22],
+    wind_gust_mph: [14, 22],
   },
 })
 
@@ -304,7 +302,7 @@ describe('assemble', () => {
     expect(results[0].snowfall_total_in).toBe(1.2)
     expect(results[0].snowfall_max_in_hr).toBe(0.7)
     expect(results[0].series?.snowfall_in).toEqual([0.5, 0.7])
-    expect(results[0].series?.gust_mph).toEqual([14, 22])
+    expect(results[0].series?.wind_gust_mph).toEqual([14, 22])
   })
 
   it('canonicalTimes takes the first row carrying a series', () => {

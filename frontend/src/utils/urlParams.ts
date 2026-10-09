@@ -495,7 +495,7 @@ export const URL_PARAMS: readonly ParamCodec[] = [
     encode: ({ selection }) => (selection.kind === 'days' && selection.hours ? selection.hours.end : null),
   },
   // The forecast bounds, spelled out rather than abbreviated the way
-  // `minel`/`maxel` were: sixteen terse keys would be sixteen guesses in the
+  // `minel`/`maxel` were: fourteen terse keys would be fourteen guesses in the
   // address bar, and readability is what the URL convention buys (#210).
   // `minel` and `maxel` have no row, so they are deliberately not read. They
   // carried the elevation band the panel dropped in #341, so an old link still
@@ -512,9 +512,11 @@ export const URL_PARAMS: readonly ParamCodec[] = [
   bound('mintemp', 'minTempF'),
   bound('maxtemp', 'maxTempF'),
   bound('minwind', 'minWindMph'),
-  bound('maxwind', 'maxWindMph'),
-  bound('mingust', 'minGustMph'),
-  bound('maxgust', 'maxGustMph'),
+  // The Wind row's ceiling, which limits the strongest gust since #584 (TJ):
+  // the name reads as the control, as `maxaqi` does, so a link written before
+  // the change opens with its number in the same box, now read against the
+  // gust rather than the windiest sustained hour.
+  bound('maxwind', 'maxWindGustMph'),
   bound('minfreeze', 'minFreezeFt'),
   bound('maxfreeze', 'maxFreezeFt'),
   bound('minsnowfall', 'minSnowfallTotalIn'),
@@ -694,8 +696,8 @@ export const FIELD_PARAMS = {
   rowKeys: ['sort', ...RANKED_FAMILIES],
   constraints: [
     'minprecip', 'maxprecip', 'mintemp', 'maxtemp', 'minwind', 'maxwind',
-    'mingust', 'maxgust', 'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall',
-    'minaqi', 'maxaqi', 'minclouddeck', 'maxclouddeck',
+    'minfreeze', 'maxfreeze', 'minsnowfall', 'maxsnowfall', 'minaqi', 'maxaqi',
+    'minclouddeck', 'maxclouddeck',
   ],
   limit: ['limit'],
   customCsv: ['customz'],

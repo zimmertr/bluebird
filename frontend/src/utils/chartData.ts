@@ -14,7 +14,6 @@ export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
   precip: 'precip_in',
   temp: 'temp_f',
   wind: 'wind_mph',
-  gust: 'gust_mph',
   freeze: 'freeze_ft',
   snowfall: 'snowfall_in',
   aqi: 'aqi',
@@ -25,10 +24,9 @@ export const SERIES_FIELD: Record<ChartMetric, keyof HourlySeries> = {
 // hourly series, so a point is that hour's own value rather than anything
 // reduced over the window. The cloud deck comes last (#117, #670): it is the
 // one a report carries only when it was asked for it, so an option that can
-// draw nothing sits under every option that always draws. The wind gust sits
-// beside the wind (#584), the quantity a reader compares it with.
+// draw nothing sits under every option that always draws.
 export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
-  ['precip', 'temp', 'wind', 'gust', 'freeze', 'snowfall', 'aqi', 'cloud_deck'] as const
+  ['precip', 'temp', 'wind', 'freeze', 'snowfall', 'aqi', 'cloud_deck'] as const
 ).map((key) => ({ key, label: metricLabel(key) }))
 
 // The chart opens on whatever metric the results were ranked by.
@@ -36,8 +34,102 @@ export const CHART_METRICS: { key: ChartMetric; label: string }[] = (
 // Read off the ranking key's own family rather than matched against a list of
 // keys: since #291 a family has three or four rankable keys, and a list
 // naming one of them each opened the precipitation chart for the other two.
+// A gust ranking opens the wind, which draws the gust beside every line.
 export function metricForSort(sortBy: SortBy): ChartMetric {
   return familyOf(sortBy)
+}
+
+/**
+ * The hourly series one hour of a ranking key is read from: its family's,
+ * except the wind's gust, which is a series of its own (#584). Map playback
+ * reads it, so a marker under a gust ranking plays the hour's gust rather than
+ * the hour's sustained wind.
+ */
+export function seriesFieldFor(sortBy: SortBy): keyof HourlySeries {
+  return sortBy === 'wind_gust_mph' ? 'wind_gust_mph' : SERIES_FIELD[familyOf(sortBy)]
+}
+
+/**
+ * The gust's dashed line beside each wind line (TJ, #584): the same colour as
+ * its destination's (or its compared model's) wind, so the pair reads as one
+ * place, and listed directly after it, which is the order the tooltip keeps.
+ * The wind is the only metric that draws one; every other returns its lines
+ * untouched.
+ *
+ * Here rather than in the component because the node-env suite cannot render
+ * the chart, so a pairing decided inside it would be untestable.
+ */
+export function withGustLines(lines: readonly ChartLine[], metric: ChartMetric): readonly ChartLine[] {
+  if (metric !== 'wind') return lines
+  return lines.flatMap((line) => [
+    line,
+    {
+      ...line,
+      key: gustLineKey(line.key),
+      label: gustLineLabel(line.label),
+      field: 'wind_gust_mph' as const,
+      dashed: true,
+      parentKey: line.key,
+    },
+  ])
+}
+
+/**
+ * The key a line is focused, dimmed and ordered by: its wind line's for a gust
+ * line, its own for every other.
+ */
+export function lineGroup(line: ChartLine): string {
+  return line.parentKey ?? line.key
+}
+
+/** One line's value at the hovered hour, as the tooltip lists it. */
+export interface TooltipEntry {
+  key: string
+  value: number
+  line: ChartLine
+}
+
+/**
+ * The tooltip's rows: the focused line first, the rest by nearness to the
+ * cursor (or highest first with no cursor), and a gust row directly under its
+ * own wind line's, wherever that lands (#584). Ordered by the wind line's
+ * value, or the gust's when the wind has none at that hour.
+ */
+export function orderTooltipItems(
+  items: readonly TooltipEntry[],
+  focusedKey: string | null,
+  cursorValue: number | null,
+): TooltipEntry[] {
+  const groups = new Map<string, TooltipEntry[]>()
+  for (const it of items) {
+    const group = lineGroup(it.line)
+    const members = groups.get(group)
+    if (members) members.push(it)
+    else groups.set(group, [it])
+  }
+  const lead = (members: TooltipEntry[]) =>
+    members.find((m) => m.line.parentKey == null) ?? members[0]
+  const ordered = [...groups.entries()].sort(([ka, a], [kb, b]) => {
+    if (ka === focusedKey) return -1
+    if (kb === focusedKey) return 1
+    const va = lead(a).value
+    const vb = lead(b).value
+    if (cursorValue == null) return vb - va
+    return Math.abs(va - cursorValue) - Math.abs(vb - cursorValue)
+  })
+  return ordered.flatMap(([, members]) =>
+    [...members].sort((a, b) => Number(a.line.parentKey != null) - Number(b.line.parentKey != null)),
+  )
+}
+
+/** A gust line's Recharts key: its wind line's, which no other key ends like. */
+export function gustLineKey(key: string): string {
+  return `${key}|gust`
+}
+
+/** A gust line's name in the tooltip: `Mount Rainier (gust)`. */
+export function gustLineLabel(label: string): string {
+  return `${label} (gust)`
 }
 
 // Coordinate-based identity: it survives the table's client-side re-sorting and
@@ -135,7 +227,7 @@ export function alignRowToGrid(row: DestinationResult, times: number[]): Destina
       precip_in: remap(row.series.precip_in),
       temp_f: remap(row.series.temp_f),
       wind_mph: remap(row.series.wind_mph),
-      gust_mph: remap(row.series.gust_mph),
+      wind_gust_mph: remap(row.series.wind_gust_mph),
       freeze_ft: remap(row.series.freeze_ft),
       snowfall_in: remap(row.series.snowfall_in),
       aqi: remap(row.series.aqi),
@@ -192,13 +284,26 @@ export interface ChartLine extends SeriesHolder {
   key: string
   label: string
   /**
-   * Every line is solid and colour is the only channel it carries, so every
-   * line has one no other line is wearing. With no comparison up that is the
+   * Colour is the only channel a line carries, so every line has one no other
+   * line is wearing; the one exception is a gust line, which wears its wind
+   * line's colour dashed (`withGustLines`), because the two are one place. With no comparison up that is the
    * destination's colour; under one the ranking model's lines keep it and
    * every other (destination, model) pair takes its own from the session
    * allocator (`allocateColors` in `chartColors.ts`).
    */
   color: string
+  /**
+   * The series this line reads when it is not its metric's own: the gust
+   * line under the wind (#584). Absent on every other line.
+   */
+  field?: keyof HourlySeries
+  /** Drawn dashed: the gust beside its wind line, and nothing else. */
+  dashed?: boolean
+  /**
+   * The line this one belongs to, so hovering either dims and lifts the pair
+   * together and the tooltip lists one directly under the other.
+   */
+  parentKey?: string
 }
 
 /**
@@ -238,8 +343,12 @@ export function modelSuffix(modelLabel: string): string {
   return ` (${modelLabel})`
 }
 
-export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): number | null {
-  const arr = row.series ? row.series[SERIES_FIELD[metric]] : undefined
+export function valueAt(
+  row: SeriesHolder & { field?: keyof HourlySeries },
+  metric: ChartMetric,
+  i: number,
+): number | null {
+  const arr = row.series ? row.series[row.field ?? SERIES_FIELD[metric]] : undefined
   const v = arr ? arr[i] : null
   return v == null ? null : v
 }
@@ -369,13 +478,13 @@ export function buildChartData(
 // keeps the tallest line off the frame. The same [min,max] drives the hover
 // pixel→value inversion, so the focus math matches the rendered axis exactly.
 export function computeYDomain(
-  rows: readonly SeriesHolder[],
+  rows: readonly (SeriesHolder & { field?: keyof HourlySeries })[],
   metric: ChartMetric,
 ): [number, number] {
   let min = Infinity
   let max = -Infinity
   for (const row of rows) {
-    const arr = row.series ? row.series[SERIES_FIELD[metric]] : undefined
+    const arr = row.series ? row.series[row.field ?? SERIES_FIELD[metric]] : undefined
     if (!arr) continue
     for (const v of arr) {
       if (v == null) continue

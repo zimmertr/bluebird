@@ -16,6 +16,7 @@ import {
   type GridSpec,
 } from './forecastGridLattice'
 import { NO_VALUE, fillColor } from './resultFeatures'
+import { markerColor } from './colors'
 import type { AqiResult, CloudResult, WeatherResult } from './openMeteo'
 import { forecastModel, gridRow, weatherResult } from '../testSupport/fixtures'
 
@@ -343,9 +344,7 @@ describe('pairCells', () => {
       freeze_min_ft: 9000,
       freeze_max_ft: 9500,
       freeze_avg_ft: 9250,
-      gust_min_mph: 12,
-      gust_max_mph: 20,
-      gust_avg_mph: 16,
+      wind_gust_mph: 20,
       series: {
         times: [1000, 2000],
         precip_in: precip,
@@ -353,7 +352,7 @@ describe('pairCells', () => {
         wind_mph: [1, 9],
         freeze_ft: [9000, 9500],
         snowfall_in: [0, 0],
-        gust_mph: [12, 20],
+        wind_gust_mph: [12, 20],
         wind_dir_deg: [90, 270],
       },
     })
@@ -422,25 +421,24 @@ describe('pairCells', () => {
   })
 
   // The gust rides the same one request (#584), so a gust ranking paints too,
-  // and JMA, which answers it with a column of nulls, paints nothing.
+  // on the gust's own scale and, in playback, the hour's own gust; JMA, which
+  // answers it with a column of nulls, paints nothing.
   it('carries the gust onto the lattice, and paints nothing where it is absent', () => {
     const cells = pairCells(spec, [0, 1], [wx([0.1, 0.2]), null], noAqi, [1000, 2000])
-    expect(cells[0].row.gust_max_mph).toBe(20)
-    expect(cells[0].row.series!.gust_mph).toEqual([12, 20])
-    expect(fillColor(cells[0].row, 'gust_max_mph', null)).not.toBe(NO_VALUE)
-    expect(fillColor(cells[0].row, 'gust_max_mph', 1)).not.toBe(NO_VALUE)
+    expect(cells[0].row.wind_gust_mph).toBe(20)
+    expect(cells[0].row.series!.wind_gust_mph).toEqual([12, 20])
+    expect(fillColor(cells[0].row, 'wind_gust_mph', null)).toBe(markerColor(20, 'wind_gust_mph'))
+    expect(fillColor(cells[0].row, 'wind_gust_mph', 0)).toBe(markerColor(12, 'wind_gust_mph'))
 
     const base = wx([0, 0])!
     const empty: WeatherResult = {
       ...base,
-      gust_min_mph: null,
-      gust_max_mph: null,
-      gust_avg_mph: null,
-      series: { ...base.series!, gust_mph: [null, null] },
+      wind_gust_mph: null,
+      series: { ...base.series!, wind_gust_mph: [null, null] },
     }
     const blank = pairCells(spec, [0], [empty], [null], [1000, 2000])
-    expect(fillColor(blank[0].row, 'gust_max_mph', null)).toBe(NO_VALUE)
-    expect(fillColor(blank[0].row, 'gust_max_mph', 1)).toBe(NO_VALUE)
+    expect(fillColor(blank[0].row, 'wind_gust_mph', null)).toBe(NO_VALUE)
+    expect(fillColor(blank[0].row, 'wind_gust_mph', 1)).toBe(NO_VALUE)
   })
 
   it('leaves no stale series_times on an aligned sample', () => {

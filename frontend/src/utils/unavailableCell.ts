@@ -23,12 +23,14 @@
 import { FAMILY_KEYS } from '../metrics'
 
 /**
- * The columns this module speaks for, read off the families' own key lists so
- * a new aggregate could never be added in one place and missed here.
+ * The columns this module speaks for, read off the freezing level's own key
+ * list so a new aggregate could never be added in one place and missed here.
+ * The gust is one column of the wind's, named on its own because the wind's
+ * other three always have a number (#584).
  */
 const UNAVAILABLE_KEYS: ReadonlySet<string> = new Set<string>([
   ...FAMILY_KEYS.freeze,
-  ...FAMILY_KEYS.gust,
+  'wind_gust_mph',
 ])
 
 export function isUnavailableKey(key: string): boolean {

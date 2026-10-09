@@ -4,15 +4,14 @@ import { COLUMNS } from './tableColumns'
 import { FAMILY_KEYS } from '../metrics'
 
 describe('isUnavailableKey', () => {
-  // Two metrics can be empty for a reason that is not the weather: the model
-  // publishes no freezing level, or no gust (JMA, #584). Snow depth was the
-  // other until #678, and snowfall is a forecast like any other, whose gap is
-  // a dash.
+  // Two can be empty for a reason that is not the weather: the model publishes
+  // no freezing level, or no gust (JMA, #584). Snow depth was another until
+  // #678, and snowfall is a forecast like any other, whose gap is a dash.
   it('answers for those columns and nothing else', () => {
-    for (const key of [...FAMILY_KEYS.freeze, ...FAMILY_KEYS.gust]) {
+    for (const key of [...FAMILY_KEYS.freeze, 'wind_gust_mph']) {
       expect(isUnavailableKey(key)).toBe(true)
     }
-    const marked = new Set<string>([...FAMILY_KEYS.freeze, ...FAMILY_KEYS.gust])
+    const marked = new Set<string>([...FAMILY_KEYS.freeze, 'wind_gust_mph'])
     for (const col of COLUMNS) {
       if (marked.has(col.key as string)) continue
       expect(isUnavailableKey(col.key as string), `${String(col.key)} reads as unavailable`).toBe(
@@ -25,9 +24,10 @@ describe('isUnavailableKey', () => {
   })
 
   // Read off the family's own key list, so an aggregate added to it
-  // cannot be marked in the table and missed here.
+  // cannot be marked in the table and missed here; the gust is the one wind
+  // column named beside it.
   it('is derived from the family key lists rather than a second list', () => {
-    const fromFamilies = [...FAMILY_KEYS.freeze, ...FAMILY_KEYS.gust]
+    const fromFamilies = [...FAMILY_KEYS.freeze, 'wind_gust_mph']
     expect(COLUMNS.filter((c) => isUnavailableKey(c.key as string)).map((c) => c.key).sort()).toEqual(
       [...fromFamilies].sort(),
     )

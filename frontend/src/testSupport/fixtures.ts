@@ -74,7 +74,7 @@ export function series(over: Partial<HourlySeries> = {}): HourlySeries {
     wind_mph: [],
     freeze_ft: [],
     snowfall_in: [],
-    gust_mph: [],
+    wind_gust_mph: [],
     aqi: [],
     ...over,
   }
@@ -103,9 +103,7 @@ export function resultRow(over: Partial<DestinationResult> = {}): DestinationRes
     wind_min_mph: 0,
     wind_max_mph: 0,
     wind_avg_mph: 0,
-    gust_min_mph: null,
-    gust_max_mph: null,
-    gust_avg_mph: null,
+    wind_gust_mph: null,
     freeze_min_ft: null,
     freeze_max_ft: null,
     freeze_avg_ft: null,
@@ -182,9 +180,7 @@ export function weatherResult(over: Partial<PresentWeather> = {}): PresentWeathe
     snowfall_avg_in_hr: null,
     snowfall_min_in_hr: null,
     snowfall_max_in_hr: null,
-    gust_min_mph: null,
-    gust_max_mph: null,
-    gust_avg_mph: null,
+    wind_gust_mph: null,
     series: null,
     ...over,
   }
@@ -203,7 +199,7 @@ export function fetchedSeries(over: Partial<WeatherSeries> = {}): WeatherSeries 
     wind_mph: [],
     freeze_ft: [],
     snowfall_in: [],
-    gust_mph: [],
+    wind_gust_mph: [],
     ...over,
   }
 }

@@ -34,8 +34,8 @@ interface Summit {
   precip: number
   temp: [number, number]
   wind: [number, number]
-  /** The 10 m gust, calmest and gustiest hour: above the wind it rides on. */
-  gust: [number, number]
+  /** The window's strongest 10 m gust, above the wind it rides on (#584). */
+  gust: number
   aqi: [number, number]
   /** The freezing level over the window, in feet, lowest and highest hour. */
   freeze: [number, number]
@@ -50,11 +50,11 @@ interface Summit {
 }
 
 const SUMMITS: Summit[] = [
-  { name: 'Mount Baker', latitude: 48.7768, longitude: -121.8144, elevation_ft: 10781, precip: 0, temp: [21, 34], wind: [12, 26], gust: [18, 38], aqi: [18, 24], freeze: [9800, 11400], snowfall: 0, deck: [CLOUD_DECK_CEILING_FT, CLOUD_DECK_CEILING_FT] },
-  { name: 'Glacier Peak', latitude: 48.1125, longitude: -121.1138, elevation_ft: 10541, precip: 0.02, temp: [24, 36], wind: [10, 22], gust: [15, 31], aqi: [22, 31], freeze: [10000, 11600], snowfall: 0.2, deck: [12500, 18000] },
-  { name: 'Mount Stuart', latitude: 47.4751, longitude: -120.9026, elevation_ft: 9415, precip: 0, temp: [31, 47], wind: [8, 15], gust: [12, 23], aqi: [35, 52], freeze: [10400, 12000], snowfall: 0, deck: [24000, 28500] },
-  { name: 'Mount Adams', latitude: 46.2024, longitude: -121.4909, elevation_ft: 12281, precip: 0.11, temp: [19, 30], wind: [18, 34], gust: [26, 49], aqi: [58, 96], freeze: [9600, 11200], snowfall: 1.1, deck: [6200, 9800] },
-  { name: 'Mount St. Helens', latitude: 46.1914, longitude: -122.1956, elevation_ft: 8363, precip: 0.24, temp: [33, 44], wind: [14, 29], gust: [21, 40], aqi: [71, 118], freeze: [9900, 11500], snowfall: 0.6, deck: [4100, 7400] },
+  { name: 'Mount Baker', latitude: 48.7768, longitude: -121.8144, elevation_ft: 10781, precip: 0, temp: [21, 34], wind: [12, 26], gust: 38, aqi: [18, 24], freeze: [9800, 11400], snowfall: 0, deck: [CLOUD_DECK_CEILING_FT, CLOUD_DECK_CEILING_FT] },
+  { name: 'Glacier Peak', latitude: 48.1125, longitude: -121.1138, elevation_ft: 10541, precip: 0.02, temp: [24, 36], wind: [10, 22], gust: 31, aqi: [22, 31], freeze: [10000, 11600], snowfall: 0.2, deck: [12500, 18000] },
+  { name: 'Mount Stuart', latitude: 47.4751, longitude: -120.9026, elevation_ft: 9415, precip: 0, temp: [31, 47], wind: [8, 15], gust: 23, aqi: [35, 52], freeze: [10400, 12000], snowfall: 0, deck: [24000, 28500] },
+  { name: 'Mount Adams', latitude: 46.2024, longitude: -121.4909, elevation_ft: 12281, precip: 0.11, temp: [19, 30], wind: [18, 34], gust: 49, aqi: [58, 96], freeze: [9600, 11200], snowfall: 1.1, deck: [6200, 9800] },
+  { name: 'Mount St. Helens', latitude: 46.1914, longitude: -122.1956, elevation_ft: 8363, precip: 0.24, temp: [33, 44], wind: [14, 29], gust: 40, aqi: [71, 118], freeze: [9900, 11500], snowfall: 0.6, deck: [4100, 7400] },
 ]
 
 export function demoReport(now = Date.now()): DemoReport {
@@ -70,7 +70,9 @@ export function demoReport(now = Date.now()): DemoReport {
   const universe = SUMMITS.map((s) => {
     const temp = ramp(s.temp[0], s.temp[1])
     const wind = ramp(s.wind[0], s.wind[1])
-    const gust = ramp(s.gust[0], s.gust[1])
+    // From the calmest sustained hour up to the strongest gust, so every hour
+    // of the gust stands at or above the wind it rides on.
+    const gust = ramp(s.wind[0], s.gust)
     const aqi = ramp(s.aqi[0], s.aqi[1])
     const perHour = s.precip / HOURS
     const snowPerHour = s.snowfall / HOURS
@@ -89,9 +91,7 @@ export function demoReport(now = Date.now()): DemoReport {
       wind_min_mph: s.wind[0],
       wind_max_mph: s.wind[1],
       wind_avg_mph: Math.round(((s.wind[0] + s.wind[1]) / 2) * 10) / 10,
-      gust_min_mph: s.gust[0],
-      gust_max_mph: s.gust[1],
-      gust_avg_mph: Math.round(((s.gust[0] + s.gust[1]) / 2) * 10) / 10,
+      wind_gust_mph: s.gust,
       aqi_min: s.aqi[0],
       aqi_max: s.aqi[1],
       aqi_avg: Math.round((s.aqi[0] + s.aqi[1]) / 2),
@@ -112,7 +112,7 @@ export function demoReport(now = Date.now()): DemoReport {
         precip_in: times.map((_, i) => (i % 4 === 3 ? Math.round(perHour * 4 * 1000) / 1000 : 0)),
         temp_f: temp,
         wind_mph: wind,
-        gust_mph: gust,
+        wind_gust_mph: gust,
         freeze_ft: ramp(s.freeze[0], s.freeze[1]).map(Math.round),
         snowfall_in: times.map((_, i) => (i % 4 === 3 ? Math.round(snowPerHour * 4 * 1000) / 1000 : 0)),
         cloud_deck_ft: ramp(s.deck[0], s.deck[1]).map(Math.round),

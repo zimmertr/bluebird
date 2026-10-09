@@ -81,7 +81,8 @@ describe('resultsFeatureCollection', () => {
         freeze_ft: [9000, 9200, null],
         // A dusting, then a dump, then a gap the model left blank.
         snowfall_in: [0.1, 2.5, null],
-        gust_mph: [8, 41, null],
+        // Gusts that outrun the sustained wind in the first hour.
+        wind_gust_mph: [40, 30, null],
         aqi: [40, null, 45],
         wind_dir_deg: [0, 90, null],
       },
@@ -108,6 +109,18 @@ describe('resultsFeatureCollection', () => {
     )
   })
 
+  // A gust ranking plays the hour's gust, not the hour's sustained wind, and
+  // reads it on the gust's own scale (#584): 40 mph of gust is orange there,
+  // where 3 mph of wind in the same hour would be green.
+  it('plays the hour of the gust under a gust ranking', () => {
+    const gust = resultsFeatureCollection([hourly()], 'wind_gust_mph', true, 0).features[0]
+    const wind = resultsFeatureCollection([hourly()], 'wind_max_mph', true, 0).features[0]
+    expect(gust.properties!.color).toBe(markerColor(40, 'wind_gust_mph'))
+    expect(gust.properties!.color).not.toBe(wind.properties!.color)
+    const gap = resultsFeatureCollection([hourly()], 'wind_gust_mph', true, 2).features[0]
+    expect(gap.properties!.color).toBe('#64748b')
+  })
+
   it('greys an hour with no value rather than scoring it as zero', () => {
     const props = resultsFeatureCollection([hourly()], 'aqi_avg', true, 1).features[0].properties!
     expect(props.color).toBe('#64748b')
@@ -129,7 +142,7 @@ describe('resultsFeatureCollection', () => {
     const serverRow = resultsFeatureCollection(
       [
         hourly({
-          series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], snowfall_in: [0], gust_mph: [6], aqi: [40] },
+          series: { precip_in: [0], temp_f: [50], wind_mph: [3], freeze_ft: [9000], snowfall_in: [0], wind_gust_mph: [6], aqi: [40] },
         }),
       ],
       'wind_avg_mph',
@@ -196,8 +209,7 @@ describe('windArrowsShowing', () => {
   // publishes no gust direction of its own, so a gust ranking shows the same
   // 10 m arrows (#584).
   it('draws arrows under a gust ranking too', () => {
-    expect(windArrowsShowing('gust_max_mph', 3)).toBe(true)
-    expect(windArrowsShowing('gust_min_mph', 0)).toBe(true)
-    expect(windArrowsShowing('gust_avg_mph', null)).toBe(false)
+    expect(windArrowsShowing('wind_gust_mph', 3)).toBe(true)
+    expect(windArrowsShowing('wind_gust_mph', null)).toBe(false)
   })
 })

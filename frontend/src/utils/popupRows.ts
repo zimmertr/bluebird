@@ -1,5 +1,14 @@
 import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../metrics'
+import {
+  AGGREGATE,
+  MetricFamily,
+  UNIT,
+  WIND_GUST,
+  aggregateToken,
+  familyOf,
+  metricLabel,
+  windowAggregate,
+} from '../metrics'
 import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
@@ -117,6 +126,23 @@ function groupUnit(cols: ColDef[]): string | null {
 }
 
 /**
+ * The wind's gust as a group of its own (TJ, #584): a line labelled
+ * `Wind gust (mph)` straight after `Wind (mph)`, where the A to Z sort puts
+ * it, with its one number in the Max column, because the window's strongest
+ * gust is a maximum. Its own line rather than a fifth cell on the wind's,
+ * because the grid has one Max column and the wind already fills it.
+ */
+const GUST_KEY = 'wind_gust_mph'
+const GUST_BUCKET = 'wind_gust'
+const GUST_LABEL = `${WIND_GUST} (${UNIT.wind})`
+
+/** The group a ranking key's cell sits in: its family's, or the gust's own. */
+function bucketOf(key: string): string {
+  if (key === GUST_KEY) return GUST_BUCKET
+  return LEAD_KEYS.has(key) ? key : familyOf(key)
+}
+
+/**
  * The popup's groups, alphabetical by label.
  *
  * Which families appear follows the table's columns, but not their order: the
@@ -157,19 +183,25 @@ export function popupGroups(
       key === MODEL_KEY
     )
       continue
-    const bucket = LEAD_KEYS.has(key) ? key : familyOf(key)
+    const bucket = bucketOf(key)
     groups.set(bucket, [...(groups.get(bucket) ?? []), col])
   }
 
   const rowModel = (row as ModelRow).modelId ?? context.modelId
-  const rankedFamily = context.rankedBy ? familyOf(context.rankedBy) : null
+  const rankedBucket = context.rankedBy ? bucketOf(context.rankedBy) : null
+  // The gust's one number spreads to the Max column like any other family's
+  // aggregates, unless every other family is one number too (a Current
+  // lookup), where there are no columns to put it in.
+  const othersSingle = [...groups].every(([b, cols]) => b === GUST_BUCKET || cols.length === 1)
   const out: PopupGroup[] = []
   for (const [bucket, cols] of groups) {
+    const gust = bucket === GUST_BUCKET
+    const single = gust ? othersSingle : cols.length === 1
     const shared = groupUnit(cols)
     const values: PopupValue[] = cols.map((col) => {
       const { text, linkable } = cellText(col, row)
       return {
-        aggregate: cols.length > 1 ? windowAggregate(col.key as SortBy) : null,
+        aggregate: single ? null : gust ? AGGREGATE.maximum : windowAggregate(col.key as SortBy),
         text,
         // A mixed group's unit rides on the value, because the heading cannot.
         unit: shared === null && col.unit ? col.unit : null,
@@ -191,17 +223,20 @@ export function popupGroups(
         // whole: a Current lookup collapses every family to its Avg column,
         // so a ranking on Max has no cell of its own there, and its one
         // number is the one the ranking read.
-        ranked: col.key === context.rankedBy || (cols.length === 1 && bucket === rankedFamily),
+        // A gust ranking marks the gust's line alone, never the wind's.
+        ranked: col.key === context.rankedBy || (cols.length === 1 && bucket === rankedBucket),
       }
     })
     // One value keeps the column's own label, which already names the metric,
     // the aggregate where there is one, and the unit — so a report narrowed to
-    // a single aggregate reads the same words as the header it came from.
-    const single = cols.length === 1
+    // a single aggregate reads the same words as the header it came from. The
+    // gust reads its own label either way.
     out.push({
-      label: single
-        ? cols[0].label
-        : metricLabel(bucket as MetricFamily, undefined, shared ?? ''),
+      label: gust
+        ? GUST_LABEL
+        : single
+          ? cols[0].label
+          : metricLabel(bucket as MetricFamily, undefined, shared ?? ''),
       values,
       single,
     })

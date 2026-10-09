@@ -7,8 +7,13 @@
 import type { AnalyzeRequest, DestinationResult } from '../types'
 
 /**
- * The forecast bounds an analysis is narrowed by, mirroring the sixteen optional
- * fields on `AnalyzeRequest`.
+ * The forecast bounds an analysis is narrowed by, mirroring fourteen of the
+ * optional fields on `AnalyzeRequest`.
+ *
+ * The wind's ceiling is the GUST's (TJ, #584): the panel's Wind row limits the
+ * strongest gust, so this shape carries `maxWindGustMph` where it carried
+ * `maxWindMph`, and the request's sustained `max_wind_mph` stays an API
+ * caller's alone. Its floor is still the calmest sustained hour.
  *
  * Elevation is deliberately NOT in here, and the app sends no elevation bound
  * at all. It is the one bound known before any forecast exists, so it gates
@@ -23,9 +28,7 @@ export interface Constraints {
   minTempF: number | null
   maxTempF: number | null
   minWindMph: number | null
-  maxWindMph: number | null
-  minGustMph: number | null
-  maxGustMph: number | null
+  maxWindGustMph: number | null
   minFreezeFt: number | null
   maxFreezeFt: number | null
   minSnowfallTotalIn: number | null
@@ -42,9 +45,7 @@ export const NO_CONSTRAINTS: Constraints = {
   minTempF: null,
   maxTempF: null,
   minWindMph: null,
-  maxWindMph: null,
-  minGustMph: null,
-  maxGustMph: null,
+  maxWindGustMph: null,
   minFreezeFt: null,
   maxFreezeFt: null,
   minSnowfallTotalIn: null,
@@ -61,8 +62,10 @@ export const NO_CONSTRAINTS: Constraints = {
 //
 // A ceiling reads the window's worst hour and a floor its best, so a bound is
 // a promise about every hour rather than about an average that can hide a bad
-// afternoon: a 30 mph gust ceiling admits no destination that gusts to 45 at
-// noon.
+// afternoon: a 30 mph ceiling admits no destination that gusts to 45 at noon.
+// The wind's ceiling reads the strongest gust rather than the windiest
+// sustained hour (TJ, #584), because the gust is what a ceiling on the wind is
+// set against, and its floor still reads the calmest sustained hour.
 // The freezing level reads the same way, in the one family where neither end
 // is the bad one: its floor asks that the level never dropped below the value
 // and its ceiling that it never rose above it.
@@ -74,7 +77,6 @@ const LOWER_BOUNDS = [
   ['minPrecipTotalIn', 'precip_total_in'],
   ['minTempF', 'temp_min_f'],
   ['minWindMph', 'wind_min_mph'],
-  ['minGustMph', 'gust_min_mph'],
   ['minFreezeFt', 'freeze_min_ft'],
   ['minSnowfallTotalIn', 'snowfall_total_in'],
   ['minAqi', 'aqi_max'],
@@ -84,8 +86,7 @@ const LOWER_BOUNDS = [
 const UPPER_BOUNDS = [
   ['maxPrecipTotalIn', 'precip_total_in'],
   ['maxTempF', 'temp_max_f'],
-  ['maxWindMph', 'wind_max_mph'],
-  ['maxGustMph', 'gust_max_mph'],
+  ['maxWindGustMph', 'wind_gust_mph'],
   ['maxFreezeFt', 'freeze_max_ft'],
   ['maxSnowfallTotalIn', 'snowfall_total_in'],
   ['maxAqi', 'aqi_max'],
@@ -105,9 +106,7 @@ export function constraintsFromRequest(request: AnalyzeRequest): Constraints {
     minTempF: request.min_temp_f ?? null,
     maxTempF: request.max_temp_f ?? null,
     minWindMph: request.min_wind_mph ?? null,
-    maxWindMph: request.max_wind_mph ?? null,
-    minGustMph: request.min_gust_mph ?? null,
-    maxGustMph: request.max_gust_mph ?? null,
+    maxWindGustMph: request.max_wind_gust_mph ?? null,
     minFreezeFt: request.min_freeze_ft ?? null,
     maxFreezeFt: request.max_freeze_ft ?? null,
     minSnowfallTotalIn: request.min_snowfall_total_in ?? null,
@@ -127,9 +126,7 @@ export function constraintFields(c: Constraints) {
     min_temp_f: c.minTempF,
     max_temp_f: c.maxTempF,
     min_wind_mph: c.minWindMph,
-    max_wind_mph: c.maxWindMph,
-    min_gust_mph: c.minGustMph,
-    max_gust_mph: c.maxGustMph,
+    max_wind_gust_mph: c.maxWindGustMph,
     min_freeze_ft: c.minFreezeFt,
     max_freeze_ft: c.maxFreezeFt,
     min_snowfall_total_in: c.minSnowfallTotalIn,

@@ -24,10 +24,8 @@ export type SortBy =
   | 'wind_min_mph'
   | 'wind_avg_mph'
   | 'wind_max_mph'
-  // The 10 m gust (#584), a family of its own beside the wind.
-  | 'gust_min_mph'
-  | 'gust_avg_mph'
-  | 'gust_max_mph'
+  // The window's strongest 10 m gust (#584), one more wind aggregate.
+  | 'wind_gust_mph'
   | 'temp_min_f'
   | 'temp_avg_f'
   | 'temp_max_f'
@@ -92,8 +90,9 @@ export interface AnalyzeRequest {
   // limit cut. A ceiling compares the window's worst hour and a floor its best,
   // so a bound holds for every hour rather than for an average; precipitation
   // and AQI have no minimum aggregate, so both of their bounds compare
-  // precip_total_in and aqi_max respectively. A null AQI, freezing level or
-  // gust passes either bound.
+  // precip_total_in and aqi_max respectively. The gust has a ceiling alone,
+  // its one aggregate being the window's strongest gust (#584). A null AQI,
+  // freezing level or gust passes every bound.
   //
   // Sent only on the SSE fallback path. The browser path holds the whole field
   // and applies these live through utils/present.ts, which is what makes them
@@ -104,8 +103,7 @@ export interface AnalyzeRequest {
   max_temp_f?: number | null
   min_wind_mph?: number | null
   max_wind_mph?: number | null
-  min_gust_mph?: number | null
-  max_gust_mph?: number | null
+  max_wind_gust_mph?: number | null
   min_freeze_ft?: number | null
   max_freeze_ft?: number | null
   min_snowfall_total_in?: number | null
@@ -160,7 +158,7 @@ export interface HourlySeries {
   snowfall_in: (number | null)[]
   // Miles per hour, the 10 m gust (#584). All null for the one forecast model
   // that publishes no gust.
-  gust_mph: (number | null)[]
+  wind_gust_mph: (number | null)[]
   aqi: (number | null)[]
   // Feet above sea level (#670). Absent when the cloud request answered
   // nothing for the row; every analysis asks it (#683).
@@ -190,14 +188,12 @@ export interface DestinationResult {
   wind_min_mph: number
   wind_max_mph: number
   wind_avg_mph: number
-  // The strongest gust in each hour, 10 m above the ground, reduced over the
-  // window (#584). Not adjusted to elevation_ft as the wind is, because no
-  // model publishes a gust above the surface. Null for every row of JMA,
-  // which publishes none; reduced apart from the numbers above, so a null
-  // here says nothing about them.
-  gust_min_mph: number | null
-  gust_max_mph: number | null
-  gust_avg_mph: number | null
+  // The strongest 10 m gust in the window (#584). Not adjusted to
+  // elevation_ft as the other three are, because no model publishes a gust
+  // above the surface. Null for every row of JMA, which publishes none;
+  // reduced apart from the numbers above, so a null here says nothing about
+  // them.
+  wind_gust_mph: number | null
   // Freezing level in feet above sea level, read against elevation_ft: below
   // the destination means the destination itself was below freezing that
   // hour, and 0 means the freezing level reached sea level. Null for every

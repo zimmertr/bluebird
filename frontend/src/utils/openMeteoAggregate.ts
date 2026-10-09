@@ -120,11 +120,11 @@ export interface WeatherAggregates {
   snowfall_avg_in_hr: number | null
   snowfall_min_in_hr: number | null
   snowfall_max_in_hr: number | null
-  // Nullable for the freezing level's reason: JMA publishes no gust (#584),
-  // and a row from it still carries every other figure.
-  gust_min_mph: number | null
-  gust_max_mph: number | null
-  gust_avg_mph: number | null
+  // One number, the strongest gust (TJ, #584): a gust is an extreme by
+  // nature, so its least and its mean are numbers nobody plans against.
+  // Nullable for the freezing level's reason: JMA publishes no gust, and a row
+  // from it still carries every other figure.
+  wind_gust_mph: number | null
 }
 
 export interface WeatherSeries {
@@ -134,7 +134,7 @@ export interface WeatherSeries {
   wind_mph: (number | null)[]
   freeze_ft: (number | null)[]
   snowfall_in: (number | null)[]
-  gust_mph: (number | null)[]
+  wind_gust_mph: (number | null)[]
   /**
    * Wind bearing per hour, for the map's playback arrows (#121).
    *
@@ -674,15 +674,8 @@ export function weatherMetrics(
       if (v > sMax) sMax = v
     }
     const snowed = sVals.length > 0
-    let gSum = 0
-    let gMin = Infinity
     let gMax = -Infinity
-    for (const v of gVals) {
-      gSum += v
-      if (v < gMin) gMin = v
-      if (v > gMax) gMax = v
-    }
-    const gusted = gVals.length > 0
+    for (const v of gVals) if (v > gMax) gMax = v
 
     const len = rows.length
     return {
@@ -709,11 +702,9 @@ export function weatherMetrics(
       snowfall_avg_in_hr: snowed ? roundHalfEven(sSum / sVals.length, 4) : null,
       snowfall_min_in_hr: snowed ? roundHalfEven(sMin, 4) : null,
       snowfall_max_in_hr: snowed ? roundHalfEven(sMax, 4) : null,
-      // The wind's one decimal, each null on its own like the freezing
-      // level's, because one model publishes no gust at all.
-      gust_min_mph: gusted ? roundHalfEven(gMin, 1) : null,
-      gust_max_mph: gusted ? roundHalfEven(gMax, 1) : null,
-      gust_avg_mph: gusted ? roundHalfEven(gSum / gVals.length, 1) : null,
+      // The wind's one decimal, null on its own like the freezing level's,
+      // because one model publishes no gust at all.
+      wind_gust_mph: gVals.length > 0 ? roundHalfEven(gMax, 1) : null,
     }
   } catch (e) {
     // A unit nothing can read is not one bad hour to skip past: every number
@@ -783,7 +774,7 @@ export function weatherSeries(
       wind_mph: wOut,
       freeze_ft: fOut,
       snowfall_in: sOut,
-      gust_mph: gOut,
+      wind_gust_mph: gOut,
     }
   } catch (e) {
     // The one failure this function does not absorb, for the reason

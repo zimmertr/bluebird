@@ -79,31 +79,41 @@ describe('MetricsTable', () => {
     const { rerender } = render(<MetricsTable {...props({ setConstraints })} />)
     const ceiling = screen.getByRole('spinbutton', { name: new RegExp(`^${NOUN.wind} ${AGGREGATE.maximum}\\.`) })
     fireEvent.change(ceiling, { target: { value: '20' } })
-    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindMph: 20 })
-    rerender(<MetricsTable {...props({ setConstraints, constraints: { ...NO_CONSTRAINTS, maxWindMph: 20 } })} />)
+    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindGustMph: 20 })
+    rerender(<MetricsTable {...props({ setConstraints, constraints: { ...NO_CONSTRAINTS, maxWindGustMph: 20 } })} />)
     fireEvent.change(ceiling, { target: { value: '' } })
-    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindMph: null })
+    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindGustMph: null })
   })
 
-  // The gust row binds its own pair, and its ceiling names the gust rather
-  // than the wind the row sits under (#584, wording TJ's).
-  it('bounds the gust on its own boxes, apart from the wind', () => {
+  // TJ's call for #584: the Wind row's ceiling limits the strongest gust, its
+  // floor the calmest sustained hour, and each box says which in its name.
+  it('bounds the wind gust from the ceiling and the sustained wind from the floor', () => {
     const setConstraints = vi.fn()
     render(<MetricsTable {...props({ setConstraints })} />)
-    const wind = screen.getByRole('spinbutton', {
-      name: `${NOUN.wind} ${AGGREGATE.maximum}. The windiest hour must be at most this.`,
-    })
-    const floor = screen.getByRole('spinbutton', {
-      name: `${NOUN.gust} ${AGGREGATE.minimum}. The calmest hour must be at least this.`,
-    })
-    const ceiling = screen.getByRole('spinbutton', {
-      name: `${NOUN.gust} ${AGGREGATE.maximum}. The gustiest hour must be at most this.`,
-    })
-    expect(wind).not.toBe(ceiling)
-    fireEvent.change(floor, { target: { value: '10' } })
-    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, minGustMph: 10 })
-    fireEvent.change(ceiling, { target: { value: '45' } })
-    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxGustMph: 45 })
+    fireEvent.change(
+      screen.getByRole('spinbutton', {
+        name: `${NOUN.wind} ${AGGREGATE.maximum}. The gustiest hour must be at most this.`,
+      }),
+      { target: { value: '45' } },
+    )
+    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindGustMph: 45 })
+    fireEvent.change(
+      screen.getByRole('spinbutton', {
+        name: `${NOUN.wind} ${AGGREGATE.minimum}. The calmest hour must be at least this.`,
+      }),
+      { target: { value: '5' } },
+    )
+    expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, minWindMph: 5 })
+  })
+
+  // The dropdown is the family's key list in order, which TJ chose to be
+  // alphabetical by the word each option shows (#584).
+  it('offers the gust among the wind aggregates, alphabetically', () => {
+    render(<MetricsTable {...props()} />)
+    const select = screen.getByRole('combobox', { name: `${NOUN.wind} aggregate` })
+    const options = [...select.querySelectorAll('option')]
+    expect(options.map((o) => o.textContent)).toEqual(['Avg', 'Gust', 'Max', 'Min'])
+    expect(options.map((o) => o.value)).toEqual(['wind_avg_mph', 'wind_gust_mph', 'wind_max_mph', 'wind_min_mph'])
   })
 
   it('clamps the results cap to the published ceiling, and reads empty as the default', () => {

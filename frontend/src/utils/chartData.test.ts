@@ -24,6 +24,11 @@ import {
   rowsBetween,
   selectionState,
   valueAt,
+  gustLineKey,
+  lineGroup,
+  orderTooltipItems,
+  seriesFieldFor,
+  withGustLines,
   TOOLTIP_CHROME_PX,
   TOOLTIP_MAX_ROWS,
   TOOLTIP_MIN_ROWS,
@@ -322,7 +327,7 @@ describe('alignRowToGrid', () => {
         wind_mph: [10, 11],
         freeze_ft: [9000, 9500],
         snowfall_in: [0.2, 0.4],
-        gust_mph: [18, 24],
+        wind_gust_mph: [18, 24],
         aqi: [40, 41],
       }),
       series_times: [2000, 3000],
@@ -332,10 +337,10 @@ describe('alignRowToGrid', () => {
     expect(Object.keys(aligned).sort()).toEqual([
       'aqi',
       'freeze_ft',
-      'gust_mph',
       'precip_in',
       'snowfall_in',
       'temp_f',
+      'wind_gust_mph',
       'wind_mph',
     ])
     for (const field of Object.keys(aligned) as (keyof typeof aligned)[]) {
@@ -345,6 +350,81 @@ describe('alignRowToGrid', () => {
     expect(aligned.freeze_ft).toEqual([null, 9000, 9500])
   })
 
+})
+
+// The wind draws each line's gust beside it, dashed in the same colour (TJ,
+// #584), and no other metric draws one.
+describe('withGustLines', () => {
+  const wind: ChartLine = {
+    key: '1,0',
+    label: 'Mount Baker',
+    color: '#38bdf8',
+    series: seriesOf({ wind_mph: [10, 12], wind_gust_mph: [18, 31] }),
+  }
+  const other: ChartLine = { ...wind, key: '2,0', label: 'Glacier Peak', color: '#f472b6' }
+
+  it('pairs every wind line with a dashed gust in its colour, directly after it', () => {
+    const lines = withGustLines([wind, other], 'wind')
+    expect(lines.map((l) => [l.key, l.label, l.color, l.dashed ?? false])).toEqual([
+      ['1,0', 'Mount Baker', '#38bdf8', false],
+      ['1,0|gust', 'Mount Baker (gust)', '#38bdf8', true],
+      ['2,0', 'Glacier Peak', '#f472b6', false],
+      ['2,0|gust', 'Glacier Peak (gust)', '#f472b6', true],
+    ])
+    expect(lines.map(lineGroup)).toEqual(['1,0', '1,0', '2,0', '2,0'])
+    expect(valueAt(lines[0], 'wind', 1)).toBe(12)
+    expect(valueAt(lines[1], 'wind', 1)).toBe(31)
+  })
+
+  it('draws no gust under any other metric', () => {
+    for (const metric of RANKED_FAMILIES.filter((f) => f !== 'wind')) {
+      const lines = [wind, other]
+      expect(withGustLines(lines, metric)).toBe(lines)
+    }
+  })
+
+  // The y range covers the gust, which runs above the wind it rides on, or
+  // the tallest dashed line would run off the top of the plot.
+  it('stretches the y range to the strongest gust', () => {
+    const [, top] = computeYDomain(withGustLines([wind], 'wind'), 'wind')
+    expect(top).toBeGreaterThanOrEqual(31)
+    expect(computeYDomain([wind], 'wind')[1]).toBeLessThan(31)
+  })
+
+  it('puts a gust in the chart data under its own key', () => {
+    const data = buildChartData([0, 1], withGustLines([wind], 'wind'), 'wind')
+    expect(data[1]).toEqual({ t: 1, '1,0': 12, [gustLineKey('1,0')]: 31 })
+  })
+})
+
+describe('orderTooltipItems', () => {
+  const line = (key: string, parentKey?: string): ChartLine => ({ key, label: key, color: '#000', parentKey })
+  const item = (key: string, value: number, parentKey?: string) => ({ key, value, line: line(key, parentKey) })
+
+  // The gust's row stands directly under its own wind line's, however the
+  // rest are ordered, and the pair moves as one.
+  it('lists each gust directly under its wind line', () => {
+    const items = [item('a', 10), item('a|gust', 30, 'a'), item('b', 20), item('b|gust', 22, 'b')]
+    expect(orderTooltipItems(items, null, null).map((i) => i.key)).toEqual(['b', 'b|gust', 'a', 'a|gust'])
+    expect(orderTooltipItems(items, null, 11).map((i) => i.key)).toEqual(['a', 'a|gust', 'b', 'b|gust'])
+    expect(orderTooltipItems(items, 'b', 11).map((i) => i.key)).toEqual(['b', 'b|gust', 'a', 'a|gust'])
+  })
+
+  it('orders plain lines by nearness as before', () => {
+    const items = [item('a', 10), item('b', 20), item('c', 15)]
+    expect(orderTooltipItems(items, null, 19).map((i) => i.key)).toEqual(['b', 'c', 'a'])
+    expect(orderTooltipItems(items, 'a', 19).map((i) => i.key)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('seriesFieldFor', () => {
+  // Playback reads a gust ranking's hour off the gust's own series (#584).
+  it('reads the gust off its own series and every other key off its family', () => {
+    expect(seriesFieldFor('wind_gust_mph')).toBe('wind_gust_mph')
+    expect(seriesFieldFor('wind_max_mph')).toBe('wind_mph')
+    expect(seriesFieldFor('precip_total_in')).toBe('precip_in')
+    expect(metricForSort('wind_gust_mph')).toBe('wind')
+  })
 })
 
 describe('axisTimeLabel', () => {

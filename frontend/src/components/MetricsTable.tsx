@@ -57,11 +57,12 @@ const EDGES = [
 
 // What each bound box compares, per ranked metric. The box columns are headed
 // with the two aggregate names because for most rows that is literally what
-// they are: the wind, wind gust, temperature and freezing-level rows bound
-// each row's own extremes, so a ceiling of 20 on the wind row holds the
-// table's windiest-hour column at or below 20, and the wind gust row does the
-// same for its own strongest gust (#584). Two cells stretch that reading,
-// deliberately. Precipitation and snowfall are bounded on the window TOTAL in both columns,
+// they are: the temperature and freezing-level rows bound each row's own
+// extremes, and so does the wind's floor. Three cells stretch that reading,
+// deliberately. The wind's ceiling reads the strongest GUST (TJ, #584), so a
+// ceiling of 20 on the wind row holds the table's gust column at or below 20,
+// because the gust is what a reader sets a ceiling on the wind against.
+// Precipitation and snowfall are bounded on the window TOTAL in both columns,
 // because a per-hour floor would be 0.000 almost everywhere and the noun
 // already means the total in its aggregate dropdown. And the air-quality floor reads the
 // worst hour too, there being no other aggregate to read.
@@ -98,18 +99,9 @@ const BOUNDS: Record<
   wind: {
     id: 'wind',
     step: 1,
-    hint: ['The calmest hour must be at least this.', 'The windiest hour must be at most this.'],
-    lower: 'minWindMph',
-    upper: 'maxWindMph',
-  },
-  // The wind's floor sentence, and the "gustiest" ceiling the wind row used to
-  // borrow before it had a gust to read (#584).
-  gust: {
-    id: 'wind-gust',
-    step: 1,
     hint: ['The calmest hour must be at least this.', 'The gustiest hour must be at most this.'],
-    lower: 'minGustMph',
-    upper: 'maxGustMph',
+    lower: 'minWindMph',
+    upper: 'maxWindGustMph',
   },
   temp: {
     id: 'temperature',

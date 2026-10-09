@@ -241,7 +241,7 @@ export function modelSeriesOnGrid(
     snowfall_in: remap(fetched.snowfall_in),
     // The gust compares too (#584): seven of the eight models publish it, and
     // JMA's line is the freezing level's line of nulls.
-    gust_mph: remap(fetched.gust_mph),
+    wind_gust_mph: remap(fetched.wind_gust_mph),
     aqi: times.map(() => null),
   }
 }

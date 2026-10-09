@@ -18,6 +18,13 @@ export const CHART_GRID_COLOR = '#334155'
  */
 export const CHART_PLAYHEAD_COLOR = '#38bdf8'
 /**
+ * The dash a wind line's gust companion draws in (#584). Longer than the "Now"
+ * and model-end seams' 4 3 and the grid's 3 3, so a gust reads as a series
+ * rather than as chrome: a seam is a short tick of axis colour, and this is a
+ * line in its destination's colour with gaps a quarter of each stroke.
+ */
+export const CHART_GUST_DASH = '8 4'
+/**
  * A line asked for its colour before the allocator has given it one: a render
  * in the moment between a selection and the effect that persists its colours.
  * The axis colour, so an unassigned line reads as chrome rather than as a

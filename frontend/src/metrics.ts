@@ -1,10 +1,10 @@
 import { SortBy } from './types'
 
 /**
- * One vocabulary for the eight things Bluebird Forecast measures.
+ * One vocabulary for the seven things Bluebird Forecast measures.
  *
- * Bluebird Forecast measures precipitation, temperature, wind, the wind gust,
- * the freezing level, snowfall, air quality and the cloud deck, and names
+ * Bluebird Forecast measures precipitation, temperature, wind, the freezing
+ * level, snowfall, air quality and the cloud deck, and names
  * them on six surfaces: the map legend, the ranking picker, the results header,
  * the results table, the forecast chart's radios, and a marker's popup. Before
  * this module each surface spelled them itself, so the same metric appeared as
@@ -29,7 +29,7 @@ import { SortBy } from './types'
  */
 
 /**
- * The eight metrics, keyed the way the forecast chart already keyed them.
+ * The seven metrics, keyed the way the forecast chart already keyed them.
  *
  * Reusing those keys is what lets `chartData.ts` alias this type instead of
  * maintaining a parallel union and a mapping between the two.
@@ -44,7 +44,6 @@ export type MetricFamily =
   | 'precip'
   | 'temp'
   | 'wind'
-  | 'gust'
   | 'freeze'
   | 'snowfall'
   | 'aqi'
@@ -60,7 +59,6 @@ const FAMILIES: readonly MetricFamily[] = [
   'precip',
   'temp',
   'wind',
-  'gust',
   'freeze',
   'snowfall',
   'aqi',
@@ -73,8 +71,10 @@ const FAMILIES: readonly MetricFamily[] = [
  * with its 2 m point at that height (#673). A row whose elevation lookup has
  * not answered carries provisional numbers in these columns, so they tick
  * until it does, and a ranking on one of them reorders once when it does.
- * The wind gust is not one: it is the 10 m value as served, the same at any
- * elevation the lookup could answer (#584).
+ * The wind's gust column is the one exception inside a listed family: it is
+ * the 10 m value as served, the same at any elevation the lookup could answer
+ * (#584), which is why `heightDependentKey` in `tableColumns.ts` reads keys
+ * rather than this list alone.
  */
 export const HEIGHT_FAMILIES: readonly MetricFamily[] = ['wind', 'temp', 'cloud_deck']
 
@@ -99,7 +99,6 @@ export const RANKED_FAMILIES: readonly MetricFamily[] = [
   'snowfall',
   'temp',
   'wind',
-  'gust',
 ]
 
 /**
@@ -111,8 +110,9 @@ export const RANKED_FAMILIES: readonly MetricFamily[] = [
  */
 export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
   precip: ['precip_avg_in_hr', 'precip_max_in_hr', 'precip_min_in_hr', 'precip_total_in'],
-  wind: ['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'],
-  gust: ['gust_avg_mph', 'gust_max_mph', 'gust_min_mph'],
+  // The gust sorts between Avg and Max because the dropdown lists the
+  // aggregates alphabetically (TJ, #584), and this list is its order.
+  wind: ['wind_avg_mph', 'wind_gust_mph', 'wind_max_mph', 'wind_min_mph'],
   temp: ['temp_avg_f', 'temp_max_f', 'temp_min_f'],
   freeze: ['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'],
   snowfall: ['snowfall_avg_in_hr', 'snowfall_max_in_hr', 'snowfall_min_in_hr', 'snowfall_total_in'],
@@ -130,10 +130,6 @@ export const FAMILY_KEYS: Record<MetricFamily, readonly SortBy[]> = {
 export const DEFAULT_FAMILY_KEY: Record<MetricFamily, SortBy> = {
   precip: 'precip_total_in',
   wind: 'wind_avg_mph',
-  // The strongest gust, not the mean (TJ, #584). A gust is an extreme by
-  // nature, and the hour it peaks is the one that knocks a climber off a
-  // ridge; a mean of gusts is a number nobody plans against.
-  gust: 'gust_max_mph',
   temp: 'temp_avg_f',
   // The one default that is not a historical carry-over. The question this
   // metric was added to answer is the overnight refreeze (#295), and the
@@ -173,11 +169,6 @@ export const NOUN: Record<MetricFamily, string> = {
   precip: 'Precipitation',
   temp: 'Temperature',
   wind: 'Wind',
-  // Its own noun rather than a fourth aggregate on the wind's (#584), because
-  // it is read at another height: the 10 m surface gust, where the wind is
-  // read at the destination's elevation. It sorts under `Wind` in the
-  // Metrics table, which is where a reader looking for it already is.
-  gust: 'Wind gust',
   freeze: 'Freezing level',
   // New snow over the window, Open-Meteo's own name for the variable (#678),
   // which no reader mistakes for the depth on the ground.
@@ -197,7 +188,6 @@ export const UNIT: Record<MetricFamily, string> = {
   precip: 'in',
   temp: '°F',
   wind: 'mph',
-  gust: 'mph',
   // Feet above sea level, the same unit and datum the elevation column uses,
   // because the whole reading is the comparison between the two.
   freeze: 'ft',
@@ -264,7 +254,19 @@ export const AGGREGATE = {
   average: 'Avg',
   minimum: 'Min',
   maximum: 'Max',
+  // The wind's one aggregate that is not a reduction of the wind (TJ, #584):
+  // the window's strongest gust, a different measurement than the sustained
+  // wind, which is why it reads as what it is rather than as a fifth `Max`.
+  gust: 'Gust',
 } as const
+
+/**
+ * The wind gust named as a metric, for the two surfaces that cannot compose it
+ * from the Wind row's dropdown: the results heading ("Highest Wind gust") and
+ * the popup's own row. A gust is one number, so neither has an aggregate to
+ * put beside `Wind`, and `Gust Wind` would read backwards.
+ */
+export const WIND_GUST = `${NOUN.wind} gust`
 
 /**
  * Separates a metric from its aggregate in a table header.
@@ -301,10 +303,12 @@ export function familyOf(key: string): MetricFamily {
  * second copy of the key list waiting to miss one. Throws on an unknown token
  * for the same reason `familyOf` does.
  */
-export function aggregateToken(sortBy: SortBy): 'total' | 'avg' | 'min' | 'max' {
+export function aggregateToken(sortBy: SortBy): 'total' | 'avg' | 'min' | 'max' | 'gust' {
   const family = familyOf(sortBy)
   const token = sortBy.slice(family.length + 1).split('_')[0]
-  if (token === 'total' || token === 'avg' || token === 'min' || token === 'max') return token
+  if (token === 'total' || token === 'avg' || token === 'min' || token === 'max' || token === 'gust') {
+    return token
+  }
   throw new Error(`no aggregate in "${sortBy}"`)
 }
 
@@ -323,6 +327,7 @@ export function windowAggregate(sortBy: SortBy): string {
     avg: AGGREGATE.average,
     min: AGGREGATE.minimum,
     max: AGGREGATE.maximum,
+    gust: AGGREGATE.gust,
   } as const
   return word[token]
 }
@@ -337,6 +342,10 @@ export function windowAggregate(sortBy: SortBy): string {
  * "Highest Current Precipitation as of 12:09 PM" says it twice.
  */
 export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
+  // The gust names itself in either mode, because it is not a reduction of
+  // the wind: "Highest Wind gust" over a window and at one hour alike (TJ,
+  // #584), where the general rule would print "Gust Wind" and "Wind".
+  if (aggregateToken(sortBy) === 'gust') return WIND_GUST
   const noun = NOUN[familyOf(sortBy)]
   return pointSample ? noun : `${windowAggregate(sortBy)} ${noun}`
 }
@@ -379,10 +388,7 @@ export function resultsHeading(
  * the coordinate's own 90 m DEM height by default: every metric column stands
  * at the destination's elevation, so a datum on two of them read as a
  * difference in place where the difference is the method. `docs/DATA.md`
- * carries the method, as it does the grid's terrain-height caveat. The wind
- * gust is the one column read 10 m above the model's ground rather than at
- * the summit (#584), and it follows the same rule: its height is stated in
- * `docs/DATA.md`, never in its header.
+ * carries the method, as it does the grid's terrain-height caveat.
  */
 export function metricLabel(
   family: MetricFamily,

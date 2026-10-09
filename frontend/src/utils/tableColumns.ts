@@ -25,11 +25,11 @@ import { cloudDeckMark } from './cloudDeckMark'
  * `csvNull` before it would call a formatter, where the table writes a dash.
  *
  * `csvNull` is that empty cell's text, and it is empty for every column but
- * the freezing level's three and the wind gust's three. A blank is how a
- * spreadsheet spells "no value", which is the truth for a number the forecast
- * simply lacks; a freezing level or a gust is missing because the MODEL
- * carries no such variable, which is a different statement and the one the
- * screen already makes with its mark.
+ * the freezing level's three and the wind's gust. A blank is how a spreadsheet
+ * spells "no value", which is the truth for a number the forecast simply
+ * lacks; a freezing level or a gust is missing because the MODEL carries no
+ * such variable, which is a different statement and the one the screen
+ * already makes with its mark.
  */
 export type ColDef = {
   key: keyof DestinationResult | typeof WILDFIRE_KEY | typeof CLOSURE_KEY | typeof MODEL_KEY
@@ -112,9 +112,13 @@ export const LEAD_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'elevatio
  * elevation itself, and every metric in `HEIGHT_FAMILIES`. Read off the
  * family table rather than through `familyOf`, which throws on a lead or
  * virtual key.
+ *
+ * Except the wind's gust (#584): the 10 m value as served, the same at any
+ * elevation the lookup could answer, so it never ticks while one is out.
  */
 export function heightDependentKey(key: string): boolean {
   if (key === 'elevation_ft') return true
+  if (key === 'wind_gust_mph') return false
   return HEIGHT_FAMILIES.some((family) => (FAMILY_KEYS[family] as readonly string[]).includes(key))
 }
 
@@ -236,16 +240,15 @@ export const COLUMNS: ColDef[] = [
   { key: 'wind_min_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.minimum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'wind_max_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.maximum), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
   { key: 'wind_avg_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.average), format: (v) => Number(v).toFixed(1), windyLayer: 'wind' },
-  // The 10 m gust (#584), beside the wind it rides on and at the wind's one
-  // decimal. A null is JMA, the one model that publishes no gust, so it wears
-  // the freezing level's N/A on both surfaces (`unavailableCell.ts`, and
-  // `csvNull` in the file) rather than the dash a missing hour gets. Windy's
-  // layer is its own gust overlay, `gust` (read off Windy's index.js 51.3.2 on
-  // 2026-10-08: the overlay whose `ident` is `gust` and whose `trans` is GUST,
-  // "Wind gusts").
-  { key: 'gust_min_mph', unit: UNIT.gust, label: metricLabel('gust', AGGREGATE.minimum), format: (v) => (v != null ? Number(v).toFixed(1) : '—'), csvNull: UNAVAILABLE, windyLayer: 'gust' },
-  { key: 'gust_max_mph', unit: UNIT.gust, label: metricLabel('gust', AGGREGATE.maximum), format: (v) => (v != null ? Number(v).toFixed(1) : '—'), csvNull: UNAVAILABLE, windyLayer: 'gust' },
-  { key: 'gust_avg_mph', unit: UNIT.gust, label: metricLabel('gust', AGGREGATE.average), format: (v) => (v != null ? Number(v).toFixed(1) : '—'), csvNull: UNAVAILABLE, windyLayer: 'gust' },
+  // The window's strongest 10 m gust (#584), last in the wind's group and at
+  // the wind's one decimal. A null is JMA, the one model that publishes no
+  // gust, so it wears the freezing level's N/A on both surfaces
+  // (`unavailableCell.ts`, and `csvNull` in the file) rather than the dash a
+  // missing hour gets; the dash is the fallback for a formatter called on a
+  // null anywhere else. Windy's layer is its own gust overlay, `gust` (read off
+  // Windy's index.js 51.3.2 on 2026-10-08: the overlay whose `ident` is `gust`
+  // and whose `trans` is GUST, "Wind gusts").
+  { key: 'wind_gust_mph', unit: UNIT.wind, label: metricLabel('wind', AGGREGATE.gust), format: (v) => (v != null ? Number(v).toFixed(1) : '—'), csvNull: UNAVAILABLE, windyLayer: 'gust' },
   // Feet above sea level, formatted like the elevation column above it,
   // because the reading IS the comparison between the two. Null is the
   // five-model case (#295) and both surfaces draw it as N/A — the table with
@@ -316,7 +319,9 @@ const POINT_LABELS: Record<string, string> = {
   precip_avg_in_hr: metricLabel('precip', undefined, PRECIP_RATE),
   temp_avg_f: metricLabel('temp'),
   wind_avg_mph: metricLabel('wind'),
-  gust_avg_mph: metricLabel('gust'),
+  // The gust keeps its column and its word at one hour (#584): that hour's
+  // gust is not the hour's wind, and "Wind (mph)" twice would say it was.
+  wind_gust_mph: metricLabel('wind', AGGREGATE.gust),
   freeze_avg_ft: metricLabel('freeze'),
   snowfall_avg_in_hr: metricLabel('snowfall', undefined, SNOWFALL_RATE),
   aqi_avg: metricLabel('aqi'),

@@ -55,7 +55,6 @@ const full: ShareableState = {
     snowfall: 'snowfall_max_in_hr',
     aqi: 'aqi_max',
     cloud_deck: 'cloud_deck_max_ft',
-    gust: 'gust_min_mph',
   },
   constraints: {
     minPrecipTotalIn: 0,
@@ -63,9 +62,7 @@ const full: ShareableState = {
     minTempF: -10,
     maxTempF: 85.5,
     minWindMph: 1,
-    maxWindMph: 30,
-    minGustMph: 5.5,
-    maxGustMph: 45,
+    maxWindGustMph: 30,
     minFreezeFt: 4000,
     maxFreezeFt: 12000,
     minSnowfallTotalIn: 2,
@@ -142,11 +139,9 @@ describe('the codec table against the links it wrote before', () => {
   it('writes every parameter in the same order and spelling', () => {
     expect(encodeState(full, DEFAULT_MODEL)).toBe(
       'type=peak,lake&sort=wind_max_mph&desc=1&aqi=max&cloud_deck=max&precip=avg&snowfall=max&temp=max' +
-        '&gust=min' +
         '&limit=50&model=gfs_hrrr&compare=icon_seamless,ecmwf_ifs025' +
         '&mode=days&d1=2026-07-04&d2=2026-07-07&h1=06:00&h2=18:30' +
         '&minprecip=0&maxprecip=0.25&mintemp=-10&maxtemp=85.5&minwind=1&maxwind=30' +
-        '&mingust=5.5&maxgust=45' +
         '&minfreeze=4000&maxfreeze=12000&minsnowfall=2&maxsnowfall=80&minaqi=0&maxaqi=50' +
         '&minclouddeck=3000&maxclouddeck=15000' +
         '&poly=-121.76041,46.85289;-121.49094,46.20241;-121.11391,48.11223' +
@@ -189,6 +184,29 @@ describe('the codec table against the links it wrote before', () => {
   })
 })
 
+// The Wind row's ceiling limits the gust since #584, under the param it always
+// had, so a link written before then opens with its number in that box. The
+// gust is the wind's dropdown option, so it rides the wind's own param.
+describe('the wind gust in a link', () => {
+  it('reads an old `maxwind` into the gust ceiling', () => {
+    expect(decodeState('maxwind=30')?.constraints).toEqual({ ...NO_CONSTRAINTS, maxWindGustMph: 30 })
+  })
+
+  it('writes the gust ceiling as `maxwind` and the gust option as `wind=gust`', () => {
+    const state = {
+      ...full,
+      sortBy: 'temp_max_f' as const,
+      rowKeys: { ...full.rowKeys, wind: 'wind_gust_mph' as const },
+      constraints: { ...NO_CONSTRAINTS, maxWindGustMph: 40 },
+    }
+    const link = encodeState(state, DEFAULT_MODEL)
+    expect(link).toContain('&wind=gust')
+    expect(link).toContain('maxwind=40')
+    expect(decodeState(link)?.rowKeys?.wind).toBe('wind_gust_mph')
+    expect(decodeState('sort=wind_gust_mph')?.sortBy).toBe('wind_gust_mph')
+  })
+})
+
 describe('the codec table', () => {
   it('names each key once', () => {
     const keys = URL_PARAMS.map((row) => row.key)
@@ -207,7 +225,6 @@ describe('the codec table', () => {
       'snowfall',
       'temp',
       'wind',
-      'gust',
       'limit',
       'model',
       'compare',
@@ -222,8 +239,6 @@ describe('the codec table', () => {
       'maxtemp',
       'minwind',
       'maxwind',
-      'mingust',
-      'maxgust',
       'minfreeze',
       'maxfreeze',
       'minsnowfall',

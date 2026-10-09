@@ -82,7 +82,7 @@ function isMode(value: unknown): value is ResultsMode {
  * predates the Closure column (#550), `columns6` predates the cloud deck
  * that replaced #117's two cloud families (#670), `columns7` predates the
  * snowfall columns that replaced snow depth (#678) and `columns8` predates the
- * wind gust (#584), so reading any of them
+ * wind's gust column (#584), so reading any of them
  * verbatim would hide a new column from everyone who has
  * ever touched the picker. Each migrates with the newer keys added, which is
  * what those users were already seeing. A key a stored set still holds for a
@@ -91,7 +91,9 @@ function isMode(value: unknown): value is ResultsMode {
 function storedColumns(stored: StoredView): Set<string> | null {
   const cloud = FAMILY_KEYS.cloud_deck
   const snowfall = FAMILY_KEYS.snowfall
-  const gust = FAMILY_KEYS.gust
+  // The wind's one new column (#584), not the family: the wind's other three
+  // were already in every stored set, shown or hidden as the reader chose.
+  const gust = ['wind_gust_mph']
   try {
     if (stored.columns9) return new Set(stored.columns9)
     if (stored.columns8) return new Set<string>([...stored.columns8, ...gust])

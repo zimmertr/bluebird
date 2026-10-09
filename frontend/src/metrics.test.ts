@@ -17,6 +17,7 @@ import {
   rankedNoun,
   resultsHeading,
   windowAggregate,
+  WIND_GUST,
 } from './metrics'
 import { COLUMNS } from './utils/tableColumns'
 import { formatMetricValue } from './utils/chartData'
@@ -68,7 +69,8 @@ describe('the rankable keys', () => {
       'precip_min_in_hr',
       'precip_total_in',
     ])
-    expect(FAMILY_KEYS.wind).toEqual(['wind_avg_mph', 'wind_max_mph', 'wind_min_mph'])
+    // The gust is the wind's fourth option (#584), in its alphabetical place.
+    expect(FAMILY_KEYS.wind).toEqual(['wind_avg_mph', 'wind_gust_mph', 'wind_max_mph', 'wind_min_mph'])
     expect(FAMILY_KEYS.temp).toEqual(['temp_avg_f', 'temp_max_f', 'temp_min_f'])
     expect(FAMILY_KEYS.freeze).toEqual(['freeze_avg_ft', 'freeze_max_ft', 'freeze_min_ft'])
     // Precipitation's four, because new snow is reduced the way rain is (#678).
@@ -95,7 +97,7 @@ describe('the rankable keys', () => {
 
   it('derives RANKING_KEYS from the family lists', () => {
     expect(RANKING_KEYS).toEqual(RANKED_FAMILIES.flatMap((f) => FAMILY_KEYS[f]))
-    expect(RANKING_KEYS).toHaveLength(26)
+    expect(RANKING_KEYS).toHaveLength(24)
   })
 
   // The pre-#291 rankable four: what each row holds until the user says
@@ -114,8 +116,6 @@ describe('the rankable keys', () => {
       // #670, TJ's default: the lowest deck, the hour the cloud came closest
       // to the ground.
       cloud_deck: 'cloud_deck_min_ft',
-      // #584: the gustiest hour, the one a ridge walker plans around.
-      gust: 'gust_max_mph',
     })
     for (const family of RANKED_FAMILIES) {
       expect(FAMILY_KEYS[family]).toContain(DEFAULT_FAMILY_KEY[family])
@@ -141,9 +141,10 @@ describe('aggregateToken', () => {
       [AGGREGATE.average]: 'avg',
       [AGGREGATE.minimum]: 'min',
       [AGGREGATE.maximum]: 'max',
+      [AGGREGATE.gust]: 'gust',
     }
 
-    expect(RANKING_KEYS).toHaveLength(26)
+    expect(RANKING_KEYS).toHaveLength(24)
     for (const key of RANKING_KEYS) {
       expect(aggregateToken(key)).toBe(TOKENS[windowAggregate(key)])
     }
@@ -153,6 +154,18 @@ describe('aggregateToken', () => {
       'precip_total_in',
       'snowfall_total_in',
     ])
+  })
+
+  // The wind's dropdown is its FAMILY_KEYS entry in order, so the order is
+  // the one TJ chose for it (#584): alphabetical by the word each option
+  // shows, with the gust between Avg and Max.
+  it('lists the wind dropdown alphabetically, the gust among the aggregates', () => {
+    expect(FAMILY_KEYS.wind).toEqual(['wind_avg_mph', 'wind_gust_mph', 'wind_max_mph', 'wind_min_mph'])
+    const words = FAMILY_KEYS.wind.map(windowAggregate)
+    expect(words).toEqual(['Avg', 'Gust', 'Max', 'Min'])
+    expect(words).toEqual([...words].sort((a, b) => a.localeCompare(b, 'en')))
+    expect(familyOf('wind_gust_mph')).toBe('wind')
+    expect(aggregateToken('wind_gust_mph')).toBe('gust')
   })
 
   it('throws on a key with no aggregate segment', () => {
@@ -172,7 +185,6 @@ describe('the vocabulary', () => {
       'aqi',
       'cloud_deck',
       'freeze',
-      'gust',
       'precip',
       'snowfall',
       'temp',
@@ -194,10 +206,6 @@ describe('the vocabulary', () => {
     // The noun and unit TJ approved for #670.
     expect(NOUN.cloud_deck).toBe('Cloud deck')
     expect(UNIT.cloud_deck).toBe('ft')
-    // The noun and unit TJ approved for #584. Two words, so the row sorts
-    // straight after Wind and the two read as one subject.
-    expect(NOUN.gust).toBe('Wind gust')
-    expect(UNIT.gust).toBe('mph')
   })
 
   // The approved wire keys lead with `cloud_deck`, so a family is a whole
@@ -213,9 +221,10 @@ describe('the vocabulary', () => {
 
   // Nouns are identity and spell out; aggregates are modifiers and wear the
   // short forms every spreadsheet taught. Single-sourcing, not length, is what
-  // keeps the surfaces consistent.
+  // keeps the surfaces consistent. `Gust` is the word TJ approved for the
+  // wind's gust option (#584).
   it('keeps the aggregates to their universal short forms', () => {
-    expect(Object.values(AGGREGATE)).toEqual(['Total', 'Avg', 'Min', 'Max'])
+    expect(Object.values(AGGREGATE)).toEqual(['Total', 'Avg', 'Min', 'Max', 'Gust'])
   })
 
   it('gives every metric a unit but AQI, which has none', () => {
@@ -295,6 +304,13 @@ describe('resultsHeading', () => {
   it('names the direction, the ranked metric and the count', () => {
     expect(resultsHeading('precip_total_in', false, false, '5 of 5', 0)).toBe('Lowest Total Precipitation (5 of 5)')
     expect(resultsHeading('wind_max_mph', true, false, '3 of 9', 0)).toBe('Highest Max Wind (3 of 9)')
+  })
+
+  // The heading TJ approved for #584, the same in window and point mode.
+  it('names a gust ranking Wind gust in either mode', () => {
+    expect(resultsHeading('wind_gust_mph', true, false, '3 of 9', 0)).toBe('Highest Wind gust (3 of 9)')
+    expect(resultsHeading('wind_gust_mph', false, true, '3 of 9', 0)).toBe('Lowest Wind gust (3 of 9)')
+    expect(WIND_GUST).toBe('Wind gust')
   })
 
   it('counts zero over the destinations waiting before any report', () => {

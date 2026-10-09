@@ -43,15 +43,12 @@ const CLOUD_KEYS = ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft
 // column stood.
 const SNOWFALL_KEYS = ['snowfall_total_in', 'snowfall_avg_in_hr', 'snowfall_min_in_hr', 'snowfall_max_in_hr'] as const
 
-// The gust's three (#584), in wind's shape and straight after it.
-const GUST_KEYS = ['gust_min_mph', 'gust_max_mph', 'gust_avg_mph'] as const
-
 const keys = (sortBy: SortBy) => orderColumns(COLUMNS, sortBy).map((c) => c.key)
 
 const METRICS: SortBy[] = [
   'precip_total_in',
   'wind_avg_mph',
-  'gust_max_mph',
+  'wind_gust_mph',
   'temp_avg_f',
   'freeze_min_ft',
   'snowfall_total_in',
@@ -87,16 +84,15 @@ describe('COLUMNS', () => {
   })
 
   // A blank cell is how a spreadsheet spells "no value", which is the truth
-  // for every metric but these two: a freezing level or a gust is absent
-  // because the model carries no such variable, and the file is read detached
-  // from the app that could say so. So their six declare the mark the screen
-  // uses and nothing else does.
+  // for every metric but these: a freezing level or a gust is absent because
+  // the model carries no such variable, and the file is read detached from the
+  // app that could say so. So those four declare the mark the screen uses and
+  // nothing else does.
   it('declares a file mark for exactly the columns that can be unavailable', () => {
-    // The two metrics whose cells can be empty for a reason that is not the
-    // weather: five models publish no freezing level, and JMA no gust
-    // (measured 2026-10-08, #584).
+    // The cells that can be empty for a reason that is not the weather: five
+    // models publish no freezing level, and JMA no gust (#584).
     expect(COLUMNS.filter((c) => c.csvNull).map((c) => c.key)).toEqual([
-      ...GUST_KEYS,
+      'wind_gust_mph',
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
@@ -119,7 +115,7 @@ describe('COLUMNS', () => {
     for (const key of SNOWFALL_KEYS) expect(layers.get(key)).toBe('snowAccu')
     // Windy's gust layer, read off its index.js v51.3.2 on 2026-10-08 (#584):
     // the token whose name Windy shows as "Wind gusts".
-    for (const key of GUST_KEYS) expect(layers.get(key)).toBe('gust')
+    expect(layers.get('wind_gust_mph')).toBe('gust')
     for (const col of COLUMNS) {
       if (LEAD.has(col.key as string)) continue
       expect(col.windyLayer, `${col.key} links to no layer`).toBeTruthy()
@@ -136,6 +132,8 @@ describe('the snowfall headers', () => {
     expect(labels.get('snowfall_avg_in_hr')).toBe(`Snowfall ${SEP} Avg (in/hr)`)
     expect(labels.get('snowfall_min_in_hr')).toBe(`Snowfall ${SEP} Min (in/hr)`)
     expect(labels.get('snowfall_max_in_hr')).toBe(`Snowfall ${SEP} Max (in/hr)`)
+    // The one column TJ approved for the gust (#584).
+    expect(labels.get('wind_gust_mph')).toBe(`Wind ${SEP} Gust (mph)`)
   })
 })
 
@@ -162,7 +160,7 @@ describe('orderColumns', () => {
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
-      ...GUST_KEYS,
+      'wind_gust_mph',
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
@@ -186,7 +184,7 @@ describe('orderColumns', () => {
       'wind_min_mph',
       'wind_max_mph',
       'wind_avg_mph',
-      ...GUST_KEYS,
+      'wind_gust_mph',
       'freeze_min_ft',
       'freeze_max_ft',
       'freeze_avg_ft',
@@ -229,7 +227,8 @@ describe('pointModeColumns', () => {
       'precip_avg_in_hr',
       'temp_avg_f',
       'wind_avg_mph',
-      'gust_avg_mph',
+      // The gust keeps its own column at one hour: it is not the hour's wind.
+      'wind_gust_mph',
       'freeze_avg_ft',
       // Collapsed onto its rate, as precipitation is (#678).
       'snowfall_avg_in_hr',
@@ -247,8 +246,12 @@ describe('pointModeColumns', () => {
     expect(labels.get('snowfall_avg_in_hr')).toBe('Snowfall (in/hr)')
     expect(labels.get('aqi_avg')).toBe('AQI')
     expect(labels.get('cloud_deck_avg_ft')).toBe('Cloud deck (ft)')
+    // The gust keeps its word, so it does not read as a second wind column.
+    expect(labels.get('wind_gust_mph')).toBe(`Wind ${SEP} Gust (mph)`)
     // No aggregate means no separator to hang one off.
-    for (const label of labels.values()) expect(label).not.toContain(SEP)
+    for (const [key, label] of labels) {
+      if (key !== 'wind_gust_mph') expect(label).not.toContain(SEP)
+    }
     // Identity columns keep their labels untouched.
     expect(labels.get('name')).toBe('Name')
   })
@@ -262,7 +265,7 @@ describe('pointModeColumns', () => {
       'precip_avg_in_hr',
       'temp_avg_f',
       'wind_avg_mph',
-      'gust_avg_mph',
+      'wind_gust_mph',
       'freeze_avg_ft',
       'snowfall_avg_in_hr',
       'cloud_deck_avg_ft',
@@ -369,6 +372,14 @@ describe('heightDependentKey', () => {
     for (const key of ['name', 'type', 'precip_total_in', 'snowfall_total_in', 'aqi_max', 'freeze_min_ft', WILDFIRE_KEY, CLOSURE_KEY, MODEL_KEY]) {
       expect(heightDependentKey(key)).toBe(false)
     }
+  })
+
+  // The gust is a wind column read 10 m above the model's ground (#584), the
+  // same at any elevation, so it is the one column of a height family that
+  // does not wait on the lookup.
+  it('leaves the gust out of the wind family it sits in', () => {
+    expect(heightDependentKey('wind_avg_mph')).toBe(true)
+    expect(heightDependentKey('wind_gust_mph')).toBe(false)
   })
 })
 
@@ -574,9 +585,11 @@ describe('a new metric family needs no second list', () => {
   // `pointModeColumns` keeps the columns it has a collapsed label for, so a
   // family with no entry does not merely lose its aggregate word — it vanishes
   // from a Current lookup entirely, on the screen, in the file and in the card.
+  // The gust is the one second column, kept for the reason its entry in
+  // POINT_LABELS gives (#584).
   it('collapses every family to exactly one column for a point sample', () => {
     const collapsed = pointModeColumns(COLUMNS).filter(
-      (c) => !['name', 'type', 'elevation_ft'].includes(c.key as string),
+      (c) => !['name', 'type', 'elevation_ft', 'wind_gust_mph'].includes(c.key as string),
     )
     expect(collapsed).toHaveLength(RANKED_FAMILIES.length)
     expect(collapsed.map((c) => familyOf(c.key as string)).sort()).toEqual(

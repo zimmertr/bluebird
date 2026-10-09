@@ -8,7 +8,7 @@ import {
   displayedColumns,
   visibleColumns,
 } from './tableColumns'
-import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT } from '../metrics'
+import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT, WIND_GUST } from '../metrics'
 import type { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
 
@@ -28,6 +28,7 @@ const row = resultRow({
   wind_min_mph: 3.2,
   wind_max_mph: 41.8,
   wind_avg_mph: 18.5,
+  wind_gust_mph: 52.3,
   freeze_min_ft: 9843,
   freeze_max_ft: 12100,
   freeze_avg_ft: 10800,
@@ -128,8 +129,58 @@ describe('popupGroups over a Current lookup', () => {
       `${NOUN.snowfall} (in/hr)`,
       `${NOUN.temp} (${UNIT.temp})`,
       `${NOUN.wind} (${UNIT.wind})`,
-      `${NOUN.gust} (${UNIT.gust})`,
+      // The gust's own line, straight after the wind's (#584).
+      `${WIND_GUST} (${UNIT.wind})`,
     ])
+  })
+})
+
+// The gust is one option of the Wind row and a line of its own on the card
+// (TJ, #584): `Wind gust (mph)` after `Wind (mph)`, its one number in the Max
+// column, and the Min, Avg and Total cells empty.
+describe('popupGroups and the wind gust', () => {
+  const cols = displayedColumns(false, 'precip_total_in')
+  const GUST_LABEL = `${WIND_GUST} (${UNIT.wind})`
+
+  it('gives the gust its own line straight after the wind', () => {
+    const labels = popupGroups(row, cols).map((g) => g.label)
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })))
+    expect(labels.indexOf(GUST_LABEL)).toBe(labels.indexOf(`${NOUN.wind} (${UNIT.wind})`) + 1)
+    const wind = popupGroups(row, cols).find((g) => g.label === `${NOUN.wind} (${UNIT.wind})`)!
+    expect(wind.values.map((v) => v.text)).toEqual(['3.2', '41.8', '18.5'])
+  })
+
+  it('puts the gust in the Max cell and leaves the others empty', () => {
+    const grid = popupGrid(popupGroups(row, cols))
+    const gust = grid.rows.find((r) => r.label === GUST_LABEL)!
+    if (gust.kind !== 'aggregates') throw new Error('the gust spreads to the aggregate columns')
+    expect(grid.columns).toEqual([AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total])
+    expect(gust.cells.map((c) => c?.text ?? null)).toEqual([null, '52.3', null, null])
+  })
+
+  it('marks the gust under a gust ranking, and never the wind', () => {
+    const grid = popupGrid(popupGroups(row, cols, { rankedBy: 'wind_gust_mph' }))
+    const marked = grid.rows.flatMap((r) =>
+      (r.kind === 'aggregates' ? r.cells : [r.cell]).filter((c) => c?.ranked).map(() => r.label),
+    )
+    expect(marked).toEqual([GUST_LABEL])
+  })
+
+  it('reads JMA’s missing gust as N/A', () => {
+    const gust = popupGroups({ ...row, wind_gust_mph: null }, cols).find((g) => g.label === GUST_LABEL)!
+    expect(gust.values.map((v) => [v.text, v.href])).toEqual([['N/A', null]])
+  })
+
+  // At one hour every line is one number, the gust's included, and a gust
+  // ranking marks the gust's line rather than the wind's.
+  it('is one value over a Current lookup, marked under its ranking alone', () => {
+    const point = displayedColumns(true, 'wind_gust_mph')
+    const groups = popupGroups(row, point, { rankedBy: 'wind_gust_mph' })
+    const gust = groups.find((g) => g.label === GUST_LABEL)!
+    expect(gust.single).toBe(true)
+    expect(gust.values.map((v) => [v.text, v.ranked])).toEqual([['52.3', true]])
+    const wind = groups.find((g) => g.label === `${NOUN.wind} (${UNIT.wind})`)!
+    expect(wind.values[0].ranked).toBe(false)
   })
 })
 
@@ -259,8 +310,9 @@ describe('a new metric family reaches the popup on its own', () => {
   it('gives every family a group over a date range', () => {
     const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'))
     const metricGroups = groups.filter((g) => !g.label.startsWith('Elevation'))
-    // Derived from the vocabulary, never from a list written in this file.
-    expect(metricGroups).toHaveLength(RANKED_FAMILIES.length)
+    // Derived from the vocabulary, never from a list written in this file,
+    // plus the gust's own line (#584).
+    expect(metricGroups).toHaveLength(RANKED_FAMILIES.length + 1)
     for (const family of RANKED_FAMILIES) {
       expect(
         metricGroups.some((g) => g.label.startsWith(NOUN[family])),
@@ -274,9 +326,10 @@ describe('a new metric family reaches the popup on its own', () => {
     const groups = popupGroups(row, cols)
     for (const family of RANKED_FAMILIES) {
       const group = groups.find((g) => g.label.startsWith(NOUN[family]))!
-      expect(group.values, `wrong count for ${family}`).toHaveLength(
-        FAMILY_KEYS[family].length,
-      )
+      // The wind's gust stands on its own line, so the wind's line has one
+      // fewer.
+      const expected = FAMILY_KEYS[family].filter((k) => k !== 'wind_gust_mph').length
+      expect(group.values, `wrong count for ${family}`).toHaveLength(expected)
     }
     // And nothing the table shows is left out: every metric column on screen
     // has exactly one value on the card.
@@ -288,7 +341,7 @@ describe('a new metric family reaches the popup on its own', () => {
   it('gives every family exactly one value over a Current lookup', () => {
     const groups = popupGroups(row, displayedColumns(true, 'precip_total_in'))
     const metricGroups = groups.filter((g) => !g.label.startsWith('Elevation'))
-    expect(metricGroups).toHaveLength(RANKED_FAMILIES.length)
+    expect(metricGroups).toHaveLength(RANKED_FAMILIES.length + 1)
     for (const g of metricGroups) expect(g.values).toHaveLength(1)
   })
 
@@ -297,10 +350,9 @@ describe('a new metric family reaches the popup on its own', () => {
   it('composes every heading from the metric vocabulary', () => {
     const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'))
     for (const g of groups.filter((x) => !x.label.startsWith('Elevation'))) {
-      // A whole noun, not a prefix: `Wind gust (mph)` starts with `Wind` too.
-      const family = RANKED_FAMILIES.find(
-        (f) => g.label === NOUN[f] || g.label.startsWith(`${NOUN[f]} (`),
-      )!
+      // The gust's line is composed from WIND_GUST, asserted above.
+      if (g.label === `${WIND_GUST} (${UNIT.wind})`) continue
+      const family = RANKED_FAMILIES.find((f) => g.label.startsWith(NOUN[f]))!
       const unit = UNIT[family]
       // The noun with its shared unit, or, where a window total is in the
       // unit and the other columns are a rate (precipitation, snowfall), the
