@@ -209,7 +209,7 @@ export function formatObserved(
 }
 
 /**
- * Popup markup for a hovered/tapped smoke plume.
+ * Popup markup for a clicked or tapped smoke plume.
  *
  * Inline styles mirror the wildfire popup so the two overlays read as one
  * family; this is markup handed to MapLibre's `setHTML`, which the

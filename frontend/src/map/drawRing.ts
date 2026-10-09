@@ -190,9 +190,10 @@ export function mountDrawRing(
 
   // The handles are a click target like any other, first in the rank, and
   // the only one besides a marker that takes a click in draw mode. A click
-  // (the mouse didn't move) on a vertex offers to remove it; a midpoint does
-  // nothing on a click, because its mousedown has already inserted the point
-  // a drag would place. The grab hand stays while a drag holds it.
+  // (the mouse didn't move) on a vertex offers to remove it; a midpoint
+  // claims the click and opens nothing, because its mousedown has already
+  // inserted the point a drag would place, and a fall-through would place a
+  // second one there. The grab hand stays while a drag holds it.
   deps.popups.register({
     target: 'vertex',
     layers: ['draw-vertices', 'draw-midpoints'],

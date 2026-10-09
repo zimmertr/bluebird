@@ -156,6 +156,36 @@ describe('mountMapPopups', () => {
   })
 })
 
+describe('mountMapPopups fall-through', () => {
+  // A label with no name has nothing to add, so the click is the fire's.
+  it('hands the click to the next target when the first opens nothing', () => {
+    const { register, under, click, opened, popups } = setup()
+    popups.register({ target: 'poi', layers: ['light'], open: () => false })
+    register('fire', ['fire-fill'])
+    under('light', 'fire-fill')
+    click()
+    expect(opened).toEqual([{ target: 'fire', layer: 'fire-fill' }])
+  })
+
+  it('places a point in draw mode when every target there opens nothing', () => {
+    const { under, click, addPoint, popups } = setup({ drawing: true })
+    popups.register({ target: 'result', layers: ['marker'], open: () => false })
+    under('marker')
+    click()
+    expect(addPoint).toHaveBeenCalledTimes(1)
+  })
+
+  // A midpoint claims its click without opening anything: its mousedown has
+  // already placed the point a fall-through would place again.
+  it('stops at a target that claims the click without opening anything', () => {
+    const { under, click, addPoint, popups } = setup({ drawing: true })
+    popups.register({ target: 'vertex', layers: ['vertices'], open: () => undefined })
+    under('vertices')
+    click()
+    expect(addPoint).not.toHaveBeenCalled()
+  })
+})
+
 describe('mountMapPopups while drawing', () => {
   it('places a point for a click on bare map', () => {
     const { addPoint, click } = setup({ drawing: true })
@@ -193,6 +223,24 @@ describe('mountMapPopups cursor', () => {
     under('fire-fill')
     move()
     expect(stub.canvas.style.cursor).toBe('crosshair')
+  })
+
+  // A move with a button held is a pan: the grabbing hand is MapLibre's, and
+  // nothing is asked of the map on every frame of it.
+  it('clears its cursor and asks nothing while the map is dragged', () => {
+    let asked = 0
+    const stub = stubMap({ layers: ['fire-fill'], rendered: () => (asked++, [{ layer: { id: 'fire-fill' } }]) })
+    const popups = mountMapPopups(stub.map, {
+      controller: createMapController({ drawing: false } as MapInputs),
+      board: createPopupBoard(),
+      addPoint: vi.fn(),
+    })
+    popups.register({ target: 'fire', layers: ['fire-fill'], open: vi.fn() })
+    stub.fire('mousemove', undefined, { point: { x: 0, y: 0 }, originalEvent: { buttons: 0 } })
+    expect(stub.canvas.style.cursor).toBe('pointer')
+    stub.fire('mousemove', undefined, { point: { x: 5, y: 0 }, originalEvent: { buttons: 1 } })
+    expect(stub.canvas.style.cursor).toBe('')
+    expect(asked).toBe(1)
   })
 
   it('leaves the cursor alone while a target holds it', () => {

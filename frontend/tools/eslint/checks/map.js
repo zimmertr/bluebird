@@ -181,14 +181,17 @@ export const MAP = [
     ],
   },
   {
-    // Every popup the map opens, and every click or hover that could open one,
-    // goes through map/mapPopups.ts (TJ, 2026-10-08), the way every colour goes
-    // through styles.ts: a feature registers a target there, with its layers
-    // and how it opens, and inherits the rank, pinning, the cursor and the
-    // shared popup options. A `new Popup` elsewhere is a popup with options of
-    // its own, and a layer listening for a click or a hover is the hover popup
-    // over a fire, or a second click that disagrees with the rank, back again.
-    // A drag's mousedown and touchstart are not this: they move a handle.
+    // Every popup the map opens, and every click, hover, touch or pointer
+    // listener that could open one, goes through map/mapPopups.ts (TJ,
+    // 2026-10-08), the way every colour goes through styles.ts: a feature
+    // registers a target there, with its layers and how it opens, and inherits
+    // the rank, pinning, the cursor and the shared popup options. A `new Popup`
+    // elsewhere is a popup with options of its own; a listener elsewhere is the
+    // hover popup over a fire, or a second click that disagrees with the rank,
+    // back again; a DOM marker takes clicks the rank never sees. An event the
+    // linter cannot read (a name held in a variable or built in a template)
+    // would pass unseen, so it is refused too. A drag's start is the next
+    // check's, because a handle has to start one.
     name: 'map-popups-owned',
     files: [MAP_VIEW, MAP_MODULES],
     ignores: ['src/map/mapPopups.ts', MAP_TESTS],
@@ -199,9 +202,39 @@ export const MAP = [
         message: 'Make a popup with create in map/mapPopups.ts, which every popup shares.',
       },
       {
+        selector: 'NewExpression[callee.name="Marker"], NewExpression[callee.property.name="Marker"]',
+        message: 'Draw a marker as a layer and register it in map/mapPopups.ts; a DOM marker takes clicks the rank never sees.',
+      },
+      {
         selector:
-          'CallExpression[callee.property.name=/^(on|once)$/][arguments.0.value=/^(click|dblclick|contextmenu|mouseenter|mouseleave|mouseover|mouseout|mousemove)$/]',
-        message: 'Register a target in map/mapPopups.ts rather than listening for a click or a hover here.',
+          'CallExpression[callee.property.name=/^(on|once)$/][arguments.0.value=/^(click|dblclick|contextmenu|mouse(enter|leave|over|out|move|up)|touch(end|move|cancel)|pointer[a-z]+)$/]',
+        message: 'Register a target in map/mapPopups.ts rather than listening for a click, a hover or a touch here.',
+      },
+      {
+        selector: 'CallExpression[callee.property.name=/^(on|once)$/][arguments.0.type!="Literal"]',
+        message: 'Name the event as a string, so the linter can read which one it is.',
+      },
+      {
+        // The map's own elements, which a DOM listener reaches around the map's
+        // events and so around the rank.
+        selector:
+          'CallExpression[callee.property.name="addEventListener"][callee.object.type="CallExpression"][callee.object.callee.property.name=/^(getCanvas|getContainer|getCanvasContainer)$/]',
+        message: 'Listen on the map through map/mapPopups.ts, not on its canvas or container.',
+      },
+    ],
+  },
+  {
+    // Starting a drag is the one pointer listener a layer may keep, and only
+    // the ring's handles start one (map/drawRing.ts): a mousedown or a
+    // touchstart anywhere else is a click by another name.
+    name: 'map-drag-owned',
+    files: [MAP_VIEW, MAP_MODULES],
+    ignores: ['src/map/mapPopups.ts', 'src/map/drawRing.ts', MAP_TESTS],
+    probe: 'src/map/poiPopup.ts',
+    ban: [
+      {
+        selector: 'CallExpression[callee.property.name=/^(on|once)$/][arguments.0.value=/^(mousedown|touchstart)$/]',
+        message: 'Start a drag only on the ring\'s handles, in map/drawRing.ts.',
       },
     ],
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DRAW_TARGETS, MAP_TARGETS, mapCursor, resolveMapClick, type MapTarget } from './mapClick'
+import { DRAW_TARGETS, MAP_TARGETS, mapCursor, rankedTargets, resolveMapClick, type MapTarget } from './mapClick'
 
 // Every case is about which of two or more targets wins, because a single
 // target under the cursor always wins alone.
@@ -62,6 +62,15 @@ describe('resolveMapClick while drawing', () => {
   it('still opens a ring handle or a marker, and the handle first', () => {
     expect(resolveMapClick(true, ['fire', 'result'])).toEqual({ kind: 'open', target: 'result' })
     expect(resolveMapClick(true, ['result', 'vertex'])).toEqual({ kind: 'open', target: 'vertex' })
+  })
+})
+
+// Who a click falls to when the target above finds nothing to open there.
+describe('rankedTargets', () => {
+  it('lists every live target under the cursor, highest first', () => {
+    expect(rankedTargets(false, ['smoke', 'poi', 'fire'])).toEqual(['poi', 'fire', 'smoke'])
+    expect(rankedTargets(true, ['smoke', 'result', 'fire', 'vertex'])).toEqual(['vertex', 'result'])
+    expect(rankedTargets(true, ['fire'])).toEqual([])
   })
 })
 

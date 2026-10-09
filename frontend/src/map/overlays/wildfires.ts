@@ -83,9 +83,9 @@ export function mountWildfires(
   })
 
   // A click on a perimeter describes the fire, with the link to it on NIFC's
-  // map, the way a click on a marker describes the destination; it used to
-  // open on hover, over the destinations inside the fire, and to send a click
-  // straight to NIFC (TJ, 2026-10-08).
+  // map, the way a click on a marker describes the destination (TJ,
+  // 2026-10-08). Nothing opens on a hover, which would cover the destinations
+  // inside the fire, and the click stays on the map rather than leaving it.
   deps.popups.register({
     target: 'fire',
     layers: [WILDFIRE_FILL_LAYER],

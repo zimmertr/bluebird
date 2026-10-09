@@ -216,7 +216,7 @@ export function mountResultsLayer(
   })
 
   const openResultPopup = ({ feature: f }: MapTargetHit) => {
-    if (!f.properties) return
+    if (!f.properties) return false
     const p = f.properties
     // Anchor the popup at the rendered geometry, but take the exact
     // coordinates from properties for the readout and the geoKey lookup —

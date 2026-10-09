@@ -91,7 +91,7 @@ export function wildfireSwatch(): { backgroundColor: string; borderColor: string
  */
 export const FIRE_LINK_ZOOM = 10
 
-// Deep-link the NIFC explore map, centered on a clicked/hovered fire. Coords are
+// Deep-link the NIFC explore map, centered on a clicked fire. Coords are
 // rounded to ~1 m and zoom to 2 dp; order is lat,lon,zoom per the Hub param.
 export function nifcFireUrl(lng: number, lat: number, zoom: number): string {
   const z = Math.round(zoom * 100) / 100
@@ -219,7 +219,7 @@ export function formatRevised(ms: number | null | undefined): string | null {
 }
 
 /**
- * Popup markup for a hovered/tapped wildfire perimeter.
+ * Popup markup for a clicked or tapped wildfire perimeter.
  *
  * Inline styles mirror the results-marker popup in MapView so the two read
  * consistently; this is markup handed to MapLibre's `setHTML`, which the

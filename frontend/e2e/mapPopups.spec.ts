@@ -109,3 +109,73 @@ test('a fire opens its popup on a click and never on a hover, and a marker insid
   await expect(popups.getByRole('link', { name: /NIFC/ })).toBeVisible()
   expect(tabs).toEqual([])
 })
+
+// A phone has no hover, so a closure's popup opened on nothing there until a
+// tap opened it. A closed trail outranks the closed ground it crosses, and
+// answers a tap a few pixels off its line.
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  const collection = (features: unknown[]) => ({ type: 'FeatureCollection', fetched_at: 1, features })
+  const AREA = collection([
+    {
+      type: 'Feature',
+      properties: { OBJECTID: 1, ClosureOrderName: 'Probe Area Closure' },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [-123, 46.5],
+            [-120.5, 46.5],
+            [-120.5, 48.5],
+            [-123, 48.5],
+            [-123, 46.5],
+          ],
+        ],
+      },
+    },
+  ])
+  // Along the latitude the map opens centred on, so it crosses the canvas's
+  // middle row.
+  const TRAIL = collection([
+    {
+      type: 'Feature',
+      properties: { OBJECTID: 2, ClosureOrderName: 'Probe Trail Closure' },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [-123, 47.5],
+          [-120.5, 47.5],
+        ],
+      },
+    },
+  ])
+
+  test('a tap opens a closure’s popup, the trail’s within a few pixels of its line', async ({ page }) => {
+    await page.route('**/api/closures**', (r) => {
+      const kind = new URL(r.request().url()).searchParams.get('kind')
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(kind === 'trail' ? TRAIL : AREA) })
+    })
+    await page.goto('/?view=-121.5,47.5,12&closedareas=1&closedtrails=1')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('button', { name: 'Close controls' }).tap()
+    await expect(page.locator('aside')).toHaveAttribute('inert', '')
+
+    const canvas = await page.locator('.maplibregl-canvas').boundingBox()
+    expect(canvas).not.toBeNull()
+    const middle = { x: canvas!.x + canvas!.width / 2, y: canvas!.y + canvas!.height / 2 }
+    const popups = page.locator('.maplibregl-popup')
+
+    // Off the line, on the closed ground. Retried, because a tap counts only
+    // once both layers have drawn, which nothing on the page announces.
+    await expect(async () => {
+      await page.touchscreen.tap(middle.x, middle.y + 120)
+      await expect(popups).toContainText('Probe Area Closure', { timeout: 1_500 })
+    }).toPass({ timeout: 20_000 })
+
+    // Four pixels off the 2.5px line: the trail, in place of the area.
+    await page.touchscreen.tap(middle.x, middle.y + 4)
+    await expect(popups).toHaveCount(1)
+    await expect(popups).toContainText('Probe Trail Closure')
+  })
+})

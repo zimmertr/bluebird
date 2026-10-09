@@ -84,8 +84,10 @@ export function mountPoiPopups(
   popups.register({
     target: 'poi',
     layers: POI_LAYERS,
+    // A label that names no place (no name, or no usable position) has
+    // nothing to add, so the click falls to whatever lies under it.
     open: ({ feature, lngLat, point }) => {
-      if (!feature.properties) return
+      if (!feature.properties) return false
       const layer = feature.layer.id
       // A peak labels its own summit. A lake's label geometry is a tile
       // artifact — a point for a compact one, a line for a long one — so it
@@ -99,7 +101,8 @@ export function mountPoiPopups(
             ? ((feature.geometry as Point).coordinates as [number, number])
             : clicked
       const poi = poiFromFeature(layer, feature.properties, anchor)
-      if (poi) openPoiPopup(poi)
+      if (!poi) return false
+      openPoiPopup(poi)
     },
   })
 

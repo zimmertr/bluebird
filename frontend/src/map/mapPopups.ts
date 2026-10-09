@@ -9,17 +9,18 @@
  * `utils/mapClick.ts`), a click without shift clears the board first, the
  * cursor over a target says it can be clicked, and every popup is made by
  * `create` with the same options and put on the board. A popup never opens on
- * hover: a hovered fire or closure opened one under the cursor, which covered
- * the destinations inside it and could not exist on a touch screen.
+ * a hover: one opened under the cursor covers the destinations inside a fire
+ * or a closure, and a touch screen has no hover to open it.
  *
  * So a new layer with something to say registers a target and inherits all of
- * this. The linter's `map-popups-owned` check fails a `new Popup` or a click
- * or hover listener anywhere else under the map, which is how this stays the
- * one place, the way `styles.ts` is for the app's looks.
+ * this. The linter's `map-popups-owned` check fails a `new Popup`, a DOM
+ * marker, or a click, hover, touch or pointer listener anywhere else under the
+ * map, and `map-drag-owned` keeps a drag's start to the ring's handles, which
+ * is how this stays the one place, the way `styles.ts` is for the app's looks.
  */
 import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
-import { mapCursor, resolveMapClick, type MapTarget } from '../utils/mapClick'
+import { mapCursor, rankedTargets, type MapTarget } from '../utils/mapClick'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
 
@@ -45,7 +46,12 @@ export interface MapPopupTarget {
    * margin, or only a click exactly on it could open it.
    */
   slopPx?: number
-  open(hit: MapTargetHit): void
+  /**
+   * Open the popup for this hit. False says the target has nothing to open
+   * here after all (a label with no name, a feature with no properties), and
+   * the click falls to the next target under it, or to the bare map.
+   */
+  open(hit: MapTargetHit): boolean | void
   /**
    * True while the target's own gesture owns the cursor, as a ring handle's
    * drag does, so a pointer move does not reset the cursor under the reader's
@@ -121,26 +127,33 @@ export function mountMapPopups(
   map.on('click', (e) => {
     const { under, features } = targetsAt(e.point)
     if (!isPinning(e)) board.closeAll()
-    const action = resolveMapClick(controller.inputs.drawing, under)
-    if (action.kind === 'add-vertex') {
-      deps.addPoint([e.lngLat.lng, e.lngLat.lat])
-      return
+    const drawing = controller.inputs.drawing
+    for (const kind of rankedTargets(drawing, under)) {
+      const target = targets.find((t) => t.target === kind)!
+      const feature = target.layers
+        .map((id) => features.find((f) => f.layer.id === id))
+        .find((f) => f !== undefined)
+      if (feature && target.open({ feature, lngLat: e.lngLat, point: e.point }) !== false) return
     }
-    if (action.kind !== 'open') return
-    const target = targets.find((t) => t.target === action.target)!
-    const feature = target.layers
-      .map((id) => features.find((f) => f.layer.id === id))
-      .find((f) => f !== undefined)
-    if (feature) target.open({ feature, lngLat: e.lngLat, point: e.point })
+    if (drawing) deps.addPoint([e.lngLat.lng, e.lngLat.lat])
   })
 
   // The cursor follows the same rule as the click, read on every move over
   // the map rather than on each layer's enter and leave: two overlapping
   // layers each reset the cursor on leaving, so one could clear the pointer
   // the other still owed.
+  //
+  // A move with a button held is the map being dragged: the cursor is left to
+  // MapLibre's grabbing hand, which a pointer over a plume or a fire would
+  // otherwise cover, and nothing is asked of the map on every frame of a pan.
   map.on('mousemove', (e) => {
     if (targets.some((t) => t.holdsCursor?.())) return
-    map.getCanvas().style.cursor = mapCursor(controller.inputs.drawing, targetsAt(e.point).under)
+    const canvas = map.getCanvas()
+    if ((e.originalEvent as MouseEvent | undefined)?.buttons) {
+      canvas.style.cursor = ''
+      return
+    }
+    canvas.style.cursor = mapCursor(controller.inputs.drawing, targetsAt(e.point).under)
   })
 
   return {

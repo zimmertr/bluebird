@@ -47,10 +47,19 @@ export type MapClickAction =
   /** Nothing: a click on bare map, which only clears the popups. */
   | { kind: 'none' }
 
+/**
+ * Every target under the cursor that may take the click, highest first. The
+ * first is the click's; the rest are who it falls to when that target finds
+ * nothing to open at the spot, such as a basemap label with no name.
+ */
+export function rankedTargets(drawing: boolean, under: readonly MapTarget[]): MapTarget[] {
+  const live = drawing ? under.filter((t) => DRAW_TARGETS.includes(t)) : under
+  return MAP_TARGETS.filter((t) => live.includes(t))
+}
+
 /** Which target under the cursor the click belongs to, given every target under it. */
 export function resolveMapClick(drawing: boolean, under: readonly MapTarget[]): MapClickAction {
-  const live = drawing ? under.filter((t) => DRAW_TARGETS.includes(t)) : under
-  const target = MAP_TARGETS.find((t) => live.includes(t))
+  const [target] = rankedTargets(drawing, under)
   if (target) return { kind: 'open', target }
   return drawing ? { kind: 'add-vertex' } : { kind: 'none' }
 }

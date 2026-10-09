@@ -44,7 +44,7 @@ export interface ClosureResponse extends FeatureCollection {
  * The Forest Service's own properties on a closure feature, as it names them.
  *
  * All optional and nullable: the service leaves fields empty freely, and
- * MapLibre drops a null property from a feature it hands back on a hover, so
+ * MapLibre drops a null property from a feature it hands back on a click, so
  * a field can arrive as `null` from the API and as absent from the map. Text
  * values can carry leading spaces (`" Eagle Creek"`), so every reader trims.
  */
@@ -192,9 +192,9 @@ export function closureUrl(props: ClosureProps): string | null {
 }
 
 /**
- * Popup markup for a hovered closure.
+ * Popup markup for a clicked or tapped closure.
  *
- * Inline styles copy `wildfirePopupHtml`'s so the two hover popups read as one
+ * Inline styles copy `wildfirePopupHtml`'s so the two popups read as one
  * kind of thing; this is markup handed to MapLibre's `setHTML`, which the
  * stylesheet-scanned design system in styles.ts cannot reach.
  *

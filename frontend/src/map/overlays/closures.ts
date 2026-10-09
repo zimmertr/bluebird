@@ -126,10 +126,10 @@ export function mountClosures(
   for (const spec of specs) map.addLayer(spec)
 
   // A click on a closure describes the order, the way a click on a marker
-  // describes the destination; it used to open on hover, over the
-  // destinations inside the closure (TJ, 2026-10-08). A closed trail is a
-  // 2.5px line, so it answers a click within a few pixels of it, where an
-  // exact hit was what a hover forgave and a finger rarely lands.
+  // describes the destination (TJ, 2026-10-08); nothing opens on a hover,
+  // which would cover the destinations inside the closure. A closed trail is
+  // a 2.5px line, so it answers a click within a few pixels of it: a finger
+  // rarely lands exactly on it.
   const target = kind === 'area' ? 'closure-area' : 'closure-trail'
   deps.popups.register({
     target,
