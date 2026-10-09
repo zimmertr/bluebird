@@ -297,6 +297,14 @@ describe('mountResultsLayer', () => {
 
   // The fit itself is `popupFit.test.ts`; this is the layer applying it:
   // which side the card is built on, and what the map is told to do.
+  // The table hands over a copy of the row stamped with its rank (#579),
+  // which is not among the map's rows; the card still names the rank.
+  it('ranks a table row by the stamp it carries', () => {
+    const { layer } = setup()
+    layer.openPopup({ ...RAINIER, rank: 2 } as typeof RAINIER)
+    expect(popups[0].html).toContain('#2 Mount Rainier')
+  })
+
   it('hangs the card below a centred marker and moves nothing', () => {
     const { stub, layer } = setup()
     expect(layer.openPopup(RAINIER)).toEqual({ dx: 0, dy: 0 })

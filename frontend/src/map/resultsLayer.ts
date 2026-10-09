@@ -381,8 +381,16 @@ export function mountResultsLayer(
     openPopup(result, options = {}) {
       popups.closeAll()
       // Rank is the analyzed order the markers are labelled with, so the popup
-      // matches the marker it lands on.
-      return openFitted([result.longitude, result.latitude], result, controller.inputs.results.indexOf(result) + 1, options)
+      // matches the marker it lands on. A table row is a copy stamped with
+      // that rank (#579), so it is not among the map's rows and the stamp is
+      // the answer; a row handed over without one is looked up.
+      const stamped = (result as { rank?: number }).rank
+      return openFitted(
+        [result.longitude, result.latitude],
+        result,
+        stamped ?? controller.inputs.results.indexOf(result) + 1,
+        options,
+      )
     },
     // A card follows the report the way the table does (TJ, 2026-10-08):
     // a new ranking moves its mark and its rank, and a column the reader

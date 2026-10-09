@@ -279,9 +279,9 @@ export function factsRow(type: string | null, elevation: string | null, latitude
  * push the card wider. Numbers never wrap and are right-aligned, so a column
  * lines up on its last digit in the mono face, the way the table's do.
  *
- * The number the report ranks by is bold on the header band's sky rather than
- * the column's slate, so the card says why its destination stands where it
- * does (TJ, 2026-10-08). `compact` narrows every band's inset and the
+ * The number the report ranks by is bold on a cell one slate darker than its
+ * column (`GRID_RANKED_COLOR`), so the card says why its destination stands
+ * where it does (TJ, 2026-10-08). `compact` narrows every band's inset and the
  * label's gap to fit a map too narrow for the widest grid at full inset
  * (`compactGrid`).
  */
@@ -338,13 +338,13 @@ export const GRID_GUTTER_COLOR = '#ffffff'
 export const GRID_LINE_COLOR = '#e2e8f0'
 
 /**
- * The ranked number's cell, the header band's sky-100. `LINK_COLOR` on it is
- * 5.17:1, against 5.42:1 on the column's slate. It is only 1.05:1 against
- * that slate, so the hue and the number's bold carry the mark between them;
- * sky-200 would read harder and drop the link to 4.47:1, under AA. Pinned in
- * `popupChrome.test.tsx`.
+ * The ranked number's cell, slate-200: one step darker than the column's
+ * slate-100, with no hue, so the card's only colour is its links (TJ,
+ * 2026-10-08, option H, over a sky-100 cell). It is 1.13:1 against the
+ * column, so the number's bold carries most of the mark. `LINK_COLOR` on it
+ * is 4.81:1. Pinned in `popupChrome.test.tsx`.
  */
-export const GRID_RANKED_COLOR = '#e0f2fe'
+export const GRID_RANKED_COLOR = '#e2e8f0'
 
 /**
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
@@ -531,10 +531,10 @@ export function popupShell(
 }
 
 /**
- * A ranked destination's card: the name and its facts on a band of Bluebird
- * Forecast's sky, shadowed onto the grid below it, so what the place IS reads
- * apart from what the forecast says about it (TJ, 2026-10-08). It replaces
- * the rule the other popups keep.
+ * A ranked destination's card: the name and its facts on a slate band,
+ * shadowed onto the grid below it, so what the place IS reads apart from what
+ * the forecast says about it (TJ, 2026-10-08). It replaces the rule the other
+ * popups keep.
  *
  * The card draws its own padding (`map.css` zeroes MapLibre's for
  * `.result-popup`), so the band can run edge to edge and the grid can stand
@@ -568,16 +568,19 @@ const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_T
 const TITLE_TEXT = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
- * The result card's header band, sky-100, under an edge of sky-200 and a
- * shadow tinted the same blue. The labels on it measure 6.6:1 and the title
- * 18.3:1 (pinned in `popupChrome.test.tsx`).
+ * The result card's header band: slate-100, the grid's own band colour, under
+ * an edge of slate-200 and a faint slate shadow (TJ, 2026-10-08, option H of
+ * eight). It replaced a sky-100 band, which was the one light blue surface
+ * in an app of slate, and sky is the accent that says a thing acts. The
+ * labels on it measure 6.92:1 and the title 19.17:1 (pinned in
+ * `popupChrome.test.tsx`).
  */
-export const HEADER_BAND_COLOR = '#e0f2fe'
-export const HEADER_EDGE_COLOR = '#bae6fd'
-export const HEADER_SHADOW_COLOR = 'rgba(3,105,161,0.15)'
+export const HEADER_BAND_COLOR = '#f1f5f9'
+export const HEADER_EDGE_COLOR = '#e2e8f0'
+export const HEADER_SHADOW_COLOR = 'rgba(15,23,42,0.08)'
 /**
- * The link-out glyph on the band, sky-600 at 3.57:1. `LINK_ICON_COLOR`'s
- * sky-400 would fall to 1.87:1 there, under the 3:1 an icon owes.
+ * The link-out glyph on the band, sky-600 at 3.74:1. `LINK_ICON_COLOR`'s
+ * sky-400 would fall under the 3:1 an icon owes there.
  */
 export const HEADER_ICON_COLOR = '#0284c7'
 

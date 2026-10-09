@@ -125,12 +125,14 @@ describe('the popup grid', () => {
     expect(html).toMatch(/<th scope="row" style="[^"]*white-space:nowrap[^"]*">Precipitation \(in\/hr\)<\/th>/)
   })
 
-  // The number the report ranks by is bold on the header's sky (TJ,
-  // 2026-10-08). The sky is barely darker than the slate it replaces, so the
-  // link on it must still clear AA, and the bold does the rest.
-  it('marks the ranked number bold on the sky, keeping its link above AA', () => {
-    expect(GRID_RANKED_COLOR).toBe(HEADER_BAND_COLOR)
-    expect(round2(contrast(LINK_COLOR, GRID_RANKED_COLOR))).toBe(5.17)
+  // The number the report ranks by is bold on a cell one slate darker than
+  // its column (TJ, 2026-10-08). The step is small, so the link on it must
+  // still clear AA, and the bold does the rest.
+  it('marks the ranked number bold on a darker slate, keeping its link above AA', () => {
+    // Slate-200, one step past the column's slate-100, with no hue.
+    expect(GRID_RANKED_COLOR).toBe('#e2e8f0')
+    expect(round2(contrast(GRID_RANKED_COLOR, GRID_BAND_COLOR))).toBe(1.13)
+    expect(round2(contrast(LINK_COLOR, GRID_RANKED_COLOR))).toBe(4.81)
     const html = metricGrid({
       columns: [AGGREGATE.minimum, AGGREGATE.maximum],
       rows: [
@@ -171,11 +173,13 @@ describe('the popup grid', () => {
 // The result card's header band (TJ, 2026-10-08): every colour on it measured.
 describe('the header band', () => {
   it('keeps its text above AA and its link glyph above the 3:1 an icon owes', () => {
-    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), HEADER_BAND_COLOR))).toBe(6.6)
-    expect(round2(contrast('#000000', HEADER_BAND_COLOR))).toBe(18.3)
-    expect(round2(contrast(HEADER_ICON_COLOR, HEADER_BAND_COLOR))).toBe(3.57)
+    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), HEADER_BAND_COLOR))).toBe(6.92)
+    expect(round2(contrast('#000000', HEADER_BAND_COLOR))).toBe(19.17)
+    expect(round2(contrast(HEADER_ICON_COLOR, HEADER_BAND_COLOR))).toBe(3.74)
     // The pipes are decoration, hidden from a screen reader; they need only show.
-    expect(round2(contrast(FINE_COLOR, HEADER_BAND_COLOR))).toBe(2.23)
+    expect(round2(contrast(FINE_COLOR, HEADER_BAND_COLOR))).toBe(2.34)
+    // No hue: the band is the grid's own column slate (option H, TJ 2026-10-08).
+    expect(HEADER_BAND_COLOR).toBe(GRID_BAND_COLOR)
   })
 
   it('keeps the close button\'s lane, which map.css widens on a touch screen', () => {

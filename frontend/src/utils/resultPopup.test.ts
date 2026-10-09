@@ -279,10 +279,11 @@ describe('resultPopupHtml type', () => {
   })
 })
 
-// The card marks the number the report ranks by, bold on the header band's
-// sky (TJ, 2026-10-08), and narrows its bands on a map too narrow for them.
+// The card marks the number the report ranks by, bold on a cell one slate
+// darker than its column (TJ, 2026-10-08), and narrows its bands on a map
+// too narrow for them.
 describe('resultPopupHtml ranked number and insets', () => {
-  it('bolds the ranked number on the sky, and no other', () => {
+  it('bolds the ranked number on its darker cell, and no other', () => {
     const html = resultPopupHtml({ ...base, columns: displayedColumns(false, 'wind_max_mph'), rankedBy: 'wind_max_mph' })
     const bold = [...html.matchAll(/<span style="[^"]*font-weight:700[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
     expect(bold).toEqual(['41.8'])
