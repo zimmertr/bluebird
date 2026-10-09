@@ -1,17 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// MapLibre's Popup needs a DOM; this stands in for it and records what opened.
-// Hoisted, because `vi.mock` runs before the imports.
+// MapLibre's Popup needs a DOM; this stands in for it, records what opened and
+// whether it is still open, and fires `close` when removed, as MapLibre's
+// does. Hoisted, because `vi.mock` runs before the imports.
 const { opened, fetchSmoke } = vi.hoisted(() => ({
-  opened: [] as { html: string; options: unknown }[],
+  opened: [] as { html: string; options: unknown; removed: boolean }[],
   fetchSmoke: vi.fn(),
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
     options: unknown
     html = ''
+    state = { html: '', options: null as unknown, removed: false }
+    closers: (() => void)[] = []
     constructor(options: unknown) {
       this.options = options
+    }
+    on(_type: string, fn: () => void) {
+      this.closers.push(fn)
+      return this
+    }
+    remove() {
+      this.state.removed = true
+      for (const fn of this.closers) fn()
     }
     setLngLat() {
       return this
@@ -21,7 +32,9 @@ vi.mock('maplibre-gl', () => ({
       return this
     }
     addTo() {
-      opened.push({ html: this.html, options: this.options })
+      this.state.html = this.html
+      this.state.options = this.options
+      opened.push(this.state)
       return this
     }
   },
@@ -34,7 +47,8 @@ vi.mock('../../utils/smoke', async (importOriginal) => ({
 
 import { mountSmoke } from './smoke'
 import { createMapController } from '../controller'
-import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
+import { SMOKE_CLICK_ORDER, SMOKE_DENSITIES, smokeLayerId, smokePopupHtml, type SmokeDensity, type SmokeProps } from '../../utils/smoke'
+import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 import { MAX_POLYGON_POINTS } from '../../utils/drawGeometry'
 
@@ -59,14 +73,9 @@ function setup(drawing = false, online: EventTarget | null = null) {
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,
   })
-  const deps = {
-    controller,
-    restCursor: vi.fn(),
-    popups: { closeAll: vi.fn(), track: vi.fn() },
-    online,
-  }
-  const smoke = mountSmoke(stub.map, deps)
-  return { stub, smoke, deps }
+  const { popups, click } = mountTestPopups(stub, controller)
+  const smoke = mountSmoke(stub.map, { popups, online })
+  return { stub, smoke, click }
 }
 
 beforeEach(() => {
@@ -105,26 +114,27 @@ describe('mountSmoke', () => {
     expect(stub.sources.smoke.data).not.toBe(PLUME)
   })
 
-  it('takes the pointer over a plume, except in draw mode', () => {
-    const idle = setup(false)
-    idle.stub.fire('mouseenter', SMOKE_CLICK_ORDER[0])
-    expect(idle.stub.canvas.style.cursor).toBe('pointer')
-    const drawing = setup(true)
-    drawing.stub.fire('mouseenter', SMOKE_CLICK_ORDER[0])
-    expect(drawing.stub.canvas.style.cursor).toBe('')
-    drawing.stub.fire('mouseleave', SMOKE_CLICK_ORDER[0])
-    expect(drawing.deps.restCursor).toHaveBeenCalled()
+  // HMS nests its plumes, so a click lands on three at once and the reader
+  // means the densest.
+  it('describes the densest plume under a click', () => {
+    const { stub, click } = setup()
+    expect(stub.handlerCount('mouseenter', SMOKE_CLICK_ORDER[0])).toBe(0)
+    const plume = (density: SmokeDensity) => ({ layer: { id: smokeLayerId(density) }, properties: { density } })
+    click([plume('Light'), plume('Heavy'), plume('Medium')])
+    expect(opened).toHaveLength(1)
+    expect(opened[0].html).toBe(smokePopupHtml({ density: 'Heavy' } as SmokeProps))
+    expect(opened[0].options).toMatchObject({ closeOnClick: false })
   })
 
-  it('opens a popup that clears the board unless it is pinned', () => {
-    const { smoke, deps } = setup()
-    smoke.openPopup({ density: 'Heavy' }, [0, 0], false)
-    expect(deps.popups.closeAll).toHaveBeenCalledTimes(1)
-    smoke.openPopup({ density: 'Light' }, [0, 0], true)
-    expect(deps.popups.closeAll).toHaveBeenCalledTimes(1)
-    expect(deps.popups.track).toHaveBeenCalledTimes(2)
-    expect(opened).toHaveLength(2)
-    expect(opened[0].options).toMatchObject({ closeOnClick: false })
+  // Every overlay takes down the popups about what it drew when it is
+  // switched off; smoke used to leave its own standing.
+  it('takes its popups down when switched off', () => {
+    fetchSmoke.mockResolvedValue(PLUME)
+    const { smoke, click } = setup()
+    smoke.update({ show: true })
+    click([{ layer: { id: SMOKE_CLICK_ORDER[0] }, properties: { density: 'Heavy' } }])
+    smoke.update({ show: false })
+    expect(opened[0].removed).toBe(true)
   })
 
   // #580: one failed fetch used to leave the layer empty until a toggle.

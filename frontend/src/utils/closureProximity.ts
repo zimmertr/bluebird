@@ -54,6 +54,17 @@ export function closureWarningText(w: ClosureWarning): string {
 }
 
 /**
+ * The marker popup's closure line (TJ, 2026-10-08). Most order names are long
+ * enough to wrap the table's sentence above, so the popup sets this one on a
+ * single line and cuts it with an ellipsis where it does not fit
+ * (`popupChrome.ts`'s `warningLine`); the order's own page, behind the link,
+ * and the table's hover carry the whole name.
+ */
+export function closurePopupText(w: ClosureWarning): string {
+  return `Within a closure (${w.name})`
+}
+
+/**
  * The Closure column's on-screen cell once the check has answered: the fire
  * column's three visible states. The ⚠️ and the order's name where the row is
  * inside a closure, the dash where the check ran and found no order holding

@@ -3,7 +3,15 @@ import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
 import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
-import { GRID_COMPACT_INSET_PX, GRID_INSET_PX, GRID_RANKED_COLOR, HEADER_BAND_COLOR, LABEL_COLOR } from './popupChrome'
+import {
+  GRID_COMPACT_INSET_PX,
+  GRID_INSET_PX,
+  GRID_RANKED_COLOR,
+  HEADER_BAND_COLOR,
+  HEADER_EDGE_COLOR,
+  LABEL_COLOR,
+  WARNING_COLOR,
+} from './popupChrome'
 import { displayedColumns } from './tableColumns'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 
@@ -48,13 +56,14 @@ describe('resultPopupHtml fire warning', () => {
     const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning })
     expect(html).toContain('⚠️')
-    expect(html).toContain('3.2 mi from an active wildfire (Sourdough)')
+    expect(html).toContain('>Near a wildfire (Sourdough): 3.2 mi<')
   })
 
-  it('phrases an inside-the-perimeter warning without a mileage', () => {
+  // One form at every distance: a point inside a perimeter reads 0.0 mi.
+  it('phrases an inside-the-perimeter warning at 0.0 mi', () => {
     const warning: FireWarning = { miles: 0, name: 'Bolt Creek', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning })
-    expect(html).toContain('Inside an active wildfire perimeter (Bolt Creek)')
+    expect(html).toContain('>Near a wildfire (Bolt Creek): 0.0 mi<')
   })
 
   // NIFC incident names are third-party strings rendered via setHTML, so the
@@ -77,24 +86,78 @@ describe('resultPopupHtml fire warning', () => {
   })
 })
 
+// The warnings stand in a section of their own between the header and the
+// grid, closed off from the grid by the header's own edge (TJ, 2026-10-08).
+describe('resultPopupHtml warnings section', () => {
+  const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
+  const section = (html: string) =>
+    html.match(/<div style="font-size:12px;display:flex;[^"]*border-bottom:1px solid #[0-9a-f]+">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
+  const glyphs = (html: string) => html.split('⚠️').length - 1
+
+  it('puts both warnings after the header and before the grid, ruled off from it', () => {
+    const html = resultPopupHtml({ ...base, warning: fire, closure: closureWarning() })
+    const found = section(html)
+    expect(found).not.toBeNull()
+    expect(found![0]).toContain(`border-bottom:1px solid ${HEADER_EDGE_COLOR}`)
+    expect(found![1]).toContain('KING')
+    expect(found![1]).toContain('Within a closure')
+    // Neither warning is inside the body the scroll cap shortens.
+    const body = html.slice(html.indexOf('data-popup-body'))
+    expect(body).not.toContain('active')
+    // The header comes first.
+    expect(html.indexOf(HEADER_BAND_COLOR)).toBeLessThan(html.indexOf('⚠️'))
+  })
+
+  it('draws no section, and no glyph, without a warning', () => {
+    const html = resultPopupHtml({ ...base })
+    expect(section(html)).toBeNull()
+    expect(glyphs(html)).toBe(0)
+  })
+
+  // One glyph for the section, in a column of its own down its right side
+  // under the close button, rather than one spending the start of every line.
+  it('draws one glyph for the whole section, in a column after the warnings', () => {
+    for (const d of [{ warning: fire }, { closure: closureWarning() }, { warning: fire, closure: closureWarning() }]) {
+      const html = resultPopupHtml({ ...base, ...d })
+      expect(glyphs(html)).toBe(1)
+      expect(section(html)![1]).toMatch(/<span aria-hidden="true" style="flex:none;width:calc\(var\(--popup-close-lane, 2rem\) \+ 2px\);[^"]*">⚠️<\/span>$/)
+    }
+  })
+
+  // Each warning keeps one line and ends in an ellipsis where it outruns the
+  // card, linked or not, so a long order name no longer wraps the card.
+  it('keeps every warning to one line, cut with an ellipsis', () => {
+    const oneLine = /font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/g
+    expect(resultPopupHtml({ ...base, warning: fire, closure: closureWarning() }).match(oneLine)).toHaveLength(2)
+    expect(resultPopupHtml({ ...base, closure: closureWarning({ url: null }) }).match(oneLine)).toHaveLength(1)
+  })
+
+  // Two warnings are a bulleted list; a lone one is its sentence alone.
+  it('bullets two warnings, and leaves a lone one unbulleted', () => {
+    const both = section(resultPopupHtml({ ...base, warning: fire, closure: closureWarning() }))![1]
+    expect(both).toMatch(/<ul style="[^"]*list-style:disc[^"]*"><li>.*KING.*<\/li><li>.*Within a closure.*<\/li><\/ul>/s)
+    expect(section(resultPopupHtml({ ...base, closure: closureWarning() }))![1]).not.toContain('<li>')
+  })
+})
+
 // The closure line follows the fire line in its markup (#550): the approved
 // sentence, linked to the order's page when it has one.
 describe('resultPopupHtml closure line', () => {
   it('says nothing without a closure', () => {
-    expect(resultPopupHtml({ ...base, closure: null })).not.toContain('active closure')
+    expect(resultPopupHtml({ ...base, closure: null })).not.toContain('closure (')
   })
 
   it('links the sentence to the order after the fire line', () => {
     const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning, closure: closureWarning() })
-    expect(html).toContain('⚠️ Inside an active closure (Probe Fire Closure)')
+    expect(html).toContain('>Within a closure (Probe Fire Closure)</a>')
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
-    expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('active closure'))
+    expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('Within a closure'))
   })
 
   it('writes plain text for an order with no page, and escapes the name', () => {
     const html = resultPopupHtml({ ...base, closure: closureWarning({ url: null, name: '<b>x</b>' }) })
-    expect(html).toContain('Inside an active closure (&lt;b&gt;x&lt;/b&gt;)')
+    expect(html).toContain('Within a closure (&lt;b&gt;x&lt;/b&gt;)')
     expect(html).not.toContain('fs.usda.gov')
   })
 })
@@ -376,7 +439,7 @@ describe('resultPopupHtml links out', () => {
     expect(html).toContain('data-nifc.opendata.arcgis.com')
     expect(html).toContain('?location=48.80000,-121.10000,10')
     // The line keeps its amber: popupLink's own colour is declared first.
-    expect(html).toContain('color:#f59e0b')
+    expect(html).toContain(`color:${WARNING_COLOR}`)
   })
 
   // Neither is a forecast, and the table links neither. Matched as whole

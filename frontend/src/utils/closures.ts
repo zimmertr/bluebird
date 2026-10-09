@@ -44,7 +44,7 @@ export interface ClosureResponse extends FeatureCollection {
  * The Forest Service's own properties on a closure feature, as it names them.
  *
  * All optional and nullable: the service leaves fields empty freely, and
- * MapLibre drops a null property from a feature it hands back on a hover, so
+ * MapLibre drops a null property from a feature it hands back on a click, so
  * a field can arrive as `null` from the API and as absent from the map. Text
  * values can carry leading spaces (`" Eagle Creek"`), so every reader trims.
  */
@@ -147,23 +147,6 @@ function text(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-/**
- * Which closure a hovered feature is, for telling "the cursor moved along the
- * same closure" from "the cursor crossed into a different one".
- *
- * `OBJECTID` is safe here where `fireIdentity` avoided an id, because the two
- * are different ids. The fire module's worry is MapLibre's top-level feature
- * id, which is not stable across the tiles a GeoJSON source is cut into.
- * `OBJECTID` is one of the feature's PROPERTIES, and properties are copied
- * whole into every tile a feature lands in, so both halves of a closure that
- * spans a tile boundary read the same number. It is unique within one of the
- * service's layers, which is all a hover needs. The name is the fallback for
- * a feature that arrives without one.
- */
-export function closureIdentity(props: ClosureProps): string {
-  return props.OBJECTID != null ? String(props.OBJECTID) : closureName(props)
-}
-
 /** What a closure is called: its order's name, else its number, else `Closure`. */
 export function closureName(props: ClosureProps): string {
   return text(props.ClosureOrderName) || text(props.ClosureOrderNumber) || 'Closure'
@@ -209,9 +192,9 @@ export function closureUrl(props: ClosureProps): string | null {
 }
 
 /**
- * Popup markup for a hovered closure.
+ * Popup markup for a clicked or tapped closure.
  *
- * Inline styles copy `wildfirePopupHtml`'s so the two hover popups read as one
+ * Inline styles copy `wildfirePopupHtml`'s so the two popups read as one
  * kind of thing; this is markup handed to MapLibre's `setHTML`, which the
  * stylesheet-scanned design system in styles.ts cannot reach.
  *

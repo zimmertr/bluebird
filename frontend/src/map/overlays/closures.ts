@@ -4,22 +4,19 @@
  * each mounted once by `mountFeatures` and switched by its own toggle.
  *
  * One module rather than two because the two differ only in what they draw:
- * the hover popup with its grace close and the viewport fetch re-asked on a
- * settled pan are the wildfire overlay's, and one copy of that machinery per
- * kind would be two places for the same timing bug. Like the fire overlay, the
- * layers are added once when the map loads and `update` only fills and empties
- * them, so the popup's timer and the fetch's abort are torn down in the one
- * place they are made.
+ * the viewport fetch re-asked on a settled pan is the wildfire overlay's, and
+ * one copy of it per kind would be two places for the same timing bug. Like
+ * the fire overlay, the layers are added once when the map loads and `update`
+ * only fills and empties them, so the fetch's abort and the kind's popups are
+ * torn down in the one place they are made.
  */
-import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
-import { FIRE_POPUP_GRACE_MS, FIRE_REFETCH_DEBOUNCE_MS, fireDetailFor } from './wildfires'
+import { FIRE_REFETCH_DEBOUNCE_MS, fireDetailFor } from './wildfires'
 import {
   CLOSURE_COLOR,
   CLOSURE_EDGE,
-  closureIdentity,
   closurePopupHtml,
   fetchClosures,
   type ClosureKind,
@@ -27,6 +24,7 @@ import {
 } from '../../utils/closures'
 import type { BBox } from '../../utils/wildfires'
 import { MARKER_STROKE } from '../mapStyles'
+import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
 
 /** Each kind's source id. */
@@ -39,13 +37,21 @@ export const CLOSURE_AREA_FILL_LAYER = 'closure-area-fill'
 export const CLOSURE_TRAIL_LINE_LAYER = 'closure-trail-line'
 export const CLOSURE_TRAIL_SITE_LAYER = 'closure-trail-site'
 
+/**
+ * How far from a closed trail or site a click still lands on it, in screen
+ * pixels: about the reach of the 2.5px line's own width again on each side
+ * and a finger's error beyond it.
+ */
+export const CLOSURE_TRAIL_SLOP_PX = 6
+
 export interface ClosureOverlay {
   update(next: { show: boolean }): void
   dispose(): void
 }
 
 /**
- * The layers one kind draws, lowest first, and which of them answer a hover.
+ * The layers one kind draws, lowest first, and which of them answer a click,
+ * in the order a click that lands on two of them reads them.
  *
  * The area is the fire perimeter's treatment in the closure hue: a light fill
  * under a firm edge. The trail kind carries lines and points in one source, so
@@ -53,7 +59,7 @@ export interface ClosureOverlay {
  * still a trail and a solid one would read as a road on the basemap, and a
  * white-rimmed dot for a closed trailhead or site, which has no length to dash.
  */
-function layersFor(kind: ClosureKind, source: string): { specs: maplibregl.LayerSpecification[]; hover: string[] } {
+function layersFor(kind: ClosureKind, source: string): { specs: maplibregl.LayerSpecification[]; clickable: string[] } {
   if (kind === 'area') {
     return {
       specs: [
@@ -70,7 +76,7 @@ function layersFor(kind: ClosureKind, source: string): { specs: maplibregl.Layer
           paint: { 'line-color': CLOSURE_EDGE, 'line-width': 1.5, 'line-opacity': 0.9 },
         },
       ],
-      hover: [CLOSURE_AREA_FILL_LAYER],
+      clickable: [CLOSURE_AREA_FILL_LAYER],
     }
   }
   return {
@@ -100,7 +106,8 @@ function layersFor(kind: ClosureKind, source: string): { specs: maplibregl.Layer
         },
       },
     ],
-    hover: [CLOSURE_TRAIL_LINE_LAYER, CLOSURE_TRAIL_SITE_LAYER],
+    // A site before the line it sits on: the dot is the smaller target.
+    clickable: [CLOSURE_TRAIL_SITE_LAYER, CLOSURE_TRAIL_LINE_LAYER],
   }
 }
 
@@ -108,81 +115,30 @@ export function mountClosures(
   map: maplibregl.Map,
   kind: ClosureKind,
   // `online` is where the browser's `online` is heard; the window when absent.
-  deps: { restCursor: () => void; online?: EventTarget | null },
+  deps: { popups: MapPopups; online?: EventTarget | null },
 ): ClosureOverlay {
   // Added right after the fire overlay, so a closure is drawn over the fire
   // that caused it and under the drawing UI and the result markers. Data is
   // populated on demand by `update`; the layers render nothing until then.
   const source = CLOSURE_SOURCES[kind]
   map.addSource(source, { type: 'geojson', data: emptyFC as FeatureCollection })
-  const { specs, hover } = layersFor(kind, source)
+  const { specs, clickable } = layersFor(kind, source)
   for (const spec of specs) map.addLayer(spec)
 
-  let popup: Popup | null = null
-  // Which closure the open popup describes, and the pending close that gives
-  // the cursor time to reach the order's link inside it. The same approach as
-  // the fire popup, for the same reason: re-anchoring on every move would
-  // move the popup away from a cursor travelling toward it.
-  let hovered: string | null = null
-  let closeTimer: ReturnType<typeof setTimeout> | null = null
-
-  function closePopup() {
-    closeTimer = null
-    hovered = null
-    popup?.remove()
-    popup = null
-  }
-  function cancelClose() {
-    if (closeTimer === null) return
-    clearTimeout(closeTimer)
-    closeTimer = null
-  }
-  function scheduleClose() {
-    cancelClose()
-    closeTimer = setTimeout(closePopup, FIRE_POPUP_GRACE_MS)
-  }
-  function showPopup(e: maplibregl.MapLayerMouseEvent) {
-    const feature = e.features?.[0]
-    const props = feature?.properties
-    if (!props) return
-    // Keyed by layer as well as by id: the trail kind's lines and sites can
-    // come from two of the service's layers, whose ids are unique within a
-    // layer but not across them, and a line and a site sharing a number must
-    // not read as one closure.
-    const key = `${feature.layer?.id ?? ''}:${closureIdentity(props as ClosureProps)}`
-    if (popup && key === hovered) {
-      cancelClose()
-      return
-    }
-    cancelClose()
-    hovered = key
-    const html = closurePopupHtml(props as ClosureProps)
-    if (popup) {
-      popup.setLngLat(e.lngLat).setHTML(html)
-    } else {
-      popup = new Popup({ closeButton: false, maxWidth: '260px' })
-        .setLngLat(e.lngLat)
-        .setHTML(html)
-        .addTo(map)
-    }
-    // The content element is the one that can be hovered (MapLibre leaves the
-    // container pointer-events:none); an identical listener dedupes, so
-    // re-arming on every open is a no-op after the first.
-    const content = popup.getElement().querySelector('.maplibregl-popup-content')
-    content?.addEventListener('mouseenter', cancelClose)
-    content?.addEventListener('mouseleave', scheduleClose)
-  }
-  for (const layer of hover) {
-    map.on('mouseenter', layer, (e) => {
-      map.getCanvas().style.cursor = 'pointer'
-      showPopup(e)
-    })
-    map.on('mousemove', layer, showPopup)
-    map.on('mouseleave', layer, () => {
-      deps.restCursor()
-      scheduleClose()
-    })
-  }
+  // A click on a closure describes the order, the way a click on a marker
+  // describes the destination (TJ, 2026-10-08); nothing opens on a hover,
+  // which would cover the destinations inside the closure. A closed trail is
+  // a 2.5px line, so it answers a click within a few pixels of it: a finger
+  // rarely lands exactly on it.
+  const target = kind === 'area' ? 'closure-area' : 'closure-trail'
+  deps.popups.register({
+    target,
+    layers: clickable,
+    ...(kind === 'trail' && { slopPx: CLOSURE_TRAIL_SLOP_PX }),
+    open: ({ feature, lngLat }) => {
+      deps.popups.create(lngLat, closurePopupHtml(feature.properties as ClosureProps), { owner: target })
+    },
+  })
 
   // The fetch that runs while the overlay is on: this kind's closures for the
   // current viewport, re-fetched (debounced) as the reader pans and zooms.
@@ -239,14 +195,11 @@ export function mountClosures(
       }
       stopFetching()
       setSource(map, source, emptyFC)
-      // Turning the overlay off outranks a pending grace close.
-      cancelClose()
-      closePopup()
+      // A popup about a closure the map no longer draws goes with it.
+      deps.popups.closeAll(target)
     },
     dispose() {
       stopFetching()
-      cancelClose()
-      popup = null
     },
   }
 }

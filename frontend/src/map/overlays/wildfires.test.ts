@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// MapLibre's Popup needs a DOM. This one records where it is, what it says,
-// whether it is still open, and the two listeners the grace close hangs on
-// its content element. Hoisted, because `vi.mock` runs before the imports.
+// MapLibre's Popup needs a DOM. This one records where it is, what it says and
+// whether it is still open, and fires `close` when removed, as MapLibre's
+// does. Hoisted, because `vi.mock` runs before the imports.
 const { FakePopup, popups } = vi.hoisted(() => {
   const popups: InstanceType<typeof FakePopup>[] = []
   class FakePopup {
     html = ''
     at: unknown = null
     removed = false
-    listeners: Record<string, () => void> = {}
+    closers: (() => void)[] = []
     constructor() {
       popups.push(this)
     }
@@ -24,17 +24,13 @@ const { FakePopup, popups } = vi.hoisted(() => {
     addTo() {
       return this
     }
+    on(_type: string, fn: () => void) {
+      this.closers.push(fn)
+      return this
+    }
     remove() {
       this.removed = true
-    }
-    getElement() {
-      return {
-        querySelector: () => ({
-          addEventListener: (type: string, fn: () => void) => {
-            this.listeners[type] = fn
-          },
-        }),
-      }
+      for (const fn of this.closers) fn()
     }
   }
   return { FakePopup, popups }
@@ -48,27 +44,24 @@ vi.mock('../../utils/wildfires', async (importOriginal) => ({
 }))
 
 import {
-  FIRE_POPUP_GRACE_MS,
   FIRE_REFETCH_DEBOUNCE_MS,
   WILDFIRE_FILL_LAYER,
   fireDetailFor,
   fireLinkAt,
   mountWildfires,
 } from './wildfires'
-import { COARSE_TOLERANCE_DEG, nifcFireUrl } from '../../utils/wildfires'
+import { COARSE_TOLERANCE_DEG, nifcFireUrl, wildfirePopupHtml } from '../../utils/wildfires'
+import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
 const FIRES = { type: 'FeatureCollection', features: [] as unknown[], fetched_at: '' }
-const hover = (name: string, lng = -121.5, lat = 47.5) => ({
-  features: [{ properties: { poly_IncidentName: name } }],
-  lngLat: { lng, lat },
-})
+const fire = (name: string) => ({ layer: { id: WILDFIRE_FILL_LAYER }, properties: { poly_IncidentName: name } })
 
 function setup(online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 1000, zoom: 8 })
-  const restCursor = vi.fn()
-  const fires = mountWildfires(stub.map, { restCursor, online })
-  return { stub, fires, restCursor }
+  const { popups, click } = mountTestPopups(stub)
+  const fires = mountWildfires(stub.map, { popups, online })
+  return { stub, fires, click }
 }
 
 beforeEach(() => {
@@ -157,40 +150,26 @@ describe('mountWildfires', () => {
     expect(signal.aborted).toBe(true)
   })
 
-  it('keeps the popup where it is while the cursor stays in the same fire', () => {
-    const { stub } = setup()
-    stub.fire('mouseenter', WILDFIRE_FILL_LAYER, hover('Alpha', -121.5))
-    stub.fire('mousemove', WILDFIRE_FILL_LAYER, hover('Alpha', -121.4))
+  // A click on a perimeter describes the fire, with its NIFC link, where a
+  // hover used to (TJ, 2026-10-08); a hover opens nothing.
+  it('opens the fire’s popup on a click, and nothing on a hover', () => {
+    const { stub, click } = setup()
+    expect(stub.handlerCount('mouseenter', WILDFIRE_FILL_LAYER)).toBe(0)
+    expect(stub.handlerCount('mousemove', WILDFIRE_FILL_LAYER)).toBe(0)
+    click([fire('Alpha')], { lngLat: { lng: -121.4, lat: 47.6 } })
     expect(popups).toHaveLength(1)
-    expect(popups[0].at).toEqual({ lng: -121.5, lat: 47.5 })
-    expect(stub.canvas.style.cursor).toBe('pointer')
-    stub.fire('mousemove', WILDFIRE_FILL_LAYER, hover('Beta', -121.3))
-    expect(popups).toHaveLength(1)
-    expect(popups[0].at).toEqual({ lng: -121.3, lat: 47.5 })
+    expect(popups[0].at).toEqual({ lng: -121.4, lat: 47.6 })
+    expect(popups[0].html).toBe(
+      wildfirePopupHtml({ poly_IncidentName: 'Alpha' }, fireLinkAt(stub.map, { lng: -121.4, lat: 47.6 })),
+    )
   })
 
-  // A leave schedules the close rather than doing it, so the cursor can reach
-  // the NIFC link; reaching the popup cancels it.
-  it('closes on leaving only after the grace period, unless the popup is reached', () => {
-    const { stub, restCursor } = setup()
-    stub.fire('mouseenter', WILDFIRE_FILL_LAYER, hover('Alpha'))
-    stub.fire('mouseleave', WILDFIRE_FILL_LAYER)
-    expect(restCursor).toHaveBeenCalled()
-    popups[0].listeners.mouseenter()
-    vi.advanceTimersByTime(FIRE_POPUP_GRACE_MS * 2)
-    expect(popups[0].removed).toBe(false)
-    popups[0].listeners.mouseleave()
-    vi.advanceTimersByTime(FIRE_POPUP_GRACE_MS)
-    expect(popups[0].removed).toBe(true)
-  })
-
-  it('takes the popup and its pending close down when switched off', () => {
-    const { stub, fires } = setup()
+  it('takes the fire’s popups down when switched off', () => {
+    const { fires, click } = setup()
     fires.update({ show: true })
-    stub.fire('mouseenter', WILDFIRE_FILL_LAYER, hover('Alpha'))
-    stub.fire('mouseleave', WILDFIRE_FILL_LAYER)
+    click([fire('Alpha')])
+    click([fire('Beta')], { shiftKey: true })
     fires.update({ show: false })
-    expect(popups[0].removed).toBe(true)
-    expect(vi.getTimerCount()).toBe(0)
+    expect(popups.map((p) => p.removed)).toEqual([true, true])
   })
 })

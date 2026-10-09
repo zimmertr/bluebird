@@ -147,11 +147,31 @@ export const RULE_COLOR = '#cbd5e1'
  * The amber a safety warning wears in a popup: the fire line and the closure
  * line, which are flags rather than measurements. Amber-500, the popup-side
  * counterpart of the `STATUS` amber the table's Wildfire column wears in the
- * stylesheet. It is the colour the warning shipped with and #365 only named
- * it; on white it measures about 2.2:1, so whether it should darken is a
- * colour decision for the maintainer rather than a move.
+ * stylesheet. On white it measures 2.15:1, under the 4.5:1 AA asks of 12px
+ * text, and stays by the maintainer's choice: amber-700 (5.02:1) was tried on
+ * the #700 preview and TJ kept this one (2026-10-08). Pinned in
+ * `popupChrome.test.tsx`, so a change re-measures rather than inherits.
  */
 export const WARNING_COLOR = '#f59e0b'
+
+/**
+ * One safety warning, the whole sentence a link where it has one. It carries
+ * no glyph of its own: the section's one ⚠️ stands for every line in it
+ * (`resultCardShell`). It keeps one line and ends in an ellipsis where it
+ * outruns the card, as a title does (TJ, 2026-10-08): a closure order's name
+ * wrapped most cards onto a second line, which on a phone is a row of the
+ * grid scrolled out of view. The card still widens to its cap first, so the
+ * cut takes only what no card could show. The text is escaped by the caller,
+ * since it carries third-party names, and stays whole in the markup for a
+ * screen reader.
+ */
+export function warningLine(text: string, href: string | null): string {
+  const style = `color:${WARNING_COLOR};font-weight:600;display:block;${ONE_LINE}`
+  return href ? popupLink(href, text, style) : `<span style="${style}">${text}</span>`
+}
+
+/** One line, cut with an ellipsis: a popup's title and its warnings. */
+const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
  * The colour of the one line that qualifies a card rather than adding to it:
@@ -511,7 +531,7 @@ export function popupShell(
   url: string,
   body: string,
   meta = '',
-  { resultCard = false }: { resultCard?: boolean } = {},
+  { resultCard = false, warnings = [] }: { resultCard?: boolean; warnings?: readonly string[] } = {},
 ): string {
   // The name stays at the reading size and everything under it steps down one.
   // Setting both the same made the details compete with the thing they
@@ -521,7 +541,7 @@ export function popupShell(
   // `meta` sits between the title and the rule, so the rule separates what the
   // destination IS from what the forecast says about it. It is optional: the
   // basemap POI popup shares this shell and has no analysis behind it.
-  if (resultCard) return resultCardShell(title, url, body, meta)
+  if (resultCard) return resultCardShell(title, url, body, meta, warnings)
   return `<div style="${POPUP_FACE}">
     <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url)}</div>
     ${meta}
@@ -545,12 +565,21 @@ export function popupShell(
  * its height from its measured outer height (`capPopupBody`), and it scrolls
  * sideways on a map narrower than its grid.
  */
-function resultCardShell(title: string, url: string, body: string, meta: string): string {
+function resultCardShell(title: string, url: string, body: string, meta: string, warnings: readonly string[]): string {
+  // The warnings, between the header and the grid and closed off from the grid
+  // by the header's own edge (TJ, 2026-10-08), so the card reads as three
+  // parts: what the place is, what is wrong there, what the forecast says.
+  // Without the edge they ran into the first row of numbers. No shadow, so
+  // the header stays the one raised band. Outside the body, so a capped card
+  // that scrolls its numbers keeps its warnings in view with its name.
+  const notice = warnings.length
+    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:8px 0 8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
+    : ''
   return `<div style="${POPUP_FACE}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url, HEADER_ICON_COLOR)}</div>
       ${meta}
-    </div>
+    </div>${notice}
     <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>
   </div>`
 }
@@ -565,7 +594,7 @@ function resultCardShell(title: string, url: string, body: string, meta: string)
  * the link-out glyph never shrinks, so it stays beside the visible part.
  */
 const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_TITLE_SIZE}`
-const TITLE_TEXT = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
+const TITLE_TEXT = `min-width:0;${ONE_LINE}`
 
 /**
  * The result card's header band: slate-100, the grid's own band colour, under
@@ -578,6 +607,31 @@ const TITLE_TEXT = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-spa
 export const HEADER_BAND_COLOR = '#f1f5f9'
 export const HEADER_EDGE_COLOR = '#e2e8f0'
 export const HEADER_SHADOW_COLOR = 'rgba(15,23,42,0.08)'
+
+/**
+ * The warning section's one ⚠️, which stands for every line in it (TJ,
+ * 2026-10-08). A glyph per line spent 20px of every line and wrapped a
+ * closure name that fits without it. It stands in a column of its own down
+ * the section's right side, the header's close-button lane carried on below
+ * it, so it reads as the section's rather than the first line's: floated, the
+ * lines below ran under it and it looked like the first warning's alone. The
+ * column is the lane plus 2px, so the glyph centred in it sits under the
+ * button's centre, which is half the lane plus 1px in from the card's edge
+ * (`map.css`: a 0.375rem inset, and the lane is the button, that inset and
+ * 0.25rem of air). 17px from the edge on a mouse, 28px on a touch screen.
+ */
+const WARNING_GLYPH = `<span aria-hidden="true" style="flex:none;width:calc(var(--popup-close-lane, 2rem) + 2px);text-align:center">⚠️</span>`
+
+/**
+ * The warnings themselves: a lone one as its sentence, two or more as a
+ * bulleted list (TJ, 2026-10-08), the bullets in the warning amber. A rule
+ * between them was tried and read as a section per warning.
+ */
+function warningList(warnings: readonly string[]): string {
+  if (warnings.length === 1) return warnings[0]
+  return `<ul style="margin:0;padding-left:16px;list-style:disc;color:${WARNING_COLOR}">${warnings.map((w) => `<li>${w}</li>`).join('')}</ul>`
+}
+
 /**
  * The link-out glyph on the band, sky-600 at 3.74:1. `LINK_ICON_COLOR`'s
  * sky-400 would fall under the 3:1 an icon owes there.

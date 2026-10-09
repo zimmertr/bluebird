@@ -4,7 +4,6 @@ import {
   CLOSURE_EDGE,
   USFS_HREF,
   closureAreaSwatch,
-  closureIdentity,
   closureName,
   closurePopupHtml,
   closureQueryUrl,
@@ -66,13 +65,6 @@ describe('fetchClosures', () => {
   it('refuses a body that is not a FeatureCollection', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ type: 'Feature' })))
     await expect(run()).rejects.toThrow('Closure data could not be read.')
-  })
-})
-
-describe('closureIdentity', () => {
-  it('keys a closure by its OBJECTID, and by its name without one', () => {
-    expect(closureIdentity(props({ OBJECTID: 42 }))).toBe('42')
-    expect(closureIdentity(props({ OBJECTID: null }))).toBe('Probe Fire Closure')
   })
 })
 

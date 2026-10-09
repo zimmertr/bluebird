@@ -2,8 +2,8 @@
  * The popups on the map: which click keeps the ones already open, how wide a
  * new one is, and the board that closes them all.
  *
- * Every popup the map opens (a result, a basemap feature, a smoke plume) goes
- * on one board, because `closeOnClick` is fixed when a popup is made and so
+ * Every popup the map opens goes on one board, through the one factory in
+ * `map/mapPopups.ts`, because `closeOnClick` is fixed when a popup is made and so
  * cannot tell a popup to survive the shift-click that pins a second one. A
  * click without shift clears the board, pinned popups included, which is the
  * one way back to a clean map once anything was pinned.
@@ -11,6 +11,7 @@
  * MapLibre is imported for its types only, so a node test can load this file.
  */
 import type * as maplibregl from 'maplibre-gl'
+import type { MapTarget } from '../utils/mapClick'
 import { popupWidth, resultPopupWidth } from '../utils/popupChrome'
 
 /**
@@ -39,27 +40,31 @@ export function popupOptions(map: maplibregl.Map, { result = false }: { result?:
 export type BoardPopup = Pick<maplibregl.Popup, 'remove' | 'on'>
 
 export interface PopupBoard {
-  /** Put a popup on the board, so the next `closeAll` takes it down. */
-  track(popup: BoardPopup): void
-  /** Close every popup on the board. */
-  closeAll(): void
+  /**
+   * Put a popup on the board, so the next `closeAll` takes it down. `owner` is
+   * the kind of thing it describes, so an overlay switched off can take down
+   * its own popups and leave the rest.
+   */
+  track(popup: BoardPopup, owner?: MapTarget): void
+  /** Close every popup on the board, or every one this kind of thing owns. */
+  closeAll(owner?: MapTarget): void
 }
 
 export function createPopupBoard(): PopupBoard {
-  let open: BoardPopup[] = []
+  let open: { popup: BoardPopup; owner?: MapTarget }[] = []
   return {
-    track(popup) {
-      open.push(popup)
+    track(popup, owner) {
+      open.push({ popup, owner })
       // MapLibre fires this for its own close button and for closeOnClick, so
       // the board empties itself rather than growing for the session.
       popup.on('close', () => {
-        open = open.filter((p) => p !== popup)
+        open = open.filter((p) => p.popup !== popup)
       })
     },
-    closeAll() {
-      const closing = open
-      open = []
-      for (const popup of closing) popup.remove()
+    closeAll(owner) {
+      const closing = open.filter((p) => owner === undefined || p.owner === owner)
+      open = open.filter((p) => !closing.includes(p))
+      for (const { popup } of closing) popup.remove()
     },
   }
 }

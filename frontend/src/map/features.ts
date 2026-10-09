@@ -10,9 +10,12 @@
  * under the outline of the area it was found in, then the markers and the
  * pending dots. The radar loop and the snow field are created when they are
  * switched on, beneath the first smoke fill, so the chain comes out grid, snow,
- * radar, smoke, fire, closures, draw, results. The basemap POI popups and the general
- * click add no layers and go last, because a handler registered later answers
- * a click later.
+ * radar, smoke, fire, closures, draw, results. The basemap POI popups add no
+ * layers and go last.
+ *
+ * The map's popups mount first of all (`map/mapPopups.ts`): every feature that
+ * opens a popup registers itself there as it mounts, and the one click that
+ * opens any of them is that module's.
  *
  * One function rather than calls spread through the component's load handler,
  * so the whole stack can be mounted on a stub map and pinned by a test.
@@ -21,9 +24,9 @@ import type * as maplibregl from 'maplibre-gl'
 import type { GeoPolygon } from '../types'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
-import { mountMapClick } from './click'
 import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { mountMapPopups } from './mapPopups'
 import { mountClosures, type ClosureOverlay } from './overlays/closures'
 import { mountForecastGrid, type ForecastGridOverlay } from './overlays/forecastGrid'
 import { mountRadar, type RadarOverlay } from './overlays/radar'
@@ -69,24 +72,28 @@ export function mountFeatures(
   }
   restCursor()
 
+  // A click on bare map in draw mode extends the ring, which is mounted
+  // below; the click cannot come before the map has finished loading.
+  const mapPopups = mountMapPopups(map, { controller, board: popups, addPoint: (pt) => drawRing.addPoint(pt) })
+
   enhanceBasemap(map)
   const grid = mountForecastGrid(map)
-  const smoke = mountSmoke(map, { controller, restCursor, popups })
-  const wildfires = mountWildfires(map, { restCursor })
-  const areaClosures = mountClosures(map, 'area', { restCursor })
-  const trailClosures = mountClosures(map, 'trail', { restCursor })
+  const smoke = mountSmoke(map, { popups: mapPopups })
+  const wildfires = mountWildfires(map, { popups: mapPopups })
+  const areaClosures = mountClosures(map, 'area', { popups: mapPopups })
+  const trailClosures = mountClosures(map, 'trail', { popups: mapPopups })
   const snow = mountSnow(map)
   const radar = mountRadar(map)
   const drawRing = mountDrawRing(map, {
     ring: deps.ring,
     controller,
+    popups: mapPopups,
     restCursor,
     onPolygonChange: deps.onPolygonChange,
     onDrawUpdate: deps.onDrawUpdate,
   })
-  const results = mountResultsLayer(map, { controller, popups, restCursor })
-  const pois = mountPoiPopups(map, { controller, popups, restCursor })
-  mountMapClick(map, { controller, popups, drawRing, smoke })
+  const results = mountResultsLayer(map, { controller, popups: mapPopups })
+  const pois = mountPoiPopups(map, { controller, popups: mapPopups })
   // Last: it adds no layer, and its first report is the camera the opening
   // frame left.
   mountCamera(map, { controller })

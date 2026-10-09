@@ -9,6 +9,7 @@ import {
   FIRE_LOADING_FRAMES,
   FIRE_UNAVAILABLE_NOTE,
   FIRE_UNCOVERED_NOTE,
+  firePopupText,
   fireWarningText,
   pointsBbox,
   pointsKey,
@@ -51,6 +52,17 @@ describe('fireWarningText', () => {
     expect(fireWarningText(fireWarning({ miles: 3.24, name: 'P-L Gulch' }))).toBe(
       '3.2 mi from an active wildfire (P-L Gulch)',
     )
+  })
+})
+
+// The marker popup's shorter line: one form at every distance, the name as
+// NIFC sends it (TJ, 2026-10-08).
+describe('firePopupText', () => {
+  it('phrases a nearby hit to one decimal', () => {
+    expect(firePopupText(fireWarning({ miles: 0.24, name: 'KING' }))).toBe('Near a wildfire (KING): 0.2 mi')
+  })
+  it('phrases an inside hit at 0.0 mi', () => {
+    expect(firePopupText(fireWarning({ miles: 0, name: 'Beehive' }))).toBe('Near a wildfire (Beehive): 0.0 mi')
   })
 })
 

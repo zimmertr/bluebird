@@ -9,12 +9,13 @@
  * the pure edits in `utils/drawGeometry.ts`; every edit it makes is committed
  * to React the same way, through `commitRing`.
  */
-import { Popup } from 'maplibre-gl'
+import type { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import type { GeoPolygon } from '../types'
 import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
+import type { MapPopups } from './mapPopups'
 import {
   insertOnSegment,
   makeDrawData,
@@ -51,6 +52,7 @@ export function mountDrawRing(
   deps: {
     ring: { current: Pts }
     controller: MapController
+    popups: MapPopups
     restCursor: () => void
     onPolygonChange: (polygon: GeoPolygon | null) => void
     onDrawUpdate: (count: number) => void
@@ -186,29 +188,37 @@ export function mountDrawRing(
     startVertexDrag(Number(e.features?.[0]?.properties?.index))
   })
 
-  // Vertex: a click (the mouse didn't move) offers to remove it.
-  map.on('click', 'draw-vertices', (e) => {
-    const props = e.features?.[0]?.properties
-    if (props == null) return
-    const idx = Number(props.index)
-
-    popup?.remove()
-    const opened = new Popup({ offset: [0, -8], closeButton: false })
-      .setLngLat(e.lngLat)
-      .setHTML(popupButton('data-rm', 'danger', '✕ Remove point'))
-      .addTo(map)
-    popup = opened
-
-    setTimeout(() => {
-      opened
-        .getElement()
-        ?.querySelector<HTMLButtonElement>('[data-rm]')
-        ?.addEventListener('click', () => {
-          edit(removeVertex(ring.current, idx))
-          opened.remove()
-          popup = null
-        })
-    }, 0)
+  // The handles are a click target like any other, first in the rank, and
+  // the only one besides a marker that takes a click in draw mode. A click
+  // (the mouse didn't move) on a vertex offers to remove it; a midpoint
+  // claims the click and opens nothing, because its mousedown has already
+  // inserted the point a drag would place, and a fall-through would place a
+  // second one there. The grab hand stays while a drag holds it.
+  deps.popups.register({
+    target: 'vertex',
+    layers: ['draw-vertices', 'draw-midpoints'],
+    holdsCursor: () => dragging !== null,
+    open: ({ feature, lngLat }) => {
+      if (feature.layer.id !== 'draw-vertices') return
+      const idx = Number(feature.properties?.index)
+      popup?.remove()
+      const opened = deps.popups.create(lngLat, popupButton('data-rm', 'danger', '✕ Remove point'), {
+        owner: 'vertex',
+        offset: [0, -8],
+        closeButton: false,
+      })
+      popup = opened
+      setTimeout(() => {
+        opened
+          .getElement()
+          ?.querySelector<HTMLButtonElement>('[data-rm]')
+          ?.addEventListener('click', () => {
+            edit(removeVertex(ring.current, idx))
+            opened.remove()
+            popup = null
+          })
+      }, 0)
+    },
   })
 
   // Whether the ring can take another point. Read from the controller at the
@@ -231,15 +241,6 @@ export function mountDrawRing(
   }
   map.on('mousedown', 'draw-midpoints', startMidpointDrag)
   map.on('touchstart', 'draw-midpoints', startMidpointDrag)
-
-  for (const layer of ['draw-vertices', 'draw-midpoints']) {
-    map.on('mouseenter', layer, () => {
-      map.getCanvas().style.cursor = 'grab'
-    })
-    map.on('mouseleave', layer, () => {
-      if (dragging === null) deps.restCursor()
-    })
-  }
 
   function closePopup() {
     popup?.remove()

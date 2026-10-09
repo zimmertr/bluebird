@@ -107,29 +107,29 @@
 }
 
 /* The button sits inside the content box, so the content keeps a lane clear
-   for it or a long title runs underneath. */
+   for it or a long title runs underneath. The lane is the button's width, its
+   0.375rem inset and 0.25rem of air, one variable for every popup (record
+   0125), wider on a touch screen, where the button is 2.75rem square and
+   reaches past the title's line. */
+.maplibregl-popup {
+  --popup-close-lane: 2rem;
+}
+
+@media (hover: none) {
+  .maplibregl-popup {
+    --popup-close-lane: 3.375rem;
+  }
+}
+
 .maplibregl-popup-content {
-  padding-right: 2rem;
+  padding-right: var(--popup-close-lane);
 }
 
 /* A ranked destination's card draws its own padding, so its header band can
    run edge to edge (`resultCardShell` in utils/popupChrome.ts, TJ,
-   2026-10-08). The band keeps the close button's lane: the button's width,
-   its 0.375rem inset and 0.25rem of air. On a touch screen the button is
-   2.75rem square and reaches the facts line under the name, which ran under
-   it when the lane stayed 2rem. */
-.result-popup {
-  --popup-close-lane: 2rem;
-}
-
+   2026-10-08), and its band keeps the same lane itself. */
 .result-popup .maplibregl-popup-content {
   padding: 0;
-}
-
-@media (hover: none) {
-  .result-popup {
-    --popup-close-lane: 3.375rem;
-  }
 }
 
 /* The attribution's type, one step down the app's ramp from the vendor's 12px:

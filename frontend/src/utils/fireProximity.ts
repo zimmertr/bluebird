@@ -85,6 +85,17 @@ export function fireWarningText(w: FireWarning): string {
 }
 
 /**
+ * The marker popup's fire line, shorter than the table's hover sentence above
+ * so it keeps one line in the card (TJ, 2026-10-08). One form at every
+ * distance, a point inside a perimeter included at 0.0 mi, and the number the
+ * table's cell prints. The name stays as NIFC sends it, since title-casing
+ * would mangle a dispatch code or a name like MCKINNEY.
+ */
+export function firePopupText(w: FireWarning): string {
+  return `Near a wildfire (${w.name}): ${w.miles.toFixed(1)} mi`
+}
+
+/**
  * The two hover texts an N/A cell carries (TJ, PR #275 review). One N/A mark
  * covers two causes, and the tooltip is what tells them apart: the row sat
  * outside the dataset's coverage, or the whole check failed. The second is
