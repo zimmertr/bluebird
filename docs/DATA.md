@@ -207,8 +207,8 @@ sat 12 m under the summit. Read at the summit, the fixed heights put the
 temperature 0.7 to 1.3 °C (1.3 to 2.3 °F) cold. Fetching the real heights
 would add five variables to every request and raise its weight factor from
 1.7 to 2.2. Two caveats. This is still
-a model's free-air wind, not a gust or a summit anemometer (the gust is a
-metric of its own, read at 10 m, below), and local
+a model's free-air wind, not a gust or a summit anemometer (the gust is the
+Wind row's `Gust` option, read at 10 m, below), and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
 sample — wind and temperature alike — to the terrain height Open-Meteo resolves
 for that coordinate (its ~90 m elevation model, reported on every response)
@@ -346,9 +346,12 @@ models nothing.
 
 **The wind gust is the surface gust, not one at the summit.** Each hourly
 fetch carries Open-Meteo's `wind_gusts_10m`, the strongest gust the model
-expects in each hour at 10 m above its own terrain, and the table reports it
-the way it reports the wind: the least, the most and the average in miles per
-hour, on a ranking row of its own (issue #584). Unlike the wind it is not
+expects in each hour at 10 m above its own terrain, and the table reports one
+number from it, the strongest gust of the window in miles per hour, as the
+Wind row's `Gust` option and the `Wind · Gust (mph)` column (issue #584). It is
+one number because a gust is an extreme already, and a least or average gust is
+not a number anyone plans against. The Wind row's ceiling box limits it, where
+the floor still reads the calmest sustained hour. Unlike the wind it is not
 adjusted to the destination's elevation, because there is nothing to
 interpolate between: Open-Meteo publishes no gust on a pressure level, and a
 request for `wind_gusts_925hPa` answers HTTP 400 (measured 2026-10-08). So a
@@ -379,8 +382,8 @@ with `wind_speed_unit=mph`:
 | Archive, 2026-07-01 to 07-03 | `mp/h` | 72 of 72 | not measured | 24.5 | 31.5 |
 
 JMA answers a column of nulls under the unit `undefined`, the shape the
-archive's freezing level has, so a JMA report shows `N/A` in the three gust
-columns and nothing else, on screen and in a downloaded file alike. A gust
+archive's freezing level has, so a JMA report shows `N/A` in the gust column
+and nothing else, on screen and in a downloaded file alike. A gust
 ranking under JMA therefore has nothing to order by and leaves its rows where
 the ranking puts a missing value. The model comparison blocks **Analyze** when a
 freezing-level ranking compares a model that publishes none; a gust ranking
@@ -393,7 +396,9 @@ GFS's under two. A gust ranking compares destinations under one model fairly,
 but gusts compared across models on the chart differ as much in how each model
 estimates a gust as in the weather. The legend's top two bands are the National
 Weather Service's own gust criteria: 46 mph and up is a Wind Advisory, 58 mph
-and up a High Wind Warning.
+and up a High Wind Warning. Under **Wind** the chart draws each destination's
+gust as a dashed line beside its wind, so the two can be read against each
+other hour by hour.
 
 ### History, and the boundary inside it
 
