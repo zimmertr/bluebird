@@ -95,8 +95,8 @@ def _weather(d: dict) -> dict:
     # Every third row carries no snowfall, which is reduced apart from the
     # other figures and can be null on its own (#678).
     snow = None if k % 3 == 0 else round(0.2 * k, 3)
-    # Some rows carry no gust, as JMA publishes none, and that nulls the three
-    # gust figures alone (#584).
+    # Some rows carry no gust, as JMA publishes none, and that nulls the gust
+    # alone (#584).
     gusty = k % 4 != 1
     return {
         "precip_total_in": round(0.1 * k, 3), "precip_avg_in_hr": round(0.03 * k, 3),
@@ -106,9 +106,7 @@ def _weather(d: dict) -> dict:
         "freeze_min_ft": freeze, "freeze_max_ft": freeze and freeze + 400, "freeze_avg_ft": freeze and freeze + 200,
         "snowfall_total_in": snow, "snowfall_avg_in_hr": snow and round(snow / 3, 4),
         "snowfall_min_in_hr": snow and 0.0, "snowfall_max_in_hr": snow and round(snow / 2, 4),
-        "gust_min_mph": 4.0 + k if gusty else None,
-        "gust_max_mph": 20.0 + 3 * k if gusty else None,
-        "gust_avg_mph": 12.0 + 2 * k if gusty else None,
+        "wind_gust_mph": 20.0 + 3 * k if gusty else None,
         "series": {
             "times": STAMPS,
             "precip_in": [0.0, round(0.05 * k, 3), 0.01],
@@ -116,7 +114,7 @@ def _weather(d: dict) -> dict:
             "wind_mph": [2.0, 6.0 + k, 10.0 + 2 * k],
             "freeze_ft": [freeze, freeze, freeze],
             "snowfall_in": [snow and 0.0, snow and round(snow / 2, 4), snow and round(snow / 2, 4)],
-            "gust_mph": [4.0 + k, 12.0 + 2 * k, 20.0 + 3 * k] if gusty else [None] * 3,
+            "wind_gust_mph": [4.0 + k, 12.0 + 2 * k, 20.0 + 3 * k] if gusty else [None] * 3,
         },
     }
 
@@ -274,11 +272,11 @@ CASES = [
         _peaks(sort_by="snowfall_total_in", sort_desc=True, max_snowfall_total_in=0.9),
         discovered=PEAKS,
     ),
-    # The gust ranks and bounds like the wind, with its nulls last and passing
-    # the bound (#584).
+    # The gust ranks as a wind aggregate and its ceiling reads it, with its
+    # nulls last and passing the bound (#584).
     Case(
         "gust_sort_and_bound",
-        _peaks(sort_by="gust_max_mph", sort_desc=True, max_gust_mph=30),
+        _peaks(sort_by="wind_gust_mph", sort_desc=True, max_wind_gust_mph=30),
         discovered=PEAKS,
     ),
 ]

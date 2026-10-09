@@ -54,9 +54,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -89,7 +87,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -149,9 +147,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -184,7 +180,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -258,7 +254,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -318,9 +314,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -341,7 +335,7 @@
         "snowfall_in": [
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null
         ]
       }
@@ -451,9 +445,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -480,7 +472,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -538,9 +530,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -573,7 +563,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -629,9 +619,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -658,7 +646,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -713,9 +701,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -742,7 +728,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -797,9 +783,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -826,7 +810,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -881,9 +865,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -910,7 +892,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -989,9 +971,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1054,7 +1034,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null,
@@ -1141,9 +1121,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1170,7 +1148,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1251,9 +1229,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1280,7 +1256,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1361,9 +1337,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1390,7 +1364,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1471,9 +1445,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1500,7 +1472,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1556,9 +1528,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1585,7 +1555,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1666,9 +1636,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1695,7 +1663,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1776,9 +1744,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1805,7 +1771,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1886,9 +1852,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -1915,7 +1879,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -1996,9 +1960,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2025,7 +1987,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -2106,9 +2068,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2135,7 +2095,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -2216,9 +2176,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2245,7 +2203,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -2326,9 +2284,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2355,7 +2311,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -2435,9 +2391,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2464,7 +2418,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -2570,9 +2524,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2599,7 +2551,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -2664,9 +2616,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2699,7 +2649,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -2765,9 +2715,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2800,7 +2748,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -2866,9 +2814,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -2901,7 +2847,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -2967,9 +2913,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3002,7 +2946,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -3063,9 +3007,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3092,7 +3034,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -3152,9 +3094,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3181,7 +3121,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null
         ]
@@ -3244,9 +3184,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3279,7 +3217,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -3370,9 +3308,7 @@
         "snowfall_avg_in_hr": 0.3812,
         "snowfall_min_in_hr": 0.0,
         "snowfall_max_in_hr": 0.75,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3435,7 +3371,7 @@
           0.3,
           0.25
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null,
@@ -3506,9 +3442,7 @@
         "snowfall_avg_in_hr": 0.3,
         "snowfall_min_in_hr": 0.2,
         "snowfall_max_in_hr": 0.4,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3541,7 +3475,7 @@
           null,
           0.2
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -3607,9 +3541,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3642,7 +3574,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -3706,9 +3638,7 @@
         "snowfall_avg_in_hr": 0.1235,
         "snowfall_min_in_hr": 0.1235,
         "snowfall_max_in_hr": 0.1235,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -3741,7 +3671,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -3749,7 +3679,7 @@
       }
     },
     {
-      "name": "gust_aggregates_at_one_decimal",
+      "name": "gust_strongest_at_one_decimal",
       "window": {
         "start": "2026-07-21T00:00",
         "end": "2026-07-21T07:00"
@@ -3800,7 +3730,7 @@
             12.0,
             18.5,
             25.25,
-            30.0,
+            30.25,
             22.5,
             10.0,
             10.0,
@@ -3832,9 +3762,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": 9.8,
-        "gust_max_mph": 30.0,
-        "gust_avg_mph": 17.2
+        "wind_gust_mph": 30.2
       },
       "expected_series": {
         "times": [
@@ -3897,11 +3825,11 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           12.0,
           18.5,
           25.2,
-          30.0,
+          30.2,
           22.5,
           10.0,
           10.0,
@@ -3989,9 +3917,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": 22.0,
-        "gust_max_mph": 26.0,
-        "gust_avg_mph": 24.0
+        "wind_gust_mph": 26.0
       },
       "expected_series": {
         "times": [
@@ -4018,7 +3944,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           22.0,
           26.0
         ]
@@ -4088,9 +4014,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": 14.0,
-        "gust_max_mph": 22.0,
-        "gust_avg_mph": 18.0
+        "wind_gust_mph": 22.0
       },
       "expected_series": {
         "times": [
@@ -4123,7 +4047,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           14.0,
           null,
           22.0
@@ -4189,9 +4113,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": null,
-        "gust_max_mph": null,
-        "gust_avg_mph": null
+        "wind_gust_mph": null
       },
       "expected_series": {
         "times": [
@@ -4224,7 +4146,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           null,
           null,
           null
@@ -4288,9 +4210,7 @@
         "snowfall_avg_in_hr": null,
         "snowfall_min_in_hr": null,
         "snowfall_max_in_hr": null,
-        "gust_min_mph": 18.3,
-        "gust_max_mph": 18.3,
-        "gust_avg_mph": 18.3
+        "wind_gust_mph": 18.3
       },
       "expected_series": {
         "times": [
@@ -4323,7 +4243,7 @@
           null,
           null
         ],
-        "gust_mph": [
+        "wind_gust_mph": [
           18.3,
           null,
           null

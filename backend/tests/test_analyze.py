@@ -92,8 +92,7 @@ def _result(
     freeze_min=None,
     freeze_max=None,
     snowfall=None,
-    gust_min=None,
-    gust_max=None,
+    gust=None,
 ):
     return DestinationResult(
         name=name, type="peak", latitude=1.0, longitude=2.0,
@@ -105,7 +104,7 @@ def _result(
         freeze_avg_ft=freeze_min,
         aqi_avg=aqi, aqi_min=aqi, aqi_max=aqi,
         snowfall_total_in=snowfall,
-        gust_min_mph=gust_min, gust_max_mph=gust_max, gust_avg_mph=gust_min,
+        wind_gust_mph=gust,
     )
 
 
@@ -257,34 +256,35 @@ def test_filter_constraints_snowfall_bounds_compare_the_window_total():
     assert [r.name for r in _filter_constraints(rows, _bounded(max_snowfall_total_in=2))] == ["dry"]
 
 
-def test_filter_constraints_gust_bounds_read_the_calmest_and_gustiest_hours():
-    # The wind's shape (#584): the floor reads the calmest hour's gust and the
-    # ceiling the strongest gust in the window.
+def test_filter_constraints_gust_ceiling_reads_the_strongest_gust():
+    # The gust's one bound (#584), apart from the sustained wind's: a calm
+    # sustained wind under a 45 mph gust is dropped by the gust ceiling alone.
     rows = [
-        _result("sheltered", gust_min=4.0, gust_max=18.0),
-        _result("exposed", gust_min=12.0, gust_max=45.0),
+        _result("sheltered", wind_max=10.0, gust=18.0),
+        _result("exposed", wind_max=10.0, gust=45.0),
     ]
-    assert [r.name for r in _filter_constraints(rows, _bounded(min_gust_mph=10))] == ["exposed"]
-    assert [r.name for r in _filter_constraints(rows, _bounded(max_gust_mph=30))] == ["sheltered"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_wind_gust_mph=30))] == ["sheltered"]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_wind_mph=20))] == [
+        "sheltered", "exposed",
+    ]
 
 
-def test_filter_constraints_null_gust_passes_either_bound():
+def test_filter_constraints_null_gust_passes_the_ceiling():
     # One model publishes no gust at all, so a missing number says which model
     # answered rather than how hard it blew.
-    rows = [_result("unknown"), _result("exposed", gust_min=12.0, gust_max=45.0)]
-    assert [r.name for r in _filter_constraints(rows, _bounded(min_gust_mph=20))] == ["unknown"]
-    assert [r.name for r in _filter_constraints(rows, _bounded(max_gust_mph=30))] == ["unknown"]
+    rows = [_result("unknown"), _result("exposed", gust=45.0)]
+    assert [r.name for r in _filter_constraints(rows, _bounded(max_wind_gust_mph=30))] == ["unknown"]
 
 
 def test_sort_key_ranks_gust_with_nulls_last():
     rows = [
         _result("unknown"),
-        _result("exposed", gust_min=12.0, gust_max=45.0),
-        _result("sheltered", gust_min=4.0, gust_max=18.0),
+        _result("exposed", gust=45.0),
+        _result("sheltered", gust=18.0),
     ]
-    rows.sort(key=_sort_key(SortBy.gust_max.value, descending=False))
+    rows.sort(key=_sort_key(SortBy.wind_gust.value, descending=False))
     assert [r.name for r in rows] == ["sheltered", "exposed", "unknown"]
-    rows.sort(key=_sort_key(SortBy.gust_max.value, descending=True))
+    rows.sort(key=_sort_key(SortBy.wind_gust.value, descending=True))
     assert [r.name for r in rows] == ["exposed", "sheltered", "unknown"]
 
 
@@ -1120,7 +1120,7 @@ def _wx_series(precip_total, times, precip, temp, wind, freeze=None, gust=None):
         # the freezing level return — the series carries the key either way.
         "freeze_ft": freeze if freeze is not None else [None] * len(times),
         "snowfall_in": [None] * len(times),
-        "gust_mph": gust if gust is not None else [None] * len(times),
+        "wind_gust_mph": gust if gust is not None else [None] * len(times),
     }}
 
 
@@ -1145,11 +1145,11 @@ def test_assemble_bakes_series_and_shares_the_time_grid():
     assert a.series.temp_f == [50.0, 51.0]
     assert a.series.aqi == [40, None]         # AQI present at 1000, null past horizon
     assert a.series.freeze_ft == [9000.0, None]
-    assert a.series.gust_mph == [14.0, None]
+    assert a.series.wind_gust_mph == [14.0, None]
     # The second row's model published no freezing level, which nulls that
     # series alone and nothing else on the row.
     assert results[1].series.freeze_ft == [None, None]
-    assert results[1].series.gust_mph == [None, None]
+    assert results[1].series.wind_gust_mph == [None, None]
     assert results[1].series.temp_f == [40.0, 41.0]
     assert a.aqi_avg == 40                    # aggregates still flow through
     # Second row had no AQI → all-null AQI series, but the row still has a series.
@@ -1378,8 +1378,8 @@ def test_the_hours_are_most_of_a_maximal_response(monkeypatch):
         "/api/analyze", json={**body, "include_series": False}, headers=headers
     )
     assert len(with_hours.json()["results"]) == MAX_ANALYZE_PEAKS
-    # Measured 2026-10-08 with the gust's three fields and its hourly series
-    # (#584): 22.1 MB and 1.06 MB, up from 19.1 MB and 0.97 MB the day before.
+    # Measured 2026-10-09 with the one gust field and its hourly series
+    # (#584): 22.06 MB and 1.00 MB, up from 19.1 MB and 0.97 MB without them.
     # The ceiling sits well clear of the second, so the next row field moves
     # the number without failing the claim, which is the ratio below.
     assert len(with_hours.content) > 10_000_000
@@ -2336,8 +2336,7 @@ def gust_upstreams(monkeypatch, stub_upstreams):
         api_key=None, source="forecast", boundary=None,
     ):
         def gust(lat):
-            v = lat * 10 or None
-            return {"gust_min_mph": v, "gust_avg_mph": v, "gust_max_mph": v}
+            return {"wind_gust_mph": lat * 10 or None}
 
         return [{**_wx(d["latitude"]), **gust(d["latitude"])} for d in destinations]
 
@@ -2346,21 +2345,24 @@ def gust_upstreams(monkeypatch, stub_upstreams):
 
 def test_analyze_ranks_by_gust_with_nulls_last(gust_upstreams):
     body = client.post(
-        "/api/analyze", json=_snowfall_request(sort_by="gust_max_mph")
+        "/api/analyze", json=_snowfall_request(sort_by="wind_gust_mph")
     ).json()
     assert [r["name"] for r in body["results"]] == ["light", "heavy", "unknown"]
-    assert [r["gust_max_mph"] for r in body["results"]] == [10.0, 60.0, None]
+    assert [r["wind_gust_mph"] for r in body["results"]] == [10.0, 60.0, None]
 
 
 def test_analyze_bounds_the_field_on_gust(gust_upstreams):
-    body = client.post("/api/analyze", json=_snowfall_request(max_gust_mph=30)).json()
+    body = client.post("/api/analyze", json=_snowfall_request(max_wind_gust_mph=30)).json()
     # The row with no gust passes the bound, as a null does on every other.
     assert sorted(r["name"] for r in body["results"]) == ["light", "unknown"]
     assert body["total_matched"] == 2
 
 
-def test_analyze_refuses_an_inverted_gust_range(stub_upstreams):
-    resp = client.post("/api/analyze", json=_snowfall_request(min_gust_mph=40, max_gust_mph=30))
+@pytest.mark.parametrize("field", ["min_gust_mph", "max_gust_mph"])
+def test_analyze_refuses_the_retired_gust_bounds(stub_upstreams, field):
+    # The family-shaped bounds a pre-merge build of #584 sent: the gust is one
+    # wind aggregate now, so a request naming either is a typo to refuse.
+    resp = client.post("/api/analyze", json=_snowfall_request(**{field: 30}))
     assert resp.status_code == 422
 
 

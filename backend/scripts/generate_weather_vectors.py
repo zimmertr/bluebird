@@ -629,19 +629,18 @@ WEATHER_INPUTS = [
     },
     # ── Wind gust (issue #584) ────────────────────────────────────────────
     # Every vector above omits it. Reduced outside the zip, like the freezing
-    # level, to the wind's three aggregates at one decimal.
+    # level, to one figure: the window's strongest gust at one decimal.
     {
-        "name": "gust_aggregates_at_one_decimal",
+        "name": "gust_strongest_at_one_decimal",
         "window": _win(H8[0], H8[7]),
-        # The mean is exactly 17.25 and the minimum exactly 9.75, so both land
-        # on a tie at the first decimal and the half-even rounding rides the
-        # contract (17.2 and 9.8).
+        # The strongest hour is exactly 30.25, a tie at the first decimal, so
+        # the half-even rounding rides the contract (30.2).
         "payload": _wx(
             H8,
             [0.0] * 8,
             [30.0] * 8,
             [8.0] * 8,
-            gust=[12.0, 18.5, 25.25, 30.0, 22.5, 10.0, 10.0, 9.75],
+            gust=[12.0, 18.5, 25.25, 30.25, 22.5, 10.0, 10.0, 9.75],
         ),
     },
     {
@@ -682,7 +681,7 @@ WEATHER_INPUTS = [
     },
     {
         # JMA's answer, measured 2026-10-08: a column of nulls under the unit
-        # "undefined". The three gust aggregates are null and every other
+        # "undefined". The gust is null and every other
         # figure is as it was; the unit check lets a column with no number in
         # it pass whatever it declares.
         "name": "gust_null_column_under_undefined_leaves_the_other_metrics",

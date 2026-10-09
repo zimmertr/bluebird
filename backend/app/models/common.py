@@ -49,12 +49,10 @@ class SortBy(str, Enum):
     wind_min = "wind_min_mph"
     wind_avg = "wind_avg_mph"
     wind_max = "wind_max_mph"
-    # The wind gust (issue #584): its own family rather than a fourth wind
-    # aggregate, because it is the 10 m surface value where the wind is read
-    # at the destination's elevation, and one family is one height.
-    gust_min = "gust_min_mph"
-    gust_avg = "gust_avg_mph"
-    gust_max = "gust_max_mph"
+    # The wind's strongest gust (issue #584), one more wind aggregate rather
+    # than a family of its own (TJ, 2026-10-09). It is the 10 m surface value
+    # where the other three are read at the destination's elevation.
+    wind_gust = "wind_gust_mph"
     temp_min = "temp_min_f"
     temp_avg = "temp_avg_f"
     temp_max = "temp_max_f"

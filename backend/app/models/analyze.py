@@ -140,8 +140,8 @@ class AnalyzeRequest(_DiscoveryFields):
     #
     # Which value each bound compares is the whole of the design. A ceiling
     # compares the window's WORST hour and a floor its best, so a bound is a
-    # promise about every hour in the window: `max_gust_mph = 30` admits no
-    # destination that gusts to 45 at noon, which is the only reading a
+    # promise about every hour in the window: `max_wind_gust_mph = 30` admits
+    # no destination that gusts to 45 at noon, which is the only reading a
     # mountaineer can plan against. The freezing level reads the same way in
     # the one family where neither end is the bad one: the floor asks that the
     # level never dropped below the value, the ceiling that it never rose above
@@ -187,19 +187,15 @@ class AnalyzeRequest(_DiscoveryFields):
             "destinations that never exceed it during the window."
         ),
     )
-    min_gust_mph: float | None = Field(
+    # A ceiling with no floor beside it: the gust's one aggregate is the
+    # window's strongest gust (#584), so `no_range_inverted` pairs nothing
+    # with it, and `min_wind_mph` reads another number (the sustained wind at
+    # the destination's elevation, which can outrun a 10 m gust on a summit).
+    max_wind_gust_mph: float | None = Field(
         default=None,
         ge=0,
         description=(
-            "Drop rows whose `gust_min_mph` is below this. A row with a null "
-            "`gust_min_mph` passes either bound."
-        ),
-    )
-    max_gust_mph: float | None = Field(
-        default=None,
-        ge=0,
-        description=(
-            "Drop rows whose `gust_max_mph` is above this, i.e. keep only "
+            "Drop rows whose `wind_gust_mph` is above this, i.e. keep only "
             "destinations whose gusts never exceed it during the window. "
             "Nulls pass: one forecast model publishes no gust, and dropping "
             "its rows would empty the whole result under it."
@@ -469,11 +465,11 @@ class HourlySeries(BaseModel):
             "snowfall for; see `snowfall_total_in` on the result."
         )
     )
-    gust_mph: list[float | None] = Field(
+    wind_gust_mph: list[float | None] = Field(
         description=(
             "Strongest gust in the hour, 10 m above the ground, miles per "
             "hour. Null at an hour the forecast carried no gust for; see "
-            "`gust_max_mph` on the result."
+            "`wind_gust_mph` on the result."
         )
     )
     aqi: list[int | None] = Field(description="US AQI, all EPA pollutants combined.")
@@ -540,14 +536,7 @@ class DestinationResult(BaseModel):
             "reduce the same adjusted hourly values."
         )
     )
-    gust_min_mph: float | None = Field(
-        default=None,
-        description=(
-            "Weakest gust in the window, miles per hour. Null under the "
-            "same terms as `gust_max_mph`."
-        ),
-    )
-    gust_max_mph: float | None = Field(
+    wind_gust_mph: float | None = Field(
         default=None,
         description=(
             "Strongest gust in the window, miles per hour. Open-Meteo's 10 m "
@@ -555,15 +544,11 @@ class DestinationResult(BaseModel):
             "`elevation_ft` the way the wind is: no forecast model publishes "
             "a gust above the surface, so this can read below "
             "`wind_max_mph` on a summit. Read apart from precipitation, "
-            "temperature and wind: an hour with no gust drops out of the "
-            "three gust figures alone. Null when no hour in the window "
-            "carried one, which is every hour of the one forecast model that "
-            "does not publish the variable."
+            "temperature and wind: an hour with no gust drops out of this "
+            "figure alone. Null when no hour in the window carried one, "
+            "which is every hour of the one forecast model that does not "
+            "publish the variable."
         ),
-    )
-    gust_avg_mph: float | None = Field(
-        default=None,
-        description="Mean gust across the window, miles per hour. Null under the same terms.",
     )
     freeze_min_ft: float | None = Field(
         default=None,

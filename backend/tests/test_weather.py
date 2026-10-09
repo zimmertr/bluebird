@@ -106,9 +106,7 @@ def test_metrics_aggregates_full_window():
         "snowfall_min_in_hr": None,
         "snowfall_max_in_hr": None,
         # Nor any gust, which is reduced on its own the same way (#584).
-        "gust_min_mph": None,
-        "gust_max_mph": None,
-        "gust_avg_mph": None,
+        "wind_gust_mph": None,
     }
 
 
@@ -325,17 +323,16 @@ def test_series_carries_snowfall_and_its_gaps():
 # and it is the 10 m value whatever the destination's elevation.
 
 
-def test_metrics_reduce_the_gust_like_the_wind():
+def test_metrics_reduce_the_gust_to_the_strongest_hour():
     data = _hourly(
         _TIMES_3H, [0.1, 0.2, 0.0], [20.0, 22.0, 24.0], [5.0, 7.0, 9.0],
         gust=[14.0, 31.25, 9.0],
     )
     m = _weather_metrics(data, START, END)
-    assert m["gust_min_mph"] == 9.0
     # 31.25 is a tie at the first decimal, and the wind's half-even rounding
-    # takes it to 31.2.
-    assert m["gust_max_mph"] == 31.2
-    assert m["gust_avg_mph"] == round((14.0 + 31.25 + 9.0) / 3, 1)
+    # takes it to 31.2. One figure only: no least or mean gust (TJ, #584).
+    assert m["wind_gust_mph"] == 31.2
+    assert not {"gust_min_mph", "gust_avg_mph", "gust_max_mph"} & set(m)
 
 
 def test_metrics_skip_a_null_gust_hour_without_dropping_it():
@@ -347,7 +344,7 @@ def test_metrics_skip_a_null_gust_hour_without_dropping_it():
     # The middle hour's precipitation and wind still count.
     assert m["precip_total_in"] == 0.6
     assert m["wind_avg_mph"] == 7.0
-    assert m["gust_avg_mph"] == 16.0
+    assert m["wind_gust_mph"] == 20.0
 
 
 def test_metrics_a_model_with_no_gust_keeps_its_other_aggregates():
@@ -358,7 +355,7 @@ def test_metrics_a_model_with_no_gust_keeps_its_other_aggregates():
     jma["hourly_units"]["wind_gusts_10m"] = "undefined"
     nulled = _weather_metrics(jma, START, END)
     assert nulled == _weather_metrics(_hourly(*args), START, END)
-    assert nulled["gust_max_mph"] is None
+    assert nulled["wind_gust_mph"] is None
     assert nulled["wind_max_mph"] == 9.0
 
 
@@ -372,9 +369,9 @@ def test_the_gust_is_not_carried_to_the_destinations_elevation():
     data["hourly"].update({name: [60.0] * 3 for name, _ in aggregation._WIND_LEVELS})
     m = _weather_metrics(data, START, END, elevation_ft=14000.0)
     assert m["wind_min_mph"] == 60.0
-    assert m["gust_max_mph"] == 26.0
+    assert m["wind_gust_mph"] == 26.0
     s = _weather_series(data, START, END, elevation_ft=14000.0)
-    assert s["gust_mph"] == [22.0, 24.0, 26.0]
+    assert s["wind_gust_mph"] == [22.0, 24.0, 26.0]
 
 
 def test_series_carries_the_gust_and_its_gaps():
@@ -383,9 +380,9 @@ def test_series_carries_the_gust_and_its_gaps():
         gust=[18.26, None, 30.0],
     )
     s = _weather_series(data, START, END)
-    assert s["gust_mph"] == [18.3, None, 30.0]
+    assert s["wind_gust_mph"] == [18.3, None, 30.0]
     absent = _weather_series(_hourly(_TIMES_3H, [0.1, 0.2, 0.3], [20.0] * 3, [5.0] * 3), START, END)
-    assert absent["gust_mph"] == [None, None, None]
+    assert absent["wind_gust_mph"] == [None, None, None]
 
 
 # ── The freezing level's unit (issue #295 review) ──────────────────────────

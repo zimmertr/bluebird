@@ -192,10 +192,12 @@ def test_snowfall_is_rankable_and_snow_depth_is_not():
     assert "snow_depth_in" not in keys
 
 
-def test_the_gust_is_rankable_on_all_three_aggregates():
-    # Its own family since #584, beside the wind rather than inside it.
+def test_the_gust_is_rankable_as_a_wind_aggregate():
+    # One more wind aggregate since #584, the strongest gust in the window,
+    # rather than a family of its own with three.
     keys = _capabilities()["sort_keys"]
-    assert {"gust_min_mph", "gust_avg_mph", "gust_max_mph"} <= set(keys)
+    assert "wind_gust_mph" in keys
+    assert not {"gust_min_mph", "gust_avg_mph", "gust_max_mph"} & set(keys)
 
 
 def test_capabilities_is_documented_and_tagged():

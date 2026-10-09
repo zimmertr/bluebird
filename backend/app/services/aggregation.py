@@ -597,11 +597,11 @@ def _weather_metrics(
             "snowfall_avg_in_hr": round(sum(s_vals) / len(s_vals), 4) if s_vals else None,
             "snowfall_min_in_hr": round(min(s_vals), 4) if s_vals else None,
             "snowfall_max_in_hr": round(max(s_vals), 4) if s_vals else None,
-            # The wind's one decimal, each null on its own like the freezing
-            # level's, because one model publishes no gust at all.
-            "gust_min_mph": round(min(g_vals), 1) if g_vals else None,
-            "gust_max_mph": round(max(g_vals), 1) if g_vals else None,
-            "gust_avg_mph": round(sum(g_vals) / len(g_vals), 1) if g_vals else None,
+            # One number, the strongest gust, at the wind's one decimal (TJ,
+            # #584): a gust is an extreme by nature, so its least and its mean
+            # answer nothing a party plans around. Null on its own like the
+            # freezing level, because one model publishes no gust at all.
+            "wind_gust_mph": round(max(g_vals), 1) if g_vals else None,
         }
     except UpstreamError:
         # A unit nothing can read is not one bad hour to skip past: every
@@ -695,7 +695,7 @@ def _weather_series(
             "wind_mph": w_out,
             "freeze_ft": f_out,
             "snowfall_in": s_out,
-            "gust_mph": g_out,
+            "wind_gust_mph": g_out,
         }
     except UpstreamError:
         # The one failure this function does not absorb, for the reason

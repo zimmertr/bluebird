@@ -533,7 +533,6 @@ _EXPECTED_PAIRS = {
         ("min_precip_total_in", "max_precip_total_in"),
         ("min_temp_f", "max_temp_f"),
         ("min_wind_mph", "max_wind_mph"),
-        ("min_gust_mph", "max_gust_mph"),
         ("min_freeze_ft", "max_freeze_ft"),
         ("min_snowfall_total_in", "max_snowfall_total_in"),
         ("min_aqi", "max_aqi"),
@@ -548,8 +547,12 @@ def test_every_bound_pair_is_found():
 
     assert set(AnalyzeRequest._range_pairs()) == _EXPECTED_PAIRS["AnalyzeRequest"]
     assert set(DestinationsRequest._range_pairs()) == _EXPECTED_PAIRS["DestinationsRequest"]
-    ranked = {(low, high) for (low, _), (high, _) in zip(_LOWER_BOUNDS, _UPPER_BOUNDS, strict=True)}
-    assert ranked <= _EXPECTED_PAIRS["AnalyzeRequest"]
+    lows = {low for low, _ in _LOWER_BOUNDS}
+    highs = {high for high, _ in _UPPER_BOUNDS}
+    assert {(low, "max_" + low[4:]) for low in lows} <= _EXPECTED_PAIRS["AnalyzeRequest"]
+    # The gust's ceiling is the one bound with no floor beside it, because its
+    # one aggregate is the window's strongest gust (#584).
+    assert {high for high in highs if "min_" + high[4:] not in lows} == {"max_wind_gust_mph"}
 
 
 def _build(model: str, **fields):
