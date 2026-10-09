@@ -7,9 +7,8 @@ import {
   factsRow,
   metaBand,
   metricGrid,
-  popupLink,
   popupShell,
-  WARNING_COLOR,
+  warningLine,
 } from './popupChrome'
 import { ColDef } from './tableColumns'
 import { popupGrid, popupGroups, popupIdentity } from './popupRows'
@@ -76,27 +75,18 @@ export function resultPopupHtml(d: {
   //
   // The whole warning is the link, not a glyph beside it: the line is already
   // one statement about one fire, and the reader's question about it — where
-  // is this — is what NIFC's map answers (TJ, 2026-09-14). It keeps its amber
-  // by re-declaring the colour after `popupLink`'s own.
+  // is this — is what NIFC's map answers (TJ, 2026-09-14).
   const fire = d.warning
-    ? popupLink(
+    ? warningLine(
+        escapeHtml(fireWarningText(d.warning)),
         nifcFireUrl(d.warning.longitude, d.warning.latitude, FIRE_LINK_ZOOM),
-        `<div style="font-weight:600;margin-bottom:2px">⚠️ ${escapeHtml(fireWarningText(d.warning))}</div>`,
-        `color:${WARNING_COLOR};display:block`,
       )
     : ''
   // The closure line, after the fire line and in its markup: one statement
   // about one order, linked to the order's own page when the Forest Service
   // gave it one, and plain amber text when it did not. The order's name is
   // Forest Service free text rendered via setHTML, so it is escaped.
-  const closureLine = d.closure
-    ? `<div style="font-weight:600;margin-bottom:2px">⚠️ ${escapeHtml(closureWarningText(d.closure))}</div>`
-    : ''
-  const closure = !d.closure
-    ? ''
-    : d.closure.url
-      ? popupLink(d.closure.url, closureLine, `color:${WARNING_COLOR};display:block`)
-      : `<div style="color:${WARNING_COLOR}">${closureLine}</div>`
+  const closure = d.closure ? warningLine(escapeHtml(closureWarningText(d.closure)), d.closure.url ?? null) : ''
 
   // What the destination IS, above the rule: its type, elevation and
   // coordinates on one line (TJ, 2026-10-08). The model a comparison names
@@ -109,14 +99,13 @@ export function resultPopupHtml(d: {
   ])
 
   // The measurements as one grid, a row per family and a column per aggregate
-  // (TJ, 2026-10-08), under the two safety lines.
+  // (TJ, 2026-10-08). The two safety lines stand in a section of their own
+  // above it (`popupShell`'s `warnings`).
   const grid = popupGrid(
     popupGroups(r, d.columns, { modelId: d.modelId, times: d.times, rankedBy: d.rankedBy }),
   )
-  const body = [fire, closure, grid.rows.length ? metricGrid(grid, { compact: d.compact }) : '']
-    .filter(Boolean)
-    .join('\n    ')
+  const body = grid.rows.length ? metricGrid(grid, { compact: d.compact }) : ''
 
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(r.name)}`
-  return popupShell(title, url, body, meta, { resultCard: true })
+  return popupShell(title, url, body, meta, { resultCard: true, warnings: [fire, closure].filter(Boolean) })
 }

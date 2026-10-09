@@ -3,7 +3,15 @@ import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
 import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
-import { GRID_COMPACT_INSET_PX, GRID_INSET_PX, GRID_RANKED_COLOR, HEADER_BAND_COLOR, LABEL_COLOR } from './popupChrome'
+import {
+  GRID_COMPACT_INSET_PX,
+  GRID_INSET_PX,
+  GRID_RANKED_COLOR,
+  HEADER_BAND_COLOR,
+  HEADER_EDGE_COLOR,
+  LABEL_COLOR,
+  WARNING_COLOR,
+} from './popupChrome'
 import { displayedColumns } from './tableColumns'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 
@@ -77,6 +85,40 @@ describe('resultPopupHtml fire warning', () => {
   })
 })
 
+// The warnings stand in a section of their own between the header and the
+// grid, closed off from the grid by the header's own edge (TJ, 2026-10-08).
+describe('resultPopupHtml warnings section', () => {
+  const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
+  const section = (html: string) => html.match(/<div style="[^"]*border-bottom:1px solid #[0-9a-f]+;display:grid;gap:4px">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
+
+  it('puts both warnings after the header and before the grid, ruled off from it', () => {
+    const html = resultPopupHtml({ ...base, warning: fire, closure: closureWarning() })
+    const found = section(html)
+    expect(found).not.toBeNull()
+    expect(found![0]).toContain(`border-bottom:1px solid ${HEADER_EDGE_COLOR}`)
+    expect(found![1]).toContain('KING')
+    expect(found![1]).toContain('active closure')
+    // Neither warning is inside the body the scroll cap shortens.
+    const body = html.slice(html.indexOf('data-popup-body'))
+    expect(body).not.toContain('⚠️')
+    // The header comes first.
+    expect(html.indexOf(HEADER_BAND_COLOR)).toBeLessThan(html.indexOf('⚠️'))
+  })
+
+  it('draws no section, and no rule, without a warning', () => {
+    const html = resultPopupHtml({ ...base })
+    expect(section(html)).toBeNull()
+    expect(html).not.toContain('display:grid;gap:4px')
+  })
+
+  // A wrapped closure name continues under its own first word, not under the
+  // glyph: the glyph is a column of its own.
+  it('stands the glyph in a column of its own, so a wrapped line hangs', () => {
+    const html = resultPopupHtml({ ...base, closure: closureWarning({ url: null }) })
+    expect(html).toMatch(/<div style="display:flex;gap:4px;font-weight:600"><span>⚠️<\/span><span>Inside an active closure/)
+  })
+})
+
 // The closure line follows the fire line in its markup (#550): the approved
 // sentence, linked to the order's page when it has one.
 describe('resultPopupHtml closure line', () => {
@@ -87,7 +129,7 @@ describe('resultPopupHtml closure line', () => {
   it('links the sentence to the order after the fire line', () => {
     const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning, closure: closureWarning() })
-    expect(html).toContain('⚠️ Inside an active closure (Probe Fire Closure)')
+    expect(html).toContain('<span>⚠️</span><span>Inside an active closure (Probe Fire Closure)</span>')
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
     expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('active closure'))
   })
@@ -376,7 +418,7 @@ describe('resultPopupHtml links out', () => {
     expect(html).toContain('data-nifc.opendata.arcgis.com')
     expect(html).toContain('?location=48.80000,-121.10000,10')
     // The line keeps its amber: popupLink's own colour is declared first.
-    expect(html).toContain('color:#f59e0b')
+    expect(html).toContain(`color:${WARNING_COLOR}`)
   })
 
   // Neither is a forecast, and the table links neither. Matched as whole

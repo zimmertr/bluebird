@@ -273,8 +273,9 @@ values (#365):
 A colour in one of those channels is measured against the surface it actually
 lands on, which for a popup is the white MapLibre draws rather than the app's
 slate; `popupChrome.ts` records each measurement beside its value, including
-the three that sit under AA as shipped (`FINE_COLOR`, `LINK_ICON_COLOR`,
-`WARNING_COLOR`), which #365 named without recolouring.
+the two that sit under AA as shipped (`FINE_COLOR`, `LINK_ICON_COLOR`), which
+#365 named without recolouring. `WARNING_COLOR` was a third, amber-500 at
+2.15:1, until the maintainer darkened it to amber-700, 5.02:1 (2026-10-08).
 
 ### Two enforcers, split by what they know
 

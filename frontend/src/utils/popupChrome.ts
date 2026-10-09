@@ -145,13 +145,25 @@ export const RULE_COLOR = '#cbd5e1'
 
 /**
  * The amber a safety warning wears in a popup: the fire line and the closure
- * line, which are flags rather than measurements. Amber-500, the popup-side
- * counterpart of the `STATUS` amber the table's Wildfire column wears in the
- * stylesheet. It is the colour the warning shipped with and #365 only named
- * it; on white it measures about 2.2:1, so whether it should darken is a
- * colour decision for the maintainer rather than a move.
+ * line, which are flags rather than measurements. Amber-700, 5.02:1 on the
+ * card's white (TJ, 2026-10-08). It shipped as amber-500, 2.15:1, under the
+ * 4.5:1 AA asks of 12px text, and a long closure name read washed out;
+ * amber-600 would reach only 3.19:1. Pinned in `popupChrome.test.tsx`.
  */
-export const WARNING_COLOR = '#f59e0b'
+export const WARNING_COLOR = '#b45309'
+
+/**
+ * One safety warning, the whole sentence a link where it has one. The glyph
+ * stands in a column of its own, so a sentence that wraps (a long closure
+ * name does) continues under its own first word rather than under the glyph.
+ * The text is escaped by the caller, since it carries third-party names.
+ */
+export function warningLine(text: string, href: string | null): string {
+  const line = `<div style="display:flex;gap:4px;font-weight:600"><span>⚠️</span><span>${text}</span></div>`
+  return href
+    ? popupLink(href, line, `color:${WARNING_COLOR};display:block`)
+    : `<div style="color:${WARNING_COLOR}">${line}</div>`
+}
 
 /**
  * The colour of the one line that qualifies a card rather than adding to it:
@@ -511,7 +523,7 @@ export function popupShell(
   url: string,
   body: string,
   meta = '',
-  { resultCard = false }: { resultCard?: boolean } = {},
+  { resultCard = false, warnings = [] }: { resultCard?: boolean; warnings?: readonly string[] } = {},
 ): string {
   // The name stays at the reading size and everything under it steps down one.
   // Setting both the same made the details compete with the thing they
@@ -521,7 +533,7 @@ export function popupShell(
   // `meta` sits between the title and the rule, so the rule separates what the
   // destination IS from what the forecast says about it. It is optional: the
   // basemap POI popup shares this shell and has no analysis behind it.
-  if (resultCard) return resultCardShell(title, url, body, meta)
+  if (resultCard) return resultCardShell(title, url, body, meta, warnings)
   return `<div style="${POPUP_FACE}">
     <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url)}</div>
     ${meta}
@@ -545,12 +557,21 @@ export function popupShell(
  * its height from its measured outer height (`capPopupBody`), and it scrolls
  * sideways on a map narrower than its grid.
  */
-function resultCardShell(title: string, url: string, body: string, meta: string): string {
+function resultCardShell(title: string, url: string, body: string, meta: string, warnings: readonly string[]): string {
+  // The warnings, between the header and the grid and closed off from the grid
+  // by the header's own edge (TJ, 2026-10-08), so the card reads as three
+  // parts: what the place is, what is wrong there, what the forecast says.
+  // Without the edge they ran into the first row of numbers. No shadow, so
+  // the header stays the one raised band. Outside the body, so a capped card
+  // that scrolls its numbers keeps its warnings in view with its name.
+  const notice = warnings.length
+    ? `<div style="${POPUP_BODY_SIZE};padding:8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR};display:grid;gap:4px">${warnings.join('')}</div>`
+    : ''
   return `<div style="${POPUP_FACE}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url, HEADER_ICON_COLOR)}</div>
       ${meta}
-    </div>
+    </div>${notice}
     <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>
   </div>`
 }

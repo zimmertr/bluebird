@@ -17,6 +17,7 @@ import {
   LINK_COLOR,
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
+  WARNING_COLOR,
   WIDEST_GRID_PX,
   compactGrid,
   factsRow,
@@ -167,6 +168,14 @@ describe('the popup grid', () => {
     expect(compact).toContain(`padding:1px ${GRID_COMPACT_LABEL_GAP_PX}px 1px 0`)
     expect(compact).not.toContain(`padding:1px ${GRID_INSET_PX}px`)
     expect(compact).not.toContain(`padding:1px ${GRID_LABEL_GAP_PX}px`)
+  })
+})
+
+// The warning amber, darkened from amber-500's 2.15:1 to clear AA on the
+// card's white (TJ, 2026-10-08).
+describe('the warning colour', () => {
+  it('clears AA on white', () => {
+    expect(round2(contrast(WARNING_COLOR, '#ffffff'))).toBe(5.02)
   })
 })
 
