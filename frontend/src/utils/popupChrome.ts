@@ -145,24 +145,24 @@ export const RULE_COLOR = '#cbd5e1'
 
 /**
  * The amber a safety warning wears in a popup: the fire line and the closure
- * line, which are flags rather than measurements. Amber-700, 5.02:1 on the
- * card's white (TJ, 2026-10-08). It shipped as amber-500, 2.15:1, under the
- * 4.5:1 AA asks of 12px text, and a long closure name read washed out;
- * amber-600 would reach only 3.19:1. Pinned in `popupChrome.test.tsx`.
+ * line, which are flags rather than measurements. Amber-500, the popup-side
+ * counterpart of the `STATUS` amber the table's Wildfire column wears in the
+ * stylesheet. On white it measures 2.15:1, under the 4.5:1 AA asks of 12px
+ * text, and stays by the maintainer's choice: amber-700 (5.02:1) was tried on
+ * the #700 preview and TJ kept this one (2026-10-08). Pinned in
+ * `popupChrome.test.tsx`, so a change re-measures rather than inherits.
  */
-export const WARNING_COLOR = '#b45309'
+export const WARNING_COLOR = '#f59e0b'
 
 /**
- * One safety warning, the whole sentence a link where it has one. The glyph
- * stands in a column of its own, so a sentence that wraps (a long closure
- * name does) continues under its own first word rather than under the glyph.
- * The text is escaped by the caller, since it carries third-party names.
+ * One safety warning, the whole sentence a link where it has one. It carries
+ * no glyph of its own: the section's one ⚠️ stands for every line in it
+ * (`resultCardShell`). The text is escaped by the caller, since it carries
+ * third-party names.
  */
 export function warningLine(text: string, href: string | null): string {
-  const line = `<div style="display:flex;gap:4px;font-weight:600"><span>⚠️</span><span>${text}</span></div>`
-  return href
-    ? popupLink(href, line, `color:${WARNING_COLOR};display:block`)
-    : `<div style="color:${WARNING_COLOR}">${line}</div>`
+  const style = `color:${WARNING_COLOR};font-weight:600`
+  return href ? popupLink(href, text, style) : `<span style="${style}">${text}</span>`
 }
 
 /**
@@ -565,7 +565,9 @@ function resultCardShell(title: string, url: string, body: string, meta: string,
   // the header stays the one raised band. Outside the body, so a capped card
   // that scrolls its numbers keeps its warnings in view with its name.
   const notice = warnings.length
-    ? `<div style="${POPUP_BODY_SIZE};padding:8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR};display:grid;gap:4px">${warnings.join('')}</div>`
+    ? `<div style="${POPUP_BODY_SIZE};padding:8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR}">${WARNING_GLYPH}${warnings
+        .map((w, i) => (i ? `<div style="${WARNING_ROW_RULED}">${w}</div>` : `<div>${w}</div>`))
+        .join('')}</div>`
     : ''
   return `<div style="${POPUP_FACE}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
@@ -599,6 +601,30 @@ const TITLE_TEXT = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-spa
 export const HEADER_BAND_COLOR = '#f1f5f9'
 export const HEADER_EDGE_COLOR = '#e2e8f0'
 export const HEADER_SHADOW_COLOR = 'rgba(15,23,42,0.08)'
+
+/**
+ * The warning section's one ⚠️, which stands for every line in it (TJ,
+ * 2026-10-08). A glyph per line spent 20px of every line and wrapped a
+ * closure name that fits without it. It floats right, so only the lines
+ * beside it give up its width and a wrapped line below runs the section's
+ * full width, and it centres under the close button above it: the button's
+ * centre is half the close lane plus 1px in from the card's edge (`map.css`:
+ * a 0.375rem inset, and the lane is the button, that inset and 0.25rem of
+ * air), the glyph's box is 1.25em wide, and the section's own 10px of
+ * padding is already in. 17px from the edge on a mouse, 28px on a touch
+ * screen.
+ */
+const WARNING_GLYPH = `<span aria-hidden="true" style="float:right;width:1.25em;text-align:center;margin-left:6px;margin-right:calc(var(--popup-close-lane, 2rem) / 2 + 0.0625rem - 0.625em - 10px)">⚠️</span>`
+
+/**
+ * The rule between two warnings in that section: the section's own edge
+ * colour, 4px clear either side. It is the one the notices under the Analyze
+ * button draw between their messages (`NOTICE_DIVIDER` in `styles.ts`), and
+ * for the same reason: a bulleted list spends 16px of indent and marker on
+ * every line, which wraps a line that fits without it.
+ */
+const WARNING_ROW_RULED = `border-top:1px solid ${HEADER_EDGE_COLOR};margin-top:4px;padding-top:4px`
+
 /**
  * The link-out glyph on the band, sky-600 at 3.74:1. `LINK_ICON_COLOR`'s
  * sky-400 would fall under the 3:1 an icon owes there.

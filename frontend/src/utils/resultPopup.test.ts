@@ -89,7 +89,9 @@ describe('resultPopupHtml fire warning', () => {
 // grid, closed off from the grid by the header's own edge (TJ, 2026-10-08).
 describe('resultPopupHtml warnings section', () => {
   const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
-  const section = (html: string) => html.match(/<div style="[^"]*border-bottom:1px solid #[0-9a-f]+;display:grid;gap:4px">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
+  const section = (html: string) =>
+    html.match(/<div style="font-size:12px;padding:8px 10px;border-bottom:1px solid #[0-9a-f]+">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
+  const glyphs = (html: string) => html.split('⚠️').length - 1
 
   it('puts both warnings after the header and before the grid, ruled off from it', () => {
     const html = resultPopupHtml({ ...base, warning: fire, closure: closureWarning() })
@@ -100,22 +102,33 @@ describe('resultPopupHtml warnings section', () => {
     expect(found![1]).toContain('active closure')
     // Neither warning is inside the body the scroll cap shortens.
     const body = html.slice(html.indexOf('data-popup-body'))
-    expect(body).not.toContain('⚠️')
+    expect(body).not.toContain('active')
     // The header comes first.
     expect(html.indexOf(HEADER_BAND_COLOR)).toBeLessThan(html.indexOf('⚠️'))
   })
 
-  it('draws no section, and no rule, without a warning', () => {
+  it('draws no section, and no glyph, without a warning', () => {
     const html = resultPopupHtml({ ...base })
     expect(section(html)).toBeNull()
-    expect(html).not.toContain('display:grid;gap:4px')
+    expect(glyphs(html)).toBe(0)
   })
 
-  // A wrapped closure name continues under its own first word, not under the
-  // glyph: the glyph is a column of its own.
-  it('stands the glyph in a column of its own, so a wrapped line hangs', () => {
-    const html = resultPopupHtml({ ...base, closure: closureWarning({ url: null }) })
-    expect(html).toMatch(/<div style="display:flex;gap:4px;font-weight:600"><span>⚠️<\/span><span>Inside an active closure/)
+  // One glyph for the section, floated right under the close button, rather
+  // than one spending the start of every line.
+  it('draws one glyph for the whole section, however many warnings', () => {
+    for (const d of [{ warning: fire }, { closure: closureWarning() }, { warning: fire, closure: closureWarning() }]) {
+      const html = resultPopupHtml({ ...base, ...d })
+      expect(glyphs(html)).toBe(1)
+      expect(section(html)![1]).toMatch(/^<span aria-hidden="true" style="float:right;[^"]*var\(--popup-close-lane/)
+    }
+  })
+
+  // Two warnings are parted by a rule in the section's own edge colour, as
+  // the notices under Analyze part their messages; a lone one has no rule.
+  it('rules the second warning off from the first, and a lone one not at all', () => {
+    const rule = `border-top:1px solid ${HEADER_EDGE_COLOR}`
+    expect(section(resultPopupHtml({ ...base, warning: fire, closure: closureWarning() }))![1].split(rule)).toHaveLength(2)
+    expect(section(resultPopupHtml({ ...base, closure: closureWarning() }))![1]).not.toContain(rule)
   })
 })
 
@@ -129,7 +142,7 @@ describe('resultPopupHtml closure line', () => {
   it('links the sentence to the order after the fire line', () => {
     const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning, closure: closureWarning() })
-    expect(html).toContain('<span>⚠️</span><span>Inside an active closure (Probe Fire Closure)</span>')
+    expect(html).toContain('>Inside an active closure (Probe Fire Closure)</a>')
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
     expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('active closure'))
   })

@@ -171,11 +171,12 @@ describe('the popup grid', () => {
   })
 })
 
-// The warning amber, darkened from amber-500's 2.15:1 to clear AA on the
-// card's white (TJ, 2026-10-08).
+// The warning amber sits under AA on the card's white by the maintainer's
+// choice (TJ kept amber-500 over amber-700, 2026-10-08). Pinned so a change
+// re-measures rather than inherits the claim.
 describe('the warning colour', () => {
-  it('clears AA on white', () => {
-    expect(round2(contrast(WARNING_COLOR, '#ffffff'))).toBe(5.02)
+  it('measures 2.15:1 on white', () => {
+    expect(round2(contrast(WARNING_COLOR, '#ffffff'))).toBe(2.15)
   })
 })
 
