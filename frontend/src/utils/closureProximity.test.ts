@@ -5,6 +5,7 @@ import {
   CLOSURE_UNCOVERED_NOTE,
   closureCellText,
   closureFor,
+  closurePopupText,
   closureWarningText,
 } from './closureProximity'
 import { closureFeature, closureWarning } from '../testSupport/fixtures'
@@ -87,6 +88,12 @@ describe('closureCellText', () => {
 describe('closure notes', () => {
   it('phrases a warning', () => {
     expect(closureWarningText(closureWarning())).toBe('Inside an active closure (Probe Fire Closure)')
+  })
+
+  // The marker popup's shorter line (TJ, 2026-10-08); the table's hover keeps
+  // the sentence above.
+  it('phrases the popup line', () => {
+    expect(closurePopupText(closureWarning())).toBe('Within a closure (Probe Fire Closure)')
   })
 
   it('pins the approved N/A hover sentences', () => {

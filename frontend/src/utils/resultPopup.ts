@@ -1,7 +1,7 @@
 import { DestinationResult, SortBy } from '../types'
 import { destinationUrl } from './destinationUrl'
-import { FireWarning, fireWarningText } from './fireProximity'
-import { type ClosureWarning, closureWarningText } from './closureProximity'
+import { FireWarning, firePopupText } from './fireProximity'
+import { type ClosureWarning, closurePopupText } from './closureProximity'
 import {
   escapeHtml,
   factsRow,
@@ -78,7 +78,7 @@ export function resultPopupHtml(d: {
   // is this — is what NIFC's map answers (TJ, 2026-09-14).
   const fire = d.warning
     ? warningLine(
-        escapeHtml(fireWarningText(d.warning)),
+        escapeHtml(firePopupText(d.warning)),
         nifcFireUrl(d.warning.longitude, d.warning.latitude, FIRE_LINK_ZOOM),
       )
     : ''
@@ -86,7 +86,7 @@ export function resultPopupHtml(d: {
   // about one order, linked to the order's own page when the Forest Service
   // gave it one, and plain amber text when it did not. The order's name is
   // Forest Service free text rendered via setHTML, so it is escaped.
-  const closure = d.closure ? warningLine(escapeHtml(closureWarningText(d.closure)), d.closure.url ?? null) : ''
+  const closure = d.closure ? warningLine(escapeHtml(closurePopupText(d.closure)), d.closure.url ?? null) : ''
 
   // What the destination IS, above the rule: its type, elevation and
   // coordinates on one line (TJ, 2026-10-08). The model a comparison names

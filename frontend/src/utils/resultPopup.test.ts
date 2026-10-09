@@ -56,13 +56,14 @@ describe('resultPopupHtml fire warning', () => {
     const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning })
     expect(html).toContain('⚠️')
-    expect(html).toContain('3.2 mi from an active wildfire (Sourdough)')
+    expect(html).toContain('>Near a wildfire (Sourdough): 3.2 mi<')
   })
 
-  it('phrases an inside-the-perimeter warning without a mileage', () => {
+  // One form at every distance: a point inside a perimeter reads 0.0 mi.
+  it('phrases an inside-the-perimeter warning at 0.0 mi', () => {
     const warning: FireWarning = { miles: 0, name: 'Bolt Creek', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning })
-    expect(html).toContain('Inside an active wildfire perimeter (Bolt Creek)')
+    expect(html).toContain('>Near a wildfire (Bolt Creek): 0.0 mi<')
   })
 
   // NIFC incident names are third-party strings rendered via setHTML, so the
@@ -99,7 +100,7 @@ describe('resultPopupHtml warnings section', () => {
     expect(found).not.toBeNull()
     expect(found![0]).toContain(`border-bottom:1px solid ${HEADER_EDGE_COLOR}`)
     expect(found![1]).toContain('KING')
-    expect(found![1]).toContain('active closure')
+    expect(found![1]).toContain('Within a closure')
     // Neither warning is inside the body the scroll cap shortens.
     const body = html.slice(html.indexOf('data-popup-body'))
     expect(body).not.toContain('active')
@@ -123,10 +124,18 @@ describe('resultPopupHtml warnings section', () => {
     }
   })
 
+  // Each warning keeps one line and ends in an ellipsis where it outruns the
+  // card, linked or not, so a long order name no longer wraps the card.
+  it('keeps every warning to one line, cut with an ellipsis', () => {
+    const oneLine = /font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/g
+    expect(resultPopupHtml({ ...base, warning: fire, closure: closureWarning() }).match(oneLine)).toHaveLength(2)
+    expect(resultPopupHtml({ ...base, closure: closureWarning({ url: null }) }).match(oneLine)).toHaveLength(1)
+  })
+
   // Two warnings are a bulleted list; a lone one is its sentence alone.
   it('bullets two warnings, and leaves a lone one unbulleted', () => {
     const both = section(resultPopupHtml({ ...base, warning: fire, closure: closureWarning() }))![1]
-    expect(both).toMatch(/<ul style="[^"]*list-style:disc[^"]*"><li>.*KING.*<\/li><li>.*active closure.*<\/li><\/ul>/s)
+    expect(both).toMatch(/<ul style="[^"]*list-style:disc[^"]*"><li>.*KING.*<\/li><li>.*Within a closure.*<\/li><\/ul>/s)
     expect(section(resultPopupHtml({ ...base, closure: closureWarning() }))![1]).not.toContain('<li>')
   })
 })
@@ -135,20 +144,20 @@ describe('resultPopupHtml warnings section', () => {
 // sentence, linked to the order's page when it has one.
 describe('resultPopupHtml closure line', () => {
   it('says nothing without a closure', () => {
-    expect(resultPopupHtml({ ...base, closure: null })).not.toContain('active closure')
+    expect(resultPopupHtml({ ...base, closure: null })).not.toContain('closure (')
   })
 
   it('links the sentence to the order after the fire line', () => {
     const warning: FireWarning = { miles: 3.2, name: 'Sourdough', latitude: 0, longitude: 0 }
     const html = resultPopupHtml({ ...base, warning, closure: closureWarning() })
-    expect(html).toContain('>Inside an active closure (Probe Fire Closure)</a>')
+    expect(html).toContain('>Within a closure (Probe Fire Closure)</a>')
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
-    expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('active closure'))
+    expect(html.indexOf('Sourdough')).toBeLessThan(html.indexOf('Within a closure'))
   })
 
   it('writes plain text for an order with no page, and escapes the name', () => {
     const html = resultPopupHtml({ ...base, closure: closureWarning({ url: null, name: '<b>x</b>' }) })
-    expect(html).toContain('Inside an active closure (&lt;b&gt;x&lt;/b&gt;)')
+    expect(html).toContain('Within a closure (&lt;b&gt;x&lt;/b&gt;)')
     expect(html).not.toContain('fs.usda.gov')
   })
 })

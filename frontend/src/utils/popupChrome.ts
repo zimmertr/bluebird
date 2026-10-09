@@ -157,13 +157,21 @@ export const WARNING_COLOR = '#f59e0b'
 /**
  * One safety warning, the whole sentence a link where it has one. It carries
  * no glyph of its own: the section's one ⚠️ stands for every line in it
- * (`resultCardShell`). The text is escaped by the caller, since it carries
- * third-party names.
+ * (`resultCardShell`). It keeps one line and ends in an ellipsis where it
+ * outruns the card, as a title does (TJ, 2026-10-08): a closure order's name
+ * wrapped most cards onto a second line, which on a phone is a row of the
+ * grid scrolled out of view. The card still widens to its cap first, so the
+ * cut takes only what no card could show. The text is escaped by the caller,
+ * since it carries third-party names, and stays whole in the markup for a
+ * screen reader.
  */
 export function warningLine(text: string, href: string | null): string {
-  const style = `color:${WARNING_COLOR};font-weight:600`
+  const style = `color:${WARNING_COLOR};font-weight:600;display:block;${ONE_LINE}`
   return href ? popupLink(href, text, style) : `<span style="${style}">${text}</span>`
 }
+
+/** One line, cut with an ellipsis: a popup's title and its warnings. */
+const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 
 /**
  * The colour of the one line that qualifies a card rather than adding to it:
@@ -586,7 +594,7 @@ function resultCardShell(title: string, url: string, body: string, meta: string,
  * the link-out glyph never shrinks, so it stays beside the visible part.
  */
 const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_TITLE_SIZE}`
-const TITLE_TEXT = 'min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
+const TITLE_TEXT = `min-width:0;${ONE_LINE}`
 
 /**
  * The result card's header band: slate-100, the grid's own band colour, under

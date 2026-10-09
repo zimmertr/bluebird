@@ -85,7 +85,7 @@ import { GRID_RANKED_COLOR } from '../utils/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
-import { closureWarningText } from '../utils/closureProximity'
+import { closurePopupText } from '../utils/closureProximity'
 import { geoKey } from '../utils/points'
 import { stubMap } from '../testSupport/stubMap'
 import { MARKER_LABEL_PAINT, MARKER_PAINT, PENDING_COLOR } from './mapStyles'
@@ -239,7 +239,7 @@ describe('mountResultsLayer', () => {
       closureWarnings: new Map([[geoKey(RAINIER.latitude, RAINIER.longitude), closure]]),
     })
     stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
-    expect(popups[0].html).toContain(closureWarningText(closure))
+    expect(popups[0].html).toContain(closurePopupText(closure))
   })
 
   // The card marks the number the report ranks by, read from the inputs at
