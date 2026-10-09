@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // MapLibre's Popup needs a DOM. This one records where it opened, what it says
 // and its options, and fires `close` when removed, as MapLibre's does.
 // Hoisted, because `vi.mock` runs before the imports.
-type FakeBody = { offsetHeight: number; style: { maxHeight?: string }; classes: string[]; classList: { add: (c: string) => void } }
+type FakeBody = {
+  offsetHeight: number
+  scrollTop?: number
+  style: { maxHeight?: string }
+  classes: string[]
+  classList: { add: (c: string) => void }
+}
 const { popups } = vi.hoisted(() => ({
   popups: [] as {
     at: unknown
@@ -12,24 +18,35 @@ const { popups } = vi.hoisted(() => ({
     removed: boolean
     attrs: Record<string, string>
     body: FakeBody
+    // Each setHTML, with whether MapLibre would have moved focus for it.
+    sets: { html: string; focus: unknown }[]
   }[],
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
     state: (typeof popups)[number]
     closers: (() => void)[] = []
-    constructor(options: unknown) {
+    options: Record<string, unknown>
+    constructor(options: Record<string, unknown>) {
       const classes: string[] = []
       const body: FakeBody = { offsetHeight: BODY_H, style: {}, classes, classList: { add: (c) => classes.push(c) } }
-      this.state = { at: null, html: '', options, removed: false, attrs: {}, body }
+      this.options = { ...options }
+      this.state = { at: null, html: '', options, removed: false, attrs: {}, body, sets: [] }
       popups.push(this.state)
     }
     setLngLat(at: unknown) {
       this.state.at = at
       return this
     }
+    // MapLibre's default is to move focus into the popup when content is set.
+    // New markup arrives uncapped and scrolled to the top, as a real body would.
     setHTML(html: string) {
       this.state.html = html
+      this.state.sets.push({ html, focus: this.options.focusAfterOpen ?? true })
+      const body = this.state.body
+      body.style = {}
+      body.classes.length = 0
+      body.scrollTop = 0
       return this
     }
     addTo() {
@@ -369,6 +386,117 @@ describe('mountResultsLayer', () => {
     expect(stub.canvas.style.cursor).toBe('pointer')
     stub.fire('mouseleave', RESULT_MARKER_LAYER)
     expect(restCursor).toHaveBeenCalledTimes(1)
+  })
+})
+
+// An open card follows the report the way the table does (TJ, 2026-10-08):
+// a new ranking moves its mark and its rank without the card being reopened.
+describe('refreshPopups', () => {
+  const COLS = displayedColumns(false, 'aqi_avg')
+  const cardFor = (live: MapInputs, row: typeof ADAMS, rank: number | string, sortBy = live.sortBy) =>
+    resultPopupHtml({
+      rank,
+      row,
+      columns: live.popupColumns,
+      warning: null,
+      modelId: live.modelId,
+      times: live.times,
+      modelFallbackLabel: null,
+      rankedBy: sortBy,
+      compact: false,
+    })
+
+  it('moves the ranked mark and the rank when the ranking changes', () => {
+    const { layer, controller } = setup()
+    controller.update({ ...controller.inputs, popupColumns: COLS })
+    layer.openPopup(RAINIER)
+    expect(popups[0].html).toBe(cardFor(controller.inputs, RAINIER, 2))
+    // A wind ranking that puts Rainier first.
+    controller.update({ ...controller.inputs, sortBy: 'wind_max_mph', results: [RAINIER, ADAMS] })
+    layer.refreshPopups()
+    expect(popups).toHaveLength(1)
+    expect(popups[0].html).toBe(cardFor(controller.inputs, RAINIER, 1, 'wind_max_mph'))
+    expect(popups[0].html).not.toBe(cardFor(controller.inputs, RAINIER, 1, 'aqi_avg'))
+  })
+
+  it('drops a column the reader hides', () => {
+    const { layer, controller } = setup()
+    controller.update({ ...controller.inputs, popupColumns: COLS })
+    layer.openPopup(RAINIER)
+    const fewer = COLS.filter((c) => !(c.key as string).startsWith('temp_'))
+    controller.update({ ...controller.inputs, popupColumns: fewer })
+    layer.refreshPopups()
+    expect(popups[0].html).toBe(cardFor(controller.inputs, RAINIER, 2))
+    expect(popups[0].html).not.toContain('Temperature')
+  })
+
+  // The change was made in the panel, so focus stays there: MapLibre moves it
+  // into a popup whenever its content is set, unless told not to.
+  it('redraws without moving focus, and leaves the option as it found it', () => {
+    const { layer, controller } = setup()
+    layer.openPopup(RAINIER)
+    controller.update({ ...controller.inputs, results: [RAINIER, ADAMS] })
+    layer.refreshPopups()
+    expect(popups[0].sets.map((x) => x.focus)).toEqual([true, false])
+    layer.openPopup(ADAMS)
+    expect(popups[1].sets.map((x) => x.focus)).toEqual([true])
+  })
+
+  it('leaves a card alone when nothing it shows changed', () => {
+    const { layer } = setup()
+    layer.openPopup(RAINIER)
+    layer.refreshPopups()
+    expect(popups[0].sets).toHaveLength(1)
+  })
+
+  it('keeps a row the presentation stopped displaying, without a rank', () => {
+    const { layer, controller } = setup()
+    controller.update({ ...controller.inputs, popupColumns: COLS })
+    layer.openPopup(RAINIER)
+    controller.update({ ...controller.inputs, results: [ADAMS], sortBy: 'temp_max_f' })
+    layer.refreshPopups()
+    expect(popups[0].removed).toBe(false)
+    expect(popups[0].html).toBe(cardFor(controller.inputs, RAINIER, ''))
+  })
+
+  it('stops redrawing a card once it is closed', () => {
+    const { layer, controller, board } = setup()
+    layer.openPopup(RAINIER)
+    board.closeAll()
+    controller.update({ ...controller.inputs, results: [RAINIER, ADAMS] })
+    layer.refreshPopups()
+    expect(popups[0].sets).toHaveLength(1)
+  })
+
+  // A comparison stands one row per model on a destination, so the card keeps
+  // the model it was opened on rather than the first row at its coordinates.
+  it('keeps the model a comparison card was opened on', () => {
+    const a = { ...RAINIER, modelId: 'gfs_seamless', modelLabel: 'GFS' }
+    const b = { ...RAINIER, modelId: 'ecmwf_ifs025', modelLabel: 'ECMWF', temp_max_f: 12.5 }
+    const { layer, controller } = setup([a, b])
+    controller.update({ ...controller.inputs, popupColumns: COLS })
+    layer.openPopup(b)
+    // Re-ranked into new row objects, as a fresh presentation may hand over.
+    const a2 = { ...a }
+    const b2 = { ...b }
+    controller.update({ ...controller.inputs, results: [b2, a2], sortBy: 'temp_max_f' })
+    layer.refreshPopups()
+    expect(popups[0].html).toContain('12.5')
+    expect(popups[0].html).toContain('#1 ')
+  })
+
+  it('keeps a capped card capped, and where the reader had scrolled it', () => {
+    const { layer, controller } = setup()
+    controller.update({ ...controller.inputs, cameraPadBottomPx: MAP_H - 330 })
+    layer.openPopup(RAINIER, { markerAt: { x: 640, y: 100 } })
+    const card = popups.find((p) => !p.removed)!
+    const capped = card.body.style.maxHeight
+    card.body.scrollTop = 40
+    controller.update({ ...controller.inputs, results: [RAINIER, ADAMS] })
+    layer.refreshPopups()
+    expect(card.body.style.maxHeight).toBe(capped)
+    expect(card.body.classes).toEqual(['popup-scroll'])
+    expect(card.body.scrollTop).toBe(40)
   })
 })
 
