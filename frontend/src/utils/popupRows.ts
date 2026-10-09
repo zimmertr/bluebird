@@ -2,11 +2,10 @@ import { DestinationResult, SortBy } from '../types'
 import {
   AGGREGATE,
   MetricFamily,
-  UNIT,
-  WIND_GUST,
   aggregateToken,
   familyOf,
   metricLabel,
+  rankedMetricLabel,
   windowAggregate,
 } from '../metrics'
 import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
@@ -134,7 +133,7 @@ function groupUnit(cols: ColDef[]): string | null {
  */
 const GUST_KEY = 'wind_gust_mph'
 const GUST_BUCKET = 'wind_gust'
-const GUST_LABEL = `${WIND_GUST} (${UNIT.wind})`
+const GUST_LABEL = rankedMetricLabel(GUST_KEY)
 
 /** The group a ranking key's cell sits in: its family's, or the gust's own. */
 function bucketOf(key: string): string {

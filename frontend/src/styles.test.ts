@@ -1842,10 +1842,12 @@ describe('the map legend sections', () => {
     for (const mark of LAYER_LABELS) {
       expect(box.split(mark).length - 1, mark).toBe(1)
     }
-    // The metric key's label is composed, not written: `metricLabel` is what
-    // every surface in the app names a metric with, and it reads the SCALE's
-    // unit so playback's swap to `in/hr` relabels the strip with its bands.
-    expect(box).toContain('label: metricLabel(')
+    // The metric key's label is composed, not written: `rankedMetricLabel`
+    // composes through `metricLabel`, which every surface in the app names a
+    // metric with, and it reads the SCALE's unit so playback's swap to `in/hr`
+    // relabels the strip with its bands. The gust's own words come from
+    // `WIND_GUST` there (#584).
+    expect(box).toContain('label: rankedMetricLabel(sortBy, markerScale.unit)')
   })
 
   // Alphabetical by the label a section reads, the metric key included (TJ,

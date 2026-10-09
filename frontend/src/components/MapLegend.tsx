@@ -1,7 +1,7 @@
 import { Fragment, useId, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
-import { familyOf, metricLabel } from '../metrics'
+import { rankedMetricLabel } from '../metrics'
 import type { SortBy } from '../types'
 import {
   ACCENT,
@@ -229,12 +229,10 @@ export default function MapLegend({
             // datum produced it (#361, #443) are all stated by
             // the results header and the table's own column
             // headers. AQI reads as the bare noun, its index
-            // having no unit.
-            label: metricLabel(
-              familyOf(sortBy),
-              undefined,
-              markerScale.unit,
-            ),
+            // having no unit. A gust ranking reads `Wind gust
+            // (mph)` rather than its family's `Wind (mph)`, because
+            // the bands are the gust's (#584).
+            label: rankedMetricLabel(sortBy, markerScale.unit),
             ramp: {
               css: scaleRampCss(markerScale),
               ticks: scaleTicks(markerScale),

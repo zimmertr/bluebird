@@ -399,3 +399,17 @@ export function metricLabel(
   const named = aggregate ? `${noun} ${SEP} ${aggregate}` : noun
   return unit ? `${named} (${unit})` : named
 }
+
+/**
+ * A ranking key's metric named with a unit and no aggregate, for the two
+ * places that name what is coloured or listed without saying how it was
+ * reduced: the map legend's key ("Temperature (°F)") and the popup's gust
+ * line. The wind's gust reads "Wind gust (mph)" (TJ, #584), because its bands
+ * are the gust's own and "Wind (mph)" over them would name the sustained wind;
+ * every other key reads its family, as `metricLabel` composes it.
+ */
+export function rankedMetricLabel(sortBy: SortBy, unit?: string): string {
+  if (aggregateToken(sortBy) !== 'gust') return metricLabel(familyOf(sortBy), undefined, unit)
+  const shown = unit ?? UNIT.wind
+  return shown ? `${WIND_GUST} (${shown})` : WIND_GUST
+}

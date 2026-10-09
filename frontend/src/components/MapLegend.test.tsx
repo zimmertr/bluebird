@@ -3,6 +3,7 @@ import { screen } from '@testing-library/react'
 import MapLegend from './MapLegend'
 import { render } from '../testSupport/render'
 import { rankedScale } from '../utils/colors'
+import { NOUN, UNIT, WIND_GUST } from '../metrics'
 import { SMOKE_DENSITIES } from '../utils/smoke'
 
 const NONE = {
@@ -83,6 +84,21 @@ describe('MapLegend', () => {
     )
     expect(snowfall.container.textContent).toContain('Forecast grid')
     expect(snowfall.container.textContent).toContain('Snowfall (in)')
+  })
+
+  // The gust's bands are its own, so the key names the gust rather than its
+  // family (TJ, #584), and every other wind ranking still reads the wind.
+  it('names a gust ranking Wind gust (mph)', () => {
+    const gust = render(
+      <MapLegend {...BASE} sortBy="wind_gust_mph" markerScale={rankedScale('wind_gust_mph')} hasColoredMarkers />,
+    )
+    expect(gust.container.textContent).toContain(`${WIND_GUST} (${UNIT.wind})`)
+    gust.unmount()
+    const wind = render(
+      <MapLegend {...BASE} sortBy="wind_max_mph" markerScale={rankedScale('wind_max_mph')} hasColoredMarkers />,
+    )
+    expect(wind.container.textContent).toContain(`${NOUN.wind} (${UNIT.wind})`)
+    expect(wind.container.textContent).not.toContain(WIND_GUST)
   })
 
   it('credits NIFC beside the wildfire section', () => {

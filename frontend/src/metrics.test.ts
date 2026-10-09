@@ -18,6 +18,7 @@ import {
   resultsHeading,
   windowAggregate,
   WIND_GUST,
+  rankedMetricLabel,
 } from './metrics'
 import { COLUMNS } from './utils/tableColumns'
 import { formatMetricValue } from './utils/chartData'
@@ -331,6 +332,17 @@ describe('rankedNoun', () => {
     expect(rankedNoun('aqi_avg', true)).toBe('AQI')
     expect(rankedNoun('snowfall_total_in', false)).toBe('Total Snowfall')
     expect(rankedNoun('snowfall_total_in', true)).toBe('Snowfall')
+  })
+})
+
+// The legend's key and the popup's gust line (#584).
+describe('rankedMetricLabel', () => {
+  it('names the gust as itself and every other key by its family', () => {
+    expect(rankedMetricLabel('wind_gust_mph')).toBe('Wind gust (mph)')
+    expect(rankedMetricLabel('wind_gust_mph', UNIT.wind)).toBe(`${WIND_GUST} (${UNIT.wind})`)
+    expect(rankedMetricLabel('wind_max_mph')).toBe('Wind (mph)')
+    expect(rankedMetricLabel('precip_total_in', 'in/hr')).toBe('Precipitation (in/hr)')
+    expect(rankedMetricLabel('aqi_avg')).toBe('AQI')
   })
 })
 
