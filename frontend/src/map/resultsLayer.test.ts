@@ -64,6 +64,8 @@ import { createMapController, type MapInputs } from './controller'
 import { createPopupBoard } from './popups'
 import { pendingFC } from '../utils/mapFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
+import { GRID_RANKED_COLOR } from '../utils/popupChrome'
+import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 import { closureWarningText } from '../utils/closureProximity'
@@ -95,8 +97,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }) {
-  const stub = stubMap({ canvasWidth: MAP_W, canvasHeight: MAP_H, markerAt })
+function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, canvasWidth = MAP_W) {
+  const stub = stubMap({ canvasWidth, canvasHeight: MAP_H, markerAt })
   const inputs: MapInputs = {
     drawing: false,
     results,
@@ -104,6 +106,7 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }) 
     times: [],
     modelFallbackLabel: null,
     popupColumns: [],
+    sortBy: 'aqi_avg',
     fireWarnings: new Map(),
     closureWarnings: new Map(),
     searchedPlaces: [],
@@ -203,6 +206,8 @@ describe('mountResultsLayer', () => {
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
+        rankedBy: live.sortBy,
+        compact: false,
       }),
     )
   })
@@ -218,6 +223,29 @@ describe('mountResultsLayer', () => {
     })
     stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
     expect(popups[0].html).toContain(closureWarningText(closure))
+  })
+
+  // The card marks the number the report ranks by, read from the inputs at
+  // click time, and narrows its bands on a phone's map (TJ, 2026-10-08).
+  it('hands the popup the ranking and a narrow map\'s compact insets', () => {
+    const { stub, controller } = setup([ADAMS, RAINIER], undefined, 360)
+    controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'temp_max_f'), sortBy: 'temp_max_f' })
+    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    const live = controller.inputs
+    expect(popups[0].html).toBe(
+      resultPopupHtml({
+        rank: 2,
+        row: RAINIER,
+        columns: live.popupColumns,
+        warning: null,
+        modelId: live.modelId,
+        times: live.times,
+        modelFallbackLabel: null,
+        rankedBy: 'temp_max_f',
+        compact: true,
+      }),
+    )
+    expect(popups[0].html).toContain(`;background:${GRID_RANKED_COLOR}`)
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {
@@ -244,6 +272,8 @@ describe('mountResultsLayer', () => {
         modelId: live.modelId,
         times: live.times,
         modelFallbackLabel: null,
+        rankedBy: live.sortBy,
+        compact: false,
       }),
     )
   })

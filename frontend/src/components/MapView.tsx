@@ -299,6 +299,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       times,
       modelFallbackLabel,
       popupColumns,
+      sortBy,
       fireWarnings,
       closureWarnings,
       searchedPlaces,

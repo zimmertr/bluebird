@@ -14,7 +14,7 @@
 // without pulling maplibre-gl into a node test.
 import { externalLinkMarkup } from '../iconPaths'
 import { AGGREGATE } from '../metrics'
-import type { PopupGrid } from './popupRows'
+import type { PopupGrid, PopupGridCell } from './popupRows'
 
 /**
  * The popup's type ramp, and the face everything in it is set in.
@@ -278,10 +278,23 @@ export function factsRow(type: string | null, elevation: string | null, latitude
  * family narrowed to a single column, may break its longer label rather than
  * push the card wider. Numbers never wrap and are right-aligned, so a column
  * lines up on its last digit in the mono face, the way the table's do.
+ *
+ * The number the report ranks by is bold on the header band's sky rather than
+ * the column's slate, so the card says why its destination stands where it
+ * does (TJ, 2026-10-08). `compact` narrows every band's inset and the
+ * label's gap to fit a map too narrow for the widest grid at full inset
+ * (`compactGrid`).
  */
-export function metricGrid(grid: PopupGrid): string {
-  const cell = (c: { text: string; href: string | null }) => {
-    const shown = `<span style="${VALUE_FACE}">${c.text}</span>`
+export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boolean } = {}): string {
+  const band = gridBand(compact ? GRID_COMPACT_INSET_PX : GRID_INSET_PX)
+  const labelLoose = gridLabel(compact ? GRID_COMPACT_LABEL_GAP_PX : GRID_LABEL_GAP_PX)
+  const label = `${labelLoose};white-space:nowrap`
+  const headStyle = `text-align:center;font-weight:700;vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${LABEL_COLOR}`
+  const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band}`
+  const value = (c: PopupGridCell, line: string, span = '') =>
+    `<td${span} style="${valueStyle}${c.ranked ? `;background:${GRID_RANKED_COLOR}` : ''}${line}">${cell(c)}</td>`
+  const cell = (c: PopupGridCell) => {
+    const shown = `<span style="${VALUE_FACE}${c.ranked ? ';font-weight:700' : ''}">${c.text}</span>`
     return c.href ? popupLink(c.href, shown) : shown
   }
   // A one-value line stands across Min, Max and Avg and leaves the Total
@@ -289,18 +302,18 @@ export function metricGrid(grid: PopupGrid): string {
   const hasTotal = grid.columns[grid.columns.length - 1] === AGGREGATE.total
   const lead = Math.max(1, grid.columns.length - (hasTotal ? 1 : 0))
   const head = grid.columns.length
-    ? `<tr><td style="${GRID_HEAD_RULE}"></td>${grid.columns.map((c) => `<th scope="col" style="${GRID_HEAD}">${c}</th>`).join('')}</tr>`
+    ? `<tr><td style="${GRID_HEAD_RULE}"></td>${grid.columns.map((c) => `<th scope="col" style="${headStyle}">${c}</th>`).join('')}</tr>`
     : ''
   // A hairline under every line but the last, which the card's edge closes.
   const rows = grid.rows.map((r, i) => {
     const line = i < grid.rows.length - 1 ? GRID_ROW_RULE : ''
     if (r.kind === 'aggregates') {
-      return `<tr><th scope="row" style="${GRID_LABEL}${line}">${r.label}</th>${r.cells
-        .map((c) => `<td style="${GRID_VALUE}${line}">${c ? cell(c) : ''}</td>`)
+      return `<tr><th scope="row" style="${label}${line}">${r.label}</th>${r.cells
+        .map((c) => (c ? value(c, line) : `<td style="${valueStyle}${line}"></td>`))
         .join('')}</tr>`
     }
-    const rest = hasTotal ? `<td style="${GRID_VALUE}${line}"></td>` : ''
-    return `<tr><th scope="row" style="${GRID_LABEL_LOOSE}${line}">${r.label}</th><td colspan="${lead}" style="${GRID_VALUE}${line}">${cell(r.cell)}</td>${rest}</tr>`
+    const rest = hasTotal ? `<td style="${valueStyle}${line}"></td>` : ''
+    return `<tr><th scope="row" style="${labelLoose}${line}">${r.label}</th>${value(r.cell, line, ` colspan="${lead}"`)}${rest}</tr>`
   })
   return `<table style="border-collapse:separate;border-spacing:0;width:100%">${head}${rows.join('')}</table>`
 }
@@ -324,22 +337,71 @@ export const GRID_GUTTER_COLOR = '#ffffff'
  */
 export const GRID_LINE_COLOR = '#e2e8f0'
 
-// The grid's cells. Each band is inset 5px a side, so a number as wide as
-// `0.000` has visible room inside its band, behind a 2px white gutter (TJ,
-// 2026-10-08; it was 3px, which left the widest numbers touching the edges). A head is centred over its
-// band and bold, the one weight the popup's sans-serif has besides regular
-// (TJ, 2026-10-08), while the numbers stay right-aligned so a column lines up
-// on its last digit, the way a table of figures does.
+/**
+ * The ranked number's cell, the header band's sky-100. `LINK_COLOR` on it is
+ * 5.17:1, against 5.42:1 on the column's slate. It is only 1.05:1 against
+ * that slate, so the hue and the number's bold carry the mark between them;
+ * sky-200 would read harder and drop the link to 4.47:1, under AA. Pinned in
+ * `popupChrome.test.tsx`.
+ */
+export const GRID_RANKED_COLOR = '#e0f2fe'
+
+/**
+ * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
+ * room inside its band, behind a 2px white gutter (TJ, 2026-10-08; it was 3px,
+ * which left the widest numbers touching the edges). A map too narrow for the
+ * widest grid at 5px takes 3px instead (`compactGrid`).
+ */
+export const GRID_INSET_PX = 5
+export const GRID_COMPACT_INSET_PX = 3
+/**
+ * The gap between a family's label and the first band: 8px (TJ, 2026-10-08),
+ * or 6px on a compact grid, which is the 2px that lets a two-digit window
+ * total fit a 360px phone.
+ */
+export const GRID_LABEL_GAP_PX = 8
+export const GRID_COMPACT_LABEL_GAP_PX = 6
+
+/**
+ * The widest grid, in Chrome on macOS: `Precipitation (in/hr)` beside Min,
+ * Max, Avg and Total at their widest numbers (`10,600` heights, `≥30,000`
+ * under Max, and a three-digit total, `123.456`, which a stormy window's
+ * snowfall can reach). 344.6px at full inset (measured 2026-10-08). A
+ * two-digit total, which a winter window's rain often reaches, is 337.4px;
+ * the first measurement used `0.000`, 330.1px, and undersized the card.
+ *
+ * Compact, the same grid is 326.6px, and 319.4px with a two-digit total, which
+ * is what a 360px phone's 320px of body holds. A change to the grid's
+ * columns, insets or type re-measures these. `e2e/popupFit.spec.ts` holds the
+ * built card to them with the Mac's wider monospace emulated.
+ */
+export const WIDEST_GRID_PX = 345
+/** The result card's body padding a side, `resultCardShell`'s 10px. */
+export const RESULT_CARD_PAD_PX = 10
+
+/**
+ * Whether a result card on a map this wide takes the compact insets: when its
+ * body is narrower than the widest grid at full inset. That is every map under
+ * 385px, a 360px phone among them, where a wide grid would otherwise scroll
+ * sideways (TJ, 2026-10-08). The card's own width does not change.
+ */
+export function compactGrid(canvasWidthPx: number): boolean {
+  return parseFloat(resultPopupWidth(canvasWidthPx)) - 2 * RESULT_CARD_PAD_PX < WIDEST_GRID_PX
+}
+
+// The grid's cells. A head is centred over its band and bold, the one weight
+// the popup's sans-serif has besides regular (TJ, 2026-10-08), while the
+// numbers stay right-aligned so a column lines up on its last digit, the way a
+// table of figures does.
 // A label keeps 8px clear of the first band. On a phone the card is wider
 // than its grid and the table spreads the spare room into this column; on a
 // desktop the card shrinks to the grid, and without it the longest label sat
 // against the band (TJ, 2026-10-08).
-const GRID_LABEL_LOOSE = `text-align:left;font-weight:normal;padding:1px 8px 1px 0;vertical-align:bottom;${LABEL_COLOR}`
-const GRID_LABEL = `${GRID_LABEL_LOOSE};white-space:nowrap`
-const GRID_BAND = `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:1px 5px`
+const gridLabel = (gapPx: number) =>
+  `text-align:left;font-weight:normal;padding:1px ${gapPx}px 1px 0;vertical-align:bottom;${LABEL_COLOR}`
+const gridBand = (insetPx: number) =>
+  `background:${GRID_BAND_COLOR};border-left:2px solid ${GRID_GUTTER_COLOR};padding:1px ${insetPx}px`
 const GRID_HEAD_RULE = `border-bottom:1px solid ${RULE_COLOR}`
-const GRID_HEAD = `text-align:center;font-weight:700;vertical-align:bottom;white-space:nowrap;${GRID_BAND};${GRID_HEAD_RULE};${LABEL_COLOR}`
-const GRID_VALUE = `text-align:right;white-space:nowrap;vertical-align:bottom;${GRID_BAND}`
 const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
 
 /**
@@ -386,20 +448,19 @@ export function capPopupBody(body: HTMLElement, maxHeightPx: number): void {
 export const POPUP_MAX_WIDTH_PX = 280
 
 /**
- * How wide a ranked destination's popup may get: 352px, or the map less 10px
+ * How wide a ranked destination's popup may get: 366px, or the map less 10px
  * a side where the map is narrower (TJ, 2026-10-08).
  *
- * Its grid is wider than any other popup's. Measured in Chrome on macOS, the
- * widest label, `Precipitation (in/hr)`, beside Min, Max, Avg and Total at
- * their widest numbers (six-digit heights, `≥30,000` under Max), with the
- * label's 8px and each band's 5px insets, is 330.1px, and the body has the
- * card less 10px a side. On a 360px phone the card is 340px, 94% of the map,
- * which reverses the four-fifths share `popupWidth` keeps for the other
- * popups; TJ accepted the cost for one grid over two. There the widest grid
- * scrolls sideways by about 10px, which TJ accepted for narrow phones; the
- * tutorial's card, 315.7px of grid, fits.
+ * Its grid is wider than any other popup's, `WIDEST_GRID_PX`, and the body
+ * has the card less 10px a side. On a 360px phone the card is 340px, 94% of
+ * the map, which reverses the four-fifths share `popupWidth` keeps for the
+ * other popups; TJ accepted the cost for one grid over two. There the bands
+ * take their compact insets (`compactGrid`) and a two-digit total fits; only
+ * a three-digit one, or a map narrower still, scrolls sideways, which TJ
+ * accepted for narrow phones. A desktop card shrinks to its grid, so the cap
+ * is reached only by a card with the widest numbers.
  */
-export const RESULT_POPUP_MAX_WIDTH_PX = 352
+export const RESULT_POPUP_MAX_WIDTH_PX = 366
 
 export function resultPopupWidth(canvasWidthPx: number): string {
   return Math.max(180, Math.min(RESULT_POPUP_MAX_WIDTH_PX, canvasWidthPx - 20)) + 'px'

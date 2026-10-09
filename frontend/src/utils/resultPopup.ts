@@ -1,4 +1,4 @@
-import { DestinationResult } from '../types'
+import { DestinationResult, SortBy } from '../types'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, fireWarningText } from './fireProximity'
 import { type ClosureWarning, closureWarningText } from './closureProximity'
@@ -52,6 +52,12 @@ export function resultPopupHtml(d: {
   // The model name a row falls back to while one model answered every row. A
   // comparison puts the name on the row itself.
   modelFallbackLabel?: string | null
+  // The key the report ranks by, whose number the grid marks. Optional for
+  // the reason `modelId` is.
+  rankedBy?: SortBy | null
+  // Whether the grid takes its narrow insets, for a map too narrow for the
+  // widest grid at full inset (`compactGrid`).
+  compact?: boolean
 }): string {
   const r = d.row
   const url = destinationUrl({
@@ -104,8 +110,10 @@ export function resultPopupHtml(d: {
 
   // The measurements as one grid, a row per family and a column per aggregate
   // (TJ, 2026-10-08), under the two safety lines.
-  const grid = popupGrid(popupGroups(r, d.columns, { modelId: d.modelId, times: d.times }))
-  const body = [fire, closure, grid.rows.length ? metricGrid(grid) : '']
+  const grid = popupGrid(
+    popupGroups(r, d.columns, { modelId: d.modelId, times: d.times, rankedBy: d.rankedBy }),
+  )
+  const body = [fire, closure, grid.rows.length ? metricGrid(grid, { compact: d.compact }) : '']
     .filter(Boolean)
     .join('\n    ')
 

@@ -5,12 +5,20 @@ import { closureWarning, resultRow } from '../testSupport/fixtures'
 import {
   FINE_COLOR,
   GRID_BAND_COLOR,
+  GRID_COMPACT_INSET_PX,
+  GRID_COMPACT_LABEL_GAP_PX,
   GRID_GUTTER_COLOR,
+  GRID_INSET_PX,
+  GRID_LABEL_GAP_PX,
+  GRID_RANKED_COLOR,
   HEADER_BAND_COLOR,
   HEADER_ICON_COLOR,
   LABEL_COLOR,
   LINK_COLOR,
+  RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
+  WIDEST_GRID_PX,
+  compactGrid,
   factsRow,
   metricGrid,
   popupShell,
@@ -100,7 +108,7 @@ describe('the popup grid', () => {
   it('stands a one-value line across Min, Max and Avg and leaves Total empty', () => {
     const html = metricGrid({
       columns: [AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total],
-      rows: [{ kind: 'value', label: 'Cloud deck (ft)', cell: { text: '≥30,000', href: null } }],
+      rows: [{ kind: 'value', label: 'Cloud deck (ft)', cell: { text: '≥30,000', href: null, ranked: false } }],
     })
     // The value row alone: the corner over the labels is the head row's.
     const valueRow = html.slice(html.indexOf('<th scope="row"'))
@@ -112,9 +120,51 @@ describe('the popup grid', () => {
   it('never wraps a family label', () => {
     const html = metricGrid({
       columns: [AGGREGATE.minimum],
-      rows: [{ kind: 'aggregates', label: 'Precipitation (in/hr)', cells: [{ text: '0.000', href: null }] }],
+      rows: [{ kind: 'aggregates', label: 'Precipitation (in/hr)', cells: [{ text: '0.000', href: null, ranked: false }] }],
     })
     expect(html).toMatch(/<th scope="row" style="[^"]*white-space:nowrap[^"]*">Precipitation \(in\/hr\)<\/th>/)
+  })
+
+  // The number the report ranks by is bold on the header's sky (TJ,
+  // 2026-10-08). The sky is barely darker than the slate it replaces, so the
+  // link on it must still clear AA, and the bold does the rest.
+  it('marks the ranked number bold on the sky, keeping its link above AA', () => {
+    expect(GRID_RANKED_COLOR).toBe(HEADER_BAND_COLOR)
+    expect(round2(contrast(LINK_COLOR, GRID_RANKED_COLOR))).toBe(5.17)
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum, AGGREGATE.maximum],
+      rows: [
+        {
+          kind: 'aggregates',
+          label: 'Wind (mph)',
+          cells: [
+            { text: '3.2', href: null, ranked: false },
+            { text: '41.8', href: null, ranked: true },
+          ],
+        },
+      ],
+    })
+    const cells = mount(html).querySelectorAll('td[style*="text-align:right"]')
+    expect(cells).toHaveLength(2)
+    expect(cells[0].getAttribute('style')).not.toContain(GRID_RANKED_COLOR)
+    expect(cells[0].querySelector('span')!.getAttribute('style')).not.toContain('font-weight:700')
+    expect(cells[1].getAttribute('style')).toContain(`background:${GRID_RANKED_COLOR}`)
+    expect(cells[1].querySelector('span')!.getAttribute('style')).toContain('font-weight:700')
+  })
+
+  it('narrows every band and the label gap when asked', () => {
+    const grid = {
+      columns: [AGGREGATE.minimum],
+      rows: [{ kind: 'aggregates' as const, label: 'Wind (mph)', cells: [{ text: '3.2', href: null, ranked: false }] }],
+    }
+    const full = metricGrid(grid)
+    expect(full).toContain(`padding:1px ${GRID_INSET_PX}px`)
+    expect(full).toContain(`padding:1px ${GRID_LABEL_GAP_PX}px 1px 0`)
+    const compact = metricGrid(grid, { compact: true })
+    expect(compact).toContain(`padding:1px ${GRID_COMPACT_INSET_PX}px`)
+    expect(compact).toContain(`padding:1px ${GRID_COMPACT_LABEL_GAP_PX}px 1px 0`)
+    expect(compact).not.toContain(`padding:1px ${GRID_INSET_PX}px`)
+    expect(compact).not.toContain(`padding:1px ${GRID_LABEL_GAP_PX}px`)
   })
 })
 
@@ -165,23 +215,37 @@ describe('the facts line', () => {
   })
 })
 
-// The result popup's own width (TJ, 2026-10-08). Measured in Chrome on macOS:
-// the widest label beside the widest Min, Max, Avg and Total, with the
-// label's 8px and each band's 5px insets, is 330.1px of grid. The body has
-// the card less 10px a side. A change to the grid's columns, insets or type
-// re-measures this.
-const WIDEST_GRID_PX = 331
+// The result popup's own width (TJ, 2026-10-08), against the widest grid
+// measured in Chrome on macOS, `WIDEST_GRID_PX`.
 describe('resultPopupWidth', () => {
   it('fits the widest grid measured on macOS', () => {
-    expect(RESULT_POPUP_MAX_WIDTH_PX - 20).toBeGreaterThanOrEqual(WIDEST_GRID_PX)
+    expect(WIDEST_GRID_PX).toBe(345)
+    expect(RESULT_POPUP_MAX_WIDTH_PX - 2 * RESULT_CARD_PAD_PX).toBeGreaterThanOrEqual(WIDEST_GRID_PX)
   })
 
   it('takes the map less 10px a side where the map is narrower', () => {
     expect(resultPopupWidth(1280)).toBe(`${RESULT_POPUP_MAX_WIDTH_PX}px`)
-    expect(RESULT_POPUP_MAX_WIDTH_PX).toBe(352)
+    expect(RESULT_POPUP_MAX_WIDTH_PX).toBe(366)
     expect(resultPopupWidth(360)).toBe('340px')
     expect(resultPopupWidth(320)).toBe('300px')
     expect(resultPopupWidth(0)).toBe('180px')
+  })
+})
+
+// A map too narrow for the widest grid at full inset takes 3px insets and a
+// 6px label gap (TJ, 2026-10-08). Measured on macOS, a grid with a two-digit
+// window total is then 319.4px, which a 360px phone's 320px of body holds.
+describe('compactGrid', () => {
+  it('keeps the full inset wherever the widest grid fits it', () => {
+    expect(compactGrid(1280)).toBe(false)
+    expect(compactGrid(390)).toBe(false)
+    expect(compactGrid(385)).toBe(false)
+  })
+
+  it('takes the compact inset on a narrower map', () => {
+    expect(compactGrid(384)).toBe(true)
+    expect(compactGrid(360)).toBe(true)
+    expect(parseFloat(resultPopupWidth(360)) - 2 * RESULT_CARD_PAD_PX).toBeGreaterThanOrEqual(319.4)
   })
 })
 

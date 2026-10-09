@@ -394,4 +394,40 @@ describe('popupGrid', () => {
     if (deck.kind !== 'aggregates') throw new Error('equal heights stay a grid row')
     expect(deck.cells.map((c) => c?.text ?? null)).toEqual(['8,000', '8,000', '8,000', null])
   })
+
+  // The card marks the number the report ranks by (TJ, 2026-10-08), so it
+  // says why its destination stands where it does.
+  it('marks the number the report ranks by, and no other', () => {
+    const grid = popupGrid(popupGroups(row, cols, { rankedBy: 'wind_max_mph' }))
+    const ranked = grid.rows.flatMap((r) => (r.kind === 'aggregates' ? r.cells : [r.cell])).filter((c) => c?.ranked)
+    expect(ranked.map((c) => c!.text)).toEqual(['41.8'])
+  })
+
+  it('marks nothing without a ranking', () => {
+    const grid = popupGrid(popupGroups(row, cols))
+    expect(grid.rows.flatMap((r) => (r.kind === 'aggregates' ? r.cells : [r.cell])).some((c) => c?.ranked)).toBe(false)
+  })
+
+  // A held bound says the three numbers once, so the one cell carries the
+  // mark whichever of the three the ranking read.
+  it('keeps the mark on a bound held all window', () => {
+    const held = { ...row, cloud_deck_min_ft: 30066, cloud_deck_max_ft: 30066, cloud_deck_avg_ft: 30066 }
+    for (const rankedBy of ['cloud_deck_min_ft', 'cloud_deck_max_ft', 'cloud_deck_avg_ft'] as const) {
+      const deck = popupGrid(popupGroups(held, cols, { rankedBy })).rows.find((r) => r.label.startsWith(NOUN.cloud_deck))!
+      if (deck.kind !== 'value') throw new Error('a held bound is one value')
+      expect(deck.cell.ranked).toBe(true)
+    }
+  })
+
+  // Over a Current lookup each family is one number, and the ranked family's
+  // is the one marked.
+  it('marks a Current lookup’s ranked family', () => {
+    // The table collapses the family to its Avg column, which is not the
+    // ranked key, and the one number still carries the mark.
+    const point = displayedColumns(true, 'temp_max_f')
+    expect(point.some((c) => c.key === 'temp_max_f')).toBe(false)
+    const grid = popupGrid(popupGroups(row, point, { rankedBy: 'temp_max_f' }))
+    const marked = grid.rows.filter((r) => r.kind === 'value' && r.cell.ranked)
+    expect(marked.map((r) => r.label.startsWith(NOUN.temp))).toEqual([true])
+  })
 })

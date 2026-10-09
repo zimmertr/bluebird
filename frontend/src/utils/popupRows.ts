@@ -39,6 +39,11 @@ export type PopupValue = {
   unit: string | null
   /** Where the number links, matching the table cell's Windy link. */
   href: string | null
+  /**
+   * Whether this is the number the report ranks by, which the grid marks so
+   * the card says why its destination stands where it does.
+   */
+  ranked: boolean
 }
 
 /**
@@ -134,6 +139,8 @@ export function popupGroups(
   context: {
     modelId?: string | null
     times?: readonly number[]
+    /** The key the report ranks by, whose cell the grid marks. */
+    rankedBy?: SortBy | null
   } = {},
 ): PopupGroup[] {
   // Insertion-ordered, which is what makes "first appearance" the family order
@@ -155,6 +162,7 @@ export function popupGroups(
   }
 
   const rowModel = (row as ModelRow).modelId ?? context.modelId
+  const rankedFamily = context.rankedBy ? familyOf(context.rankedBy) : null
   const out: PopupGroup[] = []
   for (const [bucket, cols] of groups) {
     const shared = groupUnit(cols)
@@ -179,6 +187,11 @@ export function popupGroups(
                 ),
               })
             : null,
+        // The ranked key's own cell. A family showing one number is marked
+        // whole: a Current lookup collapses every family to its Avg column,
+        // so a ranking on Max has no cell of its own there, and its one
+        // number is the one the ranking read.
+        ranked: col.key === context.rankedBy || (cols.length === 1 && bucket === rankedFamily),
       }
     })
     // One value keeps the column's own label, which already names the metric,
@@ -225,8 +238,11 @@ export function popupIdentity(
 /** The elevation column's unit, which its label spells as `Elevation (ft)`. */
 const ELEVATION_UNIT = 'ft'
 
+/** A number in the grid, and whether it is the one the report ranks by. */
+export type PopupGridCell = { text: string; href: string | null; ranked: boolean }
+
 /** A value in the grid, or an aggregate the reader's columns leave out. */
-export type PopupCell = { text: string; href: string | null } | null
+export type PopupCell = PopupGridCell | null
 
 /**
  * One line of the popup's grid (TJ, 2026-10-08).
@@ -237,7 +253,7 @@ export type PopupCell = { text: string; href: string | null } | null
  * - `aggregates`: one cell per column, the window total last.
  */
 export type PopupGridRow =
-  | { kind: 'value'; label: string; cell: { text: string; href: string | null } }
+  | { kind: 'value'; label: string; cell: PopupGridCell }
   | { kind: 'aggregates'; label: string; cells: PopupCell[] }
 
 /** The popup's body as a grid: aggregate column headings, then the lines. */
@@ -271,9 +287,10 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
     groups.filter((g) => !g.single).flatMap((g) => g.values.map((v) => v.aggregate ?? '')),
   )
   const columns = GRID_AGGREGATES.filter((a) => shown.has(a))
-  const cellOf = (v: PopupValue): { text: string; href: string | null } => ({
+  const cellOf = (v: PopupValue): PopupGridCell => ({
     text: v.unit ? `${v.text} ${v.unit}` : v.text,
     href: v.href,
+    ranked: v.ranked,
   })
   const rows: PopupGridRow[] = []
   for (const g of groups) {
@@ -288,7 +305,8 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
     // A deck that held at one edge of the walk all window prints the same
     // bound in Min, Max and Avg, and says it once across them. Three of them
     // side by side were wider than the card, and wrapped every label
-    // (measured 2026-10-08). The deck has no total, so nothing is lost.
+    // (measured 2026-10-08). The deck has no total, so nothing is lost. The
+    // one cell stays marked when the ranking read any of the three.
     const spread = cells.filter((_, i) => columns[i] !== AGGREGATE.total)
     const first = spread[0]
     if (
@@ -297,7 +315,7 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
       isCloudDeckMark(first.text) &&
       spread.every((c) => c?.text === first.text)
     ) {
-      rows.push({ kind: 'value', label: g.label, cell: first })
+      rows.push({ kind: 'value', label: g.label, cell: { ...first, ranked: spread.some((c) => c?.ranked) } })
       continue
     }
     rows.push({ kind: 'aggregates', label: g.label, cells })

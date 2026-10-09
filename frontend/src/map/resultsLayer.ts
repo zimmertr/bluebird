@@ -32,7 +32,7 @@ import {
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
 import { capHeight, placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
-import { POPUP_BODY_ATTR, RESULT_POPUP_CLASS, capPopupBody } from '../utils/popupChrome'
+import { POPUP_BODY_ATTR, RESULT_POPUP_CLASS, capPopupBody, compactGrid } from '../utils/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -244,6 +244,8 @@ export function mountResultsLayer(
         modelId: row ? ((row as ModelRow).modelId ?? live.modelId) : live.modelId,
         times: row?.series_times ?? live.times,
         modelFallbackLabel: live.modelFallbackLabel,
+        rankedBy: live.sortBy,
+        compact: compactGrid(map.getCanvas().clientWidth),
       }),
       {},
     )
@@ -369,6 +371,8 @@ export function mountResultsLayer(
           modelId: (result as ModelRow).modelId ?? live.modelId,
           times: result.series_times ?? live.times,
           modelFallbackLabel: live.modelFallbackLabel,
+          rankedBy: live.sortBy,
+          compact: compactGrid(map.getCanvas().clientWidth),
         }),
         options,
       )

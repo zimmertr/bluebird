@@ -3,7 +3,7 @@ import { resultPopupHtml } from './resultPopup'
 import type { FireWarning } from './fireProximity'
 import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
-import { HEADER_BAND_COLOR, LABEL_COLOR } from './popupChrome'
+import { GRID_COMPACT_INSET_PX, GRID_INSET_PX, GRID_RANKED_COLOR, HEADER_BAND_COLOR, LABEL_COLOR } from './popupChrome'
 import { displayedColumns } from './tableColumns'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
 
@@ -276,6 +276,26 @@ describe('resultPopupHtml type', () => {
     const colHeads = html.match(/<th scope="col" style="[^"]*"/g) ?? []
     expect(colHeads).toHaveLength(4)
     for (const th of colHeads) expect(th).toContain('font-weight:700')
+  })
+})
+
+// The card marks the number the report ranks by, bold on the header band's
+// sky (TJ, 2026-10-08), and narrows its bands on a map too narrow for them.
+describe('resultPopupHtml ranked number and insets', () => {
+  it('bolds the ranked number on the sky, and no other', () => {
+    const html = resultPopupHtml({ ...base, columns: displayedColumns(false, 'wind_max_mph'), rankedBy: 'wind_max_mph' })
+    const bold = [...html.matchAll(/<span style="[^"]*font-weight:700[^"]*">([^<]*)<\/span>/g)].map((m) => m[1])
+    expect(bold).toEqual(['41.8'])
+    expect(html.split(`;background:${GRID_RANKED_COLOR}`)).toHaveLength(2)
+  })
+
+  it('marks nothing without a ranking', () => {
+    expect(resultPopupHtml({ ...base })).not.toContain(`;background:${GRID_RANKED_COLOR}`)
+  })
+
+  it('takes the compact insets when asked', () => {
+    expect(resultPopupHtml({ ...base, compact: true })).toContain(`padding:1px ${GRID_COMPACT_INSET_PX}px`)
+    expect(resultPopupHtml({ ...base })).toContain(`padding:1px ${GRID_INSET_PX}px`)
   })
 })
 
