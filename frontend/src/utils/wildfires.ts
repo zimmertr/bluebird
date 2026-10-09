@@ -134,26 +134,6 @@ export interface WildfireProps {
   attr_FireDiscoveryDateTime?: number | null
 }
 
-/**
- * Which incident a hovered perimeter is, for telling "the cursor moved inside
- * the same fire" from "the cursor crossed into a different one".
- *
- * Identity, not display: it exists so the hover popup can stay anchored while
- * you move toward it and still re-anchor when you cross into a neighbour.
- * Composed of the fields NIFC actually populates rather than an object id,
- * because the properties reaching this point come off a vector tile, where the
- * feature id is not stable across tile boundaries — a fire spanning two tiles
- * would otherwise read as two fires and the popup would jump mid-approach.
- *
- * Named apart from `geoKey` in points.ts, which keys a *destination* by
- * coordinate. Two different questions, and one name for both invites using
- * whichever is imported.
- */
-export function fireIdentity(props: WildfireProps): string {
-  const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim()
-  return `${name}|${props.poly_GISAcres ?? ''}|${props.attr_ModifiedOnDateTime_dt ?? ''}`
-}
-
 /** Build the API URL for perimeters intersecting `bbox`. Pure, so it's testable. */
 export function wildfireQueryUrl(bbox: BBox, detail: FireDetail): string {
   const params = new URLSearchParams({ bbox: bbox.join(','), detail })

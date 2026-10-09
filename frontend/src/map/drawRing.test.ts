@@ -1,14 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // MapLibre's Popup needs a DOM. This one records what it says, whether it is
-// open, and the one button a remove-point popup carries. Hoisted, because
-// `vi.mock` runs before the imports.
+// open, and the one button a remove-point popup carries, and fires `close`
+// when removed, as MapLibre's does. Hoisted, because `vi.mock` runs before the
+// imports.
 const { popups } = vi.hoisted(() => ({
   popups: [] as { html: string; removed: boolean; click: () => void }[],
 }))
 vi.mock('maplibre-gl', () => ({
   Popup: class {
     state = { html: '', removed: false, click: () => {} }
+    closers: (() => void)[] = []
     constructor() {
       popups.push(this.state)
     }
@@ -22,8 +24,13 @@ vi.mock('maplibre-gl', () => ({
     addTo() {
       return this
     }
+    on(_type: string, fn: () => void) {
+      this.closers.push(fn)
+      return this
+    }
     remove() {
       this.state.removed = true
+      for (const fn of this.closers) fn()
     }
     getElement() {
       return {
@@ -38,6 +45,7 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { mountDrawRing } from './drawRing'
+import { mountTestPopups } from '../testSupport/mapPopups'
 import { createMapController, type MapInputs } from './controller'
 import { stubMap } from '../testSupport/stubMap'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
@@ -86,15 +94,21 @@ function setup(points: Pts = TRI, drawing = true, maxPolygonPoints = MAX_POLYGON
     maxPolygonPoints,
   }
   const ring = { current: points }
+  const controller = createMapController(inputs)
+  const { popups, click } = mountTestPopups(stub, controller)
   const deps = {
     ring,
-    controller: createMapController(inputs),
+    controller,
+    popups,
     restCursor: vi.fn(),
     onPolygonChange: vi.fn(),
     onDrawUpdate: vi.fn(),
   }
   const drawRing = mountDrawRing(stub.map, deps)
-  return { stub, ring, deps, drawRing }
+  // A click on a handle, as the map's popup system resolves it.
+  const clickHandle = (layer: string, index: number, shiftKey = false) =>
+    click([{ layer: { id: layer }, properties: { index } }], { shiftKey })
+  return { stub, ring, deps, drawRing, clickHandle }
 }
 
 const handle = (props: Record<string, number>, lngLat = { lng: 0, lat: 0 }) => ({
@@ -204,8 +218,8 @@ describe('mountDrawRing', () => {
   })
 
   it('removes a vertex from the popup a click on it opens', () => {
-    const { stub, ring, deps } = setup([...TRI, [0, 5]])
-    stub.fire('click', 'draw-vertices', handle({ index: 3 }))
+    const { ring, deps, clickHandle } = setup([...TRI, [0, 5]])
+    clickHandle('draw-vertices', 3)
     expect(popups[0].html).toContain('Remove point')
     vi.runAllTimers()
     popups[0].click()
@@ -215,21 +229,33 @@ describe('mountDrawRing', () => {
   })
 
   it('keeps one remove-point popup at a time and drops it outside draw mode', () => {
-    const { stub, drawRing } = setup()
-    stub.fire('click', 'draw-vertices', handle({ index: 0 }))
-    stub.fire('click', 'draw-vertices', handle({ index: 1 }))
+    const { stub, drawRing, clickHandle } = setup()
+    clickHandle('draw-vertices', 0)
+    clickHandle('draw-vertices', 1, true)
     expect(popups[0].removed).toBe(true)
     drawRing.setDrawing(false)
     expect(popups[1].removed).toBe(true)
     expect(stub.layout['draw-vertices'].visibility).toBe('none')
   })
 
-  it('keeps the grab cursor when the pointer leaves a handle mid-drag', () => {
-    const { stub, deps } = setup()
-    stub.fire('mouseenter', 'draw-midpoints')
+  // A midpoint's mousedown has already inserted the point a drag places, so a
+  // click on one opens nothing, and neither places a vertex under it.
+  it('opens nothing for a click on a midpoint, and places no point there', () => {
+    const { ring, clickHandle } = setup()
+    clickHandle('draw-midpoints', 0)
+    expect(popups).toHaveLength(0)
+    expect(ring.current).toEqual(TRI)
+  })
+
+  it('shows the grab hand over a handle and keeps the grab cursor mid-drag', () => {
+    const { stub } = setup()
+    stub.setUnder([{ layer: { id: 'draw-midpoints' } }])
+    stub.fire('mousemove', undefined, { point: { x: 0, y: 0 } })
     expect(stub.canvas.style.cursor).toBe('grab')
     stub.fire('mousedown', 'draw-vertices', handle({ index: 0 }))
-    stub.fire('mouseleave', 'draw-vertices')
-    expect(deps.restCursor).not.toHaveBeenCalled()
+    expect(stub.canvas.style.cursor).toBe('grabbing')
+    stub.setUnder([])
+    stub.fire('mousemove', undefined, { point: { x: 0, y: 0 } })
+    expect(stub.canvas.style.cursor).toBe('grabbing')
   })
 })

@@ -78,7 +78,7 @@ vi.mock('maplibre-gl', () => ({
 
 import { makeArrowImage, mountResultsLayer, POPUP_PAN_MS, RESULT_MARKER_LAYER } from './resultsLayer'
 import { createMapController, type MapInputs } from './controller'
-import { createPopupBoard } from './popups'
+import { mountTestPopups } from '../testSupport/mapPopups'
 import { pendingFC } from '../utils/mapFeatures'
 import { resultPopupHtml } from '../utils/resultPopup'
 import { GRID_RANKED_COLOR } from '../utils/popupChrome'
@@ -134,24 +134,22 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, 
     maxPolygonPoints: MAX_POLYGON_POINTS,
   }
   const controller = createMapController(inputs)
-  const board = createPopupBoard()
-  const restCursor = vi.fn()
-  const layer = mountResultsLayer(stub.map, { controller, popups: board, restCursor })
-  return { stub, layer, controller, board, restCursor }
-}
-
-// A click on a marker, as MapLibre hands it over: the rendered feature, whose
-// properties carry the exact coordinates the row is matched on.
-function markerClick(row: typeof ADAMS, rank: number, shiftKey = false) {
-  return {
-    originalEvent: { shiftKey },
-    features: [
-      {
-        geometry: { type: 'Point', coordinates: [row.longitude, row.latitude] },
-        properties: { rank, name: row.name, lat: row.latitude, lon: row.longitude },
-      },
-    ],
-  }
+  const { popups: board, click } = mountTestPopups(stub, controller)
+  const layer = mountResultsLayer(stub.map, { controller, popups: board })
+  // A click on a marker: the rendered feature, whose properties carry the
+  // exact coordinates the row is matched on.
+  const clickMarker = (row: typeof ADAMS, rank: number, shiftKey = false) =>
+    click(
+      [
+        {
+          layer: { id: RESULT_MARKER_LAYER },
+          geometry: { type: 'Point', coordinates: [row.longitude, row.latitude] },
+          properties: { rank, name: row.name, lat: row.latitude, lon: row.longitude },
+        },
+      ],
+      { shiftKey },
+    )
+  return { stub, layer, controller, board, clickMarker }
 }
 
 describe('mountResultsLayer', () => {
@@ -208,8 +206,8 @@ describe('mountResultsLayer', () => {
   })
 
   it('opens the forecast popup for the row behind a clicked marker', () => {
-    const { stub, controller } = setup()
-    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    const { controller, clickMarker } = setup()
+    clickMarker(RAINIER, 2)
     expect(popups).toHaveLength(1)
     expect(popups[0].at).toEqual([RAINIER.longitude, RAINIER.latitude])
     expect(popups[0].options).toMatchObject({ closeOnClick: false })
@@ -232,22 +230,22 @@ describe('mountResultsLayer', () => {
   // The popup's closure line reads the same map the table's Closure column
   // does, keyed on the marker's exact coordinates (#550).
   it('names the closure a clicked destination stands inside', () => {
-    const { stub, controller } = setup()
+    const { controller, clickMarker } = setup()
     const closure = closureWarning()
     controller.update({
       ...controller.inputs,
       closureWarnings: new Map([[geoKey(RAINIER.latitude, RAINIER.longitude), closure]]),
     })
-    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    clickMarker(RAINIER, 2)
     expect(popups[0].html).toContain(closurePopupText(closure))
   })
 
   // The card marks the number the report ranks by, read from the inputs at
   // click time, and narrows its bands on a phone's map (TJ, 2026-10-08).
   it('hands the popup the ranking and a narrow map\'s compact insets', () => {
-    const { stub, controller } = setup([ADAMS, RAINIER], undefined, 360)
+    const { controller, clickMarker } = setup([ADAMS, RAINIER], undefined, 360)
     controller.update({ ...controller.inputs, popupColumns: displayedColumns(false, 'temp_max_f'), sortBy: 'temp_max_f' })
-    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    clickMarker(RAINIER, 2)
     const live = controller.inputs
     expect(popups[0].html).toBe(
       resultPopupHtml({
@@ -266,11 +264,11 @@ describe('mountResultsLayer', () => {
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {
-    const { stub } = setup()
-    stub.fire('click', RESULT_MARKER_LAYER, markerClick(ADAMS, 1))
-    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2, true))
+    const { clickMarker } = setup()
+    clickMarker(ADAMS, 1)
+    clickMarker(RAINIER, 2, true)
     expect(popups.map((p) => p.removed)).toEqual([false, false])
-    stub.fire('click', RESULT_MARKER_LAYER, markerClick(ADAMS, 1))
+    clickMarker(ADAMS, 1)
     expect(popups.map((p) => p.removed)).toEqual([true, true, false])
   })
 
@@ -355,17 +353,17 @@ describe('mountResultsLayer', () => {
   })
 
   it('pans by what the fit asked for on a marker click, marker and card together', () => {
-    const { stub } = setup([ADAMS, RAINIER], { x: 640, y: 40 })
-    stub.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    const { stub, clickMarker } = setup([ADAMS, RAINIER], { x: 640, y: 40 })
+    clickMarker(RAINIER, 2)
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
     stub.calls.length = 0
-    const { stub: low } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
-    low.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    const { stub: low, clickMarker: clickLow } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
+    clickLow(RAINIER, 2)
     // Above the marker fits whole, so no pan; a marker over the sheet does need one.
     expect(low.calls.filter((c) => c[0] === 'panBy')).toEqual([])
-    const { stub: buried, controller } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
+    const { stub: buried, controller, clickMarker: clickBuried } = setup([ADAMS, RAINIER], { x: 640, y: 880 })
     controller.update({ ...controller.inputs, cameraPadBottomPx: 500 })
-    buried.fire('click', RESULT_MARKER_LAYER, markerClick(RAINIER, 2))
+    clickBuried(RAINIER, 2)
     expect(buried.calls.filter((c) => c[0] === 'panBy')).toEqual([
       ['panBy', [0, 496], { duration: POPUP_PAN_MS }],
     ])
@@ -386,14 +384,6 @@ describe('mountResultsLayer', () => {
     expect(popups.map((p) => p.removed)).toEqual([true, false])
     board.closeAll()
     expect(popups.map((p) => p.removed)).toEqual([true, true])
-  })
-
-  it('points over a marker and hands the cursor back on leaving', () => {
-    const { stub, restCursor } = setup()
-    stub.fire('mouseenter', RESULT_MARKER_LAYER)
-    expect(stub.canvas.style.cursor).toBe('pointer')
-    stub.fire('mouseleave', RESULT_MARKER_LAYER)
-    expect(restCursor).toHaveBeenCalledTimes(1)
   })
 })
 

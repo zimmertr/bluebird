@@ -224,7 +224,7 @@ label carries the coverage, because the one row that most needed a word for its
 coverage has none: the area feeds cover eight states, and "West" is not their
 name.
 
-Hovering a closure names its order, the national forest, the trail and its
+Clicking a closure names its order, the national forest, the trail and its
 number on a closed trail, and the dates the order runs when it states both, with
 a link to the order where the Forest Service publishes one. In Oregon and
 Washington the status is the Forest Service's own: Bluebird Forecast shows what
@@ -238,10 +238,15 @@ Forest Service orders and nothing else, so a closure a national park, a state,
 the BLM or a tribe puts in place never appears, and in Oregon and Washington
 the feed holds fire closures only.
 
-Hovering a perimeter names the fire, with a link to it on NIFC's live map, and clicking one opens that map in a new tab; clicking a plume says how
-dense it is, which satellite it was traced from, and over what hours. Where smoke
-sits over a fire — which is most of the time, since one causes the other — the
-click goes to the fire.
+Clicking a perimeter names the fire, with a link to it on NIFC's live map;
+clicking a plume says how dense it is, which satellite it was traced from, and
+over what hours. Nothing on the map opens on a hover. Where things overlap, the
+smaller and more deliberate target takes the click: a marker or a peak inside a
+fire or a closure opens its own popup, a closed trail opens before the fire or
+the ground around it, a fire before the closure drawn around it, and any of them
+before the smoke over it. A closed trail answers a click a few pixels either
+side of its line. While you draw a polygon, fires, closures, smoke and map
+labels are scenery, and a click on one places a point.
 
 Read them for what they are. Radar is a **measurement of the last hour** and
 snow depth is an **analysis of now**, which makes them the two layers here that

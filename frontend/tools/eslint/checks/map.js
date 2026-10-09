@@ -74,7 +74,7 @@ export const MAP = [
       },
       {
         selector: 'NewExpression[callee.name="Popup"], NewExpression[callee.property.name="Popup"]',
-        message: 'Open a popup in its feature module, on the board in map/popups.ts.',
+        message: 'Open a popup in its feature module, through create in map/mapPopups.ts.',
       },
       {
         selector: 'CallExpression[callee.name=/^mount(?!Features$)/]',
@@ -180,6 +180,32 @@ export const MAP = [
       },
     ],
   },
+  {
+    // Every popup the map opens, and every click or hover that could open one,
+    // goes through map/mapPopups.ts (TJ, 2026-10-08), the way every colour goes
+    // through styles.ts: a feature registers a target there, with its layers
+    // and how it opens, and inherits the rank, pinning, the cursor and the
+    // shared popup options. A `new Popup` elsewhere is a popup with options of
+    // its own, and a layer listening for a click or a hover is the hover popup
+    // over a fire, or a second click that disagrees with the rank, back again.
+    // A drag's mousedown and touchstart are not this: they move a handle.
+    name: 'map-popups-owned',
+    files: [MAP_VIEW, MAP_MODULES],
+    ignores: ['src/map/mapPopups.ts', MAP_TESTS],
+    probe: 'src/map/poiPopup.ts',
+    ban: [
+      {
+        selector: 'NewExpression[callee.name="Popup"], NewExpression[callee.property.name="Popup"]',
+        message: 'Make a popup with create in map/mapPopups.ts, which every popup shares.',
+      },
+      {
+        selector:
+          'CallExpression[callee.property.name=/^(on|once)$/][arguments.0.value=/^(click|dblclick|contextmenu|mouseenter|mouseleave|mouseover|mouseout|mousemove)$/]',
+        message: 'Register a target in map/mapPopups.ts rather than listening for a click or a hover here.',
+      },
+    ],
+  },
+  declaresOnly('map-popups-system-declares', 'src/map/mapPopups.ts', ['mountMapPopups']),
   oneHome('map-home-basemap', 'src/map/basemap.ts', ['enhanceBasemap', 'lakeAnchor', 'setSource']),
   oneHome('map-home-popups', 'src/map/popups.ts', ['isPinning', 'popupOptions']),
   oneHome('map-home-results', 'src/map/resultsLayer.ts', ['updateResults']),

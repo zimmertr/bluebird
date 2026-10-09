@@ -20,6 +20,13 @@ export interface StubSource {
 
 type Handler = (event: unknown) => void
 
+/** A feature drawn under the cursor, as `queryRenderedFeatures` returns one. */
+export interface StubFeature {
+  layer: { id: string }
+  properties?: Record<string, unknown>
+  geometry?: { type: string; coordinates: unknown }
+}
+
 export interface StubMapOptions {
   /** The loaded style's own layers, as `getStyle()` reports them. */
   styleLayers?: { id: string; type: string }[]
@@ -27,6 +34,11 @@ export interface StubMapOptions {
   layers?: string[]
   filters?: Record<string, unknown>
   sources?: Record<string, StubSource>
+  /**
+   * What `queryRenderedFeatures` answers. Without it the map answers what
+   * `setUnder` last put under the cursor, filtered to the layers asked about,
+   * as MapLibre does.
+   */
   rendered?: (arg: unknown, opts?: unknown) => unknown[]
   canvasWidth?: number
   canvasHeight?: number
@@ -49,6 +61,7 @@ export function stubMap(opts: StubMapOptions = {}) {
   const layout: Record<string, Record<string, unknown>> = {}
   const paint: Record<string, Record<string, unknown>> = {}
   const handlers: { type: string; layer?: string; fn: Handler }[] = []
+  let under: StubFeature[] = []
   const canvas = {
     clientWidth: opts.canvasWidth ?? 0,
     clientHeight: opts.canvasHeight ?? 0,
@@ -124,7 +137,11 @@ export function stubMap(opts: StubMapOptions = {}) {
       const i = handlers.findIndex((h) => h.type === type && h.fn === fn)
       if (i >= 0) handlers.splice(i, 1)
     },
-    queryRenderedFeatures: (arg: unknown, o?: unknown) => opts.rendered?.(arg, o) ?? [],
+    queryRenderedFeatures: (arg: unknown, o?: unknown) => {
+      if (opts.rendered) return opts.rendered(arg, o)
+      const layers = (o as { layers?: string[] } | undefined)?.layers
+      return under.filter((f) => !layers || layers.includes(f.layer.id))
+    },
     getCanvas: () => canvas,
     getContainer: () => container,
     project: () => opts.markerAt ?? { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 },
@@ -159,6 +176,10 @@ export function stubMap(opts: StubMapOptions = {}) {
     /** Run every handler registered for this event, on this layer if named. */
     fire(type: string, layer?: string, event: unknown = {}) {
       for (const h of handlers.filter((h) => h.type === type && h.layer === layer)) h.fn(event)
+    },
+    /** Put these features under the cursor, for the next query. */
+    setUnder(features: StubFeature[]) {
+      under = features
     },
     handlerCount(type: string, layer?: string) {
       return handlers.filter((h) => h.type === type && h.layer === layer).length

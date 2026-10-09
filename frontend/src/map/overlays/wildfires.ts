@@ -1,13 +1,12 @@
 /**
- * The NIFC wildfire overlay: its source and layers, the hover popup with its
- * grace close, and the viewport fetch that runs while the overlay is on.
+ * The NIFC wildfire overlay: its source and layers, the popup a click on a
+ * perimeter opens, and the viewport fetch that runs while the overlay is on.
  *
- * One file owns what one toggle turns on and off, so the popup's timers and the
- * fetch's abort are torn down in the same place they are made. The layers are
+ * One file owns what one toggle turns on and off, so the fetch's abort and the
+ * fire's popups are torn down in the same place they are made. The layers are
  * added once, when the map loads, beneath the drawing UI and the result markers;
  * `update` only fills and empties them.
  */
-import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import type { FeatureCollection } from 'geojson'
 import { emptyFC, setSource } from '../basemap'
@@ -17,22 +16,14 @@ import {
   WILDFIRE_FILL,
   WILDFIRE_FILL_OPACITY,
   fetchWildfires,
-  fireIdentity,
   nifcFireUrl,
   wildfirePopupHtml,
   type BBox,
   type FireDetail,
   type WildfireProps,
 } from '../../utils/wildfires'
+import type { MapPopups } from '../mapPopups'
 import { overlayRecovery, retryAfterOf } from './recovery'
-
-// How long the wildfire popup survives the cursor leaving its perimeter, so
-// the cursor can cross the gap and land on the NIFC link inside it. The popup
-// opens flush against the hover point, so the gap is a few pixels and this is
-// mostly slack for a hand that overshoots. Long enough to be reachable without
-// hurrying, short enough that a popup left behind by a cursor moving on feels
-// dismissed rather than stuck.
-export const FIRE_POPUP_GRACE_MS = 400
 
 // How long a pan or zoom must settle before the viewport is asked about again.
 export const FIRE_REFETCH_DEBOUNCE_MS = 400
@@ -72,7 +63,7 @@ export interface WildfireOverlay {
 export function mountWildfires(
   map: maplibregl.Map,
   // `online` is where the browser's `online` is heard; the window when absent.
-  deps: { restCursor: () => void; online?: EventTarget | null },
+  deps: { popups: MapPopups; online?: EventTarget | null },
 ): WildfireOverlay {
   // Added before draw/results so the red perimeters sit beneath the drawing UI
   // and result markers. Data is populated on demand by `update`; the layers
@@ -91,76 +82,18 @@ export function mountWildfires(
     paint: { 'line-color': WILDFIRE_EDGE, 'line-width': 1.5, 'line-opacity': 0.9 },
   })
 
-  let popup: Popup | null = null
-  // Which fire the open popup describes, so a mousemove within that same fire
-  // leaves it anchored where it is; and the pending close that gives the
-  // cursor time to travel from the perimeter onto the popup.
-  let hovered: string | null = null
-  let closeTimer: ReturnType<typeof setTimeout> | null = null
-
-  // Hover (desktop) surfaces the fire's stats. The popup carries a link to
-  // NIFC's map, so it has to be reachable, and two things used to stop that: it
-  // re-anchored on every mousemove, so moving toward it moved it (it opens
-  // above the cursor, and the cursor comes up from below); and leaving the
-  // perimeter removed it synchronously, which is exactly what reaching for it
-  // does. So it re-anchors only when the cursor crosses into a *different* fire
-  // (still tracking overlapping perimeters, the behavior the per-move update
-  // existed for) and a leave schedules the close instead of doing it, which a
-  // hover over the popup cancels.
-  function closePopup() {
-    closeTimer = null
-    hovered = null
-    popup?.remove()
-    popup = null
-  }
-  function cancelClose() {
-    if (closeTimer === null) return
-    clearTimeout(closeTimer)
-    closeTimer = null
-  }
-  function scheduleClose() {
-    cancelClose()
-    closeTimer = setTimeout(closePopup, FIRE_POPUP_GRACE_MS)
-  }
-  function showPopup(e: maplibregl.MapLayerMouseEvent) {
-    const props = e.features?.[0]?.properties
-    if (!props) return
-    const key = fireIdentity(props as WildfireProps)
-    // Same fire, already open: leave it exactly where it is so it can be moved
-    // onto. A pending close means the cursor re-entered the perimeter without
-    // ever reaching the popup; call that a stay.
-    if (popup && key === hovered) {
-      cancelClose()
-      return
-    }
-    cancelClose()
-    hovered = key
-    const html = wildfirePopupHtml(props as WildfireProps, fireLinkAt(map, e.lngLat))
-    if (popup) {
-      popup.setLngLat(e.lngLat).setHTML(html)
-    } else {
-      popup = new Popup({ closeButton: false, maxWidth: '260px' })
-        .setLngLat(e.lngLat)
-        .setHTML(html)
-        .addTo(map)
-    }
-    // MapLibre leaves the popup container pointer-events:none and its content
-    // auto, so the content element is the one that can be hovered. setHTML
-    // replaces that element's children, not the element, and addEventListener
-    // dedupes an identical listener, so re-arming on every open is a no-op
-    // after the first.
-    const content = popup.getElement().querySelector('.maplibregl-popup-content')
-    content?.addEventListener('mouseenter', cancelClose)
-    content?.addEventListener('mouseleave', scheduleClose)
-  }
-  map.on('mouseenter', WILDFIRE_FILL_LAYER, (e) => {
-    map.getCanvas().style.cursor = 'pointer'
-    showPopup(e)
-  })
-  map.on('mousemove', WILDFIRE_FILL_LAYER, showPopup)
-  map.on('mouseleave', WILDFIRE_FILL_LAYER, () => {
-    deps.restCursor()
-    scheduleClose()
+  // A click on a perimeter describes the fire, with the link to it on NIFC's
+  // map, the way a click on a marker describes the destination; it used to
+  // open on hover, over the destinations inside the fire, and to send a click
+  // straight to NIFC (TJ, 2026-10-08).
+  deps.popups.register({
+    target: 'fire',
+    layers: [WILDFIRE_FILL_LAYER],
+    open: ({ feature, lngLat }) => {
+      deps.popups.create(lngLat, wildfirePopupHtml(feature.properties as WildfireProps, fireLinkAt(map, lngLat)), {
+        owner: 'fire',
+      })
+    },
   })
 
   // The fetch that runs while the overlay is on: perimeters for the current
@@ -216,15 +149,11 @@ export function mountWildfires(
       }
       stopFetching()
       setSource(map, 'wildfires', emptyFC)
-      // Turning the overlay off outranks a pending grace close: cancel it, or
-      // the timer fires later against a popup that is already gone.
-      cancelClose()
-      closePopup()
+      // A popup about a fire the map no longer draws goes with it.
+      deps.popups.closeAll('fire')
     },
     dispose() {
       stopFetching()
-      cancelClose()
-      popup = null
     },
   }
 }

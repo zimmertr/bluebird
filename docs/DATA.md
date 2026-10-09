@@ -739,7 +739,7 @@ itself unavailable. The same limit applies to smoke and closures below
 ([record 0077](decisions/0077-snapshot-max-stale-24h.md)). The overlay does not
 show the copy's age before that point.
 
-Hovering a fire dates the perimeter: **Last updated** is when NIFC last
+A fire's popup dates the perimeter: **Last updated** is when NIFC last
 surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
 It routinely runs days old on a fire that is burning right now, which is normal
 for a surveyed product and not a sign of stale data on this end. If you are

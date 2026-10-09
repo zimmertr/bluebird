@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// MapLibre's Popup needs a DOM. This one records where it is, what it says,
-// whether it is still open, and the two listeners the grace close hangs on
-// its content element. Hoisted, because `vi.mock` runs before the imports.
+// MapLibre's Popup needs a DOM. This one records where it is, what it says and
+// whether it is still open, and fires `close` when removed, as MapLibre's
+// does. Hoisted, because `vi.mock` runs before the imports.
 const { FakePopup, popups } = vi.hoisted(() => {
   const popups: InstanceType<typeof FakePopup>[] = []
   class FakePopup {
     html = ''
     at: unknown = null
     removed = false
-    listeners: Record<string, () => void> = {}
+    closers: (() => void)[] = []
     constructor() {
       popups.push(this)
     }
@@ -24,17 +24,13 @@ const { FakePopup, popups } = vi.hoisted(() => {
     addTo() {
       return this
     }
+    on(_type: string, fn: () => void) {
+      this.closers.push(fn)
+      return this
+    }
     remove() {
       this.removed = true
-    }
-    getElement() {
-      return {
-        querySelector: () => ({
-          addEventListener: (type: string, fn: () => void) => {
-            this.listeners[type] = fn
-          },
-        }),
-      }
+      for (const fn of this.closers) fn()
     }
   }
   return { FakePopup, popups }
@@ -52,11 +48,13 @@ import {
   CLOSURE_SOURCES,
   CLOSURE_TRAIL_LINE_LAYER,
   CLOSURE_TRAIL_SITE_LAYER,
+  CLOSURE_TRAIL_SLOP_PX,
   mountClosures,
 } from './closures'
-import { FIRE_POPUP_GRACE_MS, FIRE_REFETCH_DEBOUNCE_MS, WILDFIRE_FILL_LAYER, mountWildfires } from './wildfires'
-import type { ClosureKind } from '../../utils/closures'
+import { FIRE_REFETCH_DEBOUNCE_MS, WILDFIRE_FILL_LAYER, mountWildfires } from './wildfires'
+import { closurePopupHtml, type ClosureKind, type ClosureProps } from '../../utils/closures'
 import { closureFeature } from '../../testSupport/fixtures'
+import { mountTestPopups } from '../../testSupport/mapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
 const SITE = closureFeature({ OBJECTID: 7, RouteName: null, RouteNum: null }, { type: 'Point', coordinates: [-121.9, 45.6] })
@@ -65,19 +63,19 @@ const TRAILS = {
   fetched_at: 1,
   features: [closureFeature(), SITE],
 }
-const hover = (over = {}, layer = CLOSURE_AREA_FILL_LAYER, lng = -121.5) => ({
-  features: [{ layer: { id: layer }, properties: closureFeature(over).properties }],
-  lngLat: { lng, lat: 45.6 },
+const closure = (over = {}, layer = CLOSURE_AREA_FILL_LAYER) => ({
+  layer: { id: layer },
+  properties: closureFeature(over).properties as Record<string, unknown>,
 })
 
 // Mounted beside the fire overlay, as `mountFeatures` does, and over a draw
 // layer standing in for everything above it.
 function setup(kind: ClosureKind = 'area', online: EventTarget | null = null) {
   const stub = stubMap({ canvasWidth: 1000, zoom: 8 })
-  const restCursor = vi.fn()
-  mountWildfires(stub.map, { restCursor, online: null })
-  const overlay = mountClosures(stub.map, kind, { restCursor, online })
-  return { stub, overlay, restCursor }
+  const { popups, click } = mountTestPopups(stub)
+  mountWildfires(stub.map, { popups, online: null })
+  const overlay = mountClosures(stub.map, kind, { popups, online })
+  return { stub, overlay, click }
 }
 
 beforeEach(() => {
@@ -154,54 +152,64 @@ describe('mountClosures', () => {
   // Two switches, two sources: one layer on leaves the other empty.
   it('leaves the other kind alone', async () => {
     const stub = stubMap({ canvasWidth: 1000 })
-    const area = mountClosures(stub.map, 'area', { restCursor: vi.fn() })
-    mountClosures(stub.map, 'trail', { restCursor: vi.fn() })
+    const { popups } = mountTestPopups(stub)
+    const area = mountClosures(stub.map, 'area', { popups })
+    mountClosures(stub.map, 'trail', { popups })
     area.update({ show: true })
     await vi.waitFor(() => expect(stub.sources[CLOSURE_SOURCES.area].data).toBe(TRAILS))
     expect(stub.sources[CLOSURE_SOURCES.trail].data).toBeUndefined()
   })
 
-  it('keeps the popup anchored within one closure and moves it to the next', () => {
-    const { stub } = setup('area')
-    stub.fire('mouseenter', CLOSURE_AREA_FILL_LAYER, hover({}, CLOSURE_AREA_FILL_LAYER, -121.5))
-    stub.fire('mousemove', CLOSURE_AREA_FILL_LAYER, hover({}, CLOSURE_AREA_FILL_LAYER, -121.4))
+  // A click on a closure describes the order, where a hover used to (TJ,
+  // 2026-10-08); a hover opens nothing.
+  it('opens the closure’s popup on a click, and nothing on a hover', () => {
+    const { stub, click } = setup('area')
+    expect(stub.handlerCount('mouseenter', CLOSURE_AREA_FILL_LAYER)).toBe(0)
+    click([closure()], { lngLat: { lng: -121.4, lat: 45.6 } })
     expect(popups).toHaveLength(1)
-    expect(popups[0].at).toEqual({ lng: -121.5, lat: 45.6 })
-    expect(popups[0].html).toContain('🚫 Probe Fire Closure')
-    expect(stub.canvas.style.cursor).toBe('pointer')
-    stub.fire('mousemove', CLOSURE_AREA_FILL_LAYER, hover({ OBJECTID: 8 }, CLOSURE_AREA_FILL_LAYER, -121.3))
+    expect(popups[0].at).toEqual({ lng: -121.4, lat: 45.6 })
+    expect(popups[0].html).toBe(closurePopupHtml(closureFeature().properties as ClosureProps))
+  })
+
+  // The fire is the smaller shape and the hazard itself; the closure is often
+  // drawn around it.
+  it('gives a fire inside a closed area the click', () => {
+    const { click } = setup('area')
+    click([closure(), { layer: { id: WILDFIRE_FILL_LAYER }, properties: { poly_IncidentName: 'Alpha' } }])
     expect(popups).toHaveLength(1)
-    expect(popups[0].at).toEqual({ lng: -121.3, lat: 45.6 })
+    expect(popups[0].html).toContain('Alpha')
   })
 
-  // A line and a site can share a number across the service's two layers.
-  it('reads a site and a line with one id as two closures', () => {
-    const { stub } = setup('trail')
-    stub.fire('mouseenter', CLOSURE_TRAIL_LINE_LAYER, hover({}, CLOSURE_TRAIL_LINE_LAYER, -121.5))
-    stub.fire('mouseenter', CLOSURE_TRAIL_SITE_LAYER, hover({}, CLOSURE_TRAIL_SITE_LAYER, -121.2))
-    expect(popups[0].at).toEqual({ lng: -121.2, lat: 45.6 })
+  // A site is the smaller target, so a click on a site that sits on a line
+  // describes the site.
+  it('opens a site before the line it sits on', () => {
+    const { click } = setup('trail')
+    click([closure({ ClosureOrderName: 'Line' }, CLOSURE_TRAIL_LINE_LAYER), closure({ ClosureOrderName: 'Site' }, CLOSURE_TRAIL_SITE_LAYER)])
+    expect(popups).toHaveLength(1)
+    expect(popups[0].html).toContain('Site')
   })
 
-  it('closes on leaving only after the grace period, unless the popup is reached', () => {
-    const { stub, restCursor } = setup('trail')
-    stub.fire('mouseenter', CLOSURE_TRAIL_SITE_LAYER, hover({}, CLOSURE_TRAIL_SITE_LAYER))
-    stub.fire('mouseleave', CLOSURE_TRAIL_SITE_LAYER)
-    expect(restCursor).toHaveBeenCalled()
-    popups[0].listeners.mouseenter()
-    vi.advanceTimersByTime(FIRE_POPUP_GRACE_MS * 2)
-    expect(popups[0].removed).toBe(false)
-    popups[0].listeners.mouseleave()
-    vi.advanceTimersByTime(FIRE_POPUP_GRACE_MS)
-    expect(popups[0].removed).toBe(true)
+  // A closed trail is a 2.5px line, so it answers a click near it.
+  it('asks about a closed trail over a box its margin wide', () => {
+    const asked: unknown[] = []
+    const stub = stubMap({ canvasWidth: 1000, rendered: (at) => (asked.push(at), []) })
+    const { popups, click } = mountTestPopups(stub)
+    mountClosures(stub.map, 'trail', { popups })
+    click([])
+    const m = CLOSURE_TRAIL_SLOP_PX
+    expect(asked).toEqual([
+      [
+        [-m, -m],
+        [m, m],
+      ],
+    ])
   })
 
-  it('takes the popup and its pending close down when switched off', () => {
-    const { stub, overlay } = setup('area')
+  it('takes its popups down when switched off', () => {
+    const { overlay, click } = setup('area')
     overlay.update({ show: true })
-    stub.fire('mouseenter', CLOSURE_AREA_FILL_LAYER, hover())
-    stub.fire('mouseleave', CLOSURE_AREA_FILL_LAYER)
+    click([closure()])
     overlay.update({ show: false })
     expect(popups[0].removed).toBe(true)
-    expect(vi.getTimerCount()).toBe(0)
   })
 })

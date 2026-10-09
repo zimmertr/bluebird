@@ -7,7 +7,6 @@ import {
   wildfirePopupHtml,
   nifcFireUrl,
   isRateLimited,
-  fireIdentity,
   COARSE_TOLERANCE_DEG,
 } from './wildfires'
 
@@ -163,30 +162,6 @@ describe('wildfirePopupHtml', () => {
 
 // Drives whether the hover popup stays anchored (same fire, so it can be moved
 // onto) or re-anchors (a different fire under the cursor).
-describe('fireIdentity', () => {
-  it('is stable across two hovers of the same fire', () => {
-    const fire = { attr_IncidentName: 'Dollar Lake', poly_GISAcres: 812, attr_ModifiedOnDateTime_dt: 1 }
-    expect(fireIdentity(fire)).toBe(fireIdentity({ ...fire }))
-  })
-
-  it('separates two fires that differ in any field it reads', () => {
-    const base = { attr_IncidentName: 'Dollar Lake', poly_GISAcres: 812, attr_ModifiedOnDateTime_dt: 1 }
-    expect(fireIdentity(base)).not.toBe(fireIdentity({ ...base, attr_IncidentName: 'Beehive' }))
-    expect(fireIdentity(base)).not.toBe(fireIdentity({ ...base, poly_GISAcres: 813 }))
-  })
-
-  // Unnamed perimeters are common in the feed. They must not all collapse onto
-  // one identity, or hovering across two of them would leave the popup pinned
-  // to the first while showing the second's numbers.
-  it('still separates unnamed fires by their other fields', () => {
-    expect(fireIdentity({ poly_GISAcres: 10 })).not.toBe(fireIdentity({ poly_GISAcres: 20 }))
-  })
-
-  it('falls back to the polygon name when the attribute name is missing', () => {
-    expect(fireIdentity({ poly_IncidentName: 'Beehive' })).toContain('Beehive')
-  })
-})
-
 // A 429 is this client outpacing its own address limit; a 503 is a server that
 // has never completed a fetch. Neither resolves inside a backoff a UI can hold.
 describe('isRateLimited', () => {

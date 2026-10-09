@@ -1,7 +1,7 @@
 /**
  * The clickable basemap peaks and lakes: the popup a click opens, the button
- * in it that adds the place as a destination or takes it back out, the cursor
- * over one, and the glow that lights them all while the panel points at them.
+ * in it that adds the place as a destination or takes it back out, and the
+ * glow that lights them all while the panel points at them.
  *
  * The map already draws these features from the OpenMapTiles source, so the
  * click costs no lookup: the name and elevation are in the feature's own
@@ -10,9 +10,8 @@
  * URL param, and the same `custom_destinations` on the next Analyze.
  *
  * The layers themselves are the basemap's (`enhanceBasemap` adds them), so this
- * module adds none. It only listens on them.
+ * module adds none. It registers them as a click target (`map/mapPopups.ts`).
  */
-import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
@@ -28,9 +27,7 @@ import {
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
 import { lakeAnchor } from './basemap'
 import type { MapController } from './controller'
-import { WILDFIRE_FILL_LAYER } from './overlays/wildfires'
-import { isPinning, popupOptions, type PopupBoard } from './popups'
-import { RESULT_MARKER_LAYER } from './resultsLayer'
+import type { MapPopups } from './mapPopups'
 
 export interface PoiPopups {
   /** Light every clickable peak and lake, or put them back. */
@@ -41,18 +38,13 @@ export function mountPoiPopups(
   map: maplibregl.Map,
   deps: {
     controller: MapController
-    popups: PopupBoard
-    restCursor: () => void
+    popups: MapPopups
   },
 ): PoiPopups {
-  const { controller, popups, restCursor } = deps
+  const { controller, popups } = deps
 
-  function openPoiPopup(poi: BasemapPoi, pinned: boolean) {
-    if (!pinned) popups.closeAll()
-    const popup = new Popup({ ...popupOptions(map), closeOnClick: false })
-      .setLngLat([poi.lon, poi.lat])
-      .addTo(map)
-    popups.track(popup)
+  function openPoiPopup(poi: BasemapPoi) {
+    const popup = popups.create([poi.lon, poi.lat], '', { owner: 'poi' })
 
     // Which registered place this POI is, or null. Held in the closure
     // rather than re-read from the controller after each click: that
@@ -86,44 +78,30 @@ export function mountPoiPopups(
     render()
   }
 
-  for (const layer of POI_LAYERS) {
-    map.on('click', layer, (e) => {
-      // While drawing, these features are scenery: the click belongs to
-      // the ring. The general click (`utils/mapClick.ts`) reads them the
-      // same way while drawing, so a polygon corner can land on a peak
-      // label.
-      if (controller.inputs.drawing) return
-      // A basemap peak that has since been analyzed has a result marker
-      // sitting on top of it, and both layers answer the same click —
-      // which stacked two popups on one summit. The marker wins: it is
-      // the newer, more specific thing, and its popup carries the
-      // forecast this one could only offer to fetch. A fire perimeter
-      // wins for the same reason, having already opened a tab.
-      const claimed = map.queryRenderedFeatures(e.point, {
-        layers: [RESULT_MARKER_LAYER, WILDFIRE_FILL_LAYER],
-      })
-      if (claimed.length > 0) return
-      const f = e.features?.[0]
-      if (!f?.properties) return
+  // A peak or lake under a ranked marker, a draw handle or anything else
+  // that outranks it is the rank's call (`utils/mapClick.ts`), and in draw
+  // mode these are scenery a polygon corner can land on.
+  popups.register({
+    target: 'poi',
+    layers: POI_LAYERS,
+    open: ({ feature, lngLat, point }) => {
+      if (!feature.properties) return
+      const layer = feature.layer.id
       // A peak labels its own summit. A lake's label geometry is a tile
-      // artifact — a point for a compact one, a line for a long one — so
-      // it is resolved against the water itself; the click point is the
+      // artifact — a point for a compact one, a line for a long one — so it
+      // is resolved against the water itself; the click point is the
       // fallback, and it is on the lake because that is what was clicked.
-      const clicked: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+      const clicked: [number, number] = [lngLat.lng, lngLat.lat]
       const anchor =
         (LAKE_LAYERS as readonly string[]).includes(layer)
-          ? lakeAnchor(map, e.point, clicked)
-          : f.geometry.type === 'Point'
-            ? ((f.geometry as Point).coordinates as [number, number])
+          ? lakeAnchor(map, point, clicked)
+          : feature.geometry.type === 'Point'
+            ? ((feature.geometry as Point).coordinates as [number, number])
             : clicked
-      const poi = poiFromFeature(layer, f.properties, anchor)
-      if (poi) openPoiPopup(poi, isPinning(e))
-    })
-    map.on('mouseenter', layer, () => {
-      if (!controller.inputs.drawing) map.getCanvas().style.cursor = 'pointer'
-    })
-    map.on('mouseleave', layer, restCursor)
-  }
+      const poi = poiFromFeature(layer, feature.properties, anchor)
+      if (poi) openPoiPopup(poi)
+    },
+  })
 
   return {
     setPointed(pointed) {

@@ -84,11 +84,17 @@ describe('mountFeatures', () => {
     ])
   })
 
-  it('wires the marker and label clicks before the one click for the whole map', () => {
+  // Every popup opens through map/mapPopups.ts: one click and one pointer
+  // listener for the whole map, and none on any layer (TJ, 2026-10-08).
+  it('listens for the click and the pointer once, for the whole map, and on no layer', () => {
     const { stub } = setup()
-    expect(stub.handlerCount('click', RESULT_MARKER_LAYER)).toBe(1)
-    for (const layer of POI_LAYERS) expect(stub.handlerCount('click', layer)).toBe(1)
     expect(stub.handlerCount('click')).toBe(1)
+    expect(stub.handlerCount('mousemove')).toBe(1)
+    for (const layer of [...stub.stack, ...POI_LAYERS, RESULT_MARKER_LAYER]) {
+      for (const type of ['click', 'mouseenter', 'mouseleave', 'mousemove']) {
+        expect(stub.handlerCount(type, layer), `${type} on ${layer}`).toBe(0)
+      }
+    }
   })
 
   it('rests the cursor on the draw-mode rule', () => {

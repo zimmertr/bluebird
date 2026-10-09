@@ -7,7 +7,7 @@
  * marker is never under the outline of the area it was found in. The pending
  * dots go on last, above the markers.
  */
-import { Popup } from 'maplibre-gl'
+import type { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
@@ -20,7 +20,7 @@ import { resultPopupHtml } from '../utils/resultPopup'
 import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
 import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
-import { isPinning, popupOptions, type PopupBoard } from './popups'
+import type { MapPopups, MapTargetHit } from './mapPopups'
 import {
   MARKER_LABEL_LAYOUT,
   MARKER_LABEL_PAINT,
@@ -139,11 +139,10 @@ export function mountResultsLayer(
   map: maplibregl.Map,
   deps: {
     controller: MapController
-    popups: PopupBoard
-    restCursor: () => void
+    popups: MapPopups
   },
 ): ResultsLayer {
-  const { controller, popups, restCursor } = deps
+  const { controller, popups } = deps
 
   map.addSource('results', { type: 'geojson', data: emptyFC as FeatureCollection })
 
@@ -195,7 +194,7 @@ export function mountResultsLayer(
   // ── Pending custom destinations ────────────────────────────────
   // A pasted CSV row or searched place not yet in the displayed analysis:
   // a neutral dot (`PENDING_COLOR`) so the point never vanishes, no forecast
-  // popup yet. Absent from the blocked-click list on purpose — a pending
+  // popup yet. Not a click target, on purpose — a pending
   // dot must never swallow a polygon click while you draw around a
   // just-added spot; it starts blocking (opening a popup) once it ranks in.
   map.addSource('pending-destinations', {
@@ -216,9 +215,8 @@ export function mountResultsLayer(
     paint: MARKER_LABEL_PAINT,
   })
 
-  const openResultPopup = (e: maplibregl.MapLayerMouseEvent) => {
-    const f = e.features?.[0]
-    if (!f?.properties) return
+  const openResultPopup = ({ feature: f }: MapTargetHit) => {
+    if (!f.properties) return
     const p = f.properties
     // Anchor the popup at the rendered geometry, but take the exact
     // coordinates from properties for the readout and the geoKey lookup —
@@ -232,8 +230,6 @@ export function mountResultsLayer(
     // rather than on an index, so a source that has re-rendered since the
     // ref last updated cannot pair a popup with the wrong row.
     const row = controller.resultAt(lat, lon)
-    const pinned = isPinning(e)
-    if (!pinned) popups.closeAll()
     // The matched row is the popup's subject. The feature's own properties
     // are the fallback for the case the match cannot happen — they carry no
     // aggregates, so those columns draw the dash a missing value draws
@@ -273,7 +269,7 @@ export function mountResultsLayer(
   // places the card the reader will actually see. Never closeOnClick: it is fixed at construction too, so an
   // already-open popup could not be told to survive the click that pins a
   // second one — the first shift-click always lost the card it was meant to
-  // keep. Dismissal is the board's (`map/popups.ts`).
+  // keep. Dismissal is the board's (`map/mapPopups.ts`).
   // A card's markup from the inputs as they stand. One function for the first
   // open and every redraw, so a redrawn card cannot differ from a fresh one.
   // Read from the row's own coordinates, which are the exact ones a marker
@@ -310,7 +306,7 @@ export function mountResultsLayer(
   ): PopupPlacement => {
     const html = cardHtml(subject, rank)
     const build = (anchor: 'top' | 'bottom') =>
-      new Popup({ ...popupOptions(map, { result: true }), closeOnClick: false, anchor, className: RESULT_POPUP_CLASS }).setLngLat(at).setHTML(html).addTo(map)
+      popups.create(at, html, { owner: 'result', result: true, anchor, className: RESULT_POPUP_CLASS })
     let popup = build('top')
     const measure = () => {
       const el = popup.getElement()
@@ -347,9 +343,6 @@ export function mountResultsLayer(
     }
     // The tutorial's marker step frames this popup (#536).
     popup.getElement()?.setAttribute('data-tour', 'marker')
-    // On the board like every other popup, so the next table click or map
-    // click takes it down rather than stacking a second one beside it.
-    popups.track(popup)
     const card: OpenCard = { popup, row: subject, html, capped }
     cards.push(card)
     popup.on('close', () => {
@@ -358,11 +351,7 @@ export function mountResultsLayer(
     return { dx: placed.dx, dy: placed.dy }
   }
 
-  map.on('click', RESULT_MARKER_LAYER, openResultPopup)
-  map.on('mouseenter', RESULT_MARKER_LAYER, () => {
-    map.getCanvas().style.cursor = 'pointer'
-  })
-  map.on('mouseleave', RESULT_MARKER_LAYER, restCursor)
+  popups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: openResultPopup })
 
   let arrows = false
   return {

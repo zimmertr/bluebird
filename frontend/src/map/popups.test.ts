@@ -73,4 +73,19 @@ describe('createPopupBoard', () => {
     board.closeAll()
     expect(a.remove).toHaveBeenCalledTimes(1)
   })
+
+  // An overlay switched off takes down the popups about what it drew, and
+  // leaves the rest of the board standing.
+  it('closes only the popups one kind of thing owns, when asked by owner', () => {
+    const board = createPopupBoard()
+    const [fire, card, loose] = [fakePopup(), fakePopup(), fakePopup()]
+    board.track(fire, 'fire')
+    board.track(card, 'result')
+    board.track(loose)
+    board.closeAll('fire')
+    expect([fire.open, card.open, loose.open]).toEqual([false, true, true])
+    board.closeAll()
+    expect([card.open, loose.open]).toEqual([false, false])
+    expect(fire.remove).toHaveBeenCalledTimes(1)
+  })
 })

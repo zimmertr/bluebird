@@ -46,7 +46,8 @@ vi.mock('maplibre-gl', () => ({
 
 import { mountPoiPopups } from './poiPopup'
 import { createMapController, type MapInputs } from './controller'
-import { createPopupBoard } from './popups'
+import { RESULT_MARKER_LAYER } from './resultsLayer'
+import { mountTestPopups } from '../testSupport/mapPopups'
 import { POI_LAYERS, poiFromFeature, poiToPlace } from '../utils/basemapPoi'
 import { poiPopupHtml } from '../utils/poiPopup'
 import type { Place } from '../utils/geocode'
@@ -69,14 +70,10 @@ afterEach(() => {
 function setup({
   drawing = false,
   searchedPlaces = [] as Place[],
-  claimed = false,
   glow = true,
 } = {}) {
   const stub = stubMap({
     layers: glow ? [...POI_LAYERS, ...POI_LAYERS.map((id) => `${id}-glow`)] : [...POI_LAYERS],
-    // What else is drawn under the click: a marker or a fire perimeter, which
-    // wins the click over the basemap label beneath it.
-    rendered: () => (claimed ? [{ layer: { id: 'results-circles' } }] : []),
   })
   const inputs: MapInputs = {
     drawing,
@@ -96,33 +93,31 @@ function setup({
     maxPolygonPoints: MAX_POLYGON_POINTS,
   }
   const controller = createMapController(inputs)
-  const restCursor = vi.fn()
-  const pois = mountPoiPopups(stub.map, { controller, popups: createPopupBoard(), restCursor })
-  return { stub, pois, inputs, restCursor }
-}
-
-function peakClick(shiftKey = false) {
-  return {
-    originalEvent: { shiftKey },
-    point: { x: 0, y: 0 },
-    lngLat: { lng: SUMMIT[0], lat: SUMMIT[1] },
-    features: [{ geometry: { type: 'Point', coordinates: SUMMIT }, properties: PEAK_PROPS }],
-  }
+  const { popups: mapPopups, click } = mountTestPopups(stub, controller)
+  const pois = mountPoiPopups(stub.map, { controller, popups: mapPopups })
+  // A click on the summit, with whatever else is drawn there under it.
+  const peakClick = (shiftKey = false, also: { layer: { id: string } }[] = []) =>
+    click([{ layer: { id: PEAK_LAYER }, geometry: { type: 'Point', coordinates: SUMMIT }, properties: PEAK_PROPS }, ...also], {
+      lngLat: { lng: SUMMIT[0], lat: SUMMIT[1] },
+      shiftKey,
+    })
+  return { stub, pois, inputs, peakClick, mapPopups }
 }
 
 describe('mountPoiPopups', () => {
-  it('listens for a click and the cursor on every clickable basemap layer', () => {
+  // The click and the cursor are the map's popup system's (`map/mapPopups.ts`).
+  it('listens on no layer of its own', () => {
     const { stub } = setup()
     for (const layer of POI_LAYERS) {
       for (const type of ['click', 'mouseenter', 'mouseleave']) {
-        expect(stub.handlerCount(type, layer), `${type} on ${layer}`).toBe(1)
+        expect(stub.handlerCount(type, layer), `${type} on ${layer}`).toBe(0)
       }
     }
   })
 
   it('offers to add a clicked peak, and then to take it back out', () => {
-    const { stub, inputs } = setup()
-    stub.fire('click', PEAK_LAYER, peakClick())
+    const { inputs, peakClick } = setup()
+    peakClick()
     expect(popups).toHaveLength(1)
     expect(popups[0].html).toBe(poiPopupHtml(PEAK, false))
 
@@ -138,36 +133,31 @@ describe('mountPoiPopups', () => {
   })
 
   it('knows a peak the session already holds', () => {
-    const { stub } = setup({ searchedPlaces: [poiToPlace(PEAK)] })
-    stub.fire('click', PEAK_LAYER, peakClick())
+    const { peakClick } = setup({ searchedPlaces: [poiToPlace(PEAK)] })
+    peakClick()
     expect(popups[0].html).toBe(poiPopupHtml(PEAK, true))
   })
 
-  it('opens nothing while drawing, or where a marker or a fire takes the click', () => {
-    setup({ drawing: true }).stub.fire('click', PEAK_LAYER, peakClick())
-    setup({ claimed: true }).stub.fire('click', PEAK_LAYER, peakClick())
+  // A marker on an analyzed summit outranks the label under it
+  // (`utils/mapClick.ts`), and while drawing a label is scenery.
+  it('opens nothing while drawing, or where a marker takes the click', () => {
+    setup({ drawing: true }).peakClick()
+    const marked = setup()
+    marked.stub.map.addLayer({ id: RESULT_MARKER_LAYER } as never)
+    const markerOpened = vi.fn()
+    marked.mapPopups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: markerOpened })
+    marked.peakClick(false, [{ layer: { id: RESULT_MARKER_LAYER } }])
     expect(popups).toHaveLength(0)
+    expect(markerOpened).toHaveBeenCalledTimes(1)
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {
-    const { stub } = setup()
-    stub.fire('click', PEAK_LAYER, peakClick())
-    stub.fire('click', PEAK_LAYER, peakClick(true))
+    const { peakClick } = setup()
+    peakClick()
+    peakClick(true)
     expect(popups.map((p) => p.removed)).toEqual([false, false])
-    stub.fire('click', PEAK_LAYER, peakClick())
+    peakClick()
     expect(popups.map((p) => p.removed)).toEqual([true, true, false])
-  })
-
-  it('points over a peak outside draw mode and hands the cursor back on leaving', () => {
-    const { stub, restCursor } = setup()
-    stub.fire('mouseenter', PEAK_LAYER)
-    expect(stub.canvas.style.cursor).toBe('pointer')
-    stub.fire('mouseleave', PEAK_LAYER)
-    expect(restCursor).toHaveBeenCalledTimes(1)
-
-    const drawing = setup({ drawing: true })
-    drawing.stub.fire('mouseenter', PEAK_LAYER)
-    expect(drawing.stub.canvas.style.cursor).toBe('')
   })
 
   it('lights every glow while the panel points at them, and skips a missing one', () => {
