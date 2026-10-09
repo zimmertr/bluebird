@@ -565,9 +565,7 @@ function resultCardShell(title: string, url: string, body: string, meta: string,
   // the header stays the one raised band. Outside the body, so a capped card
   // that scrolls its numbers keeps its warnings in view with its name.
   const notice = warnings.length
-    ? `<div style="${POPUP_BODY_SIZE};padding:8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR}">${WARNING_GLYPH}${warnings
-        .map((w, i) => (i ? `<div style="${WARNING_ROW_RULED}">${w}</div>` : `<div>${w}</div>`))
-        .join('')}</div>`
+    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:8px 0 8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
     : ''
   return `<div style="${POPUP_FACE}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
@@ -605,25 +603,26 @@ export const HEADER_SHADOW_COLOR = 'rgba(15,23,42,0.08)'
 /**
  * The warning section's one ⚠️, which stands for every line in it (TJ,
  * 2026-10-08). A glyph per line spent 20px of every line and wrapped a
- * closure name that fits without it. It floats right, so only the lines
- * beside it give up its width and a wrapped line below runs the section's
- * full width, and it centres under the close button above it: the button's
- * centre is half the close lane plus 1px in from the card's edge (`map.css`:
- * a 0.375rem inset, and the lane is the button, that inset and 0.25rem of
- * air), the glyph's box is 1.25em wide, and the section's own 10px of
- * padding is already in. 17px from the edge on a mouse, 28px on a touch
- * screen.
+ * closure name that fits without it. It stands in a column of its own down
+ * the section's right side, the header's close-button lane carried on below
+ * it, so it reads as the section's rather than the first line's: floated, the
+ * lines below ran under it and it looked like the first warning's alone. The
+ * column is the lane plus 2px, so the glyph centred in it sits under the
+ * button's centre, which is half the lane plus 1px in from the card's edge
+ * (`map.css`: a 0.375rem inset, and the lane is the button, that inset and
+ * 0.25rem of air). 17px from the edge on a mouse, 28px on a touch screen.
  */
-const WARNING_GLYPH = `<span aria-hidden="true" style="float:right;width:1.25em;text-align:center;margin-left:6px;margin-right:calc(var(--popup-close-lane, 2rem) / 2 + 0.0625rem - 0.625em - 10px)">⚠️</span>`
+const WARNING_GLYPH = `<span aria-hidden="true" style="flex:none;width:calc(var(--popup-close-lane, 2rem) + 2px);text-align:center">⚠️</span>`
 
 /**
- * The rule between two warnings in that section: the section's own edge
- * colour, 4px clear either side. It is the one the notices under the Analyze
- * button draw between their messages (`NOTICE_DIVIDER` in `styles.ts`), and
- * for the same reason: a bulleted list spends 16px of indent and marker on
- * every line, which wraps a line that fits without it.
+ * The warnings themselves: a lone one as its sentence, two or more as a
+ * bulleted list (TJ, 2026-10-08), the bullets in the warning amber. A rule
+ * between them was tried and read as a section per warning.
  */
-const WARNING_ROW_RULED = `border-top:1px solid ${HEADER_EDGE_COLOR};margin-top:4px;padding-top:4px`
+function warningList(warnings: readonly string[]): string {
+  if (warnings.length === 1) return warnings[0]
+  return `<ul style="margin:0;padding-left:16px;list-style:disc;color:${WARNING_COLOR}">${warnings.map((w) => `<li>${w}</li>`).join('')}</ul>`
+}
 
 /**
  * The link-out glyph on the band, sky-600 at 3.74:1. `LINK_ICON_COLOR`'s

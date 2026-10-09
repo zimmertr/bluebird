@@ -90,7 +90,7 @@ describe('resultPopupHtml fire warning', () => {
 describe('resultPopupHtml warnings section', () => {
   const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
   const section = (html: string) =>
-    html.match(/<div style="font-size:12px;padding:8px 10px;border-bottom:1px solid #[0-9a-f]+">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
+    html.match(/<div style="font-size:12px;display:flex;[^"]*border-bottom:1px solid #[0-9a-f]+">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
   const glyphs = (html: string) => html.split('⚠️').length - 1
 
   it('puts both warnings after the header and before the grid, ruled off from it', () => {
@@ -113,22 +113,21 @@ describe('resultPopupHtml warnings section', () => {
     expect(glyphs(html)).toBe(0)
   })
 
-  // One glyph for the section, floated right under the close button, rather
-  // than one spending the start of every line.
-  it('draws one glyph for the whole section, however many warnings', () => {
+  // One glyph for the section, in a column of its own down its right side
+  // under the close button, rather than one spending the start of every line.
+  it('draws one glyph for the whole section, in a column after the warnings', () => {
     for (const d of [{ warning: fire }, { closure: closureWarning() }, { warning: fire, closure: closureWarning() }]) {
       const html = resultPopupHtml({ ...base, ...d })
       expect(glyphs(html)).toBe(1)
-      expect(section(html)![1]).toMatch(/^<span aria-hidden="true" style="float:right;[^"]*var\(--popup-close-lane/)
+      expect(section(html)![1]).toMatch(/<span aria-hidden="true" style="flex:none;width:calc\(var\(--popup-close-lane, 2rem\) \+ 2px\);[^"]*">⚠️<\/span>$/)
     }
   })
 
-  // Two warnings are parted by a rule in the section's own edge colour, as
-  // the notices under Analyze part their messages; a lone one has no rule.
-  it('rules the second warning off from the first, and a lone one not at all', () => {
-    const rule = `border-top:1px solid ${HEADER_EDGE_COLOR}`
-    expect(section(resultPopupHtml({ ...base, warning: fire, closure: closureWarning() }))![1].split(rule)).toHaveLength(2)
-    expect(section(resultPopupHtml({ ...base, closure: closureWarning() }))![1]).not.toContain(rule)
+  // Two warnings are a bulleted list; a lone one is its sentence alone.
+  it('bullets two warnings, and leaves a lone one unbulleted', () => {
+    const both = section(resultPopupHtml({ ...base, warning: fire, closure: closureWarning() }))![1]
+    expect(both).toMatch(/<ul style="[^"]*list-style:disc[^"]*"><li>.*KING.*<\/li><li>.*active closure.*<\/li><\/ul>/s)
+    expect(section(resultPopupHtml({ ...base, closure: closureWarning() }))![1]).not.toContain('<li>')
   })
 })
 
