@@ -132,7 +132,7 @@ export function resultsFeatureCollection(
  *
  * Any wind ranking, minimum and maximum as well as average: the arrows read the
  * hour's bearing, which no reduction changes, so tying them to one key hid the
- * direction under the two rankings a reader picks to find the calm or the gusty
+ * direction under the two rankings a reader picks to find the calm or the windy
  * summit.
  *
  * On any other metric an arrow would be a second variable nobody asked about,

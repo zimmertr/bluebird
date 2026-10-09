@@ -85,6 +85,22 @@ describe('MetricsTable', () => {
     expect(setConstraints).toHaveBeenLastCalledWith({ ...NO_CONSTRAINTS, maxWindMph: null })
   })
 
+  // The wind's ceiling reads the windiest sustained hour (#584): the app holds
+  // no gust (record 0124), so the hint names what the box compares.
+  it('names the windiest hour in the wind ceiling and the calmest in its floor', () => {
+    render(<MetricsTable {...props()} />)
+    expect(
+      screen.getByRole('spinbutton', {
+        name: `${NOUN.wind} ${AGGREGATE.maximum}. The windiest hour must be at most this.`,
+      }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('spinbutton', {
+        name: `${NOUN.wind} ${AGGREGATE.minimum}. The calmest hour must be at least this.`,
+      }),
+    ).toBeTruthy()
+  })
+
   it('clamps the results cap to the published ceiling, and reads empty as the default', () => {
     const setLimit = vi.fn()
     const { rerender } = render(<MetricsTable {...props({ setLimit })} />)

@@ -207,7 +207,8 @@ sat 12 m under the summit. Read at the summit, the fixed heights put the
 temperature 0.7 to 1.3 °C (1.3 to 2.3 °F) cold. Fetching the real heights
 would add five variables to every request and raise its weight factor from
 1.5 to 2.0. Two caveats. This is still
-a model's free-air wind, not a gust or a summit anemometer, and local
+a model's free-air wind, not a gust or a summit anemometer (the app carries no
+gust, [0124](decisions/0124-no-wind-gust.md)), and local
 funneling can exceed it. And the map's forecast-grid overlay adjusts each
 sample — wind and temperature alike — to the terrain height Open-Meteo resolves
 for that coordinate (its ~90 m elevation model, reported on every response)

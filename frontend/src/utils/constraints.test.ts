@@ -73,10 +73,10 @@ describe('filterConstraints', () => {
     ])
   })
 
-  it('reads the gustiest hour for a wind ceiling', () => {
+  it('reads the windiest hour for a wind ceiling', () => {
     const rows = [
       boundRow('calm', { wind_min_mph: 2, wind_max_mph: 12, wind_avg_mph: 6 }),
-      boundRow('gusty', { wind_min_mph: 1, wind_max_mph: 45, wind_avg_mph: 6 }),
+      boundRow('windy', { wind_min_mph: 1, wind_max_mph: 45, wind_avg_mph: 6 }),
     ]
     expect(filterConstraints(rows, bounded({ maxWindMph: 20 })).map((r) => r.name)).toEqual([
       'calm',

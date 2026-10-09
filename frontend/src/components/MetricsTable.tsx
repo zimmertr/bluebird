@@ -58,7 +58,7 @@ const EDGES = [
 // What each bound box compares, per ranked metric. The box columns are headed
 // with the two aggregate names because for most rows that is literally what
 // they are: the wind, temperature and freezing-level rows bound each row's own
-// extremes, so a ceiling of 20 on the wind row holds the table's gustiest-hour
+// extremes, so a ceiling of 20 on the wind row holds the table's windiest-hour
 // column at or below 20. Two cells stretch that reading, deliberately.
 // Precipitation and snowfall are bounded on the window TOTAL in both columns,
 // because a per-hour floor would be 0.000 almost everywhere and the noun
@@ -97,7 +97,7 @@ const BOUNDS: Record<
   wind: {
     id: 'wind',
     step: 1,
-    hint: ['The calmest hour must be at least this.', 'The gustiest hour must be at most this.'],
+    hint: ['The calmest hour must be at least this.', 'The windiest hour must be at most this.'],
     lower: 'minWindMph',
     upper: 'maxWindMph',
   },

@@ -57,7 +57,7 @@ export const NO_CONSTRAINTS: Constraints = {
 //
 // A ceiling reads the window's worst hour and a floor its best, so a bound is
 // a promise about every hour rather than about an average that can hide a bad
-// afternoon: a 20 mph ceiling admits no destination that gusts to 45 at noon.
+// afternoon: a 20 mph ceiling admits no destination that blows 45 at noon.
 // The freezing level reads the same way, in the one family where neither end
 // is the bad one: its floor asks that the level never dropped below the value
 // and its ceiling that it never rose above it.

@@ -680,7 +680,7 @@ Five things are worth knowing before relying on them.
 
 **A ceiling reads the worst hour, a floor the best.** `max_wind_mph: 20` does
 not mean "averages under 20", it means "never exceeds 20", so a destination
-that gusts to 45 at noon is gone. That is the only reading you can plan
+that blows 45 at noon is gone. That is the only reading you can plan
 against. The freezing level is the one family where neither end is the bad
 one, and it reads straight: the floor asks that the level never dropped below
 the value, the ceiling that it never rose above it. Precipitation and air
