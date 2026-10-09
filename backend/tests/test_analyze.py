@@ -195,10 +195,10 @@ def test_filter_constraints_temp_floor_reads_the_coldest_hour():
     assert [r.name for r in kept] == ["mild"]
 
 
-def test_filter_constraints_wind_ceiling_reads_the_gustiest_hour():
+def test_filter_constraints_wind_ceiling_reads_the_windiest_hour():
     rows = [
         _result("calm", wind_min=2.0, wind_max=12.0, wind_avg=6.0),
-        _result("gusty", wind_min=1.0, wind_max=45.0, wind_avg=6.0),
+        _result("windy", wind_min=1.0, wind_max=45.0, wind_avg=6.0),
     ]
     kept = _filter_constraints(rows, _bounded(max_wind_mph=20.0))
     assert [r.name for r in kept] == ["calm"]

@@ -141,7 +141,7 @@ class AnalyzeRequest(_DiscoveryFields):
     # Which value each bound compares is the whole of the design. A ceiling
     # compares the window's WORST hour and a floor its best, so a bound is a
     # promise about every hour in the window: `max_wind_mph = 20` admits no
-    # destination that gusts to 45 at noon, which is the only reading a
+    # destination that blows 45 at noon, which is the only reading a
     # mountaineer can plan against. The freezing level reads the same way in
     # the one family where neither end is the bad one: the floor asks that the
     # level never dropped below the value, the ceiling that it never rose above
