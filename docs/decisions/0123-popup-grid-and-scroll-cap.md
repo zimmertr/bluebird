@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-08
 - Decider: the maintainer, on #683 (2026-10-08: "Lets rework the marker popup to use the compact grid instead. On both desktop and mobile. And then when resolution reaches a certain small threshold, it switches to a capped height box with a scrollbar")
-- Issues and PRs: #683, #684, #370
+- Issues and PRs: #683, #684, #700, #370
 - Browser test: `frontend/e2e/popupFit.spec.ts`
 - Cited in code as: TJ, 2026-10-08
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `popupRows.ts`, `popupChrome.ts` and `popupFit.ts` bullets; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), the `popups.ts` and `resultsLayer.ts` bullets; [`docs/USAGE.md`](../USAGE.md), the map popup paragraph
