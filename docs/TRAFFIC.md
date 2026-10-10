@@ -36,8 +36,12 @@ flowchart LR
   straight to the gateway on the LAN and never traverses the tunnel. cloudflared
   forwards each hostname to the shared Istio ingress gateway with the public
   hostname as SNI, so Istio serves the right certificate and routes by Host
-  unchanged. Its config lives in `Kubernetes-Manifests` under
-  `public/cloudflared/`.
+  unchanged. The tunnel is remotely managed: cloudflared runs from
+  `public/cloudflared/` in `Kubernetes-Manifests` with the tunnel's token and
+  reads its ingress rules from Cloudflare, and the tunnel, those rules and the
+  proxied CNAMEs are Terraform in `terraform/cloudflare/` in the same repo
+  (Kubernetes-Manifests#1465). A public hostname exists because it is listed
+  in `cloudflare.tfvars` there.
 - **Istio** routes `bluebirdforecast.com` through the `bluebird`
   VirtualService to the stable/canary services managed by Argo Rollouts
   (autoscaled between 3 and 10 replicas; the canary adds one pod through its
@@ -468,7 +472,7 @@ so a change in the dashboard changes this table in the same breath.
 | --- | --- | --- |
 | Minimum TLS version | `1.2` (was `1.0` until 2026-10-06) | No current browser offers TLS 1.0 or 1.1, so the floor costs no visitor anything and drops the legacy protocols and their cipher suites. Cipher list is Cloudflare's default. |
 | TLS 1.3 | on | |
-| SSL/TLS mode | `full`, deliberately not `strict` | The mode governs how the edge checks an origin it reaches by address, and the zone has none: its only proxied records are the two CNAMEs to the tunnel. cloudflared verifies the gateway's Let's Encrypt certificate itself (`public/cloudflared/files/config.yaml` in `Kubernetes-Manifests`). Switch to Full (strict) if a record that points at an address is ever added. |
+| SSL/TLS mode | `full`, deliberately not `strict` | The mode governs how the edge checks an origin it reaches by address, and the zone has none: its only proxied records are the two CNAMEs to the tunnel. cloudflared verifies the gateway's Let's Encrypt certificate itself, sending each hostname as SNI (`origin_server_name` in the tunnel's ingress rules, `terraform/cloudflare/main.tf` in `Kubernetes-Manifests`). Switch to Full (strict) if a record that points at an address is ever added. |
 | IPv6 | on, with Pseudo IPv4 off | The edge answers AAAA for both hostnames, so an IPv6 visitor's own address reaches the pod in `CF-Connecting-IP`. "Client identity" above is how the app keys those. |
 | CAA | `issue` and `issuewild` for `letsencrypt.org`, `pki.goog; cansignhttpexchanges=yes`, `ssl.com` and `sectigo.com`; no `iodef` | Let's Encrypt is cert-manager's issuer for the gateway's certificate (DNS-01). The other three are the authorities Cloudflare's documentation names for Universal SSL and its backup certificates; the edge certificate served on 2026-10-06 is Google Trust Services'. Once any CAA record exists, Cloudflare also answers `comodoca.com` and `digicert.com` for the apex itself, so `dig CAA` shows six authorities while the API lists four. |
 | Mail | Cloudflare Email Routing: three `route*.mx.cloudflare.net` MX records, SPF `v=spf1 include:_spf.mx.cloudflare.net ~all`, DKIM selector `cf2024-1` | The domain receives mail through Email Routing, so the MX and SPF records stay as Email Routing set them. |

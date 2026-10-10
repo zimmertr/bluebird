@@ -371,7 +371,7 @@ jobs:
 
           # Re-arm unconditionally: GitHub disables auto-merge whenever the head
           # branch is force-pushed, and this job force-pushes on every release.
-          # The || fallback covers the window where the required check has already
+          # The || fallback covers the window where the required checks have already
           # gone green, which makes the PR "clean" and rejects --auto outright.
           gh pr merge --auto --squash "$BR" || gh pr merge --squash "$BR"
 

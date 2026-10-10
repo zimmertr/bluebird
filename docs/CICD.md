@@ -15,7 +15,7 @@ three repositories and the supporting services that automate the path.
 | --- | --- |
 | **`zimmertr/bluebird`** | Application monorepo (FastAPI backend + React SPA), built into a single Docker image. |
 | **`zimmertr/bluebird-helm`** | Helm chart (`charts/bluebird`, whose `name:` is `bluebird-helm`), published as an **OCI** artifact. Its `pr.yml` runs `Lint & render` and, on a same-repo chart PR, `Publish prerelease chart`, which pushes `<version>-pr<N>.g<sha>` to the same OCI repo with `artifacthub.io/prerelease` set. That flag only labels the version on Artifact Hub; the `ignore` entry in `artifacthub-repo.yml` is what keeps PR builds off the listing, so Artifact Hub never offers one as the default version. Its `edge-404.yml` runs `Edge 404 matches the app` on chart PRs and on pushes to `main`, comparing the gateway's own `404` with this repo's `backend/edge_not_found.json` (#565). It is **not** a required check, so a mismatch shows red and blocks nothing, the automated `appVersion` bump included. Both workflows also walk a table of request shapes through the rendered routes and check which route answers each, the encoded slash `/api%2F` among them (`.github/scripts/check_edge_routes.py`, #620); in `Lint & render` that walk does block a PR, because it reads the chart alone. Its `pr-title.yml` is the same `PR Title` check as this repo's. |
-| **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` check. |
+| **`zimmertr/Kubernetes-Manifests`** | GitOps repo Argo CD watches. `public/bluebird/` is the stable app; `public/bluebird-pr/` is the per-PR preview `ApplicationSet`. `main` forbids direct commits; every write lands via a PR gated on the `Validate manifests` and `Validate Terraform` checks. |
 | **Docker Hub** | `zimmertr/bluebird` (release images), `zimmertr/bluebird-pr` (preview images), and the OCI chart at `oci://registry-1.docker.io/zimmertr/bluebird-helm`. |
 | **Artifact Hub** | Indexes the published OCI chart and security-scans its rendered **default image** (why the chart's `appVersion` must always name a real, published image tag). |
 | **Cluster** | Argo CD (`argo-system`) syncing production into `bluebird-system` and previews into `bluebird-pr-system` (after Kubernetes-Manifests#1391); Argo Rollouts (canary + `AnalysisTemplate`), Istio `VirtualService`/`Gateway`, and cert-manager for `bluebirdforecast.com`. |
@@ -46,7 +46,7 @@ flowchart TD
     end
 
     subgraph KM["GitHub: zimmertr/Kubernetes-Manifests"]
-        kmCheck["pr.yml — Validate manifests<br/>required check: YAML parse<br/>+ kustomize build of affected apps"]
+        kmCheck["pr.yml — Validate manifests + Validate Terraform<br/>required checks: YAML parse<br/>+ kustomize build of affected apps<br/>+ terraform/cloudflare tests"]
         kmImagePR["PR: chore/bluebird-image<br/>(self-merging)"]
         kmStablePR["PR: chore/bluebird-stable-chart<br/>(self-merging)"]
         kmPreviewPR["PR: chore/bluebird-preview-chart<br/>(self-merging)"]
@@ -171,7 +171,7 @@ the newest release (#632).
    because nothing here needs the GitHub Release to exist. A **self-merging
    PR** on the fixed `chore/bluebird-image` branch sets `images.newTag:
    <semver>` in
-   `public/bluebird/kustomization.yml`. Once `Validate manifests` goes green it
+   `public/bluebird/kustomization.yml`. Once its required checks go green it
    squash-merges itself, Argo CD auto-syncs, and the new image rolls to prod. No
    human step. See [Writes into Kubernetes-Manifests](#writes-into-kubernetes-manifests)
    for why every write is shaped this way. Steps 5 and 6 both do nothing when
@@ -361,8 +361,9 @@ the diff is the actual edit rather than a version string; the
 ### Writes into Kubernetes-Manifests
 
 `Kubernetes-Manifests/main` **forbids direct commits**. All three automated
-writes above go through a PR, and the thing they wait on is `pr.yml` /
-**`Validate manifests`**, a required check in that repo which:
+writes above go through a PR, and what they wait on is the two required
+checks in that repo's `pr.yml`. The one that matters here is
+**`Validate manifests`**, which:
 
 1. YAML-parses every changed `.yml`/`.yaml`. This is the failure mode the bump
    jobs can actually cause — the two chart bumps rewrite version lines with
@@ -370,7 +371,7 @@ writes above go through a PR, and the thing they wait on is `pr.yml` /
    matching more than intended corrupts the file.
 2. Renders every kustomization affected by the PR with `kustomize build
    --enable-helm` (nearest-ancestor mapping from changed files, skipping
-   `deprecated/` and `*.disable*`). The render pulls each `helmCharts` chart,
+   `*.disable*` paths). The render pulls each `helmCharts` chart,
    so a chart version that doesn't resolve fails the PR instead of failing an
    Argo CD sync. It pulls no image: `images.newTag` is only a string to
    kustomize, so an image tag that does not exist passes this check and fails
@@ -378,9 +379,15 @@ writes above go through a PR, and the thing they wait on is `pr.yml` /
    `pr.yml` itself adds `public/bluebird` to its own render list, so a tool bump
    cannot pass green on an empty target list.
 
+The other, **`Validate Terraform`**, formats, validates and tests
+`terraform/cloudflare/` (the tunnel and the DNS records the public hostnames
+ride, Kubernetes-Manifests#1465). It has no path filter, so every PR waits on it
+too, the three bump PRs included, though none of them touches Terraform. It
+takes about half a minute.
+
 A fourth writer into that repo is not one of these jobs: Renovate
 (`.github/renovate.json`) auto-merges minor and patch updates after a seven-day
-release age, gated on the same `Validate manifests` check. It does not touch
+release age, gated on the same two checks. It does not touch
 the `zimmertr/bluebird` image tag or the `bluebird-helm` chart version: both
 are disabled there (Kubernetes-Manifests#1363), because the release jobs above
 are their only writers, and a higher tag that appeared in Docker Hub without
@@ -391,9 +398,9 @@ strands the automation:
 
 - **Auto-merge needs something to wait on.** `gh pr merge --auto` is rejected on
   a PR with nothing blocking it (`Pull request is in clean status`). The
-  required check is what makes the queue non-empty; without it, arming
+  required checks are what make the queue non-empty; without them, arming
   auto-merge errors out. Each Kubernetes-Manifests writer falls back to a plain
-  `gh pr merge --squash` to cover the narrow window where the check already went
+  `gh pr merge --squash` to cover the narrow window where the checks already went
   green; Path 1's `bluebird-helm` appVersion PR is the exception and arms
   `--auto` only.
 - **Auto-merge is re-armed on every release**, on the update path as well as
@@ -428,7 +435,7 @@ pull-requests write on `Kubernetes-Manifests` and `bluebird-helm` and nothing
 else.
 
 What it can do is larger than what the jobs do with it. `Kubernetes-Manifests`
-requires a PR and the `Validate manifests` check but no approving review, so a
+requires a PR and its two checks but no approving review, so a
 holder of the token can open, arm and merge a PR there that changes any
 directory, and Argo CD syncs it. A writer to that repository is cluster-admin
 by construction: its `root-appprojects` application syncs every
@@ -836,7 +843,7 @@ release that starts during a lasting Overpass or Open-Meteo outage fails
    revert ships as a new patch version like any other fix, never as the old
    version.
 2. Merge it. Path 1 builds the next version and opens `chore/bluebird-image`,
-   which merges itself once `Validate manifests` passes; a chart fix travels
+   which merges itself once its required checks pass; a chart fix travels
    Path 2 instead. [Merge to live](#merge-to-live) has the time each stage
    takes.
 3. Follow it:
@@ -851,7 +858,7 @@ release that starts during a lasting Overpass or Open-Meteo outage fails
 
 A defect in `public/bluebird/values.yml` or in an analysis template is fixed by
 a `Kubernetes-Manifests` PR to that file. That is a configuration change and
-goes through `Validate manifests` like every other write; a PR that sets
+goes through the same required checks as every other write; a PR that sets
 `newTag` to an older version is not a fix, for the reasons above.
 
 ### While the canary runs
@@ -1444,15 +1451,15 @@ sequenceDiagram
     BB->>DH: scan the pushed digest, amd64 and arm64 (Trivy)
     BB->>KM: open/update image newTag=0.21.1 PR + arm auto-merge
     BB->>HELM: open/update appVersion bump PR + arm auto-merge
-    KM->>KM: auto-merge image PR (after Validate manifests)
+    KM->>KM: auto-merge image PR (after required checks)
     KM->>ARGO: auto-sync
     ARGO->>ARGO: canary rollout (new image)
     Note over Dev,ARGO: New code is now live via the image tag.
     HELM->>HELM: auto-merge appVersion PR (after lint)
     HELM->>DH: helm push chart (new version)
     HELM->>KM: open/update preview + stable chart PRs
-    KM->>KM: auto-merge preview PR (after Validate manifests)
-    KM->>KM: auto-merge stable PR (after Validate manifests)
+    KM->>KM: auto-merge preview PR (after required checks)
+    KM->>KM: auto-merge stable PR (after required checks)
     KM->>ARGO: auto-sync
     ARGO->>ARGO: no canary — the chart change only moves object-metadata labels
 ```
