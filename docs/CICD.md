@@ -371,7 +371,7 @@ checks in that repo's `pr.yml`. The one that matters here is
    matching more than intended corrupts the file.
 2. Renders every kustomization affected by the PR with `kustomize build
    --enable-helm` (nearest-ancestor mapping from changed files, skipping
-   `deprecated/` and `*.disable*`). The render pulls each `helmCharts` chart,
+   `*.disable*` paths). The render pulls each `helmCharts` chart,
    so a chart version that doesn't resolve fails the PR instead of failing an
    Argo CD sync. It pulls no image: `images.newTag` is only a string to
    kustomize, so an image tag that does not exist passes this check and fails
