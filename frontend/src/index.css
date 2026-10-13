@@ -92,30 +92,108 @@ body,
   animation: indeterminate-slide 1.2s ease-in-out infinite;
 }
 
-/* Results panel scroll container: keep scrollbars rendered whenever content
-   overflows. macOS overlay scrollbars vanish until scrolled, so a too-narrow
+/* Every dark surface that scrolls wears this one bar: the control panel's
+   body, the results table and the chart legend (#697). Before, the panel got
+   the browser's default bar beside the results' styled one, so the app drew
+   two scroll bar styles side by side. Kept rendered whenever content
+   overflows: macOS overlay scrollbars vanish until scrolled, so a too-narrow
    window gives no hint the table pans sideways. `scrollbar-color` flips
    Chrome/Firefox to classic always-visible bars; the -webkit-* rules cover
    Safari, which ignores the standard properties. Colors are slate-500 thumb
-   on slate-800 track to match the panel. */
-.results-scrollbars {
+   on slate-800 track to match the panel. The name is `SCROLL_BARS` in
+   styles.ts, so no component spells it. */
+.surface-scrollbars {
   scrollbar-width: thin;
   scrollbar-color: #64748b #1e293b;
 }
-.results-scrollbars::-webkit-scrollbar {
+.surface-scrollbars::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-.results-scrollbars::-webkit-scrollbar-track {
+.surface-scrollbars::-webkit-scrollbar-track {
   background: #1e293b;
 }
-.results-scrollbars::-webkit-scrollbar-thumb {
+.surface-scrollbars::-webkit-scrollbar-thumb {
   background-color: #64748b;
   border-radius: 5px;
   border: 2px solid #1e293b;
 }
-.results-scrollbars::-webkit-scrollbar-thumb:hover {
+.surface-scrollbars::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
+}
+
+/* Scroll shadows (#697): a shade under a fixed edge that shows only while
+   there is content beyond it in that direction, so a body cut off flat under
+   its header or above its footer says it continues. Two sticky pseudo
+   elements, one per edge, each taking no room in the flow (the negative
+   margin cancels its height) and reaching across the container's padding to
+   all four edges (`--scroll-shadow-bleed`, set by the role that knows the
+   padding): Chrome sticks an element inside the scroll container's padding,
+   so a bare `top: 0` hung the shade a padding's depth under the header. Sticky in both axes so a container that also pans sideways keeps
+   them in view.
+
+   Where the browser has scroll-driven animations the shade is pure CSS: the
+   top one fades in over the first 24px scrolled, the bottom one fades out
+   over the last 24px. A body that fits has no scroll timeline at all, the
+   animation never applies, and both stay at their resting opacity of 0.
+   Elsewhere `useScrollShadows` sets the two data attributes the fallback
+   rules read. The shade is slate-950, one step under the page ground, so it
+   reads as depth on the slate-800 panel rather than as a line. */
+.scroll-shadow-start::before,
+.scroll-shadow-end::after {
+  content: "";
+  display: block;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  height: 12px;
+  margin-inline: calc(-1 * var(--scroll-shadow-bleed, 0px));
+  pointer-events: none;
+  opacity: 0;
+}
+.scroll-shadow-start::before {
+  top: calc(-1 * var(--scroll-shadow-bleed, 0px));
+  margin-bottom: -12px;
+  background: linear-gradient(to bottom, rgb(2 6 23 / 0.7), rgb(2 6 23 / 0));
+}
+.scroll-shadow-end::after {
+  bottom: calc(-1 * var(--scroll-shadow-bleed, 0px));
+  margin-top: -12px;
+  background: linear-gradient(to top, rgb(2 6 23 / 0.7), rgb(2 6 23 / 0));
+}
+@keyframes scroll-shadow-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scroll-shadow-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@supports (animation-timeline: scroll()) {
+  .scroll-shadow-start::before {
+    animation: scroll-shadow-in linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: 0 24px;
+  }
+  .scroll-shadow-end::after {
+    animation: scroll-shadow-out linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: calc(100% - 24px) 100%;
+  }
+}
+@supports not (animation-timeline: scroll()) {
+  .scroll-shadow-start[data-more-above]::before,
+  .scroll-shadow-end[data-more-below]::after {
+    opacity: 1;
+  }
 }
 
 /* Native form-widget chrome on the dark panel. Without a color-scheme hint
