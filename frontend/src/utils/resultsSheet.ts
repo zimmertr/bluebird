@@ -348,3 +348,11 @@ export function transportBottomPx(liftPx: number): number {
 export function mapCornerLiftPx(liftPx: number): number {
   return liftPx
 }
+
+/**
+ * How far the docked results stand up into the map on a desktop (#697): the
+ * surface radius, so the map shows behind their rounded top corners
+ * (`SHEET_DOCKED` in styles.ts). The map's bottom chrome rides this lift the
+ * way it rides the phone sheet's height.
+ */
+export const DOCKED_SHEET_OVERLAP_PX = 8

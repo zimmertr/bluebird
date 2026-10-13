@@ -8,6 +8,7 @@ import {
   splitChartTable,
 } from '../utils/layout'
 import {
+  DOCKED_SHEET_OVERLAP_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
   mapCornerLiftPx,
@@ -288,7 +289,7 @@ export function useResultsLayout({
   // header and a grip, and a guess 20px out is 20px of gap the reader can see
   // under the player. The estimate is what the first frame gets, before the
   // observer above has reported.
-  const sheetLiftPx = resolveSheetLift({
+  const sheetLiftPx = isDesktop && showTable ? DOCKED_SHEET_OVERLAP_PX : resolveSheetLift({
     docked: isDesktop || !showTable,
     measuredPx: sheetMeasuredPx,
     estimatePx: sheetHeightPx({

@@ -56,6 +56,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
   LAYER,
+  DOCK_GUTTER,
   SURFACE_PAGE,
 } from './styles'
 import {
@@ -524,7 +525,7 @@ export default function App() {
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       <SkipLink targetId={MAIN_ID} />
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
-      <div className="flex flex-1 overflow-hidden min-h-0 relative">
+      <div className={`flex flex-1 overflow-hidden min-h-0 relative ${DOCK_GUTTER}`}>
       {showWelcome && (
         <WelcomeModal onDismiss={dismissWelcome} onTutorial={startTourFromWelcome} tutorialWaits={tourWaits} />
       )}

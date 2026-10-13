@@ -184,7 +184,18 @@ export const LINK_INERT = 'aria-disabled:opacity-40 aria-disabled:cursor-not-all
 export const RADIUS = {
   /** Form controls, small buttons, inline chips and swatches. */
   control: 'rounded',
-  /** Anything floating above the page: cards, dropdowns, tooltips, CTAs. */
+  /**
+   * Every surface, floating or docked: cards, dropdowns, tooltips, CTAs, and
+   * since #697 the docked panel and results too. One rule for all of them: a
+   * surface rounds every corner it shows to the map or to another surface,
+   * and keeps square only the sides that meet the window's own edge, where a
+   * curve would cut into nothing. The docked panel therefore rounds its two
+   * inner corners and the results their two top corners, on a desktop as on a
+   * phone. A rounded corner needs a different ground behind it to read at all,
+   * so the panel stands one `DOCK_GUTTER` off the map column (the page's
+   * slate-900 shows in the gap) and the results stand `SHEET_DOCKED`'s radius
+   * up into the map, which shows behind their corners.
+   */
   surface: 'rounded-lg',
   /** Pills, dots, spinners, progress bars. */
   pill: 'rounded-full',
@@ -272,8 +283,10 @@ export const SURFACE_CARD =
   `bg-slate-800 border border-slate-600 ${RADIUS.surface} shadow-xl`
 
 /**
- * The results sheet on a phone: the panel parked over the map's bottom edge
- * rather than docked below it (#249).
+ * The results sheet, on both breakpoints since #697: on a phone the panel
+ * parked over the map's bottom edge rather than docked below it (#249), and on
+ * a desktop docked below the map but standing `SHEET_DOCKED`'s radius up into
+ * it, so the map is the ground its rounded top corners read against.
  *
  * The same slate-800 the docked panel wears, so the results do not change colour
  * with the breakpoint, plus the two things that say it is standing on the map:
@@ -1741,6 +1754,33 @@ export const SCROLL_SHADOW = {
 export const PANEL_BODY =
   `flex-1 overflow-y-auto px-4 py-4 [scrollbar-gutter:stable] [--scroll-shadow-bleed:1rem] ` +
   `${SCROLL_BARS} ${SCROLL_SHADOW.both}`
+
+/**
+ * The control panel's own surface (#697): the slate-800 every panel wears,
+ * closed on its right by `PANEL_EDGE` where it meets the map and the results,
+ * and rounded on the two corners of that edge under `RADIUS.surface`'s rule.
+ * Its left edge is the window's, so it stays square. On a phone the same two
+ * corners stand on the dimmed map.
+ */
+export const SURFACE_PANEL = `bg-slate-800 border-r ${PANEL_EDGE} rounded-r-lg`
+
+/**
+ * The gap between the docked panel and the map column on a desktop (#697):
+ * the page's slate-900 (`SURFACE_PAGE`) showing between the two, which is the
+ * ground the panel's rounded corners read against. 4px, the map button
+ * column's own gap between two boxes. On a phone the panel is not in the flow,
+ * so a flex gap does nothing there.
+ */
+export const DOCK_GUTTER = 'lg:gap-1'
+
+/**
+ * The docked results on a desktop (#697): `SURFACE_SHEET` raised one radius
+ * up into the map so the map shows behind its rounded top corners, and lifted
+ * over the map's own chrome while it does. The 8px is `RADIUS.surface`'s, and
+ * `DOCKED_SHEET_OVERLAP_PX` in `utils/resultsSheet.ts` carries it to the map's
+ * bottom chrome, which rises by it.
+ */
+export const SHEET_DOCKED = `relative -mt-2 ${LAYER.sheet}`
 
 /**
  * Step number badge in the welcome modal.
