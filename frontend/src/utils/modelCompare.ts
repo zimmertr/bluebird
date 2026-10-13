@@ -263,12 +263,17 @@ export function modelSeriesOnGrid(
  * this same product: its numbers are already held per destination, so the
  * caller seeds them under its own id and nothing here has to know which pairs
  * cost a fetch and which did not.
+ *
+ * `rankingModel` marks that model's pairs `ranked`, which is what keeps the
+ * chart's extreme-hour ring (`extremePoint`) off the compared lines: the field
+ * is ranked on the ranking model's numbers, so only its lines can hold it.
  */
 export function compareSeries(
   destinations: readonly CompareDestination[],
   models: readonly CompareModel[],
   series: Readonly<Record<string, HourlySeries | null>>,
   colors: Readonly<Record<string, string>>,
+  rankingModel: string,
 ): ChartLine[] {
   const lines: ChartLine[] = []
   for (const model of models) {
@@ -283,6 +288,7 @@ export function compareSeries(
         label: comparedLineLabel(destination.rank, destination.name, model.label),
         color: pairColor(colors, model.id, destination.key, destination.color),
         series: held,
+        ranked: model.id === rankingModel,
       })
     }
   }

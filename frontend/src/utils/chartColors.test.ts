@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { allocateColors, colorForIndex, BASE_PALETTE_SIZE } from './chartColors'
+import { allocateColors, colorForIndex, BASE_PALETTE_SIZE, CHART_EXTREME_COLOR } from './chartColors'
 
 describe('colorForIndex', () => {
   it('uses the curated palette for the first indices', () => {
@@ -73,3 +73,35 @@ describe('allocateColors', () => {
     expect(allocateColors({}, ['a|46,-121'])['a|46,-121']).toBe(colorForIndex(0))
   })
 })
+
+// The chart's chrome is a graphical object a reader has to find, so it owes
+// 3:1 against the surface it is drawn on (WCAG 1.4.11). The chart stands on
+// the results panel, slate-800 (ResultsSheet's own background on a desktop,
+// `SURFACE_SHEET` on a phone).
+const CHART_SURFACE = '#1e293b'
+
+describe('chart chrome contrast', () => {
+  // The ring on the most extreme hour (#699) is the only mark there is to say
+  // where that hour is, so it is the first chrome colour held to a number.
+  // Measured 2026-10-13: red-500 on slate-800 is 3.89:1. Pinned to the
+  // measurement as well as the floor, so a change of shade forces a new one.
+  it('draws the extreme-hour ring at 3:1 or better on the panel', () => {
+    const ratio = contrast(CHART_EXTREME_COLOR, CHART_SURFACE)
+    expect(ratio).toBeGreaterThanOrEqual(3)
+    expect(Math.round(ratio * 100) / 100).toBe(3.89)
+  })
+})
+
+// WCAG relative luminance and contrast. Kept here, as `colors.test.ts` and
+// `popupChrome.test.tsx` keep theirs, because no shared helper exists to reuse.
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}

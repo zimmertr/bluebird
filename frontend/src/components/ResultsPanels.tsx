@@ -53,6 +53,8 @@ export interface ResultsPanelsProps {
   removeResult: (row: DestinationResult) => void
   /** The ranking, which the table marks. */
   sortBy: SortBy
+  /** The ranking's direction, which the chart's extreme-hour ring follows. */
+  sortDesc: boolean
   /** Whether the report is one hour, which relabels the metric columns. */
   pointSample: boolean
   /** The report's hourly grid, and the playhead on it. */
@@ -93,6 +95,7 @@ export default function ResultsPanels({
   pending,
   removeResult,
   sortBy,
+  sortDesc,
   pointSample,
   forecastTimes,
   playbackIndex,
@@ -158,6 +161,8 @@ export default function ResultsPanels({
                   rows={compare.active ? NO_CHART_ROWS : chart.selectedRows}
                   metric={chart.metric}
                   onMetricChange={chart.setMetric}
+                  sortBy={sortBy}
+                  sortDesc={sortDesc}
                   colorFor={chart.colorFor}
                   playheadMs={playbackIndex !== null ? forecastTimes[playbackIndex] ?? null : null}
                   onPlayheadChange={

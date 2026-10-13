@@ -18,6 +18,16 @@ export const CHART_GRID_COLOR = '#334155'
  */
 export const CHART_PLAYHEAD_COLOR = '#38bdf8'
 /**
+ * The ring on the most extreme hour (#699): red-500. The maintainer drew that
+ * circle in red by hand on the chart that asked for it, and chose red because
+ * the ring denotes the extreme value (2026-10-13). It is the one chrome colour
+ * in a verdict hue, deliberately, and it is not a verdict: on a family where
+ * high is the good end, a high cloud deck or freezing level, it still marks
+ * the extreme rather than a bad hour. `chartColors.test.ts` holds it to 3:1 on
+ * the slate-800 panel.
+ */
+export const CHART_EXTREME_COLOR = '#ef4444'
+/**
  * A line asked for its colour before the allocator has given it one: a render
  * in the moment between a selection and the effect that persists its colours.
  * The axis colour, so an unassigned line reads as chrome rather than as a

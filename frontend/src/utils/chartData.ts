@@ -196,6 +196,14 @@ export interface ChartLine extends SeriesHolder {
    * allocator (`allocateColors` in `chartColors.ts`).
    */
   color: string
+  /**
+   * Whether this line is one the field is ranked on: a destination's own row,
+   * or a (destination, ranking model) pair under a comparison. Only these can
+   * hold the extreme-hour ring (`extremePoint`), because a compared model's
+   * lines are not what the table ranks, and a ring on one would point at a
+   * number the ranking never read. Absent means not ranked.
+   */
+  ranked?: boolean
 }
 
 /**
@@ -387,6 +395,87 @@ export function computeYDomain(
     return [lo, max + 1]
   }
   return [floor, max + (max - floor) * 0.05]
+}
+
+/** One (line, hour) pair the extreme-hour ring stands on. */
+export interface ExtremePoint {
+  t: number
+  value: number
+  key: string
+}
+
+/**
+ * The families where 0 means none: no rain, no snow, calm air, clean air. A
+ * `Lowest` ranking on any of them usually finds 0 at most hours of most lines,
+ * so a ring there marks the floor rather than anything worth finding, and a
+ * dry `Highest` has nothing to mark either. Temperature, the freezing level
+ * and the cloud deck are left out because each is a reading at every value:
+ * 0 °F is a real coldest hour, a freezing level of 0 says the whole column is
+ * below freezing, and the cloud deck is a height whose low end is cloud on the
+ * ground rather than no cloud (its walk bottoms out at 364 ft, so it never
+ * reads 0 in any case).
+ */
+const ZERO_IS_NONE: ReadonlySet<ChartMetric> = new Set<ChartMetric>(['precip', 'snowfall', 'wind', 'aqi'])
+
+/**
+ * The most points that may share the extreme and still be ringed. Past it
+ * there is no single extreme to point at: a field-wide tie such as `Highest`
+ * cloud deck, where every dry column reads the same ceiling, would ring half
+ * the chart. Five leaves room for a real plateau, since AQI is a whole number
+ * and a wind can hold one value for two or three hours (the maintainer asked
+ * for a cap on 2026-10-08 and left the number open between 3, 5 and 10).
+ */
+export const MAX_EXTREME_MARKS = 5
+
+// A stable empty answer, so the chart's memo hands Recharts the same nothing
+// on every render rather than a fresh array.
+const NO_EXTREMES: readonly ExtremePoint[] = []
+
+/**
+ * Every (line, hour) pair holding the most extreme hourly value among the
+ * ranked lines: the largest when `highest`, the smallest otherwise. One entry
+ * normally, one per tied pair on a tie.
+ *
+ * Nothing at all when no ranked line has a value, when the extreme is 0 on a
+ * family where 0 means none (`ZERO_IS_NONE`), or when more than
+ * `MAX_EXTREME_MARKS` pairs share it. Ties stop being collected once past the
+ * cap, because the answer is then nothing unless a more extreme value turns
+ * up later in the walk, which starts the count again.
+ *
+ * Only `ranked` lines are candidates: the caller hands in the lines it draws,
+ * so a hidden row, chip or model is already gone, and a compared model's lines
+ * are skipped here. `times` turns an hour's index into the instant the ring
+ * stands at; the lines are already on that grid.
+ */
+export function extremePoint(
+  lines: readonly ChartLine[],
+  metric: ChartMetric,
+  highest: boolean,
+  times: readonly number[],
+): readonly ExtremePoint[] {
+  const field = SERIES_FIELD[metric]
+  let best: number | null = null
+  let found: ExtremePoint[] = []
+  for (const line of lines) {
+    if (!line.ranked) continue
+    const arr = line.series ? line.series[field] : undefined
+    if (!arr) continue
+    const n = Math.min(arr.length, times.length)
+    for (let i = 0; i < n; i++) {
+      const v = arr[i]
+      if (v == null) continue
+      if (best === null || (highest ? v > best : v < best)) {
+        best = v
+        found = [{ t: times[i], value: v, key: line.key }]
+      } else if (v === best && found.length <= MAX_EXTREME_MARKS) {
+        found.push({ t: times[i], value: v, key: line.key })
+      }
+    }
+  }
+  if (best === null) return NO_EXTREMES
+  if (best === 0 && ZERO_IS_NONE.has(metric)) return NO_EXTREMES
+  if (found.length > MAX_EXTREME_MARKS) return NO_EXTREMES
+  return found
 }
 
 // Map a pixel X within the plot area to an instant (left = tMin, right = tMax),
