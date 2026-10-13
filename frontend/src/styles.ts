@@ -1651,8 +1651,13 @@ export const NOTICE_DISMISS = {
 /**
  * The three weights of rule in the app.
  *
- * `PANEL_EDGE` closes the panel: the line under the app title and the one over
- * the Analyze button. Those are structural — they separate the scrolling body
+ * `PANEL_EDGE` closes the panel: the line under the app title, the one over
+ * the Analyze button, and the panel's right edge where it meets the map and
+ * the results (#697). That last one was `SURFACE_DIVIDER` at 1.41:1, which
+ * is no boundary at all between two slate-800 surfaces: the panel and the
+ * results read as one L-shaped block. slate-500 is 3.07:1 on slate-800, past
+ * the 3:1 a boundary owes under WCAG 1.4.11 when it is the only thing
+ * separating two surfaces. Those are structural — they separate the scrolling body
  * from the fixed chrome above and below it — so they are the heavier pair.
  *
  * `PANEL_RULE` separates one numbered step from the next *inside* that body,
@@ -1680,8 +1685,7 @@ export const NOTICE_DISMISS = {
  * `SURFACE_DIVIDER` is that same quiet line where the stack cannot draw it:
  * one rule a component places itself, between two blocks of one surface. The
  * dialog's header over its body, the popover's overline strip over its rows,
- * the month navigation under the calendar grid, the panel's own right edge
- * against the map. On the slate-800 panel and card it is 1.41:1, and
+ * the month navigation under the calendar grid. On the slate-800 panel and card it is 1.41:1, and
  * `PANEL_RULE` composites to 1.37:1 there — the same line by eye, which is the
  * point: a surface that has to place its own rule should not look like a
  * different kind of rule. What splits them is only whether the stack or the
@@ -1696,6 +1700,45 @@ export const PANEL_EDGE = 'border-slate-500'
 export const PANEL_RULE =
   '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
 export const SURFACE_DIVIDER = 'border-slate-700'
+
+/**
+ * The scroll bar every dark surface wears: the panel body, the results table
+ * and the chart legend (#697). The rules live in index.css because a scroll
+ * bar has no utility to compose; the name lives here so no component spells
+ * it, and the app draws one bar style rather than the browser's default beside
+ * a styled one.
+ */
+export const SCROLL_BARS = 'surface-scrollbars'
+
+/**
+ * The shade under a fixed edge that shows only while content continues past
+ * it (#697). index.css owns the drawing; these are the two halves, so a
+ * container that has a sticky header of its own (the results table) can take
+ * the bottom one alone.
+ */
+export const SCROLL_SHADOW = {
+  start: 'scroll-shadow-start',
+  end: 'scroll-shadow-end',
+  both: 'scroll-shadow-start scroll-shadow-end',
+} as const
+
+/**
+ * The panel's scrolling body, between the header's `PANEL_EDGE` and the
+ * footer's.
+ *
+ * `scrollbar-gutter: stable` reserves the bar's width outside the padding
+ * whether or not the body overflows, so the calendar well, which bleeds 9px
+ * into the right gutter (`SURFACE_GROUP_BLEED`), keeps the same 7px of panel
+ * between itself and the bar that it keeps from the panel's left edge, and the
+ * control column does not jump sideways when a section opens and the bar
+ * appears. What it costs is the bar's width off the content: 327px of content
+ * becomes 327 less the bar, which the metric row's label budget absorbs
+ * (`styles.test.ts`). The bleed tells the scroll shadows to reach across the
+ * `px-4` to both edges.
+ */
+export const PANEL_BODY =
+  `flex-1 overflow-y-auto px-4 py-4 [scrollbar-gutter:stable] [--scroll-shadow-bleed:1rem] ` +
+  `${SCROLL_BARS} ${SCROLL_SHADOW.both}`
 
 /**
  * Step number badge in the welcome modal.
