@@ -8,7 +8,7 @@ import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
 import type { InsertLine } from '../utils/columnMeasure'
 import { sized } from './sizedCell'
-import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, FOCUS_RING_INSET, SR_ONLY, TABLE } from '../styles'
+import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, FOCUS_RING_INSET, SCROLL_SHADOW, SR_ONLY, TABLE } from '../styles'
 
 // The results table's header row and everything a press on it can do: sort
 // (by pointer or by key), move a column, resize one, and fit one to its content. Apart from the body
@@ -144,7 +144,7 @@ function ResultsTableHeader({
 
   return (
     <>
-      <thead className="sticky top-0 bg-slate-700 z-10">
+      <thead className={`sticky top-0 bg-slate-700 z-10 ${SCROLL_SHADOW.head}`}>
         <tr>
           {showChartCol && <SelectAllCell rows={chartableRows} headState={headState} onChartRange={onChartRange} />}
           <th scope="col" className={`${TABLE.head} w-6`}>#</th>

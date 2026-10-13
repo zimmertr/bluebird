@@ -12,7 +12,7 @@ const CSS_ONLY =
  * read the two attributes instead. Re-measured on scroll and on any resize of
  * the container or its content, since a section opening changes what is below.
  */
-export function useScrollShadows(ref: RefObject<HTMLElement | null>) {
+export function useScrollShadows(ref: RefObject<HTMLElement | null>, mountKey?: unknown) {
   useEffect(() => {
     const el = ref.current
     if (CSS_ONLY || !el) return
@@ -31,5 +31,6 @@ export function useScrollShadows(ref: RefObject<HTMLElement | null>) {
       el.removeEventListener('scroll', update)
       observer?.disconnect()
     }
-  }, [ref])
+    // `mountKey` re-runs this for a container that mounts after its owner did.
+  }, [ref, mountKey])
 }
