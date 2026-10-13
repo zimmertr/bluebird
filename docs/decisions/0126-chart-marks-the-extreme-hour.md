@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-08, the ring's colour 2026-10-13; recorded 2026-10-13
 - Decider: the maintainer, on #699 (2026-10-08: Option A, no text, the charted family's highest off the ranked one, every tie ringed, nothing past five ties or at a zero that means none, only drawn lines and only the ranking model's; 2026-10-13: the cap stays five and the ring is red)
-- Issues and PRs: #699
+- Issues and PRs: #699, #705
 - Cited in code as: #699
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `chartColors.ts` bullet, and the `chartData.ts` and `modelCompare.ts` bullets; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `TimeSeriesChart.tsx` bullet; [`docs/USAGE.md`](../USAGE.md), Viewing the results
 
