@@ -161,6 +161,25 @@ body,
   margin-top: -12px;
   background: linear-gradient(to top, rgb(2 6 23 / 0.7), rgb(2 6 23 / 0));
 }
+/* The results table's top shade hangs under its sticky header rather than
+   at the scrollport's top, where the header would paint over it: one strip
+   per header cell, each exactly its cell's width, so the cells add up to one
+   unbroken band. Its timeline is still the table's scroll container, the
+   nearest one above the cell. */
+.scroll-shadow-head th {
+  position: relative;
+}
+.scroll-shadow-head th::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to bottom, rgb(2 6 23 / 0.7), rgb(2 6 23 / 0));
+}
 @keyframes scroll-shadow-in {
   from {
     opacity: 0;
@@ -178,7 +197,8 @@ body,
   }
 }
 @supports (animation-timeline: scroll()) {
-  .scroll-shadow-start::before {
+  .scroll-shadow-start::before,
+  .scroll-shadow-head th::after {
     animation: scroll-shadow-in linear both;
     animation-timeline: scroll(nearest block);
     animation-range: 0 24px;
@@ -191,6 +211,7 @@ body,
 }
 @supports not (animation-timeline: scroll()) {
   .scroll-shadow-start[data-more-above]::before,
+  [data-more-above] .scroll-shadow-head th::after,
   .scroll-shadow-end[data-more-below]::after {
     opacity: 1;
   }

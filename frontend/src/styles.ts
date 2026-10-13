@@ -1720,6 +1720,8 @@ export const SCROLL_SHADOW = {
   start: 'scroll-shadow-start',
   end: 'scroll-shadow-end',
   both: 'scroll-shadow-start scroll-shadow-end',
+  /** The top shade under a sticky table header, on the header itself. */
+  head: 'scroll-shadow-head',
 } as const
 
 /**
