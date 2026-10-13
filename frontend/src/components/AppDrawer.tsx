@@ -13,7 +13,7 @@ import type { AnalyzeResponse, DestinationResult } from '../types'
 import { type FireProximityStatus, checkNoticeDue } from '../utils/fireProximity'
 import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { CommitReason } from '../utils/present'
-import { LAYER, PANEL_EDGE, RADIUS, TAP, TEXT } from '../styles'
+import { LAYER, PANEL_INSET, RADIUS, SURFACE_INSET, TAP, TEXT } from '../styles'
 
 interface AppDrawerProps {
   /** Whether the panel is open: docked on a desktop, over the map on a phone. */
@@ -194,10 +194,10 @@ export default function AppDrawer({
           before reaching the map (#576). */}
       <aside
         inert={!open}
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${PANEL_EDGE} ${
+        className={`absolute ${PANEL_INSET.frame} ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 ${SURFACE_INSET} flex flex-col ${
           open
-            ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
-            : '-translate-x-full'
+            ? `translate-x-0 ${PANEL_INSET.layer} lg:w-90 lg:max-w-none lg:transition-none`
+            : PANEL_INSET.closed
         }`}
       >
         {/* Close button — collapses the panel on both mobile and desktop */}

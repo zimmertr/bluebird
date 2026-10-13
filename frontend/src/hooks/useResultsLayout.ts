@@ -8,6 +8,7 @@ import {
   splitChartTable,
 } from '../utils/layout'
 import {
+  FLOATING_SHEET_GAP_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
   mapCornerLiftPx,
@@ -256,7 +257,7 @@ export function useResultsLayout({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const el = sheetRef.current
-    const next = !el || isDesktop ? null : el.getBoundingClientRect().height
+    const next = !el ? null : el.getBoundingClientRect().height
     setSheetMeasuredPx((prev) => (prev === next ? prev : next))
   })
 
@@ -265,7 +266,7 @@ export function useResultsLayout({
   // reason this is not left to the render alone.
   useEffect(() => {
     const el = sheetRef.current
-    if (!el || isDesktop) return
+    if (!el) return
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0]
       // The BORDER box: the sheet's own top border is part of what covers the
@@ -288,8 +289,10 @@ export function useResultsLayout({
   // header and a grip, and a guess 20px out is 20px of gap the reader can see
   // under the player. The estimate is what the first frame gets, before the
   // observer above has reported.
-  const sheetLiftPx = resolveSheetLift({
-    docked: isDesktop || !showTable,
+  // On a desktop the results are a card over the map, one inset off its
+  // bottom (#697), so the map's chrome clears the card and that gap too.
+  const sheetLiftPx = (isDesktop && showTable ? FLOATING_SHEET_GAP_PX : 0) + resolveSheetLift({
+    docked: !showTable,
     measuredPx: sheetMeasuredPx,
     estimatePx: sheetHeightPx({
       collapsed: resultsCollapsed,

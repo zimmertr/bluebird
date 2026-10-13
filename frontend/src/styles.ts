@@ -184,7 +184,14 @@ export const LINK_INERT = 'aria-disabled:opacity-40 aria-disabled:cursor-not-all
 export const RADIUS = {
   /** Form controls, small buttons, inline chips and swatches. */
   control: 'rounded',
-  /** Anything floating above the page: cards, dropdowns, tooltips, CTAs. */
+  /**
+   * Every surface, and since #697 every surface floats: cards, dropdowns,
+   * tooltips, CTAs, and the control panel and results too, which stand on the
+   * map as inset cards (`SURFACE_INSET`) rather than docking against it. One
+   * shape for every box on screen, the way Apple Maps and Google Maps draw a
+   * desktop. The one exception is the phone's results sheet, whose bottom
+   * corners are off the screen (`SURFACE_SHEET`).
+   */
   surface: 'rounded-lg',
   /** Pills, dots, spinners, progress bars. */
   pill: 'rounded-full',
@@ -329,6 +336,38 @@ export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-l
  * utilities resolve by their order in the generated stylesheet, not by class
  * order, so appending a lighter fill would be a bet rather than an override.
  */
+/**
+ * The control panel and the desktop results as cards over the map (#697,
+ * option B): the slate-800 both already wore, `SURFACE_FLOATING`'s slate-600
+ * edge and the surface radius, standing `--map-edge-inset` off the window and
+ * off each other so the map shows in the gaps. The map in those gaps is the
+ * boundary between the two surfaces, which a slate-700 line between two
+ * slate-800 blocks never was. `overflow-hidden` makes the radius real over the
+ * square header bars inside. `shadow-lg` like the floating boxes: it is the
+ * same elevation, just a bigger box.
+ */
+export const SURFACE_INSET = `bg-slate-800 border border-slate-600 ${RADIUS.surface} shadow-lg overflow-hidden`
+
+/**
+ * Where the panel card stands: one map inset off the window's top, bottom and
+ * left, on both breakpoints. Closed, it translates its own width plus that
+ * inset and a little more, or its edge would show at the window's.
+ */
+export const PANEL_INSET = {
+  frame: 'top-[var(--map-edge-inset)] bottom-[var(--map-edge-inset)] left-[var(--map-edge-inset)]',
+  closed: '-translate-x-[calc(100%+1rem)]',
+  /** Over the map chrome it shares the map with, under the Layers cluster. */
+  layer: 'lg:z-[15]',
+} as const
+
+/**
+ * Where the results card stands on a desktop: an inset off the window's
+ * right and bottom, and past the panel on the left (`MAP_EDGE.besidePanel`).
+ */
+export const SHEET_INSET =
+  'absolute right-[var(--map-edge-inset)] bottom-[var(--map-edge-inset)] ' +
+  'left-[calc(var(--map-panel-cover,0px)+var(--map-edge-inset))]'
+
 export const SURFACE_POPOVER =
   `bg-slate-700/95 border border-slate-600 ${RADIUS.surface} shadow-2xl backdrop-blur-sm`
 
@@ -1210,8 +1249,17 @@ export const MAP_EDGE = {
    * hand `TEXT.micro` to.
    */
   publish: '[--map-edge-inset:0.75rem] [--map-credit-size:10px]',
+  /**
+   * How much of the map's left the open control panel covers on a desktop
+   * (#697): its 360px plus the inset it stands off the window's edge. The map
+   * draws behind the panel, so everything anchored to the map's left (the
+   * button column, the legends, the vendor's scale bar) and the results card
+   * measure from past it, and the forecast player centres on what is left.
+   * Zero on a phone, where the open drawer dims the map rather than sharing it.
+   */
+  besidePanel: 'lg:[--map-panel-cover:calc(22.5rem+var(--map-edge-inset))]',
   /** The left edge every floating box on the map's left shares. */
-  left: 'left-[var(--map-edge-inset)]',
+  left: 'left-[calc(var(--map-panel-cover,0px)+var(--map-edge-inset))]',
   /** The top edge the app's own button column takes. */
   top: 'top-[var(--map-edge-inset)]',
 } as const

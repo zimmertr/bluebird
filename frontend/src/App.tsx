@@ -56,6 +56,7 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import {
   LAYER,
+  MAP_EDGE,
   SURFACE_PAGE,
 } from './styles'
 import {
@@ -524,7 +525,9 @@ export default function App() {
     <div className={`flex flex-col h-dvh w-screen overflow-hidden ${SURFACE_PAGE}`}>
       <SkipLink targetId={MAIN_ID} />
       {preview.enabled && <PreviewBanner pr={preview.pr} commit={preview.commit} />}
-      <div className="flex flex-1 overflow-hidden min-h-0 relative">
+      <div
+        className={`flex flex-1 overflow-hidden min-h-0 relative ${MAP_EDGE.publish} ${sidebarOpen ? MAP_EDGE.besidePanel : ''}`}
+      >
       {showWelcome && (
         <WelcomeModal onDismiss={dismissWelcome} onTutorial={startTourFromWelcome} tutorialWaits={tourWaits} />
       )}
@@ -585,7 +588,7 @@ export default function App() {
         // Focusable by script alone, for the skip link, and drawing no ring:
         // the landmark is where the keyboard lands, not a control.
         tabIndex={-1}
-        className={`flex-1 flex flex-col overflow-hidden min-w-0 focus:outline-none${isDesktop ? '' : ' relative'}`}
+        className="flex-1 flex flex-col overflow-hidden min-w-0 focus:outline-none relative"
       >
         <MapStage
           mapRef={mapRef}

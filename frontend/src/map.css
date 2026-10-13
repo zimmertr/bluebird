@@ -182,6 +182,8 @@
 
 .maplibregl-ctrl-bottom-left {
   align-items: flex-start;
+  /* Past the control panel where it stands over the map (#697). */
+  left: var(--map-panel-cover, 0px);
 }
 
 .maplibregl-ctrl-bottom-right {

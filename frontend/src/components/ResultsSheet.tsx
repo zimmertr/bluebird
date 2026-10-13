@@ -11,7 +11,7 @@ import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, SR_ONLY, SURFACE_SHEET } from '../styles'
+import { LAYER, SHEET_INSET, SR_ONLY, SURFACE_INSET, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -152,7 +152,7 @@ export default function ResultsSheet({
           data-tour="results"
           className={
             isDesktop
-              ? 'flex flex-shrink-0 flex-col bg-slate-800'
+              ? `${SHEET_INSET} flex flex-col ${SURFACE_INSET} ${LAYER.sheet}`
               : `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${LAYER.sheet}`
           }
         >

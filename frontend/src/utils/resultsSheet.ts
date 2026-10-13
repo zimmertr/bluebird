@@ -348,3 +348,11 @@ export function transportBottomPx(liftPx: number): number {
 export function mapCornerLiftPx(liftPx: number): number {
   return liftPx
 }
+
+/**
+ * The gap the desktop results card stands off the map's bottom edge (#697):
+ * `--map-edge-inset`, the 0.75rem every floating box keeps from the map's
+ * edges (`MAP_EDGE.publish`). The map's bottom chrome clears it as well as the
+ * card.
+ */
+export const FLOATING_SHEET_GAP_PX = 12
