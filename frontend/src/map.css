@@ -39,8 +39,8 @@
   margin: var(--map-edge-inset) var(--map-edge-inset) 0 0;
 }
 
-/* On a phone the app's search field and the row under it span the map's top
- * edge (#696), so the stack starts below them: `--map-vendor-top` is published
+/* On a phone the app's search field and the two rows under it span the map's
+ * top edge (#696), so the stack starts below them: `--map-vendor-top` is published
  * by `MAP_EDGE.belowRow` on the map wrapper at that width only, and every other
  * width falls back to the inset above. The first group alone, because the
  * margin under it is the gap between groups. */
@@ -201,6 +201,61 @@
 .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
   margin-top: 0;
   margin-bottom: 0;
+}
+
+/* The bottom right on a coarse pointer (#696, the maintainer 2026-10-13): the
+   locate button (`addControls` puts it here on touch) stands directly above
+   the attribution's (i), the two on one vertical axis, 8px apart, and the same
+   size and shape: round, at the 44px the zoom buttons above take, so the (i)
+   grows to meet the button rather than the button shrinking to the (i).
+
+   The (i) is as tall as the corner band (`--map-corner-band`, 44px), so the
+   column ends 8px above the band's bottom, the pair's own gap, rather than
+   flush with the sheet's top or the screen's bottom edge, and the locate
+   button stands above it rather than the pair centring across the band. `order` because MapLibre inserts a
+   bottom control above the ones already there and the attribution is re-added
+   when the width class changes. The (i) still opens to the left: the vendor
+   anchors its button to the box's right edge, and the open line takes the
+   padding on its left. After the corner rules above, which it overrides at
+   the same specificity. */
+@media (hover: none) {
+  .maplibregl-ctrl-bottom-right {
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate) {
+    order: -1;
+    border-radius: 9999px;
+  }
+
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-geolocate {
+    border-radius: 9999px;
+  }
+
+  .maplibregl-ctrl-attrib.maplibregl-compact {
+    min-height: 2.75rem;
+    padding: 0 2.75rem 0 0;
+    border-radius: 1.375rem;
+  }
+
+  .maplibregl-ctrl-attrib.maplibregl-compact-show {
+    padding: 0 3.25rem 0 0.75rem;
+  }
+
+  .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
+    padding: 0.75rem 0;
+    line-height: 1.25rem;
+  }
+
+  .maplibregl-ctrl-attrib-button {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 1.375rem;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
 }
 
 /* A marker popup too tall for the free map area scrolls its body under its

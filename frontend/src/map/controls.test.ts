@@ -34,9 +34,23 @@ function stub() {
 describe('addControls', () => {
   it('spends shift on pinning rather than box zoom, and puts each control in its corner', () => {
     const { map, added, boxZoom } = stub()
-    addControls(map)
+    addControls(map, false)
     expect(boxZoom.disable).toHaveBeenCalledTimes(1)
     expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'bottom-left'])
+    expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: true })
+  })
+
+  // A coarse pointer (#696): a pinch zooms, so the zoom buttons go, and the
+  // locate button stands above the attribution's (i) at the bottom right.
+  it('drops the zoom buttons on touch and moves the locate button to the bottom right', () => {
+    const { map, added } = stub()
+    addControls(map, true)
+    expect(added.map(([name, , at]) => [name, at])).toEqual([
+      [expect.stringContaining('Navigation'), 'top-right'],
+      [expect.stringContaining('Geolocate'), 'bottom-right'],
+      [expect.stringContaining('Scale'), 'bottom-left'],
+    ])
+    expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: false })
   })
 })
 

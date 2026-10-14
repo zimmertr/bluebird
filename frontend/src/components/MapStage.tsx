@@ -282,6 +282,7 @@ export default function MapStage({
         overlays={overlays}
         grid={grid}
         columnFull={isDesktop && !sidebarOpen}
+        onGrid={!isDesktop}
         expanded={legend.legendExpanded}
         onToggle={legend.toggleLegend}
         sheetLiftPx={layout.sheetLiftPx}

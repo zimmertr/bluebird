@@ -1,6 +1,6 @@
 # 0019. The overlay switches live in a Layers popover on the map
 
-- Status: Accepted. Amended by 0135 (on a phone the Layers button stands in a row beside Controls and Analyze under the search field).
+- Status: Accepted. Amended by 0135 (on a phone the Layers button stands beside Controls on a grid under the search field) and 0136 (the menu unfurls out of the Layers button as one card at the button's width, rather than hanging under it as a popover).
 - Date: 2026-08-04 (the guide: "TJ, 2026-08-04"; git: shipped in #248)
 - Decider: TJ, as the guide records (2026-08-04 for the placement; 2026-09-22 for the greyed row)
 - Issues and PRs: #246, #248, #249, #460, #461

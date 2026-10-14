@@ -68,15 +68,15 @@ import {
   MAP_ANALYZE,
   MAP_BUTTON,
   MAP_CARD,
+  MAP_CARD_HANG,
   MAP_CARD_HEADER,
+  MAP_CARD_SLOT,
   MAP_COL_GAP,
-  MAP_COL_GAP_T,
   MAP_COL_W,
   MAP_PILL,
   MAP_PILL_SUMMARY,
-  MAP_ROW,
   MAP_ROW_H,
-  MAP_ROW_W,
+  MAP_ROW_GRID,
   LEGEND_TOP,
   MICRO_SIZE,
   MUTED,
@@ -1176,9 +1176,8 @@ describe('shared recipes', () => {
 
   // The third part of the same decision: one gap between members, so the
   // column's height and the inset that clears it are built from one number.
-  it('gives the column one gap, in both of the forms it takes', () => {
+  it('gives the column one gap', () => {
     expect(MAP_COL_GAP).toBe('gap-1')
-    expect(MAP_COL_GAP_T).toBe('mt-1')
   })
 
   // The other half of the same decision: one row height, so the field and the
@@ -1397,7 +1396,7 @@ describe('every role', () => {
     // finished `FIELD`, `SEGMENT`, `SURFACE_GROUP` or `SCRUBBER_TRACK`.
     RECESSED_EDGE: 'the half of the well recipe this file composes itself',
     // The floating surface made pressable. Since #696 every map button takes it
-    // through a finished role, `MAP_BUTTON` in the column, `MAP_PILL` in the
+    // through a finished role, `MAP_BUTTON` for desktop Controls, `MAP_PILL` for the
     // phone's row, and the skip link through `SKIP_LINK`.
     BUTTON_FLOATING: 'the pressable floating box the map buttons compose here',
     // The timeline axis half's width floor, spelled twice over (plain and
@@ -1825,36 +1824,59 @@ describe('the phone row', () => {
     for (const part of [BUTTON_FLOATING, MAP_COL_W, MAP_ROW_H]) expect(MAP_BUTTON).toContain(part)
   })
 
-  // Folded, the legend card is the Layers button above it to the pixel, and
-  // in every state: the same floating surface at the column's width, and a
-  // header row wearing the button's face and states. The one split is the
+  // Every menu on the map unfurls out of its button as one card (the
+  // maintainer, 2026-10-13): Legends and Layers alike, the button the card's
+  // header and the menu its body. Folded, a card is the floating button it
+  // replaced to the pixel and in every state: the same floating surface, and
+  // a header row wearing the button's face and states. The one split is the
   // edge, which is the card's, so the card lights it while the header is
-  // hovered (TJ, 2026-10-13).
-  it('gives the Legends card the Layers button\'s face and states', () => {
-    const layersButton = layersPopoverSource.match(/className=\{inRow \? MAP_PILL : (\w+)\}/)?.[1]
-    expect(layersButton).toBe('MAP_BUTTON')
+  // hovered.
+  it('makes Legends and Layers one card each, with the floating button\'s face and states', () => {
+    for (const source of [mapLegendSource, layersPopoverSource]) {
+      expect(source).toMatch(/className=\{MAP_CARD_HEADER\}/)
+      expect(source).not.toMatch(/\b(MAP_BUTTON|MAP_PILL|SURFACE_POPOVER)\b/)
+    }
     const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
-    for (const part of [SURFACE_FLOATING, MAP_COL_W]) expect(MAP_CARD).toContain(part)
+    expect(MAP_CARD).toContain(SURFACE_FLOATING)
     const onCard = new Set([...tokens(SURFACE_FLOATING), ...tokens(MAP_COL_W), ...tokens(ACCENT.edgeHover)])
     const face = tokens(MAP_BUTTON).filter((t) => !onCard.has(t))
     for (const t of [ACCENT.hoverText, 'active:bg-slate-700', MAP_ROW_H.split(' ')[0]]) expect(face).toContain(t)
     for (const t of face) expect(tokens(MAP_CARD_HEADER)).toContain(t)
     // The button's hover edge, on the card while its header is hovered.
-    expect(tokens(MAP_CARD)).toContain(ACCENT.edgeHover.replace(/^hover:/, 'has-[>button:hover]:'))
+    // Behind `(hover: hover)`, as Tailwind's `hover:` is, so a tap never leaves it lit.
+    expect(tokens(MAP_CARD)).toContain(ACCENT.edgeHover.replace(/^hover:/, '[@media(hover:hover)]:has-[>button:hover]:'))
     // Spanning the card's border, so a folded card is the button's height.
     expect(MAP_CARD_HEADER).toContain('-my-px')
     expect(MAP_CARD).not.toContain('overflow-hidden')
     expect(mapLegendSource).toMatch(/className=\{MAP_CARD_HEADER\}\s*>\s*<IconChevron/)
-    expect(mapLegendSource).not.toMatch(/\bMAP_BUTTON\b/)
+    // A card takes its slot's width and states none of its own, so a menu is
+    // always exactly its button's width.
+    for (const recipe of [MAP_CARD, MAP_CARD_HANG, MAP_CARD_SLOT, MAP_CARD_HEADER.replace('w-full', '')]) {
+      expect(recipe).not.toMatch(/(^|\s)(min-|max-)?w-/)
+    }
   })
 
-  // Sized by their words, not by the column: the third member has the rest.
-  it('sizes the pills by their words, on the floating button', () => {
-    expect(MAP_PILL).toContain(BUTTON_FLOATING)
-    expect(MAP_PILL).not.toContain(MAP_COL_W)
+  // The maintainer's layout (2026-10-13): two tracks, four to three, as
+  // fractions, so the ratio holds at every phone width, with the column's gap.
+  it('sets the phone rows on one grid of two fractional tracks', () => {
+    expect(MAP_ROW_GRID).toContain('grid-cols-[minmax(0,4fr)_minmax(0,3fr)]')
+    expect(MAP_ROW_GRID).toContain(MAP_COL_GAP)
+    expect(MAP_ROW_GRID).not.toMatch(/\d+px/)
+  })
+
+  // Every button on the rows takes its width from its track: none states its
+  // own, as a role or beside one at its call site.
+  it('lets no button on the phone rows state its own width', () => {
+    const widths = /(^|\s)(min-w-(?!0\b)|max-w-|w-|flex-1|basis-|grow)/
+    for (const recipe of [MAP_PILL, MAP_ANALYZE, MAP_CARD, MAP_CARD_SLOT]) expect(recipe).not.toMatch(widths)
     expect(MAP_PILL).toContain('min-w-0')
-    expect(MAP_ROW).toContain(MAP_ROW_W)
-    expect(MAP_ROW).toContain(MAP_COL_GAP)
+    // At the call sites: Controls and Analyze beside nothing but a track
+    // placement, the Layers slot with no width on the grid, the legend card
+    // with none on the grid.
+    expect(mapButtonColumnSource).toContain('className={MAP_PILL}')
+    expect(mapButtonColumnSource).toContain('${MAP_ANALYZE} ${DISABLED} col-start-2')
+    expect(layersPopoverSource).toContain("${MAP_CARD_SLOT} ${inRow ? '' : MAP_COL_W}")
+    expect(mapLegendSource).toContain("${MAP_CARD} ${onGrid ? '' : MAP_COL_W}")
   })
 
   // The summary is present but never first, and one line: it truncates, and
@@ -1871,18 +1893,18 @@ describe('the phone row', () => {
     expect(MAP_ANALYZE).toContain(FOCUS_RING)
     expect(sizes(MAP_ANALYZE)).toEqual(sizes(BUTTON_FLOATING))
     expect(MAP_ANALYZE).toContain('whitespace-nowrap')
-    expect(MAP_ANALYZE).toContain('flex-1')
     // The same gate wears the same disabled treatment as the panel's button.
     expect(mapButtonColumnSource).toContain('${MAP_ANALYZE} ${DISABLED}')
   })
 
-  // The vendor's zoom stack starts below the two rows on a phone, at the
-  // height `LEGEND_TOP.compact` already sums for a two-row column.
-  it('starts the vendor stack below the row, at the short column\'s height', () => {
-    const numbers = (cls: string) => [...cls.matchAll(/:(\d+)px\]/g)].map((m) => m[1])
-    expect(numbers(MAP_EDGE.belowRow)).toEqual(
-      [...LEGEND_TOP.compact.matchAll(/top-\[(\d+)px\]/g)].map((m) => m[1]),
-    )
+  // The vendor's stack starts below the three rows on a phone: the height
+  // `LEGEND_TOP.compact` sums for two, plus the third row, where Analyze
+  // stands at the right edge, and its gap.
+  it('starts the vendor stack below the rows, one row under the legend\'s top', () => {
+    const numbers = (cls: string) => [...cls.matchAll(/:(\d+)px\]/g)].map((m) => Number(m[1]))
+    const legendTops = [...LEGEND_TOP.compact.matchAll(/top-\[(\d+)px\]/g)].map((m) => Number(m[1]))
+    // A row is 36 on a pointer and 44 on a finger, and the gap 4.
+    expect(numbers(MAP_EDGE.belowRow)).toEqual([legendTops[0] + 36 + 4, legendTops[1] + 44 + 4])
     const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
     expect(rule.slice(rule.indexOf('{'), rule.indexOf('}'))).toContain(
       'var(--map-vendor-top, var(--map-edge-inset))',
@@ -1963,7 +1985,7 @@ describe('the map legend sections', () => {
   // header, and the card is the one surface.
   it('draws them all in one floating box', () => {
     expect(box).not.toMatch(/\bSURFACE_FLOATING\b/)
-    expect((box.match(/className=\{MAP_CARD\}/g) ?? []).length).toBe(1)
+    expect((box.match(/className=\{`\$\{MAP_CARD\} /g) ?? []).length).toBe(1)
     expect(MAP_CARD).toContain(SURFACE_FLOATING)
   })
 
@@ -1981,7 +2003,12 @@ describe('the map legend sections', () => {
 // map. The box yields; the sections it holds take the pointer back.
 describe('the legend stack', () => {
   // The scroll box itself: the one element that wears the legend's top inset.
-  const stack = mapLegendSource.match(/className=\{`absolute \$\{MAP_EDGE\.left\}[^`]*LEGEND_TOP[^`]*`\}/)?.[0] ?? ''
+  // Sliced rather than matched, since the class list nests a template for the
+  // phone's grid (#696).
+  const stack = (() => {
+    const from = mapLegendSource.indexOf('className={`absolute ${MAP_EDGE.left}')
+    return from >= 0 ? mapLegendSource.slice(from, mapLegendSource.indexOf('style={{ bottom', from)) : ''
+  })()
 
   it('found the stack', () => {
     expect(stack).toContain('overflow-y-auto')

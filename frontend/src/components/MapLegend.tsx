@@ -12,7 +12,9 @@ import {
   MAP_CARD,
   MAP_CARD_BODY,
   MAP_CARD_HEADER,
+  MAP_COL_W,
   MAP_EDGE,
+  MAP_ROW_GRID,
   RADIUS,
   STATUS,
   SR_ONLY,
@@ -160,6 +162,12 @@ interface MapLegendProps {
    * Controls beside Layers, so its column is the short one at all times.
    */
   columnFull: boolean
+  /**
+   * A phone (#696): the card stands under Controls at exactly Controls'
+   * width, in a stack on the same grid tracks as the button row above it,
+   * where a desk's stands in the column at the column's width.
+   */
+  onGrid: boolean
   /** Whether the card is open under its Legends header, or folded to the header alone (#696). */
   expanded: boolean
   /** Folds or opens the card: the header's press. */
@@ -183,6 +191,7 @@ export default function MapLegend({
   overlays,
   grid,
   columnFull,
+  onGrid,
   expanded,
   onToggle,
   sheetLiftPx,
@@ -469,9 +478,16 @@ export default function MapLegend({
       // button stands in it. `LEGEND_TOP` carries both heights; picking
       // between them here is the only thing that knows which one is on
       // screen.
+      //
+      // On a phone the stack spans the button grid's width on the grid's own
+      // tracks, so the card in its first track is exactly Controls' width
+      // above it, and the second track is empty map under Analyze, yielded
+      // like the band under the card (#696).
       className={`absolute ${MAP_EDGE.left} ${
         columnFull ? LEGEND_TOP.full : LEGEND_TOP.compact
-      } z-10 flex flex-col overflow-y-auto [&>*]:flex-shrink-0 ${YIELD_EMPTY}`}
+      } z-10 overflow-y-auto ${YIELD_EMPTY} ${
+        onGrid ? `${MAP_EDGE.right} ${MAP_ROW_GRID} content-start items-start` : 'flex flex-col [&>*]:flex-shrink-0'
+      }`}
       // The floor of the scroll box, derived rather than chosen: the
       // transport's whole band while the bar is on screen and a plain
       // gap otherwise, measured from whatever stands on the map's
@@ -489,7 +505,7 @@ export default function MapLegend({
           of the card (`data-map-overlay`); the card rather than the scroll
           column around it, whose empty length below reaches the map's
           floor. */}
-      <div data-map-overlay="" className={MAP_CARD}>
+      <div data-map-overlay="" className={`${MAP_CARD} ${onGrid ? '' : MAP_COL_W}`}>
         <button
           onClick={onToggle}
           aria-expanded={expanded}

@@ -20,8 +20,13 @@ vi.mock('./MapView', () => ({
   },
 }))
 vi.mock('./MapLegend', () => ({
-  default: (props: { columnFull: boolean; expanded: boolean }) => (
-    <div data-testid="legend" data-column-full={String(props.columnFull)} data-expanded={String(props.expanded)} />
+  default: (props: { columnFull: boolean; onGrid: boolean; expanded: boolean }) => (
+    <div
+      data-testid="legend"
+      data-column-full={String(props.columnFull)}
+      data-on-grid={String(props.onGrid)}
+      data-expanded={String(props.expanded)}
+    />
   ),
 }))
 vi.mock('./LayersPopover', () => ({
@@ -261,8 +266,11 @@ describe('MapStage', () => {
   it('clears the taller column only on a desktop with the panel closed', () => {
     const { rerender } = render(<MapStage {...props({ sidebarOpen: false })} />)
     expect(screen.getByTestId('legend').dataset.columnFull).toBe('true')
+    expect(screen.getByTestId('legend').dataset.onGrid).toBe('false')
     rerender(<MapStage {...props({ sidebarOpen: false, isDesktop: false })} />)
     expect(screen.getByTestId('legend').dataset.columnFull).toBe('false')
+    // A phone's card stands on the button grid's tracks, under Controls.
+    expect(screen.getByTestId('legend').dataset.onGrid).toBe('true')
     rerender(<MapStage {...props({ legend: { legendExpanded: false, toggleLegend: NOOP } })} />)
     expect(screen.getByTestId('legend').dataset.expanded).toBe('false')
   })

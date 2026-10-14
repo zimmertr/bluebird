@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { MAP_BUTTON, MAP_PILL } from '../styles'
+import { MAP_CARD, MAP_CARD_HANG, MAP_CARD_HEADER, MAP_CARD_MENU, MAP_CARD_SLOT, MAP_COL_W } from '../styles'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -195,18 +195,29 @@ describe('LayersPopover', () => {
   })
 })
 
-// In the phone's row (#696) the button is sized by its word beside Controls
-// and Analyze; in a desktop's column it is the column's button, the role the
-// legend's strip wears too. The menu opens from it the same way at both.
-describe('the Layers button in the phone row', () => {
-  it('wears the row\'s pill there and the column\'s button elsewhere, and opens the menu either way', () => {
+// One card at both widths (#696, the maintainer 2026-10-13): the button is
+// the card's header and the rows its body on the same surface, hanging from a
+// slot one row tall at exactly the button's width, so opening it moves
+// nothing. In the phone's grid the slot takes its track's width; in a desk's
+// column it is the column's.
+describe('the Layers card', () => {
+  it('unfurls the rows out of its button, on one surface, at the button\'s width', () => {
     const { rerender } = render(
       <LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered={false} mapRef={MAP} coverage={COVERAGE} inRow />,
     )
-    expect(screen.getByRole('button', { name: 'Layers' }).className).toBe(MAP_PILL)
+    const header = screen.getByRole('button', { name: 'Layers' })
+    expect(header.className).toBe(MAP_CARD_HEADER)
+    const card = header.parentElement!
+    expect(card.className).toBe(`${MAP_CARD_HANG} ${MAP_CARD}`)
+    const slot = card.parentElement!
+    expect(slot.className.trim()).toBe(MAP_CARD_SLOT)
+    expect(card.children).toHaveLength(1)
     open()
     expect(rows()).toContain('Wildfires')
+    // The rows are the card's own body, under the header, not a box of their own.
+    expect(card.children).toHaveLength(2)
+    expect(card.lastElementChild!.className).toBe(MAP_CARD_MENU)
     rerender(<LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered={false} mapRef={MAP} coverage={COVERAGE} />)
-    expect(screen.getByRole('button', { name: 'Layers' }).className).toBe(MAP_BUTTON)
+    expect(slot.className).toBe(`${MAP_CARD_SLOT} ${MAP_COL_W}`)
   })
 })

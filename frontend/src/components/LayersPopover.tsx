@@ -7,10 +7,12 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   LIFTED_EDGE,
-  MAP_COL_GAP_T,
-  MAP_BUTTON,
+  MAP_CARD,
+  MAP_CARD_HANG,
+  MAP_CARD_HEADER,
+  MAP_CARD_MENU,
+  MAP_CARD_SLOT,
   MAP_COL_W,
-  MAP_PILL,
   RADIUS,
   RECESSED_FILL,
   SEGMENT_DIVIDER,
@@ -22,7 +24,6 @@ import {
   SLIDER_VALUE,
   SLIDER_WORDMARK,
   SR_ONLY,
-  SURFACE_POPOVER,
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
@@ -96,9 +97,9 @@ interface LayersPopoverProps {
   /** The tutorial holds the menu open for its Layers step (#536). */
   forcedOpen?: boolean
   /**
-   * The button stands in the phone's row beside Controls and Analyze (#696),
-   * sized by its word, rather than in the desktop's column at the column's
-   * width. The menu hangs from it the same way at both.
+   * The button stands in the phone's grid beside Controls (#696), as wide as
+   * its track, rather than in the desktop's column at the column's width. The
+   * menu unfurls from it as one card the same way at both.
    */
   inRow?: boolean
 }
@@ -257,114 +258,114 @@ export default function LayersPopover({
   ]
 
   return (
-    <div ref={layersRef} className={inRow ? 'relative flex-shrink-0' : 'relative'} data-tour="layers">
-      <button
-        ref={buttonRef}
-        onClick={() => setLayersOpen((o) => !o)}
-        aria-expanded={open}
-        className={inRow ? MAP_PILL : MAP_BUTTON}
-      >
-        <IconLayers />
-        Layers
-      </button>
-      {/* Zero from the button it hangs under, which is the same edge
-          as `MAP_EDGE.left`: the popover's offset parent is the column,
-          so an inset of its own would be that inset twice and the box
-          would hang a step right of the legends it hangs over. */}
-      {open && (
-        <div
-          className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}
-          data-tour="layers-menu"
+    // The slot holds the row, so opening the menu moves nothing; the card
+    // hangs from it across its width (#696). One card, the button its header
+    // and the rows its body on the same surface, at exactly the button's
+    // width: every menu on the map unfurls out of its own button this way
+    // (the maintainer, 2026-10-13; record 0136).
+    <div ref={layersRef} className={`${MAP_CARD_SLOT} ${inRow ? '' : MAP_COL_W}`} data-tour="layers">
+      <div className={`${MAP_CARD_HANG} ${MAP_CARD}`}>
+        <button
+          ref={buttonRef}
+          onClick={() => setLayersOpen((o) => !o)}
+          aria-expanded={open}
+          className={MAP_CARD_HEADER}
         >
-          {MAP_LAYERS.map((layer) => (
-            <Fragment key={layer.key}>
-              {layerRow(layer)}
-              {/* The grid's sub-choices, revealed by its own checkbox
-                  and rendered under the row they belong to rather than
-                  after the list, so the alphabetical order above holds
-                  whatever is open. The popover is as wide as the legend
-                  boxes below it (`MAP_COL_W`), so these take the fluid
-                  segment rather than the panel's fixed 144px column —
-                  the same reason the results bar's mode switch does.
+          <IconLayers />
+          Layers
+        </button>
+        {open && (
+          <div className={MAP_CARD_MENU} data-tour="layers-menu">
+            {MAP_LAYERS.map((layer) => (
+              <Fragment key={layer.key}>
+                {layerRow(layer)}
+                {/* The grid's sub-choices, revealed by its own checkbox
+                    and rendered under the row they belong to rather than
+                    after the list, so the alphabetical order above holds
+                    whatever is open. The card is as wide as the button it
+                    unfurls from, so these take the fluid segment rather
+                    than the panel's fixed 144px column, the same reason the
+                    results bar's mode switch does.
 
-                  They are ONE block, set off from the list by the same
-                  gap on both sides: `mt-1.5` under the checkbox row it
-                  belongs to, and `mb-1.5` under the last of them. The
-                  slider used to end flush against the next layer's row,
-                  so the block read as belonging to that row as much as
-                  to the grid's — a group is bounded by its gaps, and
-                  one gap bounds nothing. */}
-              {layer.key === 'grid' && gridOn && (
-                <>
-                  <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
-                    {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-pressed={gridStyle === value}
-                        onClick={() => setGridStyle(value)}
-                        className={`${SEGMENT_ITEM} ${
-                          gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                        } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                      >
-                        {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                      </button>
-                    ))}
-                  </div>
-                  {/* The coverage slider: how far from each destination
-                      the grid reaches. The value and wordmark render
-                      TWICE — muted on the well, white inside the accent
-                      fill — with the top copy clipped to the fill, so the
-                      line stays readable at any position without a color
-                      racing another. Drag previews live (`gridReachDraft`)
-                      and commits on release, because each committed value
-                      is a refetch and a drag must not fetch per pixel. */}
-                  <div
-                    className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
-                  >
-                    {(() => {
-                      const shown = gridReachDraft ?? gridReachFrac
-                      const pct = shown * 100
-                      const line = (
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                          <span className={SLIDER_VALUE}>
-                            {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
-                          </span>
-                          <span className={SLIDER_WORDMARK}>Coverage</span>
-                        </div>
-                      )
-                      return (
-                        <>
-                          <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
-                          <div
-                            className={`absolute inset-0 ${ACCENT.fill}`}
-                            style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
-                          >
-                            {line}
+                    They are ONE block, set off from the list by the same
+                    gap on both sides: `mt-1.5` under the checkbox row it
+                    belongs to, and `mb-1.5` under the last of them. The
+                    slider used to end flush against the next layer's row,
+                    so the block read as belonging to that row as much as
+                    to the grid's — a group is bounded by its gaps, and
+                    one gap bounds nothing. */}
+                {layer.key === 'grid' && gridOn && (
+                  <>
+                    <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
+                      {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+                        <button
+                          key={value}
+                          type="button"
+                          aria-pressed={gridStyle === value}
+                          onClick={() => setGridStyle(value)}
+                          className={`${SEGMENT_ITEM} ${
+                            gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                          } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+                        >
+                          {value === 'blocks' ? 'Blocks' : 'Smooth'}
+                        </button>
+                      ))}
+                    </div>
+                    {/* The coverage slider: how far from each destination
+                        the grid reaches. The value and wordmark render
+                        TWICE — muted on the well, white inside the accent
+                        fill — with the top copy clipped to the fill, so the
+                        line stays readable at any position without a color
+                        racing another. Drag previews live (`gridReachDraft`)
+                        and commits on release, because each committed value
+                        is a refetch and a drag must not fetch per pixel. */}
+                    <div
+                      className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+                    >
+                      {(() => {
+                        const shown = gridReachDraft ?? gridReachFrac
+                        const pct = shown * 100
+                        const line = (
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+                            <span className={SLIDER_VALUE}>
+                              {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
+                            </span>
+                            <span className={SLIDER_WORDMARK}>Coverage</span>
                           </div>
-                        </>
-                      )
-                    })()}
-                    <input
-                      type="range"
-                      aria-label="Coverage"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
-                      onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
-                      onPointerUp={commitGridReach}
-                      onKeyUp={commitGridReach}
-                      onBlur={commitGridReach}
-                      className={SLIDER_OVERLAY}
-                    />
-                  </div>
-                </>
-              )}
-            </Fragment>
-          ))}
-        </div>
-      )}
+                        )
+                        return (
+                          <>
+                            <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
+                            <div
+                              className={`absolute inset-0 ${ACCENT.fill}`}
+                              style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                            >
+                              {line}
+                            </div>
+                          </>
+                        )
+                      })()}
+                      <input
+                        type="range"
+                        aria-label="Coverage"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
+                        onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
+                        onPointerUp={commitGridReach}
+                        onKeyUp={commitGridReach}
+                        onBlur={commitGridReach}
+                        className={SLIDER_OVERLAY}
+                      />
+                    </div>
+                  </>
+                )}
+              </Fragment>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

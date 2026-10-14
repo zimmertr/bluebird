@@ -1,6 +1,13 @@
 /**
  * The map's controls: the zoom and compass buttons, the geolocate button, the
  * scale, and the attribution, and the one MapLibre default this app turns off.
+ *
+ * `touch` is a coarse pointer (`(hover: none)`, the query the app's `touch`
+ * variant compiles to), read once when the map is built. On one (#696, the
+ * maintainer 2026-10-13) the zoom buttons go, because a pinch zooms and the
+ * top right is where the app's own rows now reach, and the locate button
+ * moves to the bottom right, directly above the attribution's (i), the two at
+ * a finger's 44px on one axis (`map.css`). The compass stays wherever it is.
  */
 import {
   AttributionControl,
@@ -10,7 +17,7 @@ import {
 } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 
-export function addControls(map: maplibregl.Map): void {
+export function addControls(map: maplibregl.Map, touch: boolean): void {
   // Shift is the pinning modifier for popups (`isPinning` in map/popups.ts), and
   // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
   // shift+mousedown and swallows the click that would have opened one. Box
@@ -18,14 +25,14 @@ export function addControls(map: maplibregl.Map): void {
   // +/- buttons and a pinch all do the same job, so the modifier is better
   // spent on something the panel actually tells you about.
   map.boxZoom.disable()
-  map.addControl(new NavigationControl(), 'top-right')
+  map.addControl(new NavigationControl({ showZoom: !touch }), 'top-right')
   // MapLibre's own geolocate button, not a hand-rolled control: it wears
   // the same chrome as the zoom and compass buttons above it, and its
   // permission/error/busy states come with the library instead of being
   // re-implemented badly. Nothing asks for location until it is pressed.
   map.addControl(
     new GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
-    'top-right',
+    touch ? 'bottom-right' : 'top-right',
   )
   // A corner each, which is what lets both sit in the one band the map's
   // bottom chrome reserves (`TRANSPORT_GAP_PX` in `utils/resultsSheet.ts`)

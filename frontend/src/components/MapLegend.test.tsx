@@ -29,6 +29,7 @@ const BASE = {
   overlays: NONE,
   grid: NO_GRID,
   columnFull: false,
+  onGrid: false,
   expanded: true,
   onToggle: () => {},
   sheetLiftPx: 0,

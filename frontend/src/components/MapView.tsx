@@ -561,7 +561,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
         attributionControl: false,
       })
       mapRef.current = map
-      addControls(map)
+      // Read once, like the attribution's `compact`: a pointer does not turn
+      // coarse under a session, where a window does change width.
+      addControls(map, window.matchMedia('(hover: none)').matches)
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
 

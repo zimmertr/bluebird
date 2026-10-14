@@ -12,7 +12,8 @@ import {
   MAP_PILL,
   MAP_PILL_SUMMARY,
   MAP_PILL_TEXT,
-  MAP_ROW,
+  MAP_ROW_GRID,
+  YIELD_EMPTY,
 } from '../styles'
 import type { Place } from '../utils/geocode'
 
@@ -32,8 +33,9 @@ interface MapButtonColumnProps {
   /** Reopens the panel. */
   onOpenControls: () => void
   /**
-   * A phone (#696): the search field spans the map, and Controls, Layers and
-   * Analyze share one row under it, where a desktop keeps its column.
+   * A phone (#696): the search field spans the map, Controls stands beside
+   * Layers under it, and Analyze under Layers, on one grid, where a desktop
+   * keeps its column.
    */
   phoneRow: boolean
   /** The line under Controls on a phone: the When arm and the model (`controlsSummary`). */
@@ -44,12 +46,12 @@ interface MapButtonColumnProps {
   analyzing: boolean
   /** The panel's Analyze command itself, never a second path to it. */
   onAnalyze: () => void
-  /** The Layers button and its popover, the column's last row. */
+  /** The Layers card, the column's last row, or the grid's narrow track beside Controls. */
   children: ReactNode
 }
 
 /**
- * Top-left map cluster — the place search, the reopen-controls button and
+ * Top-left map cluster: the place search, the reopen-controls button and
  * Layers, and on a phone the map's own Analyze. It takes its own layer: what
  * these buttons open hangs down across the map's bottom chrome and across the
  * sheet, and the layer has to sit on the cluster rather than on the popover
@@ -87,7 +89,12 @@ export default function MapButtonColumn({
       // A popup keeps clear of this column (`resultsLayer.ts` finds every
       // `data-map-overlay`), which stands over every map at every width.
       data-map-overlay=""
-      className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${phoneRow ? MAP_EDGE.right : ''} ${LAYER.mapControls} flex flex-col ${phoneRow ? 'items-stretch' : 'items-start'} ${MAP_COL_GAP}`}
+      // On a phone the grid's empty cell under Controls is where the legend
+      // card stands, in a stack of its own under this one, so the grid yields
+      // every press that lands between its buttons (`YIELD_EMPTY`).
+      className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} ${
+        phoneRow ? `${MAP_EDGE.right} ${MAP_ROW_GRID} ${YIELD_EMPTY}` : `flex flex-col items-start ${MAP_COL_GAP}`
+      }`}
     >
       {/* The search field is the column's first row rather than a
           neighbour of the Controls button (TJ, 2026-09-14). Beside it,
@@ -98,17 +105,22 @@ export default function MapButtonColumn({
           who opens there meets (#696).
 
           Raised above its later siblings so its results paint over the
-          buttons below — they are siblings in one cluster, and DOM order
-          alone put the buttons on top (#288 review). */}
-      <div className="relative z-10">
+          buttons below, the Layers card included, which is raised over the
+          buttons after it in turn: they are siblings in one cluster, and DOM
+          order alone put the buttons on top (#288 review). On a phone it
+          spans both of the grid's tracks. */}
+      <div className={`relative z-20 ${phoneRow ? 'col-span-2' : ''}`}>
         <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} wide={phoneRow} />
       </div>
       {phoneRow ? (
-        // One row: set the panel up, choose the layers, run. Controls is
-        // there whether or not the drawer is open, since the drawer covers
-        // the row while it is, and a row that reflowed under the closing
-        // drawer would move every button in it.
-        <div className={MAP_ROW}>
+        // Two rows under the field: Controls beside Layers, then Analyze
+        // under Layers (the maintainer, 2026-10-13). The cell under Controls
+        // is the legend card's, which `MapLegend` stands in its own stack on
+        // the same tracks. Each button takes its width from its track and
+        // none states its own. Controls is there whether or not the drawer
+        // is open, since the drawer covers the grid while it is, and a grid
+        // that reflowed under the closing drawer would move every button.
+        <>
           <button
             ref={controlsRef}
             onClick={onOpenControls}
@@ -129,16 +141,16 @@ export default function MapButtonColumn({
               Every reason it is shut, and every cue that a report has gone
               stale, stays under the panel's Analyze (record 0028), so this
               one never explains itself. That is the accepted cost of a
-              second Analyze on the map. */}
+              second Analyze on the map. The narrow track, under Layers. */}
           <button
             ref={analyzeRef}
             onClick={onAnalyze}
             disabled={!analyzeEnabled}
-            className={`${MAP_ANALYZE} ${DISABLED}`}
+            className={`${MAP_ANALYZE} ${DISABLED} col-start-2`}
           >
             {analyzing ? 'Analyzing…' : 'Analyze'}
           </button>
-        </div>
+        </>
       ) : (
         <>
           {!sidebarOpen && (

@@ -1182,8 +1182,6 @@ export const MAP_ROW_H = 'h-9 touch:h-11'
  * four would move the column's height without moving the inset that clears it.
  */
 export const MAP_COL_GAP = 'gap-1'
-/** The same gap as a top margin, for the popover that hangs rather than sits. */
-export const MAP_COL_GAP_T = 'mt-1'
 
 /**
  * A button in the map's left column: Controls while the panel is closed and
@@ -1198,34 +1196,60 @@ export const MAP_COL_GAP_T = 'mt-1'
 export const MAP_BUTTON = `${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`
 
 /**
- * The map's legend as one card (#696): the Legends header row and, while it is
- * open, every section under it on the same surface, one edge and one radius,
- * the way a popover's body sits under its own header. Folded, the card is the
- * header row alone, and it is then the Layers button above it to the pixel:
- * the same floating surface at `MAP_COL_W`, and a header row that is
- * `MAP_BUTTON`'s face (type, colour, height, icon slot and padding).
+ * Every menu on the map unfurls out of its own button as one card, at the
+ * button's width (the maintainer, 2026-10-13; record 0136): the button is the
+ * card's header row, and while it is open the menu's rows sit under it on the
+ * same surface, one edge and one radius, the way a popover's body sits under
+ * its own header. Folded, the card is the header row alone, and it is then the
+ * floating button it replaced to the pixel: `SURFACE_FLOATING`, and a header
+ * row that is `MAP_BUTTON`'s face (type, colour, height, icon slot and
+ * padding). Legends and Layers wear it at both widths; the search results
+ * list is the one menu that does not, because its rows are wider than any
+ * button they could hang from.
+ *
+ * No width: the card takes its slot's, which is `MAP_COL_W` in the desktop
+ * column and a track of `MAP_ROW_GRID` on a phone, so a menu can never be a
+ * pixel wider or narrower than the button it unfurls from.
  *
  * The row spans the card's border with `-my-px`, so a folded card is
  * `MAP_ROW_H` tall overall, as the button is, and its label centres where the
  * button's does.
  *
- * The header wears the Layers button's states too: the accent label and edge
- * on hover, the pressed fill and the focus ring (the maintainer, 2026-10-13),
- * and the chevron is what says open or folded. The edge is the card's, so the
- * card lights it while its header is hovered (`has-[>button:hover]`), the
- * same colour as `ACCENT.edgeHover`, spelled here because Tailwind compiles
- * only a class it finds whole in the source. No `overflow-hidden` on the
- * card, which would clip the focus ring. `styles.test.ts` holds the face and
- * the states to `MAP_BUTTON`'s.
+ * The header wears the button's states too: the accent label and edge on
+ * hover, the pressed fill and the focus ring (the maintainer, 2026-10-13), and
+ * the chevron or the menu itself is what says open or folded. The edge is the
+ * card's, so the card lights it while its header is hovered
+ * (`has-[>button:hover]`), the same colour as `ACCENT.edgeHover`, spelled here
+ * because Tailwind compiles only a class it finds whole in the source, and
+ * behind `(hover: hover)` as Tailwind's own `hover:` is, or a tap on a phone
+ * leaves the edge lit after the finger lifts. No `overflow-hidden` on the
+ * card, which would clip the focus ring.
+ * `styles.test.ts` holds the face and the states to `MAP_BUTTON`'s.
  */
-export const MAP_CARD = `${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col transition-colors has-[>button:hover]:border-sky-400`
+export const MAP_CARD =
+  `${SURFACE_FLOATING} flex flex-col transition-colors [@media(hover:hover)]:has-[>button:hover]:border-sky-400`
 
 /** The card's header row, the press that folds and opens it. */
 export const MAP_CARD_HEADER =
   `${CONTROL_SIZE} font-semibold text-white transition-colors ${ACCENT.hoverText} active:bg-slate-700 ` +
   `${MAP_ROW_H} -my-px flex w-full items-center gap-2 px-2.5 ${RADIUS.surface} ${FOCUS_RING}`
 
+/** The legend's sections under the header, at the box's spacing less the top the header row holds. */
 export const MAP_CARD_BODY = 'flex flex-col gap-1 px-2.5 pb-2'
+
+/** A menu's rows under the header: the rows space themselves (`CHOICE_ROW`), as they did in the popover. */
+export const MAP_CARD_MENU = 'px-2.5 pb-2'
+
+/**
+ * Where a card that unfurls OVER what is below it stands (Layers): one row
+ * tall in its column or its grid cell, so opening it moves nothing, with the
+ * card hanging from the slot's top (`MAP_CARD_HANG`) across the slot's width.
+ * Raised over its later siblings, Analyze among them, which the open card
+ * covers. The legend card is the other kind: it is in its own scrolling stack
+ * and grows in flow, so it takes no slot.
+ */
+export const MAP_CARD_SLOT = `relative z-10 ${MAP_ROW_H}`
+export const MAP_CARD_HANG = 'absolute inset-x-0 top-0'
 
 /**
  * The place search's result list (#696): ten places now, where it held five,
@@ -1239,24 +1263,29 @@ export const MAP_CARD_BODY = 'flex flex-col gap-1 px-2.5 pb-2'
 export const SEARCH_LIST = 'results-scrollbars max-h-[min(20rem,50dvh)] overflow-y-auto overscroll-contain'
 
 /**
- * What stands across the top of a phone's map (#696): the search field, then
- * one row holding Controls, Layers and Analyze. The width is the map's less
- * its two insets (`MAP_EDGE.left` and `.right`), where the desktop column is
- * one `MAP_COL_W` wide.
+ * What stands across the top of a phone's map (#696; the maintainer's layout,
+ * 2026-10-13): the search field across the whole width, then Controls beside
+ * Layers, then Legends under Controls beside Analyze under Layers. The width
+ * is the map's less its two insets (`MAP_EDGE.left` and `.right`), where the
+ * desktop column is one `MAP_COL_W` wide.
  *
- * A row rather than the desktop's column because a phone opens on the map now,
- * and the column stacked Controls under the search field and Layers under
- * that: three rows, 144px of a phone's map, before the legend began. The row
- * gives that back, and the legend's strip takes the third row instead.
+ * The rows are ONE grid of two tracks, `4fr 3fr`, with the column's 4px gap
+ * both ways, so a button takes its width from its track and none states its
+ * own: Controls and Legends share the wide track and are always one width,
+ * Layers and Analyze the narrow one. Fractions, never pixels, so the ratio
+ * holds at every phone width (Controls 190, 207 and 230 at 360, 390 and 430;
+ * Layers 142, 155 and 172). Four to three because Controls carries a word and
+ * a summary line (`Current · NOAA GFS`) where Layers and Analyze carry a word.
+ * `minmax(0, …)` so a long summary truncates inside its track rather than
+ * widening it, which a bare `fr` track (a minimum of its content) would do.
+ * The search field spans both tracks (`col-span-2` at its call site).
  */
 export const MAP_ROW_W = 'w-full'
-export const MAP_ROW = `flex ${MAP_ROW_W} ${MAP_COL_GAP}`
+export const MAP_ROW_GRID = `grid grid-cols-[minmax(0,4fr)_minmax(0,3fr)] ${MAP_COL_GAP}`
 
 /**
- * Controls and Layers in that row: `BUTTON_FLOATING` sized by its own words
- * rather than by the column, so the third member has the rest of the row.
- * `min-w-0` lets Controls give way on a narrow phone, where its summary line
- * truncates before anything clips.
+ * Controls in that grid: `BUTTON_FLOATING` at the row's height, as wide as its
+ * track. `min-w-0` lets its summary line truncate before anything clips.
  *
  * The app's floating radius, not a capsule: the mockups drew these fully
  * rounded, but the search field above and the legend under them are both this
@@ -1283,16 +1312,15 @@ export const MAP_PILL_SUMMARY = `${TEXT.micro} max-w-full truncate font-normal`
  * type size rather than the panel's call-to-action step, because it stands in
  * a row of 12px labels and a 14px one beside them read as another kind of
  * object (the reason `BUTTON_FLOATING` gives for its own size). It takes the
- * rest of the row (`flex-1`) and never less than its word: `whitespace-nowrap`
- * and a flex item's content minimum hold it at its word plus its padding, and
- * the Controls summary truncates first. Measured in `docs/STYLES.md` (Phone row
- * fit): only `Meteo-France ARPEGE` truncates at 360px wide.
+ * narrow track under Layers, at exactly Layers' width, and `whitespace-nowrap`
+ * keeps `Analyzing…` on one line. Measured in `docs/STYLES.md` (Phone row
+ * fit).
  *
  * The call site adds `DISABLED`, as the panel's button does, because it is the
  * same gate. Shadowed like the boxes beside it, since it floats with them.
  */
 export const MAP_ANALYZE =
-  `${CONTROL_SIZE} font-semibold ${MAP_ROW_H} flex-1 whitespace-nowrap px-3 ${RADIUS.surface} ` +
+  `${CONTROL_SIZE} font-semibold ${MAP_ROW_H} whitespace-nowrap px-3 ${RADIUS.surface} ` +
   `shadow-lg transition-colors ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
@@ -1327,13 +1355,14 @@ export const MAP_EDGE = {
   /** The right edge, which only the phone's full-width row reaches (#696). */
   right: 'right-[var(--map-edge-inset)]',
   /**
-   * On a phone, where the search field and its row span the map (#696), the
-   * vendor's zoom stack starts below them rather than beside the field.
-   * `map.css` reads this as the stack's top margin. The numbers are the two
-   * rows, their gaps and the inset, which is `LEGEND_TOP.compact`'s sum for a
-   * two-row column, and `styles.test.ts` holds the two to each other.
+   * On a phone, where the search field and its two rows span the map (#696),
+   * the vendor's stack starts below them rather than beside the field.
+   * `map.css` reads this as the stack's top margin. The numbers are the three
+   * rows, their gaps and the inset: `LEGEND_TOP.compact`'s sum plus one more
+   * row and gap, since Analyze stands in the third row at the right edge.
+   * `styles.test.ts` holds the two to each other.
    */
-  belowRow: '[--map-vendor-top:92px] touch:[--map-vendor-top:108px]',
+  belowRow: '[--map-vendor-top:132px] touch:[--map-vendor-top:156px]',
 } as const
 
 /**

@@ -313,7 +313,7 @@ export const STYLES = [
         message: 'Take the map column width from MAP_COL_W.',
       },
       {
-        selector: `${ride('MAP_COL_GAP', String.raw`(^|\s)(gap-|mt-)`)}, ${ride('MAP_COL_GAP_T', String.raw`(^|\s)(gap-|mt-)`)}`,
+        selector: ride('MAP_COL_GAP', String.raw`(^|\s)(gap-|mt-)`),
         message: 'Spell no gap beside MAP_COL_GAP.',
       },
       {
@@ -327,7 +327,9 @@ export const STYLES = [
   {
     // The map column's members are four files now (#409); each carries its
     // share of the roles, and the counts add up to what App.tsx held: four
-    // MAP_COL_W, two MAP_COL_GAP, one MAP_COL_GAP_T and two MAP_EDGE.left.
+    // MAP_COL_W, two MAP_COL_GAP and two MAP_EDGE.left. Since #696 the Layers
+    // menu hangs as a card from its own slot rather than one gap under the
+    // button, so the hanging gap's role went with the popover.
     // Everything inside the wrapper, which MapStage draws, inherits the one
     // number.
     name: 'style-map-wrapper',
@@ -338,15 +340,17 @@ export const STYLES = [
   },
   {
     // The legend card (#696), its Legends header and the sections under it,
-    // and the stack it scrolls in. The card takes MAP_COL_W and the header
-    // the Layers button's face through their roles, so the two are one
-    // control's shape.
+    // and the stack it scrolls in. The card takes MAP_COL_W at a desk and its
+    // track of MAP_ROW_GRID on a phone, under Controls at Controls' width, and
+    // the header the Layers button's face through its role.
     name: 'style-map-legend-column',
     files: ['src/components/MapLegend.tsx'],
     require: [
       { selector: worn('MAP_CARD'), count: 1, message: 'The legend card wears MAP_CARD.' },
       { selector: worn('MAP_CARD_HEADER'), count: 1, message: 'The Legends header wears MAP_CARD_HEADER.' },
       { selector: worn('MAP_CARD_BODY'), count: 1, message: 'The legend sections wear MAP_CARD_BODY.' },
+      { selector: worn('MAP_COL_W'), count: 1, message: 'The legend card is MAP_COL_W wide at a desk.' },
+      { selector: worn('MAP_ROW_GRID'), count: 1, message: 'The legend stack stands on MAP_ROW_GRID on a phone.' },
       { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
     ],
   },
@@ -354,13 +358,13 @@ export const STYLES = [
     // The button cluster and the Controls button it holds while the panel is
     // closed. A stacking context orders only its own children, so the layer
     // is useless unless the cluster itself wears it. On a phone the cluster
-    // is the search field over one row (#696), and Controls and Analyze wear
-    // the row's roles.
+    // is the search field over a grid of two tracks (#696), and Controls and
+    // Analyze wear the grid's roles and take their widths from its tracks.
     name: 'style-map-button-column',
     files: ['src/components/MapButtonColumn.tsx'],
     require: [
       { selector: worn('MAP_BUTTON'), count: 1, message: 'The Controls button wears MAP_BUTTON.' },
-      { selector: worn('MAP_ROW'), count: 1, message: 'The phone row wears MAP_ROW.' },
+      { selector: worn('MAP_ROW_GRID'), count: 1, message: 'The phone rows stand on MAP_ROW_GRID.' },
       { selector: worn('MAP_PILL'), count: 1, message: 'The phone Controls button wears MAP_PILL.' },
       { selector: worn('MAP_ANALYZE'), count: 1, message: 'The phone Analyze wears MAP_ANALYZE.' },
       { selector: interp('MAP_COL_GAP'), count: 1, message: 'The cluster spaces by MAP_COL_GAP.' },
@@ -370,14 +374,17 @@ export const STYLES = [
     ],
   },
   {
-    // The Layers button and the popover that hangs from it.
+    // The Layers card (#696): the button is its header and the menu its body,
+    // unfurling from a slot one row tall at exactly the button's width.
     name: 'style-map-layers-column',
     files: ['src/components/LayersPopover.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 1, message: 'The Layers popover wears MAP_COL_W.' },
-      { selector: worn('MAP_BUTTON'), count: 1, message: 'The Layers button wears MAP_BUTTON.' },
-      { selector: worn('MAP_PILL'), count: 1, message: 'The Layers button in the phone row wears MAP_PILL.' },
-      { selector: interp('MAP_COL_GAP_T'), count: 1, message: 'The hanging popover spaces by MAP_COL_GAP_T.' },
+      { selector: worn('MAP_CARD_SLOT'), count: 1, message: 'The Layers card stands in MAP_CARD_SLOT.' },
+      { selector: worn('MAP_COL_W'), count: 1, message: 'The Layers slot is MAP_COL_W wide at a desk.' },
+      { selector: worn('MAP_CARD'), count: 1, message: 'The Layers card wears MAP_CARD.' },
+      { selector: worn('MAP_CARD_HANG'), count: 1, message: 'The Layers card hangs from its slot by MAP_CARD_HANG.' },
+      { selector: worn('MAP_CARD_HEADER'), count: 1, message: 'The Layers button is the card header, MAP_CARD_HEADER.' },
+      { selector: worn('MAP_CARD_MENU'), count: 1, message: 'The Layers rows sit in MAP_CARD_MENU.' },
     ],
   },
   {
