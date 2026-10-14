@@ -416,7 +416,7 @@ export function useModelCompare({
       }
     }
     const onChart: CompareModel[] = shown.map((m) => ({ id: m.id, label: m.label }))
-    return compareSeries(destinations, onChart, series, colors)
+    return compareSeries(destinations, onChart, series, colors, rankingModel)
   }, [
     active,
     colors,

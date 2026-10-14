@@ -12,6 +12,15 @@ export const CHART_AXIS_COLOR = '#94a3b8'
 /** The grid behind the lines: slate-700, a step over the panel and under the axes. */
 export const CHART_GRID_COLOR = '#334155'
 /**
+ * The ground the chart draws on: the results panel's slate-800, the one
+ * surface under the plot on a desktop and a phone alike. Named so a chrome
+ * label can wear it as a halo: a label stroked in the panel's own colour
+ * cuts the series lines away under its letters and reads over any of them,
+ * where the bare axis-colour text was lost over a line crossing it (#699).
+ * `chartColors.test.ts` holds the axis colour to 4.5:1 on it.
+ */
+export const CHART_SURFACE_COLOR = '#1e293b'
+/**
  * The map's playhead: solid and in the accent (sky-400) where the Now seam is
  * dashed and in the axis colour, because this one is a control's position and
  * that one is a fact about the data.

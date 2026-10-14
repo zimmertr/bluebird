@@ -1,6 +1,9 @@
 import type { ComponentProps, ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
+import { extremeValue } from '../utils/chartData'
+import { CHART_SURFACE_COLOR } from '../utils/chartColors'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -9,23 +12,64 @@ import { resultRow, series } from '../testSupport/fixtures'
 // handler, so the LineChart is replaced by a stand-in that keeps the handler it
 // was given, and the test calls it the way Recharts does: with the click state
 // first and the React click event second.
-const chart = vi.hoisted(() => ({ onClick: undefined as undefined | ((state: unknown, event: unknown) => void) }))
+//
+// Every reference line stands in as an element carrying the props the chart
+// gave it, so a test can read where each one is and how it is drawn, and a
+// label's own content component is kept so a test can render it.
+type Handler = (state: unknown, event?: unknown) => void
+interface LineProps {
+  x?: number
+  y?: number
+  stroke?: string
+  strokeDasharray?: string
+  strokeWidth?: number
+  label?: {
+    value: string
+    position: string
+    fill: string
+    fontSize: number
+    stroke?: string
+    strokeWidth?: number
+    paintOrder?: string
+    content?: unknown
+  }
+}
+const chart = vi.hoisted(() => ({
+  onClick: undefined as undefined | Handler,
+  onMouseMove: undefined as undefined | Handler,
+  lines: [] as unknown[],
+}))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   const Nothing = () => null
   return {
     ResponsiveContainer: Pass,
-    LineChart: (props: { onClick?: (state: unknown, event: unknown) => void; children?: ReactNode }) => {
+    LineChart: (props: { onClick?: Handler; onMouseMove?: Handler; children?: ReactNode }) => {
       chart.onClick = props.onClick
+      chart.onMouseMove = props.onMouseMove
       return <>{props.children}</>
     },
     CartesianGrid: Nothing,
     Line: Nothing,
-    ReferenceLine: Nothing,
+    Label: (p: { position: string; value: string; paintOrder?: string; stroke?: string }) => (
+      <i data-testid="label" data-position={p.position} data-paint-order={p.paintOrder} data-stroke={p.stroke}>
+        {p.value}
+      </i>
+    ),
+    ReferenceLine: (p: LineProps) => {
+      chart.lines.push(p)
+      return <i data-testid={p.y === undefined ? 'x-line' : 'extreme-line'} data-y={p.y} />
+    },
     Tooltip: Nothing,
     XAxis: Nothing,
     YAxis: Nothing,
   }
+})
+
+// The real walk, counted, so a test can say how often the chart ran it.
+vi.mock('../utils/chartData', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../utils/chartData')>()
+  return { ...real, extremeValue: vi.fn(real.extremeValue) }
 })
 
 type Props = ComponentProps<typeof TimeSeriesChart>
@@ -39,7 +83,16 @@ const colorFor = () => '#000000'
 const noop = () => {}
 
 function props(over: Partial<Props> = {}): Props {
-  return { times: TIMES, rows: ROWS, metric: 'aqi', onMetricChange: noop, colorFor, ...over }
+  return {
+    times: TIMES,
+    rows: ROWS,
+    metric: 'aqi',
+    onMetricChange: noop,
+    sortBy: 'aqi_avg',
+    sortDesc: true,
+    colorFor,
+    ...over,
+  }
 }
 
 // The plot div is the one the chart measures a tap against: the parent of the
@@ -100,5 +153,148 @@ describe('TimeSeriesChart click', () => {
   it('takes no click at all with no playhead to move', () => {
     render(<TimeSeriesChart {...props()} />)
     expect(chart.onClick).toBeUndefined()
+  })
+})
+
+describe('TimeSeriesChart extreme line', () => {
+  // Two destinations' winds over the 48-hour grid: Alpha peaks at 75.4 mph in
+  // hour 6, Beta bottoms out at 1 mph in hour 40.
+  const alpha = resultRow({
+    name: 'Mount Alpha',
+    latitude: 46,
+    series: series({ wind_mph: TIMES.map((_, i) => (i === 6 ? 75.4 : 20)), temp_f: TIMES.map(() => 30) }),
+  })
+  const beta = resultRow({
+    name: 'Mount Beta',
+    latitude: 47,
+    series: series({
+      wind_mph: TIMES.map((_, i) => (i === 40 ? 1 : 30)),
+      temp_f: TIMES.map((_, i) => (i === 3 ? 44 : 30)),
+      precip_in: TIMES.map(() => 0),
+    }),
+  })
+  const WIND: Partial<Props> = { rows: [alpha, beta], metric: 'wind', sortBy: 'wind_avg_mph', sortDesc: true }
+
+  // The extreme line as drawn: its height and its label's text.
+  function extremeLines() {
+    return (chart.lines as LineProps[])
+      .filter((p) => p.y !== undefined)
+      .map((p) => ({ y: p.y, label: p.label?.value }))
+  }
+  // Only the lines from the last render, since every render records again.
+  function renderChart(over: Partial<Props>) {
+    chart.lines = []
+    return render(<TimeSeriesChart {...props(over)} />)
+  }
+
+  beforeEach(() => {
+    vi.mocked(extremeValue).mockClear()
+    chart.lines = []
+  })
+
+  // The hover test gives the plot a height, which jsdom never does.
+  let plotHeight: { mockRestore: () => void } | undefined
+  afterEach(() => {
+    plotHeight?.mockRestore()
+    plotHeight = undefined
+  })
+
+  it('draws one line at the most extreme value, labelled with it', () => {
+    renderChart(WIND)
+    expect(screen.getAllByTestId('extreme-line')).toHaveLength(1)
+    expect(extremeLines()).toEqual([{ y: 75.4, label: '75.4 mph' }])
+  })
+
+  // The same stroke, dash and label type as a model's end line, which is
+  // drawn exactly as the Now seam is.
+  it('wears the Now seam’s style', () => {
+    renderChart({ ...WIND, modelEnds: [{ label: 'NOAA HRRR', endMs: TIMES[30] }] })
+    const [seam] = (chart.lines as LineProps[]).filter((p) => p.x !== undefined)
+    const [extreme] = (chart.lines as LineProps[]).filter((p) => p.y !== undefined)
+    expect(extreme.stroke).toBe(seam.stroke)
+    expect(extreme.strokeDasharray).toBe(seam.strokeDasharray)
+    expect(extreme.strokeWidth).toBe(seam.strokeWidth)
+    expect(extreme.label?.fill).toBe(seam.label?.fill)
+    expect(extreme.label?.fontSize).toBe(seam.label?.fontSize)
+  })
+
+  it('follows the ranking to the lowest value, live', () => {
+    const { rerender } = renderChart(WIND)
+    chart.lines = []
+    rerender(<TimeSeriesChart {...props({ ...WIND, sortDesc: false })} />)
+    expect(extremeLines()).toEqual([{ y: 1, label: '1.0 mph' }])
+  })
+
+  // Off the ranked family no direction was chosen, so the line marks the
+  // largest value even under a lowest-first ranking.
+  it('marks the largest value of a family the field is not ranked on', () => {
+    renderChart({ ...WIND, metric: 'temp', sortDesc: false })
+    expect(extremeLines()).toEqual([{ y: 44, label: '44.0 °F' }])
+  })
+
+  it('draws no line when nothing has a value', () => {
+    renderChart({ ...WIND, metric: 'freeze' })
+    expect(screen.queryByTestId('extreme-line')).toBeNull()
+  })
+
+  // A dry window has no wettest hour worth marking.
+  it('draws no line at a zero that means none', () => {
+    renderChart({ ...WIND, metric: 'precip', sortBy: 'precip_total_in', sortDesc: false })
+    expect(screen.queryByTestId('extreme-line')).toBeNull()
+  })
+
+  // The label flips from above its line to below it in the top headroom,
+  // decided where Recharts knows the line's pixel height.
+  it('places its label by the room over the line', () => {
+    renderChart(WIND)
+    const [extreme] = (chart.lines as LineProps[]).filter((p) => p.y !== undefined)
+    const Content = extreme.label!.content as (p: object) => ReactNode
+    const at = (y: number) => {
+      const { unmount } = render(<>{Content({ ...extreme.label, viewBox: { x: 52, y, width: 292, height: 0 } })}</>)
+      const position = screen.getByTestId('label').dataset.position
+      unmount()
+      return position
+    }
+    expect(at(120)).toBe('insideBottomRight')
+    expect(at(12)).toBe('insideTopRight')
+  })
+
+  // Every chrome label reads over a series line crossing it: a halo in the
+  // panel's colour, painted under the letters. Now, a model's end and the
+  // extreme value share one label, so all three carry it, and the extreme
+  // value's keeps it through the flip.
+  it('halos every chrome label in the panel colour', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(TIMES[20])
+    try {
+      renderChart({ ...WIND, modelEnds: [{ label: 'NOAA HRRR', endMs: TIMES[30] }] })
+    } finally {
+      vi.useRealTimers()
+    }
+    const labels = (chart.lines as LineProps[]).map((p) => p.label)
+    expect(labels.map((l) => l?.value)).toEqual(['Now', 'NOAA HRRR', '75.4 mph'])
+    for (const label of labels) {
+      expect(label?.stroke, label?.value).toBe(CHART_SURFACE_COLOR)
+      expect(label?.strokeWidth, label?.value).toBe(3)
+      expect(label?.paintOrder, label?.value).toBe('stroke')
+    }
+    const [extreme] = (chart.lines as LineProps[]).filter((p) => p.y !== undefined)
+    const Content = extreme.label!.content as (p: object) => ReactNode
+    render(<>{Content({ ...extreme.label, viewBox: { x: 52, y: 120, width: 292, height: 0 } })}</>)
+    const drawn = screen.getByTestId('label')
+    expect(drawn.dataset.paintOrder).toBe('stroke')
+    expect(drawn.dataset.stroke).toBe(CHART_SURFACE_COLOR)
+  })
+
+  // A hover changes the focused line and nothing the extreme reads, so the
+  // walk must not run again for it (#337's memo rule, held for this line).
+  it('does not walk the lines again on a hover', () => {
+    plotHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(209)
+    renderChart(WIND)
+    expect(extremeValue).toHaveBeenCalledTimes(1)
+    act(() => chart.onMouseMove!({ activeTooltipIndex: 6, chartY: 20 }))
+    act(() => chart.onMouseMove!({ activeTooltipIndex: 40, chartY: 180 }))
+    expect(extremeValue).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByTestId('extreme-line')).toHaveLength(1)
   })
 })
