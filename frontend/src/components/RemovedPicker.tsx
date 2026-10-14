@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
-import { FOCUS_RING, LINK_ACTION, SURFACE_DIVIDER, TEXT } from '../styles'
+import { CONTROL_SIZE, FOCUS_RING, LINK_ACTION, SURFACE_DIVIDER, TEXT } from '../styles'
 
 interface Props {
   open: boolean
@@ -12,6 +12,13 @@ interface Props {
   onRestore: (key: string) => void
   onRestoreAll: () => void
   triggerRef: React.RefObject<HTMLButtonElement | null>
+  /**
+   * What the panel unfurls out of: the results bar's button group, so every
+   * menu on the bar takes the same place at the same width (record 0134).
+   */
+  anchorRef: React.RefObject<HTMLElement | null>
+  /** The bar's line on a phone, which the menu spans (record 0134). */
+  widthRef?: React.RefObject<HTMLElement | null>
 }
 
 // The list behind the results bar's "Removed (N)" button (#241): every ×-ed
@@ -26,8 +33,10 @@ export default function RemovedPicker({
   onRestore,
   onRestoreAll,
   triggerRef,
+  anchorRef,
+  widthRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
 
   // Restoring the last row empties the list out from under the popover, so it
   // closes. Where the keyboard goes is the sheet's: the trigger hides at zero
@@ -44,10 +53,13 @@ export default function RemovedPicker({
         {entries.map(([key, entry]) => (
           <div key={key} className="flex items-center gap-2 px-2 py-1">
             <span className={`${TEXT.control} min-w-0 flex-1 truncate`}>{entry.row.name}</span>
+            {/* At the control size, the floor for anything pressed (#687):
+                it was the micro step. Colourless, so the link colour is
+                LINK_ACTION's alone rather than racing TEXT.control's slate. */}
             <button
               onClick={() => onRestore(key)}
               aria-label={`Restore ${entry.row.name}`}
-              className={`${TEXT.micro} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
+              className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
             >
               Restore
             </button>
@@ -59,7 +71,7 @@ export default function RemovedPicker({
         <div className={`border-t ${SURFACE_DIVIDER} px-3 py-2`}>
           <button
             onClick={onRestoreAll}
-            className={`${TEXT.micro} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}
+            className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}
           >
             Restore all
           </button>

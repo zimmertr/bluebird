@@ -3,12 +3,15 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
+import { ACTION_GROUP, ACTION_ITEM, BAR_LABEL } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
 const COLUMNS = createRef<HTMLButtonElement>()
 const MODELS = createRef<HTMLButtonElement>()
 const REMOVED = createRef<HTMLButtonElement>()
+const GROUP = createRef<HTMLDivElement>()
+const ROW = createRef<HTMLDivElement>()
 
 // Before any report: two pending destinations, nothing removed, room for Both.
 function props(over: Partial<Props> = {}): Props {
@@ -26,6 +29,8 @@ function props(over: Partial<Props> = {}): Props {
     chooseResultsMode: NOOP,
     bothHasRoom: true,
     showTable: true,
+    actionGroupRef: GROUP,
+    actionsRowRef: ROW,
     columnsButtonRef: COLUMNS,
     onToggleColumns: NOOP,
     columnsOpen: false,
@@ -79,14 +84,59 @@ describe('ResultsBar', () => {
 
   // WCAG 2.5.3: a voice-control reader says the words on the button, so the
   // name has to be those words. Both buttons once carried a label that held
-  // neither of them (#576).
+  // neither of them (#576). Since #687 the word can be hidden on a narrow bar,
+  // and a hidden word names nothing, so the label is the word itself.
   it('names Removed and Download CSV by the words they show', () => {
     render(<ResultsBar {...props({ removedCount: 2 })} />)
     for (const name of ['Removed (2)', 'Download CSV']) {
       const button = screen.getByRole('button', { name })
       expect(button.textContent).toBe(name)
-      expect(button.getAttribute('aria-label')).toBeNull()
+      expect(button.getAttribute('aria-label')).toBe(name)
     }
+  })
+
+  // One group for the bar's four buttons (#687), in the mode switch's look:
+  // each a glyph and a word the width rule can hide, with a divider between
+  // each two.
+  it('draws Columns, Models, Removed and Download CSV as one group of glyph buttons', () => {
+    render(<ResultsBar {...props({ removedCount: 2 })} />)
+    const names = ['Choose which columns to display', 'Models', 'Removed (2)', 'Download CSV']
+    const buttons = names.map((name) => screen.getByRole('button', { name }))
+    for (const button of buttons) {
+      expect(button.className).toBe(ACTION_ITEM)
+      expect(button.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+      expect(button.querySelector('span')?.className).toBe(BAR_LABEL)
+    }
+    const group = buttons[0].parentElement as HTMLElement
+    expect(group.className).toBe(ACTION_GROUP)
+    // The element the bar's menus unfurl out of (record 0134).
+    expect(GROUP.current).toBe(group)
+    // And the line it stands on, which a phone's menus span.
+    expect(ROW.current?.contains(group)).toBe(true)
+    for (const button of buttons) expect(button.parentElement).toBe(group)
+    // Four buttons, three dividers, in turn.
+    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])
+  })
+
+  it('puts no divider before the first button, whichever stand', () => {
+    render(<ResultsBar {...props({ canDownload: false })} />)
+    const group = screen.getByRole('button', { name: 'Models' }).parentElement as HTMLElement
+    expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON'])
+  })
+
+  // The switch's words follow the same width rule as the buttons', so the
+  // bar's words come and go together.
+  it('hides the switch words by the same rule', () => {
+    render(<ResultsBar {...props()} />)
+    for (const name of ['Show table only', 'Show chart only', 'Show both chart and table']) {
+      expect(screen.getByRole('button', { name }).querySelector('span')?.className).toBe(BAR_LABEL)
+    }
+  })
+
+  // The credit stands on the map's attribution line now (#687).
+  it('carries no link, the Open-Meteo credit having moved to the map', () => {
+    render(<ResultsBar {...props()} />)
+    expect(screen.queryByRole('link')).toBeNull()
   })
 
   // The label holds the word the button shows, which a voice-control reader

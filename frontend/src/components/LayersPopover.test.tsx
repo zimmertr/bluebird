@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
-import { MAP_CARD, MAP_CARD_HANG, MAP_CARD_HEADER, MAP_CARD_MENU, MAP_CARD_SLOT, MAP_COL_W } from '../styles'
+import { UNFURLED } from '../styles'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -92,6 +92,20 @@ describe('LayersPopover', () => {
     open()
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('checkbox')).toBeNull()
+  })
+
+  // The menu unfurls out of the button's bottom edge as one card with it
+  // (record 0134): the button says so while the menu is open and not after.
+  it('joins the menu to the button only while it is open', () => {
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
+    const button = screen.getByRole('button', { name: 'Layers' })
+    expect(button.dataset.unfurled).toBeUndefined()
+    open()
+    expect(button.dataset.unfurled).toBe('below')
+    const menu = screen.getByRole('checkbox', { name: 'Smoke' }).closest('[data-tour="layers-menu"]') as HTMLElement
+    for (const cls of UNFURLED.below.split(' ')) expect(menu.classList).toContain(cls)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(button.dataset.unfurled).toBeUndefined()
   })
 
   // A press inside the popover is a choice, not a way out.
@@ -192,32 +206,5 @@ describe('LayersPopover', () => {
     rerender(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID_ON} playerOffered />)
     expect(screen.getByRole('slider', { name: 'Coverage' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Blocks' }).getAttribute('aria-pressed')).toBe('true')
-  })
-})
-
-// One card at both widths (#696, the maintainer 2026-10-13): the button is
-// the card's header and the rows its body on the same surface, hanging from a
-// slot one row tall at exactly the button's width, so opening it moves
-// nothing. In the phone's grid the slot takes its track's width; in a desk's
-// column it is the column's.
-describe('the Layers card', () => {
-  it('unfurls the rows out of its button, on one surface, at the button\'s width', () => {
-    const { rerender } = render(
-      <LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered={false} mapRef={MAP} coverage={COVERAGE} inRow />,
-    )
-    const header = screen.getByRole('button', { name: 'Layers' })
-    expect(header.className).toBe(MAP_CARD_HEADER)
-    const card = header.parentElement!
-    expect(card.className).toBe(`${MAP_CARD_HANG} ${MAP_CARD}`)
-    const slot = card.parentElement!
-    expect(slot.className.trim()).toBe(MAP_CARD_SLOT)
-    expect(card.children).toHaveLength(1)
-    open()
-    expect(rows()).toContain('Wildfires')
-    // The rows are the card's own body, under the header, not a box of their own.
-    expect(card.children).toHaveLength(2)
-    expect(card.lastElementChild!.className).toBe(MAP_CARD_MENU)
-    rerender(<LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered={false} mapRef={MAP} coverage={COVERAGE} />)
-    expect(slot.className).toBe(`${MAP_CARD_SLOT} ${MAP_COL_W}`)
   })
 })

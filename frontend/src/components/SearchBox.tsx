@@ -174,7 +174,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   }
 
   // The ring rides the wrapper, not the field: the field wears
-  // SURFACE_FLOATING's shadow-lg, and the ring's glow is a shadow too. The
+  // SURFACE_FLOATING's raised shadow, and the ring's glow is a shadow too. The
   // wrapper's box is exactly the field's (the dropdown below it is absolute),
   // so the outline lands where it looks like it should — and it holds the same
   // radius at all times, because only the ring may fade (see ACCENT_RING).

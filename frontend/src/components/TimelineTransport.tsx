@@ -3,7 +3,7 @@ import {
   LAYER,
   RADIUS,
   SCRUBBER,
-  SCRUBBER_TRACK,
+  SLIDER,
   SEGMENT_DIVIDER,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -14,7 +14,7 @@ import {
 } from '../styles'
 import { IconPlay } from './icons'
 import { transportBottomPx } from '../utils/resultsSheet'
-import type { TimelineAxis } from '../utils/timeline'
+import { SCRUBBER_THUMB_PX, markPlacement, type ScaleMark, type TimelineAxis } from '../utils/timeline'
 
 interface Props {
   // Which axis the bar is playing, and the ones it could offer. The switch only
@@ -33,9 +33,9 @@ interface Props {
   // owns the vocabulary: relative minutes for radar, a weekday and hour for the
   // forecast. The bar formats nothing itself.
   readout: string
-  // Up to three marks under the track. Rendered spread across it, so two marks
-  // land at the ends and three put one in the middle.
-  scale: string[]
+  // Up to three marks under the track, each at the position along it that its
+  // own frame has (#687): the radar's two ends, or the forecast's day starts.
+  scale: ScaleMark[]
   // What the forecast axis is called: the ranked metric's noun ("Wind"),
   // composed by metrics.ts and passed in, so this file never spells a metric
   // name of its own. It used to say "Forecast", which only said which axis it
@@ -115,7 +115,7 @@ export default function TimelineTransport({
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className={`relative ${SCRUBBER_TRACK}`}>
+        <div className={`relative ${SLIDER.track}`}>
           {/* The filled portion, drawn behind the input rather than by it: a
               range input's own track is a pseudo-element and cannot carry a
               second box on top. `pointer-events-none` keeps it from swallowing
@@ -139,9 +139,19 @@ export default function TimelineTransport({
             className={`${SCRUBBER} absolute inset-0`}
           />
         </div>
-        <div className={`${TEXT.micro} flex justify-between font-mono`}>
+        {/* One grid cell that every mark shares, so the row is one line tall
+            and each mark's margin resolves against the track's width. The
+            position is a style for the fill's reason: it is derived from the
+            frame, not chosen. */}
+        <div className={`${TEXT.micro} grid font-mono`}>
           {scale.map((mark, i) => (
-            <span key={`${mark}-${i}`}>{mark}</span>
+            <span
+              key={`${mark.label}-${i}`}
+              className="col-start-1 row-start-1 w-max"
+              style={markPlacement(mark.at, SCRUBBER_THUMB_PX)}
+            >
+              {mark.label}
+            </span>
           ))}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { popoverBox, type PopoverBox } from '../utils/listbox'
+import { popoverBox, type Placement, type PopoverBox } from '../utils/listbox'
 import { useTakeOrphanedFocus } from './useFocusHandoff'
 
 /**
@@ -22,9 +22,9 @@ import { useTakeOrphanedFocus } from './useFocusHandoff'
 const GAP_PX = 4
 const VIEWPORT_MARGIN_PX = 8
 
-// What a list of labels asks for, and what the results bar's three pickers take.
-// A panel whose rows carry prose needs more and says so: `ModelPicker` passes
-// its own measured width.
+// What a panel that hangs beside its trigger asks for. Every menu unfurls at
+// its anchor's width since #687 (record 0134), so this is what the one panel
+// that is not a menu takes.
 const LIST_WIDTH_PX = 256
 
 // A panel whose height cannot change while it is open measures once and stays
@@ -71,12 +71,27 @@ interface Options {
   /**
    * What the panel is placed against, when that is not the trigger: the
    * calendar's slot under When, which stays in the layout while its field is
-   * hidden under the open card (#687). The trigger still takes the keyboard
-   * back and is still exempt from a press outside.
+   * hidden under the open card, and the results bar's button group, which
+   * every one of its menus unfurls out of (#687). The trigger still takes the
+   * keyboard back and is still exempt from a press outside.
    */
   anchorRef?: React.RefObject<HTMLElement | null>
-  /** Stand on the anchor rather than beside it (`popoverBox`'s `cover`). */
-  cover?: boolean
+  /**
+   * How the panel stands against the anchor (`popoverBox`'s `placement`).
+   * Every menu unfurls (record 0134), and the calendar covers. An unfurled
+   * panel's anchor carries `data-unfurled="below"` or `"above"` while it is
+   * open, which `UNFURL_ANCHOR` reads to square the corners it shares with
+   * the card.
+   */
+  placement?: Placement
+  /**
+   * The row the control stands in, for an unfurled panel whose rows need more
+   * than the control's width (`popoverBox`'s `span`, record 0134): the results
+   * bar on a phone, where the group is glyphs alone, and the model dropdown's
+   * row in the panel. Read only with `placement: 'unfurl'`; the linter's
+   * `style-menu-unfurls` check fails it anywhere else.
+   */
+  widthRef?: React.RefObject<HTMLElement | null>
   /**
    * Controls whose press is not "outside", because the caller closes the
    * panel itself in the same press: the calendar's When segment (#687). Its
@@ -94,8 +109,9 @@ export function usePopover({
   remeasure = ONCE_PER_OPEN,
   initialFocusRef,
   anchorRef,
-  cover = false,
+  placement = 'hang',
   ownPressRef,
+  widthRef,
 }: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -120,7 +136,8 @@ export function usePopover({
           gap: GAP_PX,
           margin: VIEWPORT_MARGIN_PX,
           desiredHeight,
-          cover,
+          placement,
+          span: placement === 'unfurl' ? widthRef?.current?.getBoundingClientRect() : undefined,
         },
       )
       // A box that says the same thing is the same box. Without this, every
@@ -130,7 +147,7 @@ export function usePopover({
       // phase to hear a sidebar's own.
       setBox((prev) => (prev && sameBox(prev, next) ? prev : next))
     },
-    [triggerRef, anchorRef, preferredWidth, cover],
+    [triggerRef, anchorRef, widthRef, preferredWidth, placement],
   )
 
   // Two passes, both before paint so neither is visible. The first asks for as
@@ -178,6 +195,22 @@ export function usePopover({
       window.removeEventListener('scroll', follow, true)
     }
   }, [open, place])
+
+  // The anchor says which of its edges the card is joined to, so the two
+  // drop the corners they share. Written on the element rather than through a
+  // prop, because the anchor belongs to whoever renders it (the results bar's
+  // group is ResultsBar's) and only this hook knows which side the card took.
+  // Removed only if it still says what this panel wrote: the bar's menus
+  // share one anchor, and the next one may already have written its own.
+  const joined = open ? box?.joined : undefined
+  useLayoutEffect(() => {
+    const anchor = (anchorRef ?? triggerRef).current
+    if (!anchor || !joined) return
+    anchor.dataset.unfurled = joined
+    return () => {
+      if (anchor.dataset.unfurled === joined) delete anchor.dataset.unfurled
+    }
+  }, [anchorRef, triggerRef, joined])
 
   // The keyboard goes INTO the panel when it opens (#576). Every panel is
   // portalled to the end of the body, so one left on its trigger was reached
@@ -260,7 +293,7 @@ function sameSignals(a: readonly unknown[], b: readonly unknown[]): boolean {
 
 function sameBox(a: PopoverBox, b: PopoverBox): boolean {
   if (a.left !== b.left || a.width !== b.width || a.maxHeight !== b.maxHeight) return false
-  if (a.placement !== b.placement) return false
+  if (a.placement !== b.placement || a.joined !== b.joined || a.wide !== b.wide) return false
   // One key, never both, and which one it is depends on the placement — so the
   // two are compared through the key each actually carries.
   return 'top' in a.offset

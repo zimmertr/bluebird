@@ -3,21 +3,18 @@ import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { familyOf, metricLabel } from '../metrics'
 import type { SortBy } from '../types'
-import { IconChevron } from './icons'
 import {
   ACCENT,
   CONTROL_SIZE,
   LEGEND_TOP,
   LINK,
-  MAP_CARD,
-  MAP_CARD_BODY,
-  MAP_CARD_HEADER,
+  MAP_COL_GAP,
   MAP_COL_W,
   MAP_EDGE,
-  MAP_ROW_GRID,
   RADIUS,
   STATUS,
   SR_ONLY,
+  SURFACE_FLOATING,
   SWATCH_CHIP,
   SWATCH_EDGE,
   SWATCH_LINE,
@@ -156,22 +153,8 @@ interface MapLegendProps {
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
   grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
-  /**
-   * Whether the button column above is a row taller: a desktop with the panel
-   * closed, where the Controls button stands in it. A phone's row holds
-   * Controls beside Layers, so its column is the short one at all times.
-   */
-  columnFull: boolean
-  /**
-   * A phone (#696): the card stands under Controls at exactly Controls'
-   * width, in a stack on the same grid tracks as the button row above it,
-   * where a desk's stands in the column at the column's width.
-   */
-  onGrid: boolean
-  /** Whether the card is open under its Legends header, or folded to the header alone (#696). */
-  expanded: boolean
-  /** Folds or opens the card: the header's press. */
-  onToggle: () => void
+  /** Whether the panel is open; the column above is one row taller while it is not. */
+  sidebarOpen: boolean
   /** How far the results sheet stands over the map's bottom edge. */
   sheetLiftPx: number
   /** Whether the forecast player's bar is on screen. */
@@ -179,9 +162,8 @@ interface MapLegendProps {
 }
 
 /**
- * The map's one legend box, as a card whose Legends header folds it (#696),
- * and the stack it scrolls in (#454; #409 cut it out of `App.tsx`). Nothing,
- * header included, when no section has anything to key.
+ * The map's one legend box and the stack it scrolls in (#454; #409 cut it out
+ * of `App.tsx`). Nothing when no section has anything to key.
  */
 export default function MapLegend({
   sortBy,
@@ -190,15 +172,11 @@ export default function MapLegend({
   rankedFieldHasValue,
   overlays,
   grid,
-  columnFull,
-  onGrid,
-  expanded,
-  onToggle,
+  sidebarOpen,
   sheetLiftPx,
   timelineShown,
 }: MapLegendProps) {
   const smokeId = useId()
-  const boxId = useId()
   const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
   const { gridPainted, gridCued, gridFailed, gridLegend } = grid
   // ONE box, gaining and losing sections as the report and the
@@ -441,10 +419,9 @@ export default function MapLegend({
   // and what gives when the map runs short is the tail of the stack
   // rather than its position.
   //
-  // The inset is what clears the Controls/search/Layers column above
-  // (on a phone, the search field and the row under it, which is the
-  // short column's height), and it is two numbers rather than one
-  // because that column is two heights: `TAP` floors the search row and the Layers button at 44
+  // The inset is what clears the Controls/search/Layers column above,
+  // and it is two numbers rather than one because that column is two
+  // heights: `TAP` floors the search row and the Layers button at 44
   // for a finger, so the column ends at 92 under a pointer and 108
   // under a finger. The role holds both with the arithmetic; the rule
   // is that the stack sits one of the column's own 8px gaps below
@@ -474,20 +451,13 @@ export default function MapLegend({
   return (
     <div
       // The inset clears the button column above, which is one row
-      // taller while the panel is collapsed on a desktop and the Controls
-      // button stands in it. `LEGEND_TOP` carries both heights; picking
+      // taller while the panel is collapsed and the Controls button
+      // stands in it. `LEGEND_TOP` carries both heights; picking
       // between them here is the only thing that knows which one is on
       // screen.
-      //
-      // On a phone the stack spans the button grid's width on the grid's own
-      // tracks, so the card in its first track is exactly Controls' width
-      // above it, and the second track is empty map under Analyze, yielded
-      // like the band under the card (#696).
       className={`absolute ${MAP_EDGE.left} ${
-        columnFull ? LEGEND_TOP.full : LEGEND_TOP.compact
-      } z-10 overflow-y-auto ${YIELD_EMPTY} ${
-        onGrid ? `${MAP_EDGE.right} ${MAP_ROW_GRID} content-start items-start` : 'flex flex-col [&>*]:flex-shrink-0'
-      }`}
+        sidebarOpen ? LEGEND_TOP.compact : LEGEND_TOP.full
+      } z-10 flex flex-col ${MAP_COL_GAP.gap} overflow-y-auto [&>*]:flex-shrink-0 ${YIELD_EMPTY}`}
       // The floor of the scroll box, derived rather than chosen: the
       // transport's whole band while the bar is on screen and a plain
       // gap otherwise, measured from whatever stands on the map's
@@ -495,37 +465,18 @@ export default function MapLegend({
       // top of the sheet where they cover it (#249).
       style={{ bottom: legendBottomPx(sheetLiftPx, timelineShown) }}
     >
-      {/* The fold (#696): one card, the way a popover's body sits under its
-          own header. The header row is the Layers button's face, and folded
-          the card is that row alone, 44px on a finger where the box was 58
-          with one metric and grows with every layer; open, the sections sit
-          under the header on the same surface. One box still (record 0048);
-          it gained a folded state. The chevron is the only thing that says
-          which, right while folded and down while open. A popup keeps clear
-          of the card (`data-map-overlay`); the card rather than the scroll
-          column around it, whose empty length below reaches the map's
-          floor. */}
-      <div data-map-overlay="" className={`${MAP_CARD} ${onGrid ? '' : MAP_COL_W}`}>
-        <button
-          onClick={onToggle}
-          aria-expanded={expanded}
-          // Only while the sections are there to name: a reference to an id
-          // that is not in the document is an error to a screen reader.
-          aria-controls={expanded ? boxId : undefined}
-          className={MAP_CARD_HEADER}
-        >
-          <IconChevron right={!expanded} />
-          Legends
-        </button>
-        {expanded && (
-          <div id={boxId} className={MAP_CARD_BODY}>
-            {sections
-              .sort((a, b) => a.label.localeCompare(b.label))
-              .map((section) => (
-                <Fragment key={section.label}>{legendSection(section)}</Fragment>
-              ))}
-          </div>
-        )}
+      <div
+        // A popup keeps clear of this box (`resultsLayer.ts` finds every
+        // `data-map-overlay`); the box rather than the scroll column around
+        // it, whose empty length below the box reaches the map's floor.
+        data-map-overlay=""
+        className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}
+      >
+        {sections
+          .sort((a, b) => a.label.localeCompare(b.label))
+          .map((section) => (
+            <Fragment key={section.label}>{legendSection(section)}</Fragment>
+          ))}
       </div>
     </div>
   )

@@ -614,6 +614,7 @@ export default function App() {
         <MapStage
           mapRef={mapRef}
           drawMode={drawMode}
+          isDesktop={isDesktop}
           destinationInputs={destinationInputs}
           removals={removals}
           overlays={overlays}

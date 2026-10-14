@@ -20,7 +20,11 @@ function props(over: Partial<Props> = {}): Props {
     playing: false,
     onPlayingChange: () => {},
     readout: 'Tue 14:00',
-    scale: ['Mon', 'Tue', 'Wed'],
+    scale: [
+      { label: 'Mon', at: 0 },
+      { label: 'Tue', at: 0.5 },
+      { label: 'Wed', at: 1 },
+    ],
     forecastLabel: 'Forecast',
     liftPx: 0,
     ...over,
@@ -75,5 +79,16 @@ describe('TimelineTransport', () => {
   it('draws the scale marks it is given', () => {
     render(<TimelineTransport {...props()} />)
     for (const mark of ['Mon', 'Tue', 'Wed']) expect(screen.getByText(mark)).toBeTruthy()
+  })
+
+  // Each mark stands where its frame is on the track rather than being spread
+  // evenly, which is what put Wed under 11 PM on a two-day window (#687).
+  it('places each mark at its own position along the track', () => {
+    render(<TimelineTransport {...props()} />)
+    expect(screen.getByText('Mon').style.marginLeft).toBe('0px')
+    // jsdom reorders a calc's terms, so the parts are read rather than the string.
+    expect(screen.getByText('Tue').style.marginLeft).toMatch(/^calc\(7px \+ .*0\.5.*100% - 14px/)
+    expect(screen.getByText('Tue').style.transform).toBe('translateX(-50%)')
+    expect(screen.getByText('Wed').style.transform).toBe('translateX(-100%)')
   })
 })

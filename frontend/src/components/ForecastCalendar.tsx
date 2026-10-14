@@ -307,7 +307,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
     remeasure: [hours !== undefined, weeks.length],
     initialFocusRef: focusedDayRef,
     anchorRef: slotRef,
-    cover: true,
+    placement: 'cover',
     ownPressRef: segmentRef,
   })
 

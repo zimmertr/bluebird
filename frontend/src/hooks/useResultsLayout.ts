@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   bothFits,
+  bothOpensWithRoom,
   clampPanelHeight,
   heldResultsMode,
   panelOf,
@@ -172,10 +173,13 @@ export function useResultsLayout({
   // A desktop-width window widens to Both when an analysis lands, so the first
   // report arrives with its chart — unless the user has ever explicitly picked
   // a mode, which always wins. A phone stays on Table: the stacked pair leaves
-  // the map a sliver there. Checked per analysis rather than on mount so the
-  // pre-analysis screen still opens on the plain table. The first rows widen
-  // it as they arrive, before any commit, so a first run that does not commit
-  // narrows it back: the screen it returns to is the pre-analysis one (#560).
+  // the map a sliver there. So does a desk whose column is too short for Both
+  // to open with the table above its floor (#687, `bothOpensWithRoom`), which
+  // at 1024x768 left a 375px map over three rows. Checked per analysis rather
+  // than on mount so the pre-analysis screen still opens on the plain table.
+  // The first rows widen it as they arrive, before any commit, so a first run
+  // that does not commit narrows it back: the screen it returns to is the
+  // pre-analysis one (#560).
   useEffect(() => {
     if (modeChosenRef.current) return
     if (response === null) {
@@ -183,8 +187,9 @@ export function useResultsLayout({
       return
     }
     if (!window.matchMedia('(min-width: 1024px)').matches) return
+    if (!bothOpensWithRoom(window.innerHeight - bannerPx, DEFAULT_PANEL_HEIGHT, dockedMapFloorPx(2))) return
     setModePref('both')
-  }, [response, analysisSeq])
+  }, [response, analysisSeq, bannerPx])
 
   // Applied panel heights, re-derived every render from the desired (state)
   // heights and the live viewport. Chart-priority: enabling the chart shrinks an

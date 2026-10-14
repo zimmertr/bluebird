@@ -4,6 +4,8 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  UNFURLED,
+  UNFURL_ANCHOR,
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
@@ -12,15 +14,21 @@ import {
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
+  ACTION_GROUP,
+  ACTION_ITEM,
+  BAR_LABEL,
+  DIALOG_FOOT,
+  DRAG,
+  DRAW_BAR,
+  ELEVATION,
+  SLIDER,
+  BANNER_PREVIEW,
   BUTTON_PRIMARY,
   BUTTON_SECONDARY,
-  CARRIED,
   CHIP,
   CHOICE_INPUT,
   CHOICE_ROW,
   DAY,
-  DRAG_GHOST,
-  DRAG_INSERT,
   CHART_METRIC_W,
   CONTROL_W,
   FIELD,
@@ -38,12 +46,8 @@ import {
   NOTICE_DISMISS,
   NOTICE_DIVIDER,
   SCRUBBER,
-  SCRUBBER_TRACK,
   SEARCH_LIST,
-  SLIDER_OVERLAY,
   CONTROL_SIZE,
-  SLIDER_VALUE,
-  SLIDER_WORDMARK,
   SEGMENT,
   SEGMENT_FLUID,
   SEGMENT_FLUID_LIFTED,
@@ -56,9 +60,7 @@ import {
   SPINNER,
   STATUS,
   TRANSPORT_AXIS_ITEM,
-  TRANSPORT_AXIS_W,
   LIFTED_EDGE,
-  RECESSED_EDGE,
   RECESSED_FILL,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
@@ -109,6 +111,8 @@ import {
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
+import { CHART_TICK_PX } from './utils/chartColors'
+import { SCRUBBER_THUMB_PX } from './utils/timeline'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -148,6 +152,14 @@ const selectArrowPx = (): number => stepPx(SELECT, 'pr')
 const controlWPx = (): number => Number(CONTROL_W.match(/w-\[(\d+)px\]/)![1])
 const metricPairPx = (): number =>
   2 * stepPx(METRIC_BOX_W, 'w') + (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
+
+// The two building blocks `styles.ts` no longer exports (#687), read back off
+// the roles that compose them, so every assertion below tests what a call site
+// is actually handed.
+const RECESSED_EDGE = SEGMENT_FLUID.split(' ').filter((c) => c.startsWith('border')).join(' ')
+const TRANSPORT_AXIS_W = (TRANSPORT_AXIS_ITEM.match(/(?:^|\s)((?:touch:)?min-w-\[\d+px\])/g) ?? [])
+  .map((c) => c.trim())
+  .join(' ')
 
 const SIZE = /\btext-(?:xs|sm|base|lg|xl|2xl|3xl)\b|\btext-\[[^\]]+\]/g
 
@@ -361,6 +373,14 @@ describe('every component', () => {
     expect(source).not.toMatch(/\bopacity-/)
   })
 
+  // A shadow says how far a surface stands off what is under it, which is the
+  // elevation scale's answer (#687): five sizes on eight surfaces is what a
+  // call site choosing its own produced. Written as an alternation so no class
+  // name appears here as text.
+  it.each(Object.entries(sources))('%s casts no shadow of its own', (_path, source) => {
+    expect(source).not.toMatch(/\bshadow-(?:sm|md|lg|xl|2xl|none)\b/)
+  })
+
   // The role is a colour and nothing else, so a call site that forgets the
   // side draws no line at all and nothing says so. Every use is read back with
   // its own template literal around it.
@@ -527,6 +547,8 @@ describe('grouping and segmenting', () => {
     expect(CALENDAR_GROUND).toContain(RECESSED_FILL)
     expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
     expect(SEGMENT).toContain(RECESSED_EDGE)
+    expect(SEGMENT_FILL).toContain(RECESSED_EDGE)
+    expect(SLIDER.track).toContain(RECESSED_EDGE)
   })
 
   // The fluid segment is the panel segment minus the panel's width: same edge,
@@ -701,19 +723,19 @@ describe('shared recipes', () => {
   // range input, both vendor thumb spellings, a visible focus ring. Its track
   // is drawn by the caller, so the input itself must be transparent full-bleed.
   it('builds the coverage slider like the scrubber, transparent over its own track', () => {
-    expect(SLIDER_OVERLAY).toContain('appearance-none')
-    expect(SLIDER_OVERLAY).toContain('[&::-webkit-slider-thumb]:[appearance:none]')
-    expect(SLIDER_OVERLAY).toContain('[&::-moz-range-thumb]:[appearance:none]')
-    expect(SLIDER_OVERLAY).toContain(FOCUS_RING)
-    expect(SLIDER_OVERLAY).toContain('bg-transparent')
-    expect(SLIDER_OVERLAY).toContain('absolute inset-0')
+    expect(SLIDER.overlay).toContain('appearance-none')
+    expect(SLIDER.overlay).toContain('[&::-webkit-slider-thumb]:[appearance:none]')
+    expect(SLIDER.overlay).toContain('[&::-moz-range-thumb]:[appearance:none]')
+    expect(SLIDER.overlay).toContain(FOCUS_RING)
+    expect(SLIDER.overlay).toContain('bg-transparent')
+    expect(SLIDER.overlay).toContain('absolute inset-0')
   })
 
   // The wordmark has no color of its own: its line renders twice, muted on the
   // well and white inside the accent fill, and a baked-in color would race the
   // layer's by stylesheet order.
   it('keeps the slider wordmark colorless so each layer supplies its own', () => {
-    expect(SLIDER_WORDMARK).not.toMatch(/text-(slate|white)/)
+    expect(SLIDER.wordmark).not.toMatch(/text-(slate|white)/)
   })
 
   // Both halves of the slider's one line are one size, and the wordmark is
@@ -722,20 +744,20 @@ describe('shared recipes', () => {
   // heading over a group rather than a label inside a control — and it made
   // "COVERAGE" the one shouted word in the popover.
   it('sets the wordmark at the value size, in sentence case', () => {
-    expect(SLIDER_WORDMARK).toContain(CONTROL_SIZE)
-    expect(SLIDER_VALUE).toContain(CONTROL_SIZE)
-    expect(SLIDER_WORDMARK).not.toMatch(/uppercase|tracking-/)
+    expect(SLIDER.wordmark).toContain(CONTROL_SIZE)
+    expect(SLIDER.value).toContain(CONTROL_SIZE)
+    expect(SLIDER.wordmark).not.toMatch(/uppercase|tracking-/)
     // The weight is the only thing left separating a label from its value.
-    expect(SLIDER_WORDMARK).toContain('font-semibold')
+    expect(SLIDER.wordmark).toContain('font-semibold')
   })
 
   // The rail is a separate element rather than the input's own track
   // pseudo-element, because the filled portion has to be a third box on top of
   // it. What that must not become is a fourth spelling of the recessed well.
   it('builds the scrubber rail from the recessed surface every other well uses', () => {
-    expect(SCRUBBER_TRACK).toContain(RECESSED_FILL)
-    expect(SCRUBBER_TRACK).toContain(RECESSED_EDGE)
-    expect(SCRUBBER_TRACK).toContain(RADIUS.pill)
+    expect(SLIDER.track).toContain(RECESSED_FILL)
+    expect(SLIDER.track).toContain(RECESSED_EDGE)
+    expect(SLIDER.track).toContain(RADIUS.pill)
   })
 
   // The timeline's axis halves are the one segment whose labels the design
@@ -912,23 +934,33 @@ describe('shared recipes', () => {
   // none of that role's cursor: the column still sorts the instant the drag
   // ends. Two surfaces drew the literal before it had a name (#437).
   it('fades a carried column without the disabled claim either', () => {
-    expect(CARRIED).toBe('opacity-40')
-    expect(CARRIED).toBe(DISABLED.replace(/disabled:/g, '').split(' ')[0])
-    expect(CARRIED).not.toContain('cursor')
-    expect(CARRIED).not.toContain('disabled:')
-    expect(CARRIED).not.toMatch(/text-|bg-|border-/)
+    expect(DRAG.carried).toBe('opacity-40')
+    expect(DRAG.carried).toBe(DISABLED.replace(/disabled:/g, '').split(' ')[0])
+    expect(DRAG.carried).not.toContain('cursor')
+    expect(DRAG.carried).not.toContain('disabled:')
+    expect(DRAG.carried).not.toMatch(/text-|bg-|border-/)
   })
 
   // The three weights of rule, in order. PANEL_EDGE is the only one that is
   // meant to be seen as a boundary (3.07:1 on the panel); the other two are
-  // the same quiet line at 1.41 and 1.37, and differ only in whether the stack
-  // or the call site decides where it is drawn. SURFACE_DIVIDER carries no
-  // side, no width and no spacing, so it composes into either.
+  // one quiet line at 1.41, and differ only in whether the stack or the call
+  // site decides where it is drawn. SURFACE_DIVIDER carries no side, no width
+  // and no spacing, so it composes into either.
   it('keeps the divider a colour and the panel rule a recipe', () => {
     expect(SURFACE_DIVIDER).toBe('border-slate-700')
     expect(SURFACE_DIVIDER.split(' ')).toHaveLength(1)
     expect(PANEL_EDGE).toBe('border-slate-500')
     expect(PANEL_RULE).toContain('[&>*+*]:border-t')
+  })
+
+  // Since #687 the panel's rule draws the divider's colour rather than
+  // half-opacity slate-600, which composited to 1.37:1 beside the divider's
+  // 1.41: the same line by eye, so it is the same line. Spelled under the
+  // stack's variant because Tailwind cannot compile an interpolated one, and
+  // held to the divider here.
+  it('draws the panel rule in the divider colour', () => {
+    expect(PANEL_RULE).toContain(`[&>*+*]:${SURFACE_DIVIDER}`)
+    expect(PANEL_RULE.match(/border-slate-\S+/g)).toEqual([SURFACE_DIVIDER])
   })
 
   // The panel's controls share a left edge as well as a right one. The segment
@@ -1192,8 +1224,10 @@ describe('shared recipes', () => {
     // The header bar inside is a square block, so the corners only exist while
     // the sheet clips them.
     expect(SURFACE_SHEET).toContain('overflow-hidden')
-    // Downward shadows have nothing to fall on under a bottom sheet.
-    expect(SURFACE_SHEET).not.toMatch(/\bshadow-/)
+    // Downward shadows have nothing to fall on under a bottom sheet, so it
+    // stands at the docked step of the elevation scale.
+    expect(SURFACE_SHEET).toContain(ELEVATION.none)
+    expect(SURFACE_SHEET.match(/\bshadow-\S+/g)).toEqual([ELEVATION.none])
   })
 
   // Everything in the map's left column is one width: the search field, its
@@ -1209,8 +1243,10 @@ describe('shared recipes', () => {
 
   // The third part of the same decision: one gap between members, so the
   // column's height and the inset that clears it are built from one number.
+  // The Layers menu took it too, as a margin, until it unfurled out of its
+  // button with no gap (record 0134).
   it('gives the column one gap', () => {
-    expect(MAP_COL_GAP).toBe('gap-1')
+    expect(MAP_COL_GAP).toEqual({ gap: 'gap-1' })
   })
 
   // The other half of the same decision: one row height, so the field and the
@@ -1261,8 +1297,8 @@ describe('shared recipes', () => {
     expect(SURFACE_POPOVER).toContain('border-slate-600')
     expect(SURFACE_POPOVER).toContain(RADIUS.surface)
     // The shadow is what does the separating, so it must outrank the legends'.
-    expect(SURFACE_POPOVER).toContain('shadow-2xl')
-    expect(SURFACE_FLOATING).not.toContain('shadow-2xl')
+    expect(SURFACE_POPOVER).toContain(ELEVATION.overlay)
+    expect(SURFACE_FLOATING).not.toContain(ELEVATION.overlay)
     expect(SURFACE_POPOVER).not.toContain(SURFACE_FLOATING)
   })
 
@@ -1291,7 +1327,7 @@ describe('shared recipes', () => {
     expect(LINK).toContain('hover:text-sky-400')
   })
 
-  // The map's Open-Meteo credit is a link *and* a 10px caption, so it wears
+  // A data credit is a link inside an 11px caption, so it wears
   // both roles at once. Two color utilities in one class list are decided by
   // stylesheet order, not by the order they were written, so composing them is
   // only safe while they agree. If one moves, the other has to move with it.
@@ -1424,18 +1460,10 @@ describe('every role', () => {
     // `MAP_EDGE.publish` because Tailwind cannot compile an interpolated class
     // and MapLibre's credit line has no call site. Components take `TEXT.micro`.
     MICRO_SIZE: 'binds the ramp step to the custom property map.css reads',
-    // Half of the well — `RECESSED_FILL` is the other — and every surface that
-    // sinks into the panel composes the pair here. A call site takes the
-    // finished `FIELD`, `SEGMENT` or `SCRUBBER_TRACK`.
-    RECESSED_EDGE: 'the half of the well recipe this file composes itself',
-    // The floating surface made pressable. Since #696 every map button takes it
-    // through a finished role, `MAP_BUTTON` for desktop Controls, `MAP_PILL` for the
-    // phone's row, and the skip link through `SKIP_LINK`.
-    BUTTON_FLOATING: 'the pressable floating box the map buttons compose here',
-    // The timeline axis half's width floor, spelled twice over (plain and
-    // `touch:`) so the variant cannot lose to `TAP.action`'s by stylesheet
-    // order. The call site takes `TRANSPORT_AXIS_ITEM`, which carries it.
-    TRANSPORT_AXIS_W: 'holds one floor to two spellings inside TRANSPORT_AXIS_ITEM',
+    // The three depths a surface may stand at (#687). Every surface composes
+    // its step here, and a call site takes the finished surface; this file
+    // asserts the steps are the three and that each surface wears its own.
+    ELEVATION: 'the depth scale every surface in this file composes',
   }
 
   it('exports no role nothing imports', () => {
@@ -1786,8 +1814,16 @@ describe('moving a column', () => {
   // what they are. Both call sites composed the layer beside the role, which
   // is a pair either of them could have got half of.
   it('carries its own stacking order rather than asking for one', () => {
-    expect(DRAG_GHOST).toContain(LAYER.popover)
-    expect(DRAG_INSERT).toContain(LAYER.popover)
+    expect(DRAG.ghost).toContain(LAYER.popover)
+    expect(DRAG.insert).toContain(LAYER.popover)
+  })
+
+  // The ghost is a card, so its depth is the card's; it spelled a shadow of
+  // its own beside the card's until #687, two utilities racing by stylesheet
+  // order.
+  it('lifts the ghost at the depth of the card it is', () => {
+    expect(DRAG.ghost).toContain(SURFACE_CARD)
+    expect(DRAG.ghost.match(/\bshadow-\S+/g)).toEqual([ELEVATION.overlay])
   })
 })
 
@@ -1796,7 +1832,7 @@ describe('moving a column', () => {
 describe('the map edge inset', () => {
   it('publishes one number and reads it everywhere', () => {
     expect(MAP_EDGE.publish).toContain('[--map-edge-inset:0.75rem]')
-    for (const side of [MAP_EDGE.left, MAP_EDGE.top]) {
+    for (const side of [MAP_EDGE.left, MAP_EDGE.right, MAP_EDGE.top]) {
       expect(side).toContain('var(--map-edge-inset)')
       // The number is published, never repeated: a fallback here would be a
       // second copy of it, and the two would drift.
@@ -2064,9 +2100,12 @@ describe('the legend ramp', () => {
     // under it, in two lines whatever the band count.
     expect(SWATCH_RAMP).toMatch(/\bw-full\b/)
     expect(SWATCH_CHIP).not.toMatch(/\bw-full\b/)
-    // The line key stands in the chip's column, so it is the chip's width.
+    // The line key stands in the column of the single-value keys, the fire's
+    // and the area closure's 14px squares, so it is their width. The smoke
+    // chips are three side by side and 16px since #687, for their letter.
     expect(SWATCH_LINE).toMatch(/\bw-3\.5\b/)
-    expect(SWATCH_CHIP).toMatch(/\bw-3\.5\b/)
+    expect(mapLegendSource).toMatch(/inline-block h-3\.5 w-3\.5 flex-shrink-0/)
+    expect(SWATCH_CHIP).toMatch(/\bh-4 w-4\b/)
   })
 
   it('names no fill of its own', () => {
@@ -2188,6 +2227,248 @@ describe('the tutorial', () => {
     expect(STYLES.TOUR.sheet).toContain(STYLES.SURFACE_CARD)
     expect(STYLES.TOUR.sheet).toContain('inset-x-4 bottom-4')
     expect(STYLES.TOUR.sheetTop).toContain('inset-x-4 top-4')
+  })
+})
+
+// #687's design-system pass: one floor for text that is read, one for text
+// that is pressed, one named exception under them, and three depths.
+describe('the type floor', () => {
+  const px = (cls: string) => Number(cls.match(/^text-\[(\d+)px\]$/)?.[1] ?? NaN)
+  // Every class string a role carries, objects opened up.
+  const recipes = Object.values(STYLES).flatMap((v) =>
+    typeof v === 'string' ? [v] : Object.values(v as Record<string, unknown>).filter((x): x is string => typeof x === 'string'),
+  )
+
+  it('reads the micro step at 11px, and every role built on it follows', () => {
+    expect(px(MICRO_SIZE)).toBe(11)
+    for (const role of [TEXT.micro, TEXT.overline, BADGE_ACCENT]) expect(sizes(role)).toEqual([MICRO_SIZE])
+  })
+
+  // Under 11px only the two glyphs in boxes of fixed size, at 10px, named as
+  // the exception: the strip's numerals in their 11px scrim band and the smoke
+  // key's letters in their chips. Nothing is 9px any more.
+  it('keeps 10px for the two glyphs in fixed boxes, and nothing smaller', () => {
+    const under = recipes.flatMap((r) => sizes(r).filter((c) => px(c) < 11))
+    expect(new Set(under)).toEqual(new Set(['text-[10px]']))
+    expect(sizes(SWATCH_RAMP_TICK)).toEqual(['text-[10px]'])
+    expect(sizes(SWATCH_CHIP)).toEqual(['text-[10px]'])
+    expect(recipes.filter((r) => sizes(r).includes('text-[10px]')).sort()).toEqual(
+      [SWATCH_CHIP, SWATCH_RAMP_TICK].sort(),
+    )
+  })
+
+  // A 10px letter does not fit a 14px box inside its border, so the box grew.
+  it('gives the swatch letter a 16px box', () => {
+    expect(stepPx(SWATCH_CHIP, 'h')).toBe(16)
+    expect(stepPx(SWATCH_CHIP, 'w')).toBe(16)
+  })
+
+  // Recharts takes a number, so the chart's ticks spell the step a third time.
+  it('sets the chart ticks at the micro step', () => {
+    expect(CHART_TICK_PX).toBe(px(MICRO_SIZE))
+  })
+
+  // Both titles name the surface they head, so they are one recipe.
+  it('sets the dialog title at the panel title', () => {
+    expect(PROSE.title).toBe(TEXT.appTitle)
+    expect(sizes(PROSE.title)).toEqual(['text-lg'])
+  })
+})
+
+describe('the elevation scale', () => {
+  const recipes = Object.values(STYLES).flatMap((v) =>
+    typeof v === 'string' ? [v] : Object.values(v as Record<string, unknown>).filter((x): x is string => typeof x === 'string'),
+  )
+  // A shadow utility of the stock scale, under any variant. The glows are
+  // arbitrary values and are not depths.
+  const DEPTH = /(?:^|\s|:)shadow(?:-(?:sm|md|lg|xl|2xl|none))?(?=\s|$)/g
+
+  it('names three depths, two of which cast a shadow', () => {
+    expect(ELEVATION).toEqual({ none: 'shadow-none', raised: 'shadow-lg', overlay: 'shadow-2xl' })
+  })
+
+  it('uses no depth off the scale anywhere in the design system', () => {
+    const allowed = new Set(Object.values(ELEVATION))
+    for (const recipe of recipes) {
+      for (const hit of recipe.match(DEPTH) ?? []) {
+        expect(allowed, `${hit.trim()} in ${recipe}`).toContain(hit.trim().replace(/^.*:/, ''))
+      }
+    }
+  })
+
+  it('puts each surface at the depth of its job', () => {
+    expect(SURFACE_FLOATING).toContain(ELEVATION.raised)
+    expect(SURFACE_CARD).toContain(ELEVATION.overlay)
+    expect(SURFACE_POPOVER).toContain(ELEVATION.overlay)
+    expect(BANNER_PREVIEW).toContain(ELEVATION.none)
+    expect(SURFACE_SHEET).toContain(ELEVATION.none)
+  })
+
+  // The thumbs dropped their shadow: they ride a well, and the Firefox thumb
+  // never drew one, so the two engines now draw one thumb.
+  it('draws the range thumbs flat on every engine', () => {
+    for (const input of [SCRUBBER, SLIDER.overlay]) expect(input).not.toMatch(/thumb\]:shadow/)
+  })
+
+  it('keeps the glows off the scale', () => {
+    expect(ACCENT_RING).toMatch(/shadow-\[/)
+    expect(STYLES.TOUR.spotlight).toMatch(/shadow-\[/)
+  })
+})
+
+// The compass hides under a class map/controls.ts keeps on the map's container
+// while the map is north-up and flat (#687); controls.test.ts holds the name.
+
+// The credit line on a phone, opened, wraps short of the scale bar rather than
+// covering it (#687): map.css caps the bottom-right corner at the map's width
+// less the scale's room, which these vendor numbers and the scale's widest
+// draw decide.
+describe('the attribution beside the scale', () => {
+  const SCALE_MARGIN_PX = 10 // the vendor's bottom-left control margin
+  const ATTRIB_MARGIN_PX = 10 // the vendor's compact attribution margin
+  const CLEAR_PX = 8
+  // Read as text: the controls module imports maplibre-gl, which this node
+  // suite does not load.
+  const SCALE_MAX_WIDTH_PX = Number(
+    readFileSync(new URL('./map/controls.ts', import.meta.url), 'utf8').match(/SCALE_MAX_WIDTH_PX = (\d+)/)?.[1],
+  )
+
+  it('caps the corner where the room the scale bar takes ends', () => {
+    const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-right \{[^}]*max-width[^}]*\}/)?.[0] ?? ''
+    const cap = Number(rule.match(/max-width: calc\(100% - (\d+)px\)/)?.[1])
+    expect(SCALE_MAX_WIDTH_PX).toBe(100)
+    expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
+  })
+
+  // Three lines at 360px wide: the corner grows up over the map, never down
+  // behind the results, and the band cannot squeeze the line to clip it.
+  it('grows a tall credit line upward, whole', () => {
+    const corner = mapCss.match(/\.maplibregl-ctrl-bottom-left,\n\.maplibregl-ctrl-bottom-right \{[^}]*\}/)?.[0] ?? ''
+    expect(corner).toMatch(/flex-direction: column-reverse;/)
+    expect(corner).not.toMatch(/justify-content/)
+    const child = mapCss.match(/\.maplibregl-ctrl-bottom-right \.maplibregl-ctrl \{[^}]*\}/)?.[0] ?? ''
+    expect(child).toMatch(/margin-top: auto;\s*margin-bottom: auto;/)
+    expect(child).toMatch(/flex-shrink: 0;/)
+  })
+})
+
+describe('the idle compass', () => {
+  it('is hidden by map.css under the class the controls module sets', () => {
+    const rule = mapCss.slice(mapCss.indexOf('.compass-idle .maplibregl-ctrl-compass'))
+    expect(rule).toMatch(/^\.compass-idle \.maplibregl-ctrl-compass \{\s*display: none;/)
+  })
+})
+
+describe('the merged roles', () => {
+  // Five exports for one gesture's parts, and five for two range inputs'
+  // parts, became one object each; the keys are the whole vocabulary.
+  it('groups the drag and the slider parts', () => {
+    expect(Object.keys(DRAG).sort()).toEqual(['carried', 'ghost', 'grip', 'gripActive', 'insert'])
+    expect(Object.keys(SLIDER).sort()).toEqual(['idle', 'overlay', 'track', 'value', 'wordmark'])
+  })
+
+  // The marks under the scrubber stand over the thumb's centre, which the
+  // timeline module computes from a number this file draws as a class.
+  it('places the scale marks off the thumb this file draws', () => {
+    expect(SCRUBBER).toContain('[&::-webkit-slider-thumb]:w-3.5')
+    expect(stepPx('w-3.5', 'w')).toBe(SCRUBBER_THUMB_PX)
+  })
+})
+
+describe('the results bar buttons', () => {
+  // One group in the mode switch's look (#687, the maintainer on #709): the
+  // same well, the same half and the same idle fill, so the two read as
+  // siblings and stand at one height on either pointer.
+  it('reads as the sibling of the mode switch', () => {
+    expect(ACTION_GROUP).toBe(`${SEGMENT_FLUID} ${UNFURL_ANCHOR}`)
+    expect(ACTION_ITEM).toContain(SEGMENT_IDLE)
+    for (const part of [TAP.action, FOCUS_RING, 'py-0.5', 'text-xs', 'gap-1.5']) {
+      expect(SEGMENT_ITEM).toContain(part)
+      expect(ACTION_ITEM).toContain(part)
+    }
+    expect(ACTION_ITEM).toContain('flex-none')
+  })
+
+  // A glyph alone is 16px plus the item's inset each side. 28px wide passes
+  // WCAG 2.2's target spacing on a fine pointer, where the item is 22px tall:
+  // a 24px circle on its centre stays inside its own width (record 0130's
+  // test). On a coarse pointer TAP.action makes it 44.
+  it('leaves an icon-only item wide enough to pass by spacing', () => {
+    const inset = stepPx(ACTION_ITEM, 'px')
+    expect(16 + 2 * inset).toBe(28)
+    expect((16 + 2 * inset) / 2).toBeGreaterThanOrEqual(12)
+  })
+
+  // One width rule for every word on the bar, from the measured line: the
+  // labelled switch, the labelled group with Removed, the folded line's 16px
+  // gap and two more digits of a Removed count.
+  it('shows the words only where the measured line fits', () => {
+    const MEASURED = { switch: 176.7, group: 377.8, gap: 16, digits: 13.4 }
+    const fits = Number(BAR_LABEL.match(/@min-\[(\d+)px\]:inline/)![1])
+    expect(BAR_LABEL.startsWith('hidden ')).toBe(true)
+    expect(fits).toBe(Math.ceil(MEASURED.switch + MEASURED.group + MEASURED.gap + MEASURED.digits))
+    // The docked bar at 1024 wide has 640px and keeps them; the widest phone
+    // measured, 430, has 406.
+    expect(640).toBeGreaterThanOrEqual(fits)
+    expect(406).toBeLessThan(fits)
+  })
+})
+
+describe('the phone draw bar', () => {
+  it('floats on the map at the column inset from both sides', () => {
+    expect(DRAW_BAR).toContain(SURFACE_FLOATING)
+    expect(DRAW_BAR).toContain(MAP_EDGE.left)
+    expect(DRAW_BAR).toContain(MAP_EDGE.right)
+    expect(DRAW_BAR).toContain(LAYER.base)
+  })
+})
+
+describe('the welcome dialog foot', () => {
+  it('sticks to the card on the card fill, under the quiet rule', () => {
+    expect(DIALOG_FOOT.bar).toMatch(/(^|\s)sticky bottom-0(\s|$)/)
+    const fill = (recipe: string) => recipe.split(' ').find((c) => c.startsWith('bg-'))
+    expect(fill(DIALOG_FOOT.bar)).toBe(fill(SURFACE_CARD))
+    expect(DIALOG_FOOT.bar).toContain(SURFACE_DIVIDER)
+  })
+
+  // The tutorial button at the primary's height: py-2.5 around text-sm's 20px
+  // line is 40, and min-h-10 is 40.
+  it('stands the second action at the primary height', () => {
+    expect(DIALOG_FOOT.secondary).toContain(BUTTON_SECONDARY)
+    const primaryPx = 2 * stepPx(BUTTON_PRIMARY, 'py') + 20
+    expect(stepPx(DIALOG_FOOT.secondary, 'min-h')).toBe(primaryPx)
+  })
+})
+
+// A menu is one card with the control that opens it (#687, record 0134).
+describe('an unfurled menu', () => {
+  // The card drops the border and the corners on the edge it shares with its
+  // anchor, and nothing on the other three: the anchor's own edge is the one
+  // line between them.
+  it('drops exactly the shared edge, on whichever side it took', () => {
+    expect(UNFURLED.below.split(' ').sort()).toEqual(['border-t-0', 'rounded-t-none'])
+    expect(UNFURLED.above.split(' ').sort()).toEqual(['border-b-0', 'rounded-b-none'])
+  })
+
+  // Across a row the card is wider than its control, so it keeps the border on
+  // the shared edge and squares only the corner under the control: its right
+  // edge is the control's, and the outer corner stands free under the label.
+  it('squares only the corner under the control when it spans a row', () => {
+    expect(UNFURLED.belowWide).toBe('rounded-tr-none')
+    expect(UNFURLED.aboveWide).toBe('rounded-br-none')
+  })
+
+  // The anchor squares the corners facing the card, on the side `usePopover`
+  // writes, and takes the card's edge colour so the outline runs round both.
+  it("squares the anchor on the side facing the card, in the card's edge colour", () => {
+    expect(UNFURL_ANCHOR).toContain('data-[unfurled=below]:rounded-b-none')
+    expect(UNFURL_ANCHOR).toContain('data-[unfurled=above]:rounded-t-none')
+    expect(SURFACE_CARD).toContain('border-slate-600')
+    expect(UNFURL_ANCHOR).toContain('data-[unfurled]:border-slate-600')
+  })
+
+  it('is worn by the results bar group', () => {
+    expect(ACTION_GROUP).toContain(UNFURL_ANCHOR)
   })
 })
 

@@ -178,22 +178,94 @@ export function forecastStampLabel(ms: number): string {
 }
 
 /**
- * Up to three evenly spaced marks under the forecast scrubber.
- *
- * Three because the track is about 200px on a phone and two labels at its ends
- * plus one in the middle is what fits; fewer says less than the ends already
- * do, and more overlaps. A grid shorter than three stamps just labels what it
- * has.
+ * One mark under a scrubber: its words, and where along the track it stands,
+ * from 0 (the first frame) to 1 (the last).
  */
-export function forecastScaleMarks(times: number[]): string[] {
-  if (times.length === 0) return []
-  if (times.length <= 3) return times.map(forecastDayLabel)
-  return [0, Math.floor((times.length - 1) / 2), times.length - 1].map((i) =>
-    forecastDayLabel(times[i]),
-  )
+export interface ScaleMark {
+  label: string
+  at: number
 }
+
+/**
+ * The marks under the forecast scrubber: one on each local day's first hour,
+ * at the position that hour has on the track, at most three (#687).
+ *
+ * They were three evenly spaced indices, and the middle one was whatever hour
+ * fell halfway: on a two-day window that is 11 PM on the first day, so the
+ * marks read Wed, Wed, Thu. A mark on the day's first hour names the day the
+ * track is entering there, so every mark is true where it stands.
+ *
+ * The first hour rather than midnight itself, because the grid is hourly in
+ * UTC and a zone half an hour off UTC never has a stamp at midnight. A window
+ * that starts mid-day gets no mark at its start: the readout above already
+ * names the hour the playhead is on, and the first mark then stands where the
+ * next day begins. One that never crosses a day is labelled at its start, so
+ * the scale is never empty. More than three days keep the first, the middle
+ * and the last, because the track is about 200px on a phone and a mark per day
+ * of sixteen overlaps.
+ *
+ * A window whose marks run a week or more apart names its days by date rather
+ * than by weekday: the first, middle and last of sixteen days are a week
+ * apart, and Wed, Wed, Thu at true positions would read as the same mistake.
+ */
+export function forecastScaleMarks(times: readonly number[]): ScaleMark[] {
+  if (times.length === 0) return []
+  const last = times.length - 1
+  const at = (i: number) => (last === 0 ? 0 : i / last)
+  const dayOf = (ms: number) => new Date(ms).toDateString()
+  const starts = times.flatMap((ms, i) =>
+    (i === 0 ? new Date(ms).getHours() === 0 : dayOf(ms) !== dayOf(times[i - 1])) ? [i] : [],
+  )
+  if (starts.length === 0) return [{ label: forecastDayLabel(times[0]), at: 0 }]
+  const picked =
+    starts.length <= 3
+      ? starts
+      : [starts[0], starts[Math.floor((starts.length - 1) / 2)], starts[starts.length - 1]]
+  const spansAWeek = times[picked[picked.length - 1]] - times[picked[0]] >= WEEK_MS
+  const label = spansAWeek ? forecastDateLabel : forecastDayLabel
+  return picked.map((i) => ({ label: label(times[i]), at: at(i) }))
+}
+
+const WEEK_MS = 7 * 24 * 3_600_000
 
 /** A scale mark: the day alone, since the readout above carries the hour. */
 export function forecastDayLabel(ms: number): string {
   return new Date(ms).toLocaleDateString([], { weekday: 'short' })
+}
+
+/** A scale mark a week or more from its neighbour: the date, which a weekday cannot tell apart. */
+export function forecastDateLabel(ms: number): string {
+  return new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+/** The radar axis's two ends, at the two ends of the track. */
+export function endMarks([oldest, newest]: readonly [string, string]): ScaleMark[] {
+  return [
+    { label: oldest, at: 0 },
+    { label: newest, at: 1 },
+  ]
+}
+
+/**
+ * The scrubber's thumb width, which `SCRUBBER` in `styles.ts` draws at
+ * `w-3.5`; `styles.test.ts` holds the two to one number.
+ */
+export const SCRUBBER_THUMB_PX = 14
+
+/**
+ * Where a mark stands, as the two CSS values the scale row places it with.
+ *
+ * Over the thumb's centre at that frame: a range input's thumb travels from
+ * half its width in from one end to half its width in from the other, so a
+ * mark at a frame's fraction of the bare track would drift up to 7px off the
+ * thumb sitting on that frame. A mark at either end is aligned to the track's
+ * own edge instead of centred, so the first and last labels stay inside it.
+ */
+export function markPlacement(at: number, thumbPx: number): { marginLeft: string; transform: string } {
+  if (at <= 0) return { marginLeft: '0px', transform: 'none' }
+  if (at >= 1) return { marginLeft: '100%', transform: 'translateX(-100%)' }
+  return {
+    marginLeft: `calc(${thumbPx / 2}px + (100% - ${thumbPx}px) * ${at})`,
+    transform: 'translateX(-50%)',
+  }
 }

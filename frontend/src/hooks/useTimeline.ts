@@ -4,6 +4,7 @@ import {
   type TimelineAxis,
   availableAxes,
   clampIndex,
+  endMarks,
   forecastScaleMarks,
   forecastStampLabel,
   frameHoldMs,
@@ -100,7 +101,7 @@ export function useTimeline({ times, analysisSeq, playerShown, showRadar }: Time
       ? radarOffsetLabel(radarOffsets()[frameIndex] ?? 0)
       : forecastStampLabel(forecastTimes[frameIndex] ?? forecastTimes[0] ?? Date.now())
   const timelineScale =
-    timelineAxis === 'radar' ? radarScaleEnds() : forecastScaleMarks(forecastTimes)
+    timelineAxis === 'radar' ? endMarks(radarScaleEnds()) : forecastScaleMarks(forecastTimes)
 
   // Clicking the chart moves the map's playhead to that hour, and takes the
   // transport to the forecast axis if it was showing radar: the reader just

@@ -91,6 +91,34 @@ export function bothFits(
   return availPx - mapMinPx > 2 * floorPx
 }
 
+// Whether the first report should widen a desk's results from Table to Both
+// (#687). Only where Both, at its opening heights, leaves the table more than
+// its floor: under that the chart takes its share and the table opens pinned
+// at `floorPx`, three rows under a short map, and the one panel the reader
+// came for is the one squeezed. It extends the phone's fallback to one panel
+// (#430, record 0034) to a desk whose column is short, and like that fallback
+// it decides only the opening: a reader who presses Both gets it.
+//
+// The heights are `resolvePanelHeights`' own answer rather than a measured
+// window height, so the line moves with the panel defaults and the map floor:
+// at today's 220px panels and docked floor it falls at a column of 790px,
+// which takes 1024x768 to Table and leaves 1280x800 on Both.
+export function bothOpensWithRoom(
+  availPx: number,
+  panelPx: number,
+  mapMinPx: number,
+  floorPx = 120,
+): boolean {
+  const { table } = resolvePanelHeights(panelPx, panelPx, {
+    chartShown: true,
+    tableShown: true,
+    availPx,
+    mapMinPx,
+    floorPx,
+  })
+  return table > floorPx
+}
+
 /** The single panel a mode names, or null for Both and for no answer at all. */
 export function panelOf(mode: ResultsMode | null): SinglePanel | null {
   return mode === 'chart' || mode === 'table' ? mode : null

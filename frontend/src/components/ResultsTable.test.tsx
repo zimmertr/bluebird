@@ -149,6 +149,16 @@ describe('a model that ends early', () => {
   })
 })
 
+// The Open-Meteo credit lives on the map's attribution line (#687), so the
+// table's foot is notes alone and is not drawn without one.
+describe('the foot', () => {
+  it('carries no credit, and is not drawn without a note', () => {
+    render(<ResultsTable {...props()} />)
+    expect(screen.queryByRole('link', { name: 'Open-Meteo.com' })).toBeNull()
+    expect(document.querySelector('tfoot')).toBeNull()
+  })
+})
+
 describe('the chart boxes', () => {
   const CHARTED = [
     resultRow({ name: 'Mount Rainier', latitude: 46.85, longitude: -121.76, series: series() }),
