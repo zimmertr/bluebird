@@ -40,6 +40,12 @@ export interface PopoverBox {
    * Handing over the finished pair makes that unspellable.
    */
   offset: { top: number } | { bottom: number }
+  /**
+   * Set only on an unfurled panel (`unfurl` below): the edge it shares with
+   * its anchor, which is the edge whose border and corners the card drops so
+   * the two read as one piece.
+   */
+  joined?: 'below' | 'above'
 }
 
 export interface PopoverOptions {
@@ -55,6 +61,12 @@ export interface PopoverOptions {
    * anything has been laid out to measure.
    */
   desiredHeight: number
+  /**
+   * Unfurl out of the anchor (#687, record 0134): exactly its width, flush
+   * with its left edge, and no gap, so the card's top edge is the anchor's
+   * bottom edge. `preferredWidth` and `gap` do not apply.
+   */
+  unfurl?: boolean
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -89,8 +101,9 @@ function clamp(value: number, low: number, high: number): number {
 export function popoverBox(
   trigger: Rect,
   viewport: { width: number; height: number },
-  { preferredWidth, gap, margin, desiredHeight }: PopoverOptions,
+  { preferredWidth, gap, margin, desiredHeight, unfurl = false }: PopoverOptions,
 ): PopoverBox {
+  if (unfurl) return unfurledBox(trigger, viewport, margin, desiredHeight)
   const width = clamp(preferredWidth, trigger.width, viewport.width - margin * 2)
   const left = clamp(trigger.left, margin, viewport.width - width - margin)
 
@@ -136,6 +149,54 @@ export function popoverBox(
     maxHeight: whole,
     placement: 'shifted',
     offset: { top: clamp(triggerTop, margin, viewport.height - margin - height) },
+  }
+}
+
+// The least room under an anchor that a menu still unfurls down into, and
+// scrolls in, rather than joining the anchor's top edge instead: three 44px
+// rows, the fewest that read as a list on a phone rather than as a slot.
+export const UNFURL_FLOOR_PX = 132
+
+/**
+ * A panel that unfurls out of its anchor rather than hanging beside it: the
+ * maintainer's rule of 2026-10-13 (record 0134), that a menu is one card with
+ * the control that opens it, unfurling down out of its bottom edge.
+ *
+ * Downward whenever the content fits below, and whenever below has
+ * `UNFURL_FLOOR_PX` to scroll in even when it does not: at 1024x768 the
+ * Columns list is 455px under a group with 227px beneath it, and it scrolls
+ * there rather than leave the bottom edge for the 503px above. Joined to the
+ * anchor's top edge only under that floor, which is not a hypothetical: a
+ * collapsed results sheet on a phone is a bar at the foot of the screen with
+ * nothing under it to unfurl into. It never shifts over the anchor the way a
+ * hanging panel may, because a card standing on its own control would hide
+ * the one thing that says what the card is.
+ *
+ * The width is the anchor's, never the viewport's idea of a better one, and
+ * the anchor's edges are clipped into the viewport like the trigger's above.
+ */
+function unfurledBox(
+  anchor: Rect,
+  viewport: { width: number; height: number },
+  margin: number,
+  desiredHeight: number,
+): PopoverBox {
+  const left = anchor.left
+  const width = anchor.width
+  const anchorTop = clamp(anchor.top, 0, viewport.height)
+  const anchorBottom = clamp(anchor.top + anchor.height, 0, viewport.height)
+  const below = Math.max(viewport.height - anchorBottom - margin, 0)
+  const above = Math.max(anchorTop - margin, 0)
+  if (desiredHeight <= below || below >= UNFURL_FLOOR_PX || below >= above) {
+    return { left, width, maxHeight: below, placement: 'below', offset: { top: anchorBottom }, joined: 'below' }
+  }
+  return {
+    left,
+    width,
+    maxHeight: above,
+    placement: 'above',
+    offset: { bottom: viewport.height - anchorTop },
+    joined: 'above',
   }
 }
 

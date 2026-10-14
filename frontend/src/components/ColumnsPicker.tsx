@@ -27,6 +27,11 @@ interface Props {
   // and nothing else: the key list is `useTableView`'s, and `moveColumn` owns the move.
   onColumnMove?: (fromKey: string, toKey: string) => void
   triggerRef: React.RefObject<HTMLButtonElement | null>
+  /**
+   * What the panel unfurls out of: the results bar's button group, so every
+   * menu on the bar takes the same place at the same width (record 0134).
+   */
+  anchorRef: React.RefObject<HTMLElement | null>
 }
 
 export default function ColumnsPicker({
@@ -38,8 +43,9 @@ export default function ColumnsPicker({
   onVisibilityChange,
   onColumnMove,
   triggerRef,
+  anchorRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, unfurl: true })
   const rankedNoteId = useId()
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])

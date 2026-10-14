@@ -22,9 +22,9 @@ import { useTakeOrphanedFocus } from './useFocusHandoff'
 const GAP_PX = 4
 const VIEWPORT_MARGIN_PX = 8
 
-// What a list of labels asks for, and what the results bar's three pickers take.
-// A panel whose rows carry prose needs more and says so: `ModelPicker` passes
-// its own measured width.
+// What a panel that hangs beside its trigger asks for. Every menu unfurls at
+// its anchor's width since #687 (record 0134), so this is what the one panel
+// that is not a menu takes.
 const LIST_WIDTH_PX = 256
 
 // A panel whose height cannot change while it is open measures once and stays
@@ -68,6 +68,20 @@ interface Options {
    * order because it is one element driven by `aria-activedescendant`.
    */
   initialFocusRef?: React.RefObject<HTMLElement | null>
+  /**
+   * What the panel is placed against, when that is not the trigger: the
+   * results bar's button group, which every one of its menus unfurls out of
+   * (#687). The trigger still takes the keyboard back and is still exempt
+   * from a press outside.
+   */
+  anchorRef?: React.RefObject<HTMLElement | null>
+  /**
+   * Unfurl out of the anchor as one card with it (`popoverBox`'s `unfurl`,
+   * record 0134). While the panel is open the anchor carries
+   * `data-unfurled="below"` or `"above"`, which `UNFURL_ANCHOR` reads to
+   * square the corners it shares with the card.
+   */
+  unfurl?: boolean
 }
 
 export function usePopover({
@@ -77,6 +91,8 @@ export function usePopover({
   preferredWidth = LIST_WIDTH_PX,
   remeasure = ONCE_PER_OPEN,
   initialFocusRef,
+  anchorRef,
+  unfurl = false,
 }: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -91,7 +107,7 @@ export function usePopover({
   // two carried a standing lint error and the third a suppression.
   const place = useCallback(
     (desiredHeight = Infinity) => {
-      const trigger = triggerRef.current
+      const trigger = (anchorRef ?? triggerRef).current
       if (!trigger) return
       const next = popoverBox(
         trigger.getBoundingClientRect(),
@@ -101,6 +117,7 @@ export function usePopover({
           gap: GAP_PX,
           margin: VIEWPORT_MARGIN_PX,
           desiredHeight,
+          unfurl,
         },
       )
       // A box that says the same thing is the same box. Without this, every
@@ -110,7 +127,7 @@ export function usePopover({
       // phase to hear a sidebar's own.
       setBox((prev) => (prev && sameBox(prev, next) ? prev : next))
     },
-    [triggerRef, preferredWidth],
+    [triggerRef, anchorRef, preferredWidth, unfurl],
   )
 
   // Two passes, both before paint so neither is visible. The first asks for as
@@ -158,6 +175,22 @@ export function usePopover({
       window.removeEventListener('scroll', follow, true)
     }
   }, [open, place])
+
+  // The anchor says which of its edges the card is joined to, so the two
+  // drop the corners they share. Written on the element rather than through a
+  // prop, because the anchor belongs to whoever renders it (the results bar's
+  // group is ResultsBar's) and only this hook knows which side the card took.
+  // Removed only if it still says what this panel wrote: the bar's menus
+  // share one anchor, and the next one may already have written its own.
+  const joined = open ? box?.joined : undefined
+  useLayoutEffect(() => {
+    const anchor = (anchorRef ?? triggerRef).current
+    if (!anchor || !joined) return
+    anchor.dataset.unfurled = joined
+    return () => {
+      if (anchor.dataset.unfurled === joined) delete anchor.dataset.unfurled
+    }
+  }, [anchorRef, triggerRef, joined])
 
   // The keyboard goes INTO the panel when it opens (#576). Every panel is
   // portalled to the end of the body, so one left on its trigger was reached
@@ -239,7 +272,7 @@ function sameSignals(a: readonly unknown[], b: readonly unknown[]): boolean {
 
 function sameBox(a: PopoverBox, b: PopoverBox): boolean {
   if (a.left !== b.left || a.width !== b.width || a.maxHeight !== b.maxHeight) return false
-  if (a.placement !== b.placement) return false
+  if (a.placement !== b.placement || a.joined !== b.joined) return false
   // One key, never both, and which one it is depends on the placement — so the
   // two are compared through the key each actually carries.
   return 'top' in a.offset

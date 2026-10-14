@@ -4,6 +4,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import Popover from './Popover'
 import { usePopover } from '../hooks/usePopover'
 import { placeAt, render, type Box } from '../testSupport/render'
+import { UNFURLED } from '../styles'
 
 // The recipe every floating panel wears: `usePopover` decides where the panel
 // goes and what closes it, and `Popover` draws the card and portals it out.
@@ -180,5 +181,71 @@ describe('focus', () => {
     await user.click(screen.getByRole('button', { name: 'Elsewhere' }))
     expect(inside('Inside')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Elsewhere' }))
+  })
+})
+
+// A menu unfurls out of its anchor as one card with it (#687, record 0134):
+// the results bar's pickers open from a press on one button and unfurl out of
+// the whole group, so the harness keeps the two apart the way the bar does.
+function UnfurlHarness({ anchor }: { anchor: Box }) {
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const { popoverRef, box } = usePopover({ open, onOpenChange: setOpen, triggerRef, anchorRef, unfurl: true })
+  return (
+    <>
+      <div
+        data-testid="anchor"
+        ref={(el) => {
+          anchorRef.current = el
+          if (el) placeAt(el, anchor)
+        }}
+      >
+        <button
+          ref={(el) => {
+            triggerRef.current = el
+            if (el) placeAt(el, { left: anchor.left + 40, top: anchor.top, width: 30, height: anchor.height })
+          }}
+          onClick={() => setOpen(!open)}
+        >
+          Trigger
+        </button>
+      </div>
+      {open && box && (
+        <Popover box={box} popoverRef={popoverRef}>
+          <button>Inside</button>
+        </Popover>
+      )}
+    </>
+  )
+}
+
+describe('unfurling', () => {
+  it('unfurls down out of the anchor at its width, with no gap, the shared edge dropped', async () => {
+    const { user } = render(<UnfurlHarness anchor={{ left: 300, top: 100, width: 181, height: 22 }} />)
+    await user.click(screen.getByRole('button', { name: 'Trigger' }))
+    // The anchor's edges, not the pressed button's, and no gap under it.
+    expect(panel().style.left).toBe('300px')
+    expect(panel().style.width).toBe('181px')
+    expect(panel().style.top).toBe('122px')
+    for (const cls of UNFURLED.below.split(' ')) expect(panel().classList).toContain(cls)
+    expect(screen.getByTestId('anchor').dataset.unfurled).toBe('below')
+  })
+
+  it("joins the anchor's top edge when there is no room under it", async () => {
+    const { user } = render(<UnfurlHarness anchor={{ left: 0, top: VIEWPORT_H - 30, width: 181, height: 22 }} />)
+    await user.click(screen.getByRole('button', { name: 'Trigger' }))
+    expect(panel().style.bottom).toBe('30px')
+    expect(panel().style.top).toBe('')
+    for (const cls of UNFURLED.above.split(' ')) expect(panel().classList).toContain(cls)
+    expect(screen.getByTestId('anchor').dataset.unfurled).toBe('above')
+  })
+
+  it('lets the anchor go when the card closes', async () => {
+    const { user } = render(<UnfurlHarness anchor={{ left: 300, top: 100, width: 181, height: 22 }} />)
+    await user.click(screen.getByRole('button', { name: 'Trigger' }))
+    await user.click(screen.getByRole('button', { name: 'Trigger' }))
+    expect(screen.queryByRole('button', { name: 'Inside' })).toBeNull()
+    expect(screen.getByTestId('anchor').dataset.unfurled).toBeUndefined()
   })
 })

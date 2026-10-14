@@ -340,6 +340,37 @@ export const SURFACE_CARD =
   `bg-slate-800 border border-slate-600 ${RADIUS.surface} ${ELEVATION.overlay}`
 
 /**
+ * A menu unfurled out of the control that opens it (#687, record 0134): the
+ * maintainer's rule that a menu is one card with its button, at the button's
+ * width, rather than a box floating beside it. The card gives up the border
+ * and the two corners on the edge it shares with its anchor, so the anchor's
+ * own edge is the one line between them. Keyed by the side the card took,
+ * which `popoverBox` reports as `joined`.
+ *
+ * Both utilities beat the card's own: Tailwind v4 orders a side's radius and
+ * width after the all-sides shorthand they narrow, whatever the class list
+ * says, and the built stylesheet bore that out on 2026-10-13. `styles.test.ts`
+ * holds the two sides to each other, since a card squared on one edge and
+ * bordered on it would draw a line through the join.
+ */
+export const UNFURLED = {
+  below: 'rounded-t-none border-t-0',
+  above: 'rounded-b-none border-b-0',
+} as const
+
+/**
+ * The anchor's half of the same join, worn by every control a menu unfurls
+ * out of. `usePopover` writes `data-unfurled` on it while the card is open,
+ * and these square the anchor's corners on the shared edge and give its
+ * border the card's slate-600, so the outline runs round both as one. A
+ * variant rather than a second role swapped in by the caller, because a
+ * variant is ordered after the anchor's own radius and edge colour and so
+ * wins without racing them.
+ */
+export const UNFURL_ANCHOR =
+  'data-[unfurled=below]:rounded-b-none data-[unfurled=above]:rounded-t-none data-[unfurled]:border-slate-600'
+
+/**
  * The results sheet on a phone: the panel parked over the map's bottom edge
  * rather than docked below it (#249).
  *
@@ -1263,8 +1294,8 @@ export const MAP_COL_W = 'w-46'
 export const MAP_ROW_H = 'h-9 touch:h-11'
 
 /**
- * The gap between members of that column: the field, the buttons, the legend
- * box, and the popover under the button it hangs from.
+ * The gap between members of that column: the field, the buttons and the
+ * legend box.
  *
  * 4px, half the 8px every one of them took before: a quarter off first, then
  * the same again once the tighter column was on screen (TJ, 2026-09-14).
@@ -1272,13 +1303,12 @@ export const MAP_ROW_H = 'h-9 touch:h-11'
  * `LEGEND_TOP`'s arithmetic is built out of it: a gap changed in one of the
  * four would move the column's height without moving the inset that clears it.
  *
- * One object with two spellings of the one number since #687: `gap` between
- * members that sit in a flex column, and `top` as a margin for the popover
- * that hangs rather than sits. `styles.test.ts` holds them to one step.
+ * One object since #687, which held a second spelling, `top`, as a margin for
+ * the Layers menu under its button. That menu unfurls out of the button now,
+ * with no gap at all (record 0134), so `gap` is the one key left.
  */
 export const MAP_COL_GAP = {
   gap: 'gap-1',
-  top: 'mt-1',
 } as const
 
 /**
@@ -1564,7 +1594,9 @@ export const SEGMENT_DIVIDER = 'border-l border-slate-500'
  * it meets neither neighbour. On a coarse pointer `TAP.action` makes each 44px.
  * The label is the slate-400 idle half's, as on the switch beside it.
  */
-export const ACTION_GROUP = SEGMENT_FLUID
+// The bar's menus unfurl out of the whole group rather than out of the one
+// button pressed (record 0134), so the group is the anchor that squares up.
+export const ACTION_GROUP = `${SEGMENT_FLUID} ${UNFURL_ANCHOR}`
 export const ACTION_ITEM = `${segmentHalf('flex-none')} px-1.5 cursor-pointer whitespace-nowrap ${SEGMENT_IDLE}`
 
 /**

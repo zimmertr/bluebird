@@ -1,0 +1,41 @@
+# 0134. Every menu unfurls out of the control that opens it, as one card with it at its width
+
+- Status: Accepted
+- Date: 2026-10-13
+- Decider: the maintainer (TJ), on #709
+- Issues and PRs: #687, #709, #385, #707
+- Cited in code as: #687
+- Guide: [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `usePopover.ts` + `Popover.tsx` bullet; [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), the `ColumnsPicker.tsx`, `ModelPicker.tsx` and map chrome bullets; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `listbox.ts` bullet; [`docs/STYLES.md`](../STYLES.md), Opening a panel
+
+## Context
+
+Every popover in the app hung beside the control that opened it: a 4px gap under or over the trigger, and a width of the panel's own choosing. The results bar's Columns, Models and Removed lists were 256px wide wherever the button they came from stood, so each opened in a different place, offset from a group of four buttons that reads as one control. The panel's model dropdown was 380px out of a 118px trigger, spilling over the map. The map's Layers menu was its button's width but stood 4px under it (`MAP_COL_GAP.top`). The calendar on #707 is a card that takes its field's place (`cover`).
+
+## Decision
+
+- **A menu unfurls out of the button that opens it, as one card joined to that button, at the button's width.** No menu floats beside, above or offset from its button. The search box's results list is the one exception: it is a list of answers under a text field, not a menu a button opens.
+- **The results bar's three menus unfurl out of the whole button group** (`ACTION_GROUP`), not the one button pressed: exactly the group's width, flush with its left edge, the card's top edge on the group's bottom edge. They occupy the same place, so the bar has one place where its menus open.
+- **`popoverBox` takes `unfurl`, and `usePopover` takes `anchorRef` and `unfurl`.** The anchor is what the card is placed against; the trigger still takes the keyboard back and is still exempt from a press outside. `anchorRef` is the name #707 gives the calendar's slot, so the two branches meet on one option.
+- **Down out of the bottom edge**, scrolling in the room there, while that room is at least `UNFURL_FLOOR_PX` (132px, three 44px rows). Under that floor the card joins the anchor's top edge instead, which a collapsed results sheet on a phone needs: the bar is at the foot of the screen with nothing under it. An unfurled card never shifts over its own anchor.
+- **The join is drawn by two roles.** `UNFURLED` drops the card's border and corners on the shared edge, keyed by the side it took (`joined` on the box). `UNFURL_ANCHOR` squares the anchor's corners on that side and gives its border the card's slate-600, read off `data-unfurled`, which `usePopover` writes on the anchor while the card is open. The Layers menu, which hangs in the map column rather than in a portal, writes the attribute on its button itself, and `MAP_COL_GAP.top` goes with its gap.
+- **The linter's `style-menu-unfurls` check** fails a `usePopover` call that does not pass `unfurl: true` (or the calendar's `cover: true`), and a `role="listbox"` outside the card `Popover.tsx` draws anywhere but `SearchBox.tsx`. `style-map-layers-column` requires the two roles on the Layers button and its menu.
+
+## Evidence
+
+Measured 2026-10-13 on an image built from this change, Chromium (Playwright 1.63), a 207-peak report:
+
+- **1440x900.** The group is 273.4px wide at the labelled width, and Columns and Models both open at x=1122.6, 273.4px wide, top at y=437, the group's bottom edge, with 0px between them. Columns is 455px tall and fits below. No row is clipped; the widest needs 225px of card.
+- **1024x768.** The same group and width. Columns has 227px under the group and 503px over it, and now scrolls in the 227px below, where the hanging rule had flipped it above.
+- **Phones, 360, 390 and 430 wide.** The group is its glyphs alone at all three, 136px wide (181px with Removed showing), and the menus open 136px wide on its bottom edge with 243px below. Models fits: `NOAA GFS` needs 95.4px. **Columns does not**: its rows want 210px of card, so at 136px seven of them (`Precipitation · Avg (in/hr)` and its family, the three temperatures) wrap to two lines and their drag grips are pushed out of line. With Removed showing the group is 181px, still 29px short.
+- **The panel's model dropdown** unfurls 118px wide out of its trigger. Its rows carry a model's name, a badge, its grid and reach, and a summary, which want 664px unwrapped and were 380px wide floating: at 118px the header `Resolution · range` and the `Recommended` badge are clipped, the summaries run one or two words a line, and a row is 172 to 284px tall.
+- **Layers** unfurls out of its 184px button with 0px between them at 1440x900 and 390x844, its button's bottom corners square.
+
+## Alternatives rejected
+
+- Keeping the hanging placement and only matching the width: the menus would still float 4px off their control, which is the thing the rule is against.
+- Joining the card to the button pressed rather than the group: three menus in three places, each as wide as one glyph on a phone.
+- Flipping above whenever above is roomier, the hanging rule's own preference: at 1024x768 that put the Columns list 503px up from a bar the reader is looking down at.
+
+## Consequences
+
+Two places where the rule as stated costs the content are left in this change, measured above, for the maintainer to settle. On a phone the Columns list wraps at the group's 136px; one way out is to take the whole bar's width on a phone, still joined to the group's bottom edge. The model dropdown is unreadable at its trigger's 118px; one way out is to anchor it to the Forecast section's content column, the label and control row it stands in, which is 327px. `Popover.test.tsx`, `listbox.test.ts`, `LayersPopover.test.tsx`, `ResultsBar.test.tsx` and `styles.test.ts` hold the placement, the join and the roles, and the linter's fixtures prove both bans fire.

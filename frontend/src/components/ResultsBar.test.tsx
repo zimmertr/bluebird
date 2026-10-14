@@ -10,6 +10,7 @@ const NOOP = () => {}
 const COLUMNS = createRef<HTMLButtonElement>()
 const MODELS = createRef<HTMLButtonElement>()
 const REMOVED = createRef<HTMLButtonElement>()
+const GROUP = createRef<HTMLDivElement>()
 
 // Before any report: two pending destinations, nothing removed, room for Both.
 function props(over: Partial<Props> = {}): Props {
@@ -27,6 +28,7 @@ function props(over: Partial<Props> = {}): Props {
     chooseResultsMode: NOOP,
     bothHasRoom: true,
     showTable: true,
+    actionGroupRef: GROUP,
     columnsButtonRef: COLUMNS,
     onToggleColumns: NOOP,
     columnsOpen: false,
@@ -105,6 +107,8 @@ describe('ResultsBar', () => {
     }
     const group = buttons[0].parentElement as HTMLElement
     expect(group.className).toBe(ACTION_GROUP)
+    // The element the bar's menus unfurl out of (record 0134).
+    expect(GROUP.current).toBe(group)
     for (const button of buttons) expect(button.parentElement).toBe(group)
     // Four buttons, three dividers, in turn.
     expect([...group.children].map((c) => c.tagName)).toEqual(['BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON', 'DIV', 'BUTTON'])

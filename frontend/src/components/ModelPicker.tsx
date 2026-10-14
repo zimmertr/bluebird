@@ -19,14 +19,9 @@ import {
   SELECT,
   SURFACE_DIVIDER,
   TEXT,
+  UNFURL_ANCHOR,
 } from '../styles'
 import { IconClose, IconSelectArrow } from './icons'
-
-// Wide enough for a summary to sit on two lines rather than three: the longest
-// measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
-// ~285px, so this only works because the panel floats clear of it, over the map.
-// The one popover that overrides the hook's width: the rest carry labels.
-const PREFERRED_WIDTH_PX = 380
 
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
@@ -138,7 +133,10 @@ export default function ModelPicker({
     open,
     onOpenChange: setOpen,
     triggerRef,
-    preferredWidth: PREFERRED_WIDTH_PX,
+    // Out of the trigger at its width, like every menu (record 0134). It was
+    // 380px floating over the map, wide enough for the longest summary on two
+    // lines; at the trigger's width the summaries wrap tighter.
+    unfurl: true,
     remeasure: [models, chipIds.length],
     // The list rather than the chip row, because the list is what an opened
     // picker is for; Shift+Tab reaches the chips above it. The list itself
@@ -346,7 +344,7 @@ export default function ModelPicker({
         // box to the tap floor there, and a baseline left the model name
         // against the top edge of a box half again as tall as its text
         // (TJ, 2026-09-14).
-        className={`${SELECT} ${DISABLED} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
+        className={`${SELECT} ${DISABLED} ${UNFURL_ANCHOR} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
       >
         {/* The label gives way, never the count: `+2` is the only thing on the
             trigger that a reader cannot otherwise see, so a long model name

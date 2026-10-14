@@ -8,7 +8,6 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   LIFTED_EDGE,
-  MAP_COL_GAP,
   MAP_COL_W,
   MAP_ROW_H,
   RADIUS,
@@ -20,6 +19,8 @@ import {
   SLIDER,
   SR_ONLY,
   SURFACE_POPOVER,
+  UNFURLED,
+  UNFURL_ANCHOR,
 } from '../styles'
 import { type GridStyle, pitchLabel, reachKmFor } from '../utils/forecastGrid'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
@@ -252,7 +253,11 @@ export default function LayersPopover({
         ref={buttonRef}
         onClick={() => setLayersOpen((o) => !o)}
         aria-expanded={open}
-        className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
+        // The menu unfurls out of the button's bottom edge as one card with it
+        // (record 0134). Written here rather than by `usePopover`, which this
+        // menu does not wear: it hangs in the map column, not in a portal.
+        data-unfurled={open ? 'below' : undefined}
+        className={`${BUTTON_FLOATING} ${UNFURL_ANCHOR} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
       >
         <IconLayers />
         Layers
@@ -263,7 +268,7 @@ export default function LayersPopover({
           would hang a step right of the legends it hangs over. */}
       {open && (
         <div
-          className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP.top} absolute left-0 px-2.5 py-2`}
+          className={`${SURFACE_POPOVER} ${MAP_COL_W} ${UNFURLED.below} absolute left-0 px-2.5 py-2`}
           data-tour="layers-menu"
         >
           {MAP_LAYERS.map((layer) => (

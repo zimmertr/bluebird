@@ -268,6 +268,30 @@ export const STYLES = [
     ],
   },
   {
+    // Every menu unfurls out of the control that opens it, as one card with it
+    // at its width (the maintainer, 2026-10-13; record 0134). A panel asks
+    // usePopover for that by `unfurl`, or by `cover` for the calendar, which
+    // stands in its field's place. And a list of options lives inside the
+    // one card: the search box's results list is the stated exception, so its
+    // file is the one left out.
+    name: 'style-menu-unfurls',
+    files: ['src/App.tsx', 'src/components/*.tsx', 'src/hooks/*.ts', 'src/map/**/*.{ts,tsx}'],
+    ignores: [...TESTS, 'src/hooks/usePopover.ts', 'src/components/SearchBox.tsx'],
+    probe: 'src/components/ColumnsPicker.tsx',
+    ban: [
+      {
+        selector:
+          'CallExpression[callee.name="usePopover"]:not(:has(Property[key.name=/^(unfurl|cover)$/][value.value=true]))',
+        message: 'Unfurl a menu out of its control: pass usePopover unfurl: true (or the calendar\'s cover).',
+      },
+      {
+        selector:
+          'JSXAttribute[name.name="role"][value.value="listbox"]:not(JSXElement[openingElement.name.name="Popover"] JSXAttribute)',
+        message: 'A list of options lives in the card Popover.tsx draws; only the search box keeps its own.',
+      },
+    ],
+  },
+  {
     name: 'style-placement-caller',
     files: ['src/hooks/usePopover.ts'],
     require: [{ selector: calls('popoverBox'), message: 'usePopover asks popoverBox where a panel goes.' }],
@@ -309,7 +333,7 @@ export const STYLES = [
         message: 'Take the map column width from MAP_COL_W.',
       },
       {
-        selector: `${ride('MAP_COL_GAP.gap', String.raw`(^|\s)(gap-|mt-)`)}, ${ride('MAP_COL_GAP.top', String.raw`(^|\s)(gap-|mt-)`)}`,
+        selector: ride('MAP_COL_GAP.gap', String.raw`(^|\s)(gap-|mt-)`),
         message: 'Spell no gap beside MAP_COL_GAP.',
       },
       {
@@ -323,7 +347,8 @@ export const STYLES = [
   {
     // The map column's members are four files now (#409); each carries its
     // share of the roles, and the counts add up to what App.tsx held: four
-    // MAP_COL_W, two MAP_COL_GAP.gap, one MAP_COL_GAP.top and two MAP_EDGE.left.
+    // MAP_COL_W, two MAP_COL_GAP.gap and two MAP_EDGE.left. The Layers menu's
+    // MAP_COL_GAP.top went with its gap when it unfurled (record 0134).
     // Everything inside the wrapper, which MapStage draws, inherits the one
     // number.
     name: 'style-map-wrapper',
@@ -357,12 +382,14 @@ export const STYLES = [
     ],
   },
   {
-    // The Layers button and the popover that hangs from it.
+    // The Layers button and the menu that unfurls out of it (record 0134):
+    // one width, and the join on the button's bottom edge, worn by both.
     name: 'style-map-layers-column',
     files: ['src/components/LayersPopover.tsx'],
     require: [
       { selector: interp('MAP_COL_W'), count: 2, message: 'The Layers button and its popover wear MAP_COL_W.' },
-      { selector: interp('MAP_COL_GAP.top'), count: 1, message: 'The hanging popover spaces by MAP_COL_GAP.top.' },
+      { selector: interp('UNFURLED.below'), count: 1, message: 'The Layers menu unfurls from the button with UNFURLED.below.' },
+      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Layers button wears UNFURL_ANCHOR.' },
     ],
   },
   {

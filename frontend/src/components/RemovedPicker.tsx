@@ -12,6 +12,11 @@ interface Props {
   onRestore: (key: string) => void
   onRestoreAll: () => void
   triggerRef: React.RefObject<HTMLButtonElement | null>
+  /**
+   * What the panel unfurls out of: the results bar's button group, so every
+   * menu on the bar takes the same place at the same width (record 0134).
+   */
+  anchorRef: React.RefObject<HTMLElement | null>
 }
 
 // The list behind the results bar's "Removed (N)" button (#241): every ×-ed
@@ -26,8 +31,9 @@ export default function RemovedPicker({
   onRestore,
   onRestoreAll,
   triggerRef,
+  anchorRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, unfurl: true })
 
   // Restoring the last row empties the list out from under the popover, so it
   // closes. Where the keyboard goes is the sheet's: the trigger hides at zero

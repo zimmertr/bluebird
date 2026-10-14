@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import type { PopoverBox } from '../utils/listbox'
-import { LAYER, SURFACE_CARD, SURFACE_DIVIDER, TEXT } from '../styles'
+import { LAYER, SURFACE_CARD, SURFACE_DIVIDER, TEXT, UNFURLED } from '../styles'
 
 interface Props {
   /** Where the panel goes, from `usePopover`. */
@@ -29,6 +29,8 @@ interface Props {
  * them, and two had spelled the header row as well.
  */
 export default function Popover({ box, popoverRef, header, children }: Props) {
+  // An unfurled card drops the edge it shares with its anchor (record 0134).
+  const joined = box.joined ? UNFURLED[box.joined] : ''
   return createPortal(
     <div
       ref={popoverRef}
@@ -39,7 +41,7 @@ export default function Popover({ box, popoverRef, header, children }: Props) {
         maxHeight: box.maxHeight,
         ...box.offset,
       }}
-      className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col`}
+      className={`${SURFACE_CARD} ${LAYER.popover} flex flex-col ${joined}`}
     >
       {header !== undefined && (
         <div className={`${TEXT.overline} border-b ${SURFACE_DIVIDER} px-3 py-2`}>{header}</div>

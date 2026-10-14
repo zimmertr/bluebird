@@ -53,6 +53,8 @@ interface ResultsBarProps {
   bothHasRoom: boolean
   /** Whether the results area shows, which is when Columns and Models stand. */
   showTable: boolean
+  /** The buttons' group, which every one of their menus unfurls out of. */
+  actionGroupRef: RefObject<HTMLDivElement | null>
   /** The three popovers' triggers, their presses, and whether each is open. */
   columnsButtonRef: RefObject<HTMLButtonElement | null>
   onToggleColumns: () => void
@@ -98,6 +100,7 @@ export default function ResultsBar({
   chooseResultsMode,
   bothHasRoom,
   showTable,
+  actionGroupRef,
   columnsButtonRef,
   onToggleColumns,
   columnsOpen,
@@ -278,7 +281,7 @@ export default function ResultsBar({
               one line, its word (`BAR_LABEL`). Removed joins it whenever it
               shows, and the wide chevron stands after it. */}
           <div className="flex items-center gap-2">
-            <div className={ACTION_GROUP}>
+            <div ref={actionGroupRef} className={ACTION_GROUP}>
               {actions.map((action, i) => (
                 <Fragment key={action.key}>
                   {i > 0 && <div className={SEGMENT_DIVIDER} />}

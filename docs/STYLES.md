@@ -38,6 +38,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SURFACE_PAGE` | The ground a full page stands on: the app's root, the standalone pages' frame, and the error boundary's fallback, which replaces the tree it guards and so cannot borrow a ground from it |
 | `ELEVATION` | The three shadows the app lifts a surface by: `none` for what stands on an edge, `raised` for what rests on the map, `overlay` for what opens above other chrome. Every surface below composes one (see The elevation scale below) |
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
+| `UNFURLED` | A menu card's half of the join to the control it unfurls out of: no border and square corners on the shared edge, keyed `below` or `above` by the side it took |
+| `UNFURL_ANCHOR` | The control's half: square corners facing the card and the card's slate-600 edge, read off the `data-unfurled` the card's hook writes while it is open. Worn by the results bar's group, the model dropdown's trigger and the Layers button |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, the legend, chart tooltip, the forecast player's transport bar |
 | `RECESSED_FILL` | The well every recessed surface composes: slate-900 fill, edged by a slate-500 border (`RECESSED_EDGE`, private to `styles.ts` since #687 because only roles compose it), which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
 | `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legend by one step of fill and a heavier shadow |
@@ -140,7 +142,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
 | `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls and Layers buttons, the Layers popover and the legend box. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
 | `MAP_ROW_H` | Height of one row in that column: 36px, floored at 44px on a finger. Fixed, because the search field and the two buttons each solved for their own height and came out 34, 38 and 38 |
-| `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `gap` for the members that sit in a flex column, `top` for the same gap as a margin, for a popover that hangs rather than sits |
+| `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `gap` for the members that sit in a flex column. Its `top`, the same gap as a margin for the Layers menu under its button, went when that menu unfurled out of the button (record 0134) |
 | `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
 | `LEGEND_TOP` | Where the legend stack hangs under that column, in four numbers: two pointer sizes, each with and without the Controls button, which stands in the column only while the panel is collapsed. `resultsSheet.ts` mirrors two of them as `LEGEND_TOP_PX` and `LEGEND_TOP_FINE_PX`, and `resultsSheet.test.ts` reads `styles.ts` as text to hold the pairs together |
 | `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
@@ -252,6 +254,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | Every glyph is hidden from assistive technology | `checks/accessibility.js` | Every SVG in `icons.tsx` and `iconPaths.ts` carries `aria-hidden` |
 | No component positions its own panel | `checks/styles.js` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `checks/styles.js` | `popoverBox` has exactly one caller, the `usePopover` hook |
+| Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call without `unfurl: true` (or the calendar's `cover: true`) and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-column` requires `UNFURLED.below` and `UNFURL_ANCHOR` on the Layers menu and button; the test pins the two roles to each other |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
 | No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `DRAG.carried` are the three fades |
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
@@ -694,6 +697,15 @@ draws the overline header row, which two of the four had spelled separately.
 The linter fails a second `position: 'fixed'` or a second copy of that wrapper
 anywhere under `components/` (`style-own-popover`), and a second caller of
 `popoverBox` (`style-one-placement`).
+
+Every menu unfurls out of the control that opens it, as one card with it at its
+width: no gap, the card's top edge on the control's bottom edge, the two sharing
+an outline (`UNFURLED` on the card, `UNFURL_ANCHOR` on the control). The results
+bar's Columns, Models and Removed unfurl out of the whole button group, so they
+open in one place. A card goes up only where the room under its control is less
+than three 44px rows, as on a collapsed phone sheet. The search box's results
+list is the one exception, a list of answers under a field rather than a menu.
+Record: [0134](decisions/0134-menus-unfurl-from-their-control.md)
 
 ### Adding a new role
 

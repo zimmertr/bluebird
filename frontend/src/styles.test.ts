@@ -4,6 +4,8 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  UNFURLED,
+  UNFURL_ANCHOR,
   ACCENT,
   ACCENT_RING,
   BADGE_ACCENT,
@@ -1197,10 +1199,10 @@ describe('shared recipes', () => {
 
   // The third part of the same decision: one gap between members, so the
   // column's height and the inset that clears it are built from one number.
-  // One object since #687; the two keys are one step of the spacing scale.
-  it('gives the column one gap, in both of the forms it takes', () => {
-    expect(MAP_COL_GAP).toEqual({ gap: 'gap-1', top: 'mt-1' })
-    expect(stepPx(MAP_COL_GAP.gap, 'gap')).toBe(stepPx(MAP_COL_GAP.top, 'mt'))
+  // The Layers menu took it too, as a margin, until it unfurled out of its
+  // button with no gap (record 0134).
+  it('gives the column one gap', () => {
+    expect(MAP_COL_GAP).toEqual({ gap: 'gap-1' })
   })
 
   // The other half of the same decision: one row height, so the field and the
@@ -2216,7 +2218,7 @@ describe('the results bar buttons', () => {
   // same well, the same half and the same idle fill, so the two read as
   // siblings and stand at one height on either pointer.
   it('reads as the sibling of the mode switch', () => {
-    expect(ACTION_GROUP).toBe(SEGMENT_FLUID)
+    expect(ACTION_GROUP).toBe(`${SEGMENT_FLUID} ${UNFURL_ANCHOR}`)
     expect(ACTION_ITEM).toContain(SEGMENT_IDLE)
     for (const part of [TAP.action, FOCUS_RING, 'py-0.5', 'text-xs', 'gap-1.5']) {
       expect(SEGMENT_ITEM).toContain(part)
@@ -2273,5 +2275,29 @@ describe('the welcome dialog foot', () => {
     expect(DIALOG_FOOT.secondary).toContain(BUTTON_SECONDARY)
     const primaryPx = 2 * stepPx(BUTTON_PRIMARY, 'py') + 20
     expect(stepPx(DIALOG_FOOT.secondary, 'min-h')).toBe(primaryPx)
+  })
+})
+
+// A menu is one card with the control that opens it (#687, record 0134).
+describe('an unfurled menu', () => {
+  // The card drops the border and the corners on the edge it shares with its
+  // anchor, and nothing on the other three: the anchor's own edge is the one
+  // line between them.
+  it('drops exactly the shared edge, on whichever side it took', () => {
+    expect(UNFURLED.below.split(' ').sort()).toEqual(['border-t-0', 'rounded-t-none'])
+    expect(UNFURLED.above.split(' ').sort()).toEqual(['border-b-0', 'rounded-b-none'])
+  })
+
+  // The anchor squares the corners facing the card, on the side `usePopover`
+  // writes, and takes the card's edge colour so the outline runs round both.
+  it("squares the anchor on the side facing the card, in the card's edge colour", () => {
+    expect(UNFURL_ANCHOR).toContain('data-[unfurled=below]:rounded-b-none')
+    expect(UNFURL_ANCHOR).toContain('data-[unfurled=above]:rounded-t-none')
+    expect(SURFACE_CARD).toContain('border-slate-600')
+    expect(UNFURL_ANCHOR).toContain('data-[unfurled]:border-slate-600')
+  })
+
+  it('is worn by the results bar group', () => {
+    expect(ACTION_GROUP).toContain(UNFURL_ANCHOR)
   })
 })

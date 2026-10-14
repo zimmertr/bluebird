@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox } from './listbox'
+import { nextActiveIndex, nextToolbarIndex, optionDomId, popoverBox, UNFURL_FLOOR_PX } from './listbox'
 
 const VIEWPORT = { width: 1400, height: 900 }
 // Most cases pass a content height explicitly; this is the shared geometry.
@@ -163,6 +163,63 @@ describe('popoverBox', () => {
   it('never reports negative room', () => {
     const squeezed = { ...TRIGGER, top: 899 }
     expect(popoverBox(squeezed, VIEWPORT, opts(0)).maxHeight).toBeGreaterThanOrEqual(0)
+  })
+})
+
+// A menu unfurls out of its anchor (#687, record 0134): the results bar's
+// button group, 181px with Removed showing on a phone.
+describe('popoverBox, unfurled', () => {
+  const GROUP = { left: 200, top: 300, width: 181.5, height: 22 }
+  const unfurl = (desiredHeight: number) => ({ ...BASE, desiredHeight, unfurl: true })
+
+  it("takes the anchor's width and left edge, whatever the preferred width says", () => {
+    const box = popoverBox(GROUP, VIEWPORT, unfurl(200))
+    expect(box.width).toBe(181.5)
+    expect(box.left).toBe(200)
+  })
+
+  it("stands on the anchor's bottom edge with no gap, joined below", () => {
+    const box = popoverBox(GROUP, VIEWPORT, unfurl(200))
+    expect(box.offset).toEqual({ top: 322 })
+    expect(box.joined).toBe('below')
+    expect(box.maxHeight).toBe(900 - 322 - 8)
+  })
+
+  // Too tall for the room below, and more room above: it still scrolls below
+  // while there is the floor's room there (1024x768's Columns list, 455px
+  // under a group with 227px beneath it and 503px above).
+  it('keeps to the bottom edge while the room below reaches the floor', () => {
+    const low = { ...GROUP, top: 900 - 8 - UNFURL_FLOOR_PX - 22 }
+    const box = popoverBox(low, VIEWPORT, unfurl(2000))
+    expect(box.joined).toBe('below')
+    expect(box.maxHeight).toBe(UNFURL_FLOOR_PX)
+    const lower = { ...low, top: low.top + 1 }
+    expect(popoverBox(lower, VIEWPORT, unfurl(2000)).joined).toBe('above')
+  })
+
+  it('reads the floor as three rows at the touch target', () => {
+    expect(UNFURL_FLOOR_PX).toBe(3 * 44)
+  })
+
+  // The collapsed sheet on a phone: a bar at the foot of the screen.
+  it("joins the anchor's top edge where there is no room under it", () => {
+    const low = { ...GROUP, top: 860 }
+    const box = popoverBox(low, VIEWPORT, unfurl(300))
+    expect(box.joined).toBe('above')
+    expect(box.placement).toBe('above')
+    expect(box.offset).toEqual({ bottom: 40 })
+    expect(box.maxHeight).toBe(860 - 8)
+  })
+
+  it('never shifts over its own anchor', () => {
+    for (const top of [0, 200, 440, 700, 899]) {
+      const box = popoverBox({ ...GROUP, top }, VIEWPORT, unfurl(5000))
+      expect(box.placement).not.toBe('shifted')
+    }
+  })
+
+  it('leaves a hanging panel unjoined', () => {
+    expect(popoverBox(TRIGGER, VIEWPORT, opts(200)).joined).toBeUndefined()
   })
 })
 
