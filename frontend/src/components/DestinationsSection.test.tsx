@@ -40,14 +40,13 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
-// The closed one-line field, named by its subheading and the format it shows.
-const coordinatesField = () => screen.getByRole('button', { name: 'Coordinates # Lat,Lon or Lat,Lon,Name' })
 // The Polygon block's buttons, in order, apart from the two fields above it.
 const polygonButtons = () =>
   within(screen.getByRole('heading', { name: 'Polygon' }).parentElement!)
     .getAllByRole('button')
     .map((b) => b.textContent)
-const MAP_PROMPT = 'Search by name, or select one from the map'
+const MAP_PROMPT = 'Search by name, or select from the map'
+const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
 
 describe('DestinationsSection', () => {
   describe('the draw counter', () => {
@@ -82,6 +81,16 @@ describe('DestinationsSection', () => {
   })
 
   describe('the draw button', () => {
+    // The row is always the same three (#687), with a button that does
+    // nothing yet greyed rather than missing.
+    it('shows Draw polygon, Cancel and Clear before any ring, with only the first live', () => {
+      render(<DestinationsSection {...props()} />)
+      expect(polygonButtons()).toEqual(['Draw polygon', 'Cancel', 'Clear'])
+      expect(disabled('Draw polygon')).toBe(false)
+      expect(disabled('Cancel')).toBe(true)
+      expect(disabled('Clear')).toBe(true)
+    })
+
     it('enters draw mode, and offers Edit and Clear once there is a ring', async () => {
       const onStartDrawing = vi.fn()
       const onClearDrawing = vi.fn()
@@ -89,8 +98,8 @@ describe('DestinationsSection', () => {
       await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
       expect(onStartDrawing).toHaveBeenCalledOnce()
       rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0, onClearDrawing })} />)
-      expect(screen.getByRole('button', { name: 'Edit polygon' })).toBeTruthy()
-      expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+      expect(polygonButtons()).toEqual(['Edit polygon', 'Cancel', 'Clear'])
+      expect(disabled('Cancel')).toBe(true)
       await user.click(screen.getByRole('button', { name: 'Clear' }))
       expect(onClearDrawing).toHaveBeenCalledOnce()
     })
@@ -107,8 +116,8 @@ describe('DestinationsSection', () => {
       expect(onCancelDrawing).toHaveBeenCalledOnce()
     })
 
-    // Each press unmounts the button it landed on, and the button that
-    // replaces it takes the keyboard rather than the body (#576).
+    // A press that greys the button it landed on hands the keyboard to the
+    // first button that can still act, rather than the body (#576).
     it('hands the keyboard to Cancel on entering the mode and back to Draw on leaving it', async () => {
       const { user, rerender } = render(<DestinationsSection {...props()} />)
       await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
@@ -132,6 +141,17 @@ describe('DestinationsSection', () => {
       await user.click(screen.getByRole('button', { name: 'Clear' }))
       rerender(<DestinationsSection {...props()} />)
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
+    })
+
+    // Done turns back into Edit polygon on the same button, which is still
+    // live, so the keyboard stays where the press put it.
+    it('keeps the keyboard on the mode button when Done leaves the mode', async () => {
+      const { user, rerender } = render(
+        <DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0 })} />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Done' }))
+      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0 })} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit polygon' }))
     })
 
     it('reads Done, Cancel, Clear while drawing', () => {
@@ -213,18 +233,17 @@ describe('DestinationsSection', () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
       const { user } = render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
-      await user.click(coordinatesField())
+      await user.click(coordinates())
       await user.paste('46.8529,-121.7604,Mount Rainier')
       expect(setCustomCsv).toHaveBeenLastCalledWith('46.8529,-121.7604,Mount Rainier')
       expect(onCsvPasted).toHaveBeenCalledOnce()
       expect(onCsvPasted.mock.calls[0][0]).toHaveLength(1)
     })
 
-    it('never moves the camera for typing', async () => {
+    it('never moves the camera for typing', () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
-      await user.click(coordinatesField())
+      render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
       fireEvent.keyDown(coordinates())
       fireEvent.change(coordinates(), { target: { value: '46.8529,-121.7604' } })
       expect(setCustomCsv).toHaveBeenCalledWith('46.8529,-121.7604')
@@ -240,32 +259,14 @@ describe('DestinationsSection', () => {
       expect(screen.getByText('1 destination parsed')).toBeTruthy()
     })
 
-    // Closed it is one line showing the format; a press opens the textarea in
-    // place with the keyboard in it, and the textarea shows the same line.
-    it('opens the textarea from its one-line field', async () => {
-      const { user } = render(<DestinationsSection {...props()} />)
-      expect(screen.queryByRole('textbox')).toBeNull()
-      expect(coordinatesField().textContent).toBe('# Lat,Lon or Lat,Lon,Name')
-      await user.click(coordinatesField())
-      expect(document.activeElement).toBe(coordinates())
-      expect(coordinates().getAttribute('placeholder')).toBe('# Lat,Lon or Lat,Lon,Name')
-    })
-
-    // A link that carries rows, or a list already pasted, opens the textarea
-    // on its own, and leaves the keyboard where it was.
-    it('opens on its own over a list already in state', () => {
-      render(<DestinationsSection {...props({ customCsv: '46.8529,-121.7604,Mount Rainier', parsedCount: 1 })} />)
-      expect(coordinates()).toBeTruthy()
-      expect(screen.queryByRole('button', { name: /^Coordinates/ })).toBeNull()
-      expect(document.activeElement).not.toBe(coordinates())
-    })
-
-    it('folds back to one line when emptied and left', async () => {
-      const { user } = render(<DestinationsSection {...props()} />)
-      await user.click(coordinatesField())
-      await user.tab()
-      expect(screen.queryByRole('textbox')).toBeNull()
-      expect(coordinatesField()).toBeTruthy()
+    // Two rows tall at rest, so a reader sees that several rows go in, with
+    // the format and one row that follows it as the placeholder.
+    it('stands two rows tall with the format and one example row', () => {
+      render(<DestinationsSection {...props()} />)
+      expect(coordinates().getAttribute('rows')).toBe('2')
+      expect(coordinates().getAttribute('placeholder')).toBe(
+        '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier',
+      )
     })
   })
 

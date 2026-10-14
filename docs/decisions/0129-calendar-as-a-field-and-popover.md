@@ -27,7 +27,7 @@ Measured 2026-10-13 in Chromium in the pinned Playwright image, with tomorrow an
 | | 1440x900 before | after | 390x844 touch before | after |
 |---|---|---|---|---|
 | Forecast section | 424px | 149px | 550px | 201px |
-| Hidden part of the body | 452px | 158px | 927px | 554px |
+| Hidden part of the body | 452px | 181px | 927px | 568px |
 | The popover card | | 317 x 265px | | 325 x 393px |
 
 The field is 30px tall on a fine pointer and 44 under touch. The card at 265px holds five week rows of 28px; at 36px it was 40px taller. The hidden figures include this PR's other rows (the 57px header and the 32px Metrics pitch). `ForecastCalendar.test.tsx` holds the field's words, opening on the selected day, a range picked in one visit, a press outside, the keyboard, Escape handing the field back, and Current closing the card.

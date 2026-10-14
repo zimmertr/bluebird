@@ -78,7 +78,7 @@ interface Drag {
 }
 
 /**
- * The forecast window as a calendar (#166), behind a one-line field (#687).
+ * The forecast window as a calendar (#166), behind a field (#687).
  *
  * Under Dates the panel shows one field holding the window in the words the
  * results bar prints for it, and the field opens the Hours row and the month

@@ -1,11 +1,10 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
-  BUTTON_ACCENT,
-  BUTTON_SECONDARY,
   CHOICE_INPUT,
   CHOICE_ROW,
   DISABLED,
+  DRAW_ROW,
   FIELD,
   FIELD_TRIGGER,
   ICON_ACTION,
@@ -26,15 +25,19 @@ const AREA_NOTE_KM2 = 40_000
 
 // What the Map group's field says: the two ways the map takes a destination,
 // searching for one and picking one off it (approved copy, the maintainer,
-// 2026-10-13). 250.2px at 12px on a Mac, which a 360px phone's field holds
-// with px-2 and not with the search box's px-2.5.
-const MAP_PROMPT = 'Search by name, or select one from the map'
+// 2026-10-13). 225.9px at 12px on a Mac, inside the 253px a 360px phone's
+// field has for it with px-2.
+const MAP_PROMPT = 'Search by name, or select from the map'
 
-// The coordinates format, shown on the closed field and as the open
-// textarea's placeholder, so the two say one line. Written as a "#" comment
+// The coordinates box's placeholder: the format, then one row that follows
+// it, two lines for a box two rows tall so a reader sees that several rows go
+// in (the maintainer, 2026-10-13). The format is written as a "#" comment
 // because parseCustomCsv skips those, so it stays valid input if a paste ever
-// lands beneath it. One place to change it.
-const COORDINATES_FORMAT = '# Lat,Lon or Lat,Lon,Name'
+// lands beneath it.
+const COORDINATES_PLACEHOLDER = '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier'
+
+// The Polygon row's first button, by what pressing it would do.
+const MODE_LABEL = { draw: 'Draw polygon', edit: 'Edit polygon', done: 'Done' } as const
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -124,31 +127,20 @@ export default function DestinationsSection({
   // true exactly when a change came from a paste — including a paste that
   // replaces existing text — and stale flags can't survive into typing.
   const csvPasteRef = useRef(false)
-  // Clear disables itself under the press that empties the ring (and leaves
-  // the row outside the mode), so the first control in the row that can still
-  // act takes the keyboard: Cancel while drawing, Draw polygon otherwise (#576).
+  // The row's three buttons never unmount; a press that greys the one it
+  // landed on (Draw polygon turning into a Done that waits for three points,
+  // Cancel leaving the mode, Clear emptying the ring) would park the keyboard
+  // on the body, so the first button in the row that can still act takes it:
+  // Cancel while drawing under three points, the mode button otherwise. A
+  // press that leaves its button live keeps the keyboard there (#576).
   const drawRowRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
-    if (drawPointCount !== 0) return
     for (const button of drawRowRef.current?.querySelectorAll('button') ?? []) takeOrphanedFocus(button)
-  }, [drawPointCount])
+  }, [drawing, drawPointCount])
+  const row = drawControls(drawing, drawPointCount)
   const peaksOn = destinationTypes.includes('peak')
   const mapHeadingId = useId()
   const mapPromptId = useId()
-  const coordinatesHeadingId = useId()
-  const coordinatesPromptId = useId()
-  // The coordinates textarea, opened by a press on its one-line field or by a
-  // list already in state. Only a press hands it the keyboard: a link that
-  // opens it on load must not move the focus into the panel.
-  const [csvOpen, setCsvOpen] = useState(false)
-  const csvShown = csvOpen || customCsv !== ''
-  const csvRef = useRef<HTMLTextAreaElement>(null)
-  const focusCsvRef = useRef(false)
-  useLayoutEffect(() => {
-    if (!csvShown || !focusCsvRef.current) return
-    focusCsvRef.current = false
-    csvRef.current?.focus()
-  }, [csvShown])
 
   return (
     <section data-tour="destinations">
@@ -197,57 +189,30 @@ export default function DestinationsSection({
       {/* Coordinates: second, beside the map's search field, so the two
           full-width inputs stand together and the Polygon block's buttons
           and boxes come last (#687, record 0137). A list you bring to the
-          map rather than a gesture on it. Closed it is one line in the
-          textarea's mono showing the format, the textarea's own first
-          line, and a press opens the textarea in place; a list already in
-          state, from a paste or a link, opens it on its own. No helper
-          line; the format states itself. */}
+          map rather than a gesture on it. Two rows tall at rest, so a
+          reader sees that several rows go in, with the format and one row
+          that follows it as the placeholder. No helper line; the format
+          states itself. */}
       <div className="mb-3">
-        <h3 id={coordinatesHeadingId} className={`${TEXT.subheading} mb-1.5`}>
-          Coordinates
-        </h3>
-        {!csvShown ? (
-          <button
-            type="button"
-            onClick={() => {
-              focusCsvRef.current = true
-              setCsvOpen(true)
-            }}
-            aria-labelledby={`${coordinatesHeadingId} ${coordinatesPromptId}`}
-            // The textarea's own p-2, so the line does not move as it opens.
-            className={`${FIELD_TRIGGER} p-2 font-mono`}
-          >
-            <span id={coordinatesPromptId} className="min-w-0 truncate">
-              {COORDINATES_FORMAT}
-            </span>
-          </button>
-        ) : (
-          <textarea
-            ref={csvRef}
-            aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
-            value={customCsv}
-            onKeyDown={() => (csvPasteRef.current = false)}
-            onPaste={() => (csvPasteRef.current = true)}
-            onChange={(e) => {
-              const wasPaste = csvPasteRef.current
-              csvPasteRef.current = false
-              setCustomCsv(e.target.value)
-              if (wasPaste) {
-                const points = parseCustomCsv(e.target.value)
-                if (points.length > 0) onCsvPasted(points)
-              }
-            }}
-            // Emptied and left, it folds back to its one line.
-            onBlur={(e) => {
-              if (e.target.value === '') setCsvOpen(false)
-            }}
-            // The format states itself in the box rather than in a line above
-            // it, the same line the closed field shows.
-            placeholder={COORDINATES_FORMAT}
-            rows={3}
-            className={`${FIELD} w-full p-2 font-mono resize-y`}
-          />
-        )}
+        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinates</h3>
+        <textarea
+          aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
+          value={customCsv}
+          onKeyDown={() => (csvPasteRef.current = false)}
+          onPaste={() => (csvPasteRef.current = true)}
+          onChange={(e) => {
+            const wasPaste = csvPasteRef.current
+            csvPasteRef.current = false
+            setCustomCsv(e.target.value)
+            if (wasPaste) {
+              const points = parseCustomCsv(e.target.value)
+              if (points.length > 0) onCsvPasted(points)
+            }
+          }}
+          placeholder={COORDINATES_PLACEHOLDER}
+          rows={2}
+          className={`${FIELD} w-full p-2 font-mono resize-y`}
+        />
         {customCsv.trim() !== '' && (
           <p className={`${TEXT.helper} mt-1`}>
             {parsedCount} destination{parsedCount !== 1 ? 's' : ''} parsed
@@ -299,62 +264,36 @@ export default function DestinationsSection({
             everything else. Drawing has to be left before a click on the map
             can mean anything but "another vertex", so this row is the whole
             of #118 in the panel: Draw/Edit to enter, Done to keep the ring,
-            Cancel to put back the one the mode started with. Which of them
-            show, and in what order, is `drawControls`.
-
-            Each takes the keyboard when it mounts in place of the one just
-            pressed (#576): Draw polygon unmounts under the press that starts
-            the mode and Done or Cancel under the press that ends it, and the
-            focus fell to the body every time. On a phone the drawer closes
-            instead, and the map's Controls button takes it. */}
-        <div ref={drawRowRef} className="flex flex-wrap gap-2">
-          {drawControls(drawing, drawPointCount).map((control) => {
-            switch (control) {
-              case 'start':
-                return (
-                  <button key={control} ref={takeOrphanedFocus} onClick={onStartDrawing} className={BUTTON_SECONDARY}>
-                    {drawPointCount > 0 ? 'Edit polygon' : 'Draw polygon'}
-                  </button>
-                )
-              case 'done':
-                // Disabled until the ring is a polygon: with two points there
-                // is nothing to be done WITH, and both ways of finishing (this
-                // button, Enter on the map) share the 3-point floor.
-                return (
-                  <button
-                    key={control}
-                    ref={takeOrphanedFocus}
-                    onClick={onFinishDrawing}
-                    disabled={drawPointCount < 3}
-                    className={`${BUTTON_ACCENT} ${DISABLED}`}
-                  >
-                    Done
-                  </button>
-                )
-              case 'cancel':
-                return (
-                  <button key={control} ref={takeOrphanedFocus} onClick={onCancelDrawing} className={BUTTON_SECONDARY}>
-                    Cancel
-                  </button>
-                )
-              case 'clear':
-                // Disabled rather than absent at zero points, like Done under
-                // three: a button that pops in on the first click moves the
-                // row under the reader's eye. Outside the mode it only shows
-                // over a ring, so the floor never fires there.
-                return (
-                  <button
-                    key={control}
-                    ref={takeOrphanedFocus}
-                    onClick={onClearDrawing}
-                    disabled={drawPointCount === 0}
-                    className={`${BUTTON_SECONDARY} ${DISABLED}`}
-                  >
-                    Clear
-                  </button>
-                )
-            }
-          })}
+            Cancel to put back the one the mode started with, Clear to empty
+            it. The row is always the same three, a third of the width each,
+            so it stands on the edges the Map and Coordinates fields do, and a
+            button that does nothing yet is greyed rather than missing: one
+            that popped in on the first click would move the row under the
+            reader's eye (#687). Which is live, and what the first one says,
+            is `drawControls`. On a phone Draw polygon closes the drawer, and
+            the map's Controls button takes the keyboard. */}
+        <div ref={drawRowRef} className={DRAW_ROW.row}>
+          <button
+            onClick={row.mode === 'done' ? onFinishDrawing : onStartDrawing}
+            disabled={!row.modeEnabled}
+            className={`${row.mode === 'done' ? DRAW_ROW.accent : DRAW_ROW.secondary} ${DISABLED}`}
+          >
+            {MODE_LABEL[row.mode]}
+          </button>
+          <button
+            onClick={onCancelDrawing}
+            disabled={!row.cancelEnabled}
+            className={`${DRAW_ROW.secondary} ${DISABLED}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onClearDrawing}
+            disabled={!row.clearEnabled}
+            className={`${DRAW_ROW.secondary} ${DISABLED}`}
+          >
+            Clear
+          </button>
         </div>
         {/* Checkboxes, not radios: one polygon can look for several kinds
             at once, and they all come back from a single Overpass query,

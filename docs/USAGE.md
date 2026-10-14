@@ -8,7 +8,7 @@ The welcome dialog offers a guided tutorial, the `Tutorial` link at the bottom o
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map**, **Coordinates** and **Polygon**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map**, as one field reading `Search by name, or select one from the map`: pressing it puts the cursor in the map's search box, closing the panel first on a phone, and hovering the group rings the search box and lights every clickable feature, showing you where both controls are.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map**, **Coordinates** and **Polygon**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map**, as one field reading `Search by name, or select from the map`: pressing it puts the cursor in the map's search box, closing the panel first on a phone, and hovering the group rings the search box and lights every clickable feature, showing you where both controls are.
 
 ### a. Search by name
 
@@ -32,7 +32,7 @@ Trailheads are not clickable: the basemap does not carry them, so a polygon is s
 
 ### c. Polygon
 
-Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them.
+Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
 
 - You need at least 3 points before Analyze turns on.
 - The estimated bounding-box area is shown in km² while you draw, and for a polygon a shared link brings in.
@@ -57,7 +57,7 @@ Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing
 
 ### d. Coordinates
 
-Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinates** is one line showing the format, `# Lat,Lon or Lat,Lon,Name`, until you press it, and then it is a box to paste or type into. A list that is already there, from a paste or from a shared link, keeps the box open; empty it and click away and it folds back to one line.
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinates** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller.
 
 ```
 # Lines beginning with # are ignored

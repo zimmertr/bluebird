@@ -52,6 +52,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `BUTTON_PRIMARY` | Full-width main action: Analyze button |
 | `BUTTON_SECONDARY` | Secondary action beside something else |
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
+| `DRAW_ROW` | The Polygon row: three equal buttons in a grid, `BUTTON_SECONDARY` and `BUTTON_ACCENT` at a 4px inset, because a third of the panel is narrower than `Draw polygon` at their 12px (#687, record 0137) |
 | `BUTTON_DANGER` | Destructive retry inside an error notice |
 | `BUTTON_FLOATING` | Pressable floating box: the Controls and Layers buttons, the map's only two |
 | `SKIP_LINK` | The page's first Tab stop, the floating button shown only while it has the keyboard. Transparent and unpressable while idle rather than `sr-only`, because `sr-only` sets a position of its own (#576) |
@@ -63,8 +64,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 |---|---|
 | `FIELD` | Text input, recessed fill with border |
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
-| `PLACEHOLDER` | The placeholder's slate, as `field` (a field's placeholder) and as `text` (the words of a control standing in for an empty field). One step, so the panel's fields, the map's search box and the two triggers below cannot drift apart |
-| `FIELD_TRIGGER` | A button that looks like the empty field it stands for: `FIELD`'s box with its text in `PLACEHOLDER.text`, full width, padding at the call site like `FIELD`'s. The Destinations section's search field, which focuses the map's search box, and its coordinates line, which opens the textarea in place (#687, record 0137) |
+| `PLACEHOLDER` | The placeholder's slate, as `field` (a field's placeholder) and as `text` (the words of a control standing in for an empty field). One step, so the panel's fields, the map's search box and the trigger below cannot drift apart |
+| `FIELD_TRIGGER` | A button that looks like the empty field it stands for: `FIELD`'s box with its text in `PLACEHOLDER.text`, full width, padding at the call site like `FIELD`'s. The Destinations section's search field, which focuses the map's search box (#687, record 0137) |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
 | `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.25:1 on the panel, 5.96:1 on an idle metric select and 5.43:1 on an unplotted chart chip, where 50% was 4.11, 4.58 and 4.22 |

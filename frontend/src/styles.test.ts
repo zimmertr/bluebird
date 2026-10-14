@@ -62,6 +62,7 @@ import {
   CALENDAR_FIELD,
   CALENDAR_GROUND,
   FIELD_TRIGGER,
+  DRAW_ROW,
   PLACEHOLDER,
   METRIC_LABEL_PITCH,
   MOTION,
@@ -614,6 +615,8 @@ describe('shared recipes', () => {
     ['FIELD', FIELD],
     ['SELECT', SELECT],
     ['FIELD_TRIGGER', FIELD_TRIGGER],
+    ['DRAW_ROW.secondary', DRAW_ROW.secondary],
+    ['DRAW_ROW.accent', DRAW_ROW.accent],
     ['DAY.cell', DAY.cell],
   ])('%s is a tap target on a coarse pointer', (_name, recipe) => {
     expect(recipe).toContain('touch:')
@@ -2170,7 +2173,7 @@ describe('the calendar field', () => {
   })
 })
 
-describe('the field triggers', () => {
+describe('the field trigger', () => {
   // A button that stands for an empty field (#687, record 0137) is FIELD's
   // box with the placeholder's slate as its text, and the placeholder role is
   // the one the fields and the map's search box wear, so the three cannot
@@ -2187,7 +2190,28 @@ describe('the field triggers', () => {
     // One text colour: TEXT.control's slate-200 would race the placeholder's.
     expect(FIELD_TRIGGER).not.toContain(TEXT.control)
     expect(FIELD_TRIGGER).toContain(FOCUS_RING)
-    expect(destinationsSource.match(/FIELD_TRIGGER/g)?.length).toBeGreaterThanOrEqual(3)
+    expect(destinationsSource).toContain('${FIELD_TRIGGER} px-2 py-1.5')
+  })
+})
+
+describe('the polygon row', () => {
+  // Three equal buttons on the fields' edges (#687): the two button roles with
+  // the inset cut to 4px and nothing else changed, because 12px a side would
+  // wrap `Draw polygon` (77.4px on a Mac) in a third of a 295px field.
+  it('is the two button roles at a 4px inset, three to a row', () => {
+    expect(DRAW_ROW.secondary).toBe(BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '))
+    expect(DRAW_ROW.accent).toBe(BUTTON_ACCENT.replace(' px-3 ', ' px-1 '))
+    expect(DRAW_ROW.secondary).not.toBe(BUTTON_SECONDARY)
+    expect(DRAW_ROW.accent).not.toBe(BUTTON_ACCENT)
+    expect(DRAW_ROW.row).toContain('grid-cols-3')
+    const third = (field: number) => (field - 2 * stepPx(DRAW_ROW.row, 'gap')) / 3
+    const need = (inset: number) => 77.4 + 2 * inset
+    expect(need(stepPx(DRAW_ROW.secondary, 'px'))).toBeLessThan(third(295))
+    expect(need(stepPx(BUTTON_SECONDARY, 'px'))).toBeGreaterThan(third(317))
+    for (const name of ['DRAW_ROW.row', 'DRAW_ROW.secondary', 'DRAW_ROW.accent', 'DISABLED']) {
+      expect(destinationsSource).toContain(name)
+    }
+    expect(destinationsSource).not.toMatch(/BUTTON_(SECONDARY|ACCENT)/)
   })
 })
 
