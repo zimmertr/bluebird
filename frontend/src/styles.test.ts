@@ -2152,6 +2152,40 @@ describe('the elevation scale', () => {
 
 // The compass hides under a class map/controls.ts keeps on the map's container
 // while the map is north-up and flat (#687); controls.test.ts holds the name.
+
+// The credit line on a phone, opened, wraps short of the scale bar rather than
+// covering it (#687): map.css caps the bottom-right corner at the map's width
+// less the scale's room, which these vendor numbers and the scale's widest
+// draw decide.
+describe('the attribution beside the scale', () => {
+  const SCALE_MARGIN_PX = 10 // the vendor's bottom-left control margin
+  const ATTRIB_MARGIN_PX = 10 // the vendor's compact attribution margin
+  const CLEAR_PX = 8
+  // Read as text: the controls module imports maplibre-gl, which this node
+  // suite does not load.
+  const SCALE_MAX_WIDTH_PX = Number(
+    readFileSync(new URL('./map/controls.ts', import.meta.url), 'utf8').match(/SCALE_MAX_WIDTH_PX = (\d+)/)?.[1],
+  )
+
+  it('caps the corner where the room the scale bar takes ends', () => {
+    const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-right \{[^}]*max-width[^}]*\}/)?.[0] ?? ''
+    const cap = Number(rule.match(/max-width: calc\(100% - (\d+)px\)/)?.[1])
+    expect(SCALE_MAX_WIDTH_PX).toBe(100)
+    expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
+  })
+
+  // Three lines at 360px wide: the corner grows up over the map, never down
+  // behind the results, and the band cannot squeeze the line to clip it.
+  it('grows a tall credit line upward, whole', () => {
+    const corner = mapCss.match(/\.maplibregl-ctrl-bottom-left,\n\.maplibregl-ctrl-bottom-right \{[^}]*\}/)?.[0] ?? ''
+    expect(corner).toMatch(/flex-direction: column-reverse;/)
+    expect(corner).not.toMatch(/justify-content/)
+    const child = mapCss.match(/\.maplibregl-ctrl-bottom-right \.maplibregl-ctrl \{[^}]*\}/)?.[0] ?? ''
+    expect(child).toMatch(/margin-top: auto;\s*margin-bottom: auto;/)
+    expect(child).toMatch(/flex-shrink: 0;/)
+  })
+})
+
 describe('the idle compass', () => {
   it('is hidden by map.css under the class the controls module sets', () => {
     const rule = mapCss.slice(mapCss.indexOf('.compass-idle .maplibregl-ctrl-compass'))

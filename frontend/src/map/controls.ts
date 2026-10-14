@@ -35,8 +35,16 @@ export function addControls(map: maplibregl.Map): void {
   // it by default and where the OpenStreetMap guideline expects it. They
   // shared the right corner before, the scale floating above the licence
   // line, which made the pair as tall as both together.
-  map.addControl(new ScaleControl(), 'bottom-left')
+  map.addControl(new ScaleControl({ maxWidth: SCALE_MAX_WIDTH_PX }), 'bottom-left')
 }
+
+/**
+ * The widest the scale bar draws, the library's own default stated here
+ * because `map.css` keeps the attribution clear of it at that width: a phone's
+ * opened credit line wraps at the scale's edge rather than covering it (#687).
+ * `styles.test.ts` holds the stylesheet's arithmetic to this number.
+ */
+export const SCALE_MAX_WIDTH_PX = 100
 
 /**
  * The class `map.css` hides the compass under, set on the map's container

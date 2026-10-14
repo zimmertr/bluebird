@@ -18,6 +18,7 @@ import type * as maplibregl from 'maplibre-gl'
 import {
   COMPASS_IDLE_CLASS,
   OPEN_METEO_ATTRIBUTION,
+  SCALE_MAX_WIDTH_PX,
   addAttribution,
   addControls,
   hideCompassWhileNorthUp,
@@ -55,6 +56,15 @@ describe('addControls', () => {
     addControls(map)
     expect(boxZoom.disable).toHaveBeenCalledTimes(1)
     expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'bottom-left'])
+  })
+
+  // Stated rather than defaulted, because map.css keeps the attribution clear
+  // of the scale at this width.
+  it('draws the scale no wider than the room map.css keeps for it', () => {
+    const { map, added } = stub()
+    addControls(map)
+    const [, scale] = added.find(([, , at]) => at === 'bottom-left')!
+    expect((scale as { options: Record<string, unknown> }).options).toEqual({ maxWidth: SCALE_MAX_WIDTH_PX })
   })
 })
 
