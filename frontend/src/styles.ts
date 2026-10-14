@@ -62,7 +62,11 @@
  * 10px, and 10px read as a smudge on the calendar's weekday row and under the
  * player. 12px is the floor for anything pressed, which is why no button or
  * link wears this step (the linter's `style-micro-not-pressed` check). The
- * one size left under it is `GLYPH_SIZE` below, inside a box of fixed size.
+ * exception is a credit, which is this step's own job: the Open-Meteo link in
+ * the results table's foot and MapLibre's credit line are links that sit
+ * inside an attribution line rather than controls a reader goes looking for.
+ * The one size left under the step is `GLYPH_SIZE` below, inside a box of
+ * fixed size.
  * Re-measured at 11px: the calendar's weekday row, the player's marks and
  * the model picker's reach column (record 0131).
  */
