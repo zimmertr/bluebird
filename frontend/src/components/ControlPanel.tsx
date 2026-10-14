@@ -7,7 +7,8 @@ import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { PANEL_EDGE, PANEL_RULE, TEXT } from '../styles'
+import { PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
+import { useScrollShadows } from '../hooks/useScrollShadows'
 import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
@@ -316,6 +317,11 @@ export default function ControlPanel({
     now,
   })
 
+  // The body's scroll shadows, for the browsers whose CSS cannot tell on its
+  // own whether there is more above or below (#697).
+  const bodyRef = useRef<HTMLDivElement>(null)
+  useScrollShadows(bodyRef)
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -325,9 +331,9 @@ export default function ControlPanel({
           alt=""
           width={256}
           height={256}
-          className="w-20 object-cover flex-shrink-0"
+          className={PANEL_HEADER.logo}
         />
-        <div className="px-3 py-4 flex flex-col justify-center">
+        <div className={PANEL_HEADER.title}>
           <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
           <p className={TEXT.caption}>Weather Window Finder</p>
         </div>
@@ -340,7 +346,8 @@ export default function ControlPanel({
         // stay equal: `space-y` is the gap ABOVE each rule (margin sits outside
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
-        className={`flex-1 overflow-y-auto px-4 py-4 ${PANEL_RULE}`}
+        ref={bodyRef}
+        className={`${PANEL_BODY} ${PANEL_RULE}`}
       >
         {/* Destinations — one list, defined via any of four methods
             that union into a single ranked report */}

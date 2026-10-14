@@ -20,6 +20,20 @@
   font-family: inherit;
 }
 
+/* The map's own white surfaces are light, where the app around them is dark
+   (index.css sets `color-scheme: dark` on the root, #697). Said here so the
+   browser draws a popup's native chrome for the white card it is on, and the
+   same for MapLibre's white control buttons and credit line. The scheme alone
+   does not reach the text: `color` is inherited as the root's already
+   resolved light grey, which measured white on the popup's white card
+   (2026-10-13), so the default text colour is resolved again here, in the
+   light scheme, which is the black it was before the root went dark. */
+.maplibregl-popup,
+.maplibregl-ctrl {
+  color-scheme: light;
+  color: CanvasText;
+}
+
 /* The library's own top-right stack — zoom, compass, geolocate — measured off
  * the same edge as the app's Controls/Layers column opposite it.
  *
@@ -263,8 +277,8 @@
    height). The bar stays drawn while the body overflows, because overlay
    scrollbars vanish until scrolled and a card cut mid-list would give no hint
    there is more: `scrollbar-color` gives Chrome and Firefox a classic bar and
-   the -webkit-* rules cover Safari, as `.results-scrollbars` does for the
-   results panel. Slate-500 on slate-100, 4.34:1, a pass for a UI boundary on
+   the -webkit-* rules cover Safari, as `.surface-scrollbars` does for the
+   dark surfaces. Slate-500 on slate-100, 4.34:1, a pass for a UI boundary on
    the white card. The gutter keeps the right-aligned numbers clear of it. */
 .popup-scroll {
   overflow-y: auto;

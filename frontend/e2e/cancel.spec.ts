@@ -101,7 +101,8 @@ test('a cancelled search of a new ring leaves the last report, and the next Anal
   await page.getByRole('button', { name: /^Center map on / }).first().click()
   await expect(popup).toHaveCount(1)
   await page.getByRole('button', { name: 'Analyze' }).click()
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  // The run's Cancel: the panel's Polygon row keeps a greyed one of its own.
+  await page.getByRole('button', { name: 'Cancel', disabled: false }).click()
   discovery.release()
 
   // Ring A's report, and the panel still saying the search area moved.
@@ -142,7 +143,7 @@ test('a cancel after partial rows puts the last report back, and the next Analyz
   const popup = page.locator('.maplibregl-popup')
   await page.getByRole('button', { name: /^Center map on / }).first().click()
   await expect(popup).toHaveCount(1)
-  await page.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Cancel', disabled: false }).click()
   holdWeather = false
   heldWeather.splice(0).forEach((r) => r.abort().catch(() => {}))
 

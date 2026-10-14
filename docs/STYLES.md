@@ -9,7 +9,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Role | Purpose |
 |---|---|
 | `TEXT.appTitle` | Panel identity in the header |
-| `TEXT.section` | Panel section headings |
+| `TEXT.section` | Panel section headings: 14px bold uppercase in slate-300 (9.85:1 on the panel), brighter than any caption so a heading no longer reads dimmer than the slate-200 subheading under it (#687) |
 | `TEXT.subheading` | Named sub-blocks and field labels |
 | `TEXT.cta` | Single call-to-action text, step up from body |
 | `TEXT.control` | Anything you read or type in a control |
@@ -41,9 +41,9 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `RECESSED_FILL` / `RECESSED_EDGE` | The well every recessed surface composes: slate-900 fill and a slate-500 border, which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
 | `SURFACE_POPOVER` | A floating box that is a menu rather than a key, lifted off the legend by one step of fill and a heavier shadow: the search result list, the one menu on the map that does not unfurl from its button (`MAP_CARD`) |
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
-| `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
-| `SURFACE_GROUP_BLEED` | Cancels a well's inset so its contents sit on the panel's control column |
-| `SURFACE_DIVIDER` | The quiet rule between two blocks of one surface, where the panel's stack cannot draw it: a dialog header over its body, a popover's overline strip over its rows, the panel's own right edge against the map. A bare colour, so the call site supplies the side |
+| `CALENDAR_FIELD` | The calendar's field under Dates: a `SELECT` that may wrap to two lines, the one panel control allowed to, because the longest window (an hourly one with a year) cannot fit its text room and an ellipsis cut off the end time. Top-aligned, with the arrow pinned to the first line, so one line looks like any other field (#687, record 0129) |
+| `CALENDAR_GROUND` | The calendar's ground inside its popover card: the recessed slate-900 fill without a border, since the card draws the edge, so `DAY.range` keeps its 1.28:1 against the ground where slate-800 would leave it 1.05:1 (#687, record 0129). It scrolls with `SCROLL_BARS` when a short window caps the card |
+| `SURFACE_DIVIDER` | The quiet rule between two blocks of one surface, where the panel's stack cannot draw it: a dialog header over its body, a popover's overline strip over its rows, the month bar under the calendar's Hours row. A bare colour, so the call site supplies the side |
 
 **Buttons**
 
@@ -52,6 +52,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `BUTTON_PRIMARY` | Full-width main action: Analyze button |
 | `BUTTON_SECONDARY` | Secondary action beside something else |
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
+| `DRAW_ROW` | The Polygon row: three equal buttons in a grid, `BUTTON_SECONDARY` and `BUTTON_ACCENT` at a 4px inset, because a third of the panel is narrower than `Draw polygon` at their 12px (#687, record 0137) |
 | `BUTTON_DANGER` | Destructive retry inside an error notice |
 | `BUTTON_FLOATING` | Pressable floating box. No call site wears it bare: the map's buttons take it through `MAP_BUTTON` (desktop Controls) and `MAP_PILL` (phone Controls), and the skip link through `SKIP_LINK` |
 | `MAP_BUTTON` | A button in the map's left column: Controls (panel closed) and Layers at a desktop width. `BUTTON_FLOATING` at `MAP_COL_W` by `MAP_ROW_H` with the icon slot at the left |
@@ -86,7 +87,13 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SELECT_W_AGGREGATE` | The aggregate dropdown in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its arrow, with 12px of deliberate slack because the width also sets a grid track |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for the slate-700 fills: a search result's description on `SURFACE_POPOVER`, and the window caption on the results sheet's header bar. slate-300 (6.97:1) because slate-400 falls to 3.93:1 on that fill |
 | `SLIDER_OVERLAY` / `SLIDER_VALUE` / `SLIDER_WORDMARK` / `SLIDER_IDLE` | The coverage slider in the Layers popover: the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint |
-| `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
+| `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint (the rule under the header, the one over the footer, and since #697 the panel's right edge against the map and the results), and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
+| `PANEL_BODY` | The panel's scrolling body: `px-4 py-4`, the shared bar with its width kept (`scrollbar-gutter: stable`, so the column never jumps when a section opens), and both scroll shadows reaching across the padding |
+| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687) |
+| `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the theme's slate-500 and slate-800; the root's `color-scheme: dark` turns every bar it does not reach dark too (#697, record 0128) |
+| `SCROLL_SHADOW` | A slate-950 shade at 70% over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
+| `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
+| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone drawer, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
@@ -188,7 +195,8 @@ One set of roles for both surfaces that reorder columns, the table header and th
 
 | Role | Purpose |
 |---|---|
-| `DAY.cell` | Calendar day cell box with tap target height |
+| `DAY.cell` | Calendar day cell box: 28px on a fine pointer, 44px under touch (#687) |
+| `DAY.head` | The weekday initials over the grid, kept at the 36px the day rows had |
 | `DAY.full` | Full data available (weather and AQI) |
 | `DAY.partial` | Weather only (past air-quality horizon) |
 | `DAY.unservable` | Outside servable band, inactive |
@@ -328,7 +336,7 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 ### The three weights of rule
 
 Measured against the slate-800 panel and card, which is what every one of them
-is drawn on except the calendar's own well:
+is drawn on except the calendar's ground in its popover:
 
 | Role | Colour | Contrast | Who places it |
 |---|---|---|---|
@@ -337,7 +345,12 @@ is drawn on except the calendar's own well:
 | `SURFACE_DIVIDER` | slate-700 | 1.41:1 | The call site |
 
 Only the first is meant to be seen as a boundary, and it is the one step that
-clears the 3:1 a UI boundary owes. The other two are the same quiet line to the
+clears the 3:1 a UI boundary owes. It closes the panel on three sides: under the
+header, over the footer, and since #697 down the panel's right edge, where it
+meets the map and the docked results. That edge was `SURFACE_DIVIDER` at 1.41:1,
+which left the panel and the slate-800 results one L-shaped block; `PANEL_EDGE`
+is 3.07:1 there and 3.74:1 on slate-900. An 8px slate-900 gutter was mocked
+beside it and declined (record 0128). The other two are the same quiet line to the
 eye: half-opacity slate-600 composites to (50.5, 63, 82) on the panel where
 slate-700 is (51, 65, 85). They are two roles rather than one because they
 differ in who decides WHERE the line goes, not in what it looks like:
@@ -411,7 +424,7 @@ Every stacked panel control composes `CONTROL_W = 'w-[118px]'` = 118px.
 
 118px is not a taste. It is 2 x `METRIC_BOX_W` + the Metrics grid's `gap-x-1.5`, so the Forecast section's model picker and its two segments stand on exactly the edges the bound boxes below them do. The panel is one column at 225 and 343, measured. It was 144px, set by the widest segment label, until the Metrics row's label budget forced the narrower boxes and left the two sections 26px apart. `styles.test.ts` derives the sum from the roles.
 
-The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content. The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
+The Metrics table still sizes nothing by that token. Its row is the panel's widest — radio, label, aggregate dropdown (`SELECT_W_AGGREGATE`, 72px), Min box and Max box (`METRIC_BOX_W`, 56px each) — and the label has to hold `Freezing level` at text-xs inside the panel's 327px of content, which is 317px beside the 10px scroll bar the body keeps room for since #697. The direction segment above the rows spans the two box columns and wears `SEGMENT_FILL`, because a fixed width in a grid cell states a number the tracks already decide.
 
 Four controls in that section share one pair of edges: the direction segment, the results cap box, the Clear filters button, and every bound pair. The three wide ones span the two box columns rather than spelling their sum, so the width lives in `METRIC_BOX_W` alone. Clear filters is always drawn and disables when there is nothing to clear, so the section's last row never moves.
 
@@ -421,7 +434,7 @@ Nothing is drawn between the section's two blocks. `METRIC_HEAD_GAP` is the whol
 
 **The select arrow:** `SELECT` reserves `pr-6` = 24px, which is the arrow's own box and nothing more — `ICON_ADORNMENT` puts a 16px glyph 8px from the edge. It reserved 32px until the column came down to 118px, where those 8px were the difference between `UK Met Office` (79.69px) fitting the model picker's 84px of label and truncating. `Meteo-France ARPEGE` at 130.03px fits no trigger the panel can offer and truncated at 144px too.
 
-**Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
+**Arithmetic:** `327 − 14 (radio) − 10 (label gap) − 3 × 6 (grid gaps) − 72 − 2 × 56 = 101px` for the label, and 91px with the 10px bar's room taken off. The noun's measured width is pinned beside that sum in `styles.test.ts`; re-measure before moving a width, the gap, or the nouns.
 
 ### Welcome dialog height
 

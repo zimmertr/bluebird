@@ -99,12 +99,14 @@ export function IconChevron({
  *
  * It carries `ICON_ADORNMENT` itself: all three dropdowns in the app place it
  * the same way, and the reserve `SELECT` budgets is measured off that one
- * offset plus this one step.
+ * offset plus this one step. The calendar's field is the one exception, and
+ * hands its own placement in (`CALENDAR_FIELD.arrow`): it may wrap to two
+ * lines, and its arrow stays on the first.
  */
-export function IconSelectArrow(): ReactNode {
+export function IconSelectArrow({ placement = ICON_ADORNMENT }: { placement?: string } = {}): ReactNode {
   return (
     <svg
-      className={`${ICON_ADORNMENT} ${ICON.control}`}
+      className={`${placement} ${ICON.control}`}
       viewBox="0 0 20 20"
       fill="currentColor"
       aria-hidden="true"

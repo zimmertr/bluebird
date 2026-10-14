@@ -68,6 +68,22 @@ interface Options {
    * order because it is one element driven by `aria-activedescendant`.
    */
   initialFocusRef?: React.RefObject<HTMLElement | null>
+  /**
+   * What the panel is placed against, when that is not the trigger: the
+   * calendar's slot under When, which stays in the layout while its field is
+   * hidden under the open card (#687). The trigger still takes the keyboard
+   * back and is still exempt from a press outside.
+   */
+  anchorRef?: React.RefObject<HTMLElement | null>
+  /** Stand on the anchor rather than beside it (`popoverBox`'s `cover`). */
+  cover?: boolean
+  /**
+   * Controls whose press is not "outside", because the caller closes the
+   * panel itself in the same press: the calendar's When segment (#687). Its
+   * Current used to close the card on pointerdown and drop the Dates arm on
+   * the click, a press later, so the card left a frame before the rest.
+   */
+  ownPressRef?: React.RefObject<HTMLElement | null>
 }
 
 export function usePopover({
@@ -77,6 +93,9 @@ export function usePopover({
   preferredWidth = LIST_WIDTH_PX,
   remeasure = ONCE_PER_OPEN,
   initialFocusRef,
+  anchorRef,
+  cover = false,
+  ownPressRef,
 }: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -91,7 +110,7 @@ export function usePopover({
   // two carried a standing lint error and the third a suppression.
   const place = useCallback(
     (desiredHeight = Infinity) => {
-      const trigger = triggerRef.current
+      const trigger = (anchorRef ?? triggerRef).current
       if (!trigger) return
       const next = popoverBox(
         trigger.getBoundingClientRect(),
@@ -101,6 +120,7 @@ export function usePopover({
           gap: GAP_PX,
           margin: VIEWPORT_MARGIN_PX,
           desiredHeight,
+          cover,
         },
       )
       // A box that says the same thing is the same box. Without this, every
@@ -110,7 +130,7 @@ export function usePopover({
       // phase to hear a sidebar's own.
       setBox((prev) => (prev && sameBox(prev, next) ? prev : next))
     },
-    [triggerRef, preferredWidth],
+    [triggerRef, anchorRef, preferredWidth, cover],
   )
 
   // Two passes, both before paint so neither is visible. The first asks for as
@@ -219,6 +239,7 @@ export function usePopover({
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as Node
       if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      if (ownPressRef?.current?.contains(target)) return
       onOpenChange(false)
     }
 
@@ -228,7 +249,7 @@ export function usePopover({
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [open, onOpenChange, triggerRef])
+  }, [open, onOpenChange, triggerRef, ownPressRef])
 
   return { popoverRef, box }
 }

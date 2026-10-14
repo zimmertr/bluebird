@@ -55,6 +55,13 @@ export interface PopoverOptions {
    * anything has been laid out to measure.
    */
   desiredHeight: number
+  /**
+   * Stand where the trigger stands rather than beside it: top at the trigger's
+   * top, pushed up only as far as the viewport needs. For a panel that takes
+   * its trigger's place, the calendar's, whose field is not drawn while the
+   * card is open (#687), so a card beside it would hang off an empty slot.
+   */
+  cover?: boolean
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -89,7 +96,7 @@ function clamp(value: number, low: number, high: number): number {
 export function popoverBox(
   trigger: Rect,
   viewport: { width: number; height: number },
-  { preferredWidth, gap, margin, desiredHeight }: PopoverOptions,
+  { preferredWidth, gap, margin, desiredHeight, cover = false }: PopoverOptions,
 ): PopoverBox {
   const width = clamp(preferredWidth, trigger.width, viewport.width - margin * 2)
   const left = clamp(trigger.left, margin, viewport.width - width - margin)
@@ -108,7 +115,7 @@ export function popoverBox(
   const above = Math.max(triggerTop - gap - margin, 0)
   const whole = Math.max(viewport.height - margin * 2, 0)
 
-  if (desiredHeight <= below) {
+  if (!cover && desiredHeight <= below) {
     return {
       left,
       width,
@@ -117,7 +124,7 @@ export function popoverBox(
       offset: { top: triggerBottom + gap },
     }
   }
-  if (desiredHeight <= above) {
+  if (!cover && desiredHeight <= above) {
     return {
       left,
       width,
