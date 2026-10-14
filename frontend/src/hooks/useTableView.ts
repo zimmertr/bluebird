@@ -24,6 +24,7 @@ import {
   CLOSURE_KEY,
   FLAG_COLS,
   MODEL_KEY,
+  RANK_KEY,
   type SortDir,
   type SortKey,
   WILDFIRE_KEY,
@@ -259,7 +260,10 @@ export function useTableView({
   // The Closure column's is virtual too, and sorts by the order's NAME: rows
   // inside a closure group by the order that closed them, and a cleared or
   // uncovered row is null and lands last in either direction, as a clear
-  // wildfire row does.
+  // wildfire row does. The # header sorts by the stamped rank below; the sort
+  // is stable, so a comparison's rows, which share their destination's rank,
+  // stay grouped as `modelRowsFor` handed them over, the report's row first,
+  // whichever way it runs (#698).
   const fireWarnings = fire.warnings
   const closureWarnings = closure.warnings
   // Each row stamped with its place in the RANKING before a header sort moves
@@ -277,17 +281,19 @@ export function useTableView({
   const rankingOrder = isRankingOrder(detailSort, sortBy, sortDesc)
   const tableRows = useMemo(() => {
     const value = (r: DestinationResult) =>
-      detailSort.key === WILDFIRE_KEY
-        ? (fireWarnings.get(geoKey(r.latitude, r.longitude))?.miles ?? null)
-        : detailSort.key === CLOSURE_KEY
-          ? (closureWarnings.get(geoKey(r.latitude, r.longitude))?.name ?? null)
-          : detailSort.key === MODEL_KEY
-            ? ((r as ModelRow).modelLabel ?? null)
-            : detailSort.key === 'elevation_ft'
-              // The column sorts by the number it shows: the terrain height
-              // stands in for a place with none recorded (decision 0116).
-              ? (r.elevation_ft ?? r.terrain_ft ?? null)
-              : r[detailSort.key]
+      detailSort.key === RANK_KEY
+        ? ((r as ModelRow).rank ?? null)
+        : detailSort.key === WILDFIRE_KEY
+          ? (fireWarnings.get(geoKey(r.latitude, r.longitude))?.miles ?? null)
+          : detailSort.key === CLOSURE_KEY
+            ? (closureWarnings.get(geoKey(r.latitude, r.longitude))?.name ?? null)
+            : detailSort.key === MODEL_KEY
+              ? ((r as ModelRow).modelLabel ?? null)
+              : detailSort.key === 'elevation_ft'
+                // The column sorts by the number it shows: the terrain height
+                // stands in for a place with none recorded (decision 0116).
+                ? (r.elevation_ft ?? r.terrain_ft ?? null)
+                : r[detailSort.key]
     const base: DestinationResult[] = comparedTableRows ?? rankedRows
     if (rankingOrder) return base
     return [...base].sort((a, b) => compareValues(value(a), value(b), detailSort.dir))
