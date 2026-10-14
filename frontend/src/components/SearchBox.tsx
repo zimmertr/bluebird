@@ -8,7 +8,8 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   MAP_COL_W,
-  MAP_ROW_W,
+  MAP_PILL,
+  MAP_PILL_FIELD,
   MAP_ROW_H,
   RADIUS,
   SEARCH_LIST,
@@ -34,7 +35,7 @@ import { IconClose, IconSearch } from './icons'
 // severity the tint used to carry — amber-300 reads 7.15:1 on that fill,
 // measured 2026-09-14, where AA asks 4.5:1.
 //
-// Its width is the field's on a phone (#696), where the field spans the map
+// Its width is the pill's on a phone (#696), where the field spans the map
 // and a list narrower than the box it hangs from would read as a second thing.
 const DROPDOWN = `${SURFACE_POPOVER} absolute left-0 top-full mt-1`
 const DROPDOWN_W = 'w-72 sm:w-80'
@@ -45,9 +46,14 @@ interface Props {
   // Map group, whose search-by-name control lives out here on the map rather
   // than in the panel. Purely a cue — nothing about the box's behavior changes.
   pointed?: boolean
-  // Spans the map's top edge rather than the column (#696): a phone, where the
-  // field is the first control a reader meets.
-  wide?: boolean
+  // The pill in a phone's first row (#696) rather than the desk column's box:
+  // as wide and as tall as the slot it stands in, fully rounded, its list as
+  // wide as the pill.
+  pill?: boolean
+  // Whether the field has the keyboard or its list or its notice is open,
+  // each time that changes. A phone's row widens the pill over the locate
+  // button and steps the chip row aside for as long as it is true.
+  onExpandedChange?: (expanded: boolean) => void
 }
 
 export interface SearchBoxHandle {
@@ -58,7 +64,7 @@ export interface SearchBoxHandle {
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false, wide = false }, ref) {
+const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false, pill = false, onExpandedChange }, ref) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -87,6 +93,17 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   }, [highlight, places, listId])
 
   const open = places !== null || error !== null
+
+  // Focus alone would let go the moment a press on a result began, which on a
+  // phone narrowed the pill and its list under the finger before the press
+  // landed, so an open list holds the pill wide as well.
+  const [focused, setFocused] = useState(false)
+  const expanded = focused || open
+  const onExpandedRef = useRef(onExpandedChange)
+  onExpandedRef.current = onExpandedChange
+  useEffect(() => {
+    onExpandedRef.current?.(expanded)
+  }, [expanded])
 
   // Click/tap away dismisses the dropdown or error but keeps the query
   useEffect(() => {
@@ -181,7 +198,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   return (
     <div
       ref={rootRef}
-      className={`relative ${wide ? MAP_ROW_W : MAP_COL_W} ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
+      className={`relative ${pill ? 'h-full w-full' : MAP_COL_W} ${pill ? RADIUS.pill : RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
     >
       {/* The box takes the height, not the input inside it: `MAP_ROW_H` is the
           one row height every member of the map's left column wears, so the
@@ -189,7 +206,9 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           numbers. Sizing the input instead grew the box by its own padding and
           overshot. */}
       <div
-        className={`${SURFACE_FLOATING} ${MAP_ROW_H} flex items-center gap-2 px-2.5 transition-colors ${ACCENT.edgeFocus}`}
+        className={
+          pill ? MAP_PILL : `${SURFACE_FLOATING} ${MAP_ROW_H} flex items-center gap-2 px-2.5 transition-colors ${ACCENT.edgeFocus}`
+        }
       >
         <IconSearch className={`flex-shrink-0 ${ICON_ACTION}`} />
         <input
@@ -202,6 +221,8 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
             setError(null)
           }}
           onKeyDown={onKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           // The WAI-ARIA combobox (#576), the attributes the model picker's
           // trigger wears: the field keeps the keyboard, the arrow keys move a
           // highlight through the list, and `aria-activedescendant` is what
@@ -223,7 +244,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // No width of its own: the box is `MAP_COL_W` and the input takes
           // what the icon and the clear button leave. `min-w-0` is what lets
           // it, a flex item's default `min-width:auto` being its content.
-          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-slate-400 focus:outline-none`}
+          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-slate-400 focus:outline-none ${pill ? MAP_PILL_FIELD : ''}`}
         />
         {loading ? (
           // A picture of the wait, named as one: a label on an element with
@@ -250,7 +271,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           absolute dropdown it always was. */}
       <div role="status">
         {error && (
-          <div className={`${DROPDOWN} ${wide ? MAP_ROW_W : DROPDOWN_W} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
+          <div className={`${DROPDOWN} ${pill ? 'w-full' : DROPDOWN_W} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
             {error}
           </div>
         )}
@@ -273,7 +294,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // exactly the half that went (TJ, 2026-09-14, reversing the bind).
           // It hangs past the column's right edge the way the model picker's
           // listbox hangs past the panel's.
-          className={`${DROPDOWN} ${wide ? MAP_ROW_W : DROPDOWN_W} ${SEARCH_LIST} divide-y divide-slate-600`}
+          className={`${DROPDOWN} ${pill ? 'w-full' : DROPDOWN_W} ${SEARCH_LIST} divide-y divide-slate-600`}
         >
           {places.map((p, i) => (
             // The option is what a press picks, with no button inside it: an

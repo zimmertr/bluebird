@@ -38,15 +38,14 @@ import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
  * Shared with the phone, where the sheet's own floors take over; they are the
  * starting heights either way, and the reader's drag replaces them.
  */
-export const DEFAULT_PANEL_HEIGHT = 220
+const DEFAULT_PANEL_HEIGHT = 220
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
 // the window resizes or a phone rotates — otherwise a stale height could let the
-// panels crowd the map below its floor after a resize. `useLegendFold` reads it
-// too, for the legend's default.
-export function useViewportHeight(): number {
+// panels crowd the map below its floor after a resize.
+function useViewportHeight(): number {
   const [height, setHeight] = useState(() =>
     typeof window !== 'undefined' ? window.innerHeight : 800,
   )
@@ -87,6 +86,11 @@ export interface ResultsLayoutInputs {
    * open sheet leaves no room for a marker's popup (#536).
    */
   collapsedOverride?: boolean | null
+  /**
+   * The reader has the forecast player on, so a phone's full sheet leaves it
+   * room above the Analyze button (#696, `PLAYER_ROOM_PX`).
+   */
+  playerOn?: boolean
 }
 
 /**
@@ -108,6 +112,7 @@ export function useResultsLayout({
   response,
   analysisSeq,
   collapsedOverride = null,
+  playerOn = false,
 }: ResultsLayoutInputs) {
   // The heights both panels open at, and the ones a double-click on either
   // resizer restores. Named rather than inline because a reset that hard-coded
@@ -206,7 +211,7 @@ export function useResultsLayout({
   // nothing: the results are docked there and the drag keeps the plain map
   // floor `clampPanelHeight` defaults to.
   const bothHasRoom = bothFits(viewportH - bannerPx, {
-    mapMinPx: isDesktop ? undefined : draggedMapFloorPx(2),
+    mapMinPx: isDesktop ? undefined : draggedMapFloorPx(2, playerOn),
   })
   const resultsMode = heldResultsMode(resolveResultsMode(modePref, lastPanelRef.current, bothHasRoom), {
     pendingOnly: response === null,
@@ -235,7 +240,7 @@ export function useResultsLayout({
   // default heights. The DRAG floor stays `clampPanelHeight`'s own, as it was:
   // a reader who pulls the panels up has chosen a shorter map, and the stack
   // scrolls rather than the drag stopping short.
-  const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount)
+  const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount, playerOn)
   const mapFloorPx = isDesktop
     ? heightsChosen
       ? undefined
@@ -391,6 +396,11 @@ export function useResultsLayout({
     onDragEnd: () => setIsDragging(false),
   }
 
+  // The map's whole height on a phone, which the Analyze button and the
+  // player above it measure their room against (#696): the viewport less the
+  // preview banner, since the sheet stands over the map rather than beside it.
+  const mapPx = viewportH - bannerPx
+
   return {
     sheetRef,
     isDragging,
@@ -406,6 +416,7 @@ export function useResultsLayout({
     mapCornerLift,
     cameraPadBottomPx,
     sheetPadBottomPx,
+    mapPx,
     chartGrip,
     tableGrip,
   }

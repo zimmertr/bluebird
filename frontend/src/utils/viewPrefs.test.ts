@@ -45,7 +45,6 @@ describe('reading the stored view', () => {
       columns: null,
       modelColumn: null,
       columnOrder: null,
-      legendOpen: null,
     })
   })
 
@@ -71,15 +70,6 @@ describe('reading the stored view', () => {
     expect(readViewPrefs().modelColumn).toBe(true)
     withStored({ modelColumn: 'yes' })
     expect(readViewPrefs().modelColumn).toBeNull()
-  })
-
-  // The legend's fold (#696) is the reader's only once they press its strip;
-  // until then the device decides, which only an absent answer leaves room for.
-  it('takes a boolean legend fold and nothing else', () => {
-    withStored({ legendOpen: false })
-    expect(readViewPrefs().legendOpen).toBe(false)
-    withStored({ legendOpen: 'open' })
-    expect(readViewPrefs().legendOpen).toBeNull()
   })
 
   it('takes a column order only as a list', () => {
@@ -205,13 +195,6 @@ describe('writing a preference', () => {
     })
   })
 
-  it('stores a legend fold beside the rest', () => {
-    const storage = withStored({ modeChosen: 'table' })
-    writeViewPrefs({ legendOpen: true })
-    expect(stored(storage)).toEqual({ modeChosen: 'table', legendOpen: true })
-    expect(readViewPrefs().legendOpen).toBe(true)
-  })
-
   it('drops a null rather than storing one, so the report still decides', () => {
     const storage = withStored({ modelColumn: true, columnOrder: ['name'] })
     writeViewPrefs({ modelColumn: null, columnOrder: null })
@@ -248,7 +231,6 @@ describe('writing a preference', () => {
       columns: new Set(['name', 'type']),
       modelColumn: false,
       columnOrder: ['type', 'name'],
-      legendOpen: null,
     })
   })
 })
@@ -285,7 +267,6 @@ describe('a storage that will not answer', () => {
       columns: null,
       modelColumn: null,
       columnOrder: null,
-      legendOpen: null,
     })
     expect(hasWelcomed()).toBe(false)
     expect(() => writeViewPrefs({ modeChosen: 'both' })).not.toThrow()

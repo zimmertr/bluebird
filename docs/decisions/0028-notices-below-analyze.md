@@ -1,6 +1,6 @@
 # 0028. Every notice renders in the one block under the Analyze button
 
-- Status: Accepted
+- Status: Accepted. Amended by 0140 (on a phone with the drawer shut the same block stands on the map).
 - Date: 2026-09-13 (git: the merge of #334), whose review found the scattered lines
 - Decider: TJ (git: author and merger of #334)
 - Issues and PRs: #123, #334

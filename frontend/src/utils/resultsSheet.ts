@@ -20,41 +20,55 @@ import { resolvePanelHeights } from './layout'
 
 /**
  * The legend stack's own top inset (`LEGEND_TOP` in `styles.ts`, which spells
- * the classes and carries the derivation), and the legend card's header row.
+ * the classes and carries the derivation).
  *
  * `LEGEND_TOP` has FOUR numbers: two pointer sizes, each with and without the
- * Controls button, which stands in a desktop's column only while the panel is
- * collapsed. A phone's column is always the short one, because Controls stands
- * in the row beside Layers there (#696). Since #696 the legend is one card
- * whose Legends header row is one `MAP_ROW_H`, and its sections sit under the
- * header inside the same card.
+ * Controls button, which stands in the column only while the panel is
+ * collapsed. These two are the pair a FLOOR is about, and they are not the same
+ * arm of that table:
  *
- *   - `LEGEND_TOP_PHONE_PX` is the coarse short column (108): the search field
- *     and the row under it, which is where a phone's legend card stands.
- *   - `LEGEND_STRIP_PX` and `LEGEND_STRIP_FINE_PX` are the header row and 4px
- *     more on a finger and on a pointer (44 + 4, 36 + 4). The 4px was the gap
- *     between a separate strip and box before the two became one card, and it
- *     stays so the sheet rests where it did; it is slack, not a gap.
- *   - `LEGEND_TOP_PX` is where the legend's sections may start on a phone at
- *     rest, the column plus the header (156). Everything derived from it here
- *     is the sheet's, and a floor is a promise about the smallest map that
- *     will do, so it counts the header at its open height. It is the number
- *     the three-row column made before the row: the header took the row
- *     Controls gave up, so the sheet rests where it did.
- *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT the Controls button (92),
- *     which is the desktop a docked floor is asked about: the panel is docked,
- *     so the button is not there. When it is, the panel is collapsed and the
+ *   - `LEGEND_TOP_PX` is the coarse inset with the Controls button (156), which
+ *     is the phone at rest: the drawer is closed, so the button is up, and the
+ *     sheet covers the map's bottom whatever the drawer is doing. Everything
+ *     derived from it here is the sheet's, and a floor is a promise about the
+ *     smallest map that will do — so it takes the taller column.
+ *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT it (92), which is the
+ *     desktop a docked floor is asked about: the panel is docked, so the
+ *     Controls button is not there. When it is, the panel is collapsed and the
  *     map has that whole panel back, so the floor is the slacker constraint
  *     rather than the binding one.
  */
-export const LEGEND_TOP_PHONE_PX = 108
-export const LEGEND_STRIP_PX = 48
-export const LEGEND_STRIP_FINE_PX = 40
-export const LEGEND_TOP_PX = LEGEND_TOP_PHONE_PX + LEGEND_STRIP_PX
+export const LEGEND_TOP_PX = 156
 export const LEGEND_TOP_FINE_PX = 92
 
+/*
+ * Since #696 a phone stands no legend on its map, its key being the Legend
+ * sheet's, and its controls are two rows that end 92px down (`MAP_ROWS` in
+ * `styles.ts`). The phone's resting floor below still reserves the column and
+ * the stack it was measured with, on purpose: the sheet rests where it did, so
+ * its half height is the one a reader knows. Its full height is the Analyze
+ * button's (`DRAGGED_MAP_PX`).
+ */
+
+/** Where a phone's two rows end, from the map's top edge (`MAP_ROWS`). */
+export const PHONE_ROWS_PX = 92
+
 /**
- * What the legend box needs to render with no scrolling: ONE box holding the
+ * The phone's Analyze button (#696; record 0135), an extended floating action
+ * button in Material's sense: 56px tall (`FAB_PX`), 16px off the map's right
+ * edge and off whatever it stands on (`FAB_INSET_PX`). `FAB_STRIP_PX` is the
+ * map a full sheet leaves it, the button and an inset above and below, so the
+ * sheet's highest stop is that strip under the chip row.
+ */
+export const FAB_PX = 56
+export const FAB_INSET_PX = 16
+export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + FAB_INSET_PX
+
+/** The gap the button keeps above the notice band, and the player above the button. */
+export const FAB_GAP_PX = 8
+
+/**
+ * What the legend stack needs to render with no scrolling: ONE box holding the
  * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
  * with every layer on, the forecast grid drawn and a freezing-level ranking
  * held. The same number at both widths, because the box is one fixed width
@@ -162,21 +176,22 @@ const GRIP_PX = 24
 export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
 
 /**
- * Map that stays uncovered however high the reader drags: the timeline's band
- * and the inset the map's own button column occupies.
- *
- * The legend box starts at `LEGEND_TOP_PX` because that is where the search
- * field, its row and the Legends header end, and the transport rides the same
- * lift, so it takes the same floor. The header is inside it so a drag can never
- * scroll the one control that opens the card out of reach. Without it a drag puts the bar THROUGH that column:
- * measured at 500x757, a sheet dragged high left the transport at y 100-145,
- * across the Layers button at y 102-140 and MapLibre's zoom stack opposite it.
- *
- * The band is counted whether or not a bar is on screen, for the reason
- * `RESTING_MAP_PX` counts it: a map overlay must never decide how tall the
- * results may be.
+ * Map that stays uncovered however high the reader drags, which is a phone's
+ * question alone (a desk's results are docked): the two rows and the strip
+ * under them the Analyze button stands on (#696). It reserved the old column
+ * and the player's band until then, 280px, which left the button nowhere to
+ * stand under a full sheet. The player now stands above the button, and a
+ * full sheet leaves it its room too while it is on (`PLAYER_ROOM_PX`).
  */
-export const DRAGGED_MAP_PX = LEGEND_TOP_PX + TRANSPORT_BAND_PX
+export const DRAGGED_MAP_PX = PHONE_ROWS_PX + FAB_STRIP_PX
+
+/**
+ * The room the player takes above the button: its bar and the gap under it.
+ * A full sheet leaves it while the reader has the player on (`draggedMapFloorPx`),
+ * so a chart and its playhead stay on screen together; with the player off,
+ * a phone's default, the sheet stops at the button's strip alone.
+ */
+export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
 
 /**
  * The results bar above the docked panels: the mode segment, the row count and
@@ -214,8 +229,7 @@ export function dockedMapFloorPx(gripCount: number): number {
   // The FINE inset, not `RESTING_MAP_PX`'s coarse one: the results are docked
   // beside a pointer, and a docked layout on a coarse pointer is a tablet wide
   // enough that the 16px is noise either way.
-  // The legend card's header heads the stack at a desk too (#696).
-  const reserve = LEGEND_TOP_FINE_PX + LEGEND_STRIP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
+  const reserve = LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
   return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
 }
 
@@ -229,8 +243,8 @@ export function sheetChromePx(gripCount: number): number {
  * sheet's chrome is part of what covers the map, so the panels inside it may
  * only have what is left.
  */
-export function draggedMapFloorPx(gripCount: number): number {
-  return DRAGGED_MAP_PX + sheetChromePx(gripCount)
+export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
+  return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount)
 }
 
 /**
@@ -338,6 +352,54 @@ export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
   return liftPx + (timelineShown ? TRANSPORT_BAND_PX : LEGEND_GAP_PX)
 }
 
+/**
+ * Where the panel's notice block stands on a phone while the drawer is shut
+ * (#696; record 0140): just above the band the scale and the attribution
+ * stand in, so a notice covers neither, with the results' top edge, or the
+ * map's foot, as the datum. The map's credit line is a licence term, which is
+ * why the band does not sit on the edge itself.
+ */
+export function noticeBottomPx(liftPx: number): number {
+  return liftPx + TRANSPORT_GAP_PX
+}
+
+/**
+ * Where the phone's Analyze button stands (#696; record 0135). Two things move
+ * it and nothing else, Material's rule for a floating button: the results
+ * sheet, whose top edge it rides 16px above at every height, and the notice
+ * band, above which it rises while the band holds a notice (`bandPx`, the
+ * band's measured height, 0 while empty). Never higher than one inset under
+ * the chip row (`mapPx`, the map's whole height): a notice over a sheet
+ * dragged high goes under the button rather than the button over the chips.
+ */
+export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
+  const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_GAP_PX : liftPx + FAB_INSET_PX
+  const highest = mapPx - PHONE_ROWS_PX - FAB_INSET_PX - FAB_PX
+  return Math.max(liftPx + FAB_INSET_PX, Math.min(wanted, highest))
+}
+
+/**
+ * The player on a phone stands on the Analyze button rather than on the sheet
+ * (#696): its bottom edge 8px above the button's top. Answered as the edge
+ * `transportBottomPx` measures from, so the bar keeps one way of placing
+ * itself.
+ */
+export function transportStandPx(fabBottom: number): number {
+  return fabBottom + FAB_PX + FAB_GAP_PX - TRANSPORT_GAP_PX
+}
+
+/**
+ * Whether the player fits on a phone's map above the button, under the rows
+ * and one inset clear of them. A full sheet leaves the player its room while
+ * it is on; what can still take it is a notice band raising the button under
+ * a sheet dragged high, and the bar then steps off until there is room again
+ * rather than standing over the chips.
+ */
+export function transportFits(fabBottom: number, mapPx: number): boolean {
+  const top = fabBottom + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+  return top <= mapPx - PHONE_ROWS_PX - FAB_INSET_PX
+}
+
 /** Where the timeline transport's bottom edge goes, on the same terms. */
 export function transportBottomPx(liftPx: number): number {
   return liftPx + TRANSPORT_GAP_PX
@@ -361,86 +423,4 @@ export function transportBottomPx(liftPx: number): number {
  */
 export function mapCornerLiftPx(liftPx: number): number {
   return liftPx
-}
-
-/**
- * The legend card's sections under its header, for the key every analysis
- * draws: the ranked metric's scale alone, one ramp section. Measured
- * 2026-10-13 in the Playwright image's Chromium, 48px at both pointer sizes
- * (a 92px card under a 44px header on a phone, 84 under 36 at a desk), because
- * a section is read rather than pressed and takes no finger floor.
- */
-export const LEGEND_KEY_BODY_PX = 48
-
-/**
- * One result marker and its one-line name, which is what an open legend must
- * leave room for under it: the dot's radius and stroke above its centre
- * (10 + 2), and below it the label's offset (1.6em at 11px), one 11px line and
- * its halo (`MARKER_PAINT`, `MARKER_LABEL_LAYOUT`): 12 + 17.6 + 13.2 + 1.5,
- * rounded up. Less than this and a result under the card can only show as a
- * dot cut by the card's edge or a label with no dot.
- */
-export const MARKER_BAND_PX = 45
-
-/**
- * How much map stands above the results when they first open after an
- * analysis, at the default panel heights and clamped by the same resting
- * floors the layout takes. A desk opens on Both, docked under the map, so it
- * is the map above the two panels, their grips and the bar; a phone stays on
- * the table alone (`useResultsLayout`), so it is the map above that sheet.
- */
-export function openingMapPx({
-  viewportH,
-  docked,
-  panelPx,
-}: {
-  viewportH: number
-  docked: boolean
-  panelPx: number
-}): number {
-  if (docked) {
-    const { chart, table } = resolvePanelHeights(panelPx, panelPx, {
-      chartShown: true,
-      tableShown: true,
-      availPx: viewportH,
-      mapMinPx: dockedMapFloorPx(2),
-    })
-    return viewportH - RESULTS_BAR_PX - 2 * DOCKED_GRIP_PX - chart - table
-  }
-  return (
-    viewportH -
-    restingLiftPx({
-      collapsed: false,
-      gripCount: 1,
-      chartShown: false,
-      tableShown: true,
-      chartPx: panelPx,
-      tablePx: panelPx,
-      availPx: viewportH,
-    })
-  )
-}
-
-/**
- * The map left under an open legend card when the results first open: what
- * stands above the results less the card (its top inset, its header with the
- * 4px of slack the header constants carry, and the metric key) and the
- * forecast player's band. The band is counted whether or not the player is on,
- * for `RESTING_MAP_PX`'s reason: a map overlay must not decide the default.
- */
-export function bandUnderLegendPx(opts: { viewportH: number; docked: boolean; panelPx: number }): number {
-  const cardBottom =
-    (opts.docked ? LEGEND_TOP_FINE_PX + LEGEND_STRIP_FINE_PX : LEGEND_TOP_PX) + LEGEND_KEY_BODY_PX
-  return openingMapPx(opts) - cardBottom - TRANSPORT_BAND_PX
-}
-
-/**
- * Whether the legend card opens by default (the maintainer, 2026-10-13): open
- * on every device unless there is not enough room for it, which is when the
- * band under the open card could not hold one marker and its name
- * (`MARKER_BAND_PX`). Only a default: a reader's own press wins and is kept
- * (`useLegendFold`).
- */
-export function legendDefaultOpen(opts: { viewportH: number; docked: boolean; panelPx: number }): boolean {
-  return bandUnderLegendPx(opts) >= MARKER_BAND_PX
 }

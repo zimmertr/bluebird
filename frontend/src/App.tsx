@@ -54,7 +54,6 @@ import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useDrawer } from './hooks/useDrawer'
-import { useLegendFold } from './hooks/useLegendFold'
 import {
   LAYER,
   SURFACE_PAGE,
@@ -63,8 +62,8 @@ import {
   decodeState,
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
-import { analyzeGateFor, canAnalyze } from './utils/analyzeGate'
 import { controlsSummary } from './utils/controlsSummary'
+import { analyzeGateFor, canAnalyze } from './utils/analyzeGate'
 import {
   panelCommitCues,
   reportView,
@@ -155,8 +154,9 @@ export default function App() {
   // It starts open on a desktop and closed on a phone (`useDrawer`, #696); a
   // close button collapses it to widen the map.
   const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
-  // Whether the legend box hangs open under its strip (#696).
-  const legend = useLegendFold(storedView.legendOpen, isDesktop)
+  // The band on a phone's map that holds the panel's notice block while the
+  // drawer is shut (record 0140). State, so the panel hears it arrive.
+  const [noticeBand, setNoticeBand] = useState<HTMLDivElement | null>(null)
   // The panel's Map group is hovered, so the map's search box — a control
   // the panel names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
@@ -437,7 +437,7 @@ export default function App() {
     setShowResults,
   })
 
-  // The phone's Analyze on the map (#696) opens exactly when the panel's does:
+  // The phone's Analyze button (#696) opens exactly when the panel's does:
   // the same gate from the same inputs the panel builds it from.
   const mapAnalyzeEnabled = canAnalyze(
     analyzeGateFor({
@@ -511,6 +511,7 @@ export default function App() {
     storedView,
     isDesktop,
     bannerPx,
+    playerOn: playerShown,
     analysisSeq,
     arriving,
     sortBy: view.sortBy,
@@ -596,6 +597,7 @@ export default function App() {
         showWildfires={showWildfires}
         showAreaClosures={showAreaClosures}
         basemapFailed={basemapFailed}
+        noticeHome={!isDesktop && !sidebarOpen ? noticeBand : null}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand
@@ -632,11 +634,10 @@ export default function App() {
           showResults={showResults}
           sidebarOpen={sidebarOpen}
           onOpenControls={openDrawer}
-          isDesktop={isDesktop}
+          controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
+          onNoticeBand={setNoticeBand}
           analyzeEnabled={mapAnalyzeEnabled}
           onAnalyze={handleAnalyze}
-          controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
-          legend={legend}
           layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}
           poisPointed={poisPointed}

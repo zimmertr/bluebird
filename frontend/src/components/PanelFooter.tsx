@@ -1,4 +1,5 @@
-import { type MouseEvent, useEffect, useRef, useState } from 'react'
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
 import {
   BUTTON_DANGER,
@@ -109,6 +110,10 @@ interface Props {
   // Every message the panel has to say, in order (`utils/panelMessages.ts`).
   // This file decides only how they are boxed and which are dismissed.
   messages: readonly FooterMessage[]
+  // The band on a phone's map the block stands in while the drawer is shut
+  // (#696; record 0140), or null wherever the panel is open, where the block
+  // is under the button as ever.
+  noticeHome?: HTMLElement | null
 }
 
 /**
@@ -124,6 +129,7 @@ export default function PanelFooter({
   onTutorial,
   tutorialWaits = false,
   messages,
+  noticeHome = null,
 }: Props) {
   // A plain click starts the tour over this page; a modified click or a
   // middle click is the browser's, and opens the path like any link. While
@@ -162,6 +168,14 @@ export default function PanelFooter({
   const analyzeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(analyzeRef, analyzeEnabled)
 
+  // The one block has two homes and is rendered once, in whichever applies
+  // (record 0140): under the button, or on a phone with the drawer shut, in
+  // the band the map holds above its foot, where a stale cue is read by a
+  // reader who would otherwise have to open the drawer to learn the report no
+  // longer matches it. A portal, so the dismissals above and the retry below
+  // are the same block's in both.
+  const housed = (block: ReactNode) => (noticeHome ? createPortal(block, noticeHome) : block)
+
   return (
     <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour="analyze">
       <button
@@ -177,6 +191,7 @@ export default function PanelFooter({
           arrives already holding its text is not announced by most screen
           readers, which is what each box's own role="status" did (#576).
           Collapsed while empty, so it adds no gap under the button. */}
+      {housed(
       <div role="status" className="space-y-3 empty:mb-0">
       {footerBoxes.map((box) => (
         <FooterNotice
@@ -197,7 +212,8 @@ export default function PanelFooter({
           )}
         </FooterNotice>
       ))}
-      </div>
+      </div>,
+      )}
 
       {/* Two labels, two pages, and each label goes where it says. The
           privacy copy used to open a dialog here, which meant it had no URL

@@ -175,4 +175,20 @@ describe('PanelFooter', () => {
       expect(link.getAttribute('target')).toBe('_blank')
     }
   })
+
+  // On a phone with the drawer shut the one block stands in the band the map
+  // holds (#696; record 0140), and comes back under the button when the
+  // drawer opens: one block, two homes.
+  it('stands its notices in the home it is handed, and under the button without one', () => {
+    const home = document.createElement('div')
+    document.body.appendChild(home)
+    const { container, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home })} />)
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(home.contains(screen.getByRole('status'))).toBe(true)
+    expect(screen.getByText('First warning.')).toBeTruthy()
+    rerender(<PanelFooter {...props({ messages: MESSAGES })} />)
+    expect(home.childElementCount).toBe(0)
+    expect(container.contains(screen.getByRole('status'))).toBe(true)
+    home.remove()
+  })
 })

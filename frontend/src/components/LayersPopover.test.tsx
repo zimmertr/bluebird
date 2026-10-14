@@ -207,4 +207,32 @@ describe('LayersPopover', () => {
     expect(screen.getByRole('slider', { name: 'Coverage' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Blocks' }).getAttribute('aria-pressed')).toBe('true')
   })
+
+  // A phone's Layers is a chip, and its menu a bottom sheet (#696; record
+  // 0136): the same rows, each layer one row of the sheet, closed by the
+  // sheet's own ways out rather than the popover's press outside.
+  it('opens the rows in a sheet on a phone, lit while open', () => {
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet />)
+    const chip = screen.getByRole('button', { name: 'Layers' })
+    expect(chip.getAttribute('data-unfurled')).toBeNull()
+    open()
+    expect(chip.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('dialog', { name: 'Layers' })).toBeTruthy()
+    expect(rows()).toHaveLength(8)
+    // A press in the sheet, which is in a portal outside the chip's column,
+    // is not a press outside the menu.
+    fireEvent.pointerDown(screen.getAllByRole('checkbox')[0])
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(chip.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  // The tutorial does not hold a phone's sheet open: a modal sheet would take
+  // the keyboard from the tour's card. Its step points at the chip.
+  it('leaves the sheet shut while the tutorial holds the menu open', () => {
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet forcedOpen />)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Layers' }).dataset.tour).toBe('layers')
+  })
 })

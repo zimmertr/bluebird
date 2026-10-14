@@ -53,13 +53,63 @@
   margin: var(--map-edge-inset) var(--map-edge-inset) 0 0;
 }
 
-/* On a phone the app's search field and the two rows under it span the map's
- * top edge (#696), so the stack starts below them: `--map-vendor-top` is published
- * by `MAP_EDGE.belowRow` on the map wrapper at that width only, and every other
- * width falls back to the inset above. The first group alone, because the
- * margin under it is the gap between groups. */
+/* On a phone the app's two rows span the map's top edge (#696), so the stack,
+ * the compass alone there, starts below them: `--map-vendor-top` is published
+ * by `MAP_EDGE.belowRows` (or `belowDrawBar` while a ring is drawn) on the
+ * map wrapper at that width only, and every other width falls back to the
+ * inset above. The first group alone, because the margin under it is the gap
+ * between groups. */
 .maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
   margin-top: var(--map-vendor-top, var(--map-edge-inset));
+}
+
+/* The locate button on a phone (#696): MapLibre's own geolocate control,
+ * moved out of the library's corner into the round slot at the right of the
+ * search pill (`MAP_LOCATE` in styles.ts, which carries the `map-locate`
+ * class and draws the dark chrome). The group gives up its white box and its
+ * margin and fills the slot, and the glyph, which the library draws dark for
+ * its white buttons, is drawn light: inverted, then turned back round the hue
+ * circle so the tracking blue and the failure red keep their hues. Unlayered,
+ * like the rules around it, and specific enough to beat the 44px finger rule
+ * below, since the slot is the button's size. */
+.map-locate .maplibregl-ctrl-group {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 9999px;
+}
+
+.map-locate .maplibregl-ctrl-group button {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+}
+
+.map-locate .maplibregl-ctrl-icon {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* The locate button's hit area on a coarse pointer (#696): 40px seen and 44
+   pressed, an invisible rim on the vendor's own button, so a press on it is
+   the button's. 3px, because the button fills the slot inside its 1px border
+   (38px), and 38 plus 6 is 44. The rule every other piece of map chrome follows (`TAP` in
+   styles.ts), spelled here for the reason the 44px rule below is: the markup
+   is the library's. */
+@media (hover: none) {
+  .map-locate .maplibregl-ctrl-group,
+  .map-locate .maplibregl-ctrl-group button {
+    overflow: visible;
+  }
+  .map-locate .maplibregl-ctrl-group button {
+    position: relative;
+  }
+  .map-locate .maplibregl-ctrl-group button::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+  }
 }
 
 /* Zoom and compass. The one set of controls the design system cannot reach:
@@ -247,59 +297,36 @@
   flex-shrink: 0;
 }
 
-/* The bottom right on a coarse pointer (#696, the maintainer 2026-10-13): the
-   locate button (`addControls` puts it here on touch) stands directly above
-   the attribution's (i), the two on one vertical axis, 8px apart, and the same
-   size and shape: round, at the 44px the zoom buttons above take, so the (i)
-   grows to meet the button rather than the button shrinking to the (i).
+/* On a phone the attribution joins the scale at the bottom left (#696), at
+ * its native size, so the right of the map's foot is map: `addAttribution`
+ * puts it there whenever it is compact. The corner turns into a row, the scale
+ * first (`order`, since the library inserts a bottom control before the ones
+ * already there) and the (i) beside it, the library's own bottom-left form of
+ * the button. The row spans the map so the opened credit line wraps at the
+ * map's right edge rather than running past it, the corner keeping the
+ * vendor's `pointer-events: none` so the span takes no press; it may shrink,
+ * which in a row is what wraps it. A line taller than the band grows UP from
+ * the band's bottom edge, for the reason the column above reverses: in a row
+ * the band is the cross axis, where an auto top margin would anchor an
+ * overflowing item to the top and grow it down behind the sheet, so each
+ * control stands on the library's own 10px bottom margin instead
+ * (`CORNER_MARGIN_PX`), which in the 44px band is the centre the auto margins
+ * gave, a pixel either way. */
+.maplibregl-ctrl-bottom-left:has(> .maplibregl-ctrl-attrib) {
+  right: 0;
+  flex-direction: row;
+  align-items: flex-end;
+}
 
-   The (i) is as tall as the corner band (`--map-corner-band`, 44px), so the
-   column ends 8px above the band's bottom, the pair's own gap, rather than
-   flush with the sheet's top or the screen's bottom edge, and the locate
-   button stands above it rather than the pair centring across the band. `order` because MapLibre inserts a
-   bottom control above the ones already there and the attribution is re-added
-   when the width class changes. The (i) still opens to the left: the vendor
-   anchors its button to the box's right edge, and the open line takes the
-   padding on its left. After the corner rules above, which it overrides at
-   the same specificity. */
-@media (hover: none) {
-  .maplibregl-ctrl-bottom-right {
-    justify-content: flex-end;
-    gap: 0.5rem;
-    padding-bottom: 0.5rem;
-  }
+.maplibregl-ctrl-bottom-left:has(> .maplibregl-ctrl-attrib) > .maplibregl-ctrl {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
 
-  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group:has(.maplibregl-ctrl-geolocate) {
-    order: -1;
-    border-radius: 9999px;
-  }
-
-  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-geolocate {
-    border-radius: 9999px;
-  }
-
-  .maplibregl-ctrl-attrib.maplibregl-compact {
-    min-height: 2.75rem;
-    padding: 0 2.75rem 0 0;
-    border-radius: 1.375rem;
-  }
-
-  .maplibregl-ctrl-attrib.maplibregl-compact-show {
-    padding: 0 3.25rem 0 0.75rem;
-  }
-
-  .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-inner {
-    padding: 0.75rem 0;
-    line-height: 1.25rem;
-  }
-
-  .maplibregl-ctrl-attrib-button {
-    width: 2.75rem;
-    height: 2.75rem;
-    border-radius: 1.375rem;
-    background-position: center;
-    background-repeat: no-repeat;
-  }
+.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib {
+  order: 1;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 /* A marker popup too tall for the free map area scrolls its body under its

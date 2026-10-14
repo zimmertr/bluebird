@@ -1,28 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
-import { createRef, type ComponentProps } from 'react'
+import { createRef } from 'react'
 import MapButtonColumn from './MapButtonColumn'
 import type { SearchBoxHandle } from './SearchBox'
 import { render } from '../testSupport/render'
 
 const NOOP = () => {}
 
-type Props = ComponentProps<typeof MapButtonColumn>
-
-function column(over: Partial<Omit<Props, 'children'>> = {}) {
+function column(over: { sidebarOpen?: boolean; onOpenControls?: () => void } = {}) {
   return (
     <MapButtonColumn
       searchBoxRef={createRef<SearchBoxHandle>()}
       onSearchSelect={NOOP}
       searchPointed={false}
-      sidebarOpen
-      onOpenControls={NOOP}
-      phoneRow={false}
-      controlsSummary="Current · NOAA GFS"
-      analyzeEnabled
-      analyzing={false}
-      onAnalyze={NOOP}
-      {...over}
+      sidebarOpen={over.sidebarOpen ?? true}
+      onOpenControls={over.onOpenControls ?? NOOP}
     >
       <button>Layers</button>
     </MapButtonColumn>
@@ -49,21 +41,15 @@ describe('MapButtonColumn', () => {
     expect(onOpenControls).toHaveBeenCalledOnce()
   })
 
-  // A desktop has no Analyze on the map: the panel's is docked beside it.
-  it('puts no Analyze on a desktop map', () => {
-    render(column({ sidebarOpen: false }))
-    expect(screen.queryByRole('button', { name: 'Analyze' })).toBeNull()
-  })
-
   // Closing the drawer makes it inert under the keyboard that pressed its
   // Close button, and the button that replaces it takes the focus (#576).
-  it.each([false, true])('takes the keyboard when the drawer it reopens closes under it (phone row: %s)', (phoneRow) => {
+  it('takes the keyboard when the drawer it reopens closes under it', () => {
     const page = (open: boolean) => (
       <>
         <aside inert={!open}>
           <button>Close controls</button>
         </aside>
-        {column({ sidebarOpen: open, phoneRow })}
+        {column({ sidebarOpen: open })}
       </>
     )
     const { rerender } = render(page(true))
@@ -85,69 +71,11 @@ describe('MapButtonColumn', () => {
 
   it('hands the search field the handle the map column holds', () => {
     const ref = createRef<SearchBoxHandle>()
-    render(column({ searchBoxRef: ref }))
+    render(
+      <MapButtonColumn searchBoxRef={ref} onSearchSelect={NOOP} searchPointed={false} sidebarOpen onOpenControls={NOOP}>
+        {null}
+      </MapButtonColumn>,
+    )
     expect(ref.current).not.toBeNull()
-  })
-})
-
-// A phone (#696): the search field spans the map and Controls, Layers and
-// Analyze share one row under it.
-describe('MapButtonColumn on a phone', () => {
-  const phone = (over: Partial<Omit<Props, 'children'>> = {}) =>
-    column({ phoneRow: true, sidebarOpen: false, ...over })
-
-  it('reads in the order of the flow: Controls, Layers, Analyze', () => {
-    render(phone())
-    const names = screen.getAllByRole('button').map((b) => b.textContent)
-    expect(names.map((n) => n?.replace('Current · NOAA GFS', ''))).toEqual(['Controls', 'Layers', 'Analyze'])
-  })
-
-  // The summary is what the panel is set to, in the panel's own words, and a
-  // screen reader hears it as the button's description.
-  it('says what the panel is set to under the Controls word', () => {
-    render(phone({ controlsSummary: 'Dates · UK Met Office' }))
-    const controls = screen.getByRole('button', { name: 'Open controls' })
-    expect(controls.textContent).toBe('ControlsDates · UK Met Office')
-    const describedBy = controls.getAttribute('aria-describedby')
-    expect(document.getElementById(describedBy!)!.textContent).toBe('Dates · UK Met Office')
-  })
-
-  // The drawer covers the row while it is open, so the row never reflows
-  // under a closing drawer.
-  it('keeps Controls in the row while the drawer is open', () => {
-    render(phone({ sidebarOpen: true }))
-    expect(screen.getByRole('button', { name: 'Open controls' })).toBeTruthy()
-  })
-
-  // The panel's command, gate and face: the same callback, shut when the
-  // panel's is, and `Analyzing…` while a run is under way.
-  it('runs the panel\'s Analyze, behind the panel\'s gate', () => {
-    const onAnalyze = vi.fn()
-    const { rerender } = render(phone({ onAnalyze }))
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
-    expect(onAnalyze).toHaveBeenCalledOnce()
-    rerender(phone({ onAnalyze, analyzeEnabled: false }))
-    expect((screen.getByRole('button', { name: 'Analyze' }) as HTMLButtonElement).disabled).toBe(true)
-    rerender(phone({ onAnalyze, analyzeEnabled: false, analyzing: true }))
-    expect((screen.getByRole('button', { name: 'Analyzing…' }) as HTMLButtonElement).disabled).toBe(true)
-  })
-
-  // A run disables the button under the keyboard that pressed it; when the
-  // run ends, the focus comes back to it as it does to the panel's (#576).
-  it('takes the keyboard back when a run it started ends', () => {
-    const { rerender } = render(phone())
-    const analyze = screen.getByRole('button', { name: 'Analyze' })
-    analyze.focus()
-    rerender(phone({ analyzeEnabled: false, analyzing: true }))
-    rerender(phone({ analyzeEnabled: true }))
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Analyze' }))
-  })
-
-  // Never a notice beside it: every reason lives under the panel's Analyze
-  // (record 0028).
-  it('says nothing about why it is shut', () => {
-    const { container } = render(phone({ analyzeEnabled: false }))
-    expect(container.querySelector('[role="status"]:not(:empty)')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Analyze' }).hasAttribute('aria-describedby')).toBe(false)
   })
 })

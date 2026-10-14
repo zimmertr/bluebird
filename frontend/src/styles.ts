@@ -1346,135 +1346,6 @@ export const MAP_COL_GAP = {
 } as const
 
 /**
- * A button in the map's left column: Controls while the panel is closed and
- * Layers, at a desktop width. The Legends card under them (#696) wears this
- * face on its header row, through `MAP_CARD` and `MAP_CARD_HEADER`, because
- * they stand in one column and a row a few pixels off the button above it
- * reads as a mistake rather than as a different control.
- *
- * The icon slot is the 16px glyph at the left with the 8px gap the search
- * field's own icon keeps, so every label in the column starts on one edge.
- */
-export const MAP_BUTTON = `${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`
-
-/**
- * Every menu on the map unfurls out of its own button as one card, at the
- * button's width (the maintainer, 2026-10-13; record 0136): the button is the
- * card's header row, and while it is open the menu's rows sit under it on the
- * same surface, one edge and one radius, the way a popover's body sits under
- * its own header. Folded, the card is the header row alone, and it is then the
- * floating button it replaced to the pixel: `SURFACE_FLOATING`, and a header
- * row that is `MAP_BUTTON`'s face (type, colour, height, icon slot and
- * padding). Legends and Layers wear it at both widths; the search results
- * list is the one menu that does not, because its rows are wider than any
- * button they could hang from.
- *
- * No width: the card takes its slot's, which is `MAP_COL_W` in the desktop
- * column and a track of `MAP_ROW_GRID` on a phone, so a menu can never be a
- * pixel wider or narrower than the button it unfurls from.
- *
- * The row spans the card's border with `-my-px`, so a folded card is
- * `MAP_ROW_H` tall overall, as the button is, and its label centres where the
- * button's does.
- *
- * The header wears the button's states too: the accent label and edge on
- * hover, the pressed fill and the focus ring (the maintainer, 2026-10-13), and
- * the chevron or the menu itself is what says open or folded. The edge is the
- * card's, so the card lights it while its header is hovered
- * (`has-[>button:hover]`), the same colour as `ACCENT.edgeHover`, spelled here
- * because Tailwind compiles only a class it finds whole in the source, and
- * behind `(hover: hover)` as Tailwind's own `hover:` is, or a tap on a phone
- * leaves the edge lit after the finger lifts. No `overflow-hidden` on the
- * card, which would clip the focus ring.
- * `styles.test.ts` holds the face and the states to `MAP_BUTTON`'s.
- */
-export const MAP_CARD =
-  `${SURFACE_FLOATING} flex flex-col transition-colors [@media(hover:hover)]:has-[>button:hover]:border-sky-400`
-
-/** The card's header row, the press that folds and opens it. */
-export const MAP_CARD_HEADER =
-  `${CONTROL_SIZE} font-semibold text-white transition-colors ${ACCENT.hoverText} active:bg-slate-700 ` +
-  `${MAP_ROW_H} -my-px flex w-full items-center gap-2 px-2.5 ${RADIUS.surface} ${FOCUS_RING}`
-
-/** The legend's sections under the header, at the box's spacing less the top the header row holds. */
-export const MAP_CARD_BODY = 'flex flex-col gap-1 px-2.5 pb-2'
-
-/** A menu's rows under the header: the rows space themselves (`CHOICE_ROW`), as they did in the popover. */
-export const MAP_CARD_MENU = 'px-2.5 pb-2'
-
-/**
- * Where a card that unfurls OVER what is below it stands (Layers): one row
- * tall in its column or its grid cell, so opening it moves nothing, with the
- * card hanging from the slot's top (`MAP_CARD_HANG`) across the slot's width.
- * Raised over its later siblings, Analyze among them, which the open card
- * covers. The legend card is the other kind: it is in its own scrolling stack
- * and grows in flow, so it takes no slot.
- */
-export const MAP_CARD_SLOT = `relative z-10 ${MAP_ROW_H}`
-export const MAP_CARD_HANG = 'absolute inset-x-0 top-0'
-
-/**
- * What stands across the top of a phone's map (#696; the maintainer's layout,
- * 2026-10-13): the search field across the whole width, then Controls beside
- * Layers, then Legends under Controls beside Analyze under Layers. The width
- * is the map's less its two insets (`MAP_EDGE.left` and `.right`), where the
- * desktop column is one `MAP_COL_W` wide.
- *
- * The rows are ONE grid of two tracks, `4fr 3fr`, with the column's 4px gap
- * both ways, so a button takes its width from its track and none states its
- * own: Controls and Legends share the wide track and are always one width,
- * Layers and Analyze the narrow one. Fractions, never pixels, so the ratio
- * holds at every phone width (Controls 190, 207 and 230 at 360, 390 and 430;
- * Layers 142, 155 and 172). Four to three because Controls carries a word and
- * a summary line (`Current · NOAA GFS`) where Layers and Analyze carry a word.
- * `minmax(0, …)` so a long summary truncates inside its track rather than
- * widening it, which a bare `fr` track (a minimum of its content) would do.
- * The search field spans both tracks (`col-span-2` at its call site).
- */
-export const MAP_ROW_W = 'w-full'
-export const MAP_ROW_GRID = `grid grid-cols-[minmax(0,4fr)_minmax(0,3fr)] ${MAP_COL_GAP.gap}`
-
-/**
- * Controls in that grid: `BUTTON_FLOATING` at the row's height, as wide as its
- * track. `min-w-0` lets its summary line truncate before anything clips.
- *
- * The app's floating radius, not a capsule: the mockups drew these fully
- * rounded, but the search field above and the legend under them are both this
- * box, and one top-left cluster in two radii read as two kinds of object.
- */
-export const MAP_PILL = `${BUTTON_FLOATING} ${MAP_ROW_H} flex min-w-0 items-center gap-2 px-2.5`
-
-/** The word and the summary line under it inside the Controls pill. */
-export const MAP_PILL_TEXT = 'flex min-w-0 flex-col items-start text-left leading-tight'
-
-/**
- * The summary line itself, `Current · NOAA GFS`: the micro step, because it is
- * present but never first, and the button's word above it is what is read.
- * Normal weight against the word's semibold, and its own slate-300, so the
- * button's hover accent stays on the word. It truncates rather than wraps: the
- * pill is one `MAP_ROW_H` tall, and a model's label is the part that can run
- * long (`Meteo-France ARPEGE`).
- */
-export const MAP_PILL_SUMMARY = `${TEXT.micro} max-w-full truncate font-normal`
-
-/**
- * Analyze in the phone's row: the same command as the panel's `BUTTON_PRIMARY`
- * (#696), on the same `ACCENT.fill`, at the row's height and the column's one
- * type size rather than the panel's call-to-action step, because it stands in
- * a row of 12px labels and a 14px one beside them read as another kind of
- * object (the reason `BUTTON_FLOATING` gives for its own size). It takes the
- * narrow track under Layers, at exactly Layers' width, and `whitespace-nowrap`
- * keeps `Analyzing…` on one line. Measured in `docs/STYLES.md` (Phone row
- * fit).
- *
- * The call site adds `DISABLED`, as the panel's button does, because it is the
- * same gate. Shadowed like the boxes beside it, since it floats with them.
- */
-export const MAP_ANALYZE =
-  `${CONTROL_SIZE} font-semibold ${MAP_ROW_H} whitespace-nowrap px-3 ${RADIUS.surface} ` +
-  `shadow-lg transition-colors ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
-
-/**
  * How far anything floating on the map stands off its edge.
  *
  * One number, published once as a custom property on the map wrapper, because
@@ -1509,14 +1380,16 @@ export const MAP_EDGE = {
   /** The top edge the app's own button column takes. */
   top: 'top-[var(--map-edge-inset)]',
   /**
-   * On a phone, where the search field and its two rows span the map (#696),
-   * the vendor's stack starts below them rather than beside the field.
-   * `map.css` reads this as the stack's top margin. The numbers are the three
-   * rows, their gaps and the inset: `LEGEND_TOP.compact`'s sum plus one more
-   * row and gap, since Analyze stands in the third row at the right edge.
-   * `styles.test.ts` holds the two to each other.
+   * On a phone, where the app's two rows span the map's top (#696), the
+   * vendor's stack, which is the compass alone there, starts one inset below
+   * them rather than beside the pill: 92 + 12. While a ring is drawn the draw
+   * bar stands under the rows (`MAP_ROWS.drawBar`, 58px tall at 100), so the
+   * stack starts one inset under it instead: 100 + 58 + 12. `map.css` reads
+   * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
+   * both numbers to the rows' geometry.
    */
-  belowRow: '[--map-vendor-top:132px] touch:[--map-vendor-top:156px]',
+  belowRows: '[--map-vendor-top:104px]',
+  belowDrawBar: '[--map-vendor-top:170px]',
 } as const
 
 /**
@@ -1538,9 +1411,7 @@ export const DRAW_BAR =
 
 /**
  * Where the legend stack hangs: one row of the column's own gap under the last
- * button, at both pointer sizes, in the column's two heights. Since #696 the
- * stack is one legend card (`MAP_CARD`), its Legends header row first and the
- * sections under it in the same card.
+ * button, at both pointer sizes, in the column's two heights.
  *
  * Every row above it is `MAP_ROW_H` — 36 on a pointer, 44 on a finger — and
  * they are separated by `MAP_COL_GAP.gap`'s 4px, so the arithmetic is the inset,
@@ -1579,11 +1450,7 @@ export const DRAW_BAR =
  * constants cannot drift.
  */
 export const LEGEND_TOP = {
-  /**
-   * The panel is open, so the column is the search field and Layers; and every
-   * phone, whose column is the search field and the row under it (#696), the
-   * row holding Controls beside Layers whether the drawer is open or not.
-   */
+  /** The panel is open, so the column is the search field and Layers. */
   compact: 'top-[92px] touch:top-[108px]',
   /** The panel is collapsed and the Controls button stands between them. */
   full: 'top-[132px] touch:top-[156px]',
@@ -1605,6 +1472,176 @@ export const LEGEND_TOP = {
  * the element it lands on; only the empty band now pans the map instead.
  */
 export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
+
+/**
+ * The phone's two rows across the top of the map (#696; record 0135, the
+ * maintainer's approved mockup, 2026-10-14): the search pill with the locate
+ * button at its right, and under it the chip row, the controls summary,
+ * Layers and Legend. A desk keeps its column (`MAP_COL_W`).
+ *
+ * The geometry is four numbers, and every other phone anchor is built from
+ * them: the map's 12px inset (`MAP_EDGE`), the 40px first row, 8px between
+ * the rows and the 32px chip row. So the rows end 92px down the map, and
+ * `styles.test.ts` holds each anchor below to that sum.
+ *
+ * `MAP_ROWS.stack` stands both rows one inset off the top and both sides and
+ * takes no press itself; each row yields every press that lands between its
+ * members (`YIELD_EMPTY`), so the map under the gaps, and under the chip
+ * row's empty right end, stays the map's. The stack cannot wear
+ * `YIELD_EMPTY` too: its `[&>*]` rule would hand the rows their presses
+ * back, a child selector outranking their own by stylesheet order. `row` is the first row: the pill
+ * hangs from its left edge and the locate button from its right.
+ */
+export const MAP_ROWS = {
+  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} flex flex-col gap-2 pointer-events-none`,
+  row: `relative h-10 ${YIELD_EMPTY}`,
+  /**
+   * Where the pill stands: across the row less the locate button and the 8px
+   * between them (`right-12`, 40 + 8) at rest, and across the whole row while
+   * the field has the keyboard or its list is open, over the locate button.
+   * Raised so its results list paints over the chip row and the map.
+   */
+  pill: 'absolute inset-y-0 left-0 right-12 z-10',
+  pillWide: 'absolute inset-y-0 left-0 right-0 z-10',
+  /** The second row: one line of chips, 6px apart, never wrapping. */
+  chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
+  /**
+   * The draw bar on a phone (#687): under the chip row, 8px below it (92 +
+   * 8), so every chip stays in reach while a ring is drawn and the foot of
+   * the map stays the notices' and the player's.
+   */
+  drawBar: 'top-[100px]',
+} as const
+
+/**
+ * The search field as a pill (#696): the floating surface at the row's 40px,
+ * fully rounded, its icon and its clear button inside the same 14px of
+ * padding the mockup drew. The ring the panel's hover lights rides a wrapper
+ * of the same radius (`ACCENT_RING`). `styles.test.ts` holds the fill, edge
+ * and blur to `SURFACE_FLOATING`'s.
+ */
+export const MAP_PILL =
+  `bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `h-10 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
+
+/**
+ * The pill's field on a coarse pointer: 40px seen, 44 pressed. The input is
+ * transparent, so it stretches to the height inside the pill's 1px border
+ * (38) and reaches 3px past that at each edge, 2px past the pill, which is a
+ * target the reader cannot see. The clear button is
+ * `ICON_BUTTON` with `TAP.action`, which reaches 44 the same way by itself.
+ */
+export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
+
+/**
+ * The slot the locate button stands in at the first row's right (#696): 40px
+ * and round, in the pill's dark chrome. The button inside is MapLibre's own
+ * geolocate control, moved here from the library's corner so its states
+ * (asking, tracking, failed) come with it; `map.css` fills the slot with it
+ * and draws its glyph light, keyed on `map-locate`, since the vendor's markup
+ * has no call site to hand a role to. On a coarse pointer `map.css` gives the
+ * vendor's button an invisible rim, 40px seen and 44 pressed.
+ */
+export const MAP_LOCATE =
+  `map-locate absolute right-0 top-0 size-10 bg-slate-800/95 border border-slate-600 ` +
+  `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm`
+
+/**
+ * The chips' type: 13px, between the compact tier's 12 and the reading
+ * tier's 14, the size the mockup drew the row at (#696). A chip is a map
+ * control a thumb finds at arm's length over imagery, where the column's 12px
+ * read small, and 14px would cut the summary on a 360px phone. Named for
+ * `MICRO_SIZE`'s reason: an arbitrary step reads as the exception it is.
+ */
+const CHIP_SIZE = 'text-[13px]'
+
+/**
+ * The chips' hit area on a coarse pointer: 32px seen, 44px pressed, the way
+ * Material's chips take their 48dp target (`TAP`'s 44 here). An invisible
+ * box 6px above and below the chip, its own pseudo-element so a press on it
+ * is the chip's: 7px from inside the chip's 1px border, which is where a
+ * pseudo-element's inset is measured (the 30px inside plus 14 is 44, measured
+ * in the built image). Every chip is wider than 44 already, so only the
+ * height grows. The row's 6px gaps sit beside the chips, not above them, so no two
+ * targets overlap, and the 8px over the row stays clear of the pill's.
+ */
+const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:before:-inset-y-[7px] touch:before:content-['']"
+
+/**
+ * One chip in the phone's second row (#696): the pill's surface at 32px, the
+ * chips' 13px type at the normal weight and 12px of padding a side. A chip
+ * takes its content's width and never shrinks, but for the summary
+ * (`MAP_CHIP_SUMMARY`). The row's right end is left empty: a primary action
+ * may stand there later, and nothing here is placed against it.
+ *
+ * Lit while its sheet is open (`aria-expanded`), in the accent fill the
+ * pressed half of a segment wears. Spelled as variants of `ACCENT.fill`'s two
+ * classes, because Tailwind compiles only a class it finds whole and a
+ * variant is what lets the lit fill beat the resting one without a race of
+ * stylesheet order. Hover is `BUTTON_FLOATING`'s: the accent label and edge.
+ * The call site adds `DISABLED`, which greys the Legend chip until it has a
+ * key to show.
+ */
+const CHIP_FACE =
+  `bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `${CHIP_SIZE} text-white h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
+  `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ` +
+  `aria-expanded:bg-sky-650 aria-expanded:border-sky-650 ${FOCUS_RING}`
+export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
+
+/**
+ * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip
+ * that gives way first. It is the one member allowed to shrink, so a phone
+ * too narrow for the row cuts the summary with an ellipsis rather than
+ * pushing a chip off the edge (`MAP_CHIP_SUMMARY_TEXT`). The ☰ stays whole:
+ * it is the mark that says the chip opens the panel.
+ */
+export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
+/** The summary's words: one line, cut at its end, in the slate-400 the mockup reads them in (5.71:1 on the chip). */
+export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400'
+
+/**
+ * The phone's Analyze (#696; record 0135): an extended floating action
+ * button in Material's sense, the form for a screen's one primary action. 56px
+ * tall (`FAB_PX` in `resultsSheet.ts`, which places it), 16px off the map's
+ * right edge, a 16px corner rather than the capsule the chips wear, and the
+ * label in the call to action's 14px semibold. The accent fill is
+ * `BUTTON_PRIMARY`'s, `ACCENT.fill` on `--color-sky-650`, so the white label
+ * keeps the 4.57:1 record 0008 measured; the call site adds `DISABLED`, the
+ * panel's grey, because the gate is the panel's. The deepest shadow, since it
+ * stands over the map and over the sheet's edge alike.
+ *
+ * No icon: none of `icons.tsx` says "run this" without also meaning
+ * something else on the same screen (the player's triangle plays the
+ * timeline), so the button is its label.
+ */
+export const MAP_FAB =
+  `absolute right-4 ${LAYER.mapControls} h-14 rounded-2xl px-5 ${ELEVATION.overlay} ` +
+  `${TEXT.cta} transition-colors ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The button's two words in one cell, the one not showing kept invisible, so
+ * the button is always as wide as the wider of `Analyze` and `Analyzing…` and
+ * never resizes as a run starts and ends. A grid rather than a measured width:
+ * the cell is the words' own, in whatever face the reader's system draws.
+ */
+export const MAP_FAB_WORDS = {
+  cell: 'grid place-items-center [&>*]:col-start-1 [&>*]:row-start-1',
+  hidden: 'invisible',
+} as const
+
+/**
+ * Where the panel's notice block stands on a phone while the drawer is shut
+ * (#696; record 0140): a band across the map, one inset off each side, its
+ * bottom above whatever stands on the map's foot (`noticeBottomPx`). The
+ * block's own boxes are the panel's `NOTICE` tints, which are translucent and
+ * were measured over the drawer's slate-800, so the band lays that same
+ * slate-800 under them while it holds one; empty, it is a box of no height
+ * that draws nothing. Every press outside a box is the map's (`YIELD_EMPTY`).
+ */
+export const MAP_NOTICE_BAND =
+  `absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ${LAYER.base} ${RADIUS.control} ` +
+  `has-[>[role=status]>*]:bg-slate-800 ${YIELD_EMPTY}`
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
@@ -2121,6 +2158,38 @@ export const SCROLL_BARS = 'surface-scrollbars'
  * `overscroll-contain` keeps a flick at the list's end from moving the map.
  */
 export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-auto overscroll-contain`
+
+/**
+ * The bottom sheet (#696; record 0136): on a phone, every menu the map's chips
+ * and the results bar open is one card rising from the screen's bottom edge,
+ * modal over a dimmed map, where a desk keeps its menus joined to their
+ * controls (record 0134). One component (`BottomSheet.tsx`) wears these.
+ *
+ * `scrim` catches every press outside the card, which closes it, across the
+ * whole screen; `dim` is the part of it that shows, from one inset under the
+ * chip row (92 + 12) down, so the lit chip that opened the sheet stays
+ * readable above it. `card` is the results sheet's surface lifted a step,
+ * since it stands over that sheet, and it stops under the chip row too, so
+ * however long its rows run the chips stay in view. `grip` is the bar the
+ * mockup draws at the top, a swipe down on which closes the sheet. `head`
+ * is the title at the left and Done at the right; `title` the sheet's own
+ * word, the chip's or the button's that opened it. `body` scrolls, and every
+ * row in it is at least a finger's 44px, one line, with a rule between rows.
+ */
+export const BOTTOM_SHEET = {
+  scrim: `fixed inset-0 ${LAYER.popover}`,
+  dim: 'absolute inset-x-0 bottom-0 top-[104px] bg-black/40',
+  card:
+    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
+    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} pb-[env(safe-area-inset-bottom)] focus:outline-none`,
+  grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-slate-500',
+  head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-1',
+  title: TEXT.subheading,
+  done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
+  body:
+    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 pb-3 ` +
+    'divide-y divide-slate-700 [&>*]:min-h-11',
+} as const
 
 /**
  * The shade under a fixed edge that shows only while content continues past

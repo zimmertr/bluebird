@@ -143,6 +143,9 @@ interface Props {
   closureCheckFailed?: boolean
   // The basemap style is failing to load (#580).
   basemapFailed?: boolean
+  // Where the footer's notice block stands while a phone's drawer is shut
+  // (record 0140), handed to `PanelFooter`; null keeps it under the button.
+  noticeHome?: HTMLElement | null
 }
 
 export default function ControlPanel({
@@ -205,6 +208,7 @@ export default function ControlPanel({
   wildfireCheckFailed,
   closureCheckFailed,
   basemapFailed,
+  noticeHome = null,
 }: Props) {
   // Falls back to the id so a link naming a model this deployment stopped
   // publishing still reads as something rather than as an empty gap in a
@@ -416,6 +420,7 @@ export default function ControlPanel({
         onTutorial={onTutorial}
         tutorialWaits={tutorialWaits}
         messages={messages}
+        noticeHome={noticeHome}
       />
     </div>
   )

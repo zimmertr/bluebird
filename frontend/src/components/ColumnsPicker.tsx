@@ -4,6 +4,7 @@ import { ColDef, stepColumn } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
+import BottomSheet from './BottomSheet'
 import { CHOICE_INPUT, CHOICE_ROW, DRAG, SCROLL_BARS, SR_ONLY } from '../styles'
 import { IconGrip } from './icons'
 import {
@@ -32,8 +33,8 @@ interface Props {
    * menu on the bar takes the same place at the same width (record 0134).
    */
   anchorRef: React.RefObject<HTMLElement | null>
-  /** The bar's line on a phone, which the menu spans (record 0134). */
-  widthRef?: React.RefObject<HTMLElement | null>
+  /** A phone (#696): the menu is a bottom sheet rather than a card joined to the bar's group. */
+  sheet?: boolean
 }
 
 export default function ColumnsPicker({
@@ -46,9 +47,11 @@ export default function ColumnsPicker({
   onColumnMove,
   triggerRef,
   anchorRef,
-  widthRef,
+  sheet = false,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
+  // Closed to the popover's hook on a phone, whose sheet places and dismisses
+  // itself: a press inside the sheet would read as a press outside the card.
+  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
   const rankedNoteId = useId()
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
@@ -128,81 +131,75 @@ export default function ColumnsPicker({
     grip.addEventListener('pointercancel', end)
   }
 
-  if (!open || !box) return null
+  const rows = columns.map((col) => {
+    const isRanked = rankedGroup.has(col.key)
+    const isVisible = visibleKeys.has(col.key)
 
-  return (
-    // No heading (the maintainer, 2026-10-14): under a button called Columns
-    // it said the button's word again, and the Models menu beside it has
-    // none. The list keeps that word as its accessible name.
-    <Popover box={box} popoverRef={popoverRef}>
-      <div role="group" aria-label="Columns" className={`min-h-0 flex-1 overflow-y-auto p-1 space-y-1 ${SCROLL_BARS}`}>
-        {columns.map((col) => {
-          const isRanked = rankedGroup.has(col.key)
-          const isVisible = visibleKeys.has(col.key)
+    const isCarried = carry?.key === col.key
 
-          const isCarried = carry?.key === col.key
+    return (
+      <label
+        key={col.key}
+        ref={(el) => {
+          if (el) rowsRef.current.set(col.key, el)
+          else rowsRef.current.delete(col.key)
+        }}
+        className={`${CHOICE_ROW} px-1 ${isCarried ? DRAG.carried : ''}`}
+      >
+        <input
+          type="checkbox"
+          checked={isVisible}
+          disabled={isRanked}
+          // Disabled says it cannot be unticked and never why (#576).
+          aria-describedby={isRanked ? rankedNoteId : undefined}
+          onChange={(e) => {
+            const next = new Set(visibleKeys)
+            if (e.target.checked) {
+              next.add(col.key)
+            } else {
+              next.delete(col.key)
+            }
+            onVisibilityChange(next)
+          }}
+          className={CHOICE_INPUT}
+          aria-label={`${col.label} column`}
+        />
+        <span className="flex-1">{col.label}</span>
+        {/* The grip: a drag moves the column, and the arrow keys move it
+            one place at a time, which is the whole keyboard path for
+            reordering on either surface. It is a button so it can be
+            reached at all. */}
+        {onColumnMove && (
+          <button
+            type="button"
+            onPointerDown={(e) => beginDrag(e, col.key)}
+            onClick={(e) => e.preventDefault()}
+            onKeyDown={(e) => {
+              const delta = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : null
+              if (delta === null) return
+              const order = columns.map((c) => c.key)
+              const next = stepColumn(order, col.key, delta)
+              // At either end the order comes back unchanged and the
+              // key keeps its default, so the list can still scroll.
+              if (next === order) return
+              e.preventDefault()
+              // A one-place move swaps the column with its neighbour,
+              // so the neighbour now stands where the column stood, and
+              // that is the column the move names as its target.
+              onColumnMove(col.key, next[order.indexOf(col.key)])
+            }}
+            aria-label={`Move the ${col.label} column. Use the arrow keys.`}
+            className={`${DRAG.grip} ${isCarried ? DRAG.gripActive : ''} px-1`}
+          >
+            <IconGrip />
+          </button>
+        )}
+      </label>
+    )
+  })
 
-          return (
-            <label
-              key={col.key}
-              ref={(el) => {
-                if (el) rowsRef.current.set(col.key, el)
-                else rowsRef.current.delete(col.key)
-              }}
-              className={`${CHOICE_ROW} px-1 ${isCarried ? DRAG.carried : ''}`}
-            >
-              <input
-                type="checkbox"
-                checked={isVisible}
-                disabled={isRanked}
-                // Disabled says it cannot be unticked and never why (#576).
-                aria-describedby={isRanked ? rankedNoteId : undefined}
-                onChange={(e) => {
-                  const next = new Set(visibleKeys)
-                  if (e.target.checked) {
-                    next.add(col.key)
-                  } else {
-                    next.delete(col.key)
-                  }
-                  onVisibilityChange(next)
-                }}
-                className={CHOICE_INPUT}
-                aria-label={`${col.label} column`}
-              />
-              <span className="flex-1">{col.label}</span>
-              {/* The grip: a drag moves the column, and the arrow keys move it
-                  one place at a time, which is the whole keyboard path for
-                  reordering on either surface. It is a button so it can be
-                  reached at all. */}
-              {onColumnMove && (
-                <button
-                  type="button"
-                  onPointerDown={(e) => beginDrag(e, col.key)}
-                  onClick={(e) => e.preventDefault()}
-                  onKeyDown={(e) => {
-                    const delta = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : null
-                    if (delta === null) return
-                    const order = columns.map((c) => c.key)
-                    const next = stepColumn(order, col.key, delta)
-                    // At either end the order comes back unchanged and the
-                    // key keeps its default, so the list can still scroll.
-                    if (next === order) return
-                    e.preventDefault()
-                    // A one-place move swaps the column with its neighbour,
-                    // so the neighbour now stands where the column stood, and
-                    // that is the column the move names as its target.
-                    onColumnMove(col.key, next[order.indexOf(col.key)])
-                  }}
-                  aria-label={`Move the ${col.label} column. Use the arrow keys.`}
-                  className={`${DRAG.grip} ${isCarried ? DRAG.gripActive : ''} px-1`}
-                >
-                  <IconGrip />
-                </button>
-              )}
-            </label>
-          )
-        })}
-      </div>
+  const outside = (
+    <>
       {/* The one reason every ranked box points at. */}
       <span id={rankedNoteId} className={SR_ONLY}>
         Shown while this metric ranks.
@@ -228,6 +225,31 @@ export default function ColumnsPicker({
           )}
         </>
       )}
+    </>
+  )
+
+  // A phone's sheet holds the rows bare, so each is a row of the sheet with
+  // the rule between them; the dialog's own name, the button's word, is what
+  // the group's name says on a desk.
+  if (sheet) {
+    return open ? (
+      <BottomSheet heading="Columns" onClose={() => onOpenChange(false)} outside={outside}>
+        {rows}
+      </BottomSheet>
+    ) : null
+  }
+
+  if (!open || !box) return null
+
+  return (
+    // No heading (the maintainer, 2026-10-14): under a button called Columns
+    // it said the button's word again, and the Models menu beside it has
+    // none. The list keeps that word as its accessible name.
+    <Popover box={box} popoverRef={popoverRef}>
+      <div role="group" aria-label="Columns" className={`min-h-0 flex-1 overflow-y-auto p-1 space-y-1 ${SCROLL_BARS}`}>
+        {rows}
+      </div>
+      {outside}
     </Popover>
   )
 }

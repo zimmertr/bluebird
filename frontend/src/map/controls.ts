@@ -3,11 +3,12 @@
  * scale, and the attribution, and the one MapLibre default this app turns off.
  *
  * `touch` is a coarse pointer (`(hover: none)`, the query the app's `touch`
- * variant compiles to), read once when the map is built. On one (#696, the
- * maintainer 2026-10-13) the zoom buttons go, because a pinch zooms and the
- * top right is where the app's own rows now reach, and the locate button
- * moves to the bottom right, directly above the attribution's (i), the two at
- * a finger's 44px on one axis (`map.css`). The compass stays wherever it is.
+ * variant compiles to), read once when the map is built. On one (#696) the
+ * zoom buttons go, because a pinch zooms. The compass stays, shown only while
+ * the map is turned or tilted. On a phone's width the locate button leaves the
+ * library's corner for the slot at the right of the search pill: `MapView`
+ * moves the control `addControls` returns there (`placeLocate`), and back
+ * when the width becomes a desk's.
  */
 import {
   AttributionControl,
@@ -17,7 +18,7 @@ import {
 } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 
-export function addControls(map: maplibregl.Map, touch: boolean): void {
+export function addControls(map: maplibregl.Map, touch: boolean): GeolocateControl {
   // Shift is the pinning modifier for popups (`isPinning` in map/popups.ts), and
   // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
   // shift+mousedown and swallows the click that would have opened one. Box
@@ -31,10 +32,8 @@ export function addControls(map: maplibregl.Map, touch: boolean): void {
   // the same chrome as the zoom and compass buttons above it, and its
   // permission/error/busy states come with the library instead of being
   // re-implemented badly. Nothing asks for location until it is pressed.
-  map.addControl(
-    new GeolocateControl({ positionOptions: { enableHighAccuracy: true } }),
-    touch ? 'bottom-right' : 'top-right',
-  )
+  const locate = new GeolocateControl({ positionOptions: { enableHighAccuracy: true } })
+  map.addControl(locate, 'top-right')
   // A corner each, which is what lets both sit in the one band the map's
   // bottom chrome reserves (`TRANSPORT_GAP_PX` in `utils/resultsSheet.ts`)
   // rather than stacking into two. The scale takes the left, under the
@@ -43,6 +42,23 @@ export function addControls(map: maplibregl.Map, touch: boolean): void {
   // shared the right corner before, the scale floating above the licence
   // line, which made the pair as tall as both together.
   map.addControl(new ScaleControl({ maxWidth: SCALE_MAX_WIDTH_PX }), 'bottom-left')
+  return locate
+}
+
+/**
+ * Stands the locate button in `slot`, or back in the library's top-right
+ * corner when there is none (a desk's width). The control's own element is
+ * moved rather than a second button built, so its states and its permission
+ * prompt stay the library's; the library keeps its handle on the element
+ * wherever it stands, and removes it from wherever it is when the map goes.
+ * Appended last in the corner, where `addControls` put it, under the zoom
+ * and compass group.
+ */
+export function placeLocate(map: maplibregl.Map, locate: GeolocateControl, slot: HTMLElement | null): void {
+  const element = locate._container
+  if (!element) return
+  const home = slot ?? map.getContainer().querySelector('.maplibregl-ctrl-top-right')
+  if (home && element.parentElement !== home) home.appendChild(element)
 }
 
 /**
@@ -117,7 +133,9 @@ export function addAttribution(map: maplibregl.Map, compact: boolean): Attributi
     compact,
     customAttribution: withOpenMeteo(options.customAttribution),
   })
-  map.addControl(control, 'bottom-right')
+  // A compact credit stands beside the scale at the bottom left on a phone
+  // (#696), so the right of the map's foot is map (`map.css`).
+  map.addControl(control, compact ? 'bottom-left' : 'bottom-right')
   // The library adds a compact attribution OPEN and folds it on the first
   // drag (maplibre-gl 6.8, `_updateCompact` and `_updateCompactMinimize`
   // in attribution_control.ts), so until the reader moved the map the

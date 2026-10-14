@@ -1,13 +1,15 @@
-import { Fragment, useEffect, useRef, useState, type RefObject } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ElementType, type RefObject } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { IconLayers } from './icons'
+import BottomSheet from './BottomSheet'
 import {
   ACCENT,
   BUTTON_FLOATING,
   CHOICE_INPUT,
   CHOICE_ROW,
   LIFTED_EDGE,
+  MAP_CHIP,
   MAP_COL_W,
   MAP_ROW_H,
   RADIUS,
@@ -93,6 +95,12 @@ interface LayersPopoverProps {
   coverage: LayerCoverage
   /** The tutorial holds the menu open for its Layers step (#536). */
   forcedOpen?: boolean
+  /**
+   * A phone (#696): the button is a chip in the row under the search pill and
+   * the menu a bottom sheet, rather than a button in the desk's column with
+   * its menu unfurling out of it.
+   */
+  sheet?: boolean
 }
 
 /**
@@ -110,6 +118,7 @@ export default function LayersPopover({
   mapRef,
   coverage,
   forcedOpen = false,
+  sheet = false,
 }: LayersPopoverProps) {
   const {
     showWildfires,
@@ -145,7 +154,12 @@ export default function LayersPopover({
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
   const [layersOpen, setLayersOpen] = useState(false)
-  const open = layersOpen || forcedOpen
+  const open = layersOpen || (forcedOpen && !sheet)
+  // The desk's menu, which closes itself on a press outside it or Escape. A
+  // phone's sheet closes itself (`BottomSheet`), and a press inside it, in a
+  // portal at the end of the body, would read as outside the column here.
+  const popoverOpen = layersOpen && !sheet
+  const closeSheet = useCallback(() => setLayersOpen(false), [])
   // The rows whose layer can draw nothing over the view, watched while the
   // menu is open. A label used to carry this ("US only", "OR/WA", "West"),
   // three ways at once and none of them true of the area feeds' eight states;
@@ -162,7 +176,7 @@ export default function LayersPopover({
   // even if the pointer travels before release, and so it lands before the
   // map's own handlers get a chance to treat the same press as a map gesture.
   useEffect(() => {
-    if (!layersOpen) return
+    if (!popoverOpen) return
     function onDown(e: PointerEvent) {
       if (!layersRef.current?.contains(e.target as Node)) setLayersOpen(false)
     }
@@ -175,7 +189,7 @@ export default function LayersPopover({
       document.removeEventListener('pointerdown', onDown)
       document.removeEventListener('keydown', onKey)
     }
-  }, [layersOpen])
+  }, [popoverOpen])
 
   // Alphabetical by label, which is the only order a list of unrelated switches
   // can be scanned in: these eight have no ranking between them — no cost, no
@@ -247,21 +261,144 @@ export default function LayersPopover({
     },
   ]
 
+  // On a phone each layer is one row of the sheet, its grid sub-choices
+  // inside it, so the sheet's rule falls between layers and never between a
+  // row and its own segment.
+  const Row: ElementType = sheet ? 'div' : Fragment
+  const rows = MAP_LAYERS.map((layer) => (
+    <Row key={layer.key}>
+      {layerRow(layer)}
+      {/* The grid's sub-choices, revealed by its own checkbox
+          and rendered under the row they belong to rather than
+          after the list, so the alphabetical order above holds
+          whatever is open. The popover is as wide as the legend
+          boxes below it (`MAP_COL_W`), and a phone's sheet as wide
+          as the phone, so these take the fluid segment rather than
+          the panel's fixed 144px column — the same reason the
+          results bar's mode switch does.
+
+          They are ONE block, set off from the list by the same
+          gap on both sides: `mt-1.5` under the checkbox row it
+          belongs to, and `mb-1.5` under the last of them. The
+          slider used to end flush against the next layer's row,
+          so the block read as belonging to that row as much as
+          to the grid's — a group is bounded by its gaps, and
+          one gap bounds nothing. */}
+      {layer.key === 'grid' && gridOn && (
+        <>
+          <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
+            {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={gridStyle === value}
+                onClick={() => setGridStyle(value)}
+                className={`${SEGMENT_ITEM} ${
+                  gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
+                } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
+              >
+                {value === 'blocks' ? 'Blocks' : 'Smooth'}
+              </button>
+            ))}
+          </div>
+          {/* The coverage slider: how far from each destination
+              the grid reaches. The value and wordmark render
+              TWICE — muted on the well, white inside the accent
+              fill — with the top copy clipped to the fill, so the
+              line stays readable at any position without a color
+              racing another. Drag previews live (`gridReachDraft`)
+              and commits on release, because each committed value
+              is a refetch and a drag must not fetch per pixel. */}
+          <div
+            className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
+          >
+            {(() => {
+              const shown = gridReachDraft ?? gridReachFrac
+              const pct = shown * 100
+              const line = (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
+                  <span className={SLIDER.value}>
+                    {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
+                  </span>
+                  <span className={SLIDER.wordmark}>Coverage</span>
+                </div>
+              )
+              return (
+                <>
+                  <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
+                  <div
+                    className={`absolute inset-0 ${ACCENT.fill}`}
+                    style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
+                  >
+                    {line}
+                  </div>
+                </>
+              )
+            })()}
+            <input
+              type="range"
+              aria-label="Coverage"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
+              onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
+              onPointerUp={commitGridReach}
+              onKeyUp={commitGridReach}
+              onBlur={commitGridReach}
+              className={SLIDER.overlay}
+            />
+          </div>
+        </>
+      )}
+    </Row>
+  ))
+
+  // A phone's Layers is a chip in the row under the search pill, and its menu
+  // a bottom sheet over the dimmed map (#696; record 0136), where a desk's
+  // unfurls from its button in the map's column. One button either way, so
+  // the tutorial's anchor is one element; the desk's menu is absolute, so the
+  // button's box is the whole column member's. The tutorial does not hold the
+  // sheet open: a modal sheet would take the keyboard from the tour's own
+  // card, so on a phone its Layers step points at the chip.
+  const button = (
+    <button
+      ref={buttonRef}
+      onClick={() => setLayersOpen((o) => !o)}
+      aria-expanded={open}
+      // The desk's menu unfurls out of the button's bottom edge as one card
+      // with it (record 0134). Written here rather than by `usePopover`,
+      // which this menu does not wear: it hangs in the map column, not in a
+      // portal.
+      data-unfurled={open && !sheet ? 'below' : undefined}
+      className={
+        sheet
+          ? MAP_CHIP
+          : `${BUTTON_FLOATING} ${UNFURL_ANCHOR} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`
+      }
+      data-tour="layers"
+    >
+      {!sheet && <IconLayers />}
+      Layers
+    </button>
+  )
+
+  if (sheet) {
+    return (
+      <>
+        {button}
+        {open && (
+          <BottomSheet heading="Layers" onClose={closeSheet}>
+            {rows}
+          </BottomSheet>
+        )}
+      </>
+    )
+  }
+
   return (
-    <div ref={layersRef} className="relative" data-tour="layers">
-      <button
-        ref={buttonRef}
-        onClick={() => setLayersOpen((o) => !o)}
-        aria-expanded={open}
-        // The menu unfurls out of the button's bottom edge as one card with it
-        // (record 0134). Written here rather than by `usePopover`, which this
-        // menu does not wear: it hangs in the map column, not in a portal.
-        data-unfurled={open ? 'below' : undefined}
-        className={`${BUTTON_FLOATING} ${UNFURL_ANCHOR} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
-      >
-        <IconLayers />
-        Layers
-      </button>
+    <div ref={layersRef} className="relative">
+      {button}
       {/* Zero from the button it hangs under, which is the same edge
           as `MAP_EDGE.left`: the popover's offset parent is the column,
           so an inset of its own would be that inset twice and the box
@@ -271,93 +408,7 @@ export default function LayersPopover({
           className={`${SURFACE_POPOVER} ${MAP_COL_W} ${UNFURLED.below} absolute left-0 px-2.5 py-2`}
           data-tour="layers-menu"
         >
-          {MAP_LAYERS.map((layer) => (
-            <Fragment key={layer.key}>
-              {layerRow(layer)}
-              {/* The grid's sub-choices, revealed by its own checkbox
-                  and rendered under the row they belong to rather than
-                  after the list, so the alphabetical order above holds
-                  whatever is open. The popover is as wide as the legend
-                  boxes below it (`MAP_COL_W`), so these take the fluid
-                  segment rather than the panel's fixed 144px column —
-                  the same reason the results bar's mode switch does.
-
-                  They are ONE block, set off from the list by the same
-                  gap on both sides: `mt-1.5` under the checkbox row it
-                  belongs to, and `mb-1.5` under the last of them. The
-                  slider used to end flush against the next layer's row,
-                  so the block read as belonging to that row as much as
-                  to the grid's — a group is bounded by its gaps, and
-                  one gap bounds nothing. */}
-              {layer.key === 'grid' && gridOn && (
-                <>
-                  <div className={`${SEGMENT_FLUID_LIFTED} mt-1.5 w-full`}>
-                    {(['blocks', 'smooth'] as GridStyle[]).map((value, i) => (
-                      <button
-                        key={value}
-                        type="button"
-                        aria-pressed={gridStyle === value}
-                        onClick={() => setGridStyle(value)}
-                        className={`${SEGMENT_ITEM} ${
-                          gridStyle === value ? ACCENT.fill : SEGMENT_IDLE
-                        } ${i > 0 ? SEGMENT_DIVIDER : ''}`}
-                      >
-                        {value === 'blocks' ? 'Blocks' : 'Smooth'}
-                      </button>
-                    ))}
-                  </div>
-                  {/* The coverage slider: how far from each destination
-                      the grid reaches. The value and wordmark render
-                      TWICE — muted on the well, white inside the accent
-                      fill — with the top copy clipped to the fill, so the
-                      line stays readable at any position without a color
-                      racing another. Drag previews live (`gridReachDraft`)
-                      and commits on release, because each committed value
-                      is a refetch and a drag must not fetch per pixel. */}
-                  <div
-                    className={`relative mt-1.5 mb-1.5 h-6 w-full overflow-hidden ${RADIUS.control} ${LIFTED_EDGE} ${RECESSED_FILL}`}
-                  >
-                    {(() => {
-                      const shown = gridReachDraft ?? gridReachFrac
-                      const pct = shown * 100
-                      const line = (
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                          <span className={SLIDER.value}>
-                            {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
-                          </span>
-                          <span className={SLIDER.wordmark}>Coverage</span>
-                        </div>
-                      )
-                      return (
-                        <>
-                          <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
-                          <div
-                            className={`absolute inset-0 ${ACCENT.fill}`}
-                            style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
-                          >
-                            {line}
-                          </div>
-                        </>
-                      )
-                    })()}
-                    <input
-                      type="range"
-                      aria-label="Coverage"
-                      min={0}
-                      max={100}
-                      step={5}
-                      value={Math.round((gridReachDraft ?? gridReachFrac) * 100)}
-                      onChange={(e) => setGridReachDraft(Number(e.target.value) / 100)}
-                      onPointerUp={commitGridReach}
-                      onKeyUp={commitGridReach}
-                      onBlur={commitGridReach}
-                      className={SLIDER.overlay}
-                    />
-                  </div>
-                </>
-              )}
-            </Fragment>
-          ))}
+          {rows}
         </div>
       )}
     </div>

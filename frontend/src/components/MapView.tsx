@@ -28,7 +28,7 @@ import { ringPolygon, ringToPts } from '../utils/drawGeometry'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import { createMapController, type MapInputs } from '../map/controller'
 import { STYLE } from '../map/basemap'
-import { addAttribution, addControls } from '../map/controls'
+import { addAttribution, addControls, placeLocate } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
@@ -204,6 +204,11 @@ interface Props {
   // The most positions a ring may carry (`limits.max_polygon_points`): the draw
   // tool places no point past it (#619).
   maxPolygonPoints: number
+  // The round slot at the right of a phone's search pill, which the locate
+  // button stands in (#696), or null at a desk's width, where it keeps the
+  // library's top-right corner. A DOM node held in state, so it is one
+  // identity for as long as the slot is mounted.
+  locateSlot: HTMLElement | null
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -254,6 +259,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       onCameraMove,
       onBasemapFailed,
       maxPolygonPoints,
+      locateSlot,
     },
     ref,
   ) => {
@@ -262,6 +268,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const isDesktop = useIsDesktop()
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
+    // The library's locate button, which a phone's width stands beside the
+    // search pill (`placeLocate`).
+    const locateRef = useRef<maplibregl.GeolocateControl | null>(null)
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
     // The ring a `?poly=` link opened with. A ref rather than a mount-time
@@ -563,7 +572,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       mapRef.current = map
       // Read once, like the attribution's `compact`: a pointer does not turn
       // coarse under a session, where a window does change width.
-      addControls(map, window.matchMedia('(hover: none)').matches)
+      locateRef.current = addControls(map, window.matchMedia('(hover: none)').matches)
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
 
@@ -642,6 +651,15 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // setup closes over would remove and rebuild the map whenever a handler
       // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // The locate button follows its slot: into the pill's row while a phone's
+    // rows are up, back to the library's corner when they go. After the map
+    // is built, which an effect declared above this one has done.
+    useEffect(() => {
+      const map = mapRef.current
+      const locate = locateRef.current
+      if (map && locate) placeLocate(map, locate, locateSlot)
+    }, [locateSlot])
 
     // The attribution at the sheet's own breakpoint rather than the library's
     // 640px: between the two the map is wide enough for the line but the

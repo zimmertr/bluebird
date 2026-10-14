@@ -252,7 +252,8 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
-| The map column is one width, gap, height and type size | `styles.test.ts`, `checks/styles.js` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member; `MAP_BUTTON` on desktop Controls, the `MAP_CARD` roles on the Legends and Layers cards, `MAP_ROW_GRID` under a phone's rows and the legend stack, `MAP_PILL` and `MAP_ANALYZE` on it, and no width stated on any button there |
+| The map column is one width, gap, height and type size | `styles.test.ts`, `checks/styles.js` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
+| A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, and the one 13px role |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
@@ -448,19 +449,33 @@ The four actions are one `ACTION_GROUP` of `ACTION_ITEM` buttons, the mode switc
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
-### Phone row fit
+### Phone chrome
 
-The maintainer's layout (2026-10-13): the search field across the map less its two 12px insets, then two tracks of `4fr` and `3fr` with a 4px gap. Measured 2026-10-13 in the Playwright image's Chromium on a coarse pointer:
+A phone's map carries two rows across its top and one button at its foot
+(`MAP_ROWS`, `MAP_PILL`, `MAP_LOCATE`, `MAP_CHIP`, `MAP_FAB` in `styles.ts`).
+The rows are four numbers, the map's 12px inset, the 40px first row, 8px
+between and the 32px chip row, so they end 92px down; the draw bar, the
+compass, the sheet's dim and its highest stop are all built from that sum, and
+`styles.test.ts` holds each to it. The chips are 13px type with 12px a side,
+content-sized, and only the summary may shrink, by an ellipsis on its words.
 
-| Width | Search | Controls, Legends | Layers, Analyze |
-|---|---|---|---|
-| 360 | 336 | 189.7 | 142.3 |
-| 390 | 366 | 206.8 | 155.2 |
-| 430 | 406 | 229.7 | 172.3 |
+Seen and pressed are two sizes. On a coarse pointer a chip is 32px seen and
+44 pressed, by a pseudo-element 7px above and below it measured from inside
+its 1px border; the locate button 40 seen and 44 pressed, by a 3px rim
+`map.css` puts on the library's button; the pill 40 seen with its field 44
+pressed (`MAP_PILL_FIELD`). Each is the role's, never a `touch:` utility at a
+call site.
 
-Every member is 44px tall. The Controls summary has its button less 46px of icon and padding: 143.7, 160.8 and 183.7px. At the 10px micro step `Current · NOAA GFS` is 93px and fits everywhere; `Current · Meteo-France ARPEGE` is 148px and truncates at 360 only; `Dates · Meteo-France ARPEGE` is 141px. A Mac draws this face 1 to 7% wider than the image (the calibration words this file and `styles.test.ts` measured on one: `Radar` 33.02 against 32.69, `UK Met Office` 79.69 against 74.47, `Freezing level` 78.03 against 74.70, `Meteo-France ARPEGE` 130.03 against 127.39), so on a Mac both ARPEGE summaries truncate at 360 and fit at 390 with about 2px to spare at the widest ratio; GFS fits everywhere.
-
-The Layers card is its button's width, and its rows are 12px (`TEXT.control`) beside a 14px box and a 10px gap. At 360 the card is 142.3px and a row has 120px of room. `Forecast player`, the longest label, is 82.7px, so the row needs 106.7: 13.3px to spare, and 7.5 at the Mac's widest ratio. The rest: `Area closures` 73.4, `Trail closures` 70.9, `Forecast grid` 70.0, `Snow depth` 63.4, `Rain radar` 56.0, `Wildfires` 46.0, `Smoke` 37.4. None wraps at 360, 390 or 430.
+Analyze is Material's extended floating action button: 56px tall, 16px off
+the right edge and off whatever it stands on, a 16px corner, the call to
+action's type on `BUTTON_PRIMARY`'s fill. Both its words stand in one grid
+cell, so it is as wide as the wider. Measured 2026-10-14 in the Playwright
+image's Chromium at 360, 390 and 430 wide: the summary chip 169.4px, Layers
+65.0 and Legend 69.4, 315.8 with the gaps, which leaves 20.2, 50.2 and 90.2px
+of the row empty; the button 120.1px, `Analyze` 52.9 and `Analyzing…` 80.1.
+The mockup measured the same three at 289px in Chrome on a Mac, whose system
+face is narrower. Re-measure when a chip or a model label grows.
+Record: [0135](decisions/0135-phone-opens-on-the-map.md)
 
 ### Control width
 
@@ -730,13 +745,20 @@ width: no gap, the card's top edge on the control's bottom edge, the two sharing
 an outline (`UNFURLED` on the card, `UNFURL_ANCHOR` on the control). The results
 bar's Columns, Models and Removed unfurl out of the whole button group, so they
 open in one place. A card goes up only where the room under its control is less
-than three 44px rows, as on a collapsed phone sheet. Where a control is
-narrower than its menu's rows need, the menu takes the control's row instead,
-still joined to it (`widthRef`): the bar's line on a phone, and the Model row
-for the model dropdown, which then opens leftward under its label. The search
-box's results list is the one exception, a list of answers under a field
-rather than a menu.
+than three 44px rows. Where a control is narrower than its menu's rows need,
+the menu takes the control's row instead, still joined to it (`widthRef`): the
+Model row for the model dropdown, which then opens leftward under its label.
+The search box's results list is the one exception, a list of answers under a
+field rather than a menu.
 Record: [0134](decisions/0134-menus-unfurl-from-their-control.md)
+
+On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a
+card from the bottom edge over a dimmed map, with a grip, its heading and
+Done, and rows a finger's 44px tall with a rule between them. Layers and
+Legend from the chip row and Columns, Models and Removed from the results bar
+open in it. The dim starts under the chip row, so the chip that opened the
+sheet stays lit and readable.
+Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md)
 
 ### Adding a new role
 

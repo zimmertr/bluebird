@@ -108,7 +108,7 @@ describe('useResultsLayout', () => {
   })
 
   it('draws one panel on a phone too short for two, and gives Both back when it grows', () => {
-    setViewport(560)
+    setViewport(520)
     // A report on screen, so the pending-only hold below is not what decides.
     const { result } = renderHook(() =>
       useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both', response: {} }),

@@ -241,19 +241,21 @@ export const APP = [
     // The map column draws what it is handed and runs no effect; the loading
     // card's clock is the card's own (analysis-overlay-clock). The legend
     // renders before the button column because paint order is DOM order at
-    // one layer, and the Layers popover must open over the legend.
+    // one layer, and the Layers popover must open over the legend. A phone
+    // renders its rows in the column's place (#696), so the column is one arm
+    // of a choice and the order is read off the container that holds it.
     name: 'map-stage',
     files: ['src/components/MapStage.tsx'],
     ban: [{ selector: EFFECT, message: 'Run no effect in MapStage.' }],
     require: [
-      ...['AnalysisOverlay', 'MapLegend', 'MapButtonColumn', 'LayersPopover', 'TimelineTransport'].map((name) => ({
+      ...['AnalysisOverlay', 'MapLegend', 'MapButtonColumn', 'PhoneMapRows', 'PhoneFoot', 'LayersPopover', 'TimelineTransport'].map((name) => ({
         selector: `JSXOpeningElement[name.name="${name}"]`,
         count: 1,
         message: `MapStage.tsx renders ${name} once.`,
       })),
       {
         selector:
-          'JSXElement:has(> JSXOpeningElement[name.name="MapLegend"]) ~ JSXElement:has(> JSXOpeningElement[name.name="MapButtonColumn"])',
+          'JSXElement:has(> JSXOpeningElement[name.name="MapLegend"]) ~ :matches(JSXElement:has(> JSXOpeningElement[name.name="MapButtonColumn"]), JSXExpressionContainer:has(JSXOpeningElement[name.name="MapButtonColumn"]))',
         message: 'Render MapLegend before MapButtonColumn, so the Layers popover paints over the legend.',
       },
     ],
@@ -586,12 +588,14 @@ export const APP = [
   {
     // A popover a reader cannot leave is a trap: click away or Escape closes
     // it. The listeners are attached only while it is open, so the one effect
-    // keys on the open flag alone.
+    // keys on the open flag alone. On a phone the list is a bottom sheet,
+    // which closes itself (`useDialog`), so the flag is the popover's own
+    // (`popoverOpen`), off while the sheet is the one open (#696).
     name: 'layers-popover-dismiss',
     files: ['src/components/LayersPopover.tsx'],
     require: [
       { selector: EFFECT, count: 1, message: 'LayersPopover.tsx runs its one effect through useEffect.' },
-      { selector: keyedOnlyOn('layersOpen'), message: 'Attach the dismiss listeners in an effect keyed on layersOpen alone.' },
+      { selector: keyedOnlyOn('popoverOpen'), message: 'Attach the dismiss listeners in an effect keyed on popoverOpen alone.' },
       {
         selector: 'CallExpression[callee.property.name="addEventListener"][arguments.0.value="pointerdown"]',
         message: 'Close the popover on a pointerdown outside it.',

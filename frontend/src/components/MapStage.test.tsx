@@ -7,8 +7,9 @@ import { render } from '../testSupport/render'
 import { place, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
+import { DRAGGED_MAP_PX, FAB_INSET_PX, fabBottomPx, transportStandPx } from '../utils/resultsSheet'
+import { MAP_EDGE } from '../styles'
 import type { Place } from '../utils/geocode'
-import type { LegendFold } from '../hooks/useLegendFold'
 
 // MapView draws with WebGL, which jsdom has none of, and what this suite is
 // about is what reaches it: the props of every render are kept here.
@@ -19,43 +20,59 @@ vi.mock('./MapView', () => ({
     return <div data-testid="map" />
   },
 }))
-vi.mock('./MapLegend', () => ({
-  default: (props: { columnFull: boolean; onGrid: boolean; expanded: boolean }) => (
-    <div
-      data-testid="legend"
-      data-column-full={String(props.columnFull)}
-      data-on-grid={String(props.onGrid)}
-      data-expanded={String(props.expanded)}
-    />
+vi.mock('./MapLegend', async (original) => ({
+  ...(await original<typeof import('./MapLegend')>()),
+  default: (props: { sections: readonly unknown[] }) => (
+    <div data-testid="legend" data-sections={String(props.sections.length)} />
   ),
 }))
 vi.mock('./LayersPopover', () => ({
-  default: (props: { inRow: boolean }) => <div data-testid="layers" data-in-row={String(props.inRow)} />,
+  default: (props: { sheet: boolean }) => <div data-testid="layers" data-sheet={String(props.sheet)} />,
 }))
-vi.mock('./TimelineTransport', () => ({ default: () => <div data-testid="transport" /> }))
-vi.mock('./MapButtonColumn', () => ({
+vi.mock('./TimelineTransport', () => ({
+  default: (props: { liftPx: number }) => <div data-testid="transport" data-lift={String(props.liftPx)} />,
+}))
+vi.mock('./PhoneFoot', () => ({
   default: (props: {
-    onOpenControls: () => void
-    onSearchSelect: (place: Place) => void
-    onAnalyze: () => void
-    phoneRow: boolean
+    liftPx: number
+    fabBottomPx: number
+    onBandPx: (px: number) => void
     analyzeEnabled: boolean
     analyzing: boolean
-    controlsSummary: string
-    children: ReactNode
+    onAnalyze: () => void
   }) => (
-    <div
-      data-testid="buttons"
-      data-phone-row={String(props.phoneRow)}
-      data-summary={props.controlsSummary}
-      data-analyzing={String(props.analyzing)}
-    >
-      <button onClick={props.onOpenControls}>Controls</button>
-      <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
+    <div data-testid="foot" data-lift={String(props.liftPx)} data-fab={String(props.fabBottomPx)} data-analyzing={String(props.analyzing)}>
+      <button onClick={() => props.onBandPx(40)}>Band</button>
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
         Analyze
       </button>
+    </div>
+  ),
+}))
+vi.mock('./MapButtonColumn', () => ({
+  default: (props: { onOpenControls: () => void; onSearchSelect: (place: Place) => void; children: ReactNode }) => (
+    <div data-testid="buttons">
+      <button onClick={props.onOpenControls}>Controls</button>
+      <button onClick={() => props.onSearchSelect(PLACE)}>Pick</button>
       {props.children}
+    </div>
+  ),
+}))
+vi.mock('./PhoneMapRows', () => ({
+  default: (props: {
+    onOpenControls: () => void
+    onLocateSlot: (slot: HTMLDivElement | null) => void
+    controlsSummary: string
+    legend: readonly unknown[]
+    layers: ReactNode
+  }) => (
+    <div
+      data-testid="rows"
+      data-summary={props.controlsSummary}
+      data-legend={String(props.legend.length)}
+    >
+      <div data-testid="locate" ref={props.onLocateSlot} />
+      {props.layers}
     </div>
   ),
 }))
@@ -110,8 +127,8 @@ const LAYOUT: MapStageProps['layout'] = {
   sheetLiftPx: 0,
   cameraPadBottomPx: 40,
   sheetPadBottomPx: 300,
+  mapPx: 800,
 }
-const LEGEND: LegendFold = { legendExpanded: true, toggleLegend: NOOP }
 const ANALYSIS: MapStageProps['analysis'] = {
   loading: false,
   statusMessage: null,
@@ -158,11 +175,10 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     onBasemapFailed: ON_BASEMAP_FAILED,
     maxPolygonPoints: MAX_POLYGON_POINTS,
     onOpenControls: NOOP,
-    isDesktop: true,
+    controlsSummary: 'Current · NOAA GFS',
+    onNoticeBand: NOOP,
     analyzeEnabled: true,
     onAnalyze: NOOP,
-    controlsSummary: 'Current · NOAA GFS',
-    legend: LEGEND,
     searchPointed: false,
     poisPointed: false,
     ...over,
@@ -226,9 +242,9 @@ describe('MapStage', () => {
   })
 
   // Draw polygon closes the drawer on a phone, so Done and Cancel come to the
-  // map (#687). They are the panel's own two presses, and the bar takes the
-  // player's band while it is up.
-  it('puts Done and Cancel on the map while a phone draws, in place of the player', async () => {
+  // map (#687). They are the panel's own two presses, the bar stands under the
+  // chip row (#696), and the player steps out while it is up.
+  it('puts Done and Cancel on the map while a phone draws, and the player away', async () => {
     const finishDrawing = vi.fn()
     const handleCancelDrawing = vi.fn()
     const drawing = { ...DRAW, drawing: true, drawPointCount: 2, finishDrawing, handleCancelDrawing }
@@ -288,43 +304,92 @@ describe('MapStage', () => {
     expect(flyToPlace.mock.invocationCallOrder[0]).toBeLessThan(registerPlace.mock.invocationCallOrder[0])
   })
 
-  // A phone gets the row: the summary, the panel's gate and command, and
-  // Layers in the row; a desktop keeps its column.
-  it('hands the phone row the panel\'s command and gate', () => {
-    const onAnalyze = vi.fn()
-    const { rerender } = render(<MapStage {...props({ isDesktop: false, onAnalyze, analyzeEnabled: false })} />)
-    const buttons = screen.getByTestId('buttons')
-    expect(buttons.dataset.phoneRow).toBe('true')
-    expect(buttons.dataset.summary).toBe('Current · NOAA GFS')
-    expect(screen.getByTestId('layers').dataset.inRow).toBe('true')
-    expect((screen.getByRole('button', { name: 'Analyze' }) as HTMLButtonElement).disabled).toBe(true)
-    rerender(<MapStage {...props({ isDesktop: false, onAnalyze, analyzeEnabled: true })} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
-    expect(onAnalyze).toHaveBeenCalledOnce()
-    rerender(<MapStage {...props({ isDesktop: false, analysis: { ...ANALYSIS, loading: true } })} />)
-    expect(screen.getByTestId('buttons').dataset.analyzing).toBe('true')
+  // A phone gets the two rows (#696): the summary, Layers as a chip with its
+  // sheet, and the legend's sections for its Legend sheet. A desk keeps its
+  // column and its legend box.
+  it('hands the phone rows the summary, and Layers as a sheet', () => {
+    const { rerender } = render(<MapStage {...props({ isDesktop: false })} />)
+    expect(screen.queryByTestId('buttons')).toBeNull()
+    const rows = screen.getByTestId('rows')
+    expect(rows.dataset.summary).toBe('Current · NOAA GFS')
+    expect(screen.getByTestId('layers').dataset.sheet).toBe('true')
+    rerender(<MapStage {...props()} />)
+    expect(screen.queryByTestId('rows')).toBeNull()
+    expect(screen.getByTestId('layers').dataset.sheet).toBe('false')
   })
 
-  // The legend clears the taller column only where a desktop has one: a
-  // phone's Controls stands in the row, so its column is the short one.
-  it('clears the taller column only on a desktop with the panel closed', () => {
-    const { rerender } = render(<MapStage {...props({ sidebarOpen: false })} />)
-    expect(screen.getByTestId('legend').dataset.columnFull).toBe('true')
-    expect(screen.getByTestId('legend').dataset.onGrid).toBe('false')
-    rerender(<MapStage {...props({ sidebarOpen: false, isDesktop: false })} />)
-    expect(screen.getByTestId('legend').dataset.columnFull).toBe('false')
-    // A phone's card stands on the button grid's tracks, under Controls.
-    expect(screen.getByTestId('legend').dataset.onGrid).toBe('true')
-    rerender(<MapStage {...props({ legend: { legendExpanded: false, toggleLegend: NOOP } })} />)
-    expect(screen.getByTestId('legend').dataset.expanded).toBe('false')
+  // One answer for both surfaces: a desk's box draws the sections and a
+  // phone's map draws none, its Legend sheet holding them.
+  it('hands the legend\'s sections to the box on a desk and to the Legend sheet on a phone', () => {
+    const { rerender } = render(<MapStage {...props()} />)
+    // The metric key over coloured markers, and the three layers that are on.
+    expect(screen.getByTestId('legend').dataset.sections).toBe('4')
+    rerender(<MapStage {...props({ isDesktop: false })} />)
+    expect(screen.getByTestId('legend').dataset.sections).toBe('0')
+    expect(screen.getByTestId('rows').dataset.legend).toBe('4')
   })
 
-  // On a phone the vendor's zoom stack starts below the row.
+  // The locate button's slot reaches the map, which stands its own button in
+  // it, and goes when the rows do.
+  it('hands the map the locate slot on a phone', () => {
+    seen.mapView.length = 0
+    const { rerender } = render(<MapStage {...props({ isDesktop: false })} />)
+    expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBe(screen.getByTestId('locate'))
+    rerender(<MapStage {...props()} />)
+    expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBeNull()
+  })
+
+  // On a phone the vendor's stack, the compass alone there, starts under the
+  // rows, and under the draw bar while a ring is drawn.
   it('publishes the vendor stack\'s top on a phone only', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const stage = () => container.firstElementChild as HTMLElement
     expect(stage().className).not.toContain('--map-vendor-top')
     rerender(<MapStage {...props({ isDesktop: false })} />)
-    expect(stage().className).toContain('--map-vendor-top')
+    expect(stage().className).toContain(MAP_EDGE.belowRows)
+    rerender(<MapStage {...props({ isDesktop: false, drawMode: { ...DRAW, drawing: true } })} />)
+    expect(stage().className).toContain(MAP_EDGE.belowDrawBar)
+    expect(stage().className).not.toContain(MAP_EDGE.belowRows)
+  })
+
+  // The foot of a phone's map (#696): the notice band and the Analyze
+  // button, the panel's own gate and command. A desk has neither.
+  it('stands the Analyze button on a phone only, on the panel\'s gate and command', () => {
+    const onAnalyze = vi.fn()
+    const { rerender } = render(<MapStage {...props({ onAnalyze })} />)
+    expect(screen.queryByTestId('foot')).toBeNull()
+    rerender(<MapStage {...props({ isDesktop: false, onAnalyze, analyzeEnabled: false })} />)
+    expect((screen.getByRole('button', { name: 'Analyze' }) as HTMLButtonElement).disabled).toBe(true)
+    rerender(<MapStage {...props({ isDesktop: false, onAnalyze })} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
+    expect(onAnalyze).toHaveBeenCalledOnce()
+    rerender(<MapStage {...props({ isDesktop: false, analysis: { ...ANALYSIS, loading: true } })} />)
+    expect(screen.getByTestId('foot').dataset.analyzing).toBe('true')
+  })
+
+  // Two things move the button (record 0135): the sheet it rides, and the
+  // notice band it rises over. The player stands on the button.
+  it('rides the sheet, rises over the band, and carries the player', () => {
+    const layout = { ...LAYOUT, sheetLiftPx: 104 }
+    const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
+    render(<MapStage {...props({ isDesktop: false, layout, timeline })} />)
+    const foot = () => screen.getByTestId('foot').dataset
+    expect(foot().lift).toBe('104')
+    expect(foot().fab).toBe(String(104 + FAB_INSET_PX))
+    fireEvent.click(screen.getByRole('button', { name: 'Band' }))
+    const risen = fabBottomPx(104, 40, 800)
+    expect(foot().fab).toBe(String(risen))
+    expect(risen).toBeGreaterThan(104 + FAB_INSET_PX)
+    expect(screen.getByTestId('transport').dataset.lift).toBe(String(transportStandPx(risen)))
+  })
+
+  // A sheet at its highest leaves the button its strip and no room for the
+  // player, which steps off rather than standing over the chips.
+  it('takes the player off a phone\'s map while a sheet leaves it no room', () => {
+    const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
+    const layout = { ...LAYOUT, sheetLiftPx: 800 - DRAGGED_MAP_PX }
+    render(<MapStage {...props({ isDesktop: false, layout, timeline })} />)
+    expect(screen.queryByTestId('transport')).toBeNull()
+    expect(screen.getByTestId('foot').dataset.fab).toBe(String(800 - DRAGGED_MAP_PX + FAB_INSET_PX))
   })
 })

@@ -6,6 +6,8 @@ import { useResultsLayout } from './useResultsLayout'
 import { useTableView, type TableViewInputs } from './useTableView'
 
 export interface ResultsViewInputs {
+  /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
+  playerOn?: boolean
   /** Collapse the sheet to its bar for the tutorial's marker step on a phone (#536). */
   collapsedOverride?: boolean | null
   /** Whether a report is on screen. */
@@ -73,6 +75,7 @@ export function useResultsView({
   storedView,
   isDesktop,
   bannerPx,
+  playerOn,
   analysisSeq,
   arriving,
   sortBy,
@@ -99,6 +102,7 @@ export function useResultsView({
     modeChosen: storedView.modeChosen,
     isDesktop,
     bannerPx,
+    playerOn,
     showTable,
     response,
     analysisSeq,

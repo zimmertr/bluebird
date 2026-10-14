@@ -134,10 +134,6 @@ const PANEL = {
 }
 
 const role = (name) => `MemberExpression[object.name="${name}"]`
-// A bare role worn in a class expression: the attribute itself, a template, or
-// one arm of a choice between two roles.
-const worn = (name) =>
-  `:matches(JSXExpressionContainer, TemplateLiteral, ConditionalExpression) > Identifier[name="${name}"]`
 const defaultExport = (name) => `ExportDefaultDeclaration[declaration.id.name="${name}"]`
 // The body of the default export and everything after it.
 const fromExport = (name, target) =>
@@ -369,10 +365,7 @@ export const STYLES = [
     ],
   },
   {
-    // The legend card (#696), its Legends header and the sections under it,
-    // and the stack it scrolls in. The card takes MAP_COL_W at a desk and its
-    // track of MAP_ROW_GRID on a phone, under Controls at Controls' width, and
-    // the header the Layers button's face through its role.
+    // The legend box and the stack it scrolls in.
     name: 'style-map-legend-column',
     files: ['src/components/MapLegend.tsx'],
     require: [
@@ -384,9 +377,7 @@ export const STYLES = [
   {
     // The button cluster and the Controls button it holds while the panel is
     // closed. A stacking context orders only its own children, so the layer
-    // is useless unless the cluster itself wears it. On a phone the cluster
-    // is the search field over a grid of two tracks (#696), and Controls and
-    // Analyze wear the grid's roles and take their widths from its tracks.
+    // is useless unless the cluster itself wears it.
     name: 'style-map-button-column',
     files: ['src/components/MapButtonColumn.tsx'],
     require: [
@@ -527,9 +518,9 @@ export const STYLES = [
     ],
     require: [
       {
-        // Or `MAP_ROW_W` in its place on a phone, where the field spans the
-        // map (#696): the two are one choice in one class list.
-        selector: `${interp('MAP_COL_W')}, TemplateLiteral > ConditionalExpression[alternate.name="MAP_COL_W"][consequent.name="MAP_ROW_W"]`,
+        // Or the pill's whole slot in its place on a phone (#696), where the
+        // slot is the width: the two are one choice in one class list.
+        selector: `${interp('MAP_COL_W')}, TemplateLiteral > ConditionalExpression[alternate.name="MAP_COL_W"]`,
         count: 1,
         message: 'The search field wears MAP_COL_W.',
       },
@@ -648,6 +639,9 @@ export const STYLES = [
   {
     // Every notice renders in the one block under Analyze: a NOTICE box is
     // built in FooterNotice alone, which is rendered once, after the button.
+    // The block has one other home, a phone's map while the drawer is shut
+    // (#696; record 0140), which it reaches by one portal to the band the map
+    // hands up (`noticeHome`), so it is still rendered once, in one place.
     name: 'style-footer-notice',
     files: [PANEL.footer],
     ban: [
@@ -660,9 +654,18 @@ export const STYLES = [
         selector: fromExport('PanelFooter', role('STATUS')),
         message: 'Colour nothing by STATUS in the footer body.',
       },
+      {
+        selector: 'CallExpression[callee.name="createPortal"]:not([arguments.1.name="noticeHome"])',
+        message: 'Portal the notice block to noticeHome alone, the phone\'s band.',
+      },
     ],
     require: [
       { selector: 'FunctionDeclaration[id.name="FooterNotice"]', message: 'PanelFooter builds FooterNotice.' },
+      {
+        selector: 'CallExpression[callee.name="createPortal"][arguments.1.name="noticeHome"]',
+        count: 1,
+        message: 'Portal the notice block to noticeHome once, for a phone with the drawer shut.',
+      },
       { selector: FOOTER_NOTICE, count: 1, message: 'Render FooterNotice in one place.' },
       { selector: after(ANALYZE, FOOTER_NOTICE), message: 'Render FooterNotice below the Analyze button.' },
     ],

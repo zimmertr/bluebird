@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
+import BottomSheet from './BottomSheet'
 import { CONTROL_SIZE, FOCUS_RING, LINK_ACTION, SURFACE_DIVIDER, TEXT } from '../styles'
 
 interface Props {
@@ -17,8 +18,8 @@ interface Props {
    * menu on the bar takes the same place at the same width (record 0134).
    */
   anchorRef: React.RefObject<HTMLElement | null>
-  /** The bar's line on a phone, which the menu spans (record 0134). */
-  widthRef?: React.RefObject<HTMLElement | null>
+  /** A phone (#696): the menu is a bottom sheet rather than a card joined to the bar's group. */
+  sheet?: boolean
 }
 
 // The list behind the results bar's "Removed (N)" button (#241): every ×-ed
@@ -34,9 +35,11 @@ export default function RemovedPicker({
   onRestoreAll,
   triggerRef,
   anchorRef,
-  widthRef,
+  sheet = false,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
+  // Closed to the popover's hook on a phone, whose sheet places and dismisses
+  // itself: a press inside the sheet would read as a press outside the card.
+  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
 
   // Restoring the last row empties the list out from under the popover, so it
   // closes. Where the keyboard goes is the sheet's: the trigger hides at zero
@@ -45,38 +48,48 @@ export default function RemovedPicker({
     if (open && entries.length === 0) onOpenChange(false)
   }, [open, entries.length, onOpenChange])
 
+  const rows = entries.map(([key, entry]) => (
+    <div key={key} className="flex items-center gap-2 px-2 py-1">
+      <span className={`${TEXT.control} min-w-0 flex-1 truncate`}>{entry.row.name}</span>
+      {/* At the control size, the floor for anything pressed (#687):
+          it was the micro step. Colourless, so the link colour is
+          LINK_ACTION's alone rather than racing TEXT.control's slate. */}
+      <button
+        onClick={() => onRestore(key)}
+        aria-label={`Restore ${entry.row.name}`}
+        className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
+      >
+        Restore
+      </button>
+    </div>
+  ))
+  const restoreAll = entries.length > 1 && (
+    <button
+      onClick={onRestoreAll}
+      className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}
+    >
+      Restore all
+    </button>
+  )
+
+  // On a phone the sheet's heading is the words the desk card's overline
+  // says, and Restore all is its last row.
+  if (sheet) {
+    return open ? (
+      <BottomSheet heading="Removed rows" onClose={() => onOpenChange(false)}>
+        {rows}
+        {restoreAll && <div className="flex items-center px-2">{restoreAll}</div>}
+      </BottomSheet>
+    ) : null
+  }
+
   if (!open || !box) return null
 
   return (
     <Popover box={box} popoverRef={popoverRef} header="Removed rows">
-      <div className="min-h-0 flex-1 overflow-y-auto p-1">
-        {entries.map(([key, entry]) => (
-          <div key={key} className="flex items-center gap-2 px-2 py-1">
-            <span className={`${TEXT.control} min-w-0 flex-1 truncate`}>{entry.row.name}</span>
-            {/* At the control size, the floor for anything pressed (#687):
-                it was the micro step. Colourless, so the link colour is
-                LINK_ACTION's alone rather than racing TEXT.control's slate. */}
-            <button
-              onClick={() => onRestore(key)}
-              aria-label={`Restore ${entry.row.name}`}
-              className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
-            >
-              Restore
-            </button>
-          </div>
-        ))}
-      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">{rows}</div>
 
-      {entries.length > 1 && (
-        <div className={`border-t ${SURFACE_DIVIDER} px-3 py-2`}>
-          <button
-            onClick={onRestoreAll}
-            className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}
-          >
-            Restore all
-          </button>
-        </div>
-      )}
+      {restoreAll && <div className={`border-t ${SURFACE_DIVIDER} px-3 py-2`}>{restoreAll}</div>}
     </Popover>
   )
 }

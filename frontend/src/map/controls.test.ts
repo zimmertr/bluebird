@@ -22,6 +22,7 @@ import {
   addAttribution,
   addControls,
   hideCompassWhileNorthUp,
+  placeLocate,
   withOpenMeteo,
 } from './controls'
 
@@ -53,22 +54,19 @@ function stub() {
 describe('addControls', () => {
   it('spends shift on pinning rather than box zoom, and puts each control in its corner', () => {
     const { map, added, boxZoom } = stub()
-    addControls(map, false)
+    const locate = addControls(map, false)
     expect(boxZoom.disable).toHaveBeenCalledTimes(1)
     expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'bottom-left'])
     expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: true })
+    // The locate button it hands back, for a phone's row to stand it in.
+    expect(locate).toBe(added[1][1])
   })
 
-  // A coarse pointer (#696): a pinch zooms, so the zoom buttons go, and the
-  // locate button stands above the attribution's (i) at the bottom right.
-  it('drops the zoom buttons on touch and moves the locate button to the bottom right', () => {
+  // A coarse pointer (#696): a pinch zooms, so the zoom buttons go and the
+  // compass alone is left.
+  it('drops the zoom buttons on touch', () => {
     const { map, added } = stub()
     addControls(map, true)
-    expect(added.map(([name, , at]) => [name, at])).toEqual([
-      [expect.stringContaining('Navigation'), 'top-right'],
-      [expect.stringContaining('Geolocate'), 'bottom-right'],
-      [expect.stringContaining('Scale'), 'bottom-left'],
-    ])
     expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: false })
   })
 
@@ -76,7 +74,7 @@ describe('addControls', () => {
   // of the scale at this width.
   it('draws the scale no wider than the room map.css keeps for it', () => {
     const { map, added } = stub()
-    addControls(map)
+    addControls(map, false)
     const [, scale] = added.find(([, , at]) => at === 'bottom-left')!
     expect((scale as { options: Record<string, unknown> }).options).toEqual({ maxWidth: SCALE_MAX_WIDTH_PX })
   })
@@ -109,7 +107,7 @@ describe('hideCompassWhileNorthUp', () => {
 
   it('is what addControls wires up beside the zoom buttons', () => {
     const { map, classes, handlers } = stub()
-    addControls(map)
+    addControls(map, false)
     expect(Object.keys(handlers).sort()).toEqual(['pitch', 'rotate'])
     expect(classes.has(COMPASS_IDLE_CLASS)).toBe(true)
   })
@@ -120,15 +118,51 @@ describe('addAttribution', () => {
     const { map, added, removed } = stub()
     const control = addAttribution(map, true) as unknown as { options: Record<string, unknown> }
     expect(control.options).toEqual({ customAttribution: ['MapLibre', OPEN_METEO_ATTRIBUTION], compact: true })
-    expect(added.map(([, , at]) => at)).toEqual(['bottom-right'])
+    // Compact is a phone's, where the credit stands beside the scale (#696).
+    expect(added.map(([, , at]) => at)).toEqual(['bottom-left'])
     expect(removed).toEqual(['maplibregl-compact-show'])
   })
 
   // The same line at a desk, spelled out rather than folded.
   it('carries the Open-Meteo credit spelled out as well as compact', () => {
-    const { map } = stub()
+    const { map, added } = stub()
     const control = addAttribution(map, false) as unknown as { options: { customAttribution: string[] } }
     expect(control.options.customAttribution).toContain(OPEN_METEO_ATTRIBUTION)
+    expect(added.map(([, , at]) => at)).toEqual(['bottom-right'])
+  })
+})
+
+// The library's own locate button, moved rather than rebuilt (#696): into a
+// phone's slot beside the search pill, and back to the top-right corner.
+describe('placeLocate', () => {
+  // No DOM in this project, so the three boxes are the few members the move
+  // reads: where the button stands, and an append that moves it.
+  type Box = { parentElement: Box | null; appendChild: (child: Box) => void }
+  const box = (): Box => {
+    const b: Box = { parentElement: null, appendChild: (child) => void (child.parentElement = b) }
+    return b
+  }
+
+  it('stands the button in the slot and back in the corner', () => {
+    const corner = box()
+    const slot = box()
+    const element = box()
+    corner.appendChild(element)
+    const selectors: string[] = []
+    const map = {
+      getContainer: () => ({
+        querySelector: (selector: string) => {
+          selectors.push(selector)
+          return corner
+        },
+      }),
+    } as unknown as maplibregl.Map
+    const locate = { _container: element } as unknown as maplibregl.GeolocateControl
+    placeLocate(map, locate, slot as unknown as HTMLElement)
+    expect(element.parentElement).toBe(slot)
+    placeLocate(map, locate, null)
+    expect(element.parentElement).toBe(corner)
+    expect(selectors).toEqual(['.maplibregl-ctrl-top-right'])
   })
 })
 

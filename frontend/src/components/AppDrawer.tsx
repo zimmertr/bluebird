@@ -99,6 +99,8 @@ interface AppDrawerProps {
   showAreaClosures: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
+  /** Where the panel's notice block stands while a phone's drawer is shut (record 0140), or null. */
+  noticeHome?: HTMLElement | null
 }
 
 /**
@@ -136,6 +138,7 @@ export default function AppDrawer({
   showWildfires,
   showAreaClosures,
   basemapFailed,
+  noticeHome = null,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
   const {
@@ -277,6 +280,7 @@ export default function AppDrawer({
           onRetry={onRetry}
           onTutorial={onTutorial}
           tutorialWaits={tutorialWaits}
+          noticeHome={noticeHome}
           resultCount={response ? results.length : undefined}
           // What the current bounds admit, not what the analysis fetched:
           // a bound applies live, so it has to move the "of M" or the count

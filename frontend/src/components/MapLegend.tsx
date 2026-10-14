@@ -1,4 +1,4 @@
-import { Fragment, useId, type ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { familyOf, metricLabel } from '../metrics'
@@ -137,7 +137,8 @@ function legendSection({
   )
 }
 
-interface MapLegendProps {
+/** What decides which sections the legend holds, wherever it is drawn. */
+export interface LegendInputs {
   /** The ranking, whose metric names the key. */
   sortBy: SortBy
   /** The markers' scale: the hourly one during playback, the window's otherwise. */
@@ -153,30 +154,22 @@ interface MapLegendProps {
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
   grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
-  /** Whether the panel is open; the column above is one row taller while it is not. */
-  sidebarOpen: boolean
-  /** How far the results sheet stands over the map's bottom edge. */
-  sheetLiftPx: number
-  /** Whether the forecast player's bar is on screen. */
-  timelineShown: boolean
 }
 
+/** One section, as `legendSection` draws it. */
+export type LegendSectionSpec = Parameters<typeof legendSection>[0]
+
 /**
- * The map's one legend box and the stack it scrolls in (#454; #409 cut it out
- * of `App.tsx`). Nothing when no section has anything to key.
+ * Every section the legend holds now, in the order it reads them: the one
+ * answer a desk's box on the map and a phone's Legend sheet both draw (#696),
+ * so the two cannot disagree about what is keyed. Empty when nothing on the
+ * map has anything to key, which is also what greys the phone's Legend chip.
+ * `smokeId` is the caller's `useId`, which names the smoke chips' hidden words.
  */
-export default function MapLegend({
-  sortBy,
-  markerScale,
-  hasColoredMarkers,
-  rankedFieldHasValue,
-  overlays,
-  grid,
-  sidebarOpen,
-  sheetLiftPx,
-  timelineShown,
-}: MapLegendProps) {
-  const smokeId = useId()
+export function legendSections(
+  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
+  smokeId: string,
+): LegendSectionSpec[] {
   const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
   const { gridPainted, gridCued, gridFailed, gridLegend } = grid
   // ONE box, gaining and losing sections as the report and the
@@ -195,12 +188,11 @@ export default function MapLegend({
   // moved `Active wildfire` off the bottom, where it had been
   // sorting under the Layers popover's own name for it.
   //
-  // Sorted where the box renders them rather than written in order,
-  // because one of the labels is the ranked metric's and changes under
-  // the reader.
+  // Sorted on the way out rather than written in order, because one of
+  // the labels is the ranked metric's and changes under the reader.
   // Every label is spelled once, as the sort key AND as what the
   // section renders, so the two cannot disagree.
-  const sections: Parameters<typeof legendSection>[0][] = [
+  const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
     // the table while the field still paints, and colors without
@@ -403,6 +395,37 @@ export default function MapLegend({
         ]
       : []),
   ]
+  return sections.sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/** The sections themselves, in their order, with no box around them: a phone's Legend sheet holds them (#696). */
+export function LegendSections({ sections }: { sections: readonly LegendSectionSpec[] }) {
+  return (
+    <>
+      {sections.map((section) => (
+        <Fragment key={section.label}>{legendSection(section)}</Fragment>
+      ))}
+    </>
+  )
+}
+
+interface MapLegendProps {
+  /** What the box holds (`legendSections`). */
+  sections: readonly LegendSectionSpec[]
+  /** Whether the panel is open; the column above is one row taller while it is not. */
+  sidebarOpen: boolean
+  /** How far the results sheet stands over the map's bottom edge. */
+  sheetLiftPx: number
+  /** Whether the forecast player's bar is on screen. */
+  timelineShown: boolean
+}
+
+/**
+ * The map's one legend box and the stack it scrolls in (#454; #409 cut it out
+ * of `App.tsx`), at a desk's width. Nothing when no section has anything to
+ * key. A phone draws the same sections in its Legend sheet instead (#696).
+ */
+export default function MapLegend({ sections, sidebarOpen, sheetLiftPx, timelineShown }: MapLegendProps) {
   // Nothing when no section survives, rather than when nothing is switched on:
   // coloured markers whose ranked metric has no value on any row draw no key,
   // and a box with nothing in it reads as a fault.
@@ -472,11 +495,7 @@ export default function MapLegend({
         data-map-overlay=""
         className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}
       >
-        {sections
-          .sort((a, b) => a.label.localeCompare(b.label))
-          .map((section) => (
-            <Fragment key={section.label}>{legendSection(section)}</Fragment>
-          ))}
+        <LegendSections sections={sections} />
       </div>
     </div>
   )
