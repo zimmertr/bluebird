@@ -102,7 +102,7 @@ describe('ResultsBar', () => {
     }
   })
 
-  // The credit is the table's last footnote line now, beside the numbers.
+  // The credit stands in the table's foot now, beside the numbers.
   it('carries no link, the Open-Meteo credit having moved under the table', () => {
     render(<ResultsBar {...props()} />)
     expect(screen.queryByRole('link')).toBeNull()

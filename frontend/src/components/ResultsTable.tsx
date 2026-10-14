@@ -211,6 +211,7 @@ function ResultsTable({
     }
     return notes
   }, [orderedColumns, partialNote, terrainShown, noteTargets])
+  const [firstNote, ...laterNotes] = footnotes
 
   // Every data cell is sized by the same widths the header resizes.
   const widths = columnWidths ?? NO_WIDTHS
@@ -311,10 +312,10 @@ function ResultsTable({
           </FireClock>
           </NoteTargetsContext.Provider>
         </tbody>
-        {/* Always drawn now: the Open-Meteo credit is its last line (#687),
-            beside the numbers it credits, where it used to take a place in
-            the results bar and a line of its own on a phone. A table with no
-            note to explain holds the credit alone. */}
+        {/* Always drawn now: the Open-Meteo credit is its first line's right
+            end (#687), beside the numbers it credits, where it used to take a
+            place in the results bar and a line of its own on a phone. A table
+            with no note to explain holds the credit alone. */}
         <tfoot>
           <tr>
             {/* A table row rather than a line after the table, for the
@@ -324,9 +325,19 @@ function ResultsTable({
                 soon as a wide comparison table is scrolled sideways, which
                 every one on a phone is. */}
             <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
-              {footnotes.map((note) => (
-                // Focusable so a mark's link can land a reader on it; out of
-                // the Tab order, since nothing on it acts.
+              {/* The credit shares the first note's line, at its right end,
+                  and stands there alone when there is no note; the notes
+                  after the first keep a line each under it. Each note is
+                  focusable so a mark's link can land a reader on it, and out
+                  of the Tab order, since nothing on it acts. */}
+              <OpenMeteoCredit className={FOOTNOTE_LINE}>
+                {firstNote && (
+                  <span id={firstNote.id} tabIndex={-1} className="min-w-0">
+                    {firstNote.text}
+                  </span>
+                )}
+              </OpenMeteoCredit>
+              {laterNotes.map((note) => (
                 <div
                   key={note.id}
                   id={note.id}
@@ -336,8 +347,6 @@ function ResultsTable({
                   {note.text}
                 </div>
               ))}
-              {/* In the line's own classes: a credit is a footnote. */}
-              <OpenMeteoCredit className={FOOTNOTE_LINE} />
             </td>
           </tr>
         </tfoot>

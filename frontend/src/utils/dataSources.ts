@@ -14,7 +14,7 @@
  *
  * The credits the licenses place next to the data live outside this list:
  * OpenStreetMap in the map's corner control (delivered by the tile server's
- * TileJSON), Open-Meteo on the last line of the results table's foot (or the
+ * TileJSON), Open-Meteo at the right end of the results table's foot (or the
  * chart's, while the table is not drawn), and
  * NIFC, NOAA, IEM and the US Forest Service each on their own overlay's
  * legend, NOAA twice, for smoke and for snow, and the Forest Service twice,

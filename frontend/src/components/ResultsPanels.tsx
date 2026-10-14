@@ -28,7 +28,8 @@ const TimeSeriesChart = lazy(() => import('./TimeSeriesChart'))
 const NO_CHART_ROWS: DestinationResult[] = []
 
 // The credit's line under the chart: the table foot's inset, with the padding
-// it takes there as first and last line, since here it is the only one.
+// it takes there as the foot's first and last line, since here it is the only
+// one. `OpenMeteoCredit` right-justifies it, as in the table.
 const CHART_CREDIT = 'flex-shrink-0 px-3 py-1.5'
 
 export interface ResultsPanelsProps {
