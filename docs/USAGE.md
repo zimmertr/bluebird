@@ -35,7 +35,7 @@ Trailheads are not clickable: the basemap does not carry them, so a polygon is s
 Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
 
 - You need at least 3 points before Analyze turns on.
-- The estimated bounding-box area is shown in km² at the right of the point count while you draw, and for a polygon a shared link brings in.
+- The estimated bounding-box area is shown in km² at the right of the point count while you draw, or under it when the two do not fit on one line, and for a polygon a shared link brings in.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.
 - Once the shape is closed, a click lands on the edge nearest to it rather than at the end of the outline, so clicking across the polygon widens the side you pointed at instead of folding the shape over itself.
 - Press **Done**, or the Enter key, to finish. Analyze finishes for you.
@@ -96,7 +96,7 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 
 ### Forecast window
 
-A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar in its place: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you, and closing it without picking a day goes back to **Current**.
+A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar in its place: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on **Done** under the days, on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you, and closing it without picking a day goes back to **Current**.
 
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
 - **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total, the freezing level by its minimum, and wind, temperature and AQI by their average; the Metrics section's aggregate dropdowns change that.

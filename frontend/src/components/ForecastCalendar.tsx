@@ -33,6 +33,7 @@ import {
 } from '../utils/calendar'
 import {
   ACCENT,
+  BUTTON_ACCENT,
   BUTTON_SECONDARY,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
@@ -616,6 +617,18 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           </div>
         ))}
       </div>
+          </div>
+          {/* A way out that is a control, not only a press outside or Escape
+              (the maintainer, 2026-10-13, #687). Outside the ground, so a
+              card capped by a short window scrolls its days and keeps Done
+              in view. Done keeps what is picked: over a range the card
+              closes on Dates and its field, and with no day picked the arm
+              goes back to Current, as every other close does (`dismiss`).
+              The word and the button are draw mode's Done. */}
+          <div className="flex justify-end p-2">
+            <button type="button" onClick={() => dismiss(false)} className={BUTTON_ACCENT}>
+              Done
+            </button>
           </div>
         </Popover>
       )}
