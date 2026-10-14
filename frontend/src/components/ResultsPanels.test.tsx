@@ -108,6 +108,16 @@ describe('ResultsPanels', () => {
     expect(screen.getAllByTestId('grip')).toHaveLength(1)
   })
 
+  // The Open-Meteo credit is the map's (#687): no results mode draws one.
+  it('draws no Open-Meteo credit in any mode', async () => {
+    for (const mode of ['table', 'chart', 'both'] as const) {
+      const { unmount } = render(<ResultsPanels {...props({ layout: layout(mode) })} />)
+      if (mode !== 'table') await screen.findByTestId('chart')
+      expect(screen.queryByRole('link', { name: 'Open-Meteo.com' }), mode).toBeNull()
+      unmount()
+    }
+  })
+
   // The rows' screen-reader notes are positioned absolutely, so the box that
   // scrolls the table has to be their containing block, or every row past the
   // fold stands in the app root's coordinates and makes the whole page

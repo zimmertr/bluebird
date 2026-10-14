@@ -59,6 +59,7 @@ export const RANK_PAINT: SymbolLayerSpecification['paint'] = { 'text-color': MAR
 /**
  * The name under a marker, ranked or pending. Tailwind `slate-50` on a
  * `slate-900` halo, so it reads over terrain and over the dot's own colour.
+ * Both as Tailwind v4 computes them (#687); the halo was the v3 slate-900.
  */
 export const MARKER_LABEL_LAYOUT: Omit<SymbolLayerSpecification['layout'], 'text-field'> = {
   'text-offset': [0, 1.6],
@@ -68,7 +69,7 @@ export const MARKER_LABEL_LAYOUT: Omit<SymbolLayerSpecification['layout'], 'text
 }
 export const MARKER_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
   'text-color': '#f8fafc',
-  'text-halo-color': '#0f172a',
+  'text-halo-color': '#0f172b',
   'text-halo-width': 1.5,
 }
 

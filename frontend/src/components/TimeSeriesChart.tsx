@@ -43,12 +43,15 @@ import {
   CHART_GRID_COLOR,
   CHART_PLAYHEAD_COLOR,
   CHART_SURFACE_COLOR,
+  CHART_TICK_PX,
 } from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
 const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
 const X_AXIS_HEIGHT = 22
+// Hoisted so both axes hand Recharts one object rather than a new one a render.
+const AXIS_TICK = { fontSize: CHART_TICK_PX }
 // Named rather than spelled on the YAxis alone, because a click is inverted to an
 // hour through the plotting band's left edge, which sits after this strip.
 const Y_AXIS_WIDTH = 44
@@ -63,7 +66,7 @@ const CHROME_LINE = { stroke: CHART_AXIS_COLOR, strokeDasharray: '4 3' } as cons
 // Every label wears a halo in the panel's own colour: the stroke is painted
 // first (`paintOrder`), so it erases whatever line runs under the letters and
 // the fill stands on the surface, where the bare text was lost wherever a
-// series crossed it. 3px is a pixel and a half either side of a 10px glyph's
+// series crossed it. 3px is a pixel and a half either side of an 11px glyph's
 // strokes, enough to clear a 2.5px focused line without fattening the type.
 type ChromeLabelPosition = 'insideTopLeft' | 'insideTopRight' | 'insideBottomRight'
 function chromeLabel(value: string, position: ChromeLabelPosition) {
@@ -71,7 +74,7 @@ function chromeLabel(value: string, position: ChromeLabelPosition) {
     value,
     position,
     fill: CHART_AXIS_COLOR,
-    fontSize: 10,
+    fontSize: CHART_TICK_PX,
     stroke: CHART_SURFACE_COLOR,
     strokeWidth: 3,
     strokeLinejoin: 'round' as const,
@@ -353,14 +356,14 @@ function TimeSeriesChart({
               domain={['dataMin', 'dataMax']}
               height={X_AXIS_HEIGHT}
               stroke={CHART_AXIS_COLOR}
-              tick={{ fontSize: 10 }}
+              tick={AXIS_TICK}
               tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
             />
             <YAxis
               domain={[yMin, yMax]}
               width={Y_AXIS_WIDTH}
               stroke={CHART_AXIS_COLOR}
-              tick={{ fontSize: 10 }}
+              tick={AXIS_TICK}
               tickFormatter={(v: any) => formatMetricValue(v, metric)}
             />
             {/* Wears the axis's own color rather than a semantic one: it is

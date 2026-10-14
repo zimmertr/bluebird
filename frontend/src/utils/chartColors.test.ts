@@ -84,11 +84,12 @@ describe('chart chrome contrast', () => {
   // The chrome labels (Now, a model's end, the extreme value) are text in the
   // axis colour haloed in the panel's, so where a series line crosses one the
   // letters stand on the surface colour: text, so 4.5:1 (WCAG 1.4.3).
-  // Measured 2026-10-13: slate-400 on slate-800 is 5.71:1.
+  // Measured 2026-10-13 on Tailwind v4's oklch steps: slate-400 on slate-800
+  // is 5.56:1 (5.71 on the v3 hexes these were before #687).
   it('sets the chrome labels at 4.5:1 or better on their halo', () => {
     const ratio = contrast(CHART_AXIS_COLOR, CHART_SURFACE_COLOR)
     expect(ratio).toBeGreaterThanOrEqual(4.5)
-    expect(Math.round(ratio * 100) / 100).toBe(5.71)
+    expect(Math.round(ratio * 100) / 100).toBe(5.56)
   })
 })
 

@@ -389,8 +389,9 @@ async function classify429(res: Response): Promise<OpenMeteoRateLimited> {
   // the fact that makes the wait make sense; "Open-Meteo has used up
   // its quota" described an outage the reader could only wait out, and invited
   // the reading that Bluebird Forecast was down. Naming Open-Meteo matters for the same
-  // reason: it is the credit already docked beside the results, so the sentence
-  // lands on something the reader can see rather than on an anonymous service.
+  // reason: it is the credit already on the map's attribution line, so the
+  // sentence lands on something the reader can see rather than on an anonymous
+  // service.
   //
   // The smaller-area advice is gone. It was true of the minutely bucket,
   // which the pacer already absorbs without reaching this message; against an

@@ -5,7 +5,10 @@ import {
   availableAxes,
   clampIndex,
   forecastDayLabel,
+  endMarks,
+  forecastDateLabel,
   forecastScaleMarks,
+  markPlacement,
   forecastStampLabel,
   frameHoldMs,
   initialIndex,
@@ -169,13 +172,67 @@ describe('forecast labels', () => {
     expect(forecastDayLabel(noon)).toMatch(/^Sat$/)
   })
 
-  it('marks a long grid at its ends and its middle', () => {
-    const times = Array.from({ length: 72 }, (_, i) => noon + i * 3_600_000)
-    expect(forecastScaleMarks(times)).toHaveLength(3)
+  // Local constructors, so each case is a window that starts on a local
+  // midnight in whatever zone the suite runs in.
+  const hours = (startMs: number, n: number) => Array.from({ length: n }, (_, i) => startMs + i * 3_600_000)
+  const wed = new Date(2026, 9, 14, 0).getTime()
+
+  it('marks a one-day window once, at its start', () => {
+    expect(forecastScaleMarks(hours(wed, 24))).toEqual([{ label: forecastDayLabel(wed), at: 0 }])
   })
 
-  it('labels a short grid with what it has rather than padding it', () => {
-    expect(forecastScaleMarks([noon, noon + 3_600_000])).toHaveLength(2)
+  // The bug this replaced: index floor((n-1)/2) of a 48-hour window is 11 PM on
+  // the first day, so the three marks read Wed, Wed, Thu.
+  it('marks a two-day window on its two midnights, at their true positions', () => {
+    const marks = forecastScaleMarks(hours(wed, 48))
+    expect(marks).toEqual([
+      { label: forecastDayLabel(wed), at: 0 },
+      { label: forecastDayLabel(wed + 24 * 3_600_000), at: 24 / 47 },
+    ])
+    expect(new Set(marks.map((m) => m.label)).size).toBe(2)
+  })
+
+  it('keeps three of sixteen midnights, by date since they are a week apart', () => {
+    const times = hours(wed, 16 * 24)
+    const day = (d: number) => wed + d * 24 * 3_600_000
+    expect(forecastScaleMarks(times)).toEqual([
+      { label: forecastDateLabel(day(0)), at: 0 },
+      { label: forecastDateLabel(day(7)), at: (7 * 24) / 383 },
+      { label: forecastDateLabel(day(15)), at: (15 * 24) / 383 },
+    ])
+  })
+
+  it('marks a window that starts mid-day where the next day begins', () => {
+    const start = wed + 14 * 3_600_000
+    expect(forecastScaleMarks(hours(start, 24))).toEqual([
+      { label: forecastDayLabel(start + 10 * 3_600_000), at: 10 / 23 },
+    ])
+  })
+
+  it('labels a window inside one day at its start rather than leaving the scale empty', () => {
+    const start = wed + 9 * 3_600_000
+    expect(forecastScaleMarks(hours(start, 6))).toEqual([{ label: forecastDayLabel(start), at: 0 }])
+  })
+
+  it('marks nothing on an empty grid', () => {
     expect(forecastScaleMarks([])).toEqual([])
+  })
+})
+
+describe('scale mark placement', () => {
+  it('puts the radar ends at the two ends of the track', () => {
+    expect(endMarks(['-60 min', 'Now'])).toEqual([
+      { label: '-60 min', at: 0 },
+      { label: 'Now', at: 1 },
+    ])
+  })
+
+  it('aligns an end mark to the track edge and centres the rest over the thumb', () => {
+    expect(markPlacement(0, 14)).toEqual({ marginLeft: '0px', transform: 'none' })
+    expect(markPlacement(1, 14)).toEqual({ marginLeft: '100%', transform: 'translateX(-100%)' })
+    expect(markPlacement(0.5, 14)).toEqual({
+      marginLeft: 'calc(7px + (100% - 14px) * 0.5)',
+      transform: 'translateX(-50%)',
+    })
   })
 })

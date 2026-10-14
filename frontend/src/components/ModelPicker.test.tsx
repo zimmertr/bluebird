@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import ModelPicker from './ModelPicker'
 import { forecastModel } from '../testSupport/fixtures'
-import { render } from '../testSupport/render'
+import { placeAt, render } from '../testSupport/render'
 
 // The picker is controlled: App holds the ranking model and the compared set.
 // This holds them the way App does, so a gesture's answer lands back in the
@@ -207,5 +207,40 @@ describe('the chip row', () => {
     chip('NOAA GFS').focus()
     await user.keyboard('{Delete}')
     expect(onComparedChange).not.toHaveBeenCalled()
+  })
+})
+
+// The list unfurls across the Model row rather than at the trigger's 118px
+// (record 0134): from the row's left edge to the trigger's right edge, its
+// top border laid over the trigger's bottom one.
+describe('the list across its row', () => {
+  function InRow() {
+    const rowRef = useRef<HTMLDivElement>(null)
+    return (
+      <div ref={rowRef} data-testid="row">
+        <ModelPicker
+          models={MODELS}
+          value="gfs_seamless"
+          defaultId="gfs_seamless"
+          onChange={() => {}}
+          compared={[]}
+          onComparedChange={() => {}}
+          rowRef={rowRef}
+        />
+      </div>
+    )
+  }
+
+  it('spans the row and opens leftward under the label', async () => {
+    const { user } = render(<InRow />)
+    placeAt(screen.getByTestId('row'), { left: 16, top: 400, width: 327, height: 30 })
+    const trigger = screen.getByRole('button', { name: /^Forecast model:/ })
+    placeAt(trigger, { left: 225, top: 400, width: 118, height: 30 })
+    await user.click(trigger)
+    const card = list().closest<HTMLElement>('[style]')!
+    expect(card.style.left).toBe('16px')
+    expect(card.style.width).toBe('327px')
+    expect(card.style.top).toBe('429px')
+    expect(trigger.dataset.unfurled).toBe('below')
   })
 })

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import { LINK, PROSE, RADIUS, SURFACE_CARD, SURFACE_DIVIDER, SURFACE_PAGE } from '../styles'
+import { BUTTON_SECONDARY, PROSE, RADIUS, SURFACE_CARD, SURFACE_DIVIDER, SURFACE_PAGE } from '../styles'
 import { logoUrl } from '../logo'
 
 interface Props {
@@ -59,11 +59,13 @@ export default function PageShell({ heading, subtitle, children }: Props) {
 
         <div className={`${SURFACE_CARD} p-6`}>{children}</div>
 
-        <p className={`${PROSE.note} mt-6 text-center`}>
-          <a href="/" className={LINK}>
+        {/* A button rather than a caption link (#687): it is the page's one
+            way back, and the logo above says nothing about being a link. */}
+        <div className="mt-6 flex justify-center">
+          <a href="/" className={BUTTON_SECONDARY}>
             Back to Bluebird Forecast
           </a>
-        </p>
+        </div>
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
 import MapButtonColumn from './MapButtonColumn'
 import MapLegend from './MapLegend'
+import MapDrawBar from './MapDrawBar'
 import type { Analysis } from '../hooks/useAnalyze'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
@@ -32,8 +33,16 @@ import type { LayerCoverage } from '../utils/layerCoverage'
 export interface MapStageProps {
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
   mapRef: RefObject<MapViewHandle | null>
-  /** Whether a ring is being drawn, and the callback the map reports each vertex to. */
-  drawMode: Pick<DrawMode, 'drawing' | 'handleDrawUpdate'>
+  /**
+   * Whether a ring is being drawn, the callback the map reports each vertex
+   * to, and the count, Done and Cancel the phone's draw bar carries.
+   */
+  drawMode: Pick<
+    DrawMode,
+    'drawing' | 'handleDrawUpdate' | 'drawPointCount' | 'finishDrawing' | 'handleCancelDrawing'
+  >
+  /** A desk keeps Done and Cancel in the docked panel; a phone gets them on the map. */
+  isDesktop: boolean
   /** The ring, the link's restored points and the searched places, with the setters the map calls. */
   destinationInputs: Pick<DestinationInputs, 'polygon' | 'setPolygon' | 'restoredPoints' | 'places' | 'removePlace'>
   /** Registers a place picked in the search field or clicked on the map. */
@@ -111,6 +120,7 @@ export interface MapStageProps {
 export default function MapStage({
   mapRef,
   drawMode,
+  isDesktop,
   destinationInputs,
   removals,
   overlays,
@@ -179,6 +189,12 @@ export default function MapStage({
   // every cell reads N/A, and a key of six height bands beside them would be
   // the only thing on screen claiming the field was measured.
   const rankedFieldHasValue = fieldHasValue(results, sortBy)
+
+  // The phone's draw bar stands in the player's band while a ring is drawn
+  // (#687), so the player steps out for it and the legend stack clears the
+  // band as it does for the player.
+  const drawBarShown = drawMode.drawing && !isDesktop
+  const timelineShown = timelineAxis !== null && !drawBarShown
 
   return (
     // `--map-corner-lift` and `--map-corner-band` are read by map.css:
@@ -260,7 +276,7 @@ export default function MapStage({
         grid={grid}
         sidebarOpen={sidebarOpen}
         sheetLiftPx={layout.sheetLiftPx}
-        timelineShown={timelineAxis !== null}
+        timelineShown={timelineShown || drawBarShown}
       />
       <MapButtonColumn
         searchBoxRef={searchBoxRef}
@@ -282,7 +298,15 @@ export default function MapStage({
           contributes a past axis, a multi-hour report a forecast one, and
           a smoke analysis contributes neither (two passes a day is not an
           animation). */}
-      {timelineAxis !== null && (
+      {drawBarShown && (
+        <MapDrawBar
+          drawPointCount={drawMode.drawPointCount}
+          onDone={drawMode.finishDrawing}
+          onCancel={drawMode.handleCancelDrawing}
+          liftPx={layout.sheetLiftPx}
+        />
+      )}
+      {timelineShown && timelineAxis !== null && (
         <TimelineTransport
           axis={timelineAxis}
           axes={timeline.timelineAxes}

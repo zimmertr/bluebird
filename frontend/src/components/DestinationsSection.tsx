@@ -12,6 +12,7 @@ import {
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
+import DrawReadout from './DrawReadout'
 
 // Above this drawn area, an informational note warns that dense regions can
 // exceed the destination limit and searches slow down. Advisory only: the hard
@@ -216,23 +217,9 @@ export default function DestinationsSection({
                 Press Done when ready.` is 229.8px, which leaves 57.2px, and
                 `~779 km²` is 53.4px where `~2,109 km²` is 63px (12px on a Mac). */}
             <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
-              {/* Only while drawing does the status name a gesture: outside
-                  the mode the handles are gone and none of them apply. */}
-              {drawing && pointsNeeded > 0 ? (
-                <p className={`${STATUS.info} whitespace-nowrap`}>
-                  {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
-                  {pointsNeeded} more needed.
-                </p>
-              ) : drawing ? (
-                <p className={`${STATUS.ok} font-medium whitespace-nowrap`}>
-                  {drawPointCount} points placed. Press Done when ready.
-                </p>
-              ) : (
-                <p className={`${pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`} whitespace-nowrap`}>
-                  {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed
-                  {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
-                </p>
-              )}
+              {/* The count in the words the phone's draw bar uses too
+                  (`DrawReadout`), kept whole on its line like the area. */}
+              <DrawReadout drawing={drawing} drawPointCount={drawPointCount} pointsNeeded={pointsNeeded} whole />
               {polygonAreaKm2 !== null && (
                 <p className={`${areaTooLarge ? STATUS.error : TEXT.caption} whitespace-nowrap`}>
                   ~{Math.round(polygonAreaKm2).toLocaleString()} km²
