@@ -39,4 +39,23 @@ test.describe('on a phone', () => {
     await expect(page.getByRole('button', { name: 'Expand results' }).first()).toBeVisible()
     await expect(page.locator('.maplibregl-popup')).toContainText(name)
   })
+
+  // A finger has no hover to show the × beside the rank, so the row's remove
+  // is the card's (#696): the tap opens it, and its button takes the row out
+  // the way the × does.
+  test('a row is removed from the card its tap opens', async ({ page }) => {
+    await analyze(page, true)
+    const row = resultRows(page).nth(1)
+    const name = (await row.getByRole('button', { name: /^Center map on / }).textContent())!.trim()
+    await expect(row.getByRole('button', { name: `Remove ${name}` })).toBeHidden()
+    await row.locator('td').nth(3).tap()
+    const popup = page.locator('.maplibregl-popup')
+    await popup.getByRole('button', { name: 'Remove from analysis' }).tap()
+    await expect(popup).toHaveCount(0)
+    // The tap lowered the sheet to its bar; raised again, the table is a row
+    // shorter.
+    await page.getByRole('button', { name: 'Expand results' }).first().tap()
+    await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length - 1)
+    await expect(page.getByRole('button', { name: `Center map on ${name}` })).toHaveCount(0)
+  })
 })

@@ -176,28 +176,36 @@ describe('PanelFooter', () => {
     }
   })
 
-  // On a phone the block splits (#696; record 0140): what asks for an action,
-  // a commit cue or an error, stands in the band the map holds, and what only
-  // informs stays at the foot of the Controls sheet. At a desk it is one
-  // block under the button.
-  it('sends the lines that ask for an action to the home it is handed, and keeps the rest', () => {
+  // On a phone the whole block stands in the band the map holds (#696;
+  // record 0140), informing lines and action lines alike, and the Controls
+  // sheet keeps none of it. At a desk it is one block under the button.
+  it('sends the whole block to the home it is handed on a phone, and keeps none of it', () => {
     const home = document.createElement('div')
     document.body.appendChild(home)
     const { container, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
     const regions = screen.getAllByRole('status')
-    expect(regions).toHaveLength(2)
-    const onMap = regions.find((r) => home.contains(r))!
-    const inPanel = regions.find((r) => !home.contains(r))!
+    expect(regions).toHaveLength(1)
+    const onMap = regions[0]
+    expect(home.contains(onMap)).toBe(true)
     expect(within(onMap).getByText('First warning.')).toBeTruthy()
     expect(within(onMap).getByText('Run failed.')).toBeTruthy()
+    expect(within(onMap).getByText('Info line.')).toBeTruthy()
     expect(within(onMap).getByRole('button', { name: 'Try again' })).toBeTruthy()
-    expect(within(inPanel).getByText('Info line.')).toBeTruthy()
-    expect(container.contains(inPanel)).toBe(true)
+    // What the sheet keeps is the document links alone.
+    expect(container.textContent).toBe('Tutorial · Privacy · Terms')
     rerender(<PanelFooter {...props({ messages: MESSAGES })} />)
     expect(home.childElementCount).toBe(0)
     expect(screen.getAllByRole('status')).toHaveLength(1)
     expect(container.contains(screen.getByRole('status'))).toBe(true)
     home.remove()
+  })
+
+  // The band mounts after the sheet on a phone's first frame; the block waits
+  // for it rather than flashing into the sheet.
+  it('draws the block nowhere on a phone whose band is not there yet', () => {
+    const { container } = render(<PanelFooter {...props({ messages: MESSAGES, phone: true })} />)
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(container.textContent).toBe('Tutorial · Privacy · Terms')
   })
 
   // A phone's one Analyze is the map's floating button (record 0135), so the
@@ -211,7 +219,7 @@ describe('PanelFooter', () => {
     expect(screen.getByRole('button', { name: 'Analyze' })).toBeTruthy()
   })
 
-  // A dismissal is one ledger across both homes.
+  // A dismissal is the one ledger's wherever the block stands.
   it('dismisses a line on the map from the same ledger', () => {
     const home = document.createElement('div')
     document.body.appendChild(home)

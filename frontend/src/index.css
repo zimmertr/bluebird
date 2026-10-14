@@ -236,6 +236,15 @@ body,
     opacity: 1;
   }
 }
+/* Not while the tutorial runs (`TOURING_ATTR` in tour/Tour.tsx): its
+   spotlight is a hole in a dim over the page, and a shade inside the hole
+   lay across the top of the section it lit. Visibility rather than opacity,
+   which the animations above own. */
+:root[data-touring] .scroll-shadow-start::before,
+:root[data-touring] .scroll-shadow-end::after,
+:root[data-touring] .scroll-shadow-head th::after {
+  visibility: hidden;
+}
 
 /* Native form-widget chrome on the dark panel. The root's `color-scheme:
    dark` above flips the glyphs light (matching Firefox's rendering), where
@@ -254,14 +263,3 @@ input[type="number"]::-webkit-inner-spin-button:hover {
   opacity: 1;
 }
 
-/* The per-row remove × swaps in for the rank number on row hover (see
-   ResultsTableRow's RankRemoveCell). Touch devices have no hover, so they show
-   the number and the × side by side instead: the × leaves the grid cell it
-   shares with the number for a second column. */
-@media (hover: none) {
-  .row-remove {
-    opacity: 1;
-    grid-column: 2;
-    margin-left: 0.375rem;
-  }
-}

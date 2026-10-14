@@ -356,6 +356,7 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
     polygonKey: '',
     typesKey: '',
     compareModels: [],
+    asOfMs: Date.UTC(2026, 6, 20, 6),
     ...over,
   }
 }

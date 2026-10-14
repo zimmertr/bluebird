@@ -89,6 +89,9 @@ function drawer(
       open={open}
       isDesktop={true}
       sheetPx={600}
+      sheetRestPx={600}
+      sheetFullPx={700}
+      onSheetPx={NOOP}
       onClose={onClose}
       onTutorial={NOOP}
       drawMode={DRAW}
@@ -233,6 +236,22 @@ describe('AppDrawer', () => {
       expect(sheet().hasAttribute('inert')).toBe(true)
       expect(sheet().className).toContain('translate-y-full')
       expect(screen.getByTestId('panel')).toBeTruthy()
+    })
+
+    // Its grip and title drag it the way a menu's do (record 0146), with the
+    // heights App holds: the button and the band ride its edge.
+    it('hands App the height a drag on its title holds it at, and its own back on a double press', () => {
+      const onSheetPx = vi.fn()
+      render(drawer(true, NOOP, false, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
+      const title = screen.getByRole('heading', { name: 'Controls' })
+      fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
+      fireEvent.pointerMove(document, { clientY: 400, pointerId: 1 })
+      expect(onSheetPx).toHaveBeenLastCalledWith(640)
+      fireEvent.pointerMove(document, { clientY: 200, pointerId: 1 })
+      expect(onSheetPx).toHaveBeenLastCalledWith(700)
+      fireEvent.pointerCancel(document, { pointerId: 1 })
+      fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
+      expect(onSheetPx).toHaveBeenLastCalledWith(null)
     })
 
     // The summary chip that raised it can go inert under it, so Done takes

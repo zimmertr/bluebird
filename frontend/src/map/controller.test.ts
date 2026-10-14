@@ -19,6 +19,7 @@ function inputs(over: Partial<MapInputs> = {}): MapInputs {
     searchedPlaces: [],
     onAddPoi: () => {},
     onRemovePoi: () => {},
+    onRemoveResult: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,

@@ -1543,17 +1543,58 @@ export const MAP_PILL =
 export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
 
 /**
- * The slot the locate button stands in at the first row's right (#696): 40px
- * and round, in the pill's dark chrome. The button inside is MapLibre's own
- * geolocate control, moved here from the library's corner so its states
- * (asking, tracking, failed) come with it; `map.css` fills the slot with it
- * and draws its glyph light, keyed on `map-locate`, since the vendor's markup
- * has no call site to hand a role to. On a coarse pointer `map.css` gives the
- * vendor's button an invisible rim, 40px seen and 44 pressed.
+ * A map button: the locate button, the compass and the zoom pair, at both
+ * widths (TJ, 2026-10-14; record 0147). 40px and round, in the pill's dark
+ * chrome, with the floating buttons' sky edge on hover and the app's focus
+ * ring. The buttons are MapLibre's own, so their states (asking, tracking,
+ * failed; a compass that resets north) stay the library's: `map/controls.ts`
+ * hands each of them this role when the map is built, the one way a class
+ * reaches markup the library makes, and `map.css` draws their glyphs light
+ * and gives each a 44px rim on a coarse pointer. They stood in the library's
+ * white box until then, which the audit's M01 kept; the maintainer reversed
+ * that for the buttons on 2026-10-14.
  */
-export const MAP_LOCATE =
-  `map-locate absolute right-0 top-0 size-10 bg-slate-800/95 border border-slate-600 ` +
-  `${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm`
+export const MAP_ROUND_BUTTON =
+  `size-10 bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
+
+/**
+ * Where a phone stands one of those buttons at a row's right end (#696): the
+ * map moves its own control into the slot (`placeControl`), so the button
+ * keeps the library's states and its permission prompt, and `map.css`, keyed
+ * on `map-slot`, takes the library's margin off it.
+ *
+ * `locate` is a 40px box beside the search pill. `compass` is the chip row's
+ * last member, under the locate button (record 0147), and takes no room of
+ * its own: while the map is north-up the compass is hidden and the slot is
+ * nothing, so the row's empty end stays the map's, about 20px at 360 wide.
+ * While it shows, the slot is the button's 40px and the summary chip, the one
+ * member that gives way, gives it up; at 32px the row is shorter than the
+ * button, which stands 4px proud of it top and bottom, centred on it.
+ */
+export const MAP_SLOT = {
+  locate: 'map-slot absolute right-0 top-0 size-10',
+  compass: 'map-slot ml-auto flex-shrink-0',
+} as const
+
+/**
+ * The map's credit line in the app's chrome (record 0147): its (i) a round
+ * dark button, smaller than the others at the library's 24px so it stands in
+ * the corner band with the scale (`CORNER_CONTROL_PX`), with the same 44px
+ * rim under a finger; and the line, folded out on a phone and always out at
+ * a desk, on the floating box's surface, edge and radius. `map/controls.ts`
+ * hands these to the library's markup; `map.css` takes the surface off a
+ * folded line, so only the button shows, and dresses the links, which the
+ * library rewrites whenever a source's credit changes, the way `LINK` would.
+ * The scale bar keeps the library's own look: it is a measurement drawn on
+ * the map, like the labels, rather than a control.
+ */
+export const MAP_CREDIT = {
+  button:
+    `size-6 bg-slate-800/95 border border-slate-600 ${RADIUS.pill} transition-colors ` +
+    `${ACCENT.edgeHover} ${FOCUS_RING}`,
+  card: `${SURFACE_FLOATING} text-slate-300`,
+} as const
 
 /**
  * The chips' type: 13px, between the compact tier's 12 and the reading
@@ -1615,6 +1656,22 @@ export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
 export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400 in-aria-expanded:text-white'
 
 /**
+ * The button's pressed state, Material's for a floating button (TJ,
+ * 2026-10-14): a state layer of the label's white at 12% over the whole
+ * button, and the shadow dropping from `ELEVATION.overlay` to
+ * `ELEVATION.raised` while a finger or a mouse holds it down. A run that
+ * reuses every forecast it holds finishes in a frame, so a press had nothing
+ * on screen to show it landed; the press itself now does, and the button is
+ * never greyed after a run, since a re-run is always the reader's to make.
+ * Spelled out rather than built from `ELEVATION.raised`, because Tailwind
+ * cannot compile a variant on an interpolated class. `enabled:` keeps a
+ * disabled button from answering a press it will not act on.
+ */
+const MAP_FAB_PRESSED =
+  'after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-white ' +
+  'after:opacity-0 after:transition-opacity enabled:active:after:opacity-[0.12] enabled:active:shadow-lg'
+
+/**
  * The phone's Analyze (#696; record 0135): an extended floating action
  * button in Material's sense, the form for a screen's one primary action. 56px
  * tall (`FAB_PX` in `resultsSheet.ts`, which places it), 16px off the map's
@@ -1631,7 +1688,9 @@ export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400 in-aria-ex
  */
 export const MAP_FAB =
   `absolute right-4 ${LAYER.mapControls} h-14 rounded-2xl px-5 ${ELEVATION.overlay} ` +
-  `${TEXT.cta} transition-colors ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
+  `${TEXT.cta} transition-[color,background-color,box-shadow] ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING} ` +
+  MAP_FAB_PRESSED
+
 
 /**
  * The button's two words in one cell, the one not showing kept invisible, so
@@ -2196,7 +2255,8 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * lifted a step, since it stands over that sheet, and it stops one inset under
  * where the chip row ends on a phone with no banner, so a long list leaves
  * the top of the dimmed map in view. `grip` is the bar the
- * mockup draws at the top, a swipe down on which closes the sheet. `head`
+ * mockup draws at the top, which drags the sheet up, down or shut (record
+ * 0146), with the title row beside it. `head`
  * is the title at the left and Done at the right; `title` the sheet's own
  * word, the chip's or the button's that opened it. `body` scrolls, and every
  * row in it is at least a finger's 44px, one line, with a rule between rows.
@@ -2816,6 +2876,16 @@ export const TABLE = {
    */
   rowOpens: 'cursor-pointer',
   /**
+   * A value in a cell that is a link (Windy for a metric, NIFC for a fire, the
+   * Forest Service for an order): underlined at rest, the way the marker
+   * popup underlines every number in its grid (`popupLink`), so the table and
+   * the card say "link" the same way (TJ, 2026-10-14). It was underlined on
+   * hover alone, which a touch screen never has, so a phone showed no cue
+   * that a number opens anything. The value keeps the colour its band gives
+   * it: the line is the cue, and a link colour would erase the ranking's.
+   */
+  valueLink: 'underline cursor-pointer',
+  /**
    * The Name column stands still while the rest of the table scrolls
    * sideways under it, at both widths (#696; record 0142): on a phone the
    * table is three or four columns of a dozen wide, and a number read two
@@ -2837,12 +2907,26 @@ export const TABLE = {
   /** The same column's header cell, on the header's fill. */
   stickyNameHead: 'sticky left-0 z-[1] bg-slate-700',
   /**
+   * The most a phone's Name column takes before a reader sizes it (#696;
+   * record 0142): its widest name and the cell's padding, but never more than
+   * 45% of the results sheet, 162px at 360 wide and 175 at 390, so a column
+   * that stands still leaves the columns scrolling past it most of the
+   * screen. It stood at its widest name, 210px on the sample report, which
+   * left a 360px phone 150px for every number. On the name's line inside the
+   * cell (`cqi` is the table's scroller, `@container`), less the cell's `px-2`
+   * either side, so the name truncates as it does in a column sized narrow;
+   * the popup a row tap opens carries it whole. Off once the reader drags or
+   * fits the column, whose width is then theirs, and off at a desk, whose
+   * table has the room.
+   */
+  nameCap: 'max-lg:max-w-[calc(45cqi-1rem)]',
+  /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover
    * trades only visibility. Swapping them with display let the column grow by
    * the icon's extra width on every hover and shove every column to its right
-   * (#339). Touch devices have no hover and place the × in a second column
-   * beside the number instead: the `.row-remove` rule in index.css.
+   * (#339). A coarse pointer has no hover and draws the number alone: its
+   * remove is the marker card's, which the row tap opens (#696).
    */
   rankStack: 'group/rank inline-grid items-center justify-items-center',
   rankFace: 'col-start-1 row-start-1',
@@ -2852,11 +2936,17 @@ export const TABLE = {
    * the whole of #576 item 9: an element with `visibility: hidden` cannot take
    * focus, so Tab skipped every row's remove and a keyboard could reach it
    * only through the chart legend. Opacity keeps it in the Tab order, and the
-   * focus it takes is what shows it. The touch rule in index.css lifts the
-   * idle opacity along with the column move.
+   * focus it takes is what shows it.
+   *
+   * On a coarse pointer the × is not drawn at all (#696). It used to stand
+   * beside the number there, forced visible because a finger has no hover;
+   * now a finger removes a row from the card its row tap opens, which says
+   * `Remove from analysis` in words. Hidden rather than left at no opacity,
+   * because an invisible button in the number's cell would take the tap the
+   * reader aimed at the row and remove it.
    */
   rankIdleFace: 'group-hover:invisible group-has-[:focus-visible]/rank:invisible',
-  removeFace: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+  removeFace: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:hidden',
   /**
    * A footnote reference on a cell: the `*` a Model cell carries when its
    * model ends inside the window (#508), pointing at the line under the table.

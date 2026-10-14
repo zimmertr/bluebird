@@ -18,4 +18,14 @@ describe('Tour', () => {
     expect(focusCalls.length).toBeGreaterThan(0)
     for (const call of focusCalls) expect(call).toBe('.focus({ preventScroll: true })')
   })
+
+  // The spotlight lit the Forecast section with the Controls sheet's top
+  // shade lying across it (#696): while a tour runs, every shade stands down.
+  it('hides every scroll shadow while it runs', () => {
+    const TOURING_ATTR = 'data-touring'
+    expect(tourSource).toContain(`const TOURING_ATTR = '${TOURING_ATTR}'`)
+    expect(tourSource).toContain('document.documentElement.setAttribute(TOURING_ATTR')
+    expect(tourSource).toContain('document.documentElement.removeAttribute(TOURING_ATTR)')
+    // The rule that reads it is index.css's, held in styles.test.ts.
+  })
 })

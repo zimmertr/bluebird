@@ -134,6 +134,7 @@ export function useResultsView({
   // ── The table's shape and its file ──────────────────────────────────────────
   const tableView = useTableView({
     storedView,
+    isDesktop,
     results,
     detailSort,
     sortBy,

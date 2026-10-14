@@ -7,7 +7,6 @@ import {
   noticeBoxes,
   noticeKey,
   pruneDismissals,
-  ridesTheMap,
 } from './notices'
 
 describe('noticeKey', () => {
@@ -221,20 +220,5 @@ describe('listPhrase', () => {
   // type does not.
   it('yields nothing for an empty list', () => {
     expect(listPhrase([])).toBe('')
-  })
-})
-
-// On a phone only the lines that ask for an action ride the map (#696;
-// record 0140): a commit cue and every error. The rest inform, and stay with
-// the controls they are about.
-describe('ridesTheMap', () => {
-  it('takes the commit cues and the errors, and leaves the lines that inform', () => {
-    expect(ridesTheMap({ key: 'cue:destination-added', text: 'x', severity: 'warn' })).toBe(true)
-    expect(ridesTheMap({ key: 'error:boom', text: 'x', severity: 'error', retry: true })).toBe(true)
-    expect(ridesTheMap({ key: 'blocker:area', text: 'x', severity: 'error' })).toBe(true)
-    expect(ridesTheMap({ key: 'blocker:destinations', text: 'x', severity: 'info' })).toBe(false)
-    expect(ridesTheMap({ key: 'window:aqi-horizon', text: 'x', severity: 'info' })).toBe(false)
-    expect(ridesTheMap({ key: 'window:clamped', text: 'x', severity: 'warn' })).toBe(false)
-    expect(ridesTheMap({ key: 'blocker:compare-aqi', text: 'x', severity: 'warn' })).toBe(false)
   })
 })

@@ -1,6 +1,6 @@
 # 0136. On a phone every menu is a bottom sheet
 
-- Status: Accepted. Amends 0134 on a phone (a desk's menus still unfurl from their control), 0019 (on a phone the Layers menu is a sheet) and 0048 (on a phone the legend's keys are the Legend sheet's, not a box on the map).
+- Status: Accepted. Amends 0134 on a phone (a desk's menus still unfurl from their control), 0019 (on a phone the Layers menu is a sheet) and 0048 (on a phone the legend's keys are the Legend sheet's, not a box on the map). Amended by 0146 (the grip drags the sheet).
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696: the phone flow mockup approved 2026-10-14, "one menu shape on a phone: a bottom sheet with a title and Done"
 - Issues and PRs: #696, #708, #687
@@ -13,7 +13,7 @@ A desk's menus unfurl out of the control that opens them (record [0134](0134-men
 
 ## Decision
 
-- **A phone has one menu shape** (`BottomSheet`): a card rising from the screen's bottom edge over a dimmed map, with a grip, its heading and Done, and rows a finger's 44px tall with a rule between them. Done, Escape, a press on the dim and a swipe down the grip each close it. It is modal (`useDialog`: the keyboard goes into it and comes back, Tab stays inside), and its dim covers the whole screen, the search row and the chips included, Material's rule for a modal sheet's scrim. It is fixed to the viewport, so a preview banner above the map cannot leave a band of the map bright; a first build started the dim under the chip row to keep the opened chip readable, and on the maintainer's phone, under the preview banner, its edge cut through the chips (2026-10-14).
+- **A phone has one menu shape** (`BottomSheet`): a card rising from the screen's bottom edge over a dimmed map, with a grip, its heading and Done, and rows a finger's 44px tall with a rule between them. Done, Escape, a press on the dim and a drag down the grip each close it, and the grip drags it taller too (record [0146](0146-sheet-grips-drag.md)). It is modal (`useDialog`: the keyboard goes into it and comes back, Tab stays inside), and its dim covers the whole screen, the search row and the chips included, Material's rule for a modal sheet's scrim. It is fixed to the viewport, so a preview banner above the map cannot leave a band of the map bright; a first build started the dim under the chip row to keep the opened chip readable, and on the maintainer's phone, under the preview banner, its edge cut through the chips (2026-10-14).
 - **Its homes:** Layers and Legend from the chip row, and Columns, Models and Removed from the results bar. Each is headed by words the app already says: the chip's or the button's word, and for Removed the desk card's own heading, Removed rows.
 - **The legend's keys are the Legend sheet's on a phone**, and the map holds no legend box. `legendSections` decides the list once, so a desk's box and a phone's sheet draw the same keys.
 - **The Analyze button hides while any sheet is open** (`useSheetOpen`) and comes back when it closes, Material's rule for a floating button under a modal sheet (record [0135](0135-phone-opens-on-the-map.md)).

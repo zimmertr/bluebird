@@ -255,7 +255,7 @@ export const APP = [
       })),
       {
         selector:
-          'JSXElement:has(> JSXOpeningElement[name.name="MapLegend"]) ~ :matches(JSXElement:has(> JSXOpeningElement[name.name="MapButtonColumn"]), JSXExpressionContainer:has(JSXOpeningElement[name.name="MapButtonColumn"]))',
+          ':matches(JSXElement:has(> JSXOpeningElement[name.name="MapLegend"]), JSXExpressionContainer:has(JSXOpeningElement[name.name="MapLegend"])) ~ :matches(JSXElement:has(> JSXOpeningElement[name.name="MapButtonColumn"]), JSXExpressionContainer:has(JSXOpeningElement[name.name="MapButtonColumn"]))',
         message: 'Render MapLegend before MapButtonColumn, so the Layers popover paints over the legend.',
       },
     ],

@@ -4,6 +4,7 @@ import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { useSheetDrag } from '../hooks/useSheetDrag'
 import type { Refusal, RunError } from '../hooks/useAnalyze'
 import type { LiveCapabilities } from '../hooks/useCapabilities'
 import type { DestinationInputs } from '../hooks/useDestinationInputs'
@@ -21,8 +22,14 @@ interface AppDrawerProps {
   open: boolean
   /** A desk, where the panel docks beside the map; a phone raises it as a sheet. */
   isDesktop: boolean
-  /** The Controls sheet's height on a phone (`controlsSheetPx`). */
+  /** The Controls sheet's height on a phone: its own share (`controlsSheetPx`), or where a drag left it. */
   sheetPx: number
+  /** Its own share, which a release near it or a double press on the grip gives back (record 0146). */
+  sheetRestPx: number
+  /** The most a drag raises it (`controlsFullPx`). */
+  sheetFullPx: number
+  /** Holds it at a dragged height, or null for its own share. */
+  onSheetPx: (px: number | null) => void
   /** Closes it, from its own button or from the backdrop behind it. */
   onClose: () => void
   /** Draw mode and its buttons (`useDrawMode`). */
@@ -104,7 +111,7 @@ interface AppDrawerProps {
   showAreaClosures: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
-  /** Where a phone's notices that ask for an action stand (record 0140), or null at a desk. */
+  /** Where a phone's notices stand (record 0140), or null at a desk. */
   noticeHome?: HTMLElement | null
 }
 
@@ -119,6 +126,9 @@ export default function AppDrawer({
   open,
   isDesktop,
   sheetPx,
+  sheetRestPx,
+  sheetFullPx,
+  onSheetPx,
   onClose,
   drawMode,
   destinationInputs,
@@ -188,6 +198,14 @@ export default function AppDrawer({
   const closeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(closeRef, open)
   const headingId = useId()
+  // The grip and the title drag the sheet the way a menu's are dragged
+  // (record 0146), with the heights App holds, since the Analyze button and
+  // the notice band ride its edge.
+  const onGripDown = useSheetDrag({
+    measure: () => ({ startPx: sheetPx, restPx: sheetRestPx, fullPx: sheetFullPx }),
+    onHeight: onSheetPx,
+    onClose,
+  })
   const panel = (
     <ControlPanel
       phone={!isDesktop}
@@ -279,7 +297,7 @@ export default function AppDrawer({
         className={`${CONTROLS_SHEET.card} ${open ? '' : CONTROLS_SHEET.shut}`}
         style={{ height: sheetPx }}
       >
-        <SheetTop heading="Controls" headingId={headingId} onClose={onClose} doneRef={closeRef} />
+        <SheetTop heading="Controls" headingId={headingId} onClose={onClose} onGripDown={onGripDown} doneRef={closeRef} />
         <div className={CONTROLS_SHEET.panel}>{panel}</div>
       </section>
     )

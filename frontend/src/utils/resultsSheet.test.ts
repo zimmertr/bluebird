@@ -25,6 +25,7 @@ import {
   TRANSPORT_HEIGHT_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
+  controlsFullPx,
   controlsSheetPx,
   fabBottomPx,
   noticeBottomPx,
@@ -304,12 +305,13 @@ describe('the Analyze button', () => {
     expect(NOTICE_BAND_MAX_PX).toBe(3 * 16 + 2 * 8 + 2)
   })
 
-  // The scale and the (i) stand on the button's row: the corner band, 44px,
-  // centred on the 56px button.
-  it('centres the map corners on the button', () => {
+  // The scale, the (i) and the opened credit line stand on the button's
+  // row with their bottoms on the button's bottom edge (TJ, 2026-10-14): each
+  // stands on the library's 10px margin inside the corner band, so the band
+  // starts that margin under the button.
+  it('stands the map corners on the button\'s bottom edge', () => {
     const fab = 120
-    const corner = phoneCornerLiftPx(fab)
-    expect(corner + TRANSPORT_GAP_PX / 2).toBe(fab + FAB_PX / 2)
+    expect(phoneCornerLiftPx(fab) + CORNER_MARGIN_PX).toBe(fab)
   })
 
   // A notice over a sheet dragged high goes under the button, which never
@@ -471,9 +473,19 @@ describe('the Controls sheet', () => {
 
   it('is the edge the foot rides while it is up and stands higher', () => {
     const sheet = controlsSheetPx(844)
-    expect(phoneFootLiftPx(104, true, 844)).toBe(sheet)
-    expect(phoneFootLiftPx(104, false, 844)).toBe(104)
-    expect(phoneFootLiftPx(sheet + 20, true, 844)).toBe(sheet + 20)
+    expect(phoneFootLiftPx(104, sheet)).toBe(sheet)
+    expect(phoneFootLiftPx(104, null)).toBe(104)
+    expect(phoneFootLiftPx(sheet + 20, sheet)).toBe(sheet + 20)
+    // A drag moves the edge with it.
+    expect(phoneFootLiftPx(104, 300)).toBe(300)
+  })
+
+  // Dragged up whole, it stops where a dragged results sheet does, and the
+  // button keeps its strip under the chip row (#696; record 0146).
+  it('rises under a drag to the button\'s strip and no higher', () => {
+    expect(controlsFullPx(844)).toBe(844 - DRAGGED_MAP_PX)
+    const lift = controlsFullPx(844)
+    expect(844 - fabBottomPx(lift, 0, 844) - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
   })
 })
 

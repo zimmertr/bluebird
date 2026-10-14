@@ -43,6 +43,8 @@ const NO_PARTIAL_MODELS: readonly ModelEnd[] = []
 export interface TableViewInputs {
   /** The stored preferences, read once by App for the mount; only the first render reads them. */
   storedView: ViewPrefs
+  /** A desk's width, where the Name column opens at its measured 25 characters; a phone's opens at its widest name, capped. */
+  isDesktop: boolean
   /** The displayed rows, in ranking order (`usePresentedReport`). */
   results: DestinationResult[]
   /** The table's own header sort, which reorders rows without re-ranking them. */
@@ -93,6 +95,7 @@ export interface TableViewInputs {
  */
 export function useTableView({
   storedView,
+  isDesktop,
   results,
   detailSort,
   sortBy,
@@ -151,11 +154,17 @@ export function useTableView({
   // Column widths the user has set (px by key). Held here rather than in the
   // table so a mode switch or the collapse chevron, both of which unmount
   // the table, cannot reset them. Session-only by design: a width is a
-  // reading posture, not a preference. Name opens at the measured
-  // 25-character width and everything else natural.
-  const [tableColWidths, setTableColWidths] = useState<Record<string, number>>({
-    name: NAME_DEFAULT_PX,
-  })
+  // reading posture, not a preference. At a desk Name opens at the measured
+  // 25-character width and everything else natural. On a phone Name opens
+  // natural too (#696; record 0142): its widest name, which `TABLE.nameCap`
+  // stops at 45% of the sheet, because the column stands still over the ones
+  // that scroll and 184px of a 360px phone was half its numbers. A width the
+  // reader sets, by a drag or a fit, is held at either.
+  const [setWidths, setTableColWidths] = useState<Record<string, number>>({})
+  const tableColWidths = useMemo(
+    () => (isDesktop && setWidths.name === undefined ? { name: NAME_DEFAULT_PX, ...setWidths } : setWidths),
+    [isDesktop, setWidths],
+  )
   // A point-sample flip relabels the metric columns under the SAME keys
   // (the collapsed bare-noun header and the windowed aggregate header both
   // live at one key), so a width fitted under one regime clips the other

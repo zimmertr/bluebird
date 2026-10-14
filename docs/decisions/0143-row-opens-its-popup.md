@@ -2,10 +2,10 @@
 
 - Status: Accepted
 - Date: 2026-10-14
-- Decider: the maintainer (TJ), on issue #696, 2026-10-14
+- Decider: the maintainer (TJ), on issue #696, 2026-10-14; the popup's remove the same evening
 - Issues and PRs: #696, #708, #336, #536
 - Cited in code as: #696
-- Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), `ResultsTableRow.tsx`; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), `useRowFocus.ts`; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `rowTap.ts`
+- Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), `ResultsTableRow.tsx`; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), `useRowFocus.ts`; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `rowTap.ts`, `resultPopup.ts`, `popupChrome.ts`; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), `resultsLayer.ts`
 
 ## Context
 
@@ -18,13 +18,16 @@ The name's button flew the map to a destination and opened its popup. The rest o
 - **On a phone the sheet drops to its bar first**, and the camera moves in the commit after, once the camera's bottom pad is the bar's (`useRowFocus`). The name's button does the same.
 - **The row takes no role or focus**: the name's button stays its way in for a keyboard and a screen reader.
 
-## The remove control on touch: not changed
+## The remove control on touch: the popup carries it
 
-The maintainer asked for the row's remove on a coarse pointer to be the marker popup's remove, reached by this tap. The popup a ranked marker opens (`resultPopupHtml`) carries no remove action today; only a clicked basemap feature's popup (`poiPopupHtml`) does. So that part stopped, as the brief said, and `index.css`'s `row-remove` rule still shows the number and the × side by side on touch.
+- **A ranked marker's popup ends in `Remove from analysis`**, the words and the `popupButton` look the clicked basemap feature's popup uses (record [0139](0139-clicked-feature-popup-wears-the-result-card.md)), centred in the card's foot the way that popup places its action (`popupAction` in `popupChrome.ts`, which both popups now share). Pressing it does what the row's × does, the removal in `useRemovals` through `onRemoveResult`, and closes the popup; the removed row shows the way a removed row always has.
+- **On a coarse pointer the row's remove is this action**, reached by the row tap above, so the × beside the rank is no longer forced visible on touch: `index.css`'s `row-remove` rule is gone and `TABLE.removeFace` hides the × on a coarse pointer. A fine pointer keeps the hover ×.
+
+The first cut of this record left the touch remove unchanged, because the marker popup had no remove action to reach; the maintainer added one on 2026-10-14.
 
 ## Evidence
 
-Shot 2026-10-14 at 360, 390 and 430 wide: a tap on a row's Type cell opened one popup and left the sheet at its bar. The browser suite's `rowTap.spec.ts` holds both widths.
+Shot 2026-10-14 at 360, 390 and 430 wide: a tap on a row's Type cell opened one popup and left the sheet at its bar, and the popup's `Remove from analysis` took the row out of the ranking. The browser suite's `rowTap.spec.ts` holds both widths and one removal through the popup.
 
 ## Consequences
 

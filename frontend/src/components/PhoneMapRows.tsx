@@ -10,8 +10,8 @@ import {
   MAP_CHIP,
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
-  MAP_LOCATE,
   MAP_ROWS,
+  MAP_SLOT,
 } from '../styles'
 import type { Place } from '../utils/geocode'
 
@@ -24,6 +24,8 @@ interface PhoneMapRowsProps {
   searchPointed: boolean
   /** Receives the locate button's slot, which the map stands its own button in. */
   onLocateSlot: (slot: HTMLDivElement | null) => void
+  /** Receives the compass's slot, under the locate button at the chip row's end (record 0147). */
+  onCompassSlot: (slot: HTMLDivElement | null) => void
   /** Whether the Controls sheet is open; the summary chip takes the keyboard back when it shuts. */
   sidebarOpen: boolean
   /** Raises the Controls sheet (record 0141). */
@@ -43,8 +45,9 @@ interface PhoneMapRowsProps {
  * search pill with the locate button at its right, and the chip row under it,
  * the controls summary, Layers and Legend. The row keeps that one shape from
  * arrival to results: Legend greys until it has a key to show rather than
- * coming and going. Analyze stays the drawer's own button, and the row's
- * right end is left empty. A desk keeps its column (`MapButtonColumn`).
+ * coming and going. Analyze is the map's floating button, and the row's right
+ * end is the compass's, under the locate button, while the map is turned.
+ * A desk keeps its column (`MapButtonColumn`).
  *
  * While the field has the keyboard or its list is open the pill takes the
  * whole first row, over the locate button, and the chip row steps aside, so
@@ -55,6 +58,7 @@ export default function PhoneMapRows({
   onSearchSelect,
   searchPointed,
   onLocateSlot,
+  onCompassSlot,
   sidebarOpen,
   onOpenControls,
   onCloseControls,
@@ -94,7 +98,7 @@ export default function PhoneMapRows({
         </div>
         {/* Empty here: the map stands its own locate button in it, so the
             button keeps the library's states and its permission prompt. */}
-        <div ref={onLocateSlot} className={MAP_LOCATE} />
+        <div ref={onLocateSlot} className={MAP_SLOT.locate} />
       </div>
       {/* Hidden rather than unmounted while the pill is wide, so an open
           sheet's chip and the drawer's focus hand-off keep their state. */}
@@ -123,6 +127,10 @@ export default function PhoneMapRows({
         >
           Legend
         </button>
+        {/* The compass's, the row's empty right end under the locate button
+            (record 0147): the map stands its own compass in it, which shows
+            only while the map is turned or tilted. */}
+        <div ref={onCompassSlot} className={MAP_SLOT.compass} />
       </div>
       {legendOpen && legendShown && (
         <BottomSheet heading="Legend" onClose={() => setLegendOpen(false)}>

@@ -398,14 +398,16 @@ export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): numb
 
 /**
  * Where a phone's scale and (i) stand: on the Analyze button's row, at its
- * left, each centred on the button's middle (record 0140). The corner is the
- * band `--map-corner-band` names, `TRANSPORT_GAP_PX` tall, so it starts half
- * the difference between that and the button's height above the button's
- * bottom edge; `map.css` stands each control on the library's 10px margin
- * inside it, which in that band is its centre.
+ * left, each with its bottom on the button's bottom edge (record 0140; TJ,
+ * 2026-10-14). `map.css` stands each control on the library's 10px margin
+ * inside the corner band, so the band starts that margin under the button,
+ * and the opened credit line, taller than the band, grows up from the same
+ * edge. They were centred on the button's middle until the maintainer read
+ * it on a Pixel: the credit line opened above the button's top and the
+ * collapsed controls stood 6px higher than the button's foot.
  */
 export function phoneCornerLiftPx(fabBottom: number): number {
-  return fabBottom + (FAB_PX - TRANSPORT_GAP_PX) / 2
+  return fabBottom - CORNER_MARGIN_PX
 }
 
 /**
@@ -422,12 +424,23 @@ export function controlsSheetPx(mapPx: number): number {
 }
 
 /**
+ * The most a Controls sheet rises under a drag on its grip (#696; record
+ * 0146): to the Analyze button's strip under the chip row, where a dragged
+ * results sheet stops, so the button keeps a place to stand over it.
+ */
+export function controlsFullPx(mapPx: number): number {
+  return Math.max(0, mapPx - DRAGGED_MAP_PX)
+}
+
+/**
  * The edge a phone's foot stands on: the results sheet's, or the Controls
  * sheet's while it is up and stands higher, so the button, the band and the
- * player ride whichever sheet is in view (record 0141).
+ * player ride whichever sheet is in view (record 0141). `controlsPx` is the
+ * Controls sheet's height, whatever a drag left it at, or null while it is
+ * shut.
  */
-export function phoneFootLiftPx(sheetLiftPx: number, controlsOpen: boolean, mapPx: number): number {
-  return controlsOpen ? Math.max(sheetLiftPx, controlsSheetPx(mapPx)) : sheetLiftPx
+export function phoneFootLiftPx(sheetLiftPx: number, controlsPx: number | null): number {
+  return controlsPx === null ? sheetLiftPx : Math.max(sheetLiftPx, controlsPx)
 }
 
 /**

@@ -106,6 +106,23 @@ describe('a ranked row', () => {
     expect(cell.className).toContain(TABLE.stickyNameCell)
   })
 
+  // A phone's stuck Name column stops at 45% of the sheet until the reader
+  // sizes it (record 0142), and the name truncates inside that.
+  it('caps its unsized name on a phone, and leaves a sized one alone', () => {
+    const { rerender } = inTable(<ResultsTableRow {...props()} />)
+    const line = () => screen.getByRole('button', { name: 'Center map on Mount Adams' }).parentElement!
+    expect(line().className).toContain(TABLE.nameCap)
+    expect(screen.getByRole('button', { name: 'Center map on Mount Adams' }).className).toContain('truncate')
+    rerender(
+      <table>
+        <tbody>
+          <ResultsTableRow {...props({ widths: { name: 120 } })} />
+        </tbody>
+      </table>,
+    )
+    expect(line().className).not.toContain(TABLE.nameCap)
+  })
+
   it('reports the shift state, then the toggle, from its chart box', async () => {
     const box: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
     const { user } = inTable(<ResultsTableRow {...props({ chartBox: box })} />)

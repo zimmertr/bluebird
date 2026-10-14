@@ -84,7 +84,9 @@ import {
   MAP_FAB_WORDS,
   MAP_COL_GAP,
   MAP_COL_W,
-  MAP_LOCATE,
+  MAP_ROUND_BUTTON,
+  MAP_SLOT,
+  MAP_CREDIT,
   MAP_NOTICE_BAND,
   MAP_PILL,
   MAP_PILL_FIELD,
@@ -1760,6 +1762,43 @@ describe('the results table rank cell', () => {
     expect(STYLES.TABLE.rankStack.split(' ')).toContain('inline-grid')
   })
 
+  // A phone's Name column stands still and must leave the numbers room
+  // (#696; record 0142): 45% of the sheet at most, the cell's padding inside
+  // that, and only on a phone.
+  it('caps a phone\'s Name column at 45% of the sheet, padding included', () => {
+    expect(STYLES.TABLE.nameCap).toBe('max-lg:max-w-[calc(45cqi-1rem)]')
+    // The cell's own padding, which the 1rem is: px-2 either side.
+    expect(STYLES.TABLE.cell.split(' ')).toContain('px-2')
+  })
+
+  // A touch screen has no hover, so a linked value is underlined at rest, as
+  // the marker popup's numbers are (`popupLink`'s text-decoration).
+  it('underlines a linked value at rest, the way the popup does', () => {
+    const cls = STYLES.TABLE.valueLink.split(' ')
+    expect(cls).toContain('underline')
+    expect(cls.some((c) => c.startsWith('hover:'))).toBe(false)
+  })
+
+  // The tutorial's spotlight lit a section with a scroll shade lying across
+  // it (#696): while a tour runs (`tour/Tour.tsx` sets the attribute), every
+  // shade stands down.
+  it('hides every scroll shadow while the tutorial runs', () => {
+    const rule = indexCss.match(/((?::root\[data-touring\][^,{]+,?\s*)+)\{\s*visibility: hidden;/)
+    expect(rule).not.toBeNull()
+    for (const shade of ['.scroll-shadow-start::before', '.scroll-shadow-end::after', '.scroll-shadow-head th::after']) {
+      expect(rule![1]).toContain(`:root[data-touring] ${shade}`)
+    }
+  })
+
+  // A finger removes from the marker card its row tap opens (#696), so the ×
+  // is not drawn on a coarse pointer; an invisible button over the number
+  // would take the tap aimed at the row and remove the row.
+  it('draws no × on a coarse pointer, and keeps it in reach of a mouse and a keyboard', () => {
+    const face = STYLES.TABLE.removeFace.split(' ')
+    expect(face).toContain('touch:hidden')
+    expect(face).toEqual(expect.arrayContaining(['opacity-0', 'group-hover:opacity-100', 'focus-visible:opacity-100']))
+  })
+
   // Two kinds of row in one body: the pending destinations waiting on a
   // forecast, and the ranked results under them. They had spelled the recipe
   // twice, so the rule above a row and what it does under a pointer could have
@@ -1931,15 +1970,20 @@ describe('the phone rows', () => {
   // The pill leaves the locate button and the 8px between them at rest, and
   // takes the whole row while it is searching.
   it('stands the pill beside a 40px round locate button', () => {
-    expect(step(MAP_LOCATE, 'size')).toBe(ROW)
+    expect(step(MAP_SLOT.locate, 'size')).toBe(ROW)
+    expect(step(MAP_ROUND_BUTTON, 'size')).toBe(ROW)
     expect(step(MAP_PILL, 'h')).toBe(ROW)
     expect(step(MAP_ROWS.pill, 'right')).toBe(ROW + GAP)
     expect(MAP_ROWS.pillWide).toMatch(/(^|\s)right-0(\s|$)/)
-    for (const recipe of [MAP_PILL, MAP_LOCATE]) expect(tokens(recipe)).toContain(RADIUS.pill)
-    // The class map.css keys the vendor button's restyle on.
-    expect(tokens(MAP_LOCATE)).toContain('map-locate')
-    expect(mapCss).toContain('.map-locate .maplibregl-ctrl-group')
-    expect(phoneMapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_LOCATE} />')
+    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON]) expect(tokens(recipe)).toContain(RADIUS.pill)
+    // The class map.css keys the vendor group's margin on.
+    for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
+    expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
+    expect(phoneMapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.locate} />')
+    // The compass's, the chip row's last member (record 0147): no size of its
+    // own, so a hidden compass leaves the row's end to the map.
+    expect(phoneMapRowsSource).toContain('<div ref={onCompassSlot} className={MAP_SLOT.compass} />')
+    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
   })
 
   // One floating chrome for the pill, the locate button and the chips: the
@@ -1947,7 +1991,7 @@ describe('the phone rows', () => {
   // than the box's.
   it('dresses the pill, the locate button and the chips in the floating box\'s chrome', () => {
     const chrome = tokens(SURFACE_FLOATING).filter((t) => t !== RADIUS.surface)
-    for (const recipe of [MAP_PILL, MAP_LOCATE, MAP_CHIP, MAP_CHIP_SUMMARY]) {
+    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON, MAP_CHIP, MAP_CHIP_SUMMARY]) {
       for (const t of chrome) expect(tokens(recipe), `${t} in ${recipe}`).toContain(t)
       expect(tokens(recipe)).not.toContain(RADIUS.surface)
     }
@@ -2037,11 +2081,52 @@ describe('the phone chrome\'s hit areas', () => {
     expect(searchBoxSource).toContain('${pill ? MAP_PILL_FIELD : \'\'}')
   })
 
-  // The vendor's button, so map.css spells it, on the query `touch` is.
-  it('presses the 40px locate button as 44, by a rim on a coarse pointer', () => {
-    expect(steps(MAP_LOCATE, /(?:^|\s)size-(\d+)(?:\s|$)/)).toBe(40)
-    const block = mapCss.slice(mapCss.indexOf('@media (hover: none) {\n  .map-locate'))
-    expect(block.slice(0, block.indexOf('\n}\n'))).toMatch(/\.map-locate \.maplibregl-ctrl-group button::before \{\s*content: '';\s*position: absolute;\s*inset: -3px;/)
+  // The vendor's buttons, so map.css spells it, on the query `touch` is: every
+  // map button 40px seen and 44 pressed (record 0147), and the credit's 24px
+  // (i) the same 44.
+  it('presses the 40px map buttons and the 24px (i) as 44, by a rim on a coarse pointer', () => {
+    expect(steps(MAP_ROUND_BUTTON, /(?:^|\s)size-(\d+)(?:\s|$)/)).toBe(40)
+    const block = mapCss.slice(mapCss.indexOf('@media (hover: none) {\n  .maplibregl-ctrl-group,'))
+    expect(block.slice(0, block.indexOf('\n}\n'))).toMatch(/\.maplibregl-ctrl-group button::before \{\s*content: '';\s*position: absolute;\s*inset: -3px;/)
+    // 40 less its two 1px borders, plus 3 either side.
+    expect(40 - 2 + 2 * 3).toBe(44)
+    expect(steps(MAP_CREDIT.button, /(?:^|\s)size-(\d+)(?:\s|$)/)).toBe(24)
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib-button::before \{\s*content: '';\s*position: absolute;\s*inset: -10px;/)
+    expect(24 + 2 * 10).toBe(44)
+  })
+
+  // The library's white box comes off its buttons (record 0147): a group is
+  // no surface of its own, its buttons 4px apart as the app's column is.
+  it('draws the library\'s buttons as the app\'s, 4px apart, glyphs light', () => {
+    const rule = (selector: string) => {
+      const at = mapCss.indexOf(`${selector} {`)
+      expect(at, selector).toBeGreaterThanOrEqual(0)
+      return mapCss.slice(at, mapCss.indexOf('}', at))
+    }
+    const group = rule('.maplibregl-ctrl-group')
+    for (const decl of ['background: transparent;', 'box-shadow: none;', 'gap: 4px;']) expect(group).toContain(decl)
+    expect(rule('.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl')).toContain('margin-top: 4px;')
+    expect(MAP_COL_GAP.gap).toBe('gap-1')
+    expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: invert(1) hue-rotate(180deg);')
+    expect(rule('.maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
+    // A phone's chip row stands the compass alone, whatever the pointer.
+    expect(mapCss).toMatch(/\.map-slot \.maplibregl-ctrl-zoom-in,\s*\.map-slot \.maplibregl-ctrl-zoom-out \{\s*display: none;/)
+  })
+
+  // The credit line is the floating box, and its links read the way `LINK`
+  // reads: map.css spells LINK's values because the library rewrites the links.
+  it('draws the credit line as the floating box with LINK\'s links', () => {
+    for (const t of tokens(SURFACE_FLOATING)) expect(tokens(MAP_CREDIT.card)).toContain(t)
+    // Its (i) is a map button at the band's 24px: the same fill, edge and round.
+    for (const t of ['bg-slate-800/95', 'border', 'border-slate-600', RADIUS.pill]) {
+      expect(tokens(MAP_CREDIT.button)).toContain(t)
+      expect(tokens(MAP_ROUND_BUTTON)).toContain(t)
+    }
+    expect(tokens(LINK)).toEqual(expect.arrayContaining(['text-slate-300', 'hover:text-sky-400', 'underline']))
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib a \{\s*color: var\(--color-slate-300\);\s*text-decoration: underline;/)
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib a:hover \{\s*color: var\(--color-sky-400\);/)
+    // A folded line is its button alone.
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib\.maplibregl-compact:not\(\.maplibregl-compact-show\) \{\s*background: transparent;\s*border-width: 0;/)
   })
 
   it('leaves the Analyze button at 56, over the floor already', () => {
@@ -2058,6 +2143,26 @@ describe('the Analyze button on a phone', () => {
     expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['absolute', 'right-4', 'h-14', 'rounded-2xl']))
     expect(MAP_FAB).toContain(LAYER.mapControls)
     expect(MAP_FAB).toContain(ELEVATION.overlay)
+  })
+
+  // A press shows on the button itself (TJ, 2026-10-14), Material's way: a
+  // white state layer at 12% and the shadow dropping a step, on a mouse and a
+  // finger alike, and never on a disabled button.
+  it('shows a press with a state layer and a lower shadow', () => {
+    const t = tokens(MAP_FAB)
+    expect(t).toEqual(
+      expect.arrayContaining([
+        'after:absolute',
+        'after:inset-0',
+        'after:bg-white',
+        'after:opacity-0',
+        'enabled:active:after:opacity-[0.12]',
+        'after:pointer-events-none',
+      ]),
+    )
+    expect(ELEVATION.raised).toBe('shadow-lg')
+    expect(t).toContain(`enabled:active:${ELEVATION.raised}`)
+    expect(t.some((c) => c.startsWith('disabled:') || c === 'active:after:opacity-[0.12]')).toBe(false)
   })
 
   // The primary fill, so the white label keeps record 0008's contrast; the
@@ -2571,8 +2676,10 @@ describe('the attribution beside the scale', () => {
 
 describe('the idle compass', () => {
   it('is hidden by map.css under the class the controls module sets', () => {
-    const rule = mapCss.slice(mapCss.indexOf('.compass-idle .maplibregl-ctrl-compass'))
-    expect(rule).toMatch(/^\.compass-idle \.maplibregl-ctrl-compass \{\s*display: none;/)
+    // On the button itself (record 0147), since a phone stands it outside the
+    // map's container.
+    const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-compass.compass-idle'))
+    expect(rule).toMatch(/^\.maplibregl-ctrl-compass\.compass-idle \{\s*display: none;/)
   })
 })
 

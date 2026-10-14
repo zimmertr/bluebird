@@ -45,6 +45,7 @@ describe('reading the stored view', () => {
       columns: null,
       modelColumn: null,
       columnOrder: null,
+      legendOpen: null,
     })
   })
 
@@ -195,6 +196,17 @@ describe('writing a preference', () => {
     })
   })
 
+  // A desk's legend card remembers being folded (#696), and a value no build
+  // wrote reads as no answer.
+  it('keeps whether the legend was left open', () => {
+    const storage = withStored({ modeChosen: 'both' })
+    writeViewPrefs({ legendOpen: false })
+    expect(stored(storage)).toEqual({ modeChosen: 'both', legendOpen: false })
+    expect(readViewPrefs().legendOpen).toBe(false)
+    withStored({ legendOpen: 'yes' })
+    expect(readViewPrefs().legendOpen).toBeNull()
+  })
+
   it('drops a null rather than storing one, so the report still decides', () => {
     const storage = withStored({ modelColumn: true, columnOrder: ['name'] })
     writeViewPrefs({ modelColumn: null, columnOrder: null })
@@ -231,6 +243,7 @@ describe('writing a preference', () => {
       columns: new Set(['name', 'type']),
       modelColumn: false,
       columnOrder: ['type', 'name'],
+      legendOpen: null,
     })
   })
 })
@@ -267,6 +280,7 @@ describe('a storage that will not answer', () => {
       columns: null,
       modelColumn: null,
       columnOrder: null,
+      legendOpen: null,
     })
     expect(hasWelcomed()).toBe(false)
     expect(() => writeViewPrefs({ modeChosen: 'both' })).not.toThrow()

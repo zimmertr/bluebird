@@ -87,6 +87,13 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // therefore cues a commit and unticking applies at once: the held field can
   // always answer a smaller question and never a larger one.
   compareModels: readonly string[]
+  // When the report committed, epoch ms: what a Current report's caption
+  // says it is "as of". The window's own start is the click's minute, which
+  // two runs in one minute share, so a press that reused every forecast it
+  // held changed nothing on screen and the app looked as if it had not heard
+  // it (TJ, 2026-10-14). Every commit stamps its own moment, a full reuse
+  // included.
+  asOfMs: number
 }
 
 /**

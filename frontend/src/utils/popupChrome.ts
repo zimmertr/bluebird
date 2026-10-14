@@ -538,7 +538,11 @@ export function popupShell(
   url: string,
   body: string,
   meta = '',
-  { resultCard = false, warnings = [] }: { resultCard?: boolean; warnings?: readonly string[] } = {},
+  {
+    resultCard = false,
+    warnings = [],
+    action = '',
+  }: { resultCard?: boolean; warnings?: readonly string[]; action?: string } = {},
 ): string {
   // The name stays at the reading size and everything under it steps down one.
   // Setting both the same made the details compete with the thing they
@@ -550,7 +554,7 @@ export function popupShell(
   // overlay popups have no destination. `resultCard` is the destination card,
   // which a ranked result and a clicked basemap feature both wear (TJ,
   // 2026-10-14): one mountain, one card, before and after an analysis.
-  if (resultCard) return resultCardShell(title, url, body, meta, warnings)
+  if (resultCard) return resultCardShell(title, url, body, meta, warnings, action)
   return `<div style="${POPUP_FACE}">
     <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url)}</div>
     ${meta}
@@ -575,7 +579,14 @@ export function popupShell(
  * its height from its measured outer height (`capPopupBody`), and it scrolls
  * sideways on a map narrower than its grid.
  */
-function resultCardShell(title: string, url: string, body: string, meta: string, warnings: readonly string[]): string {
+function resultCardShell(
+  title: string,
+  url: string,
+  body: string,
+  meta: string,
+  warnings: readonly string[],
+  action: string,
+): string {
   // The warnings, between the header and the grid and closed off from the grid
   // by the header's own edge (TJ, 2026-10-08), so the card reads as three
   // parts: what the place is, what is wrong there, what the forecast says.
@@ -590,8 +601,22 @@ function resultCardShell(title: string, url: string, body: string, meta: string,
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url, HEADER_ICON_COLOR)}</div>
       ${meta}
     </div>${notice}
-    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>
+    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>${
+      // Under the body rather than in it, so a card whose numbers the scroll
+      // cap shortened keeps its action in view the way it keeps its name.
+      action ? `<div style="padding:0 10px 12px">${popupAction(action)}</div>` : ''
+    }
   </div>`
+}
+
+/**
+ * A card's one action, centred on its own line (TJ, 2026-10-14): a lone button
+ * left against the edge of a card the facts line made wider than it read as a
+ * row that lost its label. One spelling for the clicked feature's add or
+ * remove and the ranked result's remove, so the two cards place it alike.
+ */
+export function popupAction(button: string): string {
+  return `<div style="text-align:center">${button}</div>`
 }
 
 /**

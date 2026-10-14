@@ -6,8 +6,8 @@ import { FALLBACK_WINDOW_LIMITS, archiveSeamMs, type WindowLimits } from './fore
 import { addDays, dayDate, dayKey } from './calendarDates'
 import type { SelectionKind } from './calendarSelection'
 
-function clockTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+function clockTime(ms: number, seconds = false): string {
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', ...(seconds ? { second: '2-digit' } : {}) })
 }
 
 /**
@@ -88,7 +88,11 @@ export function windowPhrase(
  * A multi-hour analysis used to carry no caption at all, so someone opening a
  * shared link had nothing on screen telling them which days they were reading.
  * The click-time sample keeps its own wording: it says when it was taken, where
- * a chosen window simply names itself. The window carries no "for": it sits
+ * a chosen window simply names itself. It is said to the second, from the
+ * moment the report committed (`asOfMs`), so every Analyze moves it, one that
+ * fetched nothing included: the minute alone stood still under two presses a
+ * few seconds apart, and the app read as if it had not heard the second (TJ,
+ * 2026-10-14). The window carries no "for": it sits
  * under the line it qualifies rather than after it, so the preposition had
  * nothing to attach to and was costing a phone real width.
  */
@@ -98,8 +102,9 @@ export function windowCaption(
   endMs: number,
   pointSample: boolean,
   now: Date = new Date(),
+  asOfMs: number = startMs,
 ): string {
-  if (kind === 'now') return `as of ${clockTime(startMs)}`
+  if (kind === 'now') return `as of ${clockTime(asOfMs, true)}`
   return windowPhrase(startMs, endMs, pointSample, now)
 }
 

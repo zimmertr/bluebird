@@ -131,7 +131,7 @@ export function usePresentedReport({
   // worse than no date range at all.
   const windowTitle =
     results.length > 0 && analyzed !== null
-      ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample)
+      ? windowCaption(analyzed.kind, analyzed.window.startMs, analyzed.window.endMs, pointSample, undefined, analyzed.asOfMs)
       : null
 
   // The detail-column sort, held here rather than inside ResultsTable (#125).

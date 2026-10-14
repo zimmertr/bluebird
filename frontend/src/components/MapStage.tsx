@@ -5,7 +5,7 @@ import TimelineTransport from './TimelineTransport'
 import AnalysisOverlay from './AnalysisOverlay'
 import LayersPopover from './LayersPopover'
 import MapButtonColumn from './MapButtonColumn'
-import MapLegend, { legendSections, type LegendInputs, type LegendSectionSpec } from './MapLegend'
+import MapLegend, { legendSections, type LegendInputs } from './MapLegend'
 import MapDrawBar from './MapDrawBar'
 import PhoneMapRows from './PhoneMapRows'
 import PhoneFoot from './PhoneFoot'
@@ -39,10 +39,6 @@ import type { CameraView } from '../utils/mapView'
 import type { UrlSync } from '../hooks/useUrlSync'
 import type { LayerCoverage } from '../utils/layerCoverage'
 
-// What a phone's map box holds: nothing, its sections being the Legend
-// sheet's. Hoisted, so the box sees one empty list rather than a fresh one.
-const NO_SECTIONS: readonly LegendSectionSpec[] = []
-
 export interface MapStageProps {
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
   mapRef: RefObject<MapViewHandle | null>
@@ -58,8 +54,8 @@ export interface MapStageProps {
   isDesktop: boolean
   /** The ring, the link's restored points and the searched places, with the setters the map calls. */
   destinationInputs: Pick<DestinationInputs, 'polygon' | 'setPolygon' | 'restoredPoints' | 'places' | 'removePlace'>
-  /** Registers a place picked in the search field or clicked on the map. */
-  removals: Pick<Removals, 'registerPlace'>
+  /** Registers a place picked in the search field or clicked on the map, and removes a ranked row from its card. */
+  removals: Pick<Removals, 'registerPlace' | 'removeResult'>
   /** Which overlays are on, and their setters for the Layers popover. */
   overlays: Omit<MapOverlays, 'showPlayer'>
   /** The server's outlines for the snapshot layers, which the Layers popover greys its rows on. */
@@ -109,6 +105,10 @@ export interface MapStageProps {
   showResults: boolean
   /** Whether the controls panel is open. */
   sidebarOpen: boolean
+  /** A phone's Controls sheet's height, wherever a drag left it (record 0146). */
+  controlsPx: number
+  /** Whether a desk's legend card opens unfolded (`viewPrefs.legendOpen`). */
+  legendInitiallyOpen: boolean
   /** Reopens the controls panel. */
   onOpenControls: () => void
   /** Lowers a phone's Controls sheet from the chip that raised it. */
@@ -167,6 +167,8 @@ export default function MapStage({
   modelId,
   showResults,
   sidebarOpen,
+  controlsPx,
+  legendInitiallyOpen,
   onOpenControls,
   onCloseControls,
   controlsSummary,
@@ -186,6 +188,8 @@ export default function MapStage({
   // stands its own locate button in (#696). State rather than a ref, so the
   // map hears the slot arrive and go.
   const [locateSlot, setLocateSlot] = useState<HTMLDivElement | null>(null)
+  // The compass's, under it at the chip row's right end (record 0147).
+  const [compassSlot, setCompassSlot] = useState<HTMLDivElement | null>(null)
   // The height of the phone's notice band, which the Analyze button rises
   // above (`PhoneFoot` measures it), 0 while it holds nothing.
   const [bandPx, setBandPx] = useState(0)
@@ -194,7 +198,7 @@ export default function MapStage({
   // since it is the wider word's in whatever face the phone draws.
   const [fabPx, setFabPx] = useState(0)
   const smokeId = useId()
-  const { registerPlace } = removals
+  const { registerPlace, removeResult } = removals
   const { removePlace } = destinationInputs
   const { results } = report
   const { playbackIndex, timelineAxis } = timeline
@@ -253,7 +257,7 @@ export default function MapStage({
   // sheet, stepping off while a sheet dragged high leaves it no room. The
   // sheet is whichever stands higher, the results or the Controls sheet
   // (record 0141), so the one Analyze is on the edge of the sheet in view.
-  const footLift = isDesktop ? layout.sheetLiftPx : phoneFootLiftPx(layout.sheetLiftPx, sidebarOpen, layout.mapPx)
+  const footLift = isDesktop ? layout.sheetLiftPx : phoneFootLiftPx(layout.sheetLiftPx, sidebarOpen ? controlsPx : null)
   const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
@@ -337,12 +341,14 @@ export default function MapStage({
         searchedPlaces={destinationInputs.places}
         onAddPoi={handleAddPoi}
         onRemovePoi={handleRemovePoi}
+        onRemoveResult={removeResult}
         cameraPadBottomPx={layout.cameraPadBottomPx}
         restoredView={restoredView}
         onCameraMove={urlSync.reportView}
         onBasemapFailed={onBasemapFailed}
         maxPolygonPoints={maxPolygonPoints}
         locateSlot={locateSlot}
+        compassSlot={compassSlot}
       />
       {/* The legends render BEFORE the button column below on purpose.
           Both are map chrome at the same layer, so paint order is DOM
@@ -351,13 +357,18 @@ export default function MapStage({
           with the legends last it opened underneath them. Pushing the
           legends further down instead only moved the collision, since a
           popover is as tall as its contents. A phone draws no box: its
-          sections are the Legend sheet's (#696). */}
-      <MapLegend
-        sections={isDesktop ? legend : NO_SECTIONS}
-        sidebarOpen={sidebarOpen}
-        sheetLiftPx={layout.sheetLiftPx}
-        timelineShown={timelineShown}
-      />
+          sections are the Legend sheet's (#696). The desk's box is the
+          column's Legend button and its card, which stand in this stack
+          for the same reason. */}
+      {isDesktop && (
+        <MapLegend
+          sections={legend}
+          sidebarOpen={sidebarOpen}
+          sheetLiftPx={layout.sheetLiftPx}
+          timelineShown={timelineShown}
+          initiallyOpen={legendInitiallyOpen}
+        />
+      )}
       {isDesktop ? (
         <MapButtonColumn
           searchBoxRef={searchBoxRef}
@@ -365,6 +376,7 @@ export default function MapStage({
           searchPointed={searchPointed}
           sidebarOpen={sidebarOpen}
           onOpenControls={onOpenControls}
+          controlsSummary={controlsSummary}
         >
           {layers}
         </MapButtonColumn>
@@ -374,6 +386,7 @@ export default function MapStage({
           onSearchSelect={handleSearchSelect}
           searchPointed={searchPointed}
           onLocateSlot={setLocateSlot}
+          onCompassSlot={setCompassSlot}
           sidebarOpen={sidebarOpen}
           onOpenControls={onOpenControls}
           onCloseControls={onCloseControls}

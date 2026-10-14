@@ -143,9 +143,8 @@ interface Props {
   closureCheckFailed?: boolean
   // The basemap style is failing to load (#580).
   basemapFailed?: boolean
-  // Where the footer's messages that ask for an action stand on a phone
-  // (record 0140), handed to `PanelFooter`; null keeps the block whole under
-  // the button.
+  // Where the footer's notice block stands on a phone (record 0140), handed
+  // to `PanelFooter`; null keeps it under the button.
   noticeHome?: HTMLElement | null
   // A phone, where the panel is the Controls sheet (#696; record 0141): the
   // sheet's own head replaces the logo and the title, and the map's floating
@@ -332,6 +331,22 @@ export default function ControlPanel({
   const bodyRef = useRef<HTMLDivElement>(null)
   useScrollShadows(bodyRef)
 
+  // At a desk the footer is fixed under the scrolling body, with Analyze and
+  // the notices; on a phone it is the body's last child (#696; record 0141).
+  const footer = (
+    <PanelFooter
+      analyzeEnabled={analyzeEnabled}
+      loading={loading}
+      onAnalyze={onAnalyze}
+      onRetry={onRetry}
+      onTutorial={onTutorial}
+      tutorialWaits={tutorialWaits}
+      messages={messages}
+      noticeHome={noticeHome}
+      phone={phone}
+    />
+  )
+
   return (
     <div className="flex flex-col h-full">
       {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
@@ -418,19 +433,14 @@ export default function ControlPanel({
           setLimit={setLimit}
           maxLimit={maxLimit}
         />
+
+        {/* A phone's footer is the document links, the last thing in the
+            body, read only by a reader who scrolls to it: the sheet spends no
+            fixed height on it, and its notices are the map's (record 0140). */}
+        {phone && footer}
       </div>
 
-      <PanelFooter
-        analyzeEnabled={analyzeEnabled}
-        loading={loading}
-        onAnalyze={onAnalyze}
-        onRetry={onRetry}
-        onTutorial={onTutorial}
-        tutorialWaits={tutorialWaits}
-        messages={messages}
-        noticeHome={noticeHome}
-        phone={phone}
-      />
+      {!phone && footer}
     </div>
   )
 }

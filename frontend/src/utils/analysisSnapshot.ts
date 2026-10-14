@@ -20,8 +20,9 @@ export interface RecordedFacts {
 }
 
 /**
- * The snapshot of one report. `nowMs` classifies the window: the archive
- * boundary moves with the clock, so it is classified once, at commit.
+ * The snapshot of one report. `nowMs` is the commit's moment: it classifies
+ * the window, since the archive boundary moves with the clock and so is
+ * classified once, at commit, and it is the report's "as of".
  */
 export function analyzedView(
   request: AnalyzeRequest,
@@ -45,5 +46,6 @@ export function analyzedView(
     polygonKey: facts.discovery.polygonKey,
     typesKey: facts.discovery.typesKey,
     compareModels: facts.compareModels,
+    asOfMs: nowMs,
   }
 }

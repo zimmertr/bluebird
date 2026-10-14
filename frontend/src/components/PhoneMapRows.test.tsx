@@ -31,6 +31,7 @@ function rows(over: Partial<Parameters<typeof PhoneMapRows>[0]> = {}) {
       onSearchSelect={() => {}}
       searchPointed={false}
       onLocateSlot={() => {}}
+      onCompassSlot={() => {}}
       sidebarOpen={false}
       onOpenControls={() => {}}
       onCloseControls={() => {}}
@@ -109,6 +110,16 @@ describe('PhoneMapRows', () => {
     const onLocateSlot = vi.fn()
     render(rows({ onLocateSlot }))
     expect(onLocateSlot).toHaveBeenCalledWith(expect.any(HTMLDivElement))
+  })
+
+  // The compass's, at the chip row's right end under the locate button
+  // (record 0147).
+  it('hands up the compass\'s slot at the end of the chip row', () => {
+    const onCompassSlot = vi.fn()
+    render(rows({ onCompassSlot }))
+    const slot = onCompassSlot.mock.calls[0][0] as HTMLDivElement
+    expect(slot.parentElement).toBe(screen.getByRole('button', { name: 'Open controls' }).parentElement)
+    expect(slot.parentElement!.lastElementChild).toBe(slot)
   })
 
   // The chip stands in for the drawer's Close button, so it takes the

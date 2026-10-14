@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { resultPopupHtml } from './resultPopup'
+import { RESULT_ACTION_ATTR, resultPopupHtml } from './resultPopup'
+import { poiPopupHtml, POI_ACTION_ATTR } from './poiPopup'
+import { POPUP_BODY_ATTR } from './popupChrome'
 import type { FireWarning } from './fireProximity'
 import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
@@ -172,6 +174,30 @@ describe('resultPopupHtml rank prefix', () => {
     // The title carries no rank prefix (hex colors elsewhere still use '#').
     const html = resultPopupHtml({ ...base, rank: '' })
     expect(html).toMatch(/<strong[^>]*>Mount Rainier<\/strong>/)
+  })
+})
+
+// A finger removes a row through the card its row tap opens (#696), so the
+// card carries the clicked feature's remove: its words, its look, its place.
+describe('resultPopupHtml remove', () => {
+  it('carries no action unless asked', () => {
+    expect(resultPopupHtml(base)).not.toContain(RESULT_ACTION_ATTR)
+  })
+
+  it('offers the clicked feature\'s remove, centred under the numbers', () => {
+    const html = resultPopupHtml({ ...base, removable: true })
+    const button = html.match(new RegExp(`<button ${RESULT_ACTION_ATTR}="remove"[^>]*>([^<]*)</button>`))
+    expect(button?.[1]).toBe('Remove from analysis')
+    // The same look as the clicked feature's remove: only the attribute differs.
+    const poi = poiPopupHtml({ name: 'Mount Rainier', lat: 46.85, lon: -121.76, kind: 'peak' }, true)
+    const poiButton = poi.match(new RegExp(`<button ${POI_ACTION_ATTR}="remove"([^>]*)>`))![1]
+    expect(button![0]).toContain(poiButton)
+    // On a line of its own at the foot of the card, after the body the scroll
+    // cap shortens rather than inside it, so a capped card keeps it in view.
+    expect(html).toMatch(
+      new RegExp(`<div style="padding:0 10px 12px"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
+    )
+    expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(RESULT_ACTION_ATTR))
   })
 })
 

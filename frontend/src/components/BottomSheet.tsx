@@ -1,14 +1,9 @@
-import { useId, useRef, type ReactNode, type Ref } from 'react'
+import { useId, useState, type PointerEvent, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../hooks/useDialog'
+import { useSheetDrag } from '../hooks/useSheetDrag'
 import { useHoldSheetOpen } from '../hooks/useSheetOpen'
 import { BOTTOM_SHEET } from '../styles'
-
-/**
- * How far down the grip a swipe has to travel before the sheet lets go: past
- * a slip of the thumb, well short of the sheet's own height.
- */
-export const SWIPE_CLOSE_PX = 48
 
 interface Props {
   /**
@@ -17,7 +12,7 @@ interface Props {
    * `styles.test.ts` reads as one.
    */
   heading: string
-  /** Done, Escape, a press on the dimmed map or a swipe down the grip. */
+  /** Done, Escape, a press on the dimmed map, or the grip let go closed. */
   onClose: () => void
   /** The rows, which the sheet's body scrolls. */
   children: ReactNode
@@ -48,6 +43,24 @@ export default function BottomSheet({ heading, onClose, children, outside }: Pro
   const panelRef = useDialog(onClose)
   // The Analyze button hides under the dim while any sheet is open.
   useHoldSheetOpen()
+  // The height a drag left the sheet at, or null for its rows' own (#696;
+  // record 0146). Its own height and its full one are read off the card when
+  // a drag begins: the rows' height with no height set, and the cap its role
+  // sets, one inset under the chip row.
+  const [heldPx, setHeldPx] = useState<number | null>(null)
+  const onGripDown = useSheetDrag({
+    measure: () => {
+      const card = panelRef.current!
+      const startPx = card.offsetHeight
+      const held = card.style.height
+      card.style.height = ''
+      const restPx = card.offsetHeight
+      card.style.height = held
+      return { startPx, restPx, fullPx: parseFloat(getComputedStyle(card).maxHeight) || restPx }
+    },
+    onHeight: setHeldPx,
+    onClose,
+  })
   return createPortal(
     <>
       {/* The whole screen catches a press outside the card and is dimmed,
@@ -64,8 +77,9 @@ export default function BottomSheet({ heading, onClose, children, outside }: Pro
         aria-labelledby={headingId}
         tabIndex={-1}
         className={BOTTOM_SHEET.card}
+        style={heldPx === null ? undefined : { height: heldPx }}
       >
-        <SheetTop heading={heading} headingId={headingId} onClose={onClose} />
+        <SheetTop heading={heading} headingId={headingId} onClose={onClose} onGripDown={onGripDown} />
         <div className={BOTTOM_SHEET.body}>{children}</div>
         {outside}
       </div>
@@ -78,42 +92,36 @@ interface SheetTopProps {
   heading: string
   /** The id the sheet's label points at. */
   headingId: string
-  /** Done, or a swipe down the grip. */
+  /** Done. */
   onClose: () => void
+  /** A press on the grip or the title, which drags the sheet (`useSheetDrag`). */
+  onGripDown: (e: PointerEvent) => void
   /** Done, for a sheet that hands it the keyboard (the Controls sheet). */
   doneRef?: Ref<HTMLButtonElement>
 }
 
 /**
- * The top of every phone sheet: the grip, a swipe down which closes it, and
- * the sheet's title with Done beside it. Its own component because the
- * Controls sheet (`AppDrawer`, record 0141) wears the same top over a sheet
- * that is not modal and never unmounts.
+ * The top of every phone sheet: the grip, and the sheet's title with Done
+ * beside it. A finger on the grip or anywhere on the title row but Done drags
+ * the sheet (#696; record 0146): the row is the bigger target, and the grip
+ * alone is 20px tall. Its own component because the Controls sheet
+ * (`AppDrawer`, record 0141) wears the same top over a sheet that is not
+ * modal and never unmounts.
  */
-export function SheetTop({ heading, headingId, onClose, doneRef }: SheetTopProps) {
-  // Where a press on the grip began, while one is down.
-  const swipeRef = useRef<number | null>(null)
+export function SheetTop({ heading, headingId, onClose, onGripDown, doneRef }: SheetTopProps) {
   return (
     <>
-      <div
-        className={BOTTOM_SHEET.grip}
-        aria-hidden="true"
-        onPointerDown={(e) => {
-          swipeRef.current = e.clientY
-          e.currentTarget.setPointerCapture(e.pointerId)
-        }}
-        onPointerUp={(e) => {
-          const from = swipeRef.current
-          swipeRef.current = null
-          if (from !== null && e.clientY - from >= SWIPE_CLOSE_PX) onClose()
-        }}
-        onPointerCancel={() => {
-          swipeRef.current = null
-        }}
-      >
+      <div className={BOTTOM_SHEET.grip} aria-hidden="true" onPointerDown={onGripDown}>
         <span />
       </div>
-      <div className={BOTTOM_SHEET.head}>
+      <div
+        className={BOTTOM_SHEET.head}
+        onPointerDown={(e) => {
+          // Done is a button, not a handle.
+          if ((e.target as Element).closest('button')) return
+          onGripDown(e)
+        }}
+      >
         <h2 id={headingId} className={BOTTOM_SHEET.title}>
           {heading}
         </h2>

@@ -1,6 +1,6 @@
 // The reading posture this browser remembers: which panels the results area
-// opens with, which columns the table carries, in which order, and whether the
-// welcome modal has been seen.
+// opens with, which columns the table carries, in which order, whether a
+// desk's legend is folded, and whether the welcome modal has been seen.
 //
 // One module rather than the six inline reads App.tsx used to carry, because
 // every one of them re-parsed the same stored object behind its own try/catch
@@ -46,6 +46,7 @@ interface StoredView {
   columns8?: string[]
   modelColumn?: boolean
   columnOrder?: string[]
+  legendOpen?: boolean
 }
 
 export interface ViewPrefs {
@@ -57,6 +58,8 @@ export interface ViewPrefs {
   modelColumn: boolean | null
   /** The order columns were dragged into, or null for the automatic one. */
   columnOrder: readonly string[] | null
+  /** Whether a desk's legend card was last left open, or null while nobody has folded it (#696). */
+  legendOpen: boolean | null
 }
 
 function readStored(): StoredView {
@@ -137,6 +140,7 @@ export function readViewPrefs(): ViewPrefs {
     columns: storedColumns(stored),
     modelColumn: typeof stored.modelColumn === 'boolean' ? stored.modelColumn : null,
     columnOrder: Array.isArray(stored.columnOrder) ? stored.columnOrder : null,
+    legendOpen: typeof stored.legendOpen === 'boolean' ? stored.legendOpen : null,
   }
 }
 
@@ -156,6 +160,7 @@ export function writeViewPrefs(patch: Partial<ViewPrefs>): void {
     const stored = readStored()
     if ('modeChosen' in patch) stored.modeChosen = patch.modeChosen ?? undefined
     if ('modelColumn' in patch) stored.modelColumn = patch.modelColumn ?? undefined
+    if ('legendOpen' in patch) stored.legendOpen = patch.legendOpen ?? undefined
     if ('columnOrder' in patch) {
       stored.columnOrder = patch.columnOrder ? [...patch.columnOrder] : undefined
     }

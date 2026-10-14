@@ -369,7 +369,11 @@ export const STYLES = [
     name: 'style-map-legend-column',
     files: ['src/components/MapLegend.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 1, message: 'The legend box wears MAP_COL_W.' },
+      // The Legend button and the card that unfurls out of it (#696, record
+      // 0134's join): one width, and the join worn by both.
+      { selector: interp('MAP_COL_W'), count: 2, message: 'The Legend button and its card wear MAP_COL_W.' },
+      { selector: interp('UNFURLED.below'), count: 1, message: 'The legend card unfurls from its button with UNFURLED.below.' },
+      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Legend button wears UNFURL_ANCHOR.' },
       { selector: interp('MAP_COL_GAP.gap'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.gap.' },
       { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
     ],
@@ -639,9 +643,10 @@ export const STYLES = [
   {
     // Every notice renders in the one block under Analyze: a NOTICE box is
     // built in FooterNotice alone, which is rendered once, after the button.
-    // The block has one other home, a phone's map while the drawer is shut
-    // (#696; record 0140), which it reaches by one portal to the band the map
-    // hands up (`noticeHome`), so it is still rendered once, in one place.
+    // The block has one other home, a phone's map (#696; record 0140), which
+    // takes the whole of it, every line and its live region, by one portal
+    // to the band the map hands up (`noticeHome`), so it is still rendered
+    // once, in one place, and never split between the map and the sheet.
     name: 'style-footer-notice',
     files: [PANEL.footer],
     ban: [
@@ -664,7 +669,12 @@ export const STYLES = [
       {
         selector: 'CallExpression[callee.name="createPortal"][arguments.1.name="noticeHome"]',
         count: 1,
-        message: 'Portal the notice block to noticeHome once, for a phone with the drawer shut.',
+        message: 'Portal the notice block to noticeHome once, for a phone.',
+      },
+      {
+        selector: 'JSXAttribute[name.name="role"][value.value="status"]',
+        count: 1,
+        message: 'Draw one live region: a phone moves the whole block to the map.',
       },
       { selector: FOOTER_NOTICE, count: 1, message: 'Render FooterNotice in one place.' },
       { selector: after(ANALYZE, FOOTER_NOTICE), message: 'Render FooterNotice below the Analyze button.' },

@@ -8,12 +8,19 @@ import {
   factsRow,
   metaBand,
   metricGrid,
+  popupButton,
   popupShell,
   warningLine,
 } from './popupChrome'
 import { ColDef } from './tableColumns'
 import { popupGrid, popupGroups, popupIdentity } from './popupRows'
 import { FIRE_LINK_ZOOM, nifcFireUrl } from './wildfires'
+
+// The attribute the map handler finds a card's remove button by. Its own
+// rather than the clicked feature's, because the two buttons do different
+// things: this one records a removal from the report, the way the row's × does,
+// where that one unregisters a place the session added.
+export const RESULT_ACTION_ATTR = 'data-result-action'
 
 // Popup body shared by a marker click and a table-rank click (focusResult), so
 // the two never drift. The chrome around it — title, link, rule, row shape —
@@ -62,6 +69,10 @@ export function resultPopupHtml(d: {
   // carries so the reader lands on the view they were looking at (#712).
   // Optional for a card built with no map under it, which links without one.
   mapZoom?: number
+  // Whether the card carries `Remove from analysis`, which does what the
+  // row's × does (#696). It is how a finger removes a row: a phone's row tap
+  // opens this card, where the × beside the rank shows only on hover.
+  removable?: boolean
 }): string {
   const r = d.row
   const url = destinationUrl({
@@ -118,5 +129,8 @@ export function resultPopupHtml(d: {
   const body = grid.rows.length ? metricGrid(grid, { compact: d.compact }) : ''
 
   const title = `${d.rank ? `#${escapeHtml(String(d.rank))} ` : ''}${escapeHtml(r.name)}`
-  return popupShell(title, url, body, meta, { resultCard: true, warnings: [fire, closure].filter(Boolean) })
+  // The clicked feature's remove, in its words and its look (#712), so the
+  // one destination says "out" the same way before and after an analysis.
+  const action = d.removable ? popupButton(`${RESULT_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis') : ''
+  return popupShell(title, url, body, meta, { resultCard: true, warnings: [fire, closure].filter(Boolean), action })
 }

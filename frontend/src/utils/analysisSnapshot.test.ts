@@ -36,6 +36,11 @@ describe('analyzedView', () => {
     expect(view.windowSource).toBe(windowSource(startMs, endMs, NOW, FALLBACK_WINDOW_LIMITS))
   })
 
+  // The caption's "as of" is the commit's moment, not the window's start.
+  it('stamps the moment it committed', () => {
+    expect(view.asOfMs).toBe(NOW)
+  })
+
   it('records the custom destinations the request covered, by coordinate', () => {
     expect([...view.customKeys]).toEqual([geoKey(47.1, -121.2)])
   })

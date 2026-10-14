@@ -28,7 +28,7 @@ import { ringPolygon, ringToPts } from '../utils/drawGeometry'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import { createMapController, type MapInputs } from '../map/controller'
 import { STYLE } from '../map/basemap'
-import { addAttribution, addControls, placeLocate } from '../map/controls'
+import { addAttribution, addControls, placeControl, type MapControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
 import { watchBasemap } from '../map/basemapWatch'
@@ -183,6 +183,9 @@ interface Props {
   searchedPlaces: Place[]
   onAddPoi: (place: Place) => void
   onRemovePoi: (latitude: number, longitude: number) => void
+  // A ranked marker's card carries the row's remove (#696), so a finger that
+  // opened it from a row can take the row out from there.
+  onRemoveResult: (row: DestinationResult) => void
   // How much of the container's bottom edge the results sheet stands on, which
   // every framing move below has to leave empty (#249). On a phone the map
   // keeps the whole column and the sheet is over it, so a fit measured into the
@@ -209,6 +212,9 @@ interface Props {
   // library's top-right corner. A DOM node held in state, so it is one
   // identity for as long as the slot is mounted.
   locateSlot: HTMLElement | null
+  // The slot at the right end of a phone's chip row, under the locate button,
+  // which the compass stands in (record 0147), or null at a desk's width.
+  compassSlot: HTMLElement | null
 }
 
 // A search result frames at least this much map around the hit; features with
@@ -254,12 +260,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
       searchedPlaces,
       onAddPoi,
       onRemovePoi,
+      onRemoveResult,
       cameraPadBottomPx,
       restoredView,
       onCameraMove,
       onBasemapFailed,
       maxPolygonPoints,
       locateSlot,
+      compassSlot,
     },
     ref,
   ) => {
@@ -268,9 +276,9 @@ const MapView = forwardRef<MapViewHandle, Props>(
     const isDesktop = useIsDesktop()
     const containerRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<maplibregl.Map | null>(null)
-    // The library's locate button, which a phone's width stands beside the
-    // search pill (`placeLocate`).
-    const locateRef = useRef<maplibregl.GeolocateControl | null>(null)
+    // The library's locate button and its zoom and compass group, which a
+    // phone's width stands at the right of its two rows (`placeControl`).
+    const controlsRef = useRef<MapControls | null>(null)
     const loadedRef = useRef(false)
     const ptsRef = useRef<[number, number][]>([])
     // The ring a `?poly=` link opened with. A ref rather than a mount-time
@@ -317,6 +325,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       searchedPlaces,
       onAddPoi,
       onRemovePoi,
+      onRemoveResult,
       cameraPadBottomPx,
       onCameraMove,
       maxPolygonPoints,
@@ -572,7 +581,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       mapRef.current = map
       // Read once, like the attribution's `compact`: a pointer does not turn
       // coarse under a session, where a window does change width.
-      locateRef.current = addControls(map, window.matchMedia('(hover: none)').matches)
+      controlsRef.current = addControls(map, window.matchMedia('(hover: none)').matches)
       // Before `load`: a style that fails never gets there.
       const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
 
@@ -652,14 +661,19 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // identity changed, losing the camera and every layer with it.
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-    // The locate button follows its slot: into the pill's row while a phone's
-    // rows are up, back to the library's corner when they go. After the map
-    // is built, which an effect declared above this one has done.
+    // The locate button and the compass follow their slots: into the rows
+    // while a phone's rows are up, back to the library's corner when they go.
+    // After the map is built, which an effect declared above these has done.
     useEffect(() => {
       const map = mapRef.current
-      const locate = locateRef.current
-      if (map && locate) placeLocate(map, locate, locateSlot)
+      const controls = controlsRef.current
+      if (map && controls) placeControl(map, controls.locate, locateSlot)
     }, [locateSlot])
+    useEffect(() => {
+      const map = mapRef.current
+      const controls = controlsRef.current
+      if (map && controls) placeControl(map, controls.nav, compassSlot, true)
+    }, [compassSlot])
 
     // The attribution at the sheet's own breakpoint rather than the library's
     // 640px: between the two the map is wide enough for the line but the

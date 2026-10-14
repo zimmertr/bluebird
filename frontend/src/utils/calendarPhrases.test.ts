@@ -41,7 +41,13 @@ describe('saying what is selected', () => {
   it('captions the current hour by when it was taken, and a window by what it covers', () => {
     expect(
       windowCaption('now', localMs('2026-07-15T12:34'), localMs('2026-07-15T12:34'), true, NOW),
-    ).toBe('as of 12:34 PM')
+    ).toBe('as of 12:34:00 PM')
+    // The commit's own moment, to the second (TJ, 2026-10-14): a run a few
+    // seconds after the last, which reused every forecast, still moves it.
+    const at = localMs('2026-07-15T12:34') + 17_000
+    expect(
+      windowCaption('now', localMs('2026-07-15T12:34'), localMs('2026-07-15T12:34'), true, NOW, at),
+    ).toBe('as of 12:34:17 PM')
     expect(
       windowCaption('days', localMs('2026-07-15T00:00'), localMs('2026-07-19T23:59'), false, NOW),
     ).toBe('Wed, Jul 15 to Sun, Jul 19')

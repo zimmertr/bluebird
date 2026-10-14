@@ -1,15 +1,58 @@
 import { describe, expect, it, vi } from 'vitest'
 
-// MapLibre's controls need a DOM. These record what they were built with.
-// Hoisted, because `vi.mock` runs before the imports.
+// MapLibre's controls need a DOM. These record what they were built with, and
+// carry the few members of the library's markup the module dresses: each
+// control's container and the buttons in it, by class. Hoisted, because
+// `vi.mock` runs before the imports.
+const { fakeElement } = vi.hoisted(() => {
+  type Fake = {
+    classes: Set<string>
+    classList: { add: (...c: string[]) => void; toggle: (c: string, on: boolean) => void; remove: (c: string) => void }
+    buttons: Fake[]
+    querySelectorAll: (selector: string) => Fake[]
+    querySelector: (selector: string) => Fake | null
+  }
+  const fakeElement = (...initial: string[]): Fake => {
+    const classes = new Set(initial)
+    const el: Fake = {
+      classes,
+      classList: {
+        add: (...c) => c.forEach((x) => classes.add(x)),
+        toggle: (c, on) => void (on ? classes.add(c) : classes.delete(c)),
+        remove: (c) => void classes.delete(c),
+      },
+      buttons: [],
+      querySelectorAll: (selector) => (selector === 'button' ? el.buttons : []),
+      querySelector: (selector) => el.buttons.find((b) => b.classes.has(selector.replace(/^\./, ''))) ?? null,
+    }
+    return el
+  }
+  return { fakeElement }
+})
 vi.mock('maplibre-gl', () => {
   class Control {
+    _container = fakeElement()
     constructor(public options: Record<string, unknown> = { customAttribution: 'MapLibre' }) {}
   }
   return {
-    AttributionControl: class extends Control {},
-    GeolocateControl: class extends Control {},
-    NavigationControl: class extends Control {},
+    AttributionControl: class extends Control {
+      _compactButton = fakeElement('maplibregl-ctrl-attrib-button')
+    },
+    GeolocateControl: class extends Control {
+      constructor(options?: Record<string, unknown>) {
+        super(options)
+        this._container.buttons = [fakeElement('maplibregl-ctrl-geolocate')]
+      }
+    },
+    NavigationControl: class extends Control {
+      constructor(options: Record<string, unknown>) {
+        super(options)
+        this._container.buttons = [
+          ...(options.showZoom ? [fakeElement('maplibregl-ctrl-zoom-in'), fakeElement('maplibregl-ctrl-zoom-out')] : []),
+          fakeElement('maplibregl-ctrl-compass'),
+        ]
+      }
+    },
     ScaleControl: class extends Control {},
   }
 })
@@ -21,15 +64,17 @@ import {
   SCALE_MAX_WIDTH_PX,
   addAttribution,
   addControls,
-  hideCompassWhileNorthUp,
-  placeLocate,
+  placeControl,
   withOpenMeteo,
 } from './controls'
+import { MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
+
+type Fake = ReturnType<typeof fakeElement>
+const roleOf = (role: string) => role.split(/\s+/).filter(Boolean)
 
 function stub() {
   const added: [string, unknown, string][] = []
   const removed: string[] = []
-  const classes = new Set<string>()
   const handlers: Record<string, () => void> = {}
   const camera = { bearing: 0, pitch: 0 }
   const map = {
@@ -38,9 +83,6 @@ function stub() {
       added.push([Object.getPrototypeOf(control).constructor.name, control, at]),
     getContainer: () => ({
       querySelector: () => ({ classList: { remove: (c: string) => removed.push(c) } }),
-      classList: {
-        toggle: (c: string, on: boolean) => (on ? classes.add(c) : classes.delete(c)),
-      },
     }),
     getBearing: () => camera.bearing,
     getPitch: () => camera.pitch,
@@ -48,17 +90,20 @@ function stub() {
       handlers[event] = fn
     },
   }
-  return { map: map as unknown as maplibregl.Map, added, removed, boxZoom: map.boxZoom, classes, handlers, camera }
+  return { map: map as unknown as maplibregl.Map, added, removed, boxZoom: map.boxZoom, handlers, camera }
 }
+
+const buttonsOf = (control: unknown) => (control as { _container: Fake })._container.buttons
 
 describe('addControls', () => {
   it('spends shift on pinning rather than box zoom, and puts each control in its corner', () => {
     const { map, added, boxZoom } = stub()
-    const locate = addControls(map, false)
+    const { locate, nav } = addControls(map, false)
     expect(boxZoom.disable).toHaveBeenCalledTimes(1)
     expect(added.map(([, , at]) => at)).toEqual(['top-right', 'top-right', 'bottom-left'])
     expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: true })
-    // The locate button it hands back, for a phone's row to stand it in.
+    // The two it hands back, for a phone's rows to stand them in.
+    expect(nav).toBe(added[0][1])
     expect(locate).toBe(added[1][1])
   })
 
@@ -68,6 +113,20 @@ describe('addControls', () => {
     const { map, added } = stub()
     addControls(map, true)
     expect((added[0][1] as { options: Record<string, unknown> }).options).toEqual({ showZoom: false })
+  })
+
+  // The app's map button on every button the library drew (record 0147): the
+  // zoom pair, the compass and the locate button, at both widths.
+  it('dresses every map button in the app\'s round button', () => {
+    for (const touch of [false, true]) {
+      const { map } = stub()
+      const { locate, nav } = addControls(map, touch)
+      const buttons = [...buttonsOf(nav), ...buttonsOf(locate)]
+      expect(buttons).toHaveLength(touch ? 2 : 4)
+      for (const button of buttons) {
+        for (const c of roleOf(MAP_ROUND_BUTTON)) expect(button.classes.has(c), c).toBe(true)
+      }
+    }
   })
 
   // Stated rather than defaulted, because map.css keeps the attribution clear
@@ -80,36 +139,34 @@ describe('addControls', () => {
   })
 })
 
-describe('hideCompassWhileNorthUp', () => {
+describe('the compass while north-up', () => {
+  // On the button itself, since a phone stands it outside the map's
+  // container (record 0147).
   it('hides the compass while north-up and flat, and shows it once either moves', () => {
-    const { map, classes, handlers, camera } = stub()
-    hideCompassWhileNorthUp(map)
-    expect(classes.has(COMPASS_IDLE_CLASS)).toBe(true)
+    const { map, handlers, camera } = stub()
+    const { nav } = addControls(map, true)
+    const compass = buttonsOf(nav)[0]
+    expect(compass.classes.has('maplibregl-ctrl-compass')).toBe(true)
+    expect(Object.keys(handlers).sort()).toEqual(['pitch', 'rotate'])
+    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(true)
 
     camera.bearing = 12
     handlers.rotate()
-    expect(classes.has(COMPASS_IDLE_CLASS)).toBe(false)
+    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(false)
 
     camera.bearing = 0
     handlers.rotate()
-    expect(classes.has(COMPASS_IDLE_CLASS)).toBe(true)
+    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(true)
 
     camera.pitch = 30
     handlers.pitch()
-    expect(classes.has(COMPASS_IDLE_CLASS)).toBe(false)
+    expect(compass.classes.has(COMPASS_IDLE_CLASS)).toBe(false)
   })
 
   // The hiding is map.css's, since the compass is the library's markup;
   // styles.test.ts, which reads that file, holds the rule to this name.
   it('names the class map.css hides the compass under', () => {
     expect(COMPASS_IDLE_CLASS).toBe('compass-idle')
-  })
-
-  it('is what addControls wires up beside the zoom buttons', () => {
-    const { map, classes, handlers } = stub()
-    addControls(map, false)
-    expect(Object.keys(handlers).sort()).toEqual(['pitch', 'rotate'])
-    expect(classes.has(COMPASS_IDLE_CLASS)).toBe(true)
   })
 })
 
@@ -123,6 +180,16 @@ describe('addAttribution', () => {
     expect(removed).toEqual(['maplibregl-compact-show'])
   })
 
+  // The app's chrome on the line and its (i) (record 0147), at both widths.
+  it('dresses the line as the floating box and its (i) as a round button', () => {
+    for (const compact of [true, false]) {
+      const { map } = stub()
+      const control = addAttribution(map, compact) as unknown as { _container: Fake; _compactButton: Fake }
+      for (const c of roleOf(MAP_CREDIT.card)) expect(control._container.classes.has(c), c).toBe(true)
+      for (const c of roleOf(MAP_CREDIT.button)) expect(control._compactButton.classes.has(c), c).toBe(true)
+    }
+  })
+
   // The same line at a desk, spelled out rather than folded.
   it('carries the Open-Meteo credit spelled out as well as compact', () => {
     const { map, added } = stub()
@@ -132,22 +199,44 @@ describe('addAttribution', () => {
   })
 })
 
-// The library's own locate button, moved rather than rebuilt (#696): into a
-// phone's slot beside the search pill, and back to the top-right corner.
-describe('placeLocate', () => {
-  // No DOM in this project, so the three boxes are the few members the move
-  // reads: where the button stands, and an append that moves it.
-  type Box = { parentElement: Box | null; appendChild: (child: Box) => void }
+// The library's own controls, moved rather than rebuilt (#696): into a
+// phone's slots at the right of its rows, and back to the top-right corner,
+// the zoom and compass group first.
+describe('placeControl', () => {
+  // No DOM in this project, so the boxes are the few members the move reads:
+  // where a control stands, and an append and a prepend that move it.
+  type Box = {
+    parentElement: Box | null
+    children: Box[]
+    appendChild: (child: Box) => void
+    prepend: (child: Box) => void
+  }
   const box = (): Box => {
-    const b: Box = { parentElement: null, appendChild: (child) => void (child.parentElement = b) }
+    const b: Box = {
+      parentElement: null,
+      children: [],
+      appendChild: (child) => {
+        child.parentElement?.children.splice(child.parentElement.children.indexOf(child), 1)
+        child.parentElement = b
+        b.children.push(child)
+      },
+      prepend: (child) => {
+        child.parentElement?.children.splice(child.parentElement.children.indexOf(child), 1)
+        child.parentElement = b
+        b.children.unshift(child)
+      },
+    }
     return b
   }
 
-  it('stands the button in the slot and back in the corner', () => {
+  it('stands each control in its slot and back in the corner, in its place there', () => {
     const corner = box()
-    const slot = box()
-    const element = box()
-    corner.appendChild(element)
+    const locateSlot = box()
+    const compassSlot = box()
+    const navEl = box()
+    const locateEl = box()
+    corner.appendChild(navEl)
+    corner.appendChild(locateEl)
     const selectors: string[] = []
     const map = {
       getContainer: () => ({
@@ -157,12 +246,16 @@ describe('placeLocate', () => {
         },
       }),
     } as unknown as maplibregl.Map
-    const locate = { _container: element } as unknown as maplibregl.GeolocateControl
-    placeLocate(map, locate, slot as unknown as HTMLElement)
-    expect(element.parentElement).toBe(slot)
-    placeLocate(map, locate, null)
-    expect(element.parentElement).toBe(corner)
-    expect(selectors).toEqual(['.maplibregl-ctrl-top-right'])
+    const locate = { _container: locateEl } as unknown as maplibregl.GeolocateControl
+    const nav = { _container: navEl } as unknown as maplibregl.NavigationControl
+    placeControl(map, locate, locateSlot as unknown as HTMLElement)
+    placeControl(map, nav, compassSlot as unknown as HTMLElement, true)
+    expect(locateEl.parentElement).toBe(locateSlot)
+    expect(navEl.parentElement).toBe(compassSlot)
+    placeControl(map, locate, null)
+    placeControl(map, nav, null, true)
+    expect(corner.children).toEqual([navEl, locateEl])
+    expect(selectors).toEqual(['.maplibregl-ctrl-top-right', '.maplibregl-ctrl-top-right'])
   })
 })
 

@@ -36,6 +36,9 @@ interface Props {
   onEnd: () => void
 }
 
+/** The root's attribute while a tour runs, which hides every scroll shadow (`index.css`). */
+const TOURING_ATTR = 'data-touring'
+
 /** How long after a step change the spotlight and the card animate, unless a scroll ends it sooner. */
 const MOTION_MS = 250
 
@@ -175,6 +178,17 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // its one key Delete and a reader who tried it expected a step back (TJ,
   // 2026-09-29). Enter and Space on a focused button are the button's own,
   // or Previous would step back and then forward.
+  // The scroll shadows stand down while the tour runs (#696): a shade is a
+  // sticky strip over the scroller's own content, so the spotlight's hole
+  // showed it lying across the top of the section it lit (the Forecast step,
+  // on a phone's Controls sheet). The hole lights what is there, and a shade
+  // that says "more above" says nothing a reader being shown one control can
+  // use. One attribute on the root, which `index.css` reads.
+  useEffect(() => {
+    document.documentElement.setAttribute(TOURING_ATTR, '')
+    return () => document.documentElement.removeAttribute(TOURING_ATTR)
+  }, [])
+
   const handlers = useRef({ onNext, onPrev, onEnd })
   handlers.current = { onNext, onPrev, onEnd }
   useEffect(() => {

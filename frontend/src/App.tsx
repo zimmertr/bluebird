@@ -55,7 +55,8 @@ import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useDrawer } from './hooks/useDrawer'
 import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
-import { controlsSheetPx } from './utils/resultsSheet'
+import { controlsFullPx, controlsSheetPx } from './utils/resultsSheet'
+import { useHeldSheetPx } from './hooks/useHeldSheetPx'
 import {
   LAYER,
   SURFACE_PAGE,
@@ -156,6 +157,9 @@ export default function App() {
   // (record 0141). It starts open on a desktop and closed on a phone
   // (`useDrawer`, #696); a close button collapses it to widen the map.
   const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
+  // A phone's Controls sheet under a drag on its grip (record 0146): the height
+  // the drag left it at, or null for its own share of the map.
+  const [controlsHeldPx, setControlsHeldPx] = useHeldSheetPx(sidebarOpen)
   // The band on a phone's map that holds the panel's notices that ask for an
   // action (record 0140). State, so the panel hears it arrive.
   const [noticeBand, setNoticeBand] = useState<HTMLDivElement | null>(null)
@@ -577,7 +581,10 @@ export default function App() {
       <AppDrawer
         open={sidebarOpen}
         isDesktop={isDesktop}
-        sheetPx={controlsSheetPx(layout.mapPx)}
+        sheetPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
+        sheetRestPx={controlsSheetPx(layout.mapPx)}
+        sheetFullPx={controlsFullPx(layout.mapPx)}
+        onSheetPx={setControlsHeldPx}
         onClose={closeDrawer}
         drawMode={drawMode}
         destinationInputs={destinationInputs}
@@ -641,6 +648,8 @@ export default function App() {
           modelId={analyzed?.forecastModel ?? forecastModel}
           showResults={showResults}
           sidebarOpen={sidebarOpen}
+          controlsPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
+          legendInitiallyOpen={storedView.legendOpen ?? true}
           onOpenControls={openDrawer}
           onCloseControls={closeDrawer}
           controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}

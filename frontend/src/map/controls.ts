@@ -5,10 +5,14 @@
  * `touch` is a coarse pointer (`(hover: none)`, the query the app's `touch`
  * variant compiles to), read once when the map is built. On one (#696) the
  * zoom buttons go, because a pinch zooms. The compass stays, shown only while
- * the map is turned or tilted. On a phone's width the locate button leaves the
- * library's corner for the slot at the right of the search pill: `MapView`
- * moves the control `addControls` returns there (`placeLocate`), and back
- * when the width becomes a desk's.
+ * the map is turned or tilted. On a phone's width the locate button and the
+ * compass leave the library's corner for the slots at the right of the two
+ * rows: `MapView` moves the controls `addControls` returns there
+ * (`placeControl`), and back when the width becomes a desk's.
+ *
+ * Every button wears the app's map button (`MAP_ROUND_BUTTON`, record 0147)
+ * and the credit line the app's floating box (`MAP_CREDIT`): the markup is the
+ * library's, so the roles are handed to it here, where it is made.
  */
 import {
   AttributionControl,
@@ -17,8 +21,26 @@ import {
   ScaleControl,
 } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
+import { MAP_CREDIT, MAP_ROUND_BUTTON } from '../styles'
 
-export function addControls(map: maplibregl.Map, touch: boolean): GeolocateControl {
+/** The two controls `MapView` stands in a phone's slots. */
+export interface MapControls {
+  locate: GeolocateControl
+  /** The zoom pair and the compass, or the compass alone on a coarse pointer. */
+  nav: NavigationControl
+}
+
+/** Hands a role to markup the library made, one class at a time. */
+function dress(element: Element | null | undefined, role: string): void {
+  element?.classList.add(...role.split(/\s+/).filter(Boolean))
+}
+
+/** Every button a control drew, in the app's map button. */
+function dressButtons(container: HTMLElement | undefined): void {
+  container?.querySelectorAll('button').forEach((button) => dress(button, MAP_ROUND_BUTTON))
+}
+
+export function addControls(map: maplibregl.Map, touch: boolean): MapControls {
   // Shift is the pinning modifier for popups (`isPinning` in map/popups.ts), and
   // MapLibre spends shift on box zoom by default — it starts a drag-zoom on
   // shift+mousedown and swallows the click that would have opened one. Box
@@ -26,14 +48,17 @@ export function addControls(map: maplibregl.Map, touch: boolean): GeolocateContr
   // +/- buttons and a pinch all do the same job, so the modifier is better
   // spent on something the panel actually tells you about.
   map.boxZoom.disable()
-  map.addControl(new NavigationControl({ showZoom: !touch }), 'top-right')
-  hideCompassWhileNorthUp(map)
+  const nav = new NavigationControl({ showZoom: !touch })
+  map.addControl(nav, 'top-right')
+  dressButtons(nav._container)
+  hideCompassWhileNorthUp(map, nav._container)
   // MapLibre's own geolocate button, not a hand-rolled control: it wears
   // the same chrome as the zoom and compass buttons above it, and its
   // permission/error/busy states come with the library instead of being
   // re-implemented badly. Nothing asks for location until it is pressed.
   const locate = new GeolocateControl({ positionOptions: { enableHighAccuracy: true } })
   map.addControl(locate, 'top-right')
+  dressButtons(locate._container)
   // A corner each, which is what lets both sit in the one band the map's
   // bottom chrome reserves (`TRANSPORT_GAP_PX` in `utils/resultsSheet.ts`)
   // rather than stacking into two. The scale takes the left, under the
@@ -42,23 +67,30 @@ export function addControls(map: maplibregl.Map, touch: boolean): GeolocateContr
   // shared the right corner before, the scale floating above the licence
   // line, which made the pair as tall as both together.
   map.addControl(new ScaleControl({ maxWidth: SCALE_MAX_WIDTH_PX }), 'bottom-left')
-  return locate
+  return { locate, nav }
 }
 
 /**
- * Stands the locate button in `slot`, or back in the library's top-right
- * corner when there is none (a desk's width). The control's own element is
- * moved rather than a second button built, so its states and its permission
- * prompt stay the library's; the library keeps its handle on the element
- * wherever it stands, and removes it from wherever it is when the map goes.
- * Appended last in the corner, where `addControls` put it, under the zoom
- * and compass group.
+ * Stands a control in `slot`, or back in the library's top-right corner when
+ * there is none (a desk's width). The control's own element is moved rather
+ * than a second button built, so its states and its permission prompt stay
+ * the library's; the library keeps its handle on the element wherever it
+ * stands, and removes it from wherever it is when the map goes. Back in the
+ * corner it takes the place `addControls` gave it: the zoom and compass
+ * group first, the locate button after it (`first`).
  */
-export function placeLocate(map: maplibregl.Map, locate: GeolocateControl, slot: HTMLElement | null): void {
-  const element = locate._container
+export function placeControl(
+  map: maplibregl.Map,
+  control: GeolocateControl | NavigationControl,
+  slot: HTMLElement | null,
+  first = false,
+): void {
+  const element = control._container
   if (!element) return
   const home = slot ?? map.getContainer().querySelector('.maplibregl-ctrl-top-right')
-  if (home && element.parentElement !== home) home.appendChild(element)
+  if (!home || element.parentElement === home) return
+  if (first && !slot) home.prepend(element)
+  else home.appendChild(element)
 }
 
 /**
@@ -70,8 +102,10 @@ export function placeLocate(map: maplibregl.Map, locate: GeolocateControl, slot:
 export const SCALE_MAX_WIDTH_PX = 100
 
 /**
- * The class `map.css` hides the compass under, set on the map's container
- * while the map is north-up and flat (#687). Exported so the test names the
+ * The class `map.css` hides the compass under, set on the compass button
+ * itself while the map is north-up and flat (#687). On the button rather than
+ * on the map's container, because on a phone the button stands outside the
+ * container, in the chip row (record 0147). Exported so the test names the
  * same class the stylesheet does.
  */
 export const COMPASS_IDLE_CLASS = 'compass-idle'
@@ -81,14 +115,13 @@ export const COMPASS_IDLE_CLASS = 'compass-idle'
  * resets the bearing and the pitch, so at bearing 0 and pitch 0 it is a button
  * with no effect standing in the corner, and it shows again the moment a
  * rotate or a tilt gives it one. The library has no option for this, so the
- * container carries a class and `map.css` does the hiding: the markup is the
+ * button carries a class and `map.css` does the hiding: the markup is the
  * library's, and a stylesheet is the one place that reaches it.
  */
-export function hideCompassWhileNorthUp(map: maplibregl.Map): void {
-  const sync = () =>
-    map
-      .getContainer()
-      .classList.toggle(COMPASS_IDLE_CLASS, map.getBearing() === 0 && map.getPitch() === 0)
+export function hideCompassWhileNorthUp(map: maplibregl.Map, container: HTMLElement | undefined): void {
+  const compass = container?.querySelector('.maplibregl-ctrl-compass')
+  if (!compass) return
+  const sync = () => compass.classList.toggle(COMPASS_IDLE_CLASS, map.getBearing() === 0 && map.getPitch() === 0)
   map.on('rotate', sync)
   map.on('pitch', sync)
   sync()
@@ -136,6 +169,10 @@ export function addAttribution(map: maplibregl.Map, compact: boolean): Attributi
   // A compact credit stands beside the scale at the bottom left on a phone
   // (#696), so the right of the map's foot is map (`map.css`).
   map.addControl(control, compact ? 'bottom-left' : 'bottom-right')
+  // The app's chrome (record 0147): the line on the floating box, its (i) a
+  // round dark button. `map.css` takes the box off a folded line.
+  dress(control._container, MAP_CREDIT.card)
+  dress(control._compactButton, MAP_CREDIT.button)
   // The library adds a compact attribution OPEN and folds it on the first
   // drag (maplibre-gl 6.8, `_updateCompact` and `_updateCompactMinimize`
   // in attribution_control.ts), so until the reader moved the map the

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { useId, type ComponentProps } from 'react'
 import MapLegend, { LegendSections, legendSections, type LegendInputs } from './MapLegend'
 import { render } from '../testSupport/render'
 import { rankedScale } from '../utils/colors'
 import { SMOKE_DENSITIES } from '../utils/smoke'
+import { readViewPrefs } from '../utils/viewPrefs'
 
 const NONE = {
   showWildfires: false,
@@ -32,6 +33,7 @@ const BASE = {
   sidebarOpen: true,
   sheetLiftPx: 0,
   timelineShown: false,
+  initiallyOpen: true,
 }
 // The box as a desk draws it, from the inputs every surface reads: the
 // sections are `legendSections`' since #696, which a phone's Legend sheet
@@ -42,9 +44,14 @@ function Legend(props: LegendInputs & Omit<ComponentProps<typeof MapLegend>, 'se
 }
 
 describe('MapLegend', () => {
-  it('draws nothing when nothing on the map is coloured or switched on', () => {
+  // The button stays and greys, the way a phone's chip does (#696), so the
+  // column keeps one shape; there is no card to unfold.
+  it('greys its button and draws no card when nothing on the map is coloured or switched on', () => {
     const { container } = render(<Legend {...BASE} />)
-    expect(container.innerHTML).toBe('')
+    const button = screen.getByRole('button', { name: 'Legend' }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(button.getAttribute('aria-expanded')).toBe('false')
+    expect(container.textContent).toBe('Legend')
   })
 
   // Alphabetical by what each section reads, the metric key included.
@@ -78,9 +85,9 @@ describe('MapLegend', () => {
 
   // The markers alone are no reason for a box when their key is the one
   // section they would have brought: an empty box reads as a fault.
-  it('draws nothing when the ranked metric has no value and no layer is on', () => {
+  it('draws no card when the ranked metric has no value and no layer is on', () => {
     const { container } = render(<Legend {...BASE} hasColoredMarkers rankedFieldHasValue={false} />)
-    expect(container.innerHTML).toBe('')
+    expect(container.textContent).toBe('Legend')
   })
 
   // Every ranking paints since snowfall replaced snow depth (#678), the one
@@ -134,5 +141,35 @@ describe('legendSections', () => {
     const { container } = render(<LegendSections sections={sections} />)
     expect(container.children).toHaveLength(3)
     expect(container.textContent).toContain('Smoke')
+  })
+})
+
+// A desk's legend is a button in the map's column with its card unfurled out
+// of it (#696; record 0134's join), open until the reader folds it, and
+// folded or open again on the next visit.
+describe('the desk\'s Legend button', () => {
+  it('unfurls the card out of the button, open by default', () => {
+    render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
+    const button = screen.getByRole('button', { name: 'Legend' })
+    expect(button.getAttribute('aria-expanded')).toBe('true')
+    expect(button.getAttribute('data-unfurled')).toBe('below')
+    expect(button.nextElementSibling!.textContent).toContain('Smoke')
+  })
+
+  it('folds and unfolds on a press, and remembers which', () => {
+    render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
+    expect(screen.queryByText(/Smoke/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Legend' }).getAttribute('data-unfurled')).toBeNull()
+    expect(readViewPrefs().legendOpen).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Legend' }))
+    expect(screen.getByText(/Smoke/)).toBeTruthy()
+    expect(readViewPrefs().legendOpen).toBe(true)
+  })
+
+  it('opens folded when the reader left it folded', () => {
+    render(<Legend {...BASE} overlays={SMOKE_AND_RADAR} initiallyOpen={false} />)
+    expect(screen.getByRole('button', { name: 'Legend' }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText(/Smoke/)).toBeNull()
   })
 })

@@ -105,6 +105,21 @@ describe('the forecast reuse', () => {
   })
 })
 
+// Every committed run moves the report's "as of" (TJ, 2026-10-14), one that
+// reused every forecast it held included: two presses a few seconds apart
+// used to show the same minute, and the app looked as if it had not heard
+// the second.
+describe('the report\'s stamp', () => {
+  it('moves on every commit, a full reuse included', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    await analyzeAt(result, T0)
+    expect(result.current.analyzed?.asOfMs).toBe(T0)
+    await analyzeAt(result, T0 + 3_000)
+    expect(reuses()[1]).not.toBeNull()
+    expect(result.current.analyzed?.asOfMs).toBe(T0 + 3_000)
+  })
+})
+
 describe('one analysis', () => {
   it('commits the report, counts it once, and publishes the fire field once', async () => {
     const { result } = renderHook(() => useAnalyze())

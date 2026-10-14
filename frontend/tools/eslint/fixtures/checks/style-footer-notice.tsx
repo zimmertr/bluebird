@@ -1,6 +1,6 @@
 // Must trip: a notice box outside FooterNotice, a status colour in the footer
-// body, no FooterNotice at all, and a portal to somewhere other than the
-// phone's band.
+// body, no FooterNotice at all, no live region, and a portal to somewhere
+// other than the phone's band.
 export default function PanelFooter() {
   return (
     <div>

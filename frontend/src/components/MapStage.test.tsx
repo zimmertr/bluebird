@@ -71,6 +71,7 @@ vi.mock('./PhoneMapRows', () => ({
   default: (props: {
     onOpenControls: () => void
     onLocateSlot: (slot: HTMLDivElement | null) => void
+    onCompassSlot: (slot: HTMLDivElement | null) => void
     controlsSummary: string
     legend: readonly unknown[]
     layers: ReactNode
@@ -81,6 +82,7 @@ vi.mock('./PhoneMapRows', () => ({
       data-legend={String(props.legend.length)}
     >
       <div data-testid="locate" ref={props.onLocateSlot} />
+      <div data-testid="compass" ref={props.onCompassSlot} />
       {props.layers}
     </div>
   ),
@@ -152,7 +154,7 @@ const DRAW: MapStageProps['drawMode'] = {
   finishDrawing: NOOP,
   handleCancelDrawing: NOOP,
 }
-const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP }
+const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP, removeResult: NOOP }
 const MAP_REF = createRef<MapViewHandle>()
 const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
 const ON_BASEMAP_FAILED = (_failed: boolean) => {}
@@ -180,6 +182,8 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     modelId: 'gfs_seamless',
     showResults: true,
     sidebarOpen: true,
+    controlsPx: 540,
+    legendInitiallyOpen: true,
     urlSync: URL_SYNC,
     restoredView: null,
     onBasemapFailed: ON_BASEMAP_FAILED,
@@ -307,7 +311,7 @@ describe('MapStage', () => {
     const flyToPlace = vi.fn()
     const registerPlace = vi.fn()
     const mapRef = { current: { flyToPlace } as unknown as MapViewHandle }
-    render(<MapStage {...props({ mapRef, removals: { registerPlace } })} />)
+    render(<MapStage {...props({ mapRef, removals: { registerPlace, removeResult: NOOP } })} />)
     fireEvent.click(screen.getByRole('button', { name: 'Pick' }))
     expect(flyToPlace).toHaveBeenCalledWith(PLACE, 300)
     expect(registerPlace).toHaveBeenCalledWith(PLACE)
@@ -334,8 +338,10 @@ describe('MapStage', () => {
     const { rerender } = render(<MapStage {...props()} />)
     // The metric key over coloured markers, and the three layers that are on.
     expect(screen.getByTestId('legend').dataset.sections).toBe('4')
+    // A phone draws no legend on its map, not even the desk's button: its key
+    // is the Legend sheet's.
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
-    expect(screen.getByTestId('legend').dataset.sections).toBe('0')
+    expect(screen.queryByTestId('legend')).toBeNull()
     expect(screen.getByTestId('rows').dataset.legend).toBe('4')
   })
 
@@ -345,8 +351,11 @@ describe('MapStage', () => {
     seen.mapView.length = 0
     const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBe(screen.getByTestId('locate'))
+    // And the compass's, under it (record 0147).
+    expect(seen.mapView[seen.mapView.length - 1].compassSlot).toBe(screen.getByTestId('compass'))
     rerender(<MapStage {...props()} />)
     expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBeNull()
+    expect(seen.mapView[seen.mapView.length - 1].compassSlot).toBeNull()
   })
 
   // On a phone the vendor's stack, the compass alone there, starts under the
@@ -419,9 +428,13 @@ describe('MapStage', () => {
   // results: the button stands on whichever edge is higher while it is up.
   it('rides the Controls sheet while it is up', () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
-    const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: true, layout })} />)
-    expect(screen.getByTestId('foot').dataset.lift).toBe(String(controlsSheetPx(800)))
-    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout })} />)
+    const controlsPx = controlsSheetPx(800)
+    const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: true, controlsPx, layout })} />)
+    expect(screen.getByTestId('foot').dataset.lift).toBe(String(controlsPx))
+    // Wherever a drag on its grip leaves it (record 0146).
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: true, controlsPx: 300, layout })} />)
+    expect(screen.getByTestId('foot').dataset.lift).toBe('300')
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, controlsPx, layout })} />)
     expect(screen.getByTestId('foot').dataset.lift).toBe('104')
   })
 
