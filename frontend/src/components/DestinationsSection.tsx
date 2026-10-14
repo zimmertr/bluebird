@@ -200,42 +200,44 @@ export default function DestinationsSection({
           phrase restated its own helper line. Last since #687, so the two
           full-width inputs above it stand together. */}
       <div>
-        {/* The area stands on the subheading's line, right-justified on its
-            baseline, to give the section a line back (#687). The area and
-            not the counter, because only the area fits beside the subheading
-            in every case at 360px: there the line has 239.6px beside
-            `Polygon` (295px of content, 47.4px of subheading, the 8px gap),
-            the area at most 205.4px (`~51,000,000 km² (max 100,000 km²)`)
-            and the counter up to 250.5px (`1000 points placed. Press Done
-            when ready.`), all at 12px on a Mac. */}
-        <div className="flex items-baseline justify-between gap-2 mb-1.5">
-          <h3 className={TEXT.subheading}>Polygon</h3>
-          {drawPointCount > 0 && polygonAreaKm2 !== null && (
-            <p className={areaTooLarge ? STATUS.error : TEXT.caption}>
-              ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-              {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
-            </p>
-          )}
-        </div>
+        <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
         {drawPointCount > 0 && (
           <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
-            {/* Only while drawing does the status name a gesture: outside
-                the mode the handles are gone and none of them apply. */}
-            {drawing && pointsNeeded > 0 ? (
-              <p className={STATUS.info}>
-                {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
-                {pointsNeeded} more needed.
-              </p>
-            ) : drawing ? (
-              <p className={`${STATUS.ok} font-medium`}>
-                {drawPointCount} points placed. Press Done when ready.
-              </p>
-            ) : (
-              <p className={pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}>
-                {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed
-                {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
-              </p>
-            )}
+            {/* The counter and the area share a line, the counter at the left
+                and the area right-justified on its baseline (#687). Each
+                stays whole: when the two do not fit side by side the area
+                moves to a line of its own, still at the right. At 360px the
+                line is 295px and the pair needs the 8px gap between them, so
+                outside the mode every ring under the cap fits (`99 points
+                placed` and `~99,999 km²` are 175.7px), and while drawing a
+                closed ring only one under 1,000 km² does: `3 points placed.
+                Press Done when ready.` is 229.8px, which leaves 57.2px, and
+                `~779 km²` is 53.4px where `~2,109 km²` is 63px (12px on a Mac). */}
+            <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+              {/* Only while drawing does the status name a gesture: outside
+                  the mode the handles are gone and none of them apply. */}
+              {drawing && pointsNeeded > 0 ? (
+                <p className={`${STATUS.info} whitespace-nowrap`}>
+                  {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
+                  {pointsNeeded} more needed.
+                </p>
+              ) : drawing ? (
+                <p className={`${STATUS.ok} font-medium whitespace-nowrap`}>
+                  {drawPointCount} points placed. Press Done when ready.
+                </p>
+              ) : (
+                <p className={`${pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`} whitespace-nowrap`}>
+                  {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed
+                  {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
+                </p>
+              )}
+              {polygonAreaKm2 !== null && (
+                <p className={`${areaTooLarge ? STATUS.error : TEXT.caption} ml-auto whitespace-nowrap`}>
+                  ~{Math.round(polygonAreaKm2).toLocaleString()} km²
+                  {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
+                </p>
+              )}
+            </div>
             {polygonAreaKm2 !== null &&
               polygonAreaKm2 > AREA_NOTE_KM2 &&
               !areaTooLarge && (

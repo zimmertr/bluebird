@@ -39,9 +39,8 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
-// The Polygon block's buttons, in order: the block is the subheading's line
-// and everything under it.
-const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon' }).parentElement!.parentElement!
+// The Polygon block's buttons, in order, apart from the box above it.
+const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon' }).parentElement!
 const polygonButtons = () =>
   within(polygonBlock())
     .getAllByRole('button')
@@ -74,14 +73,16 @@ describe('DestinationsSection', () => {
       expect(screen.getByText(/~120,000 km² \(max 100,000 km²\)/)).toBeTruthy()
     })
 
-    // The area stands on the subheading's line to give the section a line
-    // back (#687); the counter keeps its own line under it.
-    it("puts the area on the subheading's line and the counter under it", () => {
-      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 4, pointsNeeded: 0, polygonAreaKm2: 779 })} />)
-      const heading = screen.getByRole('heading', { name: 'Polygon' })
-      expect(heading.parentElement!.textContent).toBe('Polygon~779 km²')
-      expect(heading.parentElement!.textContent).not.toContain('placed')
-      expect(screen.getByText('4 points placed. Press Done when ready.')).toBeTruthy()
+    // The counter and the area share the line under the subheading, the
+    // area right-justified (#687), and neither breaks inside itself.
+    it("puts the area on the counter's line", () => {
+      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0, polygonAreaKm2: 779 })} />)
+      const counter = screen.getByText('3 points placed. Press Done when ready.')
+      const area = screen.getByText('~779 km²')
+      expect(area.parentElement).toBe(counter.parentElement)
+      expect(area.className).toContain('ml-auto')
+      for (const el of [counter, area]) expect(el.className).toContain('whitespace-nowrap')
+      expect(screen.getByRole('heading', { name: 'Polygon' }).nextElementSibling!.contains(counter)).toBe(true)
     })
 
     it('warns a large area that is still under the cap', () => {
