@@ -9,7 +9,8 @@ import type { PendingDestination } from '../utils/customList'
 import { geoKey } from '../utils/points'
 import { pendingChartRow, rankText, rowKeys } from '../utils/resultsCells'
 import { useChartBox } from '../hooks/useChartBox'
-import { LINK, TEXT } from '../styles'
+import { TEXT } from '../styles'
+import OpenMeteoCredit from './OpenMeteoCredit'
 import ResultsTableHeader from './ResultsTableHeader'
 import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, PendingRow } from './ResultsTableRow'
 
@@ -17,10 +18,6 @@ import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, Pendi
 // as wide as what the reader can see, the first and last lines padded off the
 // rows and the box's bottom.
 const FOOTNOTE_LINE = 'sticky left-0 w-[100cqi] px-3 first:pt-1.5 last:pb-1.5'
-
-// Open-Meteo's licence asks for the credit beside the data, as a link; its
-// example wording is only an example, so the bare host stands.
-const OPEN_METEO_HREF = 'https://open-meteo.com/'
 
 // Hoisted so a table with no widths set hands every row the same empty map,
 // which is what lets a memoized row skip.
@@ -339,14 +336,8 @@ function ResultsTable({
                   {note.text}
                 </div>
               ))}
-              {/* The line's own classes, the link sized by the line around
-                  it: a credit is a footnote, not a control set at the micro
-                  step. */}
-              <div className={`${FOOTNOTE_LINE} ${TEXT.micro}`}>
-                <a href={OPEN_METEO_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
-                  Open-Meteo.com
-                </a>
-              </div>
+              {/* In the line's own classes: a credit is a footnote. */}
+              <OpenMeteoCredit className={FOOTNOTE_LINE} />
             </td>
           </tr>
         </tfoot>
