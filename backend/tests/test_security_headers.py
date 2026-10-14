@@ -342,6 +342,8 @@ _FRONTEND_SRC = Path(__file__).parents[2] / "frontend" / "src"
 # decision this list exists to force on the next host that appears.
 LINK_ONLY_HOSTS = {
     "atmosphere.copernicus.eu",
+    # The map a popup's coordinate pair opens (#712); nothing is fetched from it.
+    "caltopo.com",
     "climate.copernicus.eu",
     "creativecommons.org",
     "data-nifc.opendata.arcgis.com",
