@@ -66,6 +66,8 @@ import {
   CAPTION_LIFTED,
   MAP_ANALYZE,
   MAP_BUTTON,
+  MAP_CARD,
+  MAP_CARD_HEADER,
   MAP_COL_GAP,
   MAP_COL_GAP_T,
   MAP_COL_W,
@@ -1183,10 +1185,10 @@ describe('shared recipes', () => {
   it('gives every row in that column one height', () => {
     expect(MAP_ROW_H).toBe('h-9 touch:h-11')
     // The search field spells it; every button in the column, the phone's
-    // row (#696) and the legend's strip takes it through its role. A row
+    // row (#696) and the legend card's header takes it through its role. A row
     // that sets its own height beside the role is the style-map-column check.
     expect(searchBoxSource.match(/\$\{MAP_ROW_H\}/g) ?? []).toHaveLength(1)
-    for (const recipe of [MAP_BUTTON, MAP_PILL, MAP_ANALYZE]) expect(recipe).toContain(MAP_ROW_H)
+    for (const recipe of [MAP_BUTTON, MAP_PILL, MAP_ANALYZE, MAP_CARD_HEADER]) expect(recipe).toContain(MAP_ROW_H)
     for (const source of [mapButtonColumnSource, layersPopoverSource, mapLegendSource]) {
       expect(source).not.toMatch(/\$\{MAP_ROW_H\}/)
     }
@@ -1804,18 +1806,38 @@ describe('the map edge inset', () => {
 // The phone's search row (#696): the field across the map's top edge, then
 // Controls, Layers and Analyze in one row under it.
 describe('the phone row', () => {
-  // The map button's whole recipe, so a button in the column and the strip
-  // under it cannot be restyled apart (the brief: the strip is the Layers
-  // button's exact role).
+  // The map button's whole recipe, so a button in the column and the legend
+  // card under it cannot be restyled apart.
   it('builds the column button from the column roles', () => {
     for (const part of [BUTTON_FLOATING, MAP_COL_W, MAP_ROW_H]) expect(MAP_BUTTON).toContain(part)
   })
 
-  it('gives the Legends strip exactly the Layers button\'s role', () => {
+  // Folded, the legend card is the Layers button above it to the pixel: the
+  // same floating surface at the column's width, and a header row wearing the
+  // button's face. What the header drops is the button's hover and pressed
+  // colours, since the chevron alone says open or folded (TJ, 2026-10-13).
+  it('gives the Legends card the Layers button\'s face, with no hover colour', () => {
     const layersButton = layersPopoverSource.match(/className=\{inRow \? MAP_PILL : (\w+)\}/)?.[1]
-    const strip = mapLegendSource.match(/className=\{(\w+)\}\s*>\s*<IconChevron/)?.[1]
     expect(layersButton).toBe('MAP_BUTTON')
-    expect(strip).toBe(layersButton)
+    for (const part of [SURFACE_FLOATING, MAP_COL_W]) expect(MAP_CARD).toContain(part)
+    const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+    const surfaceOrState = new Set([
+      ...tokens(SURFACE_FLOATING),
+      ...tokens(MAP_COL_W),
+      ...tokens(ACCENT.edgeHover),
+      ...tokens(ACCENT.hoverText),
+      'active:bg-slate-700',
+      'transition-colors',
+    ])
+    const face = tokens(MAP_BUTTON).filter((t) => !surfaceOrState.has(t))
+    expect(face).toContain(MAP_ROW_H.split(' ')[0])
+    for (const t of face) expect(tokens(MAP_CARD_HEADER)).toContain(t)
+    expect(MAP_CARD_HEADER).not.toMatch(/(^|\s)(hover|active|group-hover):/)
+    // Spanning the card's border, so a folded card is the button's height.
+    expect(MAP_CARD_HEADER).toContain('-my-px')
+    expect(MAP_CARD).not.toContain('overflow-hidden')
+    expect(mapLegendSource).toMatch(/className=\{MAP_CARD_HEADER\}\s*>\s*<IconChevron/)
+    expect(mapLegendSource).not.toMatch(/\bMAP_BUTTON\b/)
   })
 
   // Sized by their words, not by the column: the third member has the rest.
@@ -1929,9 +1951,12 @@ describe('the map legend sections', () => {
   })
 
   // One box, not two: the second cost a border, a gap and a backdrop on a map
-  // that can be 161px tall.
+  // that can be 161px tall. Since #696 the box is one card under its Legends
+  // header, and the card is the one surface.
   it('draws them all in one floating box', () => {
-    expect((box.match(/\$\{SURFACE_FLOATING\}/g) ?? []).length).toBe(1)
+    expect(box).not.toMatch(/\bSURFACE_FLOATING\b/)
+    expect((box.match(/className=\{MAP_CARD\}/g) ?? []).length).toBe(1)
+    expect(MAP_CARD).toContain(SURFACE_FLOATING)
   })
 
   // Every section, a chip row or a scale alike, is built by one function —

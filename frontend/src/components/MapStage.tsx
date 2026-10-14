@@ -98,7 +98,7 @@ export interface MapStageProps {
   onAnalyze: () => void
   /** The line under the phone's Controls: the When arm and the model (`controlsSummary`). */
   controlsSummary: string
-  /** Whether the legend box hangs open under its strip, and the strip's press (`useLegendFold`). */
+  /** Whether the legend card is open under its header, and the header's press (`useLegendFold`). */
   legend: LegendFold
   /** The tutorial holds the Layers menu open for its step (#536). */
   layersForcedOpen: boolean

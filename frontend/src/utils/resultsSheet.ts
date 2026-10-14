@@ -20,24 +20,27 @@ import { resolvePanelHeights } from './layout'
 
 /**
  * The legend stack's own top inset (`LEGEND_TOP` in `styles.ts`, which spells
- * the classes and carries the derivation), and the strip that heads the stack.
+ * the classes and carries the derivation), and the legend card's header row.
  *
  * `LEGEND_TOP` has FOUR numbers: two pointer sizes, each with and without the
  * Controls button, which stands in a desktop's column only while the panel is
  * collapsed. A phone's column is always the short one, because Controls stands
- * in the row beside Layers there (#696). Since #696 the stack opens with the
- * Legends strip, one `MAP_ROW_H` and one gap, and the box hangs under it.
+ * in the row beside Layers there (#696). Since #696 the legend is one card
+ * whose Legends header row is one `MAP_ROW_H`, and its sections sit under the
+ * header inside the same card.
  *
  *   - `LEGEND_TOP_PHONE_PX` is the coarse short column (108): the search field
- *     and the row under it, which is where a phone's strip stands.
- *   - `LEGEND_STRIP_PX` and `LEGEND_STRIP_FINE_PX` are the strip and its gap
- *     on a finger and on a pointer (44 + 4, 36 + 4).
- *   - `LEGEND_TOP_PX` is where the BOX starts on a phone at rest, the column
- *     plus the strip (156). Everything derived from it here is the sheet's,
- *     and a floor is a promise about the smallest map that will do, so it
- *     counts the strip at its open height. It is the number the three-row
- *     column made before the row: the strip took the row Controls gave up, so
- *     the sheet rests where it did.
+ *     and the row under it, which is where a phone's legend card stands.
+ *   - `LEGEND_STRIP_PX` and `LEGEND_STRIP_FINE_PX` are the header row and 4px
+ *     more on a finger and on a pointer (44 + 4, 36 + 4). The 4px was the gap
+ *     between a separate strip and box before the two became one card, and it
+ *     stays so the sheet rests where it did; it is slack, not a gap.
+ *   - `LEGEND_TOP_PX` is where the legend's sections may start on a phone at
+ *     rest, the column plus the header (156). Everything derived from it here
+ *     is the sheet's, and a floor is a promise about the smallest map that
+ *     will do, so it counts the header at its open height. It is the number
+ *     the three-row column made before the row: the header took the row
+ *     Controls gave up, so the sheet rests where it did.
  *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT the Controls button (92),
  *     which is the desktop a docked floor is asked about: the panel is docked,
  *     so the button is not there. When it is, the panel is collapsed and the
@@ -163,9 +166,9 @@ export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_P
  * and the inset the map's own button column occupies.
  *
  * The legend box starts at `LEGEND_TOP_PX` because that is where the search
- * field, its row and the Legends strip end, and the transport rides the same
- * lift, so it takes the same floor. The strip is inside it so a drag can never
- * scroll the one control that opens the box out of reach. Without it a drag puts the bar THROUGH that column:
+ * field, its row and the Legends header end, and the transport rides the same
+ * lift, so it takes the same floor. The header is inside it so a drag can never
+ * scroll the one control that opens the card out of reach. Without it a drag puts the bar THROUGH that column:
  * measured at 500x757, a sheet dragged high left the transport at y 100-145,
  * across the Layers button at y 102-140 and MapLibre's zoom stack opposite it.
  *

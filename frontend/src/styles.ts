@@ -1187,16 +1187,42 @@ export const MAP_COL_GAP_T = 'mt-1'
 
 /**
  * A button in the map's left column: Controls while the panel is closed and
- * Layers, at a desktop width, and the Legends strip that folds the legend box
- * at every width (#696). One role for all three, because they stand in one
- * column and a strip a few pixels off the button above it reads as a mistake
- * rather than as a different control. `styles.test.ts` holds the strip to this
- * role, so the two cannot be restyled apart.
+ * Layers, at a desktop width. The Legends card under them (#696) wears this
+ * face on its header row, through `MAP_CARD` and `MAP_CARD_HEADER`, because
+ * they stand in one column and a row a few pixels off the button above it
+ * reads as a mistake rather than as a different control.
  *
  * The icon slot is the 16px glyph at the left with the 8px gap the search
  * field's own icon keeps, so every label in the column starts on one edge.
  */
 export const MAP_BUTTON = `${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`
+
+/**
+ * The map's legend as one card (#696): the Legends header row and, while it is
+ * open, every section under it on the same surface, one edge and one radius,
+ * the way a popover's body sits under its own header. Folded, the card is the
+ * header row alone, and it is then the Layers button above it to the pixel:
+ * the same floating surface at `MAP_COL_W`, and a header row that is
+ * `MAP_BUTTON`'s face (type, colour, height, icon slot and padding).
+ *
+ * The row spans the card's border with `-my-px`, so a folded card is
+ * `MAP_ROW_H` tall overall, as the button is, and its label centres where the
+ * button's does.
+ *
+ * The header has no hover or pressed colour: the chevron is the one thing
+ * that says open or folded, and the focus ring the one state it shows
+ * (the maintainer, 2026-10-13). No `overflow-hidden` on the card, which would
+ * clip that ring. `styles.test.ts` holds the face to `MAP_BUTTON`'s.
+ */
+export const MAP_CARD = `${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col`
+
+/** The card's header row, the press that folds and opens it. */
+export const MAP_CARD_HEADER =
+  `${CONTROL_SIZE} font-semibold text-white ${MAP_ROW_H} -my-px flex w-full items-center gap-2 px-2.5 ` +
+  `${RADIUS.surface} ${FOCUS_RING}`
+
+/** The sections under the header, at the box's old spacing less the top the header row holds. */
+export const MAP_CARD_BODY = 'flex flex-col gap-1 px-2.5 pb-2'
 
 /**
  * What stands across the top of a phone's map (#696): the search field, then
@@ -1299,8 +1325,8 @@ export const MAP_EDGE = {
 /**
  * Where the legend stack hangs: one row of the column's own gap under the last
  * button, at both pointer sizes, in the column's two heights. Since #696 the
- * stack opens with the Legends strip (`MAP_BUTTON`), and the box hangs one gap
- * under that.
+ * stack is one legend card (`MAP_CARD`), its Legends header row first and the
+ * sections under it in the same card.
  *
  * Every row above it is `MAP_ROW_H` — 36 on a pointer, 44 on a finger — and
  * they are separated by `MAP_COL_GAP`'s 4px, so the arithmetic is the inset,

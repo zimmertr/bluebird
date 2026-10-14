@@ -9,14 +9,13 @@ import {
   CONTROL_SIZE,
   LEGEND_TOP,
   LINK,
-  MAP_BUTTON,
-  MAP_COL_GAP,
-  MAP_COL_W,
+  MAP_CARD,
+  MAP_CARD_BODY,
+  MAP_CARD_HEADER,
   MAP_EDGE,
   RADIUS,
   STATUS,
   SR_ONLY,
-  SURFACE_FLOATING,
   SWATCH_CHIP,
   SWATCH_EDGE,
   SWATCH_LINE,
@@ -161,9 +160,9 @@ interface MapLegendProps {
    * Controls beside Layers, so its column is the short one at all times.
    */
   columnFull: boolean
-  /** Whether the box hangs open under its strip, or is folded away (#696). */
+  /** Whether the card is open under its Legends header, or folded to the header alone (#696). */
   expanded: boolean
-  /** Folds or opens the box: the strip's press. */
+  /** Folds or opens the card: the header's press. */
   onToggle: () => void
   /** How far the results sheet stands over the map's bottom edge. */
   sheetLiftPx: number
@@ -172,9 +171,9 @@ interface MapLegendProps {
 }
 
 /**
- * The map's one legend box, the Legends strip that folds it (#696), and the
- * stack the two scroll in (#454; #409 cut it out of `App.tsx`). Nothing, strip
- * included, when no section has anything to key.
+ * The map's one legend box, as a card whose Legends header folds it (#696),
+ * and the stack it scrolls in (#454; #409 cut it out of `App.tsx`). Nothing,
+ * header included, when no section has anything to key.
  */
 export default function MapLegend({
   sortBy,
@@ -472,7 +471,7 @@ export default function MapLegend({
       // screen.
       className={`absolute ${MAP_EDGE.left} ${
         columnFull ? LEGEND_TOP.full : LEGEND_TOP.compact
-      } z-10 flex flex-col ${MAP_COL_GAP} overflow-y-auto [&>*]:flex-shrink-0 ${YIELD_EMPTY}`}
+      } z-10 flex flex-col overflow-y-auto [&>*]:flex-shrink-0 ${YIELD_EMPTY}`}
       // The floor of the scroll box, derived rather than chosen: the
       // transport's whole band while the bar is on screen and a plain
       // gap otherwise, measured from whatever stands on the map's
@@ -480,41 +479,38 @@ export default function MapLegend({
       // top of the sheet where they cover it (#249).
       style={{ bottom: legendBottomPx(sheetLiftPx, timelineShown) }}
     >
-      {/* The fold (#696): the strip stands where the box began, in the
-          Layers button's role, and the box hangs one gap under it while it
-          is open. Folded, the strip is all the map gives the legend, 44px on
-          a finger where the box was 58 with one metric and grows with every
-          layer. One box still (record 0048); it gained a folded state. The
-          chevron is the disclosure's, right while folded and down while
-          open. A popup keeps clear of both (`data-map-overlay`). */}
-      <button
-        data-map-overlay=""
-        onClick={onToggle}
-        aria-expanded={expanded}
-        // Only while the box is there to name: a reference to an id that is
-        // not in the document is an error to a screen reader.
-        aria-controls={expanded ? boxId : undefined}
-        className={MAP_BUTTON}
-      >
-        <IconChevron right={!expanded} />
-        Legends
-      </button>
-      {expanded && (
-        <div
-          id={boxId}
-          // A popup keeps clear of this box (`resultsLayer.ts` finds every
-          // `data-map-overlay`); the box rather than the scroll column around
-          // it, whose empty length below the box reaches the map's floor.
-          data-map-overlay=""
-          className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}
+      {/* The fold (#696): one card, the way a popover's body sits under its
+          own header. The header row is the Layers button's face, and folded
+          the card is that row alone, 44px on a finger where the box was 58
+          with one metric and grows with every layer; open, the sections sit
+          under the header on the same surface. One box still (record 0048);
+          it gained a folded state. The chevron is the only thing that says
+          which, right while folded and down while open. A popup keeps clear
+          of the card (`data-map-overlay`); the card rather than the scroll
+          column around it, whose empty length below reaches the map's
+          floor. */}
+      <div data-map-overlay="" className={MAP_CARD}>
+        <button
+          onClick={onToggle}
+          aria-expanded={expanded}
+          // Only while the sections are there to name: a reference to an id
+          // that is not in the document is an error to a screen reader.
+          aria-controls={expanded ? boxId : undefined}
+          className={MAP_CARD_HEADER}
         >
-          {sections
-            .sort((a, b) => a.label.localeCompare(b.label))
-            .map((section) => (
-              <Fragment key={section.label}>{legendSection(section)}</Fragment>
-            ))}
-        </div>
-      )}
+          <IconChevron right={!expanded} />
+          Legends
+        </button>
+        {expanded && (
+          <div id={boxId} className={MAP_CARD_BODY}>
+            {sections
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .map((section) => (
+                <Fragment key={section.label}>{legendSection(section)}</Fragment>
+              ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

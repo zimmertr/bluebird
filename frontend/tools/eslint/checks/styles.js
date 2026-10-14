@@ -337,15 +337,16 @@ export const STYLES = [
     ],
   },
   {
-    // The legend box, the strip that folds it (#696) and the stack they
-    // scroll in. The strip is the Layers button's role, so the two are one
+    // The legend card (#696), its Legends header and the sections under it,
+    // and the stack it scrolls in. The card takes MAP_COL_W and the header
+    // the Layers button's face through their roles, so the two are one
     // control's shape.
     name: 'style-map-legend-column',
     files: ['src/components/MapLegend.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 1, message: 'The legend box wears MAP_COL_W.' },
-      { selector: worn('MAP_BUTTON'), count: 1, message: 'The Legends strip wears MAP_BUTTON.' },
-      { selector: interp('MAP_COL_GAP'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.' },
+      { selector: worn('MAP_CARD'), count: 1, message: 'The legend card wears MAP_CARD.' },
+      { selector: worn('MAP_CARD_HEADER'), count: 1, message: 'The Legends header wears MAP_CARD_HEADER.' },
+      { selector: worn('MAP_CARD_BODY'), count: 1, message: 'The legend sections wear MAP_CARD_BODY.' },
       { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
     ],
   },

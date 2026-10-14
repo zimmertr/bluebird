@@ -26,7 +26,7 @@ async function probe(page: Page): Promise<Probe> {
     let box = el.parentElement!
     while (getComputedStyle(box).overflowY !== 'auto') box = box.parentElement!
     const outer = box.getBoundingClientRect()
-    // The box, which hangs under the Legends strip (#696).
+    // The legend card, the stack's one child since the fold (#696).
     const inner = box.lastElementChild!.getBoundingClientRect()
     const x = Math.round(inner.left + inner.width / 2)
     const y = Math.round((inner.bottom + outer.bottom) / 2)

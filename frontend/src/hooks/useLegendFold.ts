@@ -2,11 +2,11 @@ import { useCallback, useState } from 'react'
 import { writeViewPrefs } from '../utils/viewPrefs'
 
 /**
- * Whether the legend box hangs open: the reader's last press on its strip, or
+ * Whether the legend card is open: the reader's last press on its header, or
  * the device's answer until they make one (#696). Open on a desktop, where the
  * map has room for the key beside the markers it explains; folded on a phone,
  * where the box stood across the map's left column as soon as a report
- * landed, and where the strip says the key is there for a tap.
+ * landed, and where the folded header says the key is there for a tap.
  *
  * The same shape as the forecast player's switch (`useMapOverlays`), and for
  * its reason: the default is the device's, so only a reader's own answer is

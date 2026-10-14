@@ -447,12 +447,13 @@ If Open-Meteo cannot be reached from your browser, the analysis stops and says s
 
 ### The map's legend
 
-One box, under the **Layers** button, and a **Legends** strip above it that folds
-it away. Press the strip to fold the box and again to open it: its chevron points
-right while the box is folded and down while it is open. The box starts open in a
-desktop-sized window and folded on a phone, where it would otherwise stand across
-the map as soon as a report lands, and once you press the strip this browser
-remembers your choice. The strip is only there when the box has something to key.
+One box, under the **Layers** button, with a **Legends** header across its top
+that folds it away. Press the header to fold the box down to that one row and
+again to open it: its chevron points right while the box is folded and down while
+it is open. The box starts open in a desktop-sized window and folded on a phone,
+where it would otherwise stand across the map as soon as a report lands, and once
+you press the header this browser remembers your choice. The box is only there
+when it has something to key.
 
 The box holds a section for the marker colors
 and one for each layer that is switched on, and they read in alphabetical order

@@ -24,7 +24,7 @@ On a phone, finding the forecast for one named place took five steps across thre
 
 - Measured 2026-10-13 at 390x844 on a coarse pointer against the built image: a pick of Mount Rainier put the marker at y 248 and its label at 272, above a sheet whose top edge stood at 496.
 - The row's fit, measured the same day in the Playwright image's Chromium (`docs/STYLES.md`, Phone row fit): every member 44px tall; with `Dates · UK Met Office` Analyze is 130.2px wide at 390 and 100.2px at 360, and nothing truncates; only `Meteo-France ARPEGE` truncates the summary at 360, where Analyze stops at its word, 69.4px.
-- The column the row replaced was three rows (search, Controls, Layers) and ended at 156px on a finger. The row ends at 108, and the legend's strip takes the third row, so the sheet rests where it did (`LEGEND_TOP_PX` is still 156).
+- The column the row replaced was three rows (search, Controls, Layers) and ended at 156px on a finger. The row ends at 108, and the legend card's header takes the third row, so the sheet rests where it did (`LEGEND_TOP_PX` is still 156).
 
 ## Alternatives rejected
 

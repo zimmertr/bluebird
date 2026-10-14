@@ -114,9 +114,9 @@ describe('MapLegend', () => {
   })
 })
 
-// The fold (#696): a strip in the Layers button's role heads the stack, and
-// the one box hangs under it while it is open.
-describe('the Legends strip', () => {
+// The fold (#696): one card, a Legends header in the Layers button's face
+// with the sections under it on the same surface while it is open.
+describe('the Legends card', () => {
   const FIRES = { ...NONE, showWildfires: true }
   const strip = () => screen.getByRole('button', { name: 'Legends' })
 
@@ -125,17 +125,20 @@ describe('the Legends strip', () => {
     expect(strip().getAttribute('aria-expanded')).toBe('true')
     const box = document.getElementById(strip().getAttribute('aria-controls')!)!
     expect(box.textContent).toContain('Active wildfire')
-    // The strip comes first in the stack, the box under it.
+    // The header comes first, the sections under it, and both stand in one
+    // card rather than in two boxes.
     expect(strip().compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(box.parentElement).toBe(strip().parentElement)
   })
 
-  // Folded, the strip is all the map gives the legend, and it names nothing
+  // Folded, the card is its header row alone, and the header names nothing
   // that is not in the document.
-  it('hides the box while folded', () => {
+  it('folds to the header row alone', () => {
     render(<MapLegend {...BASE} overlays={FIRES} expanded={false} />)
     expect(strip().getAttribute('aria-expanded')).toBe('false')
     expect(strip().hasAttribute('aria-controls')).toBe(false)
     expect(screen.queryByText('Active wildfire')).toBeNull()
+    expect(strip().parentElement!.children).toHaveLength(1)
   })
 
   // Right while folded, down while open: the disclosure's chevron.
@@ -163,9 +166,12 @@ describe('the Legends strip', () => {
     expect(screen.queryByRole('button', { name: 'Legends' })).toBeNull()
   })
 
-  // A popup keeps clear of the strip as it does of the box.
-  it('keeps popups clear of the strip', () => {
-    render(<MapLegend {...BASE} overlays={FIRES} expanded={false} />)
-    expect(strip().hasAttribute('data-map-overlay')).toBe(true)
+  // A popup keeps clear of the whole card, folded or open.
+  it('keeps popups clear of the card', () => {
+    for (const expanded of [false, true]) {
+      const { unmount } = render(<MapLegend {...BASE} overlays={FIRES} expanded={expanded} />)
+      expect(strip().parentElement!.hasAttribute('data-map-overlay')).toBe(true)
+      unmount()
+    }
   })
 })
