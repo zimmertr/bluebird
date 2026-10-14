@@ -219,13 +219,27 @@ describe('a popup title', () => {
 
 describe('the facts line', () => {
   it('parts the type, elevation and coordinates with a pipe a screen reader skips', () => {
-    const popup = mount(factsRow('Trailhead', '3,120 ft', 47.5, -121.25))
+    const popup = mount(factsRow('Trailhead', '3,120 ft', 47.5, -121.25, null))
     expect(popup.textContent).toBe('Trailhead|3,120 ft|47.50000, -121.25000')
     expect(popup.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2)
   })
 
   it('drops a part it does not have', () => {
-    expect(mount(factsRow(null, null, 47.5, -121.25)).textContent).toBe('47.50000, -121.25000')
+    expect(mount(factsRow(null, null, 47.5, -121.25, null)).textContent).toBe('47.50000, -121.25000')
+  })
+
+  // The pair is the link and the elevation is not (#712): a place is what a
+  // reader takes elsewhere, a measurement is not. The text does not move.
+  it('links the coordinates, and only them, where it is given somewhere to go', () => {
+    const url = 'https://caltopo.com/map.html#ll=47.50000,-121.25000&z=14'
+    const popup = mount(factsRow('Peak', '7,000 ft', 47.5, -121.25, url))
+    expect(popup.textContent).toBe('Peak|7,000 ft|47.50000, -121.25000')
+    const links = within(popup).getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0].textContent).toBe('47.50000, -121.25000')
+    expect(links[0].getAttribute('href')).toBe(url)
+    expect(links[0].getAttribute('target')).toBe('_blank')
+    expect(links[0].getAttribute('rel')).toBe('noopener noreferrer')
   })
 })
 

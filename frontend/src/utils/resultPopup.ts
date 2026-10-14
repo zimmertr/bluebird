@@ -1,4 +1,5 @@
 import { DestinationResult, SortBy } from '../types'
+import { caltopoUrl } from './caltopoUrl'
 import { destinationUrl } from './destinationUrl'
 import { FireWarning, firePopupText } from './fireProximity'
 import { type ClosureWarning, closurePopupText } from './closureProximity'
@@ -57,6 +58,10 @@ export function resultPopupHtml(d: {
   // Whether the grid takes its narrow insets, for a map too narrow for the
   // widest grid at full inset (`compactGrid`).
   compact?: boolean
+  // The map's zoom when the card is drawn, which the coordinates' CalTopo link
+  // carries so the reader lands on the view they were looking at (#712).
+  // Optional for a card built with no map under it, which links without one.
+  mapZoom?: number
 }): string {
   const r = d.row
   const url = destinationUrl({
@@ -95,7 +100,13 @@ export function resultPopupHtml(d: {
   const identity = popupIdentity(r, d.columns, d.modelFallbackLabel)
   const meta = metaBand([
     identity.model ? `<div>${escapeHtml(identity.model)}</div>` : '',
-    factsRow(identity.type, identity.elevation, r.latitude, r.longitude),
+    factsRow(
+      identity.type,
+      identity.elevation,
+      r.latitude,
+      r.longitude,
+      caltopoUrl(r.latitude, r.longitude, d.mapZoom),
+    ),
   ])
 
   // The measurements as one grid, a row per family and a column per aggregate

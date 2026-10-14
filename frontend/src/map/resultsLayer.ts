@@ -289,6 +289,7 @@ export function mountResultsLayer(
       modelFallbackLabel: live.modelFallbackLabel,
       rankedBy: live.sortBy,
       compact: compactGrid(map.getCanvas().clientWidth),
+      mapZoom: map.getZoom(),
     })
   }
 

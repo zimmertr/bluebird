@@ -73,6 +73,7 @@ function setup({
   glow = true,
 } = {}) {
   const stub = stubMap({
+    zoom: MAP_ZOOM,
     layers: glow ? [...POI_LAYERS, ...POI_LAYERS.map((id) => `${id}-glow`)] : [...POI_LAYERS],
   })
   const inputs: MapInputs = {
@@ -104,6 +105,9 @@ function setup({
   return { stub, pois, inputs, peakClick, mapPopups }
 }
 
+// The map's zoom when a card is drawn, which its CalTopo link carries (#712).
+const MAP_ZOOM = 13
+
 describe('mountPoiPopups', () => {
   // The click and the cursor are the map's popup system's (`map/mapPopups.ts`).
   it('listens on no layer of its own', () => {
@@ -119,23 +123,23 @@ describe('mountPoiPopups', () => {
     const { inputs, peakClick } = setup()
     peakClick()
     expect(popups).toHaveLength(1)
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false, MAP_ZOOM))
 
     vi.runAllTimers()
     popups[0].press()
     expect(inputs.onAddPoi).toHaveBeenCalledWith(poiToPlace(PEAK))
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true, MAP_ZOOM))
 
     vi.runAllTimers()
     popups[0].press()
     expect(inputs.onRemovePoi).toHaveBeenCalledWith(PEAK.lat, PEAK.lon)
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, false, MAP_ZOOM))
   })
 
   it('knows a peak the session already holds', () => {
     const { peakClick } = setup({ searchedPlaces: [poiToPlace(PEAK)] })
     peakClick()
-    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true))
+    expect(popups[0].html).toBe(poiPopupHtml(PEAK, true, MAP_ZOOM))
   })
 
   // A marker on an analyzed summit outranks the label under it

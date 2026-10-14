@@ -25,6 +25,7 @@ import {
   samePoi,
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
+import { RESULT_POPUP_CLASS } from '../utils/popupChrome'
 import { lakeAnchor } from './basemap'
 import type { MapController } from './controller'
 import type { MapPopups } from './mapPopups'
@@ -44,7 +45,14 @@ export function mountPoiPopups(
   const { controller, popups } = deps
 
   function openPoiPopup(poi: BasemapPoi) {
-    const popup = popups.create([poi.lon, poi.lat], '', { owner: 'poi' })
+    // The result card's class and width (#712): `map.css` zeroes the content
+    // padding under that class so the header band can run edge to edge, and
+    // the width rule is the one the facts line was measured against.
+    const popup = popups.create([poi.lon, poi.lat], '', {
+      owner: 'poi',
+      result: true,
+      className: RESULT_POPUP_CLASS,
+    })
 
     // Which registered place this POI is, or null. Held in the closure
     // rather than re-read from the controller after each click: that
@@ -53,7 +61,7 @@ export function mountPoiPopups(
     let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
 
     function render() {
-      popup.setHTML(poiPopupHtml(poi, registered !== null))
+      popup.setHTML(poiPopupHtml(poi, registered !== null, map.getZoom()))
       // setHTML replaces the content element's children, so the button is
       // a new node every time and its listener has to be re-armed. The
       // timeout lets MapLibre attach the markup first, matching the

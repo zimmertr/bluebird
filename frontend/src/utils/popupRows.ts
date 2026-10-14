@@ -228,11 +228,17 @@ export function popupIdentity(
   return {
     type: typeCol ? (typeCol.format ? typeCol.format(row.type) : row.type) : null,
     model: modelShown ? ((row as ModelRow).modelLabel ?? modelFallbackLabel ?? null) : null,
-    elevation:
-      elevationCol && row.elevation_ft != null
-        ? `${elevationCol.format ? elevationCol.format(row.elevation_ft) : row.elevation_ft} ${ELEVATION_UNIT}`
-        : null,
+    elevation: elevationCol && row.elevation_ft != null ? elevationFact(row.elevation_ft) : null,
   }
+}
+
+/**
+ * The elevation as the facts line says it, `12,281 ft`: the column's own
+ * format with the unit after it, where the column carries the unit in its
+ * label. The clicked feature's popup says it the same way (#712).
+ */
+export function elevationFact(elevationFt: number): string {
+  return `${ELEVATION_COL.format ? ELEVATION_COL.format(elevationFt) : elevationFt} ${ELEVATION_UNIT}`
 }
 
 /** The elevation column's unit, which its label spells as `Elevation (ft)`. */
