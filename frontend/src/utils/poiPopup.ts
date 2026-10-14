@@ -1,4 +1,5 @@
 import { BasemapPoi, LAKE_CLASS } from './basemapPoi'
+import { caltopoUrl } from './caltopoUrl'
 import { destinationUrl } from './destinationUrl'
 import { isPeakKind } from './geocode'
 import { coordinateRow, escapeHtml, metaBand, popupButton, popupShell, row } from './popupChrome'
@@ -45,8 +46,10 @@ function poiUrl(poi: BasemapPoi): string {
  * @param added Whether this POI is already a destination, which flips the
  * button from adding to removing. Clicking a peak you have already added is a
  * question about that peak, and the honest answer to it is the way back out.
+ * @param mapZoom The map's zoom when the card is drawn, which the coordinates'
+ * CalTopo link carries (#712); a card built with no map links without one.
  */
-export function poiPopupHtml(poi: BasemapPoi, added: boolean): string {
+export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number): string {
   const action = added
     ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis', BUTTON_GAP)
     : popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis', BUTTON_GAP)
@@ -56,7 +59,7 @@ export function poiPopupHtml(poi: BasemapPoi, added: boolean): string {
   // the name usually says again. The coordinates are NOT that: they identify
   // the point rather than describe it, which is why they sit in the band above
   // the rule here exactly as they do on a ranked result (TJ, 2026-09-14).
-  const meta = metaBand([coordinateRow(poi.lat, poi.lon)])
+  const meta = metaBand([coordinateRow(poi.lat, poi.lon, caltopoUrl(poi.lat, poi.lon, mapZoom))])
 
   // The elevation reads off the results table's own column rather than being
   // spelled here — same label, same thousands separator, unit in the label and

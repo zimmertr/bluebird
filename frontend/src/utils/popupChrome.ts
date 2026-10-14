@@ -253,11 +253,14 @@ export function metaBand(lines: string[]): string {
  * figure. It stays at the popup's own size — a line that shrank to fit would be
  * the only one in the card set differently, which reads as an afterthought —
  * so the room comes from the width ceiling below instead.
+ *
+ * `href` is where the pair links to: CalTopo, centred on the point (#712, TJ
+ * 2026-10-14). The coordinates are the one fact on a card that names a place,
+ * and the place is what a reader takes elsewhere to see the ground around it.
  */
-export function coordinateRow(latitude: number, longitude: number): string {
-  return `<div style="white-space:nowrap;${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(
-    longitude,
-  ).toFixed(5)}</div>`
+export function coordinateRow(latitude: number, longitude: number, href: string | null): string {
+  const pair = `${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`
+  return `<div style="white-space:nowrap;${VALUE_FACE}">${href ? popupLink(href, pair) : pair}</div>`
 }
 
 /**
@@ -268,11 +271,20 @@ export function coordinateRow(latitude: number, longitude: number): string {
  * hears the three facts as a list; it is a divider, not a character to read.
  * The line never wraps for the coordinate row's reason. A trailhead's is the
  * longest, 274.7px measured on macOS with the pipes' 5px, which the 340px card
- * holds beside a touch screen's close-button lane.
+ * holds beside a touch screen's close-button lane. The coordinates link out
+ * for `coordinateRow`'s reason, and the elevation stays plain: it is a
+ * measurement rather than a place, and nothing on the card is its forecast.
  */
-export function factsRow(type: string | null, elevation: string | null, latitude: number, longitude: number): string {
+export function factsRow(
+  type: string | null,
+  elevation: string | null,
+  latitude: number,
+  longitude: number,
+  href: string | null,
+): string {
   const pipe = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:0 5px">|</span>`
-  const coords = `<span style="${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`
+  const pair = `<span style="${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`
+  const coords = href ? popupLink(href, pair) : pair
   const parts = [
     type ? escapeHtml(type) : '',
     elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',

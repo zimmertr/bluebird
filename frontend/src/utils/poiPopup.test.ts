@@ -82,6 +82,15 @@ describe('poiPopupHtml', () => {
     expect(poiPopupHtml(RAINIER, false)).toContain('white-space:nowrap')
   })
 
+  // The pair links to CalTopo at the map's view, as a ranked result's does
+  // (#712); a card built with no map under it links without a zoom.
+  it('links the coordinates to CalTopo', () => {
+    expect(poiPopupHtml(RAINIER, false, 13)).toContain(
+      'href="https://caltopo.com/map.html#ll=46.85290,-121.76040&amp;z=14"',
+    )
+    expect(poiPopupHtml(RAINIER, false)).toContain('href="https://caltopo.com/map.html#ll=46.85290,-121.76040"')
+  })
+
   it('links a lake to OpenStreetMap rather than Peakbagger', () => {
     const html = poiPopupHtml({ name: 'Snow Lake', kind: 'lake', lat: 47.4, lon: -121.4 }, false)
     expect(html).toContain('openstreetmap.org')

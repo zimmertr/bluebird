@@ -295,6 +295,14 @@ describe('resultPopupHtml identity band', () => {
     expect(factsText(html)).toBe('Peak | 46.85173, -121.76040')
   })
 
+  // The pair links to CalTopo centred on the point, one level above the
+  // map's zoom (#712); the elevation beside it links nowhere.
+  it('links the coordinates to CalTopo at the view the map is showing', () => {
+    const html = resultPopupHtml({ ...base, mapZoom: 13 })
+    expect(html).toContain('href="https://caltopo.com/map.html#ll=46.85173,-121.76040&amp;z=14"')
+    expect(html).not.toMatch(/<a [^>]*>[^<]*14,406/)
+  })
+
   it('names no model while one model answered every row', () => {
     const html = resultPopupHtml({ ...base, modelFallbackLabel: 'GFS Seamless' })
     expect(html).not.toContain('GFS Seamless')
@@ -442,24 +450,29 @@ describe('resultPopupHtml links out', () => {
     expect(html).toContain(`color:${WARNING_COLOR}`)
   })
 
-  // Neither is a forecast, and the table links neither. Matched as whole
-  // lines: the title's own link-out glyph carries the coordinates inside its
-  // href, so a substring search for them finds the one anchor that is correct.
-  it('leaves the elevation and the coordinates unlinked', () => {
-    const html = resultPopupHtml({ ...linked })
+  // The coordinates name a place and link to it on CalTopo (#712); the
+  // elevation is a measurement, not a forecast, and links nowhere. Matched as
+  // the whole line: the title's own link-out glyph carries the coordinates
+  // inside its href, so a substring search for them finds the wrong anchor.
+  it('links the coordinates and leaves the elevation unlinked', () => {
+    const html = resultPopupHtml({ ...linked, mapZoom: 13 })
     const line = html.match(/<div style="white-space:nowrap">.*?<\/div>/)![0]
+    const anchors = line.match(/<a [^>]*>/g) ?? []
+    expect(anchors).toHaveLength(1)
+    expect(anchors[0]).toContain('href="https://caltopo.com/map.html#ll=46.85173,-121.76040&amp;z=14"')
     expect(line).toContain('14,406 ft')
-    expect(line).not.toContain('<a ')
+    expect(line).not.toMatch(/<a [^>]*>[^<]*14,406/)
   })
 
   it('opens every link in a new tab, with no window handle back', () => {
     const warning: FireWarning = { miles: 1, name: 'Sourdough', latitude: 48.8, longitude: -121.1 }
     const html = resultPopupHtml({ ...linked, warning })
     const anchors = html.match(/<a /g) ?? []
-    // Twenty-three metric values, the warning, and the title's link-out glyph.
-    expect(anchors.length).toBe(25)
-    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(25)
-    expect(html.match(/target="_blank"/g)?.length).toBe(25)
+    // Twenty-three metric values, the warning, the title's link-out glyph
+    // and the coordinates.
+    expect(anchors.length).toBe(26)
+    expect(html.match(/rel="noopener noreferrer"/g)?.length).toBe(26)
+    expect(html.match(/target="_blank"/g)?.length).toBe(26)
   })
 })
 

@@ -53,7 +53,7 @@ export function mountPoiPopups(
     let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
 
     function render() {
-      popup.setHTML(poiPopupHtml(poi, registered !== null))
+      popup.setHTML(poiPopupHtml(poi, registered !== null, map.getZoom()))
       // setHTML replaces the content element's children, so the button is
       // a new node every time and its listener has to be re-armed. The
       // timeout lets MapLibre attach the markup first, matching the

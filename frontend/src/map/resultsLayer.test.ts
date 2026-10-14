@@ -115,7 +115,7 @@ afterEach(() => {
 })
 
 function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, canvasWidth = MAP_W) {
-  const stub = stubMap({ canvasWidth, canvasHeight: MAP_H, markerAt })
+  const stub = stubMap({ canvasWidth, canvasHeight: MAP_H, markerAt, zoom: MAP_ZOOM })
   const inputs: MapInputs = {
     drawing: false,
     results,
@@ -151,6 +151,9 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, 
     )
   return { stub, layer, controller, board, clickMarker }
 }
+
+// The map's zoom when a card is drawn, which its CalTopo link carries (#712).
+const MAP_ZOOM = 13
 
 describe('mountResultsLayer', () => {
   it('adds the markers and then the pending dots, arrows hidden', () => {
@@ -223,6 +226,7 @@ describe('mountResultsLayer', () => {
         modelFallbackLabel: null,
         rankedBy: live.sortBy,
         compact: false,
+        mapZoom: MAP_ZOOM,
       }),
     )
   })
@@ -258,6 +262,7 @@ describe('mountResultsLayer', () => {
         modelFallbackLabel: null,
         rankedBy: 'temp_max_f',
         compact: true,
+        mapZoom: MAP_ZOOM,
       }),
     )
     expect(popups[0].html).toContain(`;background:${GRID_RANKED_COLOR}`)
@@ -289,6 +294,7 @@ describe('mountResultsLayer', () => {
         modelFallbackLabel: null,
         rankedBy: live.sortBy,
         compact: false,
+        mapZoom: MAP_ZOOM,
       }),
     )
   })
@@ -402,6 +408,7 @@ describe('refreshPopups', () => {
       modelFallbackLabel: null,
       rankedBy: sortBy,
       compact: false,
+      mapZoom: MAP_ZOOM,
     })
 
   it('moves the ranked mark and the rank when the ranking changes', () => {
