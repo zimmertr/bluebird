@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type TableViewInputs, useTableView } from './useTableView'
 import type { FireProximity } from './useFireProximity'
@@ -15,8 +15,18 @@ import { chartKey } from '../utils/chartData'
 import { type ModelRow, pairKey } from '../utils/modelCompare'
 import { geoKey } from '../utils/points'
 import { rankText } from '../utils/resultsCells'
-import { CLOSURE_KEY, MODEL_KEY, WILDFIRE_KEY } from '../utils/tableColumns'
+import { CLOSURE_KEY, MODEL_KEY, RANK_KEY, WILDFIRE_KEY } from '../utils/tableColumns'
 import { type ViewPrefs, readViewPrefs } from '../utils/viewPrefs'
+
+// The file a download would save, kept rather than handed to the browser, so a
+// test can read the order it leaves in.
+const downloads = vi.hoisted(() => [] as string[])
+vi.mock('../utils/exportCsv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/exportCsv')>()),
+  downloadCsv: (csv: string) => {
+    downloads.push(csv)
+  },
+}))
 
 const NEAR = resultRow({ name: 'Near', latitude: 47.1, longitude: -121.1 })
 const FAR = resultRow({ name: 'Far', latitude: 47.2, longitude: -121.2 })
@@ -77,7 +87,10 @@ function inputs(over: Partial<TableViewInputs> = {}): TableViewInputs {
 
 const keys = (cols: readonly { key: string }[]) => cols.map((c) => c.key)
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  downloads.length = 0
+})
 
 describe('useTableView', () => {
   // The order the reader dragged comes back on a reload, and a new ranking
@@ -171,6 +184,39 @@ describe('useTableView', () => {
     expect(result.current.tableRows[0]).toBe(first[0])
   })
 
+  // The # header is a sort of its own (#698): ascending reads the ranking's
+  // order and descending reverses it, each row keeping its stamped rank.
+  it('sorts by the # header in either direction', () => {
+    const { result, rerender } = renderHook((p: TableViewInputs) => useTableView(p), {
+      initialProps: inputs({ detailSort: { key: RANK_KEY, dir: 'asc' } }),
+    })
+    const read = () => result.current.tableRows.map((r) => [r.name, rankText(r, 0)])
+    expect(read()).toEqual([
+      ['Clear', '1'],
+      ['Far', '2'],
+      ['Near', '3'],
+    ])
+    rerender(inputs({ detailSort: { key: RANK_KEY, dir: 'desc' } }))
+    expect(read()).toEqual([
+      ['Near', '3'],
+      ['Far', '2'],
+      ['Clear', '1'],
+    ])
+  })
+
+  // The download leaves in the order on screen, the # header's reverse too.
+  it('downloads the rows in the # header order', () => {
+    const { result } = renderHook(() => useTableView(inputs({ detailSort: { key: RANK_KEY, dir: 'desc' } })))
+    act(() => result.current.handleDownloadCsv())
+    expect(downloads).toHaveLength(1)
+    // A ranked row's line opens with its rank and its name.
+    const rows = downloads[0]
+      .split(/\r?\n/)
+      .filter((line) => /^\d+,/.test(line))
+      .map((line) => line.split(',').slice(0, 2).join(','))
+    expect(rows).toEqual(['3,Near', '2,Far', '1,Clear'])
+  })
+
   // The Elevation column sorts by the number its cell shows (decision 0116): a
   // place with no recorded elevation sorts by the terrain height it was read
   // at, and only a row with neither lands last.
@@ -252,9 +298,9 @@ describe('useTableView', () => {
   })
 
   // Under the ranking's own order a comparison reads one place at a time,
-  // the report's row first, as `modelRowsFor` hands them over. A header click
-  // is what sorts across places.
-  it('keeps compared rows grouped by destination until a header click', () => {
+  // the report's row first, as `modelRowsFor` hands them over, and so it does
+  // under the # header. Any other header click is what sorts across places.
+  it('keeps compared rows grouped by destination in ranked order and under the # header', () => {
     const models = [...MODELS, forecastModel({ id: 'jma_seamless', label: 'JMA GSM' })]
     const shown = [
       { id: 'gfs_seamless', label: 'NOAA GFS', note: null },
@@ -286,6 +332,13 @@ describe('useTableView', () => {
     expect(read(result.current.tableRows)).toEqual(['A NOAA GFS', 'A JMA GSM', 'B NOAA GFS', 'B JMA GSM'])
     rerender({ ...base, detailSort: { key: 'precip_total_in', dir: 'desc' } })
     expect(read(result.current.tableRows)).toEqual(['A JMA GSM', 'B JMA GSM', 'B NOAA GFS', 'A NOAA GFS'])
+    // The # header sorts on the rank each place's rows share, and the sort is
+    // stable, so a place's rows stay together, the report's row first, in
+    // either direction (#698).
+    rerender({ ...base, detailSort: { key: RANK_KEY, dir: 'asc' } })
+    expect(read(result.current.tableRows)).toEqual(['A NOAA GFS', 'A JMA GSM', 'B NOAA GFS', 'B JMA GSM'])
+    rerender({ ...base, detailSort: { key: RANK_KEY, dir: 'desc' } })
+    expect(read(result.current.tableRows)).toEqual(['B NOAA GFS', 'B JMA GSM', 'A NOAA GFS', 'A JMA GSM'])
   })
 
   // The memoized table compares its props by reference, so a render that

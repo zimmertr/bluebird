@@ -1638,6 +1638,22 @@ describe('the camera, the removals and the table order in a link', () => {
     expect(decodeState(qs)!.tableSort).toEqual({ key: 'elevation_ft', desc: false })
   })
 
+  // The # header is a sort of its own (#698): its link names it, in either
+  // direction, and a link in the default sort names no header at all.
+  it('round-trips the # header sort as tsort=rank', () => {
+    const params = (tableSort: ShareableState['tableSort']) =>
+      new URLSearchParams(encodeState({ ...base, tableSort }, DEFAULT_MODEL))
+    expect(params(null).has('tsort')).toBe(false)
+    expect(params(null).has('tdesc')).toBe(false)
+    expect(params({ key: 'rank', desc: false }).get('tsort')).toBe('rank')
+    expect(params({ key: 'rank', desc: false }).has('tdesc')).toBe(false)
+    expect(params({ key: 'rank', desc: true }).get('tsort')).toBe('rank')
+    expect(params({ key: 'rank', desc: true }).get('tdesc')).toBe('1')
+    for (const tableSort of [null, { key: 'rank' as const, desc: false }, { key: 'rank' as const, desc: true }]) {
+      expect(decodeState(encodeState({ ...base, tableSort }, DEFAULT_MODEL))!.tableSort ?? null).toEqual(tableSort)
+    }
+  })
+
   // A removal or a header sort is an edit of the report, like a bound.
   it('makes a link for a removal alone, and for a header sort alone', () => {
     expect(encodeState({ ...pristine, removed: ['46.85289,-121.76041'] }, DEFAULT_MODEL)).toBe(

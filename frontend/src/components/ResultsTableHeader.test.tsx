@@ -2,7 +2,7 @@ import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import ResultsTableHeader from './ResultsTableHeader'
-import { displayedColumns } from '../utils/tableColumns'
+import { RANK_KEY, displayedColumns } from '../utils/tableColumns'
 import { DRAG_THRESHOLD_PX } from '../utils/columnDrag'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow } from '../testSupport/fixtures'
@@ -46,6 +46,13 @@ function renderHeader(p: Props) {
 }
 
 const header = (label: RegExp) => screen.getByRole('columnheader', { name: label })
+// The # header's name is its text, plus the arrow while it is the sorted one.
+const rankHeader = () => header(/^#/)
+// A header's arrow slot: the one span that holds a sort glyph.
+const arrowSlots = (th: Element) => [...th.querySelectorAll('span')].filter((s) => /^[↑↓]$/.test(s.textContent ?? ''))
+// Every sortable header, and the key each sorts by, in the order they are drawn.
+const SORTABLE = [/^#/, /^Name/, /^Elevation/, /^Precip/]
+const SORTABLE_KEYS = [RANK_KEY, 'name', 'elevation_ft', SORT_BY] as const
 
 describe('sorting', () => {
   it('sorts a new column ascending on a header click', async () => {
@@ -66,13 +73,118 @@ describe('sorting', () => {
     renderHeader(props({ detailSortKey: 'elevation_ft', detailSortDir: 'desc' }))
     expect(header(/^Elevation/).getAttribute('aria-sort')).toBe('descending')
     expect(header(/^Name/).getAttribute('aria-sort')).toBe('none')
+    expect(rankHeader().getAttribute('aria-sort')).toBe('none')
+  })
+})
+
+// A column must not move when the sort does (the maintainer, 2026-10-13): every
+// sortable header holds its arrow's slot whether it is sorted or not, hidden
+// and out of the name where it is not. jsdom lays nothing out, so this pins
+// the slot rather than a width; the widths were measured in Chromium on #704.
+describe('the arrow slot', () => {
+  it('is on every sortable header in every sort, shown only on the sorted one', () => {
+    const { rerender } = renderHeader(props())
+    SORTABLE_KEYS.forEach((key, k) => {
+      rerender(
+        <table>
+          <ResultsTableHeader {...props({ detailSortKey: key })} />
+        </table>,
+      )
+      SORTABLE.forEach((label, i) => {
+        const slots = arrowSlots(header(label))
+        const shown = i === k
+        expect(slots, `${label} under ${key}`).toHaveLength(1)
+        expect(slots[0].className.includes('invisible'), `${label} under ${key}`).toBe(!shown)
+        expect(slots[0].getAttribute('aria-hidden'), `${label} under ${key}`).toBe(shown ? null : 'true')
+      })
+    })
+  })
+
+  it('keeps the hidden glyph out of every header name', () => {
+    renderHeader(props({ detailSortKey: 'name' }))
+    expect(screen.getByRole('columnheader', { name: '#' })).toBe(rankHeader())
+    expect(screen.getByRole('columnheader', { name: /^Elevation \(ft\)$/ })).toBe(header(/^Elevation/))
+  })
+})
+
+// The # header is a sort of its own (#698), wired like every column header but
+// outside the drag and the resize.
+describe('sorting by the # header', () => {
+  it('sorts by rank ascending on a click, though the ranked column already holds the order', async () => {
+    const onDetailSort = vi.fn()
+    const { user } = renderHeader(props({ detailSortKey: SORT_BY, onDetailSort }))
+    await user.click(rankHeader())
+    expect(onDetailSort).toHaveBeenLastCalledWith(RANK_KEY, 'asc')
+  })
+
+  it('flips the direction once it is the sorted header', async () => {
+    const onDetailSort = vi.fn()
+    const { user } = renderHeader(props({ detailSortKey: RANK_KEY, onDetailSort }))
+    await user.click(rankHeader())
+    expect(onDetailSort).toHaveBeenLastCalledWith(RANK_KEY, 'desc')
+  })
+
+  it('sorts on Enter and on Space, once for a held key', () => {
+    const onDetailSort = vi.fn()
+    renderHeader(props({ onDetailSort }))
+    fireEvent.keyDown(rankHeader(), { key: 'Enter' })
+    fireEvent.keyDown(rankHeader(), { key: 'Enter', repeat: true })
+    expect(onDetailSort).toHaveBeenCalledTimes(1)
+    expect(onDetailSort).toHaveBeenLastCalledWith(RANK_KEY, 'asc')
+    // fireEvent answers false when a handler prevented the default.
+    expect(fireEvent.keyDown(rankHeader(), { key: ' ' })).toBe(false)
+    fireEvent.keyDown(rankHeader(), { key: ' ', repeat: true })
+    expect(onDetailSort).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the arrow and aria-sort only while it is the sorted header', () => {
+    const { rerender } = renderHeader(props({ detailSortKey: SORT_BY }))
+    expect(screen.getByRole('columnheader', { name: '#' })).toBe(rankHeader())
+    expect(arrowSlots(rankHeader())[0].className).toContain('invisible')
+    expect(rankHeader().getAttribute('aria-sort')).toBe('none')
+    expect(arrowSlots(header(/^Precip/))[0].className).not.toContain('invisible')
+    rerender(
+      <table>
+        <ResultsTableHeader {...props({ detailSortKey: RANK_KEY, detailSortDir: 'desc' })} />
+      </table>,
+    )
+    expect(rankHeader().textContent).toBe('#↓')
+    expect(arrowSlots(rankHeader())[0].className).not.toContain('invisible')
+    expect(rankHeader().getAttribute('aria-sort')).toBe('descending')
+    expect(arrowSlots(header(/^Precip/))[0].className).toContain('invisible')
+  })
+
+  it('is neither a drag source nor a column to resize', () => {
+    renderHeader(props({ onColumnMove: vi.fn(), onColumnWidthsChange: vi.fn(), columnWidths: {} }))
+    expect(rankHeader().hasAttribute('data-col')).toBe(false)
+    expect(rankHeader().querySelector('.cursor-col-resize')).toBeNull()
+    expect(rankHeader().className).not.toContain('touch-none')
+  })
+
+  it('leaves a drag across it to move the column it lands on', () => {
+    const onColumnMove = vi.fn()
+    const onDetailSort = vi.fn()
+    renderHeader(props({ onColumnMove, onDetailSort }))
+    placeAt(rankHeader(), { left: 0, top: 0, width: 30, height: 24 })
+    COLUMNS.forEach((col, i) => {
+      placeAt(document.querySelector(`th[data-col="${col.key as string}"]`)!, { left: 30 + i * 100, top: 0, width: 100, height: 24 })
+    })
+    // From Precipitation, across Elevation and Name, and released over the #
+    // header, which is no place to land: the column takes the nearest one.
+    const from = header(/^Precip/)
+    fireEvent.pointerDown(from, { clientX: 280, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerMove(document, { clientX: 10, clientY: 12, pointerType: 'mouse' })
+    fireEvent.pointerUp(document)
+    fireEvent.click(from)
+    expect(onColumnMove).toHaveBeenCalledWith('precip_total_in', 'name')
+    expect(onDetailSort).not.toHaveBeenCalled()
   })
 })
 
 describe('sorting from the keyboard', () => {
   it('reaches every sortable header with Tab, in the order the table draws them', async () => {
     const { user } = renderHeader(props())
-    for (const label of [/^Name/, /^Elevation/, /^Precip/]) {
+    for (const label of [/^#/, /^Name/, /^Elevation/, /^Precip/]) {
       await user.tab()
       expect(document.activeElement).toBe(header(label))
     }
@@ -81,6 +193,7 @@ describe('sorting from the keyboard', () => {
   it('sorts on Enter and flips on Space, as a click would', async () => {
     const onDetailSort = vi.fn()
     const { user } = renderHeader(props({ onDetailSort }))
+    await user.tab()
     await user.tab()
     await user.tab()
     await user.keyboard('{Enter}')
@@ -146,18 +259,17 @@ describe('sorting from the keyboard', () => {
         .filter(Boolean)
         .map((id) => document.getElementById(id)?.textContent?.trim())
         .join(' ')
-    for (const label of [/^Name/, /^Elevation/, /^Precip/]) {
+    for (const label of [/^#/, /^Name/, /^Elevation/, /^Precip/]) {
       expect(description(header(label))).toBe('Press Enter or Space to sort.')
     }
     // One copy of the sentence, however many headers point at it.
     expect(screen.getAllByText('Press Enter or Space to sort.', { ignore: false })).toHaveLength(1)
-    expect(description(screen.getByRole('columnheader', { name: '#' }))).toBe('')
   })
 
-  it('keeps the column label as the name and the rank header out of the tab order', () => {
+  it('keeps the column label as the name and puts the # header in the tab order', () => {
     renderHeader(props())
     expect(header(/^Name/).getAttribute('tabindex')).toBe('0')
-    expect(screen.getByRole('columnheader', { name: '#' }).hasAttribute('tabindex')).toBe(false)
+    expect(screen.getByRole('columnheader', { name: '#' }).getAttribute('tabindex')).toBe('0')
   })
 })
 
