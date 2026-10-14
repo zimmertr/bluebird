@@ -46,6 +46,12 @@ export interface PopoverBox {
    * the two read as one piece.
    */
   joined?: 'below' | 'above'
+  /**
+   * Set with `joined` when the card spans its control's row rather than the
+   * control (`span`): wider than the control, so it keeps the border and the
+   * outer corner on the shared edge and lays that border over the control's.
+   */
+  wide?: boolean
 }
 
 /** How a panel stands against its trigger: beside it, on it, or out of it. */
@@ -76,7 +82,19 @@ export interface PopoverOptions {
    * not apply.
    */
   placement?: Placement
+  /**
+   * An unfurled panel only: the row its control stands in, when the control is
+   * narrower than the panel's rows need (record 0134's qualification). The
+   * card then runs from the row's left edge to the control's right edge,
+   * still joined to the control, so it opens leftward under the label rather
+   * than floating over anything else.
+   */
+  span?: Rect
 }
+
+// A spanned card keeps its top border and lays it over the control's bottom
+// one, so the two edges draw one line: `SURFACE_CARD`'s 1px.
+const SEAM_PX = 1
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(Math.max(value, low), Math.max(low, high))
@@ -110,9 +128,9 @@ function clamp(value: number, low: number, high: number): number {
 export function popoverBox(
   trigger: Rect,
   viewport: { width: number; height: number },
-  { preferredWidth, gap, margin, desiredHeight, placement = 'hang' }: PopoverOptions,
+  { preferredWidth, gap, margin, desiredHeight, placement = 'hang', span }: PopoverOptions,
 ): PopoverBox {
-  if (placement === 'unfurl') return unfurledBox(trigger, viewport, margin, desiredHeight)
+  if (placement === 'unfurl') return unfurledBox(trigger, viewport, margin, desiredHeight, span)
   const width = clamp(preferredWidth, trigger.width, viewport.width - margin * 2)
   const left = clamp(trigger.left, margin, viewport.width - width - margin)
 
@@ -190,23 +208,38 @@ function unfurledBox(
   viewport: { width: number; height: number },
   margin: number,
   desiredHeight: number,
+  span?: Rect,
 ): PopoverBox {
-  const left = anchor.left
-  const width = anchor.width
+  // Across the row, the card's right edge stays on the control's: it opens
+  // leftward under the label, and its outer corner is the one left round.
+  const right = anchor.left + anchor.width
+  const wide = span !== undefined && span.left < anchor.left
+  const left = wide ? span.left : anchor.left
+  const width = right - left
+  const seam = wide ? SEAM_PX : 0
   const anchorTop = clamp(anchor.top, 0, viewport.height)
   const anchorBottom = clamp(anchor.top + anchor.height, 0, viewport.height)
   const below = Math.max(viewport.height - anchorBottom - margin, 0)
   const above = Math.max(anchorTop - margin, 0)
   if (desiredHeight <= below || below >= UNFURL_FLOOR_PX || below >= above) {
-    return { left, width, maxHeight: below, placement: 'below', offset: { top: anchorBottom }, joined: 'below' }
+    return {
+      left,
+      width,
+      maxHeight: below + seam,
+      placement: 'below',
+      offset: { top: anchorBottom - seam },
+      joined: 'below',
+      wide,
+    }
   }
   return {
     left,
     width,
-    maxHeight: above,
+    maxHeight: above + seam,
     placement: 'above',
-    offset: { bottom: viewport.height - anchorTop },
+    offset: { bottom: viewport.height - anchorTop - seam },
     joined: 'above',
+    wide,
   }
 }
 

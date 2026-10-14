@@ -2321,6 +2321,14 @@ describe('an unfurled menu', () => {
     expect(UNFURLED.above.split(' ').sort()).toEqual(['border-b-0', 'rounded-b-none'])
   })
 
+  // Across a row the card is wider than its control, so it keeps the border on
+  // the shared edge and squares only the corner under the control: its right
+  // edge is the control's, and the outer corner stands free under the label.
+  it('squares only the corner under the control when it spans a row', () => {
+    expect(UNFURLED.belowWide).toBe('rounded-tr-none')
+    expect(UNFURLED.aboveWide).toBe('rounded-br-none')
+  })
+
   // The anchor squares the corners facing the card, on the side `usePopover`
   // writes, and takes the card's edge colour so the outline runs round both.
   it("squares the anchor on the side facing the card, in the card's edge colour", () => {

@@ -30,7 +30,7 @@ interface Props {
  */
 export default function Popover({ box, popoverRef, header, children }: Props) {
   // An unfurled card drops the edge it shares with its anchor (record 0134).
-  const joined = box.joined ? UNFURLED[box.joined] : ''
+  const joined = !box.joined ? '' : box.wide ? UNFURLED[`${box.joined}Wide` as const] : UNFURLED[box.joined]
   return createPortal(
     <div
       ref={popoverRef}

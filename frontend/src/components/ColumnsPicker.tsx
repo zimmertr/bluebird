@@ -4,7 +4,7 @@ import { ColDef, stepColumn } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
-import { CHOICE_INPUT, CHOICE_ROW, DRAG, SR_ONLY } from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, DRAG, SCROLL_BARS, SR_ONLY } from '../styles'
 import { IconGrip } from './icons'
 import {
   GHOST_MAX_PX,
@@ -32,6 +32,8 @@ interface Props {
    * menu on the bar takes the same place at the same width (record 0134).
    */
   anchorRef: React.RefObject<HTMLElement | null>
+  /** The bar's line on a phone, which the menu spans (record 0134). */
+  widthRef?: React.RefObject<HTMLElement | null>
 }
 
 export default function ColumnsPicker({
@@ -44,8 +46,9 @@ export default function ColumnsPicker({
   onColumnMove,
   triggerRef,
   anchorRef,
+  widthRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
   const rankedNoteId = useId()
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
@@ -128,8 +131,11 @@ export default function ColumnsPicker({
   if (!open || !box) return null
 
   return (
-    <Popover box={box} popoverRef={popoverRef} header="Display columns">
-      <div className="min-h-0 flex-1 overflow-y-auto p-1 space-y-1">
+    // No heading (the maintainer, 2026-10-14): under a button called Columns
+    // it said the button's word again, and the Models menu beside it has
+    // none. The list keeps that word as its accessible name.
+    <Popover box={box} popoverRef={popoverRef}>
+      <div role="group" aria-label="Columns" className={`min-h-0 flex-1 overflow-y-auto p-1 space-y-1 ${SCROLL_BARS}`}>
         {columns.map((col) => {
           const isRanked = rankedGroup.has(col.key)
           const isVisible = visibleKeys.has(col.key)

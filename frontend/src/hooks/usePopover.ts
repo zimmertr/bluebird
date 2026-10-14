@@ -85,6 +85,14 @@ interface Options {
    */
   placement?: Placement
   /**
+   * The row the control stands in, for an unfurled panel whose rows need more
+   * than the control's width (`popoverBox`'s `span`, record 0134): the results
+   * bar on a phone, where the group is glyphs alone, and the model dropdown's
+   * row in the panel. Read only with `placement: 'unfurl'`; the linter's
+   * `style-menu-unfurls` check fails it anywhere else.
+   */
+  widthRef?: React.RefObject<HTMLElement | null>
+  /**
    * Controls whose press is not "outside", because the caller closes the
    * panel itself in the same press: the calendar's When segment (#687). Its
    * Current used to close the card on pointerdown and drop the Dates arm on
@@ -103,6 +111,7 @@ export function usePopover({
   anchorRef,
   placement = 'hang',
   ownPressRef,
+  widthRef,
 }: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -128,6 +137,7 @@ export function usePopover({
           margin: VIEWPORT_MARGIN_PX,
           desiredHeight,
           placement,
+          span: placement === 'unfurl' ? widthRef?.current?.getBoundingClientRect() : undefined,
         },
       )
       // A box that says the same thing is the same box. Without this, every
@@ -137,7 +147,7 @@ export function usePopover({
       // phase to hear a sidebar's own.
       setBox((prev) => (prev && sameBox(prev, next) ? prev : next))
     },
-    [triggerRef, anchorRef, preferredWidth, placement],
+    [triggerRef, anchorRef, widthRef, preferredWidth, placement],
   )
 
   // Two passes, both before paint so neither is visible. The first asks for as
@@ -283,7 +293,7 @@ function sameSignals(a: readonly unknown[], b: readonly unknown[]): boolean {
 
 function sameBox(a: PopoverBox, b: PopoverBox): boolean {
   if (a.left !== b.left || a.width !== b.width || a.maxHeight !== b.maxHeight) return false
-  if (a.placement !== b.placement || a.joined !== b.joined) return false
+  if (a.placement !== b.placement || a.joined !== b.joined || a.wide !== b.wide) return false
   // One key, never both, and which one it is depends on the placement — so the
   // two are compared through the key each actually carries.
   return 'top' in a.offset

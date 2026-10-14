@@ -123,6 +123,12 @@ export default function ResultsSheet({
   // What all three unfurl out of: the bar's button group, so the menus share
   // one place and one width whichever button opened them (record 0134).
   const actionGroupRef = useRef<HTMLDivElement>(null)
+  // On a phone the group is its glyphs alone, 136px, and the Columns list's
+  // rows want 210: the menus span the bar's line instead, from its left
+  // padding to the group's right edge, still joined to the group (record
+  // 0134). A desk's group carries its words and is wide enough.
+  const actionsRowRef = useRef<HTMLDivElement>(null)
+  const menuRowRef = isDesktop ? undefined : actionsRowRef
   const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -174,6 +180,7 @@ export default function ResultsSheet({
             bothHasRoom={bothHasRoom}
             showTable={showTable}
             actionGroupRef={actionGroupRef}
+            actionsRowRef={actionsRowRef}
             columnsButtonRef={columnsButtonRef}
             onToggleColumns={() => setColumnsOpen(!columnsOpen)}
             columnsOpen={columnsOpen}
@@ -230,6 +237,7 @@ export default function ResultsSheet({
         onColumnMove={handleColumnMove}
         triggerRef={columnsButtonRef}
         anchorRef={actionGroupRef}
+        widthRef={menuRowRef}
       />
 
       {/* Model visibility popover */}
@@ -241,6 +249,7 @@ export default function ResultsSheet({
         onToggle={toggleHiddenModel}
         triggerRef={modelsButtonRef}
         anchorRef={actionGroupRef}
+        widthRef={menuRowRef}
       />
 
       {/* Removed rows popover */}
@@ -252,6 +261,7 @@ export default function ResultsSheet({
         onRestoreAll={restoreAllRemoved}
         triggerRef={removedButtonRef}
         anchorRef={actionGroupRef}
+        widthRef={menuRowRef}
       />
     </>
   )

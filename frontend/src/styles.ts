@@ -363,6 +363,12 @@ export const SURFACE_CARD =
 export const UNFURLED = {
   below: 'rounded-t-none border-t-0',
   above: 'rounded-b-none border-b-0',
+  // Across the control's row (`popoverBox`'s `span`), the card is wider than
+  // the control: it keeps its border on the shared edge, laid over the
+  // control's own, and squares only the corner under the control, keeping
+  // the outer one round where it stands free under the label.
+  belowWide: 'rounded-tr-none',
+  aboveWide: 'rounded-br-none',
 } as const
 
 /**

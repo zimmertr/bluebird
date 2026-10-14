@@ -227,6 +227,31 @@ describe('popoverBox, unfurled', () => {
     }
   })
 
+  // Record 0134's qualification: a control narrower than its menu's rows
+  // lends the menu its row, from the row's left edge to the control's right.
+  it("spans the control's row when given one, its border over the control's", () => {
+    const row = { left: 16, top: 300, width: 365, height: 46 }
+    const box = popoverBox(GROUP, VIEWPORT, { ...unfurl(200), span: row })
+    expect(box.left).toBe(16)
+    expect(box.width).toBe(200 + 181.5 - 16)
+    expect(box.offset).toEqual({ top: 322 - 1 })
+    expect(box.wide).toBe(true)
+    expect(box.joined).toBe('below')
+  })
+
+  it("keeps the control's own width when the row starts no further left", () => {
+    const box = popoverBox(GROUP, VIEWPORT, { ...unfurl(200), span: { ...GROUP } })
+    expect(box.width).toBe(181.5)
+    expect(box.wide).toBe(false)
+  })
+
+  it('reads a row only when it unfurls', () => {
+    const row = { left: 16, top: 300, width: 365, height: 46 }
+    const box = popoverBox(TRIGGER, VIEWPORT, { ...opts(200), span: row })
+    expect(box.width).toBe(380)
+    expect(box.wide).toBeUndefined()
+  })
+
   it('leaves a hanging panel unjoined', () => {
     expect(popoverBox(TRIGGER, VIEWPORT, opts(200)).joined).toBeUndefined()
   })

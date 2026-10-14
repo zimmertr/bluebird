@@ -16,6 +16,8 @@ interface Props {
    * menu on the bar takes the same place at the same width (record 0134).
    */
   anchorRef: React.RefObject<HTMLElement | null>
+  /** The bar's line on a phone, which the menu spans (record 0134). */
+  widthRef?: React.RefObject<HTMLElement | null>
 }
 
 /**
@@ -48,8 +50,9 @@ export default function ModelsPicker({
   onToggle,
   triggerRef,
   anchorRef,
+  widthRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
 
   if (!open || !box) return null
 

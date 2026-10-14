@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import ForecastCalendar from './ForecastCalendar'
 import ModelPicker from './ModelPicker'
 import { CONTROL_W, TEXT } from '../styles'
@@ -49,6 +49,8 @@ export default function ForecastSection({
   aqiForecastDays,
 }: Props) {
   const forecastHours = modelForecastHours(forecastModels, forecastModel)
+  // The Model row, which the model list spans (record 0134).
+  const modelRowRef = useRef<HTMLDivElement>(null)
   // Memoized because the calendar's grid hangs off it: a new object on every
   // render would rebuild the month grid on every keystroke in the panel.
   const band = useMemo(
@@ -67,13 +69,12 @@ export default function ForecastSection({
           whose effect is the next control down belongs beside it. A data
           knob either way — sort, limit and the bounds re-present held
           rows, while a different model is different numbers. Ordered longest-reach-first by the server. */}
-      <div className="mb-3 flex items-center gap-2">
+      <div ref={modelRowRef} className="mb-3 flex items-center gap-2">
         {/* Label beside its control, like every other row in the panel.
             The trigger is a button carrying its own aria-label, not an
             input, so this is a span with nothing to point `htmlFor` at.
-            A narrow trigger costs the list nothing: popoverBox never
-            renders the panel narrower than its trigger and widens it to
-            380px regardless. */}
+            A narrow trigger costs the list nothing: the list unfurls across
+            this row, under the label (record 0134). */}
         <span className={`${TEXT.control} flex-1`}>Model</span>
         <div className={`relative ${CONTROL_W}`}>
           {/* A model named by a link but not offered here still has to
@@ -102,6 +103,7 @@ export default function ForecastSection({
             compared={comparedModels}
             onComparedChange={setComparedModels}
             disabled={modelDisabled}
+            rowRef={modelRowRef}
           />
         </div>
       </div>

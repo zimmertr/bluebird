@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import ColumnsPicker from './ColumnsPicker'
 import { displayedColumns } from '../utils/tableColumns'
 import { DRAG_THRESHOLD_PX } from '../utils/columnDrag'
@@ -43,13 +43,17 @@ const grip = (label: string) =>
 describe('visibility', () => {
   it('draws nothing while closed', () => {
     render(<Picker open={false} />)
-    expect(screen.queryByText('Display columns')).toBeNull()
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
   })
 
-  it('lists every column under its header', () => {
+  // No visible heading (the maintainer, 2026-10-14): the list is named by the
+  // button's word, the way the Models menu beside it has no heading either.
+  it('lists every column in a group named Columns, under no heading', () => {
     render(<Picker />)
-    expect(screen.getByText('Display columns')).toBeTruthy()
-    expect(screen.getAllByRole('checkbox')).toHaveLength(COLUMNS.length)
+    const group = screen.getByRole('group', { name: 'Columns' })
+    expect(within(group).getAllByRole('checkbox')).toHaveLength(COLUMNS.length)
+    expect(screen.queryByText('Display columns')).toBeNull()
+    expect(group.closest('[style]')!.children[0]).toBe(group)
   })
 
   it('holds the ranked group on screen', () => {

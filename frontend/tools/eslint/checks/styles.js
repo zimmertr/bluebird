@@ -285,6 +285,13 @@ export const STYLES = [
         message: 'Unfurl a menu out of its control: pass usePopover placement \'unfurl\' (or the calendar\'s \'cover\').',
       },
       {
+        // The row-width form is a refinement of unfurling, never a way for a
+        // panel to take a width of its own beside its control.
+        selector:
+          'CallExpression[callee.name="usePopover"]:has(Property[key.name="widthRef"]):not(:has(Property[key.name="placement"][value.value="unfurl"]))',
+        message: 'Span a row only from an unfurled menu: widthRef goes with placement \'unfurl\'.',
+      },
+      {
         selector:
           'JSXAttribute[name.name="role"][value.value="listbox"]:not(JSXElement[openingElement.name.name="Popover"] JSXAttribute)',
         message: 'A list of options lives in the card Popover.tsx draws; only the search box keeps its own.',

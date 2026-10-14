@@ -187,13 +187,27 @@ describe('focus', () => {
 // A menu unfurls out of its anchor as one card with it (#687, record 0134):
 // the results bar's pickers open from a press on one button and unfurl out of
 // the whole group, so the harness keeps the two apart the way the bar does.
-function UnfurlHarness({ anchor }: { anchor: Box }) {
+function UnfurlHarness({ anchor, row }: { anchor: Box; row?: Box }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
-  const { popoverRef, box } = usePopover({ open, onOpenChange: setOpen, triggerRef, anchorRef, placement: 'unfurl' })
+  const rowRef = useRef<HTMLDivElement>(null)
+  const { popoverRef, box } = usePopover({
+    open,
+    onOpenChange: setOpen,
+    triggerRef,
+    anchorRef,
+    widthRef: row ? rowRef : undefined,
+    placement: 'unfurl',
+  })
   return (
     <>
+      <div
+        ref={(el) => {
+          rowRef.current = el
+          if (el && row) placeAt(el, row)
+        }}
+      />
       <div
         data-testid="anchor"
         ref={(el) => {
@@ -239,6 +253,17 @@ describe('unfurling', () => {
     expect(panel().style.top).toBe('')
     for (const cls of UNFURLED.above.split(' ')) expect(panel().classList).toContain(cls)
     expect(screen.getByTestId('anchor').dataset.unfurled).toBe('above')
+  })
+
+  it('keeps the outer corner and the shared border when it spans a row', async () => {
+    const { user } = render(<UnfurlHarness anchor={{ left: 300, top: 100, width: 181, height: 22 }} row={{ left: 16, top: 100, width: 465, height: 22 }} />)
+    await user.click(screen.getByRole('button', { name: 'Trigger' }))
+    expect(panel().style.left).toBe('16px')
+    expect(panel().style.width).toBe('465px')
+    expect(panel().style.top).toBe('121px')
+    expect(panel().className).toContain(UNFURLED.belowWide)
+    expect(panel().className).not.toContain(UNFURLED.below)
+    expect(screen.getByTestId('anchor').dataset.unfurled).toBe('below')
   })
 
   it('lets the anchor go when the card closes', async () => {

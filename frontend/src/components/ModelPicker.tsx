@@ -18,6 +18,7 @@ import {
   DISABLED,
   SELECT,
   SURFACE_DIVIDER,
+  SCROLL_BARS,
   TEXT,
   UNFURL_ANCHOR,
 } from '../styles'
@@ -55,6 +56,12 @@ interface Props {
    * of play.
    */
   disabled?: boolean
+  /**
+   * The row the trigger stands in, which the list spans: its rows carry a
+   * badge, a grid and reach column and a summary, and the trigger is
+   * `CONTROL_W` (record 0134).
+   */
+  rowRef?: React.RefObject<HTMLElement | null>
 }
 
 /**
@@ -99,6 +106,7 @@ export default function ModelPicker({
   compared,
   onComparedChange,
   disabled = false,
+  rowRef,
 }: Props) {
   const [open, setOpen] = useState(false)
   const selectedIndex = models.findIndex((m) => m.id === value)
@@ -133,10 +141,12 @@ export default function ModelPicker({
     open,
     onOpenChange: setOpen,
     triggerRef,
-    // Out of the trigger at its width, like every menu (record 0134). It was
-    // 380px floating over the map, wide enough for the longest summary on two
-    // lines; at the trigger's width the summaries wrap tighter.
+    // Out of the trigger like every menu, across its row (record 0134): the
+    // trigger's 118px clipped the header and the badge, so the card runs from
+    // the row's left edge to the trigger's right edge and opens under the
+    // label. It was 380px floating over the map.
     placement: 'unfurl',
+    widthRef: rowRef,
     remeasure: [models, chipIds.length],
     // The list rather than the chip row, because the list is what an opened
     // picker is for; Shift+Tab reaches the chips above it. The list itself
@@ -423,7 +433,7 @@ export default function ModelPicker({
             }
             tabIndex={-1}
             onKeyDown={onListKeyDown}
-            className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
+            className={`min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none ${SCROLL_BARS}`}
           >
           {models.map((model, i) => {
             const isRanking = model.id === value
@@ -454,7 +464,10 @@ export default function ModelPicker({
                     {/* Two roles that differ only in weight, so the ranking
                         row reads as the ranking one without a second color
                         competing with the active highlight behind it. */}
-                    <span className={isRanking ? TEXT.subheading : TEXT.control}>
+                    {/* Whole, never broken across two lines: `NOAA GFS`
+                        beside its badge is the widest first line, 255.7px,
+                        in a 317px card (record 0134). */}
+                    <span className={`${isRanking ? TEXT.subheading : TEXT.control} whitespace-nowrap`}>
                       {model.label}
                     </span>
                     {model.id === defaultId && (
