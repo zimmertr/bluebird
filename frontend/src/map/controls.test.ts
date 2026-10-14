@@ -128,7 +128,9 @@ describe('the Open-Meteo credit on the attribution line', () => {
     expect(OPEN_METEO_ATTRIBUTION).toMatch(/href="https:\/\/open-meteo\.com\/"/)
     expect(OPEN_METEO_ATTRIBUTION).toMatch(/target="_blank"/)
     expect(OPEN_METEO_ATTRIBUTION).toMatch(/rel="noopener noreferrer"/)
-    expect(OPEN_METEO_ATTRIBUTION.replace(/<[^>]+>/g, '')).toBe('Open-Meteo.com')
+    // The whole string is the one link and its words, read off the raw string
+    // rather than by stripping tags, which is no way to read HTML.
+    expect(OPEN_METEO_ATTRIBUTION).toMatch(/^<a [^<>]*>Open-Meteo\.com<\/a>$/)
   })
 
   it('joins the library credit once, after it, whatever shape it comes in', () => {
