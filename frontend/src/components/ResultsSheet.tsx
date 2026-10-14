@@ -195,6 +195,7 @@ export default function ResultsSheet({
               pending={pending}
               removeResult={removeResult}
               sortBy={sortBy}
+              sortDesc={sortDesc}
               pointSample={pointSample}
               forecastTimes={forecastTimes}
               playbackIndex={playbackIndex}
