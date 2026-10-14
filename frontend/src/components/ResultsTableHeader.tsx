@@ -171,9 +171,16 @@ function ResultsTableHeader({
         className={`${TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap hover:text-white select-none`}
       >
         {label}
-        {detailSortKey === key && (
-          <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
-        )}
+        {/* The arrow's slot is drawn on every header, hidden where the sort
+            is not, so a header keeps one width whether the sort lands on it
+            or leaves it: a column must not move when the sort does (the
+            maintainer, 2026-10-13). Hidden, it is also out of the name. */}
+        <span
+          className={`ml-1 ${ACCENT.text} ${detailSortKey === key ? '' : 'invisible'}`}
+          aria-hidden={detailSortKey === key ? undefined : 'true'}
+        >
+          {detailSortKey === key && detailSortDir === 'desc' ? '↓' : '↑'}
+        </span>
         {column?.grip}
       </th>
     )

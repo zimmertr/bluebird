@@ -48,6 +48,11 @@ function renderHeader(p: Props) {
 const header = (label: RegExp) => screen.getByRole('columnheader', { name: label })
 // The # header's name is its text, plus the arrow while it is the sorted one.
 const rankHeader = () => header(/^#/)
+// A header's arrow slot: the one span that holds a sort glyph.
+const arrowSlots = (th: Element) => [...th.querySelectorAll('span')].filter((s) => /^[↑↓]$/.test(s.textContent ?? ''))
+// Every sortable header, and the key each sorts by, in the order they are drawn.
+const SORTABLE = [/^#/, /^Name/, /^Elevation/, /^Precip/]
+const SORTABLE_KEYS = [RANK_KEY, 'name', 'elevation_ft', SORT_BY] as const
 
 describe('sorting', () => {
   it('sorts a new column ascending on a header click', async () => {
@@ -69,6 +74,36 @@ describe('sorting', () => {
     expect(header(/^Elevation/).getAttribute('aria-sort')).toBe('descending')
     expect(header(/^Name/).getAttribute('aria-sort')).toBe('none')
     expect(rankHeader().getAttribute('aria-sort')).toBe('none')
+  })
+})
+
+// A column must not move when the sort does (the maintainer, 2026-10-13): every
+// sortable header holds its arrow's slot whether it is sorted or not, hidden
+// and out of the name where it is not. jsdom lays nothing out, so this pins
+// the slot rather than a width; the widths were measured in Chromium on #704.
+describe('the arrow slot', () => {
+  it('is on every sortable header in every sort, shown only on the sorted one', () => {
+    const { rerender } = renderHeader(props())
+    SORTABLE_KEYS.forEach((key, k) => {
+      rerender(
+        <table>
+          <ResultsTableHeader {...props({ detailSortKey: key })} />
+        </table>,
+      )
+      SORTABLE.forEach((label, i) => {
+        const slots = arrowSlots(header(label))
+        const shown = i === k
+        expect(slots, `${label} under ${key}`).toHaveLength(1)
+        expect(slots[0].className.includes('invisible'), `${label} under ${key}`).toBe(!shown)
+        expect(slots[0].getAttribute('aria-hidden'), `${label} under ${key}`).toBe(shown ? null : 'true')
+      })
+    })
+  })
+
+  it('keeps the hidden glyph out of every header name', () => {
+    renderHeader(props({ detailSortKey: 'name' }))
+    expect(screen.getByRole('columnheader', { name: '#' })).toBe(rankHeader())
+    expect(screen.getByRole('columnheader', { name: /^Elevation \(ft\)$/ })).toBe(header(/^Elevation/))
   })
 })
 
@@ -102,25 +137,27 @@ describe('sorting by the # header', () => {
     expect(onDetailSort).toHaveBeenCalledTimes(2)
   })
 
-  it('wears the arrow and aria-sort only while it is the sorted header', () => {
+  it('shows the arrow and aria-sort only while it is the sorted header', () => {
     const { rerender } = renderHeader(props({ detailSortKey: SORT_BY }))
-    expect(rankHeader().textContent).toBe('#')
+    expect(screen.getByRole('columnheader', { name: '#' })).toBe(rankHeader())
+    expect(arrowSlots(rankHeader())[0].className).toContain('invisible')
     expect(rankHeader().getAttribute('aria-sort')).toBe('none')
-    expect(header(/^Precip/).textContent).toMatch(/↑$/)
+    expect(arrowSlots(header(/^Precip/))[0].className).not.toContain('invisible')
     rerender(
       <table>
         <ResultsTableHeader {...props({ detailSortKey: RANK_KEY, detailSortDir: 'desc' })} />
       </table>,
     )
     expect(rankHeader().textContent).toBe('#↓')
+    expect(arrowSlots(rankHeader())[0].className).not.toContain('invisible')
     expect(rankHeader().getAttribute('aria-sort')).toBe('descending')
-    expect(header(/^Precip/).textContent).not.toMatch(/[↑↓]$/)
+    expect(arrowSlots(header(/^Precip/))[0].className).toContain('invisible')
   })
 
   it('is neither a drag source nor a column to resize', () => {
     renderHeader(props({ onColumnMove: vi.fn(), onColumnWidthsChange: vi.fn(), columnWidths: {} }))
     expect(rankHeader().hasAttribute('data-col')).toBe(false)
-    expect(rankHeader().querySelector('[aria-hidden="true"]')).toBeNull()
+    expect(rankHeader().querySelector('.cursor-col-resize')).toBeNull()
     expect(rankHeader().className).not.toContain('touch-none')
   })
 
