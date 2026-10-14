@@ -158,7 +158,7 @@ test.describe('on a phone', () => {
     })
     await page.goto('/?view=-121.5,47.5,12&closedareas=1&closedtrails=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Close controls' }).tap()
+    // A phone opens on the map, with the drawer closed (#696).
     await expect(page.locator('aside')).toHaveAttribute('inert', '')
 
     const canvas = await page.locator('.maplibregl-canvas').boundingBox()

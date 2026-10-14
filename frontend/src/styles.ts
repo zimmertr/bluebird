@@ -1244,8 +1244,9 @@ export const MAP_PILL_SUMMARY = `${TEXT.micro} max-w-full truncate font-normal`
  * a row of 12px labels and a 14px one beside them read as another kind of
  * object (the reason `BUTTON_FLOATING` gives for its own size). It takes the
  * rest of the row (`flex-1`) and never less than its word: `whitespace-nowrap`
- * and a flex item's content minimum hold it at `Analyzing…` plus its padding,
- * and the Controls summary truncates first.
+ * and a flex item's content minimum hold it at its word plus its padding, and
+ * the Controls summary truncates first. Measured in `docs/STYLES.md` (Phone row
+ * fit): only `Meteo-France ARPEGE` truncates at 360px wide.
  *
  * The call site adds `DISABLED`, as the panel's button does, because it is the
  * same gate. Shadowed like the boxes beside it, since it floats with them.

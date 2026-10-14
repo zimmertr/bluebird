@@ -26,7 +26,8 @@ async function probe(page: Page): Promise<Probe> {
     let box = el.parentElement!
     while (getComputedStyle(box).overflowY !== 'auto') box = box.parentElement!
     const outer = box.getBoundingClientRect()
-    const inner = box.firstElementChild!.getBoundingClientRect()
+    // The box, which hangs under the Legends strip (#696).
+    const inner = box.lastElementChild!.getBoundingClientRect()
     const x = Math.round(inner.left + inner.width / 2)
     const y = Math.round((inner.bottom + outer.bottom) / 2)
     const at = document.elementFromPoint(x, y)
@@ -50,6 +51,13 @@ for (const viewport of [
     await page.setViewportSize(viewport)
     await page.goto('/?fires=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    // A phone opens on the map with the panel closed and the legend folded
+    // (#696): the panel is opened for its Draw polygon, and the legend for
+    // the band under its box.
+    if (viewport.width < 1024) {
+      await page.getByRole('button', { name: 'Legends' }).click()
+      await page.getByRole('button', { name: 'Open controls' }).click()
+    }
     // Draw mode first: on a phone it closes the panel, which otherwise
     // covers the map and the band with it.
     await page.getByRole('button', { name: 'Draw polygon' }).click()

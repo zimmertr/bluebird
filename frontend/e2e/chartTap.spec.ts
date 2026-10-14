@@ -21,7 +21,9 @@ async function openChart(page: Page) {
   // `player=1` because the Forecast player is off by default on a phone.
   await page.goto(`/?player=1&mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('button', { name: 'Analyze' }).tap()
+  // The map's own Analyze: a phone opens on the map, with the panel's
+  // drawer closed and inert (#696).
+  await page.getByRole('main').getByRole('button', { name: 'Analyze' }).tap()
   await expect(resultRows(page).first()).toBeAttached()
   await page.getByRole('button', { name: 'Show chart only' }).tap()
   const surface = page.locator('svg.recharts-surface').first()

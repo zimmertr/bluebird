@@ -1,6 +1,6 @@
 # 0034. On a phone the results are a sheet standing on the map
 
-- Status: Accepted
+- Status: Accepted. Amended by 0135 (a searched place is framed for the sheet it is about to open, and a sheet holding only pending rows shows the table alone).
 - Date: 2026-09-14 (git: the merge of #335)
 - Decider: TJ (git: author and merger of #335)
 - Issues and PRs: #249, #335, #422, #430, #454, #459

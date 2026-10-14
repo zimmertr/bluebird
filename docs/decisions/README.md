@@ -39,7 +39,7 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0016](0016-overlays-not-knobs.md) | A map overlay is never a knob | 2026-08-04 | Accepted | Root: A map overlay is never a knob |
 | [0017](0017-hms-smoke-feed.md) | Smoke comes from NOAA's own daily KML, dated in Eastern time | 2026-08-04 | Accepted | Backend: `hms.py` |
 | [0018](0018-wind-direction-browser-only.md) | Only the browser fetches the wind direction | 2026-08-04 | Accepted | Root: Key constraints |
-| [0019](0019-layers-on-the-map.md) | The overlay switches live in a Layers popover on the map | 2026-08-04 | Accepted | Frontend: `forecastGrid.ts`; "The popover hangs off a button" |
+| [0019](0019-layers-on-the-map.md) | The overlay switches live in a Layers popover on the map | 2026-08-04 | Accepted; amended by 0135 | Frontend: `forecastGrid.ts`; "The popover hangs off a button" |
 | [0020](0020-fire-warn-10-miles.md) | A destination within 10 miles of an active fire is flagged, and an unchecked one is never shown as clear | 2026-08-17 | Accepted | Frontend: `fireProximity.ts` |
 | [0021](0021-browser-path-only.md) | The browser path is the only path for the app | 2026-08-21 | Accepted | Root: The browser path is the only path |
 | [0022](0022-wind-at-elevation.md) | Wind is reported at the destination's elevation | 2026-08-21 | Accepted | Root: Key constraints |
@@ -54,8 +54,8 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0031](0031-model-picker-listbox.md) | The model picker is a listbox in two parts, one gesture each | 2026-09-14 | Accepted | Frontend: `ModelPicker.tsx` |
 | [0032](0032-compare-one-fetch-per-model.md) | A model comparison fetches one request per model, bought at Analyze | 2026-09-14 | Accepted | Frontend: `modelCompare.ts` |
 | [0033](0033-compare-encoding.md) | Each compared line wears its own colour and a full name, with no key and no model cap | 2026-09-14 | Accepted | Frontend: `modelCompare.ts` |
-| [0034](0034-phone-sheet-on-map.md) | On a phone the results are a sheet standing on the map | 2026-09-14 | Accepted | Frontend: `resultsSheet.ts`; `forecastGrid.ts` |
-| [0035](0035-measured-sheet-lift.md) | The sheet lift is measured, not derived | 2026-09-14 | Accepted | Frontend: `forecastGrid.ts` |
+| [0034](0034-phone-sheet-on-map.md) | On a phone the results are a sheet standing on the map | 2026-09-14 | Accepted; amended by 0135 | Frontend: `resultsSheet.ts`; `forecastGrid.ts` |
+| [0035](0035-measured-sheet-lift.md) | The sheet lift is measured, not derived | 2026-09-14 | Accepted; amended by 0135 | Frontend: `forecastGrid.ts` |
 | [0036](0036-windy-deeplink-grammar.md) | Windy links follow a grammar measured against the live site | 2026-09-14 | Accepted | Frontend: `windy.ts` |
 | [0037](0037-ranking-discards-column-order.md) | A change to Rank by discards the reader's column order | 2026-09-14 | Accepted | Frontend: `tableColumns.ts` |
 | [0038](0038-metrics-table-two-blocks.md) | One Metrics table replaces Ranking and Filters, in two blocks with nothing between them | 2026-09-14 | Accepted | Frontend: "The popover hangs off a button" |
@@ -68,7 +68,7 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0045](0045-temp-at-elevation-no-floor.md) | Temperature is reported at the destination's elevation, with no floor | 2026-09-17 | Accepted | Root: Key constraints |
 | [0046](0046-snow-layer-export-bounds.md) | The snow depth layer is a bounded ArcGIS export | 2026-09-17 | Accepted | Frontend: `snowDepth.ts` |
 | [0047](0047-guide-split-by-directory.md) | The module layouts live in nested guide files beside the code | 2026-09-17 | Accepted | Root: Architecture, module layouts; Documentation |
-| [0048](0048-legend-one-box.md) | The map legend is one box, in alphabetical order, anchored at the top | 2026-09-17 | Accepted | Frontend: `forecastGrid.ts` |
+| [0048](0048-legend-one-box.md) | The map legend is one box, in alphabetical order, anchored at the top | 2026-09-17 | Accepted; amended by 0136 | Frontend: `forecastGrid.ts` |
 | [0049](0049-legend-ticks-no-units.md) | A legend strip prints three ticks and no unit | 2026-09-17 | Accepted | Frontend: `legendRamp.ts` |
 | [0050](0050-one-gradient-everywhere.md) | Every scale on the map is drawn as one gradient | 2026-09-22 | Accepted | Frontend: `forecastGrid.ts`; `legendRamp.ts`; "The popover hangs off a button" |
 | [0051](0051-no-method-in-headers.md) | Metric column headers do not name the elevation method | 2026-09-22 | Accepted | Root: Key constraints |
@@ -145,3 +145,5 @@ A new record that reverses an old one says `Supersedes 00NN` in its status line.
 | [0124](0124-no-wind-gust.md) | No wind gust metric: Open-Meteo publishes none above 10 m, and every way measured of reading one at the destination's elevation contradicted the wind or invented a number | 2026-10-08 | Accepted | Root: the paragraph that begins "No column header names the method"; `docs/DATA.md`, the wind caveats |
 | [0125](0125-map-popups-open-on-click.md) | Every map popup opens on a click, through one system that ranks what is under it | 2026-10-08 | Accepted | Frontend `map/` guide: `mapPopups.ts` and every module that opens a popup; `utils/` guide: `mapClick.ts`; `USAGE.md` |
 | [0127](0127-rank-column-is-its-own-sort.md) | The table's # header is a sort of its own, which the table takes only when a reader clicks it | 2026-10-08 | Accepted | Frontend `components/` guide: `ResultsTableHeader.tsx`; `hooks/` guide: `useTableView.ts`, `usePresentedReport.ts`; `utils/` guide: `tableColumns.ts`; `USAGE.md` |
+| [0135](0135-phone-opens-on-the-map-with-search-and-analyze.md) | A phone opens on the map, with the search field across its top and Controls, Layers and Analyze in one row under it | 2026-10-13 | Accepted | Frontend: "The popover hangs off a button"; `components/` guide: map chrome, `MapStage.tsx`; `hooks/` guide: `useResultsLayout.ts`, `useDrawer.ts`; `utils/` guide: `analyzeGate.ts`, `controlsSummary.ts`, `resultsSheet.ts`; `USAGE.md` |
+| [0136](0136-legend-folds-behind-a-strip.md) | The map legend folds behind a Legends strip, open on a desktop and folded on a phone | 2026-10-13 | Accepted | Frontend `utils/` guide: `forecastGrid.ts`; `components/` guide: map chrome; `hooks/` guide: `useLegendFold.ts`; `USAGE.md` |

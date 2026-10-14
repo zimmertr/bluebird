@@ -1,6 +1,6 @@
 # 0048. The map legend is one box, in alphabetical order, anchored at the top
 
-- Status: Accepted
+- Status: Accepted. Amended by 0136 (the box gains a folded state behind a Legends strip).
 - Date: 2026-09-17 (git: the merge of #459); the guide records the order and the strip as TJ, 2026-09-17
 - Decider: TJ (git: author and merger of #459); the section order and the in-strip numbers are TJ's, 2026-09-17
 - Issues and PRs: #249, #446, #454, #459
