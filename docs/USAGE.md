@@ -10,7 +10,7 @@ The welcome dialog offers a guided tutorial, the `Tutorial` link at the bottom o
 
 A phone opens on the map rather than on the panel, a shared link included. The search box runs across the top of the map, and one row under it holds **Controls**, **Layers** and **Analyze**. **Controls** opens the panel, and the line under its name says what the panel is set to: the When choice and the model, as in `Current · NOAA GFS`. **Analyze** is the panel's own button in a second place: it runs the same analysis, can be pressed exactly when the panel's can, and reads `Analyzing…` while one runs. What it does not do is explain itself. The lines that say why it is greyed out, or that a report no longer matches the panel, stay under the panel's **Analyze**, so open **Controls** to read them.
 
-Pick a search result and the map frames the place above the results sheet it is about to open, with its name in view. Until a report arrives the sheet shows the table alone, whatever view you last chose, and your view comes back with the first report.
+Pick a search result and the map frames the place above the results sheet it is about to open, with its name in view. Until a report arrives the sheet shows the table alone, whatever view you last chose, and your view comes back with the first report. The map's legend opens with the report, unless the phone is on its side, where it starts folded behind its **Legends** header.
 
 ## Destinations
 
@@ -450,9 +450,10 @@ If Open-Meteo cannot be reached from your browser, the analysis stops and says s
 One box, under the **Layers** button, with a **Legends** header across its top
 that folds it away. Press the header to fold the box down to that one row and
 again to open it: its chevron points right while the box is folded and down while
-it is open. The box starts open in a desktop-sized window and folded on a phone,
-where it would otherwise stand across the map as soon as a report lands, and once
-you press the header this browser remembers your choice. The box is only there
+it is open. The box starts open on any screen with room for it, and folded on a
+short one, such as a phone turned on its side, where it would leave no map
+between itself and the results. Once you press the header this browser remembers
+your choice. The box is only there
 when it has something to key.
 
 The box holds a section for the marker colors

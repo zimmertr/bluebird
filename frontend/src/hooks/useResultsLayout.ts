@@ -37,14 +37,15 @@ import { type ResultsMode, writeViewPrefs } from '../utils/viewPrefs'
  * Shared with the phone, where the sheet's own floors take over; they are the
  * starting heights either way, and the reader's drag replaces them.
  */
-const DEFAULT_PANEL_HEIGHT = 220
+export const DEFAULT_PANEL_HEIGHT = 220
 const DEFAULT_CHART_HEIGHT = DEFAULT_PANEL_HEIGHT
 const DEFAULT_TABLE_HEIGHT = DEFAULT_PANEL_HEIGHT
 
 // Live viewport height, so the chart/table panel heights can be re-clamped when
 // the window resizes or a phone rotates — otherwise a stale height could let the
-// panels crowd the map below its floor after a resize.
-function useViewportHeight(): number {
+// panels crowd the map below its floor after a resize. `useLegendFold` reads it
+// too, for the legend's default.
+export function useViewportHeight(): number {
   const [height, setHeight] = useState(() =>
     typeof window !== 'undefined' ? window.innerHeight : 800,
   )

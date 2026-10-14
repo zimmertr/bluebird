@@ -51,11 +51,11 @@ for (const viewport of [
     await page.setViewportSize(viewport)
     await page.goto('/?fires=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    // A phone opens on the map with the panel closed and the legend folded
-    // (#696): the panel is opened for its Draw polygon, and the legend for
-    // the band under its box.
+    // A phone opens on the map with the panel closed (#696), so the panel is
+    // opened for its Draw polygon. The legend opens by default at both sizes,
+    // each tall enough for it (record 0136).
+    await expect(page.getByRole('button', { name: 'Legends' })).toHaveAttribute('aria-expanded', 'true')
     if (viewport.width < 1024) {
-      await page.getByRole('button', { name: 'Legends' }).click()
       await page.getByRole('button', { name: 'Open controls' }).click()
     }
     // Draw mode first: on a phone it closes the panel, which otherwise
@@ -87,6 +87,11 @@ test('the legend stack still scrolls when its sections outgrow its floor', async
   await page.setViewportSize({ width: 1280, height: 300 })
   await page.goto('/?fires=1&radar=1&smoke=1&snow=1')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  // A window this short opens with the legend folded (record 0136), so the
+  // reader opens it.
+  const header = page.getByRole('button', { name: 'Legends' })
+  await expect(header).toHaveAttribute('aria-expanded', 'false')
+  await header.click()
   const label = page.getByText('Active wildfire').first()
   await expect(label).toBeVisible()
   const scroller = await label.evaluateHandle((el) => {

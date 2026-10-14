@@ -214,7 +214,7 @@ export function dockedMapFloorPx(gripCount: number): number {
   // The FINE inset, not `RESTING_MAP_PX`'s coarse one: the results are docked
   // beside a pointer, and a docked layout on a coarse pointer is a tablet wide
   // enough that the 16px is noise either way.
-  // The strip heads the stack at a desk too (#696), open by default there.
+  // The legend card's header heads the stack at a desk too (#696).
   const reserve = LEGEND_TOP_FINE_PX + LEGEND_STRIP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
   return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
 }
@@ -361,4 +361,86 @@ export function transportBottomPx(liftPx: number): number {
  */
 export function mapCornerLiftPx(liftPx: number): number {
   return liftPx
+}
+
+/**
+ * The legend card's sections under its header, for the key every analysis
+ * draws: the ranked metric's scale alone, one ramp section. Measured
+ * 2026-10-13 in the Playwright image's Chromium, 48px at both pointer sizes
+ * (a 92px card under a 44px header on a phone, 84 under 36 at a desk), because
+ * a section is read rather than pressed and takes no finger floor.
+ */
+export const LEGEND_KEY_BODY_PX = 48
+
+/**
+ * One result marker and its one-line name, which is what an open legend must
+ * leave room for under it: the dot's radius and stroke above its centre
+ * (10 + 2), and below it the label's offset (1.6em at 11px), one 11px line and
+ * its halo (`MARKER_PAINT`, `MARKER_LABEL_LAYOUT`): 12 + 17.6 + 13.2 + 1.5,
+ * rounded up. Less than this and a result under the card can only show as a
+ * dot cut by the card's edge or a label with no dot.
+ */
+export const MARKER_BAND_PX = 45
+
+/**
+ * How much map stands above the results when they first open after an
+ * analysis, at the default panel heights and clamped by the same resting
+ * floors the layout takes. A desk opens on Both, docked under the map, so it
+ * is the map above the two panels, their grips and the bar; a phone stays on
+ * the table alone (`useResultsLayout`), so it is the map above that sheet.
+ */
+export function openingMapPx({
+  viewportH,
+  docked,
+  panelPx,
+}: {
+  viewportH: number
+  docked: boolean
+  panelPx: number
+}): number {
+  if (docked) {
+    const { chart, table } = resolvePanelHeights(panelPx, panelPx, {
+      chartShown: true,
+      tableShown: true,
+      availPx: viewportH,
+      mapMinPx: dockedMapFloorPx(2),
+    })
+    return viewportH - RESULTS_BAR_PX - 2 * DOCKED_GRIP_PX - chart - table
+  }
+  return (
+    viewportH -
+    restingLiftPx({
+      collapsed: false,
+      gripCount: 1,
+      chartShown: false,
+      tableShown: true,
+      chartPx: panelPx,
+      tablePx: panelPx,
+      availPx: viewportH,
+    })
+  )
+}
+
+/**
+ * The map left under an open legend card when the results first open: what
+ * stands above the results less the card (its top inset, its header with the
+ * 4px of slack the header constants carry, and the metric key) and the
+ * forecast player's band. The band is counted whether or not the player is on,
+ * for `RESTING_MAP_PX`'s reason: a map overlay must not decide the default.
+ */
+export function bandUnderLegendPx(opts: { viewportH: number; docked: boolean; panelPx: number }): number {
+  const cardBottom =
+    (opts.docked ? LEGEND_TOP_FINE_PX + LEGEND_STRIP_FINE_PX : LEGEND_TOP_PX) + LEGEND_KEY_BODY_PX
+  return openingMapPx(opts) - cardBottom - TRANSPORT_BAND_PX
+}
+
+/**
+ * Whether the legend card opens by default (the maintainer, 2026-10-13): open
+ * on every device unless there is not enough room for it, which is when the
+ * band under the open card could not hold one marker and its name
+ * (`MARKER_BAND_PX`). Only a default: a reader's own press wins and is kept
+ * (`useLegendFold`).
+ */
+export function legendDefaultOpen(opts: { viewportH: number; docked: boolean; panelPx: number }): boolean {
+  return bandUnderLegendPx(opts) >= MARKER_BAND_PX
 }

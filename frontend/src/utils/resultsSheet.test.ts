@@ -17,9 +17,14 @@ import {
   CORNER_MARGIN_PX,
   TRANSPORT_GAP_PX,
   TRANSPORT_HEIGHT_PX,
+  LEGEND_KEY_BODY_PX,
+  MARKER_BAND_PX,
+  bandUnderLegendPx,
   dockedMapFloorPx,
   draggedMapFloorPx,
   legendBottomPx,
+  legendDefaultOpen,
+  openingMapPx,
   mapCornerLiftPx,
   resolveSheetLift,
   restingLiftPx,
@@ -389,3 +394,39 @@ describe('the default panel heights', () => {
   })
 })
 
+
+// The legend's default (#696, the maintainer 2026-10-13): open on every device
+// unless the band of map under the open card, with the results just opened,
+// could not hold one marker and its name.
+describe('legendDefaultOpen', () => {
+  const at = (viewportH: number, docked: boolean) => ({ viewportH, docked, panelPx: DEFAULT_PANEL_PX })
+
+  // The four viewports the decision was made at. A phone opens on the table
+  // alone and a desk on Both, each at the default heights.
+  it.each([
+    ['390x844', 844, false, 496, 168],
+    ['360x800', 800, false, 462, 134],
+    ['430x932', 932, false, 584, 256],
+    ['1440x900', 900, true, 438, 134],
+  ])('opens at %s, with %ipx of map over the results and a band left under the card', (_, h, docked, map, band) => {
+    expect(openingMapPx(at(h, docked))).toBe(map)
+    expect(bandUnderLegendPx(at(h, docked))).toBe(band)
+    expect(legendDefaultOpen(at(h, docked))).toBe(true)
+  })
+
+  // Where it starts folding: a phone turned on its side, or a short window.
+  it('folds where the band under the card cannot hold a marker and its name', () => {
+    expect(legendDefaultOpen(at(621, false))).toBe(true)
+    expect(legendDefaultOpen(at(620, false))).toBe(false)
+    expect(legendDefaultOpen(at(390, false))).toBe(false)
+    expect(legendDefaultOpen(at(641, true))).toBe(true)
+    expect(legendDefaultOpen(at(640, true))).toBe(false)
+  })
+
+  // The card counted is the header and the metric key, measured, and the band
+  // is one marker with a one-line name, from the marker's own paint.
+  it('counts the card and the marker band it was measured at', () => {
+    expect(LEGEND_KEY_BODY_PX).toBe(48)
+    expect(MARKER_BAND_PX).toBe(Math.ceil(10 + 2 + 1.6 * 11 + 11 * 1.2 + 1.5))
+  })
+})

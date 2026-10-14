@@ -60,8 +60,8 @@ export interface ViewPrefs {
   columnOrder: readonly string[] | null
   /**
    * Whether the reader last left the map's legend open or folded (#696), or
-   * null while they have never pressed its strip, which leaves it to the
-   * device: open on a desktop, folded on a phone.
+   * null while they have never pressed its header, which leaves it to the
+   * viewport: open wherever the map has room for it (`legendDefaultOpen`).
    */
   legendOpen: boolean | null
 }
