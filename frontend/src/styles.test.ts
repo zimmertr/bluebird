@@ -332,6 +332,14 @@ describe('every component', () => {
     expect(source).not.toMatch(/\bopacity-/)
   })
 
+  // A shadow says how far a surface stands off what is under it, which is the
+  // elevation scale's answer (#687): five sizes on eight surfaces is what a
+  // call site choosing its own produced. Written as an alternation so no class
+  // name appears here as text.
+  it.each(Object.entries(sources))('%s casts no shadow of its own', (_path, source) => {
+    expect(source).not.toMatch(/\bshadow-(?:sm|md|lg|xl|2xl|none)\b/)
+  })
+
   // The role is a colour and nothing else, so a call site that forgets the
   // side draws no line at all and nothing says so. Every use is read back with
   // its own template literal around it.

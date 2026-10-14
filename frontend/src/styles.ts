@@ -8,7 +8,7 @@
  *
  * They are not two scales. The dialog title is the panel header's title, one
  * size for both since #687 (both are the name of the surface they head), and
- * the dialog subtitle is the caption step one size up — the same recipe the
+ * the dialog subtitle is the caption step one size up, the same recipe the
  * tagline under the app title wears; even the copy rhymes ("Weather Window
  * Finder" / "The Weather Window Finder").
  * And the reading tier's small step lands exactly on the compact tier's base,
@@ -1638,7 +1638,7 @@ export const STATUS = {
  *
  * The glow is the whole shadow for whatever wears this, so a call site must
  * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
- * `ELEVATION.raised` — two shadow utilities on one element resolve by stylesheet order,
+ * `ELEVATION.raised`: two shadow utilities on one element resolve by stylesheet order,
  * not by intent.
  *
  * Carries no radius, and that is load-bearing rather than an omission. A ring
@@ -1820,7 +1820,7 @@ export const NOTICE_DISMISS = {
  * dialog's header over its body, the popover's overline strip over its rows,
  * the month navigation under the calendar grid, the panel's own right edge
  * against the map. On the slate-800 panel and card it is 1.41:1, and
- * `PANEL_RULE` draws the same colour — which is the point: a surface that has
+ * `PANEL_RULE` draws the same colour, which is the point: a surface that has
  * to place its own rule should not look like a different kind of rule. What
  * splits them is only whether the stack or the call site decides WHERE, so a
  * bare colour is all this one carries.

@@ -16,8 +16,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TEXT.caption` | Secondary text: taglines, descriptions, notes |
 | `TEXT.helper` | Italic prose explaining a control |
 | `TEXT.overline` | Tiny all-caps labels: popover headers, search result kinds |
-| `TEXT.micro` | Attribution, timestamps, overflow counts |
-| `PROSE.title` | Dialog heading |
+| `TEXT.micro` | Attribution, timestamps, overflow counts. 11px, the floor for text that is read, and never on a button or a link a reader presses (see The type floor below) |
+| `PROSE.title` | Dialog heading, at `TEXT.appTitle`'s 18px so a dialog and the panel name things at one size |
 | `PROSE.subtitle` | Line under dialog heading |
 | `PROSE.heading` | Heading inside body copy |
 | `PROSE.body` | Reading-tier body copy |
@@ -36,9 +36,10 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | Role | Purpose |
 |---|---|
 | `SURFACE_PAGE` | The ground a full page stands on: the app's root, the standalone pages' frame, and the error boundary's fallback, which replaces the tree it guards and so cannot borrow a ground from it |
+| `ELEVATION` | The three shadows the app lifts a surface by: `none` for what stands on an edge, `raised` for what rests on the map, `overlay` for what opens above other chrome. Every surface below composes one (see The elevation scale below) |
 | `SURFACE_CARD` | Opaque cards above a scrim: dialogs, analysis overlay |
 | `SURFACE_FLOATING` | Boxes floating over the map: search field, the legend, chart tooltip, the forecast player's transport bar |
-| `RECESSED_FILL` / `RECESSED_EDGE` | The well every recessed surface composes: slate-900 fill and a slate-500 border, which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
+| `RECESSED_FILL` | The well every recessed surface composes: slate-900 fill, edged by a slate-500 border (`RECESSED_EDGE`, private to `styles.ts` since #687 because only roles compose it), which clears 3:1 against the panel. Fields, selects, segments and the legend all start here |
 | `SURFACE_POPOVER` | A floating box that is a menu rather than a key: the map's Layers popover and the search result list, lifted off the legend by one step of fill and a heavier shadow |
 | `SURFACE_SHEET` | The results on a phone, standing on the map's bottom edge: the docked panel's fill, the map's floating edge, the surface radius on the top corners only |
 | `SURFACE_GROUP` | Bordered region grouping controls: the calendar |
@@ -53,6 +54,8 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `BUTTON_SECONDARY` | Secondary action beside something else |
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
 | `BUTTON_DANGER` | Destructive retry inside an error notice |
+| `BUTTON_GHOST` | A button with no fill at rest: a word and its glyph, with the fill arriving on hover. The results bar's Columns, Models, Removed and Download CSV, which were underlined links |
+| `DIALOG_FOOT` | The welcome dialog's actions, in a foot that sticks to the card's bottom edge while the body scrolls. `secondary` is the tutorial button, full width at the primary's height |
 | `BUTTON_FLOATING` | Pressable floating box: the Controls and Layers buttons, the map's only two |
 | `SKIP_LINK` | The page's first Tab stop, the floating button shown only while it has the keyboard. Transparent and unpressable while idle rather than `sr-only`, because `sr-only` sets a position of its own (#576) |
 | `BANNER_PREVIEW` | The preview-deployment banner, the one surface that is deliberately loud: white on red-600, 4.76:1 |
@@ -77,13 +80,13 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SEGMENT_IDLE` | Unchosen half of segmented control |
 | `SEGMENT_ITEM` | Individual segment half with padding and transitions |
 | `SEGMENT_DIVIDER` | The rule between two segment halves |
-| `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER_VALUE` and `SLIDER_WORDMARK` compose it |
+| `CONTROL_SIZE` | The one type size every control reads at (`text-xs`); `SLIDER.value` and `SLIDER.wordmark` compose it |
 | `SELECT_W_AGGREGATE` | The aggregate dropdown in a Metrics row: 72px (w-[4.5rem]), the widest aggregate word (28px) plus the field's 8px padding and the 24px `SELECT` reserves for its arrow, with 12px of deliberate slack because the width also sets a grid track |
 | `CAPTION_LIFTED` | `TEXT.caption` re-derived for the slate-700 fills: a search result's description on `SURFACE_POPOVER`, and the window caption on the results sheet's header bar. slate-300 (6.97:1) because slate-400 falls to 3.93:1 on that fill |
-| `SLIDER_OVERLAY` / `SLIDER_VALUE` / `SLIDER_WORDMARK` / `SLIDER_IDLE` | The coverage slider in the Layers popover: the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint |
+| `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), and `track` is the rail the map timeline's scrubber slides on |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint, and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
-| `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself |
+| `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
 
 **Accent and intent**
@@ -136,34 +139,35 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
 | `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls and Layers buttons, the Layers popover and the legend box. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
 | `MAP_ROW_H` | Height of one row in that column: 36px, floored at 44px on a finger. Fixed, because the search field and the two buttons each solved for their own height and came out 34, 38 and 38 |
-| `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `MAP_COL_GAP_T` is the same gap as a top margin, for a popover that hangs rather than sits |
+| `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `gap` for the members that sit in a flex column, `top` for the same gap as a margin, for a popover that hangs rather than sits |
+| `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
 | `LEGEND_TOP` | Where the legend stack hangs under that column, in four numbers: two pointer sizes, each with and without the Controls button, which stands in the column only while the panel is collapsed. `resultsSheet.ts` mirrors two of them as `LEGEND_TOP_PX` and `LEGEND_TOP_FINE_PX`, and `resultsSheet.test.ts` reads `styles.ts` as text to hold the pairs together |
-| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
-| `MICRO_SIZE` | The ramp's smallest step as a utility. `MAP_EDGE.publish` spells the same 10px a second time as a custom property, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
+| `MAP_EDGE` | How far anything floating on the map stands off its edge: 12px, published once as `--map-edge-inset` on the map wrapper and read by the button column, the legend stack and MapLibre's own control stack; `left` and `right` are the inset as utilities. The same publisher carries `--map-credit-size` at the ramp's smallest step, so `map.css` can size the library's credit line from the ramp |
+| `MICRO_SIZE` | The ramp's smallest step as a utility, 11px since #687. `MAP_EDGE.publish` spells the same 11px a second time as a custom property, and `CHART_TICK_PX` a third as the number Recharts takes, because Tailwind compiles no interpolated class and the library's credit line has no call site; `styles.test.ts` holds the two to one number |
 | `METRICS_GRID` | The Metrics table: label, aggregate dropdown, Min box, Max box; the control columns are `auto`, sized by the roles their controls wear |
 | `METRIC_BOX_W` | One bound box in the Metrics table: 56px (w-14), the widest the metric row's label budget allows. The results cap spans both box columns instead, so it wears `w-full` off the same shape |
 | `METRIC_HEAD_GAP` | The Metrics table's one deliberate break: 8px (pt-2) above the two box headings, on every cell of that row because the columns are grid tracks. The only vertical space in the grid that `gap-y` does not set |
 
 **Moving a column**
 
-One set of roles for both surfaces that reorder columns, the table header and the Columns picker, so a gesture that means "this moves" looks the same in either.
+One `DRAG` object for both surfaces that reorder columns (five exports until #687), the table header and the Columns picker, so a gesture that means "this moves" looks the same in either.
 
 | Role | Purpose |
 |---|---|
-| `DRAG_GRIP` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
-| `DRAG_GRIP_ACTIVE` | The grip while its own column is the one being carried |
-| `CARRIED` | The column where it used to be, while the ghost is under the pointer. `DISABLED`'s 40 percent without its cursor, because that column still sorts the moment the drag ends, and not `MUTED`'s 60, because it is faded for where it is rather than for what it does |
-| `DRAG_GHOST` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it carries `LAYER.popover` itself rather than asking the call site for it; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
-| `DRAG_INSERT` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text, and the same layer as the ghost |
+| `DRAG.grip` | The handle itself. `cursor-grab` is the standing signal; `touch-none` is load-bearing, because without it the browser claims the gesture for scrolling and the drag never gets a second pointer event on a phone |
+| `DRAG.gripActive` | The grip while its own column is the one being carried |
+| `DRAG.carried` | The column where it used to be, while the ghost is under the pointer. `DISABLED`'s 40 percent without its cursor, because that column still sorts the moment the drag ends, and not `MUTED`'s 60, because it is faded for where it is rather than for what it does |
+| `DRAG.ghost` | The column riding under the pointer. Portalled to the body and positioned in viewport coordinates, so it carries `LAYER.popover` itself rather than asking the call site for it, and the `ELEVATION.overlay` shadow every opened surface wears; `pointer-events-none` is load-bearing, or the ghost is what every hit test finds |
+| `DRAG.insert` | The bar marking the gap the column will drop into. The accent's fill without its label color, since the bar carries no text, and the same layer as the ghost |
 
 **Map timeline**
 
 | Role | Purpose |
 |---|---|
 | `SCRUBBER` | The timeline's `<input type="range">`: suppresses the platform slider on every engine that draws one, and draws the thumb |
-| `SCRUBBER_TRACK` | The rail behind it, on the same recessed surface as every other well |
+| `SLIDER.track` | The rail behind it, on the same recessed surface as every other well. It was `SCRUBBER_TRACK` until #687 grouped the slider parts |
 | `TRANSPORT_AXIS_ITEM` | The axis switch's halves: `SEGMENT_ITEM` with one step more inset, because the right half carries a ranked metric's noun rather than a word the app chose. That half also holds one line and takes the width its own noun needs, where a panel half splits a fixed box with its neighbour |
-| `TRANSPORT_AXIS_W` | The floor under both halves: the width `Radar` takes, so a one-word metric beside it is a matching half rather than a runt. Spelled again under `touch:`, because the tap target's own min-width is a later rule and would otherwise lower it |
+| `TRANSPORT_AXIS_W` | Private to `styles.ts` since #687, composed into `TRANSPORT_AXIS_ITEM`. The floor under both halves: the width `Radar` takes, so a one-word metric beside it is a matching half rather than a runt. Spelled again under `touch:`, because the tap target's own min-width is a later rule and would otherwise lower it |
 
 **Layers**
 
@@ -231,7 +235,7 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon draw counter is the one bare `STATUS` use, pinned by count |
+| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon block is the one bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
@@ -248,7 +252,9 @@ One set of roles for both surfaces that reorder columns, the table header and th
 | No component positions its own panel | `checks/styles.js` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `checks/styles.js` | `popoverBox` has exactly one caller, the `usePopover` hook |
 | No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
-| No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `CARRIED` are the three fades |
+| No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `DRAG.carried` are the three fades |
+| Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
+| Every shadow is a step of one scale | `styles.test.ts` | Every surface role's shadow is an `ELEVATION` value, the sheet and the banner wear `none`, and no component spells a `shadow-` utility |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
 | No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or `rgb()` in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `popupChrome.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
 | No popup spells its own type size, padding, radius or background | `checks/styles.js` | `value-inline-style` bans `font-size:`, `padding:`, `border-radius:` and `background:` in any string or template under `src/`, tests aside, outside `popupChrome.ts`, which owns the popup's three sizes, its button and its rule |
@@ -319,6 +325,48 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
 
+### The type floor
+
+`MICRO_SIZE` is 11px, and that is the floor for text a reader reads (#687). It
+was 10px, which read as a smudge on the calendar's weekday row and under the
+player, and the audit found 10px at nine places with no rule about where it
+could go. 12px (`TEXT.control`) is the floor for anything pressed, so no button
+or link wears the micro step; the linter's `style-micro-not-pressed` check is
+what enforces it. The Restore buttons in the Removed list were the one press at
+10px and read at `CONTROL_SIZE` now. A credit is the one link that keeps the
+step, because a credit is the step's own job: the Open-Meteo line in the table's
+foot and MapLibre's credit line on the map.
+
+One size stays under the floor, `GLYPH_SIZE` at 10px, private to `styles.ts`: a
+glyph inside a box whose size something else decides, the legend strip's
+numerals in their scrim band and the smoke key's letters in their chips, which
+grew to 16px squares to take them. Neither is prose, and each is measured
+against its box.
+
+Re-measured at 11px, 2026-10-13 against the built image: the calendar's weekday
+row, the player's marks, the model picker's reach column (no option overflows),
+and the chart's ticks, which take the step as `CHART_TICK_PX` and still fit the
+44px `Y_AXIS_WIDTH`. `PROSE.title` moved to `TEXT.appTitle`'s 18px at the same
+time, so a dialog heading and the panel's name are one size.
+Record: [0131](decisions/0131-type-scale-floor-and-elevation-scale.md)
+
+### The elevation scale
+
+Every shadow is one of three steps of `ELEVATION` (#687). The audit found five
+shadow sizes on eight surfaces with nothing deciding which got which.
+
+| Step | Utility | What wears it |
+|---|---|---|
+| `none` | `shadow-none` | What stands on an edge rather than floating: the phone's results sheet, the preview banner, the sliders' thumbs |
+| `raised` | `shadow-lg` | What rests on the map and is read past: the search field, the Controls and Layers buttons, the legend, the player, the chart tooltip, the phone's draw bar |
+| `overlay` | `shadow-2xl` | What opens above other chrome and is closed again: every menu (`SURFACE_POPOVER`), every card over a scrim (`SURFACE_CARD`), and a column being carried (`DRAG.ghost`) |
+
+`2xl` rather than `xl` for the top step, because `SURFACE_POPOVER` measured it:
+its single 0.25-alpha blur is the one of the two that still reads over the dark
+results sheet. The glows are not on the scale, `ACCENT_RING` and the tutorial's
+spotlight, because they point at something rather than lift it.
+Record: [0131](decisions/0131-type-scale-floor-and-elevation-scale.md)
+
 ### The three weights of rule
 
 Measured against the slate-800 panel and card, which is what every one of them
@@ -327,14 +375,16 @@ is drawn on except the calendar's own well:
 | Role | Colour | Contrast | Who places it |
 |---|---|---|---|
 | `PANEL_EDGE` | slate-500 | 3.07:1 | The call site |
-| `PANEL_RULE` | slate-600 at half opacity | 1.37:1 | The panel's stack |
+| `PANEL_RULE` | slate-700 | 1.41:1 | The panel's stack |
 | `SURFACE_DIVIDER` | slate-700 | 1.41:1 | The call site |
 
 Only the first is meant to be seen as a boundary, and it is the one step that
-clears the 3:1 a UI boundary owes. The other two are the same quiet line to the
-eye: half-opacity slate-600 composites to (50.5, 63, 82) on the panel where
-slate-700 is (51, 65, 85). They are two roles rather than one because they
-differ in who decides WHERE the line goes, not in what it looks like:
+clears the 3:1 a UI boundary owes. The other two are the same quiet line, and
+since #687 the same colour: `PANEL_RULE` was slate-600 at half opacity, which
+composited to (50.5, 63, 82) on the panel where slate-700 is (51, 65, 85), a
+second spelling of one line that nothing but the arithmetic held together.
+`styles.test.ts` now holds the two to one colour. They stay two roles because
+they differ in who decides WHERE the line goes, not in what it looks like:
 `PANEL_RULE` is a whole recipe with its own margins and padding, drawn from the
 stack so a section added later cannot forget its line, and `SURFACE_DIVIDER` is
 a bare colour for the surfaces that place one rule themselves.
@@ -375,9 +425,9 @@ and a truncated reason is worse than a second line.
 
 ### Results bar fold point
 
-The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Models, Removed, Download CSV, Open-Meteo.com). The column never stacks further, but the actions row itself wraps on a narrow phone: measured at 402px on a coarse pointer, the mode switch at its 44px height and the five links do not fit one row of the 378px available, so the last of them fold under. That makes the bar 103.5px tall there, which `SHEET_HEADER_PX` in `frontend/src/utils/resultsSheet.ts` rounds up to 104 — re-measure both together.
+The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Models, Removed, Download CSV). The column never stacks further, but the actions row itself wraps on a narrow phone: measured at 402px on a coarse pointer, the mode switch at its 44px height, Columns and Models fit beside it in the 378px available and Download CSV (with Removed, when there is one) folds onto a second row of 24px buttons. That makes the sheet's header 108px tall there, measured 2026-10-13, which is `SHEET_HEADER_PX` in `frontend/src/utils/resultsSheet.ts`. It was 104 while the actions were bare links on an 18px row. Re-measure both together. At 1024x768 beside the docked panel the bar is 59px, two lines, the same as before the buttons.
 
-The five links read at `TEXT.control`, the size of every other control in the app. They are buttons the reader presses; the micro step is for text that is present but never first.
+The four actions are `BUTTON_GHOST` buttons with a glyph each, reading at `TEXT.control`, the size of every other control in the app (#687). They were underlined links, so the one bar carried four control styles; the linter's `style-results-bar` check now requires the four buttons and fails a link anywhere in the bar. The Open-Meteo credit that stood at the end of the row is the last line of the results table's foot, under the footnotes, where a credit reads as one rather than as a fifth action. Record: [0133](decisions/0133-results-bar-buttons-and-footnote-credit.md)
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 
@@ -411,7 +461,7 @@ The welcome dialog is a `max-w-md` card on a `p-4` backdrop, so it is 448px wide
 - The backdrop's padding and the card's border take 34px of the window, so a card that does not scroll needs **855px** of viewport height at a desktop width and **1063px** at a phone width
 - The dialog has neither: a 768px-tall desktop viewport leaves it 734px and a 360 x 640 phone leaves it 606px, so it scrolls at both
 
-**There is no no-scroll budget to spend.** `max-h-full overflow-y-auto` is what the card wears instead, so the dialog is read by scrolling rather than at a glance. That is why the third step covers the whole Metrics table in one line rather than a step per question: another step lengthens a card the reader already scrolls. `WelcomeModal.tsx` points here for these numbers.
+**There is no no-scroll budget to spend.** `max-h-full overflow-y-auto` is what the card wears instead, so the dialog is read by scrolling rather than at a glance. Since #687 the two actions stand in `DIALOG_FOOT`, which sticks to the card's bottom edge inside that scroll box, so Search now and Take the tutorial are on screen at 1024x768 before the reader scrolls at all. That is why the third step covers the whole Metrics table in one line rather than a step per question: another step lengthens a card the reader already scrolls. `WelcomeModal.tsx` points here for these numbers.
 
 **Re-measure condition:** a new step, a change to the `PROSE` sizes the card is set in, or copy that adds a line to any step. The binding case is the phone: the desktop column is 208px shorter.
 
@@ -511,7 +561,10 @@ variant for the commit cues, and the footer showed a cue in amber text directly
 above a blocker in an amber box, saying the same kind of thing in two shapes.
 The one bare `STATUS` text left in the panel is the polygon's draw counter,
 which is a field's own readout beside the field rather than a message about the
-analysis; the linter's `style-draw-counter` check pins it by count.
+analysis; the linter's `style-draw-counter` check pins it by count. Since #687
+the point count is `DrawReadout`, which the panel and the phone's draw bar both
+render, so `style-draw-readout` pins its four states there and the panel keeps
+two.
 
 ### No raw exceptions or status
 

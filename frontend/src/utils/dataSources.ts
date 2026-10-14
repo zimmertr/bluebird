@@ -14,9 +14,10 @@
  *
  * The credits the licenses place next to the data live outside this list:
  * OpenStreetMap in the map's corner control (delivered by the tile server's
- * TileJSON), Open-Meteo docked beside the results, and NIFC, NOAA, IEM and the
- * US Forest Service each on their own overlay's legend, NOAA twice, for smoke
- * and for snow, and the Forest Service twice, for its two closure layers.
+ * TileJSON), Open-Meteo on the last line of the results table's foot, and
+ * NIFC, NOAA, IEM and the US Forest Service each on their own overlay's
+ * legend, NOAA twice, for smoke and for snow, and the Forest Service twice,
+ * for its two closure layers.
  * CC BY 3.0 wants the fire credit wherever the fire data is drawn, not only in
  * a list of sources somewhere else, and the overlays added beside it follow
  * the same shape so the map has one idea of what a credit looks like. Each of
