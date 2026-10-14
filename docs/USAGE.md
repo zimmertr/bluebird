@@ -35,7 +35,7 @@ Trailheads are not clickable: the basemap does not carry them, so a polygon is s
 Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
 
 - You need at least 3 points before Analyze turns on.
-- The estimated bounding-box area is shown in km² beside **Polygon** while you draw, and for a polygon a shared link brings in.
+- The estimated bounding-box area is shown in km² at the right of the point count while you draw, and for a polygon a shared link brings in.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.
 - Once the shape is closed, a click lands on the edge nearest to it rather than at the end of the outline, so clicking across the polygon widens the side you pointed at instead of folding the shape over itself.
 - Press **Done**, or the Enter key, to finish. Analyze finishes for you.
@@ -96,7 +96,7 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 
 ### Forecast window
 
-A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar in its place: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you, and if you close it without picking a day, pressing **Dates** again opens it.
+A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar in its place: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you, and closing it without picking a day goes back to **Current**.
 
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
 - **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total, the freezing level by its minimum, and wind, temperature and AQI by their average; the Metrics section's aggregate dropdowns change that.
@@ -128,7 +128,7 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 **The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
-The calendar is fully keyboard operable: Enter or Space on the field opens it with the selected day focused, arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range and closes the calendar, putting you back on the field, or on **Dates** if no day is picked yet.
+The calendar is fully keyboard operable: Enter or Space on the field opens it with the selected day focused, arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range and closes the calendar, putting you back on the field, or on **Current** if no day was picked.
 
 ## Metrics
 
