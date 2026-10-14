@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
+import { MAP_BUTTON, MAP_PILL } from '../styles'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -191,5 +192,21 @@ describe('LayersPopover', () => {
     rerender(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID_ON} playerOffered />)
     expect(screen.getByRole('slider', { name: 'Coverage' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Blocks' }).getAttribute('aria-pressed')).toBe('true')
+  })
+})
+
+// In the phone's row (#696) the button is sized by its word beside Controls
+// and Analyze; in a desktop's column it is the column's button, the role the
+// legend's strip wears too. The menu opens from it the same way at both.
+describe('the Layers button in the phone row', () => {
+  it('wears the row\'s pill there and the column\'s button elsewhere, and opens the menu either way', () => {
+    const { rerender } = render(
+      <LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered={false} mapRef={MAP} coverage={COVERAGE} inRow />,
+    )
+    expect(screen.getByRole('button', { name: 'Layers' }).className).toBe(MAP_PILL)
+    open()
+    expect(rows()).toContain('Wildfires')
+    rerender(<LayersPopover overlays={OVERLAYS} grid={GRID} playerOffered={false} mapRef={MAP} coverage={COVERAGE} />)
+    expect(screen.getByRole('button', { name: 'Layers' }).className).toBe(MAP_BUTTON)
   })
 })

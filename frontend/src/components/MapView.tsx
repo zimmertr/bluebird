@@ -69,7 +69,10 @@ export interface MapViewHandle {
   // Replace the ring outright: null empties it (Clear), a polygon puts back
   // the one draw mode started with (Cancel, #478).
   restoreRing: (ring: GeoPolygon | null) => void
-  flyToPlace: (place: Place) => void
+  // `padBottomPx` frames the place for a sheet that is about to open rather
+  // than the one on screen (#696); without it the camera pads for what is
+  // there now.
+  flyToPlace: (place: Place, padBottomPx?: number) => void
   fitToPoints: (points: { latitude: number; longitude: number }[]) => void
   // The same fit, made only when none of the points is on screen: a committed
   // report whose rows all stand outside the view (#579). A view that shows
@@ -453,14 +456,14 @@ const MapView = forwardRef<MapViewHandle, Props>(
       },
       // Frame a searched place. Only the camera move — the place renders
       // declaratively as a pending dot until the next Analyze ranks it.
-      flyToPlace(place: Place) {
+      flyToPlace(place: Place, padBottomPx = cameraPadBottomPx) {
         const map = mapRef.current
         if (!map || !loadedRef.current) {
           pendingSearchRef.current = place
           return
         }
         map.fitBounds(boundsAround(place, SEARCH_VIEW_MILES), {
-          padding: framePadding(PLACE_PADDING_PX, cameraPadBottomPx),
+          padding: framePadding(PLACE_PADDING_PX, padBottomPx),
           duration: CAMERA_MS.fit,
         })
       },

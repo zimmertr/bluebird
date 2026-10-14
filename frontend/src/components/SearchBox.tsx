@@ -8,6 +8,7 @@ import {
   ICON_ACTION,
   ICON_BUTTON,
   MAP_COL_W,
+  MAP_ROW_W,
   MAP_ROW_H,
   RADIUS,
   SPINNER,
@@ -31,7 +32,11 @@ import { IconClose, IconSearch } from './icons'
 // fill is opaque enough to stand on anything, and `STATUS.warn` keeps the
 // severity the tint used to carry — amber-300 reads 7.15:1 on that fill,
 // measured 2026-09-14, where AA asks 4.5:1.
-const DROPDOWN = `${SURFACE_POPOVER} w-72 sm:w-80 absolute left-0 top-full mt-1`
+//
+// Its width is the field's on a phone (#696), where the field spans the map
+// and a list narrower than the box it hangs from would read as a second thing.
+const DROPDOWN = `${SURFACE_POPOVER} absolute left-0 top-full mt-1`
+const DROPDOWN_W = 'w-72 sm:w-80'
 
 interface Props {
   onSelect: (place: Place) => void
@@ -39,6 +44,9 @@ interface Props {
   // Map group, whose search-by-name control lives out here on the map rather
   // than in the panel. Purely a cue — nothing about the box's behavior changes.
   pointed?: boolean
+  // Spans the map's top edge rather than the column (#696): a phone, where the
+  // field is the first control a reader meets.
+  wide?: boolean
 }
 
 export interface SearchBoxHandle {
@@ -49,7 +57,7 @@ export interface SearchBoxHandle {
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false }, ref) {
+const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false, wide = false }, ref) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -162,7 +170,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
   return (
     <div
       ref={rootRef}
-      className={`relative ${MAP_COL_W} ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
+      className={`relative ${wide ? MAP_ROW_W : MAP_COL_W} ${RADIUS.surface} transition-shadow ${pointed ? ACCENT_RING : ''}`}
     >
       {/* The box takes the height, not the input inside it: `MAP_ROW_H` is the
           one row height every member of the map's left column wears, so the
@@ -231,7 +239,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           absolute dropdown it always was. */}
       <div role="status">
         {error && (
-          <div className={`${DROPDOWN} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
+          <div className={`${DROPDOWN} ${wide ? MAP_ROW_W : DROPDOWN_W} ${CONTROL_SIZE} ${STATUS.warn} px-2.5 py-2`}>
             {error}
           </div>
         )}
@@ -254,7 +262,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // exactly the half that went (TJ, 2026-09-14, reversing the bind).
           // It hangs past the column's right edge the way the model picker's
           // listbox hangs past the panel's.
-          className={`${DROPDOWN} overflow-hidden divide-y divide-slate-600`}
+          className={`${DROPDOWN} ${wide ? MAP_ROW_W : DROPDOWN_W} overflow-hidden divide-y divide-slate-600`}
         >
           {places.map((p, i) => (
             // The option is what a press picks, with no button inside it: an

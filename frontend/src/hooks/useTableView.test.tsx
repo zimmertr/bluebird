@@ -42,7 +42,7 @@ const CLOSURE: ClosureProximity = {
 }
 const MODELS = [forecastModel({ id: 'gfs_seamless', label: 'NOAA GFS' })]
 const REPORT = analyzedSnapshot()
-const NOTHING_STORED: ViewPrefs = { modeChosen: null, columns: null, modelColumn: null, columnOrder: null }
+const NOTHING_STORED: ViewPrefs = { modeChosen: null, columns: null, modelColumn: null, columnOrder: null, legendOpen: null }
 const NO_PENDING: TableViewInputs['pending'] = []
 const NO_PENDING_ROWS: TableViewInputs['pendingRows'] = []
 const NO_SHOWN: TableViewInputs['shownModels'] = []

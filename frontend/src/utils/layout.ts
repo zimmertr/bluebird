@@ -114,6 +114,23 @@ export function resolveResultsMode(
   return lastPanel ?? 'table'
 }
 
+// The mode a phone sheet draws while it holds only rows nobody has forecast
+// yet (#696): the table alone, whatever the reader's saved mode says. A chart
+// with no report has nothing to plot, and on a phone its empty frame took most
+// of the sheet a searched place had just opened, under a single row of dashes.
+//
+// Like the fit above, it leaves the preference alone, so the saved mode comes
+// back with the first report. A press made while the hold stands is the reader
+// answering it, so it wins: a segment that does nothing when pressed reads as
+// broken (the #242 review's lesson). A desktop is never held, because the
+// results are docked beside the map there and an empty chart covers nothing.
+export function heldResultsMode(
+  mode: ResultsMode,
+  { pendingOnly, pressed, isDesktop }: { pendingOnly: boolean; pressed: boolean; isDesktop: boolean },
+): ResultsMode {
+  return pendingOnly && !pressed && !isDesktop ? 'table' : mode
+}
+
 // The table's drag handle when the chart is visible: a chart│table divider.
 // Dragging up (`dragUpPx` > 0) grows the table by shrinking the chart, leaving
 // the map untouched — the pair's sum is preserved. Both panels keep at least

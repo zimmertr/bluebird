@@ -86,8 +86,9 @@ describe('useResultsLayout', () => {
 
   it('draws one panel on a phone too short for two, and gives Both back when it grows', () => {
     setViewport(560)
+    // A report on screen, so the pending-only hold below is not what decides.
     const { result } = renderHook(() =>
-      useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both' }),
+      useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both', response: {} }),
     )
     expect(result.current.bothHasRoom).toBe(false)
     expect(result.current.resultsMode).toBe('table')
@@ -136,6 +137,59 @@ describe('useResultsLayout', () => {
     const { result } = renderHook(() => useResultsLayout(DESKTOP))
     expect(result.current.sheetLiftPx).toBe(0)
     expect(result.current.cameraPadBottomPx).toBe(0)
+  })
+
+  // A phone sheet holding only rows nobody has forecast yet draws the table
+  // alone (#696): an empty chart took most of the sheet a search had opened.
+  // The saved mode is left alone and comes back with the first report.
+  it('holds a pending-only phone sheet to the table, and gives the saved mode back', () => {
+    setDesktopQuery(false)
+    const phone: ResultsLayoutInputs = { ...DESKTOP, isDesktop: false, modeChosen: 'both' }
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: phone,
+    })
+    expect(result.current.resultsMode).toBe('table')
+    expect(result.current.chartShowing).toBe(false)
+    expect(readViewPrefs().modeChosen).toBeNull()
+    rerender({ ...phone, response: {}, analysisSeq: 1 })
+    expect(result.current.resultsMode).toBe('both')
+  })
+
+  // A press is the reader answering the hold, and a segment that ignores one
+  // reads as broken.
+  it('lets a press on the segment lift the hold', () => {
+    setDesktopQuery(false)
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false }))
+    act(() => result.current.chooseResultsMode('chart'))
+    expect(result.current.resultsMode).toBe('chart')
+  })
+
+  it('never holds a desktop', () => {
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'chart' }))
+    expect(result.current.resultsMode).toBe('chart')
+  })
+
+  // A searched place is framed for the sheet it is about to open (#696): the
+  // padding before the sheet opens is the one the camera takes once it has.
+  it('knows the resting lift of a sheet that is not open yet', () => {
+    setDesktopQuery(false)
+    const closed: ResultsLayoutInputs = { ...DESKTOP, isDesktop: false, showTable: false }
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: closed,
+    })
+    expect(result.current.cameraPadBottomPx).toBe(0)
+    const coming = result.current.sheetPadBottomPx
+    expect(coming).toBeGreaterThan(0)
+    rerender({ ...closed, showTable: true })
+    expect(result.current.cameraPadBottomPx).toBe(coming)
+    // The table alone, which is what a pending-only sheet holds to: a
+    // stored Both would otherwise have padded for two panels.
+    const both = renderHook(() => useResultsLayout({ ...closed, modeChosen: 'both' }))
+    expect(both.result.current.sheetPadBottomPx).toBe(coming)
+  })
+
+  it('pads for no sheet on a desktop', () => {
+    expect(renderHook(() => useResultsLayout({ ...DESKTOP, showTable: false })).result.current.sheetPadBottomPx).toBe(0)
   })
 
   // MapView is memoized, and the camera padding is one of its props.

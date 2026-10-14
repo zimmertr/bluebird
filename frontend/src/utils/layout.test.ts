@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   bothFits,
   clampPanelHeight,
+  heldResultsMode,
   panelOf,
   resolvePanelHeights,
   resolveResultsMode,
@@ -152,6 +153,31 @@ describe('resolveResultsMode', () => {
   it('leaves a single panel alone however little room there is', () => {
     expect(resolveResultsMode('chart', 'table', false)).toBe('chart')
     expect(resolveResultsMode('table', 'chart', false)).toBe('table')
+  })
+})
+
+// A phone sheet holding only rows nobody has forecast yet shows the table
+// alone (#696), whatever the reader saved, until a report or a press.
+describe('heldResultsMode', () => {
+  const PHONE = { pendingOnly: true, pressed: false, isDesktop: false }
+
+  it('holds a pending-only phone sheet to the table', () => {
+    expect(heldResultsMode('both', PHONE)).toBe('table')
+    expect(heldResultsMode('chart', PHONE)).toBe('table')
+  })
+
+  it('gives the saved mode back once a report is in', () => {
+    expect(heldResultsMode('both', { ...PHONE, pendingOnly: false })).toBe('both')
+  })
+
+  // A segment that ignores a press reads as broken.
+  it('lets a press answer it', () => {
+    expect(heldResultsMode('chart', { ...PHONE, pressed: true })).toBe('chart')
+  })
+
+  // Docked beside the map, an empty chart covers nothing.
+  it('never holds a desktop', () => {
+    expect(heldResultsMode('both', { ...PHONE, isDesktop: true })).toBe('both')
   })
 })
 

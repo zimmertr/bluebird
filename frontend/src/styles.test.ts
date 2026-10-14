@@ -64,10 +64,17 @@ import {
   LINK,
   LINK_ACTION,
   CAPTION_LIFTED,
+  MAP_ANALYZE,
+  MAP_BUTTON,
   MAP_COL_GAP,
   MAP_COL_GAP_T,
   MAP_COL_W,
+  MAP_PILL,
+  MAP_PILL_SUMMARY,
+  MAP_ROW,
   MAP_ROW_H,
+  MAP_ROW_W,
+  LEGEND_TOP,
   MICRO_SIZE,
   MUTED,
   PANEL_EDGE,
@@ -1175,14 +1182,14 @@ describe('shared recipes', () => {
   // two buttons do not each solve for their own (34, 38 and 38 before this).
   it('gives every row in that column one height', () => {
     expect(MAP_ROW_H).toBe('h-9 touch:h-11')
-    const rows = [
-      ...(mapButtonColumnSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
-      ...(layersPopoverSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
-      ...(searchBoxSource.match(/\$\{MAP_ROW_H\}/g) ?? []),
-    ]
-    // Both buttons and the search field, counted across the three files. A row
+    // The search field spells it; every button in the column, the phone's
+    // row (#696) and the legend's strip takes it through its role. A row
     // that sets its own height beside the role is the style-map-column check.
-    expect(rows).toHaveLength(3)
+    expect(searchBoxSource.match(/\$\{MAP_ROW_H\}/g) ?? []).toHaveLength(1)
+    for (const recipe of [MAP_BUTTON, MAP_PILL, MAP_ANALYZE]) expect(recipe).toContain(MAP_ROW_H)
+    for (const source of [mapButtonColumnSource, layersPopoverSource, mapLegendSource]) {
+      expect(source).not.toMatch(/\$\{MAP_ROW_H\}/)
+    }
   })
 
   // One type size for the whole column, which is what `CONTROL_SIZE` is doing
@@ -1386,6 +1393,10 @@ describe('every role', () => {
     // sinks into the panel composes the pair here. A call site takes the
     // finished `FIELD`, `SEGMENT`, `SURFACE_GROUP` or `SCRUBBER_TRACK`.
     RECESSED_EDGE: 'the half of the well recipe this file composes itself',
+    // The floating surface made pressable. Since #696 every map button takes it
+    // through a finished role, `MAP_BUTTON` in the column, `MAP_PILL` in the
+    // phone's row, and the skip link through `SKIP_LINK`.
+    BUTTON_FLOATING: 'the pressable floating box the map buttons compose here',
     // The timeline axis half's width floor, spelled twice over (plain and
     // `touch:`) so the variant cannot lose to `TAP.action`'s by stylesheet
     // order. The call site takes `TRANSPORT_AXIS_ITEM`, which carries it.
@@ -1787,6 +1798,66 @@ describe('the map edge inset', () => {
     const body = rule.slice(rule.indexOf('{'), rule.indexOf('}'))
     expect(body).toContain('var(--map-edge-inset)')
     expect(body).not.toMatch(/\d+(?:px|rem)/)
+  })
+})
+
+// The phone's search row (#696): the field across the map's top edge, then
+// Controls, Layers and Analyze in one row under it.
+describe('the phone row', () => {
+  // The map button's whole recipe, so a button in the column and the strip
+  // under it cannot be restyled apart (the brief: the strip is the Layers
+  // button's exact role).
+  it('builds the column button from the column roles', () => {
+    for (const part of [BUTTON_FLOATING, MAP_COL_W, MAP_ROW_H]) expect(MAP_BUTTON).toContain(part)
+  })
+
+  it('gives the Legends strip exactly the Layers button\'s role', () => {
+    const layersButton = layersPopoverSource.match(/className=\{inRow \? MAP_PILL : (\w+)\}/)?.[1]
+    const strip = mapLegendSource.match(/className=\{(\w+)\}\s*>\s*<IconChevron/)?.[1]
+    expect(layersButton).toBe('MAP_BUTTON')
+    expect(strip).toBe(layersButton)
+  })
+
+  // Sized by their words, not by the column: the third member has the rest.
+  it('sizes the pills by their words, on the floating button', () => {
+    expect(MAP_PILL).toContain(BUTTON_FLOATING)
+    expect(MAP_PILL).not.toContain(MAP_COL_W)
+    expect(MAP_PILL).toContain('min-w-0')
+    expect(MAP_ROW).toContain(MAP_ROW_W)
+    expect(MAP_ROW).toContain(MAP_COL_GAP)
+  })
+
+  // The summary is present but never first, and one line: it truncates, and
+  // its colour is its own so the button's hover accent stays on the word.
+  it('sets the Controls summary on the micro step, on one line', () => {
+    expect(MAP_PILL_SUMMARY).toContain(TEXT.micro)
+    expect(MAP_PILL_SUMMARY).toContain('truncate')
+  })
+
+  // The panel's command on the panel's fill, at the column's one type size.
+  it('fills Analyze with the accent at the column\'s one size', () => {
+    expect(MAP_ANALYZE).toContain(ACCENT.fill)
+    expect(MAP_ANALYZE).toContain(ACCENT.fillHover)
+    expect(MAP_ANALYZE).toContain(FOCUS_RING)
+    expect(sizes(MAP_ANALYZE)).toEqual(sizes(BUTTON_FLOATING))
+    expect(MAP_ANALYZE).toContain('whitespace-nowrap')
+    expect(MAP_ANALYZE).toContain('flex-1')
+    // The same gate wears the same disabled treatment as the panel's button.
+    expect(mapButtonColumnSource).toContain('${MAP_ANALYZE} ${DISABLED}')
+  })
+
+  // The vendor's zoom stack starts below the two rows on a phone, at the
+  // height `LEGEND_TOP.compact` already sums for a two-row column.
+  it('starts the vendor stack below the row, at the short column\'s height', () => {
+    const numbers = (cls: string) => [...cls.matchAll(/:(\d+)px\]/g)].map((m) => m[1])
+    expect(numbers(MAP_EDGE.belowRow)).toEqual(
+      [...LEGEND_TOP.compact.matchAll(/top-\[(\d+)px\]/g)].map((m) => m[1]),
+    )
+    const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
+    expect(rule.slice(rule.indexOf('{'), rule.indexOf('}'))).toContain(
+      'var(--map-vendor-top, var(--map-edge-inset))',
+    )
+    expect(MAP_EDGE.right).toContain('var(--map-edge-inset)')
   })
 })
 

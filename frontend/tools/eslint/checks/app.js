@@ -636,7 +636,10 @@ export const APP = [
     require: [
       {
         selector:
-          'VariableDeclarator[id.name="resultsMode"] > CallExpression[callee.name="resolveResultsMode"][arguments.length=3]' +
+          // Held to the table while a phone's sheet holds only pending rows
+          // (#696), which `heldResultsMode` decides around the room's answer.
+          'VariableDeclarator[id.name="resultsMode"] > CallExpression[callee.name="heldResultsMode"] > ' +
+          'CallExpression[callee.name="resolveResultsMode"][arguments.length=3]' +
           '[arguments.0.name="modePref"][arguments.1.object.name="lastPanelRef"][arguments.1.property.name="current"][arguments.2.name="bothHasRoom"]',
         message: 'Resolve resultsMode from the stored mode and the room.',
       },

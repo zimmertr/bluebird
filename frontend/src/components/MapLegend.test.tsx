@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen } from '@testing-library/react'
 import MapLegend from './MapLegend'
 import { render } from '../testSupport/render'
 import { rankedScale } from '../utils/colors'
@@ -28,7 +28,9 @@ const BASE = {
   rankedFieldHasValue: true,
   overlays: NONE,
   grid: NO_GRID,
-  sidebarOpen: true,
+  columnFull: false,
+  expanded: true,
+  onToggle: () => {},
   sheetLiftPx: 0,
   timelineShown: false,
 }
@@ -109,5 +111,61 @@ describe('MapLegend', () => {
     expect(text.indexOf('Area closures')).toBeLessThan(text.indexOf('Smoke'))
     expect(text.indexOf('Smoke')).toBeLessThan(text.indexOf('Trail closures'))
     expect(screen.getAllByRole('link', { name: 'USFS' })).toHaveLength(2)
+  })
+})
+
+// The fold (#696): a strip in the Layers button's role heads the stack, and
+// the one box hangs under it while it is open.
+describe('the Legends strip', () => {
+  const FIRES = { ...NONE, showWildfires: true }
+  const strip = () => screen.getByRole('button', { name: 'Legends' })
+
+  it('heads the box, and names the box it opens', () => {
+    render(<MapLegend {...BASE} overlays={FIRES} />)
+    expect(strip().getAttribute('aria-expanded')).toBe('true')
+    const box = document.getElementById(strip().getAttribute('aria-controls')!)!
+    expect(box.textContent).toContain('Active wildfire')
+    // The strip comes first in the stack, the box under it.
+    expect(strip().compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  // Folded, the strip is all the map gives the legend, and it names nothing
+  // that is not in the document.
+  it('hides the box while folded', () => {
+    render(<MapLegend {...BASE} overlays={FIRES} expanded={false} />)
+    expect(strip().getAttribute('aria-expanded')).toBe('false')
+    expect(strip().hasAttribute('aria-controls')).toBe(false)
+    expect(screen.queryByText('Active wildfire')).toBeNull()
+  })
+
+  // Right while folded, down while open: the disclosure's chevron.
+  it('points its chevron right while folded and down while open', () => {
+    const points = (expanded: boolean) => {
+      const { container, unmount } = render(<MapLegend {...BASE} overlays={FIRES} expanded={expanded} />)
+      const at = container.querySelector('button polyline')!.getAttribute('points')
+      unmount()
+      return at
+    }
+    expect(points(false)).toBe('9 6 15 12 9 18')
+    expect(points(true)).toBe('6 9 12 15 18 9')
+  })
+
+  it('folds and opens on a press', () => {
+    const onToggle = vi.fn()
+    render(<MapLegend {...BASE} overlays={FIRES} onToggle={onToggle} />)
+    fireEvent.click(strip())
+    expect(onToggle).toHaveBeenCalledOnce()
+  })
+
+  // Only once a legend exists: no strip over a map with nothing to key.
+  it('draws no strip when there is nothing to key', () => {
+    render(<MapLegend {...BASE} expanded={false} />)
+    expect(screen.queryByRole('button', { name: 'Legends' })).toBeNull()
+  })
+
+  // A popup keeps clear of the strip as it does of the box.
+  it('keeps popups clear of the strip', () => {
+    render(<MapLegend {...BASE} overlays={FIRES} expanded={false} />)
+    expect(strip().hasAttribute('data-map-overlay')).toBe(true)
   })
 })

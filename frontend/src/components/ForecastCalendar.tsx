@@ -43,6 +43,7 @@ import {
   SURFACE_GROUP_BLEED,
   TEXT,
 } from '../styles'
+import { WHEN_ARM_LABEL } from '../utils/controlsSummary'
 
 interface Props {
   selection: ForecastSelection
@@ -273,14 +274,11 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           {[
             {
               kind: 'now' as const,
-              label: 'Current',
+              label: WHEN_ARM_LABEL.now,
               hint: 'Analyze conditions at the current hour',
             },
-            // "Dates" rather than "Days" or "Range": this arm is silent about
-            // count and about tense, and it has to be. It holds a single day as
-            // readily as several, and 55 of the 71 days it can reach are behind
-            // today, so anything future-facing would mislabel most of the grid.
-            { kind: 'days' as const, label: 'Dates', hint: 'Analyze a day or a range of days' },
+            // The word is `WHEN_ARM_LABEL`'s, which says why it is "Dates".
+            { kind: 'days' as const, label: WHEN_ARM_LABEL.days, hint: 'Analyze a day or a range of days' },
           ].map((option, i) => (
             <button
               key={option.kind}

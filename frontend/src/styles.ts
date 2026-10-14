@@ -1186,6 +1186,75 @@ export const MAP_COL_GAP = 'gap-1'
 export const MAP_COL_GAP_T = 'mt-1'
 
 /**
+ * A button in the map's left column: Controls while the panel is closed and
+ * Layers, at a desktop width, and the Legends strip that folds the legend box
+ * at every width (#696). One role for all three, because they stand in one
+ * column and a strip a few pixels off the button above it reads as a mistake
+ * rather than as a different control. `styles.test.ts` holds the strip to this
+ * role, so the two cannot be restyled apart.
+ *
+ * The icon slot is the 16px glyph at the left with the 8px gap the search
+ * field's own icon keeps, so every label in the column starts on one edge.
+ */
+export const MAP_BUTTON = `${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`
+
+/**
+ * What stands across the top of a phone's map (#696): the search field, then
+ * one row holding Controls, Layers and Analyze. The width is the map's less
+ * its two insets (`MAP_EDGE.left` and `.right`), where the desktop column is
+ * one `MAP_COL_W` wide.
+ *
+ * A row rather than the desktop's column because a phone opens on the map now,
+ * and the column stacked Controls under the search field and Layers under
+ * that: three rows, 144px of a phone's map, before the legend began. The row
+ * gives that back, and the legend's strip takes the third row instead.
+ */
+export const MAP_ROW_W = 'w-full'
+export const MAP_ROW = `flex ${MAP_ROW_W} ${MAP_COL_GAP}`
+
+/**
+ * Controls and Layers in that row: `BUTTON_FLOATING` sized by its own words
+ * rather than by the column, so the third member has the rest of the row.
+ * `min-w-0` lets Controls give way on a narrow phone, where its summary line
+ * truncates before anything clips.
+ *
+ * The app's floating radius, not a capsule: the mockups drew these fully
+ * rounded, but the search field above and the legend under them are both this
+ * box, and one top-left cluster in two radii read as two kinds of object.
+ */
+export const MAP_PILL = `${BUTTON_FLOATING} ${MAP_ROW_H} flex min-w-0 items-center gap-2 px-2.5`
+
+/** The word and the summary line under it inside the Controls pill. */
+export const MAP_PILL_TEXT = 'flex min-w-0 flex-col items-start text-left leading-tight'
+
+/**
+ * The summary line itself, `Current · NOAA GFS`: the micro step, because it is
+ * present but never first, and the button's word above it is what is read.
+ * Normal weight against the word's semibold, and its own slate-300, so the
+ * button's hover accent stays on the word. It truncates rather than wraps: the
+ * pill is one `MAP_ROW_H` tall, and a model's label is the part that can run
+ * long (`Meteo-France ARPEGE`).
+ */
+export const MAP_PILL_SUMMARY = `${TEXT.micro} max-w-full truncate font-normal`
+
+/**
+ * Analyze in the phone's row: the same command as the panel's `BUTTON_PRIMARY`
+ * (#696), on the same `ACCENT.fill`, at the row's height and the column's one
+ * type size rather than the panel's call-to-action step, because it stands in
+ * a row of 12px labels and a 14px one beside them read as another kind of
+ * object (the reason `BUTTON_FLOATING` gives for its own size). It takes the
+ * rest of the row (`flex-1`) and never less than its word: `whitespace-nowrap`
+ * and a flex item's content minimum hold it at `Analyzing…` plus its padding,
+ * and the Controls summary truncates first.
+ *
+ * The call site adds `DISABLED`, as the panel's button does, because it is the
+ * same gate. Shadowed like the boxes beside it, since it floats with them.
+ */
+export const MAP_ANALYZE =
+  `${CONTROL_SIZE} font-semibold ${MAP_ROW_H} flex-1 whitespace-nowrap px-3 ${RADIUS.surface} ` +
+  `shadow-lg transition-colors ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
+
+/**
  * How far anything floating on the map stands off its edge.
  *
  * One number, published once as a custom property on the map wrapper, because
@@ -1214,11 +1283,23 @@ export const MAP_EDGE = {
   left: 'left-[var(--map-edge-inset)]',
   /** The top edge the app's own button column takes. */
   top: 'top-[var(--map-edge-inset)]',
+  /** The right edge, which only the phone's full-width row reaches (#696). */
+  right: 'right-[var(--map-edge-inset)]',
+  /**
+   * On a phone, where the search field and its row span the map (#696), the
+   * vendor's zoom stack starts below them rather than beside the field.
+   * `map.css` reads this as the stack's top margin. The numbers are the two
+   * rows, their gaps and the inset, which is `LEGEND_TOP.compact`'s sum for a
+   * two-row column, and `styles.test.ts` holds the two to each other.
+   */
+  belowRow: '[--map-vendor-top:92px] touch:[--map-vendor-top:108px]',
 } as const
 
 /**
  * Where the legend stack hangs: one row of the column's own gap under the last
- * button, at both pointer sizes, in the column's two heights.
+ * button, at both pointer sizes, in the column's two heights. Since #696 the
+ * stack opens with the Legends strip (`MAP_BUTTON`), and the box hangs one gap
+ * under that.
  *
  * Every row above it is `MAP_ROW_H` — 36 on a pointer, 44 on a finger — and
  * they are separated by `MAP_COL_GAP`'s 4px, so the arithmetic is the inset,
@@ -1257,7 +1338,11 @@ export const MAP_EDGE = {
  * constants cannot drift.
  */
 export const LEGEND_TOP = {
-  /** The panel is open, so the column is the search field and Layers. */
+  /**
+   * The panel is open, so the column is the search field and Layers; and every
+   * phone, whose column is the search field and the row under it (#696), the
+   * row holding Controls beside Layers whether the drawer is open or not.
+   */
   compact: 'top-[92px] touch:top-[108px]',
   /** The panel is collapsed and the Controls button stands between them. */
   full: 'top-[132px] touch:top-[156px]',

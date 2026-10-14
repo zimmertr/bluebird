@@ -39,6 +39,15 @@
   margin: var(--map-edge-inset) var(--map-edge-inset) 0 0;
 }
 
+/* On a phone the app's search field and the row under it span the map's top
+ * edge (#696), so the stack starts below them: `--map-vendor-top` is published
+ * by `MAP_EDGE.belowRow` on the map wrapper at that width only, and every other
+ * width falls back to the inset above. The first group alone, because the
+ * margin under it is the gap between groups. */
+.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
+  margin-top: var(--map-vendor-top, var(--map-edge-inset));
+}
+
 /* Zoom and compass. The one set of controls the design system cannot reach:
    maplibre injects this markup itself through `map.addControl`, so there is no
    call site to hand a `TAP` role to, and the vendor ships them at 29px.

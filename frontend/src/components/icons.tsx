@@ -68,8 +68,16 @@ export function IconClose({
   )
 }
 
-/** The collapse affordance on the results panels' header bars. */
-export function IconChevron({ up, className }: IconProps & { up: boolean }): ReactNode {
+/**
+ * The collapse affordance on the results panels' header bars, and the fold on
+ * the map legend's strip (#696), which points right while the box is folded
+ * away and down while it hangs open, the way a disclosure does.
+ */
+export function IconChevron({
+  up = false,
+  right = false,
+  className,
+}: IconProps & { up?: boolean; right?: boolean }): ReactNode {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -81,7 +89,7 @@ export function IconChevron({ up, className }: IconProps & { up: boolean }): Rea
       className={join(ICON.control, className)}
       aria-hidden="true"
     >
-      <polyline points={up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
+      <polyline points={right ? '9 6 15 12 9 18' : up ? '18 15 12 9 6 15' : '6 9 12 15 18 9'} />
     </svg>
   )
 }

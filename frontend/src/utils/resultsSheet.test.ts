@@ -4,7 +4,10 @@ import {
   DRAGGED_MAP_PX,
   LEGEND_GAP_PX,
   LEGEND_STACK_PX,
+  LEGEND_STRIP_FINE_PX,
+  LEGEND_STRIP_PX,
   LEGEND_TOP_FINE_PX,
+  LEGEND_TOP_PHONE_PX,
   LEGEND_TOP_PX,
   RESTING_MAP_PX,
   RESULTS_BAR_PX,
@@ -86,8 +89,18 @@ describe('the map chrome anchors', () => {
     // Fine and compact: a docked desktop, which is the only pointer the docked
     // floor is asked about.
     expect(LEGEND_TOP_FINE_PX).toBe(92)
-    // Coarse and full: a phone at rest, where the drawer is closed, the
-    // Controls button is up, and the sheet covers the map's bottom regardless.
+    // Coarse and compact: a phone's column, the search field and the row
+    // under it, where its Legends strip stands (#696).
+    expect(LEGEND_TOP_PHONE_PX).toBe(108)
+    // The strip is one row and one gap of the column it continues, on either
+    // pointer: the role's own two heights, 44 + 4 and 36 + 4.
+    expect(stylesSource).toContain("export const MAP_ROW_H = 'h-9 touch:h-11'")
+    expect(LEGEND_STRIP_PX).toBe(44 + 4)
+    expect(LEGEND_STRIP_FINE_PX).toBe(36 + 4)
+    // Where the box starts on a phone at rest: the column plus the strip,
+    // which is the number the three-row column made before the strip took
+    // the row Controls gave up, so the sheet rests where it did.
+    expect(LEGEND_TOP_PX).toBe(LEGEND_TOP_PHONE_PX + LEGEND_STRIP_PX)
     expect(LEGEND_TOP_PX).toBe(156)
     // The sheet's floor is promised against the taller column of the two.
     expect(LEGEND_TOP_PX).toBeGreaterThan(LEGEND_TOP_FINE_PX)
@@ -323,12 +336,13 @@ const DEFAULT_PANEL_PX = 220
 // come out of the same column, and `resolvePanelHeights` clamps only the panels.
 describe('dockedMapFloorPx', () => {
   it('is the fine-pointer reserve plus the chrome the panels are stacked under', () => {
+    // The Legends strip heads the stack at a desk too (#696).
     expect(dockedMapFloorPx(0)).toBe(
-      LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX + RESULTS_BAR_PX,
+      LEGEND_TOP_FINE_PX + LEGEND_STRIP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX + RESULTS_BAR_PX,
     )
     // Lower than the phone's reserve by exactly the inset the two disagree on.
     expect(RESTING_MAP_PX - (dockedMapFloorPx(0) - RESULTS_BAR_PX)).toBe(
-      LEGEND_TOP_PX - LEGEND_TOP_FINE_PX,
+      LEGEND_TOP_PX - LEGEND_TOP_FINE_PX - LEGEND_STRIP_FINE_PX,
     )
     expect(dockedMapFloorPx(2) - dockedMapFloorPx(1)).toBe(dockedMapFloorPx(1) - dockedMapFloorPx(0))
   })
@@ -357,7 +371,7 @@ describe('dockedMapFloorPx', () => {
     // The FINE inset: a docked layout is the pointer case, which is the whole
     // reason `dockedMapFloorPx` reads that one rather than the phone's.
     const legendBand = visibleMap - LEGEND_TOP_FINE_PX - legendBottomPx(0, true)
-    expect(legendBand).toBeGreaterThanOrEqual(LEGEND_STACK_PX)
+    expect(legendBand).toBeGreaterThanOrEqual(LEGEND_STRIP_FINE_PX + LEGEND_STACK_PX)
   })
 })
 

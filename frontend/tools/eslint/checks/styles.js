@@ -134,6 +134,10 @@ const PANEL = {
 }
 
 const role = (name) => `MemberExpression[object.name="${name}"]`
+// A bare role worn in a class expression: the attribute itself, a template, or
+// one arm of a choice between two roles.
+const worn = (name) =>
+  `:matches(JSXExpressionContainer, TemplateLiteral, ConditionalExpression) > Identifier[name="${name}"]`
 const defaultExport = (name) => `ExportDefaultDeclaration[declaration.id.name="${name}"]`
 // The body of the default export and everything after it.
 const fromExport = (name, target) =>
@@ -333,11 +337,14 @@ export const STYLES = [
     ],
   },
   {
-    // The legend box and the stack it scrolls in.
+    // The legend box, the strip that folds it (#696) and the stack they
+    // scroll in. The strip is the Layers button's role, so the two are one
+    // control's shape.
     name: 'style-map-legend-column',
     files: ['src/components/MapLegend.tsx'],
     require: [
       { selector: interp('MAP_COL_W'), count: 1, message: 'The legend box wears MAP_COL_W.' },
+      { selector: worn('MAP_BUTTON'), count: 1, message: 'The Legends strip wears MAP_BUTTON.' },
       { selector: interp('MAP_COL_GAP'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.' },
       { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
     ],
@@ -345,11 +352,16 @@ export const STYLES = [
   {
     // The button cluster and the Controls button it holds while the panel is
     // closed. A stacking context orders only its own children, so the layer
-    // is useless unless the cluster itself wears it.
+    // is useless unless the cluster itself wears it. On a phone the cluster
+    // is the search field over one row (#696), and Controls and Analyze wear
+    // the row's roles.
     name: 'style-map-button-column',
     files: ['src/components/MapButtonColumn.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 1, message: 'The Controls button wears MAP_COL_W.' },
+      { selector: worn('MAP_BUTTON'), count: 1, message: 'The Controls button wears MAP_BUTTON.' },
+      { selector: worn('MAP_ROW'), count: 1, message: 'The phone row wears MAP_ROW.' },
+      { selector: worn('MAP_PILL'), count: 1, message: 'The phone Controls button wears MAP_PILL.' },
+      { selector: worn('MAP_ANALYZE'), count: 1, message: 'The phone Analyze wears MAP_ANALYZE.' },
       { selector: interp('MAP_COL_GAP'), count: 1, message: 'The cluster spaces by MAP_COL_GAP.' },
       { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The map controls cluster wears LAYER.mapControls.' },
       { selector: interp('MAP_EDGE.top'), message: 'The column stands off the top by MAP_EDGE.top.' },
@@ -361,7 +373,9 @@ export const STYLES = [
     name: 'style-map-layers-column',
     files: ['src/components/LayersPopover.tsx'],
     require: [
-      { selector: interp('MAP_COL_W'), count: 2, message: 'The Layers button and its popover wear MAP_COL_W.' },
+      { selector: interp('MAP_COL_W'), count: 1, message: 'The Layers popover wears MAP_COL_W.' },
+      { selector: worn('MAP_BUTTON'), count: 1, message: 'The Layers button wears MAP_BUTTON.' },
+      { selector: worn('MAP_PILL'), count: 1, message: 'The Layers button in the phone row wears MAP_PILL.' },
       { selector: interp('MAP_COL_GAP_T'), count: 1, message: 'The hanging popover spaces by MAP_COL_GAP_T.' },
     ],
   },
@@ -445,7 +459,13 @@ export const STYLES = [
       },
     ],
     require: [
-      { selector: interp('MAP_COL_W'), count: 1, message: 'The search field wears MAP_COL_W.' },
+      {
+        // Or `MAP_ROW_W` in its place on a phone, where the field spans the
+        // map (#696): the two are one choice in one class list.
+        selector: `${interp('MAP_COL_W')}, TemplateLiteral > ConditionalExpression[alternate.name="MAP_COL_W"][consequent.name="MAP_ROW_W"]`,
+        count: 1,
+        message: 'The search field wears MAP_COL_W.',
+      },
       ...SEARCH_WIDTHS.map((w) => ({
         selector: text(`(?<![-\\w])w-${w}(?:\\s|$)`),
         message: `SearchBox keeps its w-${w}.`,

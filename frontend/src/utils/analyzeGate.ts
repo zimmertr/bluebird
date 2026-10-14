@@ -1,3 +1,9 @@
+import { familyOf } from '../metrics'
+import type { DiscoveryType, SortBy } from '../types'
+import { type ForecastSelection, hasDates } from './calendarSelection'
+import { modelsWithoutFreeze } from './freezingLevel'
+import { type OrderedModel, selectedIds } from './modelSelection'
+
 // Whether the Analyze button should be enabled.
 //
 // There are three ways to give Analyze something to do, and they're additive:
@@ -50,6 +56,67 @@ export function canAnalyze(g: AnalyzeGate): boolean {
   if (g.hasWindowWarning || g.datesPending || g.loading || g.areaTooLarge) return false
   if (g.compareAqi || g.compareFreeze) return false
   return g.polygonReady || g.hasCustom || g.hasPins
+}
+
+/**
+ * The gate from the panel's own inputs, which is the one way to build it.
+ *
+ * The panel's Analyze and the map's (on a phone, #696) are one command, so they
+ * open and close together: both build the gate here from the same inputs, and
+ * a second spelling of any flag would be a second Analyze that could open while
+ * the other one is shut. `freezeGaps` comes back beside it because the panel
+ * names those models in its line, and it is the same derivation.
+ */
+export interface AnalyzeGateInputs {
+  selection: ForecastSelection
+  hasWindowWarning: boolean
+  loading: boolean
+  polygonAreaKm2: number | null
+  maxAreaKm2: number
+  drawPointCount: number
+  destinationTypes: readonly DiscoveryType[]
+  /** Whether the coordinates box parses to at least one row. */
+  hasCustom: boolean
+  hasPins: boolean
+  sortBy: SortBy
+  forecastModels: readonly (OrderedModel & { label: string })[]
+  forecastModel: string
+  comparedModels: readonly string[]
+}
+
+export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freezeGaps: string[] } {
+  const areaTooLarge = i.polygonAreaKm2 !== null && i.polygonAreaKm2 > i.maxAreaKm2
+  // Every model the analysis would fetch, the ranking one first. The two
+  // checks below are pre-flight: they read the picker rather than a report,
+  // because their whole point is to refuse to buy an analysis that cannot
+  // answer the question the panel is asking.
+  const selected = selectedIds(i.forecastModels, i.forecastModel, i.comparedModels).map((id) => ({
+    id,
+    label: i.forecastModels.find((m) => m.id === id)?.label ?? id,
+  }))
+  const rankFamily = familyOf(i.sortBy)
+  // Named rather than counted: the model is a control in the panel, so the
+  // reader can act on a name and cannot act on a fraction.
+  const freezeGaps = rankFamily === 'freeze' ? modelsWithoutFreeze(selected).map((m) => m.label) : []
+  return {
+    gate: {
+      hasWindowWarning: i.hasWindowWarning,
+      // The Dates arm is live with no day picked yet (#242 review): there is
+      // no window to analyze, and the blocker says so.
+      datesPending: i.selection.kind === 'days' && !hasDates(i.selection),
+      loading: i.loading,
+      areaTooLarge,
+      polygonReady: i.drawPointCount >= 3 && !areaTooLarge && i.destinationTypes.length > 0,
+      hasCustom: i.hasCustom,
+      hasPins: i.hasPins,
+      // Air quality comes from one source for every model, so a comparison on
+      // it would fetch the same numbers several times and draw one line where
+      // the picker shows several chips.
+      compareAqi: rankFamily === 'aqi' && selected.length > 1,
+      compareFreeze: freezeGaps.length > 0,
+    },
+    freezeGaps,
+  }
 }
 
 /**

@@ -4,13 +4,13 @@ import type { MapOverlays } from '../hooks/useMapOverlays'
 import { IconLayers } from './icons'
 import {
   ACCENT,
-  BUTTON_FLOATING,
   CHOICE_INPUT,
   CHOICE_ROW,
   LIFTED_EDGE,
   MAP_COL_GAP_T,
+  MAP_BUTTON,
   MAP_COL_W,
-  MAP_ROW_H,
+  MAP_PILL,
   RADIUS,
   RECESSED_FILL,
   SEGMENT_DIVIDER,
@@ -95,6 +95,12 @@ interface LayersPopoverProps {
   coverage: LayerCoverage
   /** The tutorial holds the menu open for its Layers step (#536). */
   forcedOpen?: boolean
+  /**
+   * The button stands in the phone's row beside Controls and Analyze (#696),
+   * sized by its word, rather than in the desktop's column at the column's
+   * width. The menu hangs from it the same way at both.
+   */
+  inRow?: boolean
 }
 
 /**
@@ -112,6 +118,7 @@ export default function LayersPopover({
   mapRef,
   coverage,
   forcedOpen = false,
+  inRow = false,
 }: LayersPopoverProps) {
   const {
     showWildfires,
@@ -250,12 +257,12 @@ export default function LayersPopover({
   ]
 
   return (
-    <div ref={layersRef} className="relative" data-tour="layers">
+    <div ref={layersRef} className={inRow ? 'relative flex-shrink-0' : 'relative'} data-tour="layers">
       <button
         ref={buttonRef}
         onClick={() => setLayersOpen((o) => !o)}
         aria-expanded={open}
-        className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex items-center gap-2 px-2.5`}
+        className={inRow ? MAP_PILL : MAP_BUTTON}
       >
         <IconLayers />
         Layers

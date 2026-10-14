@@ -12,6 +12,7 @@ import type { DrawMode } from '../hooks/useDrawMode'
 import type { FireProximity } from '../hooks/useFireProximity'
 import type { ClosureProximity } from '../hooks/useClosureProximity'
 import type { GridLayer } from '../hooks/useGridLayer'
+import type { LegendFold } from '../hooks/useLegendFold'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import type { PresentedReport } from '../hooks/usePresentedReport'
 import type { Removals } from '../hooks/useRemovals'
@@ -72,8 +73,11 @@ export interface MapStageProps {
   fire: Pick<FireProximity, 'warnings'>
   /** Which destinations stand inside an active Forest Service area closure. */
   closure: Pick<ClosureProximity, 'warnings'>
-  /** How far the phone sheet lifts the map's bottom chrome, and the camera's bottom padding. */
-  layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx'>
+  /**
+   * How far the phone sheet lifts the map's bottom chrome, the camera's bottom
+   * padding, and the padding for the sheet a search is about to open.
+   */
+  layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx' | 'sheetPadBottomPx'>
   /** The run in flight, which the loading card reports and can cancel. */
   analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
   /** The metric the markers are coloured on. */
@@ -86,6 +90,16 @@ export interface MapStageProps {
   sidebarOpen: boolean
   /** Reopens the controls panel. */
   onOpenControls: () => void
+  /** A desktop width: the column on the map's left, where a phone has a row across its top (#696). */
+  isDesktop: boolean
+  /** The panel's Analyze gate, which the phone's own Analyze shares. */
+  analyzeEnabled: boolean
+  /** The panel's Analyze command, which the phone's own Analyze calls. */
+  onAnalyze: () => void
+  /** The line under the phone's Controls: the When arm and the model (`controlsSummary`). */
+  controlsSummary: string
+  /** Whether the legend box hangs open under its strip, and the strip's press (`useLegendFold`). */
+  legend: LegendFold
   /** The tutorial holds the Layers menu open for its step (#536). */
   layersForcedOpen: boolean
   /** The panel's Map group is hovered, so the search field wears a ring. */
@@ -128,6 +142,11 @@ export default function MapStage({
   showResults,
   sidebarOpen,
   onOpenControls,
+  isDesktop,
+  analyzeEnabled,
+  onAnalyze,
+  controlsSummary,
+  legend,
   layersForcedOpen,
   searchPointed,
   poisPointed,
@@ -142,8 +161,12 @@ export default function MapStage({
   const { results } = report
   const { playbackIndex, timelineAxis } = timeline
 
+  // A searched place is framed for the sheet it is about to open, not the
+  // one on screen (#696): naming a destination opens the results in the next
+  // render, after the camera has started to move, and framed for the map
+  // without a sheet the place landed under the sheet's top edge.
   function handleSearchSelect(place: Place) {
-    mapRef.current?.flyToPlace(place)
+    mapRef.current?.flyToPlace(place, layout.sheetPadBottomPx)
     registerPlace(place)
   }
 
@@ -192,7 +215,7 @@ export default function MapStage({
     // map area keeps the whole column, so the canvas runs on behind the
     // sheet and its ResizeObserver sees no change on a drag.
     <div
-      className={`flex-1 relative ${MAP_EDGE.publish}`}
+      className={`flex-1 relative ${MAP_EDGE.publish} ${isDesktop ? '' : MAP_EDGE.belowRow}`}
       style={
         {
           '--map-corner-lift': `${layout.mapCornerLift}px`,
@@ -258,7 +281,9 @@ export default function MapStage({
         rankedFieldHasValue={rankedFieldHasValue}
         overlays={overlays}
         grid={grid}
-        sidebarOpen={sidebarOpen}
+        columnFull={isDesktop && !sidebarOpen}
+        expanded={legend.legendExpanded}
+        onToggle={legend.toggleLegend}
         sheetLiftPx={layout.sheetLiftPx}
         timelineShown={timelineAxis !== null}
       />
@@ -268,6 +293,11 @@ export default function MapStage({
         searchPointed={searchPointed}
         sidebarOpen={sidebarOpen}
         onOpenControls={onOpenControls}
+        phoneRow={!isDesktop}
+        controlsSummary={controlsSummary}
+        analyzeEnabled={analyzeEnabled}
+        analyzing={analysis.loading}
+        onAnalyze={onAnalyze}
       >
         <LayersPopover
           overlays={overlays}
@@ -276,6 +306,7 @@ export default function MapStage({
           mapRef={mapRef}
           coverage={coverage}
           forcedOpen={layersForcedOpen}
+          inRow={!isDesktop}
         />
       </MapButtonColumn>
       {/* The timeline, present exactly while something spans time: radar

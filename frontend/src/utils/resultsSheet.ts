@@ -20,29 +20,38 @@ import { resolvePanelHeights } from './layout'
 
 /**
  * The legend stack's own top inset (`LEGEND_TOP` in `styles.ts`, which spells
- * the classes and carries the derivation).
+ * the classes and carries the derivation), and the strip that heads the stack.
  *
  * `LEGEND_TOP` has FOUR numbers: two pointer sizes, each with and without the
- * Controls button, which stands in the column only while the panel is
- * collapsed. These two are the pair a FLOOR is about, and they are not the same
- * arm of that table:
+ * Controls button, which stands in a desktop's column only while the panel is
+ * collapsed. A phone's column is always the short one, because Controls stands
+ * in the row beside Layers there (#696). Since #696 the stack opens with the
+ * Legends strip, one `MAP_ROW_H` and one gap, and the box hangs under it.
  *
- *   - `LEGEND_TOP_PX` is the coarse inset with the Controls button (156), which
- *     is the phone at rest: the drawer is closed, so the button is up, and the
- *     sheet covers the map's bottom whatever the drawer is doing. Everything
- *     derived from it here is the sheet's, and a floor is a promise about the
- *     smallest map that will do — so it takes the taller column.
- *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT it (92), which is the
- *     desktop a docked floor is asked about: the panel is docked, so the
- *     Controls button is not there. When it is, the panel is collapsed and the
+ *   - `LEGEND_TOP_PHONE_PX` is the coarse short column (108): the search field
+ *     and the row under it, which is where a phone's strip stands.
+ *   - `LEGEND_STRIP_PX` and `LEGEND_STRIP_FINE_PX` are the strip and its gap
+ *     on a finger and on a pointer (44 + 4, 36 + 4).
+ *   - `LEGEND_TOP_PX` is where the BOX starts on a phone at rest, the column
+ *     plus the strip (156). Everything derived from it here is the sheet's,
+ *     and a floor is a promise about the smallest map that will do, so it
+ *     counts the strip at its open height. It is the number the three-row
+ *     column made before the row: the strip took the row Controls gave up, so
+ *     the sheet rests where it did.
+ *   - `LEGEND_TOP_FINE_PX` is the fine inset WITHOUT the Controls button (92),
+ *     which is the desktop a docked floor is asked about: the panel is docked,
+ *     so the button is not there. When it is, the panel is collapsed and the
  *     map has that whole panel back, so the floor is the slacker constraint
  *     rather than the binding one.
  */
-export const LEGEND_TOP_PX = 156
+export const LEGEND_TOP_PHONE_PX = 108
+export const LEGEND_STRIP_PX = 48
+export const LEGEND_STRIP_FINE_PX = 40
+export const LEGEND_TOP_PX = LEGEND_TOP_PHONE_PX + LEGEND_STRIP_PX
 export const LEGEND_TOP_FINE_PX = 92
 
 /**
- * What the legend stack needs to render with no scrolling: ONE box holding the
+ * What the legend box needs to render with no scrolling: ONE box holding the
  * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
  * with every layer on, the forecast grid drawn and a freezing-level ranking
  * held. The same number at both widths, because the box is one fixed width
@@ -153,9 +162,10 @@ export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_P
  * Map that stays uncovered however high the reader drags: the timeline's band
  * and the inset the map's own button column occupies.
  *
- * The legend stack starts at `LEGEND_TOP_PX` because that is where the
- * Controls/search/Layers column ends, and the transport rides the same lift, so
- * it takes the same floor. Without it a drag puts the bar THROUGH that column:
+ * The legend box starts at `LEGEND_TOP_PX` because that is where the search
+ * field, its row and the Legends strip end, and the transport rides the same
+ * lift, so it takes the same floor. The strip is inside it so a drag can never
+ * scroll the one control that opens the box out of reach. Without it a drag puts the bar THROUGH that column:
  * measured at 500x757, a sheet dragged high left the transport at y 100-145,
  * across the Layers button at y 102-140 and MapLibre's zoom stack opposite it.
  *
@@ -201,7 +211,8 @@ export function dockedMapFloorPx(gripCount: number): number {
   // The FINE inset, not `RESTING_MAP_PX`'s coarse one: the results are docked
   // beside a pointer, and a docked layout on a coarse pointer is a tablet wide
   // enough that the 16px is noise either way.
-  const reserve = LEGEND_TOP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
+  // The strip heads the stack at a desk too (#696), open by default there.
+  const reserve = LEGEND_TOP_FINE_PX + LEGEND_STRIP_FINE_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
   return reserve + RESULTS_BAR_PX + gripCount * DOCKED_GRIP_PX
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import {
   bothFits,
   clampPanelHeight,
+  heldResultsMode,
   panelOf,
   resolvePanelHeights,
   resolveResultsMode,
@@ -72,7 +73,10 @@ export interface ResultsLayoutInputs {
   bannerPx: number
   /** Whether the results area is rendered at all. */
   showTable: boolean
-  /** The report, whose arrival widens a desktop to Both. */
+  /**
+   * The report, whose arrival widens a desktop to Both. Null while the sheet
+   * holds only pending rows, which a phone shows as the table alone (#696).
+   */
   response: unknown
   analysisSeq: number
   /**
@@ -131,8 +135,13 @@ export function useResultsLayout({
   // than state because nothing draws it: every render that reads it is one a
   // press or a resize already caused.
   const lastPanelRef = useRef(panelOf(modeChosen))
+  // Whether the segment has been pressed in this session, which is what lifts
+  // the pending-only hold below (`heldResultsMode`): a stored mode is a habit
+  // the hold may set aside for a moment, and a press is an answer it may not.
+  const pressedRef = useRef(false)
   // An intentional press on the segment: sticks for the session and persists.
   const chooseResultsMode = useCallback((mode: ResultsMode) => {
+    pressedRef.current = true
     modeChosenRef.current = true
     lastPanelRef.current = panelOf(mode) ?? lastPanelRef.current
     setModePref(mode)
@@ -193,7 +202,11 @@ export function useResultsLayout({
   const bothHasRoom = bothFits(viewportH - bannerPx, {
     mapMinPx: isDesktop ? undefined : draggedMapFloorPx(2),
   })
-  const resultsMode = resolveResultsMode(modePref, lastPanelRef.current, bothHasRoom)
+  const resultsMode = heldResultsMode(resolveResultsMode(modePref, lastPanelRef.current, bothHasRoom), {
+    pendingOnly: response === null,
+    pressed: pressedRef.current,
+    isDesktop,
+  })
   // Which panels are visible: the mode and the collapse chevron alone decide.
   // Deliberately NOT gated on having data — a mode with nothing to draw shows
   // its empty panel (the chart with no analysis renders bare axes), because a
@@ -305,18 +318,25 @@ export function useResultsLayout({
   // What the map's camera must keep clear of the sheet. The RESTING lift, not
   // the live one above: a fit re-framed mid-drag would move the map under the
   // hand that is dragging it.
-  const cameraPadBottomPx =
-    isDesktop || !showTable
-      ? 0
-      : restingLiftPx({
-          collapsed: resultsCollapsed,
-          gripCount,
-          chartShown: chartShowing,
-          tableShown: tableShowing,
-          chartPx: DEFAULT_CHART_HEIGHT,
-          tablePx: DEFAULT_TABLE_HEIGHT,
-          availPx: viewportH - bannerPx,
-        })
+  //
+  // Two numbers, because a searched place is framed for a sheet that is not
+  // there yet (#696): the search opens the results in the render after the
+  // camera starts moving, so padding for the sheet on screen centred the place
+  // in the whole map and the sheet then opened over its label. Nothing above
+  // reads `showTable` (the mode, the chevron and the grips decide the sheet's
+  // shape), so the lift it will rest at is known before it opens.
+  const sheetPadBottomPx = isDesktop
+    ? 0
+    : restingLiftPx({
+        collapsed: resultsCollapsed,
+        gripCount,
+        chartShown: chartShowing,
+        tableShown: tableShowing,
+        chartPx: DEFAULT_CHART_HEIGHT,
+        tablePx: DEFAULT_TABLE_HEIGHT,
+        availPx: viewportH - bannerPx,
+      })
+  const cameraPadBottomPx = showTable ? sheetPadBottomPx : 0
 
   // The map│chart grip, in Both AND chart-only mode: a panel shown by itself
   // is still resizable against the map (#242 review). Only the reserved space
@@ -379,6 +399,7 @@ export function useResultsLayout({
     sheetLiftPx,
     mapCornerLift,
     cameraPadBottomPx,
+    sheetPadBottomPx,
     chartGrip,
     tableGrip,
   }

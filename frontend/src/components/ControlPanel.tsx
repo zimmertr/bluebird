@@ -8,15 +8,13 @@ import PanelFooter from './PanelFooter'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
 import { PANEL_EDGE, PANEL_RULE, TEXT } from '../styles'
-import { MetricFamily, familyOf } from '../metrics'
+import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
-import { analyzeBlockers, canAnalyze, ringAddsNothing, shouldAutoAnalyze } from '../utils/analyzeGate'
-import { modelsWithoutFreeze } from '../utils/freezingLevel'
-import { selectedIds } from '../utils/modelSelection'
+import { analyzeBlockers, analyzeGateFor, canAnalyze, ringAddsNothing, shouldAutoAnalyze } from '../utils/analyzeGate'
 import { panelMessages } from '../utils/panelMessages'
 import { classifyAqiCoverage } from '../utils/urlState'
-import { ForecastSelection, hasDates, selectionLocalWindow } from '../utils/calendar'
+import { ForecastSelection, selectionLocalWindow } from '../utils/calendar'
 import { windowSource, type WindowLimits } from '../utils/forecastWindow'
 import { type ForecastModelOption } from '../hooks/useCapabilities'
 import { logoUrl } from '../logo'
@@ -218,46 +216,24 @@ export default function ControlPanel({
   const hasCustom = parsedCustom.length > 0
   // A line pasted twice is one destination, and the count says so (#579).
   const customCount = useMemo(() => distinctRows(parsedCustom).length, [parsedCustom])
-  const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
-
-  const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
-
-  // Every model the analysis would fetch, the ranking one first. The two
-  // checks below are pre-flight: they read the picker rather than a report,
-  // because their whole point is to refuse to buy an analysis that cannot
-  // answer the question the panel is asking.
-  const selected = useMemo(
-    () =>
-      selectedIds(forecastModels, forecastModel, comparedModels).map((id) => ({
-        id,
-        label: forecastModels.find((m) => m.id === id)?.label ?? id,
-      })),
-    [forecastModels, forecastModel, comparedModels],
-  )
-  const rankFamily = familyOf(sortBy)
-  // Air quality comes from one source for every model, so a comparison on it
-  // would fetch the same numbers several times and draw one line where the
-  // picker shows several chips.
-  const compareAqi = rankFamily === 'aqi' && selected.length > 1
-  // Named rather than counted: the model is a control in this panel, so the
-  // reader can act on a name and cannot act on a fraction.
-  const freezeGaps = useMemo(
-    () => (rankFamily === 'freeze' ? modelsWithoutFreeze(selected).map((m) => m.label) : []),
-    [rankFamily, selected],
-  )
-  const gate = {
+  // The gate the map's Analyze reads too (#696): one function from the same
+  // inputs, so the two buttons cannot disagree about whether a run may start.
+  const { gate, freezeGaps } = analyzeGateFor({
+    selection,
     hasWindowWarning: windowWarning !== null,
-    // The Dates arm is live with no day picked yet (#242 review): there is no
-    // window to analyze, and the blocker says so.
-    datesPending: selection.kind === 'days' && !hasDates(selection),
     loading,
-    areaTooLarge,
-    polygonReady,
+    polygonAreaKm2,
+    maxAreaKm2,
+    drawPointCount,
+    destinationTypes,
     hasCustom,
     hasPins,
-    compareAqi,
-    compareFreeze: freezeGaps.length > 0,
-  }
+    sortBy,
+    forecastModels,
+    forecastModel,
+    comparedModels,
+  })
+  const { areaTooLarge } = gate
   const analyzeEnabled = canAnalyze(gate)
 
   // A link's run on open fires from here rather than from App because the gate

@@ -1,7 +1,6 @@
 import {
   lazy,
   Suspense,
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -54,6 +53,8 @@ import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
+import { useDrawer } from './hooks/useDrawer'
+import { useLegendFold } from './hooks/useLegendFold'
 import {
   LAYER,
   SURFACE_PAGE,
@@ -62,6 +63,8 @@ import {
   decodeState,
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
+import { analyzeGateFor, canAnalyze } from './utils/analyzeGate'
+import { controlsSummary } from './utils/controlsSummary'
 import {
   panelCommitCues,
   reportView,
@@ -147,9 +150,13 @@ export default function App() {
   // tour, and the tour's own start and end keep it and clear it.
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
+  const isDesktop = useIsDesktop()
   // The controls panel is docked on desktop and an off-canvas drawer on phones.
-  // It starts open on both; a close button collapses it to widen the map.
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // It starts open on a desktop and closed on a phone (`useDrawer`, #696); a
+  // close button collapses it to widen the map.
+  const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
+  // Whether the legend box hangs open under its strip (#696).
+  const legend = useLegendFold(storedView.legendOpen, isDesktop)
   // The panel's Map group is hovered, so the map's search box — a control
   // the panel names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
@@ -159,7 +166,6 @@ export default function App() {
   // The basemap style is failing to load: the map reports it and the panel
   // says so below Analyze (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
-  const isDesktop = useIsDesktop()
   const overlays = useMapOverlays(restored, isDesktop)
   const {
     showWildfires,
@@ -172,8 +178,6 @@ export default function App() {
     showPlayer,
     playerShown,
   } = overlays
-  const closeDrawer = useCallback(() => setSidebarOpen(false), [])
-  const openDrawer = useCallback(() => setSidebarOpen(true), [])
   const drawMode = useDrawMode({
     mapRef,
     polygon,
@@ -433,6 +437,26 @@ export default function App() {
     setShowResults,
   })
 
+  // The phone's Analyze on the map (#696) opens exactly when the panel's does:
+  // the same gate from the same inputs the panel builds it from.
+  const mapAnalyzeEnabled = canAnalyze(
+    analyzeGateFor({
+      selection,
+      hasWindowWarning: forecastSelection.windowWarning !== null,
+      loading,
+      polygonAreaKm2: destinationInputs.polygonAreaKm2,
+      maxAreaKm2: caps.maxPolygonAreaKm2,
+      drawPointCount,
+      destinationTypes,
+      hasCustom: csvRows.length > 0,
+      hasPins: places.length > 0,
+      sortBy,
+      forecastModels: caps.forecastModels,
+      forecastModel,
+      comparedModels,
+    }).gate,
+  )
+
   // A link that asks to run its analysis on open (`analyze=1`, #511).
   const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
     settled: caps.settled,
@@ -607,6 +631,11 @@ export default function App() {
           showResults={showResults}
           sidebarOpen={sidebarOpen}
           onOpenControls={openDrawer}
+          isDesktop={isDesktop}
+          analyzeEnabled={mapAnalyzeEnabled}
+          onAnalyze={handleAnalyze}
+          controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
+          legend={legend}
           layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}
           poisPointed={poisPointed}
