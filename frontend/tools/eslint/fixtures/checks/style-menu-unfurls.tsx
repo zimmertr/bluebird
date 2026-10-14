@@ -2,6 +2,6 @@
 // and a list of options drawn outside the card.
 export function Menu() {
   usePopover({ open, onOpenChange, triggerRef })
-  usePopover({ open, onOpenChange, triggerRef, unfurl: false })
+  usePopover({ open, onOpenChange, triggerRef, placement: 'hang' })
   return <ul role="listbox" />
 }

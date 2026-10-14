@@ -33,7 +33,7 @@ export default function RemovedPicker({
   triggerRef,
   anchorRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, unfurl: true })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
 
   // Restoring the last row empties the list out from under the popover, so it
   // closes. Where the keyboard goes is the sheet's: the trigger hides at zero

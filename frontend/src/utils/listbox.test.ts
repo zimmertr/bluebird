@@ -164,13 +164,22 @@ describe('popoverBox', () => {
     const squeezed = { ...TRIGGER, top: 899 }
     expect(popoverBox(squeezed, VIEWPORT, opts(0)).maxHeight).toBeGreaterThanOrEqual(0)
   })
+  // A panel that takes its trigger's place stands where the trigger stood,
+  // with room or without, and moves up only as far as the screen needs.
+  it('stands on the trigger when asked to cover it', () => {
+    const box = popoverBox(TRIGGER, VIEWPORT, { ...opts(200), placement: 'cover' as const })
+    expect(box.offset).toEqual({ top: 400 })
+    const low = popoverBox({ ...TRIGGER, top: 800 }, VIEWPORT, { ...opts(300), placement: 'cover' as const })
+    expect(low.offset).toEqual({ top: 900 - 8 - 300 })
+  })
+
 })
 
 // A menu unfurls out of its anchor (#687, record 0134): the results bar's
 // button group, 181px with Removed showing on a phone.
 describe('popoverBox, unfurled', () => {
   const GROUP = { left: 200, top: 300, width: 181.5, height: 22 }
-  const unfurl = (desiredHeight: number) => ({ ...BASE, desiredHeight, unfurl: true })
+  const unfurl = (desiredHeight: number) => ({ ...BASE, desiredHeight, placement: 'unfurl' as const })
 
   it("takes the anchor's width and left edge, whatever the preferred width says", () => {
     const box = popoverBox(GROUP, VIEWPORT, unfurl(200))

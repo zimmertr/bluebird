@@ -8,7 +8,7 @@ The welcome dialog offers a guided tutorial, the `Tutorial` link at the bottom o
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods. The first two live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map**, **Coordinates** and **Polygon**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
 
 ### a. Search by name
 
@@ -32,10 +32,10 @@ Trailheads are not clickable: the basemap does not carry them, so a polygon is s
 
 ### c. Polygon
 
-Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them.
+Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
 
 - You need at least 3 points before Analyze turns on.
-- The estimated bounding-box area is shown in km² while you draw, and for a polygon a shared link brings in.
+- The estimated bounding-box area is shown in km² at the right of the point count while you draw, or under it when the two do not fit on one line, and for a polygon a shared link brings in.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.
 - Once the shape is closed, a click lands on the edge nearest to it rather than at the end of the outline, so clicking across the polygon widens the side you pointed at instead of folding the shape over itself.
 - Press **Done**, or the Enter key, to finish. Analyze finishes for you.
@@ -54,11 +54,11 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Lakes | In the app, every named water body on the map (lakes, tarns, ponds and reservoirs alike); through the API, `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
-Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. When another destination still lets Analyze run, a line under the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, under the type checkboxes, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
+Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. When another destination still lets Analyze run, a line under the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, which shows under **Peaks** once Peaks is ticked, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
 
 ### d. Coordinates
 
-Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed):
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinates** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller.
 
 ```
 # Lines beginning with # are ignored
@@ -97,15 +97,15 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 
 ### Forecast window
 
-A calendar, with a **When** toggle above the grid reading **Current** or **Dates**.
+A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar in its place: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on **Done** under the days, on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you, and closing it without picking a day goes back to **Current**.
 
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
 - **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total, the freezing level by its minimum, and wind, temperature and AQI by their average; the Metrics section's aggregate dropdowns change that.
 - **Pick a second day** to extend to a range, or **drag across days** to choose one in a single gesture. Dragging either end of an existing range adjusts that end, and picking a day inside a range starts over from that day.
-- **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens empty — today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
+- **Dates** on the toggle brings back the last range you had, so switching to Current to compare and back does not cost you the range. With no range yet the calendar opens by itself, empty — today is outlined, nothing is selected, and Analyze waits until you pick a day (one click for a single day, a second click or a drag for a range).
 - **Hours** appears under **When**, set to **All day**. Switch it to **Hourly** for part of a day rather than all of it: it opens on the current hour through the end of the day, and runs from the first time on your first day to the second time on your last, as one continuous window. Two equal hours analyze that single hour, which is the finest question you can ask.
 
-Both rows sit above the grid, so the two decisions the window needs are together and neither is below the fold on a short screen. Days in the past are ordinary here: the calendar reaches back as far as the archive the service publishes (`limits.archive_days` in `GET /api/capabilities`) against about 15 days forward, which is why the toggle says Dates rather than anything that implies the future. How wet was this ridge last July is a question it can answer.
+The Hours row sits above the grid inside the calendar, so the two decisions the window needs are together. Days in the past are ordinary here: the calendar reaches back as far as the archive the service publishes (`limits.archive_days` in `GET /api/capabilities`) against about 15 days forward, which is why the toggle says Dates rather than anything that implies the future. How wet was this ridge last July is a question it can answer.
 
 Narrowed hours apply to the selection as a whole, not to each day in it: 06:00 to 18:00 across five days is one continuous window from the first morning to the last evening, and hovering **Hours** says so. Daylight hours on each of several days is a separate feature and is not built yet.
 
@@ -129,7 +129,7 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 **The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
-The calendar is fully keyboard operable: arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range.
+The calendar is fully keyboard operable: Enter or Space on the field opens it with the selected day focused, arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range and closes the calendar, putting you back on the field, or on **Current** if no day was picked.
 
 ## Metrics
 

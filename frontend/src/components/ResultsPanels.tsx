@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo } from 'react'
+import { Suspense, lazy, useMemo, useRef } from 'react'
 import type { DestinationResult, SortBy } from '../types'
 import type { ChartCompare } from '../hooks/useChartCompare'
 import type { FireProximity } from '../hooks/useFireProximity'
@@ -12,7 +12,8 @@ import ModelCompare from './ModelCompare'
 import ResizeGrip from './ResizeGrip'
 import ResultsTable from './ResultsTable'
 import { IconClose } from './icons'
-import { FOCUS_RING, ICON_ACTION, MUTED, RADIUS, TEXT } from '../styles'
+import { FOCUS_RING, ICON_ACTION, MUTED, RADIUS, SCROLL_BARS, SCROLL_SHADOW, TEXT } from '../styles'
+import { useScrollShadows } from '../hooks/useScrollShadows'
 
 // Lazy, because `recharts` is the one large library the first screen does not
 // need: the map mounts before any chart exists, and a reader who never opens
@@ -110,6 +111,8 @@ export default function ResultsPanels({
   onFocusPending,
 }: ResultsPanelsProps) {
   const { resultsMode, chartGrip, chartPanelPx, tableGrip, tablePanelPx } = layout
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  useScrollShadows(tableScrollRef, resultsMode !== 'chart')
   const { chart, compare, rowChartColor } = charts
   const {
     tableRows,
@@ -191,7 +194,7 @@ export default function ResultsPanels({
                 58px — then it scrolls. */}
             {resultsMode === 'chart' && legend.length > 0 && (
               <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
-                <div className="results-scrollbars flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto">
+                <div className={`${SCROLL_BARS} flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto`}>
                   {legend.map(({ key, row, suffix }) => {
                     const plotted = chart.isSelected(row)
                     return (
@@ -251,7 +254,8 @@ export default function ResultsPanels({
               moved the whole page up and left it there (the tutorial,
               2026-10-06). */}
           <div
-            className="@container relative overflow-auto min-h-0 results-scrollbars flex-shrink-0"
+            ref={tableScrollRef}
+            className={`@container relative overflow-auto min-h-0 ${SCROLL_BARS} ${SCROLL_SHADOW.end} flex-shrink-0`}
             style={{ height: `${tablePanelPx}px` }}
           >
             <ResultsTable

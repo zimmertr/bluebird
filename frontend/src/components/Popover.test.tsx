@@ -191,7 +191,7 @@ function UnfurlHarness({ anchor }: { anchor: Box }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
-  const { popoverRef, box } = usePopover({ open, onOpenChange: setOpen, triggerRef, anchorRef, unfurl: true })
+  const { popoverRef, box } = usePopover({ open, onOpenChange: setOpen, triggerRef, anchorRef, placement: 'unfurl' })
   return (
     <>
       <div

@@ -97,8 +97,15 @@ const CAPTION = 'text-xs text-slate-400'
 
 /** The compact tier: panel, table, map chrome, chart. */
 export const TEXT = {
-  /** Numbered section headings: "1. Destinations", "3. Ranking". */
-  section: 'text-sm font-bold uppercase tracking-wider text-slate-400',
+  /**
+   * The panel's section headings: Destinations, Forecast, Metrics. slate-300
+   * (9.85:1 on the slate-800 panel) rather than the slate-400 (5.71:1) it wore
+   * until #687, where it read dimmer than the slate-200 subheading under it
+   * and a heading outranked by its own sub-block is no heading. It keeps the
+   * 14px size, the weight and the tracking that already set it above the
+   * subheading; only the step moved (the maintainer's option B, 2026-10-13).
+   */
+  section: 'text-sm font-bold uppercase tracking-wider text-slate-300',
   /** The single call to action, deliberately a step up from the panel body. */
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
@@ -605,6 +612,27 @@ export const BUTTON_SECONDARY =
 export const BUTTON_ACCENT =
   `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
+
+/**
+ * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
+ * a third of the panel each, so the row stands on the edges the coordinates
+ * box above it does.
+ *
+ * The two button roles at a 4px inset rather than 12px, and nothing else
+ * changed. In a third the cell sets the width and the label is centred in it,
+ * so the inset is only the floor under the widest label, `Draw polygon`
+ * (77.4px at 12px on a Mac): at 12px a side it needs 101.4px, where a third of
+ * the row is 100.3px on a desktop and 93px on a 360px phone (the row is
+ * 317px and 295px, less two 8px gaps), so the label would wrap; at 4px it
+ * needs 85.4px and fits both. Derived from the roles rather than spelled
+ * again, so the fill, the type and the tap target cannot drift from the
+ * buttons everywhere else.
+ */
+export const DRAW_ROW = {
+  row: 'grid grid-cols-3 gap-2',
+  secondary: BUTTON_SECONDARY.replace(' px-3 ', ' px-1 '),
+  accent: BUTTON_ACCENT.replace(' px-3 ', ' px-1 '),
+} as const
 
 /**
  * A word marking the row it sits in, not a control: "Recommended" on the
@@ -1148,8 +1176,8 @@ export const DRAG = {
  */
 export const RECESSED_FILL = 'bg-slate-900'
 // Not exported (#687): every surface that sinks into the panel composes it
-// here, and a call site takes the finished `FIELD`, `SEGMENT`, `SURFACE_GROUP`
-// or `SLIDER.track`.
+// here, and a call site takes the finished `FIELD`, `SEGMENT` or
+// `SLIDER.track`.
 const RECESSED_EDGE = 'border border-slate-500'
 
 /**
@@ -1840,9 +1868,20 @@ export const NOTICE_DISMISS = {
 /**
  * The three weights of rule in the app.
  *
- * `PANEL_EDGE` closes the panel: the line under the app title and the one over
- * the Analyze button. Those are structural — they separate the scrolling body
- * from the fixed chrome above and below it — so they are the heavier pair.
+ * `PANEL_EDGE` closes the panel: the line under the app title, the one over
+ * the Analyze button, and the panel's right edge where it meets the map and
+ * the results. Those are structural: the first two separate the scrolling
+ * body from the fixed chrome above and below it, and the third separates the
+ * panel from everything beside it, so they are the heavier weight.
+ *
+ * The right edge was `SURFACE_DIVIDER` until #697, at 1.41:1 on slate-800,
+ * which is no boundary at all between the panel and the desktop results
+ * sheet, two slate-800 surfaces side by side: they read as one L-shaped
+ * block. slate-500 is 3.07:1 on slate-800 and 3.74:1 on slate-900, past the
+ * 3:1 a boundary owes under WCAG 1.4.11 when it is the only thing separating
+ * two surfaces. An 8px slate-900 gutter between the two was mocked and
+ * declined beside it, and so was leaving the seam alone (the maintainer,
+ * 2026-10-13).
  *
  * `PANEL_RULE` separates one numbered step from the next *inside* that body,
  * and is the whole recipe rather than a colour, because Tailwind scans source
@@ -1869,12 +1908,11 @@ export const NOTICE_DISMISS = {
  * `SURFACE_DIVIDER` is that same quiet line where the stack cannot draw it:
  * one rule a component places itself, between two blocks of one surface. The
  * dialog's header over its body, the popover's overline strip over its rows,
- * the month navigation under the calendar grid, the panel's own right edge
- * against the map. On the slate-800 panel and card it is 1.41:1, and
- * `PANEL_RULE` draws the same colour, which is the point: a surface that has
- * to place its own rule should not look like a different kind of rule. What
- * splits them is only whether the stack or the call site decides WHERE, so a
- * bare colour is all this one carries.
+ * the month navigation under the calendar's Hours row. On the slate-800 panel
+ * and card it is 1.41:1, and `PANEL_RULE` draws the same colour, which is the
+ * point: a surface that has to place its own rule should not look like a
+ * different kind of rule. What splits them is only whether the stack or the
+ * call site decides WHERE, so a bare colour is all this one carries.
  *
  * It was `border-slate-700` at eleven call sites in eight files before it had a
  * name (#390), which is a third weight nothing had chosen and nothing could
@@ -1911,6 +1949,117 @@ export const DIALOG_FOOT = {
 } as const
 
 /**
+ * The scroll bar every dark surface wears: the panel body, the results table,
+ * the chart legend and the calendar's popover (#697). The rules live in
+ * index.css because a scroll bar has no utility to compose; the name lives
+ * here so no component spells it, and the app draws one bar style rather than
+ * the browser's default beside a styled one. Before, the panel body took the
+ * browser's own bar, 15px and light grey in Chromium beside the results'
+ * 10px slate one (measured 2026-10-13). The root's `color-scheme: dark` in
+ * index.css turns every bar this class does not reach dark as well: the
+ * welcome dialog's and the legal pages'.
+ */
+export const SCROLL_BARS = 'surface-scrollbars'
+
+/**
+ * The shade under a fixed edge that shows only while content continues past
+ * it (#697): the panel body under its header and above its footer, and the
+ * results table under its sticky header and above its bottom edge. Without it
+ * a body that scrolls under a rule is cut flat there, and nothing says it
+ * goes on: at the panel's defaults 147px of it is out of sight at 1440x900
+ * and 558px on a phone (measured 2026-10-13).
+ *
+ * index.css owns the drawing, because the shade's visibility is a
+ * scroll-driven animation where the browser has one and two data attributes
+ * from `useScrollShadows` where it does not. These are the halves, so a
+ * container with a sticky header of its own can take the bottom one alone and
+ * hang the top one under the header (`head`), where the header would
+ * otherwise paint over it. The shade is slate-950 at 70% fading to nothing
+ * over 12px: one step under the page ground, so it reads as depth on the
+ * slate-800 panel rather than as a third kind of rule.
+ */
+export const SCROLL_SHADOW = {
+  start: 'scroll-shadow-start',
+  end: 'scroll-shadow-end',
+  both: 'scroll-shadow-start scroll-shadow-end',
+  /** The top shade under a sticky table header, on the header itself. */
+  head: 'scroll-shadow-head',
+} as const
+
+/**
+ * The panel's scrolling body, between the header's `PANEL_EDGE` and the
+ * footer's.
+ *
+ * `scrollbar-gutter: stable` reserves the bar's width outside the padding
+ * whether or not the body overflows, so the control column does not jump
+ * sideways when a section opens and the bar appears, and nothing in the body
+ * ever runs against the bar: the closest thing to it is a control's right
+ * edge, the full 16px of `px-4` away. What it costs is the bar's width off the
+ * content, always rather than only while the body overflows: 327px of content
+ * with no bar, 317px beside the shared 10px one in Chromium, where the
+ * browser's own 15px bar used to leave 312px whenever it showed (measured
+ * 2026-10-13). The footer below is not a scroller, so its Analyze button
+ * reaches 10px further right than the body's controls on such a screen. An overlay bar (macOS by default, every phone) takes no width
+ * and reserves none. The metric row's label budget is done at the narrower
+ * width in `styles.test.ts`. The bleed tells the scroll shadows to reach across
+ * the `px-4` to both edges.
+ */
+export const PANEL_BODY =
+  `flex-1 overflow-y-auto px-4 py-4 [scrollbar-gutter:stable] [--scroll-shadow-bleed:1rem] ` +
+  `${SCROLL_BARS} ${SCROLL_SHADOW.both}`
+
+/**
+ * The panel's header: the logo and the title block beside it (#687).
+ *
+ * 56px plus its `PANEL_EDGE` rule, down from 81px: the logo is 40px with 8px
+ * of panel around it where it was an 80px square edge to edge, and the title
+ * block takes `py-2` for the `py-4` it had. The title and the tagline keep
+ * their roles and sizes, so the block is 54.5px of text and padding and the
+ * logo's 56px sets the height. That is 24px back to the scrolling body on
+ * every screen, 9% of a 900px window spent on fixed chrome becoming 6%
+ * (measured 2026-10-13: 81 to 57px). The close button keeps its place at the
+ * top right, inside the 56px on a touch screen too, where `TAP` makes it 44px
+ * from 8px down.
+ */
+export const PANEL_HEADER = {
+  logo: 'm-2 h-10 w-10 flex-shrink-0 object-cover',
+  title: 'flex flex-col justify-center px-3 py-2',
+} as const
+
+/**
+ * Movement that answers a reader's action, and stops where they asked their
+ * system for less (#687): the drawer sliding over the map on a phone, and the
+ * analysis card's progress bar filling. `motion-reduce:` drops the transition
+ * to an instant change, the way `TOUR.motion` does for the tutorial's
+ * spotlight; the panel's smooth scroll asks the same question through
+ * `prefersReducedMotion` in `utils/motion.ts`. Both were the two transitions
+ * in the app that ignored the setting.
+ */
+export const MOTION = {
+  /** The phone drawer's slide in and out. */
+  slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
+  /** A progress bar's fill growing to its next width. */
+  progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
+} as const
+
+/**
+ * The space above and below each metric's radio label in the Metrics grid,
+ * which sets the row pitch at 32px on a fine pointer (#687, record 0130).
+ *
+ * The rows stood 28px apart: a 16px radio label and a 22px bound box with the
+ * grid's 6px gap between rows, which failed the spacing test of WCAG 2.2
+ * SC 2.5.8 (a 24px circle on each undersized target may meet no other
+ * target). 5px above and below the label makes each row 26px tall and the
+ * pitch 32px, and nothing anyone presses changes size: the targets pass by
+ * spacing rather than by growing. 24px targets at a 30px pitch were mocked
+ * beside it and declined. The Metrics section grows from 359 to 387px.
+ *
+ * Fine pointer only: on a touch screen `TAP.row` already makes the label 44px,
+ * past both bars, and the margin there would only spend height.
+ */
+export const METRIC_LABEL_PITCH = 'my-[5px] touch:my-0'
+
+/**
  * Step number badge in the welcome modal.
  *
  * The badge wears the accent fill with white text; the size and weight are
@@ -1921,47 +2070,31 @@ export const DIALOG_FOOT = {
 export const BADGE_STEP = `${ACCENT.fill} text-xs font-bold`
 
 /**
- * A bordered region grouping controls inside the panel: today, the calendar.
+ * The ground the calendar stands on inside its popover (#687, record 0129).
  *
- * The border is deliberately brighter than anything else in the panel.
- * slate-500 clears the 3:1 asked of a meaningful UI boundary; the panel's own
- * section dividers are slate-700 at 1.4:1, and something that quiet cannot
- * make a block of controls read as one object — which is the whole job here.
+ * The calendar was a bordered well in the panel body until the date field
+ * replaced it; it now opens on `Popover.tsx`'s card, which draws the edge, so
+ * this carries the well's recessed fill and not its border. The fill is what
+ * matters: `DAY.range` is sky-950, which sits within a point and a half of
+ * slate-800's lightness and reads there by hue alone (1.05:1), where on
+ * slate-900 there is real lightness between them (1.28:1). Every ratio in the
+ * calendar holds on this ground as it did in the well:
  *
- * It now also carries a recessed fill, which this comment used to warn against
- * on the grounds that `DAY.range` is sky-950, "legible on slate-800 and nearly
- * invisible on slate-900". Measured against the Tailwind v4 palette the app
- * actually ships, that is backwards. sky-950 sits at L 29.3%, within a point
- * and a half of slate-800's 27.9% — which is why the range band reads by hue
- * rather than by lightness today, at 1.05:1 — while slate-900's 20.8% puts
- * real lightness between them. Every ratio in the calendar improves or holds:
+ * | on slate-900 | |
+ * | --- | --- |
+ * | day text (slate-200) | 14.49 |
+ * | dimmed day + today ring (slate-400) | 6.79 |
+ * | range band (sky-950) | 1.28 |
  *
- * | on slate-800 → slate-900 | | |
- * | --- | --- | --- |
- * | day text (slate-200) | 11.90 | 14.49 |
- * | dimmed day + today ring (slate-400) | 5.58 | 6.79 |
- * | this border (slate-500) | 3.07 | 3.74 |
- * | range band (sky-950) | 1.05 | 1.28 |
+ * `DAY.range` itself does not move, so the selected end still reads against it
+ * at the pinned 3.04:1 and `--color-sky-650` needs no re-derivation.
  *
- * Crucially `DAY.range` itself does **not** move, so the selected end still
- * reads against it at the pinned 3.04:1 and `--color-sky-650` needs no
- * re-derivation. The coupling the old comment feared only bites if the range
- * band changes; darkening what sits *under* it does not.
+ * The radius is the card's, so the fill does not paint over its rounded
+ * corners, and the ground is what scrolls when a short window caps the card's
+ * height, wearing the one shared bar.
  */
-export const SURFACE_GROUP = `${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.surface}`
-
-/**
- * Cancels a SURFACE_GROUP well's inset so its CONTENTS sit on the panel's
- * control column: the well grows outward instead of pushing its children in.
- * Without this, a segmented control inside a well ends 9px left of the same
- * control outside one — the calendar's Hours row against the When row above
- * it — and the panel's right edge stops being one line.
- *
- * 9px = the 8px of `p-2` the well's call sites use plus the 1px RECESSED_EDGE
- * border. A well that changes its padding must change this with it;
- * styles.test.ts pins the sum so the drift is a red test, not a crooked column.
- */
-export const SURFACE_GROUP_BLEED = '-mx-[9px]'
+export const CALENDAR_GROUND =
+  `${RECESSED_FILL} ${RADIUS.surface} min-h-0 overflow-y-auto p-2 ${SCROLL_BARS}`
 
 /**
  * The calendar's day cells.
@@ -2009,8 +2142,19 @@ export const DAY = {
    * because the width is the phone's to give. Height it can have, and a
    * calendar's mis-taps are overwhelmingly vertical: the columns are a whole
    * finger apart in meaning (a week) while the rows are a day.
+   *
+   * 28px on a fine pointer (#687), where it was 36: a mouse needs no more,
+   * and five or six week rows at 36px made the calendar the tallest thing in
+   * the panel. The popover card is 312x265px with five week rows at 28px,
+   * 40px shorter than at 36 (measured 2026-10-13). A touch screen keeps 44.
    */
-  cell: 'flex h-9 touch:h-11 items-center justify-center',
+  cell: 'flex h-7 touch:h-11 items-center justify-center',
+  /**
+   * The weekday initials over the grid: the height the day rows had, kept
+   * when they came down to 28px, so the initials stand apart from the first
+   * week rather than reading as a row of days.
+   */
+  head: 'flex h-9 touch:h-11 items-center justify-center',
   full: 'text-slate-200 hover:bg-slate-700',
   partial: 'text-slate-400 hover:bg-slate-700',
   unservable: 'text-slate-600',
@@ -2087,6 +2231,28 @@ export const FIELD_NUMERIC =
  * machines and not others, which is worse than one that consistently does not.
  */
 export const SELECT = `${FIELD} appearance-none pr-6`
+
+/**
+ * The calendar's field under Dates (#687, record 0129): a `SELECT` holding the
+ * window in the results bar's words, which may wrap to two lines.
+ *
+ * It is the one panel control that may stand two lines tall, because its words
+ * are the window itself and the longest of them, an hourly window with a year
+ * (`Tue, Oct 14 2025, 10:00 AM to Wed, Oct 15 2025, 11:59 PM`, about 322px at
+ * 12px on a Mac), cannot fit the 261 to 293px the field has: an ellipsis there
+ * cut off the end time, the part a reader set by hand.
+ *
+ * So the box aligns to its top and grows downward only when the words need a
+ * second line: the first line and the arrow stand exactly where a one-line
+ * field centres them. 7px is the 1px border plus `py-1.5` on a fine pointer
+ * (one line is 30px); 14px is the border plus 13px on a touch screen, where a
+ * one-line field is `TAP.height`'s 44px. The arrow is `ICON_ADORNMENT`'s
+ * placement pinned to that first line rather than to the middle of the box.
+ */
+export const CALENDAR_FIELD = {
+  box: `${SELECT} flex w-full items-start px-2 py-1.5 touch:py-[13px] text-left`,
+  arrow: 'pointer-events-none absolute right-2 top-[7px] touch:top-[14px] text-slate-400',
+} as const
 
 /**
  * What a control looks like when it does not apply.

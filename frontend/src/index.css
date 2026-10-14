@@ -76,6 +76,17 @@ body,
   padding: 0;
 }
 
+/* The app is dark everywhere, so the browser is told so once (#697). Without
+   it Chromium and Safari draw their light-theme chrome on every surface the
+   app does not style itself: the welcome dialog's and the legal pages' scroll
+   bars, and the glyphs of the native date, time and number inputs, which this
+   file used to flip one input type at a time. Firefox already followed the
+   OS theme, which is why the bar read dark there. The white map popups and
+   MapLibre's white controls say `light` for themselves in map.css. */
+:root {
+  color-scheme: dark;
+}
+
 /* Indeterminate progress bar — used while a phase has no countable progress
    (e.g. the single opaque Overpass search request). A segment slides across
    to signal ongoing activity without implying a known completion percentage. */
@@ -92,42 +103,143 @@ body,
   animation: indeterminate-slide 1.2s ease-in-out infinite;
 }
 
-/* Results panel scroll container: keep scrollbars rendered whenever content
-   overflows. macOS overlay scrollbars vanish until scrolled, so a too-narrow
+/* Every dark surface that scrolls wears this one bar: the control panel's
+   body, the results table and the chart legend (#697). Before, the panel got
+   the browser's default bar beside the results' styled one, so the app drew
+   two scroll bar styles side by side. Kept rendered whenever content
+   overflows: macOS overlay scrollbars vanish until scrolled, so a too-narrow
    window gives no hint the table pans sideways. `scrollbar-color` flips
    Chrome/Firefox to classic always-visible bars; the -webkit-* rules cover
    Safari, which ignores the standard properties. Colors are slate-500 thumb
-   on slate-800 track to match the panel. */
-.results-scrollbars {
+   on slate-800 track to match the panel, read from the theme's own variables
+   so they are the v4 steps the panel paints rather than a hex copy of an
+   older palette (the v3 hexes they used to spell were a shade off). The name
+   is `SCROLL_BARS` in styles.ts, so no component spells it. */
+.surface-scrollbars {
   scrollbar-width: thin;
-  scrollbar-color: #64748b #1e293b;
+  scrollbar-color: var(--color-slate-500) var(--color-slate-800);
 }
-.results-scrollbars::-webkit-scrollbar {
+.surface-scrollbars::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
-.results-scrollbars::-webkit-scrollbar-track {
-  background: #1e293b;
+.surface-scrollbars::-webkit-scrollbar-track {
+  background: var(--color-slate-800);
 }
-.results-scrollbars::-webkit-scrollbar-thumb {
-  background-color: #64748b;
+.surface-scrollbars::-webkit-scrollbar-thumb {
+  background-color: var(--color-slate-500);
   border-radius: 5px;
-  border: 2px solid #1e293b;
+  border: 2px solid var(--color-slate-800);
 }
-.results-scrollbars::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+.surface-scrollbars::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-slate-400);
 }
 
-/* Native form-widget chrome on the dark panel. Without a color-scheme hint
-   Chrome draws its light-theme widgets — a near-black calendar icon and
-   spinners on slate-900 inputs. `dark` flips the glyphs light (matching
-   Firefox's rendering); the opacity dims them to the panel's resting grey
-   and lifts to full on hover. */
-input[type="date"],
-input[type="time"],
-input[type="number"] {
-  color-scheme: dark;
+/* Scroll shadows (#697): a shade under a fixed edge that shows only while
+   there is content beyond it in that direction, so a body cut off flat under
+   its header or above its footer says it continues. Two sticky pseudo
+   elements, one per edge, each taking no room in the flow (the negative
+   margin cancels its height) and reaching across the container's padding to
+   all four edges (`--scroll-shadow-bleed`, set by the role that knows the
+   padding): Chrome sticks an element inside the scroll container's padding,
+   so a bare `top: 0` hung the shade a padding's depth under the header.
+   Sticky in both axes so a container that also pans sideways keeps them in
+   view.
+
+   Where the browser has scroll-driven animations the shade is pure CSS: the
+   top one fades in over the first 24px scrolled, the bottom one fades out
+   over the last 24px. A body that fits has no scroll timeline at all, the
+   animation never applies, and both stay at their resting opacity of 0.
+   Elsewhere `useScrollShadows` sets the two data attributes the fallback
+   rules read. The shade is slate-950 at 70%, one step under the page ground,
+   so it reads as depth on the slate-800 panel rather than as a line; the
+   `--scroll-shade` below is that colour, read from the theme. */
+:root {
+  --scroll-shade: color-mix(in oklab, var(--color-slate-950) 70%, transparent);
 }
+.scroll-shadow-start::before,
+.scroll-shadow-end::after {
+  content: "";
+  display: block;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  height: 12px;
+  margin-inline: calc(-1 * var(--scroll-shadow-bleed, 0px));
+  pointer-events: none;
+  opacity: 0;
+}
+.scroll-shadow-start::before {
+  top: calc(-1 * var(--scroll-shadow-bleed, 0px));
+  margin-bottom: -12px;
+  background: linear-gradient(to bottom, var(--scroll-shade), transparent);
+}
+.scroll-shadow-end::after {
+  bottom: calc(-1 * var(--scroll-shadow-bleed, 0px));
+  margin-top: -12px;
+  background: linear-gradient(to top, var(--scroll-shade), transparent);
+}
+/* The results table's top shade hangs under its sticky header rather than
+   at the scrollport's top, where the header would paint over it: one strip
+   per header cell, each exactly its cell's width, so the cells add up to one
+   unbroken band. Its timeline is still the table's scroll container, the
+   nearest one above the cell. */
+.scroll-shadow-head th {
+  position: relative;
+}
+.scroll-shadow-head th::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 12px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to bottom, var(--scroll-shade), transparent);
+}
+@keyframes scroll-shadow-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scroll-shadow-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@supports (animation-timeline: scroll()) {
+  .scroll-shadow-start::before,
+  .scroll-shadow-head th::after {
+    animation: scroll-shadow-in linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: 0 24px;
+  }
+  .scroll-shadow-end::after {
+    animation: scroll-shadow-out linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: calc(100% - 24px) 100%;
+  }
+}
+@supports not (animation-timeline: scroll()) {
+  .scroll-shadow-start[data-more-above]::before,
+  [data-more-above] .scroll-shadow-head th::after,
+  .scroll-shadow-end[data-more-below]::after {
+    opacity: 1;
+  }
+}
+
+/* Native form-widget chrome on the dark panel. The root's `color-scheme:
+   dark` above flips the glyphs light (matching Firefox's rendering), where
+   Chrome otherwise draws a near-black calendar icon and spinners on slate-900
+   inputs; the opacity dims them to the panel's resting grey and lifts to full
+   on hover. */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="number"]::-webkit-inner-spin-button {

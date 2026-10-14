@@ -136,7 +136,7 @@ export default function ModelPicker({
     // Out of the trigger at its width, like every menu (record 0134). It was
     // 380px floating over the map, wide enough for the longest summary on two
     // lines; at the trigger's width the summaries wrap tighter.
-    unfurl: true,
+    placement: 'unfurl',
     remeasure: [models, chipIds.length],
     // The list rather than the chip row, because the list is what an opened
     // picker is for; Shift+Tab reaches the chips above it. The list itself

@@ -270,8 +270,8 @@ export const STYLES = [
   {
     // Every menu unfurls out of the control that opens it, as one card with it
     // at its width (the maintainer, 2026-10-13; record 0134). A panel asks
-    // usePopover for that by `unfurl`, or by `cover` for the calendar, which
-    // stands in its field's place. And a list of options lives inside the
+    // usePopover for that by `placement: 'unfurl'`, or `'cover'` for the
+    // calendar, which stands in its field's place. And a list of options lives inside the
     // one card: the search box's results list is the stated exception, so its
     // file is the one left out.
     name: 'style-menu-unfurls',
@@ -281,8 +281,8 @@ export const STYLES = [
     ban: [
       {
         selector:
-          'CallExpression[callee.name="usePopover"]:not(:has(Property[key.name=/^(unfurl|cover)$/][value.value=true]))',
-        message: 'Unfurl a menu out of its control: pass usePopover unfurl: true (or the calendar\'s cover).',
+          'CallExpression[callee.name="usePopover"]:not(:has(Property[key.name="placement"][value.value=/^(unfurl|cover)$/]))',
+        message: 'Unfurl a menu out of its control: pass usePopover placement \'unfurl\' (or the calendar\'s \'cover\').',
       },
       {
         selector:

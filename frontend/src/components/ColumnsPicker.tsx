@@ -45,7 +45,7 @@ export default function ColumnsPicker({
   triggerRef,
   anchorRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, unfurl: true })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
   const rankedNoteId = useId()
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])

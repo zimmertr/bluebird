@@ -198,7 +198,9 @@ describe('MapStage', () => {
     expect(handleCancelDrawing).toHaveBeenCalledOnce()
 
     rerender(<MapStage {...props({ drawMode: { ...drawing, drawPointCount: 3 }, isDesktop: false, timeline })} />)
-    expect(screen.getByText('3 points placed. Press Done when ready.')).toBeTruthy()
+    // Free to wrap in the bar, where Done and Cancel share the line; the
+    // panel keeps it whole beside the area.
+    expect(screen.getByText('3 points placed. Press Done when ready.').className).not.toContain('whitespace-nowrap')
     await user.click(screen.getByRole('button', { name: 'Done' }))
     expect(finishDrawing).toHaveBeenCalledOnce()
 

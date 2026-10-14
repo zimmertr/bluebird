@@ -41,12 +41,15 @@ export interface PopoverBox {
    */
   offset: { top: number } | { bottom: number }
   /**
-   * Set only on an unfurled panel (`unfurl` below): the edge it shares with
+   * Set only on an unfurled panel (`placement: 'unfurl'`): the edge it shares with
    * its anchor, which is the edge whose border and corners the card drops so
    * the two read as one piece.
    */
   joined?: 'below' | 'above'
 }
+
+/** How a panel stands against its trigger: beside it, on it, or out of it. */
+export type Placement = 'hang' | 'cover' | 'unfurl'
 
 export interface PopoverOptions {
   /** What the panel wants, if the viewport allows it. */
@@ -62,11 +65,17 @@ export interface PopoverOptions {
    */
   desiredHeight: number
   /**
-   * Unfurl out of the anchor (#687, record 0134): exactly its width, flush
-   * with its left edge, and no gap, so the card's top edge is the anchor's
-   * bottom edge. `preferredWidth` and `gap` do not apply.
+   * How the panel stands against its trigger (#687). `hang`, the default, is
+   * beside it, below or above, at `preferredWidth`, as every panel did before.
+   * `cover` stands where the trigger stands: top at the trigger's top, pushed
+   * up only as far as the viewport needs, for a panel that takes its
+   * trigger's place, the calendar's, whose field is not drawn while the card
+   * is open, so a card beside it would hang off an empty slot. `unfurl` comes
+   * out of the trigger as one card with it (record 0134): exactly its width,
+   * flush with its left edge, and no gap, so `preferredWidth` and `gap` do
+   * not apply.
    */
-  unfurl?: boolean
+  placement?: Placement
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -101,9 +110,9 @@ function clamp(value: number, low: number, high: number): number {
 export function popoverBox(
   trigger: Rect,
   viewport: { width: number; height: number },
-  { preferredWidth, gap, margin, desiredHeight, unfurl = false }: PopoverOptions,
+  { preferredWidth, gap, margin, desiredHeight, placement = 'hang' }: PopoverOptions,
 ): PopoverBox {
-  if (unfurl) return unfurledBox(trigger, viewport, margin, desiredHeight)
+  if (placement === 'unfurl') return unfurledBox(trigger, viewport, margin, desiredHeight)
   const width = clamp(preferredWidth, trigger.width, viewport.width - margin * 2)
   const left = clamp(trigger.left, margin, viewport.width - width - margin)
 
@@ -121,7 +130,8 @@ export function popoverBox(
   const above = Math.max(triggerTop - gap - margin, 0)
   const whole = Math.max(viewport.height - margin * 2, 0)
 
-  if (desiredHeight <= below) {
+  const cover = placement === 'cover'
+  if (!cover && desiredHeight <= below) {
     return {
       left,
       width,
@@ -130,7 +140,7 @@ export function popoverBox(
       offset: { top: triggerBottom + gap },
     }
   }
-  if (desiredHeight <= above) {
+  if (!cover && desiredHeight <= above) {
     return {
       left,
       width,

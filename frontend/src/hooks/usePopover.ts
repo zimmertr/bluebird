@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { popoverBox, type PopoverBox } from '../utils/listbox'
+import { popoverBox, type Placement, type PopoverBox } from '../utils/listbox'
 import { useTakeOrphanedFocus } from './useFocusHandoff'
 
 /**
@@ -70,18 +70,27 @@ interface Options {
   initialFocusRef?: React.RefObject<HTMLElement | null>
   /**
    * What the panel is placed against, when that is not the trigger: the
-   * results bar's button group, which every one of its menus unfurls out of
-   * (#687). The trigger still takes the keyboard back and is still exempt
-   * from a press outside.
+   * calendar's slot under When, which stays in the layout while its field is
+   * hidden under the open card, and the results bar's button group, which
+   * every one of its menus unfurls out of (#687). The trigger still takes the
+   * keyboard back and is still exempt from a press outside.
    */
   anchorRef?: React.RefObject<HTMLElement | null>
   /**
-   * Unfurl out of the anchor as one card with it (`popoverBox`'s `unfurl`,
-   * record 0134). While the panel is open the anchor carries
-   * `data-unfurled="below"` or `"above"`, which `UNFURL_ANCHOR` reads to
-   * square the corners it shares with the card.
+   * How the panel stands against the anchor (`popoverBox`'s `placement`).
+   * Every menu unfurls (record 0134), and the calendar covers. An unfurled
+   * panel's anchor carries `data-unfurled="below"` or `"above"` while it is
+   * open, which `UNFURL_ANCHOR` reads to square the corners it shares with
+   * the card.
    */
-  unfurl?: boolean
+  placement?: Placement
+  /**
+   * Controls whose press is not "outside", because the caller closes the
+   * panel itself in the same press: the calendar's When segment (#687). Its
+   * Current used to close the card on pointerdown and drop the Dates arm on
+   * the click, a press later, so the card left a frame before the rest.
+   */
+  ownPressRef?: React.RefObject<HTMLElement | null>
 }
 
 export function usePopover({
@@ -92,7 +101,8 @@ export function usePopover({
   remeasure = ONCE_PER_OPEN,
   initialFocusRef,
   anchorRef,
-  unfurl = false,
+  placement = 'hang',
+  ownPressRef,
 }: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -117,7 +127,7 @@ export function usePopover({
           gap: GAP_PX,
           margin: VIEWPORT_MARGIN_PX,
           desiredHeight,
-          unfurl,
+          placement,
         },
       )
       // A box that says the same thing is the same box. Without this, every
@@ -127,7 +137,7 @@ export function usePopover({
       // phase to hear a sidebar's own.
       setBox((prev) => (prev && sameBox(prev, next) ? prev : next))
     },
-    [triggerRef, anchorRef, preferredWidth, unfurl],
+    [triggerRef, anchorRef, preferredWidth, placement],
   )
 
   // Two passes, both before paint so neither is visible. The first asks for as
@@ -252,6 +262,7 @@ export function usePopover({
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as Node
       if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      if (ownPressRef?.current?.contains(target)) return
       onOpenChange(false)
     }
 
@@ -261,7 +272,7 @@ export function usePopover({
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [open, onOpenChange, triggerRef])
+  }, [open, onOpenChange, triggerRef, ownPressRef])
 
   return { popoverRef, box }
 }

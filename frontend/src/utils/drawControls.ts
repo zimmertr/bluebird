@@ -1,24 +1,36 @@
 /**
- * Which buttons the Polygon row shows, and in what order (#478).
+ * What the Polygon row's three buttons say and which of them can act (#478,
+ * #687).
  *
  * Out of here rather than inline in `DestinationsSection.tsx` so the rule is a
  * test per case rather than a reading of nested JSX conditions: the row used
  * to offer nothing but a disabled Done on entering draw mode, so a phone,
  * which has no Escape key, had no way out until it placed a point.
  *
- * - `start` enters draw mode (Draw polygon, or Edit polygon over a ring).
- * - `done` leaves it keeping the ring, and waits for three points.
- * - `cancel` leaves it and puts back the ring the mode started with, so it
- *   shows at every count, zero included: it is the one exit with no floor.
- * - `clear` empties the ring and changes nothing else, so inside the mode it
- *   starts over and outside it throws the ring away. Inside the mode it shows
- *   at every count, and the panel disables it at zero the way it disables Done
- *   under three, so the row keeps one shape while points come and go. Outside
- *   the mode it shows only over a ring, beside Edit polygon.
+ * The row is always the mode button, Cancel and Clear, in that order (#687):
+ * a third of the panel each, so it stands on the edges the coordinates box
+ * above it does, with a button that does nothing greyed rather than missing.
+ *
+ * - The mode button enters draw mode (`draw`, or `edit` over a ring), and
+ *   inside it is `done`, which keeps the ring and waits for three points.
+ * - Cancel leaves the mode and puts back the ring it started with, so it can
+ *   act at every count inside the mode, zero included: it is the one exit
+ *   with no floor. Outside the mode there is nothing to cancel.
+ * - Clear empties the ring and changes nothing else, so inside the mode it
+ *   starts over and outside it throws the ring away. It acts over any point.
  */
-export type DrawControl = 'start' | 'done' | 'cancel' | 'clear'
+export interface DrawRow {
+  mode: 'draw' | 'edit' | 'done'
+  modeEnabled: boolean
+  cancelEnabled: boolean
+  clearEnabled: boolean
+}
 
-export function drawControls(drawing: boolean, pointCount: number): DrawControl[] {
-  if (drawing) return ['done', 'cancel', 'clear']
-  return pointCount > 0 ? ['start', 'clear'] : ['start']
+export function drawControls(drawing: boolean, pointCount: number): DrawRow {
+  return {
+    mode: drawing ? 'done' : pointCount > 0 ? 'edit' : 'draw',
+    modeEnabled: !drawing || pointCount >= 3,
+    cancelEnabled: drawing,
+    clearEnabled: pointCount > 0,
+  }
 }

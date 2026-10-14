@@ -6,6 +6,13 @@ interface Props {
   drawPointCount: number
   /** How many more points the ring needs, the same reading the Analyze gate takes. */
   pointsNeeded: number
+  /**
+   * Keep the count on one line. The panel does, because the area shares the
+   * line and moves under it whole rather than splitting the count (#687); the
+   * phone's draw bar does not, where Done and Cancel take the rest of a 360px
+   * line and the long state has to be free to wrap.
+   */
+  whole?: boolean
 }
 
 /**
@@ -16,12 +23,13 @@ interface Props {
  * It sets a colour and no size: each place it stands in sets the size around
  * it, the panel its caption step and the bar the control size.
  */
-export default function DrawReadout({ drawing, drawPointCount, pointsNeeded }: Props) {
+export default function DrawReadout({ drawing, drawPointCount, pointsNeeded, whole = false }: Props) {
+  const line = whole ? ' whitespace-nowrap' : ''
   // Only while drawing does the status name a gesture: outside the mode the
   // handles are gone and none of them apply.
   if (drawing && pointsNeeded > 0) {
     return (
-      <p className={STATUS.info}>
+      <p className={`${STATUS.info}${line}`}>
         {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
         {pointsNeeded} more needed.
       </p>
@@ -29,13 +37,13 @@ export default function DrawReadout({ drawing, drawPointCount, pointsNeeded }: P
   }
   if (drawing) {
     return (
-      <p className={`${STATUS.ok} font-medium`}>
+      <p className={`${STATUS.ok} font-medium${line}`}>
         {drawPointCount} points placed. Press Done when ready.
       </p>
     )
   }
   return (
-    <p className={pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}>
+    <p className={`${pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}${line}`}>
       {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed
       {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
     </p>

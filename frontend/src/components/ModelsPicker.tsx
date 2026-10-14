@@ -49,7 +49,7 @@ export default function ModelsPicker({
   triggerRef,
   anchorRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, unfurl: true })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
 
   if (!open || !box) return null
 
