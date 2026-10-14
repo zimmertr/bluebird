@@ -62,8 +62,8 @@
  * 10px, and 10px read as a smudge on the calendar's weekday row and under the
  * player. 12px is the floor for anything pressed, which is why no button or
  * link wears this step (the linter's `style-micro-not-pressed` check). The
- * exception is a credit, which is this step's own job: the Open-Meteo link in
- * the results table's foot and MapLibre's credit line are links that sit
+ * exception is a credit, which is this step's own job: the map's attribution
+ * line, Open-Meteo's link on it included, is links that sit
  * inside an attribution line rather than controls a reader goes looking for.
  * The one size left under the step is `GLYPH_SIZE` below, inside a box of
  * fixed size.
@@ -169,7 +169,7 @@ export const PROSE = {
  * majority hover (sky-400) and on MICRO's rest color.
  *
  * Sharing that color is not a coincidence, it is the only safe way to compose
- * the two: the table's Open-Meteo credit is a link *and* an 11px caption, and had
+ * the two: a data credit in a caption is a link *and* an 11px line, and had
  * they disagreed the class list would not have decided which won. It is also
  * the dimmest step that keeps every link in the app readable — several of
  * these sat at 3.1:1 by inheriting the prose around them.

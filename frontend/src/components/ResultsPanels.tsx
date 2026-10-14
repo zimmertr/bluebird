@@ -9,7 +9,6 @@ import type { TableView } from '../hooks/useTableView'
 import type { PendingDestination } from '../utils/customList'
 import type { TimelineAxis } from '../utils/timeline'
 import ModelCompare from './ModelCompare'
-import OpenMeteoCredit from './OpenMeteoCredit'
 import ResizeGrip from './ResizeGrip'
 import ResultsTable from './ResultsTable'
 import { IconClose } from './icons'
@@ -26,11 +25,6 @@ const TimeSeriesChart = lazy(() => import('./TimeSeriesChart'))
 // because the comparison composes every line itself. A module constant so the
 // chart's line memo is not rebuilt by a fresh empty array on every render.
 const NO_CHART_ROWS: DestinationResult[] = []
-
-// The credit's line under the chart: the table foot's inset, with the padding
-// it takes there as the foot's first and last line, since here it is the only
-// one. `OpenMeteoCredit` right-justifies it, as in the table.
-const CHART_CREDIT = 'flex-shrink-0 px-3 py-1.5'
 
 export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
@@ -237,10 +231,6 @@ export default function ResultsPanels({
                 </div>
               </div>
             )}
-            {/* The table carries the Open-Meteo credit in its foot; while it
-                is not drawn the chart is the data on screen, so the credit
-                stands under it instead, and never in both places (#687). */}
-            {resultsMode === 'chart' && <OpenMeteoCredit className={CHART_CREDIT} />}
           </div>
         </>
       )}

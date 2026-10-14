@@ -15,7 +15,14 @@ vi.mock('maplibre-gl', () => {
 })
 
 import type * as maplibregl from 'maplibre-gl'
-import { COMPASS_IDLE_CLASS, addAttribution, addControls, hideCompassWhileNorthUp } from './controls'
+import {
+  COMPASS_IDLE_CLASS,
+  OPEN_METEO_ATTRIBUTION,
+  addAttribution,
+  addControls,
+  hideCompassWhileNorthUp,
+  withOpenMeteo,
+} from './controls'
 
 function stub() {
   const added: [string, unknown, string][] = []
@@ -85,11 +92,42 @@ describe('hideCompassWhileNorthUp', () => {
 })
 
 describe('addAttribution', () => {
-  it('keeps the library credit, decides compact alone, and folds it on add', () => {
+  it('keeps the library credit, adds Open-Meteo, decides compact alone, and folds it on add', () => {
     const { map, added, removed } = stub()
     const control = addAttribution(map, true) as unknown as { options: Record<string, unknown> }
-    expect(control.options).toEqual({ customAttribution: 'MapLibre', compact: true })
+    expect(control.options).toEqual({ customAttribution: ['MapLibre', OPEN_METEO_ATTRIBUTION], compact: true })
     expect(added.map(([, , at]) => at)).toEqual(['bottom-right'])
     expect(removed).toEqual(['maplibregl-compact-show'])
+  })
+
+  // The same line at a desk, spelled out rather than folded.
+  it('carries the Open-Meteo credit spelled out as well as compact', () => {
+    const { map } = stub()
+    const control = addAttribution(map, false) as unknown as { options: { customAttribution: string[] } }
+    expect(control.options.customAttribution).toContain(OPEN_METEO_ATTRIBUTION)
+  })
+})
+
+// The Open-Meteo credit is a standing member of the attribution line (#687),
+// the existing link with no words added, after whatever the library credits.
+describe('the Open-Meteo credit on the attribution line', () => {
+  const links = (html: string) => html.match(/<a\b[^>]*>[^<]*<\/a>/g) ?? []
+
+  it('is the bare link to Open-Meteo, opening in a new tab', () => {
+    expect(links(OPEN_METEO_ATTRIBUTION)).toHaveLength(1)
+    expect(OPEN_METEO_ATTRIBUTION).toMatch(/href="https:\/\/open-meteo\.com\/"/)
+    expect(OPEN_METEO_ATTRIBUTION).toMatch(/target="_blank"/)
+    expect(OPEN_METEO_ATTRIBUTION).toMatch(/rel="noopener noreferrer"/)
+    expect(OPEN_METEO_ATTRIBUTION.replace(/<[^>]+>/g, '')).toBe('Open-Meteo.com')
+  })
+
+  it('joins the library credit once, after it, whatever shape it comes in', () => {
+    const line = (custom: string | string[] | undefined) => withOpenMeteo(custom).join(' | ')
+    for (const custom of ['MapLibre', ['MapLibre'], undefined]) {
+      const credits = withOpenMeteo(custom)
+      expect(credits[credits.length - 1]).toBe(OPEN_METEO_ATTRIBUTION)
+      expect(line(custom).split('Open-Meteo.com')).toHaveLength(2)
+    }
+    expect(withOpenMeteo('MapLibre')).toEqual(['MapLibre', OPEN_METEO_ATTRIBUTION])
   })
 })

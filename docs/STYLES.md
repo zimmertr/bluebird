@@ -334,8 +334,8 @@ could go. 12px (`TEXT.control`) is the floor for anything pressed, so no button
 or link wears the micro step; the linter's `style-micro-not-pressed` check is
 what enforces it. The Restore buttons in the Removed list were the one press at
 10px and read at `CONTROL_SIZE` now. A credit is the one link that keeps the
-step, because a credit is the step's own job: the Open-Meteo line in the table's
-foot and MapLibre's credit line on the map.
+step, because a credit is the step's own job: MapLibre's attribution line on the
+map, which carries the Open-Meteo credit since #687.
 
 One size stays under the floor, `GLYPH_SIZE` at 10px, private to `styles.ts`: a
 glyph inside a box whose size something else decides, the legend strip's
@@ -427,7 +427,7 @@ and a truncated reason is worse than a second line.
 
 The results bar is one line when its container is 896px or wider, and two lines below that: the title row (ranking summary, window, collapse chevron) and the actions row (mode switch, Columns, Models, Removed, Download CSV). The column never stacks further, but the actions row itself wraps on a narrow phone: measured at 402px on a coarse pointer, the mode switch at its 44px height, Columns and Models fit beside it in the 378px available and Download CSV (with Removed, when there is one) folds onto a second row of 24px buttons. That makes the sheet's header 108px tall there, measured 2026-10-13, which is `SHEET_HEADER_PX` in `frontend/src/utils/resultsSheet.ts`. It was 104 while the actions were bare links on an 18px row. Re-measure both together. At 1024x768 beside the docked panel the bar is 59px, two lines, the same as before the buttons.
 
-The four actions are `BUTTON_GHOST` buttons with a glyph each, reading at `TEXT.control`, the size of every other control in the app (#687). They were underlined links, so the one bar carried four control styles; the linter's `style-results-bar` check now requires the four buttons and fails a link anywhere in the bar. The Open-Meteo credit that stood at the end of the row is in the results table's foot, right-justified on the foot's first line beside the first note (or alone there when there is none), where a credit reads as one rather than as a fifth action. While the table is not drawn it is the chart's foot, right-justified the same way. Record: [0133](decisions/0133-results-bar-buttons-and-footnote-credit.md)
+The four actions are `BUTTON_GHOST` buttons with a glyph each, reading at `TEXT.control`, the size of every other control in the app (#687). They were underlined links, so the one bar carried four control styles; the linter's `style-results-bar` check now requires the four buttons and fails a link anywhere in the bar. The Open-Meteo credit that stood at the end of the row is on the map's attribution line at the bottom right, beside MapLibre's and the basemap's credits, where a credit reads as one rather than as a fifth action, and where it stands in every results mode. Record: [0133](decisions/0133-results-bar-buttons-and-footnote-credit.md)
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
 

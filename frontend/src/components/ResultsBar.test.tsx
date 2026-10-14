@@ -102,8 +102,8 @@ describe('ResultsBar', () => {
     }
   })
 
-  // The credit stands in the table's foot now, beside the numbers.
-  it('carries no link, the Open-Meteo credit having moved under the table', () => {
+  // The credit stands on the map's attribution line now (#687).
+  it('carries no link, the Open-Meteo credit having moved to the map', () => {
     render(<ResultsBar {...props()} />)
     expect(screen.queryByRole('link')).toBeNull()
   })

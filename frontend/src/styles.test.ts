@@ -1279,7 +1279,7 @@ describe('shared recipes', () => {
     expect(LINK).toContain('hover:text-sky-400')
   })
 
-  // The table's Open-Meteo credit is a link inside an 11px caption, so it wears
+  // A data credit is a link inside an 11px caption, so it wears
   // both roles at once. Two color utilities in one class list are decided by
   // stylesheet order, not by the order they were written, so composing them is
   // only safe while they agree. If one moves, the other has to move with it.

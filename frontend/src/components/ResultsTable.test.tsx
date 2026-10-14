@@ -70,8 +70,7 @@ afterEach(() => {
 describe('rows', () => {
   it('draws one row per result, ranked in the order given', () => {
     render(<ResultsTable {...props()} />)
-    // The header row first and the footnote row last, the credit's (#687).
-    const rows = screen.getAllByRole('row').slice(1, -1)
+    const rows = screen.getAllByRole('row').slice(1)
     expect(rows.map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual(['1', '2'])
     expect(within(rows[1]).getByRole('button', { name: 'Center map on Mount Adams' })).toBeTruthy()
   })
@@ -129,31 +128,10 @@ describe('a model that ends early', () => {
   // visible left edge at any sideways scroll, the way the empty-reason row does.
   it('pins the footnote to the visible left edge', () => {
     render(<ResultsTable {...props({ results: SHORT, columns: MODEL_COLUMNS, partialNote: NOTE })} />)
-    // The note's line, which it shares with the credit as the first note.
-    const line = screen.getByText(NOTE).parentElement as HTMLElement
-    for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(line.classList).toContain(cls)
-    for (const cls of TEXT.micro.split(' ')) expect(line.classList).toContain(cls)
-    expect(line.closest('tfoot')).not.toBeNull()
-  })
-
-  // The Open-Meteo credit (#687) shares the note's line, at its right end.
-  it('puts the Open-Meteo credit at the end of the note line', () => {
-    render(<ResultsTable {...props({ results: SHORT, columns: MODEL_COLUMNS, partialNote: NOTE })} />)
-    const divs = [...document.querySelectorAll('tfoot div')]
-    expect(divs).toHaveLength(1)
-    const [note, credit] = [...divs[0].children]
-    expect(note.textContent).toBe(NOTE)
-    expect(credit.textContent).toBe('Open-Meteo.com')
-  })
-
-  // A mark links to its note by id, so the first note keeps its own focusable
-  // element on the shared line.
-  it('keeps the first note a link target of its own', () => {
-    render(<ResultsTable {...props({ results: SHORT, columns: MODEL_COLUMNS, partialNote: NOTE })} />)
     const note = screen.getByText(NOTE)
-    expect(note.id).not.toBe('')
-    expect(note.getAttribute('tabindex')).toBe('-1')
-    expect(note.classList).toContain('min-w-0')
+    for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(note.classList).toContain(cls)
+    for (const cls of TEXT.micro.split(' ')) expect(note.classList).toContain(cls)
+    expect(note.closest('tfoot')).not.toBeNull()
   })
 
   it('prints no footnote when no row is short', () => {
@@ -171,40 +149,13 @@ describe('a model that ends early', () => {
   })
 })
 
-// The Open-Meteo credit left the results bar for the table's foot (#687): the
-// right end of the foot's first line, beside the first note the table prints,
-// and the whole foot when it prints none.
-describe('the Open-Meteo credit', () => {
-  const credit = () => screen.getByRole('link', { name: 'Open-Meteo.com' })
-
-  it('is the foot on its own when the table has no note', () => {
+// The Open-Meteo credit lives on the map's attribution line (#687), so the
+// table's foot is notes alone and is not drawn without one.
+describe('the foot', () => {
+  it('carries no credit, and is not drawn without a note', () => {
     render(<ResultsTable {...props()} />)
-    const line = credit().parentElement as HTMLElement
-    expect(credit().getAttribute('href')).toBe('https://open-meteo.com/')
-    expect(credit().getAttribute('target')).toBe('_blank')
-    expect(line.closest('tfoot')).not.toBeNull()
-    expect(document.querySelectorAll('tfoot div')).toHaveLength(1)
-    for (const cls of ['sticky', 'left-0', 'w-[100cqi]', ...TEXT.micro.split(' ')]) {
-      expect(line.classList).toContain(cls)
-    }
-  })
-
-  // Right-justified, and the one thing on the line that never shrinks: a
-  // long note beside it wraps short of it rather than running under it.
-  it('stands at the right end of its line and never shrinks', () => {
-    render(<ResultsTable {...props()} />)
-    const line = credit().parentElement as HTMLElement
-    expect(line.classList).toContain('flex')
-    expect(credit().classList).toContain('ml-auto')
-    expect(credit().classList).toContain('flex-shrink-0')
-  })
-
-
-  // A footnote is a line a reader reads, so the link inside it takes the
-  // line's size rather than setting the micro step on itself.
-  it('sizes the link by its line, not by its own class', () => {
-    render(<ResultsTable {...props()} />)
-    expect(credit().className).not.toMatch(/(^|\s)text-(xs|sm|\[)/)
+    expect(screen.queryByRole('link', { name: 'Open-Meteo.com' })).toBeNull()
+    expect(document.querySelector('tfoot')).toBeNull()
   })
 })
 
@@ -386,10 +337,9 @@ describe('a place with no recorded elevation', () => {
     expect(mark?.className).toBe(TABLE.mark)
     expect(cellUnder(placed, 'Elevation').textContent).toBe('14,411')
     expect(cellUnder(placed, 'Elevation').querySelector('sup')).toBeNull()
-    // The only note, so it shares its line with the credit.
-    const line = screen.getByText(TERRAIN_HEIGHT_NOTE).parentElement as HTMLElement
-    for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(line.classList).toContain(cls)
-    expect(line.closest('tfoot')).not.toBeNull()
+    const note = screen.getByText(TERRAIN_HEIGHT_NOTE)
+    for (const cls of ['sticky', 'left-0', 'w-[100cqi]']) expect(note.classList).toContain(cls)
+    expect(note.closest('tfoot')).not.toBeNull()
   })
 
   it('prints no note when every row has its elevation', () => {
@@ -405,7 +355,7 @@ describe('a place with no recorded elevation', () => {
     expect(document.querySelector('sup')).toBeNull()
   })
 
-  it('prints both notes, the second on a line of its own, beside a model that ends early', () => {
+  it('prints both notes, each on its own line, beside a model that ends early', () => {
     const NOTE = "* Data is aggregated over a subset of the forecast window due to the model's limited range."
     const rows = [
       { ...ROWS[0], modelId: 'gfs_hrrr', modelLabel: 'NOAA HRRR', rank: 1, coverageEndMs: Date.UTC(2026, 8, 26, 9) },
@@ -413,8 +363,7 @@ describe('a place with no recorded elevation', () => {
     ]
     render(<ResultsTable {...props({ results: rows, columns: withModelColumn(COLUMNS, true), partialNote: NOTE })} />)
     const divs = [...document.querySelectorAll('tfoot div')]
-    // The credit rides the first note's line; the second note keeps its own.
-    expect(divs.map((d) => d.textContent)).toEqual([`${NOTE}Open-Meteo.com`, TERRAIN_HEIGHT_NOTE])
+    expect(divs.map((d) => d.textContent)).toEqual([NOTE, TERRAIN_HEIGHT_NOTE])
     // Stacked without a blank line between: the stack wears one padding.
     for (const d of divs) expect(d.classList).not.toContain('py-1.5')
     expect(divs[0].classList).toContain('first:pt-1.5')

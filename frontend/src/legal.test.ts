@@ -21,9 +21,6 @@ import termsPage from './components/TermsPage.tsx?raw'
 import welcomeModal from './components/WelcomeModal.tsx?raw'
 import wildfires from './utils/wildfires.ts?raw'
 import mapLegend from './components/MapLegend.tsx?raw'
-import resultsTable from './components/ResultsTable.tsx?raw'
-import openMeteoCredit from './components/OpenMeteoCredit.tsx?raw'
-import resultsPanels from './components/ResultsPanels.tsx?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
 import { DATA_SOURCES } from './utils/dataSources'
 import { STORAGE_KEY } from './utils/forecastStore'
@@ -190,12 +187,11 @@ describe('the provider credits', () => {
   // Open-Meteo's licence page gives "Weather data by Open-Meteo.com" as an
   // example rather than as required wording, so the bare link stands; what it
   // does require is that the link be beside the data, which since #687 is the
-  // results table's last footnote line, and the chart's foot while the table
-  // is not drawn. One component carries it to both.
+  // map's attribution line, drawn in every mode, with or without a report.
+  // It is added where the attribution control is built, not per layer.
   it('keep Open-Meteo beside the forecasts', () => {
-    expect(openMeteoCredit).toMatch(/https:\/\/open-meteo\.com/)
-    expect(resultsTable).toMatch(/<OpenMeteoCredit /)
-    expect(resultsPanels).toMatch(/<OpenMeteoCredit /)
+    expect(mapControls).toMatch(/href="https:\/\/open-meteo\.com\/"/)
+    expect(mapControls).toMatch(/customAttribution: withOpenMeteo\(/)
   })
 })
 

@@ -252,9 +252,9 @@ export default function ResultsBar({
               Download CSV
             </button>
           )}
-          {/* The Open-Meteo credit stands in the table's foot since #687,
-              under the numbers it credits, rather than a fifth member here
-              that took a line of its own on a phone. */}
+          {/* The Open-Meteo credit stands on the map's attribution line since
+              #687, rather than a fifth member here that took a line of its
+              own on a phone. */}
           <button
             onClick={toggleCollapsed}
             aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}

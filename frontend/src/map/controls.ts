@@ -64,6 +64,29 @@ export function hideCompassWhileNorthUp(map: maplibregl.Map): void {
 }
 
 /**
+ * The Open-Meteo credit, a standing member of the map's attribution line
+ * (#687). CC BY 4.0 asks for it beside the data, and every forecast the app
+ * draws (markers, the grid, the table and the chart) is Open-Meteo's, so it
+ * stands on the one line the map always shows, with or without a report and
+ * in every results mode. It stood in the results bar, and briefly in the
+ * table's foot, where under a short table it read as a stray link and the
+ * chart had no foot of its own to carry it (the maintainer, 2026-10-13, #709).
+ * The bare host, because Open-Meteo's licence page gives its wording as an
+ * example rather than as required.
+ */
+export const OPEN_METEO_ATTRIBUTION =
+  '<a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo.com</a>'
+
+/**
+ * The control's own credits with Open-Meteo's after them. The library takes a
+ * string or a list and draws these before the sources' credits, so the line
+ * reads MapLibre, then Open-Meteo, then the basemap's.
+ */
+export function withOpenMeteo(custom: string | string[] | undefined): string[] {
+  return [...(custom === undefined ? [] : [custom].flat()), OPEN_METEO_ATTRIBUTION]
+}
+
+/**
  * The attribution, collapsed behind the library's own (i) on a phone and
  * spelled out at a desk. Both are what the OpenStreetMap attribution guideline
  * allows. Returns the control, so the caller can take it down when the width
@@ -74,7 +97,11 @@ export function addAttribution(map: maplibregl.Map, compact: boolean): Attributi
   // option object also carries the MapLibre credit, and constructing one
   // with a bare `{compact}` would drop that credit rather than restate it.
   const { options } = new AttributionControl()
-  const control = new AttributionControl({ ...options, compact })
+  const control = new AttributionControl({
+    ...options,
+    compact,
+    customAttribution: withOpenMeteo(options.customAttribution),
+  })
   map.addControl(control, 'bottom-right')
   // The library adds a compact attribution OPEN and folds it on the first
   // drag (maplibre-gl 6.8, `_updateCompact` and `_updateCompactMinimize`

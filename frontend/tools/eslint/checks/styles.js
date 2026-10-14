@@ -369,15 +369,15 @@ export const STYLES = [
     // The results bar's buttons are controls, so they read at the control
     // size; the micro step is for text that is present but never first. Since
     // #687 they are ghost buttons rather than links, one style for the four,
-    // and the Open-Meteo credit lives under the table, so the bar holds no
-    // link at all. The window caption sits on the lifted fill, where the
-    // caption tier fails AA.
+    // and the Open-Meteo credit lives on the map's attribution line, so the
+    // bar holds no link at all. The window caption sits on the lifted fill,
+    // where the caption tier fails AA.
     name: 'style-results-bar',
     files: ['src/components/ResultsBar.tsx'],
     ban: [
       { selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in the results bar.' },
       { selector: titleCaption('TEXT.caption'), message: 'Set the window title in CAPTION_LIFTED, not TEXT.caption.' },
-      { selector: 'JSXOpeningElement[name.name="a"]', message: 'Put no link in the results bar: its credit is the table\'s footnote.' },
+      { selector: 'JSXOpeningElement[name.name="a"]', message: 'Put no link in the results bar: its credit is on the map\'s attribution line.' },
       { selector: interp('LINK'), message: 'Draw a results bar button as BUTTON_GHOST, not as a link.' },
     ],
     require: [
