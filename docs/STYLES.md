@@ -69,7 +69,6 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.25:1 on the panel, 5.96:1 on an idle metric select and 5.43:1 on an unplotted chart chip, where 50% was 4.11, 4.58 and 4.22 |
 | `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
-| `CHOICE_NESTED` | A choice that applies only under the one above it, indented 24px (`CHOICE_INPUT`'s 14px box plus `CHOICE_ROW`'s 10px gap) so its box stands under the parent's word: Include unnamed peaks under Peaks, shown only while Peaks is ticked (#687) |
 | `CHOICE_INPUT` | The box itself inside a choice row |
 | `SEGMENT` | Geometry of a panel segmented control (fixed to `CONTROL_W`) |
 | `SEGMENT_FILL` | Segmented control sized by the box it is placed in, for a row whose column is not the panel's (the Metrics direction row) |

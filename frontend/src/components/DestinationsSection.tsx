@@ -4,7 +4,6 @@ import {
   BUTTON_ACCENT,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
-  CHOICE_NESTED,
   CHOICE_ROW,
   DISABLED,
   FIELD,
@@ -390,12 +389,12 @@ export default function DestinationsSection({
             general options drawer three sections away. It is a polygon
             DISCOVERY knob and does nothing else: it widens what the
             Overpass query counts as a peak. Shown only while Peaks is
-            ticked, because then there is a peak search for it to widen, and
-            indented so its box sits under the word Peaks (#687). Unticking
+            ticked, because then there is a peak search for it to widen (#687),
+            at the section's left edge like every other row. Unticking
             Peaks hides it and keeps its value, so ticking Peaks again
             brings back what the reader had chosen. */}
         {peaksOn && (
-          <label className={`${CHOICE_ROW} ${CHOICE_NESTED} mt-1.5`}>
+          <label className={`${CHOICE_ROW} mt-1.5`}>
             <input
               type="checkbox"
               checked={includeUnnamedPeaks}

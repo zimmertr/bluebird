@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
-import { CHOICE_NESTED } from '../styles'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
 // that enter and leave draw mode, the type set and the unnamed-peaks knob
@@ -206,13 +205,6 @@ describe('DestinationsSection', () => {
       await user.click(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }))
       expect(setIncludeUnnamedPeaks).toHaveBeenCalledWith(true)
       expect(setDestinationTypes).not.toHaveBeenCalled()
-    })
-
-    // Indented under Peaks by the nested role, so its box stands under the word.
-    it('indents the row under Peaks', () => {
-      render(<DestinationsSection {...props()} />)
-      const row = screen.getByRole('checkbox', { name: 'Include unnamed peaks' }).closest('label')!
-      expect(row.className.split(' ')).toContain(CHOICE_NESTED)
     })
   })
 

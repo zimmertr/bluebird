@@ -60,7 +60,6 @@ import {
   RECESSED_EDGE,
   RECESSED_FILL,
   CALENDAR_GROUND,
-  CHOICE_NESTED,
   FIELD_TRIGGER,
   PLACEHOLDER,
   METRIC_LABEL_PITCH,
@@ -2130,14 +2129,6 @@ describe('the panel frame', () => {
     expect(appDrawerSource).toContain('MOTION.slide')
     expect(appDrawerSource).not.toMatch(/(^|\s)transition-transform duration/)
     expect(analysisOverlaySource).toContain('MOTION.progress')
-  })
-
-  // Include unnamed peaks stands under the word Peaks: the checkbox's box
-  // plus the row's gap (#687).
-  it("indents a nested choice by its parent's box and gap", () => {
-    const box = stepPx(ACCENT.input, 'w')
-    const gap = stepPx(CHOICE_ROW, 'gap')
-    expect(stepPx(CHOICE_NESTED, 'ml')).toBe(box + gap)
   })
 
   // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130):

@@ -1810,15 +1810,6 @@ export const MOTION = {
 } as const
 
 /**
- * A choice that only applies under the one above it: Include unnamed peaks
- * under Peaks (#687). It shows only while Peaks is ticked, and stands indented
- * so its box sits under the word Peaks rather than under Peaks' own box: 24px
- * is `CHOICE_INPUT`'s 14px box plus `CHOICE_ROW`'s 10px gap, which
- * `styles.test.ts` derives from the two roles.
- */
-export const CHOICE_NESTED = 'ml-6'
-
-/**
  * The space above and below each metric's radio label in the Metrics grid,
  * which sets the row pitch at 32px on a fine pointer (#687, record 0130).
  *
