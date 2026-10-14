@@ -94,7 +94,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the theme's slate-500 and slate-800; the root's `color-scheme: dark` turns every bar it does not reach dark too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
-| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone drawer, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
+| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone's Controls sheet, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
@@ -187,9 +187,9 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `LAYER.sheet` | The phone results sheet: over the map chrome it covers, under the drawer's scrim |
 | `LAYER.mapControls` | The map's top-left cluster and what it opens: over the sheet and the map chrome the Layers popover hangs across |
 | `LAYER.overlay` | Analysis overlay card |
-| `LAYER.scrim` | Scrim behind mobile drawer and preview banner |
-| `LAYER.drawer` | Mobile drawer itself |
-| `LAYER.popover` | Popover opened from drawer (above drawer, below modal) |
+| `LAYER.scrim` | The preview banner |
+| `LAYER.drawer` | The panel: a phone's Controls sheet |
+| `LAYER.popover` | Popover opened from the panel, and every phone bottom sheet (above the panel, below modal) |
 | `LAYER.modal` | Modal dialogs |
 
 **Calendar days**
@@ -246,14 +246,14 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon block is the one bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
+| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered from one element, after the button, with one portal for a phone's lines that ask for an action; the polygon block is the one bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The map column is one width, gap, height and type size | `styles.test.ts`, `checks/styles.js` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
-| A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, and the one 13px role |
+| A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
@@ -477,6 +477,32 @@ of the row empty; the button 120.1px, `Analyze` 52.9 and `Analyzing…` 80.1.
 The mockup measured the same three at 289px in Chrome on a Mac, whose system
 face is narrower. Re-measure when a chip or a model label grows.
 Record: [0135](decisions/0135-phone-opens-on-the-map.md)
+
+The lines that ask for an action stand on the map in a band (`MAP_NOTICE_BAND`):
+the panel's own boxes on its slate-800, 12px off each side, 10px over the
+sheet's edge, three lines of a box at most (66px) and then it scrolls inside
+itself. The button stands 16px over the band, and the scale and the (i) move
+onto the button's row, each centred on its middle. Measured 2026-10-14: a
+10px gap from the band to the sheet at 360, 390 and 430 wide, the gap the
+(i) kept above the sheet before.
+Record: [0140](decisions/0140-phone-notices-on-the-map.md)
+
+The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`): the
+bottom sheet's surface and top, not modal, slid below the map while shut, its
+height a fixed share of the map that leaves the rows, the button's strip and a
+full band. The chip is lit while it is up, its words white on the accent fill.
+Record: [0141](decisions/0141-phone-controls-sheet.md)
+
+A phone's home indicator band (`SAFE_AREA`) is padded under every surface that
+reaches the screen's foot, and the chrome placed in pixels stands on its top
+edge before there is a sheet. 0 on a desk.
+Record: [0145](decisions/0145-safe-area-bottom.md)
+
+The results table's Name column sticks at the left edge on an opaque fill
+(`TABLE.stickyNameCell`, `TABLE.stickyNameHead`), with the row's hover tint
+laid over it as a gradient. The chart's plot leaves the browser only the
+vertical pan (`CHART_PLOT_TOUCH`), so a sideways drag reads it.
+Record: [0142](decisions/0142-sticky-name-column.md) Record: [0144](decisions/0144-chart-reads-a-finger.md)
 
 ### Control width
 

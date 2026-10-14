@@ -9,6 +9,7 @@ import destinationsSource from '../components/DestinationsSection.tsx?raw'
 import forecastSectionSource from '../components/ForecastSection.tsx?raw'
 import metricsTableSource from '../components/MetricsTable.tsx?raw'
 import panelFooterSource from '../components/PanelFooter.tsx?raw'
+import phoneFootSource from '../components/PhoneFoot.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
 import resultsLayerSource from '../map/resultsLayer.ts?raw'
@@ -23,6 +24,7 @@ const SOURCES: Record<string, string> = {
   'ForecastSection.tsx': forecastSectionSource,
   'MetricsTable.tsx': metricsTableSource,
   'PanelFooter.tsx': panelFooterSource,
+  'PhoneFoot.tsx': phoneFootSource,
   'LayersPopover.tsx': layersPopoverSource,
   'ResultsSheet.tsx': resultsSheetSource,
   'resultsLayer.ts': resultsLayerSource,
@@ -44,6 +46,13 @@ describe('the tutorial steps', () => {
 
   it('marks every anchor on exactly one control in one component', () => {
     for (const step of TOUR_STEPS) {
+      // The one anchor with a home per width (record 0141): the footer at a
+      // desk, the map's button on a phone, where the footer draws none.
+      if (step.anchor === 'analyze') {
+        expect(occurrences('analyze')).toEqual(['PhoneFoot.tsx'])
+        expect(panelFooterSource).toContain(`${TOUR_ATTR}={phone ? undefined : 'analyze'}`)
+        continue
+      }
       expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
       for (const frame of step.frames ?? []) expect(occurrences(frame), frame).toHaveLength(1)
     }

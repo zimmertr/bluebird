@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import PanelFooter from './PanelFooter'
 import type { FooterMessage } from '../utils/notices'
 import { render } from '../testSupport/render'
@@ -176,19 +176,52 @@ describe('PanelFooter', () => {
     }
   })
 
-  // On a phone with the drawer shut the one block stands in the band the map
-  // holds (#696; record 0140), and comes back under the button when the
-  // drawer opens: one block, two homes.
-  it('stands its notices in the home it is handed, and under the button without one', () => {
+  // On a phone the block splits (#696; record 0140): what asks for an action,
+  // a commit cue or an error, stands in the band the map holds, and what only
+  // informs stays at the foot of the Controls sheet. At a desk it is one
+  // block under the button.
+  it('sends the lines that ask for an action to the home it is handed, and keeps the rest', () => {
     const home = document.createElement('div')
     document.body.appendChild(home)
-    const { container, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home })} />)
-    expect(screen.getAllByRole('status')).toHaveLength(1)
-    expect(home.contains(screen.getByRole('status'))).toBe(true)
-    expect(screen.getByText('First warning.')).toBeTruthy()
+    const { container, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
+    const regions = screen.getAllByRole('status')
+    expect(regions).toHaveLength(2)
+    const onMap = regions.find((r) => home.contains(r))!
+    const inPanel = regions.find((r) => !home.contains(r))!
+    expect(within(onMap).getByText('First warning.')).toBeTruthy()
+    expect(within(onMap).getByText('Run failed.')).toBeTruthy()
+    expect(within(onMap).getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(within(inPanel).getByText('Info line.')).toBeTruthy()
+    expect(container.contains(inPanel)).toBe(true)
     rerender(<PanelFooter {...props({ messages: MESSAGES })} />)
     expect(home.childElementCount).toBe(0)
+    expect(screen.getAllByRole('status')).toHaveLength(1)
     expect(container.contains(screen.getByRole('status'))).toBe(true)
+    home.remove()
+  })
+
+  // A phone's one Analyze is the map's floating button (record 0135), so the
+  // sheet's footer draws none.
+  it('draws no Analyze on a phone', () => {
+    const { container, rerender } = render(<PanelFooter {...props({ phone: true })} />)
+    expect(screen.queryByRole('button', { name: 'Analyze' })).toBeNull()
+    // The tour's Analyze step lights the map's button instead.
+    expect(container.querySelector('[data-tour="analyze"]')).toBeNull()
+    rerender(<PanelFooter {...props()} />)
+    expect(screen.getByRole('button', { name: 'Analyze' })).toBeTruthy()
+  })
+
+  // A dismissal is one ledger across both homes.
+  it('dismisses a line on the map from the same ledger', () => {
+    const home = document.createElement('div')
+    document.body.appendChild(home)
+    render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
+    expect(within(home).getByText('First warning.')).toBeTruthy()
+    const dismiss = within(home)
+      .getAllByRole('button', { name: 'Dismiss notice' })
+      .find((b) => b.parentElement?.textContent?.includes('First warning.'))!
+    fireEvent.click(dismiss)
+    expect(within(home).queryByText('First warning.')).toBeNull()
     home.remove()
   })
 })

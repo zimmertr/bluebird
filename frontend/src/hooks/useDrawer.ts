@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react'
 
 /**
- * Whether the controls panel is open: docked on a desktop, an off-canvas
- * drawer on a phone.
+ * Whether the controls panel is open: docked on a desktop, the Controls sheet
+ * on a phone (record 0141).
  *
  * It starts open on a desktop and closed on a phone (#696), a shared link
- * included. A phone that opened on the drawer covered the map, and with it the
+ * included. A phone that opened on the panel covered the map, and with it the
  * search field, which is how most readers first look for a place; the phone's
- * Controls button reopens it from the row under the field. The width is read
+ * summary chip raises it from the row under the field. The width is read
  * once, at mount, because a window crossing the breakpoint is a resize rather
  * than a reason to open or close anything.
  */

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { createRef } from 'react'
 import { type ResultsViewInputs, useResultsView } from './useResultsView'
 import type { MapViewHandle } from '../components/MapView'
@@ -19,12 +19,19 @@ import type { ViewPrefs } from '../utils/viewPrefs'
 // is about is the wiring: which of them hears what, and in which order.
 const fed = vi.hoisted(() => ({ layout: [] as unknown[], chart: [] as unknown[], table: [] as unknown[] }))
 const COMPARE = { shown: ['shown'], results: { r: 1 }, reachEnds: { e: 2 } }
-vi.mock('./useResultsLayout', () => ({
-  useResultsLayout: (inputs: unknown) => {
-    fed.layout.push(inputs)
-    return { chartShowing: true, isDragging: false }
-  },
-}))
+vi.mock('./useResultsLayout', async () => {
+  const { useCallback, useState } = await import('react')
+  return {
+    useResultsLayout: (inputs: unknown) => {
+      fed.layout.push(inputs)
+      // The collapse chevron's state, held as the real hook holds it, for the
+      // phone's row tap (record 0143).
+      const [resultsCollapsed, setCollapsed] = useState(false)
+      const collapse = useCallback(() => setCollapsed(true), [])
+      return { chartShowing: true, isDragging: false, resultsCollapsed, collapse }
+    },
+  }
+})
 vi.mock('./useChartCompare', () => ({
   useChartCompare: (inputs: unknown) => {
     fed.chart.push(inputs)
@@ -151,5 +158,20 @@ describe('useResultsView', () => {
     expect(focusResult).toHaveBeenCalledWith(ROW)
     result.current.onFocusPending({ latitude: 1, longitude: 2 })
     expect(focusPoint).toHaveBeenCalledWith({ latitude: 1, longitude: 2 })
+  })
+
+  // On a phone the sheet drops to its bar first, and the popup opens in the
+  // render after, framed for the bar (record 0143).
+  it('lowers a phone sheet before it opens a row\'s popup', () => {
+    const focusResult = vi.fn()
+    const mapRef = { current: { focusResult } as unknown as MapViewHandle }
+    const { result } = renderHook(() => useResultsView(inputs({ mapRef, isDesktop: false })))
+    act(() => result.current.onFocusResult(ROW))
+    expect(result.current.layout.resultsCollapsed).toBe(true)
+    expect(focusResult).toHaveBeenCalledOnce()
+    expect(focusResult).toHaveBeenCalledWith(ROW)
+    // Already down, the next tap opens straight away.
+    act(() => result.current.onFocusResult(ROW))
+    expect(focusResult).toHaveBeenCalledTimes(2)
   })
 })

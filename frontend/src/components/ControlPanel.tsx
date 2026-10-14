@@ -143,9 +143,14 @@ interface Props {
   closureCheckFailed?: boolean
   // The basemap style is failing to load (#580).
   basemapFailed?: boolean
-  // Where the footer's notice block stands while a phone's drawer is shut
-  // (record 0140), handed to `PanelFooter`; null keeps it under the button.
+  // Where the footer's messages that ask for an action stand on a phone
+  // (record 0140), handed to `PanelFooter`; null keeps the block whole under
+  // the button.
   noticeHome?: HTMLElement | null
+  // A phone, where the panel is the Controls sheet (#696; record 0141): the
+  // sheet's own head replaces the logo and the title, and the map's floating
+  // button is the one Analyze, so the footer draws none.
+  phone?: boolean
 }
 
 export default function ControlPanel({
@@ -209,6 +214,7 @@ export default function ControlPanel({
   closureCheckFailed,
   basemapFailed,
   noticeHome = null,
+  phone = false,
 }: Props) {
   // Falls back to the id so a link naming a model this deployment stopped
   // publishing still reads as something rather than as an empty gap in a
@@ -328,20 +334,22 @@ export default function ControlPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className={`border-b ${PANEL_EDGE} flex`}>
-        <img
-          src={logoUrl}
-          alt=""
-          width={256}
-          height={256}
-          className={PANEL_HEADER.logo}
-        />
-        <div className={PANEL_HEADER.title}>
-          <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
-          <p className={TEXT.caption}>Weather Window Finder</p>
+      {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
+      {!phone && (
+        <div className={`border-b ${PANEL_EDGE} flex`}>
+          <img
+            src={logoUrl}
+            alt=""
+            width={256}
+            height={256}
+            className={PANEL_HEADER.logo}
+          />
+          <div className={PANEL_HEADER.title}>
+            <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
+            <p className={TEXT.caption}>Weather Window Finder</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div
         // One rule between steps, drawn by the stack rather than by each
@@ -421,6 +429,7 @@ export default function ControlPanel({
         tutorialWaits={tutorialWaits}
         messages={messages}
         noticeHome={noticeHome}
+        phone={phone}
       />
     </div>
   )

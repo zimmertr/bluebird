@@ -33,6 +33,7 @@ function rows(over: Partial<Parameters<typeof PhoneMapRows>[0]> = {}) {
       onLocateSlot={() => {}}
       sidebarOpen={false}
       onOpenControls={() => {}}
+      onCloseControls={() => {}}
       controlsSummary="Current · NOAA GFS"
       layers={<button>Layers</button>}
       legend={[]}

@@ -6,6 +6,9 @@ import {
   FAB_INSET_PX,
   FAB_PX,
   FAB_STRIP_PX,
+  CONTROLS_MAP_PX,
+  NOTICE_BAND_MAX_PX,
+  NOTICE_LINE_PX,
   PHONE_ROWS_PX,
   PLAYER_ROOM_PX,
   LEGEND_GAP_PX,
@@ -22,8 +25,11 @@ import {
   TRANSPORT_HEIGHT_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
+  controlsSheetPx,
   fabBottomPx,
   noticeBottomPx,
+  phoneCornerLiftPx,
+  phoneFootLiftPx,
   transportFits,
   transportStandPx,
   legendBottomPx,
@@ -282,11 +288,28 @@ describe('the Analyze button', () => {
     for (const lift of [0, 84, 300]) expect(fabBottomPx(lift, 0, 844)).toBe(lift + FAB_INSET_PX)
   })
 
-  // The band stands over the scale and the credit, the button 8px over it.
+  // The band stands on the sheet's edge, 10px off it, the gap the scale and
+  // the (i) kept above the sheet before they moved up beside the button,
+  // and the button 16px over the band (record 0140).
   it('rises over the notice band by the band\'s height', () => {
-    expect(noticeBottomPx(104)).toBe(104 + TRANSPORT_GAP_PX)
-    expect(fabBottomPx(104, 52, 844)).toBe(noticeBottomPx(104) + 52 + FAB_GAP_PX)
+    expect(noticeBottomPx(104)).toBe(104 + CORNER_MARGIN_PX)
+    expect(CORNER_MARGIN_PX).toBe(10)
+    expect(fabBottomPx(104, 52, 844)).toBe(noticeBottomPx(104) + 52 + FAB_INSET_PX)
     expect(fabBottomPx(104, 52, 844) - fabBottomPx(104, 40, 844)).toBe(12)
+  })
+
+  // Three lines of a notice box, then the band scrolls inside itself.
+  it('lets the band show three lines of a box at most', () => {
+    expect(NOTICE_LINE_PX).toBe(16)
+    expect(NOTICE_BAND_MAX_PX).toBe(3 * 16 + 2 * 8 + 2)
+  })
+
+  // The scale and the (i) stand on the button's row: the corner band, 44px,
+  // centred on the 56px button.
+  it('centres the map corners on the button', () => {
+    const fab = 120
+    const corner = phoneCornerLiftPx(fab)
+    expect(corner + TRANSPORT_GAP_PX / 2).toBe(fab + FAB_PX / 2)
   })
 
   // A notice over a sheet dragged high goes under the button, which never
@@ -429,3 +452,37 @@ describe('the default panel heights', () => {
   })
 })
 
+// The Controls sheet (#696; record 0141): the panel on a phone, a fixed share
+// of the map that leaves the rows, the button's strip and a full notice band.
+describe('the Controls sheet', () => {
+  it('leaves the rows, the button and the fullest band above it', () => {
+    expect(CONTROLS_MAP_PX).toBe(DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX)
+    expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
+    expect(controlsSheetPx(100)).toBe(0)
+  })
+
+  // With the fullest band on its edge, the button still stands under the rows.
+  it('leaves the button its place over a full band', () => {
+    const lift = controlsSheetPx(844)
+    const fab = fabBottomPx(lift, NOTICE_BAND_MAX_PX, 844)
+    expect(fab).toBe(lift + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX + FAB_INSET_PX)
+    expect(844 - fab - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+  })
+
+  it('is the edge the foot rides while it is up and stands higher', () => {
+    const sheet = controlsSheetPx(844)
+    expect(phoneFootLiftPx(104, true, 844)).toBe(sheet)
+    expect(phoneFootLiftPx(104, false, 844)).toBe(104)
+    expect(phoneFootLiftPx(sheet + 20, true, 844)).toBe(sheet + 20)
+  })
+})
+
+// The home indicator's band (record 0145) is the datum before there is a
+// sheet, and a desk's docked lift stays 0.
+describe('resolveSheetLift and the safe area', () => {
+  it('stands the foot on the band with no sheet, and on the sheet with one', () => {
+    expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84, footPx: 34 })).toBe(34)
+    expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84 })).toBe(0)
+    expect(resolveSheetLift({ docked: false, measuredPx: 118, estimatePx: 84, footPx: 34 })).toBe(118)
+  })
+})

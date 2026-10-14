@@ -60,3 +60,26 @@ test('a tap on the chart moves the map playhead at 360 px', async ({ page }) => 
   await page.mouse.click(at(0.7), y)
   await expect(playhead).toHaveValue(tapped)
 })
+
+// A finger reads the chart as a resting mouse does (#336; record 0144): a
+// drag across the plot shows the hour under it, and the reading stays when
+// the finger lifts. A touch drag is sent through the protocol, because the
+// page's own touchscreen helper only taps.
+test('a finger dragged across the chart reads the hour under it at 360 px', async ({ page, context }) => {
+  const box = await openChart(page)
+  const tooltip = page.locator('.recharts-tooltip-wrapper')
+  const cdp = await context.newCDPSession(page)
+  const y = box.y + box.height * 0.4
+  const touch = (type: string, frac?: number) =>
+    cdp.send('Input.dispatchTouchEvent', {
+      type,
+      touchPoints: frac === undefined ? [] : [{ x: box.x + box.width * frac, y }],
+    })
+  await touch('touchStart', 0.3)
+  await expect(tooltip).toBeVisible()
+  const first = await tooltip.textContent()
+  for (let i = 1; i <= 6; i++) await touch('touchMove', 0.3 + i * 0.07)
+  await expect(tooltip).not.toHaveText(first ?? '')
+  await touch('touchEnd')
+  await expect(tooltip).toBeVisible()
+})

@@ -384,9 +384,16 @@ export const APP = [
         message: 'Hand useTableView pointSample, which reads the analyzed report.',
       },
       {
-        selector: 'VariableDeclarator[id.name=/^on(RemovePending|FocusResult|FocusPending)$/] > CallExpression[callee.name="useCallback"]',
-        count: 3,
-        message: 'Wrap the three table callbacks in useCallback.',
+        // The row focus is `useRowFocus`'s (record 0143), which wraps it in
+        // useCallback where it holds the effect useResultsView may not.
+        selector: 'VariableDeclarator[id.name=/^on(RemovePending|FocusPending)$/] > CallExpression[callee.name="useCallback"]',
+        count: 2,
+        message: 'Wrap the two table callbacks in useCallback.',
+      },
+      {
+        selector: 'VariableDeclarator[id.name="onFocusResult"] > CallExpression[callee.name="useRowFocus"]',
+        count: 1,
+        message: 'Take onFocusResult from useRowFocus.',
       },
     ],
   },

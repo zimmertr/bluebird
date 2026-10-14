@@ -5,7 +5,7 @@ import PhoneFoot from './PhoneFoot'
 import BottomSheet from './BottomSheet'
 import { render, placeAt } from '../testSupport/render'
 import { DISABLED, MAP_FAB, MAP_FAB_WORDS } from '../styles'
-import { TRANSPORT_GAP_PX } from '../utils/resultsSheet'
+import { CORNER_MARGIN_PX } from '../utils/resultsSheet'
 
 // The foot of a phone's map (#696): the notice band (record 0140) and the
 // Analyze button (record 0135), Material's extended floating action button.
@@ -47,6 +47,8 @@ describe('PhoneFoot', () => {
     render(foot({ onAnalyze }))
     expect(button().disabled).toBe(false)
     expect(button().className).toBe(`${MAP_FAB} ${DISABLED}`)
+    // A phone's one Analyze is the tour's Analyze step (#536).
+    expect(button().dataset.tour).toBe('analyze')
     fireEvent.click(button())
     expect(onAnalyze).toHaveBeenCalledOnce()
   })
@@ -75,12 +77,12 @@ describe('PhoneFoot', () => {
   })
 
   // Placed where it is told, and the band just above the scale and credit.
-  it('stands the button where it is told and the band over the credits', () => {
+  it('stands the button where it is told and the band on the sheet\'s edge', () => {
     const onNoticeBand = vi.fn()
     render(foot({ onNoticeBand }))
     expect(button().style.bottom).toBe('120px')
     const band = onNoticeBand.mock.lastCall![0] as HTMLElement
-    expect(band.style.bottom).toBe(`${104 + TRANSPORT_GAP_PX}px`)
+    expect(band.style.bottom).toBe(`${104 + CORNER_MARGIN_PX}px`)
   })
 
   // The band's height is what the button rises by, so it is reported, and

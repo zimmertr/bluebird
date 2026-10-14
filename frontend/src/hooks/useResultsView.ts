@@ -3,11 +3,14 @@ import type { MapViewHandle } from '../components/MapView'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import { useChartCompare, type ChartCompareInputs } from './useChartCompare'
 import { useResultsLayout } from './useResultsLayout'
+import { useRowFocus } from './useRowFocus'
 import { useTableView, type TableViewInputs } from './useTableView'
 
 export interface ResultsViewInputs {
   /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
   playerOn?: boolean
+  /** A phone's home indicator band (`useResultsLayout`'s `safeBottomPx`). */
+  safeBottomPx?: number
   /** Collapse the sheet to its bar for the tutorial's marker step on a phone (#536). */
   collapsedOverride?: boolean | null
   /** Whether a report is on screen. */
@@ -76,6 +79,7 @@ export function useResultsView({
   isDesktop,
   bannerPx,
   playerOn,
+  safeBottomPx,
   analysisSeq,
   arriving,
   sortBy,
@@ -103,6 +107,7 @@ export function useResultsView({
     isDesktop,
     bannerPx,
     playerOn,
+    safeBottomPx,
     showTable,
     response,
     analysisSeq,
@@ -153,10 +158,14 @@ export function useResultsView({
     (d: { latitude: number; longitude: number }) => removePlace(d.latitude, d.longitude),
     [removePlace],
   )
-  const onFocusResult = useCallback(
-    (row: DestinationResult) => mapRef.current?.focusResult(row),
-    [mapRef],
-  )
+  // A row's name, or a press on its ground, opens its marker's popup, and on
+  // a phone lowers the sheet first (`useRowFocus`, record 0143).
+  const onFocusResult = useRowFocus({
+    isDesktop,
+    resultsCollapsed: layout.resultsCollapsed,
+    collapse: layout.collapse,
+    mapRef,
+  })
   const onFocusPending = useCallback(
     (at: { latitude: number; longitude: number }) => mapRef.current?.focusPoint(at),
     [mapRef],

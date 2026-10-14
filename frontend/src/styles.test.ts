@@ -74,6 +74,9 @@ import {
   LINK_ACTION,
   CAPTION_LIFTED,
   BOTTOM_SHEET,
+  CONTROLS_SHEET,
+  SAFE_AREA,
+  CHART_PLOT_TOUCH,
   MAP_CHIP,
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
@@ -114,6 +117,7 @@ import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chartColors'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
+import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -1969,6 +1973,9 @@ describe('the phone rows', () => {
     expect(MAP_CHIP_SUMMARY).not.toMatch(/(^|\s)(flex-)?shrink-0(\s|$)/)
     expect(tokens(MAP_CHIP_SUMMARY)).toContain('min-w-0')
     expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
+    // Lit, its words read white on the accent fill like every label there.
+    expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toContain('in-aria-expanded:text-white')
+    expect(MAP_CHIP).toContain('aria-expanded:bg-sky-650')
     for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY, MAP_ROWS.chips]) expect(recipe).not.toMatch(/(^|\s)(ml-auto|justify-between)(\s|$)/)
   })
 
@@ -2105,6 +2112,9 @@ describe('the bottom sheet', () => {
 
 // The panel's notices on a phone's map while the drawer is shut (#696;
 // record 0140): the same translucent boxes, on the drawer's own fill.
+// A recipe's classes, for the phone chrome checks below.
+const words = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+
 describe('the notice band', () => {
   it('lays the drawer\'s fill under the boxes only while it holds one, and yields the rest', () => {
     const drawerFill = appDrawerSource.match(/flex-shrink-0 (bg-slate-\d+) flex flex-col/)?.[1]
@@ -2115,6 +2125,71 @@ describe('the notice band', () => {
     // The boxes' own corners, so the fill under them meets their edges.
     expect(NOTICE.warn).toContain(RADIUS.control)
     expect(MAP_NOTICE_BAND).toContain(RADIUS.control)
+  })
+
+  // Three lines of a box and then it scrolls inside itself (record 0140):
+  // the class and the number the layout adds up are one.
+  it('caps the band at the three lines the layout counts, and scrolls past them', () => {
+    expect(words(MAP_NOTICE_BAND)).toEqual(expect.arrayContaining([`max-h-[${NOTICE_BAND_MAX_PX}px]`, 'overflow-y-auto', 'overscroll-contain']))
+    // The box the three lines are counted in: 12px type on a 16px line, 8px
+    // of padding and a 1px border.
+    expect(words(NOTICE.warn)).toEqual(expect.arrayContaining(['text-xs', 'p-2', 'border']))
+  })
+})
+
+// The band a phone keeps for its home indicator (#336, #696; record 0145).
+describe('the safe area', () => {
+  it('pads by the bottom inset, and probes the same height', () => {
+    expect(SAFE_AREA.pad).toBe('pb-[env(safe-area-inset-bottom)]')
+    expect(words(SAFE_AREA.probe)).toEqual(
+      expect.arrayContaining(['h-[env(safe-area-inset-bottom)]', 'fixed', 'bottom-0', 'invisible', 'pointer-events-none']),
+    )
+  })
+
+  // Every surface that reaches the screen's foot keeps its content above it.
+  it('pads every sheet that reaches the foot of the screen', () => {
+    for (const recipe of [BOTTOM_SHEET.card, CONTROLS_SHEET.card]) expect(words(recipe)).toContain(SAFE_AREA.pad)
+  })
+})
+
+// The panel on a phone (#696; record 0141): the bottom sheet's surface, not
+// modal, mounted for good and slid below the map while shut.
+describe('the Controls sheet', () => {
+  it('wears the bottom sheet surface on the panel layer, and slides', () => {
+    for (const part of ['bg-slate-800', 'border-t', 'border-slate-600', 'rounded-t-lg', ELEVATION.overlay, LAYER.drawer]) {
+      expect(words(CONTROLS_SHEET.card)).toContain(part)
+    }
+    for (const part of words(MOTION.slide)) expect(words(CONTROLS_SHEET.card)).toContain(part)
+    expect(CONTROLS_SHEET.shut).toBe('translate-y-full')
+    expect(words(CONTROLS_SHEET.panel)).toEqual(['min-h-0', 'flex-1'])
+    // Not modal: nothing of the bottom sheet's dim or scrim.
+    expect(CONTROLS_SHEET.card).not.toContain('bg-black')
+  })
+})
+
+// The results table's Name column stands still (#696; record 0142), on an
+// opaque fill so the columns under it do not show through.
+describe('the sticky Name column', () => {
+  it('sticks at the left edge on the fill of the surface it stands on', () => {
+    for (const recipe of [STYLES.TABLE.stickyNameCell, STYLES.TABLE.stickyNameHead]) {
+      expect(words(recipe)).toEqual(expect.arrayContaining(['sticky', 'left-0', 'z-[1]']))
+    }
+    expect(words(STYLES.TABLE.stickyNameCell)).toContain('bg-slate-800')
+    expect(words(STYLES.TABLE.stickyNameHead)).toContain('bg-slate-700')
+    // The row's hover tint, over the fill rather than under it.
+    expect(STYLES.TABLE.row).toContain('hover:bg-slate-700/30')
+    expect(words(STYLES.TABLE.stickyNameCell)).toEqual(
+      expect.arrayContaining(['group-hover:from-slate-700/30', 'group-hover:to-slate-700/30']),
+    )
+    expect(STYLES.TABLE.rowOpens).toBe('cursor-pointer')
+  })
+})
+
+// A finger reads the chart sideways and scrolls the sheet up and down
+// (#336; record 0144).
+describe('the chart under a finger', () => {
+  it('leaves the browser the vertical pan alone', () => {
+    expect(CHART_PLOT_TOUCH).toBe('touch-pan-y')
   })
 })
 

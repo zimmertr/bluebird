@@ -1,4 +1,4 @@
-import { ReactNode, memo, useMemo, useRef, useState } from 'react'
+import { type PointerEvent, ReactNode, memo, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Label,
@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHART_METRIC_W, CHART_PLOT_TOUCH, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
 import { IconSelectArrow } from './icons'
 import {
   CHART_METRICS,
@@ -30,14 +30,13 @@ import {
   formatTooltipValue,
   metricForSort,
   nearestKey,
-  pixelToTime,
   pixelToValue,
   tracksCursor,
   valueAt,
   tooltipCapacity,
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
-import { nearestIndex } from '../utils/timeline'
+import { PLOT_MARGIN, X_AXIS_HEIGHT_PX, Y_AXIS_WIDTH_PX, fingerReading, hourIndexAt } from '../utils/chartPointer'
 import {
   CHART_AXIS_COLOR,
   CHART_GRID_COLOR,
@@ -48,13 +47,15 @@ import {
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
-const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
-const X_AXIS_HEIGHT = 22
+// The numbers are `utils/chartPointer.ts`', which a finger's reading and a
+// click's hour invert through too.
+const MARGIN = PLOT_MARGIN
+const X_AXIS_HEIGHT = X_AXIS_HEIGHT_PX
 // Hoisted so both axes hand Recharts one object rather than a new one a render.
 const AXIS_TICK = { fontSize: CHART_TICK_PX }
 // Named rather than spelled on the YAxis alone, because a click is inverted to an
 // hour through the plotting band's left edge, which sits after this strip.
-const Y_AXIS_WIDTH = 44
+const Y_AXIS_WIDTH = Y_AXIS_WIDTH_PX
 
 // The chart's chrome lines: the Now seam, a compared model's end and the
 // extreme value (#699). One stroke and one label style for all of them, so
@@ -174,6 +175,11 @@ function TimeSeriesChart({
   const plotRef = useRef<HTMLDivElement>(null)
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   const [cursorValue, setCursorValue] = useState<number | null>(null)
+  // The hour a finger reads (#336; record 0144), which the tooltip shows as
+  // it shows a hovered one. A touch sends no hover, so Recharts never learns
+  // the hour from it; this is the hour handed to it instead. Kept when the
+  // finger lifts, so the reading can be read without a finger over it.
+  const [fingerIndex, setFingerIndex] = useState<number | null>(null)
 
   // Align each series onto the active grid by timestamp — a no-op for ranked
   // rows; a pinned row may have been fetched for a different window.
@@ -249,6 +255,8 @@ function TimeSeriesChart({
     : lines
 
   function handleMove(state: any) {
+    // A mouse takes the reading back from a finger that left one.
+    if (fingerIndex !== null) setFingerIndex(null)
     const idx = state?.activeTooltipIndex
     const py = typeof state?.chartY === 'number' ? state.chartY : state?.activeCoordinate?.y
     const h = plotRef.current?.clientHeight ?? 0
@@ -270,6 +278,35 @@ function TimeSeriesChart({
     setCursorValue(null)
   }
 
+  // A finger (or a pen) on the chart reads the hour under it, as a resting
+  // mouse does: the tooltip at that hour and, where the chart may follow a
+  // cursor, the nearest line drawn over the rest. A horizontal drag keeps
+  // reading, because the plot leaves only vertical panning to the browser
+  // (`touch-pan-y` below); a vertical drag is the sheet's scroll, and the
+  // browser cancels the pointer, which drops the reading.
+  function readFinger(e: PointerEvent<HTMLDivElement>) {
+    if (e.pointerType === 'mouse') return
+    const el = plotRef.current
+    if (!el) return
+    const box = el.getBoundingClientRect()
+    const reading = fingerReading(e.clientX - box.left, e.clientY - box.top, box, times, yMin, yMax)
+    if (reading === null) return
+    setFingerIndex(reading.index)
+    if (!followCursor) return
+    const valuesByKey: Record<string, number | null> = {}
+    for (const line of lines) valuesByKey[line.key] = valueAt(line, metric, reading.index)
+    setCursorValue(reading.value)
+    setFocusedKey(nearestKey(valuesByKey, reading.value))
+  }
+
+  function dropFinger() {
+    setFingerIndex(null)
+    handleLeave()
+  }
+  // The tutorial's hour wins over a finger's; an hour past a grid that has
+  // since shrunk is no reading at all.
+  const shownIndex = tooltipIndex ?? (fingerIndex !== null && fingerIndex < times.length ? fingerIndex : null)
+
   // A click puts the map's playhead on the hour under the pointer. The chart
   // and the map are two views of one hourly grid, so a reader who has found the
   // bad afternoon on the chart should be able to see it on the map without
@@ -286,14 +323,11 @@ function TimeSeriesChart({
     if (!onPlayheadChange) return
     const x = event?.clientX
     const el = plotRef.current
-    if (typeof x === 'number' && el && times.length > 0) {
+    if (typeof x === 'number' && el) {
       const box = el.getBoundingClientRect()
-      const plotLeft = MARGIN.left + Y_AXIS_WIDTH
-      const plotWidth = box.width - plotLeft - MARGIN.right
-      if (plotWidth > 0) {
-        const ms = pixelToTime(x - box.left, plotLeft, plotWidth, times[0], times[times.length - 1])
-        const i = nearestIndex(times, ms)
-        if (i !== null) onPlayheadChange(times[i])
+      const i = hourIndexAt(x - box.left, box.width, times)
+      if (i !== null) {
+        onPlayheadChange(times[i])
         return
       }
     }
@@ -338,7 +372,13 @@ function TimeSeriesChart({
         {controls}
       </div>
 
-      <div ref={plotRef} className="min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={plotRef}
+        onPointerDown={readFinger}
+        onPointerMove={readFinger}
+        onPointerCancel={dropFinger}
+        className={`min-h-0 flex-1 overflow-hidden ${CHART_PLOT_TOUCH}`}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
@@ -396,8 +436,8 @@ function TimeSeriesChart({
             )}
             <Tooltip
               isAnimationActive={false}
-              defaultIndex={tooltipIndex ?? undefined}
-              active={tooltipIndex === null ? undefined : true}
+              defaultIndex={shownIndex ?? undefined}
+              active={shownIndex === null ? undefined : true}
               content={(props: any) => (
                 <ChartTooltip
                   {...props}

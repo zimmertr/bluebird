@@ -54,6 +54,8 @@ import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useDrawer } from './hooks/useDrawer'
+import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
+import { controlsSheetPx } from './utils/resultsSheet'
 import {
   LAYER,
   SURFACE_PAGE,
@@ -150,13 +152,16 @@ export default function App() {
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
   const isDesktop = useIsDesktop()
-  // The controls panel is docked on desktop and an off-canvas drawer on phones.
-  // It starts open on a desktop and closed on a phone (`useDrawer`, #696); a
-  // close button collapses it to widen the map.
+  // The controls panel is docked on desktop and the Controls sheet on phones
+  // (record 0141). It starts open on a desktop and closed on a phone
+  // (`useDrawer`, #696); a close button collapses it to widen the map.
   const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
-  // The band on a phone's map that holds the panel's notice block while the
-  // drawer is shut (record 0140). State, so the panel hears it arrive.
+  // The band on a phone's map that holds the panel's notices that ask for an
+  // action (record 0140). State, so the panel hears it arrive.
   const [noticeBand, setNoticeBand] = useState<HTMLDivElement | null>(null)
+  // A phone's home indicator band, which the chrome on the map's foot stands
+  // above (record 0145); 0 on a desk.
+  const safeBottomPx = useSafeAreaBottom()
   // The panel's Map group is hovered, so the map's search box — a control
   // the panel names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
@@ -512,6 +517,7 @@ export default function App() {
     isDesktop,
     bannerPx,
     playerOn: playerShown,
+    safeBottomPx,
     analysisSeq,
     arriving,
     sortBy: view.sortBy,
@@ -570,6 +576,8 @@ export default function App() {
 
       <AppDrawer
         open={sidebarOpen}
+        isDesktop={isDesktop}
+        sheetPx={controlsSheetPx(layout.mapPx)}
         onClose={closeDrawer}
         drawMode={drawMode}
         destinationInputs={destinationInputs}
@@ -597,7 +605,7 @@ export default function App() {
         showWildfires={showWildfires}
         showAreaClosures={showAreaClosures}
         basemapFailed={basemapFailed}
-        noticeHome={!isDesktop && !sidebarOpen ? noticeBand : null}
+        noticeHome={isDesktop ? null : noticeBand}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand
@@ -634,6 +642,7 @@ export default function App() {
           showResults={showResults}
           sidebarOpen={sidebarOpen}
           onOpenControls={openDrawer}
+          onCloseControls={closeDrawer}
           controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
           onNoticeBand={setNoticeBand}
           analyzeEnabled={mapAnalyzeEnabled}

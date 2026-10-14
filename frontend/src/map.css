@@ -297,7 +297,12 @@
   flex-shrink: 0;
 }
 
-/* On a phone the attribution joins the scale at the bottom left (#696), at
+/* On a phone the corner stands on the Analyze button's row rather than on the
+ * sheet's edge (record 0140): `MapStage` publishes `--map-corner-lift` from
+ * the button's bottom edge (`phoneCornerLiftPx`), so each control, standing on
+ * the library's 10px margin in the 44px band, is centred on the button.
+ *
+ * On a phone the attribution joins the scale at the bottom left (#696), at
  * its native size, so the right of the map's foot is map: `addAttribution`
  * puts it there whenever it is compact. The corner turns into a row, the scale
  * first (`order`, since the library inserts a bottom control before the ones

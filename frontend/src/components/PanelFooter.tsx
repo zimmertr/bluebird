@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { Fragment, type MouseEvent, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
 import {
@@ -22,6 +22,7 @@ import {
   isDismissed,
   noticeBoxes,
   pruneDismissals,
+  ridesTheMap,
 } from '../utils/notices'
 
 /**
@@ -110,10 +111,14 @@ interface Props {
   // Every message the panel has to say, in order (`utils/panelMessages.ts`).
   // This file decides only how they are boxed and which are dismissed.
   messages: readonly FooterMessage[]
-  // The band on a phone's map the block stands in while the drawer is shut
-  // (#696; record 0140), or null wherever the panel is open, where the block
-  // is under the button as ever.
+  // The band on a phone's map the messages that ask for an action stand in
+  // (#696; record 0140), or null at a desk, where the whole block is under
+  // the button as ever.
   noticeHome?: HTMLElement | null
+  // A phone, where the map's floating button is the one Analyze (record
+  // 0135), so the footer draws none and its block of informing lines stands
+  // at the foot of the Controls sheet in the button's place.
+  phone?: boolean
 }
 
 /**
@@ -130,6 +135,7 @@ export default function PanelFooter({
   tutorialWaits = false,
   messages,
   noticeHome = null,
+  phone = false,
 }: Props) {
   // A plain click starts the tour over this page; a modified click or a
   // middle click is the browser's, and opens the path like any link. While
@@ -160,7 +166,7 @@ export default function PanelFooter({
   useEffect(() => {
     setDismissed((prev) => pruneDismissals(prev, activeKeySig.split('\u0000')))
   }, [activeKeySig])
-  const footerBoxes = noticeBoxes(messages.filter((m) => !isDismissed(m.key, dismissed)))
+  const shown = messages.filter((m) => !isDismissed(m.key, dismissed))
 
   // A run disables this button under the keyboard that pressed it, and the
   // overlay's Cancel takes the focus meanwhile; when the run ends and Cancel
@@ -168,52 +174,70 @@ export default function PanelFooter({
   const analyzeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(analyzeRef, analyzeEnabled)
 
-  // The one block has two homes and is rendered once, in whichever applies
-  // (record 0140): under the button, or on a phone with the drawer shut, in
-  // the band the map holds above its foot, where a stale cue is read by a
-  // reader who would otherwise have to open the drawer to learn the report no
-  // longer matches it. A portal, so the dismissals above and the retry below
-  // are the same block's in both.
-  const housed = (block: ReactNode) => (noticeHome ? createPortal(block, noticeHome) : block)
+  // The block splits in two on a phone (record 0140): what asks for an
+  // action (a commit cue, an error, a failed run with its retry) stands in the
+  // band the map holds over the sheet's edge, where it is read with the
+  // Controls sheet shut and beside the one Analyze that answers it; what only
+  // informs stays here, beside the controls it is about. At a desk it is one
+  // block under the button. A portal, so the dismissals above and the retry
+  // below are the same ledger's in both homes, and one `FooterNotice` element
+  // draws every box wherever it stands.
+  const blocks = noticeHome
+    ? [
+        { home: 'map', messages: shown.filter(ridesTheMap) },
+        { home: 'panel', messages: shown.filter((m) => !ridesTheMap(m)) },
+      ]
+    : [{ home: 'panel', messages: shown }]
 
   return (
-    <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour="analyze">
-      <button
-        ref={analyzeRef}
-        onClick={onAnalyze}
-        disabled={!analyzeEnabled}
-        className={`${BUTTON_PRIMARY} ${DISABLED}`}
-      >
-        {loading ? 'Analyzing…' : 'Analyze'}
-      </button>
+    // The tour's Analyze step lights this footer at a desk; a phone's Analyze
+    // is the map's button, which carries the anchor there (`PhoneFoot`).
+    <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour={phone ? undefined : 'analyze'}>
+      {!phone && (
+        <button
+          ref={analyzeRef}
+          onClick={onAnalyze}
+          disabled={!analyzeEnabled}
+          className={`${BUTTON_PRIMARY} ${DISABLED}`}
+        >
+          {loading ? 'Analyzing…' : 'Analyze'}
+        </button>
+      )}
 
-      {/* One live region for every box, mounted for good: a box that
+      {/* One live region per home, each mounted for good: a box that
           arrives already holding its text is not announced by most screen
           readers, which is what each box's own role="status" did (#576).
           Collapsed while empty, so it adds no gap under the button. */}
-      {housed(
-      <div role="status" className="space-y-3 empty:mb-0">
-      {footerBoxes.map((box) => (
-        <FooterNotice
-          key={box.severity}
-          severity={box.severity}
-          messages={box.messages}
-          onDismiss={(key) => setDismissed((prev) => [...prev, key])}
-        >
-          {/* One retry for the whole box, at the bottom (TJ, 2026-08-22):
-              it re-runs the analysis, so a message whose condition clears
-              drops out and the box closes when none remain. Only a failed
-              run summons it — a state problem alone, like an oversized
-              polygon, cannot be retried into working. */}
-          {box.messages.some((m) => m.retry) && (
-            <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
-              Try again
-            </button>
-          )}
-        </FooterNotice>
-      ))}
-      </div>,
-      )}
+      {blocks.map(({ home, messages: list }) => {
+        const region = (
+          <div role="status" className="space-y-3 empty:mb-0">
+            {noticeBoxes(list).map((box) => (
+              <FooterNotice
+                key={box.severity}
+                severity={box.severity}
+                messages={box.messages}
+                onDismiss={(key) => setDismissed((prev) => [...prev, key])}
+              >
+                {/* One retry for the whole box, at the bottom (TJ, 2026-08-22):
+                    it re-runs the analysis, so a message whose condition clears
+                    drops out and the box closes when none remain. Only a failed
+                    run summons it — a state problem alone, like an oversized
+                    polygon, cannot be retried into working. */}
+                {box.messages.some((m) => m.retry) && (
+                  <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
+                    Try again
+                  </button>
+                )}
+              </FooterNotice>
+            ))}
+          </div>
+        )
+        return home === 'map' && noticeHome ? (
+          createPortal(region, noticeHome, home)
+        ) : (
+          <Fragment key={home}>{region}</Fragment>
+        )
+      })}
 
       {/* Two labels, two pages, and each label goes where it says. The
           privacy copy used to open a dialog here, which meant it had no URL

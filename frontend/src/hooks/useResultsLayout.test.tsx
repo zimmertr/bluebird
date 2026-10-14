@@ -255,4 +255,32 @@ describe('useResultsLayout', () => {
     rerender()
     expect(result.current.sheetLiftPx).toBe(400)
   })
+
+  // A phone's home indicator band (record 0145): the foot stands on it with
+  // no sheet, the sheet's padding is the band's, and the panels give the band
+  // up rather than the map. A desk takes none of it.
+  it('stands a phone on the home indicator band and gives the panels the rest', () => {
+    setDesktopQuery(false)
+    setViewport(844)
+    const closed: ResultsLayoutInputs = { ...DESKTOP, isDesktop: false, showTable: false }
+    const bare = renderHook(() => useResultsLayout(closed)).result.current
+    const banded = renderHook(() => useResultsLayout({ ...closed, safeBottomPx: 34 })).result.current
+    expect(bare.sheetLiftPx).toBe(0)
+    expect(banded.sheetLiftPx).toBe(34)
+    // The sheet it is about to open rests the band higher, with the same panels less the band.
+    expect(banded.sheetPadBottomPx - bare.sheetPadBottomPx).toBeLessThanOrEqual(34)
+    expect(banded.sheetPadBottomPx).toBeGreaterThan(bare.sheetPadBottomPx - 34)
+    const desk = renderHook(() => useResultsLayout({ ...DESKTOP, showTable: false, safeBottomPx: 34 })).result.current
+    expect(desk.sheetLiftPx).toBe(0)
+  })
+
+  // A phone's row tap lowers the sheet to its bar (record 0143).
+  it('collapses on request and keeps the callback still', () => {
+    const { result, rerender } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false }))
+    const collapse = result.current.collapse
+    act(() => collapse())
+    rerender()
+    expect(result.current.resultsCollapsed).toBe(true)
+    expect(result.current.collapse).toBe(collapse)
+  })
 })

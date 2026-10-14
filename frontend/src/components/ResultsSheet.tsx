@@ -11,7 +11,7 @@ import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, SR_ONLY, SURFACE_SHEET } from '../styles'
+import { LAYER, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -159,7 +159,9 @@ export default function ResultsSheet({
           className={
             isDesktop
               ? 'flex flex-shrink-0 flex-col bg-slate-800'
-              : `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${LAYER.sheet}`
+              : // The sheet's surface runs under a phone's home indicator and
+                // its grip and header stand above it (record 0145).
+                `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
           }
         >
           <ResultsBar

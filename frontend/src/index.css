@@ -183,8 +183,10 @@ body,
    at the scrollport's top, where the header would paint over it: one strip
    per header cell, each exactly its cell's width, so the cells add up to one
    unbroken band. Its timeline is still the table's scroll container, the
-   nearest one above the cell. */
-.scroll-shadow-head th {
+   nearest one above the cell. A sticky cell, the Name column's (record
+   0142), is left as it is: sticky already holds its strip, and this rule,
+   unlayered, would beat the utility and pin the cell where it stands. */
+.scroll-shadow-head th:not(.sticky) {
   position: relative;
 }
 .scroll-shadow-head th::after {

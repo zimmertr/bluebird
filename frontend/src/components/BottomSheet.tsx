@@ -1,4 +1,4 @@
-import { useId, useRef, type ReactNode } from 'react'
+import { useId, useRef, type ReactNode, type Ref } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialog } from '../hooks/useDialog'
 import { useHoldSheetOpen } from '../hooks/useSheetOpen'
@@ -48,8 +48,6 @@ export default function BottomSheet({ heading, onClose, children, outside }: Pro
   const panelRef = useDialog(onClose)
   // The Analyze button hides under the dim while any sheet is open.
   useHoldSheetOpen()
-  // Where a press on the grip began, while one is down.
-  const swipeRef = useRef<number | null>(null)
   return createPortal(
     <>
       {/* The whole screen catches a press outside the card and is dimmed,
@@ -67,36 +65,62 @@ export default function BottomSheet({ heading, onClose, children, outside }: Pro
         tabIndex={-1}
         className={BOTTOM_SHEET.card}
       >
-        <div
-          className={BOTTOM_SHEET.grip}
-          aria-hidden="true"
-          onPointerDown={(e) => {
-            swipeRef.current = e.clientY
-            e.currentTarget.setPointerCapture(e.pointerId)
-          }}
-          onPointerUp={(e) => {
-            const from = swipeRef.current
-            swipeRef.current = null
-            if (from !== null && e.clientY - from >= SWIPE_CLOSE_PX) onClose()
-          }}
-          onPointerCancel={() => {
-            swipeRef.current = null
-          }}
-        >
-          <span />
-        </div>
-        <div className={BOTTOM_SHEET.head}>
-          <h2 id={headingId} className={BOTTOM_SHEET.title}>
-            {heading}
-          </h2>
-          <button type="button" onClick={onClose} className={BOTTOM_SHEET.done}>
-            Done
-          </button>
-        </div>
+        <SheetTop heading={heading} headingId={headingId} onClose={onClose} />
         <div className={BOTTOM_SHEET.body}>{children}</div>
         {outside}
       </div>
     </>,
     document.body,
+  )
+}
+
+interface SheetTopProps {
+  heading: string
+  /** The id the sheet's label points at. */
+  headingId: string
+  /** Done, or a swipe down the grip. */
+  onClose: () => void
+  /** Done, for a sheet that hands it the keyboard (the Controls sheet). */
+  doneRef?: Ref<HTMLButtonElement>
+}
+
+/**
+ * The top of every phone sheet: the grip, a swipe down which closes it, and
+ * the sheet's title with Done beside it. Its own component because the
+ * Controls sheet (`AppDrawer`, record 0141) wears the same top over a sheet
+ * that is not modal and never unmounts.
+ */
+export function SheetTop({ heading, headingId, onClose, doneRef }: SheetTopProps) {
+  // Where a press on the grip began, while one is down.
+  const swipeRef = useRef<number | null>(null)
+  return (
+    <>
+      <div
+        className={BOTTOM_SHEET.grip}
+        aria-hidden="true"
+        onPointerDown={(e) => {
+          swipeRef.current = e.clientY
+          e.currentTarget.setPointerCapture(e.pointerId)
+        }}
+        onPointerUp={(e) => {
+          const from = swipeRef.current
+          swipeRef.current = null
+          if (from !== null && e.clientY - from >= SWIPE_CLOSE_PX) onClose()
+        }}
+        onPointerCancel={() => {
+          swipeRef.current = null
+        }}
+      >
+        <span />
+      </div>
+      <div className={BOTTOM_SHEET.head}>
+        <h2 id={headingId} className={BOTTOM_SHEET.title}>
+          {heading}
+        </h2>
+        <button ref={doneRef} type="button" onClick={onClose} className={BOTTOM_SHEET.done}>
+          Done
+        </button>
+      </div>
+    </>
   )
 }

@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
 import {
   CLOSURE_KEY,
@@ -36,6 +36,7 @@ import {
 import { CHOICE_INPUT, ICON_ACTION, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
+import { rowTapOpens } from '../utils/rowTap'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to
@@ -173,7 +174,7 @@ interface NameTdProps {
 
 function NameTd({ cellClass, widths, label, name, onCenter, href }: NameTdProps) {
   return (
-    <td className={cellClass}>
+    <td className={`${cellClass} ${TABLE.stickyNameCell}`}>
       {sized(
         widths,
         'name',
@@ -525,8 +526,16 @@ function ResultsTableRow({
     onCenter: () => onFocusResult?.(row),
     rowId,
   }
+  // A press on the row's ground opens the popup a click on its marker gives,
+  // through the same fly-to the name's button takes (record 0143); a press on
+  // any control in the row is that control's alone (`rowTapOpens`). A pointer
+  // shortcut beside the name's button, which stays the row's way in for a
+  // keyboard and a screen reader, so the row itself takes no role or focus.
+  const openFromRow = (e: MouseEvent<HTMLTableRowElement>) => {
+    if (onFocusResult && rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) onFocusResult(row)
+  }
   return (
-    <tr className={TABLE.row}>
+    <tr className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`} onClick={openFromRow}>
       {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
       {columns.map((col) => (

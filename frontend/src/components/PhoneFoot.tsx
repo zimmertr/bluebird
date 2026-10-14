@@ -104,6 +104,8 @@ export default function PhoneFoot({
           disabled={!analyzeEnabled}
           className={`${MAP_FAB} ${DISABLED}`}
           style={{ bottom: fabBottomPx }}
+          // The tour's Analyze step (#536): a phone's one Analyze is this.
+          data-tour="analyze"
         >
           {/* Both words in one cell, so the button is the wider one's width
               whichever it reads; the other is invisible and unread. */}

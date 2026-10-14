@@ -24,10 +24,12 @@ interface PhoneMapRowsProps {
   searchPointed: boolean
   /** Receives the locate button's slot, which the map stands its own button in. */
   onLocateSlot: (slot: HTMLDivElement | null) => void
-  /** Whether the drawer is open; the summary chip takes the keyboard back when it shuts. */
+  /** Whether the Controls sheet is open; the summary chip takes the keyboard back when it shuts. */
   sidebarOpen: boolean
-  /** Opens the drawer. */
+  /** Raises the Controls sheet (record 0141). */
   onOpenControls: () => void
+  /** Lowers it, from the chip that raised it. */
+  onCloseControls: () => void
   /** The summary chip's words: the When arm and the model (`controlsSummary`). */
   controlsSummary: string
   /** The Layers chip and its sheet (`LayersPopover`, `sheet`). */
@@ -55,6 +57,7 @@ export default function PhoneMapRows({
   onLocateSlot,
   sidebarOpen,
   onOpenControls,
+  onCloseControls,
   controlsSummary,
   layers,
   legend,
@@ -70,7 +73,7 @@ export default function PhoneMapRows({
     if (!legendShown) setLegendOpen(false)
   }, [legendShown])
 
-  // Stands in for the drawer's Close button, so it takes the keyboard when
+  // Stands in for the Controls sheet's Done, so it takes the keyboard when
   // that button goes inert under it (#576).
   const controlsRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(controlsRef, !sidebarOpen)
@@ -98,8 +101,11 @@ export default function PhoneMapRows({
       <div className={searching ? 'hidden' : MAP_ROWS.chips}>
         <button
           ref={controlsRef}
-          onClick={onOpenControls}
+          // The chip lowers the sheet it raised, and is lit while it is up,
+          // the way Layers and Legend are for theirs.
+          onClick={sidebarOpen ? onCloseControls : onOpenControls}
           aria-label="Open controls"
+          aria-expanded={sidebarOpen}
           aria-describedby={summaryId}
           className={MAP_CHIP_SUMMARY}
         >

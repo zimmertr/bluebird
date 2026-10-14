@@ -1044,9 +1044,9 @@ export const LAYER = {
   mapControls: 'z-[18]',
   /** The analysis overlay, over the map while a run is in flight. */
   overlay: 'z-20',
-  /** The scrim behind the mobile drawer, and the preview banner. */
+  /** The preview banner, and the scrim the phone's drawer had before it was a sheet (record 0141). */
   scrim: 'z-30',
-  /** The mobile drawer itself. */
+  /** The panel on a phone: the Controls sheet (record 0141). */
   drawer: 'z-40',
   /**
    * Anything opened from inside the drawer, which must clear it: the model
@@ -1280,6 +1280,15 @@ export const CONTROL_W = 'w-[118px]'
  * metric wrap the row a phone can barely fit.
  */
 export const CHART_METRIC_W = 'w-36'
+
+/**
+ * The chart's plot under a finger (#336; record 0144): the browser keeps the
+ * vertical pan, so a drag up or down still scrolls the results sheet, and
+ * hands the horizontal one to the chart, which reads the hour under the
+ * finger as a mouse's hover does. Without it a sideways drag was the
+ * browser's too, and the chart never heard the finger move.
+ */
+export const CHART_PLOT_TOUCH = 'touch-pan-y'
 
 /**
  * The width of the map's left column, which EVERYTHING in it wears: the search
@@ -1597,8 +1606,13 @@ export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
  * it is the mark that says the chip opens the panel.
  */
 export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
-/** The summary's words: one line, cut at its end, in the slate-400 the mockup reads them in (5.71:1 on the chip). */
-export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400'
+/**
+ * The summary's words: one line, cut at its end, in the slate-400 the mockup
+ * reads them in (5.71:1 on the chip). White while the chip is lit, since the
+ * Controls sheet it raises is up (record 0141): slate-400 on the accent fill
+ * fails AA, where white is the 4.57:1 every label on that fill reads at.
+ */
+export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400 in-aria-expanded:text-white'
 
 /**
  * The phone's Analyze (#696; record 0135): an extended floating action
@@ -1631,16 +1645,23 @@ export const MAP_FAB_WORDS = {
 } as const
 
 /**
- * Where the panel's notice block stands on a phone while the drawer is shut
- * (#696; record 0140): a band across the map, one inset off each side, its
- * bottom above whatever stands on the map's foot (`noticeBottomPx`). The
- * block's own boxes are the panel's `NOTICE` tints, which are translucent and
- * were measured over the drawer's slate-800, so the band lays that same
- * slate-800 under them while it holds one; empty, it is a box of no height
- * that draws nothing. Every press outside a box is the map's (`YIELD_EMPTY`).
+ * Where a phone's notices that ask for an action stand (#696; record 0140): a
+ * band across the map, one inset off each side, on the sheet's edge, or the
+ * map's foot before there is one, the library's 10px above it
+ * (`noticeBottomPx`), with the Analyze button 16px over it. The block's own
+ * boxes are the panel's `NOTICE` tints, which are translucent and were
+ * measured over the drawer's slate-800, so the band lays that same slate-800
+ * under them while it holds one; empty, it is a box of no height that draws
+ * nothing. Every press outside a box is the map's (`YIELD_EMPTY`).
+ *
+ * At most three lines of a box (`NOTICE_BAND_MAX_PX` in `resultsSheet.ts`,
+ * 66px), and past that the band scrolls inside itself rather than climbing
+ * the map: a second box or a long run error is read by scrolling the band,
+ * which `overscroll-contain` keeps from handing the flick on to the map.
  */
 export const MAP_NOTICE_BAND =
   `absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ${LAYER.base} ${RADIUS.control} ` +
+  `max-h-[66px] overflow-y-auto overscroll-contain ` +
   `has-[>[role=status]>*]:bg-slate-800 ${YIELD_EMPTY}`
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
@@ -2180,12 +2201,35 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * word, the chip's or the button's that opened it. `body` scrolls, and every
  * row in it is at least a finger's 44px, one line, with a rule between rows.
  */
+/**
+ * The band a phone keeps for its own gestures at the screen's bottom edge,
+ * the home indicator on an iPhone (#336, #696; record 0145), which nothing a
+ * finger presses may stand in. `index.html` asks for the whole screen
+ * (`viewport-fit=cover`), so the browser draws the page under the band and
+ * reports its height as `env(safe-area-inset-bottom)`, 34px on a 390x844
+ * iPhone and 0 on a desk.
+ *
+ * `pad` is for a surface that reaches the screen's foot and keeps its own
+ * content above the band: the results sheet, whose grip and header then stand
+ * on the band's top edge when it is collapsed, the Controls sheet and every
+ * bottom sheet, whose surface still runs to the edge. `probe` is an invisible
+ * box as tall as the band, which `useSafeAreaBottom` reads, because the
+ * chrome placed in pixels over the map (the Analyze button, the notice band,
+ * the player, the scale and the credit) measures from the sheet's edge, and
+ * before there is a sheet that edge is the band's top rather than the
+ * screen's foot.
+ */
+export const SAFE_AREA = {
+  pad: 'pb-[env(safe-area-inset-bottom)]',
+  probe: 'pointer-events-none invisible fixed bottom-0 left-0 w-0 h-[env(safe-area-inset-bottom)]',
+} as const
+
 export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
   dim: 'absolute inset-0 bg-black/40',
   card:
     `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
-    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} pb-[env(safe-area-inset-bottom)] focus:outline-none`,
+    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} ${SAFE_AREA.pad} focus:outline-none`,
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-slate-500',
   head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-1',
   title: TEXT.subheading,
@@ -2274,6 +2318,28 @@ export const MOTION = {
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
   progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
+} as const
+
+/**
+ * The Controls sheet (#696; record 0141): on a phone the panel is a sheet
+ * the summary chip raises from the map's foot, where a desk docks it beside
+ * the map. The bottom sheet's surface and top (`BOTTOM_SHEET`), with three
+ * differences that come from what it holds. It is not modal: there is no dim,
+ * the map above it and the chips stay live, and the Analyze button rides its
+ * edge, because a reader changing a control is about to press it. It never
+ * unmounts, so the panel's state and the notice block's portal outlive a
+ * close, and shut it slides below the map's foot (`shut`) and goes inert. And
+ * its height is set where it is placed (`controlsSheetPx`), a fixed share of
+ * the map, so a notice arriving while a finger is on a control moves the
+ * button rather than the sheet. `LAYER.drawer`, the panel's own layer.
+ */
+export const CONTROLS_SHEET = {
+  card:
+    `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
+    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} ${SAFE_AREA.pad} ${MOTION.slide}`,
+  shut: 'translate-y-full',
+  /** The panel under the sheet's top, which takes the rest and scrolls inside. */
+  panel: 'min-h-0 flex-1',
 } as const
 
 /**
@@ -2743,6 +2809,33 @@ export const TABLE = {
    * with a pointer.
    */
   row: 'group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors',
+  /**
+   * A ranked row a press opens the marker popup from (#696; record 0143):
+   * the pointer says the whole row answers, where it said so over the name
+   * alone. A pending row has no forecast card to open and does not wear it.
+   */
+  rowOpens: 'cursor-pointer',
+  /**
+   * The Name column stands still while the rest of the table scrolls
+   * sideways under it, at both widths (#696; record 0142): on a phone the
+   * table is three or four columns of a dozen wide, and a number read two
+   * swipes from its name was a number with no destination. Left 0, so the
+   * chart box and the rank scroll away under it like any other column
+   * rather than sticking at offsets the rank's digits would move.
+   *
+   * A sticky cell must be opaque or the columns under it show through, so
+   * the body cell lays the panel's slate-800 and the header cell the
+   * header's slate-700. The row's hover tint is a gradient laid over that
+   * fill on hover (`group-hover`, the row's group), since a translucent
+   * fill cannot tint an opaque one from underneath; one layer over the
+   * columns that scroll and under the header, which stands above every
+   * body cell as it does now.
+   */
+  stickyNameCell:
+    'sticky left-0 z-[1] bg-slate-800 bg-linear-to-r ' +
+    'group-hover:from-slate-700/30 group-hover:to-slate-700/30',
+  /** The same column's header cell, on the header's fill. */
+  stickyNameHead: 'sticky left-0 z-[1] bg-slate-700',
   /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover

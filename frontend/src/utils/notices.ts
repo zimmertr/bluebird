@@ -81,6 +81,20 @@ export const BLOCKER_SEVERITY: Record<AnalyzeBlocker, NoticeSeverity> = {
 
 
 /**
+ * Whether a message asks the reader to act, which on a phone is what earns it
+ * the band on the map (#696; record 0140): a commit cue, which says the report
+ * no longer answers the panel and a press on Analyze will fix it, and every
+ * error, a failed run among them, which says something did not happen. The
+ * rest only inform (the arrival line, the archive and horizon lines, a
+ * model's clamp, a settings contradiction) and stay beside the controls they
+ * are about, at the foot of the Controls sheet, where a reader changing those
+ * controls reads them.
+ */
+export function ridesTheMap(message: FooterMessage): boolean {
+  return message.severity === 'error' || message.key.startsWith('cue:')
+}
+
+/**
  * Assemble the footer's boxes: at most three, always in error, warning, info
  * order — the fixed order is what keeps a late-arriving error from appearing
  * below the info line it outranks. Within a box, messages keep the caller's

@@ -1,4 +1,5 @@
-import { useRef, type RefObject } from 'react'
+import { useId, useRef, type RefObject } from 'react'
+import { SheetTop } from './BottomSheet'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
@@ -13,11 +14,15 @@ import type { AnalyzeResponse, DestinationResult } from '../types'
 import { type FireProximityStatus, checkNoticeDue } from '../utils/fireProximity'
 import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { CommitReason } from '../utils/present'
-import { LAYER, MOTION, PANEL_EDGE, RADIUS, TAP, TEXT } from '../styles'
+import { CONTROLS_SHEET, LAYER, MOTION, PANEL_EDGE, RADIUS, TAP, TEXT } from '../styles'
 
 interface AppDrawerProps {
-  /** Whether the panel is open: docked on a desktop, over the map on a phone. */
+  /** Whether the panel is open: docked on a desktop, the Controls sheet on a phone. */
   open: boolean
+  /** A desk, where the panel docks beside the map; a phone raises it as a sheet. */
+  isDesktop: boolean
+  /** The Controls sheet's height on a phone (`controlsSheetPx`). */
+  sheetPx: number
   /** Closes it, from its own button or from the backdrop behind it. */
   onClose: () => void
   /** Draw mode and its buttons (`useDrawMode`). */
@@ -99,18 +104,21 @@ interface AppDrawerProps {
   showAreaClosures: boolean
   // The basemap style is failing to load (#580).
   basemapFailed: boolean
-  /** Where the panel's notice block stands while a phone's drawer is shut (record 0140), or null. */
+  /** Where a phone's notices that ask for an action stand (record 0140), or null at a desk. */
   noticeHome?: HTMLElement | null
 }
 
 /**
- * The controls drawer and the backdrop behind it on a phone, around
- * `ControlPanel` (#409 cut it out of `App.tsx`). Closing on a committed report
- * is App's, because the report is App's: this only draws the drawer it is told
- * is open.
+ * The controls panel around `ControlPanel` (#409 cut it out of `App.tsx`):
+ * docked beside the map at a desk, and on a phone the Controls sheet (#696;
+ * record 0141), which the summary chip raises from the map's foot with the
+ * Analyze button riding its edge. Closing on a committed report is App's,
+ * because the report is App's: this only draws the panel it is told is open.
  */
 export default function AppDrawer({
   open,
+  isDesktop,
+  sheetPx,
   onClose,
   drawMode,
   destinationInputs,
@@ -175,19 +183,109 @@ export default function AppDrawer({
     clearFilters,
   } = rankingKnobs
   // Opened from the map's Controls button, which unmounts as the drawer opens,
-  // the keyboard lands on this drawer's own way back out (#576).
+  // the keyboard lands on this drawer's own way back out (#576). On a phone
+  // that is the sheet's Done.
   const closeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(closeRef, open)
+  const headingId = useId()
+  const panel = (
+    <ControlPanel
+      phone={!isDesktop}
+      drawing={drawing}
+      onStartDrawing={startDrawing}
+      onFinishDrawing={finishDrawing}
+      drawPointCount={drawPointCount}
+      polygonAreaKm2={polygonAreaKm2}
+      onCancelDrawing={handleCancelDrawing}
+      onClearDrawing={handleClearDrawing}
+      onPointAtSearch={onPointAtSearch}
+      wildfireCheckFailed={checkNoticeDue(fireStatus, showWildfires, results.length)}
+      closureCheckFailed={checkNoticeDue(closureStatus, showAreaClosures, results.length)}
+      basemapFailed={basemapFailed}
+      onPointAtMapPois={onPointAtMapPois}
+      destinationTypes={destinationTypes}
+      setDestinationTypes={setDestinationTypes}
+      selection={selection}
+      setSelection={changeSelection}
+      limit={limit}
+      setLimit={setLimit}
+      customCsv={customCsv}
+      setCustomCsv={setCustomCsv}
+      onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
+      commitReasons={commitReasons}
+      sortBy={sortBy}
+      setSortBy={setSortBy}
+      sortDesc={sortDesc}
+      setSortDesc={setSortDesc}
+      rowKeys={rowKeys}
+      pointSample={panelPointSample}
+      constraints={constraints}
+      setConstraints={setConstraints}
+      onClearFilters={clearFilters}
+      includeUnnamedPeaks={includeUnnamedPeaks}
+      setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
+      windowWarning={windowWarning}
+      hasPins={places.length > 0}
+      // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
+      // in the pin-refresh flag to disable the button (and show "Analyzing…")
+      // while it runs. Searches don't announce, so this stays false for them.
+      loading={loading}
+      error={error}
+      refusal={refusal}
+      forecastModel={forecastModel}
+      comparedModels={comparedModels}
+      setComparedModels={setComparedModels}
+      setForecastModel={changeForecastModel}
+      forecastModels={caps.forecastModels}
+      defaultForecastModel={caps.defaultForecastModel}
+      modelClamped={modelClamped}
+      maxLimit={caps.maxLimit}
+      maxAreaKm2={caps.maxPolygonAreaKm2}
+      archiveDays={caps.archiveDays}
+      aqiForecastDays={caps.aqiForecastDays}
+      windowLimits={caps.windowLimits}
+      aqiAllNull={
+        response !== null &&
+        results.length > 0 &&
+        results.every((r) => r.aqi_avg == null)
+      }
+      onAnalyze={onAnalyze}
+      autoAnalyze={autoAnalyze}
+      capabilitiesSettled={capabilitiesSettled}
+      onAutoAnalyze={onAutoAnalyze}
+      onRetry={onRetry}
+      onTutorial={onTutorial}
+      tutorialWaits={tutorialWaits}
+      noticeHome={noticeHome}
+      resultCount={response ? results.length : undefined}
+      // What the current bounds admit, not what the analysis fetched:
+      // a bound applies live, so it has to move the "of M" or the count
+      // describes a field the table no longer shows.
+    />
+  )
+
+  if (!isDesktop) {
+    return (
+      // Not a dialog: nothing outside it goes inert or dim, and the map's
+      // Analyze stands on its edge. A labelled region, so a screen reader
+      // can name what opened. Inert while shut for the reason the desk's
+      // panel is (#576), and Escape closes it as Done does.
+      <section
+        inert={!open}
+        aria-labelledby={headingId}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose()
+        }}
+        className={`${CONTROLS_SHEET.card} ${open ? '' : CONTROLS_SHEET.shut}`}
+        style={{ height: sheetPx }}
+      >
+        <SheetTop heading="Controls" headingId={headingId} onClose={onClose} doneRef={closeRef} />
+        <div className={CONTROLS_SHEET.panel}>{panel}</div>
+      </section>
+    )
+  }
   return (
     <>
-      {/* Mobile: dim backdrop behind the open drawer */}
-      {open && (
-        <div
-          onClick={onClose}
-          className={`lg:hidden absolute inset-0 ${LAYER.scrim} bg-black/50`}
-        />
-      )}
-
       {/* Controls panel — docked on desktop when open, off-canvas otherwise.
           When closed it stays absolute + translated off-screen so it leaves the
           layout and the map fills the full width on every breakpoint.
@@ -214,78 +312,7 @@ export default function AppDrawer({
         >
           <IconClose />
         </button>
-        <ControlPanel
-          drawing={drawing}
-          onStartDrawing={startDrawing}
-          onFinishDrawing={finishDrawing}
-          drawPointCount={drawPointCount}
-          polygonAreaKm2={polygonAreaKm2}
-          onCancelDrawing={handleCancelDrawing}
-          onClearDrawing={handleClearDrawing}
-          onPointAtSearch={onPointAtSearch}
-          wildfireCheckFailed={checkNoticeDue(fireStatus, showWildfires, results.length)}
-          closureCheckFailed={checkNoticeDue(closureStatus, showAreaClosures, results.length)}
-          basemapFailed={basemapFailed}
-          onPointAtMapPois={onPointAtMapPois}
-          destinationTypes={destinationTypes}
-          setDestinationTypes={setDestinationTypes}
-          selection={selection}
-          setSelection={changeSelection}
-          limit={limit}
-          setLimit={setLimit}
-          customCsv={customCsv}
-          setCustomCsv={setCustomCsv}
-          onCsvPasted={(points) => mapRef.current?.fitToPoints(points)}
-          commitReasons={commitReasons}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          sortDesc={sortDesc}
-          setSortDesc={setSortDesc}
-          rowKeys={rowKeys}
-          pointSample={panelPointSample}
-          constraints={constraints}
-          setConstraints={setConstraints}
-          onClearFilters={clearFilters}
-          includeUnnamedPeaks={includeUnnamedPeaks}
-          setIncludeUnnamedPeaks={setIncludeUnnamedPeaks}
-          windowWarning={windowWarning}
-          hasPins={places.length > 0}
-          // A pins-only Analyze refresh keeps useAnalyze.loading false, so fold
-          // in the pin-refresh flag to disable the button (and show "Analyzing…")
-          // while it runs. Searches don't announce, so this stays false for them.
-          loading={loading}
-          error={error}
-          refusal={refusal}
-          forecastModel={forecastModel}
-          comparedModels={comparedModels}
-          setComparedModels={setComparedModels}
-          setForecastModel={changeForecastModel}
-          forecastModels={caps.forecastModels}
-          defaultForecastModel={caps.defaultForecastModel}
-          modelClamped={modelClamped}
-          maxLimit={caps.maxLimit}
-          maxAreaKm2={caps.maxPolygonAreaKm2}
-          archiveDays={caps.archiveDays}
-          aqiForecastDays={caps.aqiForecastDays}
-          windowLimits={caps.windowLimits}
-          aqiAllNull={
-            response !== null &&
-            results.length > 0 &&
-            results.every((r) => r.aqi_avg == null)
-          }
-          onAnalyze={onAnalyze}
-          autoAnalyze={autoAnalyze}
-          capabilitiesSettled={capabilitiesSettled}
-          onAutoAnalyze={onAutoAnalyze}
-          onRetry={onRetry}
-          onTutorial={onTutorial}
-          tutorialWaits={tutorialWaits}
-          noticeHome={noticeHome}
-          resultCount={response ? results.length : undefined}
-          // What the current bounds admit, not what the analysis fetched:
-          // a bound applies live, so it has to move the "of M" or the count
-          // describes a field the table no longer shows.
-        />
+        {panel}
       </aside>
     </>
   )

@@ -64,7 +64,7 @@ export const FAB_PX = 56
 export const FAB_INSET_PX = 16
 export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + FAB_INSET_PX
 
-/** The gap the button keeps above the notice band, and the player above the button. */
+/** The gap the player keeps above the button. */
 export const FAB_GAP_PX = 8
 
 /**
@@ -295,12 +295,19 @@ export function resolveSheetLift({
   docked,
   measuredPx,
   estimatePx,
+  footPx = 0,
 }: {
   docked: boolean
   measuredPx: number | null
   estimatePx: number
+  /**
+   * A phone's home indicator band (record 0145), which is the datum on a
+   * phone with no sheet: the chrome on the map's foot stands above it. 0 on
+   * a desk, where the docked lift stays 0.
+   */
+  footPx?: number
 }): number {
-  if (docked) return 0
+  if (docked) return footPx
   return measuredPx ?? estimatePx
 }
 
@@ -353,29 +360,74 @@ export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
 }
 
 /**
- * Where the panel's notice block stands on a phone while the drawer is shut
- * (#696; record 0140): just above the band the scale and the attribution
- * stand in, so a notice covers neither, with the results' top edge, or the
- * map's foot, as the datum. The map's credit line is a licence term, which is
- * why the band does not sit on the edge itself.
+ * The most the notice band on a phone's map shows before it scrolls inside
+ * itself (#696; record 0140): three lines of a notice box, which is
+ * `NOTICE`'s 12px type on its 16px line, its 8px of padding top and bottom
+ * and its 1px border, so a box of one or two lines stands whole and a third
+ * line is the last one the band grows for. `MAP_NOTICE_BAND` spells it as a
+ * class and `styles.test.ts` holds the two to each other.
+ */
+export const NOTICE_LINE_PX = 16
+export const NOTICE_BAND_MAX_PX = 3 * NOTICE_LINE_PX + 2 * 8 + 2 * 1
+
+/**
+ * Where the notice band stands on a phone (#696; record 0140): on the
+ * results sheet's edge, or on the map's foot before there is one, the
+ * library's own 10px off it (`CORNER_MARGIN_PX`), which is the gap the scale
+ * and the (i) kept above the sheet before they moved up to the button's row.
  */
 export function noticeBottomPx(liftPx: number): number {
-  return liftPx + TRANSPORT_GAP_PX
+  return liftPx + CORNER_MARGIN_PX
 }
 
 /**
  * Where the phone's Analyze button stands (#696; record 0135). Two things move
- * it and nothing else, Material's rule for a floating button: the results
- * sheet, whose top edge it rides 16px above at every height, and the notice
- * band, above which it rises while the band holds a notice (`bandPx`, the
- * band's measured height, 0 while empty). Never higher than one inset under
- * the chip row (`mapPx`, the map's whole height): a notice over a sheet
- * dragged high goes under the button rather than the button over the chips.
+ * it and nothing else, Material's rule for a floating button: the sheet,
+ * whose top edge it rides 16px above at every height, and the notice band,
+ * which stands on that edge and which the button rises 16px above while it
+ * holds a notice (`bandPx`, the band's measured height, 0 while empty). Never
+ * higher than one inset under the chip row (`mapPx`, the map's whole height):
+ * a notice over a sheet dragged high goes under the button rather than the
+ * button over the chips.
  */
 export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
-  const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_GAP_PX : liftPx + FAB_INSET_PX
+  const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_INSET_PX : liftPx + FAB_INSET_PX
   const highest = mapPx - PHONE_ROWS_PX - FAB_INSET_PX - FAB_PX
   return Math.max(liftPx + FAB_INSET_PX, Math.min(wanted, highest))
+}
+
+/**
+ * Where a phone's scale and (i) stand: on the Analyze button's row, at its
+ * left, each centred on the button's middle (record 0140). The corner is the
+ * band `--map-corner-band` names, `TRANSPORT_GAP_PX` tall, so it starts half
+ * the difference between that and the button's height above the button's
+ * bottom edge; `map.css` stands each control on the library's 10px margin
+ * inside it, which in that band is its centre.
+ */
+export function phoneCornerLiftPx(fabBottom: number): number {
+  return fabBottom + (FAB_PX - TRANSPORT_GAP_PX) / 2
+}
+
+/**
+ * The map the Controls sheet leaves on a phone (#696; record 0141): the two
+ * rows, the button's strip and room under the button for a notice band at its
+ * fullest, so a cue that arrives while the reader changes a control raises
+ * the button rather than resizing the sheet under their finger.
+ */
+export const CONTROLS_MAP_PX = DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX
+
+/** The Controls sheet's height on a phone whose map is `mapPx` tall. */
+export function controlsSheetPx(mapPx: number): number {
+  return Math.max(0, mapPx - CONTROLS_MAP_PX)
+}
+
+/**
+ * The edge a phone's foot stands on: the results sheet's, or the Controls
+ * sheet's while it is up and stands higher, so the button, the band and the
+ * player ride whichever sheet is in view (record 0141).
+ */
+export function phoneFootLiftPx(sheetLiftPx: number, controlsOpen: boolean, mapPx: number): number {
+  return controlsOpen ? Math.max(sheetLiftPx, controlsSheetPx(mapPx)) : sheetLiftPx
 }
 
 /**

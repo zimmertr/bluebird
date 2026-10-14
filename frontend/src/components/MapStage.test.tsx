@@ -7,7 +7,14 @@ import { render } from '../testSupport/render'
 import { place, resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
 import { MAX_POLYGON_POINTS } from '../utils/drawGeometry'
-import { DRAGGED_MAP_PX, FAB_INSET_PX, fabBottomPx, transportStandPx } from '../utils/resultsSheet'
+import {
+  DRAGGED_MAP_PX,
+  FAB_INSET_PX,
+  controlsSheetPx,
+  fabBottomPx,
+  phoneCornerLiftPx,
+  transportStandPx,
+} from '../utils/resultsSheet'
 import { MAP_EDGE } from '../styles'
 import type { Place } from '../utils/geocode'
 
@@ -153,6 +160,7 @@ const ON_BASEMAP_FAILED = (_failed: boolean) => {}
 function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
     layersForcedOpen: false,
+    onCloseControls: NOOP,
     mapRef: MAP_REF,
     coverage: {},
     drawMode: DRAW,
@@ -251,7 +259,7 @@ describe('MapStage', () => {
     const handleCancelDrawing = vi.fn()
     const drawing = { ...DRAW, drawing: true, drawPointCount: 2, finishDrawing, handleCancelDrawing }
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
-    const { user, rerender } = render(<MapStage {...props({ drawMode: drawing, isDesktop: false, timeline })} />)
+    const { user, rerender } = render(<MapStage {...props({ drawMode: drawing, isDesktop: false, sidebarOpen: false, timeline })} />)
     expect(screen.queryByTestId('transport')).toBeNull()
     expect(screen.getByText('2 points placed, 1 more needed.')).toBeTruthy()
     const done = screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement
@@ -259,7 +267,7 @@ describe('MapStage', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(handleCancelDrawing).toHaveBeenCalledOnce()
 
-    rerender(<MapStage {...props({ drawMode: { ...drawing, drawPointCount: 3 }, isDesktop: false, timeline })} />)
+    rerender(<MapStage {...props({ drawMode: { ...drawing, drawPointCount: 3 }, isDesktop: false, sidebarOpen: false, timeline })} />)
     // Free to wrap in the bar, where Done and Cancel share the line; the
     // panel keeps it whole beside the area.
     expect(screen.getByText('3 points placed. Press Done when ready.').className).not.toContain('whitespace-nowrap')
@@ -267,7 +275,7 @@ describe('MapStage', () => {
     expect(finishDrawing).toHaveBeenCalledOnce()
 
     // Out of the mode the player comes back and the bar goes.
-    rerender(<MapStage {...props({ isDesktop: false, timeline })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, timeline })} />)
     expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
@@ -310,7 +318,7 @@ describe('MapStage', () => {
   // sheet, and the legend's sections for its Legend sheet. A desk keeps its
   // column and its legend box.
   it('hands the phone rows the summary, and Layers as a sheet', () => {
-    const { rerender } = render(<MapStage {...props({ isDesktop: false })} />)
+    const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(screen.queryByTestId('buttons')).toBeNull()
     const rows = screen.getByTestId('rows')
     expect(rows.dataset.summary).toBe('Current · NOAA GFS')
@@ -326,7 +334,7 @@ describe('MapStage', () => {
     const { rerender } = render(<MapStage {...props()} />)
     // The metric key over coloured markers, and the three layers that are on.
     expect(screen.getByTestId('legend').dataset.sections).toBe('4')
-    rerender(<MapStage {...props({ isDesktop: false })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(screen.getByTestId('legend').dataset.sections).toBe('0')
     expect(screen.getByTestId('rows').dataset.legend).toBe('4')
   })
@@ -335,7 +343,7 @@ describe('MapStage', () => {
   // it, and goes when the rows do.
   it('hands the map the locate slot on a phone', () => {
     seen.mapView.length = 0
-    const { rerender } = render(<MapStage {...props({ isDesktop: false })} />)
+    const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBe(screen.getByTestId('locate'))
     rerender(<MapStage {...props()} />)
     expect(seen.mapView[seen.mapView.length - 1].locateSlot).toBeNull()
@@ -347,9 +355,9 @@ describe('MapStage', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const stage = () => container.firstElementChild as HTMLElement
     expect(stage().className).not.toContain('--map-vendor-top')
-    rerender(<MapStage {...props({ isDesktop: false })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(stage().className).toContain(MAP_EDGE.belowRows)
-    rerender(<MapStage {...props({ isDesktop: false, drawMode: { ...DRAW, drawing: true } })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, drawMode: { ...DRAW, drawing: true } })} />)
     expect(stage().className).toContain(MAP_EDGE.belowDrawBar)
     expect(stage().className).not.toContain(MAP_EDGE.belowRows)
   })
@@ -360,12 +368,12 @@ describe('MapStage', () => {
     const onAnalyze = vi.fn()
     const { rerender } = render(<MapStage {...props({ onAnalyze })} />)
     expect(screen.queryByTestId('foot')).toBeNull()
-    rerender(<MapStage {...props({ isDesktop: false, onAnalyze, analyzeEnabled: false })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, onAnalyze, analyzeEnabled: false })} />)
     expect((screen.getByRole('button', { name: 'Analyze' }) as HTMLButtonElement).disabled).toBe(true)
-    rerender(<MapStage {...props({ isDesktop: false, onAnalyze })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, onAnalyze })} />)
     fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
     expect(onAnalyze).toHaveBeenCalledOnce()
-    rerender(<MapStage {...props({ isDesktop: false, analysis: { ...ANALYSIS, loading: true } })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, analysis: { ...ANALYSIS, loading: true } })} />)
     expect(screen.getByTestId('foot').dataset.analyzing).toBe('true')
   })
 
@@ -374,7 +382,7 @@ describe('MapStage', () => {
   it('rides the sheet, rises over the band, and carries the player', () => {
     const layout = { ...LAYOUT, sheetLiftPx: 104 }
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
-    render(<MapStage {...props({ isDesktop: false, layout, timeline })} />)
+    render(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout, timeline })} />)
     const foot = () => screen.getByTestId('foot').dataset
     expect(foot().lift).toBe('104')
     expect(foot().fab).toBe(String(104 + FAB_INSET_PX))
@@ -391,7 +399,7 @@ describe('MapStage', () => {
     const { container, rerender } = render(<MapStage {...props()} />)
     const stage = () => container.firstElementChild as HTMLElement
     expect(stage().style.getPropertyValue('--map-fab-w')).toBe('')
-    rerender(<MapStage {...props({ isDesktop: false })} />)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false })} />)
     expect(stage().style.getPropertyValue('--map-fab-w')).toBe('0px')
     fireEvent.click(screen.getByRole('button', { name: 'Fab' }))
     expect(stage().style.getPropertyValue('--map-fab-w')).toBe('120px')
@@ -402,8 +410,29 @@ describe('MapStage', () => {
   it('takes the player off a phone\'s map while a sheet leaves it no room', () => {
     const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
     const layout = { ...LAYOUT, sheetLiftPx: 800 - DRAGGED_MAP_PX }
-    render(<MapStage {...props({ isDesktop: false, layout, timeline })} />)
+    render(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout, timeline })} />)
     expect(screen.queryByTestId('transport')).toBeNull()
     expect(screen.getByTestId('foot').dataset.fab).toBe(String(800 - DRAGGED_MAP_PX + FAB_INSET_PX))
+  })
+
+  // The Controls sheet (record 0141) is a sheet the foot rides like the
+  // results: the button stands on whichever edge is higher while it is up.
+  it('rides the Controls sheet while it is up', () => {
+    const layout = { ...LAYOUT, sheetLiftPx: 104 }
+    const { rerender } = render(<MapStage {...props({ isDesktop: false, sidebarOpen: true, layout })} />)
+    expect(screen.getByTestId('foot').dataset.lift).toBe(String(controlsSheetPx(800)))
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout })} />)
+    expect(screen.getByTestId('foot').dataset.lift).toBe('104')
+  })
+
+  // A phone's scale and (i) stand on the button's row (record 0140); a desk's
+  // on the results' edge, as before.
+  it("stands a phone's map corners on the button's row", () => {
+    const layout = { ...LAYOUT, sheetLiftPx: 104 }
+    const { container, rerender } = render(<MapStage {...props({ layout })} />)
+    const stage = () => container.firstElementChild as HTMLElement
+    expect(stage().style.getPropertyValue('--map-corner-lift')).toBe(`${LAYOUT.mapCornerLift}px`)
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, layout })} />)
+    expect(stage().style.getPropertyValue('--map-corner-lift')).toBe(`${phoneCornerLiftPx(104 + FAB_INSET_PX)}px`)
   })
 })

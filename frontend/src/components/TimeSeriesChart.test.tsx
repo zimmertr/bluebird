@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactNode } from 'react'
-import { act, screen } from '@testing-library/react'
+import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { extremeValue } from '../utils/chartData'
@@ -60,7 +60,9 @@ vi.mock('recharts', () => {
       chart.lines.push(p)
       return <i data-testid={p.y === undefined ? 'x-line' : 'extreme-line'} data-y={p.y} />
     },
-    Tooltip: Nothing,
+    Tooltip: (p: { defaultIndex?: number; active?: boolean }) => (
+      <i data-testid="tooltip" data-index={String(p.defaultIndex)} data-active={String(p.active)} />
+    ),
     XAxis: Nothing,
     YAxis: Nothing,
   }
@@ -153,6 +155,46 @@ describe('TimeSeriesChart click', () => {
   it('takes no click at all with no playhead to move', () => {
     render(<TimeSeriesChart {...props()} />)
     expect(chart.onClick).toBeUndefined()
+  })
+})
+
+// A finger reads the hour under it as a resting mouse does (#336; record
+// 0144): the tooltip shows that hour, a sideways drag keeps reading, and the
+// browser taking the pointer for a vertical scroll drops the reading.
+describe('TimeSeriesChart under a finger', () => {
+  const plotOf = (container: HTMLElement) => container.firstElementChild!.lastElementChild as HTMLElement
+  const tip = () => screen.getByTestId('tooltip').dataset
+
+  it('shows the hour under a touch, follows a drag, and lets go on a cancel', () => {
+    const { container } = render(<TimeSeriesChart {...props()} />)
+    placePlot(container, 360)
+    expect(tip().active).toBe('undefined')
+    // 252 px is hour 32, as the click's own test works out.
+    fireEvent.pointerDown(plotOf(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
+    expect(tip()).toMatchObject({ index: '32', active: 'true' })
+    fireEvent.pointerMove(plotOf(container), { pointerType: 'touch', clientX: 52, clientY: 560 })
+    expect(tip().index).toBe('0')
+    fireEvent.pointerCancel(plotOf(container), { pointerType: 'touch' })
+    expect(tip().active).toBe('undefined')
+  })
+
+  it('leaves a mouse to Recharts', () => {
+    const { container } = render(<TimeSeriesChart {...props()} />)
+    placePlot(container, 360)
+    fireEvent.pointerMove(plotOf(container), { pointerType: 'mouse', clientX: 252, clientY: 560 })
+    expect(tip().active).toBe('undefined')
+  })
+
+  it('gives the tutorial\'s hour the floor over a finger\'s', () => {
+    const { container } = render(<TimeSeriesChart {...props({ tooltipIndex: 5 })} />)
+    placePlot(container, 360)
+    fireEvent.pointerDown(plotOf(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
+    expect(tip().index).toBe('5')
+  })
+
+  it('hands the vertical pan to the browser', () => {
+    const { container } = render(<TimeSeriesChart {...props()} />)
+    expect(plotOf(container).className).toContain('touch-pan-y')
   })
 })
 

@@ -25,7 +25,14 @@ import type { SortBy } from '../types'
 import { MAP_EDGE } from '../styles'
 import { NOUN, familyOf } from '../metrics'
 import { hourlyScale, rankedScale } from '../utils/colors'
-import { TRANSPORT_GAP_PX, fabBottomPx, transportFits, transportStandPx } from '../utils/resultsSheet'
+import {
+  TRANSPORT_GAP_PX,
+  fabBottomPx,
+  phoneCornerLiftPx,
+  phoneFootLiftPx,
+  transportFits,
+  transportStandPx,
+} from '../utils/resultsSheet'
 import type { Place } from '../utils/geocode'
 import { fieldHasValue } from '../utils/present'
 import type { CameraView } from '../utils/mapView'
@@ -104,6 +111,8 @@ export interface MapStageProps {
   sidebarOpen: boolean
   /** Reopens the controls panel. */
   onOpenControls: () => void
+  /** Lowers a phone's Controls sheet from the chip that raised it. */
+  onCloseControls: () => void
   /** The phone's summary chip: the When arm and the model (`controlsSummary`). */
   controlsSummary: string
   /**
@@ -159,6 +168,7 @@ export default function MapStage({
   showResults,
   sidebarOpen,
   onOpenControls,
+  onCloseControls,
   controlsSummary,
   onNoticeBand,
   analyzeEnabled,
@@ -240,8 +250,11 @@ export default function MapStage({
   const drawBarShown = drawMode.drawing && !isDesktop
   // A phone's Analyze button rides the sheet and rises over the notice band
   // (record 0135), and the player stands on the button rather than on the
-  // sheet, stepping off while a sheet dragged high leaves it no room.
-  const fabBottom = fabBottomPx(layout.sheetLiftPx, bandPx, layout.mapPx)
+  // sheet, stepping off while a sheet dragged high leaves it no room. The
+  // sheet is whichever stands higher, the results or the Controls sheet
+  // (record 0141), so the one Analyze is on the edge of the sheet in view.
+  const footLift = isDesktop ? layout.sheetLiftPx : phoneFootLiftPx(layout.sheetLiftPx, sidebarOpen, layout.mapPx)
+  const fabBottom = fabBottomPx(footLift, bandPx, layout.mapPx)
   const timelineShown = timelineAxis !== null && !drawBarShown && (isDesktop || transportFits(fabBottom, layout.mapPx))
 
   // Layers is one component at both widths: a button in the desk's column
@@ -278,7 +291,9 @@ export default function MapStage({
       }`}
       style={
         {
-          '--map-corner-lift': `${layout.mapCornerLift}px`,
+          // A phone's scale and (i) stand on the Analyze button's row
+          // (record 0140), a desk's on the results' edge.
+          '--map-corner-lift': `${isDesktop ? layout.mapCornerLift : phoneCornerLiftPx(fabBottom)}px`,
           '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
           ...(isDesktop ? {} : { '--map-fab-w': `${fabPx}px` }),
         } as React.CSSProperties
@@ -361,6 +376,7 @@ export default function MapStage({
           onLocateSlot={setLocateSlot}
           sidebarOpen={sidebarOpen}
           onOpenControls={onOpenControls}
+          onCloseControls={onCloseControls}
           controlsSummary={controlsSummary}
           layers={layers}
           legend={legend}
@@ -372,7 +388,7 @@ export default function MapStage({
           Analyze button (record 0135). */}
       {!isDesktop && (
         <PhoneFoot
-          liftPx={layout.sheetLiftPx}
+          liftPx={footLift}
           fabBottomPx={fabBottom}
           onNoticeBand={onNoticeBand}
           onBandPx={setBandPx}
