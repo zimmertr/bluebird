@@ -1,27 +1,28 @@
-import { BasemapPoi, LAKE_CLASS } from './basemapPoi'
+import { BasemapPoi } from './basemapPoi'
+import { caltopoUrl } from './caltopoUrl'
 import { destinationUrl } from './destinationUrl'
-import { isPeakKind } from './geocode'
-import { coordinateRow, escapeHtml, metaBand, popupButton, popupShell, row } from './popupChrome'
-import { ELEVATION_COL } from './tableColumns'
+import { placeType } from './geocode'
+import { escapeHtml, factsRow, metaBand, popupButton, popupShell } from './popupChrome'
+import { elevationFact } from './popupRows'
+import { TYPE_COL } from './tableColumns'
 
 // The popup a clicked basemap peak or lake opens (#119).
 //
-// It wears the same chrome a ranked result does — title, link out, rule, rows —
-// because a destination you clicked and the same destination once analyzed are
-// one object at two stages, and they were reading as two kinds of card. What it
-// does not show is a forecast: nothing has been fetched for this point yet,
-// that is what adding it and running Analyze is for, and a result popup with
-// empty metrics would read as a failed lookup rather than an un-run one.
+// It wears the result card itself (#712, TJ 2026-10-14): the name and the
+// link out on the header band, the type, elevation and coordinates on the
+// facts line under them, and the body below the band's edge. A destination
+// you clicked and the same destination once analyzed are one object at two
+// stages, and before #712 they read as two kinds of card, this one with a rule
+// and an "Elevation (ft)" row where the other had a band and a facts line.
+// What it does not show is a forecast: nothing has been fetched for this point
+// yet, that is what adding it and running Analyze is for, and a result popup
+// with empty metrics would read as a failed lookup rather than an un-run one.
 
 // The attribute the map handler looks for to wire the button back to React.
 // One attribute for both states, with the action in its value, so the handler
 // reads the intent off the element instead of inferring it from which selector
 // matched.
 export const POI_ACTION_ATTR = 'data-poi-action'
-
-// The button sits under the elevation row, so it keeps a margin above it that
-// the ring's own remove-point button, alone in its popup, does not.
-const BUTTON_GAP = 'margin-top:6px'
 
 /**
  * Where a clicked feature links out to.
@@ -33,44 +34,51 @@ const BUTTON_GAP = 'margin-top:6px'
  * the same reason.
  */
 function poiUrl(poi: BasemapPoi): string {
-  return destinationUrl({
-    type: isPeakKind(poi.kind) ? 'peak' : poi.kind === LAKE_CLASS ? 'lake' : 'custom',
-    latitude: poi.lat,
-    longitude: poi.lon,
-    osm_id: null,
-  })
+  return destinationUrl({ type: placeType(poi.kind), latitude: poi.lat, longitude: poi.lon, osm_id: null })
+}
+
+/**
+ * The kind on the facts line, the word the table's Type column will use for
+ * the same place once it is analyzed, through that column's own format. A
+ * place with no kind says nothing rather than "Custom", which is a statement
+ * about how a row got here and not about what the feature is.
+ */
+function poiTypeFact(poi: BasemapPoi): string | null {
+  const type = placeType(poi.kind)
+  return type === 'custom' ? null : String(TYPE_COL.format!(type))
 }
 
 /**
  * @param added Whether this POI is already a destination, which flips the
  * button from adding to removing. Clicking a peak you have already added is a
  * question about that peak, and the honest answer to it is the way back out.
+ * @param mapZoom The map's zoom when the card is drawn, which the coordinates'
+ * CalTopo link carries (#712); a card built with no map links without one.
  */
-export function poiPopupHtml(poi: BasemapPoi, added: boolean): string {
-  const action = added
-    ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis', BUTTON_GAP)
-    : popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis', BUTTON_GAP)
+export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number): string {
+  // The button stands alone in the body, under the band's edge, with the
+  // body's own padding around it; it needs no gap of its own. It is centred
+  // (TJ, 2026-10-14): a lone action left against the edge of a card the facts
+  // line made wider than it read as a row that lost its label.
+  const button = added
+    ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis')
+    : popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis')
+  const action = `<div style="text-align:center">${button}</div>`
 
-  // The kind used to have a line of its own under the title. It said "Peak"
-  // beneath the name of a peak, which the icon on the map had already said and
-  // the name usually says again. The coordinates are NOT that: they identify
-  // the point rather than describe it, which is why they sit in the band above
-  // the rule here exactly as they do on a ranked result (TJ, 2026-09-14).
-  const meta = metaBand([coordinateRow(poi.lat, poi.lon)])
-
-  // The elevation reads off the results table's own column rather than being
-  // spelled here — same label, same thousands separator, unit in the label and
-  // not in the value. This card used to say "Elevation: 8,885 ft" beside a
-  // result card saying "Elevation (ft): 8,885" for the same mountain.
-  const body = [
-    poi.elevationFt !== undefined
-      ? row(ELEVATION_COL.label, ELEVATION_COL.format!(poi.elevationFt))
-      : '',
-    action,
-  ]
-    .filter(Boolean)
-    .join('\n    ')
+  // The facts line a ranked result wears, from what the tile knows: the kind,
+  // the elevation where there is one, and the coordinates. The elevation used
+  // to be a row under the rule, "Elevation (ft): 8,885", while a result card
+  // said "8,885 ft" on the band for the same mountain (#712).
+  const meta = metaBand([
+    factsRow(
+      poiTypeFact(poi),
+      poi.elevationFt !== undefined ? elevationFact(poi.elevationFt) : null,
+      poi.lat,
+      poi.lon,
+      caltopoUrl(poi.lat, poi.lon, mapZoom),
+    ),
+  ])
 
   // The name is OSM's, so it is third-party text on its way to setHTML.
-  return popupShell(escapeHtml(poi.name), poiUrl(poi), body, meta)
+  return popupShell(escapeHtml(poi.name), poiUrl(poi), action, meta, { resultCard: true })
 }

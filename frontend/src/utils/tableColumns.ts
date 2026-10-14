@@ -225,20 +225,24 @@ const cloudDeckCell = (v: unknown): string =>
   v == null ? '—' : (cloudDeckMark(v) ?? Number(v).toLocaleString())
 const cloudDeckCsv = (v: unknown): string => cloudDeckMark(v, false) ?? String(v)
 
+// What a row *is*, which stopped being obvious the moment one polygon
+// could return peaks and lakes together. It leads with the identity
+// columns rather than sitting among the metrics, because it describes the
+// destination rather than its weather, and it is the same word the popups
+// and the OSM query use. Title-cased for display; the CSV keeps the raw
+// value, which is what an API caller and a re-import both expect. Named,
+// like `ELEVATION_COL`, because the clicked feature's popup spells its kind
+// through this format too (#712).
+export const TYPE_COL: ColDef = {
+  key: 'type',
+  label: 'Type',
+  format: (v) => (typeof v === 'string' && v ? v[0].toUpperCase() + v.slice(1) : '—'),
+  csv: (v) => (typeof v === 'string' ? v : ''),
+}
+
 export const COLUMNS: ColDef[] = [
   { key: 'name', label: 'Name' },
-  // What a row *is*, which stopped being obvious the moment one polygon
-  // could return peaks and lakes together. It leads with the identity
-  // columns rather than sitting among the metrics, because it describes the
-  // destination rather than its weather, and it is the same word the popups
-  // and the OSM query use. Title-cased for display; the CSV keeps the raw
-  // value, which is what an API caller and a re-import both expect.
-  {
-    key: 'type',
-    label: 'Type',
-    format: (v) => (typeof v === 'string' && v ? v[0].toUpperCase() + v.slice(1) : '—'),
-    csv: (v) => (typeof v === 'string' ? v : ''),
-  },
+  TYPE_COL,
   ELEVATION_COL,
   { key: 'precip_total_in', unit: UNIT.precip, label: metricLabel('precip', AGGREGATE.total, UNIT.precip), format: formatPrecipTotal, windyLayer: 'rain' },
   { key: 'precip_avg_in_hr', unit: PRECIP_RATE, label: metricLabel('precip', AGGREGATE.average, PRECIP_RATE), format: formatPrecipRate, windyLayer: 'rain' },

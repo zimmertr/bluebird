@@ -1140,7 +1140,7 @@ service on your own quota rather than a pre-rendered tile.
 
 ## Where the links go
 
-Two sites the app links out to are not data sources, since nothing is fetched
+Three sites the app links out to are not data sources, since nothing is fetched
 from them, but a reader lands on them often enough to say what to expect.
 
 **Windy.** Every metric cell in the results table and every row of a map popup
@@ -1152,6 +1152,14 @@ model's own step, clamps an hour past that model's reach, ignores a time in the
 past, and where it carries no regional model for a destination it falls back to
 its own default. A Windy page is Windy's forecast, from its copy of the model,
 so its numbers can differ from the cell that linked to it.
+
+**CalTopo.** The coordinates on a map popup, a ranked destination's and a
+clicked peak's or lake's alike, open CalTopo centred on the point, one zoom
+level above the map's own because CalTopo counts zoom on 256px tiles and
+MapLibre on 512px ones (measured 2026-10-14). The link names no base layer and
+no overlay, so what you land on is whatever your own CalTopo settings choose.
+CalTopo's URL grammar is undocumented, like Windy's, and the head comment of
+`frontend/src/utils/caltopoUrl.ts` is the record of the measurement.
 
 **Peakbagger and OpenStreetMap.** The arrow beside a peak's name opens
 Peakbagger's coordinate search centred on the summit, which lists the clicked
