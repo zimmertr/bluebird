@@ -80,7 +80,11 @@ describe('DestinationsSection', () => {
       const counter = screen.getByText('3 points placed. Press Done when ready.')
       const area = screen.getByText('~779 km²')
       expect(area.parentElement).toBe(counter.parentElement)
-      expect(area.className).toContain('ml-auto')
+      // Right-justified beside the counter by `justify-between`, which also
+      // puts it at the left when it has to take a line of its own.
+      expect(area.parentElement!.className).toContain('justify-between')
+      expect(area.parentElement!.className).toContain('flex-wrap')
+      expect(area.className).not.toContain('ml-auto')
       for (const el of [counter, area]) expect(el.className).toContain('whitespace-nowrap')
       expect(screen.getByRole('heading', { name: 'Polygon' }).nextElementSibling!.contains(counter)).toBe(true)
     })

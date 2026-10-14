@@ -206,7 +206,9 @@ export default function DestinationsSection({
             {/* The counter and the area share a line, the counter at the left
                 and the area right-justified on its baseline (#687). Each
                 stays whole: when the two do not fit side by side the area
-                moves to a line of its own, still at the right. At 360px the
+                moves to a line of its own, at the left under the counter,
+                because `justify-between` puts a line's only item at its start
+                (the maintainer, 2026-10-13). At 360px the
                 line is 295px and the pair needs the 8px gap between them, so
                 outside the mode every ring under the cap fits (`99 points
                 placed` and `~99,999 km²` are 175.7px), and while drawing a
@@ -232,7 +234,7 @@ export default function DestinationsSection({
                 </p>
               )}
               {polygonAreaKm2 !== null && (
-                <p className={`${areaTooLarge ? STATUS.error : TEXT.caption} ml-auto whitespace-nowrap`}>
+                <p className={`${areaTooLarge ? STATUS.error : TEXT.caption} whitespace-nowrap`}>
                   ~{Math.round(polygonAreaKm2).toLocaleString()} km²
                   {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
                 </p>
