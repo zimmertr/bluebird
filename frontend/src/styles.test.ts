@@ -1812,27 +1812,22 @@ describe('the phone row', () => {
     for (const part of [BUTTON_FLOATING, MAP_COL_W, MAP_ROW_H]) expect(MAP_BUTTON).toContain(part)
   })
 
-  // Folded, the legend card is the Layers button above it to the pixel: the
-  // same floating surface at the column's width, and a header row wearing the
-  // button's face. What the header drops is the button's hover and pressed
-  // colours, since the chevron alone says open or folded (TJ, 2026-10-13).
-  it('gives the Legends card the Layers button\'s face, with no hover colour', () => {
+  // Folded, the legend card is the Layers button above it to the pixel, and
+  // in every state: the same floating surface at the column's width, and a
+  // header row wearing the button's face and states. The one split is the
+  // edge, which is the card's, so the card lights it while the header is
+  // hovered (TJ, 2026-10-13).
+  it('gives the Legends card the Layers button\'s face and states', () => {
     const layersButton = layersPopoverSource.match(/className=\{inRow \? MAP_PILL : (\w+)\}/)?.[1]
     expect(layersButton).toBe('MAP_BUTTON')
-    for (const part of [SURFACE_FLOATING, MAP_COL_W]) expect(MAP_CARD).toContain(part)
     const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
-    const surfaceOrState = new Set([
-      ...tokens(SURFACE_FLOATING),
-      ...tokens(MAP_COL_W),
-      ...tokens(ACCENT.edgeHover),
-      ...tokens(ACCENT.hoverText),
-      'active:bg-slate-700',
-      'transition-colors',
-    ])
-    const face = tokens(MAP_BUTTON).filter((t) => !surfaceOrState.has(t))
-    expect(face).toContain(MAP_ROW_H.split(' ')[0])
+    for (const part of [SURFACE_FLOATING, MAP_COL_W]) expect(MAP_CARD).toContain(part)
+    const onCard = new Set([...tokens(SURFACE_FLOATING), ...tokens(MAP_COL_W), ...tokens(ACCENT.edgeHover)])
+    const face = tokens(MAP_BUTTON).filter((t) => !onCard.has(t))
+    for (const t of [ACCENT.hoverText, 'active:bg-slate-700', MAP_ROW_H.split(' ')[0]]) expect(face).toContain(t)
     for (const t of face) expect(tokens(MAP_CARD_HEADER)).toContain(t)
-    expect(MAP_CARD_HEADER).not.toMatch(/(^|\s)(hover|active|group-hover):/)
+    // The button's hover edge, on the card while its header is hovered.
+    expect(tokens(MAP_CARD)).toContain(ACCENT.edgeHover.replace(/^hover:/, 'has-[>button:hover]:'))
     // Spanning the card's border, so a folded card is the button's height.
     expect(MAP_CARD_HEADER).toContain('-my-px')
     expect(MAP_CARD).not.toContain('overflow-hidden')

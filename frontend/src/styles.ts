@@ -1209,19 +1209,22 @@ export const MAP_BUTTON = `${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex ite
  * `MAP_ROW_H` tall overall, as the button is, and its label centres where the
  * button's does.
  *
- * The header has no hover or pressed colour: the chevron is the one thing
- * that says open or folded, and the focus ring the one state it shows
- * (the maintainer, 2026-10-13). No `overflow-hidden` on the card, which would
- * clip that ring. `styles.test.ts` holds the face to `MAP_BUTTON`'s.
+ * The header wears the Layers button's states too: the accent label and edge
+ * on hover, the pressed fill and the focus ring (the maintainer, 2026-10-13),
+ * and the chevron is what says open or folded. The edge is the card's, so the
+ * card lights it while its header is hovered (`has-[>button:hover]`), the
+ * same colour as `ACCENT.edgeHover`, spelled here because Tailwind compiles
+ * only a class it finds whole in the source. No `overflow-hidden` on the
+ * card, which would clip the focus ring. `styles.test.ts` holds the face and
+ * the states to `MAP_BUTTON`'s.
  */
-export const MAP_CARD = `${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col`
+export const MAP_CARD = `${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col transition-colors has-[>button:hover]:border-sky-400`
 
 /** The card's header row, the press that folds and opens it. */
 export const MAP_CARD_HEADER =
-  `${CONTROL_SIZE} font-semibold text-white ${MAP_ROW_H} -my-px flex w-full items-center gap-2 px-2.5 ` +
-  `${RADIUS.surface} ${FOCUS_RING}`
+  `${CONTROL_SIZE} font-semibold text-white transition-colors ${ACCENT.hoverText} active:bg-slate-700 ` +
+  `${MAP_ROW_H} -my-px flex w-full items-center gap-2 px-2.5 ${RADIUS.surface} ${FOCUS_RING}`
 
-/** The sections under the header, at the box's old spacing less the top the header row holds. */
 export const MAP_CARD_BODY = 'flex flex-col gap-1 px-2.5 pb-2'
 
 /**
