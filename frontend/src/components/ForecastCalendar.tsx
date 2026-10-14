@@ -34,6 +34,7 @@ import {
 import {
   ACCENT,
   BUTTON_SECONDARY,
+  CALENDAR_FIELD,
   CALENDAR_GROUND,
   CONTROL_W,
   DAY,
@@ -44,7 +45,6 @@ import {
   SEGMENT_DIVIDER,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
-  SELECT,
   SR_ONLY,
   SURFACE_DIVIDER,
   TEXT,
@@ -371,7 +371,8 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           two-day range is 26 characters) and record 0040 keeps the calendar
           as the one control with its own block. It is a SELECT for the same
           reason the model picker is: a recessed box with an arrow is what
-          opens a choice in this panel. Named by the When label and its own
+          opens a choice in this panel, and the one control here that may
+          stand two lines tall (CALENDAR_FIELD). Named by the When label and its own
           words together, so it is announced as the window it holds. */}
       {revealsGrid && (
         <div className="relative mt-2">
@@ -381,13 +382,16 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
             aria-expanded={open}
             aria-labelledby={`${whenId} ${fieldTextId}`}
             onClick={() => (open ? setOpen(false) : openCalendar())}
-            className={`${SELECT} flex w-full items-center px-2 py-1.5 text-left`}
+            className={CALENDAR_FIELD.box}
           >
-            <span id={fieldTextId} className="min-w-0 truncate">
+            {/* Wraps rather than truncating: the longest window, hours and a
+                year, needs two lines at panel width, and the end of it is
+                what an ellipsis would hide. */}
+            <span id={fieldTextId} className="min-w-0">
               {fieldText}
             </span>
           </button>
-          <IconSelectArrow />
+          <IconSelectArrow placement={CALENDAR_FIELD.arrow} />
         </div>
       )}
 

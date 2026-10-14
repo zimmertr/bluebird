@@ -222,6 +222,25 @@ describe('the date field', () => {
     expect(field().textContent).toBe('Tue, Sep 15, 6:00 AM to 6:00 PM')
   })
 
+  // The longest window, hours across two days in another year, is shown
+  // whole on two lines rather than cut off with an ellipsis (#687).
+  it('shows the longest window whole, wrapping rather than truncating', () => {
+    render(
+      <Calendar
+        initial={{
+          kind: 'days',
+          startDate: '2025-10-14',
+          endDate: '2025-10-15',
+          hours: { start: '10:00', end: '23:59' },
+        }}
+      />,
+    )
+    const words = field().querySelector('span')!
+    expect(words.textContent).toBe('Tue, Oct 14 2025, 10:00 AM to Wed, Oct 15 2025, 11:59 PM')
+    expect(words.className).not.toMatch(/truncate/)
+    expect(field().className).not.toMatch(/truncate|whitespace-nowrap/)
+  })
+
   it('is not drawn under Current', () => {
     render(<Calendar initial={{ kind: 'now' }} />)
     expect(screen.queryByRole('button', { name: /^When\b/ })).toBeNull()

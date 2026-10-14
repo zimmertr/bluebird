@@ -59,6 +59,7 @@ import {
   LIFTED_EDGE,
   RECESSED_EDGE,
   RECESSED_FILL,
+  CALENDAR_FIELD,
   CALENDAR_GROUND,
   FIELD_TRIGGER,
   PLACEHOLDER,
@@ -2161,8 +2162,9 @@ describe('the calendar field', () => {
   // The field is a SELECT, so it is the same recessed box with an arrow that
   // opens every other choice in the panel, and the card is Popover.tsx's.
   it('draws the field as a select and the grid on the popover card', () => {
-    expect(forecastCalendarSource).toContain('${SELECT} flex w-full')
-    expect(forecastCalendarSource).toContain('<IconSelectArrow />')
+    expect(CALENDAR_FIELD.box).toContain(SELECT)
+    expect(forecastCalendarSource).toContain('CALENDAR_FIELD.box')
+    expect(forecastCalendarSource).toContain('<IconSelectArrow placement={CALENDAR_FIELD.arrow} />')
     expect(forecastCalendarSource).toContain('<Popover ')
     expect(forecastCalendarSource).toContain('CALENDAR_GROUND')
   })
@@ -2186,5 +2188,28 @@ describe('the field triggers', () => {
     expect(FIELD_TRIGGER).not.toContain(TEXT.control)
     expect(FIELD_TRIGGER).toContain(FOCUS_RING)
     expect(destinationsSource.match(/FIELD_TRIGGER/g)?.length).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('the calendar field wraps', () => {
+  // The one panel control that may stand two lines tall (#687, record 0129):
+  // it aligns to its top so a second line grows the box downward, and the
+  // first line and the arrow stand where a one-line field centres them. 7px
+  // is the 1px border plus py-1.5 (one line 30px); 14px is the border plus
+  // 13px under touch (one line 44px, TAP.height's floor).
+  it('keeps the first line and the arrow where a one-line field has them', () => {
+    const LINE_PX = 16 // text-xs line box
+    const BORDER_PX = 1
+    const fine = stepPx(CALENDAR_FIELD.box, 'py')
+    const touch = Number(CALENDAR_FIELD.box.match(/touch:py-\[(\d+)px\]/)![1])
+    expect(2 * BORDER_PX + 2 * fine + LINE_PX).toBe(30)
+    expect(2 * BORDER_PX + 2 * touch + LINE_PX).toBe(44)
+    expect(CALENDAR_FIELD.box).toContain('items-start')
+    expect(CALENDAR_FIELD.arrow).toContain(`top-[${BORDER_PX + fine}px]`)
+    expect(CALENDAR_FIELD.arrow).toContain(`touch:top-[${BORDER_PX + touch}px]`)
+    // The glyph is the line box's height, so its top is the line's top.
+    expect(stepPx(ICON.control, 'h')).toBe(LINE_PX)
+    expect(CALENDAR_FIELD.arrow).toContain('pointer-events-none')
+    expect(forecastCalendarSource).not.toMatch(/id=\{fieldTextId\} className="[^"]*truncate/)
   })
 })

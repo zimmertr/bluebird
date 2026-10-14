@@ -1,4 +1,4 @@
-# 0129. The calendar opens from a one-line field as a popover, with 28px day rows under a fine pointer
+# 0129. The calendar opens from a field as a popover, with 28px day rows under a fine pointer
 
 - Status: Accepted
 - Date: 2026-10-13
@@ -14,6 +14,7 @@ Choosing Dates grew the Forecast section from 111px to 424px at 1440x900 (the Ho
 ## Decision
 
 - Under Dates the panel shows one full-width field, `SELECT`-styled with `ICON_ADORNMENT`'s arrow, holding the selected window in the words the results bar prints for an analyzed one (`windowCaption`), so the field adds no string. It is named by the When label and those words. Empty until a day is picked.
+- The field is the one panel control that may stand two lines tall (`CALENDAR_FIELD`), because the longest window, an hourly one with a year (about 322px at 12px), cannot fit its 261 to 293px of text room and an ellipsis cut off the end time; it aligns to its top, so the first line and the arrow stand where a one-line field puts them and the box grows only when the words need it.
 - A press opens the Hours row, the month bar and the grid in a card on `Popover.tsx`'s surface, on `CALENDAR_GROUND`: the well's slate-900 fill without its border, because the card draws the edge. The keyboard lands on the selected day. Escape, a press outside and Tab past either edge close it; Escape also abandons a half-made range. Picking stays open, so a range takes two presses in one visit.
 - Choosing Dates with no range to bring back opens the card on its own; bringing a range back opens nothing; Current closes it. The page, the anchor and the remembered range stay the calendar's own state, so a close is not a reset.
 - Day rows are 28px on a fine pointer and 44 under touch (`DAY.cell`); the weekday initials keep the 36px the rows had (`DAY.head`).

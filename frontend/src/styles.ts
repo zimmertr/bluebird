@@ -2031,6 +2031,28 @@ export const FIELD_NUMERIC =
 export const SELECT = `${FIELD} appearance-none pr-6`
 
 /**
+ * The calendar's field under Dates (#687, record 0129): a `SELECT` holding the
+ * window in the results bar's words, which may wrap to two lines.
+ *
+ * It is the one panel control that may stand two lines tall, because its words
+ * are the window itself and the longest of them, an hourly window with a year
+ * (`Tue, Oct 14 2025, 10:00 AM to Wed, Oct 15 2025, 11:59 PM`, about 322px at
+ * 12px on a Mac), cannot fit the 261 to 293px the field has: an ellipsis there
+ * cut off the end time, the part a reader set by hand.
+ *
+ * So the box aligns to its top and grows downward only when the words need a
+ * second line: the first line and the arrow stand exactly where a one-line
+ * field centres them. 7px is the 1px border plus `py-1.5` on a fine pointer
+ * (one line is 30px); 14px is the border plus 13px on a touch screen, where a
+ * one-line field is `TAP.height`'s 44px. The arrow is `ICON_ADORNMENT`'s
+ * placement pinned to that first line rather than to the middle of the box.
+ */
+export const CALENDAR_FIELD = {
+  box: `${SELECT} flex w-full items-start px-2 py-1.5 touch:py-[13px] text-left`,
+  arrow: 'pointer-events-none absolute right-2 top-[7px] touch:top-[14px] text-slate-400',
+} as const
+
+/**
  * What a control looks like when it does not apply.
  *
  * One role rather than a pair of utilities re-spelled at each call site, which
