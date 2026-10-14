@@ -38,7 +38,12 @@ import {
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
 import { nearestIndex } from '../utils/timeline'
-import { CHART_AXIS_COLOR, CHART_GRID_COLOR, CHART_PLAYHEAD_COLOR } from '../utils/chartColors'
+import {
+  CHART_AXIS_COLOR,
+  CHART_GRID_COLOR,
+  CHART_PLAYHEAD_COLOR,
+  CHART_SURFACE_COLOR,
+} from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -54,9 +59,24 @@ const Y_AXIS_WIDTH = 44
 // mistaken for a series, and in the axis colour because each marks a fact
 // about the data rather than a warning.
 const CHROME_LINE = { stroke: CHART_AXIS_COLOR, strokeDasharray: '4 3' } as const
+//
+// Every label wears a halo in the panel's own colour: the stroke is painted
+// first (`paintOrder`), so it erases whatever line runs under the letters and
+// the fill stands on the surface, where the bare text was lost wherever a
+// series crossed it. 3px is a pixel and a half either side of a 10px glyph's
+// strokes, enough to clear a 2.5px focused line without fattening the type.
 type ChromeLabelPosition = 'insideTopLeft' | 'insideTopRight' | 'insideBottomRight'
 function chromeLabel(value: string, position: ChromeLabelPosition) {
-  return { value, position, fill: CHART_AXIS_COLOR, fontSize: 10 }
+  return {
+    value,
+    position,
+    fill: CHART_AXIS_COLOR,
+    fontSize: 10,
+    stroke: CHART_SURFACE_COLOR,
+    strokeWidth: 3,
+    strokeLinejoin: 'round' as const,
+    paintOrder: 'stroke',
+  }
 }
 
 /**

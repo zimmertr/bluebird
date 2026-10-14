@@ -3,6 +3,7 @@ import { act, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { extremeValue } from '../utils/chartData'
+import { CHART_SURFACE_COLOR } from '../utils/chartColors'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -22,7 +23,16 @@ interface LineProps {
   stroke?: string
   strokeDasharray?: string
   strokeWidth?: number
-  label?: { value: string; position: string; fill: string; fontSize: number; content?: unknown }
+  label?: {
+    value: string
+    position: string
+    fill: string
+    fontSize: number
+    stroke?: string
+    strokeWidth?: number
+    paintOrder?: string
+    content?: unknown
+  }
 }
 const chart = vi.hoisted(() => ({
   onClick: undefined as undefined | Handler,
@@ -41,7 +51,11 @@ vi.mock('recharts', () => {
     },
     CartesianGrid: Nothing,
     Line: Nothing,
-    Label: (p: { position: string; value: string }) => <i data-testid="label" data-position={p.position}>{p.value}</i>,
+    Label: (p: { position: string; value: string; paintOrder?: string; stroke?: string }) => (
+      <i data-testid="label" data-position={p.position} data-paint-order={p.paintOrder} data-stroke={p.stroke}>
+        {p.value}
+      </i>
+    ),
     ReferenceLine: (p: LineProps) => {
       chart.lines.push(p)
       return <i data-testid={p.y === undefined ? 'x-line' : 'extreme-line'} data-y={p.y} />
@@ -243,6 +257,33 @@ describe('TimeSeriesChart extreme line', () => {
     }
     expect(at(120)).toBe('insideBottomRight')
     expect(at(12)).toBe('insideTopRight')
+  })
+
+  // Every chrome label reads over a series line crossing it: a halo in the
+  // panel's colour, painted under the letters. Now, a model's end and the
+  // extreme value share one label, so all three carry it, and the extreme
+  // value's keeps it through the flip.
+  it('halos every chrome label in the panel colour', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(TIMES[20])
+    try {
+      renderChart({ ...WIND, modelEnds: [{ label: 'NOAA HRRR', endMs: TIMES[30] }] })
+    } finally {
+      vi.useRealTimers()
+    }
+    const labels = (chart.lines as LineProps[]).map((p) => p.label)
+    expect(labels.map((l) => l?.value)).toEqual(['Now', 'NOAA HRRR', '75.4 mph'])
+    for (const label of labels) {
+      expect(label?.stroke, label?.value).toBe(CHART_SURFACE_COLOR)
+      expect(label?.strokeWidth, label?.value).toBe(3)
+      expect(label?.paintOrder, label?.value).toBe('stroke')
+    }
+    const [extreme] = (chart.lines as LineProps[]).filter((p) => p.y !== undefined)
+    const Content = extreme.label!.content as (p: object) => ReactNode
+    render(<>{Content({ ...extreme.label, viewBox: { x: 52, y: 120, width: 292, height: 0 } })}</>)
+    const drawn = screen.getByTestId('label')
+    expect(drawn.dataset.paintOrder).toBe('stroke')
+    expect(drawn.dataset.stroke).toBe(CHART_SURFACE_COLOR)
   })
 
   // A hover changes the focused line and nothing the extreme reads, so the
