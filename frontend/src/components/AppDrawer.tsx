@@ -13,7 +13,7 @@ import type { AnalyzeResponse, DestinationResult } from '../types'
 import { type FireProximityStatus, checkNoticeDue } from '../utils/fireProximity'
 import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { CommitReason } from '../utils/present'
-import { LAYER, PANEL_EDGE, RADIUS, TAP, TEXT } from '../styles'
+import { LAYER, MOTION, PANEL_EDGE, RADIUS, TAP, TEXT } from '../styles'
 
 interface AppDrawerProps {
   /** Whether the panel is open: docked on a desktop, over the map on a phone. */
@@ -70,6 +70,8 @@ interface AppDrawerProps {
   mapRef: RefObject<MapViewHandle | null>
   /** The panel's Map group is hovered: the search box and the map's features wear a cue. */
   onPointAtSearch: (on: boolean) => void
+  /** Hands the keyboard to the map's search box, closing the drawer first on a phone. */
+  onFocusSearch: () => void
   onPointAtMapPois: (on: boolean) => void
   /** Why the report no longer answers what the panel asks. */
   commitReasons: CommitReason[]
@@ -117,6 +119,7 @@ export default function AppDrawer({
   caps,
   mapRef,
   onPointAtSearch,
+  onFocusSearch,
   onPointAtMapPois,
   commitReasons,
   onAnalyze,
@@ -194,7 +197,7 @@ export default function AppDrawer({
           before reaching the map (#576). */}
       <aside
         inert={!open}
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 transform transition-transform duration-300 ease-in-out flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${PANEL_EDGE} ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 ${MOTION.slide} flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${PANEL_EDGE} ${
           open
             ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
             : '-translate-x-full'
@@ -220,6 +223,7 @@ export default function AppDrawer({
           onCancelDrawing={handleCancelDrawing}
           onClearDrawing={handleClearDrawing}
           onPointAtSearch={onPointAtSearch}
+          onFocusSearch={onFocusSearch}
           wildfireCheckFailed={checkNoticeDue(fireStatus, showWildfires, results.length)}
           closureCheckFailed={checkNoticeDue(closureStatus, showAreaClosures, results.length)}
           basemapFailed={basemapFailed}

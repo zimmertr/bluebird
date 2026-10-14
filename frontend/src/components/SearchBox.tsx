@@ -9,6 +9,7 @@ import {
   ICON_BUTTON,
   MAP_COL_W,
   MAP_ROW_H,
+  PLACEHOLDER,
   RADIUS,
   SPINNER,
   STATUS,
@@ -204,7 +205,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // No width of its own: the box is `MAP_COL_W` and the input takes
           // what the icon and the clear button leave. `min-w-0` is what lets
           // it, a flex item's default `min-width:auto` being its content.
-          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-slate-400 focus:outline-none`}
+          className={`${TEXT.control} min-w-0 flex-1 bg-transparent ${PLACEHOLDER.field} focus:outline-none`}
         />
         {loading ? (
           // A picture of the wait, named as one: a label on an element with

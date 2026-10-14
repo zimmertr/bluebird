@@ -43,6 +43,10 @@ afterEach(() => vi.useRealTimers())
 const arm = (name: string) => screen.getByRole('button', { name })
 const day = (date: string) => screen.getByRole('gridcell', { name: date })
 const lastSelection = () => onChange.mock.lastCall?.[0] as ForecastSelection
+// The field under Dates, named by the When label and the window it holds.
+const field = () => screen.getByRole('button', { name: /^When\b/ })
+// The Hours row and the grid live in the card the field opens (#687).
+const openCalendar = (user: { click: (el: Element) => Promise<void> }) => user.click(field())
 
 describe('the two arms', () => {
   it('draws no grid under Current', () => {
@@ -82,6 +86,7 @@ describe('choosing days', () => {
 
   it('takes a range from two taps', async () => {
     const { user } = render(<Calendar initial={dateless} />)
+    await openCalendar(user)
     await user.click(day('2026-09-10'))
     expect(lastSelection()).toEqual({ kind: 'days', startDate: '2026-09-10', endDate: '2026-09-10' })
     await user.click(day('2026-09-13'))
@@ -89,8 +94,9 @@ describe('choosing days', () => {
     expect(day('2026-09-11').getAttribute('aria-selected')).toBe('true')
   })
 
-  it('takes a range from one drag, and the release does not count as a tap', () => {
-    render(<Calendar initial={dateless} />)
+  it('takes a range from one drag, and the release does not count as a tap', async () => {
+    const { user } = render(<Calendar initial={dateless} />)
+    await openCalendar(user)
     fireEvent.pointerDown(day('2026-09-10'))
     fireEvent.pointerEnter(day('2026-09-12'))
     // The drag is a preview until it is released: nothing reaches App yet.
@@ -105,6 +111,7 @@ describe('choosing days', () => {
 
   it('draws days past the band but will not take them', async () => {
     const { user } = render(<Calendar initial={dateless} />)
+    await openCalendar(user)
     const beyond = day('2026-09-25')
     expect(beyond.getAttribute('aria-disabled')).toBe('true')
     await user.click(beyond)
@@ -115,8 +122,11 @@ describe('choosing days', () => {
 describe('the Hours segment', () => {
   // The note was the row's title alone, which reaches a pointer and nobody
   // else (#576). Both halves of the segment now carry it as a description.
-  it('describes both halves with the note the row shows on hover', () => {
-    render(<Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-15' }} />)
+  it('describes both halves with the note the row shows on hover', async () => {
+    const { user } = render(
+      <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-15' }} />,
+    )
+    await openCalendar(user)
     const note = screen.getByRole('button', { name: 'Hourly' }).closest('[title]')!.getAttribute('title')!
     for (const name of ['All day', 'Hourly']) {
       expect(screen.getByRole('button', { name, description: note })).toBeTruthy()
@@ -127,6 +137,7 @@ describe('the Hours segment', () => {
     const { user } = render(
       <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-15' }} />,
     )
+    await openCalendar(user)
     expect(screen.getByRole('button', { name: 'All day' }).getAttribute('aria-pressed')).toBe('true')
     await user.click(screen.getByRole('button', { name: 'Hourly' }))
     expect(lastSelection()).toEqual({
@@ -149,13 +160,14 @@ describe('the Hours segment', () => {
         }}
       />,
     )
+    await openCalendar(user)
     await user.click(screen.getByRole('button', { name: 'All day' }))
     expect(lastSelection()).toEqual({ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' })
     expect(screen.queryByLabelText('Start')).toBeNull()
   })
 
-  it('pushes the end past a start moved beyond it on a single day', () => {
-    render(
+  it('pushes the end past a start moved beyond it on a single day', async () => {
+    const { user } = render(
       <Calendar
         initial={{
           kind: 'days',
@@ -165,14 +177,15 @@ describe('the Hours segment', () => {
         }}
       />,
     )
+    await openCalendar(user)
     fireEvent.change(screen.getByLabelText('Start'), { target: { value: '12:00' } })
     expect(lastSelection()).toMatchObject({ hours: { start: '12:00', end: '13:00' } })
   })
 
   // An end typed one digit at a time passes 01:00 on its way to 10:00, and the
   // start must still be where the reader left it when the second digit lands.
-  it('leaves the start alone while the end is typed through earlier hours', () => {
-    render(
+  it('leaves the start alone while the end is typed through earlier hours', async () => {
+    const { user } = render(
       <Calendar
         initial={{
           kind: 'days',
@@ -182,9 +195,97 @@ describe('the Hours segment', () => {
         }}
       />,
     )
+    await openCalendar(user)
     const end = screen.getByLabelText('End')
     fireEvent.change(end, { target: { value: '01:00' } })
     fireEvent.change(end, { target: { value: '10:00' } })
     expect(lastSelection()).toMatchObject({ hours: { start: '06:00', end: '10:00' } })
+  })
+})
+
+describe('the date field', () => {
+  // The field says the window in the results bar's own words (windowCaption),
+  // so a picked range reads the same before and after it is analyzed.
+  it('holds the selected window in the results bar\'s words', () => {
+    render(<Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />)
+    expect(field().textContent).toBe('Tue, Sep 15 to Wed, Sep 16')
+    expect(field().getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('grid')).toBeNull()
+  })
+
+  it('names hours when the window is narrowed to them', () => {
+    render(
+      <Calendar
+        initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-15', hours: { start: '06:00', end: '18:00' } }}
+      />,
+    )
+    expect(field().textContent).toBe('Tue, Sep 15, 6:00 AM to 6:00 PM')
+  })
+
+  it('is not drawn under Current', () => {
+    render(<Calendar initial={{ kind: 'now' }} />)
+    expect(screen.queryByRole('button', { name: /^When\b/ })).toBeNull()
+  })
+
+  it('opens the card on the selected day and closes on a second press', async () => {
+    const { user } = render(
+      <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />,
+    )
+    await user.click(field())
+    expect(field().getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('grid', { name: 'Forecast day' })).toBeTruthy()
+    // The keyboard lands on the dates, not on the Hours row above them.
+    expect(document.activeElement).toBe(day('2026-09-15'))
+    await user.click(field())
+    expect(screen.queryByRole('grid')).toBeNull()
+  })
+
+  it('stays open while a range is picked, and a press outside closes it', async () => {
+    const { user } = render(
+      <>
+        <Calendar initial={{ kind: 'days', startDate: null, endDate: null }} />
+        <button type="button">elsewhere</button>
+      </>,
+    )
+    await user.click(field())
+    await user.click(day('2026-09-10'))
+    await user.click(day('2026-09-12'))
+    expect(lastSelection()).toEqual({ kind: 'days', startDate: '2026-09-10', endDate: '2026-09-12' })
+    expect(field().textContent).toBe('Thu, Sep 10 to Sat, Sep 12')
+    await user.click(screen.getByRole('button', { name: 'elsewhere' }))
+    expect(screen.queryByRole('grid')).toBeNull()
+  })
+
+  it('picks by keyboard, and Escape closes the card and hands the field back', async () => {
+    const { user } = render(
+      <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-15' }} />,
+    )
+    field().focus()
+    await user.keyboard('{Enter}')
+    expect(document.activeElement).toBe(day('2026-09-15'))
+    await user.keyboard('{ArrowLeft}{Enter}')
+    expect(lastSelection()).toEqual({ kind: 'days', startDate: '2026-09-14', endDate: '2026-09-14' })
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('grid')).toBeNull()
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('closes the card when the arm goes back to Current', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} />)
+    await user.click(arm('Dates'))
+    expect(screen.getByRole('grid')).toBeTruthy()
+    await user.click(arm('Current'))
+    expect(screen.queryByRole('grid')).toBeNull()
+  })
+
+  // Dates with a range to bring back opens nothing: the field says it.
+  it('leaves the card shut when Dates restores a range', async () => {
+    const { user } = render(
+      <Calendar initial={{ kind: 'days', startDate: '2026-09-10', endDate: '2026-09-12' }} />,
+    )
+    await user.click(arm('Current'))
+    await user.click(arm('Dates'))
+    expect(screen.queryByRole('grid')).toBeNull()
+    expect(field().textContent).toBe('Thu, Sep 10 to Sat, Sep 12')
   })
 })

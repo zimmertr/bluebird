@@ -1,8 +1,9 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
+import { CHOICE_NESTED } from '../styles'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
 // that enter and leave draw mode, the type set and the unnamed-peaks knob
@@ -25,6 +26,7 @@ function props(over: Partial<Props> = {}): Props {
     polygonAreaKm2: null,
     maxAreaKm2: 100_000,
     onPointAtSearch: noop,
+    onFocusSearch: noop,
     onPointAtMapPois: noop,
     destinationTypes: ['peak'],
     setDestinationTypes: noop,
@@ -39,6 +41,14 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
+// The closed one-line field, named by its subheading and the format it shows.
+const coordinatesField = () => screen.getByRole('button', { name: 'Coordinates # Lat,Lon or Lat,Lon,Name' })
+// The Polygon block's buttons, in order, apart from the two fields above it.
+const polygonButtons = () =>
+  within(screen.getByRole('heading', { name: 'Polygon' }).parentElement!)
+    .getAllByRole('button')
+    .map((b) => b.textContent)
+const MAP_PROMPT = 'Search by name, or select one from the map'
 
 describe('DestinationsSection', () => {
   describe('the draw counter', () => {
@@ -93,7 +103,7 @@ describe('DestinationsSection', () => {
       const { user } = render(<DestinationsSection {...props({ drawing: true, onCancelDrawing })} />)
       expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
       expect((screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement).disabled).toBe(true)
-      expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Done', 'Cancel', 'Clear'])
+      expect(polygonButtons()).toEqual(['Done', 'Cancel', 'Clear'])
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(onCancelDrawing).toHaveBeenCalledOnce()
     })
@@ -127,8 +137,7 @@ describe('DestinationsSection', () => {
 
     it('reads Done, Cancel, Clear while drawing', () => {
       render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1 })} />)
-      const names = screen.getAllByRole('button').map((b) => b.textContent)
-      expect(names).toEqual(['Done', 'Cancel', 'Clear'])
+      expect(polygonButtons()).toEqual(['Done', 'Cancel', 'Clear'])
     })
 
     // Clear starts the ring over; only Cancel leaves the mode.
@@ -169,26 +178,41 @@ describe('DestinationsSection', () => {
       expect(setDestinationTypes).toHaveBeenLastCalledWith([])
     })
 
-    // Unnamed peaks widens a peak search, so asking for it with Peaks off
-    // asks for the peak search too.
-    it('ticks Peaks when unnamed peaks is ticked without it', async () => {
-      const setDestinationTypes = vi.fn()
-      const setIncludeUnnamedPeaks = vi.fn()
-      const { user } = render(
-        <DestinationsSection
-          {...props({ destinationTypes: ['lake'], setDestinationTypes, setIncludeUnnamedPeaks })}
-        />,
-      )
-      await user.click(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }))
-      expect(setIncludeUnnamedPeaks).toHaveBeenCalledWith(true)
-      expect(setDestinationTypes).toHaveBeenCalledWith(['lake', 'peak'])
+    // Unnamed peaks widens a peak search, so with no peak search there is
+    // nothing for it to widen and the row is not drawn (#687).
+    it('shows unnamed peaks only while Peaks is ticked', () => {
+      const { rerender } = render(<DestinationsSection {...props({ destinationTypes: ['lake'] })} />)
+      expect(screen.queryByRole('checkbox', { name: 'Include unnamed peaks' })).toBeNull()
+      rerender(<DestinationsSection {...props({ destinationTypes: ['lake', 'peak'] })} />)
+      expect(screen.getByRole('checkbox', { name: 'Include unnamed peaks' })).toBeTruthy()
     })
 
-    it('leaves the set alone when Peaks is already ticked', async () => {
+    // Hidden is not cleared: ticking Peaks again shows what the reader had.
+    it('keeps the knob ticked while Peaks is off and back', () => {
+      const { rerender } = render(
+        <DestinationsSection {...props({ destinationTypes: [], includeUnnamedPeaks: true })} />,
+      )
+      expect(screen.queryByRole('checkbox', { name: 'Include unnamed peaks' })).toBeNull()
+      rerender(<DestinationsSection {...props({ destinationTypes: ['peak'], includeUnnamedPeaks: true })} />)
+      expect((screen.getByRole('checkbox', { name: 'Include unnamed peaks' }) as HTMLInputElement).checked).toBe(
+        true,
+      )
+    })
+
+    it('ticks unnamed peaks and leaves the type set alone', async () => {
       const setDestinationTypes = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ setDestinationTypes })} />)
+      const setIncludeUnnamedPeaks = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ setDestinationTypes, setIncludeUnnamedPeaks })} />)
       await user.click(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }))
+      expect(setIncludeUnnamedPeaks).toHaveBeenCalledWith(true)
       expect(setDestinationTypes).not.toHaveBeenCalled()
+    })
+
+    // Indented under Peaks by the nested role, so its box stands under the word.
+    it('indents the row under Peaks', () => {
+      render(<DestinationsSection {...props()} />)
+      const row = screen.getByRole('checkbox', { name: 'Include unnamed peaks' }).closest('label')!
+      expect(row.className.split(' ')).toContain(CHOICE_NESTED)
     })
   })
 
@@ -197,7 +221,7 @@ describe('DestinationsSection', () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
       const { user } = render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
-      await user.click(coordinates())
+      await user.click(coordinatesField())
       await user.paste('46.8529,-121.7604,Mount Rainier')
       expect(setCustomCsv).toHaveBeenLastCalledWith('46.8529,-121.7604,Mount Rainier')
       expect(onCsvPasted).toHaveBeenCalledOnce()
@@ -207,7 +231,8 @@ describe('DestinationsSection', () => {
     it('never moves the camera for typing', async () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
-      render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
+      const { user } = render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
+      await user.click(coordinatesField())
       fireEvent.keyDown(coordinates())
       fireEvent.change(coordinates(), { target: { value: '46.8529,-121.7604' } })
       expect(setCustomCsv).toHaveBeenCalledWith('46.8529,-121.7604')
@@ -222,13 +247,64 @@ describe('DestinationsSection', () => {
       rerender(<DestinationsSection {...props({ customCsv: '1,2', parsedCount: 1 })} />)
       expect(screen.getByText('1 destination parsed')).toBeTruthy()
     })
+
+    // Closed it is one line showing the format; a press opens the textarea in
+    // place with the keyboard in it, and the textarea shows the same line.
+    it('opens the textarea from its one-line field', async () => {
+      const { user } = render(<DestinationsSection {...props()} />)
+      expect(screen.queryByRole('textbox')).toBeNull()
+      expect(coordinatesField().textContent).toBe('# Lat,Lon or Lat,Lon,Name')
+      await user.click(coordinatesField())
+      expect(document.activeElement).toBe(coordinates())
+      expect(coordinates().getAttribute('placeholder')).toBe('# Lat,Lon or Lat,Lon,Name')
+    })
+
+    // A link that carries rows, or a list already pasted, opens the textarea
+    // on its own, and leaves the keyboard where it was.
+    it('opens on its own over a list already in state', () => {
+      render(<DestinationsSection {...props({ customCsv: '46.8529,-121.7604,Mount Rainier', parsedCount: 1 })} />)
+      expect(coordinates()).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /^Coordinates/ })).toBeNull()
+      expect(document.activeElement).not.toBe(coordinates())
+    })
+
+    it('folds back to one line when emptied and left', async () => {
+      const { user } = render(<DestinationsSection {...props()} />)
+      await user.click(coordinatesField())
+      await user.tab()
+      expect(screen.queryByRole('textbox')).toBeNull()
+      expect(coordinatesField()).toBeTruthy()
+    })
+  })
+
+  describe('the map search field', () => {
+    it('says both ways the map takes a destination', () => {
+      render(<DestinationsSection {...props()} />)
+      expect(screen.getByRole('button', { name: `Map ${MAP_PROMPT}` }).textContent).toBe(MAP_PROMPT)
+    })
+
+    it('hands the keyboard to the map search box', async () => {
+      const onFocusSearch = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ onFocusSearch })} />)
+      await user.click(screen.getByRole('button', { name: `Map ${MAP_PROMPT}` }))
+      expect(onFocusSearch).toHaveBeenCalledOnce()
+    })
+  })
+
+  // Map, Coordinates, Polygon (#687, record 0137): the two full-width inputs
+  // together, the polygon's buttons and boxes last.
+  it('orders the three ways in as Map, Coordinates, Polygon', () => {
+    render(<DestinationsSection {...props()} />)
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(headings).toEqual(['Map', 'Coordinates', 'Polygon'])
+    expect(screen.queryByText('Search by name, or click any peak or lake.')).toBeNull()
   })
 
   it('points at the map while the Map group is hovered', () => {
     const onPointAtSearch = vi.fn()
     const onPointAtMapPois = vi.fn()
     render(<DestinationsSection {...props({ onPointAtSearch, onPointAtMapPois })} />)
-    const group = screen.getByText('Search by name, or click any peak or lake.').parentElement as HTMLElement
+    const group = screen.getByRole('heading', { name: 'Map' }).parentElement as HTMLElement
     fireEvent.mouseEnter(group)
     expect(onPointAtSearch).toHaveBeenLastCalledWith(true)
     expect(onPointAtMapPois).toHaveBeenLastCalledWith(true)

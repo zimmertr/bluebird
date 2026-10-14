@@ -1,4 +1,4 @@
-import { useCallback, useRef, type ComponentProps, type RefObject } from 'react'
+import { useCallback, type ComponentProps, type RefObject } from 'react'
 import MapView, { type MapViewHandle } from './MapView'
 import type { SearchBoxHandle } from './SearchBox'
 import TimelineTransport from './TimelineTransport'
@@ -32,6 +32,8 @@ import type { LayerCoverage } from '../utils/layerCoverage'
 export interface MapStageProps {
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
   mapRef: RefObject<MapViewHandle | null>
+  /** The map's search box, which the panel's search affordance also focuses (#687). */
+  searchBoxRef: RefObject<SearchBoxHandle | null>
   /** Whether a ring is being drawn, and the callback the map reports each vertex to. */
   drawMode: Pick<DrawMode, 'drawing' | 'handleDrawUpdate'>
   /** The ring, the link's restored points and the searched places, with the setters the map calls. */
@@ -110,6 +112,7 @@ export interface MapStageProps {
  */
 export default function MapStage({
   mapRef,
+  searchBoxRef,
   drawMode,
   destinationInputs,
   removals,
@@ -136,7 +139,6 @@ export default function MapStage({
   onBasemapFailed,
   maxPolygonPoints,
 }: MapStageProps) {
-  const searchBoxRef = useRef<SearchBoxHandle>(null)
   const { registerPlace } = removals
   const { removePlace } = destinationInputs
   const { results } = report

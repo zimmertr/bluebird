@@ -10,6 +10,7 @@ import {
   METRICS_GRID,
   METRIC_HEAD_GAP,
   METRIC_BOX_W,
+  METRIC_LABEL_PITCH,
   MUTED,
   SEGMENT_FILL,
   SEGMENT_DIVIDER,
@@ -343,8 +344,11 @@ export default function MetricsTable({
           const bounds = BOUNDS[family]
           return (
             <Fragment key={family}>
+              {/* The label's own margin sets the row pitch (32px on a fine
+                  pointer), so the radio and the bound boxes pass the 24px
+                  spacing test without any of them growing (#687). */}
               <label
-                className={`${CHOICE_ROW} min-w-0 ${pointSample ? 'col-span-2' : ''}`}
+                className={`${CHOICE_ROW} ${METRIC_LABEL_PITCH} min-w-0 ${pointSample ? 'col-span-2' : ''}`}
                 title={bounds.note}
               >
                 <input

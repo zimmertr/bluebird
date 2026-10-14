@@ -59,8 +59,16 @@ import {
   LIFTED_EDGE,
   RECESSED_EDGE,
   RECESSED_FILL,
-  SURFACE_GROUP,
-  SURFACE_GROUP_BLEED,
+  CALENDAR_GROUND,
+  CHOICE_NESTED,
+  FIELD_TRIGGER,
+  PLACEHOLDER,
+  METRIC_LABEL_PITCH,
+  MOTION,
+  PANEL_BODY,
+  PANEL_HEADER,
+  SCROLL_BARS,
+  SCROLL_SHADOW,
   LINK,
   LINK_ACTION,
   CAPTION_LIFTED,
@@ -105,6 +113,9 @@ import searchBoxSource from './components/SearchBox.tsx?raw'
 import layersPopoverSource from './components/LayersPopover.tsx?raw'
 import mapButtonColumnSource from './components/MapButtonColumn.tsx?raw'
 import mapLegendSource from './components/MapLegend.tsx?raw'
+import appDrawerSource from './components/AppDrawer.tsx?raw'
+import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
+import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -185,6 +196,22 @@ describe('the compact tier', () => {
   // the micro step: a call site cannot dim this back, so the floor is here.
   it('keeps the caption step legible on the panel it lands on', () => {
     expect(TEXT.caption).toContain('text-slate-400')
+  })
+
+  // A section heading was slate-400 (5.71:1 on the slate-800 panel) over a
+  // slate-200 subheading, so DESTINATIONS read dimmer than the Polygon under
+  // it (#687). slate-300 is 9.85:1 and sits between the two steps it orders:
+  // brighter than any caption, and still a step under the subheading's
+  // brightness so the size, weight and case carry the rank, not a glare.
+  it('brightens the section heading past the caption and keeps its size', () => {
+    const MEASURED = { section: 9.85, wasBefore: 5.71 }
+    const step = (c: string) => Number(c.match(/text-slate-(\d+)/)![1])
+    expect(TEXT.section).toContain('text-slate-300')
+    expect(TEXT.section).toContain('text-sm')
+    expect(step(TEXT.section)).toBeLessThan(step(TEXT.caption))
+    expect(step(TEXT.section)).toBeGreaterThan(step(TEXT.subheading))
+    expect(MEASURED.section).toBeGreaterThan(MEASURED.wasBefore)
+    expect(MEASURED.section).toBeGreaterThanOrEqual(4.5)
   })
 })
 
@@ -467,29 +494,28 @@ describe('grouping and segmenting', () => {
   // That is fine for a rule and useless for making a block of controls read as one
   // object, which is this role's whole job, so it takes the step that clears the
   // 3:1 asked of a boundary.
-  it('draws a group boundary bright enough to be one', () => {
-    expect(SURFACE_GROUP).toContain('border-slate-500')
-    expect(SURFACE_GROUP).toContain(RADIUS.surface)
-  })
-
-  // The bleed exists so a control inside a well lands on the same column as
-  // one outside it: it must cancel exactly the inset the well imposes, which
-  // is the call sites' p-2 (8px) plus RECESSED_EDGE's 1px border. Pinned as
-  // the finished number because Tailwind cannot do the arithmetic — a well
-  // that changes its padding has to re-derive this by hand.
-  it('bleeds a well by exactly its border plus its padding', () => {
-    expect(SURFACE_GROUP_BLEED).toBe('-mx-[9px]')
-    expect(RECESSED_EDGE).toContain('border')
+  //
+  // The calendar left its well for a popover card (#687), which draws the
+  // edge, so its ground keeps the well's fill and the card's radius and draws
+  // no border of its own: two edges 8px apart would read as a card in a card.
+  it('stands the calendar on the recessed fill inside the card edge', () => {
+    expect(CALENDAR_GROUND).toContain(RECESSED_FILL)
+    expect(CALENDAR_GROUND).not.toContain(RECESSED_EDGE)
+    expect(CALENDAR_GROUND).not.toMatch(/(^|\s)border/)
+    expect(CALENDAR_GROUND).toContain(RADIUS.surface)
+    expect(SURFACE_CARD).toMatch(/(^|\s)border(\s|$)/)
+    // The ground is what scrolls when a short window caps the card.
+    expect(CALENDAR_GROUND).toContain('overflow-y-auto')
+    expect(CALENDAR_GROUND).toContain(SCROLL_BARS)
   })
 
   // Every surface the panel sinks into is one recipe, so an input, the idle
   // half of a segmented control and the calendar cannot drift into three
   // near-identical looks the way they had.
   it('builds every recessed surface from the one fill and the one edge', () => {
-    for (const recipe of [FIELD, SURFACE_GROUP]) {
-      expect(recipe).toContain(RECESSED_FILL)
-      expect(recipe).toContain(RECESSED_EDGE)
-    }
+    expect(FIELD).toContain(RECESSED_FILL)
+    expect(FIELD).toContain(RECESSED_EDGE)
+    expect(CALENDAR_GROUND).toContain(RECESSED_FILL)
     expect(SEGMENT_IDLE).toContain(RECESSED_FILL)
     expect(SEGMENT).toContain(RECESSED_EDGE)
   })
@@ -523,9 +549,9 @@ describe('grouping and segmenting', () => {
   // group went lighter than the panel it would read as raised rather than
   // inset. Derived from the ramp rather than by naming a step, so a future
   // palette move that collapsed them fails here.
-  it('recesses the group below the panel without colliding with the range band', () => {
+  it('recesses the calendar below the panel without colliding with the range band', () => {
     const step = (c: string) => Number(c.match(/-(\d+)$/)![1])
-    const fill = SURFACE_GROUP.match(/bg-(slate-\d+)/)![1]
+    const fill = CALENDAR_GROUND.match(/bg-(slate-\d+)/)![1]
     expect(step(fill)).toBeGreaterThan(800) // darker than the slate-800 panel
     expect(fill).not.toBe(DAY.range.match(/bg-([a-z]+-\d+)/)![1])
   })
@@ -587,6 +613,7 @@ describe('shared recipes', () => {
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['FIELD', FIELD],
     ['SELECT', SELECT],
+    ['FIELD_TRIGGER', FIELD_TRIGGER],
     ['DAY.cell', DAY.cell],
   ])('%s is a tap target on a coarse pointer', (_name, recipe) => {
     expect(recipe).toContain('touch:')
@@ -962,7 +989,13 @@ describe('shared recipes', () => {
     const dropdownPx = rem * 16
     const boxPx = (Number(METRIC_BOX_W.match(/-(\d+)$/)![1]) / 4) * 16
     const gapPx = (Number(METRICS_GRID.match(/gap-x-([\d.]+)/)![1]) / 4) * 16
-    const labelPx = 327 - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
+    // The body reserves the shared bar's width whether or not it shows
+    // (`PANEL_BODY`), so the budget is done at the narrower width: 327px of
+    // content less the 10px Chromium draws for `scrollbar-width: thin`
+    // (measured 2026-10-13; the browser's own bar was 15px).
+    const SHARED_BAR_PX = 10
+    expect(PANEL_BODY).toContain('[scrollbar-gutter:stable]')
+    const labelPx = 327 - SHARED_BAR_PX - 14 - 10 - 3 * gapPx - dropdownPx - 2 * boxPx
 
     expect(labelPx).toBeGreaterThanOrEqual(FREEZING_LEVEL_PX)
     expect(dropdownPx).toBeGreaterThanOrEqual(28 + 8 + selectArrowPx())
@@ -1384,7 +1417,7 @@ describe('every role', () => {
     MICRO_SIZE: 'binds the ramp step to the custom property map.css reads',
     // Half of the well — `RECESSED_FILL` is the other — and every surface that
     // sinks into the panel composes the pair here. A call site takes the
-    // finished `FIELD`, `SEGMENT`, `SURFACE_GROUP` or `SCRUBBER_TRACK`.
+    // finished `FIELD`, `SEGMENT` or `SCRUBBER_TRACK`.
     RECESSED_EDGE: 'the half of the well recipe this file composes itself',
     // The timeline axis half's width floor, spelled twice over (plain and
     // `touch:`) so the variant cannot lose to `TAP.action`'s by stylesheet
@@ -2024,5 +2057,143 @@ describe('the tutorial', () => {
     expect(STYLES.TOUR.sheet).toContain(STYLES.SURFACE_CARD)
     expect(STYLES.TOUR.sheet).toContain('inset-x-4 bottom-4')
     expect(STYLES.TOUR.sheetTop).toContain('inset-x-4 top-4')
+  })
+})
+
+describe('the panel frame', () => {
+  // The seam between the docked panel and the results (#697, record 0128):
+  // the panel's own structural edge, 3.07:1 on slate-800 and 3.74:1 on
+  // slate-900, where SURFACE_DIVIDER's 1.41:1 left the two one block.
+  it("closes the panel's right edge with the structural rule", () => {
+    const MEASURED = { panel: 3.07, page: 3.74, wasBefore: 1.41 }
+    expect(appDrawerSource).toMatch(/border-r \$\{PANEL_EDGE\}/)
+    expect(appDrawerSource).not.toMatch(/SURFACE_DIVIDER/)
+    expect(Math.min(MEASURED.panel, MEASURED.page)).toBeGreaterThanOrEqual(3)
+    expect(MEASURED.wasBefore).toBeLessThan(3)
+  })
+
+  // 56px of header plus its rule (#687): the logo's box and its margin set
+  // the height, and the title block's padding must not outgrow it.
+  it('keeps the header at 56px, set by the logo', () => {
+    const px = (recipe: string, prefix: string) => stepPx(recipe, prefix)
+    const logo = px(PANEL_HEADER.logo, 'h') + 2 * px(PANEL_HEADER.logo, 'm')
+    expect(logo).toBe(56)
+    expect(px(PANEL_HEADER.logo, 'w')).toBe(px(PANEL_HEADER.logo, 'h'))
+    // The title (18px at leading-tight, 22.5px) and the 16px tagline line,
+    // with the block's padding above and below, fit inside the logo's 56.
+    const TITLE_AND_TAGLINE_PX = 22.5 + 16
+    expect(TITLE_AND_TAGLINE_PX + 2 * px(PANEL_HEADER.title, 'py')).toBeLessThanOrEqual(logo)
+    expect(controlPanelSource).toContain('PANEL_HEADER.logo')
+    expect(controlPanelSource).toContain('PANEL_HEADER.title')
+  })
+
+  // One bar style on every dark surface, and the panel body reserves its
+  // width so the column does not move when a section opens (#697).
+  it('gives the panel body the shared bar and a stable gutter', () => {
+    expect(PANEL_BODY).toContain(SCROLL_BARS)
+    expect(PANEL_BODY).toContain('[scrollbar-gutter:stable]')
+    expect(PANEL_BODY).toContain(SCROLL_SHADOW.both)
+    // The shadows reach across exactly the body's padding to its edges.
+    expect(PANEL_BODY).toContain('px-4')
+    expect(PANEL_BODY).toContain('[--scroll-shadow-bleed:1rem]')
+    expect(controlPanelSource).toContain('PANEL_BODY')
+  })
+
+  it('tells the browser the app is dark, and draws the bar in the theme\'s own steps', () => {
+    expect(indexCss).toMatch(/:root\s*\{\s*color-scheme:\s*dark;/)
+    const bars = indexCss.slice(indexCss.indexOf('.surface-scrollbars {'), indexCss.indexOf('/* Scroll shadows'))
+    expect(bars).toContain('var(--color-slate-500)')
+    expect(bars).toContain('var(--color-slate-800)')
+    expect(bars).not.toMatch(/#[0-9a-f]{3,6}\b/i)
+    // The map's white surfaces keep the light scheme for themselves.
+    expect(mapCss).toMatch(/\.maplibregl-popup,\s*\.maplibregl-ctrl\s*\{\s*color-scheme:\s*light;\s*color:\s*CanvasText;/)
+  })
+
+  // The two halves of the shadow, each drawn only while content continues
+  // past its edge: a CSS scroll timeline where there is one, and the two data
+  // attributes `useScrollShadows` sets where there is not.
+  it('draws each scroll shadow only while there is more in its direction', () => {
+    expect(indexCss).toMatch(/@supports \(animation-timeline: scroll\(\)\)/)
+    expect(indexCss).toMatch(/\.scroll-shadow-start\[data-more-above\]::before/)
+    expect(indexCss).toMatch(/\.scroll-shadow-end\[data-more-below\]::after/)
+    expect(indexCss).toMatch(/\[data-more-above\] \.scroll-shadow-head th::after/)
+    expect(SCROLL_SHADOW.both.split(' ').sort()).toEqual([SCROLL_SHADOW.start, SCROLL_SHADOW.end].sort())
+  })
+
+  // The two movements that answer an action stop where the reader asked
+  // their system for less (#687), as the tutorial's spotlight already did.
+  it('drops every answering movement under reduced motion', () => {
+    for (const recipe of Object.values(MOTION)) {
+      expect(recipe).toMatch(/(^|\s)transition/)
+      expect(recipe).toContain('motion-reduce:transition-none')
+    }
+    expect(appDrawerSource).toContain('MOTION.slide')
+    expect(appDrawerSource).not.toMatch(/(^|\s)transition-transform duration/)
+    expect(analysisOverlaySource).toContain('MOTION.progress')
+  })
+
+  // Include unnamed peaks stands under the word Peaks: the checkbox's box
+  // plus the row's gap (#687).
+  it("indents a nested choice by its parent's box and gap", () => {
+    const box = stepPx(ACCENT.input, 'w')
+    const gap = stepPx(CHOICE_ROW, 'gap')
+    expect(stepPx(CHOICE_NESTED, 'ml')).toBe(box + gap)
+  })
+
+  // The Metrics rows pass WCAG 2.2 SC 2.5.8 by spacing (#687, record 0130):
+  // a 16px label with 5px above and below, beside the 22px boxes, with the
+  // grid's row gap, is a 32px pitch on a fine pointer. Touch keeps TAP.row's
+  // 44px label and spends nothing more.
+  it('sets the metric rows 32px apart on a fine pointer', () => {
+    const LABEL_PX = 16 // text-xs line box; the 14px radio sits inside it
+    const BOX_PX = 22 // FIELD_NUMERIC at py-0.5, measured 2026-10-13
+    const margin = Number(METRIC_LABEL_PITCH.match(/(?:^|\s)my-\[(\d+)px\]/)![1])
+    const gapY = stepPx(METRICS_GRID, 'gap-y')
+    const row = Math.max(LABEL_PX + 2 * margin, BOX_PX)
+    expect(row + gapY).toBe(32)
+    expect(METRIC_LABEL_PITCH).toContain('touch:my-0')
+    // A 24px circle centred on a 16px label reaches 4px past it: inside its
+    // own 5px margin, so it meets no other row's target.
+    expect((24 - LABEL_PX) / 2).toBeLessThanOrEqual(margin)
+  })
+})
+
+describe('the calendar field', () => {
+  // 28px day rows under a fine pointer, 44 under touch, and the weekday head
+  // keeps the 36px the rows had (#687, record 0129).
+  it('sizes the day rows for the pointer', () => {
+    expect(DAY.cell).toMatch(/(^|\s)h-7(\s|$)/)
+    expect(DAY.cell).toContain('touch:h-11')
+    expect(DAY.head).toMatch(/(^|\s)h-9(\s|$)/)
+  })
+
+  // The field is a SELECT, so it is the same recessed box with an arrow that
+  // opens every other choice in the panel, and the card is Popover.tsx's.
+  it('draws the field as a select and the grid on the popover card', () => {
+    expect(forecastCalendarSource).toContain('${SELECT} flex w-full')
+    expect(forecastCalendarSource).toContain('<IconSelectArrow />')
+    expect(forecastCalendarSource).toContain('<Popover ')
+    expect(forecastCalendarSource).toContain('CALENDAR_GROUND')
+  })
+})
+
+describe('the field triggers', () => {
+  // A button that stands for an empty field (#687, record 0137) is FIELD's
+  // box with the placeholder's slate as its text, and the placeholder role is
+  // the one the fields and the map's search box wear, so the three cannot
+  // drift into three greys.
+  it("looks like an empty field, in the placeholder's own step", () => {
+    const step = (c: string) => c.match(/slate-(\d+)/)![1]
+    expect(step(PLACEHOLDER.field)).toBe(step(PLACEHOLDER.text))
+    expect(FIELD).toContain(PLACEHOLDER.field)
+    expect(searchBoxSource).toContain('${PLACEHOLDER.field}')
+    expect(searchBoxSource).not.toMatch(/placeholder-slate/)
+    for (const part of [RECESSED_FILL, RECESSED_EDGE, RADIUS.control, TAP.height, PLACEHOLDER.text, CONTROL_SIZE]) {
+      expect(FIELD_TRIGGER).toContain(part)
+    }
+    // One text colour: TEXT.control's slate-200 would race the placeholder's.
+    expect(FIELD_TRIGGER).not.toContain(TEXT.control)
+    expect(FIELD_TRIGGER).toContain(FOCUS_RING)
+    expect(destinationsSource.match(/FIELD_TRIGGER/g)?.length).toBeGreaterThanOrEqual(3)
   })
 })

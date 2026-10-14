@@ -3,6 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ReactNode } from 'react'
 import MapStage, { type MapStageProps } from './MapStage'
 import type { MapViewHandle } from './MapView'
+import type { SearchBoxHandle } from './SearchBox'
 import { render } from '../testSupport/render'
 import { resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
@@ -83,6 +84,7 @@ const ANALYSIS: MapStageProps['analysis'] = {
 const DRAW: MapStageProps['drawMode'] = { drawing: false, handleDrawUpdate: NOOP }
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP }
 const MAP_REF = createRef<MapViewHandle>()
+const SEARCH_BOX_REF = createRef<SearchBoxHandle>()
 const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
 const ON_BASEMAP_FAILED = (_failed: boolean) => {}
 
@@ -90,6 +92,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
   return {
     layersForcedOpen: false,
     mapRef: MAP_REF,
+    searchBoxRef: SEARCH_BOX_REF,
     coverage: {},
     drawMode: DRAW,
     destinationInputs: INPUTS,

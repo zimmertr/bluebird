@@ -1,17 +1,20 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   BUTTON_ACCENT,
   BUTTON_SECONDARY,
   CHOICE_INPUT,
+  CHOICE_NESTED,
   CHOICE_ROW,
   DISABLED,
   FIELD,
-  MUTED,
+  FIELD_TRIGGER,
+  ICON_ACTION,
   STATUS,
   TEXT,
 } from '../styles'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
+import { IconSearch } from './icons'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
 
@@ -21,6 +24,18 @@ import { drawControls } from '../utils/drawControls'
 // Sized to where Cascades-density terrain starts brushing the analysis cap
 // (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
+
+// What the Map group's field says: the two ways the map takes a destination,
+// searching for one and picking one off it (approved copy, the maintainer,
+// 2026-10-13). 250.2px at 12px on a Mac, which a 360px phone's field holds
+// with px-2 and not with the search box's px-2.5.
+const MAP_PROMPT = 'Search by name, or select one from the map'
+
+// The coordinates format, shown on the closed field and as the open
+// textarea's placeholder, so the two say one line. Written as a "#" comment
+// because parseCustomCsv skips those, so it stays valid input if a paste ever
+// lands beneath it. One place to change it.
+const COORDINATES_FORMAT = '# Lat,Lon or Lat,Lon,Name'
 
 // What polygon discovery finds. Custom (CSV) is no longer a mode here — the
 // always-visible Custom Destinations section below adds to any of these.
@@ -54,6 +69,9 @@ interface Props {
   // map offers at once.
   onPointAtSearch: (on: boolean) => void
   onPointAtMapPois: (on: boolean) => void
+  // The Map group's field hands the keyboard to the map's search box; on a
+  // phone the drawer closes first (`useMapSearchFocus`).
+  onFocusSearch: () => void
   // A set: one polygon can look for several kinds at once, and none checked
   // means the polygon discovers nothing.
   destinationTypes: DiscoveryType[]
@@ -90,6 +108,7 @@ export default function DestinationsSection({
   maxAreaKm2,
   onPointAtSearch,
   onPointAtMapPois,
+  onFocusSearch,
   destinationTypes,
   setDestinationTypes,
   includeUnnamedPeaks,
@@ -115,6 +134,22 @@ export default function DestinationsSection({
     for (const button of drawRowRef.current?.querySelectorAll('button') ?? []) takeOrphanedFocus(button)
   }, [drawPointCount])
   const peaksOn = destinationTypes.includes('peak')
+  const mapHeadingId = useId()
+  const mapPromptId = useId()
+  const coordinatesHeadingId = useId()
+  const coordinatesPromptId = useId()
+  // The coordinates textarea, opened by a press on its one-line field or by a
+  // list already in state. Only a press hands it the keyboard: a link that
+  // opens it on load must not move the focus into the panel.
+  const [csvOpen, setCsvOpen] = useState(false)
+  const csvShown = csvOpen || customCsv !== ''
+  const csvRef = useRef<HTMLTextAreaElement>(null)
+  const focusCsvRef = useRef(false)
+  useLayoutEffect(() => {
+    if (!csvShown || !focusCsvRef.current) return
+    focusCsvRef.current = false
+    csvRef.current?.focus()
+  }, [csvShown])
 
   return (
     <section data-tour="destinations">
@@ -122,20 +157,17 @@ export default function DestinationsSection({
         Destinations
       </h2>
 
-      {/* Map — the two methods whose control is the map itself, the
-          floating search box and the clickable peaks and lakes, grouped
-          as one subsection rather than two widgetless ones. The heading
-          keeps the caption from reading as a description of the whole
-          section, and makes the three groups parallel: each names the
-          instrument, so the shape says "another way to add destinations"
-          without a "Search by" prefix saying it four times. Hovering the
-          group rings the search box AND glows the selectable features,
-          so the reader is shown where both live instead of told.
-          Hover-only is fine here because it adds a cue to copy that
-          already stands on its own. The caption names peaks and lakes
-          rather than "a destination" because those are the two things
-          the basemap makes clickable - trailheads are not on it, which
-          is why they are found by polygon instead. */}
+      {/* Map: the two methods whose control is the map itself, the
+          floating search box and the clickable peaks and lakes, grouped as
+          one subsection. The heading makes the three groups parallel: each
+          names the instrument. Its control is a field that looks like the
+          search box's empty field and hands the keyboard to it (#687,
+          record 0137), so searching is visible in the panel itself rather
+          than only in a helper line beside nothing to press: that line is
+          gone, because the field now says it. Hovering the group still
+          rings the search box AND glows the selectable features, so the
+          reader is shown where both live. The words name clicking the map
+          too, because that is the other half of the group. */}
       <div
         className="mb-3"
         onMouseEnter={() => {
@@ -147,14 +179,88 @@ export default function DestinationsSection({
           onPointAtMapPois(false)
         }}
       >
-        <h3 className={`${TEXT.subheading} mb-1`}>Map</h3>
-        <p className={TEXT.helper}>Search by name, or click any peak or lake.</p>
+        <h3 id={mapHeadingId} className={`${TEXT.subheading} mb-1.5`}>
+          Map
+        </h3>
+        <button
+          type="button"
+          onClick={onFocusSearch}
+          aria-labelledby={`${mapHeadingId} ${mapPromptId}`}
+          className={`${FIELD_TRIGGER} px-2 py-1.5`}
+        >
+          <IconSearch className={`flex-shrink-0 ${ICON_ACTION}`} />
+          <span id={mapPromptId} className="min-w-0 truncate">
+            {MAP_PROMPT}
+          </span>
+        </button>
       </div>
 
-      {/* Polygon — bare noun, not "Search by polygon": beside Map and
-          Coordinates, a Draw polygon button says the rest, and the verb
-          phrase restated its own helper line. */}
+      {/* Coordinates: second, beside the map's search field, so the two
+          full-width inputs stand together and the Polygon block's buttons
+          and boxes come last (#687, record 0137). A list you bring to the
+          map rather than a gesture on it. Closed it is one line in the
+          textarea's mono showing the format, the textarea's own first
+          line, and a press opens the textarea in place; a list already in
+          state, from a paste or a link, opens it on its own. No helper
+          line; the format states itself. */}
       <div className="mb-3">
+        <h3 id={coordinatesHeadingId} className={`${TEXT.subheading} mb-1.5`}>
+          Coordinates
+        </h3>
+        {!csvShown ? (
+          <button
+            type="button"
+            onClick={() => {
+              focusCsvRef.current = true
+              setCsvOpen(true)
+            }}
+            aria-labelledby={`${coordinatesHeadingId} ${coordinatesPromptId}`}
+            // The textarea's own p-2, so the line does not move as it opens.
+            className={`${FIELD_TRIGGER} p-2 font-mono`}
+          >
+            <span id={coordinatesPromptId} className="min-w-0 truncate">
+              {COORDINATES_FORMAT}
+            </span>
+          </button>
+        ) : (
+          <textarea
+            ref={csvRef}
+            aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
+            value={customCsv}
+            onKeyDown={() => (csvPasteRef.current = false)}
+            onPaste={() => (csvPasteRef.current = true)}
+            onChange={(e) => {
+              const wasPaste = csvPasteRef.current
+              csvPasteRef.current = false
+              setCustomCsv(e.target.value)
+              if (wasPaste) {
+                const points = parseCustomCsv(e.target.value)
+                if (points.length > 0) onCsvPasted(points)
+              }
+            }}
+            // Emptied and left, it folds back to its one line.
+            onBlur={(e) => {
+              if (e.target.value === '') setCsvOpen(false)
+            }}
+            // The format states itself in the box rather than in a line above
+            // it, the same line the closed field shows.
+            placeholder={COORDINATES_FORMAT}
+            rows={3}
+            className={`${FIELD} w-full p-2 font-mono resize-y`}
+          />
+        )}
+        {customCsv.trim() !== '' && (
+          <p className={`${TEXT.helper} mt-1`}>
+            {parsedCount} destination{parsedCount !== 1 ? 's' : ''} parsed
+          </p>
+        )}
+      </div>
+
+      {/* Polygon, a bare noun, not "Search by polygon": beside Map and
+          Coordinates, a Draw polygon button says the rest, and the verb
+          phrase restated its own helper line. Last since #687, so the two
+          full-width inputs above it stand together. */}
+      <div>
         <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
         {drawPointCount > 0 && (
           <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
@@ -280,61 +386,26 @@ export default function DestinationsSection({
             </label>
           ))}
         </div>
-        {/* Unnamed peaks, beside the types it modifies rather than in a
+        {/* Unnamed peaks, under the type it modifies rather than in a
             general options drawer three sections away. It is a polygon
             DISCOVERY knob and does nothing else: it widens what the
-            Overpass query counts as a peak. Dimmed when Peaks is unticked,
-            because then there is no peak search for it to widen — but still
-            operable, so ticking it asks for peaks the way the grid's style
-            segment asks for the grid. */}
-        <label className={`${CHOICE_ROW} mt-1.5 ${peaksOn ? '' : MUTED}`}>
-          <input
-            type="checkbox"
-            checked={includeUnnamedPeaks}
-            onChange={(e) => {
-              setIncludeUnnamedPeaks(e.target.checked)
-              if (e.target.checked && !peaksOn) setDestinationTypes([...destinationTypes, 'peak'])
-            }}
-            className={CHOICE_INPUT}
-          />
-          <span>Include unnamed peaks</span>
-        </label>
-      </div>
-
-      {/* Coordinates — last because it is the one method with no map
-          gesture at all: the three above are things you do to the map,
-          and this is a list you bring to it. No helper line; the format
-          states itself in the textarea placeholder. */}
-      <div>
-        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinates</h3>
-        <textarea
-          aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
-          value={customCsv}
-          onKeyDown={() => (csvPasteRef.current = false)}
-          onPaste={() => (csvPasteRef.current = true)}
-          onChange={(e) => {
-            const wasPaste = csvPasteRef.current
-            csvPasteRef.current = false
-            setCustomCsv(e.target.value)
-            if (wasPaste) {
-              const points = parseCustomCsv(e.target.value)
-              if (points.length > 0) onCsvPasted(points)
-            }
-          }}
-          // The format states itself in the box rather than in a line above
-          // it. Written as a "#" comment because parseCustomCsv skips those,
-          // so it stays valid input if a paste ever lands beneath it.
-          placeholder={`# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier\n46.2024,-121.4909`}
-          rows={3}
-          className={`${FIELD} w-full p-2 font-mono resize-y`}
-        />
-        {customCsv.trim() !== '' && (
-          <p className={`${TEXT.helper} mt-1`}>
-            {parsedCount} destination{parsedCount !== 1 ? 's' : ''} parsed
-          </p>
+            Overpass query counts as a peak. Shown only while Peaks is
+            ticked, because then there is a peak search for it to widen, and
+            indented so its box sits under the word Peaks (#687). Unticking
+            Peaks hides it and keeps its value, so ticking Peaks again
+            brings back what the reader had chosen. */}
+        {peaksOn && (
+          <label className={`${CHOICE_ROW} ${CHOICE_NESTED} mt-1.5`}>
+            <input
+              type="checkbox"
+              checked={includeUnnamedPeaks}
+              onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
+              className={CHOICE_INPUT}
+            />
+            <span>Include unnamed peaks</span>
+          </label>
         )}
       </div>
-
     </section>
   )
 }

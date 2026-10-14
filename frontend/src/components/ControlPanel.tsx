@@ -7,7 +7,7 @@ import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { PANEL_BODY, PANEL_EDGE, PANEL_RULE, TEXT } from '../styles'
+import { PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 import { MetricFamily, familyOf } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
@@ -38,6 +38,7 @@ interface Props {
   onCancelDrawing: () => void
   onClearDrawing: () => void
   onPointAtSearch: (on: boolean) => void
+  onFocusSearch: () => void
   onPointAtMapPois: (on: boolean) => void
   // A set: one polygon can look for several kinds at once, and none checked
   // means the polygon discovers nothing.
@@ -156,6 +157,7 @@ export default function ControlPanel({
   onCancelDrawing,
   onClearDrawing,
   onPointAtSearch,
+  onFocusSearch,
   onPointAtMapPois,
   destinationTypes,
   setDestinationTypes,
@@ -341,6 +343,8 @@ export default function ControlPanel({
     now,
   })
 
+  // The body's scroll shadows, for the browsers whose CSS cannot tell on its
+  // own whether there is more above or below (#697).
   const bodyRef = useRef<HTMLDivElement>(null)
   useScrollShadows(bodyRef)
 
@@ -353,9 +357,9 @@ export default function ControlPanel({
           alt=""
           width={256}
           height={256}
-          className="w-20 object-cover flex-shrink-0"
+          className={PANEL_HEADER.logo}
         />
-        <div className="px-3 py-4 flex flex-col justify-center">
+        <div className={PANEL_HEADER.title}>
           <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
           <p className={TEXT.caption}>Weather Window Finder</p>
         </div>
@@ -385,6 +389,7 @@ export default function ControlPanel({
           polygonAreaKm2={polygonAreaKm2}
           maxAreaKm2={maxAreaKm2}
           onPointAtSearch={onPointAtSearch}
+          onFocusSearch={onFocusSearch}
           onPointAtMapPois={onPointAtMapPois}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}
