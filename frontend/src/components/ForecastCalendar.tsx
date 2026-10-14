@@ -151,6 +151,10 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // field's top, or where it would be.
   const slotRef = useRef<HTMLDivElement>(null)
   const datesRef = useRef<HTMLButtonElement>(null)
+  // The When segment: a press on it is the arm switch's to handle, so the card
+  // and the rows Dates draws leave in the one render that changes the arm.
+  const segmentRef = useRef<HTMLDivElement>(null)
+  const currentRef = useRef<HTMLButtonElement>(null)
   // What the keyboard goes back to when the card closes: the field when there
   // is one, and the Dates arm when there is no range for a field to hold.
   // Read when it is needed, since the field mounts in the commit that closes
@@ -278,29 +282,45 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
 
   const hours = selection.kind === 'days' ? selection.hours : undefined
 
+  // Escape, a press outside and Tab past an edge all close the card through
+  // here. With no day picked there is nothing for Dates to hold, so the arm
+  // goes back to Current rather than standing on Dates over an empty row (the
+  // maintainer, 2026-10-13, #687); keeping the card open was declined. A close
+  // over a picked range keeps Dates and its field.
+  function dismiss(next: boolean) {
+    if (!next && selection.kind === 'days' && !hasDates(selection)) {
+      switchMode('now')
+      return
+    }
+    setOpen(next)
+  }
+
   // Hourly adds two rows and a month can hold five weeks or six, and either
   // changes the card's height while it is open; a card that grew without
   // being placed again would scroll in a gap the viewport could give it.
   const { popoverRef, box } = usePopover({
     open,
-    onOpenChange: setOpen,
+    onOpenChange: dismiss,
     triggerRef,
     remeasure: [hours !== undefined, weeks.length],
     initialFocusRef: focusedDayRef,
     anchorRef: slotRef,
     cover: true,
+    ownPressRef: segmentRef,
   })
 
   // Escape and Tab hand the keyboard back while the card is still open, when
   // the field is not drawn yet and the Dates arm is all there is to take it.
-  // Once the field is back, it is the control the keyboard belongs on.
+  // Once the card has closed, the keyboard belongs on the field, or on Current
+  // when the close with no day picked went back to it.
   const wasOpen = useRef(false)
+  const kind = selection.kind
   useLayoutEffect(() => {
-    if (wasOpen.current && !open && fieldRef.current && document.activeElement === datesRef.current) {
-      fieldRef.current.focus()
+    if (wasOpen.current && !open && document.activeElement === datesRef.current) {
+      ;(fieldRef.current ?? (kind === 'now' ? currentRef.current : null))?.focus()
     }
     wasOpen.current = open
-  }, [open])
+  }, [open, kind])
 
   // The window in the words the results bar prints for an analyzed one
   // (`windowCaption`), so the field and the report it produces say the same
@@ -369,7 +389,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
         <span id={whenId} className={TEXT.subheading}>
           When
         </span>
-        <div className={SEGMENT}>
+        <div ref={segmentRef} className={SEGMENT}>
           {[
             {
               kind: 'now' as const,
@@ -384,7 +404,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           ].map((option, i) => (
             <button
               key={option.kind}
-              ref={option.kind === 'days' ? datesRef : undefined}
+              ref={option.kind === 'days' ? datesRef : currentRef}
               aria-pressed={selection.kind === option.kind}
               onClick={() => switchMode(option.kind)}
               className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${

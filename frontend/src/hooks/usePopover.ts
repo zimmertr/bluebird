@@ -77,6 +77,13 @@ interface Options {
   anchorRef?: React.RefObject<HTMLElement | null>
   /** Stand on the anchor rather than beside it (`popoverBox`'s `cover`). */
   cover?: boolean
+  /**
+   * Controls whose press is not "outside", because the caller closes the
+   * panel itself in the same press: the calendar's When segment (#687). Its
+   * Current used to close the card on pointerdown and drop the Dates arm on
+   * the click, a press later, so the card left a frame before the rest.
+   */
+  ownPressRef?: React.RefObject<HTMLElement | null>
 }
 
 export function usePopover({
@@ -88,6 +95,7 @@ export function usePopover({
   initialFocusRef,
   anchorRef,
   cover = false,
+  ownPressRef,
 }: Options): { popoverRef: React.RefObject<HTMLDivElement | null>; box: PopoverBox | null } {
   const popoverRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<PopoverBox | null>(null)
@@ -231,6 +239,7 @@ export function usePopover({
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as Node
       if (popoverRef.current?.contains(target) || triggerRef.current?.contains(target)) return
+      if (ownPressRef?.current?.contains(target)) return
       onOpenChange(false)
     }
 
@@ -240,7 +249,7 @@ export function usePopover({
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [open, onOpenChange, triggerRef])
+  }, [open, onOpenChange, triggerRef, ownPressRef])
 
   return { popoverRef, box }
 }

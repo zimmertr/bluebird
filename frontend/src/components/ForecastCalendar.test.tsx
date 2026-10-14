@@ -264,10 +264,18 @@ describe('the date field', () => {
     expect(field().textContent).toBe('Tue, Sep 15 to Wed, Sep 16')
   })
 
-  // With no range there is nothing for a field to hold, so none is drawn:
-  // Dates opens the card where the field would stand, and closing it without
-  // a pick leaves the segment alone, with Dates as the way back in (#687).
+  // With no range there is nothing for a field to hold, so none is drawn,
+  // and Dates opens the card where the field would stand (#687).
   it('draws no empty field under Dates with no range', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'now' }} />)
+    await user.click(arm('Dates'))
+    expect(noField()).toBeNull()
+    expect(screen.getByRole('grid')).toBeTruthy()
+  })
+
+  // Closing the card with no day picked leaves Dates nothing to hold, so the
+  // arm goes back to Current, by Escape and by a press outside alike (#687).
+  it('goes back to Current when the card closes with no day picked', async () => {
     const { user } = render(
       <>
         <Calendar initial={{ kind: 'now' }} />
@@ -275,16 +283,54 @@ describe('the date field', () => {
       </>,
     )
     await user.click(arm('Dates'))
-    expect(noField()).toBeNull()
-    expect(screen.getByRole('grid')).toBeTruthy()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('grid')).toBeNull()
+    expect(lastSelection()).toEqual({ kind: 'now' })
+    expect(arm('Current').getAttribute('aria-pressed')).toBe('true')
+    expect(document.activeElement).toBe(arm('Current'))
     expect(noField()).toBeNull()
-    expect(document.activeElement).toBe(arm('Dates'))
+
     await user.click(arm('Dates'))
-    expect(screen.getByRole('grid')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'elsewhere' }))
     expect(screen.queryByRole('grid')).toBeNull()
+    expect(lastSelection()).toEqual({ kind: 'now' })
+    expect(arm('Current').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  // A close over a picked range keeps the arm and shows the field.
+  it('keeps Dates and the field when the card closes over a range', async () => {
+    const { user } = render(
+      <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />,
+    )
+    await user.click(field())
+    await user.keyboard('{Escape}')
+    expect(arm('Dates').getAttribute('aria-pressed')).toBe('true')
+    expect(field().textContent).toBe('Tue, Sep 15 to Wed, Sep 16')
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  // A link can carry Dates with no day. There is no field to press, so Dates
+  // pressed again is the way into the card.
+  it('opens the card from Dates when a link brings Dates with no day', async () => {
+    const { user } = render(<Calendar initial={{ kind: 'days', startDate: null, endDate: null }} />)
+    expect(noField()).toBeNull()
+    expect(screen.queryByRole('grid')).toBeNull()
+    await user.click(arm('Dates'))
+    expect(screen.getByRole('grid')).toBeTruthy()
+  })
+
+  // Current closes the card and drops the field in one render. The press
+  // used to close the card on pointerdown and change the arm on the click, a
+  // moment later, so the card left before the rest (#687).
+  it('closes the card and the field together when Current is pressed', () => {
+    render(<Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />)
+    fireEvent.click(field())
+    expect(screen.getByRole('grid')).toBeTruthy()
+    fireEvent.pointerDown(arm('Current'))
+    expect(screen.getByRole('grid')).toBeTruthy()
+    fireEvent.click(arm('Current'))
+    expect(screen.queryByRole('grid')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'All day' })).toBeNull()
     expect(noField()).toBeNull()
   })
 
