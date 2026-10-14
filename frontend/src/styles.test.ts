@@ -61,9 +61,7 @@ import {
   RECESSED_FILL,
   CALENDAR_FIELD,
   CALENDAR_GROUND,
-  FIELD_TRIGGER,
   DRAW_ROW,
-  PLACEHOLDER,
   METRIC_LABEL_PITCH,
   MOTION,
   PANEL_BODY,
@@ -614,7 +612,6 @@ describe('shared recipes', () => {
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['FIELD', FIELD],
     ['SELECT', SELECT],
-    ['FIELD_TRIGGER', FIELD_TRIGGER],
     ['DRAW_ROW.secondary', DRAW_ROW.secondary],
     ['DRAW_ROW.accent', DRAW_ROW.accent],
     ['DAY.cell', DAY.cell],
@@ -2170,27 +2167,6 @@ describe('the calendar field', () => {
     expect(forecastCalendarSource).toContain('<IconSelectArrow placement={CALENDAR_FIELD.arrow} />')
     expect(forecastCalendarSource).toContain('<Popover ')
     expect(forecastCalendarSource).toContain('CALENDAR_GROUND')
-  })
-})
-
-describe('the field trigger', () => {
-  // A button that stands for an empty field (#687, record 0137) is FIELD's
-  // box with the placeholder's slate as its text, and the placeholder role is
-  // the one the fields and the map's search box wear, so the three cannot
-  // drift into three greys.
-  it("looks like an empty field, in the placeholder's own step", () => {
-    const step = (c: string) => c.match(/slate-(\d+)/)![1]
-    expect(step(PLACEHOLDER.field)).toBe(step(PLACEHOLDER.text))
-    expect(FIELD).toContain(PLACEHOLDER.field)
-    expect(searchBoxSource).toContain('${PLACEHOLDER.field}')
-    expect(searchBoxSource).not.toMatch(/placeholder-slate/)
-    for (const part of [RECESSED_FILL, RECESSED_EDGE, RADIUS.control, TAP.height, PLACEHOLDER.text, CONTROL_SIZE]) {
-      expect(FIELD_TRIGGER).toContain(part)
-    }
-    // One text colour: TEXT.control's slate-200 would race the placeholder's.
-    expect(FIELD_TRIGGER).not.toContain(TEXT.control)
-    expect(FIELD_TRIGGER).toContain(FOCUS_RING)
-    expect(destinationsSource).toContain('${FIELD_TRIGGER} px-2 py-1.5')
   })
 })
 

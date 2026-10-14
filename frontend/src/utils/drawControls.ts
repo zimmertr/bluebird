@@ -8,8 +8,8 @@
  * which has no Escape key, had no way out until it placed a point.
  *
  * The row is always the mode button, Cancel and Clear, in that order (#687):
- * a third of the panel each, so it stands on the edges the fields above it
- * do, with a button that does nothing greyed rather than missing.
+ * a third of the panel each, so it stands on the edges the coordinates box
+ * above it does, with a button that does nothing greyed rather than missing.
  *
  * - The mode button enters draw mode (`draw`, or `edit` over a ring), and
  *   inside it is `done`, which keeps the ring and waits for three points.

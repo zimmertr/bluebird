@@ -41,7 +41,6 @@ import { useRankingKnobs } from './hooks/useRankingKnobs'
 import { useDestinationInputs } from './hooks/useDestinationInputs'
 import { useAnalyzeCommand } from './hooks/useAnalyzeCommand'
 import { useDrawMode } from './hooks/useDrawMode'
-import { useMapSearchFocus } from './hooks/useMapSearchFocus'
 import { useMapOverlays } from './hooks/useMapOverlays'
 import { useTimeline } from './hooks/useTimeline'
 import { usePresentedReport } from './hooks/usePresentedReport'
@@ -175,8 +174,6 @@ export default function App() {
   } = overlays
   const closeDrawer = useCallback(() => setSidebarOpen(false), [])
   const openDrawer = useCallback(() => setSidebarOpen(true), [])
-  // The panel's search affordance focuses the map's search box (#687).
-  const { searchBoxRef, focusMapSearch } = useMapSearchFocus({ isDesktop, closeDrawer })
   const drawMode = useDrawMode({
     mapRef,
     polygon,
@@ -556,7 +553,6 @@ export default function App() {
         caps={caps}
         mapRef={mapRef}
         onPointAtSearch={setSearchPointed}
-        onFocusSearch={focusMapSearch}
         onPointAtMapPois={setPoisPointed}
         commitReasons={commitReasons}
         onAnalyze={handleAnalyze}
@@ -593,7 +589,6 @@ export default function App() {
       >
         <MapStage
           mapRef={mapRef}
-          searchBoxRef={searchBoxRef}
           drawMode={drawMode}
           destinationInputs={destinationInputs}
           removals={removals}

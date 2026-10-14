@@ -515,14 +515,14 @@ export const BUTTON_ACCENT =
 
 /**
  * The Polygon row (#687): the mode button, Cancel and Clear, always the three,
- * a third of the panel each, so the row stands on the edges the Map and
- * Coordinates fields above it do.
+ * a third of the panel each, so the row stands on the edges the coordinates
+ * box above it does.
  *
  * The two button roles at a 4px inset rather than 12px, and nothing else
  * changed. In a third the cell sets the width and the label is centred in it,
  * so the inset is only the floor under the widest label, `Draw polygon`
  * (77.4px at 12px on a Mac): at 12px a side it needs 101.4px, where a third of
- * the field is 100.3px on a desktop and 93px on a 360px phone (the field is
+ * the row is 100.3px on a desktop and 93px on a 360px phone (the row is
  * 317px and 295px, less two 8px gaps), so the label would wrap; at 4px it
  * needs 85.4px and fits both. Derived from the roles rather than spelled
  * again, so the fill, the type and the tap target cannot drift from the
@@ -1952,18 +1952,6 @@ export const DAY = {
 } as const
 
 /**
- * The placeholder's slate: on a field's placeholder, and on the text of a
- * control that stands in for an empty field (`FIELD_TRIGGER`). One step for
- * both, so the map's search box, every panel field and the trigger that
- * looks like a field cannot drift apart. slate-400 is 7.0:1 on the slate-900
- * fill, past the 4.5:1 a placeholder owes as text. (#165, #687)
- */
-export const PLACEHOLDER = {
-  field: 'placeholder-slate-400',
-  text: 'text-slate-400',
-} as const
-
-/**
  * The shared surface under every text-entry control in the panel.
  *
  * The placeholder color lives here for the same reason every color above
@@ -1979,24 +1967,7 @@ export const PLACEHOLDER = {
  */
 export const FIELD =
   `${TEXT.control} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
-  `focus:outline-none focus:border-sky-500 ${PLACEHOLDER.field}`
-
-/**
- * A field that is a button: it looks like the empty field it stands for and
- * a press goes somewhere to type (#687, record 0137): the Destinations
- * section's search field, which hands the keyboard to the map's search box.
- *
- * `FIELD`'s box with its text in the placeholder's colour, because what it
- * shows is a placeholder: nothing has been typed. `CONTROL_SIZE` rather than
- * `TEXT.control`, whose slate-200 would race this slate-400 by stylesheet
- * order. Full width, on the calendar's and the textarea's exception to the
- * control column (record 0040). A button takes the focus ring rather than the
- * field's border, because a press on it moves the keyboard away at once.
- * Padding stays at the call site, as `FIELD`'s does.
- */
-export const FIELD_TRIGGER =
-  `${CONTROL_SIZE} ${PLACEHOLDER.text} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
-  `flex w-full items-center gap-2 text-left cursor-text ${FOCUS_RING}`
+  'focus:outline-none focus:border-sky-500 placeholder-slate-400'
 
 /**
  * A numeric field with the browser's spinner arrows suppressed.

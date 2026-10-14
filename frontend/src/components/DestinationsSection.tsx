@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { CustomDestination, DiscoveryType } from '../types'
 import {
   CHOICE_INPUT,
@@ -6,13 +6,10 @@ import {
   DISABLED,
   DRAW_ROW,
   FIELD,
-  FIELD_TRIGGER,
-  ICON_ACTION,
   STATUS,
   TEXT,
 } from '../styles'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { IconSearch } from './icons'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
 
@@ -22,12 +19,6 @@ import { drawControls } from '../utils/drawControls'
 // Sized to where Cascades-density terrain starts brushing the analysis cap
 // (~26,000 km² held 1,117 peaks).
 const AREA_NOTE_KM2 = 40_000
-
-// What the Map group's field says: the two ways the map takes a destination,
-// searching for one and picking one off it (approved copy, the maintainer,
-// 2026-10-13). 225.9px at 12px on a Mac, inside the 253px a 360px phone's
-// field has for it with px-2.
-const MAP_PROMPT = 'Search by name, or select from the map'
 
 // The coordinates box's placeholder: the format, then one row that follows
 // it, two lines for a box two rows tall so a reader sees that several rows go
@@ -71,9 +62,6 @@ interface Props {
   // map offers at once.
   onPointAtSearch: (on: boolean) => void
   onPointAtMapPois: (on: boolean) => void
-  // The Map group's field hands the keyboard to the map's search box; on a
-  // phone the drawer closes first (`useMapSearchFocus`).
-  onFocusSearch: () => void
   // A set: one polygon can look for several kinds at once, and none checked
   // means the polygon discovers nothing.
   destinationTypes: DiscoveryType[]
@@ -110,7 +98,6 @@ export default function DestinationsSection({
   maxAreaKm2,
   onPointAtSearch,
   onPointAtMapPois,
-  onFocusSearch,
   destinationTypes,
   setDestinationTypes,
   includeUnnamedPeaks,
@@ -139,8 +126,6 @@ export default function DestinationsSection({
   }, [drawing, drawPointCount])
   const row = drawControls(drawing, drawPointCount)
   const peaksOn = destinationTypes.includes('peak')
-  const mapHeadingId = useId()
-  const mapPromptId = useId()
 
   return (
     <section data-tour="destinations">
@@ -148,17 +133,20 @@ export default function DestinationsSection({
         Destinations
       </h2>
 
-      {/* Map: the two methods whose control is the map itself, the
-          floating search box and the clickable peaks and lakes, grouped as
-          one subsection. The heading makes the three groups parallel: each
-          names the instrument. Its control is a field that looks like the
-          search box's empty field and hands the keyboard to it (#687,
-          record 0137), so searching is visible in the panel itself rather
-          than only in a helper line beside nothing to press: that line is
-          gone, because the field now says it. Hovering the group still
-          rings the search box AND glows the selectable features, so the
-          reader is shown where both live. The words name clicking the map
-          too, because that is the other half of the group. */}
+      {/* Map — the two methods whose control is the map itself, the
+          floating search box and the clickable peaks and lakes, grouped
+          as one subsection rather than two widgetless ones. The heading
+          keeps the caption from reading as a description of the whole
+          section, and makes the three groups parallel: each names the
+          instrument, so the shape says "another way to add destinations"
+          without a "Search by" prefix saying it four times. Hovering the
+          group rings the search box AND glows the selectable features,
+          so the reader is shown where both live instead of told.
+          Hover-only is fine here because it adds a cue to copy that
+          already stands on its own. The caption names peaks and lakes
+          rather than "a destination" because those are the two things
+          the basemap makes clickable - trailheads are not on it, which
+          is why they are found by polygon instead. */}
       <div
         className="mb-3"
         onMouseEnter={() => {
@@ -170,24 +158,11 @@ export default function DestinationsSection({
           onPointAtMapPois(false)
         }}
       >
-        <h3 id={mapHeadingId} className={`${TEXT.subheading} mb-1.5`}>
-          Map
-        </h3>
-        <button
-          type="button"
-          onClick={onFocusSearch}
-          aria-labelledby={`${mapHeadingId} ${mapPromptId}`}
-          className={`${FIELD_TRIGGER} px-2 py-1.5`}
-        >
-          <IconSearch className={`flex-shrink-0 ${ICON_ACTION}`} />
-          <span id={mapPromptId} className="min-w-0 truncate">
-            {MAP_PROMPT}
-          </span>
-        </button>
+        <h3 className={`${TEXT.subheading} mb-1`}>Map</h3>
+        <p className={TEXT.helper}>Search by name, or click any peak or lake.</p>
       </div>
 
-      {/* Coordinates: second, beside the map's search field, so the two
-          full-width inputs stand together and the Polygon block's buttons
+      {/* Coordinates: second, under Map, so the Polygon block's buttons
           and boxes come last (#687, record 0137). A list you bring to the
           map rather than a gesture on it. Two rows tall at rest, so a
           reader sees that several rows go in, with the format and one row
@@ -225,7 +200,23 @@ export default function DestinationsSection({
           phrase restated its own helper line. Last since #687, so the two
           full-width inputs above it stand together. */}
       <div>
-        <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
+        {/* The area stands on the subheading's line, right-justified on its
+            baseline, to give the section a line back (#687). The area and
+            not the counter, because only the area fits beside the subheading
+            in every case at 360px: there the line has 239.6px beside
+            `Polygon` (295px of content, 47.4px of subheading, the 8px gap),
+            the area at most 205.4px (`~51,000,000 km² (max 100,000 km²)`)
+            and the counter up to 250.5px (`1000 points placed. Press Done
+            when ready.`), all at 12px on a Mac. */}
+        <div className="flex items-baseline justify-between gap-2 mb-1.5">
+          <h3 className={TEXT.subheading}>Polygon</h3>
+          {drawPointCount > 0 && polygonAreaKm2 !== null && (
+            <p className={areaTooLarge ? STATUS.error : TEXT.caption}>
+              ~{Math.round(polygonAreaKm2).toLocaleString()} km²
+              {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
+            </p>
+          )}
+        </div>
         {drawPointCount > 0 && (
           <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
             {/* Only while drawing does the status name a gesture: outside
@@ -245,12 +236,6 @@ export default function DestinationsSection({
                 {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
               </p>
             )}
-            {polygonAreaKm2 !== null && (
-              <p className={areaTooLarge ? STATUS.error : TEXT.caption}>
-                ~{Math.round(polygonAreaKm2).toLocaleString()} km²
-                {areaTooLarge && ` (max ${maxAreaKm2.toLocaleString()} km²)`}
-              </p>
-            )}
             {polygonAreaKm2 !== null &&
               polygonAreaKm2 > AREA_NOTE_KM2 &&
               !areaTooLarge && (
@@ -266,7 +251,7 @@ export default function DestinationsSection({
             of #118 in the panel: Draw/Edit to enter, Done to keep the ring,
             Cancel to put back the one the mode started with, Clear to empty
             it. The row is always the same three, a third of the width each,
-            so it stands on the edges the Map and Coordinates fields do, and a
+            so it stands on the coordinates box's edges, and a
             button that does nothing yet is greyed rather than missing: one
             that popped in on the first click would move the row under the
             reader's eye (#687). Which is live, and what the first one says,

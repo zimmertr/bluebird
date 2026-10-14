@@ -25,7 +25,6 @@ function props(over: Partial<Props> = {}): Props {
     polygonAreaKm2: null,
     maxAreaKm2: 100_000,
     onPointAtSearch: noop,
-    onFocusSearch: noop,
     onPointAtMapPois: noop,
     destinationTypes: ['peak'],
     setDestinationTypes: noop,
@@ -40,12 +39,13 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
-// The Polygon block's buttons, in order, apart from the two fields above it.
+// The Polygon block's buttons, in order: the block is the subheading's line
+// and everything under it.
+const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon' }).parentElement!.parentElement!
 const polygonButtons = () =>
-  within(screen.getByRole('heading', { name: 'Polygon' }).parentElement!)
+  within(polygonBlock())
     .getAllByRole('button')
     .map((b) => b.textContent)
-const MAP_PROMPT = 'Search by name, or select from the map'
 const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
 
 describe('DestinationsSection', () => {
@@ -72,6 +72,16 @@ describe('DestinationsSection', () => {
         />,
       )
       expect(screen.getByText(/~120,000 km² \(max 100,000 km²\)/)).toBeTruthy()
+    })
+
+    // The area stands on the subheading's line to give the section a line
+    // back (#687); the counter keeps its own line under it.
+    it("puts the area on the subheading's line and the counter under it", () => {
+      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 4, pointsNeeded: 0, polygonAreaKm2: 779 })} />)
+      const heading = screen.getByRole('heading', { name: 'Polygon' })
+      expect(heading.parentElement!.textContent).toBe('Polygon~779 km²')
+      expect(heading.parentElement!.textContent).not.toContain('placed')
+      expect(screen.getByText('4 points placed. Press Done when ready.')).toBeTruthy()
     })
 
     it('warns a large area that is still under the cap', () => {
@@ -270,27 +280,13 @@ describe('DestinationsSection', () => {
     })
   })
 
-  describe('the map search field', () => {
-    it('says both ways the map takes a destination', () => {
-      render(<DestinationsSection {...props()} />)
-      expect(screen.getByRole('button', { name: `Map ${MAP_PROMPT}` }).textContent).toBe(MAP_PROMPT)
-    })
-
-    it('hands the keyboard to the map search box', async () => {
-      const onFocusSearch = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ onFocusSearch })} />)
-      await user.click(screen.getByRole('button', { name: `Map ${MAP_PROMPT}` }))
-      expect(onFocusSearch).toHaveBeenCalledOnce()
-    })
-  })
-
   // Map, Coordinates, Polygon (#687, record 0137): the two full-width inputs
   // together, the polygon's buttons and boxes last.
   it('orders the three ways in as Map, Coordinates, Polygon', () => {
     render(<DestinationsSection {...props()} />)
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     expect(headings).toEqual(['Map', 'Coordinates', 'Polygon'])
-    expect(screen.queryByText('Search by name, or click any peak or lake.')).toBeNull()
+    expect(screen.getByText('Search by name, or click any peak or lake.')).toBeTruthy()
   })
 
   it('points at the map while the Map group is hovered', () => {

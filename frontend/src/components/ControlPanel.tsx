@@ -38,7 +38,6 @@ interface Props {
   onCancelDrawing: () => void
   onClearDrawing: () => void
   onPointAtSearch: (on: boolean) => void
-  onFocusSearch: () => void
   onPointAtMapPois: (on: boolean) => void
   // A set: one polygon can look for several kinds at once, and none checked
   // means the polygon discovers nothing.
@@ -157,7 +156,6 @@ export default function ControlPanel({
   onCancelDrawing,
   onClearDrawing,
   onPointAtSearch,
-  onFocusSearch,
   onPointAtMapPois,
   destinationTypes,
   setDestinationTypes,
@@ -389,7 +387,6 @@ export default function ControlPanel({
           polygonAreaKm2={polygonAreaKm2}
           maxAreaKm2={maxAreaKm2}
           onPointAtSearch={onPointAtSearch}
-          onFocusSearch={onFocusSearch}
           onPointAtMapPois={onPointAtMapPois}
           destinationTypes={destinationTypes}
           setDestinationTypes={setDestinationTypes}

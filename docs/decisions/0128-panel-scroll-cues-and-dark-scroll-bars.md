@@ -23,7 +23,7 @@ On a desktop the docked panel and the docked results are both slate-800, side by
 
 - The seam (2026-10-13, Tailwind's slate): `PANEL_EDGE` is 3.07:1 on slate-800 and 3.74:1 on slate-900, past the 3:1 WCAG 1.4.11 asks of the only thing separating two surfaces, where `SURFACE_DIVIDER` is 1.41:1.
 - The bar (2026-10-13, Chromium in the pinned Playwright image with classic bars): the browser's own was 15px and left 312px of content while it showed and 327px when it did not; the shared bar is 10px, and with its space kept the body is 317px wide always. On an overlay-bar screen (macOS by default, every phone) it takes and reserves nothing. The Metrics row's label budget is checked at 317px in `styles.test.ts`.
-- What the body hides at defaults with this PR's other rows in (2026-10-13): 147 to 129px at 1440x900, 558 to 498px on a 390x844 phone under touch.
+- What the body hides at defaults with this PR's other rows in (2026-10-13): 147 to 113px at 1440x900, 558 to 468px on a 390x844 phone under touch.
 - The corner prototypes (#697, 2026-10-13): option B, floating inset cards, cost 36px of table width and up to 38px of map height and needed a camera fix the prototype did not do; option C, rounded docked corners over a gutter, read as awkward on the side panel and the results, and separated the two panels.
 - `useScrollShadows.test.tsx` holds the fallback's two attributes at the top, mid-way, at the end and over a body that fits; `styles.test.ts` holds the roles, the root's scheme, the theme variables in the bar and the four fallback selectors.
 

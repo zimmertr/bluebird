@@ -8,7 +8,7 @@ The welcome dialog offers a guided tutorial, the `Tutorial` link at the bottom o
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map**, **Coordinates** and **Polygon**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map**, as one field reading `Search by name, or select from the map`: pressing it puts the cursor in the map's search box, closing the panel first on a phone, and hovering the group rings the search box and lights every clickable feature, showing you where both controls are.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map**, **Coordinates** and **Polygon**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
 
 ### a. Search by name
 
@@ -16,7 +16,7 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 ### b. Click a destination
 
-The control for this one is the map itself, which is why the panel carries nothing for it beyond the field above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in as soon as it is added, by the same lookup a pasted coordinate gets: the map's own tiles first, then the map server for whatever they cannot place.
 
@@ -35,7 +35,7 @@ Trailheads are not clickable: the basemap does not carry them, so a polygon is s
 Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
 
 - You need at least 3 points before Analyze turns on.
-- The estimated bounding-box area is shown in km² while you draw, and for a polygon a shared link brings in.
+- The estimated bounding-box area is shown in km² beside **Polygon** while you draw, and for a polygon a shared link brings in.
 - Drag a vertex to move it, drag a midpoint handle to add one, or click a vertex to remove it.
 - Once the shape is closed, a click lands on the edge nearest to it rather than at the end of the outline, so clicking across the polygon widens the side you pointed at instead of folding the shape over itself.
 - Press **Done**, or the Enter key, to finish. Analyze finishes for you.
@@ -96,7 +96,7 @@ Changing the model needs a new **Analyze**, like changing the polygon or the win
 
 ### Forecast window
 
-A **When** toggle reading **Current** or **Dates**, and under **Dates** one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar over the panel: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you.
+A **When** toggle reading **Current** or **Dates**, and under **Dates**, once you have picked a range, one field holding the chosen window in the words the results bar uses for it (`Wed, Oct 14 to Thu, Oct 15`). Pressing the field opens the calendar in its place: an **Hours** row, the month, and the grid of days. It stays open while you pick, so a range is two clicks or a drag in one visit, and closes on Escape, on a click outside it, or on Tab past its last control. Choosing **Dates** with no range to bring back opens it for you, and if you close it without picking a day, pressing **Dates** again opens it.
 
 - **Current** analyzes the hour you press Analyze. It is the default, so a fresh load can Analyze without touching this step at all.
 - **Pick a day** to analyze that whole day, midnight to 23:59 your local time; that also moves the toggle to **Dates**. By default precipitation ranks by the day's total, the freezing level by its minimum, and wind, temperature and AQI by their average; the Metrics section's aggregate dropdowns change that.
@@ -128,7 +128,7 @@ Days are your local calendar days, converted to UTC for the API, and the far edg
 
 **The forecast model moves this calendar.** Picking a short-range model above greys out the days it cannot reach, and shortens a window you had already chosen, with a note saying it did. The shortening is undoable by construction: switch back to a model that can serve your original window and it returns whole. The remembered window is dropped once you edit the dates yourself or run an analysis. HRRR is the case that matters: it reaches about two days where the global models reach one to two weeks.
 
-The calendar is fully keyboard operable: Enter or Space on the field opens it with the selected day focused, arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range and closes the calendar, putting you back on the field.
+The calendar is fully keyboard operable: Enter or Space on the field opens it with the selected day focused, arrow keys move by day, Page Up and Page Down by month, Enter or Space selects, and Escape abandons a half-made range and closes the calendar, putting you back on the field, or on **Dates** if no day is picked yet.
 
 ## Metrics
 

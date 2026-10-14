@@ -70,8 +70,6 @@ interface AppDrawerProps {
   mapRef: RefObject<MapViewHandle | null>
   /** The panel's Map group is hovered: the search box and the map's features wear a cue. */
   onPointAtSearch: (on: boolean) => void
-  /** Hands the keyboard to the map's search box, closing the drawer first on a phone. */
-  onFocusSearch: () => void
   onPointAtMapPois: (on: boolean) => void
   /** Why the report no longer answers what the panel asks. */
   commitReasons: CommitReason[]
@@ -119,7 +117,6 @@ export default function AppDrawer({
   caps,
   mapRef,
   onPointAtSearch,
-  onFocusSearch,
   onPointAtMapPois,
   commitReasons,
   onAnalyze,
@@ -223,7 +220,6 @@ export default function AppDrawer({
           onCancelDrawing={handleCancelDrawing}
           onClearDrawing={handleClearDrawing}
           onPointAtSearch={onPointAtSearch}
-          onFocusSearch={onFocusSearch}
           wildfireCheckFailed={checkNoticeDue(fireStatus, showWildfires, results.length)}
           closureCheckFailed={checkNoticeDue(closureStatus, showAreaClosures, results.length)}
           basemapFailed={basemapFailed}
