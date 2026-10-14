@@ -45,8 +45,10 @@ const day = (date: string) => screen.getByRole('gridcell', { name: date })
 const lastSelection = () => onChange.mock.lastCall?.[0] as ForecastSelection
 // The field under Dates, named by the When label and the window it holds.
 const field = () => screen.getByRole('button', { name: /^When\b/ })
-// The Hours row and the grid live in the card the field opens (#687).
-const openCalendar = (user: { click: (el: Element) => Promise<void> }) => user.click(field())
+const noField = () => screen.queryByRole('button', { name: /^When\b/ })
+// The Hours row and the grid live in the card the field opens (#687). With no
+// range there is no field, and Dates opens the card.
+const openCalendar = (user: { click: (el: Element) => Promise<void> }) => user.click(noField() ?? arm('Dates'))
 
 describe('the two arms', () => {
   it('draws no grid under Current', () => {
@@ -246,17 +248,44 @@ describe('the date field', () => {
     expect(screen.queryByRole('button', { name: /^When\b/ })).toBeNull()
   })
 
-  it('opens the card on the selected day and closes on a second press', async () => {
+  // The card takes the field's place while it is open, so no field stands
+  // under it, and the field comes back when it closes (#687).
+  it('opens the card on the selected day in place of the field', async () => {
     const { user } = render(
       <Calendar initial={{ kind: 'days', startDate: '2026-09-15', endDate: '2026-09-16' }} />,
     )
     await user.click(field())
-    expect(field().getAttribute('aria-expanded')).toBe('true')
+    expect(noField()).toBeNull()
     expect(screen.getByRole('grid', { name: 'Forecast day' })).toBeTruthy()
     // The keyboard lands on the dates, not on the Hours row above them.
     expect(document.activeElement).toBe(day('2026-09-15'))
-    await user.click(field())
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('grid')).toBeNull()
+    expect(field().textContent).toBe('Tue, Sep 15 to Wed, Sep 16')
+  })
+
+  // With no range there is nothing for a field to hold, so none is drawn:
+  // Dates opens the card where the field would stand, and closing it without
+  // a pick leaves the segment alone, with Dates as the way back in (#687).
+  it('draws no empty field under Dates with no range', async () => {
+    const { user } = render(
+      <>
+        <Calendar initial={{ kind: 'now' }} />
+        <button type="button">elsewhere</button>
+      </>,
+    )
+    await user.click(arm('Dates'))
+    expect(noField()).toBeNull()
+    expect(screen.getByRole('grid')).toBeTruthy()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('grid')).toBeNull()
+    expect(noField()).toBeNull()
+    expect(document.activeElement).toBe(arm('Dates'))
+    await user.click(arm('Dates'))
+    expect(screen.getByRole('grid')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'elsewhere' }))
+    expect(screen.queryByRole('grid')).toBeNull()
+    expect(noField()).toBeNull()
   })
 
   it('stays open while a range is picked, and a press outside closes it', async () => {
@@ -266,13 +295,14 @@ describe('the date field', () => {
         <button type="button">elsewhere</button>
       </>,
     )
-    await user.click(field())
+    await user.click(arm('Dates'))
     await user.click(day('2026-09-10'))
     await user.click(day('2026-09-12'))
     expect(lastSelection()).toEqual({ kind: 'days', startDate: '2026-09-10', endDate: '2026-09-12' })
-    expect(field().textContent).toBe('Thu, Sep 10 to Sat, Sep 12')
+    expect(screen.getByRole('grid')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'elsewhere' }))
     expect(screen.queryByRole('grid')).toBeNull()
+    expect(field().textContent).toBe('Thu, Sep 10 to Sat, Sep 12')
   })
 
   it('picks by keyboard, and Escape closes the card and hands the field back', async () => {

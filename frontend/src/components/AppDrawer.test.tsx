@@ -94,7 +94,6 @@ function drawer(
       caps={CAPS}
       mapRef={MAP}
       onPointAtSearch={NOOP}
-      onFocusSearch={NOOP}
       onPointAtMapPois={NOOP}
       commitReasons={NO_REASONS}
       onAnalyze={NOOP}

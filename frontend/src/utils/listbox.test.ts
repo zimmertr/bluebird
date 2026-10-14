@@ -164,6 +164,15 @@ describe('popoverBox', () => {
     const squeezed = { ...TRIGGER, top: 899 }
     expect(popoverBox(squeezed, VIEWPORT, opts(0)).maxHeight).toBeGreaterThanOrEqual(0)
   })
+  // A panel that takes its trigger's place stands where the trigger stood,
+  // with room or without, and moves up only as far as the screen needs.
+  it('stands on the trigger when asked to cover it', () => {
+    const box = popoverBox(TRIGGER, VIEWPORT, { ...opts(200), cover: true })
+    expect(box.offset).toEqual({ top: 400 })
+    const low = popoverBox({ ...TRIGGER, top: 800 }, VIEWPORT, { ...opts(300), cover: true })
+    expect(low.offset).toEqual({ top: 900 - 8 - 300 })
+  })
+
 })
 
 describe('nextActiveIndex', () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, Ref } from 'react'
 import Popover from './Popover'
 import { IconSelectArrow } from './icons'
@@ -80,9 +80,11 @@ interface Drag {
 /**
  * The forecast window as a calendar (#166), behind a field (#687).
  *
- * Under Dates the panel shows one field holding the window in the words the
- * results bar prints for it, and the field opens the Hours row and the month
- * grid as a popover on `Popover.tsx`'s card. The grid used to stand in the
+ * Under Dates with a range picked the panel shows one field holding the
+ * window in the words the results bar prints for it, and the field opens the
+ * Hours row and the month grid as a popover on `Popover.tsx`'s card. The card
+ * takes the field's place while it is open, and with no range there is no
+ * field at all, only the card when Dates is pressed. The grid used to stand in the
  * panel body in a well, where choosing Dates grew the Forecast section from
  * 111px to 424px. Record 0129.
  *
@@ -144,6 +146,23 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   // close: closing the card is not leaving the Dates arm.
   const [open, setOpen] = useState(false)
   const fieldRef = useRef<HTMLButtonElement>(null)
+  // Where the card stands: the slot under When, which is in the layout under
+  // Dates whether or not the field is drawn in it, so the card's top is the
+  // field's top, or where it would be.
+  const slotRef = useRef<HTMLDivElement>(null)
+  const datesRef = useRef<HTMLButtonElement>(null)
+  // What the keyboard goes back to when the card closes: the field when there
+  // is one, and the Dates arm when there is no range for a field to hold.
+  // Read when it is needed, since the field mounts in the commit that closes
+  // the card.
+  const triggerRef = useMemo(
+    () => ({
+      get current(): HTMLElement | null {
+        return fieldRef.current ?? datesRef.current
+      },
+    }),
+    [],
+  )
   // The day that takes the keyboard when the card opens, so a reader lands on
   // the dates rather than on the Hours row above them.
   const focusedDayRef = useRef<HTMLButtonElement>(null)
@@ -179,7 +198,12 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
 
   function switchMode(kind: SelectionKind) {
     const next = applyModeSwitch(kind, selection, lastDays.current, now, band)
-    if (next === selection) return
+    if (next === selection) {
+      // Dates pressed again with no range is the way back into a card that
+      // was closed without a pick: there is no field to press instead.
+      if (kind === 'days' && !hasDates(selection)) openCalendar()
+      return
+    }
     // A half-made range does not survive leaving the arm it was being made in.
     setAnchor(null)
     if (hasDates(next)) {
@@ -188,9 +212,9 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
       setMonth(monthKey(next.startDate))
       setFocused(next.startDate)
     }
-    // Dates with no range to bring back has nothing to show but an empty
-    // field, so the card opens for the first pick. A restored range opens
-    // nothing: its field already says what was chosen.
+    // Dates with no range to bring back has no field to show, so the card
+    // opens for the first pick. A restored range opens nothing: its field
+    // already says what was chosen.
     if (next.kind === 'days' && !hasDates(next)) setOpen(true)
     if (next.kind === 'now') setOpen(false)
     onChange(next)
@@ -260,10 +284,23 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
   const { popoverRef, box } = usePopover({
     open,
     onOpenChange: setOpen,
-    triggerRef: fieldRef,
+    triggerRef,
     remeasure: [hours !== undefined, weeks.length],
     initialFocusRef: focusedDayRef,
+    anchorRef: slotRef,
+    cover: true,
   })
+
+  // Escape and Tab hand the keyboard back while the card is still open, when
+  // the field is not drawn yet and the Dates arm is all there is to take it.
+  // Once the field is back, it is the control the keyboard belongs on.
+  const wasOpen = useRef(false)
+  useLayoutEffect(() => {
+    if (wasOpen.current && !open && fieldRef.current && document.activeElement === datesRef.current) {
+      fieldRef.current.focus()
+    }
+    wasOpen.current = open
+  }, [open])
 
   // The window in the words the results bar prints for an analyzed one
   // (`windowCaption`), so the field and the report it produces say the same
@@ -347,6 +384,7 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           ].map((option, i) => (
             <button
               key={option.kind}
+              ref={option.kind === 'days' ? datesRef : undefined}
               aria-pressed={selection.kind === option.kind}
               onClick={() => switchMode(option.kind)}
               className={`${SEGMENT_ITEM} ${i > 0 ? SEGMENT_DIVIDER : ''} ${
@@ -373,25 +411,35 @@ export default function ForecastCalendar({ selection, onChange, band }: Props) {
           reason the model picker is: a recessed box with an arrow is what
           opens a choice in this panel, and the one control here that may
           stand two lines tall (CALENDAR_FIELD). Named by the When label and its own
-          words together, so it is announced as the window it holds. */}
-      {revealsGrid && (
-        <div className="relative mt-2">
-          <button
-            ref={fieldRef}
-            type="button"
-            aria-expanded={open}
-            aria-labelledby={`${whenId} ${fieldTextId}`}
-            onClick={() => (open ? setOpen(false) : openCalendar())}
-            className={CALENDAR_FIELD.box}
-          >
-            {/* Wraps rather than truncating: the longest window, hours and a
-                year, needs two lines at panel width, and the end of it is
-                what an ellipsis would hide. */}
-            <span id={fieldTextId} className="min-w-0">
-              {fieldText}
-            </span>
-          </button>
-          <IconSelectArrow placement={CALENDAR_FIELD.arrow} />
+          words together, so it is announced as the window it holds.
+
+          It is drawn only when it has something to show (#687): with no range
+          picked an empty box would stand above the card, and while the card is
+          open the card stands in its place, top on its top, so the field is
+          not drawn under it. The slot stays while the card is open, empty, as
+          what the card is placed against. */}
+      {revealsGrid && (fieldText !== '' || open) && (
+        <div ref={slotRef} className="relative mt-2">
+          {!open && (
+            <>
+              <button
+                ref={fieldRef}
+                type="button"
+                aria-expanded={false}
+                aria-labelledby={`${whenId} ${fieldTextId}`}
+                onClick={openCalendar}
+                className={CALENDAR_FIELD.box}
+              >
+                {/* Wraps rather than truncating: the longest window, hours and a
+                    year, needs two lines at panel width, and the end of it is
+                    what an ellipsis would hide. */}
+                <span id={fieldTextId} className="min-w-0">
+                  {fieldText}
+                </span>
+              </button>
+              <IconSelectArrow placement={CALENDAR_FIELD.arrow} />
+            </>
+          )}
         </div>
       )}
 

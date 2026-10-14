@@ -37,7 +37,6 @@ function props(over: Partial<Props> = {}): Props {
     onCancelDrawing: noop,
     onClearDrawing: noop,
     onPointAtSearch: noop,
-    onFocusSearch: noop,
     onPointAtMapPois: noop,
     destinationTypes: ['peak'],
     setDestinationTypes: noop,
