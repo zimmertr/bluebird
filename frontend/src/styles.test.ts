@@ -130,6 +130,7 @@ import mapLegendSource from './components/MapLegend.tsx?raw'
 import phoneMapRowsSource from './components/PhoneMapRows.tsx?raw'
 import bottomSheetSource from './components/BottomSheet.tsx?raw'
 import phoneFootSource from './components/PhoneFoot.tsx?raw'
+import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
@@ -1983,8 +1984,8 @@ describe('the phone rows', () => {
 
   // Everything else on a phone's top stands under the rows: the draw bar 8px
   // under the chips, the vendor's stack (the compass) one inset under the
-  // rows or under the draw bar, and the bottom sheet's dim and its card one
-  // inset under the chips, so the chips stay in view over a sheet.
+  // rows or under the draw bar, and the bottom sheet's card at most to one
+  // inset under the chips, so a long list leaves the top of the map in view.
   it('builds every anchor under the rows from the rows\' sum', () => {
     const drawBarTop = px(MAP_ROWS.drawBar, 'top')
     expect(drawBarTop).toBe(BOTTOM + GAP)
@@ -1995,7 +1996,6 @@ describe('the phone rows', () => {
     expect(drawBarPx).toBe(56)
     // Its 1px border, top and bottom, is the 58 the bar measures.
     expect(vendor(MAP_EDGE.belowDrawBar)).toBe(drawBarTop + drawBarPx + 2 + INSET)
-    expect(px(BOTTOM_SHEET.dim, 'top')).toBe(BOTTOM + INSET)
     expect(BOTTOM_SHEET.card).toContain(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
     const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
     expect(rule.slice(rule.indexOf('{'), rule.indexOf('}'))).toContain('var(--map-vendor-top, var(--map-edge-inset))')
@@ -2078,6 +2078,10 @@ describe('the bottom sheet', () => {
     for (const recipe of [BOTTOM_SHEET.scrim, BOTTOM_SHEET.card]) expect(recipe).toContain(LAYER.popover)
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
     expect(BOTTOM_SHEET.dim).toMatch(/(^|\s)bg-black\/\d+(\s|$)/)
+    // The whole screen, chips and search row included, fixed to the viewport
+    // with the scrim, so no banner above the map leaves a band of it bright.
+    expect(BOTTOM_SHEET.dim.split(/\s+/)).toEqual(expect.arrayContaining(['absolute', 'inset-0']))
+    expect(BOTTOM_SHEET.dim).not.toMatch(/(^|\s)top-/)
     expect(bottomSheetSource).toContain('role="dialog"')
     expect(bottomSheetSource).toContain('aria-modal="true"')
     expect(bottomSheetSource).toContain('useDialog(onClose)')
@@ -2462,6 +2466,20 @@ describe('the attribution beside the scale', () => {
     const cap = Number(rule.match(/max-width: calc\(100% - (\d+)px\)/)?.[1])
     expect(SCALE_MAX_WIDTH_PX).toBe(100)
     expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
+  })
+
+  // On a phone the credit line sits at the bottom left beside the scale, and
+  // its row stops so the line ends 8px short of the Analyze button (#696):
+  // the button's measured width, its 16px inset and the 8px clear, less the
+  // compact credit's own 10px margin inside the row. Measured 2026-10-14 at
+  // 360, 390 and 430 wide: a 120.1px button, the row ending 134.1px from the
+  // map's right edge, the line 8px short of the button.
+  it('caps a phone\'s credit row short of the Analyze button', () => {
+    const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-left:has\(> \.maplibregl-ctrl-attrib\) \{[^}]*\}/)?.[0] ?? ''
+    const clear = Number(rule.match(/right: calc\(var\(--map-fab-w, 0px\) \+ (\d+)px\);/)?.[1])
+    expect(clear).toBe(16 + CLEAR_PX - ATTRIB_MARGIN_PX)
+    expect(MAP_FAB.split(/\s+/)).toContain('right-4')
+    expect(mapStageSource).toContain("'--map-fab-w': `${fabPx}px`")
   })
 
   // Three lines at 360px wide: the corner grows up over the map, never down

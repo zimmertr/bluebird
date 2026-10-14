@@ -2165,12 +2165,16 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * modal over a dimmed map, where a desk keeps its menus joined to their
  * controls (record 0134). One component (`BottomSheet.tsx`) wears these.
  *
- * `scrim` catches every press outside the card, which closes it, across the
- * whole screen; `dim` is the part of it that shows, from one inset under the
- * chip row (92 + 12) down, so the lit chip that opened the sheet stays
- * readable above it. `card` is the results sheet's surface lifted a step,
- * since it stands over that sheet, and it stops under the chip row too, so
- * however long its rows run the chips stay in view. `grip` is the bar the
+ * `scrim` catches every press outside the card, which closes it, and `dim`
+ * shades all of it: the whole screen, the search row and the chips included,
+ * Material's rule for a modal sheet's scrim. Both are fixed to the viewport
+ * rather than placed against the map, so a preview banner that shifts the map
+ * down cannot leave a band of it bright (it stopped one inset under the chip
+ * row, measured from the viewport, until the maintainer's phone showed the
+ * chips half dimmed under a banner). `card` is the results sheet's surface
+ * lifted a step, since it stands over that sheet, and it stops one inset under
+ * where the chip row ends on a phone with no banner, so a long list leaves
+ * the top of the dimmed map in view. `grip` is the bar the
  * mockup draws at the top, a swipe down on which closes the sheet. `head`
  * is the title at the left and Done at the right; `title` the sheet's own
  * word, the chip's or the button's that opened it. `body` scrolls, and every
@@ -2178,7 +2182,7 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  */
 export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
-  dim: 'absolute inset-x-0 bottom-0 top-[104px] bg-black/40',
+  dim: 'absolute inset-0 bg-black/40',
   card:
     `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
     `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} pb-[env(safe-area-inset-bottom)] focus:outline-none`,

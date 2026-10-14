@@ -455,7 +455,8 @@ A phone's map carries two rows across its top and one button at its foot
 (`MAP_ROWS`, `MAP_PILL`, `MAP_LOCATE`, `MAP_CHIP`, `MAP_FAB` in `styles.ts`).
 The rows are four numbers, the map's 12px inset, the 40px first row, 8px
 between and the 32px chip row, so they end 92px down; the draw bar, the
-compass, the sheet's dim and its highest stop are all built from that sum, and
+compass, the bottom sheet's card and the results sheet's highest stop are all
+built from that sum, and
 `styles.test.ts` holds each to it. The chips are 13px type with 12px a side,
 content-sized, and only the summary may shrink, by an ellipsis on its words.
 
@@ -756,8 +757,8 @@ On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a
 card from the bottom edge over a dimmed map, with a grip, its heading and
 Done, and rows a finger's 44px tall with a rule between them. Layers and
 Legend from the chip row and Columns, Models and Removed from the results bar
-open in it. The dim starts under the chip row, so the chip that opened the
-sheet stays lit and readable.
+open in it. The dim covers the whole screen, the search row and the chips
+included, as a modal sheet's scrim does in Material.
 Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md)
 
 ### Adding a new role

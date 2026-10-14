@@ -52,10 +52,10 @@ export default function BottomSheet({ heading, onClose, children, outside }: Pro
   const swipeRef = useRef<number | null>(null)
   return createPortal(
     <>
-      {/* The whole screen catches a press outside the card; the dim is the
-          part of it that shows, under the chip row, so the lit chip that
-          opened the sheet stays readable. No name and out of the tree: the
-          sheet's own Done is the way out a keyboard and a screen reader use. */}
+      {/* The whole screen catches a press outside the card and is dimmed,
+          the search row and the chips included. No name and out of the tree:
+          the sheet's own Done is the way out a keyboard and a screen reader
+          use. */}
       <div className={BOTTOM_SHEET.scrim} onClick={onClose} aria-hidden="true">
         <div className={BOTTOM_SHEET.dim} />
       </div>

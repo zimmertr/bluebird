@@ -16,12 +16,28 @@ function foot(over: Partial<Parameters<typeof PhoneFoot>[0]> = {}) {
       fabBottomPx={120}
       onNoticeBand={() => {}}
       onBandPx={() => {}}
+      onFabPx={() => {}}
       analyzeEnabled
       analyzing={false}
       onAnalyze={() => {}}
       {...over}
     />
   )
+}
+// Every observer the foot starts (the band's and the button's), fired at once.
+function stubResizeObserver() {
+  const callbacks: (() => void)[] = []
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(cb: () => void) {
+        callbacks.push(cb)
+      }
+      observe() {}
+      disconnect() {}
+    },
+  )
+  return () => callbacks.forEach((cb) => cb())
 }
 const button = () => screen.getByRole('button', { name: /^Analyz/ }) as HTMLButtonElement
 
@@ -70,17 +86,7 @@ describe('PhoneFoot', () => {
   // The band's height is what the button rises by, so it is reported, and
   // reported again when what the band holds changes size.
   it('reports the band\'s height as it changes', () => {
-    let fire = () => {}
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(cb: () => void) {
-          fire = cb
-        }
-        observe() {}
-        disconnect() {}
-      },
-    )
+    const fire = stubResizeObserver()
     const onBandPx = vi.fn()
     const onNoticeBand = vi.fn()
     render(foot({ onBandPx, onNoticeBand }))
@@ -89,6 +95,18 @@ describe('PhoneFoot', () => {
     placeAt(band, { left: 12, top: 600, width: 366, height: 52 })
     act(() => fire())
     expect(onBandPx).toHaveBeenLastCalledWith(52)
+    vi.unstubAllGlobals()
+  })
+
+  // The opened credit line stops short of the button, so its width is
+  // reported, and kept while a sheet hides it.
+  it('reports the button\'s width', () => {
+    const fire = stubResizeObserver()
+    const onFabPx = vi.fn()
+    render(foot({ onFabPx }))
+    placeAt(button(), { left: 254, top: 674, width: 120.1, height: 56 })
+    act(() => fire())
+    expect(onFabPx).toHaveBeenLastCalledWith(120.1)
     vi.unstubAllGlobals()
   })
 

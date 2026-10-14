@@ -37,12 +37,14 @@ vi.mock('./PhoneFoot', () => ({
     liftPx: number
     fabBottomPx: number
     onBandPx: (px: number) => void
+    onFabPx: (px: number) => void
     analyzeEnabled: boolean
     analyzing: boolean
     onAnalyze: () => void
   }) => (
     <div data-testid="foot" data-lift={String(props.liftPx)} data-fab={String(props.fabBottomPx)} data-analyzing={String(props.analyzing)}>
       <button onClick={() => props.onBandPx(40)}>Band</button>
+      <button onClick={() => props.onFabPx(120)}>Fab</button>
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
         Analyze
       </button>
@@ -381,6 +383,18 @@ describe('MapStage', () => {
     expect(foot().fab).toBe(String(risen))
     expect(risen).toBeGreaterThan(104 + FAB_INSET_PX)
     expect(screen.getByTestId('transport').dataset.lift).toBe(String(transportStandPx(risen)))
+  })
+
+  // The opened credit line stops short of the button (map.css), so a phone
+  // publishes the width it measured; a desk has no button.
+  it('publishes the button\'s width on a phone', () => {
+    const { container, rerender } = render(<MapStage {...props()} />)
+    const stage = () => container.firstElementChild as HTMLElement
+    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('')
+    rerender(<MapStage {...props({ isDesktop: false })} />)
+    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('0px')
+    fireEvent.click(screen.getByRole('button', { name: 'Fab' }))
+    expect(stage().style.getPropertyValue('--map-fab-w')).toBe('120px')
   })
 
   // A sheet at its highest leaves the button its strip and no room for the

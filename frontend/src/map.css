@@ -302,8 +302,8 @@
  * puts it there whenever it is compact. The corner turns into a row, the scale
  * first (`order`, since the library inserts a bottom control before the ones
  * already there) and the (i) beside it, the library's own bottom-left form of
- * the button. The row spans the map so the opened credit line wraps at the
- * map's right edge rather than running past it, the corner keeping the
+ * the button. The row spans the map to the Analyze button (below), so the
+ * opened credit line wraps short of it rather than running under it, the corner keeping the
  * vendor's `pointer-events: none` so the span takes no press; it may shrink,
  * which in a row is what wraps it. A line taller than the band grows UP from
  * the band's bottom edge, for the reason the column above reverses: in a row
@@ -312,8 +312,16 @@
  * control stands on the library's own 10px bottom margin instead
  * (`CORNER_MARGIN_PX`), which in the 44px band is the centre the auto margins
  * gave, a pixel either way. */
+/* The row stops short of the Analyze button (#696): the button's measured
+ * width (`--map-fab-w`, published on the map wrapper by `MapStage` from
+ * `PhoneFoot`), its 16px off the map's right edge (`FAB_INSET_PX`) and 8px
+ * clear of it, less the compact credit's own 10px right margin, which stands
+ * inside this row. So an opened credit line wraps 8px before the button, the
+ * way the scale's cap above keeps it off the scale. Measured 2026-10-14 at
+ * 360, 390 and 430 wide with the button at its reserved 120.1px: the row ends
+ * 134.1px from the map's right edge and the line 8px short of the button. */
 .maplibregl-ctrl-bottom-left:has(> .maplibregl-ctrl-attrib) {
-  right: 0;
+  right: calc(var(--map-fab-w, 0px) + 14px);
   flex-direction: row;
   align-items: flex-end;
 }

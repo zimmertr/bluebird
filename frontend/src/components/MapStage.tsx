@@ -179,6 +179,10 @@ export default function MapStage({
   // The height of the phone's notice band, which the Analyze button rises
   // above (`PhoneFoot` measures it), 0 while it holds nothing.
   const [bandPx, setBandPx] = useState(0)
+  // The Analyze button's width, which a phone's opened credit line stops
+  // short of (`--map-fab-w`, read by map.css); `PhoneFoot` measures it,
+  // since it is the wider word's in whatever face the phone draws.
+  const [fabPx, setFabPx] = useState(0)
   const smokeId = useId()
   const { registerPlace } = removals
   const { removePlace } = destinationInputs
@@ -276,6 +280,7 @@ export default function MapStage({
         {
           '--map-corner-lift': `${layout.mapCornerLift}px`,
           '--map-corner-band': `${TRANSPORT_GAP_PX}px`,
+          ...(isDesktop ? {} : { '--map-fab-w': `${fabPx}px` }),
         } as React.CSSProperties
       }
     >
@@ -371,6 +376,7 @@ export default function MapStage({
           fabBottomPx={fabBottom}
           onNoticeBand={onNoticeBand}
           onBandPx={setBandPx}
+          onFabPx={setFabPx}
           analyzeEnabled={analyzeEnabled}
           analyzing={analysis.loading}
           onAnalyze={onAnalyze}
