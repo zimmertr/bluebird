@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { logoUrl } from '../logo'
 import type { Progress } from '../hooks/useAnalyze'
-import { ACCENT, BUTTON_SECONDARY, LAYER, PROSE, RADIUS, SR_ONLY, SURFACE_CARD, TEXT } from '../styles'
+import { ACCENT, BUTTON_SECONDARY, LAYER, MOTION, PROSE, RADIUS, SR_ONLY, SURFACE_CARD, TEXT } from '../styles'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { composeOverlay, type OverlayView } from '../utils/analyzeOverlay'
 
@@ -115,7 +115,7 @@ function OverlayCard({
           <div className="mt-3">
             <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
               <div
-                className={`h-full ${ACCENT.mark} transition-all duration-300 ease-out`}
+                className={`h-full ${ACCENT.mark} ${MOTION.progress}`}
                 style={{ width: `${overlay.progress.percent}%` }}
               />
             </div>

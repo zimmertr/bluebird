@@ -17,11 +17,14 @@ async function audit(page: Page, state: string, seen: Set<string>) {
   // records as deliberately under AA, and a click leaves the pointer on it.
   await page.mouse.move(0, 0)
   // The accent's hover fades out over a transition, and axe reads the colour
-  // mid-fade. Finite animations only: MapLibre and the spinners may loop.
+  // mid-fade. Finite animations on the clock only: MapLibre and the spinners
+  // may loop, and the panel's scroll shadows run on a scroll timeline, whose
+  // progress is the scroll position and which never finishes (#687).
   await page.evaluate(() =>
     Promise.all(
       document
         .getAnimations()
+        .filter((a) => a.timeline === document.timeline)
         .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
         .map((a) => a.finished.catch(() => undefined)),
     ),

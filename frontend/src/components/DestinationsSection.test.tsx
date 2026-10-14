@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
 
@@ -39,6 +39,13 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
+// The Polygon block's buttons, in order, apart from the box above it.
+const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon' }).parentElement!
+const polygonButtons = () =>
+  within(polygonBlock())
+    .getAllByRole('button')
+    .map((b) => b.textContent)
+const disabled = (name: string) => (screen.getByRole('button', { name }) as HTMLButtonElement).disabled
 
 describe('DestinationsSection', () => {
   describe('the draw counter', () => {
@@ -66,6 +73,22 @@ describe('DestinationsSection', () => {
       expect(screen.getByText(/~120,000 km² \(max 100,000 km²\)/)).toBeTruthy()
     })
 
+    // The counter and the area share the line under the subheading, the
+    // area right-justified (#687), and neither breaks inside itself.
+    it("puts the area on the counter's line", () => {
+      render(<DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0, polygonAreaKm2: 779 })} />)
+      const counter = screen.getByText('3 points placed. Press Done when ready.')
+      const area = screen.getByText('~779 km²')
+      expect(area.parentElement).toBe(counter.parentElement)
+      // Right-justified beside the counter by `justify-between`, which also
+      // puts it at the left when it has to take a line of its own.
+      expect(area.parentElement!.className).toContain('justify-between')
+      expect(area.parentElement!.className).toContain('flex-wrap')
+      expect(area.className).not.toContain('ml-auto')
+      for (const el of [counter, area]) expect(el.className).toContain('whitespace-nowrap')
+      expect(screen.getByRole('heading', { name: 'Polygon' }).nextElementSibling!.contains(counter)).toBe(true)
+    })
+
     it('warns a large area that is still under the cap', () => {
       render(<DestinationsSection {...props({ drawPointCount: 4, pointsNeeded: 0, polygonAreaKm2: 50_000 })} />)
       expect(screen.getByText('Large polygon areas may be slow and hit limits.')).toBeTruthy()
@@ -73,6 +96,16 @@ describe('DestinationsSection', () => {
   })
 
   describe('the draw button', () => {
+    // The row is always the same three (#687), with a button that does
+    // nothing yet greyed rather than missing.
+    it('shows Draw polygon, Cancel and Clear before any ring, with only the first live', () => {
+      render(<DestinationsSection {...props()} />)
+      expect(polygonButtons()).toEqual(['Draw polygon', 'Cancel', 'Clear'])
+      expect(disabled('Draw polygon')).toBe(false)
+      expect(disabled('Cancel')).toBe(true)
+      expect(disabled('Clear')).toBe(true)
+    })
+
     it('enters draw mode, and offers Edit and Clear once there is a ring', async () => {
       const onStartDrawing = vi.fn()
       const onClearDrawing = vi.fn()
@@ -80,8 +113,8 @@ describe('DestinationsSection', () => {
       await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
       expect(onStartDrawing).toHaveBeenCalledOnce()
       rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0, onClearDrawing })} />)
-      expect(screen.getByRole('button', { name: 'Edit polygon' })).toBeTruthy()
-      expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull()
+      expect(polygonButtons()).toEqual(['Edit polygon', 'Cancel', 'Clear'])
+      expect(disabled('Cancel')).toBe(true)
       await user.click(screen.getByRole('button', { name: 'Clear' }))
       expect(onClearDrawing).toHaveBeenCalledOnce()
     })
@@ -93,13 +126,13 @@ describe('DestinationsSection', () => {
       const { user } = render(<DestinationsSection {...props({ drawing: true, onCancelDrawing })} />)
       expect((screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement).disabled).toBe(true)
       expect((screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement).disabled).toBe(true)
-      expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Done', 'Cancel', 'Clear'])
+      expect(polygonButtons()).toEqual(['Done', 'Cancel', 'Clear'])
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(onCancelDrawing).toHaveBeenCalledOnce()
     })
 
-    // Each press unmounts the button it landed on, and the button that
-    // replaces it takes the keyboard rather than the body (#576).
+    // A press that greys the button it landed on hands the keyboard to the
+    // first button that can still act, rather than the body (#576).
     it('hands the keyboard to Cancel on entering the mode and back to Draw on leaving it', async () => {
       const { user, rerender } = render(<DestinationsSection {...props()} />)
       await user.click(screen.getByRole('button', { name: 'Draw polygon' }))
@@ -125,10 +158,20 @@ describe('DestinationsSection', () => {
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Draw polygon' }))
     })
 
+    // Done turns back into Edit polygon on the same button, which is still
+    // live, so the keyboard stays where the press put it.
+    it('keeps the keyboard on the mode button when Done leaves the mode', async () => {
+      const { user, rerender } = render(
+        <DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0 })} />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Done' }))
+      rerender(<DestinationsSection {...props({ drawPointCount: 3, pointsNeeded: 0 })} />)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit polygon' }))
+    })
+
     it('reads Done, Cancel, Clear while drawing', () => {
       render(<DestinationsSection {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1 })} />)
-      const names = screen.getAllByRole('button').map((b) => b.textContent)
-      expect(names).toEqual(['Done', 'Cancel', 'Clear'])
+      expect(polygonButtons()).toEqual(['Done', 'Cancel', 'Clear'])
     })
 
     // Clear starts the ring over; only Cancel leaves the mode.
@@ -169,25 +212,33 @@ describe('DestinationsSection', () => {
       expect(setDestinationTypes).toHaveBeenLastCalledWith([])
     })
 
-    // Unnamed peaks widens a peak search, so asking for it with Peaks off
-    // asks for the peak search too.
-    it('ticks Peaks when unnamed peaks is ticked without it', async () => {
-      const setDestinationTypes = vi.fn()
-      const setIncludeUnnamedPeaks = vi.fn()
-      const { user } = render(
-        <DestinationsSection
-          {...props({ destinationTypes: ['lake'], setDestinationTypes, setIncludeUnnamedPeaks })}
-        />,
-      )
-      await user.click(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }))
-      expect(setIncludeUnnamedPeaks).toHaveBeenCalledWith(true)
-      expect(setDestinationTypes).toHaveBeenCalledWith(['lake', 'peak'])
+    // Unnamed peaks widens a peak search, so with no peak search there is
+    // nothing for it to widen and the row is not drawn (#687).
+    it('shows unnamed peaks only while Peaks is ticked', () => {
+      const { rerender } = render(<DestinationsSection {...props({ destinationTypes: ['lake'] })} />)
+      expect(screen.queryByRole('checkbox', { name: 'Include unnamed peaks' })).toBeNull()
+      rerender(<DestinationsSection {...props({ destinationTypes: ['lake', 'peak'] })} />)
+      expect(screen.getByRole('checkbox', { name: 'Include unnamed peaks' })).toBeTruthy()
     })
 
-    it('leaves the set alone when Peaks is already ticked', async () => {
+    // Hidden is not cleared: ticking Peaks again shows what the reader had.
+    it('keeps the knob ticked while Peaks is off and back', () => {
+      const { rerender } = render(
+        <DestinationsSection {...props({ destinationTypes: [], includeUnnamedPeaks: true })} />,
+      )
+      expect(screen.queryByRole('checkbox', { name: 'Include unnamed peaks' })).toBeNull()
+      rerender(<DestinationsSection {...props({ destinationTypes: ['peak'], includeUnnamedPeaks: true })} />)
+      expect((screen.getByRole('checkbox', { name: 'Include unnamed peaks' }) as HTMLInputElement).checked).toBe(
+        true,
+      )
+    })
+
+    it('ticks unnamed peaks and leaves the type set alone', async () => {
       const setDestinationTypes = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ setDestinationTypes })} />)
+      const setIncludeUnnamedPeaks = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ setDestinationTypes, setIncludeUnnamedPeaks })} />)
       await user.click(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }))
+      expect(setIncludeUnnamedPeaks).toHaveBeenCalledWith(true)
       expect(setDestinationTypes).not.toHaveBeenCalled()
     })
   })
@@ -204,7 +255,7 @@ describe('DestinationsSection', () => {
       expect(onCsvPasted.mock.calls[0][0]).toHaveLength(1)
     })
 
-    it('never moves the camera for typing', async () => {
+    it('never moves the camera for typing', () => {
       const onCsvPasted = vi.fn()
       const setCustomCsv = vi.fn()
       render(<DestinationsSection {...props({ onCsvPasted, setCustomCsv })} />)
@@ -222,13 +273,32 @@ describe('DestinationsSection', () => {
       rerender(<DestinationsSection {...props({ customCsv: '1,2', parsedCount: 1 })} />)
       expect(screen.getByText('1 destination parsed')).toBeTruthy()
     })
+
+    // Two rows tall at rest, so a reader sees that several rows go in, with
+    // the format and one row that follows it as the placeholder.
+    it('stands two rows tall with the format and one example row', () => {
+      render(<DestinationsSection {...props()} />)
+      expect(coordinates().getAttribute('rows')).toBe('2')
+      expect(coordinates().getAttribute('placeholder')).toBe(
+        '# Lat,Lon or Lat,Lon,Name\n46.8529,-121.7604,Mount Rainier',
+      )
+    })
+  })
+
+  // Map, Coordinates, Polygon (#687, record 0137): the two full-width inputs
+  // together, the polygon's buttons and boxes last.
+  it('orders the three ways in as Map, Coordinates, Polygon', () => {
+    render(<DestinationsSection {...props()} />)
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(headings).toEqual(['Map', 'Coordinates', 'Polygon'])
+    expect(screen.getByText('Search by name, or click any peak or lake.')).toBeTruthy()
   })
 
   it('points at the map while the Map group is hovered', () => {
     const onPointAtSearch = vi.fn()
     const onPointAtMapPois = vi.fn()
     render(<DestinationsSection {...props({ onPointAtSearch, onPointAtMapPois })} />)
-    const group = screen.getByText('Search by name, or click any peak or lake.').parentElement as HTMLElement
+    const group = screen.getByRole('heading', { name: 'Map' }).parentElement as HTMLElement
     fireEvent.mouseEnter(group)
     expect(onPointAtSearch).toHaveBeenLastCalledWith(true)
     expect(onPointAtMapPois).toHaveBeenLastCalledWith(true)
