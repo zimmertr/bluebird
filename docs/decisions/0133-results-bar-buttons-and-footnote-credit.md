@@ -14,7 +14,7 @@
 
 ## Decision
 
-- **The four actions are `BUTTON_GHOST` buttons**, each with its glyph from `icons.tsx` (`IconColumns`, `IconModels`, `IconRestore`, `IconDownload`) and its word, at `TEXT.control`. No fill at rest, because the bar is already a slate-700 block and four more blocks on it would be louder than what they replace; the hover fill says "press me" under the pointer. The linter's `style-results-bar` check requires the four and fails a link anywhere in the bar.
+- **The four actions are `BUTTON_GHOST` buttons**, right-justified as one group with the mode switch as another, a visible 24px between the two, each with its glyph from `icons.tsx` (`IconColumns`, `IconModels`, `IconRestore`, `IconDownload`) and its word, at `TEXT.control`. No fill at rest, because the bar is already a slate-700 block and four more blocks on it would be louder than what they replace; the hover fill says "press me" under the pointer. The linter's `style-results-bar` check requires the four and fails a link anywhere in the bar.
 - **The Open-Meteo credit is a standing member of the map's attribution line**, the MapLibre control at the map's bottom right: the existing `Open-Meteo.com` link to `https://open-meteo.com/`, with no words added, built into the control where it is constructed (`OPEN_METEO_ATTRIBUTION` and `withOpenMeteo` in `map/controls.ts`) rather than attached to a layer, so it shows in every results mode, with or without a report. The library draws a control's own credits before the sources', so the line reads `MapLibre | Open-Meteo.com | OpenFreeMap © OpenMapTiles Data from OpenStreetMap`. On a phone the line folds behind the library's (i), as it already did, which the OpenStreetMap guideline allows.
 - **The results carry no credit.** The table's foot is its notes alone and is drawn only when there is one, as it was before this change, and the chart has no foot.
 - **A desk opens Both only where Both leaves the table above its floor** (`bothOpensWithRoom` in `layout.ts`, called from `useResultsLayout`). It asks `resolvePanelHeights` for the opening heights rather than comparing a window height, so the line moves with the panel defaults and the map floor. At today's 220px panels and docked map floor it falls at a results column of 790px. A reader who presses Both still gets it, and a stored choice still wins.
@@ -25,7 +25,8 @@ Measured 2026-10-13 against images built from `main` and from this change, Chrom
 
 - At 1024x768 the first report opened on Both with the table at y=648 on `main`, and opens on Table with it at y=548 here. 1280x800 and 1440x900 still open on Both.
 - The bar is 35px at 1440x900 and 59px at 1024x768, one line and two, on both builds.
-- On a 402x874 phone the sheet's header is 108px, up from 104: Columns and Models fit beside the mode switch and Download CSV wraps onto a row of 24px buttons where the links wrapped onto an 18px one. `SHEET_HEADER_PX` is 108, and the phone's Both threshold (`draggedMapFloorPx(2)`) moves from 672px of viewport to 676.
+- The bar's actions are two groups, the switch and the buttons, 24px apart (`gap-x-6`), the buttons right-justified (the maintainer on #709): at 1440x900 the switch ends at x=1087 and the buttons begin at 1111; at 1024x768 the switch stands at the left of the folded line (372 to 549) and the buttons end at the bar's right edge (1012).
+- On a 402x874 phone the sheet's header is 84px with no removed row and 106px with Removed showing, where it was 104 with links: Columns and Models share the switch's line and the rest wrap under them at the right. `SHEET_HEADER_PX` is the taller, 106, and the phone's Both threshold (`draggedMapFloorPx(2)`) moves from 672px of viewport to 674.
 
 ## Alternatives rejected
 

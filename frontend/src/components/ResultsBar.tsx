@@ -140,7 +140,13 @@ export default function ResultsBar({
             <IconChevron up={resultsCollapsed} />
           </button>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1">
+        {/* Two groups: the mode switch at the left and the buttons at the
+            right, with a gap between them that reads as a separation rather
+            than a word space (#687, the maintainer on #709): gap-x-6, 24px,
+            three times the 8px between two buttons. Folded, the row spans the
+            bar and the groups stand at its two ends; on one line they sit at
+            the bar's right end, the gap still between them. */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-1">
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
               144px column (SEGMENT_FLUID exists because this shipped
@@ -186,82 +192,89 @@ export default function ResultsBar({
               </button>
             </div>
           )}
-          {/* Columns button opens picker popover. Present from the
-              first pending row, not only once a report exists: the
-              bar keeping its full membership is what makes it read
-              as one control surface (#242 review).
+          {/* The buttons' group. Folded, it takes the line's remaining width
+              from a zero basis and right-justifies inside it, so Columns and
+              Models stay beside the switch on a phone and only what does not
+              fit wraps under them, at the right; on one line it is as wide as
+              its buttons. Removed joins it whenever it shows. */}
+          <div className="flex min-w-0 flex-1 basis-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 @4xl:flex-none @4xl:basis-auto">
+            {/* Columns button opens picker popover. Present from the
+                first pending row, not only once a report exists: the
+                bar keeping its full membership is what makes it read
+                as one control surface (#242 review).
 
-              This and the three beside it are ghost buttons with a glyph
-              (#687): they were underlined links, and the bar mixed four
-              control styles. They read at `TEXT.control`, the size of
-              every other control in the app, and keep their words. */}
-          {showTable && (
-            <button
-              ref={columnsButtonRef}
-              onClick={onToggleColumns}
-              aria-expanded={columnsOpen}
-              aria-label="Choose which columns to display"
-              className={BUTTON_GHOST}
-            >
-              <IconColumns className="flex-shrink-0" />
-              Columns
-            </button>
-          )}
-          {/* Which of the selected models the chart draws (#232). A
-              bar member rather than a control on the chart, for the
-              reason every other comparison control is in one place:
-              the chart is read, not operated. Standing, under exactly
-              the condition Columns stands under, because a bar that
-              gains and loses members is a bar a reader has to look for
-              (#242 review) — and the question it asks is about the
-              panel's selection, which does not wait on a fetch. */}
-          {showTable && (
-            <button
-              ref={modelsButtonRef}
-              onClick={onToggleModels}
-              aria-expanded={modelsOpen}
-              className={BUTTON_GHOST}
-            >
-              <IconModels className="flex-shrink-0" />
-              Models
-            </button>
-          )}
-          {/* Removed rows (#241): a removal's only undo, so it is a
-              standing bar member rather than a transient toast —
-              removals persist across live knobs and refreshes, and so
-              does the way back. Hidden at zero: nothing to restore.
+                This and the three beside it are ghost buttons with a glyph
+                (#687): they were underlined links, and the bar mixed four
+                control styles. They read at `TEXT.control`, the size of
+                every other control in the app, and keep their words. */}
+            {showTable && (
+              <button
+                ref={columnsButtonRef}
+                onClick={onToggleColumns}
+                aria-expanded={columnsOpen}
+                aria-label="Choose which columns to display"
+                className={BUTTON_GHOST}
+              >
+                <IconColumns className="flex-shrink-0" />
+                Columns
+              </button>
+            )}
+            {/* Which of the selected models the chart draws (#232). A
+                bar member rather than a control on the chart, for the
+                reason every other comparison control is in one place:
+                the chart is read, not operated. Standing, under exactly
+                the condition Columns stands under, because a bar that
+                gains and loses members is a bar a reader has to look for
+                (#242 review) — and the question it asks is about the
+                panel's selection, which does not wait on a fetch. */}
+            {showTable && (
+              <button
+                ref={modelsButtonRef}
+                onClick={onToggleModels}
+                aria-expanded={modelsOpen}
+                className={BUTTON_GHOST}
+              >
+                <IconModels className="flex-shrink-0" />
+                Models
+              </button>
+            )}
+            {/* Removed rows (#241): a removal's only undo, so it is a
+                standing bar member rather than a transient toast —
+                removals persist across live knobs and refreshes, and so
+                does the way back. Hidden at zero: nothing to restore.
 
-              This and Download CSV are named by the words they show,
-              with no label over them: a reader using voice control
-              says what is on the screen, and a label without those
-              words left nothing to match (#576, WCAG 2.5.3). */}
-          {removedCount > 0 && (
+                This and Download CSV are named by the words they show,
+                with no label over them: a reader using voice control
+                says what is on the screen, and a label without those
+                words left nothing to match (#576, WCAG 2.5.3). */}
+            {removedCount > 0 && (
+              <button
+                ref={removedButtonRef}
+                onClick={onToggleRemoved}
+                aria-expanded={removedOpen}
+                className={BUTTON_GHOST}
+              >
+                <IconRestore className="flex-shrink-0" />
+                Removed ({removedCount})
+              </button>
+            )}
+            {canDownload && (
+              <button onClick={onDownloadCsv} className={BUTTON_GHOST}>
+                <IconDownload className="flex-shrink-0" />
+                Download CSV
+              </button>
+            )}
+            {/* The Open-Meteo credit stands on the map's attribution line since
+                #687, rather than a fifth member here that took a line of its
+                own on a phone. */}
             <button
-              ref={removedButtonRef}
-              onClick={onToggleRemoved}
-              aria-expanded={removedOpen}
-              className={BUTTON_GHOST}
+              onClick={toggleCollapsed}
+              aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
+              className={`${ICON_BUTTON} hidden @4xl:flex`}
             >
-              <IconRestore className="flex-shrink-0" />
-              Removed ({removedCount})
+              <IconChevron up={resultsCollapsed} />
             </button>
-          )}
-          {canDownload && (
-            <button onClick={onDownloadCsv} className={BUTTON_GHOST}>
-              <IconDownload className="flex-shrink-0" />
-              Download CSV
-            </button>
-          )}
-          {/* The Open-Meteo credit stands on the map's attribution line since
-              #687, rather than a fifth member here that took a line of its
-              own on a phone. */}
-          <button
-            onClick={toggleCollapsed}
-            aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}
-            className={`${ICON_BUTTON} hidden @4xl:flex`}
-          >
-            <IconChevron up={resultsCollapsed} />
-          </button>
+          </div>
         </div>
       </div>
       {/* One line under the bar, never beside a control in it: the

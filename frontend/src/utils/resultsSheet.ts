@@ -111,18 +111,19 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 /**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * Measured at 402x874 on a coarse pointer, 2026-10-13: 12px of padding, a
- * 19.5px title row, the 4px gap, then 70px of actions, then the 1px rule and
- * the sheet's own 1px top border. The actions are the mode segment at the 44px
- * a coarse pointer gives it with Columns and Models beside it, and Download CSV
- * (and Removed, when there is one) wrapped onto a second row of 24px buttons:
- * the bar's actions are buttons with a glyph now (#687), and three of them do
- * not fit beside the segment in the 378px a 402px phone leaves. 108, up from
- * 104 when the actions were bare links that wrapped onto an 18px row.
+ * Measured at 402x874 on a coarse pointer, 2026-10-13, in its tallest state:
+ * 106px. The bar's actions are two groups since #687, the mode switch at the
+ * left of the line and the buttons right-justified beside it (the maintainer,
+ * on #709), and the buttons wrap inside their own group: Columns and Models
+ * share the switch's 44px line, and Download CSV wraps under them. With no
+ * removed row that is 84px; with Removed showing, it and Download CSV take a
+ * row each and the header is 106. The larger, because this number is the
+ * resting reserve and the camera's padding and an under-estimate hides a
+ * legend row where an over-estimate only leaves a gap. It was 108 when the
+ * actions were one wrapped row of buttons, and 104 when they were links.
  *
- * The buttons wrap onto ONE row under the segment, so the actions block is
- * 70px whether Removed stands or not. Re-measure when the bar gains a member or
- * a label grows, because a third row moves this number.
+ * Re-measure when the bar gains a member or a label grows, because a row more
+ * in the button group moves this number.
  *
  * This is an ESTIMATE and is used only where an estimate is the right answer:
  * the resting reserve the panel clamp takes, and the camera padding, both of
@@ -131,7 +132,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 108
+export const SHEET_HEADER_PX = 106
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but
