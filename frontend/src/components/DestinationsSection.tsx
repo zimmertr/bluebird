@@ -14,6 +14,7 @@ import {
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
+import DrawReadout from './DrawReadout'
 
 // Above this drawn area, an informational note warns that dense regions can
 // exceed the destination limit and searches slow down. Advisory only: the hard
@@ -158,23 +159,7 @@ export default function DestinationsSection({
         <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
         {drawPointCount > 0 && (
           <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
-            {/* Only while drawing does the status name a gesture: outside
-                the mode the handles are gone and none of them apply. */}
-            {drawing && pointsNeeded > 0 ? (
-              <p className={STATUS.info}>
-                {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed,{' '}
-                {pointsNeeded} more needed.
-              </p>
-            ) : drawing ? (
-              <p className={`${STATUS.ok} font-medium`}>
-                {drawPointCount} points placed. Press Done when ready.
-              </p>
-            ) : (
-              <p className={pointsNeeded > 0 ? STATUS.info : `${STATUS.ok} font-medium`}>
-                {drawPointCount} point{drawPointCount !== 1 ? 's' : ''} placed
-                {pointsNeeded > 0 && `, ${pointsNeeded} more needed`}
-              </p>
-            )}
+            <DrawReadout drawing={drawing} drawPointCount={drawPointCount} pointsNeeded={pointsNeeded} />
             {polygonAreaKm2 !== null && (
               <p className={areaTooLarge ? STATUS.error : TEXT.caption}>
                 ~{Math.round(polygonAreaKm2).toLocaleString()} km²

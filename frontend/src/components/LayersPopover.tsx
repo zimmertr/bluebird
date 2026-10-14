@@ -8,7 +8,7 @@ import {
   CHOICE_INPUT,
   CHOICE_ROW,
   LIFTED_EDGE,
-  MAP_COL_GAP_T,
+  MAP_COL_GAP,
   MAP_COL_W,
   MAP_ROW_H,
   RADIUS,
@@ -17,10 +17,7 @@ import {
   SEGMENT_FLUID_LIFTED,
   SEGMENT_IDLE,
   SEGMENT_ITEM,
-  SLIDER_IDLE,
-  SLIDER_OVERLAY,
-  SLIDER_VALUE,
-  SLIDER_WORDMARK,
+  SLIDER,
   SR_ONLY,
   SURFACE_POPOVER,
 } from '../styles'
@@ -266,7 +263,7 @@ export default function LayersPopover({
           would hang a step right of the legends it hangs over. */}
       {open && (
         <div
-          className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP_T} absolute left-0 px-2.5 py-2`}
+          className={`${SURFACE_POPOVER} ${MAP_COL_W} ${MAP_COL_GAP.top} absolute left-0 px-2.5 py-2`}
           data-tour="layers-menu"
         >
           {MAP_LAYERS.map((layer) => (
@@ -320,15 +317,15 @@ export default function LayersPopover({
                       const pct = shown * 100
                       const line = (
                         <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-2">
-                          <span className={SLIDER_VALUE}>
+                          <span className={SLIDER.value}>
                             {pitchLabel(reachKmFor(gridReachPitchKm, shown))}
                           </span>
-                          <span className={SLIDER_WORDMARK}>Coverage</span>
+                          <span className={SLIDER.wordmark}>Coverage</span>
                         </div>
                       )
                       return (
                         <>
-                          <div className={`absolute inset-0 ${SLIDER_IDLE}`}>{line}</div>
+                          <div className={`absolute inset-0 ${SLIDER.idle}`}>{line}</div>
                           <div
                             className={`absolute inset-0 ${ACCENT.fill}`}
                             style={{ clipPath: `inset(0 ${100 - pct}% 0 0)` }}
@@ -349,7 +346,7 @@ export default function LayersPopover({
                       onPointerUp={commitGridReach}
                       onKeyUp={commitGridReach}
                       onBlur={commitGridReach}
-                      className={SLIDER_OVERLAY}
+                      className={SLIDER.overlay}
                     />
                   </div>
                 </>

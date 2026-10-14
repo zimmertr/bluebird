@@ -4,16 +4,7 @@ import { ColDef, stepColumn } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
-import {
-  CARRIED,
-  CHOICE_INPUT,
-  CHOICE_ROW,
-  DRAG_GHOST,
-  DRAG_GRIP,
-  DRAG_GRIP_ACTIVE,
-  DRAG_INSERT,
-  SR_ONLY,
-} from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, DRAG, SR_ONLY } from '../styles'
 import { IconGrip } from './icons'
 import {
   GHOST_MAX_PX,
@@ -146,7 +137,7 @@ export default function ColumnsPicker({
                 if (el) rowsRef.current.set(col.key, el)
                 else rowsRef.current.delete(col.key)
               }}
-              className={`${CHOICE_ROW} px-1 ${isCarried ? CARRIED : ''}`}
+              className={`${CHOICE_ROW} px-1 ${isCarried ? DRAG.carried : ''}`}
             >
               <input
                 type="checkbox"
@@ -191,7 +182,7 @@ export default function ColumnsPicker({
                     onColumnMove(col.key, next[order.indexOf(col.key)])
                   }}
                   aria-label={`Move the ${col.label} column. Use the arrow keys.`}
-                  className={`${DRAG_GRIP} ${isCarried ? DRAG_GRIP_ACTIVE : ''} px-1`}
+                  className={`${DRAG.grip} ${isCarried ? DRAG.gripActive : ''} px-1`}
                 >
                   <IconGrip />
                 </button>
@@ -208,7 +199,7 @@ export default function ColumnsPicker({
       {carry && (
         <>
           <div
-            className={DRAG_GHOST}
+            className={DRAG.ghost}
             style={{
               left: ghostLeft(carry.x, window.innerWidth),
               top: carry.y - 10,
@@ -219,7 +210,7 @@ export default function ColumnsPicker({
           </div>
           {insert && (
             <div
-              className={DRAG_INSERT}
+              className={DRAG.insert}
               style={{ left: insert.left, top: insert.y - 1, width: insert.width, height: 2 }}
             />
           )}

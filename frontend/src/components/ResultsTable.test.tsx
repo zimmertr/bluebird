@@ -70,7 +70,8 @@ afterEach(() => {
 describe('rows', () => {
   it('draws one row per result, ranked in the order given', () => {
     render(<ResultsTable {...props()} />)
-    const rows = screen.getAllByRole('row').slice(1)
+    // The header row first and the footnote row last, the credit's (#687).
+    const rows = screen.getAllByRole('row').slice(1, -1)
     expect(rows.map((r) => within(r).getAllByRole('cell')[0].textContent)).toEqual(['1', '2'])
     expect(within(rows[1]).getByRole('button', { name: 'Center map on Mount Adams' })).toBeTruthy()
   })
@@ -134,6 +135,13 @@ describe('a model that ends early', () => {
     expect(note.closest('tfoot')).not.toBeNull()
   })
 
+  // The Open-Meteo credit (#687) is the last line, under the note.
+  it('keeps the Open-Meteo credit as the line under the note', () => {
+    render(<ResultsTable {...props({ results: SHORT, columns: MODEL_COLUMNS, partialNote: NOTE })} />)
+    const divs = [...document.querySelectorAll('tfoot div')]
+    expect(divs.map((d) => d.textContent)).toEqual([NOTE, 'Open-Meteo.com'])
+  })
+
   it('prints no footnote when no row is short', () => {
     render(<ResultsTable {...props({ columns: MODEL_COLUMNS })} />)
     expect(screen.queryByText(NOTE)).toBeNull()
@@ -146,6 +154,32 @@ describe('a model that ends early', () => {
     expect(screen.queryByText(NOTE)).toBeNull()
     expect(document.querySelector('sup')).toBeNull()
     expect(screen.queryByText(/\*/)).toBeNull()
+  })
+})
+
+// The Open-Meteo credit left the results bar for the table's foot (#687): the
+// last footnote line, in that line's own classes, under whatever notes the
+// table already prints, and the whole foot when it prints none.
+describe('the Open-Meteo credit', () => {
+  const credit = () => screen.getByRole('link', { name: 'Open-Meteo.com' })
+
+  it('is the foot on its own when the table has no note', () => {
+    render(<ResultsTable {...props()} />)
+    const line = credit().parentElement as HTMLElement
+    expect(credit().getAttribute('href')).toBe('https://open-meteo.com/')
+    expect(credit().getAttribute('target')).toBe('_blank')
+    expect(line.closest('tfoot')).not.toBeNull()
+    expect(document.querySelectorAll('tfoot div')).toHaveLength(1)
+    for (const cls of ['sticky', 'left-0', 'w-[100cqi]', ...TEXT.micro.split(' ')]) {
+      expect(line.classList).toContain(cls)
+    }
+  })
+
+  // A footnote is a line a reader reads, so the link inside it takes the
+  // line's size rather than setting the micro step on itself.
+  it('sizes the link by its line, not by its own class', () => {
+    render(<ResultsTable {...props()} />)
+    expect(credit().className).not.toMatch(/(^|\s)text-(xs|sm|\[)/)
   })
 })
 
@@ -353,11 +387,11 @@ describe('a place with no recorded elevation', () => {
     ]
     render(<ResultsTable {...props({ results: rows, columns: withModelColumn(COLUMNS, true), partialNote: NOTE })} />)
     const divs = [...document.querySelectorAll('tfoot div')]
-    expect(divs.map((d) => d.textContent)).toEqual([NOTE, TERRAIN_HEIGHT_NOTE])
+    expect(divs.map((d) => d.textContent)).toEqual([NOTE, TERRAIN_HEIGHT_NOTE, 'Open-Meteo.com'])
     // Stacked without a blank line between: the stack wears one padding.
     for (const d of divs) expect(d.classList).not.toContain('py-1.5')
     expect(divs[0].classList).toContain('first:pt-1.5')
-    expect(divs[1].classList).toContain('last:pb-1.5')
+    expect(divs[2].classList).toContain('last:pb-1.5')
   })
 
   // While the lookup may still answer, the cell ticks and the note waits: the

@@ -3,6 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { createRef, type ComponentProps } from 'react'
 import ResultsBar from './ResultsBar'
 import { render } from '../testSupport/render'
+import { BUTTON_GHOST } from '../styles'
 
 type Props = ComponentProps<typeof ResultsBar>
 const NOOP = () => {}
@@ -87,6 +88,24 @@ describe('ResultsBar', () => {
       expect(button.textContent).toBe(name)
       expect(button.getAttribute('aria-label')).toBeNull()
     }
+  })
+
+  // One control style for the bar's four buttons (#687): a ghost button with
+  // a glyph beside its word, where they were underlined links.
+  it('draws Columns, Models, Removed and Download CSV as ghost buttons with a glyph', () => {
+    render(<ResultsBar {...props({ removedCount: 2 })} />)
+    const names = ['Choose which columns to display', 'Models', 'Removed (2)', 'Download CSV']
+    for (const name of names) {
+      const button = screen.getByRole('button', { name })
+      expect(button.className).toBe(BUTTON_GHOST)
+      expect(button.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+    }
+  })
+
+  // The credit is the table's last footnote line now, beside the numbers.
+  it('carries no link, the Open-Meteo credit having moved under the table', () => {
+    render(<ResultsBar {...props()} />)
+    expect(screen.queryByRole('link')).toBeNull()
   })
 
   // The label holds the word the button shows, which a voice-control reader

@@ -3,14 +3,23 @@ import type { CompareNote } from '../hooks/useChartCompare'
 import { resultsHeading } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
 import type { SortBy } from '../types'
-import { IconChart, IconChartTable, IconChevron, IconTable } from './icons'
+import {
+  IconChart,
+  IconChartTable,
+  IconChevron,
+  IconColumns,
+  IconDownload,
+  IconModels,
+  IconRestore,
+  IconTable,
+} from './icons'
 import {
   ACCENT,
+  BUTTON_GHOST,
   CAPTION_LIFTED,
   CONTROL_SIZE,
   DISABLED,
   ICON_BUTTON,
-  LINK,
   SEGMENT_DIVIDER,
   SEGMENT_FLUID,
   SEGMENT_IDLE,
@@ -182,19 +191,19 @@ export default function ResultsBar({
               bar keeping its full membership is what makes it read
               as one control surface (#242 review).
 
-              This and the three beside it read at `TEXT.control`, the
-              size of every other control in the app. The micro step is
-              for text that is present but never first — a credit, a
-              timestamp, an overflow count — and these are buttons the
-              reader is meant to press. */}
+              This and the three beside it are ghost buttons with a glyph
+              (#687): they were underlined links, and the bar mixed four
+              control styles. They read at `TEXT.control`, the size of
+              every other control in the app, and keep their words. */}
           {showTable && (
             <button
               ref={columnsButtonRef}
               onClick={onToggleColumns}
               aria-expanded={columnsOpen}
               aria-label="Choose which columns to display"
-              className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
+              className={BUTTON_GHOST}
             >
+              <IconColumns className="flex-shrink-0" />
               Columns
             </button>
           )}
@@ -211,8 +220,9 @@ export default function ResultsBar({
               ref={modelsButtonRef}
               onClick={onToggleModels}
               aria-expanded={modelsOpen}
-              className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
+              className={BUTTON_GHOST}
             >
+              <IconModels className="flex-shrink-0" />
               Models
             </button>
           )}
@@ -230,27 +240,21 @@ export default function ResultsBar({
               ref={removedButtonRef}
               onClick={onToggleRemoved}
               aria-expanded={removedOpen}
-              className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
+              className={BUTTON_GHOST}
             >
+              <IconRestore className="flex-shrink-0" />
               Removed ({removedCount})
             </button>
           )}
           {canDownload && (
-            <button
-              onClick={onDownloadCsv}
-              className={`${TEXT.control} ${LINK} cursor-pointer whitespace-nowrap`}
-            >
+            <button onClick={onDownloadCsv} className={BUTTON_GHOST}>
+              <IconDownload className="flex-shrink-0" />
               Download CSV
             </button>
           )}
-          <a
-            href="https://open-meteo.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`${TEXT.control} ${LINK} whitespace-nowrap`}
-          >
-            Open-Meteo.com
-          </a>
+          {/* The Open-Meteo credit is the table's last footnote line since
+              #687, under the numbers it credits, rather than a fifth member
+              here that took a line of its own on a phone. */}
           <button
             onClick={toggleCollapsed}
             aria-label={resultsCollapsed ? 'Expand results' : 'Collapse results'}

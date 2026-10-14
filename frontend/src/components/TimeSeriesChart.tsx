@@ -33,12 +33,14 @@ import {
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
 import { nearestIndex } from '../utils/timeline'
-import { CHART_AXIS_COLOR, CHART_GRID_COLOR, CHART_PLAYHEAD_COLOR } from '../utils/chartColors'
+import { CHART_AXIS_COLOR, CHART_GRID_COLOR, CHART_PLAYHEAD_COLOR, CHART_TICK_PX } from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
 const MARGIN = { top: 8, right: 16, bottom: 2, left: 8 }
 const X_AXIS_HEIGHT = 22
+// Hoisted so both axes hand Recharts one object rather than a new one a render.
+const AXIS_TICK = { fontSize: CHART_TICK_PX }
 // Named rather than spelled on the YAxis alone, because a click is inverted to an
 // hour through the plotting band's left edge, which sits after this strip.
 const Y_AXIS_WIDTH = 44
@@ -285,14 +287,14 @@ function TimeSeriesChart({
               domain={['dataMin', 'dataMax']}
               height={X_AXIS_HEIGHT}
               stroke={CHART_AXIS_COLOR}
-              tick={{ fontSize: 10 }}
+              tick={AXIS_TICK}
               tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
             />
             <YAxis
               domain={[yMin, yMax]}
               width={Y_AXIS_WIDTH}
               stroke={CHART_AXIS_COLOR}
-              tick={{ fontSize: 10 }}
+              tick={AXIS_TICK}
               tickFormatter={(v: any) => formatMetricValue(v, metric)}
             />
             {/* Wears the axis's own color rather than a semantic one: it is
@@ -303,7 +305,7 @@ function TimeSeriesChart({
                 x={nowMs}
                 stroke={CHART_AXIS_COLOR}
                 strokeDasharray="4 3"
-                label={{ value: 'Now', position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: 10 }}
+                label={{ value: 'Now', position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: CHART_TICK_PX }}
               />
             )}
             {/* Where a compared model's forecast ends. Chrome marking where
@@ -317,7 +319,7 @@ function TimeSeriesChart({
                 x={end.endMs}
                 stroke={CHART_AXIS_COLOR}
                 strokeDasharray="4 3"
-                label={{ value: end.label, position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: 10 }}
+                label={{ value: end.label, position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: CHART_TICK_PX }}
               />
             ))}
             {/* The map's playhead. Solid and in the accent where the "Now"

@@ -19,6 +19,7 @@ export function addControls(map: maplibregl.Map): void {
   // spent on something the panel actually tells you about.
   map.boxZoom.disable()
   map.addControl(new NavigationControl(), 'top-right')
+  hideCompassWhileNorthUp(map)
   // MapLibre's own geolocate button, not a hand-rolled control: it wears
   // the same chrome as the zoom and compass buttons above it, and its
   // permission/error/busy states come with the library instead of being
@@ -35,6 +36,31 @@ export function addControls(map: maplibregl.Map): void {
   // shared the right corner before, the scale floating above the licence
   // line, which made the pair as tall as both together.
   map.addControl(new ScaleControl(), 'bottom-left')
+}
+
+/**
+ * The class `map.css` hides the compass under, set on the map's container
+ * while the map is north-up and flat (#687). Exported so the test names the
+ * same class the stylesheet does.
+ */
+export const COMPASS_IDLE_CLASS = 'compass-idle'
+
+/**
+ * Hides the compass while pressing it would do nothing. MapLibre's compass
+ * resets the bearing and the pitch, so at bearing 0 and pitch 0 it is a button
+ * with no effect standing in the corner, and it shows again the moment a
+ * rotate or a tilt gives it one. The library has no option for this, so the
+ * container carries a class and `map.css` does the hiding: the markup is the
+ * library's, and a stylesheet is the one place that reaches it.
+ */
+export function hideCompassWhileNorthUp(map: maplibregl.Map): void {
+  const sync = () =>
+    map
+      .getContainer()
+      .classList.toggle(COMPASS_IDLE_CLASS, map.getBearing() === 0 && map.getPitch() === 0)
+  map.on('rotate', sync)
+  map.on('pitch', sync)
+  sync()
 }
 
 /**

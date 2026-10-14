@@ -9,9 +9,18 @@ import type { PendingDestination } from '../utils/customList'
 import { geoKey } from '../utils/points'
 import { pendingChartRow, rankText, rowKeys } from '../utils/resultsCells'
 import { useChartBox } from '../hooks/useChartBox'
-import { TEXT } from '../styles'
+import { LINK, TEXT } from '../styles'
 import ResultsTableHeader from './ResultsTableHeader'
 import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, PendingRow } from './ResultsTableRow'
+
+// One footnote line under the table: pinned to the scroll box's left edge and
+// as wide as what the reader can see, the first and last lines padded off the
+// rows and the box's bottom.
+const FOOTNOTE_LINE = 'sticky left-0 w-[100cqi] px-3 first:pt-1.5 last:pb-1.5'
+
+// Open-Meteo's licence asks for the credit beside the data, as a link; its
+// example wording is only an example, so the bare host stands.
+const OPEN_METEO_HREF = 'https://open-meteo.com/'
 
 // Hoisted so a table with no widths set hands every row the same empty map,
 // which is what lets a memoized row skip.
@@ -305,32 +314,42 @@ function ResultsTable({
           </FireClock>
           </NoteTargetsContext.Provider>
         </tbody>
-        {footnotes.length > 0 && (
-          <tfoot>
-            <tr>
-              {/* A table row rather than a line after the table, for the
-                  empty-reason row's reason: the pinned block needs a cell as
-                  wide as the table to travel in. A block after the table is
-                  only as wide as the scroll box, so it scrolls out of view as
-                  soon as a wide comparison table is scrolled sideways, which
-                  every one on a phone is. */}
-              <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
-                {footnotes.map((note) => (
-                  // Focusable so a mark's link can land a reader on it; out of
-                  // the Tab order, since nothing on it acts.
-                  <div
-                    key={note.id}
-                    id={note.id}
-                    tabIndex={-1}
-                    className={`sticky left-0 w-[100cqi] px-3 first:pt-1.5 last:pb-1.5 ${TEXT.micro}`}
-                  >
-                    {note.text}
-                  </div>
-                ))}
-              </td>
-            </tr>
-          </tfoot>
-        )}
+        {/* Always drawn now: the Open-Meteo credit is its last line (#687),
+            beside the numbers it credits, where it used to take a place in
+            the results bar and a line of its own on a phone. A table with no
+            note to explain holds the credit alone. */}
+        <tfoot>
+          <tr>
+            {/* A table row rather than a line after the table, for the
+                empty-reason row's reason: the pinned block needs a cell as
+                wide as the table to travel in. A block after the table is
+                only as wide as the scroll box, so it scrolls out of view as
+                soon as a wide comparison table is scrolled sideways, which
+                every one on a phone is. */}
+            <td colSpan={orderedColumns.length + (showChartCol ? 2 : 1) + 1} className="p-0">
+              {footnotes.map((note) => (
+                // Focusable so a mark's link can land a reader on it; out of
+                // the Tab order, since nothing on it acts.
+                <div
+                  key={note.id}
+                  id={note.id}
+                  tabIndex={-1}
+                  className={`${FOOTNOTE_LINE} ${TEXT.micro}`}
+                >
+                  {note.text}
+                </div>
+              ))}
+              {/* The line's own classes, the link sized by the line around
+                  it: a credit is a footnote, not a control set at the micro
+                  step. */}
+              <div className={`${FOOTNOTE_LINE} ${TEXT.micro}`}>
+                <a href={OPEN_METEO_HREF} target="_blank" rel="noopener noreferrer" className={LINK}>
+                  Open-Meteo.com
+                </a>
+              </div>
+            </td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   )

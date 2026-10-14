@@ -147,8 +147,8 @@ export function IconLayers({ className }: IconProps): ReactNode {
 }
 
 /**
- * The results bar's three modes. They are the app's only glyphs drawn on a
- * 16-unit grid at a lighter stroke, which is what lets a diagram of a table
+ * The results bar's three modes. They and the bar's four buttons below are the
+ * app's only glyphs drawn on a 16-unit grid at a lighter stroke, which is what lets a diagram of a table
  * carry two interior rules inside a 16px box without them closing up.
  */
 export function IconTable({ className }: IconProps): ReactNode {
@@ -198,6 +198,79 @@ export function IconChartTable({ className }: IconProps): ReactNode {
       <rect x="2" y="2" width="12" height="5.5" />
       <line x1="8" y1="7.5" x2="8" y2="14" />
       <rect x="2" y="7.5" width="12" height="6.5" />
+    </svg>
+  )
+}
+
+/**
+ * The results bar's Columns button (#687): the table glyph turned on its side,
+ * the columns being what it picks.
+ */
+export function IconColumns({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      fill="none"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <rect x="2" y="2" width="12" height="12" />
+      <line x1="6" y1="2" x2="6" y2="14" />
+      <line x1="10" y1="2" x2="10" y2="14" />
+    </svg>
+  )
+}
+
+/** The results bar's Models button: one sheet over another, more than one forecast. */
+export function IconModels({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      fill="none"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <rect x="2" y="5" width="9" height="9" />
+      <polyline points="5,5 5,2 14,2 14,11 11,11" />
+    </svg>
+  )
+}
+
+/** The results bar's Removed button: an arrow turning back, the way a row returns. */
+export function IconRestore({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      fill="none"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <path d="M3.5 8a4.5 4.5 0 1 0 1.3-3.2" />
+      <polyline points="4.5,1.8 4.5,5 7.7,5" />
+    </svg>
+  )
+}
+
+/** The results bar's Download CSV button: an arrow down onto a line. */
+export function IconDownload({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      fill="none"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <line x1="8" y1="2" x2="8" y2="10" />
+      <polyline points="4.5,6.5 8,10 11.5,6.5" />
+      <line x1="2" y1="13.5" x2="14" y2="13.5" />
     </svg>
   )
 }

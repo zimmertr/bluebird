@@ -6,10 +6,11 @@
  * something else. The reading surfaces — the welcome and privacy dialogs, and
  * the analysis overlay card — are wide, and you read them once, carefully.
  *
- * They are not two scales. The dialog title is the panel header's title one
- * size up, and the dialog subtitle is the caption step one size up — the same
- * recipe the tagline under the app title wears; even the copy rhymes
- * ("Weather Window Finder" / "The Weather Window Finder").
+ * They are not two scales. The dialog title is the panel header's title, one
+ * size for both since #687 (both are the name of the surface they head), and
+ * the dialog subtitle is the caption step one size up — the same recipe the
+ * tagline under the app title wears; even the copy rhymes ("Weather Window
+ * Finder" / "The Weather Window Finder").
  * And the reading tier's small step lands exactly on the compact tier's base,
  * so the two share the 12px rung rather than running past each other. Naming
  * them as one ramp keeps a dialog from drifting into a second look.
@@ -27,7 +28,7 @@
  */
 
 /**
- * The 10px step, for chrome that must not compete with what it labels.
+ * The 11px step, for chrome that must not compete with what it labels.
  *
  * This step lands on three background lightnesses — the slate-900/85 map
  * legends, the slate-800/95 chart tooltip, and the slate-700 table header bar
@@ -53,10 +54,30 @@
  * That is why the one stylesheet needing the same size says it a second time —
  * `MAP_EDGE.publish` carries it as `--map-credit-size` for MapLibre's credit
  * line, which has no call site to hand a role to. `styles.test.ts` holds the
- * two spellings to one number, which is the only place that can be done.
+ * two spellings to one number, which is the only place that can be done, and
+ * the chart's ticks a third time (`CHART_TICK_PX` in `utils/chartColors.ts`),
+ * since Recharts takes a number rather than a class.
+ *
+ * 11px since #687, which made this the floor for text that is read: it was
+ * 10px, and 10px read as a smudge on the calendar's weekday row and under the
+ * player. 12px is the floor for anything pressed, which is why no button or
+ * link wears this step (the linter's `style-micro-not-pressed` check). The
+ * one size left under it is `GLYPH_SIZE` below, inside a box of fixed size.
+ * Re-measured at 11px: the calendar's weekday row, the player's marks and
+ * the model picker's reach column (record 0131).
  */
-export const MICRO_SIZE = 'text-[10px]'
+export const MICRO_SIZE = 'text-[11px]'
 const MICRO = `${MICRO_SIZE} text-slate-300`
+
+/**
+ * The one size under the floor, for a glyph inside a box whose size is fixed
+ * by something else: the legend strip's numerals in their 11px scrim band
+ * (`SWATCH_RAMP_TICK`) and the smoke key's letters in their chips
+ * (`SWATCH_CHIP`). Named so it reads as the exception it is rather than as a
+ * step of the ramp (#687): nothing here is prose, and each is measured against
+ * its box. Spelled for `MICRO_SIZE`'s reason.
+ */
+const GLYPH_SIZE = 'text-[10px]'
 
 /**
  * The base size, stepped back: secondary text that is read, not scanned.
@@ -115,8 +136,12 @@ export const CONTROL_SIZE = 'text-xs'
  * where the two densities meet.
  */
 export const PROSE = {
-  /** The dialog's name. */
-  title: 'text-xl font-bold text-white leading-tight',
+  /**
+   * The dialog's name: the panel title's own recipe since #687, because both
+   * name the surface they head. It was a size up, which put a second title
+   * size in the ramp for no difference a reader could name.
+   */
+  title: TEXT.appTitle,
   /** The line under it saying what the dialog is for. */
   subtitle: 'text-sm text-slate-400',
   /** A heading inside the body copy. */
@@ -140,7 +165,7 @@ export const PROSE = {
  * majority hover (sky-400) and on MICRO's rest color.
  *
  * Sharing that color is not a coincidence, it is the only safe way to compose
- * the two: the map's Open-Meteo credit is a link *and* a 10px caption, and had
+ * the two: the table's Open-Meteo credit is a link *and* an 11px caption, and had
  * they disagreed the class list would not have decided which won. It is also
  * the dimmest step that keeps every link in the app readable — several of
  * these sat at 3.1:1 by inheriting the prose around them.
@@ -247,6 +272,39 @@ export const TAP = {
 } as const
 
 /**
+ * How far a surface stands off what is under it: three answers, two of which
+ * cast a shadow (#687).
+ *
+ * There were five depths for three jobs, each picked where it was worn: a
+ * docked banner at one, the floating map chrome at another, the dialogs and a
+ * dragged column at a third, the Layers menu at a fourth and the range thumbs
+ * at a fifth. A reader cannot tell five depths apart, and what a depth should
+ * say is only which of three things a surface is.
+ *
+ * - `none`: docked. The panel, the results and the phone sheet sit in the
+ *   page rather than on it, and so does the preview banner. Tailwind's
+ *   shadows cast downward, so a docked surface has nothing for one to fall
+ *   on anyway.
+ * - `raised` (`shadow-lg`): resting on the map, the chrome a reader reads
+ *   past: the search field, the two map buttons, the legend, the player, the
+ *   chart tooltip.
+ * - `overlay` (`shadow-2xl`): opened above other chrome, the things a reader
+ *   acts in and then closes: every menu, every card over a scrim, and a column
+ *   being carried. `2xl` rather than `xl` for `SURFACE_POPOVER`'s measured
+ *   reason: its single 0.25-alpha blur is the only one of the two that still
+ *   reads over the dark results sheet.
+ *
+ * The glows are not on this scale: `ACCENT_RING` and the tutorial's spotlight
+ * point at something rather than lift it. Nor is the marker popup's header
+ * band, whose faint shadow is the card's own (`popupChrome.ts`, record 0123).
+ */
+export const ELEVATION = {
+  none: 'shadow-none',
+  raised: 'shadow-lg',
+  overlay: 'shadow-2xl',
+} as const
+
+/**
  * Boxes that float over the map: the search field and its dropdown, the
  * Controls button, the legend, the chart tooltip.
  *
@@ -256,7 +314,7 @@ export const TAP = {
  * box now (#454), the key and the layers sharing it.
  */
 export const SURFACE_FLOATING =
-  `bg-slate-800/95 border border-slate-600 ${RADIUS.surface} shadow-lg backdrop-blur-sm`
+  `bg-slate-800/95 border border-slate-600 ${RADIUS.surface} ${ELEVATION.raised} backdrop-blur-sm`
 
 /**
  * The ground every full page stands on: the app's root, the standalone pages'
@@ -267,9 +325,15 @@ export const SURFACE_FLOATING =
  */
 export const SURFACE_PAGE = 'bg-slate-900'
 
-/** Opaque cards that sit above a scrim: the dialogs and the analysis overlay. */
+/**
+ * Opaque cards that sit above a scrim: the dialogs and the analysis overlay,
+ * and every popover `Popover.tsx` opens. `ELEVATION.overlay` since #687, where
+ * it wore the `xl` step alone; over the scrim the step hardly shows, and over
+ * the map, where the popovers hang, the `xl` step's 0.1 alpha did not read at
+ * all on the dark results sheet.
+ */
 export const SURFACE_CARD =
-  `bg-slate-800 border border-slate-600 ${RADIUS.surface} shadow-xl`
+  `bg-slate-800 border border-slate-600 ${RADIUS.surface} ${ELEVATION.overlay}`
 
 /**
  * The results sheet on a phone: the panel parked over the map's bottom edge
@@ -287,7 +351,8 @@ export const SURFACE_CARD =
  * No shadow: Tailwind's shadows cast downward, where this surface has nothing to
  * fall on, and the edge is already the strongest boundary on the screen.
  */
-export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-lg overflow-hidden'
+export const SURFACE_SHEET =
+  `bg-slate-800 border-t border-slate-600 rounded-t-lg overflow-hidden ${ELEVATION.none}`
 
 /**
  * The map's Layers popover: the one floating box that is a menu rather than a
@@ -299,14 +364,14 @@ export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-l
  * the border stays exactly the legend's slate-600 so the difference is
  * elevation only.
  *
- * ## Why `shadow-2xl` rather than `shadow-xl`
+ * ## Why `ELEVATION.overlay` (`shadow-2xl`) rather than `shadow-xl`
  *
  * Tailwind's `xl` is two layers at 0.1 black alpha; `2xl` is one 50px blur at
  * 0.25. Over the light basemap both register, but this popover also hangs over
  * the dark results sheet at the phone breakpoint, where 0.1 alpha on a near
  * black surface is nothing at all. 0.25 is the only one of the two that reads
- * on both grounds. `SURFACE_CARD` keeps `xl` because a scrim does its
- * separating; nothing sits behind this one.
+ * on both grounds, which is why it is the overlay step every opened surface
+ * takes, `SURFACE_CARD` included since #687.
  *
  * ## Why slate-700, and what still clears AA on it
  *
@@ -330,7 +395,7 @@ export const SURFACE_SHEET = 'bg-slate-800 border-t border-slate-600 rounded-t-l
  * order, so appending a lighter fill would be a bet rather than an override.
  */
 export const SURFACE_POPOVER =
-  `bg-slate-700/95 border border-slate-600 ${RADIUS.surface} shadow-2xl backdrop-blur-sm`
+  `bg-slate-700/95 border border-slate-600 ${RADIUS.surface} ${ELEVATION.overlay} backdrop-blur-sm`
 
 /**
  * The accent, named by the jobs it does, because it does six.
@@ -507,6 +572,26 @@ export const BUTTON_ACCENT =
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
+ * A button that is a word and a glyph with no fill until the pointer is on it:
+ * Columns, Models, Removed and Download CSV in the results bar (#687).
+ *
+ * They were underlined links, beside a segmented control and a chevron, so the
+ * one bar carried four control styles. A fill at rest would make four more
+ * blocks on a bar that is already a slate-700 block; the word and its glyph
+ * say "press me" well enough there, and the hover fill says it again under the
+ * pointer. Each keeps its word (record 0090: a reader using voice control
+ * says what the button shows), and the glyph is the `ICON.control` step.
+ *
+ * Measured on the v4 oklch steps: the slate-200 label and glyph are 8.40:1 on
+ * the bar's slate-700 and 6.14:1 on the slate-600 hover fill. No `TAP` role:
+ * the results bar is the surface `TAP` deliberately leaves at its own density,
+ * because every pixel of its height comes out of the ranking on a phone.
+ */
+export const BUTTON_GHOST =
+  `${TEXT.control} inline-flex items-center gap-1.5 px-1.5 py-0.5 ${RADIUS.control} ` +
+  `cursor-pointer whitespace-nowrap transition-colors hover:bg-slate-600 ${FOCUS_RING}`
+
+/**
  * A word marking the row it sits in, not a control: "Recommended" on the
  * default forecast model.
  *
@@ -527,9 +612,11 @@ export const BUTTON_ACCENT =
  * slate-300, which would race `ACCENT.fill`'s white by stylesheet order rather
  * than by class order, so the winner would not be decidable from this line.
  * `styles.test.ts` caught exactly that when this was written the short way.
+ * The size is `MICRO_SIZE` itself rather than a number of its own, so it
+ * follows the ramp's smallest step (#687).
  */
 export const BADGE_ACCENT =
-  `text-[10px] font-semibold uppercase tracking-wider ` +
+  `${MICRO_SIZE} font-semibold uppercase tracking-wider ` +
   `${ACCENT.fill} ${RADIUS.pill} px-1.5 py-0.5`
 
 /**
@@ -648,10 +735,14 @@ export const BUTTON_FLOATING =
  * It lived as a local constant inside its own component, which is the same
  * bespoke-recipe problem as the accent had, just with only one call site to
  * drift from. White on red-600 reads 4.76:1, so it clears AA as it stands.
+ *
+ * Docked, so `ELEVATION.none` (#687): it sits in the page above the panel and
+ * the map like the panel sits beside the map, and it was the one docked
+ * surface casting a shadow.
  */
 export const BANNER_PREVIEW =
   'flex-shrink-0 bg-red-600 text-white text-center text-xs sm:text-sm ' +
-  'font-semibold py-1.5 px-4 shadow-md'
+  `font-semibold py-1.5 px-4 ${ELEVATION.none}`
 
 /**
  * An icon that acts on hover: the table's external-destination links.
@@ -669,17 +760,20 @@ export const BANNER_PREVIEW =
  *
  * The letter is dark rather than light because the fill it sits on is pale at
  * every density; that colour lives here rather than at the call site for the
- * usual reason, and so does the size, which is one step below the ramp's
- * smallest on purpose — a chip is 14px square and a 10px glyph does not fit
- * inside it with its own border.
+ * usual reason, and so does the size, which is `GLYPH_SIZE`, the named
+ * exception under the ramp's floor. It was 9px in a 14px box, the one 9px
+ * text in the app; a 10px letter does not fit a 14px box inside its own
+ * border, so the box grew to 16px instead (#687). The other keys stay 14px:
+ * this one is three chips side by side, read against each other.
  */
 export const SWATCH_CHIP =
-  `inline-flex h-3.5 w-3.5 items-center justify-center ${RADIUS.control} border ` +
-  `text-[9px] font-semibold text-slate-900`
+  `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ` +
+  `${GLYPH_SIZE} font-semibold text-slate-900`
 
 /**
  * A legend swatch for a layer that draws LINES: a 14px dashed rule with no
- * fill, the width of {@link SWATCH_CHIP} so it lines up in the same column.
+ * fill, the width of a single-value key (the fire's and the area closure's
+ * 14px squares) so it lines up in the same column.
  *
  * The closed-trail layer (#550) is a dashed line on the map, and a filled
  * square beside its label would say "area", which is the other closure layer's
@@ -735,7 +829,9 @@ export const SWATCH_RAMP_SCRIM =
   'pointer-events-none absolute inset-x-0 bottom-0 h-[11px] bg-slate-900/70'
 
 /**
- * One number on that band: 10px, the ramp's smallest step, on the scrim.
+ * One number on that band: 10px, `GLYPH_SIZE`, on the scrim. It stayed at 10
+ * when the ramp's floor rose to 11 (#687), because the band is measured for a
+ * 10px numeral and the strip's height for the band.
  *
  * `relative` lifts it over the scrim, which is a later sibling in paint order.
  * `leading-none` is what lets a 10px numeral sit in an 11px band at all, and
@@ -743,7 +839,7 @@ export const SWATCH_RAMP_SCRIM =
  * edges without moving a centred one, which pads symmetrically.
  */
 export const SWATCH_RAMP_TICK =
-  `relative whitespace-nowrap px-0.5 pb-px ${MICRO_SIZE} leading-none text-slate-200`
+  `relative whitespace-nowrap px-0.5 pb-px ${GLYPH_SIZE} leading-none text-slate-200`
 
 /**
  * The edge every legend swatch wears, as a VALUE rather than a class.
@@ -930,83 +1026,91 @@ export const SKIP_LINK =
   'pointer-events-none opacity-0 focus:pointer-events-auto focus:opacity-100'
 
 /**
- * The grip a column is dragged by, in the table header and in the Columns
- * picker alike (#360).
- *
- * A grip rather than the whole row, because both rows already answer a press:
- * a header sorts and a picker row toggles a checkbox. A dedicated handle is
- * also the only visible affordance either surface can carry, since neither has
- * room for a word.
- *
- * `cursor-grab` is the standing signal for "this moves", and `touch-none` is
- * load-bearing: without it the browser claims the gesture for scrolling and
- * the drag never gets a second pointer event on a phone. It is the same reason
- * the resize handle wears it.
+ * Moving a column (#360, #437): the grip it is dragged by, the column it was
+ * lifted out of, the copy under the pointer and the line where it will land.
+ * One object since #687, because they are five parts of one gesture that two
+ * surfaces draw (the table header and the Columns picker) and five exports
+ * made them read as five unrelated roles.
  */
-export const DRAG_GRIP =
-  `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
-  `transition-colors ${FOCUS_RING}`
-
-/** The grip while its column is the one being moved. */
-export const DRAG_GRIP_ACTIVE = 'text-slate-200'
-
-/**
- * What a column looks like where it used to be, while it is being carried.
- *
- * The table header and the Columns picker both fade the row the drag started
- * in, so the ghost under the pointer reads as the thing itself rather than as a
- * copy of a column that is still sitting there. Both spelled the same literal
- * before it had a name (#437).
- *
- * The same 40 percent as `DISABLED` and deliberately not that role: `DISABLED`
- * promises a press will do nothing and carries `cursor-not-allowed` to say so,
- * where this column still sorts and still toggles the moment the drag ends, and
- * the pointer is already holding it. Not `MUTED` either, which is the 60 percent
- * of a control that works but is not the one in force; this one is not faded for
- * what it does, but for where it is.
- */
-export const CARRIED = 'opacity-40'
-
-/**
- * The column being carried, drawn under the pointer.
- *
- * Translucent and tilted a degree, which is the standing vocabulary for
- * "picked up" — the same two signals a dragged card wears everywhere. It is
- * portalled to the body and positioned in viewport coordinates, so it needs
- * the app's top layer rather than the table's.
- *
- * That layer is part of the role rather than a second class the call site
- * adds. Both surfaces that move a column drew the pair, and a ghost that gets
- * one without the other is a ghost the picker it was dragged out of paints
- * over.
- *
- * `pointer-events-none` is load-bearing: the ghost follows the pointer, so
- * without it the ghost is what every hit test finds and the drag can never see
- * the column underneath.
- */
-export const DRAG_GHOST =
-  `${TEXT.control} pointer-events-none fixed ${LAYER.popover} -rotate-1 opacity-80 ` +
-  `${SURFACE_CARD} px-2 py-1 whitespace-nowrap shadow-xl`
-
-/**
- * Where the carried column will land: a line in the gap, not a fill on a
- * column.
- *
- * A fill cannot say which SIDE of the column underneath the carried one ends
- * up on, which is the whole question a drop answers. The accent because this
- * is the app's one "here" mark; the bar's own thickness is the call site's,
- * since the two surfaces draw it on different axes.
- *
- * The accent's FILL without its label color: `ACCENT.fill` pairs the two
- * deliberately and this bar carries no label, so taking the pair would hand a
- * text color to something with no text.
- *
- * It carries the same layer as the ghost above and for the same reason: the
- * bar is drawn in viewport coordinates over whatever surface the drag started
- * in.
- */
-export const DRAG_INSERT =
-  `pointer-events-none fixed ${LAYER.popover} bg-sky-650 ${RADIUS.pill}`
+export const DRAG = {
+  /**
+   * The grip a column is dragged by, in the table header and in the Columns
+   * picker alike (#360).
+   *
+   * A grip rather than the whole row, because both rows already answer a press:
+   * a header sorts and a picker row toggles a checkbox. A dedicated handle is
+   * also the only visible affordance either surface can carry, since neither has
+   * room for a word.
+   *
+   * `cursor-grab` is the standing signal for "this moves", and `touch-none` is
+   * load-bearing: without it the browser claims the gesture for scrolling and
+   * the drag never gets a second pointer event on a phone. It is the same reason
+   * the resize handle wears it.
+   */
+  grip:
+    `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
+    `transition-colors ${FOCUS_RING}`,
+  /** The grip while its column is the one being moved. */
+  gripActive: 'text-slate-200',
+  /**
+   * What a column looks like where it used to be, while it is being carried.
+   *
+   * The table header and the Columns picker both fade the row the drag started
+   * in, so the ghost under the pointer reads as the thing itself rather than as a
+   * copy of a column that is still sitting there. Both spelled the same literal
+   * before it had a name (#437).
+   *
+   * The same 40 percent as `DISABLED` and deliberately not that role: `DISABLED`
+   * promises a press will do nothing and carries `cursor-not-allowed` to say so,
+   * where this column still sorts and still toggles the moment the drag ends, and
+   * the pointer is already holding it. Not `MUTED` either, which is the 60 percent
+   * of a control that works but is not the one in force; this one is not faded for
+   * what it does, but for where it is.
+   */
+  carried: 'opacity-40',
+  /**
+   * The column being carried, drawn under the pointer.
+   *
+   * Translucent and tilted a degree, which is the standing vocabulary for
+   * "picked up" — the same two signals a dragged card wears everywhere. It is
+   * portalled to the body and positioned in viewport coordinates, so it needs
+   * the app's top layer rather than the table's.
+   *
+   * That layer is part of the role rather than a second class the call site
+   * adds. Both surfaces that move a column drew the pair, and a ghost that gets
+   * one without the other is a ghost the picker it was dragged out of paints
+   * over.
+   *
+   * `pointer-events-none` is load-bearing: the ghost follows the pointer, so
+   * without it the ghost is what every hit test finds and the drag can never see
+   * the column underneath.
+   *
+   * Its depth is the card's, `ELEVATION.overlay`: it spelled a shadow of its
+   * own beside the card's until #687, two shadow utilities racing by
+   * stylesheet order.
+   */
+  ghost:
+    `${TEXT.control} pointer-events-none fixed ${LAYER.popover} -rotate-1 opacity-80 ` +
+    `${SURFACE_CARD} px-2 py-1 whitespace-nowrap`,
+  /**
+   * Where the carried column will land: a line in the gap, not a fill on a
+   * column.
+   *
+   * A fill cannot say which SIDE of the column underneath the carried one ends
+   * up on, which is the whole question a drop answers. The accent because this
+   * is the app's one "here" mark; the bar's own thickness is the call site's,
+   * since the two surfaces draw it on different axes.
+   *
+   * The accent's FILL without its label color: `ACCENT.fill` pairs the two
+   * deliberately and this bar carries no label, so taking the pair would hand a
+   * text color to something with no text.
+   *
+   * It carries the same layer as the ghost above and for the same reason: the
+   * bar is drawn in viewport coordinates over whatever surface the drag started
+   * in.
+   */
+  insert: `pointer-events-none fixed ${LAYER.popover} bg-sky-650 ${RADIUS.pill}`,
+} as const
 
 /**
  * The recessed surface, and the boundary that closes it.
@@ -1028,7 +1132,10 @@ export const DRAG_INSERT =
  * calendar to match them.
  */
 export const RECESSED_FILL = 'bg-slate-900'
-export const RECESSED_EDGE = 'border border-slate-500'
+// Not exported (#687): every surface that sinks into the panel composes it
+// here, and a call site takes the finished `FIELD`, `SEGMENT`, `SURFACE_GROUP`
+// or `SLIDER.track`.
+const RECESSED_EDGE = 'border border-slate-500'
 
 /**
  * The same boundary, re-derived for the one surface that is a step lighter than
@@ -1180,10 +1287,15 @@ export const MAP_ROW_H = 'h-9 touch:h-11'
  * It is a role rather than a `gap-1.5` at four call sites because
  * `LEGEND_TOP`'s arithmetic is built out of it: a gap changed in one of the
  * four would move the column's height without moving the inset that clears it.
+ *
+ * One object with two spellings of the one number since #687: `gap` between
+ * members that sit in a flex column, and `top` as a margin for the popover
+ * that hangs rather than sits. `styles.test.ts` holds them to one step.
  */
-export const MAP_COL_GAP = 'gap-1'
-/** The same gap as a top margin, for the popover that hangs rather than sits. */
-export const MAP_COL_GAP_T = 'mt-1'
+export const MAP_COL_GAP = {
+  gap: 'gap-1',
+  top: 'mt-1',
+} as const
 
 /**
  * How far anything floating on the map stands off its edge.
@@ -1209,19 +1321,41 @@ export const MAP_EDGE = {
    * second spelling of `MICRO_SIZE` — to `map.css`, which has no call site to
    * hand `TEXT.micro` to.
    */
-  publish: '[--map-edge-inset:0.75rem] [--map-credit-size:10px]',
+  publish: '[--map-edge-inset:0.75rem] [--map-credit-size:11px]',
   /** The left edge every floating box on the map's left shares. */
   left: 'left-[var(--map-edge-inset)]',
+  /**
+   * The right edge, for the one box that spans the map: the phone's draw bar
+   * (`DRAW_BAR`), which stands the same inset off both sides.
+   */
+  right: 'right-[var(--map-edge-inset)]',
   /** The top edge the app's own button column takes. */
   top: 'top-[var(--map-edge-inset)]',
 } as const
+
+/**
+ * The draw bar on a phone (#687): while a ring is being drawn, the panel's
+ * readout and its Done and Cancel stand on the map, because Draw polygon
+ * closes the drawer on a phone and left the map with no way to finish but
+ * reopening Controls.
+ *
+ * A floating box like the player it stands in place of, the map's own inset
+ * off both sides, and as tall as its 44px buttons plus the box's padding:
+ * 366 by 58 on a 390px phone. Its bottom is the player's (`transportBottomPx`),
+ * which puts it in the band above the scale bar that the legend stack already
+ * clears. Phone only: a desk keeps Done and Cancel in the docked panel beside
+ * the map, where they were never out of reach.
+ */
+export const DRAW_BAR =
+  `${SURFACE_FLOATING} ${LAYER.base} absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ` +
+  'flex items-center gap-2 px-3 py-1.5'
 
 /**
  * Where the legend stack hangs: one row of the column's own gap under the last
  * button, at both pointer sizes, in the column's two heights.
  *
  * Every row above it is `MAP_ROW_H` — 36 on a pointer, 44 on a finger — and
- * they are separated by `MAP_COL_GAP`'s 4px, so the arithmetic is the inset,
+ * they are separated by `MAP_COL_GAP.gap`'s 4px, so the arithmetic is the inset,
  * then a row and a gap per member:
  *
  *   search + Layers:            12 + 36 + 4 + 36 + 4 =  92
@@ -1500,7 +1634,7 @@ export const STATUS = {
  *
  * The glow is the whole shadow for whatever wears this, so a call site must
  * apply it to an element that is not already carrying `SURFACE_FLOATING`'s
- * shadow-lg — two shadow utilities on one element resolve by stylesheet order,
+ * `ELEVATION.raised` — two shadow utilities on one element resolve by stylesheet order,
  * not by intent.
  *
  * Carries no radius, and that is load-bearing rather than an omission. A ring
@@ -1664,12 +1798,12 @@ export const NOTICE_DISMISS = {
  *
  * Three things it settles:
  *
- * - **The weight.** slate-700 is 1.4:1 on the slate-800 panel, which is not a
- *   line anyone can see, and slate-600 at 1.94:1 read heavy once the gutters
- *   tightened. Half-opacity slate-600 lands between the two steps — a value
- *   the scale does not offer — which is the quietest this can be while still
- *   being a line. The panel's structural edges stay two steps above it at
- *   slate-500 (3.07:1), which is what keeps the two weights distinct.
+ * - **The weight.** slate-600 at 1.94:1 read heavy once the gutters
+ *   tightened, so it was half-opacity slate-600 for a while, compositing to
+ *   1.37:1. That is `SURFACE_DIVIDER`'s 1.41:1 by eye, so since #687 it is
+ *   that colour: one quiet line in the app rather than two that only a
+ *   measurement could tell apart. The panel's structural edges stay above it
+ *   at slate-500 (3.07:1), which is what keeps the two weights distinct.
  * - **The gap.** 16px on both sides, and equal is the part that matters. It
  *   was 20 and read as hugging the control above; 32/16 only moved the
  *   imbalance to the other side; 32/32 was balanced but left the panel mostly
@@ -1682,10 +1816,10 @@ export const NOTICE_DISMISS = {
  * dialog's header over its body, the popover's overline strip over its rows,
  * the month navigation under the calendar grid, the panel's own right edge
  * against the map. On the slate-800 panel and card it is 1.41:1, and
- * `PANEL_RULE` composites to 1.37:1 there — the same line by eye, which is the
- * point: a surface that has to place its own rule should not look like a
- * different kind of rule. What splits them is only whether the stack or the
- * call site decides WHERE, so a bare colour is all this one carries.
+ * `PANEL_RULE` draws the same colour — which is the point: a surface that has
+ * to place its own rule should not look like a different kind of rule. What
+ * splits them is only whether the stack or the call site decides WHERE, so a
+ * bare colour is all this one carries.
  *
  * It was `border-slate-700` at eleven call sites in eight files before it had a
  * name (#390), which is a third weight nothing had chosen and nothing could
@@ -1693,9 +1827,33 @@ export const NOTICE_DISMISS = {
  * `components/` or in `App.tsx`.
  */
 export const PANEL_EDGE = 'border-slate-500'
-export const PANEL_RULE =
-  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-600/50 [&>*+*]:pt-4'
 export const SURFACE_DIVIDER = 'border-slate-700'
+// SURFACE_DIVIDER's colour under the stack's variant, spelled because Tailwind
+// cannot compile an interpolated variant; `styles.test.ts` holds the two to
+// one colour (#687).
+export const PANEL_RULE =
+  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-700 [&>*+*]:pt-4'
+
+/**
+ * The welcome dialog's actions, in a foot that stays in view while the body
+ * scrolls (#687).
+ *
+ * At 1024x768 and on a phone both actions sat below the fold of a dialog the
+ * reader had to scroll to find them in. The foot sticks to the card's bottom
+ * edge inside its scroll box, on the card's own slate-800 (so the body slides
+ * under it rather than showing through), parted from the body by the quiet
+ * rule and padded like the header above it.
+ *
+ * `secondary` is `BUTTON_SECONDARY` across the foot and at the primary's 40px,
+ * where it was 28: two actions stacked in one foot at two heights read as a
+ * button and a caption. `min-h-10` is the primary's own height on a pointer
+ * (its `py-2.5` around a 20px line); on a finger `TAP.action`'s 44 is the
+ * later rule and wins, the same as the primary's.
+ */
+export const DIALOG_FOOT = {
+  bar: `sticky bottom-0 bg-slate-800 border-t ${SURFACE_DIVIDER} px-6 py-4 space-y-2`,
+  secondary: `${BUTTON_SECONDARY} w-full min-h-10`,
+} as const
 
 /**
  * Step number badge in the welcome modal.
@@ -1952,11 +2110,16 @@ export const SR_ONLY = 'sr-only'
  * `TAP.grip` already argues for: the control is a horizontal drag on a bar that
  * is itself the target, so the height that matters is the input's, and the
  * thumb is a mark on it rather than a thing to hit.
+ *
+ * No shadow, which is `ELEVATION.none` (#687): the thumb rides a track inside
+ * a floating box rather than standing off it, a white mark on a dark well
+ * needs no lift to be found, and the Firefox thumb never carried the shadow
+ * the WebKit one did, so the two engines now draw one thumb.
  */
 const SLIDER_THUMB =
   '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-3.5 ' +
   '[&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full ' +
-  '[&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow ' +
+  '[&::-webkit-slider-thumb]:bg-white ' +
   '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-3.5 ' +
   '[&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full ' +
   '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
@@ -1978,57 +2141,63 @@ export const SCRUBBER =
 const SLIDER_BAR_THUMB =
   '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-6 ' +
   '[&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:rounded-sm ' +
-  '[&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow ' +
+  '[&::-webkit-slider-thumb]:bg-white ' +
   '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-6 ' +
   '[&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:rounded-sm ' +
   '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
 
-export const SLIDER_OVERLAY =
-  'absolute inset-0 h-full w-full appearance-none cursor-pointer bg-transparent ' +
-  `${FOCUS_RING} ` +
-  SLIDER_BAR_THUMB
-
-/** The slider's value readout: the colorless control size above. */
-export const SLIDER_VALUE = CONTROL_SIZE
-
 /**
- * The other half of the same line: the slider's in-track wordmark.
- *
- * The same size as the value beside it (`CONTROL_SIZE`) and in sentence case,
- * so the slider reads as one line of one control rather than two labels of
- * different ranks — and so it matches the Blocks/Smooth segment directly above
- * it, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
- * `TEXT.overline`'s shape, a 10px uppercase with letter-spacing, which is the
- * shape of a heading OVER a group rather than of a label inside a control.
- *
- * The weight is what still separates the two halves: `font-semibold` names the
- * control where the value states its number, at one size and one color.
- *
- * Colorless, like `CONTROL_SIZE` itself. The line renders twice — muted on the
- * recessed well, and white where the accent fill has reached (the fill layer is
- * `ACCENT.fill`, whose label color is not separable from it) — so the color
- * belongs to the layer, never to this shape.
+ * The parts of the two range inputs that are not the input itself: the
+ * coverage slider's overlay input and the two text layers it reads through,
+ * and the rail the timeline's scrubber slides on. One object since #687, the
+ * way `DAY` and `TABLE` group theirs, because five exports for one control's
+ * parts read as five controls.
  */
-export const SLIDER_WORDMARK = `${CONTROL_SIZE} font-semibold`
-
-/**
- * The coverage slider's un-filled text layer: the same idle slate the resting
- * segment wears, carried by the layer rather than the shape so the filled
- * copy of the identical line can be white without two colors racing.
- */
-export const SLIDER_IDLE = 'text-slate-400'
-
-/**
- * The rail the scrubber slides on, drawn as the element behind it.
- *
- * A separate element rather than styling `::-webkit-slider-runnable-track`,
- * because the filled portion has to be a third box on top of it and a
- * pseudo-element cannot carry one. Same recessed surface as every other well in
- * the app, so the bar reads as part of the same system as the calendar and the
- * fields — the fill is `ACCENT.mark`, the app's bare accent graphic, which is
- * what the analysis progress bar already is.
- */
-export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`
+export const SLIDER = {
+  /** The coverage slider's range input itself: see `SLIDER_BAR_THUMB` above. */
+  overlay:
+    'absolute inset-0 h-full w-full appearance-none cursor-pointer bg-transparent ' +
+    `${FOCUS_RING} ` +
+    SLIDER_BAR_THUMB,
+  /** The slider's value readout: the colorless control size above. */
+  value: CONTROL_SIZE,
+  /**
+   * The other half of the same line: the slider's in-track wordmark.
+   *
+   * The same size as the value beside it (`CONTROL_SIZE`) and in sentence case,
+   * so the slider reads as one line of one control rather than two labels of
+   * different ranks — and so it matches the Blocks/Smooth segment directly above
+   * it, which is the app's rule everywhere (TJ, 2026-09-14). It used to wear
+   * `TEXT.overline`'s shape, a 10px uppercase with letter-spacing, which is the
+   * shape of a heading OVER a group rather than of a label inside a control.
+   *
+   * The weight is what still separates the two halves: `font-semibold` names the
+   * control where the value states its number, at one size and one color.
+   *
+   * Colorless, like `CONTROL_SIZE` itself. The line renders twice — muted on the
+   * recessed well, and white where the accent fill has reached (the fill layer is
+   * `ACCENT.fill`, whose label color is not separable from it) — so the color
+   * belongs to the layer, never to this shape.
+   */
+  wordmark: `${CONTROL_SIZE} font-semibold`,
+  /**
+   * The coverage slider's un-filled text layer: the same idle slate the resting
+   * segment wears, carried by the layer rather than the shape so the filled
+   * copy of the identical line can be white without two colors racing.
+   */
+  idle: 'text-slate-400',
+  /**
+   * The rail the scrubber slides on, drawn as the element behind it.
+   *
+   * A separate element rather than styling `::-webkit-slider-runnable-track`,
+   * because the filled portion has to be a third box on top of it and a
+   * pseudo-element cannot carry one. Same recessed surface as every other well in
+   * the app, so the bar reads as part of the same system as the calendar and the
+   * fields — the fill is `ACCENT.mark`, the app's bare accent graphic, which is
+   * what the analysis progress bar already is.
+   */
+  track: `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pill}`,
+} as const
 
 /**
  * The floor under a timeline axis half: what `Radar` takes, so the metric
@@ -2049,7 +2218,9 @@ export const SCRUBBER_TRACK = `h-2 ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.pi
  * `min-w` here would be overridden and the floor would drop to 44px, which is
  * under `Radar`. The value is one number in one role either way.
  */
-export const TRANSPORT_AXIS_W = 'min-w-[58px] touch:min-w-[58px]'
+// Not exported (#687): the call site takes `TRANSPORT_AXIS_ITEM`, which
+// carries it, and `styles.test.ts` reads the floor off that role.
+const TRANSPORT_AXIS_W = 'min-w-[58px] touch:min-w-[58px]'
 
 /**
  * The timeline's axis halves: Radar beside the metric the report ranks by.

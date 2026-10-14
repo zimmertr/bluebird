@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
-import { FOCUS_RING, LINK_ACTION, SURFACE_DIVIDER, TEXT } from '../styles'
+import { CONTROL_SIZE, FOCUS_RING, LINK_ACTION, SURFACE_DIVIDER, TEXT } from '../styles'
 
 interface Props {
   open: boolean
@@ -44,10 +44,13 @@ export default function RemovedPicker({
         {entries.map(([key, entry]) => (
           <div key={key} className="flex items-center gap-2 px-2 py-1">
             <span className={`${TEXT.control} min-w-0 flex-1 truncate`}>{entry.row.name}</span>
+            {/* At the control size, the floor for anything pressed (#687):
+                it was the micro step. Colourless, so the link colour is
+                LINK_ACTION's alone rather than racing TEXT.control's slate. */}
             <button
               onClick={() => onRestore(key)}
               aria-label={`Restore ${entry.row.name}`}
-              className={`${TEXT.micro} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
+              className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
             >
               Restore
             </button>
@@ -59,7 +62,7 @@ export default function RemovedPicker({
         <div className={`border-t ${SURFACE_DIVIDER} px-3 py-2`}>
           <button
             onClick={onRestoreAll}
-            className={`${TEXT.micro} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}
+            className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer`}
           >
             Restore all
           </button>

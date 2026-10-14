@@ -5,18 +5,27 @@
 // The chart's CHROME lives here too (#365): Recharts takes a `stroke` or a
 // `fill` as a prop, not a class, so the design system in styles.ts cannot
 // reach it, and the axis colour was spelled five times in two files before it
-// had a name. These are the Tailwind slate steps the surrounding panel wears.
+// had a name. These are the Tailwind slate steps the surrounding panel wears,
+// as Tailwind v4 computes them from its oklch steps (#687): they were the v3
+// hexes, a shade off the steps every class in the app paints.
 
 /** Axes, their tick labels, and the dashed seams (Now, a model's end): slate-400. */
-export const CHART_AXIS_COLOR = '#94a3b8'
+export const CHART_AXIS_COLOR = '#90a1b9'
 /** The grid behind the lines: slate-700, a step over the panel and under the axes. */
-export const CHART_GRID_COLOR = '#334155'
+export const CHART_GRID_COLOR = '#314158'
 /**
  * The map's playhead: solid and in the accent (sky-400) where the Now seam is
  * dashed and in the axis colour, because this one is a control's position and
  * that one is a fact about the data.
  */
-export const CHART_PLAYHEAD_COLOR = '#38bdf8'
+export const CHART_PLAYHEAD_COLOR = '#00bcff'
+/**
+ * The type size of every word the chart draws: its tick labels and the Now and
+ * model-end labels on its seams. The ramp's smallest step, `MICRO_SIZE` in
+ * styles.ts, as the number Recharts takes; it spelled 10 four times before it
+ * had a name (#687), and `styles.test.ts` holds it to the ramp.
+ */
+export const CHART_TICK_PX = 11
 /**
  * A line asked for its colour before the allocator has given it one: a render
  * in the moment between a selection and the effect that persists its colours.

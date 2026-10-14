@@ -44,6 +44,29 @@ describe('useResultsLayout', () => {
     expect(result.current.resultsMode).toBe('both')
   })
 
+  // #687: a short desk column opens the first report on Table, because Both
+  // would pin the table at its floor under a short map. The reader can still
+  // press Both, and a press wins over the opening.
+  it('keeps a short desk column on Table when a report lands', () => {
+    setViewport(768)
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: DESKTOP,
+    })
+    rerender({ ...DESKTOP, response: {}, analysisSeq: 1 })
+    expect(result.current.resultsMode).toBe('table')
+    act(() => result.current.chooseResultsMode('both'))
+    expect(result.current.resultsMode).toBe('both')
+  })
+
+  it('counts the preview banner out of the column it measures', () => {
+    setViewport(800)
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: { ...DESKTOP, bannerPx: 30 },
+    })
+    rerender({ ...DESKTOP, bannerPx: 30, response: {}, analysisSeq: 1 })
+    expect(result.current.resultsMode).toBe('table')
+  })
+
   // #560: the first rows widen it before anything commits, and a first run
   // that never commits leaves the pre-analysis screen, which opens on Table.
   it('narrows back to Table when the rows of a first run go without a commit', () => {

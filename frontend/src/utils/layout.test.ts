@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
   bothFits,
+  bothOpensWithRoom,
   clampPanelHeight,
   panelOf,
   resolvePanelHeights,
   resolveResultsMode,
   splitChartTable,
 } from './layout'
-import { draggedMapFloorPx } from './resultsSheet'
+import { dockedMapFloorPx, draggedMapFloorPx } from './resultsSheet'
 
 describe('clampPanelHeight', () => {
   it('grows with an upward drag when there is room', () => {
@@ -76,6 +77,30 @@ describe('resolvePanelHeights', () => {
   })
 })
 
+describe('bothOpensWithRoom', () => {
+  // The desk's docked floor with Both's two grips, and the 220px the panels
+  // open at: the arithmetic the hook runs.
+  const desk = (availPx: number) => bothOpensWithRoom(availPx, 220, dockedMapFloorPx(2))
+
+  it('opens on Both only where the table would rest above its floor', () => {
+    expect(dockedMapFloorPx(2)).toBe(450)
+    // 450 + 220 + 120: the chart takes its 220 and leaves the table its floor.
+    expect(desk(790)).toBe(false)
+    expect(desk(791)).toBe(true)
+  })
+
+  it('takes 1024x768 to Table and leaves 1280x800 and 1440x900 on Both', () => {
+    expect(desk(768)).toBe(false)
+    expect(desk(800)).toBe(true)
+    expect(desk(900)).toBe(true)
+  })
+
+  it('takes the heights and floors it is given', () => {
+    expect(bothOpensWithRoom(600, 150, 200, 100)).toBe(true)
+    expect(bothOpensWithRoom(450, 150, 200, 100)).toBe(false)
+  })
+})
+
 describe('bothFits', () => {
   // The phone the rule exists for, at 360px wide: a sheet drawing two grips may
   // drag the map down to `draggedMapFloorPx(2)`, so that is the floor the pair
@@ -104,14 +129,15 @@ describe('bothFits', () => {
     expect(bothFits(521)).toBe(true)
   })
 
-  // Measured 2026-09-16 at 360px wide: `draggedMapFloorPx(2)` is 432 (the
+  // Measured 2026-10-13 at 360px wide: `draggedMapFloorPx(2)` is 436 (the
   // timeline's band, the inset the map's button column ends at, the sheet's
-  // header and its two grips), so Both needs more than 672px of viewport. A
-  // 640px phone is under it and an 800px one is over.
-  it('puts the phone threshold at 672px', () => {
-    expect(draggedMapFloorPx(2)).toBe(432)
-    expect(bothFits(672, phone)).toBe(false)
-    expect(bothFits(673, phone)).toBe(true)
+  // header and its two grips), so Both needs more than 676px of viewport. A
+  // 640px phone is under it and an 800px one is over. It was 672 until the
+  // results bar's actions became buttons (#687) and the header grew 4px.
+  it('puts the phone threshold at 676px', () => {
+    expect(draggedMapFloorPx(2)).toBe(436)
+    expect(bothFits(676, phone)).toBe(false)
+    expect(bothFits(677, phone)).toBe(true)
     expect(bothFits(640, phone)).toBe(false)
     expect(bothFits(800, phone)).toBe(true)
   })
@@ -121,7 +147,7 @@ describe('bothFits', () => {
   // their floor and a drag cannot take either below it, so a resolver that
   // returns two floors is a resolver with nothing left to give.
   it('agrees with the resolver about when both panels are pinned', () => {
-    for (const availPx of [400, 600, 672, 673, 700, 900]) {
+    for (const availPx of [400, 600, 676, 677, 700, 900]) {
       const { chart, table } = resolvePanelHeights(220, 220, {
         chartShown: true,
         tableShown: true,

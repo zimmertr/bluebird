@@ -58,6 +58,16 @@
   }
 }
 
+/* The compass while the map is north-up and flat, when pressing it would do
+   nothing (#687): `hideCompassWhileNorthUp` in map/controls.ts keeps the
+   class on the container in step with the bearing and the pitch. Hidden
+   rather than disabled, because a greyed button in the corner still asks to
+   be read. Zoom in and out close up beneath it and the group's own radius
+   rounds what is left. */
+.compass-idle .maplibregl-ctrl-compass {
+  display: none;
+}
+
 /* The popup's close button, for the same reason as the controls above:
    maplibre injects it, so there is no call site to style.
 

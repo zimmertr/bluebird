@@ -8,7 +8,7 @@ import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
 import type { InsertLine } from '../utils/columnMeasure'
 import { sized } from './sizedCell'
-import { ACCENT, CARRIED, CHOICE_INPUT, DRAG_GHOST, DRAG_GRIP_ACTIVE, DRAG_INSERT, FOCUS_RING_INSET, SR_ONLY, TABLE } from '../styles'
+import { ACCENT, CHOICE_INPUT, DRAG, FOCUS_RING_INSET, SR_ONLY, TABLE } from '../styles'
 
 // The results table's header row and everything a press on it can do: sort
 // (by pointer or by key), move a column, resize one, and fit one to its content. Apart from the body
@@ -76,13 +76,13 @@ function DragOverlay({ carry, insert }: { carry: Carry; insert: InsertLine | nul
   return createPortal(
     <>
       <div
-        className={DRAG_GHOST}
+        className={DRAG.ghost}
         style={{ left: ghostLeft(carry.x, window.innerWidth), top: carry.y - 10, maxWidth: GHOST_MAX_PX }}
       >
         {carry.label}
       </div>
       {insert && (
-        <div className={DRAG_INSERT} style={{ left: insert.x - 1, top: insert.top, width: 2, height: insert.height }} />
+        <div className={DRAG.insert} style={{ left: insert.x - 1, top: insert.top, width: 2, height: insert.height }} />
       )}
     </>,
     document.body,
@@ -161,7 +161,7 @@ function ResultsTableHeader({
               aria-describedby={sortHintId}
               className={`${TABLE.head} ${FOCUS_RING_INSET} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
                 onColumnMove ? 'touch-none' : ''
-              } ${drag.carry?.key === col.key ? `${CARRIED} ${DRAG_GRIP_ACTIVE}` : ''}`}
+              } ${drag.carry?.key === col.key ? `${DRAG.carried} ${DRAG.gripActive}` : ''}`}
             >
               {sized(widths, col.key as string, col.label, 'inline')}
               {detailSortKey === col.key && (

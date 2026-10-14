@@ -332,8 +332,8 @@ export const DATA = [
     files: DRAG_SURFACES,
     require: [
       { selector: calls('ghostLeft'), message: 'Ask ghostLeft where the ghost sits.' },
-      { selector: named('DRAG_GHOST'), message: 'Draw the ghost with DRAG_GHOST.' },
-      { selector: named('DRAG_INSERT'), message: 'Draw the insert line with DRAG_INSERT.' },
+      { selector: 'MemberExpression[object.name="DRAG"][property.name="ghost"]', message: 'Draw the ghost with DRAG.ghost.' },
+      { selector: 'MemberExpression[object.name="DRAG"][property.name="insert"]', message: 'Draw the insert line with DRAG.insert.' },
     ],
   },
   {
@@ -392,7 +392,7 @@ export const DATA = [
     name: 'column-drag-picker',
     files: ['src/components/ColumnsPicker.tsx'],
     require: [
-      { selector: named('DRAG_GRIP'), message: 'Hold the touch gesture on the DRAG_GRIP.' },
+      { selector: 'MemberExpression[object.name="DRAG"][property.name="grip"]', message: 'Hold the touch gesture on DRAG.grip.' },
       {
         selector: 'BinaryExpression[operator="==="][left.object.name="e"][left.property.name="key"][right.value="ArrowUp"]',
         message: 'Move a column up by the arrow key.',

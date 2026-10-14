@@ -21,7 +21,7 @@ import termsPage from './components/TermsPage.tsx?raw'
 import welcomeModal from './components/WelcomeModal.tsx?raw'
 import wildfires from './utils/wildfires.ts?raw'
 import mapLegend from './components/MapLegend.tsx?raw'
-import resultsBar from './components/ResultsBar.tsx?raw'
+import resultsTable from './components/ResultsTable.tsx?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
 import { DATA_SOURCES } from './utils/dataSources'
 import { STORAGE_KEY } from './utils/forecastStore'
@@ -187,10 +187,10 @@ describe('the provider credits', () => {
 
   // Open-Meteo's licence page gives "Weather data by Open-Meteo.com" as an
   // example rather than as required wording, so the bare link stands; what it
-  // does require is that the link be beside the data, which is the docked
-  // results bar.
+  // does require is that the link be beside the data, which since #687 is the
+  // results table's last footnote line, under the numbers themselves.
   it('keep Open-Meteo beside the forecasts', () => {
-    expect(resultsBar).toMatch(/https:\/\/open-meteo\.com/)
+    expect(resultsTable).toMatch(/https:\/\/open-meteo\.com/)
   })
 })
 
