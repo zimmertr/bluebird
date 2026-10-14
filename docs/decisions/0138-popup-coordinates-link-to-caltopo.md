@@ -29,6 +29,8 @@ Measured against the live site on 2026-10-14, because CalTopo publishes no refer
 - A fixed zoom: both build sites already hold the map, so passing its zoom is one field per call, and TJ wanted the view carried over (2026-10-14).
 - Linking the elevation too: it is not a place.
 
+Since 0139 both cards draw the pair through `factsRow`; `coordinateRow` is gone.
+
 ## Consequences
 
 `caltopoUrl.test.ts` pins the URL, the offset and the rounding; the facts-line test in `popupChrome.test.tsx` pins that the pair is the only link on the line and that the line's text does not move; `resultPopup.test.ts` and `poiPopup.test.ts` pin the link on each card. A change on CalTopo's side breaks the link silently, as one on Windy's would, and the head comment of `caltopoUrl.ts` carries the measurement date so it can be re-measured.

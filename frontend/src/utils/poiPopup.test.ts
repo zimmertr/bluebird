@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { POI_ACTION_ATTR, poiPopupHtml } from './poiPopup'
 import { ELEVATION_COL } from './tableColumns'
-import { POPUP_MAX_WIDTH_PX, fineprint, popupButton, popupWidth } from './popupChrome'
+import {
+  HEADER_BAND_COLOR,
+  POPUP_BODY_ATTR,
+  POPUP_MAX_WIDTH_PX,
+  fineprint,
+  popupButton,
+  popupWidth,
+} from './popupChrome'
 
 const RAINIER = { name: 'Mount Rainier', kind: 'volcano', lat: 46.8529, lon: -121.7604, elevationFt: 14410 }
 
@@ -12,24 +19,25 @@ describe('poiPopupHtml', () => {
     expect(html).toContain('14,410')
   })
 
-  // The kind had a line of its own under the title, saying "Peak" beneath the
-  // name of a peak — which the icon on the map has already said and the name
-  // usually says again.
-  it('does not restate the kind under the name', () => {
-    expect(poiPopupHtml(RAINIER, false)).not.toContain('volcano')
+  // The same card a ranked result wears (#712): the kind, the elevation and
+  // the coordinates on one facts line under the name, the kind in the word the
+  // Type column will use once the place is analyzed, so OSM's "volcano" reads
+  // as the table's "Peak".
+  it('says what the feature is on the facts line, in the Type column\'s word', () => {
+    const html = poiPopupHtml(RAINIER, false)
+    expect(factsText(html)).toBe('Peak | 14,410 ft | 46.85290, -121.76040')
+    expect(html).not.toContain('volcano')
   })
 
-  // Same chrome as a ranked result, because they are one destination at two
-  // stages: a rule under the title, a link out, and coordinates.
   // The add and remove buttons are popupChrome's one button recipe in two of
-  // its three variants (#365), with the gap above them that a button under
-  // rows needs and the ring's lone remove-point button does not.
+  // its three variants (#365). The button stands alone in the body under the
+  // band, so it carries no gap of its own.
   it('dresses its buttons through popupButton', () => {
     expect(poiPopupHtml(RAINIER, false)).toContain(
-      popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis', 'margin-top:6px'),
+      popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis'),
     )
     expect(poiPopupHtml(RAINIER, true)).toContain(
-      popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis', 'margin-top:6px'),
+      popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis'),
     )
   })
 
@@ -50,30 +58,25 @@ describe('poiPopupHtml', () => {
     )
   })
 
-  it('wears the shared popup chrome', () => {
+  // The result card's own dress (TJ, 2026-10-14): the header band in place of
+  // a rule, the link out beside the name, and the facts on the band above the
+  // body, which holds the button alone.
+  it('wears the result card, band and all', () => {
     const html = poiPopupHtml(RAINIER, false)
-    expect(html).toContain('<hr')
+    expect(html).toContain(HEADER_BAND_COLOR)
+    expect(html).not.toContain('<hr')
     expect(html).toContain('peakbagger.com')
-    expect(html).toContain('46.85290, -121.76040')
+    expect(html.indexOf('46.85290, -121.76040')).toBeLessThan(html.indexOf(POPUP_BODY_ATTR))
+    expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(`${POI_ACTION_ATTR}="add"`))
   })
 
-  // The coordinates identify the point rather than describe it, so they ride in
-  // the band above the rule exactly as they do on a ranked result (TJ,
-  // 2026-09-14). Everything below the rule is what we know ABOUT the point.
-  it('puts the coordinates above the rule, with the title', () => {
+  // Both cards describe the same mountain, so they must say its height one
+  // way: "14,410 ft" on the facts line, as a result card says it, and never
+  // the "Elevation (ft): 14,410" row this card used to carry under a rule.
+  it('says the elevation the way a result card does', () => {
     const html = poiPopupHtml(RAINIER, false)
-    expect(html.indexOf('46.85290, -121.76040')).toBeLessThan(html.indexOf('<hr'))
-  })
-
-  // Both cards describe the same mountain, so they must not label its height
-  // two ways. This one said "Elevation: 8,885 ft" beside a result card saying
-  // "Elevation (ft): 8,885"; it now reads the results table's own column.
-  it('labels the elevation the way the results table does', () => {
-    const html = poiPopupHtml(RAINIER, false)
-    expect(html).toContain(`${ELEVATION_COL.label}</span>: `)
-    expect(html).toContain('14,410')
-    // The unit rides in the label now, so it must not also ride in the value.
-    expect(html).not.toContain('14,410 ft')
+    expect(factsText(html)).toContain('14,410 ft')
+    expect(html).not.toContain(ELEVATION_COL.label)
   })
 
   // A latitude and a longitude are one value in two halves; breaking between
@@ -104,12 +107,12 @@ describe('poiPopupHtml', () => {
     expect(poiPopupHtml(RAINIER, true)).not.toContain(`${POI_ACTION_ATTR}="add"`)
   })
 
-  // Most lakes and many summits carry no `ele` tag; the line goes away rather
+  // Most lakes and many summits carry no `ele` tag; the fact goes away rather
   // than printing a dash, because nothing was measured and failed.
-  it('drops the elevation line when the tile carries none', () => {
-    expect(poiPopupHtml({ name: 'Snow Lake', kind: 'lake', lat: 47.4, lon: -121.4 }, false)).not.toContain(
-      'Elevation',
-    )
+  it('drops the elevation from the facts line when the tile carries none', () => {
+    const html = poiPopupHtml({ name: 'Snow Lake', kind: 'lake', lat: 47.4, lon: -121.4 }, false)
+    expect(factsText(html)).toBe('Lake | 47.40000, -121.40000')
+    expect(html).not.toContain('Elevation')
   })
 
   // OSM names are third-party text reaching setHTML, same as the NIFC incident
@@ -123,6 +126,18 @@ describe('poiPopupHtml', () => {
     expect(html).toContain('&lt;img')
   })
 })
+
+/**
+ * The facts line's text as a reader sees it, each hidden pipe spaced the way
+ * the eye reads it; the same reading `resultPopup.test.ts` makes of a result
+ * card's line, so the two tests compare like with like.
+ */
+function factsText(html: string): string {
+  const line = html.match(/<div style="white-space:nowrap">(.*?)<\/div>/)![1]
+  return [...`>${line}<`.matchAll(/>([^<]*)</g)]
+    .map((m) => (m[1] === '|' ? ' | ' : m[1]))
+    .join('')
+}
 
 // A phone's map is the constraint, not the content: a 300px card on a 320px
 // map is the whole map, and with the chart and table open the map can be a

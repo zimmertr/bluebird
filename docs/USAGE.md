@@ -16,7 +16,7 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 ### b. Click a destination
 
-The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup with its name, and its elevation where there is one, then press **Add to analysis**. Its coordinates open CalTopo, as a result's do. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup in the same card a result gets: its name on the band, and under it its kind, its elevation where there is one, and its coordinates, which open CalTopo. Then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in as soon as it is added, by the same lookup a pasted coordinate gets: the map's own tiles first, then the map server for whatever they cannot place.
 

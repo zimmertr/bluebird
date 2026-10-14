@@ -246,34 +246,29 @@ export function metaBand(lines: string[]): string {
 }
 
 /**
- * The coordinate line, which is the one line that cannot be allowed to wrap.
+ * A destination's facts on one line under its name: the type, the elevation
+ * and the coordinates, parted by a light pipe (TJ, 2026-10-08). A ranked
+ * result and a clicked basemap feature both draw it, so the same mountain
+ * reads the same before and after an analysis (TJ, 2026-10-14, #712); a
+ * fact the card does not have is left off rather than filled in.
  *
- * A latitude and a longitude are one value in two halves, and breaking between
- * them leaves a bare negative number on its own line looking like a third
- * figure. It stays at the popup's own size — a line that shrank to fit would be
- * the only one in the card set differently, which reads as an afterthought —
- * so the room comes from the width ceiling below instead.
+ * The pipe is drawn in `FINE_COLOR`, which shows on the header band where
+ * `RULE_COLOR` all but vanishes, and is hidden from a screen reader, which
+ * hears the three facts as a list; it is a divider, not a character to read.
+ *
+ * The line never wraps. A latitude and a longitude are one value in two
+ * halves, and breaking between them leaves a bare negative number on its own
+ * line looking like a third figure; it stays at the popup's own size, since a
+ * line that shrank to fit would read as an afterthought, so the room comes
+ * from the card's width instead. A trailhead's is the longest, 274.7px
+ * measured on macOS with the pipes' 5px, which the 340px card holds beside a
+ * touch screen's close-button lane.
  *
  * `href` is where the pair links to: CalTopo, centred on the point (#712, TJ
  * 2026-10-14). The coordinates are the one fact on a card that names a place,
  * and the place is what a reader takes elsewhere to see the ground around it.
- */
-export function coordinateRow(latitude: number, longitude: number, href: string | null): string {
-  const pair = `${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}`
-  return `<div style="white-space:nowrap;${VALUE_FACE}">${href ? popupLink(href, pair) : pair}</div>`
-}
-
-/**
- * A ranked destination's facts on one line under its name: the type, the
- * elevation and the coordinates, parted by a light pipe (TJ, 2026-10-08).
- * The pipe is drawn in `FINE_COLOR`, which shows on the header band where
- * `RULE_COLOR` all but vanishes, and is hidden from a screen reader, which
- * hears the three facts as a list; it is a divider, not a character to read.
- * The line never wraps for the coordinate row's reason. A trailhead's is the
- * longest, 274.7px measured on macOS with the pipes' 5px, which the 340px card
- * holds beside a touch screen's close-button lane. The coordinates link out
- * for `coordinateRow`'s reason, and the elevation stays plain: it is a
- * measurement rather than a place, and nothing on the card is its forecast.
+ * The elevation stays plain: it is a measurement rather than a place, and
+ * nothing on the card is its forecast.
  */
 export function factsRow(
   type: string | null,
@@ -442,7 +437,7 @@ const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
  * visible; `map/resultsLayer.ts` sets the height (`capPopupBody`).
  */
 export const POPUP_SCROLL_CLASS = 'popup-scroll'
-/** The class a ranked destination's popup wears, which `map.css` frames (`resultCardShell`). */
+/** The class a destination's popup wears, which `map.css` frames (`resultCardShell`). */
 export const RESULT_POPUP_CLASS = 'result-popup'
 export const POPUP_BODY_ATTR = 'data-popup-body'
 
@@ -552,7 +547,9 @@ export function popupShell(
   //
   // `meta` sits between the title and the rule, so the rule separates what the
   // destination IS from what the forecast says about it. It is optional: the
-  // basemap POI popup shares this shell and has no analysis behind it.
+  // overlay popups have no destination. `resultCard` is the destination card,
+  // which a ranked result and a clicked basemap feature both wear (TJ,
+  // 2026-10-14): one mountain, one card, before and after an analysis.
   if (resultCard) return resultCardShell(title, url, body, meta, warnings)
   return `<div style="${POPUP_FACE}">
     <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url)}</div>
@@ -563,10 +560,11 @@ export function popupShell(
 }
 
 /**
- * A ranked destination's card: the name and its facts on a slate band,
- * shadowed onto the grid below it, so what the place IS reads apart from what
- * the forecast says about it (TJ, 2026-10-08). It replaces the rule the other
- * popups keep.
+ * A destination's card: the name and its facts on a slate band, shadowed onto
+ * the body below it, so what the place IS reads apart from what the forecast
+ * says about it (TJ, 2026-10-08). It replaces the rule the overlay popups
+ * keep. A clicked basemap feature wears it too (#712): its body is the add or
+ * remove button alone, under the same band a ranked result's grid sits under.
  *
  * The card draws its own padding (`map.css` zeroes MapLibre's for
  * `.result-popup`), so the band can run edge to edge and the grid can stand
