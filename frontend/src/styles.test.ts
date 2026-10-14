@@ -39,6 +39,7 @@ import {
   NOTICE_DIVIDER,
   SCRUBBER,
   SCRUBBER_TRACK,
+  SEARCH_LIST,
   SLIDER_OVERLAY,
   CONTROL_SIZE,
   SLIDER_VALUE,
@@ -1805,6 +1806,18 @@ describe('the map edge inset', () => {
 
 // The phone's search row (#696): the field across the map's top edge, then
 // Controls, Layers and Analyze in one row under it.
+// The search's result list (#696): ten places in a box that scrolls rather
+// than running down the map, in the dark bar the results panels wear.
+describe('the search result list', () => {
+  it('is bounded, scrolls, and wears the shared scroll bar', () => {
+    expect(SEARCH_LIST).toMatch(/(^|\s)max-h-\[min\(20rem,50dvh\)\](\s|$)/)
+    expect(SEARCH_LIST).toContain('overflow-y-auto')
+    expect(SEARCH_LIST).toContain('results-scrollbars')
+    expect(searchBoxSource).toMatch(/\$\{SEARCH_LIST\} divide-y/)
+    expect(searchBoxSource).not.toMatch(/overflow-hidden divide-y/)
+  })
+})
+
 describe('the phone row', () => {
   // The map button's whole recipe, so a button in the column and the legend
   // card under it cannot be restyled apart.

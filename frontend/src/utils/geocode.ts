@@ -188,6 +188,18 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
 }
 
 /**
+ * How many places one search asks for: the most `GET /api/geocode` accepts
+ * (`le=10` on its `limit`, `routes/geocode.py`), which is a comment's mirror
+ * and the root guide's table row 35. Nominatim's usage policy bounds how often
+ * a client asks (one request a second, no autocomplete), not how many rows an
+ * answer carries, and its API takes up to 40; ten is the pod's ceiling and
+ * what a list a few options tall can show with a scroll (#696). It was 5,
+ * which hid the place a reader meant behind four namesakes often enough to
+ * matter.
+ */
+export const SEARCH_LIMIT = 10
+
+/**
  * Ask the pod's Nominatim proxy about a place.
  *
  * `signal` before `limit`, because the caller that has a signal is the search
@@ -196,7 +208,7 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
 export async function searchPlaces(
   query: string,
   signal?: AbortSignal,
-  limit = 5,
+  limit = SEARCH_LIMIT,
 ): Promise<Place[]> {
   const url = `/api/geocode?limit=${limit}&q=${encodeURIComponent(query)}`
   const res = await apiFetch(url, { headers: { Accept: 'application/json' }, signal })

@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
-import { Place, parseCoordinates, searchPlaces } from '../utils/geocode'
+import { Place, SEARCH_LIMIT, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
   ACCENT,
   ACCENT_RING,
@@ -11,6 +11,7 @@ import {
   MAP_ROW_W,
   MAP_ROW_H,
   RADIUS,
+  SEARCH_LIST,
   SPINNER,
   STATUS,
   SURFACE_FLOATING,
@@ -75,6 +76,16 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
 
   useEffect(() => () => searchRef.current?.abort(), [])
 
+  // The list scrolls once it holds more places than its height (#696), so the
+  // highlight the arrow keys move must stay in view, or the keyboard walks it
+  // off the bottom of the box. `nearest` moves the list only when the option
+  // is out of view, so a pointer's hover, which moves the highlight too, never
+  // scrolls it. Optional because jsdom implements no `scrollIntoView`.
+  useEffect(() => {
+    if (!places) return
+    document.getElementById(`${listId}-${highlight}`)?.scrollIntoView?.({ block: 'nearest' })
+  }, [highlight, places, listId])
+
   const open = places !== null || error !== null
 
   // Click/tap away dismisses the dropdown or error but keeps the query
@@ -125,7 +136,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
     const controller = new AbortController()
     searchRef.current = controller
     try {
-      const found = await searchPlaces(q, controller.signal)
+      const found = await searchPlaces(q, controller.signal, SEARCH_LIMIT)
       if (found.length === 0) setError('No places found.')
       else if (found.length === 1) pick(found[0])
       else {
@@ -262,7 +273,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // exactly the half that went (TJ, 2026-09-14, reversing the bind).
           // It hangs past the column's right edge the way the model picker's
           // listbox hangs past the panel's.
-          className={`${DROPDOWN} ${wide ? MAP_ROW_W : DROPDOWN_W} overflow-hidden divide-y divide-slate-600`}
+          className={`${DROPDOWN} ${wide ? MAP_ROW_W : DROPDOWN_W} ${SEARCH_LIST} divide-y divide-slate-600`}
         >
           {places.map((p, i) => (
             // The option is what a press picks, with no button inside it: an

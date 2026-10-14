@@ -1228,6 +1228,17 @@ export const MAP_CARD_HEADER =
 export const MAP_CARD_BODY = 'flex flex-col gap-1 px-2.5 pb-2'
 
 /**
+ * The place search's result list (#696): ten places now, where it held five,
+ * so it scrolls inside a bounded box rather than running down the map and
+ * under the results sheet. At most 20rem, about six places at a finger's
+ * option height so the cut one says the list goes on, and never more than half
+ * the viewport, which is what keeps it on a phone turned on its side.
+ * `results-scrollbars` is the dark thin bar the results panels wear (index.css);
+ * `overscroll-contain` keeps a flick at the list's end from moving the map.
+ */
+export const SEARCH_LIST = 'results-scrollbars max-h-[min(20rem,50dvh)] overflow-y-auto overscroll-contain'
+
+/**
  * What stands across the top of a phone's map (#696): the search field, then
  * one row holding Controls, Layers and Analyze. The width is the map's less
  * its two insets (`MAP_EDGE.left` and `.right`), where the desktop column is
