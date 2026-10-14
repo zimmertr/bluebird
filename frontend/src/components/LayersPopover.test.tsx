@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import LayersPopover from './LayersPopover'
 import { render } from '../testSupport/render'
+import { UNFURLED } from '../styles'
 import type { ViewBounds } from '../utils/layerCoverage'
 
 // Every switch off, the grid allowed and off, and nothing spanning time.
@@ -91,6 +92,20 @@ describe('LayersPopover', () => {
     open()
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('checkbox')).toBeNull()
+  })
+
+  // The menu unfurls out of the button's bottom edge as one card with it
+  // (record 0134): the button says so while the menu is open and not after.
+  it('joins the menu to the button only while it is open', () => {
+    render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered />)
+    const button = screen.getByRole('button', { name: 'Layers' })
+    expect(button.dataset.unfurled).toBeUndefined()
+    open()
+    expect(button.dataset.unfurled).toBe('below')
+    const menu = screen.getByRole('checkbox', { name: 'Smoke' }).closest('[data-tour="layers-menu"]') as HTMLElement
+    for (const cls of UNFURLED.below.split(' ')) expect(menu.classList).toContain(cls)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(button.dataset.unfurled).toBeUndefined()
   })
 
   // A press inside the popover is a choice, not a way out.

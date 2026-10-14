@@ -72,6 +72,16 @@
   }
 }
 
+/* The compass while the map is north-up and flat, when pressing it would do
+   nothing (#687): `hideCompassWhileNorthUp` in map/controls.ts keeps the
+   class on the container in step with the bearing and the pitch. Hidden
+   rather than disabled, because a greyed button in the corner still asks to
+   be read. Zoom in and out close up beneath it and the group's own radius
+   rounds what is left. */
+.compass-idle .maplibregl-ctrl-compass {
+  display: none;
+}
+
 /* The popup's close button, for the same reason as the controls above:
    maplibre injects it, so there is no call site to style.
 
@@ -178,20 +188,31 @@
  * and each control is centred in that band rather than stood on its bottom
  * edge: the vendor's 10px bottom margin put a 24px attribution's top edge
  * against the player's bottom edge (#249 review, round two). The band is the
- * flex column, the vendor's vertical margins go (the band already holds that
- * air on both sides), and the horizontal ones stay so each control keeps its
+ * flex column, the vendor's vertical margins give way to auto ones that centre
+ * the control (the band already holds that air on both sides), and the
+ * horizontal ones stay so each control keeps its
  * inset from the side edge. The vendor floats these children; a flex item
  * ignores the float.
  *
  * Unlayered like the rules above, so it beats the vendor's own `bottom: 0` and
  * its margins in @layer base. */
+/* A control taller than the band grows UP, over the map, rather than down
+ * behind the results: the opened credit line takes three lines at 360px wide
+ * since Open-Meteo joined it (#687), and its last line, the OpenStreetMap
+ * credit, stood behind the sheet. Each control is centred by auto margins
+ * (below) rather than by `justify-content`, because auto margins fall to zero
+ * when the control overflows and leave it at the main start, which a reversed
+ * column puts at the band's bottom edge; a `safe` centre falls back to the
+ * writing mode's start instead, the top, and grew it down. One control per
+ * corner, so the reversal reorders nothing. Kept at their own height
+ * (`flex-shrink: 0`): the compact attribution's explicit min-height would
+ * otherwise let the band squeeze it to two lines and clip the third. */
 .maplibregl-ctrl-bottom-left,
 .maplibregl-ctrl-bottom-right {
   bottom: var(--map-corner-lift, 0px);
   height: var(--map-corner-band);
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  flex-direction: column-reverse;
 }
 
 .maplibregl-ctrl-bottom-left {
@@ -200,12 +221,21 @@
 
 .maplibregl-ctrl-bottom-right {
   align-items: flex-end;
+  /* The credit line never reaches the scale bar (#687). Opened on a phone it
+   * ran the map's whole width once Open-Meteo joined it and covered the
+   * scale, so the corner is capped where the scale's room ends and the line
+   * wraps inside it. The room: the scale's 10px vendor margin and its widest
+   * draw (`SCALE_MAX_WIDTH_PX`, 100px), then 8px clear of it, less the
+   * attribution's own 10px left margin, which stands inside this box. Held to
+   * those numbers by `styles.test.ts`. */
+  max-width: calc(100% - 108px);
 }
 
 .maplibregl-ctrl-bottom-left .maplibregl-ctrl,
 .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
-  margin-top: 0;
-  margin-bottom: 0;
+  margin-top: auto;
+  margin-bottom: auto;
+  flex-shrink: 0;
 }
 
 /* A marker popup too tall for the free map area scrolls its body under its

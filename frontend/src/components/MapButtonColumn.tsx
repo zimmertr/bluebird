@@ -41,7 +41,7 @@ export default function MapButtonColumn({
       // A popup keeps clear of this column (`resultsLayer.ts` finds every
       // `data-map-overlay`), which stands over every map at every width.
       data-map-overlay=""
-      className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start ${MAP_COL_GAP}`}
+      className={`absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${LAYER.mapControls} flex flex-col items-start ${MAP_COL_GAP.gap}`}
     >
       {/* The search field is the column's first row rather than a
           neighbour of the Controls button (TJ, 2026-09-14). Beside it,

@@ -207,11 +207,11 @@ export const STYLES = [
           .flatMap((k) =>
             ['object.name', 'name'].map(
               (key) =>
-                `TemplateLiteral[expressions.${k}.name=/DRAG_(GHOST|INSERT)$/][quasis.${k + 1}.value.raw=/^\\s*$/][expressions.${k + 1}.${key}=/^LAYER/]`,
+                `TemplateLiteral[expressions.${k}.object.name="DRAG"][expressions.${k}.property.name=/^(ghost|insert)$/][quasis.${k + 1}.value.raw=/^\\s*$/][expressions.${k + 1}.${key}=/^LAYER/]`,
             ),
           )
           .join(', '),
-        message: 'Add no layer to DRAG_GHOST or DRAG_INSERT: each carries its own.',
+        message: 'Add no layer to DRAG.ghost or DRAG.insert: each carries its own.',
       },
     ],
   },
@@ -268,6 +268,37 @@ export const STYLES = [
     ],
   },
   {
+    // Every menu unfurls out of the control that opens it, as one card with it
+    // at its width (the maintainer, 2026-10-13; record 0134). A panel asks
+    // usePopover for that by `placement: 'unfurl'`, or `'cover'` for the
+    // calendar, which stands in its field's place. And a list of options lives inside the
+    // one card: the search box's results list is the stated exception, so its
+    // file is the one left out.
+    name: 'style-menu-unfurls',
+    files: ['src/App.tsx', 'src/components/*.tsx', 'src/hooks/*.ts', 'src/map/**/*.{ts,tsx}'],
+    ignores: [...TESTS, 'src/hooks/usePopover.ts', 'src/components/SearchBox.tsx'],
+    probe: 'src/components/ColumnsPicker.tsx',
+    ban: [
+      {
+        selector:
+          'CallExpression[callee.name="usePopover"]:not(:has(Property[key.name="placement"][value.value=/^(unfurl|cover)$/]))',
+        message: 'Unfurl a menu out of its control: pass usePopover placement \'unfurl\' (or the calendar\'s \'cover\').',
+      },
+      {
+        // The row-width form is a refinement of unfurling, never a way for a
+        // panel to take a width of its own beside its control.
+        selector:
+          'CallExpression[callee.name="usePopover"]:has(Property[key.name="widthRef"]):not(:has(Property[key.name="placement"][value.value="unfurl"]))',
+        message: 'Span a row only from an unfurled menu: widthRef goes with placement \'unfurl\'.',
+      },
+      {
+        selector:
+          'JSXAttribute[name.name="role"][value.value="listbox"]:not(JSXElement[openingElement.name.name="Popover"] JSXAttribute)',
+        message: 'A list of options lives in the card Popover.tsx draws; only the search box keeps its own.',
+      },
+    ],
+  },
+  {
     name: 'style-placement-caller',
     files: ['src/hooks/usePopover.ts'],
     require: [{ selector: calls('popoverBox'), message: 'usePopover asks popoverBox where a panel goes.' }],
@@ -309,7 +340,7 @@ export const STYLES = [
         message: 'Take the map column width from MAP_COL_W.',
       },
       {
-        selector: `${ride('MAP_COL_GAP', String.raw`(^|\s)(gap-|mt-)`)}, ${ride('MAP_COL_GAP_T', String.raw`(^|\s)(gap-|mt-)`)}`,
+        selector: ride('MAP_COL_GAP.gap', String.raw`(^|\s)(gap-|mt-)`),
         message: 'Spell no gap beside MAP_COL_GAP.',
       },
       {
@@ -323,7 +354,8 @@ export const STYLES = [
   {
     // The map column's members are four files now (#409); each carries its
     // share of the roles, and the counts add up to what App.tsx held: four
-    // MAP_COL_W, two MAP_COL_GAP, one MAP_COL_GAP_T and two MAP_EDGE.left.
+    // MAP_COL_W, two MAP_COL_GAP.gap and two MAP_EDGE.left. The Layers menu's
+    // MAP_COL_GAP.top went with its gap when it unfurled (record 0134).
     // Everything inside the wrapper, which MapStage draws, inherits the one
     // number.
     name: 'style-map-wrapper',
@@ -338,7 +370,7 @@ export const STYLES = [
     files: ['src/components/MapLegend.tsx'],
     require: [
       { selector: interp('MAP_COL_W'), count: 1, message: 'The legend box wears MAP_COL_W.' },
-      { selector: interp('MAP_COL_GAP'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.' },
+      { selector: interp('MAP_COL_GAP.gap'), count: 1, message: 'The legend stack spaces by MAP_COL_GAP.gap.' },
       { selector: interp('MAP_EDGE.left'), count: 1, message: 'The legend stack stands off the left by MAP_EDGE.left.' },
     ],
   },
@@ -350,34 +382,74 @@ export const STYLES = [
     files: ['src/components/MapButtonColumn.tsx'],
     require: [
       { selector: interp('MAP_COL_W'), count: 1, message: 'The Controls button wears MAP_COL_W.' },
-      { selector: interp('MAP_COL_GAP'), count: 1, message: 'The cluster spaces by MAP_COL_GAP.' },
+      { selector: interp('MAP_COL_GAP.gap'), count: 1, message: 'The cluster spaces by MAP_COL_GAP.gap.' },
       { selector: role('LAYER') + '[property.name="mapControls"]', message: 'The map controls cluster wears LAYER.mapControls.' },
       { selector: interp('MAP_EDGE.top'), message: 'The column stands off the top by MAP_EDGE.top.' },
       { selector: interp('MAP_EDGE.left'), count: 1, message: 'The cluster stands off the left by MAP_EDGE.left.' },
     ],
   },
   {
-    // The Layers button and the popover that hangs from it.
+    // The Layers button and the menu that unfurls out of it (record 0134):
+    // one width, and the join on the button's bottom edge, worn by both.
     name: 'style-map-layers-column',
     files: ['src/components/LayersPopover.tsx'],
     require: [
       { selector: interp('MAP_COL_W'), count: 2, message: 'The Layers button and its popover wear MAP_COL_W.' },
-      { selector: interp('MAP_COL_GAP_T'), count: 1, message: 'The hanging popover spaces by MAP_COL_GAP_T.' },
+      { selector: interp('UNFURLED.below'), count: 1, message: 'The Layers menu unfurls from the button with UNFURLED.below.' },
+      { selector: interp('UNFURL_ANCHOR'), count: 1, message: 'The Layers button wears UNFURL_ANCHOR.' },
     ],
   },
   {
-    // The results bar's links are controls, so they read at the control size;
-    // the micro step is for text that is present but never first. The window
-    // caption sits on the lifted fill, where the caption tier fails AA.
+    // The results bar's buttons are controls, so they read at the control
+    // size; the micro step is for text that is present but never first. Since
+    // #687 they are one group in the mode switch's look rather than links,
+    // every word on the bar is shown by the one width rule (`BAR_LABEL`), and
+    // the Open-Meteo credit lives on the map's attribution line, so the bar
+    // holds no link at all. The window caption sits on the lifted fill, where
+    // the caption tier fails AA.
     name: 'style-results-bar',
     files: ['src/components/ResultsBar.tsx'],
     ban: [
       { selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in the results bar.' },
       { selector: titleCaption('TEXT.caption'), message: 'Set the window title in CAPTION_LIFTED, not TEXT.caption.' },
+      { selector: 'JSXOpeningElement[name.name="a"]', message: 'Put no link in the results bar: its credit is on the map\'s attribution line.' },
+      { selector: interp('LINK'), message: 'Draw a results bar button as ACTION_ITEM, not as a link.' },
     ],
     require: [
-      { selector: pair('TEXT.control', 'LINK', '^ $'), count: 5, message: 'The five results bar links read at TEXT.control.' },
+      {
+        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_ITEM"]',
+        count: 4,
+        message: 'The four results bar buttons wear ACTION_ITEM.',
+      },
+      {
+        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_GROUP"]',
+        count: 1,
+        message: 'The results bar buttons stand in one ACTION_GROUP.',
+      },
+      {
+        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="BAR_LABEL"]',
+        count: 7,
+        message: 'Every word on the bar, the switch\'s three and the buttons\' four, wears BAR_LABEL.',
+      },
       { selector: titleCaption('CAPTION_LIFTED'), message: 'Set the window title in CAPTION_LIFTED.' },
+    ],
+  },
+  {
+    // 12px is the floor for anything pressed and 11px for text that is read
+    // (#687), so a button or a link never wears the micro step. A credit link
+    // inside a micro line takes the line's size and stays a footnote; one that
+    // sizes ITSELF at the micro step is a control set below the floor, which
+    // is what the Removed list's Restore buttons were.
+    name: 'style-micro-not-pressed',
+    files: SOURCES,
+    ignores: TESTS,
+    probe: 'src/components/RemovedPicker.tsx',
+    ban: [
+      {
+        selector:
+          'JSXOpeningElement[name.name=/^(button|a)$/] > JSXAttribute[name.name="className"] MemberExpression[object.name="TEXT"][property.name="micro"]',
+        message: 'Set a button or a link at TEXT.control or CONTROL_SIZE, never TEXT.micro.',
+      },
     ],
   },
   {
@@ -597,16 +669,32 @@ export const STYLES = [
   },
   {
     // The one exception, pinned by count: the polygon's draw counter colours
-    // its captions by state. A seventh is a notice that wandered out of the
-    // footer.
+    // its captions by state. Its point count is `DrawReadout`, which the
+    // phone's draw bar renders too (#687), so the section keeps the area's
+    // two; a third is a notice that wandered out of the footer.
     name: 'style-draw-counter',
     files: [PANEL.destinations],
     ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in the destinations section.' }],
     require: [
       {
         selector: fromExport('DestinationsSection', role('STATUS')),
-        count: 6,
-        message: 'The draw counter colours six captions by STATUS.',
+        count: 2,
+        message: 'The polygon block colours its area and its area warning by STATUS.',
+      },
+      { selector: 'JSXOpeningElement[name.name="DrawReadout"]', count: 1, message: 'Say the point count with DrawReadout.' },
+    ],
+  },
+  {
+    // The point count's four states, each coloured by STATUS: the other half
+    // of style-draw-counter's six.
+    name: 'style-draw-readout',
+    files: ['src/components/DrawReadout.tsx'],
+    ban: [{ selector: role('NOTICE'), message: 'Build no NOTICE box in the draw readout.' }],
+    require: [
+      {
+        selector: fromExport('DrawReadout', role('STATUS')),
+        count: 4,
+        message: 'The draw readout colours its four states by STATUS.',
       },
     ],
   },

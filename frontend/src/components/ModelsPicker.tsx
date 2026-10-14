@@ -11,6 +11,13 @@ interface Props {
   hidden: ReadonlySet<string>
   onToggle: (id: string) => void
   triggerRef: React.RefObject<HTMLButtonElement | null>
+  /**
+   * What the panel unfurls out of: the results bar's button group, so every
+   * menu on the bar takes the same place at the same width (record 0134).
+   */
+  anchorRef: React.RefObject<HTMLElement | null>
+  /** The bar's line on a phone, which the menu spans (record 0134). */
+  widthRef?: React.RefObject<HTMLElement | null>
 }
 
 /**
@@ -42,8 +49,10 @@ export default function ModelsPicker({
   hidden,
   onToggle,
   triggerRef,
+  anchorRef,
+  widthRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
 
   if (!open || !box) return null
 

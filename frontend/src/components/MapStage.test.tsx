@@ -80,7 +80,13 @@ const ANALYSIS: MapStageProps['analysis'] = {
   paceRemainingS: null,
   cancel: NOOP,
 }
-const DRAW: MapStageProps['drawMode'] = { drawing: false, handleDrawUpdate: NOOP }
+const DRAW: MapStageProps['drawMode'] = {
+  drawing: false,
+  handleDrawUpdate: NOOP,
+  drawPointCount: 0,
+  finishDrawing: NOOP,
+  handleCancelDrawing: NOOP,
+}
 const REMOVALS: MapStageProps['removals'] = { registerPlace: NOOP }
 const MAP_REF = createRef<MapViewHandle>()
 const URL_SYNC: MapStageProps['urlSync'] = { reportView: NOOP }
@@ -92,6 +98,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     mapRef: MAP_REF,
     coverage: {},
     drawMode: DRAW,
+    isDesktop: true,
     destinationInputs: INPUTS,
     removals: REMOVALS,
     overlays: OVERLAYS,
@@ -171,6 +178,43 @@ describe('MapStage', () => {
     const { rerender } = render(<MapStage {...props()} />)
     expect(screen.queryByTestId('transport')).toBeNull()
     rerender(<MapStage {...props({ timeline: { ...TIMELINE, timelineAxis: 'forecast' } })} />)
+    expect(screen.getByTestId('transport')).toBeTruthy()
+  })
+
+  // Draw polygon closes the drawer on a phone, so Done and Cancel come to the
+  // map (#687). They are the panel's own two presses, and the bar takes the
+  // player's band while it is up.
+  it('puts Done and Cancel on the map while a phone draws, in place of the player', async () => {
+    const finishDrawing = vi.fn()
+    const handleCancelDrawing = vi.fn()
+    const drawing = { ...DRAW, drawing: true, drawPointCount: 2, finishDrawing, handleCancelDrawing }
+    const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
+    const { user, rerender } = render(<MapStage {...props({ drawMode: drawing, isDesktop: false, timeline })} />)
+    expect(screen.queryByTestId('transport')).toBeNull()
+    expect(screen.getByText('2 points placed, 1 more needed.')).toBeTruthy()
+    const done = screen.getByRole('button', { name: 'Done' }) as HTMLButtonElement
+    expect(done.disabled).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(handleCancelDrawing).toHaveBeenCalledOnce()
+
+    rerender(<MapStage {...props({ drawMode: { ...drawing, drawPointCount: 3 }, isDesktop: false, timeline })} />)
+    // Free to wrap in the bar, where Done and Cancel share the line; the
+    // panel keeps it whole beside the area.
+    expect(screen.getByText('3 points placed. Press Done when ready.').className).not.toContain('whitespace-nowrap')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(finishDrawing).toHaveBeenCalledOnce()
+
+    // Out of the mode the player comes back and the bar goes.
+    rerender(<MapStage {...props({ isDesktop: false, timeline })} />)
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+    expect(screen.getByTestId('transport')).toBeTruthy()
+  })
+
+  it('keeps a desk drawing in the panel, with the player where it was', () => {
+    const drawing = { ...DRAW, drawing: true, drawPointCount: 2 }
+    const timeline = { ...TIMELINE, timelineAxis: 'forecast' } as MapStageProps['timeline']
+    render(<MapStage {...props({ drawMode: drawing, timeline })} />)
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
     expect(screen.getByTestId('transport')).toBeTruthy()
   })
 

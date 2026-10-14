@@ -4,16 +4,7 @@ import { ColDef, stepColumn } from '../utils/tableColumns'
 import { FAMILY_KEYS, familyOf } from '../metrics'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
-import {
-  CARRIED,
-  CHOICE_INPUT,
-  CHOICE_ROW,
-  DRAG_GHOST,
-  DRAG_GRIP,
-  DRAG_GRIP_ACTIVE,
-  DRAG_INSERT,
-  SR_ONLY,
-} from '../styles'
+import { CHOICE_INPUT, CHOICE_ROW, DRAG, SCROLL_BARS, SR_ONLY } from '../styles'
 import { IconGrip } from './icons'
 import {
   GHOST_MAX_PX,
@@ -36,6 +27,13 @@ interface Props {
   // and nothing else: the key list is `useTableView`'s, and `moveColumn` owns the move.
   onColumnMove?: (fromKey: string, toKey: string) => void
   triggerRef: React.RefObject<HTMLButtonElement | null>
+  /**
+   * What the panel unfurls out of: the results bar's button group, so every
+   * menu on the bar takes the same place at the same width (record 0134).
+   */
+  anchorRef: React.RefObject<HTMLElement | null>
+  /** The bar's line on a phone, which the menu spans (record 0134). */
+  widthRef?: React.RefObject<HTMLElement | null>
 }
 
 export default function ColumnsPicker({
@@ -47,8 +45,10 @@ export default function ColumnsPicker({
   onVisibilityChange,
   onColumnMove,
   triggerRef,
+  anchorRef,
+  widthRef,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef })
+  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
   const rankedNoteId = useId()
 
   const rankedGroup = new Set<string>(FAMILY_KEYS[familyOf(sortBy)])
@@ -131,8 +131,11 @@ export default function ColumnsPicker({
   if (!open || !box) return null
 
   return (
-    <Popover box={box} popoverRef={popoverRef} header="Display columns">
-      <div className="min-h-0 flex-1 overflow-y-auto p-1 space-y-1">
+    // No heading (the maintainer, 2026-10-14): under a button called Columns
+    // it said the button's word again, and the Models menu beside it has
+    // none. The list keeps that word as its accessible name.
+    <Popover box={box} popoverRef={popoverRef}>
+      <div role="group" aria-label="Columns" className={`min-h-0 flex-1 overflow-y-auto p-1 space-y-1 ${SCROLL_BARS}`}>
         {columns.map((col) => {
           const isRanked = rankedGroup.has(col.key)
           const isVisible = visibleKeys.has(col.key)
@@ -146,7 +149,7 @@ export default function ColumnsPicker({
                 if (el) rowsRef.current.set(col.key, el)
                 else rowsRef.current.delete(col.key)
               }}
-              className={`${CHOICE_ROW} px-1 ${isCarried ? CARRIED : ''}`}
+              className={`${CHOICE_ROW} px-1 ${isCarried ? DRAG.carried : ''}`}
             >
               <input
                 type="checkbox"
@@ -191,7 +194,7 @@ export default function ColumnsPicker({
                     onColumnMove(col.key, next[order.indexOf(col.key)])
                   }}
                   aria-label={`Move the ${col.label} column. Use the arrow keys.`}
-                  className={`${DRAG_GRIP} ${isCarried ? DRAG_GRIP_ACTIVE : ''} px-1`}
+                  className={`${DRAG.grip} ${isCarried ? DRAG.gripActive : ''} px-1`}
                 >
                   <IconGrip />
                 </button>
@@ -208,7 +211,7 @@ export default function ColumnsPicker({
       {carry && (
         <>
           <div
-            className={DRAG_GHOST}
+            className={DRAG.ghost}
             style={{
               left: ghostLeft(carry.x, window.innerWidth),
               top: carry.y - 10,
@@ -219,7 +222,7 @@ export default function ColumnsPicker({
           </div>
           {insert && (
             <div
-              className={DRAG_INSERT}
+              className={DRAG.insert}
               style={{ left: insert.left, top: insert.y - 1, width: insert.width, height: 2 }}
             />
           )}

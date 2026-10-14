@@ -3,7 +3,7 @@ import SafetyNotice from './SafetyNotice'
 import {
   BADGE_STEP,
   BUTTON_PRIMARY,
-  BUTTON_SECONDARY,
+  DIALOG_FOOT,
   LAYER,
   PROSE,
   RADIUS,
@@ -92,12 +92,16 @@ export default function WelcomeModal({ onDismiss, onTutorial, tutorialWaits = fa
             <SafetyNotice />
           </p>
 
-          <div className={`border-t ${SURFACE_DIVIDER} pt-4 mb-4`}>
+          <div className={`border-t ${SURFACE_DIVIDER} pt-4`}>
             <p className={`${PROSE.heading} text-center`}>
               Ready to find your Bluebird day?
             </p>
           </div>
+        </div>
 
+        {/* The two actions stay in view while the body scrolls (#687): at
+            1024x768 and on a phone both sat below the fold. */}
+        <div className={DIALOG_FOOT.bar}>
           <button
             onClick={onDismiss}
             className={BUTTON_PRIMARY}
@@ -109,7 +113,7 @@ export default function WelcomeModal({ onDismiss, onTutorial, tutorialWaits = fa
           <button
             onClick={onTutorial}
             disabled={tutorialWaits}
-            className={`${BUTTON_SECONDARY} w-full mt-2`}
+            className={DIALOG_FOOT.secondary}
           >
             Take the tutorial
           </button>

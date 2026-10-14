@@ -18,15 +18,11 @@ import {
   DISABLED,
   SELECT,
   SURFACE_DIVIDER,
+  SCROLL_BARS,
   TEXT,
+  UNFURL_ANCHOR,
 } from '../styles'
 import { IconClose, IconSelectArrow } from './icons'
-
-// Wide enough for a summary to sit on two lines rather than three: the longest
-// measures 512px, so it uses 72% of the 708px two lines buy. The sidebar is
-// ~285px, so this only works because the panel floats clear of it, over the map.
-// The one popover that overrides the hook's width: the rest carry labels.
-const PREFERRED_WIDTH_PX = 380
 
 // Namespaces this listbox's option ids inside the document.
 const LIST_ID = 'model'
@@ -60,6 +56,12 @@ interface Props {
    * of play.
    */
   disabled?: boolean
+  /**
+   * The row the trigger stands in, which the list spans: its rows carry a
+   * badge, a grid and reach column and a summary, and the trigger is
+   * `CONTROL_W` (record 0134).
+   */
+  rowRef?: React.RefObject<HTMLElement | null>
 }
 
 /**
@@ -104,6 +106,7 @@ export default function ModelPicker({
   compared,
   onComparedChange,
   disabled = false,
+  rowRef,
 }: Props) {
   const [open, setOpen] = useState(false)
   const selectedIndex = models.findIndex((m) => m.id === value)
@@ -138,7 +141,12 @@ export default function ModelPicker({
     open,
     onOpenChange: setOpen,
     triggerRef,
-    preferredWidth: PREFERRED_WIDTH_PX,
+    // Out of the trigger like every menu, across its row (record 0134): the
+    // trigger's 118px clipped the header and the badge, so the card runs from
+    // the row's left edge to the trigger's right edge and opens under the
+    // label. It was 380px floating over the map.
+    placement: 'unfurl',
+    widthRef: rowRef,
     remeasure: [models, chipIds.length],
     // The list rather than the chip row, because the list is what an opened
     // picker is for; Shift+Tab reaches the chips above it. The list itself
@@ -346,7 +354,7 @@ export default function ModelPicker({
         // box to the tap floor there, and a baseline left the model name
         // against the top edge of a box half again as tall as its text
         // (TJ, 2026-09-14).
-        className={`${SELECT} ${DISABLED} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
+        className={`${SELECT} ${DISABLED} ${UNFURL_ANCHOR} flex w-full items-center justify-center gap-1 px-2 py-1.5 text-center`}
       >
         {/* The label gives way, never the count: `+2` is the only thing on the
             trigger that a reader cannot otherwise see, so a long model name
@@ -425,7 +433,7 @@ export default function ModelPicker({
             }
             tabIndex={-1}
             onKeyDown={onListKeyDown}
-            className="min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none"
+            className={`min-h-0 flex-1 overflow-y-auto p-1 focus:outline-none ${SCROLL_BARS}`}
           >
           {models.map((model, i) => {
             const isRanking = model.id === value
@@ -456,7 +464,10 @@ export default function ModelPicker({
                     {/* Two roles that differ only in weight, so the ranking
                         row reads as the ranking one without a second color
                         competing with the active highlight behind it. */}
-                    <span className={isRanking ? TEXT.subheading : TEXT.control}>
+                    {/* Whole, never broken across two lines: `NOAA GFS`
+                        beside its badge is the widest first line, 255.7px,
+                        in a 317px card (record 0134). */}
+                    <span className={`${isRanking ? TEXT.subheading : TEXT.control} whitespace-nowrap`}>
                       {model.label}
                     </span>
                     {model.id === defaultId && (

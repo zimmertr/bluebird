@@ -19,9 +19,9 @@ services the data comes from, and the software bundled into the shipped image.
   product that leaves the screen the credit sits on.
 - [Open-Meteo](https://open-meteo.com): hourly precipitation, temperature, and
   wind forecasts, under
-  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Credited beside
-  the results whenever forecasts are on screen, and below the data in every
-  exported CSV, because 4.0 §3(a)(1)(C) asks the credit to accompany every
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Credited in the
+  map's corner attribution control, which is on screen whenever forecasts are,
+  and below the data in every exported CSV, because 4.0 §3(a)(1)(C) asks the credit to accompany every
   copy of the material.
 - [CAMS](https://atmosphere.copernicus.eu): the Copernicus Atmosphere
   Monitoring Service, whose model output is the basis of the air quality
