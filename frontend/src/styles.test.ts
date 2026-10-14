@@ -1783,10 +1783,16 @@ describe('the results table rank cell', () => {
   // it (#696): while a tour runs (`tour/Tour.tsx` sets the attribute), every
   // shade stands down.
   it('hides every scroll shadow while the tutorial runs', () => {
-    const rule = indexCss.match(/((?::root\[data-touring\][^,{]+,?\s*)+)\{\s*visibility: hidden;/)
-    expect(rule).not.toBeNull()
+    // The rule's selector list and body, read by index rather than by one
+    // repeated-group pattern, which backtracks badly on a long list.
+    const start = indexCss.indexOf(':root[data-touring]')
+    expect(start).toBeGreaterThan(-1)
+    const open = indexCss.indexOf('{', start)
+    const selectors = indexCss.slice(start, open)
+    const body = indexCss.slice(open + 1, indexCss.indexOf('}', open))
+    expect(body).toContain('visibility: hidden')
     for (const shade of ['.scroll-shadow-start::before', '.scroll-shadow-end::after', '.scroll-shadow-head th::after']) {
-      expect(rule![1]).toContain(`:root[data-touring] ${shade}`)
+      expect(selectors).toContain(`:root[data-touring] ${shade}`)
     }
   })
 
