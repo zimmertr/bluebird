@@ -263,7 +263,7 @@ describe('compareSeries', () => {
   }
 
   it('draws one line per destination and model', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     expect(lines).toHaveLength(9)
     expect(new Set(lines.map((l) => l.key)).size).toBe(9)
   })
@@ -271,7 +271,7 @@ describe('compareSeries', () => {
   // Rank, destination, model, on every entry including the ranking model's, so
   // a reader tells two lines apart by reading the same three things each time.
   it('names every line the same way', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     expect(lines[0].label).toBe('1. Mount Rainier (NOAA GFS)')
     expect(lines.map((l) => l.label)).toContain('1. Mount Rainier (ECMWF IFS)')
     expect(lines.map((l) => l.label)).toContain('3. Mount Adams (NOAA HRRR)')
@@ -281,7 +281,7 @@ describe('compareSeries', () => {
   // wears its own destination's colour — the hue the marker and the table
   // checkbox already give it — and a chart with nothing compared is unchanged.
   it('colours the ranking model’s lines by destination', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     for (const d of DESTINATIONS) {
       const mine = lines.filter((l) => l.label === `${d.rank}. ${d.name} (NOAA GFS)`)
       expect(mine).toHaveLength(1)
@@ -293,7 +293,7 @@ describe('compareSeries', () => {
   // is nine lines and nine colours, so no two lines on the chart can be
   // mistaken for each other.
   it('gives every destination-and-model pair its own colour', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     expect(lines).toHaveLength(DESTINATIONS.length * ON_CHART.length)
     expect(new Set(lines.map((l) => l.color)).size).toBe(lines.length)
   })
@@ -301,7 +301,7 @@ describe('compareSeries', () => {
   // A compared model's lines are told apart from each other the way any two
   // lines are: by colour and by the name in the hover box.
   it('gives one model’s lines different colours at different destinations', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     const mine = lines.filter((l) => l.label.endsWith('(NOAA HRRR)'))
     expect(mine).toHaveLength(3)
     expect(new Set(mine.map((l) => l.color)).size).toBe(3)
@@ -311,8 +311,8 @@ describe('compareSeries', () => {
   // is what the session allocator is for.
   it('keeps a pair’s colour when another model joins the chart', () => {
     const two = ON_CHART.slice(0, 2)
-    const before = compareSeries(DESTINATIONS, two, everyPair(), pairColors(two))
-    const after = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const before = compareSeries(DESTINATIONS, two, everyPair(), pairColors(two), RANKING)
+    const after = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     for (const line of before) {
       const same = after.find((l) => l.key === line.key)
       expect(same?.color, line.label).toBe(line.color)
@@ -322,14 +322,14 @@ describe('compareSeries', () => {
   // Every line is solid now: colour is the only channel, so nothing here may
   // grow a second one back.
   it('gives no line a style of its own', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     for (const line of lines) expect('dash' in line).toBe(false)
   })
 
   // The chips read ranking model first, and the lines leave in that order so
   // the key and the chart agree about which is which.
   it('leads with the ranking model’s lines', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     expect(lines.slice(0, 3).map((l) => l.label)).toEqual([
       '1. Mount Rainier (NOAA GFS)',
       '2. Mount Shuksan (NOAA GFS)',
@@ -345,7 +345,7 @@ describe('compareSeries', () => {
     for (const model of many) {
       for (const d of DESTINATIONS) held[pairKey(model.id, d.key)] = series([1, 2, 3])
     }
-    expect(compareSeries(DESTINATIONS, many, held, pairColors(many))).toHaveLength(
+    expect(compareSeries(DESTINATIONS, many, held, pairColors(many), RANKING)).toHaveLength(
       MODELS.length * DESTINATIONS.length,
     )
   })
@@ -356,7 +356,7 @@ describe('compareSeries', () => {
     const held = everyPair() as Record<string, ReturnType<typeof series> | null>
     held[pairKey('gfs_hrrr', DESTINATIONS[0].key)] = null
     delete held[pairKey('ecmwf_ifs025', DESTINATIONS[1].key)]
-    const lines = compareSeries(DESTINATIONS, ON_CHART, held, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, held, pairColors(), RANKING)
     expect(lines).toHaveLength(7)
     expect(lines.map((l) => l.label)).not.toContain('1. Mount Rainier (NOAA HRRR)')
     expect(lines.map((l) => l.label)).toContain('1. Mount Rainier (ECMWF IFS)')
@@ -367,7 +367,7 @@ describe('compareSeries', () => {
   it('cuts no line to another model reach', () => {
     const held = everyPair() as Record<string, ReturnType<typeof series> | null>
     held[pairKey('gfs_hrrr', DESTINATIONS[0].key)] = series([1, null, null])
-    const lines = compareSeries(DESTINATIONS, ON_CHART, held, pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, held, pairColors(), RANKING)
     const byLabel = new Map(lines.map((l) => [l.label, l.series!.precip_in]))
     expect(byLabel.get('1. Mount Rainier (NOAA HRRR)')).toEqual([1, null, null])
     expect(byLabel.get('1. Mount Rainier (NOAA GFS)')).toEqual([1, 2, 3])
@@ -376,12 +376,35 @@ describe('compareSeries', () => {
   // A destination's key is a coordinate pair, so a pair's key has to be
   // namespaced or a line could shadow one.
   it('keys a pair where no destination can', () => {
-    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors())
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     for (const line of lines) expect(line.key.startsWith('model:')).toBe(true)
   })
 
   it('draws nothing when no model is on the chart', () => {
-    expect(compareSeries(DESTINATIONS, [], everyPair(), pairColors())).toEqual([])
+    expect(compareSeries(DESTINATIONS, [], everyPair(), pairColors(), RANKING)).toEqual([])
+  })
+
+  // The field is ranked on the ranking model's numbers, so only its lines may
+  // set the chart's extreme line (#699); every compared line says no.
+  it('marks the ranking model’s lines ranked and no other', () => {
+    const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
+    const ranked = lines.filter((l) => l.ranked)
+    expect(ranked.map((l) => l.label)).toEqual([
+      '1. Mount Rainier (NOAA GFS)',
+      '2. Mount Shuksan (NOAA GFS)',
+      '3. Mount Adams (NOAA GFS)',
+    ])
+    for (const line of lines.filter((l) => !l.label.endsWith('(NOAA GFS)'))) {
+      expect(line.ranked, line.label).toBe(false)
+    }
+  })
+
+  // A hidden ranking model is not on the chart, so nothing is ranked.
+  it('marks nothing ranked when the ranking model is not on the chart', () => {
+    const compared = ON_CHART.filter((m) => m.id !== RANKING)
+    const lines = compareSeries(DESTINATIONS, compared, everyPair(), pairColors(), RANKING)
+    expect(lines).toHaveLength(6)
+    expect(lines.some((l) => l.ranked)).toBe(false)
   })
 
 })

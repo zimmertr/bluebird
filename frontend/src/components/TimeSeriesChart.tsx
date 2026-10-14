@@ -1,6 +1,7 @@
 import { ReactNode, memo, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
+  Label,
   Line,
   LineChart,
   ReferenceLine,
@@ -9,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { DestinationResult } from '../types'
+import { DestinationResult, SortBy } from '../types'
 import { CHART_METRIC_W, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
 import { IconSelectArrow } from './icons'
 import {
@@ -22,8 +23,12 @@ import {
   buildChartData,
   chartKey,
   computeYDomain,
+  extremeLabel,
+  extremeLabelPosition,
+  extremeValue,
   formatMetricValue,
   formatTooltipValue,
+  metricForSort,
   nearestKey,
   pixelToTime,
   pixelToValue,
@@ -33,7 +38,13 @@ import {
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
 import { nearestIndex } from '../utils/timeline'
-import { CHART_AXIS_COLOR, CHART_GRID_COLOR, CHART_PLAYHEAD_COLOR, CHART_TICK_PX } from '../utils/chartColors'
+import {
+  CHART_AXIS_COLOR,
+  CHART_GRID_COLOR,
+  CHART_PLAYHEAD_COLOR,
+  CHART_SURFACE_COLOR,
+  CHART_TICK_PX,
+} from '../utils/chartColors'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -44,6 +55,45 @@ const AXIS_TICK = { fontSize: CHART_TICK_PX }
 // Named rather than spelled on the YAxis alone, because a click is inverted to an
 // hour through the plotting band's left edge, which sits after this strip.
 const Y_AXIS_WIDTH = 44
+
+// The chart's chrome lines: the Now seam, a compared model's end and the
+// extreme value (#699). One stroke and one label style for all of them, so
+// they read as one kind of mark and cannot drift apart. Dashed so none can be
+// mistaken for a series, and in the axis colour because each marks a fact
+// about the data rather than a warning.
+const CHROME_LINE = { stroke: CHART_AXIS_COLOR, strokeDasharray: '4 3' } as const
+//
+// Every label wears a halo in the panel's own colour: the stroke is painted
+// first (`paintOrder`), so it erases whatever line runs under the letters and
+// the fill stands on the surface, where the bare text was lost wherever a
+// series crossed it. 3px is a pixel and a half either side of an 11px glyph's
+// strokes, enough to clear a 2.5px focused line without fattening the type.
+type ChromeLabelPosition = 'insideTopLeft' | 'insideTopRight' | 'insideBottomRight'
+function chromeLabel(value: string, position: ChromeLabelPosition) {
+  return {
+    value,
+    position,
+    fill: CHART_AXIS_COLOR,
+    fontSize: CHART_TICK_PX,
+    stroke: CHART_SURFACE_COLOR,
+    strokeWidth: 3,
+    strokeLinejoin: 'round' as const,
+    paintOrder: 'stroke',
+  }
+}
+
+/**
+ * The extreme line's label, placed once Recharts knows where the line is: at
+ * its right end, above it, or below it when the line runs through the top
+ * headroom (`extremeLabelPosition`). Everything else is the chrome label as
+ * given; the computed x and y are dropped so the inner Label places itself
+ * for the position chosen here rather than the one it was handed.
+ */
+function HeadroomLabel({ viewBox, x: _x, y: _y, content: _content, ...rest }: any) {
+  return (
+    <Label {...rest} viewBox={viewBox} position={extremeLabelPosition(viewBox.y, MARGIN.top)} />
+  )
+}
 
 // Which rows are plotted is the table's job: the checkbox column is the one
 // series picker (#242 review dropped the chart's own legend strip), so this
@@ -60,6 +110,13 @@ interface Props {
   rows: DestinationResult[]
   metric: ChartMetric
   onMetricChange: (m: ChartMetric) => void
+  /**
+   * The ranking and its direction, which decide which end of the charted
+   * family the extreme line marks. Primitives, so the memo compares them by
+   * value; the direction is resolved in here rather than by the caller.
+   */
+  sortBy: SortBy
+  sortDesc: boolean
   colorFor: (row: DestinationResult) => string
   // The map timeline's playhead, when it is scrubbing this same grid (#121).
   // Null whenever it is not — no analysis, or the transport sitting on the
@@ -105,6 +162,8 @@ function TimeSeriesChart({
   rows,
   metric,
   onMetricChange,
+  sortBy,
+  sortDesc,
   colorFor,
   playheadMs = null,
   onPlayheadChange,
@@ -136,6 +195,9 @@ function TimeSeriesChart({
         label: row.name,
         color: colorFor(row),
         series: row.series,
+        // A plain row is a destination as the field ranked it, so it may set
+        // the extreme line; a comparison marks its own lines.
+        ranked: true,
       })),
       ...extraLines,
     ],
@@ -169,6 +231,13 @@ function TimeSeriesChart({
   // answering. Both keys are already stable — `aligned` is itself memoized.
   const data = useMemo(() => buildChartData(times, lines, metric), [times, lines, metric])
   const [yMin, yMax] = useMemo(() => computeYDomain(lines, metric), [lines, metric])
+  // Which end of the family the extreme line marks: the ranking's own
+  // direction while the chart shows the ranked family, and the largest value
+  // on any other, where no direction was ever chosen.
+  const highest = metric === metricForSort(sortBy) ? sortDesc : true
+  // Memoized beside the y domain for the same reason: it is a walk over every
+  // drawn value, and a hover re-renders without changing any of its inputs.
+  const extreme = useMemo(() => extremeValue(lines, metric, highest), [lines, metric, highest])
 
   // Render the focused line last (on top) with siblings dimmed. One nearest-line
   // computation feeds both the line emphasis and the tooltip ordering.
@@ -301,12 +370,7 @@ function TimeSeriesChart({
                 chrome marking where the x-axis changes meaning, not a warning.
                 Dashed so it cannot be mistaken for a series. */}
             {nowMs !== null && (
-              <ReferenceLine
-                x={nowMs}
-                stroke={CHART_AXIS_COLOR}
-                strokeDasharray="4 3"
-                label={{ value: 'Now', position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: CHART_TICK_PX }}
-              />
+              <ReferenceLine x={nowMs} {...CHROME_LINE} label={chromeLabel('Now', 'insideTopLeft')} />
             )}
             {/* Where a compared model's forecast ends. Chrome marking where
                 one model's data stops, not a warning, so it wears the axis
@@ -317,9 +381,8 @@ function TimeSeriesChart({
               <ReferenceLine
                 key={end.endMs}
                 x={end.endMs}
-                stroke={CHART_AXIS_COLOR}
-                strokeDasharray="4 3"
-                label={{ value: end.label, position: 'insideTopLeft', fill: CHART_AXIS_COLOR, fontSize: CHART_TICK_PX }}
+                {...CHROME_LINE}
+                label={chromeLabel(end.label, 'insideTopLeft')}
               />
             ))}
             {/* The map's playhead. Solid and in the accent where the "Now"
@@ -376,6 +439,20 @@ function TimeSeriesChart({
                 />
               )
             })}
+            {/* The most extreme value among the ranked lines drawn (#699),
+                as one dashed line across the plot in the Now seam's style,
+                labelled with the value. A line rather than a mark on a point,
+                because it covers every hour that ties it and never sits on
+                the axis. After the lines, so it stays whole while the hover
+                dims them; a reference line has no hover entry. A point sample
+                gets the same line through its extreme dot. */}
+            {extreme !== null && (
+              <ReferenceLine
+                y={extreme}
+                {...CHROME_LINE}
+                label={{ ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'), content: HeadroomLabel }}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { allocateColors, colorForIndex, BASE_PALETTE_SIZE } from './chartColors'
+import {
+  allocateColors,
+  colorForIndex,
+  BASE_PALETTE_SIZE,
+  CHART_AXIS_COLOR,
+  CHART_SURFACE_COLOR,
+} from './chartColors'
 
 describe('colorForIndex', () => {
   it('uses the curated palette for the first indices', () => {
@@ -73,3 +79,30 @@ describe('allocateColors', () => {
     expect(allocateColors({}, ['a|46,-121'])['a|46,-121']).toBe(colorForIndex(0))
   })
 })
+
+describe('chart chrome contrast', () => {
+  // The chrome labels (Now, a model's end, the extreme value) are text in the
+  // axis colour haloed in the panel's, so where a series line crosses one the
+  // letters stand on the surface colour: text, so 4.5:1 (WCAG 1.4.3).
+  // Measured 2026-10-13 on Tailwind v4's oklch steps: slate-400 on slate-800
+  // is 5.56:1 (5.71 on the v3 hexes these were before #687).
+  it('sets the chrome labels at 4.5:1 or better on their halo', () => {
+    const ratio = contrast(CHART_AXIS_COLOR, CHART_SURFACE_COLOR)
+    expect(ratio).toBeGreaterThanOrEqual(4.5)
+    expect(Math.round(ratio * 100) / 100).toBe(5.56)
+  })
+})
+
+// WCAG relative luminance and contrast. Kept here, as `colors.test.ts` and
+// `popupChrome.test.tsx` keep theirs, because no shared helper exists to reuse.
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
+  }
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
