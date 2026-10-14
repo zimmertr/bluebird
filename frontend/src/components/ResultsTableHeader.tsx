@@ -1,8 +1,8 @@
 import { memo, useId } from 'react'
-import type { KeyboardEvent, RefObject } from 'react'
+import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { DestinationResult } from '../types'
-import type { SortDir, SortKey, ColDef } from '../utils/tableColumns'
+import { RANK_KEY, type SortDir, type SortKey, type ColDef } from '../utils/tableColumns'
 import { GHOST_MAX_PX, ghostLeft } from '../utils/columnDrag'
 import { useColumnDrag, type Carry } from '../hooks/useColumnDrag'
 import { useColumnResize } from '../hooks/useColumnResize'
@@ -142,45 +142,80 @@ function ResultsTableHeader({
     sortBy(key)
   }
 
+  // Every sortable header cell, the # header's and each column's alike, so the
+  // two cannot drift apart in how they sort, how they are announced or where
+  // they take focus. What only a column has (its place in the drag and its
+  // resize handle) comes in through `column`, and `cellClass` carries the
+  // cell's own classes; the # header passes no `column`, because it is not a
+  // column a reader can move or size (#698).
+  function sortHeader(
+    key: SortKey,
+    label: ReactNode,
+    cellClass: string,
+    column?: {
+      onPointerDown: (e: PointerEvent<HTMLTableCellElement>) => void
+      grip: ReactNode
+    },
+  ) {
+    return (
+      <th
+        key={key}
+        scope="col"
+        data-col={column ? key : undefined}
+        aria-sort={detailSortKey === key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+        onPointerDown={column?.onPointerDown}
+        onClick={() => handleSort(key)}
+        tabIndex={0}
+        onKeyDown={(e) => handleSortKey(e, key)}
+        aria-describedby={sortHintId}
+        className={`${TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap hover:text-white select-none`}
+      >
+        {label}
+        {/* The arrow's slot is drawn on every header, hidden where the sort
+            is not, so a header keeps one width whether the sort lands on it
+            or leaves it: a column must not move when the sort does (the
+            maintainer, 2026-10-13). Hidden, it is also out of the name. */}
+        <span
+          className={`ml-1 ${ACCENT.text} ${detailSortKey === key ? '' : 'invisible'}`}
+          aria-hidden={detailSortKey === key ? undefined : 'true'}
+        >
+          {detailSortKey === key && detailSortDir === 'desc' ? '↓' : '↑'}
+        </span>
+        {column?.grip}
+      </th>
+    )
+  }
+
   return (
     <>
       <thead className="sticky top-0 bg-slate-700 z-10">
         <tr>
           {showChartCol && <SelectAllCell rows={chartableRows} headState={headState} onChartRange={onChartRange} />}
-          <th scope="col" className={`${TABLE.head} w-6`}>#</th>
-          {orderedColumns.map((col) => (
-            <th
-              key={col.key}
-              scope="col"
-              data-col={col.key}
-              aria-sort={detailSortKey === col.key ? (detailSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-              onPointerDown={(e) => drag.begin(e, col.key as string)}
-              onClick={() => handleSort(col.key)}
-              tabIndex={0}
-              onKeyDown={(e) => handleSortKey(e, col.key)}
-              aria-describedby={sortHintId}
-              className={`${TABLE.head} ${FOCUS_RING_INSET} relative cursor-pointer whitespace-nowrap hover:text-white select-none ${
-                onColumnMove ? 'touch-none' : ''
-              } ${drag.carry?.key === col.key ? `${CARRIED} ${DRAG_GRIP_ACTIVE}` : ''}`}
-            >
-              {sized(widths, col.key as string, col.label, 'inline')}
-              {detailSortKey === col.key && (
-                <span className={`ml-1 ${ACCENT.text}`}>{detailSortDir === 'asc' ? '↑' : '↓'}</span>
-              )}
-              {/* The drag handle owns the header's right edge; its clicks
-                  stop here so a resize or an auto-fit never doubles as a
-                  sort. The border is the visible affordance. */}
-              {onColumnWidthsChange && (
-                <span
-                  onPointerDown={(e) => resize.begin(e, col.key as string)}
-                  onDoubleClick={(e) => resize.fit(e, col.key as string)}
-                  onClick={(e) => e.stopPropagation()}
-                  className={`absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none border-r-2 border-slate-500/40 ${ACCENT.edgeHover}`}
-                  aria-hidden="true"
-                />
-              )}
-            </th>
-          ))}
+          {sortHeader(RANK_KEY, '#', 'w-6')}
+          {orderedColumns.map((col) =>
+            sortHeader(
+              col.key,
+              sized(widths, col.key as string, col.label, 'inline'),
+              `relative ${onColumnMove ? 'touch-none' : ''} ${
+                drag.carry?.key === col.key ? `${CARRIED} ${DRAG_GRIP_ACTIVE}` : ''
+              }`,
+              {
+                onPointerDown: (e) => drag.begin(e, col.key as string),
+                // The drag handle owns the header's right edge; its clicks
+                // stop here so a resize or an auto-fit never doubles as a
+                // sort. The border is the visible affordance.
+                grip: onColumnWidthsChange && (
+                  <span
+                    onPointerDown={(e) => resize.begin(e, col.key as string)}
+                    onDoubleClick={(e) => resize.fit(e, col.key as string)}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none border-r-2 border-slate-500/40 ${ACCENT.edgeHover}`}
+                    aria-hidden="true"
+                  />
+                ),
+              },
+            ),
+          )}
           {/* The filler column soaks up min-w-full's spare width. Without
               it auto layout deals that space to every column, so a fitted
               or dragged column renders wider than the width it was given
