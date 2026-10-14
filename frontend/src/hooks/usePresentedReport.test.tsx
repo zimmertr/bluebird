@@ -7,6 +7,7 @@ import type { AnalyzeResponse, DestinationResult } from '../types'
 import { NO_CONSTRAINTS } from '../utils/constraints'
 import { geoKey } from '../utils/points'
 import type { PresentationKnobs } from '../utils/present'
+import { RANK_KEY } from '../utils/tableColumns'
 
 const PEAK = resultRow({ name: 'Mount Rainier', osm_id: 'node/1', precip_total_in: 0.1 })
 const ECHO = resultRow({
@@ -191,5 +192,53 @@ describe('a header sort a link carried', () => {
     expect(result.current.tableSort).toBeNull()
     act(() => result.current.sortDetail('elevation_ft', 'asc'))
     expect(result.current.tableSort).toEqual({ key: 'elevation_ft', desc: false })
+  })
+})
+
+// The # header is a sort of its own (#698): the maintainer settled on
+// 2026-10-08 that the table sorts by the ranked metric's column until a reader
+// clicks #, even though # ascending puts the rows in the same order.
+describe('the # header sort', () => {
+  it('opens on the ranked column and writes no header sort', () => {
+    const { result } = renderHook(() => usePresentedReport(inputs()))
+    expect(result.current.detailSort).toEqual({ key: 'precip_total_in', dir: 'asc' })
+    expect(result.current.tableSort).toBeNull()
+  })
+
+  it('writes # in either direction, though ascending matches the ranking', () => {
+    const { result } = renderHook(() => usePresentedReport(inputs()))
+    act(() => result.current.sortDetail(RANK_KEY, 'asc'))
+    expect(result.current.detailSort).toEqual({ key: RANK_KEY, dir: 'asc' })
+    expect(result.current.tableSort).toEqual({ key: RANK_KEY, desc: false })
+    act(() => result.current.sortDetail(RANK_KEY, 'desc'))
+    expect(result.current.tableSort).toEqual({ key: RANK_KEY, desc: true })
+  })
+
+  it('reopens a link sorted by # with # as the sorted header', () => {
+    for (const linked of [
+      { key: RANK_KEY, desc: false },
+      { key: RANK_KEY, desc: true },
+    ] as const) {
+      const { result } = renderHook(() =>
+        usePresentedReport(inputs({ analysisSeq: 0, restoredTableSort: linked })),
+      )
+      expect(result.current.detailSort).toEqual({ key: RANK_KEY, dir: linked.desc ? 'desc' : 'asc' })
+      expect(result.current.tableSort).toEqual(linked)
+    }
+  })
+
+  it('drops # descending on a new report and on a ranking change', () => {
+    let seq = 1
+    let view = VIEW
+    const { result, rerender } = renderHook(() => usePresentedReport(inputs({ analysisSeq: seq, view })))
+    act(() => result.current.sortDetail(RANK_KEY, 'desc'))
+    seq = 2
+    rerender()
+    expect(result.current.detailSort).toEqual({ key: 'precip_total_in', dir: 'asc' })
+    act(() => result.current.sortDetail(RANK_KEY, 'desc'))
+    view = { sortBy: 'wind_avg_mph', sortDesc: true }
+    rerender()
+    expect(result.current.detailSort).toEqual({ key: 'wind_avg_mph', dir: 'desc' })
+    expect(result.current.tableSort).toBeNull()
   })
 })
