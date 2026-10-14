@@ -2,8 +2,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { act, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
-import { extremePoint } from '../utils/chartData'
-import { CHART_EXTREME_COLOR } from '../utils/chartColors'
+import { extremeValue } from '../utils/chartData'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -13,12 +12,22 @@ import { resultRow, series } from '../testSupport/fixtures'
 // was given, and the test calls it the way Recharts does: with the click state
 // first and the React click event second.
 //
-// The extreme-hour ring stands in as an element carrying the props the chart
-// gave it, so a test can read where each ring is and how it is drawn.
+// Every reference line stands in as an element carrying the props the chart
+// gave it, so a test can read where each one is and how it is drawn, and a
+// label's own content component is kept so a test can render it.
 type Handler = (state: unknown, event?: unknown) => void
+interface LineProps {
+  x?: number
+  y?: number
+  stroke?: string
+  strokeDasharray?: string
+  strokeWidth?: number
+  label?: { value: string; position: string; fill: string; fontSize: number; content?: unknown }
+}
 const chart = vi.hoisted(() => ({
   onClick: undefined as undefined | Handler,
   onMouseMove: undefined as undefined | Handler,
+  lines: [] as unknown[],
 }))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
@@ -32,28 +41,21 @@ vi.mock('recharts', () => {
     },
     CartesianGrid: Nothing,
     Line: Nothing,
-    ReferenceDot: (p: { x: number; y: number; r: number; fill: string; stroke: string; label?: unknown }) => (
-      <i
-        data-testid="extreme-ring"
-        data-x={p.x}
-        data-y={p.y}
-        data-fill={p.fill}
-        data-stroke={p.stroke}
-        data-label={p.label === undefined ? 'none' : 'some'}
-      />
-    ),
-    ReferenceLine: Nothing,
+    Label: (p: { position: string; value: string }) => <i data-testid="label" data-position={p.position}>{p.value}</i>,
+    ReferenceLine: (p: LineProps) => {
+      chart.lines.push(p)
+      return <i data-testid={p.y === undefined ? 'x-line' : 'extreme-line'} data-y={p.y} />
+    },
     Tooltip: Nothing,
     XAxis: Nothing,
     YAxis: Nothing,
   }
 })
 
-// The real walk, counted, so a test can say how often the chart ran it and
-// make it answer nothing once.
+// The real walk, counted, so a test can say how often the chart ran it.
 vi.mock('../utils/chartData', async (importOriginal) => {
   const real = await importOriginal<typeof import('../utils/chartData')>()
-  return { ...real, extremePoint: vi.fn(real.extremePoint) }
+  return { ...real, extremeValue: vi.fn(real.extremeValue) }
 })
 
 type Props = ComponentProps<typeof TimeSeriesChart>
@@ -140,7 +142,7 @@ describe('TimeSeriesChart click', () => {
   })
 })
 
-describe('TimeSeriesChart extreme-hour ring', () => {
+describe('TimeSeriesChart extreme line', () => {
   // Two destinations' winds over the 48-hour grid: Alpha peaks at 75.4 mph in
   // hour 6, Beta bottoms out at 1 mph in hour 40.
   const alpha = resultRow({
@@ -151,19 +153,29 @@ describe('TimeSeriesChart extreme-hour ring', () => {
   const beta = resultRow({
     name: 'Mount Beta',
     latitude: 47,
-    series: series({ wind_mph: TIMES.map((_, i) => (i === 40 ? 1 : 30)), temp_f: TIMES.map((_, i) => (i === 3 ? 44 : 30)) }),
+    series: series({
+      wind_mph: TIMES.map((_, i) => (i === 40 ? 1 : 30)),
+      temp_f: TIMES.map((_, i) => (i === 3 ? 44 : 30)),
+      precip_in: TIMES.map(() => 0),
+    }),
   })
   const WIND: Partial<Props> = { rows: [alpha, beta], metric: 'wind', sortBy: 'wind_avg_mph', sortDesc: true }
 
-  function rings() {
-    return screen.queryAllByTestId('extreme-ring').map((el) => ({
-      x: Number(el.dataset.x),
-      y: Number(el.dataset.y),
-    }))
+  // The extreme line as drawn: its height and its label's text.
+  function extremeLines() {
+    return (chart.lines as LineProps[])
+      .filter((p) => p.y !== undefined)
+      .map((p) => ({ y: p.y, label: p.label?.value }))
+  }
+  // Only the lines from the last render, since every render records again.
+  function renderChart(over: Partial<Props>) {
+    chart.lines = []
+    return render(<TimeSeriesChart {...props(over)} />)
   }
 
   beforeEach(() => {
-    vi.mocked(extremePoint).mockClear()
+    vi.mocked(extremeValue).mockClear()
+    chart.lines = []
   })
 
   // The hover test gives the plot a height, which jsdom never does.
@@ -173,52 +185,75 @@ describe('TimeSeriesChart extreme-hour ring', () => {
     plotHeight = undefined
   })
 
-  it('rings the one most extreme hour, hollow and unlabelled', () => {
-    render(<TimeSeriesChart {...props(WIND)} />)
-    expect(rings()).toEqual([{ x: TIMES[6], y: 75.4 }])
-    const ring = screen.getByTestId('extreme-ring')
-    expect(ring.dataset.fill).toBe('none')
-    expect(ring.dataset.stroke).toBe(CHART_EXTREME_COLOR)
-    expect(ring.dataset.label).toBe('none')
+  it('draws one line at the most extreme value, labelled with it', () => {
+    renderChart(WIND)
+    expect(screen.getAllByTestId('extreme-line')).toHaveLength(1)
+    expect(extremeLines()).toEqual([{ y: 75.4, label: '75.4 mph' }])
   })
 
-  it('follows the ranking to the lowest hour, live', () => {
-    const { rerender } = render(<TimeSeriesChart {...props(WIND)} />)
+  // The same stroke, dash and label type as a model's end line, which is
+  // drawn exactly as the Now seam is.
+  it('wears the Now seam’s style', () => {
+    renderChart({ ...WIND, modelEnds: [{ label: 'NOAA HRRR', endMs: TIMES[30] }] })
+    const [seam] = (chart.lines as LineProps[]).filter((p) => p.x !== undefined)
+    const [extreme] = (chart.lines as LineProps[]).filter((p) => p.y !== undefined)
+    expect(extreme.stroke).toBe(seam.stroke)
+    expect(extreme.strokeDasharray).toBe(seam.strokeDasharray)
+    expect(extreme.strokeWidth).toBe(seam.strokeWidth)
+    expect(extreme.label?.fill).toBe(seam.label?.fill)
+    expect(extreme.label?.fontSize).toBe(seam.label?.fontSize)
+  })
+
+  it('follows the ranking to the lowest value, live', () => {
+    const { rerender } = renderChart(WIND)
+    chart.lines = []
     rerender(<TimeSeriesChart {...props({ ...WIND, sortDesc: false })} />)
-    expect(rings()).toEqual([{ x: TIMES[40], y: 1 }])
+    expect(extremeLines()).toEqual([{ y: 1, label: '1.0 mph' }])
   })
 
-  // Off the ranked family no direction was chosen, so the ring marks the
+  // Off the ranked family no direction was chosen, so the line marks the
   // largest value even under a lowest-first ranking.
-  it('rings the largest hour of a family the field is not ranked on', () => {
-    render(<TimeSeriesChart {...props({ ...WIND, metric: 'temp', sortDesc: false })} />)
-    expect(rings()).toEqual([{ x: TIMES[3], y: 44 }])
+  it('marks the largest value of a family the field is not ranked on', () => {
+    renderChart({ ...WIND, metric: 'temp', sortDesc: false })
+    expect(extremeLines()).toEqual([{ y: 44, label: '44.0 °F' }])
   })
 
-  it('rings every point of a tie', () => {
-    const twin = resultRow({ name: 'Mount Gamma', latitude: 48, series: alpha.series })
-    render(<TimeSeriesChart {...props({ ...WIND, rows: [alpha, beta, twin] })} />)
-    expect(rings()).toEqual([
-      { x: TIMES[6], y: 75.4 },
-      { x: TIMES[6], y: 75.4 },
-    ])
+  it('draws no line when nothing has a value', () => {
+    renderChart({ ...WIND, metric: 'freeze' })
+    expect(screen.queryByTestId('extreme-line')).toBeNull()
   })
 
-  it('draws no ring when extremePoint answers nothing', () => {
-    vi.mocked(extremePoint).mockReturnValueOnce([])
-    render(<TimeSeriesChart {...props(WIND)} />)
-    expect(rings()).toEqual([])
+  // A dry window has no wettest hour worth marking.
+  it('draws no line at a zero that means none', () => {
+    renderChart({ ...WIND, metric: 'precip', sortBy: 'precip_total_in', sortDesc: false })
+    expect(screen.queryByTestId('extreme-line')).toBeNull()
   })
 
-  // A hover changes the focused line and nothing the ring reads, so the walk
-  // must not run again for it (#337's memo rule, held for the ring).
+  // The label flips from above its line to below it in the top headroom,
+  // decided where Recharts knows the line's pixel height.
+  it('places its label by the room over the line', () => {
+    renderChart(WIND)
+    const [extreme] = (chart.lines as LineProps[]).filter((p) => p.y !== undefined)
+    const Content = extreme.label!.content as (p: object) => ReactNode
+    const at = (y: number) => {
+      const { unmount } = render(<>{Content({ ...extreme.label, viewBox: { x: 52, y, width: 292, height: 0 } })}</>)
+      const position = screen.getByTestId('label').dataset.position
+      unmount()
+      return position
+    }
+    expect(at(120)).toBe('insideBottomRight')
+    expect(at(12)).toBe('insideTopRight')
+  })
+
+  // A hover changes the focused line and nothing the extreme reads, so the
+  // walk must not run again for it (#337's memo rule, held for this line).
   it('does not walk the lines again on a hover', () => {
     plotHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(209)
-    render(<TimeSeriesChart {...props(WIND)} />)
-    expect(extremePoint).toHaveBeenCalledTimes(1)
+    renderChart(WIND)
+    expect(extremeValue).toHaveBeenCalledTimes(1)
     act(() => chart.onMouseMove!({ activeTooltipIndex: 6, chartY: 20 }))
     act(() => chart.onMouseMove!({ activeTooltipIndex: 40, chartY: 180 }))
-    expect(extremePoint).toHaveBeenCalledTimes(1)
-    expect(rings()).toEqual([{ x: TIMES[6], y: 75.4 }])
+    expect(extremeValue).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByTestId('extreme-line')).toHaveLength(1)
   })
 })

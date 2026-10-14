@@ -385,7 +385,7 @@ describe('compareSeries', () => {
   })
 
   // The field is ranked on the ranking model's numbers, so only its lines may
-  // hold the chart's extreme-hour ring (#699); every compared line says no.
+  // set the chart's extreme line (#699); every compared line says no.
   it('marks the ranking model’s lines ranked and no other', () => {
     const lines = compareSeries(DESTINATIONS, ON_CHART, everyPair(), pairColors(), RANKING)
     const ranked = lines.filter((l) => l.ranked)

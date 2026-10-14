@@ -265,8 +265,8 @@ export function modelSeriesOnGrid(
  * cost a fetch and which did not.
  *
  * `rankingModel` marks that model's pairs `ranked`, which is what keeps the
- * chart's extreme-hour ring (`extremePoint`) off the compared lines: the field
- * is ranked on the ranking model's numbers, so only its lines can hold it.
+ * compared lines from setting the chart's extreme line (`extremeValue`): the
+ * field is ranked on the ranking model's numbers, so only its lines count.
  */
 export function compareSeries(
   destinations: readonly CompareDestination[],

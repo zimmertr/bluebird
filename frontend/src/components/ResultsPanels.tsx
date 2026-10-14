@@ -53,7 +53,7 @@ export interface ResultsPanelsProps {
   removeResult: (row: DestinationResult) => void
   /** The ranking, which the table marks. */
   sortBy: SortBy
-  /** The ranking's direction, which the chart's extreme-hour ring follows. */
+  /** The ranking's direction, which the chart's extreme line follows. */
   sortDesc: boolean
   /** Whether the report is one hour, which relabels the metric columns. */
   pointSample: boolean

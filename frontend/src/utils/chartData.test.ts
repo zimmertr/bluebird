@@ -16,9 +16,10 @@ import {
   chartKey,
   computeYDomain,
   debutRows,
-  extremePoint,
+  extremeLabel,
+  extremeLabelPosition,
+  extremeValue,
   formatMetricValue,
-  MAX_EXTREME_MARKS,
   metricForSort,
   nearestKey,
   pixelToTime,
@@ -119,109 +120,117 @@ describe('gridRemapper', () => {
   })
 })
 
-describe('extremePoint', () => {
-  const T = [1000, 2000, 3000, 4000]
-
+describe('extremeValue', () => {
   // A drawn line on the chart's grid. Ranked unless said otherwise, as every
   // plain row the chart builds is.
   function line(key: string, over: Partial<HourlySeries>, ranked = true): ChartLine {
     return { key, label: key, color: '#000000', series: seriesOf(over), ...(ranked ? { ranked } : {}) }
   }
 
-  it('rings the largest hour when the ranking is highest first', () => {
+  it('finds the largest hour when the ranking is highest first', () => {
     const lines = [line('a', { wind_mph: [5, 30, 12, 8] }), line('b', { wind_mph: [40, 9, 2, 1] })]
-    expect(extremePoint(lines, 'wind', true, T)).toEqual([{ t: 1000, value: 40, key: 'b' }])
+    expect(extremeValue(lines, 'wind', true)).toBe(40)
   })
 
-  it('rings the smallest hour when the ranking is lowest first', () => {
+  it('finds the smallest hour when the ranking is lowest first', () => {
     const lines = [line('a', { wind_mph: [5, 30, 12, 8] }), line('b', { wind_mph: [40, 9, 2, 1] })]
-    expect(extremePoint(lines, 'wind', false, T)).toEqual([{ t: 4000, value: 1, key: 'b' }])
+    expect(extremeValue(lines, 'wind', false)).toBe(1)
   })
 
   // A null is a missing hour, never a reading, so it can be neither end.
   it('passes over nulls', () => {
     const lines = [line('a', { temp_f: [null, 20, null, 31] }), line('b', { temp_f: [null, null, null, null] })]
-    expect(extremePoint(lines, 'temp', true, T)).toEqual([{ t: 4000, value: 31, key: 'a' }])
-    expect(extremePoint(lines, 'temp', false, T)).toEqual([{ t: 2000, value: 20, key: 'a' }])
+    expect(extremeValue(lines, 'temp', true)).toBe(31)
+    expect(extremeValue(lines, 'temp', false)).toBe(20)
   })
 
-  it('rings nothing when no line has a value', () => {
+  it('answers null when no line has a value', () => {
     const lines = [line('a', { temp_f: [null, null, null, null] }), line('b', {})]
-    expect(extremePoint(lines, 'temp', true, T)).toEqual([])
+    expect(extremeValue(lines, 'temp', true)).toBeNull()
   })
 
-  it('rings nothing over an empty set of lines', () => {
-    expect(extremePoint([], 'wind', true, T)).toEqual([])
+  it('answers null over an empty set of lines', () => {
+    expect(extremeValue([], 'wind', true)).toBeNull()
   })
 
-  // The chart memoizes on this answer, so nothing is the same nothing.
-  it('answers the same empty array every time', () => {
-    expect(extremePoint([], 'wind', true, T)).toBe(extremePoint([], 'temp', false, T))
-  })
-
-  it('rings every pair a tie shares, up to the cap', () => {
-    // Two tied hours on one line and one on each of the rest: the cap exactly.
-    const lines = [
-      line('l0', { aqi: [9, 50, 3, 50] }),
-      ...Array.from({ length: MAX_EXTREME_MARKS - 2 }, (_, i) => line(`l${i + 1}`, { aqi: [50, 1, 2, 3] })),
-    ]
-    const marks = extremePoint(lines, 'aqi', true, T)
-    expect(marks).toHaveLength(MAX_EXTREME_MARKS)
-    expect(marks).toContainEqual({ t: 2000, value: 50, key: 'l0' })
-    expect(marks).toContainEqual({ t: 4000, value: 50, key: 'l0' })
-    expect(marks).toContainEqual({ t: 1000, value: 50, key: `l${MAX_EXTREME_MARKS - 2}` })
-  })
-
-  // Past the cap there is no single extreme to point at.
-  it('rings nothing when more pairs than the cap share the extreme', () => {
-    const lines = Array.from({ length: MAX_EXTREME_MARKS + 1 }, (_, i) => line(`l${i}`, { cloud_deck_ft: [30_066, 12_000, 8_000, 5_000] }))
-    expect(extremePoint(lines, 'cloud_deck', true, T)).toEqual([])
-  })
-
-  // A more extreme value later in the walk starts the count again, so a tie
-  // that overflowed the cap does not swallow the true extreme after it.
-  it('rings a later, more extreme value after an overflowing tie', () => {
-    const tied = Array.from({ length: MAX_EXTREME_MARKS + 1 }, (_, i) => line(`l${i}`, { wind_mph: [20, 20, 20, 20] }))
-    const lines = [...tied, line('gust', { wind_mph: [1, 2, 3, 75.4] })]
-    expect(extremePoint(lines, 'wind', true, T)).toEqual([{ t: 4000, value: 75.4, key: 'gust' }])
+  // One line across the plot passes through every hour that ties it, so a
+  // tie is just the value, however many hours share it.
+  it('answers a tie with its value', () => {
+    const lines = Array.from({ length: 12 }, (_, i) => line(`l${i}`, { cloud_deck_ft: [30_066, 12_000, 8_000, 5_000] }))
+    expect(extremeValue(lines, 'cloud_deck', true)).toBe(30_066)
   })
 
   // On precipitation, snowfall, wind and AQI a 0 is the absence of the thing,
-  // so a dry window ranked lowest has no hour worth pointing at.
-  it('rings nothing at an extreme of 0 where 0 means none', () => {
+  // so a dry window ranked lowest has nothing worth marking.
+  it('answers null at an extreme of 0 where 0 means none', () => {
     const lines = [line('a', { precip_in: [0, 0, 0.1, 0] }), line('b', { precip_in: [0, 0.2, 0, 0] })]
-    expect(extremePoint(lines, 'precip', false, T)).toEqual([])
-    const calm = [line('a', { wind_mph: [0, 0, 0, 0] })]
-    expect(extremePoint(calm, 'wind', true, T)).toEqual([])
-    expect(extremePoint([line('a', { snowfall_in: [0, 0, 0, 1] })], 'snowfall', false, T)).toEqual([])
-    expect(extremePoint([line('a', { aqi: [0, 7, 9, 3] })], 'aqi', false, T)).toEqual([])
+    expect(extremeValue(lines, 'precip', false)).toBeNull()
+    expect(extremeValue([line('a', { wind_mph: [0, 0, 0, 0] })], 'wind', true)).toBeNull()
+    expect(extremeValue([line('a', { snowfall_in: [0, 0, 0, 1] })], 'snowfall', false)).toBeNull()
+    expect(extremeValue([line('a', { aqi: [0, 7, 9, 3] })], 'aqi', false)).toBeNull()
   })
 
   // 0 °F is a real coldest hour, and a freezing level of 0 is a reading.
-  it('rings an extreme of 0 where 0 is a reading', () => {
+  it('answers an extreme of 0 where 0 is a reading', () => {
     const lines = [line('a', { temp_f: [12, 0, 4, 9] }), line('b', { temp_f: [20, 18, 15, 11] })]
-    expect(extremePoint(lines, 'temp', false, T)).toEqual([{ t: 2000, value: 0, key: 'a' }])
-    expect(extremePoint([line('a', { freeze_ft: [0, 1200, 900, 400] })], 'freeze', false, T)).toEqual([
-      { t: 1000, value: 0, key: 'a' },
-    ])
+    expect(extremeValue(lines, 'temp', false)).toBe(0)
+    expect(extremeValue([line('a', { freeze_ft: [0, 1200, 900, 400] })], 'freeze', false)).toBe(0)
   })
 
   // A compared model's line is not what the field is ranked on, so it can
-  // never hold the ring, however extreme it is.
+  // never set the line, however extreme it is.
   it('counts only the ranked lines', () => {
     const lines = [
       line('ranked', { wind_mph: [10, 20, 30, 25] }),
       line('compared', { wind_mph: [90, 90, 90, 90] }, false),
     ]
-    expect(extremePoint(lines, 'wind', true, T)).toEqual([{ t: 3000, value: 30, key: 'ranked' }])
-    expect(extremePoint([lines[1]], 'wind', true, T)).toEqual([])
+    expect(extremeValue(lines, 'wind', true)).toBe(30)
+    expect(extremeValue([lines[1]], 'wind', true)).toBeNull()
   })
 
-  // A point sample is a one-stamp grid, and its extreme dot is ringed the
-  // same way.
-  it('rings the extreme dot of a point sample', () => {
+  // A point sample is a one-stamp grid, and its extreme dot sets the line
+  // the same way.
+  it('reads a point sample', () => {
     const lines = [line('a', { temp_f: [41] }), line('b', { temp_f: [33] })]
-    expect(extremePoint(lines, 'temp', false, [5000])).toEqual([{ t: 5000, value: 33, key: 'b' }])
+    expect(extremeValue(lines, 'temp', false)).toBe(33)
+  })
+})
+
+describe('extremeLabel', () => {
+  // The value as the hover box prints it, then the unit, and nothing else.
+  it('prints the value with its unit', () => {
+    expect(extremeLabel(75.4, 'wind')).toBe('75.4 mph')
+    expect(extremeLabel(0, 'temp')).toBe('0.0 °F')
+    expect(extremeLabel(8398.95, 'freeze')).toBe('8399 ft')
+    expect(extremeLabel(0.04, 'precip')).toBe('0.040 in')
+  })
+
+  it('prints AQI, which has no unit, as the bare index', () => {
+    expect(extremeLabel(57, 'aqi')).toBe('57')
+  })
+
+  // The hover box prints a cloud deck at the top of its walk as a bound, and
+  // the line's label says what the hover box says.
+  it('prints a cloud deck at its ceiling as the bound the hover box shows', () => {
+    expect(extremeLabel(30_066, 'cloud_deck')).toBe('≥30000 ft')
+  })
+})
+
+describe('extremeLabelPosition', () => {
+  const PLOT_TOP = 8
+
+  // Recharts' names read from inside the line's zero-height box, so the
+  // position that stands on the line is the bottom one.
+  it('puts the label above a line with room over it', () => {
+    expect(extremeLabelPosition(PLOT_TOP + 60, PLOT_TOP)).toBe('insideBottomRight')
+    expect(extremeLabelPosition(PLOT_TOP + 14, PLOT_TOP)).toBe('insideBottomRight')
+  })
+
+  // The top headroom is a few pixels, too few for a label above the line
+  // without leaving the plot.
+  it('puts the label below a line in the top headroom', () => {
+    expect(extremeLabelPosition(PLOT_TOP + 13, PLOT_TOP)).toBe('insideTopRight')
+    expect(extremeLabelPosition(PLOT_TOP, PLOT_TOP)).toBe('insideTopRight')
   })
 })
 

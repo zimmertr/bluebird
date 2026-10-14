@@ -1,6 +1,6 @@
 import { DestinationResult, HourlySeries, SortBy } from '../types'
 import { cloudDeckMark } from './cloudDeckMark'
-import { MetricFamily, familyOf, formatPrecipRate, metricLabel } from '../metrics'
+import { MetricFamily, UNIT, familyOf, formatPrecipRate, metricLabel } from '../metrics'
 import { setKey } from './points'
 
 /**
@@ -199,9 +199,9 @@ export interface ChartLine extends SeriesHolder {
   /**
    * Whether this line is one the field is ranked on: a destination's own row,
    * or a (destination, ranking model) pair under a comparison. Only these can
-   * hold the extreme-hour ring (`extremePoint`), because a compared model's
-   * lines are not what the table ranks, and a ring on one would point at a
-   * number the ranking never read. Absent means not ranked.
+   * set the extreme line (`extremeValue`), because a compared model's lines
+   * are not what the table ranks, and a line at one of their values would
+   * mark a number the ranking never read. Absent means not ranked.
    */
   ranked?: boolean
 }
@@ -397,17 +397,10 @@ export function computeYDomain(
   return [floor, max + (max - floor) * 0.05]
 }
 
-/** One (line, hour) pair the extreme-hour ring stands on. */
-export interface ExtremePoint {
-  t: number
-  value: number
-  key: string
-}
-
 /**
  * The families where 0 means none: no rain, no snow, calm air, clean air. A
  * `Lowest` ranking on any of them usually finds 0 at most hours of most lines,
- * so a ring there marks the floor rather than anything worth finding, and a
+ * so a line there marks the floor rather than anything worth finding, and a
  * dry `Highest` has nothing to mark either. Temperature, the freezing level
  * and the cloud deck are left out because each is a reading at every value:
  * 0 °F is a real coldest hour, a freezing level of 0 says the whole column is
@@ -418,64 +411,70 @@ export interface ExtremePoint {
 const ZERO_IS_NONE: ReadonlySet<ChartMetric> = new Set<ChartMetric>(['precip', 'snowfall', 'wind', 'aqi'])
 
 /**
- * The most points that may share the extreme and still be ringed. Past it
- * there is no single extreme to point at: a field-wide tie such as `Highest`
- * cloud deck, where every dry column reads the same ceiling, would ring half
- * the chart. Five leaves room for a real plateau, since AQI is a whole number
- * and a wind can hold one value for two or three hours (the maintainer asked
- * for a cap on 2026-10-08 and left the number open between 3, 5 and 10).
- */
-export const MAX_EXTREME_MARKS = 5
-
-// A stable empty answer, so the chart's memo hands Recharts the same nothing
-// on every render rather than a fresh array.
-const NO_EXTREMES: readonly ExtremePoint[] = []
-
-/**
- * Every (line, hour) pair holding the most extreme hourly value among the
- * ranked lines: the largest when `highest`, the smallest otherwise. One entry
- * normally, one per tied pair on a tie.
+ * The most extreme hourly value among the ranked lines (#699): the largest
+ * when `highest`, the smallest otherwise. The chart draws it as one dashed
+ * line across the plot, which passes through every hour that ties it, so the
+ * answer is the value alone rather than where it falls.
  *
- * Nothing at all when no ranked line has a value, when the extreme is 0 on a
- * family where 0 means none (`ZERO_IS_NONE`), or when more than
- * `MAX_EXTREME_MARKS` pairs share it. Ties stop being collected once past the
- * cap, because the answer is then nothing unless a more extreme value turns
- * up later in the walk, which starts the count again.
+ * Null when no ranked line has a value, or when the extreme is 0 on a family
+ * where 0 means none (`ZERO_IS_NONE`). Nulls are never candidates.
  *
- * Only `ranked` lines are candidates: the caller hands in the lines it draws,
- * so a hidden row, chip or model is already gone, and a compared model's lines
- * are skipped here. `times` turns an hour's index into the instant the ring
- * stands at; the lines are already on that grid.
+ * Only `ranked` lines count: the caller hands in the lines it draws, so a
+ * hidden row, chip or model is already gone, and a compared model's lines are
+ * skipped here because the field is not ranked on them.
  */
-export function extremePoint(
+export function extremeValue(
   lines: readonly ChartLine[],
   metric: ChartMetric,
   highest: boolean,
-  times: readonly number[],
-): readonly ExtremePoint[] {
+): number | null {
   const field = SERIES_FIELD[metric]
   let best: number | null = null
-  let found: ExtremePoint[] = []
   for (const line of lines) {
     if (!line.ranked) continue
     const arr = line.series ? line.series[field] : undefined
     if (!arr) continue
-    const n = Math.min(arr.length, times.length)
-    for (let i = 0; i < n; i++) {
-      const v = arr[i]
+    for (const v of arr) {
       if (v == null) continue
-      if (best === null || (highest ? v > best : v < best)) {
-        best = v
-        found = [{ t: times[i], value: v, key: line.key }]
-      } else if (v === best && found.length <= MAX_EXTREME_MARKS) {
-        found.push({ t: times[i], value: v, key: line.key })
-      }
+      if (best === null || (highest ? v > best : v < best)) best = v
     }
   }
-  if (best === null) return NO_EXTREMES
-  if (best === 0 && ZERO_IS_NONE.has(metric)) return NO_EXTREMES
-  if (found.length > MAX_EXTREME_MARKS) return NO_EXTREMES
-  return found
+  if (best === 0 && ZERO_IS_NONE.has(metric)) return null
+  return best
+}
+
+/**
+ * The extreme line's label: the value as the hover box prints it, then the
+ * unit the metric select names, as in `75.4 mph`. No word around it: the line
+ * is chrome, and the number is the whole of what it says.
+ */
+export function extremeLabel(v: number, metric: ChartMetric): string {
+  const unit = UNIT[metric]
+  const value = formatTooltipValue(v, metric)
+  return unit ? `${value} ${unit}` : value
+}
+
+// How far below the plot's top edge a line must sit before its label fits
+// above it: Recharts sets a chrome label 5px off its line, and the 10px type
+// stands about 8px over its baseline, so 14px leaves a pixel to spare.
+const EXTREME_LABEL_ROOM_PX = 14
+
+/**
+ * Where the extreme line's label goes, from the line's own pixel height: above
+ * the line at its right end, or below it when the line runs through the top
+ * headroom, where a label above would leave the plot. Read in pixels at draw
+ * time rather than off the domain, because the room a label needs is a fixed
+ * number of pixels and the plot's height is the reader's to drag.
+ *
+ * Recharts names the positions from inside the line's box, which for a line
+ * has no height: `insideBottomRight` stands on the line (above it) and
+ * `insideTopRight` hangs from it (below it).
+ */
+export function extremeLabelPosition(
+  lineY: number,
+  plotTop: number,
+): 'insideBottomRight' | 'insideTopRight' {
+  return lineY - plotTop >= EXTREME_LABEL_ROOM_PX ? 'insideBottomRight' : 'insideTopRight'
 }
 
 // Map a pixel X within the plot area to an instant (left = tMin, right = tMax),
