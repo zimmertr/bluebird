@@ -95,8 +95,23 @@ export const FLAG_COLS: readonly ColDef[] = [WILDFIRE_COL, CLOSURE_COL]
 export const MODEL_KEY = 'model'
 export const MODEL_COL: ColDef = { key: MODEL_KEY, label: 'Model' }
 
-/** The column a detail sort is keyed on, and which way it runs. */
-export type SortKey = ColDef['key']
+/**
+ * The # header's sort (#698): the rows by their place in the ranking, the
+ * `rank` `useTableView` stamps on each before any header sort moves it.
+ *
+ * A sort key with no column behind it. The # header is drawn apart from the
+ * columns, because it is not one a reader can move, size or hide, so it never
+ * joins `ColDef` or `COLUMNS`. Ascending puts the rows in the order the default
+ * sort does (the ranked metric's column in the ranking's direction), and it is
+ * still a sort of its own: the maintainer settled on 2026-10-08 that the table
+ * sorts by the ranked metric's column until a reader clicks #, even when the
+ * order comes out the same, so the arrow, `aria-sort` and a link's `tsort=rank`
+ * say which header the reader chose.
+ */
+export const RANK_KEY = 'rank'
+
+/** The header a detail sort is keyed on, and which way it runs. */
+export type SortKey = ColDef['key'] | typeof RANK_KEY
 export type SortDir = 'asc' | 'desc'
 
 // Identity columns that always lead the table, ahead of any metric group.
@@ -267,14 +282,16 @@ export const COLUMNS: ColDef[] = [
   { key: 'cloud_deck_avg_ft', unit: UNIT.cloud_deck, label: metricLabel('cloud_deck', AGGREGATE.average), format: cloudDeckCell, csv: cloudDeckCsv, windyLayer: 'cbase' },
 ]
 
-// Every key a header click can sort on: the table's columns and the three
-// virtual ones. A link's `tsort` is checked against it, so a hand-edited key
-// the table has no column for is dropped rather than sorting by nothing.
+// Every key a header click can sort on: the table's columns, the three
+// virtual ones and the # header's. A link's `tsort` is checked against it, so
+// a hand-edited key the table has no header for is dropped rather than sorting
+// by nothing.
 const SORT_KEYS: ReadonlySet<string> = new Set([
   ...COLUMNS.map((c) => c.key),
   WILDFIRE_KEY,
   CLOSURE_KEY,
   MODEL_KEY,
+  RANK_KEY,
 ])
 
 /** Whether a string names a column the table can sort on. */
