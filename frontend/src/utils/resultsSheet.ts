@@ -111,19 +111,17 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
 /**
  * The sheet's header bar, which is also the sheet's collapsed height.
  *
- * Measured at 402x874 on a coarse pointer, 2026-10-13, in its tallest state:
- * 106px. The bar's actions are two groups since #687, the mode switch at the
- * left of the line and the buttons right-justified beside it (the maintainer,
- * on #709), and the buttons wrap inside their own group: Columns and Models
- * share the switch's 44px line, and Download CSV wraps under them. With no
- * removed row that is 84px; with Removed showing, it and Download CSV take a
- * row each and the header is 106. The larger, because this number is the
- * resting reserve and the camera's padding and an under-estimate hides a
- * legend row where an over-estimate only leaves a gap. It was 108 when the
- * actions were one wrapped row of buttons, and 104 when they were links.
+ * Measured on a coarse pointer, 2026-10-13: 84px at 360, 390, 402 and 430
+ * wide, with Removed showing or not. 12px of padding, the 19.5px title row,
+ * the 4px gap, the 46px actions line (the mode switch and the button group,
+ * each 44px controls in a 1px-bordered well, side by side on one line since
+ * #687 drops their words where the bar is narrow, `BAR_LABEL`), then the 1px
+ * rule and the sheet's own 1px top border. It was 104 when the actions were
+ * links that wrapped onto a second row, and briefly 106 when they were
+ * buttons that wrapped onto three.
  *
- * Re-measure when the bar gains a member or a label grows, because a row more
- * in the button group moves this number.
+ * Re-measure when the bar gains a member, because one glyph more than the
+ * line holds at 360px wide wraps the group and moves this number.
  *
  * This is an ESTIMATE and is used only where an estimate is the right answer:
  * the resting reserve the panel clamp takes, and the camera padding, both of
@@ -132,7 +130,7 @@ export const TRANSPORT_BAND_PX = TRANSPORT_GAP_PX + TRANSPORT_HEIGHT_PX
  * because an estimate that was 20px out put a different gap under the player in
  * every results mode. Re-measure if a member joins or leaves the bar.
  */
-export const SHEET_HEADER_PX = 106
+export const SHEET_HEADER_PX = 84
 
 /**
  * One drag grip, of which the sheet carries one or two. `h-2` is 8px, but

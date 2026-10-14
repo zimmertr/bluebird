@@ -576,26 +576,6 @@ export const BUTTON_ACCENT =
   `${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING}`
 
 /**
- * A button that is a word and a glyph with no fill until the pointer is on it:
- * Columns, Models, Removed and Download CSV in the results bar (#687).
- *
- * They were underlined links, beside a segmented control and a chevron, so the
- * one bar carried four control styles. A fill at rest would make four more
- * blocks on a bar that is already a slate-700 block; the word and its glyph
- * say "press me" well enough there, and the hover fill says it again under the
- * pointer. Each keeps its word (record 0090: a reader using voice control
- * says what the button shows), and the glyph is the `ICON.control` step.
- *
- * Measured on the v4 oklch steps: the slate-200 label and glyph are 8.40:1 on
- * the bar's slate-700 and 6.14:1 on the slate-600 hover fill. No `TAP` role:
- * the results bar is the surface `TAP` deliberately leaves at its own density,
- * because every pixel of its height comes out of the ranking on a phone.
- */
-export const BUTTON_GHOST =
-  `${TEXT.control} inline-flex items-center gap-1.5 px-1.5 py-0.5 ${RADIUS.control} ` +
-  `cursor-pointer whitespace-nowrap transition-colors hover:bg-slate-600 ${FOCUS_RING}`
-
-/**
  * A word marking the row it sits in, not a control: "Recommended" on the
  * default forecast model.
  *
@@ -1566,6 +1546,45 @@ const SEGMENT_ITEM_SHAPE = segmentHalf('flex-1')
 export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-1`
 /** Between two halves, never before the first. */
 export const SEGMENT_DIVIDER = 'border-l border-slate-500'
+
+/**
+ * The results bar's buttons, Columns, Models, Removed and Download CSV, as one
+ * group that reads as the mode switch's sibling (#687, the maintainer on
+ * #709): the same bordered well (`SEGMENT_FLUID`), the same half
+ * (`segmentHalf`, so the same height on either pointer) and the same idle
+ * fill, divided by `SEGMENT_DIVIDER`. They were ghost buttons that wrapped to
+ * three rows on a 402px phone with Removed showing.
+ *
+ * Each item is sized by its content (`flex-none`), with a 6px inset (`px-1.5`)
+ * where a ghost button had 6px plus a hover fill's room: less than that and a
+ * glyph alone is under 28px wide. At 28px wide and 22px tall on a fine pointer
+ * an icon-only item is short of the 24px of WCAG 2.2's target size, and it
+ * passes by spacing instead, the way record 0130 settles the Metrics rows: a
+ * 24px circle on its centre reaches 12px either side, inside its own 28px, so
+ * it meets neither neighbour. On a coarse pointer `TAP.action` makes each 44px.
+ * The label is the slate-400 idle half's, as on the switch beside it.
+ */
+export const ACTION_GROUP = SEGMENT_FLUID
+export const ACTION_ITEM = `${segmentHalf('flex-none')} px-1.5 cursor-pointer whitespace-nowrap ${SEGMENT_IDLE}`
+
+/**
+ * The word on a results bar control, shown only where the bar can hold the
+ * switch and all four buttons on one line with their words (#687); under that,
+ * every control is its glyph alone and keeps the word as its accessible name,
+ * as the switch's halves already did on a phone. A container rule, because the
+ * bar's width is the viewport less the docked panel.
+ *
+ * 584px of the bar's content, measured 2026-10-13 at text-xs: the labelled
+ * switch is 176.7px, the labelled group with `Removed (1)` showing 377.8px,
+ * and the groups stand at least 16px apart (`gap-x-4`) on the folded line,
+ * 570.5px; then two more digits of a Removed count, 13.4px, so a reader with
+ * a hundred removals still gets one line. The bar beside the docked panel at
+ * 1024 wide has 640px and keeps its words; a phone has 336px at 360 wide and
+ * 406px at 430, and shows the switch and the glyphs on one line, Removed or
+ * not. It replaces the switch's `sm:` viewport rule, so the bar's words come
+ * and go together.
+ */
+export const BAR_LABEL = 'hidden @min-[584px]:inline'
 
 /**
  * A radio or checkbox and the words naming it, as one strip.

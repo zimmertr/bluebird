@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { Fragment, type RefObject } from 'react'
 import type { CompareNote } from '../hooks/useChartCompare'
 import { resultsHeading } from '../metrics'
 import type { ResultsMode } from '../utils/viewPrefs'
@@ -15,7 +15,9 @@ import {
 } from './icons'
 import {
   ACCENT,
-  BUTTON_GHOST,
+  ACTION_GROUP,
+  ACTION_ITEM,
+  BAR_LABEL,
   CAPTION_LIFTED,
   CONTROL_SIZE,
   DISABLED,
@@ -111,6 +113,83 @@ export default function ResultsBar({
   compareWait,
   compareNotes,
 }: ResultsBarProps) {
+  // The bar's buttons, in order, each present under its own condition, so the
+  // group can put one divider between each two that stand.
+  //
+  // Each is named by its word (`aria-label`), because where the bar is narrow
+  // the word is hidden and a hidden word names nothing: a voice-control reader
+  // says what the button shows, so the name is that word (#576, WCAG 2.5.3).
+  // Columns keeps the longer label it always had, which holds its word.
+  const actions = [
+    // Columns opens the picker popover. Present from the first pending row,
+    // not only once a report exists: the bar keeping its full membership is
+    // what makes it read as one control surface (#242 review).
+    showTable && {
+      key: 'columns',
+      node: (
+        <button
+          ref={columnsButtonRef}
+          onClick={onToggleColumns}
+          aria-expanded={columnsOpen}
+          aria-label="Choose which columns to display"
+          className={ACTION_ITEM}
+        >
+          <IconColumns className="flex-shrink-0" />
+          <span className={BAR_LABEL}>Columns</span>
+        </button>
+      ),
+    },
+    // Which of the selected models the chart draws (#232). A bar member
+    // rather than a control on the chart, for the reason every other
+    // comparison control is in one place: the chart is read, not operated.
+    // Standing under exactly the condition Columns stands under, because a bar
+    // that gains and loses members is a bar a reader has to look for (#242
+    // review), and the question it asks is about the panel's selection, which
+    // does not wait on a fetch.
+    showTable && {
+      key: 'models',
+      node: (
+        <button
+          ref={modelsButtonRef}
+          onClick={onToggleModels}
+          aria-expanded={modelsOpen}
+          aria-label="Models"
+          className={ACTION_ITEM}
+        >
+          <IconModels className="flex-shrink-0" />
+          <span className={BAR_LABEL}>Models</span>
+        </button>
+      ),
+    },
+    // Removed rows (#241): a removal's only undo, so it is a standing bar
+    // member rather than a transient toast; removals persist across live knobs
+    // and refreshes, and so does the way back. Hidden at zero: nothing to
+    // restore.
+    removedCount > 0 && {
+      key: 'removed',
+      node: (
+        <button
+          ref={removedButtonRef}
+          onClick={onToggleRemoved}
+          aria-expanded={removedOpen}
+          aria-label={`Removed (${removedCount})`}
+          className={ACTION_ITEM}
+        >
+          <IconRestore className="flex-shrink-0" />
+          <span className={BAR_LABEL}>Removed ({removedCount})</span>
+        </button>
+      ),
+    },
+    canDownload && {
+      key: 'download',
+      node: (
+        <button onClick={onDownloadCsv} aria-label="Download CSV" className={ACTION_ITEM}>
+          <IconDownload className="flex-shrink-0" />
+          <span className={BAR_LABEL}>Download CSV</span>
+        </button>
+      ),
+    },
+  ].filter((action) => action !== false)
   return (
     <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
       <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
@@ -142,11 +221,12 @@ export default function ResultsBar({
         </div>
         {/* Two groups: the mode switch at the left and the buttons at the
             right, with a gap between them that reads as a separation rather
-            than a word space (#687, the maintainer on #709): gap-x-6, 24px,
-            three times the 8px between two buttons. Folded, the row spans the
-            bar and the groups stand at its two ends; on one line they sit at
-            the bar's right end, the gap still between them. */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-6 gap-y-1">
+            than a word space (#687, the maintainer on #709). On one line they
+            sit at the bar's right end 24px apart (gap-x-6). Folded, the row
+            spans the bar and the groups stand at its two ends, at least 16px
+            apart (gap-x-4): at 360px the two glyph groups leave the line 19px,
+            which 24 would have wrapped. */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @4xl:gap-x-6">
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
               144px column (SEGMENT_FLUID exists because this shipped
@@ -160,7 +240,7 @@ export default function ResultsBar({
                 aria-label="Show table only"
               >
                 <IconTable className="flex-shrink-0" />
-                <span className="hidden sm:inline">Table</span>
+                <span className={BAR_LABEL}>Table</span>
               </button>
               <div className={SEGMENT_DIVIDER} />
               <button
@@ -170,7 +250,7 @@ export default function ResultsBar({
                 aria-label="Show chart only"
               >
                 <IconChart className="flex-shrink-0" />
-                <span className="hidden sm:inline">Chart</span>
+                <span className={BAR_LABEL}>Chart</span>
               </button>
               <div className={SEGMENT_DIVIDER} />
               {/* Disabled rather than removed where the viewport
@@ -188,82 +268,24 @@ export default function ResultsBar({
                 aria-label="Show both chart and table"
               >
                 <IconChartTable className="flex-shrink-0" />
-                <span className="hidden sm:inline">Both</span>
+                <span className={BAR_LABEL}>Both</span>
               </button>
             </div>
           )}
-          {/* The buttons' group. Folded, it takes the line's remaining width
-              from a zero basis and right-justifies inside it, so Columns and
-              Models stay beside the switch on a phone and only what does not
-              fit wraps under them, at the right; on one line it is as wide as
-              its buttons. Removed joins it whenever it shows. */}
-          <div className="flex min-w-0 flex-1 basis-0 flex-wrap items-center justify-end gap-x-2 gap-y-1 @4xl:flex-none @4xl:basis-auto">
-            {/* Columns button opens picker popover. Present from the
-                first pending row, not only once a report exists: the
-                bar keeping its full membership is what makes it read
-                as one control surface (#242 review).
-
-                This and the three beside it are ghost buttons with a glyph
-                (#687): they were underlined links, and the bar mixed four
-                control styles. They read at `TEXT.control`, the size of
-                every other control in the app, and keep their words. */}
-            {showTable && (
-              <button
-                ref={columnsButtonRef}
-                onClick={onToggleColumns}
-                aria-expanded={columnsOpen}
-                aria-label="Choose which columns to display"
-                className={BUTTON_GHOST}
-              >
-                <IconColumns className="flex-shrink-0" />
-                Columns
-              </button>
-            )}
-            {/* Which of the selected models the chart draws (#232). A
-                bar member rather than a control on the chart, for the
-                reason every other comparison control is in one place:
-                the chart is read, not operated. Standing, under exactly
-                the condition Columns stands under, because a bar that
-                gains and loses members is a bar a reader has to look for
-                (#242 review) — and the question it asks is about the
-                panel's selection, which does not wait on a fetch. */}
-            {showTable && (
-              <button
-                ref={modelsButtonRef}
-                onClick={onToggleModels}
-                aria-expanded={modelsOpen}
-                className={BUTTON_GHOST}
-              >
-                <IconModels className="flex-shrink-0" />
-                Models
-              </button>
-            )}
-            {/* Removed rows (#241): a removal's only undo, so it is a
-                standing bar member rather than a transient toast —
-                removals persist across live knobs and refreshes, and so
-                does the way back. Hidden at zero: nothing to restore.
-
-                This and Download CSV are named by the words they show,
-                with no label over them: a reader using voice control
-                says what is on the screen, and a label without those
-                words left nothing to match (#576, WCAG 2.5.3). */}
-            {removedCount > 0 && (
-              <button
-                ref={removedButtonRef}
-                onClick={onToggleRemoved}
-                aria-expanded={removedOpen}
-                className={BUTTON_GHOST}
-              >
-                <IconRestore className="flex-shrink-0" />
-                Removed ({removedCount})
-              </button>
-            )}
-            {canDownload && (
-              <button onClick={onDownloadCsv} className={BUTTON_GHOST}>
-                <IconDownload className="flex-shrink-0" />
-                Download CSV
-              </button>
-            )}
+          {/* The buttons' group, a sibling of the switch in its look (#687,
+              the maintainer on #709): one bordered well, a divider between
+              items, each its glyph and, where the bar can hold every word on
+              one line, its word (`BAR_LABEL`). Removed joins it whenever it
+              shows, and the wide chevron stands after it. */}
+          <div className="flex items-center gap-2">
+            <div className={ACTION_GROUP}>
+              {actions.map((action, i) => (
+                <Fragment key={action.key}>
+                  {i > 0 && <div className={SEGMENT_DIVIDER} />}
+                  {action.node}
+                </Fragment>
+              ))}
+            </div>
             {/* The Open-Meteo credit stands on the map's attribution line since
                 #687, rather than a fifth member here that took a line of its
                 own on a phone. */}

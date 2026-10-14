@@ -129,16 +129,16 @@ describe('bothFits', () => {
     expect(bothFits(521)).toBe(true)
   })
 
-  // Measured 2026-10-13 at 360px wide: `draggedMapFloorPx(2)` is 434 (the
+  // Measured 2026-10-13 at 360px wide: `draggedMapFloorPx(2)` is 412 (the
   // timeline's band, the inset the map's button column ends at, the sheet's
-  // header and its two grips), so Both needs more than 674px of viewport. A
+  // header and its two grips), so Both needs more than 652px of viewport. A
   // 640px phone is under it and an 800px one is over. It was 672 until the
-  // results bar's actions became buttons in two groups (#687) and the
-  // header's tallest state grew 2px.
-  it('puts the phone threshold at 674px', () => {
-    expect(draggedMapFloorPx(2)).toBe(434)
-    expect(bothFits(674, phone)).toBe(false)
-    expect(bothFits(675, phone)).toBe(true)
+  // results bar's actions became one line of glyphs on a phone (#687) and the
+  // header lost 20px.
+  it('puts the phone threshold at 652px', () => {
+    expect(draggedMapFloorPx(2)).toBe(412)
+    expect(bothFits(652, phone)).toBe(false)
+    expect(bothFits(653, phone)).toBe(true)
     expect(bothFits(640, phone)).toBe(false)
     expect(bothFits(800, phone)).toBe(true)
   })
@@ -148,7 +148,7 @@ describe('bothFits', () => {
   // their floor and a drag cannot take either below it, so a resolver that
   // returns two floors is a resolver with nothing left to give.
   it('agrees with the resolver about when both panels are pinned', () => {
-    for (const availPx of [400, 600, 674, 675, 700, 900]) {
+    for (const availPx of [400, 600, 652, 653, 700, 900]) {
       const { chart, table } = resolvePanelHeights(220, 220, {
         chartShown: true,
         tableShown: true,

@@ -12,7 +12,9 @@ import {
   BUTTON_ACCENT,
   BUTTON_DANGER,
   BUTTON_FLOATING,
-  BUTTON_GHOST,
+  ACTION_GROUP,
+  ACTION_ITEM,
+  BAR_LABEL,
   DIALOG_FOOT,
   DRAG,
   DRAW_BAR,
@@ -2210,22 +2212,41 @@ describe('the merged roles', () => {
 })
 
 describe('the results bar buttons', () => {
-  // A word and a glyph, no fill until hovered: one control style for the
-  // bar's four buttons (#687). Measured on the v4 oklch steps.
-  const MEASURED = { onBar: 8.4, onHover: 6.14 }
-
-  it('rests without a fill and fills under the pointer', () => {
-    expect(BUTTON_GHOST).toContain(TEXT.control)
-    expect(BUTTON_GHOST).toContain(RADIUS.control)
-    expect(BUTTON_GHOST).toContain(FOCUS_RING)
-    expect(BUTTON_GHOST).not.toMatch(/(^|\s)bg-/)
-    expect(BUTTON_GHOST).toContain('hover:bg-slate-600')
-    for (const ratio of Object.values(MEASURED)) expect(ratio).toBeGreaterThanOrEqual(4.5)
+  // One group in the mode switch's look (#687, the maintainer on #709): the
+  // same well, the same half and the same idle fill, so the two read as
+  // siblings and stand at one height on either pointer.
+  it('reads as the sibling of the mode switch', () => {
+    expect(ACTION_GROUP).toBe(SEGMENT_FLUID)
+    expect(ACTION_ITEM).toContain(SEGMENT_IDLE)
+    for (const part of [TAP.action, FOCUS_RING, 'py-0.5', 'text-xs', 'gap-1.5']) {
+      expect(SEGMENT_ITEM).toContain(part)
+      expect(ACTION_ITEM).toContain(part)
+    }
+    expect(ACTION_ITEM).toContain('flex-none')
   })
 
-  // The results bar keeps its own density, the exception TAP is written for.
-  it('takes no tap target', () => {
-    expect(BUTTON_GHOST).not.toContain('touch:')
+  // A glyph alone is 16px plus the item's inset each side. 28px wide passes
+  // WCAG 2.2's target spacing on a fine pointer, where the item is 22px tall:
+  // a 24px circle on its centre stays inside its own width (record 0130's
+  // test). On a coarse pointer TAP.action makes it 44.
+  it('leaves an icon-only item wide enough to pass by spacing', () => {
+    const inset = stepPx(ACTION_ITEM, 'px')
+    expect(16 + 2 * inset).toBe(28)
+    expect((16 + 2 * inset) / 2).toBeGreaterThanOrEqual(12)
+  })
+
+  // One width rule for every word on the bar, from the measured line: the
+  // labelled switch, the labelled group with Removed, the folded line's 16px
+  // gap and two more digits of a Removed count.
+  it('shows the words only where the measured line fits', () => {
+    const MEASURED = { switch: 176.7, group: 377.8, gap: 16, digits: 13.4 }
+    const fits = Number(BAR_LABEL.match(/@min-\[(\d+)px\]:inline/)![1])
+    expect(BAR_LABEL.startsWith('hidden ')).toBe(true)
+    expect(fits).toBe(Math.ceil(MEASURED.switch + MEASURED.group + MEASURED.gap + MEASURED.digits))
+    // The docked bar at 1024 wide has 640px and keeps them; the widest phone
+    // measured, 430, has 406.
+    expect(640).toBeGreaterThanOrEqual(fits)
+    expect(406).toBeLessThan(fits)
   })
 })
 

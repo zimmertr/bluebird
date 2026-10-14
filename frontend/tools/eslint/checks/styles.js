@@ -368,23 +368,34 @@ export const STYLES = [
   {
     // The results bar's buttons are controls, so they read at the control
     // size; the micro step is for text that is present but never first. Since
-    // #687 they are ghost buttons rather than links, one style for the four,
-    // and the Open-Meteo credit lives on the map's attribution line, so the
-    // bar holds no link at all. The window caption sits on the lifted fill,
-    // where the caption tier fails AA.
+    // #687 they are one group in the mode switch's look rather than links,
+    // every word on the bar is shown by the one width rule (`BAR_LABEL`), and
+    // the Open-Meteo credit lives on the map's attribution line, so the bar
+    // holds no link at all. The window caption sits on the lifted fill, where
+    // the caption tier fails AA.
     name: 'style-results-bar',
     files: ['src/components/ResultsBar.tsx'],
     ban: [
       { selector: interp('TEXT.micro'), message: 'Reach for no TEXT.micro in the results bar.' },
       { selector: titleCaption('TEXT.caption'), message: 'Set the window title in CAPTION_LIFTED, not TEXT.caption.' },
       { selector: 'JSXOpeningElement[name.name="a"]', message: 'Put no link in the results bar: its credit is on the map\'s attribution line.' },
-      { selector: interp('LINK'), message: 'Draw a results bar button as BUTTON_GHOST, not as a link.' },
+      { selector: interp('LINK'), message: 'Draw a results bar button as ACTION_ITEM, not as a link.' },
     ],
     require: [
       {
-        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="BUTTON_GHOST"]',
+        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_ITEM"]',
         count: 4,
-        message: 'The four results bar buttons wear BUTTON_GHOST.',
+        message: 'The four results bar buttons wear ACTION_ITEM.',
+      },
+      {
+        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="ACTION_GROUP"]',
+        count: 1,
+        message: 'The results bar buttons stand in one ACTION_GROUP.',
+      },
+      {
+        selector: 'JSXAttribute[name.name="className"] > JSXExpressionContainer > Identifier[name="BAR_LABEL"]',
+        count: 7,
+        message: 'Every word on the bar, the switch\'s three and the buttons\' four, wears BAR_LABEL.',
       },
       { selector: titleCaption('CAPTION_LIFTED'), message: 'Set the window title in CAPTION_LIFTED.' },
     ],
