@@ -13,7 +13,7 @@ A clicked basemap peak or lake opened a popup in the plain chrome: the name over
 
 ## Decision
 
-`poiPopupHtml` builds the result card (`popupShell` with `resultCard`), and the map opens it with the result card's class and width rule. Its facts line is `factsRow` from what the tile knows: the kind, in the word the table's Type column will use for the place once analyzed (`TYPE_COL.format` over `placeType`, so OSM's `volcano` reads `Peak`), the elevation as `elevationFact` says it where the tile carries one, and the coordinates. A fact the tile does not have is left off rather than fetched or filled in. The body holds the add or remove button alone, with the body's own padding around it and no gap of its own.
+`poiPopupHtml` builds the result card (`popupShell` with `resultCard`), and the map opens it with the result card's class and width rule. Its facts line is `factsRow` from what the tile knows: the kind, in the word the table's Type column will use for the place once analyzed (`TYPE_COL.format` over `placeType`, so OSM's `volcano` reads `Peak`), the elevation as `elevationFact` says it where the tile carries one, and the coordinates. A fact the tile does not have is left off rather than fetched or filled in. The body holds the add or remove button alone, centred, with the body's own padding around it and no gap of its own (TJ, 2026-10-14: left against the edge it read as a row that lost its label; the alternative, the full width the panel's Analyze button takes, was offered and not taken).
 
 ## Evidence
 

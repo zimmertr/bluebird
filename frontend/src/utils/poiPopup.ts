@@ -57,10 +57,13 @@ function poiTypeFact(poi: BasemapPoi): string | null {
  */
 export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number): string {
   // The button stands alone in the body, under the band's edge, with the
-  // body's own padding around it; it needs no gap of its own.
-  const action = added
+  // body's own padding around it; it needs no gap of its own. It is centred
+  // (TJ, 2026-10-14): a lone action left against the edge of a card the facts
+  // line made wider than it read as a row that lost its label.
+  const button = added
     ? popupButton(`${POI_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis')
     : popupButton(`${POI_ACTION_ATTR}="add"`, 'primary', 'Add to analysis')
+  const action = `<div style="text-align:center">${button}</div>`
 
   // The facts line a ranked result wears, from what the tile knows: the kind,
   // the elevation where there is one, and the coordinates. The elevation used
