@@ -768,6 +768,72 @@ describe('the snowfall ramp', () => {
   })
 })
 
+describe('the light theme\'s cell ink (#706)', () => {
+  // On the light panel a cell keeps the band at 20% for its tint and prints
+  // its number in the band's own hue at Tailwind v4's 800 step, interpolated
+  // between bands the way the band is. Measured 2026-10-15 on the light
+  // panel's #eef2f9 under each band's tint, recomputed here from the
+  // constants so a shade that moves forces a re-measurement. The 700 steps
+  // were measured first, at 3.8 to 5.0:1, which is why it is the 800s.
+  const LIGHT_PANEL = '#eef2f9'
+  const MEASURED: Record<string, readonly number[]> = {
+    precip: [5.45, 5.42, 5.44, 5.78, 6.27, 6.27],
+    wind: [5.45, 5.42, 5.44, 5.78, 6.27, 6.27],
+    aqi: [5.45, 5.42, 5.44, 5.78, 6.27, 6.27],
+    cloud_deck: [6.27, 6.27, 5.78, 5.44, 5.42, 5.45],
+    temp: [7.26, 5.83, 6.05, 5.45, 5.44, 5.78],
+    freeze: [7.26, 7.45, 8.06, 7.18, 5.83, 6.05],
+    snowfall: [6.05, 5.83, 7.18, 8.06, 7.45, 7.26],
+  }
+
+  it('prints every band\'s number at 4.5:1 or better on its own tint', () => {
+    expect(Object.keys(MEASURED).sort()).toEqual(Object.keys(METRIC_SCALE).sort())
+    for (const [family, ratios] of Object.entries(MEASURED)) {
+      const scale = METRIC_SCALE[family as keyof typeof METRIC_SCALE]
+      expect(scale.ink, family).toHaveLength(scale.colors.length)
+      scale.colors.forEach((band, i) => {
+        const ratio = contrast(scale.ink[i], mixOver(band, LIGHT_PANEL, 0.2))
+        expect(round2(ratio), `${family} band ${i}`).toBe(ratios[i])
+        expect(ratio, `${family} band ${i}`).toBeGreaterThanOrEqual(4.5)
+      })
+    }
+  })
+
+  // The ink is the band's hue a step down, so a reversed ramp reverses it and
+  // the rate scales carry their totals' ink.
+  it('runs each ramp\'s ink the way its bands run', () => {
+    expect(METRIC_SCALE.cloud_deck.ink).toEqual([...METRIC_SCALE.precip.ink].reverse())
+    expect(METRIC_SCALE.snowfall.ink).toEqual([...METRIC_SCALE.freeze.ink].reverse())
+    expect(METRIC_SCALE.wind.ink).toEqual(METRIC_SCALE.precip.ink)
+    expect(scaleFor('precip_max_in_hr', false)!.ink).toEqual(METRIC_SCALE.precip.ink)
+    expect(scaleFor('snowfall_max_in_hr', false)!.ink).toEqual(METRIC_SCALE.snowfall.ink)
+  })
+
+  it('keeps the tint and changes only the ink', () => {
+    const dark = cellStyle(0, METRIC_SCALE.precip, 'dark')
+    const light = cellStyle(0, METRIC_SCALE.precip, 'light')
+    expect(light.backgroundColor).toBe(dark.backgroundColor)
+    // green-800, #016630.
+    expect(light.color).toBe('rgb(1,102,48)')
+    // Dark is the recipe it always was, and the default.
+    expect(dark).toEqual(cellStyle(0, METRIC_SCALE.precip))
+    expect(dark.color).toBe('rgb(34,197,94)')
+  })
+
+  it('interpolates the ink between bands the way it interpolates the band', () => {
+    // At 0.10 the ink is yellow-800 exactly; between 0.01 and 0.10 it lies
+    // between green-800 and yellow-800, channel by channel.
+    expect(cellStyle(0.1, METRIC_SCALE.precip, 'light').color).toBe('rgb(137,75,0)')
+    const [r, g, b] = cellStyle(0.04, METRIC_SCALE.precip, 'light').color.match(/\d+/g)!.map(Number)
+    expect(r).toBeGreaterThan(1)
+    expect(r).toBeLessThan(137)
+    expect(g).toBeLessThan(102)
+    expect(g).toBeGreaterThan(75)
+    expect(b).toBeLessThan(48)
+    expect(b).toBeGreaterThan(0)
+  })
+})
+
 // WCAG relative luminance and contrast, used only to keep the measured tables
 // above honest. Small enough to live here rather than become a shared helper
 // nothing else has asked for.

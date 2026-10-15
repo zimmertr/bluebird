@@ -1,5 +1,6 @@
 import { SortBy } from '../types'
 import { FAMILY_KEYS, MetricFamily, UNIT } from '../metrics'
+import type { Theme } from './viewPrefs'
 
 /**
  * A set of band boundaries and the colors they anchor.
@@ -17,6 +18,17 @@ export type ColorScale = {
   // more last-band width, then clamp.
   thresholds: number[]
   colors: readonly string[]
+  /**
+   * The light theme's cell text, one per band (#706; record 0156). A table
+   * cell paints its band at 20% under text in the band itself, which reads on
+   * the dark panel and fails on the light one, where these 300 and 500 steps
+   * are pale. So in light the tint stays the band and the TEXT is the same
+   * hue's Tailwind v4 800 step, interpolated between bands the way the band
+   * is. The 700 steps were measured first and fail (3.8 to 5.0:1); the 800s
+   * clear 4.5:1 on every band's tint over the light panel, which
+   * `colors.test.ts` measures band by band.
+   */
+  ink: readonly string[]
 }
 
 /**
@@ -86,6 +98,20 @@ export const VERDICT_RAMP: readonly string[] = [
  */
 export const VERDICT_RAMP_REVERSED: readonly string[] = [...VERDICT_RAMP].reverse()
 
+/**
+ * The verdict ramp's light-theme ink: each hue's 800 step (green, yellow,
+ * orange, red, purple), and red-900 for the maroon, whose band is already
+ * red-800 (#706).
+ */
+const VERDICT_INK: readonly string[] = ['#016630', '#894b00', '#9f2d00', '#9f0712', '#6e11b0', '#82181a']
+
+/**
+ * The freezing level's light ink, cold to warm: purple, violet, indigo, blue,
+ * sky and cyan at 800 (#706). Snowfall wears it reversed, as it wears the
+ * freezing level's bands.
+ */
+const FREEZE_INK: readonly string[] = ['#6e11b0', '#5d0ec0', '#372aac', '#193cb8', '#00598a', '#005f78']
+
 // Scales are anchored to absolute conditions, not to the chosen ranking
 // direction: ranking "highest" simply surfaces the far end of the same scale
 // first.
@@ -129,6 +155,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   precip: {
     thresholds: [0.01, 0.10, 0.25, 0.50, 1.00],
     colors: VERDICT_RAMP,
+    ink: VERDICT_INK,
     // "in" rather than an inch mark (TJ, 2026-09-16): the column header, the
     // bound boxes and the rate scale below all spell the unit, and the legend
     // was the one surface that did not.
@@ -141,6 +168,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   wind: {
     thresholds: [5, 15, 25, 35, 50],
     colors: VERDICT_RAMP,
+    ink: VERDICT_INK,
     unit: UNIT.wind,
   },
   // An exception to the verdict ramp, because a temperature has a bad end on
@@ -168,6 +196,8 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   temp: {
     thresholds: [30, 45, 60, 75, 90],
     colors: ['#d8b4fe', '#38bdf8', '#67e8f9', '#22c55e', '#f97316', '#ef4444'],
+    // purple, sky, cyan, green, orange and red at 800.
+    ink: ['#6e11b0', '#00598a', '#005f78', '#016630', '#9f2d00', '#9f0712'],
     unit: UNIT.temp,
   },
   // An exception to the verdict ramp, because it is not a verdict, and the
@@ -203,6 +233,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   freeze: {
     thresholds: [4000, 8000, 12000, 16000, 20000],
     colors: ['#d8b4fe', '#c4b5fd', '#a5b4fc', '#93c5fd', '#38bdf8', '#67e8f9'],
+    ink: FREEZE_INK,
     unit: UNIT.freeze,
   },
   // An exception to the verdict ramp for the freezing level's reason: new
@@ -228,6 +259,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   snowfall: {
     thresholds: [0.1, 1.0, 2.5, 5.0, 10.0],
     colors: ['#67e8f9', '#38bdf8', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe'],
+    ink: [...FREEZE_INK].reverse(),
     unit: UNIT.snowfall,
   },
   // The verdict ramp reversed (#510, which amends record 0113's colour
@@ -251,6 +283,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   cloud_deck: {
     thresholds: [3000, 6000, 9000, 12000, 15000],
     colors: VERDICT_RAMP_REVERSED,
+    ink: [...VERDICT_INK].reverse(),
     unit: UNIT.cloud_deck,
   },
   // The scale the verdict ramp was taken from: the EPA's six categories on the
@@ -260,6 +293,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
   aqi: {
     thresholds: [50, 100, 150, 200, 300],
     colors: VERDICT_RAMP,
+    ink: VERDICT_INK,
     // The one scale with no unit at all: the index is unitless, so the map
     // legend's label for it is the bare noun where every other scale's reads
     // `Temperature (°F)`.
@@ -290,6 +324,7 @@ export const METRIC_SCALE: Record<ColoredFamily, LabelledScale> = {
 const PRECIP_RATE: LabelledScale = {
   thresholds: [0.01, 0.10, 0.30, 0.50, 1.00],
   colors: VERDICT_RAMP,
+  ink: VERDICT_INK,
   // "in/hr" against the window scale's "in": the difference is the whole point
   // of this scale existing, and the map legend shows one or the other with
   // nothing beside it to compare against — so the unit has to say which
@@ -309,6 +344,7 @@ const SNOWFALL_RATE: LabelledScale = {
   // Spelled rather than multiplied, so no boundary is a float product.
   thresholds: [0.1, 1.0, 3.0, 5.0, 10.0],
   colors: METRIC_SCALE.snowfall.colors,
+  ink: METRIC_SCALE.snowfall.ink,
   unit: `${UNIT.snowfall}/hr`,
 }
 
@@ -416,8 +452,11 @@ function mix(
   return [lerp(ca[0], cb[0], f), lerp(ca[1], cb[1], f), lerp(ca[2], cb[2], f)]
 }
 
-function interpolateRgb(value: number, scale: ColorScale): [number, number, number] {
-  const { thresholds, colors } = scale
+function interpolateRgb(
+  value: number,
+  thresholds: readonly number[],
+  colors: readonly string[],
+): [number, number, number] {
   const anchors = colors.map(hexToRgb)
   if (value <= thresholds[0]) return [...anchors[0]] as [number, number, number]
   for (let i = 1; i < thresholds.length; i++) {
@@ -450,7 +489,7 @@ export function markerColor(value: number, sortBy: SortBy): string | null {
  * the window scale its ranking uses.
  */
 export function colorOnScale(value: number, scale: ColorScale): string {
-  const [r, g, b] = interpolateRgb(value, scale)
+  const [r, g, b] = interpolateRgb(value, scale.thresholds, scale.colors)
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
@@ -464,14 +503,22 @@ export function colorOnScale(value: number, scale: ColorScale): string {
  * 0.55 in/hr peak inside a 0.10" window showed both cells at the window's
  * color, so the peak the reader was looking for was the one thing the color
  * could not tell them.
+ *
+ * The theme picks the ink (#706; record 0156): the band itself on the dark
+ * panel, as it always was, and the band's 800 step (`ColorScale.ink`) on the
+ * light one, where the band is too pale to read as text. The tint is the band
+ * at 20% in both.
  */
 export function cellStyle(
   value: number,
   scale: ColorScale,
+  theme: Theme = 'dark',
 ): { backgroundColor: string; color: string } {
-  const [r, g, b] = interpolateRgb(value, scale)
+  const [r, g, b] = interpolateRgb(value, scale.thresholds, scale.colors)
+  const [ir, ig, ib] =
+    theme === 'light' ? interpolateRgb(value, scale.thresholds, scale.ink) : [r, g, b]
   return {
     backgroundColor: `rgba(${r},${g},${b},0.2)`,
-    color: `rgb(${r},${g},${b})`,
+    color: `rgb(${ir},${ig},${ib})`,
   }
 }

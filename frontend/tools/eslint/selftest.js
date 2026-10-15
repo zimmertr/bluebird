@@ -14,11 +14,12 @@ import { CLASS_BANS, METRIC_BAN, PANEL_BANS } from './eslint.config.js'
 import { checksPlugin, messagesOf } from './plugin.js'
 
 // Two fixtures trip a second ban by construction: a dimmed placeholder and a
-// restated recipe both spell a slate text colour. Listing both is the point.
-const SLATE = 'Take slate text from a role'
+// restated recipe both spell a panel text ink. Listing both is the point.
+const SLATE = "Take the panel's text ink from a role"
 const EXPECTED = {
   'clean.tsx': [],
   'hue.tsx': ['A hue carries meaning'],
+  'hue-token.tsx': ['A hue carries meaning'],
   'metric.tsx': ['Compose a metric name'],
   'panel-heading.tsx': ['Give a panel heading its treatment'],
   'panel-width.tsx': ['The panel is one width at every breakpoint'],
@@ -26,6 +27,7 @@ const EXPECTED = {
   'recipe.tsx': [SLATE, 'Compose the shared recipe'],
   'size.tsx': ['Size text through a TEXT or PROSE role'],
   'slate-text.tsx': [SLATE],
+  'surface.tsx': ['A slate, white or black step cannot follow the theme'],
   'touch.tsx': ['The touch variant belongs to a TAP role'],
 }
 

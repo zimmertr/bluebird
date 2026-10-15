@@ -46,13 +46,8 @@ import {
   hourIndexAt,
   readoutPlace,
 } from '../utils/chartPointer'
-import {
-  CHART_AXIS_COLOR,
-  CHART_GRID_COLOR,
-  CHART_PLAYHEAD_COLOR,
-  CHART_SURFACE_COLOR,
-  CHART_TICK_PX,
-} from '../utils/chartColors'
+import { CHART_CHROME, CHART_TICK_PX, type ChartChrome } from '../utils/chartColors'
+import type { Theme } from '../utils/viewPrefs'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
@@ -74,8 +69,12 @@ const Y_AXIS_WIDTH = Y_AXIS_WIDTH_PX
 // extreme value (#699). One stroke and one label style for all of them, so
 // they read as one kind of mark and cannot drift apart. Dashed so none can be
 // mistaken for a series, and in the axis colour because each marks a fact
-// about the data rather than a warning.
-const CHROME_LINE = { stroke: CHART_AXIS_COLOR, strokeDasharray: '4 3' } as const
+// about the data rather than a warning. One per theme (#706), hoisted, so
+// Recharts is handed one object per theme rather than a new one a render.
+const CHROME_LINE: Record<Theme, { stroke: string; strokeDasharray: string }> = {
+  dark: { stroke: CHART_CHROME.dark.axis, strokeDasharray: '4 3' },
+  light: { stroke: CHART_CHROME.light.axis, strokeDasharray: '4 3' },
+}
 //
 // Every label wears a halo in the panel's own colour: the stroke is painted
 // first (`paintOrder`), so it erases whatever line runs under the letters and
@@ -83,13 +82,13 @@ const CHROME_LINE = { stroke: CHART_AXIS_COLOR, strokeDasharray: '4 3' } as cons
 // series crossed it. 3px is a pixel and a half either side of an 11px glyph's
 // strokes, enough to clear a 2.5px focused line without fattening the type.
 type ChromeLabelPosition = 'insideTopLeft' | 'insideTopRight' | 'insideBottomRight'
-function chromeLabel(value: string, position: ChromeLabelPosition) {
+function chromeLabel(value: string, position: ChromeLabelPosition, chrome: ChartChrome) {
   return {
     value,
     position,
-    fill: CHART_AXIS_COLOR,
+    fill: chrome.axis,
     fontSize: CHART_TICK_PX,
-    stroke: CHART_SURFACE_COLOR,
+    stroke: chrome.surface,
     strokeWidth: 3,
     strokeLinejoin: 'round' as const,
     paintOrder: 'stroke',
@@ -172,6 +171,13 @@ interface Props {
    * than a row above it, and the plot is inset under the title's line.
    */
   titled?: boolean
+  /**
+   * The theme its chrome paints in (#706). A value rather than a CSS token,
+   * because Recharts writes strokes and fills as SVG presentation attributes,
+   * which do not resolve `var()`. The lines' own colours arrive through
+   * `colorFor`, already resolved for it.
+   */
+  theme?: Theme
 }
 
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
@@ -194,7 +200,9 @@ function TimeSeriesChart({
   modelEnds = NO_MODEL_ENDS,
   controls,
   titled = false,
+  theme = 'dark',
 }: Props) {
+  const chrome = CHART_CHROME[theme]
   const plotRef = useRef<HTMLDivElement>(null)
   // Where the last finger went down on the plot, for the click its tap makes.
   const tapXRef = useRef<number | null>(null)
@@ -479,21 +487,21 @@ function TimeSeriesChart({
               onClick={onPlayheadChange ? handleClick : undefined}
               className={onPlayheadChange ? 'cursor-pointer' : undefined}
             >
-              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" />
+              <CartesianGrid stroke={chrome.grid} strokeDasharray="3 3" />
               <XAxis
                 dataKey="t"
                 type="number"
                 scale="time"
                 domain={['dataMin', 'dataMax']}
                 height={X_AXIS_HEIGHT}
-                stroke={CHART_AXIS_COLOR}
+                stroke={chrome.axis}
                 tick={AXIS_TICK}
                 tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
               />
               <YAxis
                 domain={[yMin, yMax]}
                 width={Y_AXIS_WIDTH}
-                stroke={CHART_AXIS_COLOR}
+                stroke={chrome.axis}
                 tick={AXIS_TICK}
                 tickFormatter={(v: any) => formatMetricValue(v, metric)}
               />
@@ -501,7 +509,7 @@ function TimeSeriesChart({
                   chrome marking where the x-axis changes meaning, not a warning.
                   Dashed so it cannot be mistaken for a series. */}
               {nowMs !== null && (
-                <ReferenceLine x={nowMs} {...CHROME_LINE} label={chromeLabel('Now', 'insideTopLeft')} />
+                <ReferenceLine x={nowMs} {...CHROME_LINE[theme]} label={chromeLabel('Now', 'insideTopLeft', chrome)} />
               )}
               {/* Where a compared model's forecast ends. Chrome marking where
                   one model's data stops, not a warning, so it wears the axis
@@ -512,8 +520,8 @@ function TimeSeriesChart({
                 <ReferenceLine
                   key={end.endMs}
                   x={end.endMs}
-                  {...CHROME_LINE}
-                  label={chromeLabel(end.label, 'insideTopLeft')}
+                  {...CHROME_LINE[theme]}
+                  label={chromeLabel(end.label, 'insideTopLeft', chrome)}
                 />
               ))}
               {/* The map's playhead. Solid and in the accent where the "Now"
@@ -523,7 +531,7 @@ function TimeSeriesChart({
                   and a second copy of it would move with the line across a chart
                   that is mostly line already. */}
               {playheadMs !== null && (
-                <ReferenceLine x={playheadMs} stroke={CHART_PLAYHEAD_COLOR} strokeWidth={1.5} />
+                <ReferenceLine x={playheadMs} stroke={chrome.playhead} strokeWidth={1.5} />
               )}
               <Tooltip
                 isAnimationActive={false}
@@ -582,8 +590,8 @@ function TimeSeriesChart({
               {extreme !== null && (
                 <ReferenceLine
                   y={extreme}
-                  {...CHROME_LINE}
-                  label={{ ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'), content: titled ? TITLED_HEADROOM_LABEL : HEADROOM_LABEL }}
+                  {...CHROME_LINE[theme]}
+                  label={{ ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight', chrome), content: titled ? TITLED_HEADROOM_LABEL : HEADROOM_LABEL }}
                 />
               )}
             </LineChart>
@@ -664,7 +672,7 @@ function ChartTooltip({
         <div
           key={it.key}
           className={`flex items-center justify-between gap-3 ${
-            it.key === focusedKey ? 'font-semibold text-white' : ''
+            it.key === focusedKey ? 'font-semibold text-ink-strong' : ''
           }`}
         >
           <span className="flex items-center gap-1.5">

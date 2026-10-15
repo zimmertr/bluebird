@@ -25,6 +25,15 @@
  * Status text is not in the ramp. Warnings, errors and progress lines use the
  * base size with a semantic color (amber, red, sky, green) because there the
  * color carries the meaning, not the hierarchy.
+ *
+ * Every colour utility in this file names a semantic token rather than a
+ * palette step (#706; record 0156): `text-ink-soft` rather than the
+ * slate-400 text it was, `bg-panel` rather than the slate-800 fill. `index.css` gives
+ * each token two values, the dark theme's Tailwind step and the light theme's
+ * measured hex, so a role is written once and paints both themes. Where a
+ * comment below names a slate or sky step, it is the token's DARK value, and
+ * the ratio beside it is the dark theme's; `styles.test.ts` measures the same
+ * pairs for light off the values in `index.css`.
  */
 
 /**
@@ -71,7 +80,7 @@
  * the model picker's reach column (record 0131).
  */
 export const MICRO_SIZE = 'text-[11px]'
-const MICRO = `${MICRO_SIZE} text-slate-300`
+const MICRO = `${MICRO_SIZE} text-ink-mid`
 
 /**
  * The one size under the floor, for a glyph inside a box whose size is fixed
@@ -93,7 +102,7 @@ const GLYPH_SIZE = 'text-[10px]'
  * under the app title the same recipe, so what had been two roles is one, and
  * as with MICRO above, a call site cannot dim it back. (#165)
  */
-const CAPTION = 'text-xs text-slate-400'
+const CAPTION = 'text-xs text-ink-soft'
 
 /** The compact tier: panel, table, map chrome, chart. */
 export const TEXT = {
@@ -105,15 +114,15 @@ export const TEXT = {
    * 14px size, the weight and the tracking that already set it above the
    * subheading; only the step moved (the maintainer's option B, 2026-10-13).
    */
-  section: 'text-sm font-bold uppercase tracking-wider text-slate-300',
+  section: 'text-sm font-bold uppercase tracking-wider text-ink-mid',
   /** The single call to action, deliberately a step up from the panel body. */
   cta: 'text-sm font-semibold',
   /** Panel identity in the header. Outside the body ramp on purpose. */
-  appTitle: 'text-lg font-bold text-white leading-tight',
+  appTitle: 'text-lg font-bold text-ink-strong leading-tight',
   /** Named sub-blocks and the labels naming a field. */
-  subheading: 'text-xs font-semibold text-slate-200',
+  subheading: 'text-xs font-semibold text-ink',
   /** Anything you read or type in a control: radio labels, inputs, pickers. */
-  control: 'text-xs text-slate-200',
+  control: 'text-xs text-ink',
   /** Secondary text: the app tagline, a place's description, a dialog's note. */
   caption: CAPTION,
   /** Prose that explains a control without being one. */
@@ -154,16 +163,16 @@ export const PROSE = {
    */
   title: TEXT.appTitle,
   /** The line under it saying what the dialog is for. */
-  subtitle: 'text-sm text-slate-400',
+  subtitle: 'text-sm text-ink-soft',
   /** A heading inside the body copy. */
-  heading: 'text-sm font-semibold text-white',
+  heading: 'text-sm font-semibold text-ink-strong',
   /** Body copy. */
-  body: 'text-sm text-slate-300',
+  body: 'text-sm text-ink-mid',
   /**
    * Inline emphasis — the lead-in naming what a sentence is about. The one
    * role that sets no size: it modifies whatever it sits inside.
    */
-  strong: 'font-semibold text-white',
+  strong: 'font-semibold text-ink-strong',
   note: CAPTION,
 } as const
 
@@ -191,8 +200,8 @@ export const PROSE = {
  * a bare element and it inherits the browser's 16px, which is how the Options
  * section briefly got a Clear button twice the size of everything near it.
  */
-export const LINK = 'text-slate-300 hover:text-sky-400 underline'
-export const LINK_ACTION = 'text-sky-400 hover:text-sky-300 hover:underline'
+export const LINK = 'text-ink-mid hover:text-accent-ink underline'
+export const LINK_ACTION = 'text-accent-ink hover:text-accent-ink-hover hover:underline'
 /**
  * A link that cannot answer right now, said through `aria-disabled` because
  * an anchor has no `disabled` of its own: the footer's Tutorial while a draw
@@ -325,7 +334,7 @@ export const ELEVATION = {
  * box now (#454), the key and the layers sharing it.
  */
 export const SURFACE_FLOATING =
-  `bg-slate-800/95 border border-slate-600 ${RADIUS.surface} ${ELEVATION.raised} backdrop-blur-sm`
+  `bg-floating/95 border border-frame ${RADIUS.surface} ${ELEVATION.raised} backdrop-blur-sm`
 
 /**
  * The ground every full page stands on: the app's root, the standalone pages'
@@ -334,7 +343,7 @@ export const SURFACE_FLOATING =
  * ground from the component that just failed. Three spellings of one fill are
  * how the three would come to disagree about what "the page" looks like.
  */
-export const SURFACE_PAGE = 'bg-slate-900'
+export const SURFACE_PAGE = 'bg-page'
 
 /**
  * Opaque cards that sit above a scrim: the dialogs and the analysis overlay,
@@ -344,7 +353,7 @@ export const SURFACE_PAGE = 'bg-slate-900'
  * all on the dark results sheet.
  */
 export const SURFACE_CARD =
-  `bg-slate-800 border border-slate-600 ${RADIUS.surface} ${ELEVATION.overlay}`
+  `bg-panel border border-frame ${RADIUS.surface} ${ELEVATION.overlay}`
 
 /**
  * A menu unfurled out of the control that opens it (#687, record 0134): the
@@ -381,7 +390,7 @@ export const UNFURLED = {
  * wins without racing them.
  */
 export const UNFURL_ANCHOR =
-  'data-[unfurled=below]:rounded-b-none data-[unfurled=above]:rounded-t-none data-[unfurled]:border-slate-600'
+  'data-[unfurled=below]:rounded-b-none data-[unfurled=above]:rounded-t-none data-[unfurled]:border-frame'
 
 /**
  * The results sheet on a phone: the panel parked over the map's bottom edge
@@ -400,7 +409,7 @@ export const UNFURL_ANCHOR =
  * fall on, and the edge is already the strongest boundary on the screen.
  */
 export const SURFACE_SHEET =
-  `bg-slate-800 border-t border-slate-600 rounded-t-lg overflow-hidden ${ELEVATION.none}`
+  `bg-panel border-t border-frame rounded-t-lg overflow-hidden ${ELEVATION.none}`
 
 /**
  * The map's Layers popover: the one floating box that is a menu rather than a
@@ -443,7 +452,7 @@ export const SURFACE_SHEET =
  * order, so appending a lighter fill would be a bet rather than an override.
  */
 export const SURFACE_POPOVER =
-  `bg-slate-700/95 border border-slate-600 ${RADIUS.surface} ${ELEVATION.overlay} backdrop-blur-sm`
+  `bg-raised/95 border border-frame ${RADIUS.surface} ${ELEVATION.overlay} backdrop-blur-sm`
 
 /**
  * The accent, named by the jobs it does, because it does six.
@@ -495,7 +504,7 @@ export const ACCENT = {
    * The shade is the only one that clears both rules; see `--color-sky-650` in
    * `index.css` for the derivation before changing either half.
    */
-  fill: 'bg-sky-650 text-white',
+  fill: 'bg-accent text-on-fill',
   /**
    * The hover step for a fill that is a button: `BUTTON_PRIMARY` and the
    * inline `BUTTON_ACCENT`.
@@ -511,22 +520,22 @@ export const ACCENT = {
    * *resting* fill carried before #167, so no state is worse than what the app
    * already shipped, and the state you read while not touching it now passes.
    */
-  fillHover: 'hover:bg-sky-600',
+  fillHover: 'hover:bg-accent-hover',
   /** The accent as a bare graphic with nothing on it: the progress bar's fill. */
-  mark: 'bg-sky-500',
+  mark: 'bg-mark',
   /**
    * Native checkbox and radio tint, at the one size every one of them wears.
    * Six inputs across three files had the tint, and five of the six the size;
    * the chart's metric radio had drifted to the browser default.
    */
-  input: 'accent-sky-500 h-3.5 w-3.5',
+  input: 'accent-mark h-3.5 w-3.5',
   /** Resting accent text that is not a link: the table's detail-sort arrow. */
-  text: 'text-sky-400',
+  text: 'text-accent-ink',
   /** An icon or control reaching for the accent on hover. */
-  hoverText: 'hover:text-sky-400',
+  hoverText: 'hover:text-accent-ink',
   /** The accent on a boundary rather than a fill, in the two states that use it. */
-  edgeHover: 'hover:border-sky-400',
-  edgeFocus: 'focus-within:border-sky-400',
+  edgeHover: 'hover:border-accent-ink',
+  edgeFocus: 'focus-within:border-accent-ink',
 } as const
 
 /**
@@ -537,7 +546,7 @@ export const ACCENT = {
  * 2px offset, and uses sky-400 which comfortably clears the 3:1 boundary
  * contrast on the slate-800 panel.
  */
-export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400'
+export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-ink'
 
 /**
  * `FOCUS_RING` drawn inside the element's edge rather than 2px outside it: the
@@ -553,7 +562,7 @@ export const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-
  * `FOCUS_RING`, so a keyboard reader meets one indicator in two placements.
  */
 export const FOCUS_RING_INSET =
-  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sky-400'
+  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent-ink'
 
 /**
  * The full-width primary action: Analyze, and the modals' dismiss buttons.
@@ -597,7 +606,7 @@ export const BUTTON_PRIMARY =
  */
 export const BUTTON_SECONDARY =
   `${TEXT.control} ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
-  `bg-slate-700 hover:bg-slate-600 ${FOCUS_RING}`
+  `bg-raised hover:bg-raised-hover ${FOCUS_RING}`
 
 /**
  * The leading action of an inline pair: Done, with Clear beside it, ending the
@@ -704,7 +713,7 @@ const CHIP_SHAPE = `inline-flex max-w-full items-center ${RADIUS.control} pr-1 t
  */
 export const CHIP = {
   /** A selected member that is not the one in force. */
-  rest: `${CHIP_SHAPE} bg-slate-700 text-slate-200`,
+  rest: `${CHIP_SHAPE} bg-raised text-ink`,
   /** The member in force. */
   active: `${CHIP_SHAPE} ${ACCENT.fill}`,
   /**
@@ -745,7 +754,7 @@ export const CHIP = {
  */
 export const BUTTON_DANGER =
   `text-xs ${TAP.action} w-full py-1.5 ${RADIUS.control} font-medium transition-colors ` +
-  `text-red-200 bg-red-900/60 hover:bg-red-800 border border-red-700 ` +
+  `text-danger-label bg-danger-fill hover:bg-danger-fill-hover border border-danger-edge ` +
   `disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING}`
 
 /**
@@ -775,8 +784,8 @@ export const BUTTON_DANGER =
  * site, the way `FIELD` leaves padding to the control that wears it.
  */
 export const BUTTON_FLOATING =
-  `${SURFACE_FLOATING} ${CONTROL_SIZE} font-semibold text-white transition-colors ` +
-  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ${FOCUS_RING}`
+  `${SURFACE_FLOATING} ${CONTROL_SIZE} font-semibold text-ink-strong transition-colors ` +
+  `${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ${FOCUS_RING}`
 
 /**
  * The preview-deployment banner, the one surface that is deliberately loud.
@@ -790,7 +799,7 @@ export const BUTTON_FLOATING =
  * surface casting a shadow.
  */
 export const BANNER_PREVIEW =
-  'flex-shrink-0 bg-red-600 text-white text-center text-xs sm:text-sm ' +
+  'flex-shrink-0 bg-red-600 text-on-fill text-center text-xs sm:text-sm ' +
   `font-semibold py-1.5 px-4 ${ELEVATION.none}`
 
 /**
@@ -814,6 +823,11 @@ export const BANNER_PREVIEW =
  * text in the app; a 10px letter does not fit a 14px box inside its own
  * border, so the box grew to 16px instead (#687). The other keys stay 14px:
  * this one is three chips side by side, read against each other.
+ *
+ * The one palette step left in this file, and it is the same in both themes
+ * (#706): the chip's fill is the smoke layer's own colour, which the theme
+ * does not touch because the map does not change, so the letter on it does
+ * not either.
  */
 export const SWATCH_CHIP =
   `inline-flex h-4 w-4 items-center justify-center ${RADIUS.control} border ` +
@@ -875,7 +889,7 @@ export const SWATCH_RAMP =
  * ground instead of as four dark blocks punched through a six-band scale.
  */
 export const SWATCH_RAMP_SCRIM =
-  'pointer-events-none absolute inset-x-0 bottom-0 h-[11px] bg-slate-900/70'
+  'pointer-events-none absolute inset-x-0 bottom-0 h-[11px] bg-recessed/70'
 
 /**
  * One number on that band: 10px, `GLYPH_SIZE`, on the scrim. It stayed at 10
@@ -888,12 +902,16 @@ export const SWATCH_RAMP_SCRIM =
  * edges without moving a centred one, which pads symmetrically.
  */
 export const SWATCH_RAMP_TICK =
-  `relative whitespace-nowrap px-0.5 pb-px ${GLYPH_SIZE} leading-none text-slate-200`
+  `relative whitespace-nowrap px-0.5 pb-px ${GLYPH_SIZE} leading-none text-ink`
 
 /**
  * The edge every legend swatch wears, as a VALUE rather than a class.
  *
- * slate-600, the same line `SURFACE_FLOATING` draws around the box the swatches
+ * A CSS variable rather than a hex since #706, so it follows the theme without
+ * the legend re-rendering: an inline `border-color` resolves `var()` the way a
+ * class does. Its dark value is the v3 slate-600 it always was, and its light
+ * value the light theme's outline (`--ui-swatch-edge` in `index.css`). It is
+ * the same line `SURFACE_FLOATING` draws around the box the swatches
  * sit in — a swatch is chrome holding somebody else's colour, so its border is
  * the app's and its fill is not. It has to be a value because the fill beside
  * it is one: Tailwind resolves two competing colour utilities by stylesheet
@@ -901,12 +919,12 @@ export const SWATCH_RAMP_TICK =
  * `borderColor` would be a race rather than a rule. It was this hex spelled at
  * four call sites in `App.tsx` until #454.
  */
-export const SWATCH_EDGE = '#475569'
+export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
 
-export const ICON_ACTION = `text-slate-500 ${ACCENT.hoverText}`
+export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
 /** A bare icon button in a header: the chart and table collapse chevrons. */
-export const ICON_BUTTON = `px-1 text-slate-400 hover:text-white transition-colors ${FOCUS_RING}`
+export const ICON_BUTTON = `px-1 text-ink-soft hover:text-ink-strong transition-colors ${FOCUS_RING}`
 
 /**
  * A glyph drawn inside a field rather than beside it: the `SELECT` arrow.
@@ -917,7 +935,7 @@ export const ICON_BUTTON = `px-1 text-slate-400 hover:text-white transition-colo
  * fill, well past the 3:1 a UI glyph owes.
  */
 export const ICON_ADORNMENT =
-  'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400'
+  'pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ink-soft'
 
 /**
  * How big a drawn glyph is, for every icon in `components/icons.tsx`.
@@ -1001,7 +1019,7 @@ export const ICON = {
  * Size stays at the call site; everything that makes it a spinner does not.
  */
 export const SPINNER =
-  `animate-spin ${RADIUS.pill} border-2 border-slate-500 border-t-sky-400`
+  `animate-spin ${RADIUS.pill} border-2 border-edge border-t-accent-ink`
 
 /**
  * What sits in front of what.
@@ -1097,10 +1115,10 @@ export const DRAG = {
    * the resize handle wears it.
    */
   grip:
-    `cursor-grab touch-none text-slate-500 hover:text-slate-200 active:cursor-grabbing ` +
+    `cursor-grab touch-none text-ink-faint hover:text-ink active:cursor-grabbing ` +
     `transition-colors ${FOCUS_RING}`,
   /** The grip while its column is the one being moved. */
-  gripActive: 'text-slate-200',
+  gripActive: 'text-ink',
   /**
    * What a column looks like where it used to be, while it is being carried.
    *
@@ -1158,7 +1176,7 @@ export const DRAG = {
    * bar is drawn in viewport coordinates over whatever surface the drag started
    * in.
    */
-  insert: `pointer-events-none fixed ${LAYER.popover} bg-sky-650 ${RADIUS.pill}`,
+  insert: `pointer-events-none fixed ${LAYER.popover} bg-accent ${RADIUS.pill}`,
 } as const
 
 /**
@@ -1180,11 +1198,11 @@ export const DRAG = {
  * Binding them therefore raised the inputs to spec rather than lowering the
  * calendar to match them.
  */
-export const RECESSED_FILL = 'bg-slate-900'
+export const RECESSED_FILL = 'bg-recessed'
 // Not exported (#687): every surface that sinks into the panel composes it
 // here, and a call site takes the finished `FIELD`, `SEGMENT` or
 // `SLIDER.track`.
-const RECESSED_EDGE = 'border border-slate-500'
+const RECESSED_EDGE = 'border border-edge'
 
 // What a field looks like, without how big it is (#696): the control type in
 // the recessed fill and edge at the control radius. `FIELD` adds the tap
@@ -1203,14 +1221,14 @@ const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.c
  * both sides clear. The fill it closes is unchanged — only the line moves, and
  * only where the surface behind it did.
  */
-export const LIFTED_EDGE = 'border border-slate-400'
+export const LIFTED_EDGE = 'border border-edge-lifted'
 
 /**
  * `TEXT.caption` re-derived for that same fill: a search result's description.
  *
  * The caption tier is slate-400, which is 5.7:1 on the panel and 3.94:1 on the
  * popover — under the 4.5:1 WCAG 1.4.3 asks of text. slate-300 is 6.97:1 on
- * the fill and 5.89:1 on a highlighted row (`bg-slate-600/50`), so it clears on
+ * the fill and 5.89:1 on a highlighted row (slate-600 at 50%), so it clears on
  * both grounds a result line is ever drawn on. Measured on the v4 oklch steps
  * 2026-09-14. The search dropdown needs it because it moved from
  * `SURFACE_FLOATING` to the popover.
@@ -1220,7 +1238,7 @@ export const LIFTED_EDGE = 'border border-slate-400'
  * (axe measured it in the browser suite) and slate-300 is 6.97:1, so it takes
  * this role rather than `TEXT.caption`, which stays on the panel's step.
  */
-export const CAPTION_LIFTED = 'text-xs text-slate-300'
+export const CAPTION_LIFTED = 'text-xs text-ink-mid'
 
 /**
  * The idle half of a segmented choice: the ranking direction toggle's unchosen
@@ -1230,7 +1248,7 @@ export const CAPTION_LIFTED = 'text-xs text-slate-300'
  * second segmented control in the panel the *same* control rather than a
  * lookalike that drifted — the hazard #159-#165 spent five PRs on.
  */
-export const SEGMENT_IDLE = `${RECESSED_FILL} text-slate-400 hover:text-slate-200`
+export const SEGMENT_IDLE = `${RECESSED_FILL} text-ink-soft hover:text-ink`
 
 /**
  * The geometry the two halves sit in, which had been spelled out twice.
@@ -1319,7 +1337,7 @@ export const CHART_PLOT_TOUCH = 'touch-pan-y'
 export const CHART_TITLE = {
   box:
     `absolute left-3 top-3 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
-    `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-sky-500`,
+    `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-mark`,
   text: 'min-w-0 truncate',
   select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
 } as const
@@ -1564,7 +1582,7 @@ export const MAP_ROWS = {
  * and blur to `SURFACE_FLOATING`'s.
  */
 export const MAP_PILL =
-  `bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `h-10 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
 
 /**
@@ -1589,7 +1607,7 @@ export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
  * that for the buttons on 2026-10-14.
  */
 export const MAP_ROUND_BUTTON =
-  `size-10 bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `size-10 bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
 
 /**
@@ -1625,9 +1643,9 @@ export const MAP_SLOT = {
  */
 export const MAP_CREDIT = {
   button:
-    `size-6 bg-slate-800/95 border border-slate-600 ${RADIUS.pill} transition-colors ` +
+    `size-6 bg-floating/95 border border-frame ${RADIUS.pill} transition-colors ` +
     `${ACCENT.edgeHover} ${FOCUS_RING}`,
-  card: `${SURFACE_FLOATING} text-slate-300`,
+  card: `${SURFACE_FLOATING} text-ink-mid`,
 } as const
 
 /**
@@ -1667,10 +1685,10 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
  * key to show.
  */
 const CHIP_FACE =
-  `bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
-  `${CHIP_SIZE} text-white h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
-  `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ` +
-  `aria-expanded:bg-sky-650 aria-expanded:border-sky-650 ${FOCUS_RING}`
+  `bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `${CHIP_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
+  `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ` +
+  `aria-expanded:bg-accent aria-expanded:border-accent ${FOCUS_RING}`
 export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
 /**
@@ -1687,7 +1705,7 @@ export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
  * Controls sheet it raises is up (record 0141): slate-400 on the accent fill
  * fails AA, where white is the 4.57:1 every label on that fill reads at.
  */
-export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400 in-aria-expanded:text-white'
+export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-ink-soft in-aria-expanded:text-on-fill'
 
 /**
  * The button's pressed state, Material's for a floating button (TJ,
@@ -1702,7 +1720,7 @@ export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400 in-aria-ex
  * disabled button from answering a press it will not act on.
  */
 const MAP_FAB_PRESSED =
-  'after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-white ' +
+  'after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-on-fill ' +
   'after:opacity-0 after:transition-opacity enabled:active:after:opacity-[0.12] enabled:active:shadow-lg'
 
 /**
@@ -1755,7 +1773,7 @@ export const MAP_FAB_WORDS = {
 export const MAP_NOTICE_BAND =
   `absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ${LAYER.base} ${RADIUS.control} ` +
   `max-h-[66px] overflow-y-auto overscroll-contain ` +
-  `has-[>[role=status]>*]:bg-slate-800 ${YIELD_EMPTY}`
+  `has-[>[role=status]>*]:bg-panel ${YIELD_EMPTY}`
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
@@ -1904,7 +1922,7 @@ const SEGMENT_ITEM_SHAPE = segmentHalf('flex-1')
  */
 export const SEGMENT_ITEM = `${SEGMENT_ITEM_SHAPE} px-1`
 /** Between two halves, never before the first. */
-export const SEGMENT_DIVIDER = 'border-l border-slate-500'
+export const SEGMENT_DIVIDER = 'border-l border-edge'
 
 /**
  * The results bar's buttons, Columns, Models, Removed and Download CSV, as one
@@ -1967,7 +1985,7 @@ export const BAR_LABEL = 'hidden @min-[584px]:inline'
 export const CHOICE_ROW =
   `${TEXT.control} ${TAP.row} gap-2.5 cursor-pointer ` +
   `has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-40 ` +
-  `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-sky-400`
+  `has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent-ink`
 export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-middle`
 
 /**
@@ -1988,13 +2006,13 @@ export const CHOICE_INPUT = `${ACCENT.input} flex-shrink-0 cursor-pointer align-
  */
 export const STATUS = {
   /** The polygon is closed, the thing you were building is ready. */
-  ok: 'text-green-400',
+  ok: 'text-ok',
   /** Survivable: the analysis can still run, but something is worth knowing. */
-  warn: 'text-amber-300',
+  warn: 'text-warn',
   /** Blocking: it did not work, or it will not run as asked. */
-  error: 'text-red-400',
+  error: 'text-danger',
   /** Neither good nor bad, just a fact about the data you are about to get. */
-  info: 'text-sky-300',
+  info: 'text-info',
 } as const
 
 /**
@@ -2028,7 +2046,7 @@ export const STATUS = {
  * rectangle standing off a rounded field. The element wearing this owns its
  * radius permanently, and only the ring toggles.
  */
-export const ACCENT_RING = 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248,0.65)]'
+export const ACCENT_RING = 'ring-4 ring-accent-ink shadow-[0_0_18px_var(--ui-accent-glow)]'
 
 /**
  * The box a status line sits in when it is a block rather than a sentence: the
@@ -2057,9 +2075,9 @@ export const ACCENT_RING = 'ring-4 ring-sky-400 shadow-[0_0_18px_rgba(56,189,248
  * whose children color themselves individually wears this alone.
  */
 export const NOTICE = {
-  warn: `text-xs bg-amber-950/40 border border-amber-800/60 ${RADIUS.control} p-2`,
-  error: `text-xs bg-red-950/40 border border-red-800/60 ${RADIUS.control} p-2`,
-  info: `text-xs bg-sky-950/40 border border-sky-800/60 ${RADIUS.control} p-2`,
+  warn: `text-xs bg-warn-tint border border-warn-line ${RADIUS.control} p-2`,
+  error: `text-xs bg-danger-tint border border-danger-line ${RADIUS.control} p-2`,
+  info: `text-xs bg-info-tint border border-info-line ${RADIUS.control} p-2`,
 } as const
 
 /**
@@ -2084,9 +2102,9 @@ export const NOTICE = {
  * exactly as tall as it was.
  */
 export const NOTICE_DIVIDER = {
-  warn: '-my-1.5 divide-y divide-amber-800/60',
-  error: '-my-1.5 divide-y divide-red-800/60',
-  info: '-my-1.5 divide-y divide-sky-800/60',
+  warn: '-my-1.5 divide-y divide-warn-line',
+  error: '-my-1.5 divide-y divide-danger-line',
+  info: '-my-1.5 divide-y divide-info-line',
 } as const
 
 /**
@@ -2137,7 +2155,7 @@ export const NOTICE_DISMISS = {
    * The padding is the 6px each side of the rule `NOTICE_DIVIDER` draws
    * between two rows; the container cancels it at the box's own edges.
    */
-  row: `group/notice flex items-center gap-2 py-1.5 ${RADIUS.control} hover:bg-white/[0.04]`,
+  row: `group/notice flex items-center gap-2 py-1.5 ${RADIUS.control} hover:bg-lift/[0.04]`,
   /**
    * Hidden until asked for: the X appears when the pointer rests on its row,
    * on keyboard focus, and is always on where hover does not exist (`touch:`)
@@ -2160,10 +2178,10 @@ export const NOTICE_DISMISS = {
   button:
     `group ${TAP.action} touch:-ml-6 opacity-0 transition-[color,opacity] ` +
     `group-hover/notice:opacity-100 focus-visible:opacity-100 touch:opacity-100 ` +
-    `hover:text-white ${FOCUS_RING}`,
+    `hover:text-ink-strong ${FOCUS_RING}`,
   pill:
     `flex h-5 w-5 items-center justify-center ${RADIUS.pill} ` +
-    `bg-white/5 transition-colors group-hover:bg-white/15`,
+    `bg-lift/5 transition-colors group-hover:bg-lift/15`,
 } as const
 
 /**
@@ -2220,13 +2238,13 @@ export const NOTICE_DISMISS = {
  * change in one place. `styles.test.ts` now fails the literal anywhere under
  * `components/` or in `App.tsx`.
  */
-export const PANEL_EDGE = 'border-slate-500'
-export const SURFACE_DIVIDER = 'border-slate-700'
+export const PANEL_EDGE = 'border-edge'
+export const SURFACE_DIVIDER = 'border-rule'
 // SURFACE_DIVIDER's colour under the stack's variant, spelled because Tailwind
 // cannot compile an interpolated variant; `styles.test.ts` holds the two to
 // one colour (#687).
 export const PANEL_RULE =
-  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-slate-700 [&>*+*]:pt-4'
+  '[&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-rule [&>*+*]:pt-4'
 
 /**
  * The welcome dialog's actions, in a foot that stays in view while the body
@@ -2245,7 +2263,7 @@ export const PANEL_RULE =
  * later rule and wins, the same as the primary's.
  */
 export const DIALOG_FOOT = {
-  bar: `sticky bottom-0 bg-slate-800 border-t ${SURFACE_DIVIDER} px-6 py-4 space-y-2`,
+  bar: `sticky bottom-0 bg-panel border-t ${SURFACE_DIVIDER} px-6 py-4 space-y-2`,
   secondary: `${BUTTON_SECONDARY} w-full min-h-10`,
 } as const
 
@@ -2329,17 +2347,23 @@ export const SAFE_AREA = {
 
 export const BOTTOM_SHEET = {
   scrim: `fixed inset-0 ${LAYER.popover}`,
-  dim: 'absolute inset-0 bg-black/40',
+  dim: 'absolute inset-0 bg-scrim/40',
   card:
     `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
-    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
-  grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-slate-500',
+    `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
+  grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-edge',
   head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-1',
   title: TEXT.subheading,
   done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
+  /**
+   * The title row's end when a sheet carries a button beside Done, which only
+   * the Controls sheet does (its theme switch, #706): one box at the row's end
+   * holding both, so Done's own `ml-auto` has no free space to split with it.
+   */
+  actions: 'ml-auto flex items-center gap-2',
   body:
     `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
-    'divide-y divide-slate-700 [&>*]:min-h-11',
+    'divide-y divide-rule [&>*]:min-h-11',
 } as const
 
 /**
@@ -2405,7 +2429,25 @@ export const PANEL_BODY =
 export const PANEL_HEADER = {
   logo: 'm-2 h-10 w-10 flex-shrink-0 object-cover',
   title: 'flex flex-col justify-center px-3 py-2',
+  /**
+   * Where the header's round buttons stand: the theme switch and the close
+   * button, at the top right, 8px apart (#706). The close button's own spot,
+   * which it held alone until the switch joined it on its left.
+   */
+  actions: 'absolute top-2 right-2 z-10 flex gap-2',
 } as const
+
+/**
+ * A round button in a panel's header: the desk panel's close button and the
+ * theme switch beside it, and the switch again in a phone's Controls sheet
+ * beside Done (#706). 32px on a fine pointer and 44 under a finger through
+ * `TAP.action`, the glyph in the control ink, on the raised surface at 80%.
+ * The close button's recipe, named once it had a twin, so the two cannot
+ * drift apart.
+ */
+export const HEADER_BUTTON =
+  `${TAP.action} flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} ` +
+  'bg-raised/80 transition-colors hover:bg-raised-hover active:bg-raised-hover'
 
 /**
  * Movement that answers a reader's action, and stops where they asked their
@@ -2439,7 +2481,7 @@ export const MOTION = {
 export const CONTROLS_SHEET = {
   card:
     `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
-    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} ${MOTION.slide}`,
+    `bg-panel border-t border-frame rounded-t-lg ${ELEVATION.overlay} ${MOTION.slide}`,
   shut: 'translate-y-full',
   /** The panel under the sheet's top, which takes the rest and scrolls inside. */
   panel: 'min-h-0 flex-1',
@@ -2566,12 +2608,12 @@ export const DAY = {
    * week rather than reading as a row of days.
    */
   head: 'flex h-9 touch:h-11 items-center justify-center',
-  full: 'text-slate-200 hover:bg-slate-700',
-  partial: 'text-slate-400 hover:bg-slate-700',
-  unservable: 'text-slate-600',
-  range: 'bg-sky-950 hover:bg-sky-900',
+  full: 'text-ink hover:bg-raised',
+  partial: 'text-ink-soft hover:bg-raised',
+  unservable: 'text-ink-ghost',
+  range: 'bg-range hover:bg-range-hover',
   selected: ACCENT.fill,
-  today: 'ring-1 ring-inset ring-slate-400',
+  today: 'ring-1 ring-inset ring-ink-soft',
 } as const
 
 /**
@@ -2590,7 +2632,7 @@ export const DAY = {
  */
 export const FIELD =
   `${FIELD_LOOK} ${TAP.height} ` +
-  'focus:outline-none focus:border-sky-500 placeholder-slate-400'
+  'focus:outline-none focus:border-mark placeholder-ink-soft'
 
 /**
  * A numeric field with the browser's spinner arrows suppressed.
@@ -2662,7 +2704,7 @@ export const SELECT = `${FIELD} appearance-none pr-6`
  */
 export const CALENDAR_FIELD = {
   box: `${SELECT} flex w-full items-start px-2 py-1.5 touch:py-[13px] text-left`,
-  arrow: 'pointer-events-none absolute right-2 top-[7px] touch:top-[14px] text-slate-400',
+  arrow: 'pointer-events-none absolute right-2 top-[7px] touch:top-[14px] text-ink-soft',
 } as const
 
 /**
@@ -2700,8 +2742,15 @@ export const DISABLED = 'disabled:opacity-40 disabled:cursor-not-allowed'
  * Three sites spelled it before it had a name (#390). No colour of its own,
  * for the same reason `DISABLED` carries none: it composes over whatever role
  * the control already wears instead of racing it by stylesheet order.
+ *
+ * The amount is a theme token since #706 (`--ui-muted` in `index.css`): 60%
+ * in dark, and 65% in light, where the light ink at 60% measured 4.31:1 on
+ * the panel, 4.50 on a select and 4.38 on a chip, and 65% measures 5.07,
+ * 5.34 and 5.08. A dark ink fading toward a light ground loses contrast
+ * faster than a light one fading toward a dark ground, so the light theme
+ * needs the louder step for the same claim.
  */
-export const MUTED = 'opacity-60'
+export const MUTED = 'opacity-(--ui-muted)'
 
 /**
  * Text that exists for assistive technology and takes no space on screen.
@@ -2737,7 +2786,11 @@ export const SR_ONLY = 'sr-only'
  *
  * The thumb is white on the accent-filled track for the same reason the
  * `ACCENT.fill` label is: white is what reads on this blue, and the thumb is
- * the one part that has to be findable at a glance while it moves. It is 14px,
+ * the one part that has to be findable at a glance while it moves. In the
+ * light theme (#706) the thumb is the ink instead (`--ui-thumb`): half of it
+ * stands on the white well there, where a white thumb would vanish, and the
+ * ink reads 2.66:1 on the light accent, beside the white thumb's 2.71:1 on the
+ * dark one's mark. It is 14px,
  * which is under the 44px target — deliberately, and it is the exception
  * `TAP.grip` already argues for: the control is a horizontal drag on a bar that
  * is itself the target, so the height that matters is the input's, and the
@@ -2751,10 +2804,10 @@ export const SR_ONLY = 'sr-only'
 const SLIDER_THUMB =
   '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-3.5 ' +
   '[&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:rounded-full ' +
-  '[&::-webkit-slider-thumb]:bg-white ' +
+  '[&::-webkit-slider-thumb]:bg-thumb ' +
   '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-3.5 ' +
   '[&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:rounded-full ' +
-  '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
+  '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-thumb'
 
 export const SCRUBBER =
   'w-full h-2 appearance-none cursor-pointer bg-transparent ' +
@@ -2773,10 +2826,10 @@ export const SCRUBBER =
 const SLIDER_BAR_THUMB =
   '[&::-webkit-slider-thumb]:[appearance:none] [&::-webkit-slider-thumb]:h-6 ' +
   '[&::-webkit-slider-thumb]:w-1 [&::-webkit-slider-thumb]:rounded-sm ' +
-  '[&::-webkit-slider-thumb]:bg-white ' +
+  '[&::-webkit-slider-thumb]:bg-thumb ' +
   '[&::-moz-range-thumb]:[appearance:none] [&::-moz-range-thumb]:h-6 ' +
   '[&::-moz-range-thumb]:w-1 [&::-moz-range-thumb]:rounded-sm ' +
-  '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-white'
+  '[&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-thumb'
 
 /**
  * The parts of the two range inputs that are not the input itself: the
@@ -2817,7 +2870,7 @@ export const SLIDER = {
    * segment wears, carried by the layer rather than the shape so the filled
    * copy of the identical line can be white without two colors racing.
    */
-  idle: 'text-slate-400',
+  idle: 'text-ink-soft',
   /**
    * The rail the scrubber slides on, drawn as the element behind it.
    *
@@ -2919,7 +2972,7 @@ export const TABLE = {
    * `group-hover`, so a row that forgets it is a row that cannot be removed
    * with a pointer.
    */
-  row: 'group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors',
+  row: 'group border-t border-rule/50 hover:bg-raised/30 transition-colors',
   /**
    * A ranked row a press opens the marker popup from (#696; record 0143):
    * the pointer says the whole row answers, where it said so over the name
@@ -2953,10 +3006,10 @@ export const TABLE = {
    * body cell as it does now.
    */
   stickyNameCell:
-    'sticky left-0 z-[1] bg-slate-800 bg-linear-to-r ' +
-    'group-hover:from-slate-700/30 group-hover:to-slate-700/30',
+    'sticky left-0 z-[1] bg-panel bg-linear-to-r ' +
+    'group-hover:from-raised/30 group-hover:to-raised/30',
   /** The same column's header cell, on the header's fill. */
-  stickyNameHead: 'sticky left-0 z-[1] bg-slate-700',
+  stickyNameHead: 'sticky left-0 z-[1] bg-raised',
   /**
    * The most a phone's Name column takes before a reader sizes it (#696;
    * record 0142): its widest name and the cell's padding, but never more than

@@ -184,7 +184,7 @@ export const STYLES = [
         // The error boundary's fallback replaces the tree it guards, so it
         // cannot inherit the ground, and a fourth spelling is how the grounds
         // would part. A translucent scrim over the map is a different thing.
-        selector: text(String.raw`bg-slate-900(?![\x2f\w-])`),
+        selector: text(String.raw`bg-page(?![\x2f\w-])`),
         message: 'Stand a page on SURFACE_PAGE rather than spelling its ground.',
       },
       {

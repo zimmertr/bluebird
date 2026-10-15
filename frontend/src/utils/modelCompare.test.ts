@@ -3,7 +3,7 @@ import type { DestinationResult } from '../types'
 import type { WeatherResult } from './openMeteo'
 import type { WeatherAggregates } from './openMeteoAggregate'
 import type { ForecastModelOption } from '../hooks/useCapabilities'
-import { allocateColors } from './chartColors'
+import { allocateColors, paletteColors } from './chartColors'
 import { normalizeWindow } from './forecastWindow'
 import { callWeight } from './openMeteo'
 import {
@@ -234,11 +234,15 @@ describe('compareSeries', () => {
   // session allocator past them.
   function pairColors(models: readonly CompareModel[] = ON_CHART) {
     const seeded: Record<string, string> = {}
-    for (const d of DESTINATIONS) seeded[pairKey(RANKING, d.key)] = d.color
+    const held: Record<string, number> = {}
+    DESTINATIONS.forEach((d, i) => {
+      seeded[pairKey(RANKING, d.key)] = d.color
+      held[pairKey(RANKING, d.key)] = i
+    })
     const keys = models
       .filter((m) => m.id !== RANKING)
       .flatMap((m) => DESTINATIONS.map((d) => pairKey(m.id, d.key)))
-    return { ...allocateColors(seeded, keys), ...seeded }
+    return { ...paletteColors(allocateColors(held, keys), 'dark'), ...seeded }
   }
 
   function series(values: (number | null)[]) {

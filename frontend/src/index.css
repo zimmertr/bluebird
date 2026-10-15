@@ -76,15 +76,196 @@ body,
   padding: 0;
 }
 
-/* The app is dark everywhere, so the browser is told so once (#697). Without
-   it Chromium and Safari draw their light-theme chrome on every surface the
-   app does not style itself: the welcome dialog's and the legal pages' scroll
-   bars, and the glyphs of the native date, time and number inputs, which this
-   file used to flip one input type at a time. Firefox already followed the
-   OS theme, which is why the bar read dark there. The white map popups and
-   MapLibre's white controls say `light` for themselves in map.css. */
+/* Two themes, one set of names (#706; record 0156). Every colour role in
+   styles.ts paints a semantic token below rather than a palette step, so a
+   theme is a second set of values for the same names and no role is spelled
+   twice. Dark is the default whatever the OS says (the maintainer's call on
+   #706); light applies only under `data-theme="light"` on the root, which
+   `useTheme` writes, and `public/theme.js` before the first paint.
+
+   Dark values are Tailwind's own variables, so the dark theme is the palette
+   it always painted, step for step, and every ratio `styles.test.ts` pins for
+   it stands. Light values are the maintainer's palette from issue #706 (the
+   Material light preset), measured in the same test by parsing this file.
+
+   `@theme inline` is what lets a theme swap them: an inline token compiles
+   into its utilities as the `var(--ui-*)` it names, which resolves on the
+   element, so redefining `--ui-*` under the light selector repaints every
+   utility. A plain `@theme` entry pointing at another variable would resolve
+   once, on the root, and a nested override would never reach it. Opacity
+   modifiers (`bg-floating/95`) compile to a `color-mix` over the variable,
+   which is why a token can carry them. */
+@theme inline {
+  /* Surfaces, bottom to top. */
+  --color-page: var(--ui-page);
+  --color-panel: var(--ui-panel);
+  --color-raised: var(--ui-raised);
+  --color-raised-hover: var(--ui-raised-hover);
+  /* A list's highlighted row on a raised surface (the search results). */
+  --color-highlight: var(--ui-highlight);
+  --color-floating: var(--ui-floating);
+  --color-recessed: var(--ui-recessed);
+  /* Lines: the quiet rule, the outline round a surface, and the structural
+     edge a boundary owes 3:1 with, plus that edge re-derived on a raised
+     surface (`LIFTED_EDGE`). */
+  --color-rule: var(--ui-rule);
+  --color-frame: var(--ui-frame);
+  --color-edge: var(--ui-edge);
+  --color-edge-lifted: var(--ui-edge-lifted);
+  /* Text and glyphs, brightest first in dark and darkest first in light. */
+  --color-ink-strong: var(--ui-ink-strong);
+  --color-ink: var(--ui-ink);
+  --color-ink-mid: var(--ui-ink-mid);
+  --color-ink-soft: var(--ui-ink-soft);
+  --color-ink-faint: var(--ui-ink-faint);
+  --color-ink-ghost: var(--ui-ink-ghost);
+  /* The accent: the fill and its hover, the accent as text and edge, the
+     bare mark, the calendar's range band, and the label on any fill. */
+  --color-accent: var(--ui-accent);
+  --color-accent-hover: var(--ui-accent-hover);
+  --color-accent-ink: var(--ui-accent-ink);
+  --color-accent-ink-hover: var(--ui-accent-ink-hover);
+  --color-mark: var(--ui-mark);
+  --color-range: var(--ui-range);
+  --color-range-hover: var(--ui-range-hover);
+  --color-on-fill: var(--ui-on-fill);
+  /* Status inks, and the notice boxes' tints and rules. */
+  --color-ok: var(--ui-ok);
+  --color-warn: var(--ui-warn);
+  --color-danger: var(--ui-danger);
+  --color-info: var(--ui-info);
+  --color-warn-tint: var(--ui-warn-tint);
+  --color-danger-tint: var(--ui-danger-tint);
+  --color-info-tint: var(--ui-info-tint);
+  --color-warn-line: var(--ui-warn-line);
+  --color-danger-line: var(--ui-danger-line);
+  --color-info-line: var(--ui-info-line);
+  /* The destructive button inside an error notice. */
+  --color-danger-fill: var(--ui-danger-fill);
+  --color-danger-fill-hover: var(--ui-danger-fill-hover);
+  --color-danger-edge: var(--ui-danger-edge);
+  --color-danger-label: var(--ui-danger-label);
+  /* The tint a hovered row lifts by, a range thumb, and the dim under a
+     modal. */
+  --color-lift: var(--ui-lift);
+  --color-thumb: var(--ui-thumb);
+  --color-scrim: var(--ui-scrim);
+}
+
+/* The dark theme: today's palette, named. The browser is told the app is
+   dark (#697): without it Chromium and Safari draw their light-theme chrome
+   on every surface the app does not style itself, the welcome dialog's and
+   the legal pages' scroll bars and the glyphs of the native date, time and
+   number inputs. The white map popups and MapLibre's white controls say
+   `light` for themselves in map.css. */
 :root {
   color-scheme: dark;
+  --ui-page: var(--color-slate-900);
+  --ui-panel: var(--color-slate-800);
+  --ui-raised: var(--color-slate-700);
+  --ui-raised-hover: var(--color-slate-600);
+  --ui-highlight: color-mix(in oklab, var(--color-slate-600) 50%, transparent);
+  --ui-floating: var(--color-slate-800);
+  --ui-recessed: var(--color-slate-900);
+  --ui-rule: var(--color-slate-700);
+  --ui-frame: var(--color-slate-600);
+  --ui-edge: var(--color-slate-500);
+  --ui-edge-lifted: var(--color-slate-400);
+  --ui-ink-strong: var(--color-white);
+  --ui-ink: var(--color-slate-200);
+  --ui-ink-mid: var(--color-slate-300);
+  --ui-ink-soft: var(--color-slate-400);
+  --ui-ink-faint: var(--color-slate-500);
+  --ui-ink-ghost: var(--color-slate-600);
+  --ui-accent: var(--color-sky-650);
+  --ui-accent-hover: var(--color-sky-600);
+  --ui-accent-ink: var(--color-sky-400);
+  --ui-accent-ink-hover: var(--color-sky-300);
+  --ui-mark: var(--color-sky-500);
+  --ui-range: var(--color-sky-950);
+  --ui-range-hover: var(--color-sky-900);
+  --ui-on-fill: var(--color-white);
+  --ui-ok: var(--color-green-400);
+  --ui-warn: var(--color-amber-300);
+  --ui-danger: var(--color-red-400);
+  --ui-info: var(--color-sky-300);
+  --ui-warn-tint: color-mix(in oklab, var(--color-amber-950) 40%, transparent);
+  --ui-danger-tint: color-mix(in oklab, var(--color-red-950) 40%, transparent);
+  --ui-info-tint: color-mix(in oklab, var(--color-sky-950) 40%, transparent);
+  --ui-warn-line: color-mix(in oklab, var(--color-amber-800) 60%, transparent);
+  --ui-danger-line: color-mix(in oklab, var(--color-red-800) 60%, transparent);
+  --ui-info-line: color-mix(in oklab, var(--color-sky-800) 60%, transparent);
+  --ui-danger-fill: color-mix(in oklab, var(--color-red-900) 60%, transparent);
+  --ui-danger-fill-hover: var(--color-red-800);
+  --ui-danger-edge: var(--color-red-700);
+  --ui-danger-label: var(--color-red-200);
+  --ui-lift: var(--color-white);
+  --ui-thumb: var(--color-white);
+  --ui-scrim: var(--color-black);
+  /* Values handed to something that is not a utility: the accent ring's
+     glow (`ACCENT_RING`) and a legend swatch's inline edge (`SWATCH_EDGE`,
+     the v3 slate-600 it always was). */
+  --ui-accent-glow: rgba(56, 189, 248, 0.65);
+  --ui-swatch-edge: #475569;
+  /* How far a control that still works but is not in force fades
+     (`MUTED`). */
+  --ui-muted: 0.6;
+}
+
+/* The light theme (#706). Every value the maintainer's palette names is
+   spelled as given; the ones it left to derive are measured in
+   `styles.test.ts` against the surfaces they land on: the middle ink, the
+   faint ink (icons, 3:1), the outline halfway between the quiet rule and the
+   structural edge, the range band's hover, the shade and the thumb. The
+   notice rules are each ink at 38% over its own tint, the theme lab's
+   derivation. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --ui-page: #f8f9ff;
+  --ui-panel: #eef2f9;
+  --ui-raised: #e1e6ee;
+  --ui-raised-hover: #d4dae3;
+  --ui-highlight: #d4dae3;
+  --ui-floating: #f8f9ff;
+  --ui-recessed: #ffffff;
+  --ui-rule: #c2c8d1;
+  --ui-frame: #9aa0a8;
+  --ui-edge: #72787f;
+  --ui-edge-lifted: #72787f;
+  --ui-ink-strong: #181c21;
+  --ui-ink: #181c21;
+  --ui-ink-mid: #2d3238;
+  --ui-ink-soft: #42474e;
+  --ui-ink-faint: #6c727a;
+  --ui-ink-ghost: #a0a6ae;
+  --ui-accent: #00639b;
+  --ui-accent-hover: #005585;
+  --ui-accent-ink: #00639b;
+  --ui-accent-ink-hover: #004a75;
+  --ui-mark: #00639b;
+  --ui-range: #cfe5ff;
+  --ui-range-hover: #bcdafc;
+  --ui-on-fill: #ffffff;
+  --ui-ok: #1d6b33;
+  --ui-warn: #6b4600;
+  --ui-danger: #93000a;
+  --ui-info: #0b4a73;
+  --ui-warn-tint: #fbe7c4;
+  --ui-danger-tint: #ffdad6;
+  --ui-info-tint: #d6e7fb;
+  --ui-warn-line: #c4aa7a;
+  --ui-danger-line: #d68788;
+  --ui-info-line: #89abc7;
+  --ui-danger-fill: #ffb4ab;
+  --ui-danger-fill-hover: #ff9e94;
+  --ui-danger-edge: #ba1a1a;
+  --ui-danger-label: #690005;
+  --ui-lift: #181c21;
+  --ui-thumb: #181c21;
+  --ui-scrim: #000000;
+  --ui-accent-glow: rgba(0, 99, 155, 0.45);
+  --ui-swatch-edge: #9aa0a8;
+  --ui-muted: 0.65;
 }
 
 /* Indeterminate progress bar — used while a phase has no countable progress
@@ -111,28 +292,28 @@ body,
    window gives no hint the table pans sideways. `scrollbar-color` flips
    Chrome/Firefox to classic always-visible bars; the -webkit-* rules cover
    Safari, which ignores the standard properties. Colors are slate-500 thumb
-   on slate-800 track to match the panel, read from the theme's own variables
-   so they are the v4 steps the panel paints rather than a hex copy of an
-   older palette (the v3 hexes they used to spell were a shade off). The name
-   is `SCROLL_BARS` in styles.ts, so no component spells it. */
+   on slate-800 track in dark, the structural edge on the panel in light: the
+   theme's tokens above, so they are the steps the panel paints rather than a
+   hex copy of an older palette (the v3 hexes they used to spell were a shade
+   off). The name is `SCROLL_BARS` in styles.ts, so no component spells it. */
 .surface-scrollbars {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-slate-500) var(--color-slate-800);
+  scrollbar-color: var(--ui-edge) var(--ui-panel);
 }
 .surface-scrollbars::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 .surface-scrollbars::-webkit-scrollbar-track {
-  background: var(--color-slate-800);
+  background: var(--ui-panel);
 }
 .surface-scrollbars::-webkit-scrollbar-thumb {
-  background-color: var(--color-slate-500);
+  background-color: var(--ui-edge);
   border-radius: 5px;
-  border: 2px solid var(--color-slate-800);
+  border: 2px solid var(--ui-panel);
 }
 .surface-scrollbars::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-slate-400);
+  background-color: var(--ui-ink-soft);
 }
 
 /* Scroll shadows (#697): a shade under a fixed edge that shows only while
@@ -151,11 +332,16 @@ body,
    over the last 24px. A body that fits has no scroll timeline at all, the
    animation never applies, and both stay at their resting opacity of 0.
    Elsewhere `useScrollShadows` sets the two data attributes the fallback
-   rules read. The shade is slate-950 at 70%, one step under the page ground,
-   so it reads as depth on the slate-800 panel rather than as a line; the
-   `--scroll-shade` below is that colour, read from the theme. */
+   rules read. The shade is slate-950 at 70% in dark, one step under the page
+   ground, so it reads as depth on the slate-800 panel rather than as a line
+   (1.29:1 against the panel at full strength). In light it is the ink at 12%,
+   which stands 1.27:1 off the light panel, the same depth on the other
+   ground (#706). */
 :root {
   --scroll-shade: color-mix(in oklab, var(--color-slate-950) 70%, transparent);
+}
+:root[data-theme="light"] {
+  --scroll-shade: color-mix(in oklab, #181c21 12%, transparent);
 }
 .scroll-shadow-start::before,
 .scroll-shadow-end::after {
@@ -249,11 +435,11 @@ body,
   visibility: hidden;
 }
 
-/* Native form-widget chrome on the dark panel. The root's `color-scheme:
-   dark` above flips the glyphs light (matching Firefox's rendering), where
-   Chrome otherwise draws a near-black calendar icon and spinners on slate-900
-   inputs; the opacity dims them to the panel's resting grey and lifts to full
-   on hover. */
+/* Native form-widget chrome on the panel. The root's `color-scheme` above
+   draws the glyphs for the theme (light on the dark fields, matching
+   Firefox's rendering, where Chrome otherwise draws a near-black calendar
+   icon and spinners on slate-900 inputs); the opacity dims them to the
+   panel's resting grey and lifts to full on hover. */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator,
 input[type="number"]::-webkit-inner-spin-button {

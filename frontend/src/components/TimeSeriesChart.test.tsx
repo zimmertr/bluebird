@@ -3,7 +3,7 @@ import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
 import { CHART_METRICS, extremeValue } from '../utils/chartData'
-import { CHART_SURFACE_COLOR } from '../utils/chartColors'
+import { CHART_CHROME } from '../utils/chartColors'
 import { PLOT_MARGIN, TITLED_PLOT_MARGIN } from '../utils/chartPointer'
 import { CHART_TITLE } from '../styles'
 import { placeAt, render } from '../testSupport/render'
@@ -348,7 +348,7 @@ describe('TimeSeriesChart extreme line', () => {
     const labels = (chart.lines as LineProps[]).map((p) => p.label)
     expect(labels.map((l) => l?.value)).toEqual(['Now', 'NOAA HRRR', '75.4 mph'])
     for (const label of labels) {
-      expect(label?.stroke, label?.value).toBe(CHART_SURFACE_COLOR)
+      expect(label?.stroke, label?.value).toBe(CHART_CHROME.dark.surface)
       expect(label?.strokeWidth, label?.value).toBe(3)
       expect(label?.paintOrder, label?.value).toBe('stroke')
     }
@@ -357,7 +357,7 @@ describe('TimeSeriesChart extreme line', () => {
     render(<>{Content({ ...extreme.label, viewBox: { x: 52, y: 120, width: 292, height: 0 } })}</>)
     const drawn = screen.getByTestId('label')
     expect(drawn.dataset.paintOrder).toBe('stroke')
-    expect(drawn.dataset.stroke).toBe(CHART_SURFACE_COLOR)
+    expect(drawn.dataset.stroke).toBe(CHART_CHROME.dark.surface)
   })
 
   // A hover changes the focused line and nothing the extreme reads, so the

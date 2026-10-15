@@ -53,6 +53,7 @@ function props(over: Partial<Props> = {}): Props {
     widths: NO_WIDTHS,
     coloredGroup: GROUP,
     pointSample: false,
+    theme: 'dark',
     fireStatus: 'ready',
     fireUncovered: false,
     closureStatus: 'ready',

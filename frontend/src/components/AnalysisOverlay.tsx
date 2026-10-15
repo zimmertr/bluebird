@@ -92,7 +92,7 @@ function OverlayCard({
   onCancel: () => void
 }) {
   return (
-    <div className={`absolute inset-0 bg-slate-900/60 ${LAYER.popover} flex items-center justify-center`}>
+    <div className={`absolute inset-0 bg-page/60 ${LAYER.popover} flex items-center justify-center`}>
       <div className={`${SURFACE_CARD} px-6 py-5 text-center w-[280px]`}>
         <img
           src={logoUrl}
@@ -113,7 +113,7 @@ function OverlayCard({
           // Weather phase — countable batch progress (the union count is
           // already in the "(x/y)" headline, so the bar just visualizes it).
           <div className="mt-3">
-            <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
+            <div className={`h-2 w-full ${RADIUS.pill} bg-raised overflow-hidden`}>
               <div
                 className={`h-full ${ACCENT.mark} ${MOTION.progress}`}
                 style={{ width: `${overlay.progress.percent}%` }}
@@ -126,7 +126,7 @@ function OverlayCard({
         ) : (
           // Search / analyzing phase — no countable progress; show activity.
           <div className="mt-3">
-            <div className={`h-2 w-full ${RADIUS.pill} bg-slate-700 overflow-hidden`}>
+            <div className={`h-2 w-full ${RADIUS.pill} bg-raised overflow-hidden`}>
               <div className={`h-full w-1/3 ${RADIUS.pill} ${ACCENT.mark} animate-indeterminate`} />
             </div>
             <p className={`mt-1.5 ${TEXT.caption} font-mono`}>

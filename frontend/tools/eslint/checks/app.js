@@ -632,7 +632,7 @@ export const APP = [
     name: 'app-docked-panels',
     files: ['src/components/ResultsSheet.tsx'],
     require: [
-      { selector: 'Literal[value="flex flex-shrink-0 flex-col bg-slate-800"]', message: 'Keep the desktop results panel classes verbatim.' },
+      { selector: 'Literal[value="flex flex-shrink-0 flex-col bg-panel"]', message: 'Keep the desktop results panel classes verbatim.' },
     ],
   },
   {

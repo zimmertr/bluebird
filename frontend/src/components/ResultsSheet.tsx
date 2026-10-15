@@ -111,6 +111,7 @@ export default function ResultsSheet({
   closure,
   pendingHeights,
   modelId,
+  theme,
 }: ResultsSheetProps) {
   const { showTable, layout, charts, tableView, onRemovePending, onFocusResult, onFocusPending } = resultsView
   const { sheetRef, resultsCollapsed, toggleCollapsed, resultsMode, chooseResultsMode, bothHasRoom } = layout
@@ -162,7 +163,7 @@ export default function ResultsSheet({
           data-readout-room=""
           className={
             isDesktop
-              ? 'flex flex-shrink-0 flex-col bg-slate-800'
+              ? 'flex flex-shrink-0 flex-col bg-panel'
               : // The sheet's surface runs under a phone's home indicator and
                 // its grip and header stand above it (record 0145).
                 `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
@@ -222,6 +223,7 @@ export default function ResultsSheet({
               onRemovePending={onRemovePending}
               onFocusResult={onFocusResult}
               onFocusPending={onFocusPending}
+              theme={theme}
             />
           )}
         </div>

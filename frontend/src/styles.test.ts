@@ -152,6 +152,38 @@ const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8
 // same reason.
 const indexCss: string = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
+// The theme layer (#706; record 0156). Every colour role names a semantic
+// token (`text-ink-mid`, `bg-panel`), and `index.css` gives each one two
+// values: the dark theme's Tailwind step and the light theme's hex. The dark
+// assertions below read a role's token back to its step, so every slate and
+// sky claim this file made before the themes still holds word for word; the
+// light ones read the hex and measure it. Steps are named bare (`slate-300`),
+// never as a utility, because Tailwind scans this file as text and a quoted
+// utility would emit CSS for a class nothing draws.
+function tokenBlock(block: RegExp): Record<string, string> {
+  const body = indexCss.match(block)![1]
+  return Object.fromEntries([...body.matchAll(/--ui-([\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]))
+}
+const DARK_TOKENS = tokenBlock(/:root \{\n  color-scheme: dark;([\s\S]*?)\n\}/)
+const LIGHT_TOKENS = tokenBlock(/:root\[data-theme="light"\] \{\n  color-scheme: light;([\s\S]*?)\n\}/)
+const TOKENS = Object.keys(DARK_TOKENS)
+/**
+ * The token a recipe paints through one utility, `text` or `hover:bg` or
+ * `[&>*+*]:border`, with or without an opacity.
+ */
+function token(recipe: string, utility: string): string {
+  for (const cls of recipe.split(/\s+/)) {
+    if (!cls.startsWith(`${utility}-`)) continue
+    const name = cls.slice(utility.length + 1).replace(/\/.*$/, '')
+    if (TOKENS.includes(name)) return name
+  }
+  throw new Error(`no ${utility} token in ${recipe}`)
+}
+/** The Tailwind step a token paints in the dark theme: `slate-300`, `sky-650`. */
+const darkStep = (name: string): string => DARK_TOKENS[name].match(/^var\(--color-([\w-]+)\)$/)?.[1] ?? DARK_TOKENS[name]
+/** The hex a token paints in the light theme. */
+const light = (name: string): string => LIGHT_TOKENS[name]
+
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
 // be a word one — which it never is, mid-class-list.
@@ -221,7 +253,7 @@ describe('the compact tier', () => {
   // site cannot undo it: Tailwind resolves competing color utilities by
   // stylesheet order, not class-list order.
   it('keeps the micro step legible on the lightest surface it lands on', () => {
-    expect(TEXT.micro).toContain('text-slate-300')
+    expect(darkStep(token(TEXT.micro, 'text'))).toBe('slate-300')
   })
 
   // The 12px secondary step lands on the slate-800 panel, cards and dialogs.
@@ -230,7 +262,7 @@ describe('the compact tier', () => {
   // deliberate recession, but below what AA permits for text. Same rule as
   // the micro step: a call site cannot dim this back, so the floor is here.
   it('keeps the caption step legible on the panel it lands on', () => {
-    expect(TEXT.caption).toContain('text-slate-400')
+    expect(darkStep(token(TEXT.caption, 'text'))).toBe('slate-400')
   })
 
   // A section heading was slate-400 (5.71:1 on the slate-800 panel) over a
@@ -240,8 +272,8 @@ describe('the compact tier', () => {
   // brightness so the size, weight and case carry the rank, not a glare.
   it('brightens the section heading past the caption and keeps its size', () => {
     const MEASURED = { section: 9.85, wasBefore: 5.71 }
-    const step = (c: string) => Number(c.match(/text-slate-(\d+)/)![1])
-    expect(TEXT.section).toContain('text-slate-300')
+    const step = (c: string) => Number(darkStep(token(c, 'text')).match(/slate-(\d+)/)![1])
+    expect(darkStep(token(TEXT.section, 'text'))).toBe('slate-300')
     expect(TEXT.section).toContain('text-sm')
     expect(step(TEXT.section)).toBeLessThan(step(TEXT.caption))
     expect(step(TEXT.section)).toBeGreaterThan(step(TEXT.subheading))
@@ -489,7 +521,7 @@ describe('the calendar day', () => {
   // It has to stay monotonic, because a reader is being asked to compare two cells
   // by brightness alone.
   it('ramps from full data to none, in that order', () => {
-    const step = (recipe: string) => Number(recipe.match(/text-slate-(\d+)/)![1])
+    const step = (recipe: string) => Number(darkStep(token(recipe, 'text')).match(/slate-(\d+)/)![1])
 
     expect(step(DAY.full)).toBeLessThan(step(DAY.partial))
     expect(step(DAY.partial)).toBeLessThan(step(DAY.unservable))
@@ -500,15 +532,15 @@ describe('the calendar day', () => {
   // partial step to slate-500's 3.1:1 would put a live date below AA, which is
   // what #165 spent five PRs undoing.
   it('keeps every pickable day legible on the panel', () => {
-    expect(DAY.full).toContain('text-slate-200')
-    expect(DAY.partial).toContain('text-slate-400')
+    expect(darkStep(token(DAY.full, 'text'))).toBe('slate-200')
+    expect(darkStep(token(DAY.partial, 'text'))).toBe('slate-400')
   })
 
   // The one role here deliberately below 4.5:1, and the only one with no hover:
   // WCAG 1.4.3 exempts inactive controls, and a day that read as text would
   // invite the click it cannot accept.
   it('sets a day outside the servable band apart as inactive', () => {
-    expect(DAY.unservable).toContain('text-slate-600')
+    expect(darkStep(token(DAY.unservable, 'text'))).toBe('slate-600')
     expect(DAY.unservable).not.toContain('hover:')
   })
 
@@ -583,7 +615,7 @@ describe('grouping and segmenting', () => {
   // calendar to meet them — pinned so a later 'tidy-up' has to re-measure.
   it('keeps that edge on the step that clears both sides', () => {
     const MEASURED = { panel: 3.07, fill: 3.74, wasBefore: { panel: 1.94, fill: 2.36 } }
-    expect(RECESSED_EDGE).toContain('slate-500')
+    expect(darkStep(token(RECESSED_EDGE, 'border'))).toBe('slate-500')
     expect(Math.min(MEASURED.panel, MEASURED.fill)).toBeGreaterThanOrEqual(3)
     expect(Math.max(MEASURED.wasBefore.panel, MEASURED.wasBefore.fill)).toBeLessThan(3)
   })
@@ -596,16 +628,20 @@ describe('grouping and segmenting', () => {
   // palette move that collapsed them fails here.
   it('recesses the calendar below the panel without colliding with the range band', () => {
     const step = (c: string) => Number(c.match(/-(\d+)$/)![1])
-    const fill = CALENDAR_GROUND.match(/bg-(slate-\d+)/)![1]
+    const fill = darkStep(token(CALENDAR_GROUND, 'bg'))
+    expect(fill).toMatch(/^slate-/)
     expect(step(fill)).toBeGreaterThan(800) // darker than the slate-800 panel
-    expect(fill).not.toBe(DAY.range.match(/bg-([a-z]+-\d+)/)![1])
+    expect(fill).not.toBe(darkStep(token(DAY.range, 'bg')))
+    // The light theme's well is the white the fields are, still apart from
+    // its range band.
+    expect(light(token(CALENDAR_GROUND, 'bg'))).not.toBe(light(token(DAY.range, 'bg')))
   })
 
   // Two segmented controls in one panel: the ranking direction, and the
   // calendar's hours. ACCENT.fill is the chosen half, this is the other one, and
   // naming the pair is what stops the second one being a lookalike that drifts.
   it('pairs the idle segment with the accent fill', () => {
-    expect(SEGMENT_IDLE).toContain('text-slate-400')
+    expect(darkStep(token(SEGMENT_IDLE, 'text'))).toBe('slate-400')
     expect(SEGMENT_IDLE).not.toBe(ACCENT.fill)
   })
 
@@ -615,9 +651,9 @@ describe('grouping and segmenting', () => {
   // acting on it — this one wears the resting accent because it is the app
   // answering a hover.
   it('points with a ring in the resting accent', () => {
-    expect(ACCENT_RING).toContain('ring-sky-400')
+    expect(darkStep(token(ACCENT_RING, 'ring'))).toBe('sky-400')
     expect(ACCENT_RING).not.toContain('border')
-    expect(DAY.today).toContain('ring-slate-400')
+    expect(darkStep(token(DAY.today, 'ring'))).toBe('slate-400')
   })
 
   // The ring is a box-shadow and fades; a radius does not. Bundling one in here
@@ -632,7 +668,7 @@ describe('grouping and segmenting', () => {
   // Three severities, one shape. The error box used to run a heavier fill and a
   // brighter border than the two beside it in the same panel.
   it('builds every notice on one shape and differs only in hue', () => {
-    const shape = (recipe: string) => recipe.replace(/-(amber|red|sky)-/g, '-*-')
+    const shape = (recipe: string) => recipe.replace(/-(warn|danger|info)-/g, '-*-')
     expect(shape(NOTICE.error)).toBe(shape(NOTICE.warn))
     expect(shape(NOTICE.info)).toBe(shape(NOTICE.warn))
     expect(NOTICE.warn).toContain(RADIUS.control)
@@ -869,7 +905,7 @@ describe('shared recipes', () => {
   // sites had drifted into read at 2.4:1, and the color lives in the recipe
   // because a call site cannot override it anyway.
   it('keeps every field placeholder legible', () => {
-    expect(FIELD).toContain('placeholder-slate-400')
+    expect(darkStep(token(FIELD, 'placeholder'))).toBe('slate-400')
   })
 
   // A dropdown is a field with two additions, not a second field. Built from
@@ -918,7 +954,7 @@ describe('shared recipes', () => {
   // disabled. Louder than off and quieter than in force, which is the whole
   // claim. Colourless for the same reason DISABLED is.
   it('quiets a control that still works, without the disabled claim', () => {
-    expect(MUTED).toBe('opacity-60')
+    expect(MUTED).toBe('opacity-(--ui-muted)')
     expect(MUTED).not.toContain('cursor')
     expect(MUTED).not.toContain('disabled:')
     expect(MUTED).not.toMatch(/text-|bg-|border-/)
@@ -934,11 +970,14 @@ describe('shared recipes', () => {
       at60: { panel: 5.25, select: 5.96, chip: 5.43 },
       at50: { panel: 4.11, select: 4.58, chip: 4.22 },
     }
-    expect(MUTED).toBe('opacity-60')
+    expect(MUTED).toBe('opacity-(--ui-muted)')
+    expect(DARK_TOKENS.muted).toBe('0.6')
     expect(Math.min(...Object.values(MEASURED.at60))).toBeGreaterThanOrEqual(4.5)
     expect(Math.min(...Object.values(MEASURED.at50))).toBeLessThan(4.5)
-    // Louder than off, still: the whole claim that separates it from DISABLED.
-    expect(Number(MUTED.match(/opacity-(\d+)/)![1])).toBeGreaterThan(Number(DISABLED.match(/opacity-(\d+)/)![1]))
+    // Louder than off, still, in both themes: the whole claim that separates
+    // it from DISABLED. The light theme's step is measured in its own block.
+    const off = Number(DISABLED.match(/opacity-(\d+)/)![1]) / 100
+    for (const fade of [DARK_TOKENS.muted, LIGHT_TOKENS.muted]) expect(Number(fade)).toBeGreaterThan(off)
   })
 
   // The third fade, and the one that reads as neither of the two above: a
@@ -961,9 +1000,10 @@ describe('shared recipes', () => {
   // site decides where it is drawn. SURFACE_DIVIDER carries no side, no width
   // and no spacing, so it composes into either.
   it('keeps the divider a colour and the panel rule a recipe', () => {
-    expect(SURFACE_DIVIDER).toBe('border-slate-700')
+    expect(darkStep(token(SURFACE_DIVIDER, 'border'))).toBe('slate-700')
     expect(SURFACE_DIVIDER.split(' ')).toHaveLength(1)
-    expect(PANEL_EDGE).toBe('border-slate-500')
+    expect(darkStep(token(PANEL_EDGE, 'border'))).toBe('slate-500')
+    expect(PANEL_EDGE.split(' ')).toHaveLength(1)
     expect(PANEL_RULE).toContain('[&>*+*]:border-t')
   })
 
@@ -974,7 +1014,7 @@ describe('shared recipes', () => {
   // held to the divider here.
   it('draws the panel rule in the divider colour', () => {
     expect(PANEL_RULE).toContain(`[&>*+*]:${SURFACE_DIVIDER}`)
-    expect(PANEL_RULE.match(/border-slate-\S+/g)).toEqual([SURFACE_DIVIDER])
+    expect(token(PANEL_RULE, '[&>*+*]:border')).toBe(token(SURFACE_DIVIDER, 'border'))
   })
 
   // The panel's controls share a left edge as well as a right one. The segment
@@ -1232,8 +1272,8 @@ describe('shared recipes', () => {
   // on that scale carries the sheet with it. (Composed from the scale rather
   // than quoted: a `rounded-t-*` literal in this file would emit that CSS.)
   it('builds the phone sheet from the panel fill and the map edge', () => {
-    expect(SURFACE_SHEET).toContain('bg-slate-800')
-    expect(SURFACE_SHEET).toContain('border-slate-600')
+    expect(darkStep(token(SURFACE_SHEET, 'bg'))).toBe('slate-800')
+    expect(darkStep(token(SURFACE_SHEET, 'border'))).toBe('slate-600')
     expect(SURFACE_SHEET).toContain(RADIUS.surface.replace('rounded', 'rounded-t'))
     // The header bar inside is a square block, so the corners only exist while
     // the sheet clips them.
@@ -1286,7 +1326,7 @@ describe('shared recipes', () => {
     expect(sizes(BUTTON_FLOATING)).toEqual(sizes(TEXT.control))
     // Colorless on purpose: the label is white, and a second color utility
     // beside `TEXT.control`'s slate-200 would resolve by stylesheet order.
-    expect(BUTTON_FLOATING).toContain('text-white')
+    expect(darkStep(token(BUTTON_FLOATING, 'text'))).toBe('white')
     expect(BUTTON_FLOATING).not.toContain(TEXT.cta)
   })
 
@@ -1296,7 +1336,7 @@ describe('shared recipes', () => {
     // slate-400 is 3.94:1 on that fill, under the 4.5:1 AA asks of text.
     // The results bar is the same slate-700, and its window caption measured
     // 3.93:1 on the caption tier; slate-300 is 6.97:1 there.
-    expect(CAPTION_LIFTED).not.toContain('slate-400')
+    expect(darkStep(token(CAPTION_LIFTED, 'text'))).not.toBe('slate-400')
     expect(sizes(CAPTION_LIFTED)).toEqual(sizes(TEXT.caption))
   })
 
@@ -1307,8 +1347,9 @@ describe('shared recipes', () => {
   // background utilities resolve by stylesheet order and the lighter fill would
   // not reliably win.
   it('lifts the Layers popover off the legends by elevation', () => {
-    expect(SURFACE_POPOVER).toContain('bg-slate-700/95')
-    expect(SURFACE_POPOVER).toContain('border-slate-600')
+    expect(darkStep(token(SURFACE_POPOVER, 'bg'))).toBe('slate-700')
+    expect(SURFACE_POPOVER.split(' ')).toContain(`bg-${token(SURFACE_POPOVER, 'bg')}/95`)
+    expect(darkStep(token(SURFACE_POPOVER, 'border'))).toBe('slate-600')
     expect(SURFACE_POPOVER).toContain(RADIUS.surface)
     // The shadow is what does the separating, so it must outrank the legends'.
     expect(SURFACE_POPOVER).toContain(ELEVATION.overlay)
@@ -1323,12 +1364,12 @@ describe('shared recipes', () => {
   // sides clear the 3:1 WCAG 1.4.11 asks of a component boundary.
   it('re-derives the recessed edge for the lifted surface', () => {
     expect(LIFTED_EDGE).toContain('border')
-    expect(LIFTED_EDGE).toContain('slate-400')
+    expect(darkStep(token(LIFTED_EDGE, 'border'))).toBe('slate-400')
     expect(LIFTED_EDGE).not.toBe(RECESSED_EDGE)
     // Only the edge varies: shape stays the fluid segment's, so the two cannot
     // drift into different controls.
     expect(SEGMENT_FLUID_LIFTED).toContain(LIFTED_EDGE)
-    expect(SEGMENT_FLUID_LIFTED).not.toContain(RECESSED_EDGE)
+    expect(token(SEGMENT_FLUID_LIFTED, 'border')).not.toBe(token(RECESSED_EDGE, 'border'))
     expect(SEGMENT_FLUID_LIFTED.replace(LIFTED_EDGE, RECESSED_EDGE)).toBe(SEGMENT_FLUID)
   })
 
@@ -1336,9 +1377,10 @@ describe('shared recipes', () => {
   // else's site rests in slate and only reaches for sky on hover, which is what
   // keeps the accent meaning one thing.
   it('reserves the resting accent for links that act in the app', () => {
-    expect(LINK_ACTION).toContain('text-sky-400')
-    expect(LINK).not.toMatch(/(^|\s)text-sky-/)
-    expect(LINK).toContain('hover:text-sky-400')
+    expect(darkStep(token(LINK_ACTION, 'text'))).toBe('sky-400')
+    expect(darkStep(token(LINK, 'text'))).toMatch(/^slate-/)
+    expect(darkStep(token(LINK, 'hover:text'))).toBe('sky-400')
+    expect(token(LINK, 'hover:text')).toBe(token(LINK_ACTION, 'text'))
   })
 
   // A data credit is a link inside an 11px caption, so it wears
@@ -1346,9 +1388,7 @@ describe('shared recipes', () => {
   // stylesheet order, not by the order they were written, so composing them is
   // only safe while they agree. If one moves, the other has to move with it.
   it('lets a link and the micro step be worn together', () => {
-    const color = (recipe: string) => recipe.split(' ').find((c) => /^text-slate-/.test(c))
-
-    expect(color(LINK)).toBe(color(TEXT.micro))
+    expect(token(LINK, 'text')).toBe(token(TEXT.micro, 'text'))
   })
 
   // The two secondary actions had been a filled button in the panel and an
@@ -1432,9 +1472,12 @@ describe('every role', () => {
   // would have been decided by Tailwind's stylesheet order rather than by
   // intent. A comment cannot catch that. Variants are excluded because a
   // `hover:` color does not compete with a resting one.
+  // The theme's tokens are colours too (#706), so a role that put two of them
+  // in one list, or a token beside a palette step, races the same way.
   const RESTING_COLOR = new RegExp(
     String.raw`(?:^|\s)text-(?:white|black|(?:slate|sky|blue|cyan|teal|emerald|green|lime|` +
-      String.raw`yellow|amber|orange|red|rose|pink|fuchsia|purple|violet|indigo)-\d{2,3})` +
+      String.raw`yellow|amber|orange|red|rose|pink|fuchsia|purple|violet|indigo)-\d{2,3}|` +
+      `(?:${[...TOKENS].sort((a, b) => b.length - a.length).join('|')}))` +
       String.raw`(?:\/\d+)?(?=\s|$)`,
     'g',
   )
@@ -1530,13 +1573,16 @@ describe('the accent', () => {
   // was 4.02) and an entire accessibility sweep believed it. Pinning them means
   // a change to the fill fails here and forces a re-measurement.
   const MEASURED = {
-    fill: 'bg-sky-650 text-white',
+    fill: 'sky-650',
+    labelOn: 'white',
     label: 4.57, // white on sky-650
     edges: { panel: 3.21, rangeBand: 3.04, segmentTrack: 3.91 },
   }
 
   it('rests on the one shade that clears the label and every edge at once', () => {
-    expect(ACCENT.fill).toBe(MEASURED.fill)
+    expect(darkStep(token(ACCENT.fill, 'bg'))).toBe(MEASURED.fill)
+    expect(darkStep(token(ACCENT.fill, 'text'))).toBe(MEASURED.labelOn)
+    expect(ACCENT.fill.split(' ')).toHaveLength(2)
     expect(MEASURED.label).toBeGreaterThanOrEqual(4.5)
     for (const [edge, ratio] of Object.entries(MEASURED.edges)) {
       expect(ratio, `${edge} must clear the 3:1 asked of a UI boundary`).toBeGreaterThanOrEqual(3)
@@ -1546,7 +1592,8 @@ describe('the accent', () => {
   // The custom token is the whole point: a scale step here would mean someone
   // "simplified" the fill back onto sky-600 or sky-700, both of which fail.
   it('takes its fill from the custom token rather than the stock scale', () => {
-    expect(ACCENT.fill).toContain('sky-650')
+    expect(darkStep(token(ACCENT.fill, 'bg'))).toBe('sky-650')
+    expect(indexCss).toMatch(/--color-sky-650: oklch\(/)
   })
 
   // The one state still below AA, recorded rather than asserted away. With a
@@ -1554,10 +1601,11 @@ describe('the accent', () => {
   // have to darken — making the app's one primary action the only control that
   // dims under the pointer. 4.02:1 is what the *resting* fill measured before
   // #167, so no state is worse than what already shipped.
-  const HOVER = { recipe: 'hover:bg-sky-600', ratio: 4.02, wasBefore: 2.71 }
+  const HOVER = { step: 'sky-600', ratio: 4.02, wasBefore: 2.71 }
 
   it('hovers lighter, at a contrast cost taken knowingly', () => {
-    expect(ACCENT.fillHover).toBe(HOVER.recipe)
+    expect(darkStep(token(ACCENT.fillHover, 'hover:bg'))).toBe(HOVER.step)
+    expect(ACCENT.fillHover.split(' ')).toHaveLength(1)
     expect(HOVER.ratio).toBeLessThan(4.5)
     expect(HOVER.ratio).toBeGreaterThan(HOVER.wasBefore)
     expect(HOVER.ratio).toBeLessThan(MEASURED.label)
@@ -1593,8 +1641,9 @@ describe('the accent', () => {
   // place to change if the accent hue ever moves.
   it('sources every accent treatment from the one hue', () => {
     for (const recipe of [ICON_ACTION, BUTTON_FLOATING, SPINNER]) {
-      expect(recipe).toMatch(/sky-/)
+      expect(recipe).toMatch(/(^|[\s:])[a-z-]+-accent-ink(\s|$)/)
     }
+    expect(darkStep('accent-ink')).toMatch(/^sky-/)
     expect(ICON_ACTION).toContain(ACCENT.hoverText)
     expect(BUTTON_FLOATING).toContain(ACCENT.edgeHover)
     expect(BUTTON_FLOATING).toContain(SURFACE_FLOATING)
@@ -1613,7 +1662,7 @@ describe('status and notices', () => {
     }
     for (const box of Object.values(NOTICE)) {
       expect(sizes(box)).toHaveLength(1)
-      expect(box).not.toMatch(/(^|\s)text-(?:slate|sky|amber|red|green)-/)
+      expect(box).not.toMatch(/(^|\s)text-(?:ink|accent|ok|warn|danger|info|slate|sky|amber|red|green)\b/)
     }
   })
 
@@ -1621,7 +1670,7 @@ describe('status and notices', () => {
   // three shared one spelling, so the app shouted in a different shape than it
   // warned in. One shape now, tone being the only thing that varies.
   it('gives every notice tone the same box', () => {
-    const shape = (box: string) => box.replace(/(amber|red|sky)/g, 'TONE')
+    const shape = (box: string) => box.replace(/(warn|danger|info)/g, 'TONE')
 
     expect(new Set(Object.values(NOTICE).map(shape)).size).toBe(1)
     expect(Object.values(NOTICE)).toHaveLength(3)
@@ -1632,8 +1681,8 @@ describe('status and notices', () => {
   // it, not as a second primary action competing with Analyze.
   it('keeps the destructive action inside the notice that holds it', () => {
     expect(BUTTON_DANGER).toContain(RADIUS.control)
-    expect(BUTTON_DANGER).toMatch(/text-red-/)
-    expect(BUTTON_DANGER).not.toContain('text-white')
+    expect(darkStep(token(BUTTON_DANGER, 'text'))).toMatch(/^red-/)
+    expect(token(BUTTON_DANGER, 'text')).not.toBe('on-fill')
   })
 
   // #253. The dismiss X inherits its box's STATUS color, so neither part of
@@ -1661,7 +1710,7 @@ describe('status and notices', () => {
     expect(NOTICE_DISMISS.button).toContain(FOCUS_RING)
     expect(NOTICE_DISMISS.button).not.toContain('absolute')
     expect(NOTICE_DISMISS.pill).toContain(RADIUS.pill)
-    expect(NOTICE_DISMISS.pill).toContain('bg-white/')
+    expect(darkStep(token(NOTICE_DISMISS.pill, 'bg'))).toBe('white')
   })
 
   // The X rests hidden and appears when its own message is pointed at, so a
@@ -1685,7 +1734,7 @@ describe('status and notices', () => {
   // the pill, and one step quieter than it, so the resting pill still reads
   // as the control on the lifted row.
   it('binds the X to its message with a hue-free lift', () => {
-    expect(NOTICE_DISMISS.row).toContain('hover:bg-white/')
+    expect(darkStep(token(NOTICE_DISMISS.row, 'hover:bg'))).toBe('white')
     expect(NOTICE_DISMISS.row).not.toMatch(/(^|\s)text-/)
     expect(NOTICE_DISMISS.row).toContain(RADIUS.control)
   })
@@ -1697,7 +1746,7 @@ describe('status and notices', () => {
     const tones = Object.keys(NOTICE) as (keyof typeof NOTICE)[]
     expect(tones).toHaveLength(3)
     for (const tone of tones) {
-      const border = NOTICE[tone].split(' ').find((c) => /^border-[a-z]+-\d/.test(c))
+      const border = NOTICE[tone].split(' ').find((c) => /^border-[a-z]+-line$/.test(c))
       expect(border, `${tone} must state a border to mirror`).toBeDefined()
       expect(NOTICE_DIVIDER[tone].split(' ')).toContain(
         (border as string).replace('border-', 'divide-'),
@@ -2027,8 +2076,8 @@ describe('the phone rows', () => {
     expect(tokens(MAP_CHIP_SUMMARY)).toContain('min-w-0')
     expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
     // Lit, its words read white on the accent fill like every label there.
-    expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toContain('in-aria-expanded:text-white')
-    expect(MAP_CHIP).toContain('aria-expanded:bg-sky-650')
+    expect(token(MAP_CHIP_SUMMARY_TEXT, 'in-aria-expanded:text')).toBe(token(ACCENT.fill, 'text'))
+    expect(token(MAP_CHIP, 'aria-expanded:bg')).toBe(token(ACCENT.fill, 'bg'))
     for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY, MAP_ROWS.chips]) expect(recipe).not.toMatch(/(^|\s)(ml-auto|justify-between)(\s|$)/)
   })
 
@@ -2146,6 +2195,9 @@ describe('the phone chrome\'s hit areas', () => {
     expect(rule('.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl')).toContain('margin-top: 4px;')
     expect(MAP_COL_GAP.gap).toBe('gap-1')
     expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: invert(1) hue-rotate(180deg);')
+    // The light theme's buttons are light, so its glyphs keep the library's
+    // own dark drawing (#706).
+    expect(rule(':root[data-theme="light"] .maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: none;')
     expect(rule('.maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
     // A phone's chip row stands the compass alone, whatever the pointer.
     expect(mapCss).toMatch(/\.map-slot \.maplibregl-ctrl-zoom-in,\s*\.map-slot \.maplibregl-ctrl-zoom-out \{\s*display: none;/)
@@ -2156,13 +2208,21 @@ describe('the phone chrome\'s hit areas', () => {
   it('draws the credit line as the floating box with LINK\'s links', () => {
     for (const t of tokens(SURFACE_FLOATING)) expect(tokens(MAP_CREDIT.card)).toContain(t)
     // Its (i) is a map button at the band's 24px: the same fill, edge and round.
-    for (const t of ['bg-slate-800/95', 'border', 'border-slate-600', RADIUS.pill]) {
+    const floatingFill = `bg-${token(SURFACE_FLOATING, 'bg')}/95`
+    const floatingEdge = `border-${token(SURFACE_FLOATING, 'border')}`
+    for (const t of [floatingFill, 'border', floatingEdge, RADIUS.pill]) {
       expect(tokens(MAP_CREDIT.button)).toContain(t)
       expect(tokens(MAP_ROUND_BUTTON)).toContain(t)
     }
-    expect(tokens(LINK)).toEqual(expect.arrayContaining(['text-slate-300', 'hover:text-sky-400', 'underline']))
-    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib a \{\s*color: var\(--color-slate-300\);\s*text-decoration: underline;/)
-    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib a:hover \{\s*color: var\(--color-sky-400\);/)
+    // map.css reads LINK's two tokens by their variables, so the credit line
+    // follows the theme with the rest (#706).
+    expect(tokens(LINK)).toContain('underline')
+    const linkInk = `--ui-${token(LINK, 'text')}`
+    const linkHover = `--ui-${token(LINK, 'hover:text')}`
+    expect(mapCss).toMatch(new RegExp(String.raw`\.maplibregl-ctrl-attrib a \{\s*color: var\(${linkInk}\);\s*text-decoration: underline;`))
+    expect(mapCss).toMatch(new RegExp(String.raw`\.maplibregl-ctrl-attrib a:hover \{\s*color: var\(${linkHover}\);`))
+    expect(mapCss).toMatch(new RegExp(String.raw`\.maplibregl-ctrl\.maplibregl-ctrl-attrib \{\s*color-scheme: dark;\s*color: var\(${linkInk}\);`))
+    expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-ctrl\.maplibregl-ctrl-attrib \{\s*color-scheme: light;/)
     // A folded line is its button alone.
     expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib\.maplibregl-compact:not\(\.maplibregl-compact-show\) \{\s*background: transparent;\s*border-width: 0;/)
   })
@@ -2192,7 +2252,7 @@ describe('the Analyze button on a phone', () => {
       expect.arrayContaining([
         'after:absolute',
         'after:inset-0',
-        'after:bg-white',
+        `after:bg-${token(ACCENT.fill, 'text')}`,
         'after:opacity-0',
         'enabled:active:after:opacity-[0.12]',
         'after:pointer-events-none',
@@ -2227,7 +2287,8 @@ describe('the bottom sheet', () => {
   it('stands over everything a phone\'s map holds, modal over a dim', () => {
     for (const recipe of [BOTTOM_SHEET.scrim, BOTTOM_SHEET.card]) expect(recipe).toContain(LAYER.popover)
     expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
-    expect(BOTTOM_SHEET.dim).toMatch(/(^|\s)bg-black\/\d+(\s|$)/)
+    expect(darkStep(token(BOTTOM_SHEET.dim, 'bg'))).toBe('black')
+    expect(BOTTOM_SHEET.dim).toMatch(/(^|\s)bg-scrim\/\d+(\s|$)/)
     // The whole screen, chips and search row included, fixed to the viewport
     // with the scrim, so no banner above the map leaves a band of it bright.
     expect(BOTTOM_SHEET.dim.split(/\s+/)).toEqual(expect.arrayContaining(['absolute', 'inset-0']))
@@ -2261,7 +2322,7 @@ const words = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
 
 describe('the notice band', () => {
   it('lays the drawer\'s fill under the boxes only while it holds one, and yields the rest', () => {
-    const drawerFill = appDrawerSource.match(/flex-shrink-0 (bg-slate-\d+) flex flex-col/)?.[1]
+    const drawerFill = appDrawerSource.match(/flex-shrink-0 (bg-[a-z-]+) flex flex-col/)?.[1]
     expect(drawerFill).toBeDefined()
     expect(MAP_NOTICE_BAND).toContain(`has-[>[role=status]>*]:${drawerFill}`)
     expect(MAP_NOTICE_BAND).not.toMatch(/(^|\s)bg-/)
@@ -2330,14 +2391,17 @@ describe('the safe area', () => {
 // modal, mounted for good and slid below the map while shut.
 describe('the Controls sheet', () => {
   it('wears the bottom sheet surface on the panel layer, and slides', () => {
-    for (const part of ['bg-slate-800', 'border-t', 'border-slate-600', 'rounded-t-lg', ELEVATION.overlay, LAYER.drawer]) {
+    expect(darkStep(token(CONTROLS_SHEET.card, 'bg'))).toBe('slate-800')
+    expect(darkStep(token(CONTROLS_SHEET.card, 'border'))).toBe('slate-600')
+    for (const part of ['border-t', 'rounded-t-lg', ELEVATION.overlay, LAYER.drawer]) {
       expect(words(CONTROLS_SHEET.card)).toContain(part)
     }
     for (const part of words(MOTION.slide)) expect(words(CONTROLS_SHEET.card)).toContain(part)
     expect(CONTROLS_SHEET.shut).toBe('translate-y-full')
     expect(words(CONTROLS_SHEET.panel)).toEqual(['min-h-0', 'flex-1'])
     // Not modal: nothing of the bottom sheet's dim or scrim.
-    expect(CONTROLS_SHEET.card).not.toContain('bg-black')
+    expect(CONTROLS_SHEET.card).not.toContain(BOTTOM_SHEET.dim)
+    expect(CONTROLS_SHEET.card).not.toMatch(/(^|\s)bg-scrim/)
   })
 })
 
@@ -2348,12 +2412,14 @@ describe('the sticky Name column', () => {
     for (const recipe of [STYLES.TABLE.stickyNameCell, STYLES.TABLE.stickyNameHead]) {
       expect(words(recipe)).toEqual(expect.arrayContaining(['sticky', 'left-0', 'z-[1]']))
     }
-    expect(words(STYLES.TABLE.stickyNameCell)).toContain('bg-slate-800')
-    expect(words(STYLES.TABLE.stickyNameHead)).toContain('bg-slate-700')
+    expect(darkStep(token(STYLES.TABLE.stickyNameCell, 'bg'))).toBe('slate-800')
+    expect(darkStep(token(STYLES.TABLE.stickyNameHead, 'bg'))).toBe('slate-700')
     // The row's hover tint, over the fill rather than under it.
-    expect(STYLES.TABLE.row).toContain('hover:bg-slate-700/30')
+    const hover = `${token(STYLES.TABLE.row, 'hover:bg')}/30`
+    expect(darkStep(token(STYLES.TABLE.row, 'hover:bg'))).toBe('slate-700')
+    expect(words(STYLES.TABLE.row)).toContain(`hover:bg-${hover}`)
     expect(words(STYLES.TABLE.stickyNameCell)).toEqual(
-      expect.arrayContaining(['group-hover:from-slate-700/30', 'group-hover:to-slate-700/30']),
+      expect.arrayContaining([`group-hover:from-${hover}`, `group-hover:to-${hover}`]),
     )
     expect(STYLES.TABLE.rowOpens).toBe('cursor-pointer')
   })
@@ -2406,8 +2472,8 @@ describe('the chart title on a phone', () => {
     // 44 over a 28px box is 8px either side, inside the 12px of room.
     expect((44 - CHART_TITLE_PX) / 2).toBeLessThan(CHART_TITLE_INSET_PX)
     // FIELD's focus edge, on the box because the select is invisible.
-    expect(FIELD).toContain('focus:border-sky-500')
-    expect(CHART_TITLE.box).toContain('has-[select:focus]:border-sky-500')
+    expect(darkStep(token(FIELD, 'focus:border'))).toBe('sky-500')
+    expect(token(CHART_TITLE.box, 'has-[select:focus]:border')).toBe(token(FIELD, 'focus:border'))
   })
 })
 
@@ -2541,8 +2607,12 @@ describe('the legend ramp', () => {
   // The border is the app's own, so it is a role rather than a hex at four
   // call sites — and a VALUE rather than a class, because the fill beside it is
   // inline and two colour utilities resolve by stylesheet order.
+  // A variable since #706, so it follows the theme: the dark value is the hex
+  // it always was, and the light one is the light theme's surface outline.
   it('edges every swatch from one place', () => {
-    expect(SWATCH_EDGE).toBe('#475569')
+    expect(SWATCH_EDGE).toBe('var(--ui-swatch-edge)')
+    expect(DARK_TOKENS['swatch-edge']).toBe('#475569')
+    expect(light('swatch-edge')).toBe(light('frame'))
   })
 
   // The numbers moved INSIDE the strip (TJ, 2026-09-17), which saves a line per
@@ -2556,11 +2626,12 @@ describe('the legend ramp', () => {
     expect(RAMP_INK.straightWhite).toBeLessThan(4.5)
     expect(RAMP_INK.straightDark).toBeLessThan(4.5)
     expect(RAMP_INK.onScrim).toBeGreaterThanOrEqual(4.5)
-    expect(SWATCH_RAMP_SCRIM).toContain('bg-slate-900/70')
+    expect(darkStep(token(SWATCH_RAMP_SCRIM, 'bg'))).toBe('slate-900')
+    expect(words(SWATCH_RAMP_SCRIM)).toContain(`bg-${token(SWATCH_RAMP_SCRIM, 'bg')}/70`)
     // Full width rather than a chip per number: one ground and one baseline,
     // where four chips are four dark blocks punched through a six-band scale.
     expect(SWATCH_RAMP_SCRIM).toContain('inset-x-0')
-    expect(SWATCH_RAMP_TICK).toContain('text-slate-200')
+    expect(darkStep(token(SWATCH_RAMP_TICK, 'text'))).toBe('slate-200')
     // The strip clips the scrim to its own corners, and a number paints over
     // it rather than under it.
     expect(SWATCH_RAMP).toContain('overflow-hidden')
@@ -2901,8 +2972,8 @@ describe('an unfurled menu', () => {
   it("squares the anchor on the side facing the card, in the card's edge colour", () => {
     expect(UNFURL_ANCHOR).toContain('data-[unfurled=below]:rounded-b-none')
     expect(UNFURL_ANCHOR).toContain('data-[unfurled=above]:rounded-t-none')
-    expect(SURFACE_CARD).toContain('border-slate-600')
-    expect(UNFURL_ANCHOR).toContain('data-[unfurled]:border-slate-600')
+    expect(darkStep(token(SURFACE_CARD, 'border'))).toBe('slate-600')
+    expect(token(UNFURL_ANCHOR, 'data-[unfurled]:border')).toBe(token(SURFACE_CARD, 'border'))
   })
 
   it('is worn by the results bar group', () => {
@@ -2949,11 +3020,15 @@ describe('the panel frame', () => {
     expect(controlPanelSource).toContain('PANEL_BODY')
   })
 
-  it('tells the browser the app is dark, and draws the bar in the theme\'s own steps', () => {
+  it('tells the browser which theme it is in, and draws the bar in the theme\'s own tokens', () => {
     expect(indexCss).toMatch(/:root\s*\{\s*color-scheme:\s*dark;/)
+    expect(indexCss).toMatch(/:root\[data-theme="light"\]\s*\{\s*color-scheme:\s*light;/)
     const bars = indexCss.slice(indexCss.indexOf('.surface-scrollbars {'), indexCss.indexOf('/* Scroll shadows'))
-    expect(bars).toContain('var(--color-slate-500)')
-    expect(bars).toContain('var(--color-slate-800)')
+    // The structural edge on the panel: slate-500 on slate-800 in dark.
+    expect(bars).toContain('var(--ui-edge)')
+    expect(bars).toContain('var(--ui-panel)')
+    expect(darkStep('edge')).toBe('slate-500')
+    expect(darkStep('panel')).toBe('slate-800')
     expect(bars).not.toMatch(/#[0-9a-f]{3,6}\b/i)
     // The map's white surfaces keep the light scheme for themselves.
     expect(mapCss).toMatch(/\.maplibregl-popup,\s*\.maplibregl-ctrl\s*\{\s*color-scheme:\s*light;\s*color:\s*CanvasText;/)
@@ -3061,5 +3136,201 @@ describe('the calendar field wraps', () => {
     expect(stepPx(ICON.control, 'h')).toBe(LINE_PX)
     expect(CALENDAR_FIELD.arrow).toContain('pointer-events-none')
     expect(forecastCalendarSource).not.toMatch(/id=\{fieldTextId\} className="[^"]*truncate/)
+  })
+})
+
+// The light theme (#706; record 0156), measured rather than copied: every
+// pair the dark assertions above pin as a literal is computed here from the
+// light values `index.css` declares, so a light value that moves fails here
+// and forces the re-measurement. The palette is the maintainer's (issue
+// #706); the values it left to derive (the middle ink, the faint ink, the
+// outline, the range band's hover, the shade, the thumb and the muted fade)
+// are each held to the floor they owe. Measured 2026-10-15.
+describe('the light theme', () => {
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+  const lum = (hex: string) => {
+    const [r, g, b] = rgb(hex).map((v) => {
+      const c = v / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const contrast = (a: string, b: string) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+    return (hi + 0.05) / (lo + 0.05)
+  }
+  /** `top` at `alpha` over `under`, the way an opacity or a `/NN` composites. */
+  const over = (top: string, alpha: number, under: string) =>
+    `#${rgb(top)
+      .map((v, i) => Math.round(alpha * v + (1 - alpha) * rgb(under)[i]))
+      .map((v) => v.toString(16).padStart(2, '0'))
+      .join('')}`
+  const ratio = (a: string, b: string) => Math.round(contrast(a, b) * 100) / 100
+  // A role's light hex through one of its utilities.
+  const hex = (recipe: string, utility: string) => light(token(recipe, utility))
+
+  const PANEL = light('panel')
+  const RAISED = light('raised')
+  const WELL = light('recessed')
+  const FLOATING = light('floating')
+  const PAGE = light('page')
+
+  it('declares a light value for every token the dark theme has', () => {
+    expect(Object.keys(LIGHT_TOKENS).sort()).toEqual(Object.keys(DARK_TOKENS).sort())
+    // The maintainer's palette, as given.
+    expect([PAGE, PANEL, RAISED, WELL, light('rule'), light('edge')]).toEqual([
+      '#f8f9ff', '#eef2f9', '#e1e6ee', '#ffffff', '#c2c8d1', '#72787f',
+    ])
+    expect([light('ink-strong'), light('ink'), light('ink-soft')]).toEqual(['#181c21', '#181c21', '#42474e'])
+  })
+
+  // The accent: the label on the fill (1.4.3), the fill against everything
+  // beside it (1.4.11), and the hover, which in light darkens and so stays AA
+  // where the dark hover could not.
+  it('clears the label and every edge on the light accent, the hover included', () => {
+    const fill = hex(ACCENT.fill, 'bg')
+    const label = hex(ACCENT.fill, 'text')
+    expect(fill).toBe('#00639b')
+    expect(ratio(label, fill)).toBe(6.45)
+    expect(ratio(fill, PANEL)).toBe(5.74)
+    expect(ratio(fill, hex(DAY.range, 'bg'))).toBe(5)
+    expect(ratio(fill, hex(SEGMENT_IDLE, 'bg'))).toBe(6.45)
+    expect(ratio(fill, hex(DAY.range, 'hover:bg'))).toBe(4.47)
+    expect(ratio(label, hex(ACCENT.fillHover, 'hover:bg'))).toBe(7.96)
+    for (const edge of [PANEL, hex(DAY.range, 'bg'), hex(DAY.range, 'hover:bg'), WELL]) {
+      expect(contrast(fill, edge)).toBeGreaterThanOrEqual(3)
+    }
+    // Darker than the rest, where the dark theme's hover lightens.
+    expect(lum(hex(ACCENT.fillHover, 'hover:bg'))).toBeLessThan(lum(fill))
+  })
+
+  // Every text role on every surface it lands on, past 4.5:1.
+  it('keeps every text role at 4.5:1 or better on every surface', () => {
+    const roles = [TEXT.appTitle, TEXT.control, TEXT.section, TEXT.caption, PROSE.body, LINK, CAPTION_LIFTED]
+    const lowest: Record<string, number> = {}
+    for (const recipe of roles) {
+      const ink = hex(recipe, 'text')
+      for (const ground of [PAGE, PANEL, RAISED, WELL, FLOATING]) {
+        const r = contrast(ink, ground)
+        expect(r, `${recipe} on ${ground}`).toBeGreaterThanOrEqual(4.5)
+        lowest[ink] = Math.min(lowest[ink] ?? Infinity, Math.round(r * 100) / 100)
+      }
+    }
+    // The secondary ink is the floor: 7.47 on the raised surface.
+    expect(lowest[light('ink-soft')]).toBe(7.47)
+    // The middle ink sits between the primary and the secondary.
+    expect(lum(light('ink-mid'))).toBeGreaterThan(lum(light('ink')))
+    expect(lum(light('ink-mid'))).toBeLessThan(lum(light('ink-soft')))
+  })
+
+  it('keeps the placeholder, the pickable days and the micro step legible', () => {
+    expect(ratio(hex(FIELD, 'placeholder'), WELL)).toBe(9.36)
+    // The calendar's ground is the well; both pickable days clear 4.5 there.
+    for (const day of [DAY.full, DAY.partial]) expect(contrast(hex(day, 'text'), WELL)).toBeGreaterThanOrEqual(4.5)
+    // An unservable day is decoration (inactive, 1.4.3 exempts it) and must
+    // stay dimmer than the dimmest day a reader can pick.
+    expect(contrast(hex(DAY.unservable, 'text'), WELL)).toBeLessThan(contrast(hex(DAY.partial, 'text'), WELL))
+    expect(ratio(hex(DAY.unservable, 'text'), WELL)).toBe(2.45)
+    // The micro step on its three grounds: the legend box, the table header
+    // and the panel.
+    const micro = hex(TEXT.micro, 'text')
+    expect([FLOATING, RAISED, PANEL].map((g) => ratio(micro, g))).toEqual([12.3, 10.31, 11.51])
+    // A search result's caption on its highlighted row.
+    expect(ratio(hex(CAPTION_LIFTED, 'text'), light('highlight'))).toBe(9.19)
+  })
+
+  // Icons and boundaries owe 3:1 (1.4.11): the faint icon ink on every
+  // surface, the recessed edge on both sides it separates, the lifted edge on
+  // the popover and its well, the checkbox mark and the focus ring.
+  it('holds every icon and boundary at 3:1 or better', () => {
+    const faint = hex(ICON_ACTION, 'text')
+    expect([PANEL, RAISED, WELL].map((g) => ratio(faint, g))).toEqual([4.32, 3.87, 4.85])
+    const edge = hex(RECESSED_EDGE, 'border')
+    expect([PANEL, WELL].map((g) => ratio(edge, g))).toEqual([3.97, 4.46])
+    const lifted = hex(LIFTED_EDGE, 'border')
+    expect([RAISED, WELL].map((g) => ratio(lifted, g))).toEqual([3.56, 4.46])
+    const mark = hex(ACCENT.input, 'accent')
+    expect([PANEL, RAISED, WELL].map((g) => ratio(mark, g))).toEqual([5.74, 5.14, 6.45])
+    const ring = hex(FOCUS_RING, 'focus-visible:outline')
+    expect([PAGE, PANEL, RAISED, WELL].map((g) => ratio(ring, g))).toEqual([6.13, 5.74, 5.14, 6.45])
+    expect(ratio(hex(ICON_ADORNMENT, 'text'), WELL)).toBe(9.36)
+  })
+
+  // The two quiet lines stay quiet, as the dark ones are (the rule 1.41 and
+  // the outline 1.93 on slate-800), and the structural edge still reads on
+  // the floating box.
+  it('keeps the quiet rule and the outline quiet and the structural edge seen', () => {
+    expect(ratio(hex(SURFACE_DIVIDER, 'border'), PANEL)).toBe(1.5)
+    const frame = hex(SURFACE_CARD, 'border')
+    expect(ratio(frame, PANEL)).toBe(2.35)
+    // Derived halfway between the quiet rule and the structural edge.
+    const mid = rgb(light('rule')).map((v, i) => Math.floor((v + rgb(light('edge'))[i]) / 2))
+    expect(rgb(frame)).toEqual(mid)
+    expect(ratio(hex(PANEL_EDGE, 'border'), FLOATING)).toBe(4.24)
+  })
+
+  // Notices: each ink on its own tint and on the panel, the destructive
+  // button's label on its fill, and the dismiss glyph on its pill.
+  it('keeps every notice ink at 4.5:1 or better on its tint and the panel', () => {
+    const tones = { warn: [6.93, 7.48], error: [7.24, 8.33], info: [7.44, 8.35] }
+    for (const [tone, [onTint, onPanel]] of Object.entries(tones)) {
+      const ink = hex(STATUS[tone as keyof typeof STATUS], 'text')
+      const tint = hex(NOTICE[tone as keyof typeof NOTICE], 'bg')
+      expect(ratio(ink, tint), tone).toBe(onTint)
+      expect(ratio(ink, PANEL), tone).toBe(onPanel)
+      // The rule is the ink at 38% over the tint, the theme lab's derivation.
+      expect(hex(NOTICE[tone as keyof typeof NOTICE], 'border')).toBe(over(ink, 0.38, tint))
+    }
+    expect(ratio(hex(STATUS.ok, 'text'), PANEL)).toBe(5.84)
+    expect(ratio(hex(BUTTON_DANGER, 'text'), hex(BUTTON_DANGER, 'bg'))).toBe(7.72)
+    expect(ratio(hex(BUTTON_DANGER, 'text'), hex(BUTTON_DANGER, 'hover:bg'))).toBe(6.59)
+    // The dismiss X, its box's ink on the pill's lift over the tint.
+    const lift = Number(NOTICE_DISMISS.pill.match(/bg-lift\/(\d+)/)![1]) / 100
+    for (const [tone, want] of Object.entries({ warn: 6.31, error: 6.6, info: 6.77 })) {
+      const tint = hex(NOTICE[tone as keyof typeof NOTICE], 'bg')
+      const ink = hex(STATUS[tone as keyof typeof STATUS], 'text')
+      expect(ratio(ink, over(light('lift'), lift, tint)), tone).toBe(want)
+    }
+  })
+
+  // `MUTED` fades a working control, whose text still owes 4.5:1. The light
+  // ink at the light fade on the panel, an idle select and an unplotted chip
+  // (the panel at 50% over the page at 50% over the panel).
+  it('fades a muted label by the step that keeps it over the text floor', () => {
+    const fade = Number(LIGHT_TOKENS.muted)
+    const ink = hex(TEXT.control, 'text')
+    const chip = over(PANEL, 0.5, over(PAGE, 0.5, PANEL))
+    const at = (a: number) => [PANEL, WELL, chip].map((g) => ratio(over(ink, a, g), g))
+    expect(fade).toBe(0.65)
+    expect(at(fade)).toEqual([5.07, 5.34, 5.1])
+    // The dark theme's 60% would not: 4.31 on the panel.
+    expect(Math.min(...at(Number(DARK_TOKENS.muted)))).toBeLessThan(4.5)
+  })
+
+  // The legend strip's numbers on their scrim, over the palest and the
+  // darkest band any ramp draws (cyan-300 and the snow key's #5720c3).
+  it('stands the ramp numbers on a light ground that clears every band', () => {
+    const scrim = light(token(SWATCH_RAMP_SCRIM, 'bg'))
+    const alpha = Number(SWATCH_RAMP_SCRIM.match(/\/(\d+)/)![1]) / 100
+    const ink = hex(SWATCH_RAMP_TICK, 'text')
+    expect(['#67e8f9', '#5720c3'].map((band) => ratio(ink, over(scrim, alpha, band)))).toEqual([15.12, 9.79])
+  })
+
+  // The range thumb is the ink here, half on the white well where a white
+  // thumb would vanish; on the accent it reads 2.66:1 beside the dark white
+  // thumb's 2.71:1 on its mark.
+  it('draws the slider thumb in the ink, findable on the well and the fill', () => {
+    const thumb = light(token(SCRUBBER, '[&::-webkit-slider-thumb]:bg'))
+    expect(ratio(thumb, hex(ACCENT.mark, 'bg'))).toBe(2.66)
+    expect(contrast(thumb, WELL)).toBeGreaterThan(15)
+    expect(token(SCRUBBER, '[&::-moz-range-thumb]:bg')).toBe(token(SCRUBBER, '[&::-webkit-slider-thumb]:bg'))
+  })
+
+  // The shade under a fixed edge: the ink at 12% stands 1.27:1 off the light
+  // panel, where the dark theme's slate-950 at 70% stands 1.29:1 off its own.
+  it('shades a cut-off edge as deeply as the dark theme does', () => {
+    const shade = indexCss.match(/:root\[data-theme="light"\] \{\s*--scroll-shade: color-mix\(in oklab, (#[0-9a-f]{6}) (\d+)%, transparent\);/)!
+    expect(shade[1]).toBe(light('ink'))
+    expect(ratio(over(shade[1], Number(shade[2]) / 100, PANEL), PANEL)).toBe(1.27)
   })
 })

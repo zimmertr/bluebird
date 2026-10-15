@@ -37,6 +37,7 @@ import { CHOICE_INPUT, ICON_ACTION, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '..
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
+import type { Theme } from '../utils/viewPrefs'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to
@@ -206,6 +207,7 @@ interface CellContext {
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
   pointSample: boolean
+  theme: Theme
   modelFallbackLabel?: string | null
   modelId?: string | null
   times?: readonly number[]
@@ -423,7 +425,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
     const href = destinationUrl(row)
     return <NameTd cellClass={cellClass} widths={ctx.widths} label={display} name={row.name} onCenter={ctx.onCenter} href={href} />
   }
-  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample)
+  const colorSty = cellColor(key, raw, ctx.coloredGroup, ctx.pointSample, ctx.theme)
   if (col.windyLayer) {
     return (
       <td className={cellClass} style={colorSty}>
@@ -468,6 +470,9 @@ interface RowProps {
   widths: Record<string, number>
   coloredGroup: ReadonlySet<string>
   pointSample: boolean
+  // A string, so the memoized row compares it by value and a theme switch is
+  // the one change that redraws every ranked cell (#706).
+  theme: Theme
   modelFallbackLabel?: string | null
   modelId?: string | null
   times?: readonly number[]
@@ -493,6 +498,7 @@ function ResultsTableRow({
   widths,
   coloredGroup,
   pointSample,
+  theme,
   modelFallbackLabel,
   modelId,
   times,
@@ -514,6 +520,7 @@ function ResultsTableRow({
     widths,
     coloredGroup,
     pointSample,
+    theme,
     modelFallbackLabel,
     modelId,
     times,

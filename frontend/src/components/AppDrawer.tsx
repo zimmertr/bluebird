@@ -3,6 +3,7 @@ import { SheetTop } from './BottomSheet'
 import ControlPanel from './ControlPanel'
 import type { MapViewHandle } from './MapView'
 import { IconClose } from './icons'
+import ThemeButton from './ThemeButton'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useSheetDrag } from '../hooks/useSheetDrag'
 import type { Refusal, RunError } from '../hooks/useAnalyze'
@@ -15,7 +16,8 @@ import type { AnalyzeResponse, DestinationResult } from '../types'
 import { type FireProximityStatus, checkNoticeDue } from '../utils/fireProximity'
 import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { CommitReason } from '../utils/present'
-import { CONTROLS_SHEET, LAYER, MOTION, PANEL_EDGE, RADIUS, TAP, TEXT } from '../styles'
+import { CONTROLS_SHEET, HEADER_BUTTON, LAYER, MOTION, PANEL_EDGE, PANEL_HEADER } from '../styles'
+import type { Theme } from '../utils/viewPrefs'
 
 interface AppDrawerProps {
   /** Whether the panel is open: docked on a desktop, the Controls sheet on a phone. */
@@ -113,6 +115,9 @@ interface AppDrawerProps {
   basemapFailed: boolean
   /** Where a phone's notices stand (record 0140), or null at a desk. */
   noticeHome?: HTMLElement | null
+  /** The theme, and the switch the header carries (`useTheme`, #706). */
+  theme: Theme
+  onToggleTheme: () => void
 }
 
 /**
@@ -157,6 +162,8 @@ export default function AppDrawer({
   showAreaClosures,
   basemapFailed,
   noticeHome = null,
+  theme,
+  onToggleTheme,
 }: AppDrawerProps) {
   const { drawing, startDrawing, finishDrawing, drawPointCount, handleCancelDrawing, handleClearDrawing } = drawMode
   const {
@@ -297,7 +304,14 @@ export default function AppDrawer({
         className={`${CONTROLS_SHEET.card} ${open ? '' : CONTROLS_SHEET.shut}`}
         style={{ height: sheetPx }}
       >
-        <SheetTop heading="Controls" headingId={headingId} onClose={onClose} onGripDown={onGripDown} doneRef={closeRef} />
+        <SheetTop
+          heading="Controls"
+          headingId={headingId}
+          onClose={onClose}
+          onGripDown={onGripDown}
+          doneRef={closeRef}
+          actions={<ThemeButton theme={theme} onToggle={onToggleTheme} />}
+        />
         <div className={CONTROLS_SHEET.panel}>{panel}</div>
       </section>
     )
@@ -313,23 +327,27 @@ export default function AppDrawer({
           before reaching the map (#576). */}
       <aside
         inert={!open}
-        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 ${MOTION.slide} flex-shrink-0 bg-slate-800 flex flex-col overflow-hidden border-r ${PANEL_EDGE} ${
+        className={`absolute inset-y-0 left-0 ${LAYER.drawer} w-[calc(100vw-2rem)] max-w-90 ${MOTION.slide} flex-shrink-0 bg-panel flex flex-col overflow-hidden border-r ${PANEL_EDGE} ${
           open
             ? 'translate-x-0 lg:static lg:z-10 lg:w-90 lg:max-w-none lg:transition-none'
             : '-translate-x-full'
         }`}
       >
-        {/* Close button — collapses the panel on both mobile and desktop */}
-        <button
-          ref={closeRef}
-          onClick={onClose}
-          aria-label="Close controls"
-          // Flex centres the drawn cross in the circle; why the cross is drawn
-          // rather than typed is `IconClose`'s own comment.
-          className={`${TAP.action} absolute top-2 right-2 z-10 flex h-8 w-8 items-center justify-center ${TEXT.control} ${RADIUS.pill} bg-slate-700/80 transition-colors hover:bg-slate-600 active:bg-slate-600`}
-        >
-          <IconClose />
-        </button>
+        {/* The header's buttons: the theme switch, then the close button,
+            which collapses the panel. */}
+        <div className={PANEL_HEADER.actions}>
+          <ThemeButton theme={theme} onToggle={onToggleTheme} />
+          <button
+            ref={closeRef}
+            onClick={onClose}
+            aria-label="Close controls"
+            // Flex centres the drawn cross in the circle; why the cross is
+            // drawn rather than typed is `IconClose`'s own comment.
+            className={HEADER_BUTTON}
+          >
+            <IconClose />
+          </button>
+        </div>
         {panel}
       </aside>
     </>
