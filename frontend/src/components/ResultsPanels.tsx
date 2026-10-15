@@ -56,6 +56,8 @@ export interface ResultsPanelsProps {
   sortBy: SortBy
   /** The ranking's direction, which the chart's extreme line follows. */
   sortDesc: boolean
+  /** A phone, where the chart's metric picker is its title (#696; record 0149). */
+  chartTitled: boolean
   /** Whether the report is one hour, which relabels the metric columns. */
   pointSample: boolean
   /** The report's hourly grid, and the playhead on it. */
@@ -97,6 +99,7 @@ export default function ResultsPanels({
   removeResult,
   sortBy,
   sortDesc,
+  chartTitled,
   pointSample,
   forecastTimes,
   playbackIndex,
@@ -174,6 +177,7 @@ export default function ResultsPanels({
                   extraLines={compare.lines}
                   modelEnds={compare.endLines}
                   controls={compareControls}
+                  titled={chartTitled}
                 />
               </Suspense>
             </div>

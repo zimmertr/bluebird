@@ -77,6 +77,7 @@ function props(over: { layout?: unknown; charts?: unknown } = {}): Props {
     removeResult,
     sortBy: DEFAULT_FAMILY_KEY.temp,
     sortDesc: false,
+    chartTitled: false,
     pointSample: false,
     forecastTimes: TIMES,
     playbackIndex: null,

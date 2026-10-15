@@ -149,6 +149,31 @@ export function IconLayers({ className }: IconProps): ReactNode {
 }
 
 /**
+ * The map's Legend button at a desk (#696): a key, three swatches each with
+ * its line of text, drawn on the Layers glyph's grid and stroke so the
+ * column's buttons read as one set.
+ */
+export function IconLegend({ className }: IconProps): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className={join(ICON.control, className)}
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="4" height="4" />
+      <line x1="11" y1="6" x2="21" y2="6" />
+      <rect x="3" y="10" width="4" height="4" />
+      <line x1="11" y1="12" x2="21" y2="12" />
+      <rect x="3" y="16" width="4" height="4" />
+      <line x1="11" y1="18" x2="21" y2="18" />
+    </svg>
+  )
+}
+
+/**
  * The results bar's three modes. They and the bar's four buttons below are the
  * app's only glyphs drawn on a 16-unit grid at a lighter stroke, which is what lets a diagram of a table
  * carry two interior rules inside a 16px box without them closing up.

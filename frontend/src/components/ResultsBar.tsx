@@ -55,8 +55,6 @@ interface ResultsBarProps {
   showTable: boolean
   /** The buttons' group, which every one of their menus unfurls out of. */
   actionGroupRef: RefObject<HTMLDivElement | null>
-  /** The line the group stands on, which a phone's menus span (record 0134). */
-  actionsRowRef: RefObject<HTMLDivElement | null>
   /** The three popovers' triggers, their presses, and whether each is open. */
   columnsButtonRef: RefObject<HTMLButtonElement | null>
   onToggleColumns: () => void
@@ -103,7 +101,6 @@ export default function ResultsBar({
   bothHasRoom,
   showTable,
   actionGroupRef,
-  actionsRowRef,
   columnsButtonRef,
   onToggleColumns,
   columnsOpen,
@@ -232,7 +229,7 @@ export default function ResultsBar({
             spans the bar and the groups stand at its two ends, at least 16px
             apart (gap-x-4): at 360px the two glyph groups leave the line 19px,
             which 24 would have wrapped. */}
-        <div ref={actionsRowRef} className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @4xl:gap-x-6">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 @4xl:gap-x-6">
           {/* Mode switch: table, chart, or both — fluid width, since
               three icon-plus-label halves cannot fit the panel's
               144px column (SEGMENT_FLUID exists because this shipped

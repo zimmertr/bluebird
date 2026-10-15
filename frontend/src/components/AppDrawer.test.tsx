@@ -17,9 +17,11 @@ vi.mock('./ControlPanel', () => ({
     basemapFailed?: boolean
     wildfireCheckFailed?: boolean
     closureCheckFailed?: boolean
+    phone?: boolean
   }) => (
     <div
       data-testid="panel"
+      data-phone={String(props.phone)}
       data-basemap-failed={String(props.basemapFailed)}
       data-wildfire-failed={String(props.wildfireCheckFailed)}
       data-closure-failed={String(props.closureCheckFailed)}
@@ -85,6 +87,11 @@ function drawer(
   return (
     <AppDrawer
       open={open}
+      isDesktop={true}
+      sheetPx={600}
+      sheetRestPx={600}
+      sheetFullPx={700}
+      onSheetPx={NOOP}
       onClose={onClose}
       onTutorial={NOOP}
       drawMode={DRAW}
@@ -124,15 +131,12 @@ describe('AppDrawer', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  // The backdrop exists only while the drawer is open, and a press on it closes it.
-  it('draws a backdrop only while open, and closes on a press on it', () => {
-    const onClose = vi.fn()
-    const { container, rerender } = render(drawer(true, onClose))
-    const scrim = container.querySelector('aside')?.previousElementSibling as HTMLElement
-    fireEvent.click(scrim)
-    expect(onClose).toHaveBeenCalledOnce()
-    rerender(drawer(false, onClose))
+  // A desk docks the panel beside the map and draws nothing behind it.
+  it('docks at a desk with no backdrop and no sheet', () => {
+    const { container } = render(drawer(true))
     expect(container.querySelector('aside')?.previousElementSibling).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Controls' })).toBeNull()
+    expect(screen.getByTestId('panel').dataset.phone).toBe('false')
   })
 
   it('slides off screen when closed and stays mounted', () => {
@@ -198,5 +202,71 @@ describe('AppDrawer', () => {
     rerender(drawer(true, NOOP, false, { ...failed, showAreaClosures: true }))
     expect(screen.getByTestId('panel').dataset.wildfireFailed).toBe('false')
     expect(screen.getByTestId('panel').dataset.closureFailed).toBe('true')
+  })
+
+  // A phone raises the panel as the Controls sheet (#696; record 0141): not a
+  // dialog, no backdrop, its height set from where it stands, and mounted for
+  // good so the panel keeps its state and the notice portal its home.
+  describe('on a phone', () => {
+    const phone = (open: boolean, onClose = NOOP) => drawer(open, onClose, false, { isDesktop: false, sheetPx: 540 })
+
+    it('is a region titled Controls, the given height, with the phone panel in it', () => {
+      const { container } = render(phone(true))
+      const sheet = screen.getByRole('region', { name: 'Controls' })
+      expect(sheet.style.height).toBe('540px')
+      expect(screen.getByTestId('panel').dataset.phone).toBe('true')
+      expect(container.querySelector('aside')).toBeNull()
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+
+    it('closes from Done and from Escape', () => {
+      const onClose = vi.fn()
+      render(phone(true, onClose))
+      fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+      fireEvent.keyDown(screen.getByRole('region', { name: 'Controls' }), { key: 'Escape' })
+      expect(onClose).toHaveBeenCalledTimes(2)
+    })
+
+    it('slides below the map and goes inert when shut, and stays mounted', () => {
+      const { container, rerender } = render(phone(true))
+      const sheet = () => container.querySelector('section') as HTMLElement
+      expect(sheet().hasAttribute('inert')).toBe(false)
+      expect(sheet().className).not.toContain('translate-y-full')
+      rerender(phone(false))
+      expect(sheet().hasAttribute('inert')).toBe(true)
+      expect(sheet().className).toContain('translate-y-full')
+      expect(screen.getByTestId('panel')).toBeTruthy()
+    })
+
+    // Its grip and title drag it the way a menu's do (record 0146), with the
+    // heights App holds: the button and the band ride its edge.
+    it('hands App the height a drag on its title holds it at, and its own back on a double press', () => {
+      const onSheetPx = vi.fn()
+      render(drawer(true, NOOP, false, { isDesktop: false, sheetPx: 540, sheetRestPx: 540, sheetFullPx: 700, onSheetPx }))
+      const title = screen.getByRole('heading', { name: 'Controls' })
+      fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
+      fireEvent.pointerMove(document, { clientY: 400, pointerId: 1 })
+      expect(onSheetPx).toHaveBeenLastCalledWith(640)
+      fireEvent.pointerMove(document, { clientY: 200, pointerId: 1 })
+      expect(onSheetPx).toHaveBeenLastCalledWith(700)
+      fireEvent.pointerCancel(document, { pointerId: 1 })
+      fireEvent.pointerDown(title, { clientY: 500, pointerId: 1 })
+      expect(onSheetPx).toHaveBeenLastCalledWith(null)
+    })
+
+    // The summary chip that raised it can go inert under it, so Done takes
+    // the keyboard rather than the body (#576).
+    it('hands the keyboard to Done when the control that raised it goes', () => {
+      const page = (open: boolean) => (
+        <>
+          {phone(open)}
+          {!open && <button>Open controls</button>}
+        </>
+      )
+      const { rerender } = render(page(false))
+      screen.getByRole('button', { name: 'Open controls' }).focus()
+      rerender(page(true))
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Done' }))
+    })
   })
 })

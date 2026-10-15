@@ -108,9 +108,10 @@ describe('useResultsLayout', () => {
   })
 
   it('draws one panel on a phone too short for two, and gives Both back when it grows', () => {
-    setViewport(560)
+    setViewport(520)
+    // A report on screen, so the pending-only hold below is not what decides.
     const { result } = renderHook(() =>
-      useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both' }),
+      useResultsLayout({ ...DESKTOP, isDesktop: false, modeChosen: 'both', response: {} }),
     )
     expect(result.current.bothHasRoom).toBe(false)
     expect(result.current.resultsMode).toBe('table')
@@ -119,6 +120,139 @@ describe('useResultsLayout', () => {
       window.dispatchEvent(new Event('resize'))
     })
     expect(result.current.bothHasRoom).toBe(true)
+    expect(result.current.resultsMode).toBe('both')
+  })
+
+  // The tutorial's Results and Chart steps (#696): the reverse of a row tap's
+  // collapse, set as state so the sheet stays where the step left it, and on
+  // a phone at its resting height in the step's view, without storing it.
+  it("opens the sheet to rest in the tutorial step's view", () => {
+    setDesktopQuery(false)
+    setViewport(1000)
+    const PHONE = { ...DESKTOP, isDesktop: false, response: {} }
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: PHONE,
+    })
+    const resting = result.current.tablePanelPx
+    act(() => result.current.chooseResultsMode('chart'))
+    act(() => result.current.chartGrip.onDragStart())
+    act(() => result.current.chartGrip.onDrag(120))
+    act(() => result.current.chartGrip.onDragEnd())
+    act(() => result.current.collapse())
+    expect(result.current.resultsCollapsed).toBe(true)
+    rerender({ ...PHONE, restView: 'table' })
+    expect(result.current.resultsCollapsed).toBe(false)
+    expect(result.current.resultsMode).toBe('table')
+    expect(result.current.tablePanelPx).toBe(resting)
+    // The press stays the stored answer: the tour chose the view, the reader did not.
+    expect(readViewPrefs().modeChosen).toBe('chart')
+    // The Chart step turns it to the chart, which on a phone rests at the
+    // sheet's full stop (record 0155).
+    rerender({ ...PHONE, restView: 'chart' })
+    expect(result.current.resultsMode).toBe('chart')
+    expect(result.current.chartPanelPx).toBeGreaterThan(resting)
+    // The step ends and the sheet stays where it put it.
+    rerender({ ...PHONE, restView: null })
+    expect(result.current.resultsCollapsed).toBe(false)
+    expect(result.current.resultsMode).toBe('chart')
+  })
+
+  // A phone's Chart alone rests at the sheet's full stop, because the rest
+  // stop is the table's (#696; record 0155). Table comes back at the height
+  // it had, a drag on the Chart is the reader's and wins, and the tutorial's
+  // Chart step holds the full stop whatever the reader did.
+  describe('a phone Chart at the full stop', () => {
+    function phone() {
+      setDesktopQuery(false)
+      setViewport(1000)
+      const PHONE = { ...DESKTOP, isDesktop: false, response: {} }
+      const hook = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), { initialProps: PHONE })
+      return { ...hook, PHONE }
+    }
+    const drag = (result: { current: ReturnType<typeof useResultsLayout> }, grip: 'chartGrip' | 'tableGrip', up: number) => {
+      act(() => result.current[grip].onDragStart())
+      act(() => result.current[grip].onDrag(up))
+      act(() => result.current[grip].onDragEnd())
+    }
+
+    it('lifts the sheet when Chart is picked', () => {
+      const { result } = phone()
+      const resting = result.current.tablePanelPx
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      expect(full).toBeGreaterThan(resting)
+      // As high as a drag on the Table takes it: the same stop.
+      act(() => result.current.chooseResultsMode('table'))
+      drag(result, 'tableGrip', 2000)
+      expect(result.current.tablePanelPx).toBe(full)
+    })
+
+    it('gives Table back the height it had before Chart was picked', () => {
+      const { result } = phone()
+      drag(result, 'tableGrip', 60)
+      const chosen = result.current.tablePanelPx
+      act(() => result.current.chooseResultsMode('chart'))
+      expect(result.current.chartPanelPx).toBeGreaterThan(chosen)
+      act(() => result.current.chooseResultsMode('table'))
+      expect(result.current.tablePanelPx).toBe(chosen)
+    })
+
+    it('lets a drag on the Chart win, until Chart is picked again', () => {
+      const { result } = phone()
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      drag(result, 'chartGrip', -200)
+      expect(result.current.chartPanelPx).toBe(full - 200)
+      // A double press puts the Chart back at its rest, the full stop.
+      act(() => result.current.chartGrip.onReset())
+      expect(result.current.chartPanelPx).toBe(full)
+      drag(result, 'chartGrip', -200)
+      act(() => result.current.chooseResultsMode('table'))
+      act(() => result.current.chooseResultsMode('chart'))
+      expect(result.current.chartPanelPx).toBe(full)
+    })
+
+    // A drag reports its whole distance so far, so each move is measured from
+    // where the drag began, not from the last move's height.
+    it('measures every move of a drag from where it began', () => {
+      const { result } = phone()
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      act(() => result.current.chartGrip.onDragStart())
+      for (const down of [20, 40, 60, 80]) act(() => result.current.chartGrip.onDrag(-down))
+      act(() => result.current.chartGrip.onDragEnd())
+      expect(result.current.chartPanelPx).toBe(full - 80)
+      act(() => result.current.chooseResultsMode('table'))
+      const table = result.current.tablePanelPx
+      act(() => result.current.tableGrip.onDragStart())
+      for (const up of [10, 20, 30]) act(() => result.current.tableGrip.onDrag(up))
+      act(() => result.current.tableGrip.onDragEnd())
+      expect(result.current.tablePanelPx).toBe(table + 30)
+    })
+
+    it("holds the full stop for the tutorial's Chart step, and gives the reader's drag back", () => {
+      const { result, rerender, PHONE } = phone()
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      drag(result, 'chartGrip', -200)
+      rerender({ ...PHONE, fullOverride: true })
+      expect(result.current.chartPanelPx).toBe(full)
+      rerender({ ...PHONE, fullOverride: false })
+      expect(result.current.chartPanelPx).toBe(full - 200)
+    })
+  })
+
+  it('opens the docked results on a desk to the view, keeping Both', () => {
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: DESKTOP,
+    })
+    act(() => result.current.chooseResultsMode('chart'))
+    act(() => result.current.toggleCollapsed())
+    rerender({ ...DESKTOP, restView: 'table' })
+    expect(result.current.resultsCollapsed).toBe(false)
+    expect(result.current.resultsMode).toBe('table')
+    act(() => result.current.chooseResultsMode('both'))
+    rerender({ ...DESKTOP, restView: 'chart' })
     expect(result.current.resultsMode).toBe('both')
   })
 
@@ -161,6 +295,59 @@ describe('useResultsLayout', () => {
     expect(result.current.cameraPadBottomPx).toBe(0)
   })
 
+  // A phone sheet holding only rows nobody has forecast yet draws the table
+  // alone (#696): an empty chart took most of the sheet a search had opened.
+  // The saved mode is left alone and comes back with the first report.
+  it('holds a pending-only phone sheet to the table, and gives the saved mode back', () => {
+    setDesktopQuery(false)
+    const phone: ResultsLayoutInputs = { ...DESKTOP, isDesktop: false, modeChosen: 'both' }
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: phone,
+    })
+    expect(result.current.resultsMode).toBe('table')
+    expect(result.current.chartShowing).toBe(false)
+    expect(readViewPrefs().modeChosen).toBeNull()
+    rerender({ ...phone, response: {}, analysisSeq: 1 })
+    expect(result.current.resultsMode).toBe('both')
+  })
+
+  // A press is the reader answering the hold, and a segment that ignores one
+  // reads as broken.
+  it('lets a press on the segment lift the hold', () => {
+    setDesktopQuery(false)
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false }))
+    act(() => result.current.chooseResultsMode('chart'))
+    expect(result.current.resultsMode).toBe('chart')
+  })
+
+  it('never holds a desktop', () => {
+    const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'chart' }))
+    expect(result.current.resultsMode).toBe('chart')
+  })
+
+  // A searched place is framed for the sheet it is about to open (#696): the
+  // padding before the sheet opens is the one the camera takes once it has.
+  it('knows the resting lift of a sheet that is not open yet', () => {
+    setDesktopQuery(false)
+    const closed: ResultsLayoutInputs = { ...DESKTOP, isDesktop: false, showTable: false }
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: closed,
+    })
+    expect(result.current.cameraPadBottomPx).toBe(0)
+    const coming = result.current.sheetPadBottomPx
+    expect(coming).toBeGreaterThan(0)
+    rerender({ ...closed, showTable: true })
+    expect(result.current.cameraPadBottomPx).toBe(coming)
+    // The table alone, which is what a pending-only sheet holds to: a
+    // stored Both would otherwise have padded for two panels.
+    const both = renderHook(() => useResultsLayout({ ...closed, modeChosen: 'both' }))
+    expect(both.result.current.sheetPadBottomPx).toBe(coming)
+  })
+
+  it('pads for no sheet on a desktop', () => {
+    expect(renderHook(() => useResultsLayout({ ...DESKTOP, showTable: false })).result.current.sheetPadBottomPx).toBe(0)
+  })
+
   // MapView is memoized, and the camera padding is one of its props.
   it('keeps the camera padding and its callbacks stable across a render that changes nothing', () => {
     const { result, rerender } = renderHook(() =>
@@ -200,5 +387,33 @@ describe('useResultsLayout', () => {
     height = 400
     rerender()
     expect(result.current.sheetLiftPx).toBe(400)
+  })
+
+  // A phone's home indicator band (record 0145): the foot stands on it with
+  // no sheet, the sheet's padding is the band's, and the panels give the band
+  // up rather than the map. A desk takes none of it.
+  it('stands a phone on the home indicator band and gives the panels the rest', () => {
+    setDesktopQuery(false)
+    setViewport(844)
+    const closed: ResultsLayoutInputs = { ...DESKTOP, isDesktop: false, showTable: false }
+    const bare = renderHook(() => useResultsLayout(closed)).result.current
+    const banded = renderHook(() => useResultsLayout({ ...closed, safeBottomPx: 34 })).result.current
+    expect(bare.sheetLiftPx).toBe(0)
+    expect(banded.sheetLiftPx).toBe(34)
+    // The sheet it is about to open rests the band higher, with the same panels less the band.
+    expect(banded.sheetPadBottomPx - bare.sheetPadBottomPx).toBeLessThanOrEqual(34)
+    expect(banded.sheetPadBottomPx).toBeGreaterThan(bare.sheetPadBottomPx - 34)
+    const desk = renderHook(() => useResultsLayout({ ...DESKTOP, showTable: false, safeBottomPx: 34 })).result.current
+    expect(desk.sheetLiftPx).toBe(0)
+  })
+
+  // A phone's row tap lowers the sheet to its bar (record 0143).
+  it('collapses on request and keeps the callback still', () => {
+    const { result, rerender } = renderHook(() => useResultsLayout({ ...DESKTOP, isDesktop: false }))
+    const collapse = result.current.collapse
+    act(() => collapse())
+    rerender()
+    expect(result.current.resultsCollapsed).toBe(true)
+    expect(result.current.collapse).toBe(collapse)
   })
 })

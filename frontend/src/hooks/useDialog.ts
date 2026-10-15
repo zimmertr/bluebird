@@ -5,7 +5,11 @@ import { useEffect, useRef } from 'react'
 // inside the panel instead of escaping to the page behind the backdrop. Pair
 // with role="dialog" aria-modal="true" and an aria-labelledby on the panel —
 // without these, assistive tech never learns a modal opened at all.
-export function useDialog(onClose: () => void) {
+//
+// `active` false leaves the keyboard where it is and listens for nothing: a
+// sheet the tutorial holds open behind its own card, which has the keyboard
+// (#696).
+export function useDialog(onClose: () => void, active = true) {
   const panelRef = useRef<HTMLDivElement>(null)
   // Latest-close ref so the mount-once effect never re-runs (re-running would
   // steal focus back to the panel on every parent render).
@@ -14,7 +18,7 @@ export function useDialog(onClose: () => void) {
 
   useEffect(() => {
     const panel = panelRef.current
-    if (!panel) return
+    if (!panel || !active) return
     const previous = document.activeElement as HTMLElement | null
     panel.focus()
 
@@ -72,6 +76,8 @@ export function useDialog(onClose: () => void) {
       document.removeEventListener('keydown', onKeyDown)
       previous?.focus()
     }
+    // Mount-once, `active` included: a sheet does not change hands while open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return panelRef

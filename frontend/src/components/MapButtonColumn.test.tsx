@@ -15,6 +15,7 @@ function column(over: { sidebarOpen?: boolean; onOpenControls?: () => void } = {
       searchPointed={false}
       sidebarOpen={over.sidebarOpen ?? true}
       onOpenControls={over.onOpenControls ?? NOOP}
+      controlsSummary="Current · NOAA GFS"
     >
       <button>Layers</button>
     </MapButtonColumn>
@@ -39,6 +40,14 @@ describe('MapButtonColumn', () => {
     rerender(column({ sidebarOpen: false, onOpenControls }))
     fireEvent.click(screen.getByRole('button', { name: 'Open controls' }))
     expect(onOpenControls).toHaveBeenCalledOnce()
+  })
+
+  // It says what the panel holds the way a phone's chip does (#696), its
+  // name unchanged and the summary its description.
+  it('shows the panel\'s summary in place of the word', () => {
+    render(column({ sidebarOpen: false }))
+    const button = screen.getByRole('button', { name: 'Open controls', description: 'Current · NOAA GFS' })
+    expect(button.textContent).toBe('Current · NOAA GFS')
   })
 
   // Closing the drawer makes it inert under the keyboard that pressed its
@@ -72,7 +81,7 @@ describe('MapButtonColumn', () => {
   it('hands the search field the handle the map column holds', () => {
     const ref = createRef<SearchBoxHandle>()
     render(
-      <MapButtonColumn searchBoxRef={ref} onSearchSelect={NOOP} searchPointed={false} sidebarOpen onOpenControls={NOOP}>
+      <MapButtonColumn searchBoxRef={ref} onSearchSelect={NOOP} searchPointed={false} sidebarOpen onOpenControls={NOOP} controlsSummary="">
         {null}
       </MapButtonColumn>,
     )

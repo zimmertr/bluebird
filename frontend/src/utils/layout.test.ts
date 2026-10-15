@@ -3,6 +3,7 @@ import {
   bothFits,
   bothOpensWithRoom,
   clampPanelHeight,
+  heldResultsMode,
   panelOf,
   resolvePanelHeights,
   resolveResultsMode,
@@ -129,18 +130,18 @@ describe('bothFits', () => {
     expect(bothFits(521)).toBe(true)
   })
 
-  // Measured 2026-10-13 at 360px wide: `draggedMapFloorPx(2)` is 412 (the
-  // timeline's band, the inset the map's button column ends at, the sheet's
-  // header and its two grips), so Both needs more than 652px of viewport. A
-  // 640px phone is under it and an 800px one is over. It was 672 until the
-  // results bar's actions became one line of glyphs on a phone (#687) and the
-  // header lost 20px.
-  it('puts the phone threshold at 652px', () => {
-    expect(draggedMapFloorPx(2)).toBe(412)
-    expect(bothFits(652, phone)).toBe(false)
-    expect(bothFits(653, phone)).toBe(true)
-    expect(bothFits(640, phone)).toBe(false)
-    expect(bothFits(800, phone)).toBe(true)
+  // `draggedMapFloorPx(2)` is 312 since #696: the phone's two rows and the
+  // Analyze button's strip (180), the sheet's 84px header and its two 24px
+  // grips. So Both needs more than 552px of viewport: a 540px phone is under
+  // it and a 640 one over. It was 652 while the floor kept the old button
+  // column and the player's band (412), and 672 before the results bar's
+  // actions became one line of glyphs on a phone (#687).
+  it('puts the phone threshold at 552px', () => {
+    expect(draggedMapFloorPx(2)).toBe(312)
+    expect(bothFits(552, phone)).toBe(false)
+    expect(bothFits(553, phone)).toBe(true)
+    expect(bothFits(540, phone)).toBe(false)
+    expect(bothFits(640, phone)).toBe(true)
   })
 
   // The predicate has to answer the same question the resolver does, or the
@@ -179,6 +180,31 @@ describe('resolveResultsMode', () => {
   it('leaves a single panel alone however little room there is', () => {
     expect(resolveResultsMode('chart', 'table', false)).toBe('chart')
     expect(resolveResultsMode('table', 'chart', false)).toBe('table')
+  })
+})
+
+// A phone sheet holding only rows nobody has forecast yet shows the table
+// alone (#696), whatever the reader saved, until a report or a press.
+describe('heldResultsMode', () => {
+  const PHONE = { pendingOnly: true, pressed: false, isDesktop: false }
+
+  it('holds a pending-only phone sheet to the table', () => {
+    expect(heldResultsMode('both', PHONE)).toBe('table')
+    expect(heldResultsMode('chart', PHONE)).toBe('table')
+  })
+
+  it('gives the saved mode back once a report is in', () => {
+    expect(heldResultsMode('both', { ...PHONE, pendingOnly: false })).toBe('both')
+  })
+
+  // A segment that ignores a press reads as broken.
+  it('lets a press answer it', () => {
+    expect(heldResultsMode('chart', { ...PHONE, pressed: true })).toBe('chart')
+  })
+
+  // Docked beside the map, an empty chart covers nothing.
+  it('never holds a desktop', () => {
+    expect(heldResultsMode('both', { ...PHONE, isDesktop: true })).toBe('both')
   })
 })
 

@@ -1,7 +1,6 @@
 import {
   lazy,
   Suspense,
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -54,6 +53,10 @@ import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
+import { useDrawer } from './hooks/useDrawer'
+import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
+import { controlsFullPx, controlsSheetPx } from './utils/resultsSheet'
+import { useHeldSheetPx } from './hooks/useHeldSheetPx'
 import {
   LAYER,
   SURFACE_PAGE,
@@ -62,6 +65,8 @@ import {
   decodeState,
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
+import { controlsSummary } from './utils/controlsSummary'
+import { analyzeGateFor, canAnalyze } from './utils/analyzeGate'
 import {
   panelCommitCues,
   reportView,
@@ -147,9 +152,20 @@ export default function App() {
   // tour, and the tour's own start and end keep it and clear it.
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
-  // The controls panel is docked on desktop and an off-canvas drawer on phones.
-  // It starts open on both; a close button collapses it to widen the map.
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const isDesktop = useIsDesktop()
+  // The controls panel is docked on desktop and the Controls sheet on phones
+  // (record 0141). It starts open on a desktop and closed on a phone
+  // (`useDrawer`, #696); a close button collapses it to widen the map.
+  const { sidebarOpen, setSidebarOpen, closeDrawer, openDrawer } = useDrawer(isDesktop)
+  // A phone's Controls sheet under a drag on its grip (record 0146): the height
+  // the drag left it at, or null for its own share of the map.
+  const [controlsHeldPx, setControlsHeldPx] = useHeldSheetPx(sidebarOpen)
+  // The band on a phone's map that holds the panel's notices that ask for an
+  // action (record 0140). State, so the panel hears it arrive.
+  const [noticeBand, setNoticeBand] = useState<HTMLDivElement | null>(null)
+  // A phone's home indicator band, which the chrome on the map's foot stands
+  // above (record 0145); 0 on a desk.
+  const safeBottomPx = useSafeAreaBottom()
   // The panel's Map group is hovered, so the map's search box — a control
   // the panel names but does not contain — wears a ring.
   const [searchPointed, setSearchPointed] = useState(false)
@@ -159,7 +175,6 @@ export default function App() {
   // The basemap style is failing to load: the map reports it and the panel
   // says so below Analyze (#580).
   const [basemapFailed, setBasemapFailed] = useState(false)
-  const isDesktop = useIsDesktop()
   const overlays = useMapOverlays(restored, isDesktop)
   const {
     showWildfires,
@@ -172,8 +187,6 @@ export default function App() {
     showPlayer,
     playerShown,
   } = overlays
-  const closeDrawer = useCallback(() => setSidebarOpen(false), [])
-  const openDrawer = useCallback(() => setSidebarOpen(true), [])
   const drawMode = useDrawMode({
     mapRef,
     polygon,
@@ -194,7 +207,13 @@ export default function App() {
 
   // The guided tutorial (#536). Starting it from the welcome dialog counts as
   // welcomed, so a reader who ends it early is not shown the dialog again.
-  const tour = useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef })
+  const tour = useTour({
+    isDesktop,
+    sidebarOpen,
+    setSidebarOpen,
+    mapRef,
+    tourLayer: { shown: overlays.showWildfires, show: overlays.setShowWildfires },
+  })
   function startTourFromWelcome() {
     dismissWelcome()
     tour.start()
@@ -433,6 +452,26 @@ export default function App() {
     setShowResults,
   })
 
+  // The phone's Analyze button (#696) opens exactly when the panel's does:
+  // the same gate from the same inputs the panel builds it from.
+  const mapAnalyzeEnabled = canAnalyze(
+    analyzeGateFor({
+      selection,
+      hasWindowWarning: forecastSelection.windowWarning !== null,
+      loading,
+      polygonAreaKm2: destinationInputs.polygonAreaKm2,
+      maxAreaKm2: caps.maxPolygonAreaKm2,
+      drawPointCount,
+      destinationTypes,
+      hasCustom: csvRows.length > 0,
+      hasPins: places.length > 0,
+      sortBy,
+      forecastModels: caps.forecastModels,
+      forecastModel,
+      comparedModels,
+    }).gate,
+  )
+
   // A link that asks to run its analysis on open (`analyze=1`, #511).
   const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
     settled: caps.settled,
@@ -480,6 +519,8 @@ export default function App() {
   const resultsView = useResultsView({
     showResults: showResults || demo !== null,
     collapsedOverride: tour.sheetCollapsed,
+    restView: tour.sheetView,
+    fullOverride: tour.sheetFull,
     response: shownResponse,
     results,
     pending,
@@ -487,6 +528,8 @@ export default function App() {
     storedView,
     isDesktop,
     bannerPx,
+    playerOn: playerShown,
+    safeBottomPx,
     analysisSeq,
     arriving,
     sortBy: view.sortBy,
@@ -545,6 +588,11 @@ export default function App() {
 
       <AppDrawer
         open={sidebarOpen}
+        isDesktop={isDesktop}
+        sheetPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
+        sheetRestPx={controlsSheetPx(layout.mapPx)}
+        sheetFullPx={controlsFullPx(layout.mapPx)}
+        onSheetPx={setControlsHeldPx}
         onClose={closeDrawer}
         drawMode={drawMode}
         destinationInputs={destinationInputs}
@@ -572,6 +620,7 @@ export default function App() {
         showWildfires={showWildfires}
         showAreaClosures={showAreaClosures}
         basemapFailed={basemapFailed}
+        noticeHome={isDesktop ? null : noticeBand}
       />
 
       {/* Map + results column. On a phone the results leave the flow and stand
@@ -607,7 +656,14 @@ export default function App() {
           modelId={analyzed?.forecastModel ?? forecastModel}
           showResults={showResults}
           sidebarOpen={sidebarOpen}
+          controlsPx={controlsHeldPx ?? controlsSheetPx(layout.mapPx)}
+          legendInitiallyOpen={storedView.legendOpen ?? true}
           onOpenControls={openDrawer}
+          onCloseControls={closeDrawer}
+          controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
+          onNoticeBand={setNoticeBand}
+          analyzeEnabled={mapAnalyzeEnabled}
+          onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}
           poisPointed={poisPointed}

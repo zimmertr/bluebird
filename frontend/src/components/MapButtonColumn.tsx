@@ -1,8 +1,8 @@
-import type { ReactNode, RefObject } from 'react'
+import { useId, type ReactNode, type RefObject } from 'react'
 import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { IconMenu } from './icons'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { BUTTON_FLOATING, LAYER, MAP_COL_GAP, MAP_COL_W, MAP_EDGE, MAP_ROW_H } from '../styles'
+import { BUTTON_FLOATING, LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_COL_GAP, MAP_COL_W, MAP_EDGE, MAP_ROW_H } from '../styles'
 import type { Place } from '../utils/geocode'
 
 interface MapButtonColumnProps {
@@ -16,6 +16,8 @@ interface MapButtonColumnProps {
   sidebarOpen: boolean
   /** Reopens the panel. */
   onOpenControls: () => void
+  /** The Controls button's words: the When arm and the model, as a phone's chip says them (`controlsSummary`). */
+  controlsSummary: string
   /** The Layers button and its popover, the column's last row. */
   children: ReactNode
 }
@@ -34,8 +36,10 @@ export default function MapButtonColumn({
   searchPointed,
   sidebarOpen,
   onOpenControls,
+  controlsSummary,
   children,
 }: MapButtonColumnProps) {
+  const summaryId = useId()
   return (
     <div
       // A popup keeps clear of this column (`resultsLayer.ts` finds every
@@ -62,10 +66,17 @@ export default function MapButtonColumn({
           ref={takeOrphanedFocus}
           onClick={onOpenControls}
           aria-label="Open controls"
+          // What the panel holds, as a phone's summary chip says it (#696, the
+          // maintainer, 2026-10-14): the When arm and the model, in place of
+          // the word. Its name stays the button's job, and the summary rides
+          // as its description, the chip's way.
+          aria-describedby={summaryId}
           className={`${BUTTON_FLOATING} ${MAP_COL_W} ${MAP_ROW_H} flex flex-shrink-0 items-center gap-2 px-2.5`}
         >
-          <IconMenu />
-          Controls
+          <IconMenu className="flex-shrink-0" />
+          <span id={summaryId} className={MAP_CHIP_SUMMARY_TEXT}>
+            {controlsSummary}
+          </span>
         </button>
       )}
       {children}

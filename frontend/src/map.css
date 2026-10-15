@@ -53,32 +53,102 @@
   margin: var(--map-edge-inset) var(--map-edge-inset) 0 0;
 }
 
-/* Zoom and compass. The one set of controls the design system cannot reach:
-   maplibre injects this markup itself through `map.addControl`, so there is no
-   call site to hand a `TAP` role to, and the vendor ships them at 29px.
+/* On a phone the app's two rows span the map's top edge (#696), so the stack,
+ * the compass alone there, starts below them: `--map-vendor-top` is published
+ * by `MAP_EDGE.belowRows` (or `belowDrawBar` while a ring is drawn) on the
+ * map wrapper at that width only, and every other width falls back to the
+ * inset above. The first group alone, because the margin under it is the gap
+ * between groups. */
+.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
+  margin-top: var(--map-vendor-top, var(--map-edge-inset));
+}
 
-   The media query is spelled out because it is the same one the `touch`
-   variant compiles to (index.css), and 2.75rem is what `min-h-11`/`min-w-11`
-   resolve to — the 44px the rest of the app takes on a coarse pointer. If that
-   number moves in styles.ts it has to move here too; nothing checks that.
+/* The map's buttons in the app's chrome (record 0147): the zoom pair, the
+ * compass and the locate button, at both widths, each a 40px round button
+ * (`MAP_ROUND_BUTTON` in styles.ts, which `map/controls.ts` hands to the
+ * library's buttons). The library's group gives up its white box, its
+ * shadow and its rules, and stands its buttons 4px apart, the gap of the
+ * app's column opposite (`MAP_COL_GAP`); a second group below the first
+ * keeps the same 4px. The glyphs, which the library draws dark for its
+ * white buttons, are drawn light: inverted, then turned back round the hue
+ * circle so the tracking blue, the failure red and the compass's red needle
+ * keep their hues. Unlayered, like the rules around it, so it beats the
+ * vendor's own in @layer base. */
+.maplibregl-ctrl-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
 
-   Unlayered, like the rule above, so it beats the vendor's own sizing in
-   @layer base. Each glyph is a centered background image and re-centers
-   itself, so only the box needs saying. */
+.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl {
+  margin-top: 4px;
+}
+
+.maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* The compass needle is redrawn rather than inverted (TJ, 2026-10-14): the
+ * library draws its south half dark grey and its north half light, which
+ * inverted put a dark half on the dark button, where it vanished. Here the
+ * north half is red-500 and the south half slate-50, the needle's usual
+ * reading, at the library's own size and paths, each edged in slate-600 so
+ * the light half still has an outline on a light button. Red-500 stands at
+ * 3.89:1 on the button's slate-800 and 3.76:1 on white, slate-50 at 13.98:1
+ * on slate-800 and its slate-600 edge at 7.58:1 on white, each over the 3:1
+ * a graphic owes. The library
+ * turns the icon by an inline transform, which a background leaves alone. */
+.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+  filter: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22%23ef4444%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
+}
+
+/* A phone's slots at the right of its two rows (`MAP_SLOT`, #696): the
+ * locate button beside the search pill and the compass under it. The group
+ * takes the slot's place, so the library's margin goes. The zoom pair, which
+ * a fine pointer gets, stays out of the chip row at a phone's width, where
+ * it would hang down over the map from the row's end: a wheel and a pinch
+ * still zoom, and the compass is the row's alone (record 0147). */
+.map-slot .maplibregl-ctrl-group {
+  margin: 0;
+}
+
+.map-slot .maplibregl-ctrl-zoom-in,
+.map-slot .maplibregl-ctrl-zoom-out {
+  display: none;
+}
+
+/* The buttons' hit area on a coarse pointer (#696): 40px seen and 44
+   pressed, an invisible rim on the vendor's own button, so a press on it is
+   the button's. 3px, because the rim stands inside the button's 1px border
+   (38px), and 38 plus 6 is 44. The rule every other piece of map chrome
+   follows (`TAP` in styles.ts), spelled here because the markup is the
+   library's. They were 44px seen until the buttons took the app's chrome. */
 @media (hover: none) {
+  .maplibregl-ctrl-group,
   .maplibregl-ctrl-group button {
-    width: 2.75rem;
-    height: 2.75rem;
+    overflow: visible;
+  }
+  .maplibregl-ctrl-group button {
+    position: relative;
+  }
+  .maplibregl-ctrl-group button::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
   }
 }
 
 /* The compass while the map is north-up and flat, when pressing it would do
    nothing (#687): `hideCompassWhileNorthUp` in map/controls.ts keeps the
-   class on the container in step with the bearing and the pitch. Hidden
-   rather than disabled, because a greyed button in the corner still asks to
-   be read. Zoom in and out close up beneath it and the group's own radius
-   rounds what is left. */
-.compass-idle .maplibregl-ctrl-compass {
+   class on the button in step with the bearing and the pitch, on the button
+   because a phone stands it outside the map's container. Hidden rather than
+   disabled, because a greyed button in the corner still asks to be read.
+   Zoom in and out close up beneath it. */
+.maplibregl-ctrl-compass.compass-idle {
   display: none;
 }
 
@@ -154,6 +224,58 @@
    2026-10-08), and its band keeps the same lane itself. */
 .result-popup .maplibregl-popup-content {
   padding: 0;
+}
+
+/* The credit line in the app's chrome (record 0147): `map/controls.ts` hands
+ * the line `MAP_CREDIT.card`, the floating box, and its (i) `MAP_CREDIT.button`,
+ * a round dark button at the library's 24px. A folded line is its button
+ * alone, so the box comes off it here. The links are the library's to
+ * rewrite whenever a source's credit changes, so they are dressed here the
+ * way `LINK` dresses the app's: slate-300, underlined, sky-400 under a
+ * pointer, both over 4.5:1 on the box's slate-800. The line's own text is
+ * the card's slate-300 too, which the light scheme the map's white surfaces
+ * keep (above) would otherwise turn black. The (i)'s glyph is the library's
+ * own drawing filled light, and it keeps a 44px rim under a finger. The
+ * scale bar stays the library's: a measurement on the map, not a control. */
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  color-scheme: dark;
+  color: var(--color-slate-300);
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact:not(.maplibregl-compact-show) {
+  background: transparent;
+  border-width: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: var(--color-slate-300);
+  text-decoration: underline;
+}
+
+.maplibregl-ctrl-attrib a:hover {
+  color: var(--color-sky-400);
+}
+
+.maplibregl-ctrl-attrib-button,
+.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23cbd5e1%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E");
+  /* Centred on the button's whole box. The library's 24px glyph sits at the
+   * top left of the padding box, which the role's 1px border shrinks to
+   * 22px, so it stood 1px off centre and was clipped by the border (TJ, on
+   * a Pixel, 2026-10-14). */
+  background-origin: border-box;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+@media (hover: none) {
+  .maplibregl-ctrl-attrib-button::before {
+    content: '';
+    position: absolute;
+    inset: -10px;
+  }
 }
 
 /* The attribution's type, one step down the app's ramp from the vendor's 12px:
@@ -236,6 +358,51 @@
   margin-top: auto;
   margin-bottom: auto;
   flex-shrink: 0;
+}
+
+/* On a phone the corner stands on the Analyze button's row rather than on the
+ * sheet's edge (record 0140): `MapStage` publishes `--map-corner-lift` from
+ * the button's bottom edge (`phoneCornerLiftPx`), 10px under it, so each
+ * control, standing on the library's 10px margin in the band, has its bottom
+ * on the button's.
+ *
+ * On a phone the attribution joins the scale at the bottom left (#696), at
+ * its native size, so the right of the map's foot is map: `addAttribution`
+ * puts it there whenever it is compact. The corner turns into a row, the scale
+ * first (`order`, since the library inserts a bottom control before the ones
+ * already there) and the (i) beside it, the library's own bottom-left form of
+ * the button. The row spans the map to the Analyze button (below), so the
+ * opened credit line wraps short of it rather than running under it, the corner keeping the
+ * vendor's `pointer-events: none` so the span takes no press; it may shrink,
+ * which in a row is what wraps it. A line taller than the band grows UP from
+ * the band's bottom edge, for the reason the column above reverses: in a row
+ * the band is the cross axis, where an auto top margin would anchor an
+ * overflowing item to the top and grow it down behind the sheet, so each
+ * control stands on the library's own 10px bottom margin instead
+ * (`CORNER_MARGIN_PX`), which the lift puts on the button's bottom edge. */
+/* The row stops short of the Analyze button (#696): the button's measured
+ * width (`--map-fab-w`, published on the map wrapper by `MapStage` from
+ * `PhoneFoot`), its 16px off the map's right edge (`FAB_INSET_PX`) and 8px
+ * clear of it, less the compact credit's own 10px right margin, which stands
+ * inside this row. So an opened credit line wraps 8px before the button, the
+ * way the scale's cap above keeps it off the scale. Measured 2026-10-14 at
+ * 360, 390 and 430 wide with the button at its reserved 120.1px: the row ends
+ * 134.1px from the map's right edge and the line 8px short of the button. */
+.maplibregl-ctrl-bottom-left:has(> .maplibregl-ctrl-attrib) {
+  right: calc(var(--map-fab-w, 0px) + 14px);
+  flex-direction: row;
+  align-items: flex-end;
+}
+
+.maplibregl-ctrl-bottom-left:has(> .maplibregl-ctrl-attrib) > .maplibregl-ctrl {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.maplibregl-ctrl-bottom-left > .maplibregl-ctrl-attrib {
+  order: 1;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 /* A marker popup too tall for the free map area scrolls its body under its

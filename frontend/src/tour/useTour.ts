@@ -9,10 +9,14 @@ interface Args {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   mapRef: RefObject<MapViewHandle | null>
+  /**
+   * The layer a phone's Layers step switches on so the map changes under the
+   * reader (#696): Wildfires, drawn from the pod's own national snapshot, so
+   * it asks no third party for anything.
+   */
+  tourLayer: { shown: boolean; show: (on: boolean) => void }
 }
 
-/** The hour the chart's tooltip stands on while the report is a demonstration: the window's middle. */
-const CHART_TOOLTIP_INDEX = 6
 /** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
 export function scrollParent(el: HTMLElement | null): HTMLElement | null {
   for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
@@ -38,7 +42,7 @@ export function scrollParent(el: HTMLElement | null): HTMLElement | null {
  * their step is left, and the camera, the drawer and the panel's scroll
  * position are put back where the tour found them when it ends, by any route.
  */
-export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args) {
+export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLayer }: Args) {
   const [steps, setSteps] = useState<readonly TourStep[]>(TOUR_STEPS)
   const [index, setIndex] = useState<number | null>(null)
   // What the reader had before the tour touched anything: the camera, the
@@ -115,11 +119,18 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   // same commit puts the drawer back, and an element in a closed drawer is
   // inert and cannot take the focus until it opens. An element that left the
   // page meanwhile (the welcome card's button) is not put back.
+  //
+  // Without scrolling (#696): a phone's Tutorial link stands in the Controls
+  // sheet, which this commit starts sliding up from below the screen, so a
+  // bare focus scrolled the app's column 588px to bring the link into view
+  // and the slide then wound it back, carrying the map and the results up and
+  // down with it. The panel's own scroll is put back by `end`, so the link is
+  // in view once the sheet stands.
   useEffect(() => {
     if (index !== null) return
     const el = returnFocus.current
     returnFocus.current = null
-    if (el?.isConnected) el.focus()
+    if (el?.isConnected) el.focus({ preventScroll: true })
   }, [index])
 
   const prev = useCallback(() => {
@@ -139,7 +150,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   // markers; dropped when either is left. The builder is a chunk of its own,
   // fetched here rather than imported, so the fixtures it is made from stay
   // out of the main bundle with the overlay (`App.tsx`).
-  const showingResults = step?.reveal === 'results' || step?.reveal === 'marker'
+  const showingResults = step?.reveal === 'results' || step?.reveal === 'chart' || step?.reveal === 'marker'
   const [demo, setDemo] = useState<DemoReport | null>(null)
   useEffect(() => {
     if (!showingResults) {
@@ -154,6 +165,27 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
       current = false
     }
   }, [showingResults])
+
+  // A phone's Layers step switches one layer on under its sheet, so the
+  // reader sees the map change, and off again when the step is left, however
+  // it is left (#696). A layer the reader had on is theirs and stays on.
+  const showingLayers = step?.reveal === 'layers' && !isDesktop
+  const layerRef = useRef(tourLayer)
+  layerRef.current = tourLayer
+  useEffect(() => {
+    if (!showingLayers || layerRef.current.shown) return
+    layerRef.current.show(true)
+    return () => layerRef.current.show(false)
+  }, [showingLayers])
+
+  // The hour the chart's readout stands on while the report is a
+  // demonstration: the window's middle, as a finger resting there shows it,
+  // with every destination's value at that hour (#696). The chart keeps it
+  // as its own reading once the tour hands it over, so a tour ended on the
+  // Chart card leaves the readout where the card showed it.
+  const showingChart = step?.reveal === 'chart'
+  const hours = demo?.response.times?.length ?? 0
+  const middleHour = Math.floor((hours - 1) / 2)
 
   // The marker step cuts to the first demonstration row and opens its popup,
   // the same framing a click on its rank in the table makes but with no
@@ -202,7 +234,19 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
      * swipe or a chevron away.
      */
     sheetCollapsed: showingMarker ? true : null,
-    /** The chart's tooltip stands on this hour while the demonstration is up, or follows the mouse. */
-    chartTooltipIndex: showingResults ? CHART_TOOLTIP_INDEX : null,
+    /**
+     * The view the Results and Chart steps open the sheet to, at rest, before
+     * their spotlight is drawn (#696): the reader may have left it at its bar,
+     * a row tap's collapse on a phone, and each step points at what it shows.
+     */
+    sheetView: step?.reveal === 'results' ? ('table' as const) : showingChart ? ('chart' as const) : null,
+    /**
+     * The Chart step holds a phone's sheet at its full stop and gives it back
+     * after (#696): at rest the plot is about 68px tall at 390x844 and the
+     * five-line readout 129px, so the readout stood over every line it read.
+     */
+    sheetFull: showingChart,
+    /** The chart's readout stands on this hour while the demonstration is up, or follows the reader. */
+    chartTooltipIndex: showingResults && hours > 0 ? middleHour : null,
   }
 }

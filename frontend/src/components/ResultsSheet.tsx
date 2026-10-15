@@ -11,7 +11,7 @@ import ResultsBar from './ResultsBar'
 import ResultsPanels, { type ResultsPanelsProps } from './ResultsPanels'
 import { resultsHeading } from '../metrics'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
-import { LAYER, SR_ONLY, SURFACE_SHEET } from '../styles'
+import { LAYER, SAFE_AREA, SR_ONLY, SURFACE_SHEET } from '../styles'
 
 interface ResultsSheetProps
   extends Omit<
@@ -25,6 +25,8 @@ interface ResultsSheetProps
     | 'onRemovePending'
     | 'onFocusResult'
     | 'onFocusPending'
+    // Read off `isDesktop` here (#696).
+    | 'chartTitled'
   > {
   /** The sheet's view (`useResultsView`): whether it shows, its layout, the chart, the table and the table's callbacks. */
   resultsView: ResultsSheetView
@@ -123,12 +125,9 @@ export default function ResultsSheet({
   // What all three unfurl out of: the bar's button group, so the menus share
   // one place and one width whichever button opened them (record 0134).
   const actionGroupRef = useRef<HTMLDivElement>(null)
-  // On a phone the group is its glyphs alone, 136px, and the Columns list's
-  // rows want 210: the menus span the bar's line instead, from its left
-  // padding to the group's right edge, still joined to the group (record
-  // 0134). A desk's group carries its words and is wide enough.
-  const actionsRowRef = useRef<HTMLDivElement>(null)
-  const menuRowRef = isDesktop ? undefined : actionsRowRef
+  // On a phone each menu is a bottom sheet instead (#696; record 0136), so
+  // the group anchors nothing there.
+  const sheet = !isDesktop
   const modelsButtonRef = useRef<HTMLButtonElement>(null)
   const removedButtonRef = useRef<HTMLButtonElement>(null)
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -159,10 +158,14 @@ export default function ResultsSheet({
         <div
           ref={sheetRef}
           data-tour="results"
+          // How far up a phone chart's readout may rise (#696; TimeSeriesChart).
+          data-readout-room=""
           className={
             isDesktop
               ? 'flex flex-shrink-0 flex-col bg-slate-800'
-              : `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${LAYER.sheet}`
+              : // The sheet's surface runs under a phone's home indicator and
+                // its grip and header stand above it (record 0145).
+                `absolute inset-x-0 bottom-0 flex flex-col ${SURFACE_SHEET} ${SAFE_AREA.pad} ${LAYER.sheet}`
           }
         >
           <ResultsBar
@@ -180,7 +183,6 @@ export default function ResultsSheet({
             bothHasRoom={bothHasRoom}
             showTable={showTable}
             actionGroupRef={actionGroupRef}
-            actionsRowRef={actionsRowRef}
             columnsButtonRef={columnsButtonRef}
             onToggleColumns={() => setColumnsOpen(!columnsOpen)}
             columnsOpen={columnsOpen}
@@ -207,6 +209,7 @@ export default function ResultsSheet({
               removeResult={removeResult}
               sortBy={sortBy}
               sortDesc={sortDesc}
+              chartTitled={!isDesktop}
               pointSample={pointSample}
               forecastTimes={forecastTimes}
               playbackIndex={playbackIndex}
@@ -237,7 +240,7 @@ export default function ResultsSheet({
         onColumnMove={handleColumnMove}
         triggerRef={columnsButtonRef}
         anchorRef={actionGroupRef}
-        widthRef={menuRowRef}
+        sheet={sheet}
       />
 
       {/* Model visibility popover */}
@@ -249,7 +252,7 @@ export default function ResultsSheet({
         onToggle={toggleHiddenModel}
         triggerRef={modelsButtonRef}
         anchorRef={actionGroupRef}
-        widthRef={menuRowRef}
+        sheet={sheet}
       />
 
       {/* Removed rows popover */}
@@ -261,7 +264,7 @@ export default function ResultsSheet({
         onRestoreAll={restoreAllRemoved}
         triggerRef={removedButtonRef}
         anchorRef={actionGroupRef}
-        widthRef={menuRowRef}
+        sheet={sheet}
       />
     </>
   )

@@ -16,6 +16,8 @@ function Picker(props: {
   open?: boolean
   onVisibilityChange?: (keys: Set<string>) => void
   onColumnMove?: (from: string, to: string) => void
+  sheet?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   return (
@@ -23,7 +25,7 @@ function Picker(props: {
       <button ref={triggerRef}>Columns</button>
       <ColumnsPicker
         open={props.open ?? true}
-        onOpenChange={() => {}}
+        onOpenChange={props.onOpenChange ?? (() => {})}
         columns={COLUMNS}
         sortBy={SORT_BY}
         visibleKeys={ALL}
@@ -31,6 +33,7 @@ function Picker(props: {
         onColumnMove={props.onColumnMove}
         triggerRef={triggerRef}
         anchorRef={triggerRef}
+        sheet={props.sheet}
       />
     </>
   )
@@ -142,5 +145,23 @@ describe('reordering', () => {
     fireEvent.pointerMove(from, { clientX: 190, clientY: 12 + DRAG_THRESHOLD_PX - 1, pointerType: 'mouse' })
     fireEvent.pointerUp(from)
     expect(onColumnMove).not.toHaveBeenCalled()
+  })
+})
+
+// A phone's Columns menu is a bottom sheet (#696; record 0136): the same
+// group and the same grips, headed by the button's word, closed by Done.
+describe('on a phone', () => {
+  it('lists the same columns in a sheet headed Columns', () => {
+    const onOpenChange = vi.fn()
+    render(<Picker sheet onOpenChange={onOpenChange} />)
+    const dialog = screen.getByRole('dialog', { name: 'Columns' })
+    expect(within(dialog).getAllByRole('checkbox')).toHaveLength(COLUMNS.length)
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('draws nothing while closed', () => {
+    render(<Picker sheet open={false} />)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import SearchBox from './SearchBox'
-import { searchPlaces } from '../utils/geocode'
+import { SEARCH_LIMIT, searchPlaces } from '../utils/geocode'
 import { place } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
+import { MAP_PILL } from '../styles'
 
 // The geocoder is the one thing replaced: it is a network call to Nominatim,
 // whose usage policy is the reason the box searches on Enter at all. The
@@ -70,6 +71,74 @@ describe('SearchBox', () => {
     expect(list.querySelector('button')).toBeNull()
     await user.click(options[0])
     expect(onSelect).toHaveBeenCalledWith(place())
+  })
+
+  // Ten places, the pod's ceiling, where it asked for five (#696).
+  it('asks for ten places', async () => {
+    search.mockResolvedValue([place()])
+    const { user } = render(<SearchBox onSelect={onSelect} />)
+    await user.type(field(), 'Mount Baker{Enter}')
+    expect(SEARCH_LIMIT).toBe(10)
+    expect(search.mock.lastCall?.[2]).toBe(SEARCH_LIMIT)
+  })
+
+  // The list scrolls past six or so places, so the arrow keys bring the
+  // highlighted one into view, and only as far as it takes (#696).
+  describe('a list longer than its box', () => {
+    const scrolled = vi.fn()
+    const original = Element.prototype.scrollIntoView
+    beforeEach(() => {
+      scrolled.mockClear()
+      Element.prototype.scrollIntoView = function (this: Element, arg?: boolean | ScrollIntoViewOptions) {
+        scrolled(this.id, arg)
+      }
+    })
+    afterEach(() => {
+      Element.prototype.scrollIntoView = original
+    })
+
+    it('scrolls the highlighted place into view as the arrow keys move it', async () => {
+      const places = Array.from({ length: SEARCH_LIMIT }, (_, i) =>
+        place({ label: `Mount Baker ${i}`, lat: 48 + i / 100, lon: -121.8 }),
+      )
+      search.mockResolvedValue(places)
+      const { user } = render(<SearchBox onSelect={onSelect} />)
+      await user.type(field(), 'Mount Baker{Enter}')
+      const options = await screen.findAllByRole('option')
+      expect(options).toHaveLength(SEARCH_LIMIT)
+      for (let i = 0; i < 8; i++) await user.keyboard('{ArrowDown}')
+      expect(field().getAttribute('aria-activedescendant')).toBe(options[8].id)
+      expect(scrolled).toHaveBeenLastCalledWith(options[8].id, { block: 'nearest' })
+      await user.keyboard('{ArrowUp}')
+      expect(scrolled).toHaveBeenLastCalledWith(options[7].id, { block: 'nearest' })
+    })
+  })
+
+  // The phone's pill (#696): the slot's size in the pill's face, and a report
+  // each time the field takes or leaves the keyboard or its list opens or
+  // shuts, which widens the pill and steps the chip row aside.
+  it('reports while it is in use as a pill, and holds open while its list is', async () => {
+    const expanded = vi.fn()
+    search.mockResolvedValue([place(), place({ label: 'Baker Lake', lat: 48.7 })])
+    const { user } = render(
+      <>
+        <SearchBox onSelect={onSelect} pill onExpandedChange={expanded} />
+        <button>Elsewhere</button>
+      </>,
+    )
+    expect(field().parentElement!.className).toBe(MAP_PILL)
+    expect(expanded).toHaveBeenLastCalledWith(false)
+    await user.click(field())
+    expect(expanded).toHaveBeenLastCalledWith(true)
+    await user.keyboard('Mount Baker{Enter}')
+    await screen.findAllByRole('option')
+    // A press on a result begins by taking the keyboard from the field; the
+    // open list keeps the pill wide under the finger.
+    field().blur()
+    expect(expanded).toHaveBeenLastCalledWith(true)
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Elsewhere' }))
+    expect(expanded).toHaveBeenLastCalledWith(false)
   })
 
   // A notice that arrives holding its text is not announced by most screen

@@ -89,6 +89,7 @@ function setup(points: Pts = TRI, drawing = true, maxPolygonPoints = MAX_POLYGON
     searchedPlaces: [],
     onAddPoi: () => {},
     onRemovePoi: () => {},
+    onRemoveResult: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints,

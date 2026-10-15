@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { analyzeBlockers, canAnalyze, ringAddsNothing, shouldAutoAnalyze, AnalyzeGate, AutoAnalyzeState } from './analyzeGate'
+import {
+  analyzeBlockers,
+  analyzeGateFor,
+  canAnalyze,
+  ringAddsNothing,
+  shouldAutoAnalyze,
+  AnalyzeGate,
+  AnalyzeGateInputs,
+  AutoAnalyzeState,
+} from './analyzeGate'
+import { forecastModel } from '../testSupport/fixtures'
 
 // A fully-ready polygon analysis: three points drawn, no vetoes.
 const READY_POLYGON: AnalyzeGate = {
@@ -321,5 +331,62 @@ describe('shouldAutoAnalyze', () => {
       }
     }
     expect(fired).toBe(false)
+  })
+})
+
+// The gate from the panel's inputs (#696): the panel's Analyze and the
+// phone's Analyze on the map both build it here, so the two open together.
+describe('analyzeGateFor', () => {
+  const MODELS = [
+    forecastModel(),
+    forecastModel({ id: 'ecmwf_ifs025', label: 'ECMWF IFS' }),
+    forecastModel({ id: 'ukmo_seamless', label: 'UK Met Office' }),
+  ]
+  const PINNED: AnalyzeGateInputs = {
+    selection: { kind: 'now' },
+    hasWindowWarning: false,
+    loading: false,
+    polygonAreaKm2: null,
+    maxAreaKm2: 1000,
+    drawPointCount: 0,
+    destinationTypes: [],
+    hasCustom: false,
+    hasPins: true,
+    sortBy: 'temp_avg_f',
+    forecastModels: MODELS,
+    forecastModel: 'gfs_seamless',
+    comparedModels: [],
+  }
+  const gateOf = (over: Partial<AnalyzeGateInputs> = {}) => analyzeGateFor({ ...PINNED, ...over }).gate
+
+  it('opens on a pin, and on nothing else when nothing else is given', () => {
+    expect(canAnalyze(gateOf())).toBe(true)
+    expect(canAnalyze(gateOf({ hasPins: false }))).toBe(false)
+  })
+
+  it('reads a ring as an input only once it is closed, inside the cap and has a type', () => {
+    const ring = { hasPins: false, drawPointCount: 3, polygonAreaKm2: 10, destinationTypes: ['peak' as const] }
+    expect(gateOf(ring).polygonReady).toBe(true)
+    expect(gateOf({ ...ring, drawPointCount: 2 }).polygonReady).toBe(false)
+    expect(gateOf({ ...ring, destinationTypes: [] }).polygonReady).toBe(false)
+    const big = gateOf({ ...ring, polygonAreaKm2: 2000 })
+    expect(big.areaTooLarge).toBe(true)
+    expect(big.polygonReady).toBe(false)
+  })
+
+  it('shuts on a Dates arm with no day picked, a window warning or a run', () => {
+    expect(gateOf({ selection: { kind: 'days', startDate: null, endDate: null } }).datesPending).toBe(true)
+    expect(gateOf({ selection: { kind: 'days', startDate: '2026-10-13', endDate: '2026-10-13' } }).datesPending).toBe(false)
+    expect(canAnalyze(gateOf({ hasWindowWarning: true }))).toBe(false)
+    expect(canAnalyze(gateOf({ loading: true }))).toBe(false)
+  })
+
+  it('vetoes a comparison on air quality, and names the models with no freezing level', () => {
+    expect(gateOf({ sortBy: 'aqi_avg', comparedModels: ['ecmwf_ifs025'] }).compareAqi).toBe(true)
+    expect(gateOf({ sortBy: 'aqi_avg' }).compareAqi).toBe(false)
+    const freeze = analyzeGateFor({ ...PINNED, sortBy: 'freeze_min_ft', comparedModels: ['ukmo_seamless'] })
+    expect(freeze.freezeGaps).toEqual(['UK Met Office'])
+    expect(freeze.gate.compareFreeze).toBe(true)
+    expect(analyzeGateFor({ ...PINNED, sortBy: 'freeze_min_ft' }).freezeGaps).toEqual([])
   })
 })

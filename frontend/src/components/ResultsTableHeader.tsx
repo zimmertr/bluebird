@@ -196,7 +196,9 @@ function ResultsTableHeader({
             sortHeader(
               col.key,
               sized(widths, col.key as string, col.label, 'inline'),
-              `relative ${onColumnMove ? 'touch-none' : ''} ${
+              // The Name header stands with its column (record 0142); sticky
+              // is positioned, so the resize grip still hangs off its edge.
+              `${col.key === 'name' ? TABLE.stickyNameHead : 'relative'} ${onColumnMove ? 'touch-none' : ''} ${
                 drag.carry?.key === col.key ? `${DRAG.carried} ${DRAG.gripActive}` : ''
               }`,
               {

@@ -89,6 +89,7 @@ function setup({
     searchedPlaces,
     onAddPoi: vi.fn(),
     onRemovePoi: vi.fn(),
+    onRemoveResult: vi.fn(),
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,

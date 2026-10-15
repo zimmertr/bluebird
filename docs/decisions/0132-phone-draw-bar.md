@@ -1,6 +1,6 @@
 # 0132. On a phone, drawing a ring puts its readout, Done and Cancel in a bar on the map
 
-- Status: Accepted
+- Status: Accepted. Amended by 0135 (the bar stands under the chip row rather than at the foot).
 - Date: 2026-10-13, recorded with the change that ships it
 - Decider: the maintainer (TJ), accepting row M08 of the #687 visual audit
 - Issues and PRs: #687, #478, #249

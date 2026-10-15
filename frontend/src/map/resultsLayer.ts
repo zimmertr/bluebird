@@ -16,7 +16,7 @@ import type { DestinationResult, SortBy } from '../types'
 import type { PendingDestination } from '../utils/customList'
 import { featureRow, pendingFC } from '../utils/mapFeatures'
 import type { ModelRow } from '../utils/modelCompare'
-import { resultPopupHtml } from '../utils/resultPopup'
+import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
 import { resultsFeatureCollection, windArrowsShowing } from '../utils/resultFeatures'
 import { emptyFC, setSource } from './basemap'
 import type { MapController } from './controller'
@@ -290,7 +290,22 @@ export function mountResultsLayer(
       rankedBy: live.sortBy,
       compact: compactGrid(map.getCanvas().clientWidth),
       mapZoom: map.getZoom(),
+      removable: true,
     })
+  }
+
+  // The card's remove does what the row's × does and takes the card with it,
+  // since the row it describes leaves the report. Re-armed after every write
+  // of the markup, which replaces the button. Reads the card's row at the
+  // press, so a card a new ranking moved onto another row removes that row.
+  const armRemove = (card: { popup: Popup; row: DestinationResult }) => {
+    card.popup
+      .getElement()
+      ?.querySelector<HTMLButtonElement>(`[${RESULT_ACTION_ATTR}="remove"]`)
+      ?.addEventListener('click', () => {
+        controller.inputs.onRemoveResult(card.row)
+        card.popup.remove()
+      })
   }
 
   // The result cards standing on the map, with what redraws each: the row it
@@ -345,6 +360,7 @@ export function mountResultsLayer(
     // The tutorial's marker step frames this popup (#536).
     popup.getElement()?.setAttribute('data-tour', 'marker')
     const card: OpenCard = { popup, row: subject, html, capped }
+    armRemove(card)
     cards.push(card)
     popup.on('close', () => {
       cards = cards.filter((c) => c !== card)
@@ -415,6 +431,7 @@ export function mountResultsLayer(
         card.popup.options.focusAfterOpen = focus
         card.html = html
         if (row) card.row = row
+        armRemove(card)
         const body = card.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
         if (body && card.capped !== null) capPopupBody(body, card.capped)
         if (body) body.scrollTop = scrolled

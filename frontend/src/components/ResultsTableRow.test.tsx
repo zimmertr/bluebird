@@ -79,6 +79,50 @@ describe('a ranked row', () => {
     expect(onFocusResult).toHaveBeenCalledWith(ROW)
   })
 
+  // A press on the row's ground opens its marker's popup (record 0143); a
+  // press on any control in it is that control's alone.
+  it('opens its popup from a press on the row, and not from its controls', async () => {
+    const onFocusResult = vi.fn()
+    const onRemove = vi.fn()
+    const box: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
+    const { user, container } = inTable(<ResultsTableRow {...props({ onFocusResult, onRemove, chartBox: box })} />)
+    const row = container.querySelector('tr')!
+    expect(row.className).toContain(TABLE.rowOpens)
+    await user.click(screen.getByText('12,281'))
+    expect(onFocusResult).toHaveBeenCalledTimes(1)
+    expect(onFocusResult).toHaveBeenCalledWith(ROW)
+    await user.click(screen.getByRole('checkbox', { name: 'Chart Mount Adams' }))
+    await user.click(screen.getByRole('button', { name: 'Remove Mount Adams' }))
+    await user.click(screen.getByRole('link', { name: /Open Mount Adams in an external map/ }))
+    expect(onFocusResult).toHaveBeenCalledTimes(1)
+    expect(onRemove).toHaveBeenCalledOnce()
+    expect(box.onToggle).toHaveBeenCalledOnce()
+  })
+
+  // The Name cell stands still while the table scrolls sideways (record 0142).
+  it('keeps its name cell stuck to the left edge', () => {
+    inTable(<ResultsTableRow {...props()} />)
+    const cell = screen.getByRole('button', { name: 'Center map on Mount Adams' }).closest('td')!
+    expect(cell.className).toContain(TABLE.stickyNameCell)
+  })
+
+  // A phone's stuck Name column stops at 45% of the sheet until the reader
+  // sizes it (record 0142), and the name truncates inside that.
+  it('caps its unsized name on a phone, and leaves a sized one alone', () => {
+    const { rerender } = inTable(<ResultsTableRow {...props()} />)
+    const line = () => screen.getByRole('button', { name: 'Center map on Mount Adams' }).parentElement!
+    expect(line().className).toContain(TABLE.nameCap)
+    expect(screen.getByRole('button', { name: 'Center map on Mount Adams' }).className).toContain('truncate')
+    rerender(
+      <table>
+        <tbody>
+          <ResultsTableRow {...props({ widths: { name: 120 } })} />
+        </tbody>
+      </table>,
+    )
+    expect(line().className).not.toContain(TABLE.nameCap)
+  })
+
   it('reports the shift state, then the toggle, from its chart box', async () => {
     const box: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
     const { user } = inTable(<ResultsTableRow {...props({ chartBox: box })} />)

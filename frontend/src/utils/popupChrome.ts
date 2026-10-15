@@ -538,7 +538,11 @@ export function popupShell(
   url: string,
   body: string,
   meta = '',
-  { resultCard = false, warnings = [] }: { resultCard?: boolean; warnings?: readonly string[] } = {},
+  {
+    resultCard = false,
+    warnings = [],
+    action = '',
+  }: { resultCard?: boolean; warnings?: readonly string[]; action?: string } = {},
 ): string {
   // The name stays at the reading size and everything under it steps down one.
   // Setting both the same made the details compete with the thing they
@@ -550,7 +554,7 @@ export function popupShell(
   // overlay popups have no destination. `resultCard` is the destination card,
   // which a ranked result and a clicked basemap feature both wear (TJ,
   // 2026-10-14): one mountain, one card, before and after an analysis.
-  if (resultCard) return resultCardShell(title, url, body, meta, warnings)
+  if (resultCard) return resultCardShell(title, url, body, meta, warnings, action)
   return `<div style="${POPUP_FACE}">
     <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url)}</div>
     ${meta}
@@ -575,7 +579,14 @@ export function popupShell(
  * its height from its measured outer height (`capPopupBody`), and it scrolls
  * sideways on a map narrower than its grid.
  */
-function resultCardShell(title: string, url: string, body: string, meta: string, warnings: readonly string[]): string {
+function resultCardShell(
+  title: string,
+  url: string,
+  body: string,
+  meta: string,
+  warnings: readonly string[],
+  action: string,
+): string {
   // The warnings, between the header and the grid and closed off from the grid
   // by the header's own edge (TJ, 2026-10-08), so the card reads as three
   // parts: what the place is, what is wrong there, what the forecast says.
@@ -583,15 +594,34 @@ function resultCardShell(title: string, url: string, body: string, meta: string,
   // the header stays the one raised band. Outside the body, so a capped card
   // that scrolls its numbers keeps its warnings in view with its name.
   const notice = warnings.length
-    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:8px 0 8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
+    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:${SECTION_PAD_Y} 0 ${SECTION_PAD_Y} 10px;border-bottom:${SECTION_EDGE}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
     : ''
   return `<div style="${POPUP_FACE}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
       <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url, HEADER_ICON_COLOR)}</div>
       ${meta}
     </div>${notice}
-    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>
+    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>${
+      // Under the body rather than in it, so a card whose numbers the scroll
+      // cap shortened keeps its action in view the way it keeps its name. A
+      // section of its own, ruled off from the grid by the edge and padding
+      // the warnings section wears (#696, TJ 2026-10-14): without the rule
+      // the button read as one more row of the grid.
+      action
+        ? `<div style="padding:${SECTION_PAD_Y} 10px;border-top:${SECTION_EDGE}">${popupAction(action)}</div>`
+        : ''
+    }
   </div>`
+}
+
+/**
+ * A card's one action, centred on its own line (TJ, 2026-10-14): a lone button
+ * left against the edge of a card the facts line made wider than it read as a
+ * row that lost its label. One spelling for the clicked feature's add or
+ * remove and the ranked result's remove, so the two cards place it alike.
+ */
+export function popupAction(button: string): string {
+  return `<div style="text-align:center">${button}</div>`
 }
 
 /**
@@ -617,6 +647,16 @@ const TITLE_TEXT = `min-width:0;${ONE_LINE}`
 export const HEADER_BAND_COLOR = '#f1f5f9'
 export const HEADER_EDGE_COLOR = '#e2e8f0'
 export const HEADER_SHADOW_COLOR = 'rgba(15,23,42,0.08)'
+
+/**
+ * The edge and the padding a result card's sections wear below the header:
+ * the warnings above the grid and the action below it (#696). One spelling,
+ * so the card's two ruled-off parts cannot drift apart. The edge is the
+ * header's own, which is what lets a section read as part of the card rather
+ * than as a second card.
+ */
+export const SECTION_EDGE = `1px solid ${HEADER_EDGE_COLOR}`
+export const SECTION_PAD_Y = '8px'
 
 /**
  * The warning section's one ⚠️, which stands for every line in it (TJ,

@@ -86,10 +86,11 @@ interface Options {
   placement?: Placement
   /**
    * The row the control stands in, for an unfurled panel whose rows need more
-   * than the control's width (`popoverBox`'s `span`, record 0134): the results
-   * bar on a phone, where the group is glyphs alone, and the model dropdown's
-   * row in the panel. Read only with `placement: 'unfurl'`; the linter's
-   * `style-menu-unfurls` check fails it anywhere else.
+   * than the control's width (`popoverBox`'s `span`, record 0134): the model
+   * dropdown's row in the panel. The results bar's menus spanned the bar's
+   * line on a phone until they became bottom sheets there (#696). Read only
+   * with `placement: 'unfurl'`; the linter's `style-menu-unfurls` check fails
+   * it anywhere else.
    */
   widthRef?: React.RefObject<HTMLElement | null>
   /**

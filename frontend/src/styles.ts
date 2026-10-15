@@ -1044,9 +1044,9 @@ export const LAYER = {
   mapControls: 'z-[18]',
   /** The analysis overlay, over the map while a run is in flight. */
   overlay: 'z-20',
-  /** The scrim behind the mobile drawer, and the preview banner. */
+  /** The preview banner, and the scrim the phone's drawer had before it was a sheet (record 0141). */
   scrim: 'z-30',
-  /** The mobile drawer itself. */
+  /** The panel on a phone: the Controls sheet (record 0141). */
   drawer: 'z-40',
   /**
    * Anything opened from inside the drawer, which must clear it: the model
@@ -1186,6 +1186,12 @@ export const RECESSED_FILL = 'bg-slate-900'
 // `SLIDER.track`.
 const RECESSED_EDGE = 'border border-slate-500'
 
+// What a field looks like, without how big it is (#696): the control type in
+// the recessed fill and edge at the control radius. `FIELD` adds the tap
+// height and the focus edge; `CHART_TITLE` wears it at 28px with an invisible
+// 44px select over it, which is why the look and the size are two things.
+const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`
+
 /**
  * The same boundary, re-derived for the one surface that is a step lighter than
  * the panel: `SURFACE_POPOVER`.
@@ -1280,6 +1286,43 @@ export const CONTROL_W = 'w-[118px]'
  * metric wrap the row a phone can barely fit.
  */
 export const CHART_METRIC_W = 'w-36'
+
+/**
+ * The chart's plot under a finger (#336; record 0144): the browser keeps the
+ * vertical pan, so a drag up or down still scrolls the results sheet, and
+ * hands the horizontal one to the chart, which reads the hour under the
+ * finger as a mouse's hover does. Without it a sideways drag was the
+ * browser's too, and the chart never heard the finger move.
+ */
+export const CHART_PLOT_TOUCH = 'touch-pan-y'
+
+/**
+ * A phone chart's metric picker, as the plot's title (#696, record 0149): the
+ * metric's full label with its unit in the app's own select, at the plot's
+ * top left, `CHART_TITLE_INSET_PX` (12px, `top-3 left-3`) from the grip's
+ * rule above it and the sheet's edge, the results bar's own inset, and the
+ * same 12px over the plot's top label (`TITLED_PLOT_MARGIN`). The field row above the plot was
+ * 44px a phone's chart could not spare, and a plain title did not read as a
+ * control, so it is look 4 of the second picker mockups (TJ 2026-10-14): the
+ * desktop picker's look shrunk to its label. `box` wears `FIELD_LOOK`, the
+ * recessed fill, edge and radius every select here wears, with `SELECT`'s
+ * `pr-6` holding the chevron in `ICON_ADORNMENT`'s place, and it sizes to
+ * its words rather than to `CHART_METRIC_W`. It is 28px tall (`h-7`), which
+ * is `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot,
+ * so nothing the plot draws, its dashed lines and their labels included,
+ * meets the box. `select` is the native select laid over it, transparent, so
+ * a tap opens the phone's own picker; 44px tall on a coarse pointer, centred
+ * on the box, so it reaches 8px into the room on either side and meets
+ * neither the rule nor the plot's label. The focus edge
+ * is `FIELD`'s, moved to the box because the select is invisible.
+ */
+export const CHART_TITLE = {
+  box:
+    `absolute left-3 top-3 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
+    `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-sky-500`,
+  text: 'min-w-0 truncate',
+  select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
+} as const
 
 /**
  * The width of the map's left column, which EVERYTHING in it wears: the search
@@ -1379,6 +1422,17 @@ export const MAP_EDGE = {
   right: 'right-[var(--map-edge-inset)]',
   /** The top edge the app's own button column takes. */
   top: 'top-[var(--map-edge-inset)]',
+  /**
+   * On a phone, where the app's two rows span the map's top (#696), the
+   * vendor's stack, which is the compass alone there, starts one inset below
+   * them rather than beside the pill: 92 + 12. While a ring is drawn the draw
+   * bar stands under the rows (`MAP_ROWS.drawBar`, 58px tall at 100), so the
+   * stack starts one inset under it instead: 100 + 58 + 12. `map.css` reads
+   * `--map-vendor-top` as the stack's top margin, and `styles.test.ts` holds
+   * both numbers to the rows' geometry.
+   */
+  belowRows: '[--map-vendor-top:104px]',
+  belowDrawBar: '[--map-vendor-top:170px]',
 } as const
 
 /**
@@ -1461,6 +1515,247 @@ export const LEGEND_TOP = {
  * the element it lands on; only the empty band now pans the map instead.
  */
 export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
+
+/**
+ * The phone's two rows across the top of the map (#696; record 0135, the
+ * maintainer's approved mockup, 2026-10-14): the search pill with the locate
+ * button at its right, and under it the chip row, the controls summary,
+ * Layers and Legend. A desk keeps its column (`MAP_COL_W`).
+ *
+ * The geometry is four numbers, and every other phone anchor is built from
+ * them: the map's 12px inset (`MAP_EDGE`), the 40px first row, 8px between
+ * the rows and the 32px chip row. So the rows end 92px down the map, and
+ * `styles.test.ts` holds each anchor below to that sum.
+ *
+ * `MAP_ROWS.stack` stands both rows one inset off the top and both sides and
+ * takes no press itself; each row yields every press that lands between its
+ * members (`YIELD_EMPTY`), so the map under the gaps, and under the chip
+ * row's empty right end, stays the map's. The stack cannot wear
+ * `YIELD_EMPTY` too: its `[&>*]` rule would hand the rows their presses
+ * back, a child selector outranking their own by stylesheet order. `row` is the first row: the pill
+ * hangs from its left edge and the locate button from its right.
+ */
+export const MAP_ROWS = {
+  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} flex flex-col gap-2 pointer-events-none`,
+  row: `relative h-10 ${YIELD_EMPTY}`,
+  /**
+   * Where the pill stands: across the row less the locate button and the 8px
+   * between them (`right-12`, 40 + 8) at rest, and across the whole row while
+   * the field has the keyboard or its list is open, over the locate button.
+   * Raised so its results list paints over the chip row and the map.
+   */
+  pill: 'absolute inset-y-0 left-0 right-12 z-10',
+  pillWide: 'absolute inset-y-0 left-0 right-0 z-10',
+  /** The second row: one line of chips, 6px apart, never wrapping. */
+  chips: `flex h-8 items-center gap-1.5 ${YIELD_EMPTY}`,
+  /**
+   * The draw bar on a phone (#687): under the chip row, 8px below it (92 +
+   * 8), so every chip stays in reach while a ring is drawn and the foot of
+   * the map stays the notices' and the player's.
+   */
+  drawBar: 'top-[100px]',
+} as const
+
+/**
+ * The search field as a pill (#696): the floating surface at the row's 40px,
+ * fully rounded, its icon and its clear button inside the same 14px of
+ * padding the mockup drew. The ring the panel's hover lights rides a wrapper
+ * of the same radius (`ACCENT_RING`). `styles.test.ts` holds the fill, edge
+ * and blur to `SURFACE_FLOATING`'s.
+ */
+export const MAP_PILL =
+  `bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `h-10 flex items-center gap-2 px-3.5 transition-colors ${ACCENT.edgeFocus}`
+
+/**
+ * The pill's field on a coarse pointer: 40px seen, 44 pressed. The input is
+ * transparent, so it stretches to the height inside the pill's 1px border
+ * (38) and reaches 3px past that at each edge, 2px past the pill, which is a
+ * target the reader cannot see. The clear button is
+ * `ICON_BUTTON` with `TAP.action`, which reaches 44 the same way by itself.
+ */
+export const MAP_PILL_FIELD = 'self-stretch touch:-my-[3px]'
+
+/**
+ * A map button: the locate button, the compass and the zoom pair, at both
+ * widths (TJ, 2026-10-14; record 0147). 40px and round, in the pill's dark
+ * chrome, with the floating buttons' sky edge on hover and the app's focus
+ * ring. The buttons are MapLibre's own, so their states (asking, tracking,
+ * failed; a compass that resets north) stay the library's: `map/controls.ts`
+ * hands each of them this role when the map is built, the one way a class
+ * reaches markup the library makes, and `map.css` draws their glyphs light
+ * and gives each a 44px rim on a coarse pointer. They stood in the library's
+ * white box until then, which the audit's M01 kept; the maintainer reversed
+ * that for the buttons on 2026-10-14.
+ */
+export const MAP_ROUND_BUTTON =
+  `size-10 bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `transition-colors ${ACCENT.edgeHover} ${FOCUS_RING}`
+
+/**
+ * Where a phone stands one of those buttons at a row's right end (#696): the
+ * map moves its own control into the slot (`placeControl`), so the button
+ * keeps the library's states and its permission prompt, and `map.css`, keyed
+ * on `map-slot`, takes the library's margin off it.
+ *
+ * `locate` is a 40px box beside the search pill. `compass` is the chip row's
+ * last member, under the locate button (record 0147), and takes no room of
+ * its own: while the map is north-up the compass is hidden and the slot is
+ * nothing, so the row's empty end stays the map's, about 20px at 360 wide.
+ * While it shows, the slot is the button's 40px and the summary chip, the one
+ * member that gives way, gives it up; at 32px the row is shorter than the
+ * button, which stands 4px proud of it top and bottom, centred on it.
+ */
+export const MAP_SLOT = {
+  locate: 'map-slot absolute right-0 top-0 size-10',
+  compass: 'map-slot ml-auto flex-shrink-0',
+} as const
+
+/**
+ * The map's credit line in the app's chrome (record 0147): its (i) a round
+ * dark button, smaller than the others at the library's 24px so it stands in
+ * the corner band with the scale (`CORNER_CONTROL_PX`), with the same 44px
+ * rim under a finger; and the line, folded out on a phone and always out at
+ * a desk, on the floating box's surface, edge and radius. `map/controls.ts`
+ * hands these to the library's markup; `map.css` takes the surface off a
+ * folded line, so only the button shows, and dresses the links, which the
+ * library rewrites whenever a source's credit changes, the way `LINK` would.
+ * The scale bar keeps the library's own look: it is a measurement drawn on
+ * the map, like the labels, rather than a control.
+ */
+export const MAP_CREDIT = {
+  button:
+    `size-6 bg-slate-800/95 border border-slate-600 ${RADIUS.pill} transition-colors ` +
+    `${ACCENT.edgeHover} ${FOCUS_RING}`,
+  card: `${SURFACE_FLOATING} text-slate-300`,
+} as const
+
+/**
+ * The chips' type: 13px, between the compact tier's 12 and the reading
+ * tier's 14, the size the mockup drew the row at (#696). A chip is a map
+ * control a thumb finds at arm's length over imagery, where the column's 12px
+ * read small, and 14px would cut the summary on a 360px phone. Named for
+ * `MICRO_SIZE`'s reason: an arbitrary step reads as the exception it is.
+ */
+const CHIP_SIZE = 'text-[13px]'
+
+/**
+ * The chips' hit area on a coarse pointer: 32px seen, 44px pressed, the way
+ * Material's chips take their 48dp target (`TAP`'s 44 here). An invisible
+ * box 6px above and below the chip, its own pseudo-element so a press on it
+ * is the chip's: 7px from inside the chip's 1px border, which is where a
+ * pseudo-element's inset is measured (the 30px inside plus 14 is 44, measured
+ * in the built image). Every chip is wider than 44 already, so only the
+ * height grows. The row's 6px gaps sit beside the chips, not above them, so no two
+ * targets overlap, and the 8px over the row stays clear of the pill's.
+ */
+const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:before:-inset-y-[7px] touch:before:content-['']"
+
+/**
+ * One chip in the phone's second row (#696): the pill's surface at 32px, the
+ * chips' 13px type at the normal weight and 12px of padding a side. A chip
+ * takes its content's width and never shrinks, but for the summary
+ * (`MAP_CHIP_SUMMARY`). The row's right end is left empty: a primary action
+ * may stand there later, and nothing here is placed against it.
+ *
+ * Lit while its sheet is open (`aria-expanded`), in the accent fill the
+ * pressed half of a segment wears. Spelled as variants of `ACCENT.fill`'s two
+ * classes, because Tailwind compiles only a class it finds whole and a
+ * variant is what lets the lit fill beat the resting one without a race of
+ * stylesheet order. Hover is `BUTTON_FLOATING`'s: the accent label and edge.
+ * The call site adds `DISABLED`, which greys the Legend chip until it has a
+ * key to show.
+ */
+const CHIP_FACE =
+  `bg-slate-800/95 border border-slate-600 ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
+  `${CHIP_SIZE} text-white h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
+  `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-slate-700 ` +
+  `aria-expanded:bg-sky-650 aria-expanded:border-sky-650 ${FOCUS_RING}`
+export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
+
+/**
+ * The summary chip, `☰ Current · NOAA GFS`, which opens the drawer: a chip
+ * that gives way first. It is the one member allowed to shrink, so a phone
+ * too narrow for the row cuts the summary with an ellipsis rather than
+ * pushing a chip off the edge (`MAP_CHIP_SUMMARY_TEXT`). The ☰ stays whole:
+ * it is the mark that says the chip opens the panel.
+ */
+export const MAP_CHIP_SUMMARY = `${CHIP_FACE} min-w-0`
+/**
+ * The summary's words: one line, cut at its end, in the slate-400 the mockup
+ * reads them in (5.71:1 on the chip). White while the chip is lit, since the
+ * Controls sheet it raises is up (record 0141): slate-400 on the accent fill
+ * fails AA, where white is the 4.57:1 every label on that fill reads at.
+ */
+export const MAP_CHIP_SUMMARY_TEXT = 'min-w-0 truncate text-slate-400 in-aria-expanded:text-white'
+
+/**
+ * The button's pressed state, Material's for a floating button (TJ,
+ * 2026-10-14): a state layer of the label's white at 12% over the whole
+ * button, and the shadow dropping from `ELEVATION.overlay` to
+ * `ELEVATION.raised` while a finger or a mouse holds it down. A run that
+ * reuses every forecast it holds finishes in a frame, so a press had nothing
+ * on screen to show it landed; the press itself now does, and the button is
+ * never greyed after a run, since a re-run is always the reader's to make.
+ * Spelled out rather than built from `ELEVATION.raised`, because Tailwind
+ * cannot compile a variant on an interpolated class. `enabled:` keeps a
+ * disabled button from answering a press it will not act on.
+ */
+const MAP_FAB_PRESSED =
+  'after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:bg-white ' +
+  'after:opacity-0 after:transition-opacity enabled:active:after:opacity-[0.12] enabled:active:shadow-lg'
+
+/**
+ * The phone's Analyze (#696; record 0135): an extended floating action
+ * button in Material's sense, the form for a screen's one primary action. 56px
+ * tall (`FAB_PX` in `resultsSheet.ts`, which places it), 16px off the map's
+ * right edge, a 16px corner rather than the capsule the chips wear, and the
+ * label in the call to action's 14px semibold. The accent fill is
+ * `BUTTON_PRIMARY`'s, `ACCENT.fill` on `--color-sky-650`, so the white label
+ * keeps the 4.57:1 record 0008 measured; the call site adds `DISABLED`, the
+ * panel's grey, because the gate is the panel's. The deepest shadow, since it
+ * stands over the map and over the sheet's edge alike.
+ *
+ * No icon: none of `icons.tsx` says "run this" without also meaning
+ * something else on the same screen (the player's triangle plays the
+ * timeline), so the button is its label.
+ */
+export const MAP_FAB =
+  `absolute right-4 ${LAYER.mapControls} h-14 rounded-2xl px-5 ${ELEVATION.overlay} ` +
+  `${TEXT.cta} transition-[color,background-color,box-shadow] ${ACCENT.fill} ${ACCENT.fillHover} ${FOCUS_RING} ` +
+  MAP_FAB_PRESSED
+
+
+/**
+ * The button's two words in one cell, the one not showing kept invisible, so
+ * the button is always as wide as the wider of `Analyze` and `Analyzing…` and
+ * never resizes as a run starts and ends. A grid rather than a measured width:
+ * the cell is the words' own, in whatever face the reader's system draws.
+ */
+export const MAP_FAB_WORDS = {
+  cell: 'grid place-items-center [&>*]:col-start-1 [&>*]:row-start-1',
+  hidden: 'invisible',
+} as const
+
+/**
+ * Where a phone's notices that ask for an action stand (#696; record 0140): a
+ * band across the map, one inset off each side, on the sheet's edge, or the
+ * map's foot before there is one, the library's 10px above it
+ * (`noticeBottomPx`), with the Analyze button 16px over it. The block's own
+ * boxes are the panel's `NOTICE` tints, which are translucent and were
+ * measured over the drawer's slate-800, so the band lays that same slate-800
+ * under them while it holds one; empty, it is a box of no height that draws
+ * nothing. Every press outside a box is the map's (`YIELD_EMPTY`).
+ *
+ * At most three lines of a box (`NOTICE_BAND_MAX_PX` in `resultsSheet.ts`,
+ * 66px), and past that the band scrolls inside itself rather than climbing
+ * the map: a second box or a long run error is read by scrolling the band,
+ * which `overscroll-contain` keeps from handing the flick on to the map.
+ */
+export const MAP_NOTICE_BAND =
+  `absolute ${MAP_EDGE.left} ${MAP_EDGE.right} ${LAYER.base} ${RADIUS.control} ` +
+  `max-h-[66px] overflow-y-auto overscroll-contain ` +
+  `has-[>[role=status]>*]:bg-slate-800 ${YIELD_EMPTY}`
 
 export const SEGMENT = `flex ${CONTROL_W} ${RADIUS.control} overflow-hidden ${RECESSED_EDGE}`
 /**
@@ -1968,6 +2263,86 @@ export const DIALOG_FOOT = {
 export const SCROLL_BARS = 'surface-scrollbars'
 
 /**
+ * The place search's result list (#696): ten places now, where it held five,
+ * so it scrolls inside a bounded box rather than running down the map and
+ * under the results sheet. At most 20rem, about six places at a finger's
+ * option height so the cut one says the list goes on, and never more than half
+ * the viewport, which is what keeps it on a phone turned on its side.
+ * `SCROLL_BARS` is the one dark bar every dark surface wears (#697);
+ * `overscroll-contain` keeps a flick at the list's end from moving the map.
+ */
+export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-auto overscroll-contain`
+
+/**
+ * The bottom sheet (#696; record 0136): on a phone, every menu the map's chips
+ * and the results bar open is one card rising from the screen's bottom edge,
+ * modal over a dimmed map, where a desk keeps its menus joined to their
+ * controls (record 0134). One component (`BottomSheet.tsx`) wears these.
+ *
+ * `scrim` catches every press outside the card, which closes it, and `dim`
+ * shades all of it: the whole screen, the search row and the chips included,
+ * Material's rule for a modal sheet's scrim. Both are fixed to the viewport
+ * rather than placed against the map, so a preview banner that shifts the map
+ * down cannot leave a band of it bright (it stopped one inset under the chip
+ * row, measured from the viewport, until the maintainer's phone showed the
+ * chips half dimmed under a banner). `card` is the results sheet's surface
+ * lifted a step, since it stands over that sheet, and it stops one inset under
+ * where the chip row ends on a phone with no banner, so a long list leaves
+ * the top of the dimmed map in view. `grip` is the bar the
+ * mockup draws at the top, which drags the sheet up, down or shut (record
+ * 0146), with the title row beside it. `head`
+ * is the title at the left and Done at the right; `title` the sheet's own
+ * word, the chip's or the button's that opened it. `body` scrolls, and every
+ * row in it is at least a finger's 44px, one line, with a rule between rows.
+ * It ends at its last row and then a phone's home indicator band
+ * (`SAFE_AREA.pad`; record 0152), so where no band is reported the space
+ * under the last line is the space every line keeps above its rule.
+ */
+/**
+ * The band a phone keeps for its own gestures at the screen's bottom edge,
+ * the home indicator on an iPhone (#336, #696; record 0145), which nothing a
+ * finger presses may stand in. `index.html` asks for the whole screen
+ * (`viewport-fit=cover`), so the browser draws the page under the band and
+ * reports its height as `env(safe-area-inset-bottom)`, 34px on a 390x844
+ * iPhone and 0 on a desk.
+ *
+ * `pad` is for a surface that reaches the screen's foot and keeps its own
+ * content above the band: the results sheet, whose grip and header then stand
+ * on the band's top edge when it is collapsed. A sheet whose body scrolls
+ * (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`) takes the band at its
+ * scroller's end, after its own rhythm, so scrolled to the end its last row
+ * stands the band above the screen's foot and nothing a finger presses is in
+ * it, while the content still runs under the band as it scrolls (record
+ * 0152, the maintainer, 2026-10-14, choosing it over no band after seeing
+ * the two drawn side by side). Where the browser reports 0, as Chrome does on
+ * the maintainer's Pixel, nothing changes. `probe` is an invisible
+ * box as tall as the band, which `useSafeAreaBottom` reads, because the
+ * chrome placed in pixels over the map (the Analyze button, the notice band,
+ * the player, the scale and the credit) measures from the sheet's edge, and
+ * before there is a sheet that edge is the band's top rather than the
+ * screen's foot.
+ */
+export const SAFE_AREA = {
+  pad: 'pb-[env(safe-area-inset-bottom)]',
+  probe: 'pointer-events-none invisible fixed bottom-0 left-0 w-0 h-[env(safe-area-inset-bottom)]',
+} as const
+
+export const BOTTOM_SHEET = {
+  scrim: `fixed inset-0 ${LAYER.popover}`,
+  dim: 'absolute inset-0 bg-black/40',
+  card:
+    `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
+    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
+  grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-slate-500',
+  head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-1',
+  title: TEXT.subheading,
+  done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
+  body:
+    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
+    'divide-y divide-slate-700 [&>*]:min-h-11',
+} as const
+
+/**
  * The shade under a fixed edge that shows only while content continues past
  * it (#697): the panel body under its header and above its footer, and the
  * results table under its sticky header and above its bottom edge. Without it
@@ -2046,6 +2421,36 @@ export const MOTION = {
   slide: 'transform transition-transform duration-300 ease-in-out motion-reduce:transition-none',
   /** A progress bar's fill growing to its next width. */
   progress: 'transition-all duration-300 ease-out motion-reduce:transition-none',
+} as const
+
+/**
+ * The Controls sheet (#696; record 0141): on a phone the panel is a sheet
+ * the summary chip raises from the map's foot, where a desk docks it beside
+ * the map. The bottom sheet's surface and top (`BOTTOM_SHEET`), with three
+ * differences that come from what it holds. It is not modal: there is no dim,
+ * the map above it and the chips stay live, and the Analyze button rides its
+ * edge, because a reader changing a control is about to press it. It never
+ * unmounts, so the panel's state and the notice block's portal outlive a
+ * close, and shut it slides below the map's foot (`shut`) and goes inert. And
+ * its height is set where it is placed (`controlsSheetPx`), a fixed share of
+ * the map, so a notice arriving while a finger is on a control moves the
+ * button rather than the sheet. `LAYER.drawer`, the panel's own layer.
+ */
+export const CONTROLS_SHEET = {
+  card:
+    `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
+    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} ${MOTION.slide}`,
+  shut: 'translate-y-full',
+  /** The panel under the sheet's top, which takes the rest and scrolls inside. */
+  panel: 'min-h-0 flex-1',
+  /**
+   * The panel's scrolling body on a phone: its own 16px at the end, the gap
+   * the stack keeps above each rule, plus the home indicator band
+   * (`SAFE_AREA`; record 0152), so the document links clear the band once
+   * scrolled to. The end shade is told the band, since it stands on the
+   * scroller's padding.
+   */
+  body: 'pb-[calc(1rem+env(safe-area-inset-bottom))] [--scroll-shadow-end-inset:env(safe-area-inset-bottom)]',
 } as const
 
 /**
@@ -2184,7 +2589,7 @@ export const DAY = {
  * the whole reason the rule is written as a height and not as padding.
  */
 export const FIELD =
-  `${TEXT.control} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
+  `${FIELD_LOOK} ${TAP.height} ` +
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
 
 /**
@@ -2516,12 +2921,63 @@ export const TABLE = {
    */
   row: 'group border-t border-slate-700/50 hover:bg-slate-700/30 transition-colors',
   /**
+   * A ranked row a press opens the marker popup from (#696; record 0143):
+   * the pointer says the whole row answers, where it said so over the name
+   * alone. A pending row has no forecast card to open and does not wear it.
+   */
+  rowOpens: 'cursor-pointer',
+  /**
+   * A value in a cell that is a link (Windy for a metric, NIFC for a fire, the
+   * Forest Service for an order): underlined at rest, the way the marker
+   * popup underlines every number in its grid (`popupLink`), so the table and
+   * the card say "link" the same way (TJ, 2026-10-14). It was underlined on
+   * hover alone, which a touch screen never has, so a phone showed no cue
+   * that a number opens anything. The value keeps the colour its band gives
+   * it: the line is the cue, and a link colour would erase the ranking's.
+   */
+  valueLink: 'underline cursor-pointer',
+  /**
+   * The Name column stands still while the rest of the table scrolls
+   * sideways under it, at both widths (#696; record 0142): on a phone the
+   * table is three or four columns of a dozen wide, and a number read two
+   * swipes from its name was a number with no destination. Left 0, so the
+   * chart box and the rank scroll away under it like any other column
+   * rather than sticking at offsets the rank's digits would move.
+   *
+   * A sticky cell must be opaque or the columns under it show through, so
+   * the body cell lays the panel's slate-800 and the header cell the
+   * header's slate-700. The row's hover tint is a gradient laid over that
+   * fill on hover (`group-hover`, the row's group), since a translucent
+   * fill cannot tint an opaque one from underneath; one layer over the
+   * columns that scroll and under the header, which stands above every
+   * body cell as it does now.
+   */
+  stickyNameCell:
+    'sticky left-0 z-[1] bg-slate-800 bg-linear-to-r ' +
+    'group-hover:from-slate-700/30 group-hover:to-slate-700/30',
+  /** The same column's header cell, on the header's fill. */
+  stickyNameHead: 'sticky left-0 z-[1] bg-slate-700',
+  /**
+   * The most a phone's Name column takes before a reader sizes it (#696;
+   * record 0142): its widest name and the cell's padding, but never more than
+   * 45% of the results sheet, 162px at 360 wide and 175 at 390, so a column
+   * that stands still leaves the columns scrolling past it most of the
+   * screen. It stood at its widest name, 210px on the sample report, which
+   * left a 360px phone 150px for every number. On the name's line inside the
+   * cell (`cqi` is the table's scroller, `@container`), less the cell's `px-2`
+   * either side, so the name truncates as it does in a column sized narrow;
+   * the popup a row tap opens carries it whole. Off once the reader drags or
+   * fits the column, whose width is then theirs, and off at a desk, whose
+   * table has the room.
+   */
+  nameCap: 'max-lg:max-w-[calc(45cqi-1rem)]',
+  /**
    * The rank cell's two faces, the number and the remove ×, laid in ONE grid
    * cell so the column is as wide as the wider face at all times and a hover
    * trades only visibility. Swapping them with display let the column grow by
    * the icon's extra width on every hover and shove every column to its right
-   * (#339). Touch devices have no hover and place the × in a second column
-   * beside the number instead: the `.row-remove` rule in index.css.
+   * (#339). A coarse pointer has no hover and draws the number alone: its
+   * remove is the marker card's, which the row tap opens (#696).
    */
   rankStack: 'group/rank inline-grid items-center justify-items-center',
   rankFace: 'col-start-1 row-start-1',
@@ -2531,11 +2987,17 @@ export const TABLE = {
    * the whole of #576 item 9: an element with `visibility: hidden` cannot take
    * focus, so Tab skipped every row's remove and a keyboard could reach it
    * only through the chart legend. Opacity keeps it in the Tab order, and the
-   * focus it takes is what shows it. The touch rule in index.css lifts the
-   * idle opacity along with the column move.
+   * focus it takes is what shows it.
+   *
+   * On a coarse pointer the × is not drawn at all (#696). It used to stand
+   * beside the number there, forced visible because a finger has no hover;
+   * now a finger removes a row from the card its row tap opens, which says
+   * `Remove from analysis` in words. Hidden rather than left at no opacity,
+   * because an invisible button in the number's cell would take the tap the
+   * reader aimed at the row and remove it.
    */
   rankIdleFace: 'group-hover:invisible group-has-[:focus-visible]/rank:invisible',
-  removeFace: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+  removeFace: 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100 touch:hidden',
   /**
    * A footnote reference on a cell: the `*` a Model cell carries when its
    * model ends inside the window (#508), pointing at the line under the table.
@@ -2576,9 +3038,11 @@ export const TABLE = {
  * The guided tutorial (#536): a spotlight over one control and a card beside
  * it. The spotlight is ONE element wearing a shadow as wide as the screen, so
  * the dim layer and its rounded cut-out are the same box and cannot drift
- * apart the way four separate rects around a target would. It is square,
- * because a section between two rules and a sheet with straight edges are;
- * `spotlightControl` adds the surface radius around a control, which has one. The card is the welcome
+ * apart the way four separate rects around a target would. Its corners are
+ * not a role: the tour reads them off the target (`spotRadius` in
+ * `tour/place.ts`, #696), square around a section between two rules and a
+ * sheet with straight edges, the target's own radius plus the pad around a
+ * rounded control. The card is the welcome
  * dialog's surface at the modal layer (above the drawer and every popover),
  * fixed and sized by the same 320px the welcome card reads at on a phone. Under
  * `SHEET_MAX_W` (`tour/place.ts`) it is a full-width sheet along the bottom
@@ -2587,8 +3051,6 @@ export const TABLE = {
  */
 export const TOUR = {
   spotlight: 'absolute pointer-events-none shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]',
-  /** The spotlight's corners around a control: the control's own radius. */
-  spotlightControl: RADIUS.surface,
   card: `${SURFACE_CARD} fixed w-80 p-4 space-y-3 focus:outline-none`,
   sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */

@@ -14,6 +14,7 @@ const STEPS = [
   { title: 'Analyze', anchor: 'analyze' },
   { title: 'Layers', anchor: 'layers' },
   { title: 'Results', anchor: 'results' },
+  { title: 'Chart', anchor: 'chart' },
   { title: 'Markers', anchor: 'marker' },
 ]
 
@@ -98,7 +99,21 @@ async function expectPopupClear(page: Page) {
   }).toPass({ timeout: 5_000 })
 }
 
-test('walks the seven cards from the footer link and puts the app back', async ({ page }) => {
+// The Chart card shows the readout a finger resting mid-window shows: the
+// cursor's line on the middle of the demonstration's thirteen hours, with a
+// dot on every destination's line (#696; record 0153).
+async function expectReadoutMidWindow(page: Page) {
+  const chart = '[data-tour="chart"]'
+  await expect(page.locator(`${chart} .recharts-tooltip-cursor`)).toBeAttached()
+  await expect(async () => {
+    const grid = (await box(page, `${chart} .recharts-cartesian-grid`))!
+    const cursor = (await box(page, `${chart} .recharts-tooltip-cursor`))!
+    expect(Math.abs((cursor.left + cursor.right) / 2 - (grid.left + grid.right) / 2)).toBeLessThan(2)
+    await expect(page.locator(`${chart} .recharts-active-dot`)).toHaveCount(5)
+  }).toPass({ timeout: 5_000 })
+}
+
+test('walks the eight cards from the footer link and puts the app back', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   const before = await page.evaluate(() => history.length)
@@ -116,6 +131,7 @@ test('walks the seven cards from the footer link and puts the app back', async (
     if (step.anchor === 'metrics') await expectSectionInPanel(page, 'metrics')
     if (step.anchor === 'layers') await expect(page.locator('[data-tour="layers-menu"]')).toBeVisible()
     if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(5)
+    if (step.anchor === 'chart') await expectReadoutMidWindow(page)
     if (step.anchor === 'marker') await expectPopupClear(page)
     await card(page).getByRole('button', { name: i === STEPS.length - 1 ? 'Done' : 'Next' }).click()
   }
@@ -149,11 +165,98 @@ test('a link to /tutorial opens the tour on a phone, and the keys walk it', asyn
   await expectPopupClear(page)
 
   await page.keyboard.press('Backspace')
-  await expect(heading(page)).toHaveText('Results')
+  await expect(heading(page)).toHaveText('Chart')
   await page.keyboard.press('ArrowLeft')
-  await expect(heading(page)).toHaveText('Layers')
+  await expect(heading(page)).toHaveText('Results')
 
   await page.keyboard.press('Escape')
   await expect(card(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/(\?|$)/)
+})
+
+test.describe('on a phone with a report', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  // #696: the Analyze step lights the floating button 8px out on every side,
+  // its corners the button's 16px plus that pad (record 0151); the Results
+  // step opens a sheet the reader lowered to rest in Table view before it
+  // lights it, and the end of the tour leaves it open (record 0150).
+  test('walks a lowered report: the Analyze light, the Layers sheet, the table and the chart', async ({ page }) => {
+    await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+    await expect(resultRows(page)).toHaveCount(5)
+    await page.getByRole('button', { name: 'Show chart only' }).first().tap()
+    await expect(resultRows(page).first()).toBeHidden()
+    await page.getByRole('button', { name: 'Collapse results' }).first().tap()
+    await expect(page.getByRole('button', { name: 'Expand results' }).first()).toBeVisible()
+
+    await page.getByRole('button', { name: 'Open controls' }).tap()
+    const link = page.getByRole('region', { name: 'Controls' }).getByRole('link', { name: 'Tutorial' })
+    await link.scrollIntoViewIfNeeded()
+    await link.tap()
+    await expect(heading(page)).toHaveText('Destinations')
+
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Analyze')
+    await expect(async () => {
+      const fab = (await box(page, '[data-tour="analyze"]'))!
+      const light = (await box(page, SPOTLIGHT))!
+      expect(fab.left - light.left).toBeCloseTo(8, 0)
+      expect(light.right - fab.right).toBeCloseTo(8, 0)
+      expect(fab.top - light.top).toBeCloseTo(8, 0)
+      expect(light.bottom - fab.bottom).toBeCloseTo(8, 0)
+      const radius = await page.locator(SPOTLIGHT).first().evaluate((el) => getComputedStyle(el).borderTopLeftRadius)
+      const own = await page.locator('[data-tour="analyze"]').evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
+      expect(radius).toBe(`${own + 8}px`)
+    }).toPass({ timeout: 5_000 })
+
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Layers')
+    // A phone's Layers card opens the sheet and switches Wildfires on
+    // (record 0153), and the next card puts both back.
+    const layers = page.locator('[data-tour="layers-menu"]')
+    await expect(layers).toBeVisible()
+    await expect(layers.getByRole('checkbox', { name: 'Wildfires' })).toBeChecked()
+    // Its card stands in the map between the chip and the sheet, over
+    // neither, and the light holds both (#696).
+    await expectSpotlightOn(page, 'layers')
+    await expectSpotlightOn(page, 'layers-menu')
+    await expect(async () => {
+      const chip = (await box(page, '[data-tour="layers"]'))!
+      const sheet = (await box(page, '[data-tour="layers-menu"]'))!
+      const tourCard = (await box(page, '[data-tour-card]'))!
+      expect(tourCard.top).toBeGreaterThan(chip.bottom)
+      expect(tourCard.bottom).toBeLessThan(sheet.top)
+    }).toPass({ timeout: 5_000 })
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Results')
+    await expect(layers).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
+    await expect(resultRows(page).first()).toBeVisible()
+    await expectSpotlightOn(page, 'results')
+
+    // The Chart card turns the sheet to its chart, with the readout on the
+    // window's middle hour (record 0153).
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Chart')
+    await expectReadoutMidWindow(page)
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Markers')
+    // Back to the Chart card, which opens the sheet the marker card
+    // collapsed, and the tour ended there.
+    await page.keyboard.press('Backspace')
+    await expect(heading(page)).toHaveText('Chart')
+    await expectReadoutMidWindow(page)
+    await page.keyboard.press('Escape')
+    await expect(card(page)).toHaveCount(0)
+    // The sheet is left open in the chart with the reader's own lines and
+    // no readout over them, and Wildfires off again.
+    await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
+    await expect(page.locator('[data-tour="chart"] .recharts-line')).toHaveCount(5)
+    await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)
+    await expect(page.locator('[data-tour="chart"] .recharts-active-dot')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Layers', exact: true }).first().tap()
+    await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Wildfires' })).not.toBeChecked()
+  })
 })

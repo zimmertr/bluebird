@@ -1,6 +1,7 @@
 import { visibilityRows, type VisibilityModel } from '../utils/modelVisibility'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
+import BottomSheet from './BottomSheet'
 import { CHOICE_INPUT, CHOICE_ROW } from '../styles'
 
 interface Props {
@@ -16,8 +17,8 @@ interface Props {
    * menu on the bar takes the same place at the same width (record 0134).
    */
   anchorRef: React.RefObject<HTMLElement | null>
-  /** The bar's line on a phone, which the menu spans (record 0134). */
-  widthRef?: React.RefObject<HTMLElement | null>
+  /** A phone (#696): the menu is a bottom sheet rather than a card joined to the bar's group. */
+  sheet?: boolean
 }
 
 /**
@@ -50,27 +51,37 @@ export default function ModelsPicker({
   onToggle,
   triggerRef,
   anchorRef,
-  widthRef,
+  sheet = false,
 }: Props) {
-  const { popoverRef, box } = usePopover({ open, onOpenChange, triggerRef, anchorRef, widthRef, placement: 'unfurl' })
+  // Closed to the popover's hook on a phone, whose sheet places and dismisses
+  // itself: a press inside the sheet would read as a press outside the card.
+  const { popoverRef, box } = usePopover({ open: open && !sheet, onOpenChange, triggerRef, anchorRef, placement: 'unfurl' })
+
+  const rows = visibilityRows(models, hidden).map((row) => (
+    <label key={row.id} className={CHOICE_ROW}>
+      <input
+        type="checkbox"
+        checked={row.visible}
+        onChange={() => onToggle(row.id)}
+        className={CHOICE_INPUT}
+      />
+      <span className="flex-1">{row.label}</span>
+    </label>
+  ))
+
+  if (sheet) {
+    return open ? (
+      <BottomSheet heading="Models" onClose={() => onOpenChange(false)}>
+        {rows}
+      </BottomSheet>
+    ) : null
+  }
 
   if (!open || !box) return null
 
   return (
     <Popover box={box} popoverRef={popoverRef}>
-      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
-        {visibilityRows(models, hidden).map((row) => (
-          <label key={row.id} className={CHOICE_ROW}>
-            <input
-              type="checkbox"
-              checked={row.visible}
-              onChange={() => onToggle(row.id)}
-              className={CHOICE_INPUT}
-            />
-            <span className="flex-1">{row.label}</span>
-          </label>
-        ))}
-      </div>
+      <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">{rows}</div>
     </Popover>
   )
 }

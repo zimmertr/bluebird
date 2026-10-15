@@ -42,6 +42,12 @@ describe('saying what is selected', () => {
     expect(
       windowCaption('now', localMs('2026-07-15T12:34'), localMs('2026-07-15T12:34'), true, NOW),
     ).toBe('as of 12:34 PM')
+    // The commit's own moment, to the minute (TJ, 2026-10-14): a later run,
+    // which reused every forecast, still moves it off the sample's hour.
+    const at = localMs('2026-07-15T12:41') + 17_000
+    expect(
+      windowCaption('now', localMs('2026-07-15T12:34'), localMs('2026-07-15T12:34'), true, NOW, at),
+    ).toBe('as of 12:41 PM')
     expect(
       windowCaption('days', localMs('2026-07-15T00:00'), localMs('2026-07-19T23:59'), false, NOW),
     ).toBe('Wed, Jul 15 to Sun, Jul 19')

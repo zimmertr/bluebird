@@ -94,7 +94,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the theme's slate-500 and slate-800; the root's `color-scheme: dark` turns every bar it does not reach dark too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
-| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone drawer, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
+| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone's Controls sheet, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
@@ -147,7 +147,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `TAP.grip` | Full-width drag handle: 24px height (AA floor, not 44) |
 | `CONTROL_W` | Single stacked panel control width: 118px, which is 2 x `METRIC_BOX_W` plus the Metrics grid gap, so the whole panel stands on the bound boxes' edges |
 | `CHART_METRIC_W` | The chart's metric select, 144px (w-36). The one control that borrowed `CONTROL_W` from outside the panel and cannot follow it down: `Freezing level (ft)` is 99.3px |
-| `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls and Layers buttons, the Layers popover and the legend box. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
+| `MAP_COL_W` | Width of everything in the map's left column but one: the search field, the Controls, Layers and Legend buttons, the Layers popover and the legend card. 184px (w-46), governed within a pixel by two rows, the grid legend's wait line (176.8px) and the search field at rest (177.6px). The exception is the search RESULT list, deliberately wider (w-72/w-80): bound to the column it clipped the county and state that tell four places of one name apart |
 | `MAP_ROW_H` | Height of one row in that column: 36px, floored at 44px on a finger. Fixed, because the search field and the two buttons each solved for their own height and came out 34, 38 and 38 |
 | `MAP_COL_GAP` | The gap between members of that column: 4px, half the 8px they took before. A role rather than four call sites, because `LEGEND_TOP`'s arithmetic is built from it. `gap` for the members that sit in a flex column. Its `top`, the same gap as a margin for the Layers menu under its button, went when that menu unfurled out of the button (record 0134) |
 | `DRAW_BAR` | The draw bar on a phone: the polygon readout, Done and Cancel on the map while a ring is drawn, a floating box at the map's inset off both sides, standing where the player stands. A desk keeps them in the docked panel |
@@ -187,9 +187,9 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `LAYER.sheet` | The phone results sheet: over the map chrome it covers, under the drawer's scrim |
 | `LAYER.mapControls` | The map's top-left cluster and what it opens: over the sheet and the map chrome the Layers popover hangs across |
 | `LAYER.overlay` | Analysis overlay card |
-| `LAYER.scrim` | Scrim behind mobile drawer and preview banner |
-| `LAYER.drawer` | Mobile drawer itself |
-| `LAYER.popover` | Popover opened from drawer (above drawer, below modal) |
+| `LAYER.scrim` | The preview banner |
+| `LAYER.drawer` | The panel: a phone's Controls sheet |
+| `LAYER.popover` | Popover opened from the panel, and every phone bottom sheet (above the panel, below modal) |
 | `LAYER.modal` | Modal dialogs |
 
 **Calendar days**
@@ -246,13 +246,14 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | No unsafe error message patterns | `checks/data.js` | `open-meteo-copy` bans `failed: ${...}` and the retired phrases; `open-meteo-throw-tail` holds every thrown Open-Meteo message to the standing tail |
 | Every full page stands on one ground | `checks/styles.js` | No component or `App.tsx` spells the bare page fill, and `App.tsx`, `PageShell.tsx` and `ErrorBoundary.tsx` each wear `SURFACE_PAGE` |
 | Every radius is on the scale | `styles.test.ts` | Any `rounded*` in a component source must be a `RADIUS` value |
-| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered exactly once, after the button; the polygon block is the one bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
+| Every notice renders in one block below Analyze | `checks/styles.js` | A notice is a `NOTICE` role, only `FooterNotice` wears one, and it is rendered from one element, after the button, with one portal for a phone's lines that ask for an action; the polygon block is the one bare `STATUS` use, pinned by count: two in `DestinationsSection.tsx` and the point count's four in `DrawReadout.tsx` (`style-draw-counter`, `style-draw-readout`), which the panel and the phone's draw bar both render |
 | A disabled control's reason has a hidden twin | `checks/accessibility.js` | Every `aria-describedby` in `LayersPopover.tsx`, `ResultsTableHeader.tsx`, `ResultsTableRow.tsx`, `ForecastCalendar.tsx`, `MapLegend.tsx` and `ColumnsPicker.tsx` matches a `SR_ONLY` element |
 | A metric cell link is named by its value | `checks/accessibility.js` | `new-tab-anchors-named` fails an `aria-label` on the anchor built from `windyCellUrl`, and requires its `aria-describedby` and the Windy sentence |
 | The Layers rows are alphabetical | `styles.test.ts` | The five row labels equal their own sorted order |
 | The legend is one box, sorted by what it reads | `styles.test.ts` | One `SURFACE_FLOATING` in the block, every section built by `legendSection`, and the list sorted on `label.localeCompare` — the metric key included, so a `Temperature` ranking sorts last and an `AQI` one first |
 | A tick on a strip clears AA | `styles.test.ts` | `RAMP_INK` pins three measurements: white and slate-900 straight onto the ramps, which both fail, and slate-200 on the scrim, which is the one that passes |
 | The map column is one width, gap, height and type size | `styles.test.ts`, `checks/styles.js` | `MAP_COL_W`, `MAP_COL_GAP`, `MAP_ROW_H` and `CONTROL_SIZE` composition at every member |
+| A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
@@ -447,6 +448,101 @@ The results bar is one line when its container is 896px or wider, and two lines 
 The four actions are one `ACTION_GROUP` of `ACTION_ITEM` buttons, the mode switch's sibling in look and height, each a glyph and a word (#687). They were underlined links, so the one bar carried four control styles; the linter's `style-results-bar` check now requires the four items, the one group and `BAR_LABEL` on all seven words, and fails a link anywhere in the bar. The Open-Meteo credit that stood at the end of the row is on the map's attribution line at the bottom right, beside MapLibre's and the basemap's credits, where a credit reads as one rather than as a fifth action, and where it stands in every results mode. Record: [0133](decisions/0133-results-bar-buttons-and-footnote-credit.md)
 
 The mode switch wears `SEGMENT_FLUID`, not `SEGMENT`: the panel's segment role bakes in the sidebar's column, which three icon-plus-label halves cannot fit — that mismatch is how the switch once shipped clipped by its own `overflow-hidden`.
+
+### Phone chrome
+
+A phone's map carries two rows across its top and one button at its foot
+(`MAP_ROWS`, `MAP_PILL`, `MAP_ROUND_BUTTON`, `MAP_CHIP`, `MAP_FAB` in `styles.ts`).
+The rows are four numbers, the map's 12px inset, the 40px first row, 8px
+between and the 32px chip row, so they end 92px down; the draw bar, the
+compass, the bottom sheet's card and the results sheet's highest stop are all
+built from that sum, and
+`styles.test.ts` holds each to it. The chips are 13px type with 12px a side,
+content-sized, and only the summary may shrink, by an ellipsis on its words.
+
+Seen and pressed are two sizes. On a coarse pointer a chip is 32px seen and
+44 pressed, by a pseudo-element 7px above and below it measured from inside
+its 1px border; the locate button 40 seen and 44 pressed, by a 3px rim
+`map.css` puts on the library's button; the pill 40 seen with its field 44
+pressed (`MAP_PILL_FIELD`). Each is the role's, never a `touch:` utility at a
+call site.
+
+Analyze is Material's extended floating action button: 56px tall, 16px off
+the right edge and off whatever it stands on, a 16px corner, the call to
+action's type on `BUTTON_PRIMARY`'s fill. Both its words stand in one grid
+cell, so it is as wide as the wider. Measured 2026-10-14 in the Playwright
+image's Chromium at 360, 390 and 430 wide: the summary chip 169.4px, Layers
+65.0 and Legend 69.4, 315.8 with the gaps, which leaves 20.2, 50.2 and 90.2px
+of the row empty; the button 120.1px, `Analyze` 52.9 and `Analyzing…` 80.1.
+The mockup measured the same three at 289px in Chrome on a Mac, whose system
+face is narrower. Re-measure when a chip or a model label grows. A press
+shows by `MAP_FAB_PRESSED`, Material's pressed state: a state layer of the
+label's white at 12% and the shadow a step lower while held, on either
+pointer, and never a grey after a run.
+Record: [0135](decisions/0135-phone-opens-on-the-map.md)
+
+A phone chart's metric picker is the plot's title (`CHART_TITLE`): the
+metric's label with its unit in the app's own select, sized to its words and
+28px tall. It wears `FIELD_LOOK`, the fill, edge, radius and type `FIELD` is
+built from, with `SELECT`'s `pr-6` and the chevron in `ICON_ADORNMENT`'s
+place, so it is the desktop picker shrunk rather than a look of its own. The
+native select is laid over it, transparent, 44px tall under a finger. The
+plot's top margin grows by the title's 28px (`TITLED_PLOT_MARGIN`), so its
+dashed lines, their labels and the top tick start under it. Measured
+2026-10-14: the field row it replaced was 52px, and the plotting band grew
+24px at 360 and 390.
+Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
+
+Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
+the locate button, the compass and a desk's zoom pair, 40px round in the
+pill's dark chrome, handed to each by `map/controls.ts` because the library
+makes the markup. A phone stands the locate button and the compass in slots
+at the rows' right ends (`MAP_SLOT`). The credit line's (i) is the same dark
+round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
+is the floating card (`MAP_CREDIT.card`), its links dressed in `map.css` as
+`LINK` dresses the app's. The compass needle is redrawn rather than inverted,
+red-500 north and slate-50 south edged in slate-600, and the (i)'s glyph is
+centred on its button's whole box. The scale bar keeps the library's look: it
+is a ruler on the map, not a control.
+Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md)
+
+The whole notice block stands on the map in a band (`MAP_NOTICE_BAND`):
+the panel's own boxes on its slate-800, 12px off each side, 10px over the
+sheet's edge, three lines of a box at most (66px) and then it scrolls inside
+itself. The button stands 16px over the band, and the scale and the (i) move
+onto the button's row, each with its bottom on the button's bottom edge, and
+the opened credit line grows up from that edge. Measured 2026-10-14: a 10px
+gap from the band to the sheet at 360, 390 and 430 wide, the gap the (i)
+kept above the sheet before; the button's, the scale's and the (i)'s bottoms
+on one edge at all three, at 446, 500 and 588 with a report landed.
+Record: [0140](decisions/0140-phone-notices-on-the-map.md)
+
+The summary chip raises the panel as the Controls sheet (`CONTROLS_SHEET`): the
+bottom sheet's surface and top, not modal, slid below the map while shut, its
+height a fixed share of the map that leaves the rows, the button's strip and a
+full band. The chip is lit while it is up, its words white on the accent fill.
+It carries no notice block and no fixed foot: the document links are the
+last thing in its scrolling body.
+Record: [0141](decisions/0141-phone-controls-sheet.md)
+
+A phone's home indicator band (`SAFE_AREA`) is padded under the results sheet,
+and the chrome placed in pixels stands on its top edge before there is a
+sheet. A sheet that scrolls takes the band as padding at its scroller's end,
+after its own rhythm (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`), so its
+content runs to the screen's edge and its last row clears the band once
+scrolled to. Where no band is reported the space under the last line is the
+space above the rule before it: 16px in Controls, the row's own in a menu
+sheet. 0 on a desk.
+Record: [0145](decisions/0145-safe-area-bottom.md), [0152](decisions/0152-sheets-end-above-the-home-indicator.md)
+
+The results table's Name column sticks at the left edge on an opaque fill
+(`TABLE.stickyNameCell`, `TABLE.stickyNameHead`), with the row's hover tint
+laid over it as a gradient. On a phone it opens no wider than 45% of the
+sheet (`TABLE.nameCap`), and a longer name truncates. Every number that links
+to Windy is underlined at rest (`TABLE.valueLink`), the way the popup's
+numbers are, since a touch screen has no hover to show a link by. The chart's plot leaves the browser only the
+vertical pan (`CHART_PLOT_TOUCH`), so a sideways drag reads it.
+Record: [0142](decisions/0142-sticky-name-column.md) Record: [0144](decisions/0144-chart-reads-a-finger.md)
 
 ### Control width
 
@@ -716,13 +812,23 @@ width: no gap, the card's top edge on the control's bottom edge, the two sharing
 an outline (`UNFURLED` on the card, `UNFURL_ANCHOR` on the control). The results
 bar's Columns, Models and Removed unfurl out of the whole button group, so they
 open in one place. A card goes up only where the room under its control is less
-than three 44px rows, as on a collapsed phone sheet. Where a control is
-narrower than its menu's rows need, the menu takes the control's row instead,
-still joined to it (`widthRef`): the bar's line on a phone, and the Model row
-for the model dropdown, which then opens leftward under its label. The search
-box's results list is the one exception, a list of answers under a field
-rather than a menu.
+than three 44px rows. Where a control is narrower than its menu's rows need,
+the menu takes the control's row instead, still joined to it (`widthRef`): the
+Model row for the model dropdown, which then opens leftward under its label.
+The search box's results list is the one exception, a list of answers under a
+field rather than a menu.
 Record: [0134](decisions/0134-menus-unfurl-from-their-control.md)
+
+On a phone every menu is a sheet instead (`BottomSheet`, `BOTTOM_SHEET`): a
+card from the bottom edge over a dimmed map, with a grip, its heading and
+Done, and rows a finger's 44px tall with a rule between them. Layers and
+Legend from the chip row and Columns, Models and Removed from the results bar
+open in it. The dim covers the whole screen, the search row and the chips
+included, as a modal sheet's scrim does in Material. The grip and the title
+row drag the sheet, to just under the chips, shut, or anywhere between, and a
+double tap on the grip puts it back at its own height, through the gesture
+the results sheet's grips use.
+Record: [0136](decisions/0136-phone-menus-are-bottom-sheets.md) Record: [0146](decisions/0146-sheet-grips-drag.md)
 
 ### Adding a new role
 

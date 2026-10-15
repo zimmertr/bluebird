@@ -1,5 +1,5 @@
 import { createContext, memo, useContext, useEffect, useId, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import type { DestinationResult } from '../types'
 import {
   CLOSURE_KEY,
@@ -36,6 +36,7 @@ import {
 import { CHOICE_INPUT, ICON_ACTION, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
+import { rowTapOpens } from '../utils/rowTap'
 
 // One body row of the results table, ranked or pending. Apart from the table
 // and memoized because a report can hold a thousand rows and most changes to
@@ -44,8 +45,9 @@ import { sized } from './sizedCell'
 // memoizes, or a callback whose identity the table holds still, so a row
 // whose own inputs did not move is skipped.
 
-// The number cell that swaps to the remove × on row hover (touch devices show
-// both, the row-remove rule in index.css). `rank` is "—" for pending rows.
+// The number cell that swaps to the remove × on row hover (a coarse pointer
+// shows the number alone and removes from the marker card, `TABLE.removeFace`).
+// `rank` is "—" for pending rows.
 // Both faces sit in one grid cell (TABLE.rankStack) so the column never
 // changes width when they trade places; see the role's comment.
 //
@@ -61,7 +63,7 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
           <button
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className={`row-remove ${TABLE.rankFace} ${TABLE.removeFace} leading-none ${ICON_ACTION} cursor-pointer`}
+            className={`${TABLE.rankFace} ${TABLE.removeFace} leading-none ${ICON_ACTION} cursor-pointer`}
           >
             <IconClose />
           </button>
@@ -173,11 +175,11 @@ interface NameTdProps {
 
 function NameTd({ cellClass, widths, label, name, onCenter, href }: NameTdProps) {
   return (
-    <td className={cellClass}>
+    <td className={`${cellClass} ${TABLE.stickyNameCell}`}>
       {sized(
         widths,
         'name',
-        <span className="flex min-w-0 items-center gap-1.5">
+        <span className={`flex min-w-0 items-center gap-1.5 ${widths.name === undefined ? TABLE.nameCap : ''}`}>
           <button
             onClick={onCenter}
             aria-label={`Center map on ${name}`}
@@ -256,7 +258,7 @@ function FireTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label={`Open ${warning.name} on the NIFC map. Opens in a new tab.`}
-        className="hover:underline cursor-pointer"
+        className={TABLE.valueLink}
       >
         {text}
       </a>
@@ -301,7 +303,7 @@ function ClosureTd({ colKey, ctx }: { colKey: string; ctx: CellContext }) {
         // The whole title on hover: the cell clips a long one (TABLE.clip),
         // and the link is the only element a pointer can rest on.
         title={warning.name}
-        className="hover:underline cursor-pointer"
+        className={TABLE.valueLink}
       >
         {text}
       </a>
@@ -441,7 +443,7 @@ function BodyTd({ col, row, ctx }: { col: ColDef; row: DestinationResult; ctx: C
             // a metric spelled at a call site, which the linter's metric-name
             // ban forbids.
             aria-describedby={windyNoteId(ctx.rowId)}
-            className="hover:underline cursor-pointer"
+            className={TABLE.valueLink}
           >
             {display}
           </a>,
@@ -525,8 +527,16 @@ function ResultsTableRow({
     onCenter: () => onFocusResult?.(row),
     rowId,
   }
+  // A press on the row's ground opens the popup a click on its marker gives,
+  // through the same fly-to the name's button takes (record 0143); a press on
+  // any control in the row is that control's alone (`rowTapOpens`). A pointer
+  // shortcut beside the name's button, which stays the row's way in for a
+  // keyboard and a screen reader, so the row itself takes no role or focus.
+  const openFromRow = (e: MouseEvent<HTMLTableRowElement>) => {
+    if (onFocusResult && rowTapOpens(e.target, e.currentTarget, window.getSelection()?.toString() ?? '')) onFocusResult(row)
+  }
   return (
-    <tr className={TABLE.row}>
+    <tr className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`} onClick={openFromRow}>
       {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
       {columns.map((col) => (

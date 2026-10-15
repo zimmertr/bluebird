@@ -9,8 +9,10 @@ import destinationsSource from '../components/DestinationsSection.tsx?raw'
 import forecastSectionSource from '../components/ForecastSection.tsx?raw'
 import metricsTableSource from '../components/MetricsTable.tsx?raw'
 import panelFooterSource from '../components/PanelFooter.tsx?raw'
+import phoneFootSource from '../components/PhoneFoot.tsx?raw'
 import layersPopoverSource from '../components/LayersPopover.tsx?raw'
 import resultsSheetSource from '../components/ResultsSheet.tsx?raw'
+import timeSeriesChartSource from '../components/TimeSeriesChart.tsx?raw'
 import resultsLayerSource from '../map/resultsLayer.ts?raw'
 import welcomeSource from '../components/WelcomeModal.tsx?raw'
 import backendMain from '../../../backend/app/main.py?raw'
@@ -23,8 +25,10 @@ const SOURCES: Record<string, string> = {
   'ForecastSection.tsx': forecastSectionSource,
   'MetricsTable.tsx': metricsTableSource,
   'PanelFooter.tsx': panelFooterSource,
+  'PhoneFoot.tsx': phoneFootSource,
   'LayersPopover.tsx': layersPopoverSource,
   'ResultsSheet.tsx': resultsSheetSource,
+  'TimeSeriesChart.tsx': timeSeriesChartSource,
   'resultsLayer.ts': resultsLayerSource,
   'WelcomeModal.tsx': welcomeSource,
 }
@@ -37,13 +41,20 @@ const occurrences = (anchor: string): string[] =>
   })
 
 describe('the tutorial steps', () => {
-  it('has seven steps, each with a distinct anchor', () => {
-    expect(TOUR_STEPS).toHaveLength(7)
+  it('has eight steps, each with a distinct anchor', () => {
+    expect(TOUR_STEPS).toHaveLength(8)
     expect(new Set(TOUR_STEPS.map((s) => s.anchor)).size).toBe(TOUR_STEPS.length)
   })
 
   it('marks every anchor on exactly one control in one component', () => {
     for (const step of TOUR_STEPS) {
+      // The one anchor with a home per width (record 0141): the footer at a
+      // desk, the map's button on a phone, where the footer draws none.
+      if (step.anchor === 'analyze') {
+        expect(occurrences('analyze')).toEqual(['PhoneFoot.tsx'])
+        expect(panelFooterSource).toContain(`${TOUR_ATTR}={phone ? undefined : 'analyze'}`)
+        continue
+      }
       expect(occurrences(step.anchor), step.anchor).toHaveLength(1)
       for (const frame of step.frames ?? []) expect(occurrences(frame), frame).toHaveLength(1)
     }
@@ -69,7 +80,7 @@ describe('the tutorial steps', () => {
 
   it('walks the panel top to bottom, then the map, then the results', () => {
     const anchors = TOUR_STEPS.map((s) => s.anchor)
-    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'layers', 'results', 'marker'])
+    expect(anchors).toEqual(['destinations', 'forecast', 'metrics', 'analyze', 'layers', 'results', 'chart', 'marker'])
     expect(TOUR_STEPS[0].text).toMatch(/^Provide a list of destinations to compare by .*, or drawing a polygon/)
   })
 
@@ -82,11 +93,12 @@ describe('the tutorial steps', () => {
       analyze: 'box',
       layers: 'control',
       results: 'box',
+      chart: 'box',
       marker: 'control',
     })
   })
 
-  it('names the three steps that bring their own target on screen', () => {
+  it('names the four steps that bring their own target on screen', () => {
     const reveals = Object.fromEntries(TOUR_STEPS.map((s) => [s.anchor, s.reveal]))
     expect(reveals).toEqual({
       destinations: undefined,
@@ -95,8 +107,16 @@ describe('the tutorial steps', () => {
       analyze: undefined,
       layers: 'layers',
       results: 'results',
+      chart: 'chart',
       marker: 'marker',
     })
+  })
+
+  // The Chart card's words, approved by the maintainer 2026-10-14.
+  it('carries the Chart card as approved', () => {
+    const chart = TOUR_STEPS.find((s) => s.anchor === 'chart')!
+    expect(chart.title).toBe('Chart')
+    expect(chart.text).toBe("Switch to the chart to compare every destination's forecast hour by hour. Select an hour to read every value at that moment.")
   })
 
   it('names a selector from the anchor attribute', () => {

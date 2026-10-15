@@ -34,6 +34,8 @@ export interface MapInputs {
   searchedPlaces: Place[]
   onAddPoi: (place: Place) => void
   onRemovePoi: (latitude: number, longitude: number) => void
+  // A result card's `Remove from analysis`: the row's × (#696).
+  onRemoveResult: (row: DestinationResult) => void
   cameraPadBottomPx: number
   // Where the settled camera goes, and whether the reader moved it
   // (`map/camera.ts`). The share link's writer, which never renders.

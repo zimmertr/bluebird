@@ -26,10 +26,14 @@ vi.mock('./ResultsBar', () => ({
   ),
 }))
 vi.mock('./ColumnsPicker', () => ({
-  default: (props: { open: boolean }) => <div data-testid="columns">{props.open ? 'open' : 'closed'}</div>,
+  default: (props: { open: boolean; sheet?: boolean }) => (
+    <div data-testid="columns" data-sheet={String(props.sheet)}>
+      {props.open ? 'open' : 'closed'}
+    </div>
+  ),
 }))
-vi.mock('./ModelsPicker', () => ({ default: () => null }))
-vi.mock('./RemovedPicker', () => ({ default: () => null }))
+vi.mock('./ModelsPicker', () => ({ default: (props: { sheet?: boolean }) => <div data-testid="models" data-sheet={String(props.sheet)} /> }))
+vi.mock('./RemovedPicker', () => ({ default: (props: { sheet?: boolean }) => <div data-testid="removed" data-sheet={String(props.sheet)} /> }))
 
 type Props = ComponentProps<typeof ResultsSheet>
 const NOOP = () => {}
@@ -50,6 +54,7 @@ function props(
     rowCount?: string
     sortDesc?: boolean
     removed?: number
+    isDesktop?: boolean
   } = {},
 ): Props {
   return {
@@ -63,7 +68,7 @@ function props(
       onFocusPending,
     },
     showResults: true,
-    isDesktop: true,
+    isDesktop: over.isDesktop ?? true,
     sortDesc: over.sortDesc ?? false,
     report: over.rowCount === undefined ? REPORT : { ...REPORT, rowCount: over.rowCount },
     analysisSeq: over.analysisSeq ?? 0,
@@ -86,6 +91,16 @@ describe('ResultsSheet', () => {
     expect(screen.queryByTestId('bar')).toBeNull()
     expect(screen.queryByTestId('panels')).toBeNull()
     expect(screen.getByTestId('columns').textContent).toBe('closed')
+  })
+
+  // A phone's three bar menus are bottom sheets (#696; record 0136); a desk's
+  // unfurl from the bar.
+  it('hands the bar\'s three menus a sheet on a phone only', () => {
+    const sheets = () => ['columns', 'models', 'removed'].map((id) => screen.getByTestId(id).dataset.sheet)
+    const { rerender } = render(<ResultsSheet {...props({ removed: 1 })} />)
+    expect(sheets()).toEqual(['false', 'false', 'false'])
+    rerender(<ResultsSheet {...props({ removed: 1, isDesktop: false })} />)
+    expect(sheets()).toEqual(['true', 'true', 'true'])
   })
 
   it('folds the panels away and keeps the bar', () => {

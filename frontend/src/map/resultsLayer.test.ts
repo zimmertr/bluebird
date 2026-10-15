@@ -9,6 +9,9 @@ type FakeBody = {
   style: { maxHeight?: string }
   classes: string[]
   classList: { add: (c: string) => void }
+  // The one listener a card arms, its remove button's.
+  addEventListener: (type: string, fn: () => void) => void
+  press?: () => void
 }
 const { popups } = vi.hoisted(() => ({
   popups: [] as {
@@ -29,7 +32,13 @@ vi.mock('maplibre-gl', () => ({
     options: Record<string, unknown>
     constructor(options: Record<string, unknown>) {
       const classes: string[] = []
-      const body: FakeBody = { offsetHeight: BODY_H, style: {}, classes, classList: { add: (c) => classes.push(c) } }
+      const body: FakeBody = {
+        offsetHeight: BODY_H,
+        style: {},
+        classes,
+        classList: { add: (c) => classes.push(c) },
+        addEventListener: (_type, fn) => (body.press = fn),
+      }
       this.options = { ...options }
       this.state = { at: null, html: '', options, removed: false, attrs: {}, body, sets: [] }
       popups.push(this.state)
@@ -80,7 +89,7 @@ import { makeArrowImage, mountResultsLayer, POPUP_PAN_MS, RESULT_MARKER_LAYER } 
 import { createMapController, type MapInputs } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { pendingFC } from '../utils/mapFeatures'
-import { resultPopupHtml } from '../utils/resultPopup'
+import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
 import { GRID_RANKED_COLOR } from '../utils/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
@@ -129,6 +138,7 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, 
     searchedPlaces: [],
     onAddPoi: vi.fn(),
     onRemovePoi: vi.fn(),
+    onRemoveResult: vi.fn(),
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,
@@ -227,6 +237,7 @@ describe('mountResultsLayer', () => {
         rankedBy: live.sortBy,
         compact: false,
         mapZoom: MAP_ZOOM,
+        removable: true,
       }),
     )
   })
@@ -263,9 +274,32 @@ describe('mountResultsLayer', () => {
         rankedBy: 'temp_max_f',
         compact: true,
         mapZoom: MAP_ZOOM,
+        removable: true,
       }),
     )
     expect(popups[0].html).toContain(`;background:${GRID_RANKED_COLOR}`)
+  })
+
+  // A finger reaches a row's remove through the card its row tap opens
+  // (#696): the button does what the row's × does, and the card goes with
+  // the row it described.
+  it('removes the row from its card, and closes the card', () => {
+    const { controller, clickMarker } = setup()
+    clickMarker(RAINIER, 2)
+    expect(popups[0].html).toContain(`${RESULT_ACTION_ATTR}="remove"`)
+    popups[0].body.press!()
+    expect(controller.inputs.onRemoveResult).toHaveBeenCalledWith(RAINIER)
+    expect(popups[0].removed).toBe(true)
+  })
+
+  it('re-arms the remove when a redraw replaces the button', () => {
+    const { controller, clickMarker, layer } = setup()
+    clickMarker(RAINIER, 2)
+    controller.update({ ...controller.inputs, results: [RAINIER, ADAMS] })
+    layer.refreshPopups()
+    expect(popups[0].sets).toHaveLength(2)
+    popups[0].body.press!()
+    expect(controller.inputs.onRemoveResult).toHaveBeenCalledWith(RAINIER)
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {
@@ -295,6 +329,7 @@ describe('mountResultsLayer', () => {
         rankedBy: live.sortBy,
         compact: false,
         mapZoom: MAP_ZOOM,
+        removable: true,
       }),
     )
   })
@@ -409,6 +444,7 @@ describe('refreshPopups', () => {
       rankedBy: sortBy,
       compact: false,
       mapZoom: MAP_ZOOM,
+      removable: true,
     })
 
   it('moves the ranked mark and the rank when the ranking changes', () => {

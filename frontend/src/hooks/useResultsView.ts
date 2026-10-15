@@ -3,11 +3,21 @@ import type { MapViewHandle } from '../components/MapView'
 import type { AnalyzeResponse, DestinationResult } from '../types'
 import { useChartCompare, type ChartCompareInputs } from './useChartCompare'
 import { useResultsLayout } from './useResultsLayout'
+import { useRowFocus } from './useRowFocus'
 import { useTableView, type TableViewInputs } from './useTableView'
+import type { SinglePanel } from '../utils/layout'
 
 export interface ResultsViewInputs {
+  /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
+  playerOn?: boolean
+  /** A phone's home indicator band (`useResultsLayout`'s `safeBottomPx`). */
+  safeBottomPx?: number
   /** Collapse the sheet to its bar for the tutorial's marker step on a phone (#536). */
   collapsedOverride?: boolean | null
+  /** Open the sheet at rest in this view for the tutorial's Results and Chart steps (`useResultsLayout`'s `restView`). */
+  restView?: SinglePanel | null
+  /** Hold a phone's sheet at its full stop (`useResultsLayout`'s `fullOverride`). */
+  fullOverride?: boolean
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
@@ -65,6 +75,8 @@ export interface ResultsViewInputs {
  */
 export function useResultsView({
   collapsedOverride = null,
+  restView = null,
+  fullOverride = false,
   showResults,
   response,
   results,
@@ -73,6 +85,8 @@ export function useResultsView({
   storedView,
   isDesktop,
   bannerPx,
+  playerOn,
+  safeBottomPx,
   analysisSeq,
   arriving,
   sortBy,
@@ -99,10 +113,14 @@ export function useResultsView({
     modeChosen: storedView.modeChosen,
     isDesktop,
     bannerPx,
+    playerOn,
+    safeBottomPx,
     showTable,
     response,
     analysisSeq,
     collapsedOverride,
+    restView,
+    fullOverride,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────
@@ -125,6 +143,7 @@ export function useResultsView({
   // ── The table's shape and its file ──────────────────────────────────────────
   const tableView = useTableView({
     storedView,
+    isDesktop,
     results,
     detailSort,
     sortBy,
@@ -149,10 +168,14 @@ export function useResultsView({
     (d: { latitude: number; longitude: number }) => removePlace(d.latitude, d.longitude),
     [removePlace],
   )
-  const onFocusResult = useCallback(
-    (row: DestinationResult) => mapRef.current?.focusResult(row),
-    [mapRef],
-  )
+  // A row's name, or a press on its ground, opens its marker's popup, and on
+  // a phone lowers the sheet first (`useRowFocus`, record 0143).
+  const onFocusResult = useRowFocus({
+    isDesktop,
+    resultsCollapsed: layout.resultsCollapsed,
+    collapse: layout.collapse,
+    mapRef,
+  })
   const onFocusPending = useCallback(
     (at: { latitude: number; longitude: number }) => mapRef.current?.focusPoint(at),
     [mapRef],

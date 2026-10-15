@@ -69,6 +69,7 @@ function setup(drawing = false, online: EventTarget | null = null) {
     searchedPlaces: [],
     onAddPoi: () => {},
     onRemovePoi: () => {},
+    onRemoveResult: () => {},
     cameraPadBottomPx: 0,
     onCameraMove: () => {},
     maxPolygonPoints: MAX_POLYGON_POINTS,

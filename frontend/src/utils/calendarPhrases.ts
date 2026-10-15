@@ -88,7 +88,11 @@ export function windowPhrase(
  * A multi-hour analysis used to carry no caption at all, so someone opening a
  * shared link had nothing on screen telling them which days they were reading.
  * The click-time sample keeps its own wording: it says when it was taken, where
- * a chosen window simply names itself. The window carries no "for": it sits
+ * a chosen window simply names itself. It is read off the moment the report
+ * committed (`asOfMs`), so every committed run moves it, one that fetched
+ * nothing included, to the minute: seconds were tried and dropped by the
+ * maintainer (2026-10-14), since the Analyze button's pressed state is what
+ * answers a press. The window carries no "for": it sits
  * under the line it qualifies rather than after it, so the preposition had
  * nothing to attach to and was costing a phone real width.
  */
@@ -98,8 +102,9 @@ export function windowCaption(
   endMs: number,
   pointSample: boolean,
   now: Date = new Date(),
+  asOfMs: number = startMs,
 ): string {
-  if (kind === 'now') return `as of ${clockTime(startMs)}`
+  if (kind === 'now') return `as of ${clockTime(asOfMs)}`
   return windowPhrase(startMs, endMs, pointSample, now)
 }
 

@@ -73,9 +73,27 @@ import {
   LINK,
   LINK_ACTION,
   CAPTION_LIFTED,
+  BOTTOM_SHEET,
+  CONTROLS_SHEET,
+  SAFE_AREA,
+  CHART_PLOT_TOUCH,
+  CHART_TITLE,
+  MAP_CHIP,
+  MAP_CHIP_SUMMARY,
+  MAP_CHIP_SUMMARY_TEXT,
+  MAP_FAB,
+  MAP_FAB_WORDS,
   MAP_COL_GAP,
   MAP_COL_W,
+  MAP_ROUND_BUTTON,
+  MAP_SLOT,
+  MAP_CREDIT,
+  MAP_NOTICE_BAND,
+  MAP_PILL,
+  MAP_PILL_FIELD,
+  MAP_ROWS,
   MAP_ROW_H,
+  SEARCH_LIST,
   MICRO_SIZE,
   MUTED,
   PANEL_EDGE,
@@ -101,7 +119,9 @@ import {
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chartColors'
+import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
+import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -115,9 +135,14 @@ import searchBoxSource from './components/SearchBox.tsx?raw'
 import layersPopoverSource from './components/LayersPopover.tsx?raw'
 import mapButtonColumnSource from './components/MapButtonColumn.tsx?raw'
 import mapLegendSource from './components/MapLegend.tsx?raw'
+import phoneMapRowsSource from './components/PhoneMapRows.tsx?raw'
+import bottomSheetSource from './components/BottomSheet.tsx?raw'
+import phoneFootSource from './components/PhoneFoot.tsx?raw'
+import mapStageSource from './components/MapStage.tsx?raw'
 import appDrawerSource from './components/AppDrawer.tsx?raw'
 import analysisOverlaySource from './components/AnalysisOverlay.tsx?raw'
 import forecastCalendarSource from './components/ForecastCalendar.tsx?raw'
+import timeSeriesChartSource from './components/TimeSeriesChart.tsx?raw'
 // The one stylesheet with a decision in it: the vendor's own controls have no
 // call site to hand a role to, so what they take is written there. Read off
 // the disk rather than imported — Vitest stubs a CSS import, `?raw` included,
@@ -1740,6 +1765,49 @@ describe('the results table rank cell', () => {
     expect(STYLES.TABLE.rankStack.split(' ')).toContain('inline-grid')
   })
 
+  // A phone's Name column stands still and must leave the numbers room
+  // (#696; record 0142): 45% of the sheet at most, the cell's padding inside
+  // that, and only on a phone.
+  it('caps a phone\'s Name column at 45% of the sheet, padding included', () => {
+    expect(STYLES.TABLE.nameCap).toBe('max-lg:max-w-[calc(45cqi-1rem)]')
+    // The cell's own padding, which the 1rem is: px-2 either side.
+    expect(STYLES.TABLE.cell.split(' ')).toContain('px-2')
+  })
+
+  // A touch screen has no hover, so a linked value is underlined at rest, as
+  // the marker popup's numbers are (`popupLink`'s text-decoration).
+  it('underlines a linked value at rest, the way the popup does', () => {
+    const cls = STYLES.TABLE.valueLink.split(' ')
+    expect(cls).toContain('underline')
+    expect(cls.some((c) => c.startsWith('hover:'))).toBe(false)
+  })
+
+  // The tutorial's spotlight lit a section with a scroll shade lying across
+  // it (#696): while a tour runs (`tour/Tour.tsx` sets the attribute), every
+  // shade stands down.
+  it('hides every scroll shadow while the tutorial runs', () => {
+    // The rule's selector list and body, read by index rather than by one
+    // repeated-group pattern, which backtracks badly on a long list.
+    const start = indexCss.indexOf(':root[data-touring]')
+    expect(start).toBeGreaterThan(-1)
+    const open = indexCss.indexOf('{', start)
+    const selectors = indexCss.slice(start, open)
+    const body = indexCss.slice(open + 1, indexCss.indexOf('}', open))
+    expect(body).toContain('visibility: hidden')
+    for (const shade of ['.scroll-shadow-start::before', '.scroll-shadow-end::after', '.scroll-shadow-head th::after']) {
+      expect(selectors).toContain(`:root[data-touring] ${shade}`)
+    }
+  })
+
+  // A finger removes from the marker card its row tap opens (#696), so the ×
+  // is not drawn on a coarse pointer; an invisible button over the number
+  // would take the tap aimed at the row and remove the row.
+  it('draws no × on a coarse pointer, and keeps it in reach of a mouse and a keyboard', () => {
+    const face = STYLES.TABLE.removeFace.split(' ')
+    expect(face).toContain('touch:hidden')
+    expect(face).toEqual(expect.arrayContaining(['opacity-0', 'group-hover:opacity-100', 'focus-visible:opacity-100']))
+  })
+
   // Two kinds of row in one body: the pending destinations waiting on a
   // forecast, and the ranked results under them. They had spelled the recipe
   // twice, so the rule above a row and what it does under a pointer could have
@@ -1858,6 +1926,488 @@ describe('the map edge inset', () => {
     const body = rule.slice(rule.indexOf('{'), rule.indexOf('}'))
     expect(body).toContain('var(--map-edge-inset)')
     expect(body).not.toMatch(/\d+(?:px|rem)/)
+  })
+})
+
+// The search's result list (#696): ten places in a box that scrolls rather
+// than running down the map, in the dark bar the results panels wear.
+describe('the search result list', () => {
+  it('is bounded, scrolls, and wears the shared scroll bar', () => {
+    expect(SEARCH_LIST).toMatch(/(^|\s)max-h-\[min\(20rem,50dvh\)\](\s|$)/)
+    expect(SEARCH_LIST).toContain('overflow-y-auto')
+    expect(SEARCH_LIST).toContain(SCROLL_BARS)
+    expect(searchBoxSource).toMatch(/\$\{SEARCH_LIST\} divide-y/)
+  })
+})
+
+// The phone's two rows across the map's top (#696; record 0135): the search
+// pill with the locate button at its right, and the chip row under it. Every
+// other anchor on a phone's top is built from the rows' four numbers, so this
+// holds each one to the sum rather than trusting a comment.
+describe('the phone rows', () => {
+  const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+  // A spacing step is a quarter of a rem: 4px.
+  const step = (recipe: string, prefix: string): number => {
+    const m = recipe.match(new RegExp(`(?:^|\\s)${prefix}-(\\d+(?:\\.\\d+)?)(?:\\s|$)`))
+    expect(m, `${prefix} in ${recipe}`).not.toBeNull()
+    return Number(m![1]) * 4
+  }
+  const px = (recipe: string, prefix: string): number => {
+    const m = recipe.match(new RegExp(`${prefix}-\\[(\\d+)px\\]`))
+    expect(m, `${prefix} in ${recipe}`).not.toBeNull()
+    return Number(m![1])
+  }
+  const INSET = 12
+  const ROW = step(MAP_ROWS.row, 'h')
+  const GAP = step(MAP_ROWS.stack, 'gap')
+  const CHIPS = step(MAP_ROWS.chips, 'h')
+  const BOTTOM = INSET + ROW + GAP + CHIPS
+
+  it('measures 40 and 32 with 8 between, so the rows end 92px down', () => {
+    expect([ROW, GAP, CHIPS]).toEqual([40, 8, 32])
+    expect(BOTTOM).toBe(92)
+    expect(MAP_EDGE.publish).toContain(`[--map-edge-inset:${INSET / 16}rem]`)
+    for (const part of [MAP_EDGE.top, MAP_EDGE.left, MAP_EDGE.right, 'pointer-events-none']) expect(MAP_ROWS.stack).toContain(part)
+    // The rows yield their gaps; the stack must not hand them back.
+    expect(MAP_ROWS.stack).not.toContain(YIELD_EMPTY)
+    for (const row of [MAP_ROWS.row, MAP_ROWS.chips]) expect(row).toContain(YIELD_EMPTY)
+    // The chips are 32px tall each, and 6px apart.
+    expect(step(MAP_CHIP, 'h')).toBe(CHIPS)
+    expect(step(MAP_ROWS.chips, 'gap')).toBe(6)
+  })
+
+  // The pill leaves the locate button and the 8px between them at rest, and
+  // takes the whole row while it is searching.
+  it('stands the pill beside a 40px round locate button', () => {
+    expect(step(MAP_SLOT.locate, 'size')).toBe(ROW)
+    expect(step(MAP_ROUND_BUTTON, 'size')).toBe(ROW)
+    expect(step(MAP_PILL, 'h')).toBe(ROW)
+    expect(step(MAP_ROWS.pill, 'right')).toBe(ROW + GAP)
+    expect(MAP_ROWS.pillWide).toMatch(/(^|\s)right-0(\s|$)/)
+    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON]) expect(tokens(recipe)).toContain(RADIUS.pill)
+    // The class map.css keys the vendor group's margin on.
+    for (const slot of Object.values(MAP_SLOT)) expect(tokens(slot)).toContain('map-slot')
+    expect(mapCss).toContain('.map-slot .maplibregl-ctrl-group')
+    expect(phoneMapRowsSource).toContain('<div ref={onLocateSlot} className={MAP_SLOT.locate} />')
+    // The compass's, the chip row's last member (record 0147): no size of its
+    // own, so a hidden compass leaves the row's end to the map.
+    expect(phoneMapRowsSource).toContain('<div ref={onCompassSlot} className={MAP_SLOT.compass} />')
+    expect(tokens(MAP_SLOT.compass)).toEqual(['map-slot', 'ml-auto', 'flex-shrink-0'])
+  })
+
+  // One floating chrome for the pill, the locate button and the chips: the
+  // floating box's fill, edge, shadow and blur, at a capsule's radius rather
+  // than the box's.
+  it('dresses the pill, the locate button and the chips in the floating box\'s chrome', () => {
+    const chrome = tokens(SURFACE_FLOATING).filter((t) => t !== RADIUS.surface)
+    for (const recipe of [MAP_PILL, MAP_ROUND_BUTTON, MAP_CHIP, MAP_CHIP_SUMMARY]) {
+      for (const t of chrome) expect(tokens(recipe), `${t} in ${recipe}`).toContain(t)
+      expect(tokens(recipe)).not.toContain(RADIUS.surface)
+    }
+  })
+
+  // The mockup's original size (#696): 13px type and 12px a side, at the
+  // normal weight. The one 13px role in the app, so nothing else drifts onto
+  // it by accident.
+  it('sets the chips at 13px with 12px a side', () => {
+    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY]) expect(sizes(recipe)).toEqual(['text-[13px]'])
+    const recipes = Object.values(STYLES).flatMap((v) =>
+      typeof v === 'string' ? [v] : Object.values(v as Record<string, unknown>).filter((x): x is string => typeof x === 'string'),
+    )
+    expect(recipes.filter((r) => sizes(r).includes('text-[13px]')).sort()).toEqual([MAP_CHIP, MAP_CHIP_SUMMARY].sort())
+    expect(step(MAP_CHIP, 'px')).toBe(12)
+    expect(tokens(MAP_CHIP)).not.toContain('font-semibold')
+  })
+
+  // The summary is the one chip that gives way, by an ellipsis on its words;
+  // every other chip keeps its width, and nothing claims the row's right end.
+  it('lets the summary alone shrink, and leaves the right end empty', () => {
+    expect(tokens(MAP_CHIP)).toContain('flex-shrink-0')
+    expect(MAP_CHIP_SUMMARY).not.toMatch(/(^|\s)(flex-)?shrink-0(\s|$)/)
+    expect(tokens(MAP_CHIP_SUMMARY)).toContain('min-w-0')
+    expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toEqual(expect.arrayContaining(['min-w-0', 'truncate']))
+    // Lit, its words read white on the accent fill like every label there.
+    expect(tokens(MAP_CHIP_SUMMARY_TEXT)).toContain('in-aria-expanded:text-white')
+    expect(MAP_CHIP).toContain('aria-expanded:bg-sky-650')
+    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY, MAP_ROWS.chips]) expect(recipe).not.toMatch(/(^|\s)(ml-auto|justify-between)(\s|$)/)
+  })
+
+  // A chip lit for its open sheet takes the accent fill as a variant, so the
+  // lit and the resting fills never race on stylesheet order.
+  it('lights a chip in the accent fill while its sheet is open', () => {
+    expect(phoneMapRowsSource).toContain('${MAP_CHIP} ${DISABLED}')
+    const fill = tokens(ACCENT.fill).find((t) => t.startsWith('bg-'))!
+    expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill}`)
+    expect(tokens(MAP_CHIP)).toContain(`aria-expanded:${fill.replace(/^bg-/, 'border-')}`)
+    for (const part of [ACCENT.edgeHover, ACCENT.hoverText, FOCUS_RING]) expect(MAP_CHIP).toContain(part)
+  })
+
+  // Everything else on a phone's top stands under the rows: the draw bar 8px
+  // under the chips, the vendor's stack (the compass) one inset under the
+  // rows or under the draw bar, and the bottom sheet's card at most to one
+  // inset under the chips, so a long list leaves the top of the map in view.
+  it('builds every anchor under the rows from the rows\' sum', () => {
+    const drawBarTop = px(MAP_ROWS.drawBar, 'top')
+    expect(drawBarTop).toBe(BOTTOM + GAP)
+    const vendor = (cls: string) => Number(cls.match(/--map-vendor-top:(\d+)px/)![1])
+    expect(vendor(MAP_EDGE.belowRows)).toBe(BOTTOM + INSET)
+    // The draw bar: its 44px buttons (`TAP`) and its 6px of padding a side.
+    const drawBarPx = 44 + 2 * step(DRAW_BAR, 'py')
+    expect(drawBarPx).toBe(56)
+    // Its 1px border, top and bottom, is the 58 the bar measures.
+    expect(vendor(MAP_EDGE.belowDrawBar)).toBe(drawBarTop + drawBarPx + 2 + INSET)
+    expect(BOTTOM_SHEET.card).toContain(`max-h-[calc(100dvh-${BOTTOM + INSET}px)]`)
+    const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child'))
+    expect(rule.slice(rule.indexOf('{'), rule.indexOf('}'))).toContain('var(--map-vendor-top, var(--map-edge-inset))')
+  })
+})
+
+// The phone's chrome is seen at one size and pressed at another (#696),
+// the way Material's chips are: every target 44px on a coarse pointer
+// (`TAP`), whatever it looks like.
+describe('the phone chrome\'s hit areas', () => {
+  const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+  const steps = (recipe: string, re: RegExp) => Number(recipe.match(re)![1]) * 4
+
+  // A pseudo-element's inset is measured from inside the 1px border.
+  it('presses a 32px chip as 44, by a box 6px above and below it', () => {
+    for (const recipe of [MAP_CHIP, MAP_CHIP_SUMMARY]) {
+      const seen = steps(recipe, /(?:^|\s)h-(\d+)(?:\s|$)/)
+      const rim = Number(recipe.match(/(?:^|\s)touch:before:-inset-y-\[(\d+)px\](?:\s|$)/)![1])
+      expect(tokens(recipe)).toContain('border')
+      expect(seen).toBe(32)
+      expect(seen - 2 + 2 * rim).toBe(44)
+      expect(tokens(recipe)).toEqual(expect.arrayContaining(['relative', 'touch:before:absolute', 'touch:before:inset-x-0']))
+    }
+  })
+
+  it('presses the 40px pill\'s field as 44, 2px past each edge', () => {
+    const seen = steps(MAP_PILL, /(?:^|\s)h-(\d+)(?:\s|$)/)
+    const rim = Number(MAP_PILL_FIELD.match(/(?:^|\s)touch:-my-\[(\d+)px\](?:\s|$)/)![1])
+    expect(tokens(MAP_PILL)).toContain('border')
+    expect(seen - 2 + 2 * rim).toBe(44)
+    expect(tokens(MAP_PILL_FIELD)).toContain('self-stretch')
+    expect(searchBoxSource).toContain('${pill ? MAP_PILL_FIELD : \'\'}')
+  })
+
+  // The vendor's buttons, so map.css spells it, on the query `touch` is: every
+  // map button 40px seen and 44 pressed (record 0147), and the credit's 24px
+  // (i) the same 44.
+  it('presses the 40px map buttons and the 24px (i) as 44, by a rim on a coarse pointer', () => {
+    expect(steps(MAP_ROUND_BUTTON, /(?:^|\s)size-(\d+)(?:\s|$)/)).toBe(40)
+    const block = mapCss.slice(mapCss.indexOf('@media (hover: none) {\n  .maplibregl-ctrl-group,'))
+    expect(block.slice(0, block.indexOf('\n}\n'))).toMatch(/\.maplibregl-ctrl-group button::before \{\s*content: '';\s*position: absolute;\s*inset: -3px;/)
+    // 40 less its two 1px borders, plus 3 either side.
+    expect(40 - 2 + 2 * 3).toBe(44)
+    expect(steps(MAP_CREDIT.button, /(?:^|\s)size-(\d+)(?:\s|$)/)).toBe(24)
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib-button::before \{\s*content: '';\s*position: absolute;\s*inset: -10px;/)
+    expect(24 + 2 * 10).toBe(44)
+  })
+
+  // The (i)'s glyph is centred on its button's whole box (TJ, 2026-10-14):
+  // the library places it at the padding box's top left, which the role's
+  // 1px border moves 1px off centre and clips.
+  it('centres the (i) glyph on its button', () => {
+    const at = mapCss.indexOf('.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {')
+    const rule = mapCss.slice(at, mapCss.indexOf('}', at))
+    expect(rule).toContain('background-origin: border-box;')
+    expect(rule).toContain('background-position: center;')
+    expect(rule).toContain('background-repeat: no-repeat;')
+  })
+
+  // The compass needle is redrawn, not inverted (TJ, 2026-10-14): inverting
+  // the library's dark south half put it dark on the dark button. North red,
+  // south light, both edged so a light button can carry it too. Measured
+  // ratios, pinned so a colour change forces a re-measurement.
+  it('draws the compass needle red to the north and light to the south, unfiltered', () => {
+    const at = mapCss.indexOf('.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {')
+    expect(at).toBeGreaterThan(-1)
+    const rule = mapCss.slice(at, mapCss.indexOf('}', at))
+    expect(rule).toContain('filter: none;')
+    const svg = decodeURIComponent(rule.slice(rule.indexOf('url("') + 5, rule.indexOf('")')))
+    expect(svg).toContain('<path fill="#ef4444" d="m10.5 14 4-8 4 8z"/>')
+    expect(svg).toContain('<path fill="#f8fafc" d="m10.5 16 4 8 4-8z"/>')
+    expect(svg).toContain('stroke="#475569"')
+    expect(svg).toContain('viewBox="0 0 29 29"')
+    const MEASURED = { northOnButton: 3.89, northOnWhite: 3.76, southOnButton: 13.98, edgeOnWhite: 7.58 }
+    for (const [pair, ratio] of Object.entries(MEASURED)) expect(ratio, pair).toBeGreaterThanOrEqual(3)
+  })
+
+  // The library's white box comes off its buttons (record 0147): a group is
+  // no surface of its own, its buttons 4px apart as the app's column is.
+  it('draws the library\'s buttons as the app\'s, 4px apart, glyphs light', () => {
+    const rule = (selector: string) => {
+      const at = mapCss.indexOf(`${selector} {`)
+      expect(at, selector).toBeGreaterThanOrEqual(0)
+      return mapCss.slice(at, mapCss.indexOf('}', at))
+    }
+    const group = rule('.maplibregl-ctrl-group')
+    for (const decl of ['background: transparent;', 'box-shadow: none;', 'gap: 4px;']) expect(group).toContain(decl)
+    expect(rule('.maplibregl-ctrl-top-right .maplibregl-ctrl + .maplibregl-ctrl')).toContain('margin-top: 4px;')
+    expect(MAP_COL_GAP.gap).toBe('gap-1')
+    expect(rule('.maplibregl-ctrl-group .maplibregl-ctrl-icon')).toContain('filter: invert(1) hue-rotate(180deg);')
+    expect(rule('.maplibregl-ctrl-compass.compass-idle')).toContain('display: none;')
+    // A phone's chip row stands the compass alone, whatever the pointer.
+    expect(mapCss).toMatch(/\.map-slot \.maplibregl-ctrl-zoom-in,\s*\.map-slot \.maplibregl-ctrl-zoom-out \{\s*display: none;/)
+  })
+
+  // The credit line is the floating box, and its links read the way `LINK`
+  // reads: map.css spells LINK's values because the library rewrites the links.
+  it('draws the credit line as the floating box with LINK\'s links', () => {
+    for (const t of tokens(SURFACE_FLOATING)) expect(tokens(MAP_CREDIT.card)).toContain(t)
+    // Its (i) is a map button at the band's 24px: the same fill, edge and round.
+    for (const t of ['bg-slate-800/95', 'border', 'border-slate-600', RADIUS.pill]) {
+      expect(tokens(MAP_CREDIT.button)).toContain(t)
+      expect(tokens(MAP_ROUND_BUTTON)).toContain(t)
+    }
+    expect(tokens(LINK)).toEqual(expect.arrayContaining(['text-slate-300', 'hover:text-sky-400', 'underline']))
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib a \{\s*color: var\(--color-slate-300\);\s*text-decoration: underline;/)
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib a:hover \{\s*color: var\(--color-sky-400\);/)
+    // A folded line is its button alone.
+    expect(mapCss).toMatch(/\.maplibregl-ctrl-attrib\.maplibregl-compact:not\(\.maplibregl-compact-show\) \{\s*background: transparent;\s*border-width: 0;/)
+  })
+
+  it('leaves the Analyze button at 56, over the floor already', () => {
+    expect(steps(MAP_FAB, /(?:^|\s)h-(\d+)(?:\s|$)/)).toBe(56)
+  })
+})
+
+// The phone's Analyze (#696; record 0135): Material's extended floating
+// action button, on the panel's primary fill and gate.
+describe('the Analyze button on a phone', () => {
+  const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+
+  it('is 56px tall, 16px off the right edge, with a 16px corner', () => {
+    expect(tokens(MAP_FAB)).toEqual(expect.arrayContaining(['absolute', 'right-4', 'h-14', 'rounded-2xl']))
+    expect(MAP_FAB).toContain(LAYER.mapControls)
+    expect(MAP_FAB).toContain(ELEVATION.overlay)
+  })
+
+  // A press shows on the button itself (TJ, 2026-10-14), Material's way: a
+  // white state layer at 12% and the shadow dropping a step, on a mouse and a
+  // finger alike, and never on a disabled button.
+  it('shows a press with a state layer and a lower shadow', () => {
+    const t = tokens(MAP_FAB)
+    expect(t).toEqual(
+      expect.arrayContaining([
+        'after:absolute',
+        'after:inset-0',
+        'after:bg-white',
+        'after:opacity-0',
+        'enabled:active:after:opacity-[0.12]',
+        'after:pointer-events-none',
+      ]),
+    )
+    expect(ELEVATION.raised).toBe('shadow-lg')
+    expect(t).toContain(`enabled:active:${ELEVATION.raised}`)
+    expect(t.some((c) => c.startsWith('disabled:') || c === 'active:after:opacity-[0.12]')).toBe(false)
+  })
+
+  // The primary fill, so the white label keeps record 0008's contrast; the
+  // call to action's type; the panel's grey from the call site.
+  it('wears BUTTON_PRIMARY\'s fill and the call to action\'s type', () => {
+    for (const part of [ACCENT.fill, ACCENT.fillHover, FOCUS_RING, TEXT.cta]) expect(MAP_FAB).toContain(part)
+    for (const part of [ACCENT.fill, TEXT.cta]) expect(BUTTON_PRIMARY).toContain(part)
+    expect(phoneFootSource).toContain('${MAP_FAB} ${DISABLED}')
+  })
+
+  // Both words in one grid cell, so the width is the wider word's.
+  it('reserves the wider word\'s width by stacking both', () => {
+    expect(tokens(MAP_FAB_WORDS.cell)).toEqual(['grid', 'place-items-center', '[&>*]:col-start-1', '[&>*]:row-start-1'])
+    expect(MAP_FAB_WORDS.hidden).toBe('invisible')
+    expect(phoneFootSource).toContain('aria-hidden="true" className={MAP_FAB_WORDS.hidden}')
+  })
+})
+
+// The phone's one menu shape (#696; record 0136): a card from the bottom
+// edge, over a dimmed map, with its title and Done and rows a finger tall.
+describe('the bottom sheet', () => {
+  const tokens = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+
+  it('stands over everything a phone\'s map holds, modal over a dim', () => {
+    for (const recipe of [BOTTOM_SHEET.scrim, BOTTOM_SHEET.card]) expect(recipe).toContain(LAYER.popover)
+    expect(tokens(BOTTOM_SHEET.scrim)).toEqual(expect.arrayContaining(['fixed', 'inset-0']))
+    expect(BOTTOM_SHEET.dim).toMatch(/(^|\s)bg-black\/\d+(\s|$)/)
+    // The whole screen, chips and search row included, fixed to the viewport
+    // with the scrim, so no banner above the map leaves a band of it bright.
+    expect(BOTTOM_SHEET.dim.split(/\s+/)).toEqual(expect.arrayContaining(['absolute', 'inset-0']))
+    expect(BOTTOM_SHEET.dim).not.toMatch(/(^|\s)top-/)
+    expect(bottomSheetSource).toContain('role="dialog"')
+    expect(bottomSheetSource).toContain('aria-modal="true"')
+    // Modal unless the tutorial holds it open behind its own card (#696).
+    expect(bottomSheetSource).toContain('useDialog(onClose, tourAnchor === undefined)')
+  })
+
+  // The results sheet's surface, a step up, since it stands over that sheet.
+  it('is the results sheet\'s surface lifted to the overlay depth', () => {
+    const surface = tokens(SURFACE_SHEET).filter((t) => !t.startsWith('shadow') && t !== 'overflow-hidden')
+    for (const t of surface) expect(tokens(BOTTOM_SHEET.card)).toContain(t)
+    expect(tokens(BOTTOM_SHEET.card)).toContain(ELEVATION.overlay)
+  })
+
+  // Every row a finger's 44px, one rule between rows, and the body the one
+  // part that scrolls, in the shared dark bar.
+  it('gives every row a finger\'s height and the body the scroll', () => {
+    expect(tokens(BOTTOM_SHEET.body)).toEqual(expect.arrayContaining(['[&>*]:min-h-11', 'overflow-y-auto', 'divide-y', SCROLL_BARS]))
+    expect(BOTTOM_SHEET.title).toBe(TEXT.subheading)
+    for (const part of [CONTROL_SIZE, TAP.action, LINK_ACTION, FOCUS_RING]) expect(BOTTOM_SHEET.done).toContain(part)
+  })
+})
+
+// The panel's notices on a phone's map while the drawer is shut (#696;
+// record 0140): the same translucent boxes, on the drawer's own fill.
+// A recipe's classes, for the phone chrome checks below.
+const words = (recipe: string) => recipe.split(/\s+/).filter(Boolean)
+
+describe('the notice band', () => {
+  it('lays the drawer\'s fill under the boxes only while it holds one, and yields the rest', () => {
+    const drawerFill = appDrawerSource.match(/flex-shrink-0 (bg-slate-\d+) flex flex-col/)?.[1]
+    expect(drawerFill).toBeDefined()
+    expect(MAP_NOTICE_BAND).toContain(`has-[>[role=status]>*]:${drawerFill}`)
+    expect(MAP_NOTICE_BAND).not.toMatch(/(^|\s)bg-/)
+    for (const part of [MAP_EDGE.left, MAP_EDGE.right, YIELD_EMPTY]) expect(MAP_NOTICE_BAND).toContain(part)
+    // The boxes' own corners, so the fill under them meets their edges.
+    expect(NOTICE.warn).toContain(RADIUS.control)
+    expect(MAP_NOTICE_BAND).toContain(RADIUS.control)
+  })
+
+  // Three lines of a box and then it scrolls inside itself (record 0140):
+  // the class and the number the layout adds up are one.
+  it('caps the band at the three lines the layout counts, and scrolls past them', () => {
+    expect(words(MAP_NOTICE_BAND)).toEqual(expect.arrayContaining([`max-h-[${NOTICE_BAND_MAX_PX}px]`, 'overflow-y-auto', 'overscroll-contain']))
+    // The box the three lines are counted in: 12px type on a 16px line, 8px
+    // of padding and a 1px border.
+    expect(words(NOTICE.warn)).toEqual(expect.arrayContaining(['text-xs', 'p-2', 'border']))
+  })
+})
+
+// The band a phone keeps for its home indicator (#336, #696; record 0145).
+describe('the safe area', () => {
+  it('pads by the bottom inset, and probes the same height', () => {
+    expect(SAFE_AREA.pad).toBe('pb-[env(safe-area-inset-bottom)]')
+    expect(words(SAFE_AREA.probe)).toEqual(
+      expect.arrayContaining(['h-[env(safe-area-inset-bottom)]', 'fixed', 'bottom-0', 'invisible', 'pointer-events-none']),
+    )
+  })
+
+  // A sheet whose body scrolls ends its content the band above the screen's
+  // foot, as the results sheet does (record 0152, the maintainer 2026-10-14).
+  // Measured 2026-10-14 in the Playwright image's Chromium at 390x844,
+  // scrolled to the end: with no band reported, the Controls sheet's last
+  // section ends 16px above the rule over the document links and the links'
+  // line 16px above the foot, and the Layers sheet's next-to-last label 15px
+  // above its rule and the last one 15px above the foot; with a 34px band
+  // emulated, each last line stands those 16 and 15px plus the 34 above it.
+  const MEASURED = {
+    controls: { 0: { above: 16, under: 16 }, 34: { above: 16, under: 50 } },
+    layers: { 0: { above: 15, under: 15 }, 34: { above: 15, under: 49 } },
+  }
+
+  it('ends every sheet scroller the band above the foot, and pads no sheet card', () => {
+    for (const recipe of [BOTTOM_SHEET.card, CONTROLS_SHEET.card]) expect(recipe).not.toContain('safe-area')
+    expect(words(BOTTOM_SHEET.body)).toContain(SAFE_AREA.pad)
+    expect(words(CONTROLS_SHEET.body)).toEqual([
+      'pb-[calc(1rem+env(safe-area-inset-bottom))]',
+      '[--scroll-shadow-end-inset:env(safe-area-inset-bottom)]',
+    ])
+    // The Controls body's 16px is the stack's gap above each rule.
+    expect(words(PANEL_RULE)).toContain('[&>*+*]:mt-4')
+    for (const sheet of Object.values(MEASURED)) {
+      expect(sheet[0].under).toBe(sheet[0].above)
+      expect(sheet[34].under).toBe(sheet[0].under + 34)
+      expect(sheet[34].above).toBe(sheet[0].above)
+    }
+  })
+
+  // The end shade stands on the scroller's padding, so a scroller that pads
+  // for the band tells the shade, which then still meets the bottom edge.
+  it('drops the end shade by the band a scroller names', () => {
+    expect(indexCss).toMatch(/bottom: calc\(-1 \* var\(--scroll-shadow-bleed, 0px\) - var\(--scroll-shadow-end-inset, 0px\)\)/)
+  })
+})
+
+// The panel on a phone (#696; record 0141): the bottom sheet's surface, not
+// modal, mounted for good and slid below the map while shut.
+describe('the Controls sheet', () => {
+  it('wears the bottom sheet surface on the panel layer, and slides', () => {
+    for (const part of ['bg-slate-800', 'border-t', 'border-slate-600', 'rounded-t-lg', ELEVATION.overlay, LAYER.drawer]) {
+      expect(words(CONTROLS_SHEET.card)).toContain(part)
+    }
+    for (const part of words(MOTION.slide)) expect(words(CONTROLS_SHEET.card)).toContain(part)
+    expect(CONTROLS_SHEET.shut).toBe('translate-y-full')
+    expect(words(CONTROLS_SHEET.panel)).toEqual(['min-h-0', 'flex-1'])
+    // Not modal: nothing of the bottom sheet's dim or scrim.
+    expect(CONTROLS_SHEET.card).not.toContain('bg-black')
+  })
+})
+
+// The results table's Name column stands still (#696; record 0142), on an
+// opaque fill so the columns under it do not show through.
+describe('the sticky Name column', () => {
+  it('sticks at the left edge on the fill of the surface it stands on', () => {
+    for (const recipe of [STYLES.TABLE.stickyNameCell, STYLES.TABLE.stickyNameHead]) {
+      expect(words(recipe)).toEqual(expect.arrayContaining(['sticky', 'left-0', 'z-[1]']))
+    }
+    expect(words(STYLES.TABLE.stickyNameCell)).toContain('bg-slate-800')
+    expect(words(STYLES.TABLE.stickyNameHead)).toContain('bg-slate-700')
+    // The row's hover tint, over the fill rather than under it.
+    expect(STYLES.TABLE.row).toContain('hover:bg-slate-700/30')
+    expect(words(STYLES.TABLE.stickyNameCell)).toEqual(
+      expect.arrayContaining(['group-hover:from-slate-700/30', 'group-hover:to-slate-700/30']),
+    )
+    expect(STYLES.TABLE.rowOpens).toBe('cursor-pointer')
+  })
+})
+
+// A finger reads the chart sideways and scrolls the sheet up and down
+// (#336; record 0144).
+describe('the chart under a finger', () => {
+  it('leaves the browser the vertical pan alone', () => {
+    expect(CHART_PLOT_TOUCH).toBe('touch-pan-y')
+  })
+})
+
+// A phone's chart picker is the plot's title (#696; record 0149), and the plot
+// is inset by the title's box so its dashed lines, their labels and the y
+// axis's top tick start under it. Measured 2026-10-14 in the Playwright
+// image's Chromium: the field row it replaced was 52px at 360 and 390 (the
+// 44px select a finger presses and the row's 4px either side). The box stands
+// 12px from the grip's rule, 12px over the y axis's top label and 12px from
+// the sheet's edge, the results bar's own inset (the maintainer, 2026-10-14).
+describe('the chart title on a phone', () => {
+  const MEASURED = { fieldRowPx: 52, insetPx: 28, rulePx: 12, labelPx: 12, leftPx: 12, barLeftPx: 12 }
+
+  it('is a 28px box with the same room above it, below it and on its left', () => {
+    expect(words(CHART_TITLE.box)).toEqual(expect.arrayContaining(['h-7', 'top-3', 'left-3']))
+    expect(7 * 4).toBe(CHART_TITLE_PX)
+    expect(CHART_TITLE_PX).toBe(MEASURED.insetPx)
+    expect(3 * 4).toBe(CHART_TITLE_INSET_PX)
+    for (const gap of [MEASURED.rulePx, MEASURED.labelPx, MEASURED.leftPx]) expect(gap).toBe(CHART_TITLE_INSET_PX)
+    // Its left edge is the results bar's, where "Lowest" and the view buttons stand.
+    expect(MEASURED.leftPx).toBe(MEASURED.barLeftPx)
+    expect(TITLED_PLOT_MARGIN.top).toBe(2 * CHART_TITLE_INSET_PX + CHART_TITLE_PX + TOP_LABEL_RISE_PX)
+  })
+
+  it("wears the select's look, its fill, edge, radius, type and arrow room, at the plot's left margin", () => {
+    expect(words(CHART_TITLE.box)).toEqual(
+      expect.arrayContaining([...words(TEXT.control), RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, 'pr-6']),
+    )
+    expect(words(SELECT)).toContain('pr-6')
+    // The chevron stands where every select's does, so it takes the default placement.
+    expect(timeSeriesChartSource).toContain('<IconSelectArrow />')
+    // Sized to its words, not to the desktop picker's fixed width.
+    expect(CHART_TITLE.box).not.toContain(CHART_METRIC_W)
+  })
+
+  it('lays the native select over the title, invisible, a 44px target centred on it', () => {
+    expect(words(CHART_TITLE.select)).toEqual(
+      expect.arrayContaining(['absolute', 'opacity-0', 'touch:h-11', 'w-full', 'top-1/2', '-translate-y-1/2']),
+    )
+    // 44 over a 28px box is 8px either side, inside the 12px of room.
+    expect((44 - CHART_TITLE_PX) / 2).toBeLessThan(CHART_TITLE_INSET_PX)
+    // FIELD's focus edge, on the box because the select is invisible.
+    expect(FIELD).toContain('focus:border-sky-500')
+    expect(CHART_TITLE.box).toContain('has-[select:focus]:border-sky-500')
   })
 })
 
@@ -2078,7 +2628,8 @@ describe('the tutorial', () => {
   it('draws the spotlight as one box whose shadow is the dim layer', () => {
     expect(STYLES.TOUR.spotlight).toContain('shadow-[0_0_0_200vmax_')
     expect(STYLES.TOUR.spotlight).not.toMatch(/rounded/)
-    expect(STYLES.TOUR.spotlightControl).toBe(STYLES.RADIUS.surface)
+    // Its corners are read off the target it frames (tour/place.ts), not a role.
+    expect(STYLES.TOUR).not.toHaveProperty('spotlightControl')
     // The one transition the tour wears yields to a reduced-motion setting.
     expect(STYLES.TOUR.motion).toContain('motion-reduce:transition-none')
     expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
@@ -2211,6 +2762,20 @@ describe('the attribution beside the scale', () => {
     expect(cap).toBe(SCALE_MARGIN_PX + SCALE_MAX_WIDTH_PX + CLEAR_PX - ATTRIB_MARGIN_PX)
   })
 
+  // On a phone the credit line sits at the bottom left beside the scale, and
+  // its row stops so the line ends 8px short of the Analyze button (#696):
+  // the button's measured width, its 16px inset and the 8px clear, less the
+  // compact credit's own 10px margin inside the row. Measured 2026-10-14 at
+  // 360, 390 and 430 wide: a 120.1px button, the row ending 134.1px from the
+  // map's right edge, the line 8px short of the button.
+  it('caps a phone\'s credit row short of the Analyze button', () => {
+    const rule = mapCss.match(/\n\.maplibregl-ctrl-bottom-left:has\(> \.maplibregl-ctrl-attrib\) \{[^}]*\}/)?.[0] ?? ''
+    const clear = Number(rule.match(/right: calc\(var\(--map-fab-w, 0px\) \+ (\d+)px\);/)?.[1])
+    expect(clear).toBe(16 + CLEAR_PX - ATTRIB_MARGIN_PX)
+    expect(MAP_FAB.split(/\s+/)).toContain('right-4')
+    expect(mapStageSource).toContain("'--map-fab-w': `${fabPx}px`")
+  })
+
   // Three lines at 360px wide: the corner grows up over the map, never down
   // behind the results, and the band cannot squeeze the line to clip it.
   it('grows a tall credit line upward, whole', () => {
@@ -2225,8 +2790,10 @@ describe('the attribution beside the scale', () => {
 
 describe('the idle compass', () => {
   it('is hidden by map.css under the class the controls module sets', () => {
-    const rule = mapCss.slice(mapCss.indexOf('.compass-idle .maplibregl-ctrl-compass'))
-    expect(rule).toMatch(/^\.compass-idle \.maplibregl-ctrl-compass \{\s*display: none;/)
+    // On the button itself (record 0147), since a phone stands it outside the
+    // map's container.
+    const rule = mapCss.slice(mapCss.indexOf('.maplibregl-ctrl-compass.compass-idle'))
+    expect(rule).toMatch(/^\.maplibregl-ctrl-compass\.compass-idle \{\s*display: none;/)
   })
 })
 

@@ -342,15 +342,17 @@ export const MAP = [
   {
     // maplibre-gl adds a compact attribution open and folds it on the first
     // drag, so the phone's (i) is a licence line until the reader pans. It is
-    // folded on add, with the class the library's own toggle removes.
+    // folded on add, with the class the library's own toggle removes. The
+    // compact one stands beside the scale at the bottom left, the full one
+    // at the bottom right (#696).
     name: 'map-attribution-folded',
     files: ['src/map/controls.ts'],
     require: [
       {
         selector:
-          'FunctionDeclaration[id.name="addAttribution"] CallExpression[callee.property.name="addControl"][arguments.1.value="bottom-right"]',
+          'FunctionDeclaration[id.name="addAttribution"] CallExpression[callee.property.name="addControl"][arguments.1.test.name="compact"][arguments.1.consequent.value="bottom-left"][arguments.1.alternate.value="bottom-right"]',
         count: 1,
-        message: 'Add the attribution bottom right, in addAttribution.',
+        message: 'Add the attribution in addAttribution: bottom left when compact, bottom right otherwise.',
       },
       {
         selector:

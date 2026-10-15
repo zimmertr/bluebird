@@ -1,0 +1,74 @@
+import { test, expect, resultRows, DESTINATION_NAMES } from './fixtures'
+import type { Page } from '@playwright/test'
+
+// A phone's scale, its credit's (i) and the opened credit line stand on the
+// Analyze button's row with their bottoms on the button's bottom edge (TJ,
+// 2026-10-14), and the opened line grows up from it, short of the button.
+
+async function bottoms(page: Page) {
+  return page.evaluate(() => {
+    const at = (selector: string) => document.querySelector(selector)!.getBoundingClientRect()
+    const fab = document.querySelector('[data-tour="analyze"]')!
+    return {
+      fab: fab.getBoundingClientRect().bottom,
+      fabLeft: fab.getBoundingClientRect().left,
+      scale: at('.maplibregl-ctrl-scale').bottom,
+      button: at('.maplibregl-ctrl-attrib-button').bottom,
+      credit: at('.maplibregl-ctrl-attrib').bottom,
+      creditTop: at('.maplibregl-ctrl-attrib').top,
+      creditRight: at('.maplibregl-ctrl-attrib').right,
+    }
+  })
+}
+
+for (const width of [360, 390]) {
+  test(`the map's corner stands on the Analyze button's bottom edge at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+    await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+
+    const folded = await bottoms(page)
+    console.log(`corner ${width} px folded`, JSON.stringify(folded))
+    expect(Math.abs(folded.scale - folded.fab)).toBeLessThanOrEqual(1)
+    expect(Math.abs(folded.button - folded.fab)).toBeLessThanOrEqual(1)
+
+    await page.locator('.maplibregl-ctrl-attrib-button').click()
+    await expect(page.locator('.maplibregl-ctrl-attrib.maplibregl-compact-show')).toHaveCount(1)
+    const opened = await bottoms(page)
+    console.log(`corner ${width} px opened`, JSON.stringify(opened))
+    expect(Math.abs(opened.credit - opened.fab)).toBeLessThanOrEqual(1)
+    // Taller than the row, so it grew up from the shared edge, and it stops
+    // 8px short of the button.
+    expect(opened.creditTop).toBeLessThan(opened.credit - 24)
+    expect(Math.round(opened.fabLeft - opened.creditRight)).toBe(8)
+  })
+}
+
+// The (i)'s glyph is centred on its round button (TJ, 2026-10-14): the
+// library's 24px drawing, whose circle is centred in it, placed on the
+// button's whole box rather than at the top left of the padding box the 1px
+// border shrinks. Read off the computed background, since the glyph is one.
+for (const width of [360, 390]) {
+  test(`the (i)'s glyph is centred on its button at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('/')
+    await expect(page.locator('.maplibregl-ctrl-attrib-button')).toBeVisible()
+    const at = await page.evaluate(() => {
+      const b = document.querySelector('.maplibregl-ctrl-attrib-button')!
+      const r = b.getBoundingClientRect()
+      const cs = getComputedStyle(b)
+      const border = parseFloat(cs.borderTopWidth)
+      const origin = cs.backgroundOrigin === 'border-box' ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: r.left + border, y: r.top + border, w: r.width - 2 * border, h: r.height - 2 * border }
+      const [px, py] = cs.backgroundPosition.split(' ').map((v) => parseFloat(v) / 100)
+      // The drawing is 24px square with its circle at the middle.
+      const glyph = { x: origin.x + (origin.w - 24) * px + 12, y: origin.y + (origin.h - 24) * py + 12 }
+      return { button: { x: r.left + r.width / 2, y: r.top + r.height / 2 }, glyph, repeat: cs.backgroundRepeat }
+    })
+    console.log(`info glyph ${width} px`, JSON.stringify(at))
+    expect(at.glyph.x).toBeCloseTo(at.button.x, 1)
+    expect(at.glyph.y).toBeCloseTo(at.button.y, 1)
+    expect(at.repeat).toBe('no-repeat')
+  })
+}

@@ -24,8 +24,12 @@ export interface Size {
   height: number
 }
 
-/** How far the spotlight reaches past the control's own edge. */
-export const SPOTLIGHT_PAD = 6
+/**
+ * How far the spotlight reaches past a control's own edge (#696): 8px, so a
+ * floating button's shadow and a chip's edge stand inside the light rather
+ * than on its rim, which is where 6px left the phone's Analyze button.
+ */
+export const SPOTLIGHT_PAD = 8
 /** The gap between the spotlight and the card. */
 export const CARD_GAP = 12
 /** The least the card keeps from a viewport edge. */
@@ -75,6 +79,21 @@ export function sheetKeepOut(card: { left: number; right: number }, cardHeight: 
   }
 }
 
+/**
+ * Where a sheet stands when the step opened a surface below its target
+ * (#696): just under the target's light, the existing placement's `below`,
+ * with the surface's top edge as a floor the card must not cross. A phone's
+ * Layers step lights the chip near the top and the Layers sheet up from the
+ * bottom, and either edge of the screen put the card over one of them, so a
+ * reader never saw the control that had opened the sheet. Null when the band
+ * between the two cannot hold the card with its gap at each end; the sheet
+ * then takes an edge as before.
+ */
+export function sheetBetween(light: Box, floor: number, cardHeight: number): number | null {
+  const top = light.top + light.height + CARD_GAP
+  return top + cardHeight + CARD_GAP <= floor ? top : null
+}
+
 /** Whether the card is a box beside its target or a sheet along the bottom. */
 export function cardMode(viewportWidth: number): 'card' | 'sheet' {
   return viewportWidth < SHEET_MAX_W ? 'sheet' : 'card'
@@ -116,6 +135,38 @@ export function clipAbove(box: Box, limitTop: number): Box {
   const bottom = Math.min(box.top + box.height, limitTop)
   const top = Math.min(box.top, limitTop)
   return { ...box, top, height: Math.max(0, bottom - top) }
+}
+
+/**
+ * The radius a target's corners are drawn at, read off its computed corners:
+ * the smallest of them, so a sheet rounded on its top edge alone counts as
+ * square. Several elements framed together (a button and its menu) take the
+ * smallest across them all, since the light is one box around the lot.
+ */
+export function cornerRadius(corners: readonly string[]): number {
+  if (corners.length === 0) return 0
+  const radii = corners.map((c) => parseFloat(c))
+  return radii.some((r) => !(r > 0)) ? 0 : Math.min(...radii)
+}
+
+/**
+ * How far the light reaches past the target: `SPOTLIGHT_PAD` around a control
+ * and around any target rounded on every corner (the phone's Analyze button,
+ * the Layers chip), none around a section or a square box, which the panel's
+ * rules and the screen's edges already bound.
+ */
+export function spotPad(spot: TourSpot | undefined, radiusPx: number): number {
+  return spot === 'control' || radiusPx > 0 ? SPOTLIGHT_PAD : 0
+}
+
+/**
+ * The light's corner: the target's own radius plus the pad, so the gap
+ * between the control's edge and the light's is the pad all the way round,
+ * corners included. 16px of `rounded-2xl` under an 8px pad is 24px. A square
+ * control's offset corner is the pad's own arc; an unpadded box stays square.
+ */
+export function spotRadius(radiusPx: number, pad: number): number {
+  return pad === 0 ? 0 : radiusPx + pad
 }
 
 export function spotlight(target: Box, pad = SPOTLIGHT_PAD): Box {

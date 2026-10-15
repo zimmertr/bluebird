@@ -2,6 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { clampPanelHeight, resolvePanelHeights } from './layout'
 import {
   DRAGGED_MAP_PX,
+  FAB_GAP_PX,
+  FAB_INSET_PX,
+  FAB_PX,
+  FAB_STRIP_PX,
+  CONTROLS_MAP_PX,
+  NOTICE_BAND_MAX_PX,
+  NOTICE_LINE_PX,
+  PHONE_ROWS_PX,
+  PLAYER_ROOM_PX,
   LEGEND_GAP_PX,
   LEGEND_STACK_PX,
   LEGEND_TOP_FINE_PX,
@@ -16,6 +25,14 @@ import {
   TRANSPORT_HEIGHT_PX,
   dockedMapFloorPx,
   draggedMapFloorPx,
+  controlsFullPx,
+  controlsSheetPx,
+  fabBottomPx,
+  noticeBottomPx,
+  phoneCornerLiftPx,
+  phoneFootLiftPx,
+  transportFits,
+  transportStandPx,
   legendBottomPx,
   mapCornerLiftPx,
   resolveSheetLift,
@@ -216,16 +233,26 @@ describe('the resting height', () => {
   })
 })
 
-// The drag is capped where the timeline would cross the map's own buttons. The
-// resting reserve above holds only until the reader takes hold of a grip; this
-// one holds however far they pull.
+// The drag is capped where a full sheet still leaves the Analyze button its
+// strip under the chip row (#696). The resting reserve above holds only until
+// the reader takes hold of a grip; this one holds however far they pull.
 describe('the drag cap', () => {
-  it('leaves the transport the floor the legend takes', () => {
-    expect(DRAGGED_MAP_PX - TRANSPORT_BAND_PX).toBe(LEGEND_TOP_PX)
+  it('leaves the rows and the button\'s strip: 92 and 16 + 56 + 16', () => {
+    expect(PHONE_ROWS_PX).toBe(92)
+    expect(FAB_STRIP_PX).toBe(FAB_INSET_PX + FAB_PX + FAB_INSET_PX)
+    expect([FAB_INSET_PX, FAB_PX, FAB_STRIP_PX]).toEqual([16, 56, 88])
+    expect(DRAGGED_MAP_PX).toBe(180)
   })
 
-  it('states the cap outright', () => {
-    expect(DRAGGED_MAP_PX).toBe(280)
+  // With the player on, a full sheet also leaves the bar its room over the
+  // button, so a chart and its playhead stay on screen together.
+  it('leaves the player its room while it is on, and it fits there', () => {
+    expect(PLAYER_ROOM_PX).toBe(FAB_GAP_PX + TRANSPORT_HEIGHT_PX)
+    expect(draggedMapFloorPx(2, true) - draggedMapFloorPx(2)).toBe(PLAYER_ROOM_PX)
+    const mapPx = 740
+    const lift = mapPx - DRAGGED_MAP_PX - PLAYER_ROOM_PX
+    expect(transportFits(fabBottomPx(lift, 0, mapPx), mapPx)).toBe(true)
+    expect(transportFits(fabBottomPx(lift + 1, 0, mapPx), mapPx)).toBe(false)
   })
 
   // `clampPanelHeight` is given a map floor rather than a sheet height, and the
@@ -237,7 +264,7 @@ describe('the drag cap', () => {
     expect(sheetHeightPx({ collapsed: false, gripCount, panelsPx })).toBe(availPx - DRAGGED_MAP_PX)
   })
 
-  it('stops a long drag where the docked floor did not', () => {
+  it('stops a long drag with the button\'s strip left under the rows', () => {
     const VIEWPORT = 757
     const { table } = resolvePanelHeights(288, 280, {
       chartShown: false,
@@ -246,13 +273,65 @@ describe('the drag cap', () => {
       mapMinPx: restingMapFloorPx(1),
     })
     const lift = (panelsPx: number) => sheetHeightPx({ collapsed: false, gripCount: 1, panelsPx })
-    const capped = lift(clampPanelHeight(table, 400, 0, VIEWPORT, draggedMapFloorPx(1)))
+    const capped = lift(clampPanelHeight(table, 600, 0, VIEWPORT, draggedMapFloorPx(1)))
     expect(capped).toBe(VIEWPORT - DRAGGED_MAP_PX)
-    expect(VIEWPORT - capped - TRANSPORT_BAND_PX).toBe(LEGEND_TOP_PX)
-    // The same drag with only the docked floor under it put the bar into the
-    // button column, which is the collision this cap exists for.
-    const uncapped = lift(clampPanelHeight(table, 400, 0, VIEWPORT))
-    expect(VIEWPORT - uncapped - TRANSPORT_BAND_PX).toBeLessThan(LEGEND_TOP_PX)
+    // The button at the sheet's edge and an inset under the rows.
+    const fab = fabBottomPx(capped, 0, VIEWPORT)
+    expect(fab).toBe(capped + FAB_INSET_PX)
+    expect(VIEWPORT - fab - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+  })
+})
+
+// The phone's Analyze button (record 0135): two things move it, the sheet and
+// the notice band, and the player stands on it.
+describe('the Analyze button', () => {
+  it('rides the sheet\'s top edge 16px above it at any height', () => {
+    for (const lift of [0, 84, 300]) expect(fabBottomPx(lift, 0, 844)).toBe(lift + FAB_INSET_PX)
+  })
+
+  // The band stands on the sheet's edge, 10px off it, the gap the scale and
+  // the (i) kept above the sheet before they moved up beside the button,
+  // and the button 16px over the band (record 0140).
+  it('rises over the notice band by the band\'s height', () => {
+    expect(noticeBottomPx(104)).toBe(104 + CORNER_MARGIN_PX)
+    expect(CORNER_MARGIN_PX).toBe(10)
+    expect(fabBottomPx(104, 52, 844)).toBe(noticeBottomPx(104) + 52 + FAB_INSET_PX)
+    expect(fabBottomPx(104, 52, 844) - fabBottomPx(104, 40, 844)).toBe(12)
+  })
+
+  // Three lines of a notice box, then the band scrolls inside itself.
+  it('lets the band show three lines of a box at most', () => {
+    expect(NOTICE_LINE_PX).toBe(16)
+    expect(NOTICE_BAND_MAX_PX).toBe(3 * 16 + 2 * 8 + 2)
+  })
+
+  // The scale, the (i) and the opened credit line stand on the button's
+  // row with their bottoms on the button's bottom edge (TJ, 2026-10-14): each
+  // stands on the library's 10px margin inside the corner band, so the band
+  // starts that margin under the button.
+  it('stands the map corners on the button\'s bottom edge', () => {
+    const fab = 120
+    expect(phoneCornerLiftPx(fab) + CORNER_MARGIN_PX).toBe(fab)
+  })
+
+  // A notice over a sheet dragged high goes under the button, which never
+  // rises over the chip row.
+  it('never rises over the rows', () => {
+    const lift = 844 - DRAGGED_MAP_PX
+    expect(fabBottomPx(lift, 52, 844)).toBe(lift + FAB_INSET_PX)
+    const fab = fabBottomPx(300, 400, 844)
+    expect(844 - fab - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+  })
+
+  // The player's bottom 8px over the button's top, and off the map while
+  // that would cross the rows.
+  it('carries the player, which steps off when there is no room', () => {
+    expect(transportBottomPx(transportStandPx(120))).toBe(120 + FAB_PX + FAB_GAP_PX)
+    expect(transportFits(16, 844)).toBe(true)
+    const top = (fab: number) => fab + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+    const highest = 844 - PHONE_ROWS_PX - FAB_INSET_PX
+    expect(transportFits(highest - top(0), 844)).toBe(true)
+    expect(transportFits(highest - top(0) + 1, 844)).toBe(false)
   })
 })
 
@@ -375,3 +454,47 @@ describe('the default panel heights', () => {
   })
 })
 
+// The Controls sheet (#696; record 0141): the panel on a phone, a fixed share
+// of the map that leaves the rows, the button's strip and a full notice band.
+describe('the Controls sheet', () => {
+  it('leaves the rows, the button and the fullest band above it', () => {
+    expect(CONTROLS_MAP_PX).toBe(DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX)
+    expect(controlsSheetPx(844)).toBe(844 - CONTROLS_MAP_PX)
+    expect(controlsSheetPx(100)).toBe(0)
+  })
+
+  // With the fullest band on its edge, the button still stands under the rows.
+  it('leaves the button its place over a full band', () => {
+    const lift = controlsSheetPx(844)
+    const fab = fabBottomPx(lift, NOTICE_BAND_MAX_PX, 844)
+    expect(fab).toBe(lift + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX + FAB_INSET_PX)
+    expect(844 - fab - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+  })
+
+  it('is the edge the foot rides while it is up and stands higher', () => {
+    const sheet = controlsSheetPx(844)
+    expect(phoneFootLiftPx(104, sheet)).toBe(sheet)
+    expect(phoneFootLiftPx(104, null)).toBe(104)
+    expect(phoneFootLiftPx(sheet + 20, sheet)).toBe(sheet + 20)
+    // A drag moves the edge with it.
+    expect(phoneFootLiftPx(104, 300)).toBe(300)
+  })
+
+  // Dragged up whole, it stops where a dragged results sheet does, and the
+  // button keeps its strip under the chip row (#696; record 0146).
+  it('rises under a drag to the button\'s strip and no higher', () => {
+    expect(controlsFullPx(844)).toBe(844 - DRAGGED_MAP_PX)
+    const lift = controlsFullPx(844)
+    expect(844 - fabBottomPx(lift, 0, 844) - FAB_PX).toBe(PHONE_ROWS_PX + FAB_INSET_PX)
+  })
+})
+
+// The home indicator's band (record 0145) is the datum before there is a
+// sheet, and a desk's docked lift stays 0.
+describe('resolveSheetLift and the safe area', () => {
+  it('stands the foot on the band with no sheet, and on the sheet with one', () => {
+    expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84, footPx: 34 })).toBe(34)
+    expect(resolveSheetLift({ docked: true, measuredPx: null, estimatePx: 84 })).toBe(0)
+    expect(resolveSheetLift({ docked: false, measuredPx: 118, estimatePx: 84, footPx: 34 })).toBe(118)
+  })
+})

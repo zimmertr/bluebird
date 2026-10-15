@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { type TableViewInputs, useTableView } from './useTableView'
+import { NAME_DEFAULT_PX } from '../utils/columnResize'
 import type { FireProximity } from './useFireProximity'
 import type { ClosureProximity } from './useClosureProximity'
 import {
@@ -52,7 +53,7 @@ const CLOSURE: ClosureProximity = {
 }
 const MODELS = [forecastModel({ id: 'gfs_seamless', label: 'NOAA GFS' })]
 const REPORT = analyzedSnapshot()
-const NOTHING_STORED: ViewPrefs = { modeChosen: null, columns: null, modelColumn: null, columnOrder: null }
+const NOTHING_STORED: ViewPrefs = { modeChosen: null, columns: null, modelColumn: null, columnOrder: null, legendOpen: null }
 const NO_PENDING: TableViewInputs['pending'] = []
 const NO_PENDING_ROWS: TableViewInputs['pendingRows'] = []
 const NO_SHOWN: TableViewInputs['shownModels'] = []
@@ -65,6 +66,7 @@ const RANKED: TableViewInputs['detailSort'] = { key: 'precip_total_in', dir: 'as
 function inputs(over: Partial<TableViewInputs> = {}): TableViewInputs {
   return {
     storedView: NOTHING_STORED,
+    isDesktop: true,
     results: ROWS,
     detailSort: BY_NAME,
     sortBy: 'precip_total_in',
@@ -117,6 +119,18 @@ describe('useTableView', () => {
     act(() => result.current.handleColumnMove(second, first))
     expect(keys(result.current.tableColumns).slice(0, 2)).toEqual([second, first])
     expect(readViewPrefs().columnOrder?.slice(0, 2)).toEqual([second, first])
+  })
+
+  // Name opens at its measured 25 characters at a desk, and at its widest
+  // name on a phone, which the cell caps (#696; record 0142); a width the
+  // reader sets is held at either.
+  it('opens Name sized at a desk and natural on a phone', () => {
+    const desk = renderHook(() => useTableView(inputs()))
+    expect(desk.result.current.tableColWidths).toEqual({ name: NAME_DEFAULT_PX })
+    const phone = renderHook(() => useTableView(inputs({ isDesktop: false })))
+    expect(phone.result.current.tableColWidths).toEqual({})
+    act(() => phone.result.current.setTableColWidths({ name: 140 }))
+    expect(phone.result.current.tableColWidths).toEqual({ name: 140 })
   })
 
   // A point-sample flip relabels the metric columns under the same keys, so

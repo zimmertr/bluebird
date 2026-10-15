@@ -4,8 +4,10 @@ import type { Page } from '@playwright/test'
 // The legend stack is a scroll box whose floor is derived from the map's
 // bottom chrome, so it spans the map's height whatever its sections hold. The
 // part of it under the last section is empty, and a click there has to reach
-// the map: that band covers the left column of a phone's map, which is where a
-// reader draws a ring.
+// the map: that band covers the left column of the map, which is where a
+// reader draws a ring. A phone holds its keys in the Legend sheet rather than
+// on the map (#696; record 0136), so its case is the sheet's, and the chip
+// row's own empty end.
 
 interface Probe {
   boxHeight: number
@@ -42,16 +44,11 @@ async function probe(page: Page): Promise<Probe> {
   })
 }
 
-for (const viewport of [
-  { width: 1280, height: 720 },
-  { width: 360, height: 740 },
-]) {
+for (const viewport of [{ width: 1280, height: 720 }]) {
   test(`a click under the legend reaches the map at ${viewport.width} px`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport)
     await page.goto('/?fires=1')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    // Draw mode first: on a phone it closes the panel, which otherwise
-    // covers the map and the band with it.
     await page.getByRole('button', { name: 'Draw polygon' }).click()
     // The panel slides away rather than vanishing, so the band is read once
     // nothing but the map or the legend stands at the probe point.
@@ -62,9 +59,7 @@ for (const viewport of [
     // A band too thin to click in would pass this test for the wrong reason.
     expect(measured.band).toBeGreaterThan(40)
 
-    // The panel's own readout is the proof a vertex landed. On a phone the
-    // panel closes for drawing, so the readout is read from the DOM rather
-    // than from the screen.
+    // The panel's own readout is the proof a vertex landed.
     const counter = page.getByText('Add at least 2 more points', { exact: false })
     // Retried because a click counts only once MapLibre has attached the draw
     // handler, which nothing on the page announces (see `drawRing`).
@@ -74,6 +69,36 @@ for (const viewport of [
     }).toPass({ timeout: 20_000 })
   })
 }
+
+// A phone's keys are in a sheet the Legend chip opens, and the map holds no
+// legend box at all; the chip row leaves its right end empty, and a press
+// there is the map's.
+test('a phone keeps its keys in the Legend sheet, and the row\'s empty end is the map\'s', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 })
+  await page.goto('/?fires=1')
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  const legend = page.getByRole('button', { name: 'Legend', exact: true })
+  await expect(legend).toBeEnabled()
+  await expect(page.getByText('Active wildfire')).toHaveCount(0)
+
+  // About 20px at 360 wide, where the three chips take 316 of 336.
+  const end = await legend.evaluate((chip) => {
+    const row = chip.parentElement!.getBoundingClientRect()
+    const right = chip.getBoundingClientRect().right
+    const x = Math.round((right + row.right) / 2)
+    const y = Math.round(row.top + row.height / 2)
+    return { free: Math.round(row.right - right), hit: !!document.elementFromPoint(x, y)?.closest('.maplibregl-canvas-container') }
+  })
+  expect(end.free).toBeGreaterThan(10)
+  expect(end.hit).toBe(true)
+
+  await legend.click()
+  const sheet = page.getByRole('dialog', { name: 'Legend' })
+  await expect(sheet.getByText('Active wildfire')).toBeVisible()
+  await expect(legend).toHaveAttribute('aria-expanded', 'true')
+  await sheet.getByRole('button', { name: 'Done' }).click()
+  await expect(sheet).toHaveCount(0)
+})
 
 test('the legend stack still scrolls when its sections outgrow its floor', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 300 })

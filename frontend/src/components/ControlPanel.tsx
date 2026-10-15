@@ -7,17 +7,15 @@ import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
+import { CONTROLS_SHEET, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
-import { MetricFamily, familyOf } from '../metrics'
+import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
-import { analyzeBlockers, canAnalyze, ringAddsNothing, shouldAutoAnalyze } from '../utils/analyzeGate'
-import { modelsWithoutFreeze } from '../utils/freezingLevel'
-import { selectedIds } from '../utils/modelSelection'
+import { analyzeBlockers, analyzeGateFor, canAnalyze, ringAddsNothing, shouldAutoAnalyze } from '../utils/analyzeGate'
 import { panelMessages } from '../utils/panelMessages'
 import { classifyAqiCoverage } from '../utils/urlState'
-import { ForecastSelection, hasDates, selectionLocalWindow } from '../utils/calendar'
+import { ForecastSelection, selectionLocalWindow } from '../utils/calendar'
 import { windowSource, type WindowLimits } from '../utils/forecastWindow'
 import { type ForecastModelOption } from '../hooks/useCapabilities'
 import { logoUrl } from '../logo'
@@ -145,6 +143,13 @@ interface Props {
   closureCheckFailed?: boolean
   // The basemap style is failing to load (#580).
   basemapFailed?: boolean
+  // Where the footer's notice block stands on a phone (record 0140), handed
+  // to `PanelFooter`; null keeps it under the button.
+  noticeHome?: HTMLElement | null
+  // A phone, where the panel is the Controls sheet (#696; record 0141): the
+  // sheet's own head replaces the logo and the title, and the map's floating
+  // button is the one Analyze, so the footer draws none.
+  phone?: boolean
 }
 
 export default function ControlPanel({
@@ -207,6 +212,8 @@ export default function ControlPanel({
   wildfireCheckFailed,
   closureCheckFailed,
   basemapFailed,
+  noticeHome = null,
+  phone = false,
 }: Props) {
   // Falls back to the id so a link naming a model this deployment stopped
   // publishing still reads as something rather than as an empty gap in a
@@ -219,46 +226,24 @@ export default function ControlPanel({
   const hasCustom = parsedCustom.length > 0
   // A line pasted twice is one destination, and the count says so (#579).
   const customCount = useMemo(() => distinctRows(parsedCustom).length, [parsedCustom])
-  const areaTooLarge = polygonAreaKm2 !== null && polygonAreaKm2 > maxAreaKm2
-
-  const polygonReady = drawPointCount >= 3 && !areaTooLarge && destinationTypes.length > 0
-
-  // Every model the analysis would fetch, the ranking one first. The two
-  // checks below are pre-flight: they read the picker rather than a report,
-  // because their whole point is to refuse to buy an analysis that cannot
-  // answer the question the panel is asking.
-  const selected = useMemo(
-    () =>
-      selectedIds(forecastModels, forecastModel, comparedModels).map((id) => ({
-        id,
-        label: forecastModels.find((m) => m.id === id)?.label ?? id,
-      })),
-    [forecastModels, forecastModel, comparedModels],
-  )
-  const rankFamily = familyOf(sortBy)
-  // Air quality comes from one source for every model, so a comparison on it
-  // would fetch the same numbers several times and draw one line where the
-  // picker shows several chips.
-  const compareAqi = rankFamily === 'aqi' && selected.length > 1
-  // Named rather than counted: the model is a control in this panel, so the
-  // reader can act on a name and cannot act on a fraction.
-  const freezeGaps = useMemo(
-    () => (rankFamily === 'freeze' ? modelsWithoutFreeze(selected).map((m) => m.label) : []),
-    [rankFamily, selected],
-  )
-  const gate = {
+  // The gate the map's Analyze reads too (#696): one function from the same
+  // inputs, so the two buttons cannot disagree about whether a run may start.
+  const { gate, freezeGaps } = analyzeGateFor({
+    selection,
     hasWindowWarning: windowWarning !== null,
-    // The Dates arm is live with no day picked yet (#242 review): there is no
-    // window to analyze, and the blocker says so.
-    datesPending: selection.kind === 'days' && !hasDates(selection),
     loading,
-    areaTooLarge,
-    polygonReady,
+    polygonAreaKm2,
+    maxAreaKm2,
+    drawPointCount,
+    destinationTypes,
     hasCustom,
     hasPins,
-    compareAqi,
-    compareFreeze: freezeGaps.length > 0,
-  }
+    sortBy,
+    forecastModels,
+    forecastModel,
+    comparedModels,
+  })
+  const { areaTooLarge } = gate
   const analyzeEnabled = canAnalyze(gate)
 
   // A link's run on open fires from here rather than from App because the gate
@@ -346,22 +331,40 @@ export default function ControlPanel({
   const bodyRef = useRef<HTMLDivElement>(null)
   useScrollShadows(bodyRef)
 
+  // At a desk the footer is fixed under the scrolling body, with Analyze and
+  // the notices; on a phone it is the body's last child (#696; record 0141).
+  const footer = (
+    <PanelFooter
+      analyzeEnabled={analyzeEnabled}
+      loading={loading}
+      onAnalyze={onAnalyze}
+      onRetry={onRetry}
+      onTutorial={onTutorial}
+      tutorialWaits={tutorialWaits}
+      messages={messages}
+      noticeHome={noticeHome}
+      phone={phone}
+    />
+  )
+
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className={`border-b ${PANEL_EDGE} flex`}>
-        <img
-          src={logoUrl}
-          alt=""
-          width={256}
-          height={256}
-          className={PANEL_HEADER.logo}
-        />
-        <div className={PANEL_HEADER.title}>
-          <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
-          <p className={TEXT.caption}>Weather Window Finder</p>
+      {/* Header, at a desk: a phone's sheet carries its own (`AppDrawer`). */}
+      {!phone && (
+        <div className={`border-b ${PANEL_EDGE} flex`}>
+          <img
+            src={logoUrl}
+            alt=""
+            width={256}
+            height={256}
+            className={PANEL_HEADER.logo}
+          />
+          <div className={PANEL_HEADER.title}>
+            <h1 className={TEXT.appTitle}>Bluebird Forecast</h1>
+            <p className={TEXT.caption}>Weather Window Finder</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div
         // One rule between steps, drawn by the stack rather than by each
@@ -371,7 +374,7 @@ export default function ControlPanel({
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
         ref={bodyRef}
-        className={`${PANEL_BODY} ${PANEL_RULE}`}
+        className={`${PANEL_BODY} ${PANEL_RULE} ${phone ? CONTROLS_SHEET.body : ''}`}
       >
         {/* Destinations — one list, defined via any of four methods
             that union into a single ranked report */}
@@ -430,17 +433,14 @@ export default function ControlPanel({
           setLimit={setLimit}
           maxLimit={maxLimit}
         />
+
+        {/* A phone's footer is the document links, the last thing in the
+            body, read only by a reader who scrolls to it: the sheet spends no
+            fixed height on it, and its notices are the map's (record 0140). */}
+        {phone && footer}
       </div>
 
-      <PanelFooter
-        analyzeEnabled={analyzeEnabled}
-        loading={loading}
-        onAnalyze={onAnalyze}
-        onRetry={onRetry}
-        onTutorial={onTutorial}
-        tutorialWaits={tutorialWaits}
-        messages={messages}
-      />
+      {!phone && footer}
     </div>
   )
 }

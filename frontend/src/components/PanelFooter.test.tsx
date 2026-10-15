@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import PanelFooter from './PanelFooter'
 import type { FooterMessage } from '../utils/notices'
 import { render } from '../testSupport/render'
@@ -174,5 +174,62 @@ describe('PanelFooter', () => {
       expect(link.getAttribute('href')).toBe(href)
       expect(link.getAttribute('target')).toBe('_blank')
     }
+  })
+
+  // On a phone the whole block stands in the band the map holds (#696;
+  // record 0140), informing lines and action lines alike, and the Controls
+  // sheet keeps none of it. At a desk it is one block under the button.
+  it('sends the whole block to the home it is handed on a phone, and keeps none of it', () => {
+    const home = document.createElement('div')
+    document.body.appendChild(home)
+    const { container, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
+    const regions = screen.getAllByRole('status')
+    expect(regions).toHaveLength(1)
+    const onMap = regions[0]
+    expect(home.contains(onMap)).toBe(true)
+    expect(within(onMap).getByText('First warning.')).toBeTruthy()
+    expect(within(onMap).getByText('Run failed.')).toBeTruthy()
+    expect(within(onMap).getByText('Info line.')).toBeTruthy()
+    expect(within(onMap).getByRole('button', { name: 'Try again' })).toBeTruthy()
+    // What the sheet keeps is the document links alone.
+    expect(container.textContent).toBe('Tutorial · Privacy · Terms')
+    rerender(<PanelFooter {...props({ messages: MESSAGES })} />)
+    expect(home.childElementCount).toBe(0)
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(container.contains(screen.getByRole('status'))).toBe(true)
+    home.remove()
+  })
+
+  // The band mounts after the sheet on a phone's first frame; the block waits
+  // for it rather than flashing into the sheet.
+  it('draws the block nowhere on a phone whose band is not there yet', () => {
+    const { container } = render(<PanelFooter {...props({ messages: MESSAGES, phone: true })} />)
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(container.textContent).toBe('Tutorial · Privacy · Terms')
+  })
+
+  // A phone's one Analyze is the map's floating button (record 0135), so the
+  // sheet's footer draws none.
+  it('draws no Analyze on a phone', () => {
+    const { container, rerender } = render(<PanelFooter {...props({ phone: true })} />)
+    expect(screen.queryByRole('button', { name: 'Analyze' })).toBeNull()
+    // The tour's Analyze step lights the map's button instead.
+    expect(container.querySelector('[data-tour="analyze"]')).toBeNull()
+    rerender(<PanelFooter {...props()} />)
+    expect(screen.getByRole('button', { name: 'Analyze' })).toBeTruthy()
+  })
+
+  // A dismissal is the one ledger's wherever the block stands.
+  it('dismisses a line on the map from the same ledger', () => {
+    const home = document.createElement('div')
+    document.body.appendChild(home)
+    render(<PanelFooter {...props({ messages: MESSAGES, noticeHome: home, phone: true })} />)
+    expect(within(home).getByText('First warning.')).toBeTruthy()
+    const dismiss = within(home)
+      .getAllByRole('button', { name: 'Dismiss notice' })
+      .find((b) => b.parentElement?.textContent?.includes('First warning.'))!
+    fireEvent.click(dismiss)
+    expect(within(home).queryByText('First warning.')).toBeNull()
+    home.remove()
   })
 })

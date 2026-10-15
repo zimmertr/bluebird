@@ -1,4 +1,5 @@
-import { type MouseEvent, useEffect, useRef, useState } from 'react'
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
 import {
   BUTTON_DANGER,
@@ -109,6 +110,13 @@ interface Props {
   // Every message the panel has to say, in order (`utils/panelMessages.ts`).
   // This file decides only how they are boxed and which are dismissed.
   messages: readonly FooterMessage[]
+  // The band on a phone's map the whole block stands in (#696; record 0140),
+  // or null at a desk, where the block is under the button as ever.
+  noticeHome?: HTMLElement | null
+  // A phone, where the map's floating button is the one Analyze (record
+  // 0135) and the block is the map's, so the footer is the document links
+  // alone, the last thing in the Controls sheet's scrolling body.
+  phone?: boolean
 }
 
 /**
@@ -124,6 +132,8 @@ export default function PanelFooter({
   onTutorial,
   tutorialWaits = false,
   messages,
+  noticeHome = null,
+  phone = false,
 }: Props) {
   // A plain click starts the tour over this page; a modified click or a
   // middle click is the browser's, and opens the path like any link. While
@@ -154,7 +164,7 @@ export default function PanelFooter({
   useEffect(() => {
     setDismissed((prev) => pruneDismissals(prev, activeKeySig.split('\u0000')))
   }, [activeKeySig])
-  const footerBoxes = noticeBoxes(messages.filter((m) => !isDismissed(m.key, dismissed)))
+  const shown = messages.filter((m) => !isDismissed(m.key, dismissed))
 
   // A run disables this button under the keyboard that pressed it, and the
   // overlay's Cancel takes the focus meanwhile; when the run ends and Cancel
@@ -162,42 +172,60 @@ export default function PanelFooter({
   const analyzeRef = useRef<HTMLButtonElement>(null)
   useTakeOrphanedFocus(analyzeRef, analyzeEnabled)
 
-  return (
-    <div className={`px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour="analyze">
-      <button
-        ref={analyzeRef}
-        onClick={onAnalyze}
-        disabled={!analyzeEnabled}
-        className={`${BUTTON_PRIMARY} ${DISABLED}`}
-      >
-        {loading ? 'Analyzing…' : 'Analyze'}
-      </button>
+  // On a phone the whole block stands in the band the map holds over the
+  // sheet's edge (record 0140), informing lines and action lines alike, so the
+  // Controls sheet spends none of its height on it and a cue is read with the
+  // sheet shut, beside the one Analyze that answers it. At a desk it is under
+  // the button. A portal, so the dismissals above and the retry below are one
+  // ledger's wherever the block stands; a phone whose band is not mounted yet
+  // draws it nowhere for that frame rather than in the sheet.
+  const place = (region: ReactNode) =>
+    noticeHome ? createPortal(region, noticeHome) : phone ? null : region
 
-      {/* One live region for every box, mounted for good: a box that
-          arrives already holding its text is not announced by most screen
-          readers, which is what each box's own role="status" did (#576).
-          Collapsed while empty, so it adds no gap under the button. */}
-      <div role="status" className="space-y-3 empty:mb-0">
-      {footerBoxes.map((box) => (
-        <FooterNotice
-          key={box.severity}
-          severity={box.severity}
-          messages={box.messages}
-          onDismiss={(key) => setDismissed((prev) => [...prev, key])}
+  return (
+    // The tour's Analyze step lights this footer at a desk; a phone's Analyze
+    // is the map's button, which carries the anchor there (`PhoneFoot`). On a
+    // phone the wrapper is a plain child of the sheet's body, whose stack
+    // draws the rule above it the way it rules off each section.
+    <div className={phone ? undefined : `px-4 py-4 border-t ${PANEL_EDGE} space-y-3`} data-tour={phone ? undefined : 'analyze'}>
+      {!phone && (
+        <button
+          ref={analyzeRef}
+          onClick={onAnalyze}
+          disabled={!analyzeEnabled}
+          className={`${BUTTON_PRIMARY} ${DISABLED}`}
         >
-          {/* One retry for the whole box, at the bottom (TJ, 2026-08-22):
-              it re-runs the analysis, so a message whose condition clears
-              drops out and the box closes when none remain. Only a failed
-              run summons it — a state problem alone, like an oversized
-              polygon, cannot be retried into working. */}
-          {box.messages.some((m) => m.retry) && (
-            <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
-              Try again
-            </button>
-          )}
-        </FooterNotice>
-      ))}
-      </div>
+          {loading ? 'Analyzing…' : 'Analyze'}
+        </button>
+      )}
+
+      {/* One live region, mounted for good: a box that arrives already
+          holding its text is not announced by most screen readers, which is
+          what each box's own role="status" did (#576). Collapsed while empty,
+          so it adds no gap under the button. */}
+      {place(
+        <div role="status" className="space-y-3 empty:mb-0">
+          {noticeBoxes(shown).map((box) => (
+            <FooterNotice
+              key={box.severity}
+              severity={box.severity}
+              messages={box.messages}
+              onDismiss={(key) => setDismissed((prev) => [...prev, key])}
+            >
+              {/* One retry for the whole box, at the bottom (TJ, 2026-08-22):
+                  it re-runs the analysis, so a message whose condition clears
+                  drops out and the box closes when none remain. Only a failed
+                  run summons it — a state problem alone, like an oversized
+                  polygon, cannot be retried into working. */}
+              {box.messages.some((m) => m.retry) && (
+                <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
+                  Try again
+                </button>
+              )}
+            </FooterNotice>
+          ))}
+        </div>,
+      )}
 
       {/* Two labels, two pages, and each label goes where it says. The
           privacy copy used to open a dialog here, which meant it had no URL

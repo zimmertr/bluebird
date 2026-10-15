@@ -1,6 +1,6 @@
 # 0035. The sheet lift is measured, not derived
 
-- Status: Accepted
+- Status: Accepted. Amended by 0135 (a search pads the camera for the resting lift of a sheet that is not open yet).
 - Date: 2026-09-14 (git: the merge of #335)
 - Decider: TJ (git: author and merger of #335)
 - Issues and PRs: #249, #335

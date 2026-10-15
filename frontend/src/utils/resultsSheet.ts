@@ -41,6 +41,32 @@ import { resolvePanelHeights } from './layout'
 export const LEGEND_TOP_PX = 156
 export const LEGEND_TOP_FINE_PX = 92
 
+/*
+ * Since #696 a phone stands no legend on its map, its key being the Legend
+ * sheet's, and its controls are two rows that end 92px down (`MAP_ROWS` in
+ * `styles.ts`). The phone's resting floor below still reserves the column and
+ * the stack it was measured with, on purpose: the sheet rests where it did, so
+ * its half height is the one a reader knows. Its full height is the Analyze
+ * button's (`DRAGGED_MAP_PX`).
+ */
+
+/** Where a phone's two rows end, from the map's top edge (`MAP_ROWS`). */
+export const PHONE_ROWS_PX = 92
+
+/**
+ * The phone's Analyze button (#696; record 0135), an extended floating action
+ * button in Material's sense: 56px tall (`FAB_PX`), 16px off the map's right
+ * edge and off whatever it stands on (`FAB_INSET_PX`). `FAB_STRIP_PX` is the
+ * map a full sheet leaves it, the button and an inset above and below, so the
+ * sheet's highest stop is that strip under the chip row.
+ */
+export const FAB_PX = 56
+export const FAB_INSET_PX = 16
+export const FAB_STRIP_PX = FAB_INSET_PX + FAB_PX + FAB_INSET_PX
+
+/** The gap the player keeps above the button. */
+export const FAB_GAP_PX = 8
+
 /**
  * What the legend stack needs to render with no scrolling: ONE box holding the
  * metric key and a section per layer that is on. Measured in Chrome 2026-09-17
@@ -150,20 +176,22 @@ const GRIP_PX = 24
 export const RESTING_MAP_PX = LEGEND_TOP_PX + LEGEND_STACK_PX + TRANSPORT_BAND_PX
 
 /**
- * Map that stays uncovered however high the reader drags: the timeline's band
- * and the inset the map's own button column occupies.
- *
- * The legend stack starts at `LEGEND_TOP_PX` because that is where the
- * Controls/search/Layers column ends, and the transport rides the same lift, so
- * it takes the same floor. Without it a drag puts the bar THROUGH that column:
- * measured at 500x757, a sheet dragged high left the transport at y 100-145,
- * across the Layers button at y 102-140 and MapLibre's zoom stack opposite it.
- *
- * The band is counted whether or not a bar is on screen, for the reason
- * `RESTING_MAP_PX` counts it: a map overlay must never decide how tall the
- * results may be.
+ * Map that stays uncovered however high the reader drags, which is a phone's
+ * question alone (a desk's results are docked): the two rows and the strip
+ * under them the Analyze button stands on (#696). It reserved the old column
+ * and the player's band until then, 280px, which left the button nowhere to
+ * stand under a full sheet. The player now stands above the button, and a
+ * full sheet leaves it its room too while it is on (`PLAYER_ROOM_PX`).
  */
-export const DRAGGED_MAP_PX = LEGEND_TOP_PX + TRANSPORT_BAND_PX
+export const DRAGGED_MAP_PX = PHONE_ROWS_PX + FAB_STRIP_PX
+
+/**
+ * The room the player takes above the button: its bar and the gap under it.
+ * A full sheet leaves it while the reader has the player on (`draggedMapFloorPx`),
+ * so a chart and its playhead stay on screen together; with the player off,
+ * a phone's default, the sheet stops at the button's strip alone.
+ */
+export const PLAYER_ROOM_PX = FAB_GAP_PX + TRANSPORT_HEIGHT_PX
 
 /**
  * The results bar above the docked panels: the mode segment, the row count and
@@ -215,8 +243,8 @@ export function sheetChromePx(gripCount: number): number {
  * sheet's chrome is part of what covers the map, so the panels inside it may
  * only have what is left.
  */
-export function draggedMapFloorPx(gripCount: number): number {
-  return DRAGGED_MAP_PX + sheetChromePx(gripCount)
+export function draggedMapFloorPx(gripCount: number, playerOn = false): number {
+  return DRAGGED_MAP_PX + (playerOn ? PLAYER_ROOM_PX : 0) + sheetChromePx(gripCount)
 }
 
 /**
@@ -267,12 +295,19 @@ export function resolveSheetLift({
   docked,
   measuredPx,
   estimatePx,
+  footPx = 0,
 }: {
   docked: boolean
   measuredPx: number | null
   estimatePx: number
+  /**
+   * A phone's home indicator band (record 0145), which is the datum on a
+   * phone with no sheet: the chrome on the map's foot stands above it. 0 on
+   * a desk, where the docked lift stays 0.
+   */
+  footPx?: number
 }): number {
-  if (docked) return 0
+  if (docked) return footPx
   return measuredPx ?? estimatePx
 }
 
@@ -322,6 +357,112 @@ export function restingLiftPx({
  */
 export function legendBottomPx(liftPx: number, timelineShown: boolean): number {
   return liftPx + (timelineShown ? TRANSPORT_BAND_PX : LEGEND_GAP_PX)
+}
+
+/**
+ * The most the notice band on a phone's map shows before it scrolls inside
+ * itself (#696; record 0140): three lines of a notice box, which is
+ * `NOTICE`'s 12px type on its 16px line, its 8px of padding top and bottom
+ * and its 1px border, so a box of one or two lines stands whole and a third
+ * line is the last one the band grows for. `MAP_NOTICE_BAND` spells it as a
+ * class and `styles.test.ts` holds the two to each other.
+ */
+export const NOTICE_LINE_PX = 16
+export const NOTICE_BAND_MAX_PX = 3 * NOTICE_LINE_PX + 2 * 8 + 2 * 1
+
+/**
+ * Where the notice band stands on a phone (#696; record 0140): on the
+ * results sheet's edge, or on the map's foot before there is one, the
+ * library's own 10px off it (`CORNER_MARGIN_PX`), which is the gap the scale
+ * and the (i) kept above the sheet before they moved up to the button's row.
+ */
+export function noticeBottomPx(liftPx: number): number {
+  return liftPx + CORNER_MARGIN_PX
+}
+
+/**
+ * Where the phone's Analyze button stands (#696; record 0135). Two things move
+ * it and nothing else, Material's rule for a floating button: the sheet,
+ * whose top edge it rides 16px above at every height, and the notice band,
+ * which stands on that edge and which the button rises 16px above while it
+ * holds a notice (`bandPx`, the band's measured height, 0 while empty). Never
+ * higher than one inset under the chip row (`mapPx`, the map's whole height):
+ * a notice over a sheet dragged high goes under the button rather than the
+ * button over the chips.
+ */
+export function fabBottomPx(liftPx: number, bandPx: number, mapPx: number): number {
+  const wanted = bandPx > 0 ? noticeBottomPx(liftPx) + bandPx + FAB_INSET_PX : liftPx + FAB_INSET_PX
+  const highest = mapPx - PHONE_ROWS_PX - FAB_INSET_PX - FAB_PX
+  return Math.max(liftPx + FAB_INSET_PX, Math.min(wanted, highest))
+}
+
+/**
+ * Where a phone's scale and (i) stand: on the Analyze button's row, at its
+ * left, each with its bottom on the button's bottom edge (record 0140; TJ,
+ * 2026-10-14). `map.css` stands each control on the library's 10px margin
+ * inside the corner band, so the band starts that margin under the button,
+ * and the opened credit line, taller than the band, grows up from the same
+ * edge. They were centred on the button's middle until the maintainer read
+ * it on a Pixel: the credit line opened above the button's top and the
+ * collapsed controls stood 6px higher than the button's foot.
+ */
+export function phoneCornerLiftPx(fabBottom: number): number {
+  return fabBottom - CORNER_MARGIN_PX
+}
+
+/**
+ * The map the Controls sheet leaves on a phone (#696; record 0141): the two
+ * rows, the button's strip and room under the button for a notice band at its
+ * fullest, so a cue that arrives while the reader changes a control raises
+ * the button rather than resizing the sheet under their finger.
+ */
+export const CONTROLS_MAP_PX = DRAGGED_MAP_PX + CORNER_MARGIN_PX + NOTICE_BAND_MAX_PX
+
+/** The Controls sheet's height on a phone whose map is `mapPx` tall. */
+export function controlsSheetPx(mapPx: number): number {
+  return Math.max(0, mapPx - CONTROLS_MAP_PX)
+}
+
+/**
+ * The most a Controls sheet rises under a drag on its grip (#696; record
+ * 0146): to the Analyze button's strip under the chip row, where a dragged
+ * results sheet stops, so the button keeps a place to stand over it.
+ */
+export function controlsFullPx(mapPx: number): number {
+  return Math.max(0, mapPx - DRAGGED_MAP_PX)
+}
+
+/**
+ * The edge a phone's foot stands on: the results sheet's, or the Controls
+ * sheet's while it is up and stands higher, so the button, the band and the
+ * player ride whichever sheet is in view (record 0141). `controlsPx` is the
+ * Controls sheet's height, whatever a drag left it at, or null while it is
+ * shut.
+ */
+export function phoneFootLiftPx(sheetLiftPx: number, controlsPx: number | null): number {
+  return controlsPx === null ? sheetLiftPx : Math.max(sheetLiftPx, controlsPx)
+}
+
+/**
+ * The player on a phone stands on the Analyze button rather than on the sheet
+ * (#696): its bottom edge 8px above the button's top. Answered as the edge
+ * `transportBottomPx` measures from, so the bar keeps one way of placing
+ * itself.
+ */
+export function transportStandPx(fabBottom: number): number {
+  return fabBottom + FAB_PX + FAB_GAP_PX - TRANSPORT_GAP_PX
+}
+
+/**
+ * Whether the player fits on a phone's map above the button, under the rows
+ * and one inset clear of them. A full sheet leaves the player its room while
+ * it is on; what can still take it is a notice band raising the button under
+ * a sheet dragged high, and the bar then steps off until there is room again
+ * rather than standing over the chips.
+ */
+export function transportFits(fabBottom: number, mapPx: number): boolean {
+  const top = fabBottom + FAB_PX + FAB_GAP_PX + TRANSPORT_HEIGHT_PX
+  return top <= mapPx - PHONE_ROWS_PX - FAB_INSET_PX
 }
 
 /** Where the timeline transport's bottom edge goes, on the same terms. */

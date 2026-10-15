@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { resultPopupHtml } from './resultPopup'
+import { RESULT_ACTION_ATTR, resultPopupHtml } from './resultPopup'
+import { poiPopupHtml, POI_ACTION_ATTR } from './poiPopup'
+import { POPUP_BODY_ATTR } from './popupChrome'
 import type { FireWarning } from './fireProximity'
 import type { DestinationResult } from '../types'
 import { NOUN, SEP } from '../metrics'
@@ -10,6 +12,8 @@ import {
   HEADER_BAND_COLOR,
   HEADER_EDGE_COLOR,
   LABEL_COLOR,
+  SECTION_EDGE,
+  SECTION_PAD_Y,
   WARNING_COLOR,
 } from './popupChrome'
 import { displayedColumns } from './tableColumns'
@@ -172,6 +176,48 @@ describe('resultPopupHtml rank prefix', () => {
     // The title carries no rank prefix (hex colors elsewhere still use '#').
     const html = resultPopupHtml({ ...base, rank: '' })
     expect(html).toMatch(/<strong[^>]*>Mount Rainier<\/strong>/)
+  })
+})
+
+// A finger removes a row through the card its row tap opens (#696), so the
+// card carries the clicked feature's remove: its words, its look, its place.
+describe('resultPopupHtml remove', () => {
+  it('carries no action unless asked', () => {
+    expect(resultPopupHtml(base)).not.toContain(RESULT_ACTION_ATTR)
+  })
+
+  it('offers the clicked feature\'s remove, centred under the numbers', () => {
+    const html = resultPopupHtml({ ...base, removable: true })
+    const button = html.match(new RegExp(`<button ${RESULT_ACTION_ATTR}="remove"[^>]*>([^<]*)</button>`))
+    expect(button?.[1]).toBe('Remove from analysis')
+    // The same look as the clicked feature's remove: only the attribute differs.
+    const poi = poiPopupHtml({ name: 'Mount Rainier', lat: 46.85, lon: -121.76, kind: 'peak' }, true)
+    const poiButton = poi.match(new RegExp(`<button ${POI_ACTION_ATTR}="remove"([^>]*)>`))![1]
+    expect(button![0]).toContain(poiButton)
+    // On a line of its own at the foot of the card, after the body the scroll
+    // cap shortens rather than inside it, so a capped card keeps it in view.
+    expect(html).toMatch(
+      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${HEADER_EDGE_COLOR}"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
+    )
+    expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(RESULT_ACTION_ATTR))
+  })
+
+  // A section of its own (#696): ruled off from the grid by the edge the
+  // warnings section wears, with that section's padding above and below, on
+  // the narrow map's compact grid and the full one alike.
+  it("rules the remove off in a section like the warnings', at both widths", () => {
+    const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
+    for (const compact of [false, true]) {
+      const html = resultPopupHtml({ ...base, compact, removable: true, warning: fire })
+      const warnings = html.match(/<div style="font-size:12px;display:flex;align-items:flex-start;padding:(\d+px) 0 (\d+px) 10px;border-bottom:([^"]+)">/)!
+      const action = html.match(new RegExp(`<div style="padding:(\\d+px) 10px;border-top:([^"]+)"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}`))!
+      expect(action[2]).toBe(warnings[3])
+      expect(action[2]).toBe(SECTION_EDGE)
+      expect([warnings[1], warnings[2]]).toEqual([SECTION_PAD_Y, SECTION_PAD_Y])
+      expect(action[1]).toBe(SECTION_PAD_Y)
+    }
+    // No remove, no rule under the grid.
+    expect(resultPopupHtml({ ...base })).not.toContain('border-top:')
   })
 })
 

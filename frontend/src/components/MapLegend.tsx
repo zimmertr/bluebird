@@ -1,16 +1,19 @@
-import { Fragment, useId, type ReactNode } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import type { GridLayer } from '../hooks/useGridLayer'
 import type { MapOverlays } from '../hooks/useMapOverlays'
 import { familyOf, metricLabel } from '../metrics'
 import type { SortBy } from '../types'
 import {
   ACCENT,
+  BUTTON_FLOATING,
   CONTROL_SIZE,
+  DISABLED,
   LEGEND_TOP,
   LINK,
   MAP_COL_GAP,
   MAP_COL_W,
   MAP_EDGE,
+  MAP_ROW_H,
   RADIUS,
   STATUS,
   SR_ONLY,
@@ -22,8 +25,12 @@ import {
   SWATCH_RAMP_SCRIM,
   SWATCH_RAMP_TICK,
   TEXT,
+  UNFURL_ANCHOR,
+  UNFURLED,
   YIELD_EMPTY,
 } from '../styles'
+import { IconLegend } from './icons'
+import { writeViewPrefs } from '../utils/viewPrefs'
 import { USFS_HREF, closureAreaSwatch, closureTrailSwatch } from '../utils/closures'
 import type { LabelledScale } from '../utils/colors'
 import { type RampTick, scaleRampCss, scaleTicks } from '../utils/legendRamp'
@@ -137,7 +144,8 @@ function legendSection({
   )
 }
 
-interface MapLegendProps {
+/** What decides which sections the legend holds, wherever it is drawn. */
+export interface LegendInputs {
   /** The ranking, whose metric names the key. */
   sortBy: SortBy
   /** The markers' scale: the hourly one during playback, the window's otherwise. */
@@ -153,30 +161,22 @@ interface MapLegendProps {
   >
   /** The forecast grid's state and its row (`useGridLayer`). */
   grid: Pick<GridLayer, 'gridPainted' | 'gridCued' | 'gridFailed' | 'gridLegend'>
-  /** Whether the panel is open; the column above is one row taller while it is not. */
-  sidebarOpen: boolean
-  /** How far the results sheet stands over the map's bottom edge. */
-  sheetLiftPx: number
-  /** Whether the forecast player's bar is on screen. */
-  timelineShown: boolean
 }
 
+/** One section, as `legendSection` draws it. */
+export type LegendSectionSpec = Parameters<typeof legendSection>[0]
+
 /**
- * The map's one legend box and the stack it scrolls in (#454; #409 cut it out
- * of `App.tsx`). Nothing when no section has anything to key.
+ * Every section the legend holds now, in the order it reads them: the one
+ * answer a desk's box on the map and a phone's Legend sheet both draw (#696),
+ * so the two cannot disagree about what is keyed. Empty when nothing on the
+ * map has anything to key, which is also what greys the phone's Legend chip.
+ * `smokeId` is the caller's `useId`, which names the smoke chips' hidden words.
  */
-export default function MapLegend({
-  sortBy,
-  markerScale,
-  hasColoredMarkers,
-  rankedFieldHasValue,
-  overlays,
-  grid,
-  sidebarOpen,
-  sheetLiftPx,
-  timelineShown,
-}: MapLegendProps) {
-  const smokeId = useId()
+export function legendSections(
+  { sortBy, markerScale, hasColoredMarkers, rankedFieldHasValue, overlays, grid }: LegendInputs,
+  smokeId: string,
+): LegendSectionSpec[] {
   const { showWildfires, showAreaClosures, showTrailClosures, showRadar, showSmoke, showSnow } = overlays
   const { gridPainted, gridCued, gridFailed, gridLegend } = grid
   // ONE box, gaining and losing sections as the report and the
@@ -195,12 +195,11 @@ export default function MapLegend({
   // moved `Active wildfire` off the bottom, where it had been
   // sorting under the Layers popover's own name for it.
   //
-  // Sorted where the box renders them rather than written in order,
-  // because one of the labels is the ranked metric's and changes under
-  // the reader.
+  // Sorted on the way out rather than written in order, because one of
+  // the labels is the ranked metric's and changes under the reader.
   // Every label is spelled once, as the sort key AND as what the
   // section renders, so the two cannot disagree.
-  const sections: Parameters<typeof legendSection>[0][] = [
+  const sections: LegendSectionSpec[] = [
     // Keyed to the markers OR to the grid, because either can be
     // the only colored thing on screen: a live filter can empty
     // the table while the field still paints, and colors without
@@ -403,10 +402,51 @@ export default function MapLegend({
         ]
       : []),
   ]
-  // Nothing when no section survives, rather than when nothing is switched on:
-  // coloured markers whose ranked metric has no value on any row draw no key,
-  // and a box with nothing in it reads as a fault.
-  if (sections.length === 0) return null
+  return sections.sort((a, b) => a.label.localeCompare(b.label))
+}
+
+/** The sections themselves, in their order, with no box around them: a phone's Legend sheet holds them (#696). */
+export function LegendSections({ sections }: { sections: readonly LegendSectionSpec[] }) {
+  return (
+    <>
+      {sections.map((section) => (
+        <Fragment key={section.label}>{legendSection(section)}</Fragment>
+      ))}
+    </>
+  )
+}
+
+interface MapLegendProps {
+  /** What the box holds (`legendSections`). */
+  sections: readonly LegendSectionSpec[]
+  /** Whether the panel is open; the column above is one row taller while it is not. */
+  sidebarOpen: boolean
+  /** How far the results sheet stands over the map's bottom edge. */
+  sheetLiftPx: number
+  /** Whether the forecast player's bar is on screen. */
+  timelineShown: boolean
+  /** Whether the card opens unfolded: the reader's last answer (`viewPrefs.legendOpen`), or open. */
+  initiallyOpen: boolean
+}
+
+/**
+ * The map's one legend box and the stack it scrolls in (#454; #409 cut it out
+ * of `App.tsx`), at a desk's width: the column's `Legend` button and the card
+ * it unfurls (#696, the maintainer, 2026-10-14), joined the way Layers is to
+ * its menu (record 0134). Open until the reader folds it, and folded or open
+ * again on their next visit (`viewPrefs.legendOpen`). The button greys while
+ * no section has anything to key, the way a phone's Legend chip does, so the
+ * column keeps one shape from arrival to results. A phone draws the same
+ * sections in its Legend sheet instead.
+ */
+export default function MapLegend({ sections, sidebarOpen, sheetLiftPx, timelineShown, initiallyOpen }: MapLegendProps) {
+  const [open, setOpen] = useState(initiallyOpen)
+  const shown = sections.length > 0
+  const unfolded = open && shown
+  const toggle = () => {
+    setOpen(!open)
+    writeViewPrefs({ legendOpen: !open })
+  }
   // Top-anchored legends: they hang one gap under the Layers button
   // (`LEGEND_TOP`) and grow downward, at EVERY width.
   //
@@ -470,13 +510,27 @@ export default function MapLegend({
         // `data-map-overlay`); the box rather than the scroll column around
         // it, whose empty length below the box reaches the map's floor.
         data-map-overlay=""
-        className={`${SURFACE_FLOATING} ${MAP_COL_W} flex flex-col gap-1 px-2.5 py-2`}
+        className="flex flex-col"
       >
-        {sections
-          .sort((a, b) => a.label.localeCompare(b.label))
-          .map((section) => (
-            <Fragment key={section.label}>{legendSection(section)}</Fragment>
-          ))}
+        {/* The button the card unfurls out of, the column's last member. It
+            stands at the top of the scroll box, so a key too tall for the map
+            scrolls under it rather than taking it away. */}
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={!shown}
+          aria-expanded={unfolded}
+          data-unfurled={unfolded ? 'below' : undefined}
+          className={`${BUTTON_FLOATING} ${UNFURL_ANCHOR} ${MAP_COL_W} ${MAP_ROW_H} ${DISABLED} sticky top-0 z-[1] flex flex-shrink-0 items-center gap-2 px-2.5`}
+        >
+          <IconLegend />
+          Legend
+        </button>
+        {unfolded && (
+          <div className={`${SURFACE_FLOATING} ${MAP_COL_W} ${UNFURLED.below} flex flex-col gap-1 px-2.5 py-2`}>
+            <LegendSections sections={sections} />
+          </div>
+        )}
       </div>
     </div>
   )

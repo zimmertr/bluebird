@@ -8,6 +8,7 @@ import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { forecastModel } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
+import { CONTROLS_SHEET, PANEL_BODY, PANEL_RULE } from '../styles'
 
 // The panel's contract with its reader: every message renders in the one block
 // under the Analyze button, and the button is disabled for each reason the
@@ -277,5 +278,18 @@ describe('the notice block', () => {
     expect(messages()[1]).not.toMatch(/forecast model/)
     expect(messages()[1]).toMatch(/forecast range/)
     expect(messages()[1]).not.toBe(before)
+  })
+})
+
+// On a phone the body is the Controls sheet's scroller (#696; record 0141),
+// which takes the home indicator band at its end (record 0152): the Terms
+// line is its last content.
+describe('the body on a phone', () => {
+  it('pads its scrolling end for the home indicator, and only on a phone', () => {
+    const { unmount } = render(<ControlPanel {...props()} phone />)
+    const body = screen.getByRole('link', { name: 'Terms' }).closest<HTMLElement>('[class*="overflow-y-auto"]')
+    expect(body?.className).toBe(`${PANEL_BODY} ${PANEL_RULE} ${CONTROLS_SHEET.body}`)
+    expect(body?.lastElementChild?.contains(screen.getByRole('link', { name: 'Terms' }))).toBe(true)
+    unmount()
   })
 })

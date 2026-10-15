@@ -32,7 +32,10 @@ for (const viewport of [
     // The ring comes from the share link, so the phone needs no map clicks.
     await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
     await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-    await page.getByRole('button', { name: 'Analyze' }).click()
+    // The panel's Analyze at a desk; on a phone the drawer opens closed and
+    // inert, and the map's own Analyze is the one in reach (#696).
+    const where = viewport.width < 1024 ? page.getByRole('main') : page.locator('aside')
+    await where.getByRole('button', { name: 'Analyze' }).click()
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
 
     const name = page.locator('th[data-col="name"]')

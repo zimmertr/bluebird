@@ -3,7 +3,7 @@
  * and which side of the app it lives on. Pure data, so the suite can prove
  * every anchor is a real control without a page: `tourSteps.test.ts` reads
  * the component sources as text and fails an anchor that appears nowhere, or
- * twice. The copy is TJ's, verbatim (2026-09-29).
+ * twice. The copy is TJ's, verbatim (2026-09-29; the Chart card 2026-10-14).
  *
  * One card per panel section rather than one per control. A card per control
  * was built and cut the same day: numbered cards read as steps to take in
@@ -28,9 +28,11 @@ export type TourPlace = 'panel' | 'map'
  * opens the Layers menu, so the card frames the choices rather than a button.
  * `results` shows the results sheet over a demonstration report, because a
  * first-visit tour runs before any analysis and the sheet is otherwise empty.
+ * `chart` turns that sheet to its chart with the readout standing on the
+ * window's middle hour, as a resting finger shows it (#696).
  * `marker` flies to one of that report's markers and opens its popup.
  */
-export type TourReveal = 'layers' | 'results' | 'marker'
+export type TourReveal = 'layers' | 'results' | 'chart' | 'marker'
 
 /**
  * How the spotlight fits its target. `section` runs from the rule above the
@@ -111,6 +113,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     text: 'After analysis, the selected destinations are ranked by your chosen metric and constraints.',
     place: 'map',
     reveal: 'results',
+  },
+  {
+    anchor: 'chart',
+    title: 'Chart',
+    text: "Switch to the chart to compare every destination's forecast hour by hour. Select an hour to read every value at that moment.",
+    place: 'map',
+    reveal: 'chart',
   },
   {
     anchor: 'marker',
