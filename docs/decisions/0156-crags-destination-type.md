@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-15
 - Decider: the maintainer (TJ), on issue #715, 2026-10-15
-- Issues and PRs: #715
+- Issues and PRs: #715, PR #731
 - Cited in code as: #715
 - Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, step 2; [`docs/DATA.md`](../DATA.md), OpenStreetMap and Overpass
 
