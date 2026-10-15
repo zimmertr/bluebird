@@ -20,7 +20,7 @@ Every menu on a phone is a sheet that rises from the bottom of the screen: Layer
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map**, **Coordinates** and **Polygon**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map search**, **Coordinate search** and **Polygon search**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map search**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
 
 ### a. Search by name
 
@@ -42,9 +42,9 @@ Five things are worth knowing about what you can click:
 
 Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them.
 
-### c. Polygon
+### c. Polygon search
 
-Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
+Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon search** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
 
 - You need at least 3 points before Analyze turns on.
 - The estimated bounding-box area is shown in km² at the right of the point count while you draw, or under it when the two do not fit on one line, and for a polygon a shared link brings in.
@@ -68,9 +68,9 @@ The checkboxes under the buttons control what discovery looks for inside your po
 
 Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. When another destination still lets Analyze run, a line under the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, which shows under **Peaks** once Peaks is ticked, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
 
-### d. Coordinates
+### d. Coordinate search
 
-Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinates** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller.
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinate search** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller.
 
 ```
 # Lines beginning with # are ignored
@@ -710,4 +710,4 @@ nothing within 10 miles, which still is not proof there is no fire:
 successful check can still miss.
 
 Coordinates are deliberately absent. The file is meant to be read, not pasted
-back into [Coordinates](#d-coordinates).
+back into [Coordinate search](#d-coordinate-search).

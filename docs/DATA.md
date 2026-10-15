@@ -50,7 +50,7 @@ A destination exists in Bluebird Forecast only if a volunteer mapped it and gave
 name. Unnamed summits are invisible to discovery, elevations come from the OSM
 `ele` tag and are absent or wrong wherever the tag is, and coverage is uneven
 by region in exactly the way volunteer mapping is uneven.
-[Coordinates](USAGE.md#d-coordinates) exists for that gap:
+[Coordinate search](USAGE.md#d-coordinate-search) exists for that gap:
 whatever OSM does not know, you can paste.
 
 A drawn area's peaks and lakes are read from the basemap's own tiles rather
