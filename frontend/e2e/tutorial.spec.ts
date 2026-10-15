@@ -99,16 +99,17 @@ async function expectPopupClear(page: Page) {
   }).toPass({ timeout: 5_000 })
 }
 
-// The Chart card's pointer crosses the plot and stops on its last hour, with
-// the readout there (#696; record 0153).
-async function expectReadoutOnLastHour(page: Page) {
-  await expect(page.locator('[data-chart-plot]')).toBeVisible()
+// The Chart card shows the readout a finger resting mid-window shows: the
+// cursor's line on the middle of the demonstration's thirteen hours, with a
+// dot on every destination's line (#696; record 0153).
+async function expectReadoutMidWindow(page: Page) {
+  const chart = '[data-tour="chart"]'
+  await expect(page.locator(`${chart} .recharts-tooltip-cursor`)).toBeAttached()
   await expect(async () => {
-    const plot = (await box(page, '[data-chart-plot]'))!
-    const pointer = (await box(page, '[data-tour-pointer]'))!
-    expect(pointer).not.toBeNull()
-    // At rest on the band's right edge: the plot's box less its right margin.
-    expect(Math.abs((pointer.left + pointer.right) / 2 - (plot.right - 16))).toBeLessThan(2)
+    const grid = (await box(page, `${chart} .recharts-cartesian-grid`))!
+    const cursor = (await box(page, `${chart} .recharts-tooltip-cursor`))!
+    expect(Math.abs((cursor.left + cursor.right) / 2 - (grid.left + grid.right) / 2)).toBeLessThan(2)
+    await expect(page.locator(`${chart} .recharts-active-dot`)).toHaveCount(5)
   }).toPass({ timeout: 5_000 })
 }
 
@@ -130,7 +131,7 @@ test('walks the eight cards from the footer link and puts the app back', async (
     if (step.anchor === 'metrics') await expectSectionInPanel(page, 'metrics')
     if (step.anchor === 'layers') await expect(page.locator('[data-tour="layers-menu"]')).toBeVisible()
     if (step.anchor === 'results') await expect(resultRows(page)).toHaveCount(5)
-    if (step.anchor === 'chart') await expectReadoutOnLastHour(page)
+    if (step.anchor === 'chart') await expectReadoutMidWindow(page)
     if (step.anchor === 'marker') await expectPopupClear(page)
     await card(page).getByRole('button', { name: i === STEPS.length - 1 ? 'Done' : 'Next' }).click()
   }
@@ -217,6 +218,17 @@ test.describe('on a phone with a report', () => {
     const layers = page.locator('[data-tour="layers-menu"]')
     await expect(layers).toBeVisible()
     await expect(layers.getByRole('checkbox', { name: 'Wildfires' })).toBeChecked()
+    // Its card stands in the map between the chip and the sheet, over
+    // neither, and the light holds both (#696).
+    await expectSpotlightOn(page, 'layers')
+    await expectSpotlightOn(page, 'layers-menu')
+    await expect(async () => {
+      const chip = (await box(page, '[data-tour="layers"]'))!
+      const sheet = (await box(page, '[data-tour="layers-menu"]'))!
+      const tourCard = (await box(page, '[data-tour-card]'))!
+      expect(tourCard.top).toBeGreaterThan(chip.bottom)
+      expect(tourCard.bottom).toBeLessThan(sheet.top)
+    }).toPass({ timeout: 5_000 })
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Results')
     await expect(layers).toHaveCount(0)
@@ -224,18 +236,25 @@ test.describe('on a phone with a report', () => {
     await expect(resultRows(page).first()).toBeVisible()
     await expectSpotlightOn(page, 'results')
 
-    // The Chart card turns the sheet to its chart and its pointer stops on
-    // the last hour (record 0153).
+    // The Chart card turns the sheet to its chart, with the readout on the
+    // window's middle hour (record 0153).
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Chart')
-    await expectReadoutOnLastHour(page)
+    await expectReadoutMidWindow(page)
     await page.keyboard.press('ArrowRight')
     await expect(heading(page)).toHaveText('Markers')
+    // Back to the Chart card, which opens the sheet the marker card
+    // collapsed, and the tour ended there.
+    await page.keyboard.press('Backspace')
+    await expect(heading(page)).toHaveText('Chart')
+    await expectReadoutMidWindow(page)
     await page.keyboard.press('Escape')
     await expect(card(page)).toHaveCount(0)
-    // The sheet is left open in the chart, and Wildfires off again.
+    // The sheet is left open in the chart, with the readout still standing
+    // over the reader's own report, and Wildfires off again.
     await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
-    await expect(page.locator('[data-chart-plot]')).toBeVisible()
+    await expect(page.locator(`[data-tour="chart"] .recharts-tooltip-cursor`)).toBeAttached()
+    await expect(page.locator('[data-tour="chart"] .recharts-active-dot')).toHaveCount(5)
     await page.getByRole('button', { name: 'Layers', exact: true }).first().tap()
     await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Wildfires' })).not.toBeChecked()
   })

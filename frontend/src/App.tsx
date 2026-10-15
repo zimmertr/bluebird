@@ -578,7 +578,6 @@ export default function App() {
             onNext={tour.next}
             onPrev={tour.prev}
             onEnd={tour.end}
-            sweep={tour.chartSweep}
           />
         </Suspense>
       )}

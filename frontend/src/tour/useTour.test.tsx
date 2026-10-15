@@ -67,6 +67,39 @@ describe('the tour opens the results for their steps', () => {
   })
 })
 
+// The Chart card shows the readout as a finger resting mid-window shows it
+// (#696): no pointer is drawn and nothing sweeps, the hour simply stands.
+describe('the chart readout under the tour', () => {
+  it('stands on the demonstration\'s middle hour through the results steps, and lets go at the end', async () => {
+    // An earlier test's tour went back over its own history entry, and that
+    // traversal's popstate would end this one: let it land first.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const { result } = setup()
+    act(() => result.current.start())
+    const anchor = () => result.current.steps[result.current.index!].anchor
+    while (anchor() !== 'results') {
+      expect(result.current.chartTooltipIndex).toBeNull()
+      act(() => result.current.next())
+    }
+    // The demonstration is a chunk of its own: let its import land inside act.
+    await act(async () => {
+      await import('./demoReport')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(result.current.demo).not.toBeNull()
+    const hours = result.current.demo!.response.times!.length
+    const middle = Math.floor((hours - 1) / 2)
+    expect(middle).toBeGreaterThan(0)
+    expect(middle).toBeLessThan(hours - 1)
+    expect(result.current.chartTooltipIndex).toBe(middle)
+    act(() => result.current.next())
+    expect(anchor()).toBe('chart')
+    expect(result.current.chartTooltipIndex).toBe(middle)
+    act(() => result.current.end())
+    expect(result.current.chartTooltipIndex).toBeNull()
+  })
+})
+
 // A phone's Layers step switches the tour's layer on for its length, and
 // off when it is left, unless the reader already had it on (#696).
 describe('the Layers step on a phone', () => {

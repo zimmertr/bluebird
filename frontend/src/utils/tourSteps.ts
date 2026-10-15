@@ -28,8 +28,8 @@ export type TourPlace = 'panel' | 'map'
  * opens the Layers menu, so the card frames the choices rather than a button.
  * `results` shows the results sheet over a demonstration report, because a
  * first-visit tour runs before any analysis and the sheet is otherwise empty.
- * `chart` turns that sheet to its chart and sweeps a drawn pointer across
- * the plot, the hour readout following it (#696).
+ * `chart` turns that sheet to its chart with the readout standing on the
+ * window's middle hour, as a resting finger shows it (#696).
  * `marker` flies to one of that report's markers and opens its popup.
  */
 export type TourReveal = 'layers' | 'results' | 'chart' | 'marker'

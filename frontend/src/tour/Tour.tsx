@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { IconClose } from '../components/icons'
 import {
   BUTTON_ACCENT,
@@ -11,8 +11,7 @@ import {
 } from '../styles'
 import { prefersReducedMotion } from '../utils/motion'
 import { anchorSelector, type TourStep } from '../utils/tourSteps'
-import { plotBand } from '../utils/chartPointer'
-import { type ChartSweep, scrollParent } from './useTour'
+import { scrollParent } from './useTour'
 import {
   type Box,
   cardMode,
@@ -23,6 +22,7 @@ import {
   scrollBlock,
   scrollTopFor,
   sectionBox,
+  sheetBetween,
   sheetEdge,
   spotlight,
   spotPad,
@@ -37,8 +37,6 @@ interface Props {
   onNext: () => void
   onPrev: () => void
   onEnd: () => void
-  /** The Chart step's sweep, which the drawn pointer crosses the plot in (#696). */
-  sweep?: ChartSweep | null
 }
 
 /** The root's attribute while a tour runs, which hides every scroll shadow (`index.css`). */
@@ -77,7 +75,7 @@ const SETTLE_FRAMES = 10
  * always on, it made the spotlight trail its control by 200 ms whenever
  * the layout moved for another reason.
  */
-export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null }: Props) {
+export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const step = steps[index]
   const cardRef = useRef<HTMLDivElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
@@ -87,9 +85,10 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null
   // The radius the target's corners are drawn at (`cornerRadius`), which
   // decides the light's pad and its corners.
   const [targetRadius, setTargetRadius] = useState(0)
-  // The chart's plot, which the Chart step's pointer crosses: its box on
-  // screen, read with the target's.
-  const [plot, setPlot] = useState<Box | null>(null)
+  // The target's own box and the top of a framed surface standing below it,
+  // where the step opened one there (a phone's Layers sheet): the band a
+  // sheet-mode card stands in, between the two, rather than over either.
+  const [opened, setOpened] = useState<{ own: Box; floor: number } | null>(null)
   const [cardSize, setCardSize] = useState({ width: 320, height: 160 })
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
   const [moving, setMoving] = useState(false)
@@ -124,8 +123,15 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null
     const box = whole && over ? clipAbove(whole, over.top - spotPad(step.spot, radius)) : whole
     setTarget((prev) => (sameBox(prev, box) ? prev : box))
     setTargetRadius(radius)
-    const plotBox = step.reveal === 'chart' ? rect(document.querySelector('[data-chart-plot]')) : null
-    setPlot((prev) => (sameBox(prev, plotBox) ? prev : plotBox))
+    const own = boxOf(step.anchor)
+    const floors = (step.frames ?? [])
+      .map(boxOf)
+      .filter((b): b is Box => b !== null && own !== null && b.top >= own.top + own.height)
+      .map((b) => b.top)
+    const next = own && floors.length > 0 ? { own, floor: Math.min(...floors) } : null
+    setOpened((prev) =>
+      prev && next && sameBox(prev.own, next.own) && prev.floor === next.floor ? prev : next,
+    )
     const card = cardRef.current?.getBoundingClientRect()
     if (card) {
       setCardSize((prev) =>
@@ -139,10 +145,8 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null
         ? prev
         : { width: window.innerWidth, height: window.innerHeight },
     )
-    // A Chart step whose plot has yet to load (the chart is a chunk of its
-    // own) has nothing to point at, so the loop keeps looking.
-    return step.reveal === 'chart' && plotBox === null ? null : box
-  }, [step.anchor, step.frames, step.spot, step.under, step.reveal])
+    return box
+  }, [step.anchor, step.frames, step.spot, step.under])
 
   // Before every paint: a render that changed a shape is placed by the new
   // shape, not the old one. Converges because a pass that changes nothing
@@ -284,7 +288,12 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null
   const sheet = cardMode(viewport.width) === 'sheet'
   if (light && !sheet) lastAt.current = placeCard(light, cardSize, viewport)
   const at = sheet ? null : lastAt.current
-  const sheetRole = sheetEdge(light, cardSize.height, viewport.height) === 'top' ? TOUR.sheetTop : TOUR.sheet
+  // Between the target and the surface it opened below it, where the band
+  // holds the card; along an edge otherwise.
+  const betweenTop =
+    sheet && opened ? sheetBetween(spotlight(opened.own, pad), opened.floor, cardSize.height) : null
+  const sheetRole =
+    betweenTop !== null || sheetEdge(light, cardSize.height, viewport.height) === 'top' ? TOUR.sheetTop : TOUR.sheet
   const motion = moving ? ` ${TOUR.motion}` : ''
   const last = index === steps.length - 1
   // With no target yet, the dim still covers the screen: a spotlight of no
@@ -306,19 +315,6 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null
         }}
         aria-hidden="true"
       />
-      {sweep && plot && (
-        // The Chart step's pointer (#696), drawn rather than a cursor: it
-        // crosses the plotting band, the chart's margins and y axis inside
-        // the plot's box, at its middle height, as a CSS animation on the
-        // compositor rather than a render a frame. The readout's hour moves
-        // with it from `useTour`, which started both at `sweep.startMs`.
-        <div
-          className={TOUR.pointer}
-          aria-hidden="true"
-          data-tour-pointer
-          style={sweepStyle(plot, sweep)}
-        />
-      )}
       <div
         ref={cardRef}
         role="dialog"
@@ -328,7 +324,7 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null
         tabIndex={-1}
         data-tour-card=""
         className={`${sheet ? sheetRole : TOUR.card}${motion}`}
-        style={at ? { top: at.top, left: at.left } : undefined}
+        style={at ? { top: at.top, left: at.left } : betweenTop !== null ? { top: betweenTop } : undefined}
       >
         <div className="flex items-start justify-between gap-3">
           <h2 id={titleId} className={PROSE.heading}>{step.title}</h2>
@@ -360,25 +356,3 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null
   )
 }
 
-/**
- * Where the Chart step's pointer runs: from the plotting band's left edge to
- * its right at the band's middle height, the same band a finger reads
- * (`plotBand`). Its resting place is the end, so a
- * reduced-motion setting, which drops the animation, shows it on the last
- * hour; the delay is negative once the sweep has begun, so a late render
- * joins it where it is rather than starting it again.
- */
-function sweepStyle(plot: Box, sweep: ChartSweep): CSSProperties {
-  const band = plotBand(plot.width, plot.height)
-  const from = plot.left + band.left
-  const to = from + band.width
-  const y = plot.top + band.top + band.height / 2
-  return {
-    '--sweep-from': `${from}px`,
-    '--sweep-to': `${to}px`,
-    '--sweep-y': `${y}px`,
-    transform: `translate(${to}px, ${y}px)`,
-    animationDuration: `${sweep.durationMs}ms`,
-    animationDelay: `${sweep.startMs - performance.now()}ms`,
-  } as CSSProperties
-}

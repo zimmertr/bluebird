@@ -113,8 +113,10 @@ const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 interface Props {
   /**
    * An hour index the tooltip stands on without a mouse, or null to follow
-   * one. The tutorial's results step sets it so the card can be read beside
-   * what a hover shows (#536).
+   * one. The tutorial's results steps set it so the card can be read beside
+   * what a hover shows (#536), and the chart keeps the place across the
+   * window the last one stood at as its own reading, which a finger or a
+   * mouse replaces (#696).
    */
   tooltipIndex?: number | null
 
@@ -202,6 +204,16 @@ function TimeSeriesChart({
   // the hour from it; this is the hour handed to it instead. Kept when the
   // finger lifts, so the reading can be read without a finger over it.
   const [fingerIndex, setFingerIndex] = useState<number | null>(null)
+  // Where across the window the tutorial last stood the readout, kept as the
+  // chart's own reading once the tour lets go (#696), so a tour ended on the
+  // Chart card leaves the readout standing until a finger or a mouse reads
+  // another hour. Kept as a place across the window rather than an index,
+  // because the report under it changes as the tour ends, from the
+  // demonstration's thirteen hours to the reader's own window: the middle
+  // stays the middle, and a one-hour window reads its one hour.
+  const [heldSpot, setHeldSpot] = useState<number | null>(null)
+  const handedSpot = tooltipIndex === null ? null : times.length > 1 ? tooltipIndex / (times.length - 1) : 0
+  if (handedSpot !== null && handedSpot !== heldSpot) setHeldSpot(handedSpot)
 
   // Align each series onto the active grid by timestamp — a no-op for ranked
   // rows; a pinned row may have been fetched for a different window.
@@ -277,8 +289,9 @@ function TimeSeriesChart({
     : lines
 
   function handleMove(state: any) {
-    // A mouse takes the reading back from a finger that left one.
+    // A mouse takes the reading back from a finger, or the tour, that left one.
     if (fingerIndex !== null) setFingerIndex(null)
+    if (heldSpot !== null) setHeldSpot(null)
     tapXRef.current = null
     const idx = state?.activeTooltipIndex
     const py = typeof state?.chartY === 'number' ? state.chartY : state?.activeCoordinate?.y
@@ -316,6 +329,7 @@ function TimeSeriesChart({
     const reading = fingerReading(e.clientX - box.left, e.clientY - box.top, box, times, yMin, yMax, MARGIN)
     if (reading === null) return
     setFingerIndex(reading.index)
+    setHeldSpot(null)
     if (!followCursor) return
     const valuesByKey: Record<string, number | null> = {}
     for (const line of lines) valuesByKey[line.key] = valueAt(line, metric, reading.index)
@@ -326,11 +340,18 @@ function TimeSeriesChart({
   function dropFinger() {
     tapXRef.current = null
     setFingerIndex(null)
+    setHeldSpot(null)
     handleLeave()
   }
   // The tutorial's hour wins over a finger's; an hour past a grid that has
   // since shrunk is no reading at all.
-  const shownIndex = tooltipIndex ?? (fingerIndex !== null && fingerIndex < times.length ? fingerIndex : null)
+  const shownIndex =
+    tooltipIndex ??
+    (fingerIndex !== null && fingerIndex < times.length
+      ? fingerIndex
+      : heldSpot !== null && times.length > 0
+        ? Math.round(heldSpot * (times.length - 1))
+        : null)
 
   // A click puts the map's playhead on the hour under the pointer. The chart
   // and the map are two views of one hourly grid, so a reader who has found the
@@ -439,8 +460,6 @@ function TimeSeriesChart({
         )}
         <div
           ref={plotRef}
-          // The tutorial's Chart step draws its pointer across this box.
-          data-chart-plot
           onPointerDown={readFinger}
           onPointerMove={readFinger}
           onPointerCancel={dropFinger}

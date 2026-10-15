@@ -10,6 +10,7 @@ import {
   scrollTopFor,
   sectionBox,
   SHEET_MAX_W,
+  sheetBetween,
   sheetEdge,
   sheetKeepOut,
   SPOTLIGHT_PAD,
@@ -104,6 +105,21 @@ describe('the sheet', () => {
     const reaching = (bottom: number) => spotlight({ top: 160, left: 40, width: 280, height: bottom - 160 })
     expect(sheetEdge(reaching(keepOut.top), 146, 740)).toBe('bottom')
     expect(sheetEdge(reaching(keepOut.top + 1), 146, 740)).toBe('top')
+  })
+})
+
+// A phone's Layers step (#696): the card stands under the chip's light and
+// above the sheet the step opened, with the gap at each end, or takes an
+// edge when that band cannot hold it.
+describe('the sheet between a target and the surface it opened', () => {
+  const chip = { top: 60, left: 300, width: 76, height: 44 }
+  it('stands just under the light', () => {
+    expect(sheetBetween(chip, 500, 180)).toBe(60 + 44 + CARD_GAP)
+  })
+  it('stops at the floor, gap included', () => {
+    const top = 60 + 44 + CARD_GAP
+    expect(sheetBetween(chip, top + 180 + CARD_GAP, 180)).toBe(top)
+    expect(sheetBetween(chip, top + 180 + CARD_GAP - 1, 180)).toBeNull()
   })
 })
 

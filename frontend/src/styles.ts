@@ -3056,15 +3056,6 @@ export const TOUR = {
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
   sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
   /**
-   * The Chart step's drawn pointer (#696): a fingertip's ring, white on the
-   * dark plot, crossing it by the `tour-sweep` keyframes in `index.css`,
-   * which move it by transform alone, so the compositor runs it. Its place at
-   * rest is the sweep's end, which a reduced-motion setting shows at once.
-   */
-  pointer:
-    `pointer-events-none absolute left-0 top-0 -ml-3 -mt-3 h-6 w-6 ${RADIUS.pill} border-2 border-white bg-white/40 ` +
-    'animate-[tour-sweep_linear_both] motion-reduce:animate-none',
-  /**
    * Worn for the moment after a step changes and at no other time. A standing
    * transition made the spotlight trail its control whenever the layout moved
    * for another reason, such as the preview banner wrapping on a resize.

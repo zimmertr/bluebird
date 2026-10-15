@@ -265,14 +265,3 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover,
 input[type="number"]::-webkit-inner-spin-button:hover {
   opacity: 1;
 }
-
-/* The tutorial's Chart step: its drawn pointer crosses the plot (`TOUR.pointer`,
-   #696). Transform alone, so it never asks the page for a layout. */
-@keyframes tour-sweep {
-  from {
-    transform: translate(var(--sweep-from), var(--sweep-y));
-  }
-  to {
-    transform: translate(var(--sweep-to), var(--sweep-y));
-  }
-}

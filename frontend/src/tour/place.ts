@@ -79,6 +79,21 @@ export function sheetKeepOut(card: { left: number; right: number }, cardHeight: 
   }
 }
 
+/**
+ * Where a sheet stands when the step opened a surface below its target
+ * (#696): just under the target's light, the existing placement's `below`,
+ * with the surface's top edge as a floor the card must not cross. A phone's
+ * Layers step lights the chip near the top and the Layers sheet up from the
+ * bottom, and either edge of the screen put the card over one of them, so a
+ * reader never saw the control that had opened the sheet. Null when the band
+ * between the two cannot hold the card with its gap at each end; the sheet
+ * then takes an edge as before.
+ */
+export function sheetBetween(light: Box, floor: number, cardHeight: number): number | null {
+  const top = light.top + light.height + CARD_GAP
+  return top + cardHeight + CARD_GAP <= floor ? top : null
+}
+
 /** Whether the card is a box beside its target or a sheet along the bottom. */
 export function cardMode(viewportWidth: number): 'card' | 'sheet' {
   return viewportWidth < SHEET_MAX_W ? 'sheet' : 'card'

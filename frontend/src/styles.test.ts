@@ -2632,12 +2632,6 @@ describe('the tutorial', () => {
     expect(STYLES.TOUR).not.toHaveProperty('spotlightControl')
     // The one transition the tour wears yields to a reduced-motion setting.
     expect(STYLES.TOUR.motion).toContain('motion-reduce:transition-none')
-    // The Chart step's pointer moves by a transform keyframe, and stands
-    // still, at the sweep's end, under a reduced-motion setting.
-    expect(STYLES.TOUR.pointer).toContain('animate-[tour-sweep_linear_both]')
-    expect(STYLES.TOUR.pointer).toContain('motion-reduce:animate-none')
-    expect(STYLES.TOUR.pointer).toContain('pointer-events-none')
-    expect(indexCss).toMatch(/@keyframes tour-sweep \{\s*from \{\s*transform: translate\(var\(--sweep-from\), var\(--sweep-y\)\);/)
     expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
   })
 
