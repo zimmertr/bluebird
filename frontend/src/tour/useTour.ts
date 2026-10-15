@@ -119,11 +119,18 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
   // same commit puts the drawer back, and an element in a closed drawer is
   // inert and cannot take the focus until it opens. An element that left the
   // page meanwhile (the welcome card's button) is not put back.
+  //
+  // Without scrolling (#696): a phone's Tutorial link stands in the Controls
+  // sheet, which this commit starts sliding up from below the screen, so a
+  // bare focus scrolled the app's column 588px to bring the link into view
+  // and the slide then wound it back, carrying the map and the results up and
+  // down with it. The panel's own scroll is put back by `end`, so the link is
+  // in view once the sheet stands.
   useEffect(() => {
     if (index !== null) return
     const el = returnFocus.current
     returnFocus.current = null
-    if (el?.isConnected) el.focus()
+    if (el?.isConnected) el.focus({ preventScroll: true })
   }, [index])
 
   const prev = useCallback(() => {

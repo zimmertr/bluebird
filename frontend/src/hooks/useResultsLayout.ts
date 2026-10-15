@@ -219,6 +219,11 @@ export function useResultsLayout({
   // on any map too short for them. A double press on a grip means "put it back",
   // so it returns the resting height with the rest of the default.
   const [heightsChosen, setHeightsChosen] = useState(false)
+  // Whether the reader has dragged a phone's Chart since it opened (#696;
+  // record 0155). Chart alone rests at the sheet's full stop on a phone,
+  // because the rest stop is the table's and leaves the plot a 68px band at
+  // 390x844; a drag is the reader's and wins until Chart is left.
+  const [chartDragged, setChartDragged] = useState(false)
 
   // A desktop-width window widens to Both when an analysis lands, so the first
   // report arrives with its chart — unless the user has ever explicitly picked
@@ -293,9 +298,14 @@ export function useResultsLayout({
   // a reader who pulls the panels up has chosen a shorter map, and the stack
   // scrolls rather than the drag stopping short.
   const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount, playerOn)
-  // The full stop asked for is the drag cap with every panel asking for the
-  // whole screen; the reader's own heights wait underneath it.
-  const heldFull = fullOverride && !isDesktop
+  // Leaving Chart forgets its drag, so the next pick lifts it again.
+  if (resultsMode !== 'chart' && chartDragged) setChartDragged(false)
+  // A phone's Chart alone at its full stop: the drag cap with every panel
+  // asking for the whole screen. The reader's own heights wait underneath, so
+  // Table comes back at the height it had before Chart was picked.
+  const chartLifted = !isDesktop && resultsMode === 'chart' && !chartDragged
+  // The tutorial's Chart step holds it there whatever the reader did before.
+  const heldFull = !isDesktop && (fullOverride || chartLifted)
   const mapFloorPx = isDesktop
     ? heightsChosen
       ? undefined
@@ -395,7 +405,11 @@ export function useResultsLayout({
   // shape), so the lift it will rest at is known before it opens.
   const sheetPadBottomPx = isDesktop
     ? 0
-    : restingLiftPx({
+    : chartLifted
+      ? // A phone's Chart rests at its full stop, which is a fixed height
+        // rather than a live one, so the camera frames above it.
+        sheetHeightPx({ collapsed: resultsCollapsed, gripCount, panelsPx: chartPanelPx + tablePanelPx }) + footPx
+      : restingLiftPx({
         collapsed: resultsCollapsed,
         gripCount,
         chartShown: chartShowing,
@@ -409,22 +423,36 @@ export function useResultsLayout({
   // The map│chart grip, in Both AND chart-only mode: a panel shown by itself
   // is still resizable against the map (#242 review). Only the reserved space
   // differs — the table's height counts only while it is rendered.
+  // The panel heights a drag began from. A drag reports its whole distance
+  // so far, and the grip calls the newest handlers (`useGripDrag`), so a
+  // drag measured from the height of the render before it added every move
+  // to the last: 86px down a lifted Chart took the sheet to its floor (#696).
+  const dragFrom = useRef({ chart: 0, table: 0 })
   const chartGrip: GripHandlers = {
     onReset: () => {
       if (resultsMode === 'both') setTableHeight(tablePanelPx)
       setChartHeight(DEFAULT_CHART_HEIGHT)
       // "Put it back" includes the resting height a phone
-      // sheet opens at, which a drag had handed over.
+      // sheet opens at, which a drag had handed over, and a phone's Chart
+      // rests at its full stop.
       setHeightsChosen(false)
+      setChartDragged(false)
     },
     onDragStart: () => {
+      dragFrom.current = { chart: chartPanelPx, table: tablePanelPx }
       setIsDragging(true)
       setHeightsChosen(true)
       if (resultsMode === 'both') setTableHeight(tablePanelPx)
+      // A drag on a lifted Chart starts from where it stands and is the
+      // reader's from then on.
+      if (chartLifted) {
+        setChartDragged(true)
+        setChartHeight(chartPanelPx)
+      }
     },
     onDrag: (up) =>
       setChartHeight(
-        clampPanelHeight(chartPanelPx, up, chartReservedPx, window.innerHeight, dragFloorPx),
+        clampPanelHeight(dragFrom.current.chart, up, chartReservedPx, window.innerHeight, dragFloorPx),
       ),
     onDragEnd: () => setIsDragging(false),
   }
@@ -438,17 +466,18 @@ export function useResultsLayout({
       setHeightsChosen(false)
     },
     onDragStart: () => {
+      dragFrom.current = { chart: chartPanelPx, table: tablePanelPx }
       setIsDragging(true)
       setHeightsChosen(true)
     },
     onDrag: (up) => {
       if (resultsMode === 'both') {
-        const next = splitChartTable(chartPanelPx, tablePanelPx, up)
+        const next = splitChartTable(dragFrom.current.chart, dragFrom.current.table, up)
         setChartHeight(next.chart)
         setTableHeight(next.table)
         return
       }
-      setTableHeight(clampPanelHeight(tablePanelPx, up, reservedPx, window.innerHeight, dragFloorPx))
+      setTableHeight(clampPanelHeight(dragFrom.current.table, up, reservedPx, window.innerHeight, dragFloorPx))
     },
     onDragEnd: () => setIsDragging(false),
   }

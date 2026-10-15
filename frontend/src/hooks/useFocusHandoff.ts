@@ -41,9 +41,15 @@ export function focusOrphaned(): boolean {
  * Take the focus if it was orphaned. Shaped as a ref callback, so a control
  * that MOUNTS in the pressed one's place can wear it as `ref={takeOrphanedFocus}`
  * and take the keyboard in the commit that drew it.
+ *
+ * Without scrolling (#696): the replacement takes the keyboard where it
+ * stands. A phone's Controls sheet takes it for its Done button in the commit
+ * that starts the sheet sliding up from below the screen, and a bare focus
+ * scrolled the app's column 465px to reach the button there, carrying the map
+ * and the results up and back down as the slide wound the scroll back out.
  */
 export function takeOrphanedFocus(el: HTMLElement | null): void {
-  if (el && !unusable(el) && focusOrphaned()) el.focus()
+  if (el && !unusable(el) && focusOrphaned()) el.focus({ preventScroll: true })
 }
 
 /**

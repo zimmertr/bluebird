@@ -679,9 +679,14 @@ export const APP = [
         message: 'Open the table at DEFAULT_PANEL_HEIGHT.',
       },
       {
+        // From the heights the drag began at (#696): a drag reports its whole
+        // distance so far, so a split of the last move's heights added every
+        // move to the one before.
         selector:
-          'CallExpression[callee.name="splitChartTable"][arguments.length=3][arguments.0.name="chartPanelPx"][arguments.1.name="tablePanelPx"][arguments.2.name="up"]',
-        message: 'Split the chart and table at the call site with splitChartTable.',
+          'CallExpression[callee.name="splitChartTable"][arguments.length=3]' +
+          '[arguments.0.object.object.name="dragFrom"][arguments.0.property.name="chart"]' +
+          '[arguments.1.object.object.name="dragFrom"][arguments.1.property.name="table"][arguments.2.name="up"]',
+        message: 'Split the chart and table from where the drag began with splitChartTable.',
       },
       { selector: EFFECT, count: 3, message: 'useResultsLayout.ts runs its three effects through useEffect.' },
       {

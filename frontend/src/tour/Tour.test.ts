@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import tourSource from './Tour.tsx?raw'
+import useTourSource from './useTour.ts?raw'
 
 // The overlay moves one box, the panel's own scroller, and nothing else.
 // `scrollIntoView` and a bare `focus()` both scroll every ancestor that can,
@@ -15,6 +16,16 @@ describe('Tour', () => {
 
   it('focuses without scrolling', () => {
     const focusCalls = tourSource.match(/\.focus\([^)]*\)/g) ?? []
+    expect(focusCalls.length).toBeGreaterThan(0)
+    for (const call of focusCalls) expect(call).toBe('.focus({ preventScroll: true })')
+  })
+
+  // The hook hands the keyboard back when the tour ends, to a phone's
+  // Tutorial link in a Controls sheet still sliding up from below the
+  // screen: a bare focus scrolled the app's column 588px and the slide wound
+  // it back, the map and the results riding up and down with it (#696).
+  it('hands the keyboard back without scrolling', () => {
+    const focusCalls = useTourSource.match(/\.focus\([^)]*\)/g) ?? []
     expect(focusCalls.length).toBeGreaterThan(0)
     for (const call of focusCalls) expect(call).toBe('.focus({ preventScroll: true })')
   })

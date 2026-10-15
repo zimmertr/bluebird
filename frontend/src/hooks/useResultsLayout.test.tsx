@@ -146,37 +146,100 @@ describe('useResultsLayout', () => {
     expect(result.current.tablePanelPx).toBe(resting)
     // The press stays the stored answer: the tour chose the view, the reader did not.
     expect(readViewPrefs().modeChosen).toBe('chart')
-    // The Chart step turns it to the chart at its resting height.
+    // The Chart step turns it to the chart, which on a phone rests at the
+    // sheet's full stop (record 0155).
     rerender({ ...PHONE, restView: 'chart' })
     expect(result.current.resultsMode).toBe('chart')
-    expect(result.current.chartPanelPx).toBe(resting)
+    expect(result.current.chartPanelPx).toBeGreaterThan(resting)
     // The step ends and the sheet stays where it put it.
     rerender({ ...PHONE, restView: null })
     expect(result.current.resultsCollapsed).toBe(false)
     expect(result.current.resultsMode).toBe('chart')
   })
 
-  // The tutorial's Chart step holds a phone's sheet at its full stop, the
-  // drag cap, and gives the reader's height back after it (#696).
-  it('holds a phone sheet at its full stop for the tour, and gives it back', () => {
-    setDesktopQuery(false)
-    setViewport(1000)
-    const PHONE = { ...DESKTOP, isDesktop: false, response: {}, restView: 'chart' as const }
-    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
-      initialProps: PHONE,
+  // A phone's Chart alone rests at the sheet's full stop, because the rest
+  // stop is the table's (#696; record 0155). Table comes back at the height
+  // it had, a drag on the Chart is the reader's and wins, and the tutorial's
+  // Chart step holds the full stop whatever the reader did.
+  describe('a phone Chart at the full stop', () => {
+    function phone() {
+      setDesktopQuery(false)
+      setViewport(1000)
+      const PHONE = { ...DESKTOP, isDesktop: false, response: {} }
+      const hook = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), { initialProps: PHONE })
+      return { ...hook, PHONE }
+    }
+    const drag = (result: { current: ReturnType<typeof useResultsLayout> }, grip: 'chartGrip' | 'tableGrip', up: number) => {
+      act(() => result.current[grip].onDragStart())
+      act(() => result.current[grip].onDrag(up))
+      act(() => result.current[grip].onDragEnd())
+    }
+
+    it('lifts the sheet when Chart is picked', () => {
+      const { result } = phone()
+      const resting = result.current.tablePanelPx
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      expect(full).toBeGreaterThan(resting)
+      // As high as a drag on the Table takes it: the same stop.
+      act(() => result.current.chooseResultsMode('table'))
+      drag(result, 'tableGrip', 2000)
+      expect(result.current.tablePanelPx).toBe(full)
     })
-    const resting = result.current.chartPanelPx
-    // As high as a drag takes it.
-    act(() => result.current.chartGrip.onDragStart())
-    act(() => result.current.chartGrip.onDrag(2000))
-    act(() => result.current.chartGrip.onDragEnd())
-    const dragged = result.current.chartPanelPx
-    act(() => result.current.chartGrip.onReset())
-    rerender({ ...PHONE, fullOverride: true })
-    expect(result.current.chartPanelPx).toBe(dragged)
-    expect(dragged).toBeGreaterThan(resting)
-    rerender({ ...PHONE, fullOverride: false })
-    expect(result.current.chartPanelPx).toBe(resting)
+
+    it('gives Table back the height it had before Chart was picked', () => {
+      const { result } = phone()
+      drag(result, 'tableGrip', 60)
+      const chosen = result.current.tablePanelPx
+      act(() => result.current.chooseResultsMode('chart'))
+      expect(result.current.chartPanelPx).toBeGreaterThan(chosen)
+      act(() => result.current.chooseResultsMode('table'))
+      expect(result.current.tablePanelPx).toBe(chosen)
+    })
+
+    it('lets a drag on the Chart win, until Chart is picked again', () => {
+      const { result } = phone()
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      drag(result, 'chartGrip', -200)
+      expect(result.current.chartPanelPx).toBe(full - 200)
+      // A double press puts the Chart back at its rest, the full stop.
+      act(() => result.current.chartGrip.onReset())
+      expect(result.current.chartPanelPx).toBe(full)
+      drag(result, 'chartGrip', -200)
+      act(() => result.current.chooseResultsMode('table'))
+      act(() => result.current.chooseResultsMode('chart'))
+      expect(result.current.chartPanelPx).toBe(full)
+    })
+
+    // A drag reports its whole distance so far, so each move is measured from
+    // where the drag began, not from the last move's height.
+    it('measures every move of a drag from where it began', () => {
+      const { result } = phone()
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      act(() => result.current.chartGrip.onDragStart())
+      for (const down of [20, 40, 60, 80]) act(() => result.current.chartGrip.onDrag(-down))
+      act(() => result.current.chartGrip.onDragEnd())
+      expect(result.current.chartPanelPx).toBe(full - 80)
+      act(() => result.current.chooseResultsMode('table'))
+      const table = result.current.tablePanelPx
+      act(() => result.current.tableGrip.onDragStart())
+      for (const up of [10, 20, 30]) act(() => result.current.tableGrip.onDrag(up))
+      act(() => result.current.tableGrip.onDragEnd())
+      expect(result.current.tablePanelPx).toBe(table + 30)
+    })
+
+    it("holds the full stop for the tutorial's Chart step, and gives the reader's drag back", () => {
+      const { result, rerender, PHONE } = phone()
+      act(() => result.current.chooseResultsMode('chart'))
+      const full = result.current.chartPanelPx
+      drag(result, 'chartGrip', -200)
+      rerender({ ...PHONE, fullOverride: true })
+      expect(result.current.chartPanelPx).toBe(full)
+      rerender({ ...PHONE, fullOverride: false })
+      expect(result.current.chartPanelPx).toBe(full - 200)
+    })
   })
 
   it('opens the docked results on a desk to the view, keeping Both', () => {
