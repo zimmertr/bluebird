@@ -8,7 +8,7 @@ import {
   POI_GLOW_IMAGE,
   setSource,
 } from './basemap'
-import { POI_LAYERS, LAKE_CLASS } from '../utils/basemapPoi'
+import { POI_LAYERS, LAKE_CLASS, PLACE_LAYERS } from '../utils/basemapPoi'
 import { stubMap } from '../testSupport/stubMap'
 
 // The node project has no DOM. A canvas with no 2D context is what a browser
@@ -49,11 +49,15 @@ describe('enhanceBasemap', () => {
     ])
   })
 
-  it('adds every layer the click handler reads', () => {
+  // The place labels are the style's own: the map adds their glow, not them.
+  it('adds every layer the click handler reads that the style does not carry', () => {
     const { map, calls } = stubMap({ styleLayers })
     enhanceBasemap(map)
     const added = calls.filter((c) => c[0] === 'addLayer').map((c) => c[1])
-    for (const id of POI_LAYERS) expect(added).toContain(id)
+    for (const id of POI_LAYERS) {
+      if ((PLACE_LAYERS as readonly string[]).includes(id)) expect(added).not.toContain(id)
+      else expect(added).toContain(id)
+    }
   })
 
   // Composed onto the style's own filter, so a style update that narrows the
@@ -88,6 +92,55 @@ describe('enhanceBasemap', () => {
     enhanceBasemap(map)
     expect(calls.filter((c) => c[0] === 'addImage')).toEqual([])
     expect(calls.filter((c) => c[0] === 'addLayer')).toHaveLength(7)
+  })
+})
+
+// The style's place labels as Liberty spells them (read 2026-10-15), each
+// clickable where the style draws it (#710).
+describe('enhanceBasemap on the style\'s place labels', () => {
+  const settlements = ['match', ['get', 'class'], ['city', 'town', 'village', 'hamlet'], true, false]
+  const other = ['match', ['get', 'class'], ['city', 'continent', 'country', 'state', 'town', 'village'], false, true]
+  const town = ['==', ['get', 'class'], 'town']
+  const placeLayers = [
+    { id: 'road_label', type: 'symbol' },
+    { id: 'label_other', type: 'symbol', source: 'openmaptiles', 'source-layer': 'place', minzoom: 8, filter: other, layout: {} },
+    { id: 'label_village', type: 'symbol', source: 'openmaptiles', 'source-layer': 'place', minzoom: 9, filter: ['==', ['get', 'class'], 'village'], layout: {} },
+    { id: 'label_town', type: 'symbol', source: 'openmaptiles', 'source-layer': 'place', minzoom: 6, filter: town, layout: {} },
+    { id: 'label_city', type: 'symbol', source: 'openmaptiles', 'source-layer': 'place', minzoom: 3, layout: {} },
+  ]
+
+  it('puts a hidden glow directly beneath each place label the style carries', () => {
+    const { map, stack } = stubMap({ styleLayers: placeLayers })
+    enhanceBasemap(map)
+    for (const id of ['label_other', 'label_village', 'label_town', 'label_city']) {
+      expect(stack.indexOf(`${id}-glow`)).toBe(stack.indexOf(id) - 1)
+    }
+  })
+
+  // A Liberty update that drops or renames one costs that target, not the map.
+  it('skips a place layer the style does not carry', () => {
+    const { map, calls } = stubMap({ styleLayers: placeLayers })
+    enhanceBasemap(map)
+    const added = calls.filter((c) => c[0] === 'addLayer').map((c) => c[1])
+    expect(added).not.toContain('label_city_capital-glow')
+    expect(added).toContain('label_city-glow')
+  })
+
+  // `label_other` labels hamlets and also suburbs, neighbourhoods and islands,
+  // which a click refuses, so its glow lights the settlements alone.
+  it('composes the settlement classes onto the style\'s own filter', () => {
+    const added: Record<string, { filter?: unknown; minzoom?: number }> = {}
+    const { map } = stubMap({ styleLayers: placeLayers })
+    const addLayer = map.addLayer.bind(map)
+    map.addLayer = ((layer: { id: string; filter?: unknown; minzoom?: number }, before?: string) => {
+      added[layer.id] = layer
+      return addLayer(layer as never, before)
+    }) as typeof map.addLayer
+    enhanceBasemap(map)
+    expect(added['label_other-glow'].filter).toEqual(['all', other, settlements])
+    expect(added['label_town-glow'].filter).toEqual(['all', town, settlements])
+    expect(added['label_city-glow'].filter).toEqual(settlements)
+    expect(added['label_other-glow'].minzoom).toBe(8)
   })
 })
 

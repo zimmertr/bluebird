@@ -15,7 +15,7 @@ import type { FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
-import { LAKE_CLASS } from '../utils/basemapPoi'
+import { LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../utils/basemapPoi'
 import { polygonsOf } from '../utils/drawGeometry'
 import { widestPole } from '../utils/polylabel'
 
@@ -72,9 +72,8 @@ const POI_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
 // see lakeAnchor's fallback.
 const WATER_FILL_LAYER = 'water'
 
-// The halo drawn under every clickable feature while the panel's "Specify by
-// Click" section is hovered — the map's answer to the ring that section's
-// neighbour puts around the search box.
+// The halo drawn under every clickable feature while the panel's Map search
+// group is hovered, beside the ring that group puts around the search box.
 //
 // Generated rather than shipped, because the basemap sprite carries no SDF
 // icons at all (checked: zero of them), so `icon-color` and `icon-halo-color`
@@ -225,9 +224,10 @@ export function enhanceBasemap(map: maplibregl.Map) {
     'text-field': ['get', 'name'],
   }
 
-  // Every clickable destination the basemap offers, declared rather than added
+  // Every clickable destination layer of our own, declared rather than added
   // one call at a time, so each can be given a matching glow below without the
-  // two lists drifting.
+  // two lists drifting. The style's place labels are clickable too, and get
+  // their glow further down.
   const poiLayers: SymbolLayerSpecification[] = [
     {
       id: 'ofm-peaks',
@@ -323,6 +323,23 @@ export function enhanceBasemap(map: maplibregl.Map) {
   for (const layer of poiLayers) {
     map.addLayer(glowTwin(layer), firstSymbolId)
     map.addLayer(layer, firstSymbolId)
+  }
+
+  // The style's own place labels (#710) are clicked where the style draws
+  // them, so each gets a halo directly beneath it and nothing else: no label
+  // of ours, and the style's look left as it is. An id this style does not
+  // carry is skipped. The halo lights only the classes a click takes, which
+  // matters on `label_other`: it labels hamlets, and also suburbs,
+  // neighbourhoods and islands the click refuses.
+  const styleLayers = map.getStyle().layers ?? []
+  for (const id of PLACE_LAYERS) {
+    const spec = styleLayers.find((l) => l.id === id)
+    if (spec?.type !== 'symbol' || !map.getLayer(id)) continue
+    const settlements: FilterSpecification = ['match', ['get', 'class'], [...PLACE_CLASSES], true, false]
+    const filter = spec.filter
+      ? (['all', spec.filter, settlements] as FilterSpecification)
+      : settlements
+    map.addLayer({ ...glowTwin(spec), filter }, id)
   }
 
   // The style keeps the water we do NOT draw — oceans, bays, straits, which

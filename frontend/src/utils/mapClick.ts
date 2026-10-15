@@ -20,7 +20,7 @@
  *
  * Small, deliberate targets first, because a reader who aims at one means it,
  * and a large shape under it can be clicked anywhere else. The ring's own
- * handles lead, then a ranked marker, then a basemap peak or lake (a
+ * handles lead, then a ranked marker, then a clickable basemap label (a
  * destination the reader may add), then a closed trail, road or site, then a
  * fire perimeter, then the closed ground around it, then a smoke plume. A fire
  * outranks the closure drawn around it because the perimeter is the smaller

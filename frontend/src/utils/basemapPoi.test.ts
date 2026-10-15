@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { LAKE_CLASS, POI_LAYERS, POI_MATCH_M, poiFromFeature, poiToPlace, samePoi } from './basemapPoi'
+import {
+  isPoiFeature,
+  LAKE_CLASS,
+  PLACE_CLASSES,
+  PLACE_LAYERS,
+  PLACE_MATCH_M,
+  POI_LAYERS,
+  POI_MATCH_M,
+  poiFromFeature,
+  poiToPlace,
+  samePoi,
+} from './basemapPoi'
 import { isPeakKind } from './geocode'
 // `?raw` gives the map module's text without executing it, so this stays a pure
 // node test with no DOM and no MapLibre.
@@ -113,6 +124,54 @@ describe('poiFromFeature', () => {
   })
 })
 
+// The style's own place labels (#710). North Bend is `class=town` in the
+// `place` layer of z14/2649/5729, with a hamlet beside it (2026-10-15).
+describe('poiFromFeature on a place label', () => {
+  const NORTH_BEND: [number, number] = [-121.7868, 47.4957]
+
+  it('accepts every settlement class, with the class as its kind and no elevation', () => {
+    const cases: [string, string][] = [
+      ['label_city', 'city'],
+      ['label_city_capital', 'city'],
+      ['label_town', 'town'],
+      ['label_village', 'village'],
+      ['label_other', 'hamlet'],
+    ]
+    for (const [layer, kind] of cases) {
+      expect(poiFromFeature(layer, { name: 'North Bend', class: kind, rank: 11 }, NORTH_BEND)).toEqual({
+        name: 'North Bend',
+        kind,
+        lat: 47.4957,
+        lon: -121.7868,
+      })
+    }
+  })
+
+  // `label_other` labels every class the style names no layer for, and only
+  // the hamlets among them are settlements.
+  it('refuses a suburb, a neighbourhood or an island on label_other', () => {
+    for (const kind of ['suburb', 'neighbourhood', 'island', 'quarter']) {
+      expect(poiFromFeature('label_other', { name: 'Capitol Hill', class: kind }, NORTH_BEND)).toBeNull()
+    }
+  })
+
+  it('refuses an unnamed place rather than inventing a name', () => {
+    expect(poiFromFeature('label_town', { class: 'town', rank: 11 }, NORTH_BEND)).toBeNull()
+  })
+
+  it('reads the same answer without a position, for the cursor', () => {
+    expect(isPoiFeature('label_other', { name: 'Harman Heights', class: 'hamlet' })).toBe(true)
+    expect(isPoiFeature('label_other', { name: 'Capitol Hill', class: 'suburb' })).toBe(false)
+    expect(isPoiFeature('ofm-peaks', { class: 'peak' })).toBe(false)
+  })
+
+  it('is one of the layers a click reads, all five of them', () => {
+    expect(PLACE_LAYERS).toHaveLength(5)
+    for (const layer of PLACE_LAYERS) expect(POI_LAYERS).toContain(layer)
+    expect(PLACE_CLASSES).toEqual(['city', 'town', 'village', 'hamlet'])
+  })
+})
+
 describe('poiToPlace', () => {
   it('produces a searched place with no OSM id for the backend to fill', () => {
     const poi = poiFromFeature('ofm-peaks', { name: 'Mount Rainier', class: 'volcano', ele_ft: 14410 }, RAINIER)!
@@ -140,10 +199,14 @@ describe('poiToPlace', () => {
 // check in tools/eslint/checks/map.js; what stays here compares it with this
 // module's exports, or measures it.
 describe('the layers this module reads', () => {
+  // The place labels are the style's own, so the map adds a glow under each
+  // and no label; every other layer here is one it adds.
   it('are the ones the map actually adds', () => {
     for (const layer of POI_LAYERS) {
+      if ((PLACE_LAYERS as readonly string[]).includes(layer)) continue
       expect(basemapSource).toContain(`id: '${layer}'`)
     }
+    expect(basemapSource).toContain('for (const id of PLACE_LAYERS)')
   })
 
   // Line placement will not honour the shared `top` anchor, so the line layer
@@ -185,5 +248,20 @@ describe('samePoi', () => {
     // ~111 m north, comfortably outside POI_MATCH_M.
     expect(samePoi(poi, { label: 'Mount Rainier', lat: 46.8539, lon: -121.7604 })).toBe(false)
     expect(POI_MATCH_M).toBeLessThan(111)
+  })
+
+  // A city is labelled from z3, where one tile grid cell is 1.22 km at the
+  // equator, so the same city clicked at two zooms can land a kilometre apart.
+  it('matches a place across the grid of the zoom it is first labelled at', () => {
+    const cell = (360 / (2 ** 3 * 4096)) * 111_320
+    expect(cell).toBeCloseTo(1223, 0)
+    expect(PLACE_MATCH_M).toBeGreaterThan(3 * cell)
+    const town = { name: 'North Bend', kind: 'town', lat: 47.4957, lon: -121.7868 }
+    // ~1.1 km north: the same town from a coarser tile.
+    expect(samePoi(town, { label: 'North Bend', lat: 47.5057, lon: -121.7868 })).toBe(true)
+    // ~11 km north: another place of the same name.
+    expect(samePoi(town, { label: 'North Bend', lat: 47.5957, lon: -121.7868 })).toBe(false)
+    // A summit keeps its own tight radius at the same distance.
+    expect(samePoi({ ...town, kind: 'peak' }, { label: 'North Bend', lat: 47.5057, lon: -121.7868 })).toBe(false)
   })
 })
