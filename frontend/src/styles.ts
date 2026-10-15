@@ -915,7 +915,7 @@ export const SWATCH_RAMP_TICK =
  * sit in — a swatch is chrome holding somebody else's colour, so its border is
  * the app's and its fill is not. It has to be a value because the fill beside
  * it is one: Tailwind resolves two competing colour utilities by stylesheet
- * order, so a `border-slate-600` class on a span carrying an inline
+ * order, so a border colour class on a span carrying an inline
  * `borderColor` would be a race rather than a rule. It was this hex spelled at
  * four call sites in `App.tsx` until #454.
  */
@@ -2233,7 +2233,7 @@ export const NOTICE_DISMISS = {
  * different kind of rule. What splits them is only whether the stack or the
  * call site decides WHERE, so a bare colour is all this one carries.
  *
- * It was `border-slate-700` at eleven call sites in eight files before it had a
+ * It was a slate-700 border class at eleven call sites in eight files before it had a
  * name (#390), which is a third weight nothing had chosen and nothing could
  * change in one place. `styles.test.ts` now fails the literal anywhere under
  * `components/` or in `App.tsx`.
