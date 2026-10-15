@@ -1299,7 +1299,9 @@ export const CHART_PLOT_TOUCH = 'touch-pan-y'
 /**
  * A phone chart's metric picker, as the plot's title (#696, record 0149): the
  * metric's full label with its unit in the app's own select, at the plot's
- * top left (`left-2`, `PLOT_MARGIN.left`). The field row above the plot was
+ * top left, `CHART_TITLE_INSET_PX` (12px, `top-3 left-3`) from the grip's
+ * rule above it and the sheet's edge, the results bar's own inset, and the
+ * same 12px over the plot's top label (`TITLED_PLOT_MARGIN`). The field row above the plot was
  * 44px a phone's chart could not spare, and a plain title did not read as a
  * control, so it is look 4 of the second picker mockups (TJ 2026-10-14): the
  * desktop picker's look shrunk to its label. `box` wears `FIELD_LOOK`, the
@@ -1309,16 +1311,17 @@ export const CHART_PLOT_TOUCH = 'touch-pan-y'
  * is `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot,
  * so nothing the plot draws, its dashed lines and their labels included,
  * meets the box. `select` is the native select laid over it, transparent, so
- * a tap opens the phone's own picker; 44px tall on a coarse pointer, reaching
- * 16px past the box onto the plot's top under the title alone. The focus edge
+ * a tap opens the phone's own picker; 44px tall on a coarse pointer, centred
+ * on the box, so it reaches 8px into the room on either side and meets
+ * neither the rule nor the plot's label. The focus edge
  * is `FIELD`'s, moved to the box because the select is invisible.
  */
 export const CHART_TITLE = {
   box:
-    `absolute left-2 top-0 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
+    `absolute left-3 top-3 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
     `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-sky-500`,
   text: 'min-w-0 truncate',
-  select: 'absolute inset-x-0 top-0 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
+  select: 'absolute inset-x-0 top-1/2 -translate-y-1/2 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
 } as const
 
 /**
@@ -2291,9 +2294,9 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * is the title at the left and Done at the right; `title` the sheet's own
  * word, the chip's or the button's that opened it. `body` scrolls, and every
  * row in it is at least a finger's 44px, one line, with a rule between rows.
- * It ends at its last row, with no padding under it and none for a phone's
- * home indicator (`SAFE_AREA`; record 0145), so the space under the last line
- * is the space every line keeps above its rule.
+ * It ends at its last row and then a phone's home indicator band
+ * (`SAFE_AREA.pad`; record 0152), so where no band is reported the space
+ * under the last line is the space every line keeps above its rule.
  */
 /**
  * The band a phone keeps for its own gestures at the screen's bottom edge,
@@ -2306,12 +2309,13 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * `pad` is for a surface that reaches the screen's foot and keeps its own
  * content above the band: the results sheet, whose grip and header then stand
  * on the band's top edge when it is collapsed. A sheet whose body scrolls
- * (`BOTTOM_SHEET`, `CONTROLS_SHEET`) takes no band at all, on its card or in
- * its scroller (TJ, 2026-10-14): on the maintainer's Pixel, Chrome on Android
- * with three-button navigation, the page stops above the system bar and the
- * inset reported there was dead fill under the last line, and a sheet
- * scrolled to its end needs no clearance beyond its own rhythm, so the space
- * under its last line is the space above the rule before it. `probe` is an invisible
+ * (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`) takes the band at its
+ * scroller's end, after its own rhythm, so scrolled to the end its last row
+ * stands the band above the screen's foot and nothing a finger presses is in
+ * it, while the content still runs under the band as it scrolls (record
+ * 0152, the maintainer, 2026-10-14, choosing it over no band after seeing
+ * the two drawn side by side). Where the browser reports 0, as Chrome does on
+ * the maintainer's Pixel, nothing changes. `probe` is an invisible
  * box as tall as the band, which `useSafeAreaBottom` reads, because the
  * chrome placed in pixels over the map (the Analyze button, the notice band,
  * the player, the scale and the credit) measures from the sheet's edge, and
@@ -2334,7 +2338,7 @@ export const BOTTOM_SHEET = {
   title: TEXT.subheading,
   done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
   body:
-    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ` +
+    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ${SAFE_AREA.pad} ` +
     'divide-y divide-slate-700 [&>*]:min-h-11',
 } as const
 
@@ -2439,6 +2443,14 @@ export const CONTROLS_SHEET = {
   shut: 'translate-y-full',
   /** The panel under the sheet's top, which takes the rest and scrolls inside. */
   panel: 'min-h-0 flex-1',
+  /**
+   * The panel's scrolling body on a phone: its own 16px at the end, the gap
+   * the stack keeps above each rule, plus the home indicator band
+   * (`SAFE_AREA`; record 0152), so the document links clear the band once
+   * scrolled to. The end shade is told the band, since it stands on the
+   * scroller's padding.
+   */
+  body: 'pb-[calc(1rem+env(safe-area-inset-bottom))] [--scroll-shadow-end-inset:env(safe-area-inset-bottom)]',
 } as const
 
 /**
@@ -3043,6 +3055,15 @@ export const TOUR = {
   sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */
   sheetTop: `${SURFACE_CARD} fixed inset-x-4 top-4 p-4 space-y-3 focus:outline-none`,
+  /**
+   * The Chart step's drawn pointer (#696): a fingertip's ring, white on the
+   * dark plot, crossing it by the `tour-sweep` keyframes in `index.css`,
+   * which move it by transform alone, so the compositor runs it. Its place at
+   * rest is the sweep's end, which a reduced-motion setting shows at once.
+   */
+  pointer:
+    `pointer-events-none absolute left-0 top-0 -ml-3 -mt-3 h-6 w-6 ${RADIUS.pill} border-2 border-white bg-white/40 ` +
+    'animate-[tour-sweep_linear_both] motion-reduce:animate-none',
   /**
    * Worn for the moment after a step changes and at no other time. A standing
    * transition made the spotlight trail its control whenever the layout moved

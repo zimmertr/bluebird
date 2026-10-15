@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useTour } from './useTour'
 
@@ -8,7 +8,13 @@ import { useTour } from './useTour'
 
 function setup() {
   return renderHook(() =>
-    useTour({ isDesktop: true, sidebarOpen: true, setSidebarOpen: () => {}, mapRef: { current: null } }),
+    useTour({
+      isDesktop: true,
+      sidebarOpen: true,
+      setSidebarOpen: () => {},
+      mapRef: { current: null },
+      tourLayer: { shown: false, show: () => {} },
+    }),
   )
 }
 
@@ -39,20 +45,61 @@ describe('the tour hands the keyboard back', () => {
   })
 })
 
-// The results step asks the sheet to open at rest before its spotlight reads
-// it (#696), and only that step: the marker step after it collapses it.
-describe('the tour opens the results for their step', () => {
-  it('asks for the sheet at rest on the results step alone', () => {
+// The Results and Chart steps ask the sheet to open at rest in their view
+// before their spotlight reads it (#696); the marker step after them
+// collapses it.
+describe('the tour opens the results for their steps', () => {
+  it('asks for the table on the results step and the chart on the chart step', () => {
     const { result } = setup()
     act(() => result.current.start())
-    const seen: [string, boolean, boolean | null][] = []
+    const seen: [string, string | null, boolean | null][] = []
     for (;;) {
       const i = result.current.index
       if (i === null) break
-      seen.push([result.current.steps[i].anchor, result.current.sheetRest, result.current.sheetCollapsed])
+      seen.push([result.current.steps[i].anchor, result.current.sheetView, result.current.sheetCollapsed])
       act(() => result.current.next())
     }
-    expect(seen.filter(([, rest]) => rest).map(([a]) => a)).toEqual(['results'])
+    expect(seen.filter(([, view]) => view !== null).map(([a, view]) => [a, view])).toEqual([
+      ['results', 'table'],
+      ['chart', 'chart'],
+    ])
     expect(seen.find(([a]) => a === 'marker')?.[2]).toBe(true)
+  })
+})
+
+// A phone's Layers step switches the tour's layer on for its length, and
+// off when it is left, unless the reader already had it on (#696).
+describe('the Layers step on a phone', () => {
+  function phone(shown: boolean) {
+    const show = vi.fn()
+    const hook = renderHook(() =>
+      useTour({
+        isDesktop: false,
+        sidebarOpen: false,
+        setSidebarOpen: () => {},
+        mapRef: { current: null },
+        tourLayer: { shown, show },
+      }),
+    )
+    act(() => hook.result.current.start())
+    return { ...hook, show }
+  }
+  const toStep = (result: { current: ReturnType<typeof useTour> }, anchor: string) => {
+    while (result.current.steps[result.current.index!].anchor !== anchor) act(() => result.current.next())
+  }
+
+  it('switches the layer on for the step and off after it', () => {
+    const { result, show } = phone(false)
+    toStep(result, 'layers')
+    expect(show.mock.calls).toEqual([[true]])
+    act(() => result.current.next())
+    expect(show.mock.calls).toEqual([[true], [false]])
+  })
+
+  it('leaves a layer the reader had on alone', () => {
+    const { result, show } = phone(true)
+    toStep(result, 'layers')
+    act(() => result.current.end())
+    expect(show).not.toHaveBeenCalled()
   })
 })

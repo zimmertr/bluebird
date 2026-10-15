@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { IconClose } from '../components/icons'
 import {
   BUTTON_ACCENT,
@@ -11,7 +11,8 @@ import {
 } from '../styles'
 import { prefersReducedMotion } from '../utils/motion'
 import { anchorSelector, type TourStep } from '../utils/tourSteps'
-import { scrollParent } from './useTour'
+import { plotBand } from '../utils/chartPointer'
+import { type ChartSweep, scrollParent } from './useTour'
 import {
   type Box,
   cardMode,
@@ -36,6 +37,8 @@ interface Props {
   onNext: () => void
   onPrev: () => void
   onEnd: () => void
+  /** The Chart step's sweep, which the drawn pointer crosses the plot in (#696). */
+  sweep?: ChartSweep | null
 }
 
 /** The root's attribute while a tour runs, which hides every scroll shadow (`index.css`). */
@@ -43,6 +46,13 @@ const TOURING_ATTR = 'data-touring'
 
 /** How long after a step change the spotlight and the card animate, unless a scroll ends it sooner. */
 const MOTION_MS = 250
+
+/**
+ * How many frames in a row the target must hold still before the overlay
+ * stops measuring it every frame (#696). Ten frames, a sixth of a second,
+ * outlast the gap between two frames of a drawer's slide or a map's settle.
+ */
+const SETTLE_FRAMES = 10
 
 /**
  * The tutorial overlay (#536): a spotlight over the current step's control
@@ -57,13 +67,17 @@ const MOTION_MS = 250
  * Chrome pauses animation frames during the drag. Resize and scroll
  * listeners cover the moves the page is told about. An animation-frame loop
  * covers the ones it is not: the phone's drawer sliding in for a panel step,
- * and a popup riding a map that is still settling. A pass that measures the
- * same boxes sets nothing. The motion role is worn only for the moment after
+ * and a popup riding a map that is still settling. The loop runs from a step
+ * change, a scroll or a resize until the target has stood still for
+ * `SETTLE_FRAMES`, or for as long as it has yet to appear, and then stops
+ * (#696): it ran every frame for the whole tour, reading every target's box
+ * and corners sixty times a second over a page with nothing moving. A pass
+ * that measures the same boxes sets nothing. The motion role is worn only for the moment after
  * a step changes, and not while the panel scrolls to the step's control;
  * always on, it made the spotlight trail its control by 200 ms whenever
  * the layout moved for another reason.
  */
-export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
+export default function Tour({ steps, index, onNext, onPrev, onEnd, sweep = null }: Props) {
   const step = steps[index]
   const cardRef = useRef<HTMLDivElement>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
@@ -73,6 +87,9 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   // The radius the target's corners are drawn at (`cornerRadius`), which
   // decides the light's pad and its corners.
   const [targetRadius, setTargetRadius] = useState(0)
+  // The chart's plot, which the Chart step's pointer crosses: its box on
+  // screen, read with the target's.
+  const [plot, setPlot] = useState<Box | null>(null)
   const [cardSize, setCardSize] = useState({ width: 320, height: 160 })
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
   const [moving, setMoving] = useState(false)
@@ -107,6 +124,8 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
     const box = whole && over ? clipAbove(whole, over.top - spotPad(step.spot, radius)) : whole
     setTarget((prev) => (sameBox(prev, box) ? prev : box))
     setTargetRadius(radius)
+    const plotBox = step.reveal === 'chart' ? rect(document.querySelector('[data-chart-plot]')) : null
+    setPlot((prev) => (sameBox(prev, plotBox) ? prev : plotBox))
     const card = cardRef.current?.getBoundingClientRect()
     if (card) {
       setCardSize((prev) =>
@@ -120,7 +139,10 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         ? prev
         : { width: window.innerWidth, height: window.innerHeight },
     )
-  }, [step.anchor, step.frames, step.spot, step.under])
+    // A Chart step whose plot has yet to load (the chart is a chunk of its
+    // own) has nothing to point at, so the loop keeps looking.
+    return step.reveal === 'chart' && plotBox === null ? null : box
+  }, [step.anchor, step.frames, step.spot, step.under, step.reveal])
 
   // Before every paint: a render that changed a shape is placed by the new
   // shape, not the old one. Converges because a pass that changes nothing
@@ -149,17 +171,28 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
       )
       if (top !== scroller.scrollTop) scroller.scrollTo({ top, behavior: prefersReducedMotion() ? 'instant' : 'smooth' })
     }
-    window.addEventListener('resize', measure)
-    document.addEventListener('scroll', measure, true)
+    // Followed a frame at a time until it settles, and woken again by any
+    // scroll or resize; a target still on its way keeps the loop going.
     let frame = 0
-    const tick = () => {
-      measure()
-      frame = requestAnimationFrame(tick)
+    let still = 0
+    let last: Box | null = null
+    const follow = () => {
+      const box = measure()
+      still = box !== null && sameBox(box, last) ? still + 1 : 0
+      last = box
+      frame = box !== null && still >= SETTLE_FRAMES ? 0 : requestAnimationFrame(follow)
     }
-    frame = requestAnimationFrame(tick)
+    const wake = () => {
+      measure()
+      still = 0
+      if (frame === 0) frame = requestAnimationFrame(follow)
+    }
+    frame = requestAnimationFrame(follow)
+    window.addEventListener('resize', wake)
+    document.addEventListener('scroll', wake, true)
     return () => {
-      window.removeEventListener('resize', measure)
-      document.removeEventListener('scroll', measure, true)
+      window.removeEventListener('resize', wake)
+      document.removeEventListener('scroll', wake, true)
       cancelAnimationFrame(frame)
     }
   }, [step.anchor, step.spot, measure])
@@ -273,6 +306,19 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
         }}
         aria-hidden="true"
       />
+      {sweep && plot && (
+        // The Chart step's pointer (#696), drawn rather than a cursor: it
+        // crosses the plotting band, the chart's margins and y axis inside
+        // the plot's box, at its middle height, as a CSS animation on the
+        // compositor rather than a render a frame. The readout's hour moves
+        // with it from `useTour`, which started both at `sweep.startMs`.
+        <div
+          className={TOUR.pointer}
+          aria-hidden="true"
+          data-tour-pointer
+          style={sweepStyle(plot, sweep)}
+        />
+      )}
       <div
         ref={cardRef}
         role="dialog"
@@ -312,4 +358,27 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
       </div>
     </div>
   )
+}
+
+/**
+ * Where the Chart step's pointer runs: from the plotting band's left edge to
+ * its right at the band's middle height, the same band a finger reads
+ * (`plotBand`). Its resting place is the end, so a
+ * reduced-motion setting, which drops the animation, shows it on the last
+ * hour; the delay is negative once the sweep has begun, so a late render
+ * joins it where it is rather than starting it again.
+ */
+function sweepStyle(plot: Box, sweep: ChartSweep): CSSProperties {
+  const band = plotBand(plot.width, plot.height)
+  const from = plot.left + band.left
+  const to = from + band.width
+  const y = plot.top + band.top + band.height / 2
+  return {
+    '--sweep-from': `${from}px`,
+    '--sweep-to': `${to}px`,
+    '--sweep-y': `${y}px`,
+    transform: `translate(${to}px, ${y}px)`,
+    animationDuration: `${sweep.durationMs}ms`,
+    animationDelay: `${sweep.startMs - performance.now()}ms`,
+  } as CSSProperties
 }

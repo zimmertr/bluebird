@@ -375,7 +375,8 @@ function TimeSeriesChart({
   const metricLabel = CHART_METRICS.find((m) => m.key === metric)?.label ?? ''
 
   return (
-    <div className="flex h-full flex-col">
+    // The tour's Chart step lights the chart, its picker and plot (#696).
+    <div className="flex h-full flex-col" data-tour="chart">
       {/* The metric, one series at a time; opens on the ranked metric.
 
           A select rather than one radio per metric (#348). The labels carry
@@ -438,6 +439,8 @@ function TimeSeriesChart({
         )}
         <div
           ref={plotRef}
+          // The tutorial's Chart step draws its pointer across this box.
+          data-chart-plot
           onPointerDown={readFinger}
           onPointerMove={readFinger}
           onPointerCancel={dropFinger}

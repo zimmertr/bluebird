@@ -1,5 +1,6 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import type { MapCamera, MapViewHandle } from '../components/MapView'
+import { prefersReducedMotion } from '../utils/motion'
 import { anchorSelector, stepLayout, TOUR_STEPS, TUTORIAL_PATH, type TourStep } from '../utils/tourSteps'
 import type { DemoReport } from './demoReport'
 import { cardMode, sheetKeepOut, SPOTLIGHT_PAD } from './place'
@@ -9,10 +10,25 @@ interface Args {
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   mapRef: RefObject<MapViewHandle | null>
+  /**
+   * The layer a phone's Layers step switches on so the map changes under the
+   * reader (#696): Wildfires, drawn from the pod's own national snapshot, so
+   * it asks no third party for anything.
+   */
+  tourLayer: { shown: boolean; show: (on: boolean) => void }
 }
 
 /** The hour the chart's tooltip stands on while the report is a demonstration: the window's middle. */
 const CHART_TOOLTIP_INDEX = 6
+
+/** How long the Chart step's pointer takes to cross the plot (#696). */
+export const CHART_SWEEP_MS = 2000
+
+/** Where the Chart step's sweep stands: when it began, and how long it runs (0 under reduced motion). */
+export interface ChartSweep {
+  startMs: number
+  durationMs: number
+}
 /** The nearest ancestor that scrolls: the panel's column, for the sections inside it. */
 export function scrollParent(el: HTMLElement | null): HTMLElement | null {
   for (let node = el?.parentElement ?? null; node; node = node.parentElement) {
@@ -38,7 +54,7 @@ export function scrollParent(el: HTMLElement | null): HTMLElement | null {
  * their step is left, and the camera, the drawer and the panel's scroll
  * position are put back where the tour found them when it ends, by any route.
  */
-export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args) {
+export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLayer }: Args) {
   const [steps, setSteps] = useState<readonly TourStep[]>(TOUR_STEPS)
   const [index, setIndex] = useState<number | null>(null)
   // What the reader had before the tour touched anything: the camera, the
@@ -139,7 +155,7 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
   // markers; dropped when either is left. The builder is a chunk of its own,
   // fetched here rather than imported, so the fixtures it is made from stay
   // out of the main bundle with the overlay (`App.tsx`).
-  const showingResults = step?.reveal === 'results' || step?.reveal === 'marker'
+  const showingResults = step?.reveal === 'results' || step?.reveal === 'chart' || step?.reveal === 'marker'
   const [demo, setDemo] = useState<DemoReport | null>(null)
   useEffect(() => {
     if (!showingResults) {
@@ -154,6 +170,44 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
       current = false
     }
   }, [showingResults])
+
+  // A phone's Layers step switches one layer on under its sheet, so the
+  // reader sees the map change, and off again when the step is left, however
+  // it is left (#696). A layer the reader had on is theirs and stays on.
+  const showingLayers = step?.reveal === 'layers' && !isDesktop
+  const layerRef = useRef(tourLayer)
+  layerRef.current = tourLayer
+  useEffect(() => {
+    if (!showingLayers || layerRef.current.shown) return
+    layerRef.current.show(true)
+    return () => layerRef.current.show(false)
+  }, [showingLayers])
+
+  // The Chart step's sweep (#696): the readout walks the demonstration's
+  // hours from the first to the last over `CHART_SWEEP_MS`, in step with the
+  // pointer the overlay draws, and stays on the last. The hour changes a
+  // dozen times, not once a frame, so the app re-renders once an hour.
+  const showingChart = step?.reveal === 'chart'
+  const hours = demo?.response.times?.length ?? 0
+  const [sweep, setSweep] = useState<ChartSweep | null>(null)
+  const [sweepIndex, setSweepIndex] = useState(0)
+  useEffect(() => {
+    if (!showingChart || hours === 0) {
+      setSweep(null)
+      return
+    }
+    const durationMs = prefersReducedMotion() ? 0 : CHART_SWEEP_MS
+    const startMs = performance.now()
+    setSweep({ startMs, durationMs })
+    let frame = 0
+    const tick = (now: number) => {
+      const p = durationMs === 0 ? 1 : Math.min(1, (now - startMs) / durationMs)
+      setSweepIndex(Math.round(p * (hours - 1)))
+      if (p < 1) frame = requestAnimationFrame(tick)
+    }
+    tick(startMs)
+    return () => cancelAnimationFrame(frame)
+  }, [showingChart, hours])
 
   // The marker step cuts to the first demonstration row and opens its popup,
   // the same framing a click on its rank in the table makes but with no
@@ -203,12 +257,14 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
      */
     sheetCollapsed: showingMarker ? true : null,
     /**
-     * The results step opens the sheet to rest in Table view before its
-     * spotlight is drawn (#696): the reader may have left it at its bar, a
-     * row tap's collapse on a phone, and the step points at what it shows.
+     * The view the Results and Chart steps open the sheet to, at rest, before
+     * their spotlight is drawn (#696): the reader may have left it at its bar,
+     * a row tap's collapse on a phone, and each step points at what it shows.
      */
-    sheetRest: step?.reveal === 'results',
+    sheetView: step?.reveal === 'results' ? ('table' as const) : showingChart ? ('chart' as const) : null,
     /** The chart's tooltip stands on this hour while the demonstration is up, or follows the mouse. */
-    chartTooltipIndex: showingResults ? CHART_TOOLTIP_INDEX : null,
+    chartTooltipIndex: showingChart ? (sweep ? sweepIndex : 0) : showingResults ? CHART_TOOLTIP_INDEX : null,
+    /** The Chart step's pointer, which the overlay draws in step with the readout. */
+    chartSweep: showingChart ? sweep : null,
   }
 }

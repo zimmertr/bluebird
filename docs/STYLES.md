@@ -94,7 +94,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the theme's slate-500 and slate-800; the root's `color-scheme: dark` turns every bar it does not reach dark too (#697, record 0128) |
 | `SCROLL_SHADOW` | A slate-950 shade at 70% over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
-| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone's Controls sheet, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
+| `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone's Controls sheet, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own, and `TOUR.pointer`, the Chart card's drawn pointer, moves by a transform keyframe (`tour-sweep` in `index.css`) and stands at its end under the same setting |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
 | `SWATCH_CHIP` | A legend swatch that carries a letter: the smoke section's three density chips, side by side so the opacity ramp reads against itself. 16px square around a 10px letter, the one size under the type floor (`GLYPH_SIZE`, private to `styles.ts`), which the strip's numerals in `SWATCH_RAMP_TICK` share |
 | `SWATCH_RAMP` / `SWATCH_RAMP_SCRIM` / `SWATCH_RAMP_TICK` / `SWATCH_EDGE` | A legend key that is a SCALE rather than one colour, drawn as a strip across the box: every metric's scale and the snow depth layer (#454). ONE line whatever the band count, where a row per band was seven lines and eleven. The numbers stand INSIDE the strip on the band boundaries they name, which is a grid over the strip rather than a row under it, so a five-band key costs a label and 20px. `SWATCH_RAMP_SCRIM` is the slate-900/70 band they stand on and `SWATCH_RAMP_TICK` the slate-200 they are drawn in; see the contrast rule below for why the scrim is not optional. `SWATCH_EDGE` is the slate-600 every swatch is edged with, a VALUE rather than a class because the fill beside it is inline and two colour utilities resolve by stylesheet order |
@@ -527,12 +527,13 @@ Record: [0141](decisions/0141-phone-controls-sheet.md)
 
 A phone's home indicator band (`SAFE_AREA`) is padded under the results sheet,
 and the chrome placed in pixels stands on its top edge before there is a
-sheet. A sheet that scrolls (`BOTTOM_SHEET`, `CONTROLS_SHEET`) takes no band,
-on its card or in its scroller: the space under its last line is the space
-above the rule before it, 16px in Controls and the row's own in a menu sheet,
-with or without an inset. On a Pixel with three-button navigation the page
-stops above the system bar, and the band there was dead fill. 0 on a desk.
-Record: [0145](decisions/0145-safe-area-bottom.md)
+sheet. A sheet that scrolls takes the band as padding at its scroller's end,
+after its own rhythm (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`), so its
+content runs to the screen's edge and its last row clears the band once
+scrolled to. Where no band is reported the space under the last line is the
+space above the rule before it: 16px in Controls, the row's own in a menu
+sheet. 0 on a desk.
+Record: [0145](decisions/0145-safe-area-bottom.md), [0152](decisions/0152-sheets-end-above-the-home-indicator.md)
 
 The results table's Name column sticks at the left edge on an opaque fill
 (`TABLE.stickyNameCell`, `TABLE.stickyNameHead`), with the row's hover tint

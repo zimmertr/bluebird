@@ -154,7 +154,9 @@ export default function LayersPopover({
   // disclosure, not a setting, and a link that reopened it would be sharing a
   // gesture rather than a picture.
   const [layersOpen, setLayersOpen] = useState(false)
-  const open = layersOpen || (forcedOpen && !sheet)
+  // The tutorial's Layers step holds it open at either width; a phone's step
+  // also switches a layer on under it (`useTour`, #696).
+  const open = layersOpen || forcedOpen
   // The desk's menu, which closes itself on a press outside it or Escape. A
   // phone's sheet closes itself (`BottomSheet`), and a press inside it, in a
   // portal at the end of the body, would read as outside the column here.
@@ -388,7 +390,7 @@ export default function LayersPopover({
       <>
         {button}
         {open && (
-          <BottomSheet heading="Layers" onClose={closeSheet}>
+          <BottomSheet heading="Layers" onClose={closeSheet} tourAnchor={forcedOpen ? 'layers-menu' : undefined}>
             {rows}
           </BottomSheet>
         )}

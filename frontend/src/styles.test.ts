@@ -119,7 +119,7 @@ import {
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
 import { CHART_TICK_PX } from './utils/chartColors'
-import { CHART_TITLE_PX, PLOT_MARGIN, TITLED_PLOT_MARGIN } from './utils/chartPointer'
+import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
 // `?raw` gives us the file's text without executing it, so this stays a pure
@@ -2234,7 +2234,8 @@ describe('the bottom sheet', () => {
     expect(BOTTOM_SHEET.dim).not.toMatch(/(^|\s)top-/)
     expect(bottomSheetSource).toContain('role="dialog"')
     expect(bottomSheetSource).toContain('aria-modal="true"')
-    expect(bottomSheetSource).toContain('useDialog(onClose)')
+    // Modal unless the tutorial holds it open behind its own card (#696).
+    expect(bottomSheetSource).toContain('useDialog(onClose, tourAnchor === undefined)')
   })
 
   // The results sheet's surface, a step up, since it stands over that sheet.
@@ -2289,43 +2290,39 @@ describe('the safe area', () => {
     )
   })
 
-  // A sheet that scrolls takes no band at all (TJ, 2026-10-14): on the
-  // maintainer's Pixel, Chrome with three-button navigation, the page stops
-  // above the system bar and the inset there was dead fill under the last
-  // line. The space under a sheet's last line is the space above the rule
-  // before it, the sheet's own rhythm. Measured 2026-10-14 in the Playwright
-  // image's Chromium at 390x844, scrolled to the end, with no inset and with
-  // a 34px one emulated (`Emulation.setSafeAreaInsetsOverride`): the Controls
-  // sheet's last section ends 16px above the rule over the document links,
-  // and the links' line ends 16px above the scroller's foot; the Layers
-  // sheet's next-to-last label ends 15px above its rule, and the last one
-  // 15px above the foot. The same at both insets, and at 360x740.
+  // A sheet whose body scrolls ends its content the band above the screen's
+  // foot, as the results sheet does (record 0152, the maintainer 2026-10-14).
+  // Measured 2026-10-14 in the Playwright image's Chromium at 390x844,
+  // scrolled to the end: with no band reported, the Controls sheet's last
+  // section ends 16px above the rule over the document links and the links'
+  // line 16px above the foot, and the Layers sheet's next-to-last label 15px
+  // above its rule and the last one 15px above the foot; with a 34px band
+  // emulated, each last line stands those 16 and 15px plus the 34 above it.
   const MEASURED = {
-    controls: { 0: { above: 16, under: 16 }, 34: { above: 16, under: 16 } },
-    layers: { 0: { above: 15, under: 15 }, 34: { above: 15, under: 15 } },
+    controls: { 0: { above: 16, under: 16 }, 34: { above: 16, under: 50 } },
+    layers: { 0: { above: 15, under: 15 }, 34: { above: 15, under: 49 } },
   }
 
-  it('pads no sheet for the band, so its last line ends as its rows do', () => {
-    for (const recipe of [BOTTOM_SHEET.card, BOTTOM_SHEET.body, CONTROLS_SHEET.card, PANEL_BODY]) {
-      expect(recipe).not.toContain('safe-area')
-    }
-    expect(CONTROLS_SHEET).not.toHaveProperty('body')
-    for (const sheet of Object.values(MEASURED)) {
-      for (const gaps of Object.values(sheet)) expect(gaps.under).toBe(gaps.above)
-      expect(sheet[34]).toEqual(sheet[0])
-    }
-    // Controls: the stack's gap above each rule is the body's padding at its end.
+  it('ends every sheet scroller the band above the foot, and pads no sheet card', () => {
+    for (const recipe of [BOTTOM_SHEET.card, CONTROLS_SHEET.card]) expect(recipe).not.toContain('safe-area')
+    expect(words(BOTTOM_SHEET.body)).toContain(SAFE_AREA.pad)
+    expect(words(CONTROLS_SHEET.body)).toEqual([
+      'pb-[calc(1rem+env(safe-area-inset-bottom))]',
+      '[--scroll-shadow-end-inset:env(safe-area-inset-bottom)]',
+    ])
+    // The Controls body's 16px is the stack's gap above each rule.
     expect(words(PANEL_RULE)).toContain('[&>*+*]:mt-4')
-    expect(words(PANEL_BODY)).toContain('py-4')
-    expect(4 * 4).toBe(MEASURED.controls[0].above)
-    // The menu sheets: the scroller ends at its last row, which centres its
-    // line in a finger's height the way every row above it does.
-    expect(BOTTOM_SHEET.body).not.toMatch(/(?:^|\s)p[by]-/)
-    expect(words(BOTTOM_SHEET.body)).toContain('[&>*]:min-h-11')
+    for (const sheet of Object.values(MEASURED)) {
+      expect(sheet[0].under).toBe(sheet[0].above)
+      expect(sheet[34].under).toBe(sheet[0].under + 34)
+      expect(sheet[34].above).toBe(sheet[0].above)
+    }
   })
 
-  it('leaves the end shade on the scroller\'s own edge', () => {
-    expect(indexCss).not.toContain('--scroll-shadow-end-inset')
+  // The end shade stands on the scroller's padding, so a scroller that pads
+  // for the band tells the shade, which then still meets the bottom edge.
+  it('drops the end shade by the band a scroller names', () => {
+    expect(indexCss).toMatch(/bottom: calc\(-1 \* var\(--scroll-shadow-bleed, 0px\) - var\(--scroll-shadow-end-inset, 0px\)\)/)
   })
 })
 
@@ -2373,35 +2370,41 @@ describe('the chart under a finger', () => {
 // A phone's chart picker is the plot's title (#696; record 0149), and the plot
 // is inset by the title's box so its dashed lines, their labels and the y
 // axis's top tick start under it. Measured 2026-10-14 in the Playwright
-// image's Chromium: the field row it replaces was 52px at 360 and 390 (the
-// 44px select a finger presses and the row's 4px either side), and with the
-// title in the app's select look at 28px the plotting band grew by 24px at
-// both, 52 less the 28px inset.
+// image's Chromium: the field row it replaced was 52px at 360 and 390 (the
+// 44px select a finger presses and the row's 4px either side). The box stands
+// 12px from the grip's rule, 12px over the y axis's top label and 12px from
+// the sheet's edge, the results bar's own inset (the maintainer, 2026-10-14).
 describe('the chart title on a phone', () => {
-  const MEASURED = { fieldRowPx: 52, insetPx: 28, gainedPx: 24 }
+  const MEASURED = { fieldRowPx: 52, insetPx: 28, rulePx: 12, labelPx: 12, leftPx: 12, barLeftPx: 12 }
 
-  it('is a 28px box the titled margins reserve over the plot', () => {
-    expect(words(CHART_TITLE.box)).toContain('h-7')
+  it('is a 28px box with the same room above it, below it and on its left', () => {
+    expect(words(CHART_TITLE.box)).toEqual(expect.arrayContaining(['h-7', 'top-3', 'left-3']))
     expect(7 * 4).toBe(CHART_TITLE_PX)
     expect(CHART_TITLE_PX).toBe(MEASURED.insetPx)
-    expect(TITLED_PLOT_MARGIN.top - PLOT_MARGIN.top).toBe(CHART_TITLE_PX)
-    expect(MEASURED.fieldRowPx - MEASURED.insetPx).toBe(MEASURED.gainedPx)
+    expect(3 * 4).toBe(CHART_TITLE_INSET_PX)
+    for (const gap of [MEASURED.rulePx, MEASURED.labelPx, MEASURED.leftPx]) expect(gap).toBe(CHART_TITLE_INSET_PX)
+    // Its left edge is the results bar's, where "Lowest" and the view buttons stand.
+    expect(MEASURED.leftPx).toBe(MEASURED.barLeftPx)
+    expect(TITLED_PLOT_MARGIN.top).toBe(2 * CHART_TITLE_INSET_PX + CHART_TITLE_PX + TOP_LABEL_RISE_PX)
   })
 
   it("wears the select's look, its fill, edge, radius, type and arrow room, at the plot's left margin", () => {
     expect(words(CHART_TITLE.box)).toEqual(
-      expect.arrayContaining([...words(TEXT.control), RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, 'pr-6', 'left-2', 'top-0']),
+      expect.arrayContaining([...words(TEXT.control), RECESSED_FILL, ...words(RECESSED_EDGE), RADIUS.control, 'pr-6']),
     )
     expect(words(SELECT)).toContain('pr-6')
     // The chevron stands where every select's does, so it takes the default placement.
     expect(timeSeriesChartSource).toContain('<IconSelectArrow />')
     // Sized to its words, not to the desktop picker's fixed width.
     expect(CHART_TITLE.box).not.toContain(CHART_METRIC_W)
-    expect(2 * 4).toBe(PLOT_MARGIN.left)
   })
 
-  it('lays the native select over the title, invisible, a 44px target on a coarse pointer', () => {
-    expect(words(CHART_TITLE.select)).toEqual(expect.arrayContaining(['absolute', 'opacity-0', 'touch:h-11', 'w-full']))
+  it('lays the native select over the title, invisible, a 44px target centred on it', () => {
+    expect(words(CHART_TITLE.select)).toEqual(
+      expect.arrayContaining(['absolute', 'opacity-0', 'touch:h-11', 'w-full', 'top-1/2', '-translate-y-1/2']),
+    )
+    // 44 over a 28px box is 8px either side, inside the 12px of room.
+    expect((44 - CHART_TITLE_PX) / 2).toBeLessThan(CHART_TITLE_INSET_PX)
     // FIELD's focus edge, on the box because the select is invisible.
     expect(FIELD).toContain('focus:border-sky-500')
     expect(CHART_TITLE.box).toContain('has-[select:focus]:border-sky-500')
@@ -2629,6 +2632,12 @@ describe('the tutorial', () => {
     expect(STYLES.TOUR).not.toHaveProperty('spotlightControl')
     // The one transition the tour wears yields to a reduced-motion setting.
     expect(STYLES.TOUR.motion).toContain('motion-reduce:transition-none')
+    // The Chart step's pointer moves by a transform keyframe, and stands
+    // still, at the sweep's end, under a reduced-motion setting.
+    expect(STYLES.TOUR.pointer).toContain('animate-[tour-sweep_linear_both]')
+    expect(STYLES.TOUR.pointer).toContain('motion-reduce:animate-none')
+    expect(STYLES.TOUR.pointer).toContain('pointer-events-none')
+    expect(indexCss).toMatch(/@keyframes tour-sweep \{\s*from \{\s*transform: translate\(var\(--sweep-from\), var\(--sweep-y\)\);/)
     expect(STYLES.TOUR.spotlight).toContain('pointer-events-none')
   })
 

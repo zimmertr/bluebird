@@ -207,7 +207,13 @@ export default function App() {
 
   // The guided tutorial (#536). Starting it from the welcome dialog counts as
   // welcomed, so a reader who ends it early is not shown the dialog again.
-  const tour = useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef })
+  const tour = useTour({
+    isDesktop,
+    sidebarOpen,
+    setSidebarOpen,
+    mapRef,
+    tourLayer: { shown: overlays.showWildfires, show: overlays.setShowWildfires },
+  })
   function startTourFromWelcome() {
     dismissWelcome()
     tour.start()
@@ -513,7 +519,7 @@ export default function App() {
   const resultsView = useResultsView({
     showResults: showResults || demo !== null,
     collapsedOverride: tour.sheetCollapsed,
-    restRequested: tour.sheetRest,
+    restView: tour.sheetView,
     response: shownResponse,
     results,
     pending,
@@ -572,6 +578,7 @@ export default function App() {
             onNext={tour.next}
             onPrev={tour.prev}
             onEnd={tour.end}
+            sweep={tour.chartSweep}
           />
         </Suspense>
       )}

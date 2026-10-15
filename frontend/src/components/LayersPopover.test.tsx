@@ -228,11 +228,16 @@ describe('LayersPopover', () => {
     expect(chip.getAttribute('aria-expanded')).toBe('false')
   })
 
-  // The tutorial does not hold a phone's sheet open: a modal sheet would take
-  // the keyboard from the tour's card. Its step points at the chip.
-  it('leaves the sheet shut while the tutorial holds the menu open', () => {
+  // The tutorial holds a phone's sheet open for its Layers card (#696;
+  // record 0153), framed under the menu's anchor, and leaves the keyboard
+  // with the tour's card: the sheet takes no focus.
+  it('opens the sheet for the tutorial without taking the keyboard', () => {
+    const before = document.body.appendChild(document.createElement('button'))
+    before.focus()
     render(<LayersPopover mapRef={MAP} coverage={COVERAGE} overlays={OVERLAYS} grid={GRID} playerOffered sheet forcedOpen />)
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('dialog').dataset.tour).toBe('layers-menu')
+    expect(document.activeElement).toBe(before)
     expect(screen.getByRole('button', { name: 'Layers' }).dataset.tour).toBe('layers')
+    before.remove()
   })
 })

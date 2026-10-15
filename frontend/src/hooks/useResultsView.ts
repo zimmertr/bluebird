@@ -5,6 +5,7 @@ import { useChartCompare, type ChartCompareInputs } from './useChartCompare'
 import { useResultsLayout } from './useResultsLayout'
 import { useRowFocus } from './useRowFocus'
 import { useTableView, type TableViewInputs } from './useTableView'
+import type { SinglePanel } from '../utils/layout'
 
 export interface ResultsViewInputs {
   /** The reader has the forecast player on (`useResultsLayout`'s `playerOn`). */
@@ -13,8 +14,8 @@ export interface ResultsViewInputs {
   safeBottomPx?: number
   /** Collapse the sheet to its bar for the tutorial's marker step on a phone (#536). */
   collapsedOverride?: boolean | null
-  /** Open the sheet at rest for the tutorial's Results step (`useResultsLayout`'s `restRequested`). */
-  restRequested?: boolean
+  /** Open the sheet at rest in this view for the tutorial's Results and Chart steps (`useResultsLayout`'s `restView`). */
+  restView?: SinglePanel | null
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
@@ -72,7 +73,7 @@ export interface ResultsViewInputs {
  */
 export function useResultsView({
   collapsedOverride = null,
-  restRequested = false,
+  restView = null,
   showResults,
   response,
   results,
@@ -115,7 +116,7 @@ export function useResultsView({
     response,
     analysisSeq,
     collapsedOverride,
-    restRequested,
+    restView,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────

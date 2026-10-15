@@ -22,6 +22,12 @@ interface Props {
    * and a drag's ghost and its line.
    */
   outside?: ReactNode
+  /**
+   * The tutorial holds the sheet open for a step and frames it under this
+   * anchor (#696): the tour's card keeps the keyboard, so the sheet neither
+   * takes it nor traps it.
+   */
+  tourAnchor?: string
 }
 
 /**
@@ -38,9 +44,9 @@ interface Props {
  * body for the reason `Popover` is: the results bar that opens three of these
  * is inside the results sheet, which clips what it holds.
  */
-export default function BottomSheet({ heading, onClose, children, outside }: Props) {
+export default function BottomSheet({ heading, onClose, children, outside, tourAnchor }: Props) {
   const headingId = useId()
-  const panelRef = useDialog(onClose)
+  const panelRef = useDialog(onClose, tourAnchor === undefined)
   // The Analyze button hides under the dim while any sheet is open.
   useHoldSheetOpen()
   // The height a drag left the sheet at, or null for its rows' own (#696;
@@ -78,6 +84,7 @@ export default function BottomSheet({ heading, onClose, children, outside }: Pro
         tabIndex={-1}
         className={BOTTOM_SHEET.card}
         style={heldPx === null ? undefined : { height: heldPx }}
+        data-tour={tourAnchor}
       >
         <SheetTop heading={heading} headingId={headingId} onClose={onClose} onGripDown={onGripDown} />
         <div className={BOTTOM_SHEET.body}>{children}</div>

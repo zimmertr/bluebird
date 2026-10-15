@@ -1,6 +1,6 @@
 # 0145. Nothing a finger presses stands in a phone's home indicator band
 
-- Status: Accepted
+- Status: Superseded by [0152](0152-sheets-end-above-the-home-indicator.md)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #336 (folded into #708), 2026-10-14; the band moved inside the sheets' scrollers on a Pixel the same evening, and left the sheets altogether later that night
 - Issues and PRs: #336, #696, #708

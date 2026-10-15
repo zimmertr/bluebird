@@ -1,6 +1,6 @@
 # 0150. The tutorial's results step opens the results sheet at rest, and leaves it open
 
-- Status: Accepted. Amends [0066](0066-tutorial-points-and-never-acts.md)
+- Status: Accepted. Amends [0066](0066-tutorial-points-and-never-acts.md). Amended by [0153](0153-tour-chart-and-layers-steps-act.md) (the Chart step opens it to the chart the same way)
 - Date: 2026-10-14
 - Decider: the maintainer (TJ), on issue #696, 2026-10-14
 - Issues and PRs: #696, #708, #536

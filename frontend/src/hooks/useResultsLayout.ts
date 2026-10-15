@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
+  type SinglePanel,
   bothFits,
   bothOpensWithRoom,
   clampPanelHeight,
@@ -87,12 +88,12 @@ export interface ResultsLayoutInputs {
    */
   collapsedOverride?: boolean | null
   /**
-   * The tutorial's Results step is open (#696): the sheet opens before the
-   * step's spotlight reads it, the reverse of a row tap's collapse, and is
-   * left open when the step ends. On a phone it also comes back to its
-   * resting height in Table view, the shape a first report opens in.
+   * The view the tutorial's Results or Chart step shows (#696): the sheet
+   * opens to it before the step's spotlight reads it, the reverse of a row
+   * tap's collapse, and is left there when the step ends. On a phone it also
+   * comes back to its resting height; a desk keeps Both, which shows either.
    */
-  restRequested?: boolean
+  restView?: SinglePanel | null
   /**
    * The reader has the forecast player on, so a phone's full sheet leaves it
    * room above the Analyze button (#696, `PLAYER_ROOM_PX`).
@@ -126,7 +127,7 @@ export function useResultsLayout({
   response,
   analysisSeq,
   collapsedOverride = null,
-  restRequested = false,
+  restView = null,
   playerOn = false,
   safeBottomPx = 0,
 }: ResultsLayoutInputs) {
@@ -182,14 +183,18 @@ export function useResultsLayout({
   // frames the bar first. Sets the state the chevron, a drag and the segment
   // set, without persisting the mode: the tour chose it, the reader did not.
   useLayoutEffect(() => {
-    if (!restRequested) return
+    if (restView === null) return
     setResultsCollapsed(false)
-    if (isDesktop) return
+    lastPanelRef.current = restView
+    if (isDesktop) {
+      setModePref((mode) => (mode === 'both' ? mode : restView))
+      return
+    }
     setHeightsChosen(false)
     setTableHeight(DEFAULT_TABLE_HEIGHT)
-    lastPanelRef.current = 'table'
-    setModePref('table')
-  }, [restRequested, isDesktop])
+    setChartHeight(DEFAULT_CHART_HEIGHT)
+    setModePref(restView)
+  }, [restView, isDesktop])
   // The results' own height as rendered, which on a phone is how much map the
   // sheet covers. Observed rather than derived because everything anchored to
   // the map's bottom edge measures from this one number, and a derivation has

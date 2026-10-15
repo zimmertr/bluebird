@@ -27,6 +27,17 @@ describe('Tour', () => {
     expect(tourSource).toContain('setTargetRadius(radius)')
   })
 
+  // The overlay measured every frame for the whole tour, a frame and a commit
+  // every vsync over a page with nothing moving (#696, traced 2026-10-14). It
+  // follows a target only until it holds still for SETTLE_FRAMES, and a scroll
+  // or a resize wakes it.
+  it('stops measuring once the target holds still', () => {
+    expect(tourSource).toContain('const SETTLE_FRAMES = 10')
+    expect(tourSource).toContain('frame = box !== null && still >= SETTLE_FRAMES ? 0 : requestAnimationFrame(follow)')
+    expect(tourSource).toContain("window.addEventListener('resize', wake)")
+    expect(tourSource).toContain("document.addEventListener('scroll', wake, true)")
+  })
+
   // The spotlight lit the Forecast section with the Controls sheet's top
   // shade lying across it (#696): while a tour runs, every shade stands down.
   it('hides every scroll shadow while it runs', () => {

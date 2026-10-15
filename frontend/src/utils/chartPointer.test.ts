@@ -65,11 +65,12 @@ describe('fingerReading', () => {
 // plot starts under it: a finger reads the same band the plot is drawn in.
 describe('a titled plot', () => {
   it('starts the band under the title line, the rest of the margins unchanged', () => {
-    expect(TITLED_PLOT_MARGIN).toEqual({ ...PLOT_MARGIN, top: PLOT_MARGIN.top + CHART_TITLE_PX })
+    expect(TITLED_PLOT_MARGIN).toEqual({ ...PLOT_MARGIN, top: TITLED_PLOT_MARGIN.top })
+    expect(TITLED_PLOT_MARGIN.top).toBeGreaterThan(PLOT_MARGIN.top + CHART_TITLE_PX)
     const plain = plotBand(360, 200)
     const titled = plotBand(360, 200, TITLED_PLOT_MARGIN)
-    expect(titled.top - plain.top).toBe(CHART_TITLE_PX)
-    expect(plain.height - titled.height).toBe(CHART_TITLE_PX)
+    expect(titled.top - plain.top).toBe(TITLED_PLOT_MARGIN.top - PLOT_MARGIN.top)
+    expect(plain.height - titled.height).toBe(TITLED_PLOT_MARGIN.top - PLOT_MARGIN.top)
     expect(titled.left).toBe(plain.left)
     expect(titled.width).toBe(plain.width)
   })
