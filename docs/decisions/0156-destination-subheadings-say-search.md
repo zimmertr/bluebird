@@ -16,7 +16,7 @@ Record 0137 left two questions on #710. The Map row is a subheading and an itali
 - **The search box stays on the map at every width.** No field, button or link for it goes in the panel.
 - **The Map row keeps its shape**: a subheading and one italic helper line (`TEXT.helper`), with the hover cue that rings the search box and glows the clickable features.
 - **The three subheadings are `Map search`, `Coordinate search` and `Polygon search`** (choice N1 on #710). The section heading stays `Destinations`, and so does the tutorial card that points at it.
-- **The helper line is `Search by name, or select any destination from it.`** The map is named once, in the subheading, and `from it` points back at it. The line names no kind of destination, because prose that lists the types is a string every new type has to reopen (the maintainer on #715, 2026-10-15). To make `any destination` true of what the map labels, the map's clickable features grow to places and climbing labels in the same PR.
+- **The helper line is `Search by name, or select any destination from it.`** The map is named once, in the subheading, and `from it` points back at it. The line names no kind of destination, because prose that lists the types is a string every new type has to reopen (the maintainer on #715, 2026-10-15). To make `any destination` true of what the map labels, the map's clickable features grow to places and climbing labels in the same PR (record [0157](0157-places-and-climbing-labels-are-selectable.md)).
 
 ## Evidence
 

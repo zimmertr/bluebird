@@ -699,6 +699,14 @@ lookup instead, and nothing is said about it. What the lookup relies on in
 those tiles, and what happens when OpenFreeMap changes one of those things, is
 [record 0115](decisions/0115-elevation-lookup-depends-on-openfreemap-zoom-14-peaks.md).
 
+A click on the map reads the same tiles, so it costs no request: a peak comes
+from the `mountain_peak` layer, a lake from `water_name`, a city, town, village
+or hamlet from `place`, and a crag or route from `poi`, class `climbing`. That
+class is all the tiles say about a climbing feature: OSM's `climbing=` tag is
+dropped, so a crag and a single route look the same. Trailheads are in none of
+these layers, which is why a trailhead cannot be clicked
+([record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md)).
+
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each
 time the browser reports it is back online, and the error clears once the

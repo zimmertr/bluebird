@@ -28,16 +28,18 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 ### b. Click a destination
 
-The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup in the same card a result gets: its name on the band, and under it its kind, its elevation where there is one, and its coordinates, which open CalTopo. Then press **Add to analysis**. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks, lakes, cities, towns, villages, hamlets and climbing features labeled on the map can be picked. Tap or click one for a popup in the same card a result gets: its name on the band, and under it its kind, its elevation where there is one, and its coordinates, which open CalTopo. Then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in as soon as it is added, by the same lookup a pasted coordinate gets: the map's own tiles first, then the map server for whatever they cannot place.
 
-Five things are worth knowing about what you can click:
+Seven things are worth knowing about what you can click:
 
-- **Lakes show no elevation.** Peaks do, because the map data carries one for a summit and none for a water body. Analyzing the lake fills it in.
+- **Only peaks show an elevation.** The map data carries one for a summit and none for a water body, a town or a climbing feature. Analyzing a lake fills it in.
 - **Unnamed summits are clickable too.** OSM knows plenty of peaks only by their height, and the map draws those as a bare elevation. Clicking one adds it as `Peak 5961`, after the number you clicked on.
 - **Shift-click keeps a popup open** instead of replacing it, so two destinations can be compared side by side. A popup opened that way stays until you close it, or until the next analysis lands, which closes every popup on the map.
 - **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
+- **A clicked town is the point its label stands on**, which is the map data's point for the place, usually its centre, and not the spot you clicked.
+- **A climbing label may be a crag or a single route.** The map data does not say which, so both can be picked, and both are added as `Climbing`. They show from zoom 14, the first zoom the map data carries them at.
 - **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
 
 Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them.
