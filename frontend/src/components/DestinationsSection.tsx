@@ -273,9 +273,11 @@ export default function DestinationsSection({
           </button>
         </div>
         {/* Checkboxes, not radios: one polygon can look for several kinds
-            at once, and they all come back from a single Overpass query,
-            so asking for peaks and lakes together costs what peaks alone
-            would. The "Find:" label that used to lead this row is gone —
+            at once. Peaks and lakes come from the basemap's tiles (#675)
+            and whatever the map server is asked for comes back from a
+            single Overpass query, so asking for trailheads and crags
+            together costs what trailheads alone would. The "Find:" label
+            that used to lead this row is gone —
             the checkboxes under the Polygon heading are not ambiguous
             about what they do. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
