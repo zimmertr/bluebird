@@ -283,7 +283,8 @@ export const MAP = [
       {
         // Lakes and peaks share one floor and one look, so neither kind of
         // destination can become clickable at a zoom the other is not.
-        // Climbing has its own, the zoom the tiles' `poi` layer is complete at.
+        // Climbing has its own floor, the first zoom whose tiles carry it
+        // (`CLIMBING_MINZOOM` in basemap.ts).
         selector: 'Property[key.name="minzoom"][value.name="POI_MINZOOM"]',
         count: 3,
         message: 'Give every peak and lake layer the one POI_MINZOOM.',

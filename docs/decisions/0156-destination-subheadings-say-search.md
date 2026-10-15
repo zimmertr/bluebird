@@ -33,15 +33,15 @@ Widths at 12px italic in Chrome on a Mac, measured 2026-10-15. The helper's budg
 
 ## Alternatives rejected
 
-Mockups of each: https://claude.ai/artifact/KoVCFLpvaJXxJ8gqUcqWMS
+Mockups of each: https://claude.ai/artifact/KoVCFLpvaJXxJ8gqUcqWMS. The maintainer picked today's row and N1 from them on 2026-10-15 and gave no reason against the others; what follows is the trade-off each mockup stated, not a verdict.
 
-- **Option A of #710, the search box moved into the panel on a desktop**: rejected again on 2026-10-15, "it belongs on the map". The field built in #707 that only focused the map's box was rejected on 2026-10-13 (record 0137).
-- **A lead line with no Map row** (mocked, not chosen on 2026-10-15): the map would have had no row of its own beside the other two ways in.
-- **A glyph-led Map row**, a magnifier and a summit triangle beside two caption lines (mocked, not chosen): two lines where the row had one.
-- **The sentence's verbs as links** that focus the search box or light the features (mocked, not chosen): the hover cue already points at both.
-- **N2, `Destination search` as the section heading** over the bare nouns (#710's recommendation, not chosen): one string, but the word lands on the section rather than on the `Polygon` row that needed it.
-- **N3, `Search an area`** for the Polygon row (mocked, not chosen): the one subheading that would have been a verb phrase beside two nouns.
-- **A sentence naming peaks and lakes**: true of the basemap before this PR, and rejected for the rule that prose does not list the types.
+- **Option A of #710, the search box moved into the panel on a desktop**: rejected on 2026-10-15, "it belongs on the map". The field built in #707 that only focused the map's box was rejected on 2026-10-13 (record 0137).
+- **A lead line with no Map row**: the approved sentence under the section heading, Coordinates and Polygon following; no string change and 22px saved, but the map would have been named by position alone.
+- **A glyph-led Map row**: the subheading over two caption lines led by the magnifier the search box wears and the basemap's summit triangle; two new strings, works on touch where hover does not, 16px taller.
+- **The sentence's verbs as links**: `Search by name` focusing the map's box and `click any peak or lake` flashing the glow; no string change, but the first link does what the reverted field did.
+- **N2, `Destination search` as the section heading** over the bare nouns, #710's recommendation: one string, with `Coordinates` still under a heading that says search.
+- **N3, `Search an area`** for the Polygon row alone: the word lands on the row that needed it, at the cost of the parallel nouns.
+- **A sentence naming peaks and lakes** (`Search by name, or select any peak or lake from it.`, 286px): true of the basemap before this PR, and dropped for the rule that prose does not list the types; the maintainer chose the generic sentence and asked for the map's selectable labels to grow instead (record 0157).
 
 ## Consequences
 

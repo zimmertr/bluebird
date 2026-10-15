@@ -2,8 +2,9 @@
 //
 // Every clickable label on the map comes from the OpenMapTiles vector tiles:
 // the peaks, lakes and climbing features the app draws itself, and the
-// cities, towns, villages and hamlets the style already labels. So the name and elevation a click
-// needs are sitting in the feature's properties: no lookup, no network call.
+// cities, towns, villages and hamlets the style already labels. So the name
+// and elevation a click needs are sitting in the feature's properties: no
+// lookup, no network call.
 // The job here is only to decide which features are destinations at all, and
 // to normalize the tile's fields into the `Place` the searched-destinations
 // pipeline already carries end to end (map dot → `pins` URL param →
