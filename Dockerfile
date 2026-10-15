@@ -43,21 +43,6 @@ LABEL org.opencontainers.image.title="Bluebird Forecast" \
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Alpine fixes a package days to weeks before the python base image rebuilds
-# carrying it, so the base tag can ship a libuuid that Alpine 3.24 has already
-# fixed. That gap has no Dependabot remedy: Dependabot moves the base when the
-# image is rebuilt, and here the newest image was already pinned while the
-# packages under it were not (7 fixable HIGH util-linux CVEs, 2026-09). Upgrading beats pinning the
-# one package, for the reason the pip upgrade below is written on: a pin sits
-# outside Dependabot's view and goes stale.
-#
-# This does NOT re-run per build. BuildKit keys the layer on the base digest
-# plus this command, so it runs when the base image moves and serves a snapshot
-# in between. A fix Alpine publishes into that gap stays invisible here until
-# the base moves; the weekly image scan is what catches it, and the remedy is a
-# cacheless rebuild rather than a dependency bump.
-RUN apk upgrade --no-cache
-
 WORKDIR /app
 # requirements.txt is pip-compile's lock of requirements.in: every installed
 # distribution, the indirect ones included, pinned with its hashes (#633).
@@ -109,15 +94,35 @@ RUN --mount=type=bind,source=backend/scripts/write_third_party_licenses.py,targe
 # Kubernetes runAsNonRoot can verify without resolving names inside the image.
 RUN addgroup -S -g 10001 bluebirdforecast && adduser -S -u 10001 -G bluebirdforecast bluebirdforecast
 # Build identity for GET /api/version and the OpenAPI info.version, populated by
-# release.yml and pr-preview.yml. Deliberately the LAST thing before USER:
+# release.yml and pr-preview.yml. Deliberately below every COPY and pip layer:
 # APP_BUILT_AT changes on every build, so declaring it any earlier would
-# invalidate the pip-install and COPY layers on every single build.
+# invalidate the pip-install and COPY layers on every single build. The one
+# RUN under it is the apk upgrade, which wants exactly that.
 ARG APP_VERSION=dev
 ARG APP_COMMIT=dev
 ARG APP_BUILT_AT=dev
 ENV APP_VERSION=${APP_VERSION} \
     APP_COMMIT=${APP_COMMIT} \
     APP_BUILT_AT=${APP_BUILT_AT}
+# Alpine fixes a package days to weeks before the python base image rebuilds
+# carrying it, so the base tag can ship a package Alpine 3.24 has already
+# fixed. That gap has no Dependabot remedy: Dependabot moves the base when the
+# image is rebuilt, and twice now the newest image was already pinned while the
+# packages under it were not (7 fixable HIGH util-linux CVEs, 2026-09; zlib
+# CVE-2026-85091, 2026-10). Upgrading beats pinning the one package, for the
+# reason the pip upgrade above is written on: a pin sits outside Dependabot's
+# view and goes stale.
+#
+# It sits after the build ARGs on purpose. BuildKit keys a RUN on every ARG in
+# scope, used or not, and APP_COMMIT and APP_BUILT_AT change on every build, so
+# this layer is rebuilt every time against Alpine's current index. Above
+# pip's layers it was keyed on the base digest alone and served a snapshot
+# between base moves: v0.105.0 shipped zlib 1.3.2-r0 while Alpine's index had
+# 1.3.2-r1 and the base was the newest published (code scanning alert 39,
+# 2026-10-14), and the remedy was a hand-cleared cache. Nothing below this line
+# builds anything, so the rebuild costs one apk index fetch and repeats none of
+# pip's or the frontend's work.
+RUN apk upgrade --no-cache
 USER 10001:10001
 # 8000 is the app; 9464 is the Prometheus metrics server (see app/telemetry.py
 # for why it is a separate port). EXPOSE is documentation — neither is

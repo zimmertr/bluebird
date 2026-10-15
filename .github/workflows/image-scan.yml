@@ -77,7 +77,7 @@ jobs:
           SEMVER: ${{ steps.release.outputs.semver }}
         run: |
           if [ "$CRIT_HIGH" -gt 0 ]; then
-            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${SEMVER}. Merge the open Dependabot base-image PR and release. If there is none, the base tag is current and the packages under it are not: clear the buildx cache, then release. See docs/CICD.md."
+            echo "::error::${CRIT_HIGH} fixable Critical/High vulnerabilities in zimmertr/bluebird:${SEMVER}. Merge the open Dependabot base-image PR and release. If there is none, the base tag is current and the packages under it are not: the next merge to main rebuilds the apk upgrade layer against Alpine's current index and releases it. See docs/CICD.md."
             exit 1
           fi
           echo "No fixable Critical/High vulnerabilities." >> "$GITHUB_STEP_SUMMARY"

@@ -1345,12 +1345,18 @@ base tag that was already the newest published). The Dockerfile answers it
 with `RUN apk upgrade --no-cache` in the runtime stage, which pulls the
 current Alpine index at build time rather than waiting on the base.
 
-That layer is a snapshot, not a live upgrade: BuildKit keys it on the base
-digest plus the command, so between base moves every build serves the cached
-copy. A fix Alpine publishes into that gap is therefore invisible until the
-base moves. **The remedy is a cacheless rebuild** — `gh cache delete --all`,
-then release — not a dependency bump. The weekly scan here is what makes that
-gap visible, which is the only reason the cache is safe to keep.
+That layer runs on every build. It sits after the `APP_*` build arguments,
+and BuildKit keys a `RUN` on every argument in scope, used or not, so a new
+`APP_COMMIT` rebuilds it against Alpine's index of the day; the only layers
+under it are `USER` and the metadata, so nothing of pip's or the frontend's
+work is repeated. Until PR #717 it sat above the pip install, keyed on the base
+digest alone, and between base moves every build served the cached copy: a fix
+Alpine published into that gap stayed out of every release until someone ran
+`gh cache delete --all`, which is how v0.105.0 shipped zlib 1.3.2-r0 with
+1.3.2-r1 already in Alpine's index and the base the newest published (alert
+39, CVE-2026-85091, 2026-10-14). **The remedy is the next merge to `main`**:
+its release rebuilds the layer and ships the fix, and nothing needs clearing.
+Record: [0126](decisions/0126-apk-upgrade-on-every-build.md)
 
 This job scans a published image rather than a checkout, so its `actions/checkout`
 step exists purely to read `trivy.yaml`. That is deliberate: without the PR gate's
