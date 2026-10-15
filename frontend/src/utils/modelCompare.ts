@@ -10,7 +10,7 @@
 // hooks/useModelCompare.ts and the drawing in the chart.
 
 import { DestinationResult, HourlySeries } from '../types'
-import { ChartLine, chartKey, comparedLineLabel, gridRemapper, modelSuffix } from './chartData'
+import { ChartLine, chartKey, collidingType, comparedLineLabel, gridRemapper, lineSuffix, modelSuffix } from './chartData'
 import { HOUR_MS } from './forecastWindow'
 import { listPhrase } from './notices'
 import type { WeatherResult } from './openMeteo'
@@ -140,6 +140,12 @@ export interface CompareDestination extends ComparePoint {
   /** Its place in the ranking, which is what the label leads with. */
   rank: number
   name: string
+  /**
+   * Its Type column word while another place on screen shares its name, and
+   * null otherwise (`collidingType`, #715), which the label names beside the
+   * model.
+   */
+  typeWord?: string | null
   /** Its line colour, the one it already wears in the table and on the map. */
   color: string
 }
@@ -285,7 +291,7 @@ export function compareSeries(
         // Prefixed so a pair's key can never collide with a destination's,
         // which is a bare coordinate pair.
         key: `model:${pair}`,
-        label: comparedLineLabel(destination.rank, destination.name, model.label),
+        label: comparedLineLabel(destination.rank, destination.name, model.label, destination.typeWord),
         color: pairColor(colors, model.id, destination.key, destination.color),
         series: held,
         ranked: model.id === rankingModel,
@@ -485,9 +491,11 @@ export interface LegendEntry {
   key: string
   row: DestinationResult
   /**
-   * The model half of the label, or null for a chip that names no model. It
-   * rides apart from `row.name` because the chip truncates the name and never
-   * the model; the two concatenate to `modelNamed(name, modelLabel)`.
+   * The bracketed half of the label (the model, the type when the name is
+   * shared, or both), or null for a chip that needs neither. It rides apart
+   * from `row.name` because the chip truncates the name and never this; the
+   * two concatenate to `modelNamed(name, modelLabel, type)` or
+   * `lineNamed(name, type)`.
    */
   suffix: string | null
 }
@@ -507,24 +515,31 @@ export interface LegendEntry {
  *
  * `comparing` names the model on each compared chip. With one model shown,
  * every chip would carry the same model name, so the label stays the bare
- * name. React keys stay unique per chip: a destination repeats once per model,
- * so a compared row keys on its pair.
+ * name. `shared` names the type on each chip whose name another place on
+ * screen also has (#715). React keys stay unique per chip: a destination
+ * repeats once per model, so a compared row keys on its pair.
  */
 export function legendEntries(
   rows: readonly DestinationResult[],
   pending: readonly DestinationResult[],
   comparing: boolean,
+  shared: ReadonlySet<string>,
 ): LegendEntry[] {
+  const plain = (row: DestinationResult): LegendEntry => ({
+    key: chartKey(row),
+    row,
+    suffix: lineSuffix(collidingType(row, shared), null) || null,
+  })
   const entries = rows.map((row): LegendEntry => {
     const { modelId, modelLabel } = row as Partial<ModelRow>
     if (comparing && modelId && modelLabel) {
       return {
         key: `model:${pairKey(modelId, chartKey(row))}`,
         row,
-        suffix: modelSuffix(modelLabel),
+        suffix: modelSuffix(modelLabel, collidingType(row, shared)),
       }
     }
-    return { key: chartKey(row), row, suffix: null }
+    return plain(row)
   })
-  return [...entries, ...pending.map((row) => ({ key: chartKey(row), row, suffix: null }))]
+  return [...entries, ...pending.map(plain)]
 }

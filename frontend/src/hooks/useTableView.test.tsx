@@ -56,6 +56,7 @@ const REPORT = analyzedSnapshot()
 const NOTHING_STORED: ViewPrefs = { modeChosen: null, columns: null, modelColumn: null, columnOrder: null, legendOpen: null }
 const NO_PENDING: TableViewInputs['pending'] = []
 const NO_PENDING_ROWS: TableViewInputs['pendingRows'] = []
+const NO_SHARED: TableViewInputs['shared'] = new Set()
 const NO_SHOWN: TableViewInputs['shownModels'] = []
 const NO_RESULTS: TableViewInputs['compareResults'] = {}
 const NO_ENDS: TableViewInputs['compareReachEnds'] = {}
@@ -81,6 +82,7 @@ function inputs(over: Partial<TableViewInputs> = {}): TableViewInputs {
     compareReachEnds: NO_ENDS,
     pending: NO_PENDING,
     pendingRows: NO_PENDING_ROWS,
+    shared: NO_SHARED,
     fire: FIRE,
     closure: CLOSURE,
     ...over,

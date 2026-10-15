@@ -202,7 +202,7 @@ async def query_osm(
     data = await _post_with_fallback(query, on_status, path="discovery")
 
     results: list[dict[str, Any]] = []
-    seen_names: set[str] = set()
+    seen_names: set[tuple[str, str]] = set()
     seen_generated: set[Any] = set()
 
     for element in data.get("elements", []):
@@ -221,15 +221,19 @@ async def query_osm(
                 continue
             name = f"Peak {round(elevation_ft)}"
             generated = True
-        # Name is the identity rule for mapped features, and it has to stay
-        # that way: OSM carries duplicate nodes for the same summit. It cannot
-        # apply to a generated name, though — every unnamed 5,961 ft peak in a
-        # range would collapse into one row — so those dedup by OSM id, which
-        # is the only identity they actually have.
+        # Type and name are the identity rule for mapped features. The name
+        # has to stay in it: OSM carries duplicate nodes for the same summit.
+        # The type joined it in #715: a crag named for the peak it stands on
+        # (The Tooth, Chair Peak) is a second destination, and the Type column
+        # is what tells the two apart. The rule cannot apply to a generated
+        # name, though — every unnamed 5,961 ft peak in a range would collapse
+        # into one row — so those dedup by OSM id, which is the only identity
+        # they actually have.
+        kind = _classify(tags)
         if generated:
             if element["id"] in seen_generated:
                 continue
-        elif name in seen_names:
+        elif (kind, name) in seen_names:
             continue
 
         if element["type"] == "node":
@@ -246,14 +250,14 @@ async def query_osm(
         if generated:
             seen_generated.add(element["id"])
         else:
-            seen_names.add(name)
+            seen_names.add((kind, name))
         results.append(
             {
                 "name": name,
                 # Carried per row rather than applied by the caller: a union
                 # response holds several types at once, and this is what the
                 # row's badge and its name's link are chosen from.
-                "type": _classify(tags),
+                "type": kind,
                 "latitude": lat,
                 "longitude": lon,
                 "elevation_ft": elevation_ft,

@@ -37,6 +37,12 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
             {"type": "node", "id": 4, "lat": 47.8, "lon": -121.8, "tags": {}},
             # Missing coordinates — dropped.
             {"type": "node", "id": 5, "lat": None, "lon": -121.9, "tags": {"name": "NoCoord"}},
+            # One name, two types: a crag named for the peak it stands on is
+            # a second destination (#715), so both are kept.
+            {"type": "node", "id": 6, "lat": 47.4, "lon": -121.4,
+             "tags": {"name": "The Tooth", "natural": "peak"}},
+            {"type": "relation", "id": 7, "center": {"lat": 47.41, "lon": -121.41},
+             "tags": {"name": "The Tooth", "sport": "climbing", "climbing": "crag"}},
         ]
     }
 
@@ -44,13 +50,14 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
         return canned
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
-    results = await osm.query_osm(POLY, [DestinationType.peak])
+    results = await osm.query_osm(POLY, [DestinationType.peak, DestinationType.crag])
 
     names = [r["name"] for r in results]
-    assert names == ["Peak A", "Lake B"]
+    assert names == ["Peak A", "Lake B", "The Tooth", "The Tooth"]
     assert results[1]["latitude"] == 47.7  # way center picked up
     assert results[0]["osm_id"] == "node/1"
     assert results[1]["osm_id"] == "way/3"
+    assert [(r["type"], r["osm_id"]) for r in results[2:]] == [("peak", "node/6"), ("crag", "relation/7")]
 
 
 async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):

@@ -68,7 +68,15 @@ interface ResultsSheetView {
   /** The chart and the comparison, and the Models popover's list (`useChartCompare`). */
   charts: Pick<
     ChartCompare,
-    'chart' | 'compare' | 'rowChartColor' | 'selectedModelRows' | 'hiddenModels' | 'toggleHiddenModel' | 'compareWait' | 'compareNotes'
+    | 'chart'
+    | 'compare'
+    | 'rowChartColor'
+    | 'shared'
+    | 'selectedModelRows'
+    | 'hiddenModels'
+    | 'toggleHiddenModel'
+    | 'compareWait'
+    | 'compareNotes'
   >
   /** The table's shape and its file (`useTableView`). */
   tableView: TableView

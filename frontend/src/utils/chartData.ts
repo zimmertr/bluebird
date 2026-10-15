@@ -2,6 +2,7 @@ import { DestinationResult, HourlySeries, SortBy } from '../types'
 import { cloudDeckMark } from './cloudDeckMark'
 import { MetricFamily, UNIT, familyOf, formatPrecipRate, metricLabel } from '../metrics'
 import { setKey } from './points'
+import { TYPE_COL } from './tableColumns'
 
 /**
  * The families this chart can plot, which is every one: each is an hourly
@@ -207,7 +208,56 @@ export interface ChartLine extends SeriesHolder {
 }
 
 /**
- * One entry's name while a comparison is up: `1. Mount Rainier (NOAA GFS)`.
+ * The names more than one place on screen answers to (#715).
+ *
+ * A crag is often named for the peak it stands on (6 of the 104 crags and
+ * areas in the issue's Cascades box were, measured 2026-10-15), and with
+ * Peaks and Crags both ticked the two are two rows of one name. The table has
+ * a Type column to tell them apart; a chart line, a legend chip and the hover
+ * box have only the name, so each names the type as well while this set holds
+ * the name. Counted by place (`chartKey`) rather than by row, because a
+ * comparison repeats a place once per model, and one place is no collision
+ * with itself.
+ */
+export function sharedNames(rows: readonly DestinationResult[]): ReadonlySet<string> {
+  const places = new Map<string, Set<string>>()
+  for (const row of rows) {
+    const keys = places.get(row.name) ?? new Set<string>()
+    keys.add(chartKey(row))
+    places.set(row.name, keys)
+  }
+  return new Set([...places].filter(([, keys]) => keys.size > 1).map(([name]) => name))
+}
+
+/**
+ * The type a row's name carries on the chart: its Type column word while
+ * another place on screen shares its name, and null otherwise, so a name no
+ * one shares reads exactly as it always did.
+ */
+export function collidingType(row: Pick<DestinationResult, 'name' | 'type'>, shared: ReadonlySet<string>): string | null {
+  return shared.has(row.name) ? (TYPE_COL.format?.(row.type) ?? row.type) : null
+}
+
+/**
+ * The parenthetical that tells one line from another: the type when a name is
+ * shared, the model under a comparison, and both in one pair of brackets,
+ * type first, when both apply — `(Crag, NOAA GFS)`. Empty when neither does.
+ * Every name the chart prints composes through this, so the lines, the hover
+ * box and the legend chips cannot spell it differently.
+ */
+export function lineSuffix(type: string | null, modelLabel: string | null): string {
+  const parts = [type, modelLabel].filter((p): p is string => !!p)
+  return parts.length > 0 ? ` (${parts.join(', ')})` : ''
+}
+
+/** A plain line's name: `The Tooth (Crag)` on a collision, the bare name otherwise. */
+export function lineNamed(name: string, type: string | null): string {
+  return `${name}${lineSuffix(type, null)}`
+}
+
+/**
+ * One entry's name while a comparison is up: `1. Mount Rainier (NOAA GFS)`,
+ * or `1. The Tooth (Crag, NOAA GFS)` when another place shares the name.
  *
  * Rank, destination, model, in that order, for EVERY line the chart draws —
  * the ranking model's own included. A key that named the destination on one
@@ -219,8 +269,13 @@ export interface ChartLine extends SeriesHolder {
  * Composed here rather than in the hook or the chart so the tooltip, the lines
  * and anything later cannot spell it three ways.
  */
-export function comparedLineLabel(rank: number, name: string, modelLabel: string): string {
-  return `${rank}. ${modelNamed(name, modelLabel)}`
+export function comparedLineLabel(
+  rank: number,
+  name: string,
+  modelLabel: string,
+  type: string | null = null,
+): string {
+  return `${rank}. ${modelNamed(name, modelLabel, type)}`
 }
 
 /**
@@ -230,17 +285,17 @@ export function comparedLineLabel(rank: number, name: string, modelLabel: string
  * fixed width, so a rank would spend that width on what the position says.
  * `comparedLineLabel` composes through this so the two cannot drift apart.
  */
-export function modelNamed(name: string, modelLabel: string): string {
-  return `${name}${modelSuffix(modelLabel)}`
+export function modelNamed(name: string, modelLabel: string, type: string | null = null): string {
+  return `${name}${modelSuffix(modelLabel, type)}`
 }
 
 /**
- * The model half of `modelNamed`, on its own. The legend chip draws it in a
- * span that never shrinks beside a name that truncates, because the model is
- * the part of the label that tells two chips of one destination apart.
+ * The bracketed half of `modelNamed`, on its own. The legend chip draws it in
+ * a span that never shrinks beside a name that truncates, because the model
+ * and the type are the part of the label that tells two chips apart.
  */
-export function modelSuffix(modelLabel: string): string {
-  return ` (${modelLabel})`
+export function modelSuffix(modelLabel: string, type: string | null = null): string {
+  return lineSuffix(type, modelLabel)
 }
 
 export function valueAt(row: SeriesHolder, metric: ChartMetric, i: number): number | null {

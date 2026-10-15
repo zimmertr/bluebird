@@ -41,6 +41,7 @@ const chart = vi.hoisted(() => ({
   onMouseMove: undefined as undefined | Handler,
   lines: [] as unknown[],
   margin: undefined as unknown,
+  names: [] as (string | undefined)[],
 }))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
@@ -54,7 +55,10 @@ vi.mock('recharts', () => {
       return <>{props.children}</>
     },
     CartesianGrid: Nothing,
-    Line: Nothing,
+    Line: (p: { name?: string }) => {
+      chart.names.push(p.name)
+      return null
+    },
     Label: (p: { position: string; value: string; paintOrder?: string; stroke?: string }) => (
       <i data-testid="label" data-position={p.position} data-paint-order={p.paintOrder} data-stroke={p.stroke}>
         {p.value}
@@ -408,5 +412,24 @@ describe('TimeSeriesChart on a phone', () => {
     placePlot(container, 360)
     fireEvent.pointerDown(plotIn(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
     expect(screen.getByTestId('tooltip').dataset.index).toBe('32')
+  })
+})
+
+// A crag and the peak it is named for are two lines of one name (#715), so
+// each line names its type while both are on screen, and a line no other
+// place shares a name with reads as it always did.
+describe('TimeSeriesChart line names', () => {
+  beforeEach(() => {
+    chart.names = []
+  })
+
+  it('names the type on both lines of a shared name and leaves the rest bare', () => {
+    const rows = [
+      resultRow({ name: 'The Tooth', type: 'peak', latitude: 47.41, series: series() }),
+      resultRow({ name: 'The Tooth', type: 'crag', latitude: 47.4108, series: series() }),
+      resultRow({ name: 'Mount Alpha', latitude: 47.5, series: series() }),
+    ]
+    render(<TimeSeriesChart {...props({ rows, sharedNames: new Set(['The Tooth']) })} />)
+    expect(new Set(chart.names)).toEqual(new Set(['The Tooth (Peak)', 'The Tooth (Crag)', 'Mount Alpha']))
   })
 })

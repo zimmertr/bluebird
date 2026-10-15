@@ -864,7 +864,9 @@ def test_analyze_union_ranks_polygon_and_custom_together(monkeypatch, stub_upstr
     assert by_name["cu_a"]["type"] == "custom" and by_name["cu_a"]["osm_id"] is None
 
 
-def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
+# A name claims nothing (#715): a pasted row and a discovered one of the same
+# name at different coordinates are two places, Custom and Peak.
+def test_analyze_union_same_name_elsewhere_keeps_both(monkeypatch, stub_upstreams):
     async def one_peak(polygon, destination_types, on_status=None, **_):
         return [{"name": "Shared", "latitude": 1.0, "longitude": 2.0, "elevation_ft": 5000,
                  "osm_id": "node/1", "type": "peak"}]
@@ -875,9 +877,11 @@ def test_analyze_union_dedup_by_name_custom_wins(monkeypatch, stub_upstreams):
     resp = client.post("/api/analyze", json=body)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total_queried"] == 1
-    row = data["results"][0]
-    assert row["type"] == "custom" and row["osm_id"] is None and row["latitude"] == 9.0
+    assert data["total_queried"] == 2
+    assert sorted((r["name"], r["type"]) for r in data["results"]) == [
+        ("Shared", "custom"),
+        ("Shared", "peak"),
+    ]
 
 
 def test_analyze_union_dedup_by_coord_custom_wins(monkeypatch, stub_upstreams):
@@ -1001,10 +1005,12 @@ def test_merge_custom_no_collision_appends():
     assert _merge_custom(discovered, custom) == discovered + custom
 
 
-def test_merge_custom_name_collision_drops_discovered():
+# Only a coordinate claims a discovered row. A name used to, and dropped a crag
+# whenever the tile peak of the same name rode in as a custom row (#715).
+def test_merge_custom_same_name_elsewhere_keeps_both():
     discovered = [{"name": "same", "latitude": 1.0, "longitude": 2.0}]
     custom = [{"name": "same", "latitude": 9.0, "longitude": 9.0}]
-    assert _merge_custom(discovered, custom) == custom
+    assert _merge_custom(discovered, custom) == discovered + custom
 
 
 def test_merge_custom_coord_collision_drops_discovered():

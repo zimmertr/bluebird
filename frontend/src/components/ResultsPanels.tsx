@@ -31,7 +31,7 @@ export interface ResultsPanelsProps {
   /** The panels shown, their heights, and their grips (`useResultsLayout`). */
   layout: Pick<ResultsLayout, 'resultsMode' | 'chartGrip' | 'chartPanelPx' | 'tableGrip' | 'tablePanelPx'>
   /** The charted set and the comparison (`useChartCompare`). */
-  charts: Pick<ChartCompare, 'chart' | 'compare' | 'rowChartColor'>
+  charts: Pick<ChartCompare, 'chart' | 'compare' | 'rowChartColor' | 'shared'>
   /** An hour the chart's tooltip stands on without a mouse (the tutorial, #536). */
   chartTooltipIndex?: number | null
   /** The table's rows, columns and widths (`useTableView`). */
@@ -116,7 +116,7 @@ export default function ResultsPanels({
   const { resultsMode, chartGrip, chartPanelPx, tableGrip, tablePanelPx } = layout
   const tableScrollRef = useRef<HTMLDivElement>(null)
   useScrollShadows(tableScrollRef, resultsMode !== 'chart')
-  const { chart, compare, rowChartColor } = charts
+  const { chart, compare, rowChartColor, shared } = charts
   const {
     tableRows,
     tableColumns,
@@ -170,6 +170,7 @@ export default function ResultsPanels({
                   sortBy={sortBy}
                   sortDesc={sortDesc}
                   colorFor={chart.colorFor}
+                  sharedNames={shared}
                   playheadMs={playbackIndex !== null ? forecastTimes[playbackIndex] ?? null : null}
                   onPlayheadChange={
                     timelineAxes.includes('forecast') ? movePlayheadTo : undefined

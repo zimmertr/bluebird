@@ -75,7 +75,8 @@ carried it, of which 82 were crags and 22 areas, and 67 routes, 5 route
 bottoms and 4 boulders would each have been a row of their own. Areas are in
 because some places are mapped only as one, and an area holds the crags inside
 it, so a ring can list both: Index is an area, and Lower Town Wall inside it is
-a crag. None of the 104 in that box carried an `ele` tag, so a crag reads the
+a crag. A crag named for the peak it stands on is its own row beside the peak,
+typed Crag: 6 of the 104 in that box share a name with a peak. None of the 104 in that box carried an `ele` tag, so a crag reads the
 plain near-ground values the way a lake or trailhead with no elevation does.
 And coverage follows where climbers have mapped: the well-known areas are
 there, and an obscure crag may not be

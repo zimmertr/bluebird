@@ -5,7 +5,7 @@ import type { ForecastModelOption } from './useCapabilities'
 import { useChartSelection } from './useChartSelection'
 import { useModelCompare } from './useModelCompare'
 import { allocateColors } from '../utils/chartColors'
-import { alignRowToGrid, chartKey } from '../utils/chartData'
+import { alignRowToGrid, chartKey, collidingType, sharedNames } from '../utils/chartData'
 import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { WindowLimits } from '../utils/forecastWindow'
 import {
@@ -101,6 +101,11 @@ export function useChartCompare({
       .map(pendingAsResult)
   }, [results, pending])
   const chartCandidates = useMemo(() => [...results, ...pendingRows], [results, pendingRows])
+  // The names two places on screen share (#715), so every name the chart
+  // prints for one of them carries its type. Over the same rows the chart
+  // tracks, the displayed rows and the pending ones, so a × that leaves one
+  // place with the name takes the type off it again.
+  const shared = useMemo(() => sharedNames(chartCandidates), [chartCandidates])
   const chart = useChartSelection(chartCandidates, sortBy)
 
   // Every DISPLAYED row as a point the comparison can fetch for. Wider than
@@ -130,6 +135,7 @@ export function useChartCompare({
         key: chartKey(r),
         rank: rankByKey.get(chartKey(r)) as number,
         name: r.name,
+        typeWord: collidingType(r, shared),
         latitude: r.latitude,
         longitude: r.longitude,
         elevationFt: r.elevation_ft,
@@ -143,7 +149,7 @@ export function useChartCompare({
     // rebuilds every render. `colorFor` cannot answer differently for a row
     // that has not changed, so the two listed values are the real inputs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart.selectedRows, results])
+  }, [chart.selectedRows, results, shared])
   // The ranking model's own numbers per destination, on the chart's grid: a
   // pinned row carries its own stamps, so the alignment the chart does for its
   // rows has to happen here too or a pin would compare against the wrong hours.
@@ -276,6 +282,7 @@ export function useChartCompare({
     chart,
     compare,
     pendingRows,
+    shared,
     selectedModelRows,
     hiddenModels,
     toggleHiddenModel,

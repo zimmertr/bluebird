@@ -64,8 +64,9 @@ function layout(resultsMode: 'table' | 'chart' | 'both') {
   return { resultsMode, chartGrip: GRIP, chartPanelPx: 200, tableGrip: GRIP, tablePanelPx: 300 }
 }
 const BOTH = layout('both')
-const CHARTS_QUIET = { chart: CHART, compare: QUIET, rowChartColor: NOOP }
-const CHARTS_COMPARING = { chart: CHART, compare: COMPARING, rowChartColor: NOOP }
+const NO_SHARED: ReadonlySet<string> = new Set()
+const CHARTS_QUIET = { chart: CHART, compare: QUIET, rowChartColor: NOOP, shared: NO_SHARED }
+const CHARTS_COMPARING = { chart: CHART, compare: COMPARING, rowChartColor: NOOP, shared: NO_SHARED }
 
 function props(over: { layout?: unknown; charts?: unknown } = {}): Props {
   return {

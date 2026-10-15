@@ -34,6 +34,8 @@ import {
   tracksCursor,
   valueAt,
   tooltipCapacity,
+  collidingType,
+  lineNamed,
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
 import {
@@ -136,6 +138,12 @@ interface Props {
   sortBy: SortBy
   sortDesc: boolean
   colorFor: (row: DestinationResult) => string
+  /**
+   * The names two places on screen share (`sharedNames`, #715). A plain line
+   * of one of them names its type, `The Tooth (Crag)`, so the line, the hover
+   * box and the chip beside it read alike. Absent means none is shared.
+   */
+  sharedNames?: ReadonlySet<string>
   // The map timeline's playhead, when it is scrubbing this same grid (#121).
   // Null whenever it is not — no analysis, or the transport sitting on the
   // radar axis — so the line appears exactly when there is a moment on the map
@@ -178,6 +186,7 @@ interface Props {
 // with it every path Recharts strokes, on every hover.
 const NO_EXTRA_LINES: readonly ChartLine[] = []
 const NO_MODEL_ENDS: readonly ModelEndLine[] = []
+const NO_SHARED_NAMES: ReadonlySet<string> = new Set()
 
 function TimeSeriesChart({
   tooltipIndex = null,
@@ -188,6 +197,7 @@ function TimeSeriesChart({
   sortBy,
   sortDesc,
   colorFor,
+  sharedNames = NO_SHARED_NAMES,
   playheadMs = null,
   onPlayheadChange,
   extraLines = NO_EXTRA_LINES,
@@ -232,7 +242,7 @@ function TimeSeriesChart({
     () => [
       ...aligned.map((row) => ({
         key: chartKey(row),
-        label: row.name,
+        label: lineNamed(row.name, collidingType(row, sharedNames)),
         color: colorFor(row),
         series: row.series,
         // A plain row is a destination as the field ranked it, so it may set
@@ -243,7 +253,7 @@ function TimeSeriesChart({
     ],
     // Kept: `colorFor` is the omission, and the paragraph above says why.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [aligned, extraLines],
+    [aligned, extraLines, sharedNames],
   )
   // A point-sample analysis has a one-timestamp grid: there are no segments to
   // stroke, so each series must render as a dot or the chart would come up blank.

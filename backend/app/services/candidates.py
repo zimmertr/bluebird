@@ -128,20 +128,25 @@ def _distinct_by_coord(rows: list[dict]) -> list[dict]:
 def _merge_custom(discovered: list[dict], custom: list[dict]) -> list[dict]:
     """Union of discovered + custom rows where the custom row wins a collision.
 
-    A discovered row is dropped when a custom row claims its exact name (the
-    identity rule query_osm already applies within its own results) or its
-    5-decimal coordinate key (~1 m — the frontend's geoKey precedent). The
-    user's own rows always survive; near-misses simply coexist as two rows.
+    A discovered row is dropped when a custom row claims its 5-decimal
+    coordinate key (~1 m — the frontend's geoKey precedent), and by nothing
+    else. The user's own rows always survive; near-misses simply coexist as two
+    rows.
+
+    A name used to claim a row too, and that dropped a crag whenever the basemap
+    peak of the same name rode in as a custom row, which is how the browser
+    sends the peaks it read from the tiles (#715). So a pasted row and a
+    discovered row of one name at different coordinates are two rows, Custom
+    and Peak, as the maintainer accepted on 2026-10-15; that is already what
+    the browser does for the tile types, where both arrive as custom rows and
+    `_distinct_by_coord` reads coordinates alone.
 
     A custom row repeated at one coordinate key is kept once
     (`_distinct_by_coord`), whoever built the list.
     """
     custom = _distinct_by_coord(custom)
-    names = {c["name"] for c in custom}
     coords = {_coord_key(c) for c in custom}
-    kept = [
-        d for d in discovered if d["name"] not in names and _coord_key(d) not in coords
-    ]
+    kept = [d for d in discovered if _coord_key(d) not in coords]
     return kept + custom
 
 
