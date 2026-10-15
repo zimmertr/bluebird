@@ -275,7 +275,7 @@ def test_sortby_values_match_result_fields():
 
 
 def test_destination_type_membership():
-    assert {t.value for t in DestinationType} == {"peak", "trailhead", "lake", "custom"}
+    assert {t.value for t in DestinationType} == {"peak", "trailhead", "lake", "crag", "custom"}
 
 
 # ── CustomDestination validation ───────────────────────────────────────────

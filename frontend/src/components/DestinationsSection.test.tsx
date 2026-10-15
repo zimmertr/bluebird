@@ -212,6 +212,18 @@ describe('DestinationsSection', () => {
       expect(setDestinationTypes).toHaveBeenLastCalledWith([])
     })
 
+    it('offers Crags between Peaks and Lakes, and ticks it into the set', async () => {
+      const setDestinationTypes = vi.fn()
+      const { user } = render(<DestinationsSection {...props({ setDestinationTypes })} />)
+      const labels = screen
+        .getAllByRole('checkbox')
+        .filter((box) => (box as HTMLInputElement).name === 'destination_types')
+        .map((box) => box.closest('label')?.textContent)
+      expect(labels).toEqual(['Peaks', 'Crags', 'Lakes', 'Trailheads'])
+      await user.click(screen.getByRole('checkbox', { name: 'Crags' }))
+      expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag'])
+    })
+
     // Unnamed peaks widens a peak search, so with no peak search there is
     // nothing for it to widen and the row is not drawn (#687).
     it('shows unnamed peaks only while Peaks is ticked', () => {

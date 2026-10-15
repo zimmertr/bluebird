@@ -40,7 +40,7 @@ Five things are worth knowing about what you can click:
 - **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
 - **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
 
-Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them.
+Trailheads and crags are not clickable: the basemap does not carry them, so a polygon is still how you find them.
 
 ### c. Polygon
 
@@ -58,11 +58,12 @@ Press **Draw polygon** to start. While drawing, each click on the map drops a po
 
 Outside draw mode the polygon stays on the map but has no handles, so panning and zooming around your results can't nudge a corner, and a click belongs to whatever sits under it.
 
-The checkboxes under the buttons control what discovery looks for inside your polygon. Tick as many as you like, and each result is labelled with what it actually is. Peaks and lakes are read from the map's own tiles, in about a second, and the map service is asked only for trailheads, which the tiles do not carry, or for an area too large for the tiles to answer quickly; whatever it is asked for, it finds in a single query.
+The checkboxes under the buttons control what discovery looks for inside your polygon. Tick as many as you like, and each result is labelled with what it actually is. Peaks and lakes are read from the map's own tiles, in about a second, and the map service is asked only for trailheads and crags, which the tiles do not carry, or for an area too large for the tiles to answer quickly; whatever it is asked for, it finds in a single query.
 
 | Type | OSM Query | Status |
 |---|---|---|
 | Peaks | `natural=peak` or `natural=volcano` (named nodes; OSM tags the Cascade volcanoes as volcano instead of peak) | Implemented |
+| Crags | `sport=climbing` with `climbing=crag` or `climbing=area` (named nodes/ways/relations; routes and boulders are left out) | Implemented |
 | Lakes | In the app, every named water body on the map (lakes, tarns, ponds and reservoirs alike); through the API, `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 
@@ -177,7 +178,7 @@ to its minimum, the lowest the deck came in the window, and ranking by Highest
 `Cloud deck · Min` puts the clearest windows on top. How the deck is worked
 out, and how far to trust it, are in [DATA.md](DATA.md#cloud-deck).
 
-Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain — on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature carries the surface layer of a valley floor that cools by radiation on a clear night (Open-Meteo lapses it to the summit's own height, and the cold comes with it), which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). A peak or pasted point with no known elevation is read at the ground height Open-Meteo's terrain model gives its coordinate; a lake or trailhead with none shows the plain near-ground values, which are the real conditions where it sits.
+Wind and temperature are both reported at each destination's own elevation, not at the standard 10 meters and 2 meters above the model's terrain — on a summit the near-ground values are the wrong air. The 10-meter wind understates what you would feel, often by a factor of two, and the 2-meter temperature carries the surface layer of a valley floor that cools by radiation on a clear night (Open-Meteo lapses it to the summit's own height, and the cold comes with it), which is why the temperature columns used to show a peak below freezing while its own freezing level sat thousands of feet higher. How both numbers are derived, and their limits, are in [DATA.md](DATA.md#open-meteo). A peak or pasted point with no known elevation is read at the ground height Open-Meteo's terrain model gives its coordinate; a lake, trailhead or crag with none shows the plain near-ground values, which are the real conditions where it sits.
 
 **No header says which method produced a number.** Every metric column reports at the destination's elevation: precipitation and air quality as the grid cell's surface values at that point, the freezing level as a height of its own, and the wind and temperature as above. A header that named the method on two of the metric columns read as a difference in place, so the method lives in [DATA.md](DATA.md#open-meteo) instead. Over an archive window the pressure levels are not published and both families fall back to the near-ground value; the line under the Analyze button names the window.
 
@@ -494,7 +495,7 @@ Click a marker for a popup carrying the same metrics the results table is showin
 
 ## Results Table
 
-Every row carries a **Type** — Peak, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
+Every row carries a **Type** — Peak, Crag, Lake, Trailhead, or Custom for one you supplied — because a single polygon can now look for several kinds at once. It travels into the downloaded CSV too, lower-case there, so a file you re-import reads the same value the API uses.
 
 Click any column header to sort the rows on screen by it, ascending or descending. From the keyboard, Tab reaches each header and Enter or Space sorts by it, exactly as a click does; a screen reader reads that hint on each header. Each number in a row links to that destination on Windy, and a screen reader reads the number itself, then where the link goes. The first Tab on the page offers **Skip to map**, which jumps past the panel to the map and the results, and a screen reader hears the results bar's title each time a report arrives. The **Columns**, **Models** and **Removed** buttons open their lists with the keyboard already inside them; Tab past either end of a list, or Escape, closes it and returns you to its button. That is all a header click does: the ranking, the column order, and the cell shading move only with the **Metrics** table in the panel. By default the table reads in the ranking's order, for example lowest total precipitation for driest-first, and a header click reorders those same rows in place. Each row keeps its number in the # column, which is its place in the ranking and the number on its marker, so after a header sort the numbers no longer run in order. The downloaded CSV's Rank column is the same number.
 
@@ -504,7 +505,7 @@ Hovering a row reveals a × at its end (shown to the keyboard when Tab reaches i
 
 | Column | Description |
 |---|---|
-| Name | Destination name. Click it to center the map on the destination, before or after an analysis; the ↗ beside it opens the destination on Peakbagger or OpenStreetMap |
+| Name | Destination name. Click it to center the map on the destination, before or after an analysis; the ↗ beside it opens the destination on Peakbagger, Mountain Project or OpenStreetMap |
 | Elevation (ft) | Elevation in feet, from the OSM `ele` tag. Where OSM records none, the terrain height the row was read at, with a dagger and one note under the table |
 | Precipitation · Total (in) | Sum of hourly precipitation over the window, in inches |
 | Precipitation · Avg (in/hr) | Average hourly precipitation rate |

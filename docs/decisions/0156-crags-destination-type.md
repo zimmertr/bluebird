@@ -1,0 +1,50 @@
+# 0156. Crags are the fourth polygon destination type, found from climbing=crag and climbing=area
+
+- Status: Accepted
+- Date: 2026-10-15
+- Decider: the maintainer (TJ), on issue #715, 2026-10-15
+- Issues and PRs: #715
+- Cited in code as: #715
+- Guide: [`CLAUDE.md`](../../CLAUDE.md), Architecture, step 2; [`docs/DATA.md`](../DATA.md), OpenStreetMap and Overpass
+
+## Context
+
+The Destinations section's type row carried three checkboxes, Peaks, Lakes and Trailheads, and at the panel's 360px width it had room for one more short label. The maintainer narrowed the field to two on 2026-10-14: climbing areas, or cities and towns. Mountain passes and huts were vetoed the same day.
+
+## Decision
+
+- **The type is `crag`**, a member of `DestinationType` on both sides, in `IMPLEMENTED_TYPES`, and in the share link's `DISCOVERY_TYPES`.
+- **The clause is `["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"]`**, as three clauses (node, way and relation) in `_CLAUSES`, the way the lake clauses are written, and `_classify` reads the same two tags. It is never widened to bare `sport=climbing`.
+- **The checkbox reads Crags**, and the row is Peaks, Crags, Lakes, Trailheads.
+- **A crag row's name links to a Mountain Project search by name** (`destinationUrl.ts`), rather than to its OSM object.
+- **The copy that listed the types now names none**: the tutorial's destinations step, the Overpass line `/api/capabilities` publishes, the API description and the README say "destination" or "places", approved verbatim on 2026-10-15, so a fifth type changes none of them.
+- Crags never join `TILE_TYPES`: the basemap's tiles carry no climbing layer, so a ring with Crags ticked asks Overpass, as one with Trailheads ticked does. A crag with no `ele` takes the unknown-elevation path lakes and trailheads take, and no elevation lookup is added for it.
+
+## Evidence
+
+Measured 2026-10-15 through Overpass over 47.0 to 48.0 N, 121.8 to 120.8 W, named features only:
+
+| Tag | Named features |
+|---|---|
+| `sport=climbing`, all | 183 |
+| `climbing=crag` | 82 |
+| `climbing=area` | 22 |
+| `climbing=route` | 67 |
+| `climbing=route_bottom` | 5 |
+| `climbing=boulder` | 4 |
+| no `climbing=` key | 3 |
+
+The 104 crags and areas were 45 nodes, 9 ways and 50 relations, and none carried `ele`. An area nests crags (Index is an area and Lower Town Wall a crag inside it), so a ring can list both. On 2026-10-15 a Mountain Project search for `Lower Town Wall` listed the area (`/area/105790643/lower-town-wall`) in its Areas section.
+
+The row: the four labels take 289.8px of the 327px row at the 360px panel, and stay on one line down to a 322px row; below that the row wraps.
+
+## Alternatives rejected
+
+- **Cities and towns** (#116, closed 2026-07-31). A valley floor beats every summit on wind and temperature, so a ring with Cities and Peaks ticked ranks to no purpose, and the box held 50 settlements, most of them hamlets nobody plans a trip around.
+- **Bare `sport=climbing`.** It brings every route and boulder with it: in the measured box, 67 routes, 5 route bottoms and 4 boulders would each have been a row.
+- **Crags without areas.** Some places are mapped only as an area, and leaving areas out loses them.
+- **A link to the OSM object**, as lakes and trailheads have. The maintainer chose Mountain Project, which is where a climber looks a crag up.
+
+## Consequences
+
+`test_osm.py` holds the three clauses, their absence when crags are not asked for, and the classification of a crag node, an area relation and a stray route; `test_models.py` holds the enum's members, `test_analyze.py` and `clientAnalyze.test.ts` the over-cap noun (mirror row 18), `urlState.test.ts` the `type=crag` round trip, `DestinationsSection.test.tsx` the checkbox and its order, `destinationUrl.test.ts` the Mountain Project link, and `test_capabilities.py` reads `IMPLEMENTED_TYPES`, so the type is published with no test of its own. `test_security_headers.py` lists `www.mountainproject.com` as a link-only host. The `add-destination-type` skill now names every file this type touched. OSM's coverage of crags is uneven: the popular areas are mapped and the obscure ones are not, which `docs/DATA.md` says.

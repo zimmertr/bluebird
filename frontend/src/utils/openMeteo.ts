@@ -296,8 +296,8 @@ export interface Coordinate {
  *
  * A peak stands above the model's terrain, so the free air interpolated to the
  * ground's height is closer to what its summit feels than the 10 m wind and
- * 2 m temperature of the smoothed cell under it. A lake or a trailhead sits ON
- * that terrain: its surface-layer values are the real near-ground conditions,
+ * 2 m temperature of the smoothed cell under it. A lake, a trailhead or a crag
+ * sits ON that terrain: its surface-layer values are the real near-ground conditions,
  * and the free air at the same height overstates the wind. So does any other
  * kind a searched place carries (a city, a river). `custom` is a pasted point,
  * whose kind nothing knows; a list of coordinates is almost always a list of

@@ -40,6 +40,19 @@ _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
         'way["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
         'relation["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
     ),
+    # A crag is `sport=climbing` with `climbing=crag` or `climbing=area`, and
+    # nothing wider. Bare `sport=climbing` also tags every route and boulder:
+    # measured 2026-10-15 over 47.0 to 48.0 N, 121.8 to 120.8 W, it found 183
+    # named features, of which 82 were crags and 22 areas, and 67 routes, 5
+    # route bottoms and 4 boulders would each have become a row. Areas stay in
+    # because some places are mapped only as one (Index is an area holding
+    # Lower Town Wall). All three element kinds, because the 104 crags and
+    # areas in that box were 45 nodes, 9 ways and 50 relations.
+    DestinationType.crag: (
+        'node["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"](poly:"{poly}");',
+        'way["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"](poly:"{poly}");',
+        'relation["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"](poly:"{poly}");',
+    ),
 }
 
 # The same summits without the name filter, for callers that opt in. Kept apart
@@ -92,7 +105,7 @@ def _build_query(
 
 # Which type a returned element actually is. A single-type query could assume
 # the answer from the request; a union cannot, and the row's type decides its
-# badge and whether it links to Peakbagger. Read from the same tags the
+# badge and where its name links. Read from the same tags the
 # clauses above match on, so the two cannot disagree.
 def _classify(tags: dict[str, Any]) -> str:
     natural = tags.get("natural")
@@ -102,6 +115,8 @@ def _classify(tags: dict[str, Any]) -> str:
         return DestinationType.trailhead.value
     if natural == "water" and tags.get("water") == "lake":
         return DestinationType.lake.value
+    if tags.get("sport") == "climbing" and tags.get("climbing") in ("crag", "area"):
+        return DestinationType.crag.value
     # Unreachable for anything the clauses asked for, but a tagging change
     # upstream should degrade to an unbadged row rather than raise.
     return DestinationType.custom.value
@@ -113,6 +128,7 @@ IMPLEMENTED_TYPES = {
     DestinationType.peak,
     DestinationType.trailhead,
     DestinationType.lake,
+    DestinationType.crag,
 }
 
 

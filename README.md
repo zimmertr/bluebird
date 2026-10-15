@@ -11,7 +11,7 @@
 
 It's Friday evening. Rain is moving in from the west, smoke is drifting from the east, and strong winds are building to the south. You want to get outside this weekend, but where should you go?
 
-Bluebird Forecast helps you find out. Search for destinations, provide a list of coordinates, or draw a polygon and discover the best peaks, trailheads, lakes, and other destinations for your next adventure. Bluebird Forecast analyzes the weather for your window, up to a year back or sixteen days ahead, and ranks destinations by precipitation, wind, temperature, freezing level, snow depth, cloud base, cloud cover, and air quality so you can quickly find the best objective.
+Bluebird Forecast helps you find out. Search for destinations, provide a list of coordinates, or draw a polygon and discover the best places for your next adventure. Bluebird Forecast analyzes the weather for your window, up to a year back or sixteen days ahead, and ranks destinations by precipitation, wind, temperature, freezing level, snow depth, cloud base, cloud cover, and air quality so you can quickly find the best objective.
 
 Ready to find your Bluebird day? https://bluebirdforecast.com
 

@@ -155,6 +155,12 @@ describe('encodeState / decodeState round-trip', () => {
     expect(ring[0]).toEqual(ring[ring.length - 1])
   })
 
+  it('restores crags beside the other types', () => {
+    const out = roundTrip({ ...base, destinationTypes: ['peak', 'crag'] })
+    expect(out!.destinationTypes).toEqual(['peak', 'crag'])
+    expect(decodeState('type=crag')?.destinationTypes).toEqual(['crag'])
+  })
+
   it('restores a non-default sort and limit', () => {
     const out = roundTrip({ ...base, sortBy: 'wind_avg_mph', limit: 25 })
     expect(out!.sortBy).toBe('wind_avg_mph')

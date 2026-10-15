@@ -867,7 +867,7 @@ export interface components {
          * DestinationType
          * @enum {string}
          */
-        DestinationType: "peak" | "trailhead" | "lake" | "custom";
+        DestinationType: "peak" | "trailhead" | "lake" | "crag" | "custom";
         /**
          * DestinationsRequest
          * @description Discovery only: which destinations exist, with no forecasts attached.

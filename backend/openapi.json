@@ -1033,6 +1033,7 @@
           "peak",
           "trailhead",
           "lake",
+          "crag",
           "custom"
         ],
         "title": "DestinationType",
@@ -1965,7 +1966,7 @@
       "name": "Bluebird Forecast on GitHub",
       "url": "https://github.com/zimmertr/bluebird"
     },
-    "description": "\nBluebird Forecast ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named peak, trailhead, or lake inside it is discovered\nfrom OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThe analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key\nheader. Every other route takes no key and no authentication. A keyed request\nspends the caller's Open-Meteo quota, never this deployment's.\n\nLight per-address rate limits and an instance-wide upstream budget protect the\nfree, keyless APIs underneath: requests past them receive 429 or 503 with a\n`Retry-After` header, and `GET /api/capabilities` publishes the numbers. Please\nstay considerate all the same: a single analysis can fan out to hundreds of\nforecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
+    "description": "\nBluebird Forecast ranks outdoor destinations by their forecast weather.\n\nDraw a polygon and every named destination inside it is discovered from\nOpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery\nentirely and send your own coordinates.\n\nThe analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key\nheader. Every other route takes no key and no authentication. A keyed request\nspends the caller's Open-Meteo quota, never this deployment's.\n\nLight per-address rate limits and an instance-wide upstream budget protect the\nfree, keyless APIs underneath: requests past them receive 429 or 503 with a\n`Retry-After` header, and `GET /api/capabilities` publishes the numbers. Please\nstay considerate all the same: a single analysis can fan out to hundreds of\nforecast requests.\n\nStart with `GET /api/capabilities` to learn the limits this deployment enforces,\nand `GET /api/version` to confirm which build you are talking to.\n",
     "license": {
       "name": "PolyForm-Noncommercial-1.0.0",
       "url": "https://polyformproject.org/licenses/noncommercial/1.0.0"

@@ -7,10 +7,11 @@
 // into the `Place` the searched-destinations pipeline already carries end to
 // end (map dot → `pins` URL param → `custom_destinations` on the next Analyze).
 //
-// Trailheads are deliberately absent even though the app discovers them: it
-// finds them as `highway=trailhead`, and OpenMapTiles' `poi` layer does not
-// source that tag, so there is nothing on the basemap to click. Adding them
-// would mean shipping a second data source for a layer the map does not draw.
+// Trailheads and crags are deliberately absent even though the app discovers
+// them: it finds them as `highway=trailhead` and `sport=climbing`, and
+// OpenMapTiles' `poi` layer sources neither tag, so there is nothing on the
+// basemap to click. Adding them would mean shipping a second data source for a
+// layer the map does not draw.
 
 import { Place } from './geocode'
 

@@ -312,6 +312,7 @@ def test_noun_names_one_kind_but_merges_a_mixed_set():
     # more use than "1,842 destinations".
     assert _noun([DestinationType.peak]) == "peak"
     assert _noun([DestinationType.lake]) == "lake"
+    assert _noun([DestinationType.crag]) == "crag"
     # Anything mixed merges rather than listing types: a refusal is read for
     # its remedy, and an inventory buries that.
     assert _noun([DestinationType.peak, DestinationType.lake]) == "destination"

@@ -76,6 +76,7 @@ export function resultPopupHtml(d: {
 }): string {
   const r = d.row
   const url = destinationUrl({
+    name: r.name,
     type: r.type,
     latitude: r.latitude,
     longitude: r.longitude,

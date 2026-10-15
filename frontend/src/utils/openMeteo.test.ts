@@ -510,6 +510,7 @@ describe('fetchWeather', () => {
     expect(terrainFallbackFor('custom')).toBe(true)
     expect(terrainFallbackFor('lake')).toBe(false)
     expect(terrainFallbackFor('trailhead')).toBe(false)
+    expect(terrainFallbackFor('crag')).toBe(false)
   })
 
   it('keys the cache by elevation, so a lattice point never reads a summit entry', async () => {

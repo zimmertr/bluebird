@@ -35,6 +35,7 @@ const MODE_LABEL = { draw: 'Draw polygon', edit: 'Edit polygon', done: 'Done' } 
 // always-visible Custom Destinations section below adds to any of these.
 const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boolean }[] = [
   { value: 'peak', label: 'Peaks', implemented: true },
+  { value: 'crag', label: 'Crags', implemented: true },
   { value: 'lake', label: 'Lakes', implemented: true },
   { value: 'trailhead', label: 'Trailheads', implemented: true },
 ]
@@ -146,8 +147,8 @@ export default function DestinationsSection({
           Hover-only is fine here because it adds a cue to copy that
           already stands on its own. The caption names peaks and lakes
           rather than "a destination" because those are the two things
-          the basemap makes clickable - trailheads are not on it, which
-          is why they are found by polygon instead. */}
+          the basemap makes clickable - trailheads and crags are not on
+          it, which is why they are found by polygon instead. */}
       <div
         className="mb-3"
         onMouseEnter={() => {
@@ -275,7 +276,7 @@ export default function DestinationsSection({
             at once, and they all come back from a single Overpass query,
             so asking for peaks and lakes together costs what peaks alone
             would. The "Find:" label that used to lead this row is gone —
-            three checkboxes under the Polygon heading are not ambiguous
+            the checkboxes under the Polygon heading are not ambiguous
             about what they do. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
           {DESTINATION_TYPES.map(({ value, label, implemented }) => (

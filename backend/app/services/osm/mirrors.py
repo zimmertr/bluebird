@@ -252,7 +252,7 @@ async def query_osm(
                 "name": name,
                 # Carried per row rather than applied by the caller: a union
                 # response holds several types at once, and this is what the
-                # row's badge and its Peakbagger link are chosen from.
+                # row's badge and its name's link are chosen from.
                 "type": _classify(tags),
                 "latitude": lat,
                 "longitude": lon,

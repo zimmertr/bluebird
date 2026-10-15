@@ -145,6 +145,7 @@ _NOUNS = {
     DestinationType.peak: "peak",
     DestinationType.trailhead: "trailhead",
     DestinationType.lake: "lake",
+    DestinationType.crag: "crag",
     DestinationType.custom: "destination",
 }
 
