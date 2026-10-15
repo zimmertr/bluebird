@@ -42,9 +42,9 @@ const POI_MINZOOM = 9
  * The first zoom whose tiles carry them. Measured 2026-10-15 at Index's Lower
  * Town Wall: the z12 and z13 tiles there hold no `poi` feature at all, and
  * the z14 tile holds 58 climbing features, 57 of them named, so a lower floor
- * would draw nothing more. Routes on one wall stand metres apart and still
- * overlap at z15; `text-optional` keeps each icon and drops the names that
- * collide.
+ * would draw nothing more. Routes on one wall stand metres apart, so the
+ * layer lets collision hide icons (see `ofm-climbing`) and a wall shows one
+ * or two until the reader zooms in.
  */
 const CLIMBING_MINZOOM = 14
 
@@ -347,6 +347,12 @@ export function enhanceBasemap(map: maplibregl.Map) {
       layout: {
         ...poiLabelLayout('circle_stroked_11'),
         'text-field': ['get', 'name'],
+        // The one clickable layer whose icons collide away. Routes on one
+        // wall stand metres apart, so with overlap allowed z14 drew each wall
+        // as a pile of circles (measured at Index, 2026-10-15). The
+        // maintainer chose to show one or two until the reader zooms in, and
+        // accepted that a hidden icon cannot be clicked until it draws.
+        'icon-allow-overlap': false,
       },
       paint: POI_LABEL_PAINT,
     },

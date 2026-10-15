@@ -117,6 +117,10 @@ describe('enhanceBasemap', () => {
       ['has', 'name'],
     ])
     expect(climbing.layout?.['icon-image']).toBe('circle_stroked_11')
+    // Routes on one wall pile up at z14, so climbing alone lets collision
+    // hide icons; every other clickable layer keeps each marker.
+    expect(climbing.layout?.['icon-allow-overlap']).toBe(false)
+    expect(added['ofm-peaks'].layout?.['icon-allow-overlap']).toBe(true)
     expect(added['ofm-climbing-glow'].filter).toEqual(climbing.filter)
     expect(added['ofm-climbing-glow'].minzoom).toBe(14)
   })

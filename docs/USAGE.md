@@ -39,7 +39,7 @@ Seven things are worth knowing about what you can click:
 - **Shift-click keeps a popup open** instead of replacing it, so two destinations can be compared side by side. A popup opened that way stays until you close it, or until the next analysis lands, which closes every popup on the map.
 - **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
 - **A clicked town is the point its label stands on**, which is the map data's point for the place, usually its centre, and not the spot you clicked.
-- **A climbing label may be a crag or a single route.** The map data does not say which, so both can be picked, and both are added as `Climbing`. They show from zoom 14, the first zoom the map data carries them at.
+- **A climbing label may be a crag or a single route.** The map data does not say which, so both can be picked, and both are added as `Climbing`. They show from zoom 14, the first zoom the map data carries them at. Routes on one wall stand metres apart, so a crowded wall shows only the icons that fit until you zoom in, and a hidden one can be picked once it draws.
 - **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
 
 Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them.
