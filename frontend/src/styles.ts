@@ -1683,12 +1683,17 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
  * stylesheet order. Hover is `BUTTON_FLOATING`'s: the accent label and edge.
  * The call site adds `DISABLED`, which greys the Legend chip until it has a
  * key to show.
+ *
+ * The lit chip's label and glyph take the label-on-fill ink. In dark that is
+ * the white the chip wears at rest, so nothing moved there; in light the
+ * resting ink is the dark one, which stood 2.66:1 on the accent and hid the
+ * summary chip's menu glyph (#706).
  */
 const CHIP_FACE =
   `bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
   `${CHIP_SIZE} text-ink-strong h-8 flex items-center gap-1.5 px-3 whitespace-nowrap ${CHIP_HIT} ` +
   `transition-colors ${ACCENT.edgeHover} ${ACCENT.hoverText} active:bg-raised ` +
-  `aria-expanded:bg-accent aria-expanded:border-accent ${FOCUS_RING}`
+  `aria-expanded:bg-accent aria-expanded:border-accent aria-expanded:text-on-fill ${FOCUS_RING}`
 export const MAP_CHIP = `${CHIP_FACE} flex-shrink-0`
 
 /**

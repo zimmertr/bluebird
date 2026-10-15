@@ -2,6 +2,8 @@
 
 Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exports the roles every component composes. This page documents what each role is for, what is enforced, and the measured numbers that keep the app consistent.
 
+The app has two themes since #706, dark by default and light behind the switch in the panel's header. Every colour role paints a semantic token rather than a palette step (see [Two themes](#two-themes) below), so where a row on this page names a slate or sky step, that is the dark theme's value, and the light one is in that section's table.
+
 ## Roles
 
 **Text ramp**
@@ -72,7 +74,7 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `FIELD_NUMERIC` | Number input with browser spinners suppressed |
 | `SELECT` | Native dropdown, recessed fill with suppressed platform chrome |
 | `DISABLED` | The faded, unpressable look of a control that does not apply; composes over any button or field role and carries no color of its own |
-| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.25:1 on the panel, 5.96:1 on an idle metric select and 5.43:1 on an unplotted chart chip, where 50% was 4.11, 4.58 and 4.22 |
+| `MUTED` | The other half of that pair: a control that is not the one in force but still works. 60% against `DISABLED`'s 40%, unscoped, and no cursor change, because a press still does something. 60 rather than 50 because a working control's text owes 4.5:1: the slate-200 label measures 5.25:1 on the panel, 5.96:1 on an idle metric select and 5.43:1 on an unplotted chart chip, where 50% was 4.11, 4.58 and 4.22. The fade is the `--ui-muted` token, 65% in light, where 60% leaves the dark ink at 4.31, 4.50 and 4.38 and 65% measures 5.07, 5.34 and 5.10 (#706) |
 | `SR_ONLY` | Text for assistive technology only: the twin of an approved tooltip, the one sentence a row's metric links are described by, and a live region that must exist before it speaks |
 | `CHOICE_ROW` | Radio or checkbox and its label as one strip |
 | `CHOICE_INPUT` | The box itself inside a choice row |
@@ -90,9 +92,10 @@ Bluebird Forecast's frontend design lives in `frontend/src/styles.ts`, which exp
 | `SLIDER` | The parts of the two range inputs that are not the input itself, one object since #687: `overlay`, `value`, `wordmark` and `idle` are the coverage slider in the Layers popover (the transparent range input laid over the drawn track, the value readout at `CONTROL_SIZE`, the in-track wordmark at the same size in sentence case, and the idle tint), and `track` is the rail the map timeline's scrubber slides on |
 | `PANEL_EDGE` / `PANEL_RULE` | The panel's own border tint (the rule under the header, the one over the footer, and since #697 the panel's right edge against the map and the results), and the rule between the panel's sections, drawn from the stack so a section added later cannot forget its line. `SURFACE_DIVIDER` above is the same quiet line where a call site has to place it by hand |
 | `PANEL_BODY` | The panel's scrolling body: `px-4 py-4`, the shared bar with its width kept (`scrollbar-gutter: stable`, so the column never jumps when a section opens), and both scroll shadows reaching across the padding |
-| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687) |
-| `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the theme's slate-500 and slate-800; the root's `color-scheme: dark` turns every bar it does not reach dark too (#697, record 0128) |
-| `SCROLL_SHADOW` | A slate-950 shade at 70% over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
+| `PANEL_HEADER` | The panel's header, 56px plus its rule: a 40px logo with 8px around it, and the title block at `py-2`. It was 81px (#687). `actions` is the top-right spot its round buttons share, the theme switch on the close button's left (#706) |
+| `HEADER_BUTTON` | A round button in a panel's header: the desk panel's close button and the theme switch, and the switch again beside Done in a phone's Controls sheet title row (`BOTTOM_SHEET.actions`). 32px on a fine pointer, 44 under a finger. The close button's recipe, named once it had a twin (#706) |
+| `SCROLL_BARS` | The one scroll bar every dark surface wears: the panel body, the results table, the chart legend, the calendar's popover. The rules live in `index.css` as `.surface-scrollbars`, in the `edge` and `panel` tokens (slate-500 on slate-800 in dark); the root's `color-scheme` turns every bar it does not reach to the theme too (#697, record 0128) |
+| `SCROLL_SHADOW` | A slate-950 shade at 70% (in light, the ink at 12%) over 12px under a fixed edge, shown only while content continues past it: `start`, `end`, `both`, and `head` for the results table, whose top shade hangs under its sticky header. CSS scroll timelines where the browser has them, `useScrollShadows`'s two data attributes where it does not (#697, record 0128) |
 | `METRIC_LABEL_PITCH` | 5px above and below each metric's radio label on a fine pointer, which sets the Metrics rows 32px apart so the radio and the boxes pass WCAG 2.2's 24px target spacing without growing; nothing under touch, where `TAP.row` already makes the label 44px (#687, record 0130) |
 | `MOTION` | Movement that answers an action and stops under a reduced-motion setting: `slide` for the phone's Controls sheet, `progress` for the analysis card's bar (#687). `TOUR.motion` is the tutorial's own |
 | `BADGE_STEP` | The step-number badge in the welcome modal, derived from `ACCENT.fill` |
@@ -221,17 +224,109 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | `TABLE.rankFace` | One face of that stack, pinned to the shared cell |
 | `TABLE.rankIdleFace` / `TABLE.removeFace` | Which face shows: the number gives way on row hover and while the × has keyboard focus. The × idles at no opacity rather than `invisible`, because a hidden element cannot take focus (#576) |
 
+## Two themes
+
+Dark is the default and stays the default whatever the operating system says;
+light applies only once a reader presses the switch (#706). The two are one set
+of names with two sets of values, so no role is spelled twice.
+Record: [0156](decisions/0156-light-theme-behind-semantic-tokens.md)
+
+**How it is built.** `frontend/src/index.css` registers each token in an
+`@theme inline` block as `--color-<token>: var(--ui-<token>)`, which gives it a
+Tailwind utility (`bg-panel`, `text-ink-soft`, `border-edge`) that compiles to
+the variable rather than to a value. `:root` sets every `--ui-*` to the Tailwind
+step the dark theme always painted, and `:root[data-theme="light"]` sets them to
+the light palette. It has to be `inline`: a plain `@theme` entry pointing at
+another variable resolves once on the root, and an override on the same root
+would never reach it. Opacity modifiers still work (`bg-floating/95`), because
+v4 compiles them to a `color-mix` over the variable. Three values are not
+utilities and ride the same block as plain variables: the accent ring's glow
+(`--ui-accent-glow`), a legend swatch's inline edge (`--ui-swatch-edge`, which
+`SWATCH_EDGE` hands to a `style`), and `MUTED`'s fade (`--ui-muted`).
+
+| Token | Dark | Light | Roles that paint it |
+|---|---|---|---|
+| `page` | slate-900 | `#f8f9ff` | `SURFACE_PAGE` |
+| `panel` | slate-800 | `#eef2f9` | the panel, `SURFACE_SHEET`, `SURFACE_CARD`, the chart and table body |
+| `raised` / `raised-hover` | slate-700 / slate-600 | `#e1e6ee` / `#d4dae3` | `SURFACE_POPOVER`, the results bar, the table head, `BUTTON_SECONDARY`, `CHIP.rest`, `HEADER_BUTTON` |
+| `highlight` | slate-600 at 50% | `#d4dae3` | a search result under the keyboard |
+| `floating` | slate-800 | `#f8f9ff` | `SURFACE_FLOATING`, at 95% in both |
+| `recessed` | slate-900 | `#ffffff` | `RECESSED_FILL` and every well that composes it |
+| `rule` | slate-700 | `#c2c8d1` | `SURFACE_DIVIDER`, `PANEL_RULE`, `TABLE.row` at 50% |
+| `frame` | slate-600 | `#9aa0a8` | the outline round a floating, card, popover or sheet surface, `UNFURL_ANCHOR` |
+| `edge` / `edge-lifted` | slate-500 / slate-400 | `#72787f` / `#72787f` | `PANEL_EDGE`, `RECESSED_EDGE`, `SEGMENT_DIVIDER`, the scroll thumb; `LIFTED_EDGE` |
+| `ink-strong` / `ink` | white / slate-200 | `#181c21` / `#181c21` | headings and the primary text |
+| `ink-mid` | slate-300 | `#2d3238` | `LINK`, `TEXT.micro`, `CAPTION_LIFTED`, `TEXT.section` |
+| `ink-soft` | slate-400 | `#42474e` | captions, `SEGMENT_IDLE`, `ICON_ADORNMENT`, placeholders |
+| `ink-faint` / `ink-ghost` | slate-500 / slate-600 | `#6c727a` / `#a0a6ae` | `ICON_ACTION` at rest; `DAY.unservable` |
+| `accent` / `accent-hover` | sky-650 / sky-600 | `#00639b` / `#005585` | `ACCENT.fill`, `BUTTON_PRIMARY`, `BADGE_STEP` |
+| `accent-ink` / `accent-ink-hover` | sky-400 / sky-300 | `#00639b` / `#004a75` | `LINK_ACTION`, `ACCENT.text`, `FOCUS_RING` |
+| `mark` | sky-500 | `#00639b` | `ACCENT.input`, `ACCENT.mark` |
+| `range` / `range-hover` | sky-950 / sky-900 | `#cfe5ff` / `#bcdafc` | `DAY.range` |
+| `on-fill` | white | `#ffffff` | the label on any fill |
+| `ok`, `warn`, `danger`, `info` | green-400, amber-300, red-400, sky-300 | `#1d6b33`, `#6b4600`, `#93000a`, `#0b4a73` | `STATUS`, the `NOTICE` inks |
+| `*-tint` / `*-line` | the hue's 950 at 40% / 800 at 60% | `#fbe7c4`, `#ffdad6`, `#d6e7fb` / the ink at 38% over its tint | the `NOTICE` boxes |
+| `danger-fill`, `-hover`, `-edge`, `-label` | red-900 at 60%, red-800, red-700, red-200 | `#ffb4ab`, `#ff9e94`, `#ba1a1a`, `#690005` | `BUTTON_DANGER` |
+| `lift`, `thumb`, `scrim` | white, white, black | `#181c21`, `#181c21`, black | a hovered row's tint, a range thumb, the dim under a modal |
+
+The light values are the maintainer's palette from #706, the Material light
+preset; the ones it left to derive (the middle and faint inks, `frame` halfway
+between `rule` and `edge`, the range hover, the shade, the thumb) are measured
+below. `SWATCH_CHIP` keeps `text-slate-900` in both themes on purpose: its
+letter stands on the smoke key's own chip colour, which does not change.
+
+**The switch.** `ThemeButton` is a round `HEADER_BUTTON` beside the close button
+at a desk and beside Done in a phone's Controls sheet title row; no other sheet
+shows it. Its glyph is the theme a press goes to, a sun while dark and a moon
+while light, and its name says the same. `useTheme` writes `data-theme` on the
+root and the choice to `bluebird_forecast_theme` in localStorage (`viewPrefs.ts`),
+and stores nothing for dark. The choice is not in the URL: a link carries a
+session, not a browser's habit. A page would paint dark for a frame before React
+read the key, so `frontend/public/theme.js` (291 bytes, a classic script on the
+same origin, which the CSP's `script-src 'self'` allows) sets the attribute from
+the head of every HTML entry before the stylesheet; `theme.test.ts` holds its key
+to `THEME_KEY` and its place in the four files.
+
+**Ranked cells.** In dark a ranked cell is the band's colour as its text over
+the same colour at 20%, exactly as before. In light that text fails, so the
+tint stays and the text is the same hue's Tailwind 800 step, interpolated
+between bands the way the tint is (`ink` on each `ColorScale` in `colors.ts`,
+read by `cellStyle(value, scale, theme)`). The 700 steps measured 3.8 to 5.0:1,
+which is why it is the 800s. `colors.test.ts` pins every band's ink on the light
+panel over its tint: the verdict ramp 5.42 to 6.27:1, temperature 5.44 to
+7.26:1, the freezing level 5.83 to 8.06:1, and the cloud deck and snowfall as
+the reverses of the two they mirror.
+
+**The chart.** `chartColors.ts` holds a twin of the ten-line palette for light,
+the same hues one or two steps down (sky-600, pink-600, lime-700, amber-700,
+purple-600, emerald-600, orange-600, blue-600, fuchsia-600, teal-600), and the
+golden-angle generator past the ten walks at lightness 40 where dark walks at
+60. The allocator stores an index rather than a colour, so a switch recolours
+every line, swatch and table checkbox without reallocating which destination
+has which slot. The chrome follows the tokens: axis `ink-soft`, grid `rule`,
+surface `panel`, playhead `accent-ink`.
+
+**What does not change.** The map is terrain and light in both themes: the
+basemap, the markers, the ring, the labels and their halo, and every overlay's
+fill and edge keep their values in `mapStyles.ts` and the overlay modules. The
+popups stay white, as MapLibre draws them, and `popupChrome.ts` keeps its
+values. The map's control buttons and its credit box are the app's chrome and
+follow the theme like any floating box, which is why in light their glyphs keep
+MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
+line reads in `ink-mid`.
+
 ## What is enforced
 
 | What | Where | How |
 |---|---|---|
 | Every text role is unique, and no recipe sets two competing colours | `styles.test.ts` | Uniqueness over `TEXT` and `PROSE`; a resting-colour count over every exported role |
 | No component invents a size | `eslint.config.js` | Ban a ramp step or an arbitrary size in a string or template in component sources |
-| No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails. Component sources are `App.tsx`, `components/` and `map/`, and the self-test lints one hue at a path in each of the last two to prove the glob reaches them |
+| No component names a hue | `eslint.config.js` | Pattern match on non-slate color utilities, built from alternation so an unlisted one still fails, and on the theme's hue tokens (`accent`, `warn`, `danger-tint` and the rest), which are the same hues in another spelling (#706). Component sources are `App.tsx`, `components/` and `map/`, and the self-test lints one hue at a path in each of the last two to prove the glob reaches them |
 | No component sizes a tap target | `eslint.config.js` | Ban `touch:` utilities in component sources |
 | No component sizes radio/checkbox | `eslint.config.js` | Covered by the hue ban, which reaches `accent-*` |
 | No component re-widths a segment | `checks/styles.js` | `style-call-site-classes`: a `w-*` in the template that composes `SEGMENT` |
-| No component sets a slate text colour | `eslint.config.js` | Slate is the surface system, already covered by `TEXT`, `SURFACE_*` and `FIELD` |
+| No component sets the panel's text ink | `eslint.config.js` | The ink tokens below `ink-strong` are the surface system's, already covered by `TEXT`, `SURFACE_*` and `FIELD` |
+| No component spells a slate, white or black step | `eslint.config.js` | Each paints the dark value in both themes, so it is the one spelling that cannot follow the switch; take the role, or the token it reads (#706) |
 | No component restates a shared recipe | `eslint.config.js` | Ban the three class lists a role already composes |
 | The panel sizes by pointer, not by viewport | `eslint.config.js` | Ban a breakpoint variant on padding, gap or height in `ControlPanel.tsx` and the section files it renders (`PANEL_FILES`) |
 | A panel heading takes a role | `eslint.config.js` | Ban a quoted class list on an `h1`-`h3` in the same files |
@@ -256,7 +351,9 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
-| The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure |
+| The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 6.45, 5.74, 5.00, 6.45 and the 7.96 hover |
+| Every light value is measured where it lands | `styles.test.ts`, `colors.test.ts`, `chartColors.test.ts` | The test parses both token blocks out of `index.css`, reads each dark token back to the slate or sky step it always was, and pins the light theme's ratios role by role (see The light theme below); the cell inks and chart lines per theme |
+| A stored light theme paints before React does | `theme.test.ts` | `public/theme.js` reads `THEME_KEY`, stays under 400 bytes, and is in the head of all four HTML entries before the module script, with no inline script anywhere |
 | No component draws its own glyph | `checks/styles.js` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
 | Nor does the map popup | `checks/styles.js`, `styles.test.ts` | `style-popup-glyph` bans the same tag in `utils/popupChrome.ts`, which builds markup rather than elements; the test pins its glyph size to the `inline` step |
 | No call site sizes an icon | `checks/styles.js`, `styles.test.ts` | `style-call-site-classes` bans a height or width utility on any `<Icon…>` element; the test pins the four `ICON` steps by measured pixels, and the key set too |
@@ -264,7 +361,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 | No component positions its own panel | `checks/styles.js` | Ban a fixed-position style object and the popover wrapper everywhere under `components/` and `map/` and in `App.tsx`, except `Popover.tsx` |
 | One place decides where a panel goes | `checks/styles.js` | `popoverBox` has exactly one caller, the `usePopover` hook |
 | Every menu unfurls out of its control | `checks/styles.js`, `styles.test.ts` | `style-menu-unfurls` fails a `usePopover` call whose `placement` is not `'unfurl'` (or the calendar's `'cover'`), and a `widthRef` on any other placement, and a `role="listbox"` outside the card `Popover.tsx` draws, `SearchBox.tsx` aside; `style-map-layers-column` requires `UNFURLED.below` and `UNFURL_ANCHOR` on the Layers menu and button; the test pins the two roles to each other |
-| No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
+| No component spells the third divider weight | `styles.test.ts` | Ban the slate-700 border utility, and since #706 the `rule` token's, everywhere under `components/` and `map/` and in `App.tsx`, and check every `SURFACE_DIVIDER` use carries a side |
 | No component fades by a number of its own | `styles.test.ts` | Ban any `opacity-` utility everywhere under `components/` and `map/` and in `App.tsx`; `DISABLED`, `MUTED` and `DRAG.carried` are the three fades |
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
 | Every shadow is a step of one scale | `styles.test.ts` | Every surface role's shadow is an `ELEVATION` value, the sheet and the banner wear `none`, and no component spells a `shadow-` utility |
@@ -337,6 +434,65 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 **Why this shade?** No Tailwind scale step fits. The surviving window for both constraints is 0.0067 of relative luminance wide, and `sky-650` is the midpoint: sky-600 sits above it (white reads 4.02:1) and sky-700 below it (the fill drops to 2.37:1 on the range band, so the ends of a selected range sink into it). Two roads not taken: dark labels clear both constraints with far more room (rejected for brand reasons), and documenting 4.02:1 as a conformance exception was considered (rejected: 4.02 is below AA, and the resting state is the one a reader looks at, so the custom shade lifts it to 4.57 and leaves only the hover short). The hover at 4.02:1 is kept because with a white label every lightening costs contrast — a conformant hover would have to darken, making the app's primary action the only control that dims on pointer-over.
 
 **Re-measure condition:** if `DAY.range` ever changes, re-derive this shade. The binding edge is `DAY.range` at 3.04:1, so the selected day must still be findable against the range band beside it.
+
+### The light theme
+
+The light accent is not a custom shade, because it does not need one. A white
+label on a dark fill has room on both sides, so `#00639b` (the Material
+primary at tone 40) clears every constraint the dark shade squeezes between,
+and its hover darkens rather than lightens, so it clears AA too. Measured
+2026-10-15 in `styles.test.ts`, against the token values it parses out of
+`index.css`:
+
+| What | On | Light | Dark, for comparison |
+|---|---|---|---|
+| White label on the accent fill | the fill | **6.45:1** | 4.57 |
+| The fill | the panel | **5.74:1** | 3.21 |
+| The fill | `DAY.range` | **5.00:1** | 3.04 |
+| The fill | the segment track | **6.45:1** | 3.91 |
+| The fill | `DAY.range`'s hover | **4.47:1** | |
+| White label on the hover | `#005585` | **7.96:1** | 4.02 |
+
+The rest of the theme, role by role, each pinned as a literal:
+
+- **Text.** The lowest any text role reads on any surface it lands on is the
+  soft ink on the raised fill, 7.47:1. The placeholder reads 9.36:1 on the
+  well, the micro step 12.3, 10.31 and 11.51 on the floating, raised and panel
+  fills, and the lifted caption 9.19 on a highlighted search result.
+- **Icons and boundaries (3:1).** The faint ink, which an icon at rest wears,
+  4.32, 3.87 and 4.85 on the panel, raised fill and well. The structural edge
+  3.97 on the panel and 4.46 on the well, and 4.24 on the floating fill; the
+  lifted edge 3.56 on the raised fill. The accent mark 5.74, 5.14 and 6.45 on
+  the panel, raised fill and well, and the focus ring 5.14 to 6.45 on all four
+  grounds. The adornment glyph 9.36.
+- **Lines meant to be quiet.** The rule 1.50:1 on the panel (dark's is 1.41)
+  and the outline 2.35, which is exactly halfway between the rule and the
+  edge in RGB, the derivation the palette asked for.
+- **Notices.** Each ink on its own tint and on the panel: warn 6.93 and 7.48,
+  error 7.24 and 8.33, info 7.44 and 8.35. Each box's rule is its ink at 38%
+  over its tint. `STATUS.ok` reads 5.84 on the panel, and the danger button's
+  label 7.72 on its fill and 6.59 on the hover.
+- **Fades.** `MUTED` at 65%: 5.07, 5.34 and 5.10 on the three places a muted
+  label stands (60% left 4.31, 4.50 and 4.38).
+- **Decoration.** `DAY.unservable` reads 2.45:1 on the well, as the dark
+  theme's does under 3: a day nothing can be served for is not a control.
+- **The legend strip's numbers** read 15.12 and 9.79 on the strip's lightest and darkest
+  bands under the light scrim, where dark's read 6.49.
+- **The slider thumb** is the ink rather than white, because a white thumb
+  would vanish on the white well; it reads 2.66:1 on the accent beside the
+  dark white thumb's 2.71 on its mark.
+- **The scroll shade** is the ink at 12%, 1.27:1 off the light panel, where
+  dark's slate-950 at 70% stands 1.29:1 off its own.
+- **Chart lines** clear 3:1 on the light panel, the lowest orange-600 at 3.21,
+  and the axis reads 8.34 (dark's lines bottom out at 5.52 and its axis at
+  5.56). The golden-angle colours past the tenth line are NOT held to 3:1 in
+  either theme and measure as low as 2.13 in light and 2.54 in dark; that was
+  true before #706 and is left as it was.
+
+**Re-measure condition:** every one of these numbers is a literal in
+`styles.test.ts`, `colors.test.ts` or `chartColors.test.ts`, so changing a
+light token fails the suite until the number is taken again.
+Record: [0156](decisions/0156-light-theme-behind-semantic-tokens.md)
 
 ### The type floor
 

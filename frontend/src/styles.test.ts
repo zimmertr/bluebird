@@ -403,9 +403,10 @@ describe('every component', () => {
   // blocks of one surface is `SURFACE_DIVIDER` now, so the one place it is
   // spelled is the one place it can be changed. Written through a character
   // class so the class name never appears in this file as text, which Tailwind
-  // would otherwise compile.
+  // would otherwise compile. Since #706 the line is the `rule` token, which
+  // is the spelling a call site would now reach for, so both are held.
   it.each(Object.entries(sources))('%s spells no divider of its own', (_path, source) => {
-    expect(source).not.toMatch(/border-slate-[7]00/)
+    expect(source).not.toMatch(/border-(slate-[7]00|rul[e])(?![\w-])/)
   })
 
   // How faded a thing is says WHY it is faded — 40 percent is out of reach or
@@ -3202,6 +3203,18 @@ describe('the light theme', () => {
     }
     // Darker than the rest, where the dark theme's hover lightens.
     expect(lum(hex(ACCENT.fillHover, 'hover:bg'))).toBeLessThan(lum(fill))
+  })
+
+  // A lit map chip wears the fill, so its label and glyph take the ink on the
+  // fill. The resting ink would read 2.66:1 there, which is how the summary
+  // chip's menu glyph vanished in light while its sheet was up.
+  it('lights a map chip in the label-on-fill ink', () => {
+    for (const chip of [MAP_CHIP, MAP_CHIP_SUMMARY]) {
+      expect(hex(chip, 'aria-expanded:bg')).toBe(hex(ACCENT.fill, 'bg'))
+      expect(ratio(hex(chip, 'aria-expanded:text'), hex(chip, 'aria-expanded:bg'))).toBe(6.45)
+    }
+    expect(ratio(hex(MAP_CHIP, 'text'), hex(ACCENT.fill, 'bg'))).toBe(2.66)
+    expect(MAP_CHIP_SUMMARY_TEXT).toContain('in-aria-expanded:text-on-fill')
   })
 
   // Every text role on every surface it lands on, past 4.5:1.

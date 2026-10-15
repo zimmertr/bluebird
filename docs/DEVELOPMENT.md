@@ -220,7 +220,7 @@ sideways at a desktop's width and a phone's (`popupFit.spec.ts`), walks the keyb
 button and the Columns popover (`keyboardFocus.spec.ts`, the half of #576 that
 rests on `inert` and on a hidden element refusing focus, neither of which jsdom
 implements), and runs axe on the panel, the results,
-and the Layers popover. Every third-party host is answered from fixtures in
+and the Layers popover, once in each theme. Every third-party host is answered from fixtures in
 `frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
 `make browser` runs it locally: it builds the image, serves it on a docker
 network, and runs the suite from the pinned Playwright image with the repo
