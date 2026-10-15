@@ -250,11 +250,12 @@ test.describe('on a phone with a report', () => {
     await expectReadoutMidWindow(page)
     await page.keyboard.press('Escape')
     await expect(card(page)).toHaveCount(0)
-    // The sheet is left open in the chart, with the readout still standing
-    // over the reader's own report, and Wildfires off again.
+    // The sheet is left open in the chart with the reader's own lines and
+    // no readout over them, and Wildfires off again.
     await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
-    await expect(page.locator(`[data-tour="chart"] .recharts-tooltip-cursor`)).toBeAttached()
-    await expect(page.locator('[data-tour="chart"] .recharts-active-dot')).toHaveCount(5)
+    await expect(page.locator('[data-tour="chart"] .recharts-line')).toHaveCount(5)
+    await expect(page.locator('[data-tour="chart"] .recharts-tooltip-cursor')).toHaveCount(0)
+    await expect(page.locator('[data-tour="chart"] .recharts-active-dot')).toHaveCount(0)
     await page.getByRole('button', { name: 'Layers', exact: true }).first().tap()
     await expect(page.getByRole('dialog', { name: 'Layers', exact: true }).getByRole('checkbox', { name: 'Wildfires' })).not.toBeChecked()
   })

@@ -57,6 +57,8 @@ describe('the tour opens the results for their steps', () => {
       const i = result.current.index
       if (i === null) break
       seen.push([result.current.steps[i].anchor, result.current.sheetView, result.current.sheetCollapsed])
+      // Only the Chart step holds the sheet at its full stop.
+      expect(result.current.sheetFull).toBe(result.current.steps[i].anchor === 'chart')
       act(() => result.current.next())
     }
     expect(seen.filter(([, view]) => view !== null).map(([a, view]) => [a, view])).toEqual([

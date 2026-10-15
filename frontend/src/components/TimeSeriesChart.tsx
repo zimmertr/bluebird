@@ -1,4 +1,4 @@
-import { type PointerEvent, ReactNode, memo, useMemo, useRef, useState } from 'react'
+import { type PointerEvent, ReactNode, memo, useCallback, useMemo, useRef, useState } from 'react'
 import {
   CartesianGrid,
   Label,
@@ -38,11 +38,13 @@ import {
 import type { ModelEndLine } from '../utils/modelCompare'
 import {
   PLOT_MARGIN,
+  READOUT_ROOM_GAP_PX,
   TITLED_PLOT_MARGIN,
   X_AXIS_HEIGHT_PX,
   Y_AXIS_WIDTH_PX,
   fingerReading,
   hourIndexAt,
+  readoutPlace,
 } from '../utils/chartPointer'
 import {
   CHART_AXIS_COLOR,
@@ -58,6 +60,10 @@ import {
 // click's hour invert through too. A phone's plot takes the titled margins,
 // its picker standing as a title over the plot (#696).
 const X_AXIS_HEIGHT = X_AXIS_HEIGHT_PX
+// The readout over the picker, whose box stands at z 1 (`CHART_TITLE`), when a
+// phone's card rises above the plot into the sheet (#696). Hoisted so Recharts
+// is handed one object.
+const READOUT_OVER_TITLE = { zIndex: 2 }
 // Hoisted so both axes hand Recharts one object rather than a new one a render.
 const AXIS_TICK = { fontSize: CHART_TICK_PX }
 // Named rather than spelled on the YAxis alone, because a click is inverted to an
@@ -114,9 +120,7 @@ interface Props {
   /**
    * An hour index the tooltip stands on without a mouse, or null to follow
    * one. The tutorial's results steps set it so the card can be read beside
-   * what a hover shows (#536), and the chart keeps the place across the
-   * window the last one stood at as its own reading, which a finger or a
-   * mouse replaces (#696).
+   * what a hover shows (#536), and the readout goes when the tour does.
    */
   tooltipIndex?: number | null
 
@@ -204,16 +208,12 @@ function TimeSeriesChart({
   // the hour from it; this is the hour handed to it instead. Kept when the
   // finger lifts, so the reading can be read without a finger over it.
   const [fingerIndex, setFingerIndex] = useState<number | null>(null)
-  // Where across the window the tutorial last stood the readout, kept as the
-  // chart's own reading once the tour lets go (#696), so a tour ended on the
-  // Chart card leaves the readout standing until a finger or a mouse reads
-  // another hour. Kept as a place across the window rather than an index,
-  // because the report under it changes as the tour ends, from the
-  // demonstration's thirteen hours to the reader's own window: the middle
-  // stays the middle, and a one-hour window reads its one hour.
-  const [heldSpot, setHeldSpot] = useState<number | null>(null)
-  const handedSpot = tooltipIndex === null ? null : times.length > 1 ? tooltipIndex / (times.length - 1) : 0
-  if (handedSpot !== null && handedSpot !== heldSpot) setHeldSpot(handedSpot)
+  // A phone plot's height, reported by the container as it changes (#696), so
+  // the readout's place follows a sheet that grows under a reading already
+  // standing: the tutorial's Chart step raises the sheet in the commit that
+  // stands its hour, and a height read at that render was the resting one.
+  const [plotPx, setPlotPx] = useState(0)
+  const onPlotResize = useCallback((_width: number, height: number) => setPlotPx(height), [])
 
   // Align each series onto the active grid by timestamp — a no-op for ranked
   // rows; a pinned row may have been fetched for a different window.
@@ -289,9 +289,8 @@ function TimeSeriesChart({
     : lines
 
   function handleMove(state: any) {
-    // A mouse takes the reading back from a finger, or the tour, that left one.
+    // A mouse takes the reading back from a finger that left one.
     if (fingerIndex !== null) setFingerIndex(null)
-    if (heldSpot !== null) setHeldSpot(null)
     tapXRef.current = null
     const idx = state?.activeTooltipIndex
     const py = typeof state?.chartY === 'number' ? state.chartY : state?.activeCoordinate?.y
@@ -329,7 +328,6 @@ function TimeSeriesChart({
     const reading = fingerReading(e.clientX - box.left, e.clientY - box.top, box, times, yMin, yMax, MARGIN)
     if (reading === null) return
     setFingerIndex(reading.index)
-    setHeldSpot(null)
     if (!followCursor) return
     const valuesByKey: Record<string, number | null> = {}
     for (const line of lines) valuesByKey[line.key] = valueAt(line, metric, reading.index)
@@ -340,18 +338,23 @@ function TimeSeriesChart({
   function dropFinger() {
     tapXRef.current = null
     setFingerIndex(null)
-    setHeldSpot(null)
     handleLeave()
   }
   // The tutorial's hour wins over a finger's; an hour past a grid that has
   // since shrunk is no reading at all.
-  const shownIndex =
-    tooltipIndex ??
-    (fingerIndex !== null && fingerIndex < times.length
-      ? fingerIndex
-      : heldSpot !== null && times.length > 0
-        ? Math.round(heldSpot * (times.length - 1))
-        : null)
+  const shownIndex = tooltipIndex ?? (fingerIndex !== null && fingerIndex < times.length ? fingerIndex : null)
+  // Where a phone's readout stands and how many lines it lists (#696): a card
+  // the plotting band cannot hold rises into the sheet above the chart, as
+  // far as the sheet's top (`data-readout-room` on `ResultsSheet`), rather
+  // than being cut off at the band's foot. Read at render, as the desk's
+  // capacity is: the reading that shows the card is a render.
+  const plotEl = plotRef.current
+  const roomEl = titled ? plotEl?.closest('[data-readout-room]') : null
+  const roomAbovePx =
+    plotEl && roomEl
+      ? Math.max(0, plotEl.getBoundingClientRect().top - roomEl.getBoundingClientRect().top - READOUT_ROOM_GAP_PX)
+      : 0
+  const readout = titled ? readoutPlace(plotPx || (plotEl?.clientHeight ?? 0), MARGIN, roomAbovePx, lines.length) : null
 
   // A click puts the map's playhead on the hour under the pointer. The chart
   // and the map are two views of one hourly grid, so a reader who has found the
@@ -463,9 +466,11 @@ function TimeSeriesChart({
           onPointerDown={readFinger}
           onPointerMove={readFinger}
           onPointerCancel={dropFinger}
-          className={`min-h-0 flex-1 overflow-hidden ${CHART_PLOT_TOUCH}`}
+          // A phone's plot lets its readout out over the picker and the
+          // results bar above it (#696); the sheet itself still clips.
+          className={`min-h-0 flex-1 ${titled ? 'overflow-visible' : 'overflow-hidden'} ${CHART_PLOT_TOUCH}`}
         >
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" onResize={titled ? onPlotResize : undefined}>
             <LineChart
               data={data}
               margin={MARGIN}
@@ -524,6 +529,8 @@ function TimeSeriesChart({
                 isAnimationActive={false}
                 defaultIndex={shownIndex ?? undefined}
                 active={shownIndex === null ? undefined : true}
+                position={readout?.top != null ? { y: readout.top } : undefined}
+                wrapperStyle={titled ? READOUT_OVER_TITLE : undefined}
                 content={(props: any) => (
                   <ChartTooltip
                     {...props}
@@ -534,7 +541,7 @@ function TimeSeriesChart({
                     // Read at render rather than observed: this component
                     // re-renders on every hover move, which is the only time
                     // the value is used.
-                    maxRows={tooltipCapacity(plotRef.current?.clientHeight ?? 0)}
+                    maxRows={readout?.rows ?? tooltipCapacity(plotRef.current?.clientHeight ?? 0)}
                   />
                 )}
               />

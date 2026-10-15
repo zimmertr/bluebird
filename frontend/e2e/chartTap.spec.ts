@@ -83,3 +83,35 @@ test('a finger dragged across the chart reads the hour under it at 360 px', asyn
   await touch('touchEnd')
   await expect(tooltip).toBeVisible()
 })
+
+// The readout is never cut off (#696): at a phone sheet's resting height the
+// plotting band is about 68px and a five-line readout about 129px, so the
+// band clipped it to its top four rows. It rises into the sheet above the
+// chart instead, over the picker and the results bar, and stays inside it.
+test.describe('at the resting height', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('a finger reading stands whole inside the sheet at 390 px', async ({ page }) => {
+    await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('main').getByRole('button', { name: 'Analyze' }).tap()
+    await expect(resultRows(page).first()).toBeAttached()
+    await page.getByRole('button', { name: 'Show chart only' }).tap()
+    const grid = page.locator('.recharts-cartesian-grid')
+    await expect(grid).toBeVisible()
+    const band = (await grid.boundingBox())!
+    await page.touchscreen.tap(band.x + band.width / 2, band.y + band.height / 2)
+    const card = page.locator('.recharts-tooltip-wrapper > div')
+    await expect(card).toBeVisible()
+    await expect(card.locator('.font-mono').first()).toBeVisible()
+    const box = (await card.boundingBox())!
+    const sheet = (await page.locator('[data-readout-room]').boundingBox())!
+    // Taller than the band it reads, so it has risen out of it.
+    expect(box.height).toBeGreaterThan(band.height)
+    expect(box.y).toBeGreaterThanOrEqual(sheet.y)
+    expect(box.y + box.height).toBeLessThanOrEqual(band.y + band.height + 1)
+    // Every destination listed, none behind a "+N more".
+    await expect(card.getByText(/more$/)).toHaveCount(0)
+    expect(await card.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true)
+  })
+})

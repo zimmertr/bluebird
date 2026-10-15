@@ -95,6 +95,13 @@ export interface ResultsLayoutInputs {
    */
   restView?: SinglePanel | null
   /**
+   * Hold a phone's sheet at its full stop, as high as a drag takes it, for as
+   * long as this is true, and give it back to the height it had after (#696).
+   * The tutorial's Chart step sets it, because at rest the plot is too short
+   * for a readout of five lines to stand inside it beside them.
+   */
+  fullOverride?: boolean
+  /**
    * The reader has the forecast player on, so a phone's full sheet leaves it
    * room above the Analyze button (#696, `PLAYER_ROOM_PX`).
    */
@@ -128,6 +135,7 @@ export function useResultsLayout({
   analysisSeq,
   collapsedOverride = null,
   restView = null,
+  fullOverride = false,
   playerOn = false,
   safeBottomPx = 0,
 }: ResultsLayoutInputs) {
@@ -285,16 +293,19 @@ export function useResultsLayout({
   // a reader who pulls the panels up has chosen a shorter map, and the stack
   // scrolls rather than the drag stopping short.
   const dragFloorPx = isDesktop ? undefined : draggedMapFloorPx(gripCount, playerOn)
+  // The full stop asked for is the drag cap with every panel asking for the
+  // whole screen; the reader's own heights wait underneath it.
+  const heldFull = fullOverride && !isDesktop
   const mapFloorPx = isDesktop
     ? heightsChosen
       ? undefined
       : dockedMapFloorPx(gripCount)
-    : heightsChosen
+    : heightsChosen || heldFull
       ? dragFloorPx
       : restingMapFloorPx(gripCount)
   const { chart: chartPanelPx, table: tablePanelPx } = resolvePanelHeights(
-    chartHeight,
-    tableHeight,
+    heldFull ? usableH : chartHeight,
+    heldFull ? usableH : tableHeight,
     {
       chartShown: chartShowing,
       tableShown: tableShowing && showTable,

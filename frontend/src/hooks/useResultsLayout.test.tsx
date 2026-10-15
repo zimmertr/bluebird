@@ -156,6 +156,29 @@ describe('useResultsLayout', () => {
     expect(result.current.resultsMode).toBe('chart')
   })
 
+  // The tutorial's Chart step holds a phone's sheet at its full stop, the
+  // drag cap, and gives the reader's height back after it (#696).
+  it('holds a phone sheet at its full stop for the tour, and gives it back', () => {
+    setDesktopQuery(false)
+    setViewport(1000)
+    const PHONE = { ...DESKTOP, isDesktop: false, response: {}, restView: 'chart' as const }
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: PHONE,
+    })
+    const resting = result.current.chartPanelPx
+    // As high as a drag takes it.
+    act(() => result.current.chartGrip.onDragStart())
+    act(() => result.current.chartGrip.onDrag(2000))
+    act(() => result.current.chartGrip.onDragEnd())
+    const dragged = result.current.chartPanelPx
+    act(() => result.current.chartGrip.onReset())
+    rerender({ ...PHONE, fullOverride: true })
+    expect(result.current.chartPanelPx).toBe(dragged)
+    expect(dragged).toBeGreaterThan(resting)
+    rerender({ ...PHONE, fullOverride: false })
+    expect(result.current.chartPanelPx).toBe(resting)
+  })
+
   it('opens the docked results on a desk to the view, keeping Both', () => {
     const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
       initialProps: DESKTOP,

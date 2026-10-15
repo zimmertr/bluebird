@@ -6,7 +6,7 @@
 // band through the same numbers, which is why the band's geometry lives here
 // rather than in the component that draws it.
 
-import { pixelToTime, pixelToValue } from './chartData'
+import { pixelToTime, pixelToValue, TOOLTIP_CHROME_PX, TOOLTIP_ROW_PX, tooltipCapacity } from './chartData'
 import { nearestIndex } from './timeline'
 
 /**
@@ -69,6 +69,40 @@ export function plotBand(
     width: width - left - margin.right,
     height: height - top - margin.bottom - X_AXIS_HEIGHT_PX,
   }
+}
+
+/**
+ * How far below the top of the sheet a phone's readout may start (#696): the
+ * sheet's own edge and the rule along it stay clear, so the card reads as
+ * standing in the sheet rather than cut by it.
+ */
+export const READOUT_ROOM_GAP_PX = 8
+
+/**
+ * Where a phone chart's readout stands, and how many lines it lists (#696).
+ * The card is drawn inside the plotting band, which at a phone sheet's rest
+ * height is about 68px against a card of 129px for five lines (measured at
+ * 390x844, 2026-10-14), so the band clipped it to its top four rows. A card
+ * the band holds stays where Recharts puts it, by the reading; one it cannot
+ * hold stands at the top of the room above the band instead, the sheet's own
+ * height above the chart (`roomAbovePx`, from the chart box's top up to the
+ * sheet's less `READOUT_ROOM_GAP_PX`), over the results bar and the picker,
+ * and runs down from there. How many lines it lists is that whole room's
+ * capacity, so the card it decides on always fits the room. `top` is in the
+ * chart box's own pixels, negative above it, or null for Recharts' own place.
+ */
+export function readoutPlace(
+  boxHeight: number,
+  margin: PlotMargin,
+  roomAbovePx: number,
+  lineCount: number,
+): { rows: number; top: number | null } {
+  const band = plotBand(0, boxHeight, margin)
+  const bandBottom = band.top + band.height
+  const rows = tooltipCapacity(roomAbovePx + bandBottom)
+  const listed = Math.min(rows, lineCount)
+  const cardPx = TOOLTIP_CHROME_PX + listed * TOOLTIP_ROW_PX
+  return { rows, top: cardPx <= band.height ? null : -roomAbovePx }
 }
 
 /**

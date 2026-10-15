@@ -16,6 +16,8 @@ export interface ResultsViewInputs {
   collapsedOverride?: boolean | null
   /** Open the sheet at rest in this view for the tutorial's Results and Chart steps (`useResultsLayout`'s `restView`). */
   restView?: SinglePanel | null
+  /** Hold a phone's sheet at its full stop (`useResultsLayout`'s `fullOverride`). */
+  fullOverride?: boolean
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
@@ -74,6 +76,7 @@ export interface ResultsViewInputs {
 export function useResultsView({
   collapsedOverride = null,
   restView = null,
+  fullOverride = false,
   showResults,
   response,
   results,
@@ -117,6 +120,7 @@ export function useResultsView({
     analysisSeq,
     collapsedOverride,
     restView,
+    fullOverride,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────

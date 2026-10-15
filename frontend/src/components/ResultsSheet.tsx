@@ -158,6 +158,8 @@ export default function ResultsSheet({
         <div
           ref={sheetRef}
           data-tour="results"
+          // How far up a phone chart's readout may rise (#696; TimeSeriesChart).
+          data-readout-room=""
           className={
             isDesktop
               ? 'flex flex-shrink-0 flex-col bg-slate-800'

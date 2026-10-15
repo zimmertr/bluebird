@@ -8,7 +8,9 @@ import {
   fingerReading,
   hourIndexAt,
   plotBand,
+  readoutPlace,
 } from './chartPointer'
+import { TOOLTIP_CHROME_PX, TOOLTIP_MAX_ROWS, TOOLTIP_ROW_PX } from './chartData'
 
 const HOUR = 3_600_000
 // Seven hourly stamps, so the band of a 360px box divides into six steps.
@@ -79,5 +81,31 @@ describe('a titled plot', () => {
     const band = plotBand(360, 200, TITLED_PLOT_MARGIN)
     const box = { width: 360, height: 200 }
     expect(fingerReading(band.left, band.top, box, TIMES, 0, 50, TITLED_PLOT_MARGIN)).toEqual({ index: 0, value: 50 })
+  })
+})
+
+// A phone's readout (#696): a card the plotting band holds stays where
+// Recharts puts it; one it cannot rises to the top of the room above the
+// chart, and lists as many lines as that whole room holds. The numbers are
+// the resting sheet at 390x844, measured 2026-10-14: a 149px chart box, its
+// 68px band, and 100px of sheet above the box.
+describe('readoutPlace', () => {
+  const bandOf = (box: number) => plotBand(0, box, TITLED_PLOT_MARGIN)
+  it('rises over the room above a band too short for the card', () => {
+    expect(bandOf(149).height).toBe(68)
+    expect(readoutPlace(149, TITLED_PLOT_MARGIN, 100, 5)).toEqual({ rows: 8, top: -100 })
+  })
+  it('stays in a band that holds it', () => {
+    const tall = 149 + TOOLTIP_CHROME_PX + 5 * TOOLTIP_ROW_PX
+    expect(readoutPlace(tall, TITLED_PLOT_MARGIN, 100, 5).top).toBeNull()
+  })
+  it('lists what the room from its top to the band\'s foot holds', () => {
+    const band = bandOf(149)
+    const room = 40 + band.top + band.height
+    const rows = Math.floor((room - TOOLTIP_CHROME_PX) / TOOLTIP_ROW_PX)
+    expect(readoutPlace(149, TITLED_PLOT_MARGIN, 40, 10).rows).toBe(Math.min(TOOLTIP_MAX_ROWS, rows))
+  })
+  it('stays put with no room above, as the band\'s own capacity would', () => {
+    expect(readoutPlace(149, TITLED_PLOT_MARGIN, 0, 1).top).toBe(null)
   })
 })

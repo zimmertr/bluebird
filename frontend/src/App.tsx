@@ -520,6 +520,7 @@ export default function App() {
     showResults: showResults || demo !== null,
     collapsedOverride: tour.sheetCollapsed,
     restView: tour.sheetView,
+    fullOverride: tour.sheetFull,
     response: shownResponse,
     results,
     pending,

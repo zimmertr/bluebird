@@ -215,23 +215,12 @@ describe('TimeSeriesChart under a finger', () => {
     expect(tip().index).toBe('5')
   })
 
-  it('keeps the tutorial\'s hour as its own reading once the tour lets go', () => {
-    // Handed hour 6 of 13 and then let go: the readout stands on the same
-    // place across the window, whatever window the chart draws next.
-    const thirteen = TIMES.slice(0, 13)
-    const { container, rerender } = render(<TimeSeriesChart {...props({ times: thirteen, tooltipIndex: 6 })} />)
-    rerender(<TimeSeriesChart {...props({ times: thirteen, tooltipIndex: null })} />)
+  it('lets the tutorial\'s hour go when the tour does', () => {
+    // A tour ended on the Chart card leaves the reader's chart showing its
+    // lines, not a readout the reader never asked for (#696).
+    const { rerender } = render(<TimeSeriesChart {...props({ tooltipIndex: 6 })} />)
     expect(tip()).toMatchObject({ index: '6', active: 'true' })
-    rerender(<TimeSeriesChart {...props({ times: TIMES.slice(0, 25), tooltipIndex: null })} />)
-    expect(tip().index).toBe('12')
-    rerender(<TimeSeriesChart {...props({ times: TIMES.slice(0, 1), tooltipIndex: null })} />)
-    expect(tip()).toMatchObject({ index: '0', active: 'true' })
-    // A finger reads another hour, and lifting off a cancelled drag leaves none.
     rerender(<TimeSeriesChart {...props({ tooltipIndex: null })} />)
-    placePlot(container, 360)
-    fireEvent.pointerDown(plotOf(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
-    expect(tip().index).toBe('32')
-    fireEvent.pointerCancel(plotOf(container), { pointerType: 'touch' })
     expect(tip().active).toBe('undefined')
   })
 

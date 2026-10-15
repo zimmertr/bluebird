@@ -233,6 +233,12 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef, tourLa
      * a row tap's collapse on a phone, and each step points at what it shows.
      */
     sheetView: step?.reveal === 'results' ? ('table' as const) : showingChart ? ('chart' as const) : null,
+    /**
+     * The Chart step holds a phone's sheet at its full stop and gives it back
+     * after (#696): at rest the plot is about 68px tall at 390x844 and the
+     * five-line readout 129px, so the readout stood over every line it read.
+     */
+    sheetFull: showingChart,
     /** The chart's readout stands on this hour while the demonstration is up, or follows the reader. */
     chartTooltipIndex: showingResults && hours > 0 ? middleHour : null,
   }
