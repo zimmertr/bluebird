@@ -1,6 +1,6 @@
 # 0066. The tutorial points at controls and never acts on them
 
-- Status: Accepted
+- Status: Accepted. Amended by [0150](0150-tour-opens-the-results-at-rest.md) (the results step opens the sheet and leaves it open) and [0151](0151-spotlight-pads-rounded-targets.md) (the light's pad and corners)
 - Date: 2026-09-29
 - Decider: TJ
 - Issues and PRs: #536

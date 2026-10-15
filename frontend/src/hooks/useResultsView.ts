@@ -13,6 +13,8 @@ export interface ResultsViewInputs {
   safeBottomPx?: number
   /** Collapse the sheet to its bar for the tutorial's marker step on a phone (#536). */
   collapsedOverride?: boolean | null
+  /** Open the sheet at rest for the tutorial's Results step (`useResultsLayout`'s `restRequested`). */
+  restRequested?: boolean
   /** Whether a report is on screen. */
   showResults: boolean
   /** The committed response, null before the first analysis. */
@@ -70,6 +72,7 @@ export interface ResultsViewInputs {
  */
 export function useResultsView({
   collapsedOverride = null,
+  restRequested = false,
   showResults,
   response,
   results,
@@ -112,6 +115,7 @@ export function useResultsView({
     response,
     analysisSeq,
     collapsedOverride,
+    restRequested,
   })
 
   // ── The comparison chart (#232) ───────────────────────────────────────────

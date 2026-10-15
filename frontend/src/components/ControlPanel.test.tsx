@@ -8,7 +8,7 @@ import { FALLBACK_WINDOW_LIMITS } from '../utils/forecastWindow'
 import { DEFAULT_LIMIT } from '../utils/urlState'
 import { forecastModel } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
-import { CONTROLS_SHEET } from '../styles'
+import { PANEL_BODY, PANEL_RULE } from '../styles'
 
 // The panel's contract with its reader: every message renders in the one block
 // under the Analyze button, and the button is disabled for each reason the
@@ -282,16 +282,14 @@ describe('the notice block', () => {
 })
 
 // On a phone the body is the Controls sheet's scroller (#696; record 0141),
-// which takes the home indicator band at its end rather than leaving a strip
-// of fill under it: the Terms link is the scroller's last content.
+// and the Terms line is its last content, ending on the body's own padding
+// with no band for the home indicator under it (record 0145).
 describe('the body on a phone', () => {
-  it('pads its scrolling end for the home indicator, and only on a phone', () => {
+  it('ends on the document links with no padding for the home indicator', () => {
     const { unmount } = render(<ControlPanel {...props()} phone />)
-    const body = screen.getByRole('link', { name: 'Terms' }).closest('div.overflow-y-auto')
-    expect(body?.className).toContain(CONTROLS_SHEET.body)
+    const body = screen.getByRole('link', { name: 'Terms' }).closest<HTMLElement>('[class*="overflow-y-auto"]')
+    expect(body?.className).toBe(`${PANEL_BODY} ${PANEL_RULE}`)
+    expect(body?.lastElementChild?.contains(screen.getByRole('link', { name: 'Terms' }))).toBe(true)
     unmount()
-    render(<ControlPanel {...props()} />)
-    const desk = screen.getByRole('link', { name: 'Terms' }).closest('div.overflow-y-auto')
-    expect(desk).toBeNull()
   })
 })

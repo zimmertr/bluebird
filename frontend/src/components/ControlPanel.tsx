@@ -7,7 +7,7 @@ import MetricsTable from './MetricsTable'
 import PanelFooter from './PanelFooter'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { distinctRows } from '../utils/customList'
-import { CONTROLS_SHEET, PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
+import { PANEL_BODY, PANEL_EDGE, PANEL_HEADER, PANEL_RULE, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
@@ -374,7 +374,7 @@ export default function ControlPanel({
         // the border) and `pt` the gap below it, so the line lands centred in
         // the gutter between two steps rather than tucked under the one above.
         ref={bodyRef}
-        className={`${PANEL_BODY} ${PANEL_RULE} ${phone ? CONTROLS_SHEET.body : ''}`}
+        className={`${PANEL_BODY} ${PANEL_RULE}`}
       >
         {/* Destinations — one list, defined via any of four methods
             that union into a single ranked report */}

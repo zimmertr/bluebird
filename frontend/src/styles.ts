@@ -1186,6 +1186,12 @@ export const RECESSED_FILL = 'bg-slate-900'
 // `SLIDER.track`.
 const RECESSED_EDGE = 'border border-slate-500'
 
+// What a field looks like, without how big it is (#696): the control type in
+// the recessed fill and edge at the control radius. `FIELD` adds the tap
+// height and the focus edge; `CHART_TITLE` wears it at 28px with an invisible
+// 44px select over it, which is why the look and the size are two things.
+const FIELD_LOOK = `${TEXT.control} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control}`
+
 /**
  * The same boundary, re-derived for the one surface that is a step lighter than
  * the panel: `SURFACE_POPOVER`.
@@ -1291,27 +1297,27 @@ export const CHART_METRIC_W = 'w-36'
 export const CHART_PLOT_TOUCH = 'touch-pan-y'
 
 /**
- * A phone chart's metric picker, as the plot's title (#696, option A of the
- * picker mockups, TJ 2026-10-14): the metric's full label with its unit and
- * a trailing chevron, Material's text button with a trailing icon, at the
- * plot's top left (`left-2`, `PLOT_MARGIN.left`). The field row above the
- * plot was 44px a phone's chart could not spare. `box` is the title line,
- * `CHART_TITLE_PX` tall (h-5), which `TITLED_PLOT_MARGIN` reserves over the
- * plot so nothing the plot draws, its dashed lines and their labels
- * included, meets the letters. Its ink is the chart's own, slate-400
- * (`CHART_AXIS_COLOR`), at the control type, since a pressable word does not
- * take the ticks' micro step. `select` is the native select laid over the
- * line, transparent, so a tap opens the phone's own picker; 44px tall on a
- * coarse pointer, reaching 16px past the line onto the plot's top under the
- * title alone. The focus ring is the box's, since the select is invisible.
+ * A phone chart's metric picker, as the plot's title (#696, record 0149): the
+ * metric's full label with its unit in the app's own select, at the plot's
+ * top left (`left-2`, `PLOT_MARGIN.left`). The field row above the plot was
+ * 44px a phone's chart could not spare, and a plain title did not read as a
+ * control, so it is look 4 of the second picker mockups (TJ 2026-10-14): the
+ * desktop picker's look shrunk to its label. `box` wears `FIELD_LOOK`, the
+ * recessed fill, edge and radius every select here wears, with `SELECT`'s
+ * `pr-6` holding the chevron in `ICON_ADORNMENT`'s place, and it sizes to
+ * its words rather than to `CHART_METRIC_W`. It is 28px tall (`h-7`), which
+ * is `CHART_TITLE_PX` and what `TITLED_PLOT_MARGIN` reserves over the plot,
+ * so nothing the plot draws, its dashed lines and their labels included,
+ * meets the box. `select` is the native select laid over it, transparent, so
+ * a tap opens the phone's own picker; 44px tall on a coarse pointer, reaching
+ * 16px past the box onto the plot's top under the title alone. The focus edge
+ * is `FIELD`'s, moved to the box because the select is invisible.
  */
 export const CHART_TITLE = {
   box:
-    `absolute left-2 top-0 z-[1] flex h-5 max-w-[calc(100%-1.5rem)] items-center gap-0.5 ` +
-    `${CONTROL_SIZE} leading-4 font-semibold text-slate-400 rounded-sm ` +
-    'has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2 has-[select:focus-visible]:outline-sky-400',
+    `absolute left-2 top-0 z-[1] flex h-7 max-w-[calc(100%-1.5rem)] items-center ` +
+    `${FIELD_LOOK} pl-2 pr-6 has-[select:focus]:border-sky-500`,
   text: 'min-w-0 truncate',
-  chevron: 'flex-shrink-0',
   select: 'absolute inset-x-0 top-0 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
 } as const
 
@@ -2285,6 +2291,9 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * is the title at the left and Done at the right; `title` the sheet's own
  * word, the chip's or the button's that opened it. `body` scrolls, and every
  * row in it is at least a finger's 44px, one line, with a rule between rows.
+ * It ends at its last row, with no padding under it and none for a phone's
+ * home indicator (`SAFE_AREA`; record 0145), so the space under the last line
+ * is the space every line keeps above its rule.
  */
 /**
  * The band a phone keeps for its own gestures at the screen's bottom edge,
@@ -2297,13 +2306,12 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  * `pad` is for a surface that reaches the screen's foot and keeps its own
  * content above the band: the results sheet, whose grip and header then stand
  * on the band's top edge when it is collapsed. A sheet whose body scrolls
- * takes the band differently, as padding at the END of its scroller
- * (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`), Material's rule for a sheet
- * under gesture navigation: the content runs to the sheet's bottom edge while
- * it scrolls, and the last item clears the band once scrolled to. Worn on the
- * card, the band was a strip of fill under the content that nothing scrolled
- * into, about 40px on the maintainer's Pixel with the scroller's own padding
- * (2026-10-14). `probe` is an invisible
+ * (`BOTTOM_SHEET`, `CONTROLS_SHEET`) takes no band at all, on its card or in
+ * its scroller (TJ, 2026-10-14): on the maintainer's Pixel, Chrome on Android
+ * with three-button navigation, the page stops above the system bar and the
+ * inset reported there was dead fill under the last line, and a sheet
+ * scrolled to its end needs no clearance beyond its own rhythm, so the space
+ * under its last line is the space above the rule before it. `probe` is an invisible
  * box as tall as the band, which `useSafeAreaBottom` reads, because the
  * chrome placed in pixels over the map (the Analyze button, the notice band,
  * the player, the scale and the credit) measures from the sheet's edge, and
@@ -2326,7 +2334,7 @@ export const BOTTOM_SHEET = {
   title: TEXT.subheading,
   done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
   body:
-    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] ` +
+    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 ` +
     'divide-y divide-slate-700 [&>*]:min-h-11',
 } as const
 
@@ -2431,13 +2439,6 @@ export const CONTROLS_SHEET = {
   shut: 'translate-y-full',
   /** The panel under the sheet's top, which takes the rest and scrolls inside. */
   panel: 'min-h-0 flex-1',
-  /**
-   * The panel's scrolling body on a phone: its own 16px at the end plus the
-   * home indicator band (`SAFE_AREA`), so the document links clear the band
-   * once scrolled to and nothing fixed sits under them. The end shade is told
-   * the band too, since it stands on the scroller's padding.
-   */
-  body: 'pb-[calc(1rem+env(safe-area-inset-bottom))] [--scroll-shadow-end-inset:env(safe-area-inset-bottom)]',
 } as const
 
 /**
@@ -2576,7 +2577,7 @@ export const DAY = {
  * the whole reason the rule is written as a height and not as padding.
  */
 export const FIELD =
-  `${TEXT.control} ${TAP.height} ${RECESSED_FILL} ${RECESSED_EDGE} ${RADIUS.control} ` +
+  `${FIELD_LOOK} ${TAP.height} ` +
   'focus:outline-none focus:border-sky-500 placeholder-slate-400'
 
 /**
@@ -3025,9 +3026,11 @@ export const TABLE = {
  * The guided tutorial (#536): a spotlight over one control and a card beside
  * it. The spotlight is ONE element wearing a shadow as wide as the screen, so
  * the dim layer and its rounded cut-out are the same box and cannot drift
- * apart the way four separate rects around a target would. It is square,
- * because a section between two rules and a sheet with straight edges are;
- * `spotlightControl` adds the surface radius around a control, which has one. The card is the welcome
+ * apart the way four separate rects around a target would. Its corners are
+ * not a role: the tour reads them off the target (`spotRadius` in
+ * `tour/place.ts`, #696), square around a section between two rules and a
+ * sheet with straight edges, the target's own radius plus the pad around a
+ * rounded control. The card is the welcome
  * dialog's surface at the modal layer (above the drawer and every popover),
  * fixed and sized by the same 320px the welcome card reads at on a phone. Under
  * `SHEET_MAX_W` (`tour/place.ts`) it is a full-width sheet along the bottom
@@ -3036,8 +3039,6 @@ export const TABLE = {
  */
 export const TOUR = {
   spotlight: 'absolute pointer-events-none shadow-[0_0_0_200vmax_rgba(0,0,0,0.6)]',
-  /** The spotlight's corners around a control: the control's own radius. */
-  spotlightControl: RADIUS.surface,
   card: `${SURFACE_CARD} fixed w-80 p-4 space-y-3 focus:outline-none`,
   sheet: `${SURFACE_CARD} fixed inset-x-4 bottom-4 p-4 space-y-3 focus:outline-none`,
   /** The sheet at the top edge, for a target that stands where the bottom sheet would. */

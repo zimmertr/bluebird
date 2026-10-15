@@ -594,7 +594,7 @@ function resultCardShell(
   // the header stays the one raised band. Outside the body, so a capped card
   // that scrolls its numbers keeps its warnings in view with its name.
   const notice = warnings.length
-    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:8px 0 8px 10px;border-bottom:1px solid ${HEADER_EDGE_COLOR}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
+    ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:${SECTION_PAD_Y} 0 ${SECTION_PAD_Y} 10px;border-bottom:${SECTION_EDGE}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
     : ''
   return `<div style="${POPUP_FACE}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
@@ -603,8 +603,13 @@ function resultCardShell(
     </div>${notice}
     <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>${
       // Under the body rather than in it, so a card whose numbers the scroll
-      // cap shortened keeps its action in view the way it keeps its name.
-      action ? `<div style="padding:0 10px 12px">${popupAction(action)}</div>` : ''
+      // cap shortened keeps its action in view the way it keeps its name. A
+      // section of its own, ruled off from the grid by the edge and padding
+      // the warnings section wears (#696, TJ 2026-10-14): without the rule
+      // the button read as one more row of the grid.
+      action
+        ? `<div style="padding:${SECTION_PAD_Y} 10px;border-top:${SECTION_EDGE}">${popupAction(action)}</div>`
+        : ''
     }
   </div>`
 }
@@ -642,6 +647,16 @@ const TITLE_TEXT = `min-width:0;${ONE_LINE}`
 export const HEADER_BAND_COLOR = '#f1f5f9'
 export const HEADER_EDGE_COLOR = '#e2e8f0'
 export const HEADER_SHADOW_COLOR = 'rgba(15,23,42,0.08)'
+
+/**
+ * The edge and the padding a result card's sections wear below the header:
+ * the warnings above the grid and the action below it (#696). One spelling,
+ * so the card's two ruled-off parts cannot drift apart. The edge is the
+ * header's own, which is what lets a section read as part of the card rather
+ * than as a second card.
+ */
+export const SECTION_EDGE = `1px solid ${HEADER_EDGE_COLOR}`
+export const SECTION_PAD_Y = '8px'
 
 /**
  * The warning section's one ⚠️, which stands for every line in it (TJ,

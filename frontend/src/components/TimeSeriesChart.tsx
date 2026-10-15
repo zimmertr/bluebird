@@ -416,8 +416,8 @@ function TimeSeriesChart({
       )}
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {/* A phone's picker (#696, record 0149): the metric's name and a
-            chevron as the plot's title, the native select laid over them so a
+        {/* A phone's picker (#696, record 0149): the app's select at the
+            metric's width as the plot's title, the native select laid over it so a
             tap opens the phone's own picker. Outside the plot's box, so a press
             on it is the select's and not a finger reading the plot. */}
         {titled && (
@@ -425,7 +425,7 @@ function TimeSeriesChart({
             <span aria-hidden="true" className={CHART_TITLE.text}>
               {metricLabel}
             </span>
-            <IconSelectArrow placement={CHART_TITLE.chevron} />
+            <IconSelectArrow />
             <select
               aria-label="Chart metric"
               value={metric}

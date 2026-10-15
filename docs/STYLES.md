@@ -482,12 +482,15 @@ pointer, and never a grey after a run.
 Record: [0135](decisions/0135-phone-opens-on-the-map.md)
 
 A phone chart's metric picker is the plot's title (`CHART_TITLE`): the
-metric's label with its unit and a trailing chevron in the chart's slate-400
-at the control type, the native select laid over it, transparent, 44px tall
-under a finger. The plot's top margin grows by the title's 20px line
-(`TITLED_PLOT_MARGIN`), so its dashed lines, their labels and the top tick
-start under it. Measured 2026-10-14: the field row it replaced was 52px, and
-the plotting band grew 32px at 360 and 390.
+metric's label with its unit in the app's own select, sized to its words and
+28px tall. It wears `FIELD_LOOK`, the fill, edge, radius and type `FIELD` is
+built from, with `SELECT`'s `pr-6` and the chevron in `ICON_ADORNMENT`'s
+place, so it is the desktop picker shrunk rather than a look of its own. The
+native select is laid over it, transparent, 44px tall under a finger. The
+plot's top margin grows by the title's 28px (`TITLED_PLOT_MARGIN`), so its
+dashed lines, their labels and the top tick start under it. Measured
+2026-10-14: the field row it replaced was 52px, and the plotting band grew
+24px at 360 and 390.
 Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
 
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
@@ -524,10 +527,11 @@ Record: [0141](decisions/0141-phone-controls-sheet.md)
 
 A phone's home indicator band (`SAFE_AREA`) is padded under the results sheet,
 and the chrome placed in pixels stands on its top edge before there is a
-sheet. A sheet that scrolls takes the band as padding at its scroller's end
-instead (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`), so its content runs to
-the screen's edge and its last row clears the band once scrolled to; on its
-card the band was a strip of fill nothing scrolled into. 0 on a desk.
+sheet. A sheet that scrolls (`BOTTOM_SHEET`, `CONTROLS_SHEET`) takes no band,
+on its card or in its scroller: the space under its last line is the space
+above the rule before it, 16px in Controls and the row's own in a menu sheet,
+with or without an inset. On a Pixel with three-button navigation the page
+stops above the system bar, and the band there was dead fill. 0 on a desk.
 Record: [0145](decisions/0145-safe-area-bottom.md)
 
 The results table's Name column sticks at the left edge on an opaque fill

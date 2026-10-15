@@ -14,7 +14,7 @@ The controls rise as a sheet titled **Controls**: Destinations, Forecast and Met
 
 Every message the panel would show under **Analyze**, from the one asking for a destination when you arrive to a report that no longer matches the controls or a run that failed, stands in a band on the top edge of whichever sheet is up, with the Analyze button above it and the scale and the ⓘ beside the button, all three standing on one bottom edge. The band shows three lines at most and scrolls past that. Dismiss a message there the way you would under the panel's button.
 
-On a phone with a home indicator, nothing you press stands in the strip it keeps at the bottom of the screen: the sheets run under it, and their handles, buttons and rows stop above it.
+On a phone with a home indicator, the map's buttons and the results sheet's handle stop above the strip it keeps at the bottom of the screen, and the results sheet runs under it. A sheet you scroll ends where its rows do.
 
 Every menu on a phone is a sheet that rises from the bottom of the screen: Layers, Legend, and the results bar's Columns, Models and Removed. **Done**, a tap on the dimmed map or Escape closes it, and its handle and title drag it the way the Controls sheet's do: up to just under the chips, down to close, anywhere between to stay, with a flick down closing it and a double tap on the handle putting it back at its own height. The Analyze button tucks away while one of these is open; the Controls sheet dims nothing and keeps it.
 

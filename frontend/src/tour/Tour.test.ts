@@ -19,6 +19,14 @@ describe('Tour', () => {
     for (const call of focusCalls) expect(call).toBe('.focus({ preventScroll: true })')
   })
 
+  // The light's pad and corners come off the target it frames (#696), so the
+  // phone's Analyze button sits 8px inside a light rounded 16 + 8.
+  it("draws the light's corners from the target's own", () => {
+    expect(tourSource).toContain('borderRadius: spotRadius(targetRadius, pad)')
+    expect(tourSource).toContain('const pad = spotPad(step.spot, targetRadius)')
+    expect(tourSource).toContain('setTargetRadius(radius)')
+  })
+
   // The spotlight lit the Forecast section with the Controls sheet's top
   // shade lying across it (#696): while a tour runs, every shade stands down.
   it('hides every scroll shadow while it runs', () => {

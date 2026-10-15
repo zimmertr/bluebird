@@ -157,3 +157,56 @@ test('a link to /tutorial opens the tour on a phone, and the keys walk it', asyn
   await expect(card(page)).toHaveCount(0)
   await expect(page).toHaveURL(/\/(\?|$)/)
 })
+
+test.describe('on a phone with a report', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  // #696: the Analyze step lights the floating button 8px out on every side,
+  // its corners the button's 16px plus that pad (record 0151); the Results
+  // step opens a sheet the reader lowered to rest in Table view before it
+  // lights it, and the end of the tour leaves it open (record 0150).
+  test('pads the Analyze button, and opens a lowered sheet for the results step', async ({ page }) => {
+    await page.goto('/?type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    await page.getByRole('main').getByRole('button', { name: 'Analyze', exact: true }).click()
+    await expect(resultRows(page)).toHaveCount(5)
+    await page.getByRole('button', { name: 'Show chart only' }).first().tap()
+    await expect(resultRows(page).first()).toBeHidden()
+    await page.getByRole('button', { name: 'Collapse results' }).first().tap()
+    await expect(page.getByRole('button', { name: 'Expand results' }).first()).toBeVisible()
+
+    await page.getByRole('button', { name: 'Open controls' }).tap()
+    const link = page.getByRole('region', { name: 'Controls' }).getByRole('link', { name: 'Tutorial' })
+    await link.scrollIntoViewIfNeeded()
+    await link.tap()
+    await expect(heading(page)).toHaveText('Destinations')
+
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Analyze')
+    await expect(async () => {
+      const fab = (await box(page, '[data-tour="analyze"]'))!
+      const light = (await box(page, SPOTLIGHT))!
+      expect(fab.left - light.left).toBeCloseTo(8, 0)
+      expect(light.right - fab.right).toBeCloseTo(8, 0)
+      expect(fab.top - light.top).toBeCloseTo(8, 0)
+      expect(light.bottom - fab.bottom).toBeCloseTo(8, 0)
+      const radius = await page.locator(SPOTLIGHT).first().evaluate((el) => getComputedStyle(el).borderTopLeftRadius)
+      const own = await page.locator('[data-tour="analyze"]').evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius))
+      expect(radius).toBe(`${own + 8}px`)
+    }).toPass({ timeout: 5_000 })
+
+    for (let i = 0; i < 2; i++) await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Results')
+    await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
+    await expect(resultRows(page).first()).toBeVisible()
+    await expectSpotlightOn(page, 'results')
+
+    await page.keyboard.press('ArrowRight')
+    await expect(heading(page)).toHaveText('Markers')
+    await page.keyboard.press('Escape')
+    await expect(card(page)).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Collapse results' }).first()).toBeVisible()
+    await expect(resultRows(page)).toHaveCount(5)
+    await expect(resultRows(page).first()).toBeVisible()
+  })
+})

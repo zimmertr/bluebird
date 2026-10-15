@@ -3,6 +3,7 @@ import {
   CARD_GAP,
   cardMode,
   clipAbove,
+  cornerRadius,
   placeCard,
   sameBox,
   scrollBlock,
@@ -13,6 +14,8 @@ import {
   sheetKeepOut,
   SPOTLIGHT_PAD,
   spotlight,
+  spotPad,
+  spotRadius,
   unionBox,
   VIEWPORT_MARGIN,
 } from './place'
@@ -28,6 +31,41 @@ describe('the spotlight', () => {
       width: 50 + 2 * SPOTLIGHT_PAD,
       height: 20 + 2 * SPOTLIGHT_PAD,
     })
+  })
+
+  // #696: the phone's Analyze button stood on the light's rim. Every rounded
+  // target now takes 8px of light, and the light's corner is the target's
+  // radius plus that pad, so the gap is 8px round the corners too.
+  it("pads a rounded target by 8px and rounds the light by the target's radius plus the pad", () => {
+    expect(SPOTLIGHT_PAD).toBe(8)
+    // The floating Analyze button: rounded-2xl, 16px on every corner.
+    const fab = cornerRadius(['16px', '16px', '16px', '16px'])
+    expect(fab).toBe(16)
+    expect(spotPad(undefined, fab)).toBe(8)
+    expect(spotRadius(fab, spotPad(undefined, fab))).toBe(24)
+    // A chip is a pill: its radius is whatever the pill's huge figure is, plus 8.
+    const chip = cornerRadius(['3.35544e+07px', '3.35544e+07px', '3.35544e+07px', '3.35544e+07px'])
+    expect(spotPad(undefined, chip)).toBe(8)
+    expect(spotRadius(chip, 8)).toBeGreaterThan(chip)
+  })
+
+  it('leaves a section and a square or top-rounded box unpadded and square', () => {
+    for (const corners of [['0px', '0px', '0px', '0px'], ['16px', '16px', '0px', '0px'], []]) {
+      const r = cornerRadius(corners)
+      expect(r).toBe(0)
+      for (const spot of ['section', 'box', undefined] as const) {
+        expect(spotPad(spot, r)).toBe(0)
+        expect(spotRadius(r, spotPad(spot, r))).toBe(0)
+      }
+    }
+    // A control is padded whatever its corners: a square one gets the pad's own arc.
+    expect(spotPad('control', 0)).toBe(SPOTLIGHT_PAD)
+    expect(spotRadius(0, SPOTLIGHT_PAD)).toBe(SPOTLIGHT_PAD)
+  })
+
+  it('takes the smallest corner across everything it frames', () => {
+    // The Layers button (8px) and its menu (8px) beside a 4px control.
+    expect(cornerRadius(['8px', '8px', '8px', '8px', '4px', '4px', '4px', '4px'])).toBe(4)
   })
 
   it('compares boxes by value, and null only to null', () => {
@@ -62,7 +100,7 @@ describe('the sheet', () => {
   // numbers are the 360x740 phone the tutorial was measured on.
   it('keeps the card at the bottom for a target that stops at its keep-out', () => {
     const keepOut = sheetKeepOut({ left: 16, right: 344 }, 146, 740, SPOTLIGHT_PAD)
-    expect(keepOut).toEqual({ left: 16, right: 344, top: 556, bottom: 724 })
+    expect(keepOut).toEqual({ left: 16, right: 344, top: 562 - SPOTLIGHT_PAD, bottom: 724 })
     const reaching = (bottom: number) => spotlight({ top: 160, left: 40, width: 280, height: bottom - 160 })
     expect(sheetEdge(reaching(keepOut.top), 146, 740)).toBe('bottom')
     expect(sheetEdge(reaching(keepOut.top + 1), 146, 740)).toBe('top')

@@ -16,14 +16,16 @@ import {
   type Box,
   cardMode,
   clipAbove,
+  cornerRadius,
   placeCard,
   sameBox,
   scrollBlock,
   scrollTopFor,
   sectionBox,
   sheetEdge,
-  SPOTLIGHT_PAD,
   spotlight,
+  spotPad,
+  spotRadius,
   unionBox,
 } from './place'
 
@@ -68,6 +70,9 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   const titleId = useId()
   const textId = useId()
   const [target, setTarget] = useState<Box | null>(null)
+  // The radius the target's corners are drawn at (`cornerRadius`), which
+  // decides the light's pad and its corners.
+  const [targetRadius, setTargetRadius] = useState(0)
   const [cardSize, setCardSize] = useState({ width: 320, height: 160 })
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight })
   const [moving, setMoving] = useState(false)
@@ -87,13 +92,21 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
       if (!el || !own || step.spot !== 'section' || !el.parentElement) return own
       return sectionBox(own, rect(el.previousElementSibling), rect(el.nextElementSibling), rect(el.parentElement)!)
     }
-    const whole = unionBox([boxOf(step.anchor), ...(step.frames ?? []).map(boxOf)])
+    const anchors = [step.anchor, ...(step.frames ?? [])]
+    const whole = unionBox(anchors.map(boxOf))
+    const corners = anchors.flatMap((anchor) => {
+      const el = document.querySelector(anchorSelector(anchor))
+      if (!el) return []
+      const c = getComputedStyle(el)
+      return [c.borderTopLeftRadius, c.borderTopRightRadius, c.borderBottomRightRadius, c.borderBottomLeftRadius]
+    })
+    const radius = cornerRadius(corners)
     // A target that runs under another surface is lit only where it shows;
-    // the control pad is kept out of that surface too.
+    // the pad is kept out of that surface too.
     const over = step.under ? rect(document.querySelector(anchorSelector(step.under))) : null
-    const box =
-      whole && over ? clipAbove(whole, over.top - (step.spot === 'control' ? SPOTLIGHT_PAD : 0)) : whole
+    const box = whole && over ? clipAbove(whole, over.top - spotPad(step.spot, radius)) : whole
     setTarget((prev) => (sameBox(prev, box) ? prev : box))
+    setTargetRadius(radius)
     const card = cardRef.current?.getBoundingClientRect()
     if (card) {
       setCardSize((prev) =>
@@ -233,8 +246,8 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  const control = step.spot === 'control'
-  const light = target ? spotlight(target, control ? SPOTLIGHT_PAD : 0) : null
+  const pad = spotPad(step.spot, targetRadius)
+  const light = target ? spotlight(target, pad) : null
   const sheet = cardMode(viewport.width) === 'sheet'
   if (light && !sheet) lastAt.current = placeCard(light, cardSize, viewport)
   const at = sheet ? null : lastAt.current
@@ -248,8 +261,16 @@ export default function Tour({ steps, index, onNext, onPrev, onEnd }: Props) {
   return (
     <div className={`fixed inset-0 ${LAYER.modal} overflow-hidden`}>
       <div
-        className={`${TOUR.spotlight}${control ? ` ${TOUR.spotlightControl}` : ''}${motion}`}
-        style={{ top: hole.top, left: hole.left, width: hole.width, height: hole.height }}
+        className={`${TOUR.spotlight}${motion}`}
+        style={{
+          top: hole.top,
+          left: hole.left,
+          width: hole.width,
+          height: hole.height,
+          // Measured off the target rather than a role, since the light
+          // follows whatever it frames: the target's radius plus the pad.
+          borderRadius: spotRadius(targetRadius, pad),
+        }}
         aria-hidden="true"
       />
       <div

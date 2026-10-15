@@ -513,6 +513,7 @@ export default function App() {
   const resultsView = useResultsView({
     showResults: showResults || demo !== null,
     collapsedOverride: tour.sheetCollapsed,
+    restRequested: tour.sheetRest,
     response: shownResponse,
     results,
     pending,

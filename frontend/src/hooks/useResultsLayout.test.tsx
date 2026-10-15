@@ -123,6 +123,46 @@ describe('useResultsLayout', () => {
     expect(result.current.resultsMode).toBe('both')
   })
 
+  // The tutorial's Results step (#696): the reverse of a row tap's collapse,
+  // set as state so the sheet stays open when the step ends, and on a phone
+  // the resting Table a first report opens in, without storing the mode.
+  it("opens the sheet to rest in Table view for the tutorial's results step", () => {
+    setDesktopQuery(false)
+    setViewport(1000)
+    const PHONE = { ...DESKTOP, isDesktop: false, response: {} }
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: PHONE,
+    })
+    const resting = result.current.tablePanelPx
+    act(() => result.current.chooseResultsMode('chart'))
+    act(() => result.current.chartGrip.onDragStart())
+    act(() => result.current.chartGrip.onDrag(120))
+    act(() => result.current.chartGrip.onDragEnd())
+    act(() => result.current.collapse())
+    expect(result.current.resultsCollapsed).toBe(true)
+    rerender({ ...PHONE, restRequested: true })
+    expect(result.current.resultsCollapsed).toBe(false)
+    expect(result.current.resultsMode).toBe('table')
+    expect(result.current.tablePanelPx).toBe(resting)
+    // The press stays the stored answer: the tour chose Table, the reader did not.
+    expect(readViewPrefs().modeChosen).toBe('chart')
+    // The step ends and the sheet stays where it put it.
+    rerender({ ...PHONE, restRequested: false })
+    expect(result.current.resultsCollapsed).toBe(false)
+    expect(result.current.resultsMode).toBe('table')
+  })
+
+  it('only opens the docked results on a desk, keeping their mode', () => {
+    const { result, rerender } = renderHook((inputs: ResultsLayoutInputs) => useResultsLayout(inputs), {
+      initialProps: DESKTOP,
+    })
+    act(() => result.current.chooseResultsMode('chart'))
+    act(() => result.current.toggleCollapsed())
+    rerender({ ...DESKTOP, restRequested: true })
+    expect(result.current.resultsCollapsed).toBe(false)
+    expect(result.current.resultsMode).toBe('chart')
+  })
+
   it('puts a dragged panel back on a double press', () => {
     const { result } = renderHook(() => useResultsLayout({ ...DESKTOP, modeChosen: 'chart' }))
     const opened = result.current.chartPanelPx

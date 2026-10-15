@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-10-14
-- Decider: the maintainer (TJ), on issue #696, 2026-10-14; the popup's remove the same evening
+- Decider: the maintainer (TJ), on issue #696, 2026-10-14; the popup's remove the same evening, and its rule that night
 - Issues and PRs: #696, #708, #336, #536
 - Cited in code as: #696
 - Guide: [`frontend/src/components/CLAUDE.md`](../../frontend/src/components/CLAUDE.md), `ResultsTableRow.tsx`; [`frontend/src/hooks/CLAUDE.md`](../../frontend/src/hooks/CLAUDE.md), `useRowFocus.ts`; [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), `rowTap.ts`, `resultPopup.ts`, `popupChrome.ts`; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), `resultsLayer.ts`
@@ -20,7 +20,7 @@ The name's button flew the map to a destination and opened its popup. The rest o
 
 ## The remove control on touch: the popup carries it
 
-- **A ranked marker's popup ends in `Remove from analysis`**, the words and the `popupButton` look the clicked basemap feature's popup uses (record [0139](0139-clicked-feature-popup-wears-the-result-card.md)), centred in the card's foot the way that popup places its action (`popupAction` in `popupChrome.ts`, which both popups now share). Pressing it does what the row's × does, the removal in `useRemovals` through `onRemoveResult`, and closes the popup; the removed row shows the way a removed row always has.
+- **A ranked marker's popup ends in `Remove from analysis`**, the words and the `popupButton` look the clicked basemap feature's popup uses (record [0139](0139-clicked-feature-popup-wears-the-result-card.md)), centred in the card's foot the way that popup places its action (`popupAction` in `popupChrome.ts`, which both popups now share). On the ranked card the foot is a section of its own, ruled off from the grid by the edge and padding the warnings section above the grid wears (`SECTION_EDGE`, `SECTION_PAD_Y`; the maintainer, later the same night), because without the rule the button read as one more row of numbers. The clicked feature's card needs none: its button is the whole body, already under the header's edge. Pressing it does what the row's × does, the removal in `useRemovals` through `onRemoveResult`, and closes the popup; the removed row shows the way a removed row always has.
 - **On a coarse pointer the row's remove is this action**, reached by the row tap above, so the × beside the rank is no longer forced visible on touch: `index.css`'s `row-remove` rule is gone and `TABLE.removeFace` hides the × on a coarse pointer. A fine pointer keeps the hover ×.
 
 The first cut of this record left the touch remove unchanged, because the marker popup had no remove action to reach; the maintainer added one on 2026-10-14.

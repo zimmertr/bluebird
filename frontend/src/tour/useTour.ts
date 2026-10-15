@@ -202,6 +202,12 @@ export function useTour({ isDesktop, sidebarOpen, setSidebarOpen, mapRef }: Args
      * swipe or a chevron away.
      */
     sheetCollapsed: showingMarker ? true : null,
+    /**
+     * The results step opens the sheet to rest in Table view before its
+     * spotlight is drawn (#696): the reader may have left it at its bar, a
+     * row tap's collapse on a phone, and the step points at what it shows.
+     */
+    sheetRest: step?.reveal === 'results',
     /** The chart's tooltip stands on this hour while the demonstration is up, or follows the mouse. */
     chartTooltipIndex: showingResults ? CHART_TOOLTIP_INDEX : null,
   }

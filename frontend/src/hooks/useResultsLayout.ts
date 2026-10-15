@@ -87,6 +87,13 @@ export interface ResultsLayoutInputs {
    */
   collapsedOverride?: boolean | null
   /**
+   * The tutorial's Results step is open (#696): the sheet opens before the
+   * step's spotlight reads it, the reverse of a row tap's collapse, and is
+   * left open when the step ends. On a phone it also comes back to its
+   * resting height in Table view, the shape a first report opens in.
+   */
+  restRequested?: boolean
+  /**
    * The reader has the forecast player on, so a phone's full sheet leaves it
    * room above the Analyze button (#696, `PLAYER_ROOM_PX`).
    */
@@ -119,6 +126,7 @@ export function useResultsLayout({
   response,
   analysisSeq,
   collapsedOverride = null,
+  restRequested = false,
   playerOn = false,
   safeBottomPx = 0,
 }: ResultsLayoutInputs) {
@@ -169,6 +177,19 @@ export function useResultsLayout({
   // the map (record 0143).
   const collapse = useCallback(() => setResultsCollapsed(true), [])
   const resultsCollapsed = collapsedOverride ?? collapsedChoice
+  // A layout effect, so the open sheet is drawn in the commit the step opens
+  // in and the tour's spotlight, which measures before every paint, never
+  // frames the bar first. Sets the state the chevron, a drag and the segment
+  // set, without persisting the mode: the tour chose it, the reader did not.
+  useLayoutEffect(() => {
+    if (!restRequested) return
+    setResultsCollapsed(false)
+    if (isDesktop) return
+    setHeightsChosen(false)
+    setTableHeight(DEFAULT_TABLE_HEIGHT)
+    lastPanelRef.current = 'table'
+    setModePref('table')
+  }, [restRequested, isDesktop])
   // The results' own height as rendered, which on a phone is how much map the
   // sheet covers. Observed rather than derived because everything anchored to
   // the map's bottom edge measures from this one number, and a derivation has

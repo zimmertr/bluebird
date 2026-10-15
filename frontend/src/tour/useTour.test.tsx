@@ -38,3 +38,21 @@ describe('the tour hands the keyboard back', () => {
     expect(document.activeElement).toBe(document.body)
   })
 })
+
+// The results step asks the sheet to open at rest before its spotlight reads
+// it (#696), and only that step: the marker step after it collapses it.
+describe('the tour opens the results for their step', () => {
+  it('asks for the sheet at rest on the results step alone', () => {
+    const { result } = setup()
+    act(() => result.current.start())
+    const seen: [string, boolean, boolean | null][] = []
+    for (;;) {
+      const i = result.current.index
+      if (i === null) break
+      seen.push([result.current.steps[i].anchor, result.current.sheetRest, result.current.sheetCollapsed])
+      act(() => result.current.next())
+    }
+    expect(seen.filter(([, rest]) => rest).map(([a]) => a)).toEqual(['results'])
+    expect(seen.find(([a]) => a === 'marker')?.[2]).toBe(true)
+  })
+})
