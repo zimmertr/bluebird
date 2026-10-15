@@ -8,7 +8,7 @@ import {
   POI_GLOW_IMAGE,
   setSource,
 } from './basemap'
-import { POI_LAYERS, LAKE_CLASS, PLACE_LAYERS } from '../utils/basemapPoi'
+import { CLIMBING_CLASS, POI_LAYERS, LAKE_CLASS, PLACE_LAYERS } from '../utils/basemapPoi'
 import { stubMap } from '../testSupport/stubMap'
 
 // The node project has no DOM. A canvas with no 2D context is what a browser
@@ -46,6 +46,8 @@ describe('enhanceBasemap', () => {
       ['addLayer', 'ofm-lakes', 'road_label'],
       ['addLayer', 'ofm-lakes-line-glow', 'road_label'],
       ['addLayer', 'ofm-lakes-line', 'road_label'],
+      ['addLayer', 'ofm-climbing-glow', 'road_label'],
+      ['addLayer', 'ofm-climbing', 'road_label'],
     ])
   })
 
@@ -77,6 +79,48 @@ describe('enhanceBasemap', () => {
     ])
   })
 
+  // The style's `poi` labels draw a climbing feature from z15 with no icon
+  // (the sprite has none), under the one `ofm-climbing` draws from z14.
+  it('takes climbing off the style\'s poi labels without replacing their filter', () => {
+    const rank = ['>=', ['get', 'rank'], 20]
+    const { map, calls } = stubMap({
+      styleLayers,
+      layers: ['poi_r1', 'poi_r7', 'poi_r20'],
+      filters: { poi_r20: rank },
+    })
+    enhanceBasemap(map)
+    const notOurs = ['!=', ['get', 'class'], CLIMBING_CLASS]
+    expect(calls.filter((c) => c[0] === 'setFilter' && String(c[1]).startsWith('poi_'))).toEqual([
+      ['setFilter', 'poi_r1', notOurs],
+      ['setFilter', 'poi_r7', notOurs],
+      ['setFilter', 'poi_r20', ['all', rank, notOurs]],
+    ])
+  })
+
+  // Named features only, as points, of the one class, from the zoom the
+  // tiles' `poi` layer is complete at, with a glow that lights the same set.
+  it('draws the named climbing features from z14, with a twin of the same filter', () => {
+    const added: Record<string, { filter?: unknown; minzoom?: number; layout?: Record<string, unknown> }> = {}
+    const { map } = stubMap({ styleLayers })
+    const addLayer = map.addLayer.bind(map)
+    map.addLayer = ((layer: (typeof added)[string] & { id: string }, before?: string) => {
+      added[layer.id] = layer
+      return addLayer(layer as never, before)
+    }) as typeof map.addLayer
+    enhanceBasemap(map)
+    const climbing = added['ofm-climbing']
+    expect(climbing.minzoom).toBe(14)
+    expect(climbing.filter).toEqual([
+      'all',
+      ['==', ['get', 'class'], CLIMBING_CLASS],
+      ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
+      ['has', 'name'],
+    ])
+    expect(climbing.layout?.['icon-image']).toBe('circle_stroked_11')
+    expect(added['ofm-climbing-glow'].filter).toEqual(climbing.filter)
+    expect(added['ofm-climbing-glow'].minzoom).toBe(14)
+  })
+
   it('leaves a style without the label layers alone', () => {
     const { map, calls } = stubMap({
       styleLayers: styleLayers.filter((l) => !l.id.startsWith('water_name')),
@@ -91,7 +135,7 @@ describe('enhanceBasemap', () => {
     const { map, calls } = stubMap({ styleLayers })
     enhanceBasemap(map)
     expect(calls.filter((c) => c[0] === 'addImage')).toEqual([])
-    expect(calls.filter((c) => c[0] === 'addLayer')).toHaveLength(7)
+    expect(calls.filter((c) => c[0] === 'addLayer')).toHaveLength(9)
   })
 })
 

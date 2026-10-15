@@ -1,8 +1,8 @@
 // Turning a labeled basemap feature into a destination (#119, #710).
 //
 // Every clickable label on the map comes from the OpenMapTiles vector tiles:
-// the peaks and lakes the app draws itself, and the cities, towns, villages
-// and hamlets the style already labels. So the name and elevation a click
+// the peaks, lakes and climbing features the app draws itself, and the
+// cities, towns, villages and hamlets the style already labels. So the name and elevation a click
 // needs are sitting in the feature's properties: no lookup, no network call.
 // The job here is only to decide which features are destinations at all, and
 // to normalize the tile's fields into the `Place` the searched-destinations
@@ -32,6 +32,19 @@ import { Place } from './geocode'
 export const LAKE_LAYERS = ['ofm-lakes', 'ofm-lakes-line'] as const
 
 /**
+ * The `poi` class the app draws as a climbing label and accepts (#710).
+ *
+ * One class for a crag and a single route alike: the tile drops OSM's
+ * `climbing=` tag, so `Foodbar Crag` and the route `Thin Fingers` carry the
+ * same properties (measured 2026-10-15 at Index, z14/2659/5707) and both are
+ * selectable. The crag type #715 discovers by Overpass (crags and areas
+ * only) therefore cannot be matched from a click, which the maintainer
+ * accepted on 2026-10-15. `ofm-climbing` filters on this class and the
+ * style's own `poi` labels are filtered off it, so nothing is labelled twice.
+ */
+export const CLIMBING_CLASS = 'climbing'
+
+/**
  * The style's own place labels, which a click takes where the style draws
  * them (#710).
  *
@@ -56,7 +69,7 @@ export const PLACE_LAYERS = [
 export const PLACE_CLASSES = ['city', 'town', 'village', 'hamlet'] as const
 
 /** The basemap layers a click can turn into a destination. */
-export const POI_LAYERS = ['ofm-peaks', ...LAKE_LAYERS, ...PLACE_LAYERS] as const
+export const POI_LAYERS = ['ofm-peaks', ...LAKE_LAYERS, 'ofm-climbing', ...PLACE_LAYERS] as const
 
 function isLakeLayer(layerId: string): boolean {
   return (LAKE_LAYERS as readonly string[]).includes(layerId)
@@ -217,6 +230,14 @@ export function poiFromFeature(
     // not something the tiles know. The next Analyze resolves it against OSM
     // like any other custom coordinate.
     return { name, kind: LAKE_CLASS, lat, lon }
+  }
+
+  if (layerId === 'ofm-climbing') {
+    // The layer draws named features only and the tile has unnamed ones, so
+    // the name check above is what refuses them here. No elevation: `poi`
+    // carries none.
+    if (rawClass !== CLIMBING_CLASS) return null
+    return { name, kind: CLIMBING_CLASS, lat, lon }
   }
 
   if (isPlaceLayer(layerId)) {

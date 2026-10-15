@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CLIMBING_CLASS,
   isPoiFeature,
   LAKE_CLASS,
   PLACE_CLASSES,
@@ -121,6 +122,30 @@ describe('poiFromFeature', () => {
     expect(poiFromFeature('ofm-peaks', { class: 'peak' }, RAINIER)).toBeNull()
     expect(poiFromFeature('ofm-peaks', { name: 'A' }, [NaN, 46.8])).toBeNull()
     expect(poiFromFeature('ofm-trails', { name: 'Wonderland Trail' }, RAINIER)).toBeNull()
+  })
+})
+
+// Climbing labels (#710). At Index, z14/2659/5707, a crag (`Foodbar Crag`)
+// and a single route (`Thin Fingers`) carry the same properties, and one
+// climbing feature has no name at all (2026-10-15).
+describe('poiFromFeature on a climbing label', () => {
+  const INDEX: [number, number] = [-121.557, 47.8203]
+
+  it('accepts a named crag or route as climbing, with no elevation', () => {
+    for (const name of ['Foodbar Crag', 'Thin Fingers']) {
+      expect(
+        poiFromFeature('ofm-climbing', { name, class: CLIMBING_CLASS, subclass: 'climbing', rank: 3 }, INDEX),
+      ).toEqual({ name, kind: 'climbing', lat: 47.8203, lon: -121.557 })
+    }
+  })
+
+  it('refuses an unnamed one, and any other poi class', () => {
+    expect(poiFromFeature('ofm-climbing', { class: CLIMBING_CLASS, subclass: 'climbing', rank: 9 }, INDEX)).toBeNull()
+    expect(poiFromFeature('ofm-climbing', { name: 'Mount Si Trailhead', class: 'bus' }, INDEX)).toBeNull()
+  })
+
+  it('is one of the layers a click reads', () => {
+    expect(POI_LAYERS).toContain('ofm-climbing')
   })
 })
 

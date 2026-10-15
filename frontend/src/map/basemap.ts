@@ -15,7 +15,7 @@ import type { FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
-import { LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../utils/basemapPoi'
+import { CLIMBING_CLASS, LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../utils/basemapPoi'
 import { polygonsOf } from '../utils/drawGeometry'
 import { widestPole } from '../utils/polylabel'
 
@@ -35,6 +35,18 @@ export const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
  * sooner.
  */
 const POI_MINZOOM = 9
+
+/**
+ * The zoom the climbing labels start at (#710).
+ *
+ * The first zoom whose tiles carry them. Measured 2026-10-15 at Index's Lower
+ * Town Wall: the z12 and z13 tiles there hold no `poi` feature at all, and
+ * the z14 tile holds 58 climbing features, 57 of them named, so a lower floor
+ * would draw nothing more. Routes on one wall stand metres apart and still
+ * overlap at z15; `text-optional` keeps each icon and drops the names that
+ * collide.
+ */
+const CLIMBING_MINZOOM = 14
 
 /**
  * The label treatment every clickable basemap destination wears.
@@ -315,6 +327,29 @@ export function enhanceBasemap(map: maplibregl.Map) {
       },
       paint: POI_LABEL_PAINT,
     },
+    // Climbing: crags and single routes, which the tile cannot tell apart
+    // (`CLIMBING_CLASS`). The sprite has no climbing glyph, so the icon is the
+    // stroked circle, which reads as a different kind of thing from the
+    // `mountain_11` and `water_11` of the peaks and lakes. Named features
+    // only, so every icon drawn is one a click can add.
+    {
+      id: 'ofm-climbing',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'poi',
+      minzoom: CLIMBING_MINZOOM,
+      filter: [
+        'all',
+        ['==', ['get', 'class'], CLIMBING_CLASS],
+        ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
+        ['has', 'name'],
+      ],
+      layout: {
+        ...poiLabelLayout('circle_stroked_11'),
+        'text-field': ['get', 'name'],
+      },
+      paint: POI_LABEL_PAINT,
+    },
   ]
 
   // Each label goes on with its halo underneath it: the glow is added first so
@@ -355,6 +390,15 @@ export function enhanceBasemap(map: maplibregl.Map) {
     // undone here.
     const existing = map.getFilter(id) as FilterSpecification | undefined
     const notOurs: FilterSpecification = ['!=', ['get', 'class'], LAKE_CLASS]
+    map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
+  }
+
+  // The style's own `poi` labels lose the climbing class for the same reason,
+  // since `ofm-climbing` labels it from z14 and these from z15 up.
+  for (const id of ['poi_r1', 'poi_r7', 'poi_r20']) {
+    if (!map.getLayer(id)) continue
+    const existing = map.getFilter(id) as FilterSpecification | undefined
+    const notOurs: FilterSpecification = ['!=', ['get', 'class'], CLIMBING_CLASS]
     map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
   }
 }

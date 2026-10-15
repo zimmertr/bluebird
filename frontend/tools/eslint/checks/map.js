@@ -263,7 +263,8 @@ export const MAP = [
   declaresOnly('map-poi-declares', 'src/map/poiPopup.ts', ['mountPoiPopups']),
   declaresOnly('map-popups-declares', 'src/map/popups.ts', ['createPopupBoard', 'isPinning', 'popupOptions']),
   {
-    // What map/basemap.ts must say about the clickable peaks and lakes. The ids
+    // What map/basemap.ts must say about the clickable peaks, lakes and
+    // climbing labels. The ids
     // and the label offset are compared with utils/basemapPoi.ts in its test.
     name: 'map-basemap-layers',
     files: ['src/map/basemap.ts'],
@@ -282,21 +283,22 @@ export const MAP = [
       {
         // Lakes and peaks share one floor and one look, so neither kind of
         // destination can become clickable at a zoom the other is not.
+        // Climbing has its own, the zoom the tiles' `poi` layer is complete at.
         selector: 'Property[key.name="minzoom"][value.name="POI_MINZOOM"]',
         count: 3,
-        message: 'Give every clickable layer the one POI_MINZOOM.',
+        message: 'Give every peak and lake layer the one POI_MINZOOM.',
       },
       {
         selector: 'Property[key.name="paint"][value.name="POI_LABEL_PAINT"]',
-        count: 3,
+        count: 4,
         message: 'Give every clickable layer the one POI_LABEL_PAINT.',
       },
       {
-        // Peaks build from the shared layout directly; the two lake layers
-        // share one recipe, spelled once and spread twice.
+        // Peaks and climbing build from the shared layout directly; the two
+        // lake layers share one recipe, spelled once and spread twice.
         selector: 'CallExpression[callee.name="poiLabelLayout"]',
-        count: 2,
-        message: 'Build the peak layout and the one lake recipe from poiLabelLayout.',
+        count: 3,
+        message: 'Build the peak and climbing layouts and the one lake recipe from poiLabelLayout.',
       },
       {
         // The long lakes render only because their layer places labels along
