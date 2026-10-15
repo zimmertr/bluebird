@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, CHART_PLOT_TOUCH, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
 import { IconSelectArrow } from './icons'
 import {
   CHART_METRICS,
@@ -36,7 +36,14 @@ import {
   tooltipCapacity,
 } from '../utils/chartData'
 import type { ModelEndLine } from '../utils/modelCompare'
-import { PLOT_MARGIN, X_AXIS_HEIGHT_PX, Y_AXIS_WIDTH_PX, fingerReading, hourIndexAt } from '../utils/chartPointer'
+import {
+  PLOT_MARGIN,
+  TITLED_PLOT_MARGIN,
+  X_AXIS_HEIGHT_PX,
+  Y_AXIS_WIDTH_PX,
+  fingerReading,
+  hourIndexAt,
+} from '../utils/chartPointer'
 import {
   CHART_AXIS_COLOR,
   CHART_GRID_COLOR,
@@ -48,8 +55,8 @@ import {
 // Explicit geometry so the hover handler can invert pixels → data values: the
 // plotting band is the container minus these margins and the x-axis strip.
 // The numbers are `utils/chartPointer.ts`', which a finger's reading and a
-// click's hour invert through too.
-const MARGIN = PLOT_MARGIN
+// click's hour invert through too. A phone's plot takes the titled margins,
+// its picker standing as a title over the plot (#696).
 const X_AXIS_HEIGHT = X_AXIS_HEIGHT_PX
 // Hoisted so both axes hand Recharts one object rather than a new one a render.
 const AXIS_TICK = { fontSize: CHART_TICK_PX }
@@ -90,11 +97,15 @@ function chromeLabel(value: string, position: ChromeLabelPosition) {
  * given; the computed x and y are dropped so the inner Label places itself
  * for the position chosen here rather than the one it was handed.
  */
-function HeadroomLabel({ viewBox, x: _x, y: _y, content: _content, ...rest }: any) {
-  return (
-    <Label {...rest} viewBox={viewBox} position={extremeLabelPosition(viewBox.y, MARGIN.top)} />
-  )
+function headroomLabel(plotTop: number) {
+  return function HeadroomLabel({ viewBox, x: _x, y: _y, content: _content, ...rest }: any) {
+    return <Label {...rest} viewBox={viewBox} position={extremeLabelPosition(viewBox.y, plotTop)} />
+  }
 }
+// One per margin, hoisted, so the label's component is the same between
+// renders and Recharts never remounts it.
+const HEADROOM_LABEL = headroomLabel(PLOT_MARGIN.top)
+const TITLED_HEADROOM_LABEL = headroomLabel(TITLED_PLOT_MARGIN.top)
 
 // Which rows are plotted is the table's job: the checkbox column is the one
 // series picker (#242 review dropped the chart's own legend strip), so this
@@ -150,6 +161,11 @@ interface Props {
   modelEnds?: readonly ModelEndLine[]
   /** The comparison control, rendered beside the metric select. */
   controls?: ReactNode
+  /**
+   * A phone (#696; record 0149): the metric select is the plot's title rather
+   * than a row above it, and the plot is inset under the title's line.
+   */
+  titled?: boolean
 }
 
 // A stable empty default: a fresh `[]` per render would rebuild every line, and
@@ -171,8 +187,14 @@ function TimeSeriesChart({
   extraLines = NO_EXTRA_LINES,
   modelEnds = NO_MODEL_ENDS,
   controls,
+  titled = false,
 }: Props) {
   const plotRef = useRef<HTMLDivElement>(null)
+  // Where the last finger went down on the plot, for the click its tap makes.
+  const tapXRef = useRef<number | null>(null)
+  // A phone's picker is the plot's title rather than a row above it (#696),
+  // and the plot is inset under it.
+  const MARGIN = titled ? TITLED_PLOT_MARGIN : PLOT_MARGIN
   const [focusedKey, setFocusedKey] = useState<string | null>(null)
   const [cursorValue, setCursorValue] = useState<number | null>(null)
   // The hour a finger reads (#336; record 0144), which the tooltip shows as
@@ -257,6 +279,7 @@ function TimeSeriesChart({
   function handleMove(state: any) {
     // A mouse takes the reading back from a finger that left one.
     if (fingerIndex !== null) setFingerIndex(null)
+    tapXRef.current = null
     const idx = state?.activeTooltipIndex
     const py = typeof state?.chartY === 'number' ? state.chartY : state?.activeCoordinate?.y
     const h = plotRef.current?.clientHeight ?? 0
@@ -286,10 +309,11 @@ function TimeSeriesChart({
   // browser cancels the pointer, which drops the reading.
   function readFinger(e: PointerEvent<HTMLDivElement>) {
     if (e.pointerType === 'mouse') return
+    if (e.type === 'pointerdown') tapXRef.current = e.clientX
     const el = plotRef.current
     if (!el) return
     const box = el.getBoundingClientRect()
-    const reading = fingerReading(e.clientX - box.left, e.clientY - box.top, box, times, yMin, yMax)
+    const reading = fingerReading(e.clientX - box.left, e.clientY - box.top, box, times, yMin, yMax, MARGIN)
     if (reading === null) return
     setFingerIndex(reading.index)
     if (!followCursor) return
@@ -300,6 +324,7 @@ function TimeSeriesChart({
   }
 
   function dropFinger() {
+    tapXRef.current = null
     setFingerIndex(null)
     handleLeave()
   }
@@ -319,9 +344,16 @@ function TimeSeriesChart({
   // first tap carries no label, and each later tap carries the hour the tap
   // BEFORE it left behind. The label stays as the fallback for a click that
   // arrives with no position.
+  //
+  // A tap's own click is not trusted for its pixel either: Chrome moves the
+  // click it makes from a tap toward a clickable node near the finger (touch
+  // adjustment), 7px left of the finger in the browser suite (#696), which
+  // named the hour before the one the finger read. So a tap names the hour
+  // where the finger went down (`tapXRef`), the one its reading shows.
   function handleClick(state: any, event?: { clientX?: unknown }) {
     if (!onPlayheadChange) return
-    const x = event?.clientX
+    const x = tapXRef.current ?? event?.clientX
+    tapXRef.current = null
     const el = plotRef.current
     if (typeof x === 'number' && el) {
       const box = el.getBoundingClientRect()
@@ -334,6 +366,13 @@ function TimeSeriesChart({
     const t = state?.activeLabel
     if (typeof t === 'number') onPlayheadChange(t)
   }
+
+  const metricOptions = CHART_METRICS.map((m) => (
+    <option key={m.key} value={m.key}>
+      {m.label}
+    </option>
+  ))
+  const metricLabel = CHART_METRICS.find((m) => m.key === metric)?.label ?? ''
 
   return (
     <div className="flex h-full flex-col">
@@ -350,151 +389,177 @@ function TimeSeriesChart({
           wider one. The row itself does not wrap either:
           the comparison note beside the control shrinks (`min-w-0`) rather
           than dropping under it. */}
-      <div className="flex flex-shrink-0 items-center gap-x-4 px-3 py-1">
-        {/* flex, not block, for the reason the ranking rows' dropdown gives:
-            an inline-level select in a block wrapper reserves descender space
-            below itself and sits a pixel low against what is beside it. */}
-        <div className="relative flex flex-shrink-0">
-          <select
-            aria-label="Chart metric"
-            value={metric}
-            onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
-            className={`${SELECT} ${CHART_METRIC_W} px-2 py-0.5`}
-          >
-            {CHART_METRICS.map((m) => (
-              <option key={m.key} value={m.key}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-          <IconSelectArrow />
+      {/* At a desk the select stands in a row above the plot; on a phone it
+          is the plot's title (below), and the row stands only to hold a
+          comparison's note. */}
+      {(!titled || controls) && (
+        <div className="flex flex-shrink-0 items-center gap-x-4 px-3 py-1">
+          {!titled && (
+            // flex, not block, for the reason the ranking rows' dropdown
+            // gives: an inline-level select in a block wrapper reserves
+            // descender space below itself and sits a pixel low against what
+            // is beside it.
+            <div className="relative flex flex-shrink-0">
+              <select
+                aria-label="Chart metric"
+                value={metric}
+                onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
+                className={`${SELECT} ${CHART_METRIC_W} px-2 py-0.5`}
+              >
+                {metricOptions}
+              </select>
+              <IconSelectArrow />
+            </div>
+          )}
+          {controls}
         </div>
-        {controls}
-      </div>
+      )}
 
-      <div
-        ref={plotRef}
-        onPointerDown={readFinger}
-        onPointerMove={readFinger}
-        onPointerCancel={dropFinger}
-        className={`min-h-0 flex-1 overflow-hidden ${CHART_PLOT_TOUCH}`}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={data}
-            margin={MARGIN}
-            onMouseMove={followCursor ? handleMove : undefined}
-            onMouseLeave={followCursor ? handleLeave : undefined}
-            onClick={onPlayheadChange ? handleClick : undefined}
-            className={onPlayheadChange ? 'cursor-pointer' : undefined}
-          >
-            <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" />
-            <XAxis
-              dataKey="t"
-              type="number"
-              scale="time"
-              domain={['dataMin', 'dataMax']}
-              height={X_AXIS_HEIGHT}
-              stroke={CHART_AXIS_COLOR}
-              tick={AXIS_TICK}
-              tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              width={Y_AXIS_WIDTH}
-              stroke={CHART_AXIS_COLOR}
-              tick={AXIS_TICK}
-              tickFormatter={(v: any) => formatMetricValue(v, metric)}
-            />
-            {/* Wears the axis's own color rather than a semantic one: it is
-                chrome marking where the x-axis changes meaning, not a warning.
-                Dashed so it cannot be mistaken for a series. */}
-            {nowMs !== null && (
-              <ReferenceLine x={nowMs} {...CHROME_LINE} label={chromeLabel('Now', 'insideTopLeft')} />
-            )}
-            {/* Where a compared model's forecast ends. Chrome marking where
-                one model's data stops, not a warning, so it wears the axis
-                colour and the "Now" seam's dash rather than a status hue: a
-                shorter reach is a fact about the model, not a fault. The label
-                is the whole signal, which is why there is no hover entry. */}
-            {modelEnds.map((end) => (
-              <ReferenceLine
-                key={end.endMs}
-                x={end.endMs}
-                {...CHROME_LINE}
-                label={chromeLabel(end.label, 'insideTopLeft')}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {/* A phone's picker (#696, record 0149): the metric's name and a
+            chevron as the plot's title, the native select laid over them so a
+            tap opens the phone's own picker. Outside the plot's box, so a press
+            on it is the select's and not a finger reading the plot. */}
+        {titled && (
+          <div className={CHART_TITLE.box}>
+            <span aria-hidden="true" className={CHART_TITLE.text}>
+              {metricLabel}
+            </span>
+            <IconSelectArrow placement={CHART_TITLE.chevron} />
+            <select
+              aria-label="Chart metric"
+              value={metric}
+              onChange={(e) => onMetricChange(e.target.value as ChartMetric)}
+              className={CHART_TITLE.select}
+            >
+              {metricOptions}
+            </select>
+          </div>
+        )}
+        <div
+          ref={plotRef}
+          onPointerDown={readFinger}
+          onPointerMove={readFinger}
+          onPointerCancel={dropFinger}
+          className={`min-h-0 flex-1 overflow-hidden ${CHART_PLOT_TOUCH}`}
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={data}
+              margin={MARGIN}
+              onMouseMove={followCursor ? handleMove : undefined}
+              onMouseLeave={followCursor ? handleLeave : undefined}
+              onClick={onPlayheadChange ? handleClick : undefined}
+              className={onPlayheadChange ? 'cursor-pointer' : undefined}
+            >
+              <CartesianGrid stroke={CHART_GRID_COLOR} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="t"
+                type="number"
+                scale="time"
+                domain={['dataMin', 'dataMax']}
+                height={X_AXIS_HEIGHT}
+                stroke={CHART_AXIS_COLOR}
+                tick={AXIS_TICK}
+                tickFormatter={(t: any) => axisTimeLabel(t, spanMs)}
               />
-            ))}
-            {/* The map's playhead. Solid and in the accent where the "Now"
-                seam above is dashed and in the axis colour, because this one
-                is a control's position and that one is a fact about the data.
-                No label: the transport's own readout already states the hour,
-                and a second copy of it would move with the line across a chart
-                that is mostly line already. */}
-            {playheadMs !== null && (
-              <ReferenceLine x={playheadMs} stroke={CHART_PLAYHEAD_COLOR} strokeWidth={1.5} />
-            )}
-            <Tooltip
-              isAnimationActive={false}
-              defaultIndex={shownIndex ?? undefined}
-              active={shownIndex === null ? undefined : true}
-              content={(props: any) => (
-                <ChartTooltip
-                  {...props}
-                  lines={lines}
-                  metric={metric}
-                  focusedKey={focusedKey}
-                  cursorValue={cursorValue}
-                  // Read at render rather than observed: this component
-                  // re-renders on every hover move, which is the only time
-                  // the value is used.
-                  maxRows={tooltipCapacity(plotRef.current?.clientHeight ?? 0)}
+              <YAxis
+                domain={[yMin, yMax]}
+                width={Y_AXIS_WIDTH}
+                stroke={CHART_AXIS_COLOR}
+                tick={AXIS_TICK}
+                tickFormatter={(v: any) => formatMetricValue(v, metric)}
+              />
+              {/* Wears the axis's own color rather than a semantic one: it is
+                  chrome marking where the x-axis changes meaning, not a warning.
+                  Dashed so it cannot be mistaken for a series. */}
+              {nowMs !== null && (
+                <ReferenceLine x={nowMs} {...CHROME_LINE} label={chromeLabel('Now', 'insideTopLeft')} />
+              )}
+              {/* Where a compared model's forecast ends. Chrome marking where
+                  one model's data stops, not a warning, so it wears the axis
+                  colour and the "Now" seam's dash rather than a status hue: a
+                  shorter reach is a fact about the model, not a fault. The label
+                  is the whole signal, which is why there is no hover entry. */}
+              {modelEnds.map((end) => (
+                <ReferenceLine
+                  key={end.endMs}
+                  x={end.endMs}
+                  {...CHROME_LINE}
+                  label={chromeLabel(end.label, 'insideTopLeft')}
+                />
+              ))}
+              {/* The map's playhead. Solid and in the accent where the "Now"
+                  seam above is dashed and in the axis colour, because this one
+                  is a control's position and that one is a fact about the data.
+                  No label: the transport's own readout already states the hour,
+                  and a second copy of it would move with the line across a chart
+                  that is mostly line already. */}
+              {playheadMs !== null && (
+                <ReferenceLine x={playheadMs} stroke={CHART_PLAYHEAD_COLOR} strokeWidth={1.5} />
+              )}
+              <Tooltip
+                isAnimationActive={false}
+                defaultIndex={shownIndex ?? undefined}
+                active={shownIndex === null ? undefined : true}
+                content={(props: any) => (
+                  <ChartTooltip
+                    {...props}
+                    lines={lines}
+                    metric={metric}
+                    focusedKey={focusedKey}
+                    cursorValue={cursorValue}
+                    // Read at render rather than observed: this component
+                    // re-renders on every hover move, which is the only time
+                    // the value is used.
+                    maxRows={tooltipCapacity(plotRef.current?.clientHeight ?? 0)}
+                  />
+                )}
+              />
+              {ordered.map((line) => {
+                const key = line.key
+                const dimmed = focusedKey != null && focusedKey !== key
+                return (
+                  <Line
+                    key={key}
+                    type="linear"
+                    dataKey={key}
+                    name={line.label}
+                    stroke={line.color}
+                    dot={
+                      pointGrid
+                        ? {
+                            r: focusedKey === key ? 4.5 : 3.5,
+                            strokeWidth: 0,
+                            fill: line.color,
+                            fillOpacity: dimmed ? 0.25 : 1,
+                          }
+                        : false
+                    }
+                    connectNulls={false}
+                    isAnimationActive={false}
+                    strokeWidth={focusedKey === key ? 2.5 : 1.5}
+                    strokeOpacity={dimmed ? 0.25 : 1}
+                  />
+                )
+              })}
+              {/* The most extreme value among the ranked lines drawn (#699),
+                  as one dashed line across the plot in the Now seam's style,
+                  labelled with the value. A line rather than a mark on a point,
+                  because it covers every hour that ties it and never sits on
+                  the axis. After the lines, so it stays whole while the hover
+                  dims them; a reference line has no hover entry. A point sample
+                  gets the same line through its extreme dot. */}
+              {extreme !== null && (
+                <ReferenceLine
+                  y={extreme}
+                  {...CHROME_LINE}
+                  label={{ ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'), content: titled ? TITLED_HEADROOM_LABEL : HEADROOM_LABEL }}
                 />
               )}
-            />
-            {ordered.map((line) => {
-              const key = line.key
-              const dimmed = focusedKey != null && focusedKey !== key
-              return (
-                <Line
-                  key={key}
-                  type="linear"
-                  dataKey={key}
-                  name={line.label}
-                  stroke={line.color}
-                  dot={
-                    pointGrid
-                      ? {
-                          r: focusedKey === key ? 4.5 : 3.5,
-                          strokeWidth: 0,
-                          fill: line.color,
-                          fillOpacity: dimmed ? 0.25 : 1,
-                        }
-                      : false
-                  }
-                  connectNulls={false}
-                  isAnimationActive={false}
-                  strokeWidth={focusedKey === key ? 2.5 : 1.5}
-                  strokeOpacity={dimmed ? 0.25 : 1}
-                />
-              )
-            })}
-            {/* The most extreme value among the ranked lines drawn (#699),
-                as one dashed line across the plot in the Now seam's style,
-                labelled with the value. A line rather than a mark on a point,
-                because it covers every hour that ties it and never sits on
-                the axis. After the lines, so it stays whole while the hover
-                dims them; a reference line has no hover entry. A point sample
-                gets the same line through its extreme dot. */}
-            {extreme !== null && (
-              <ReferenceLine
-                y={extreme}
-                {...CHROME_LINE}
-                label={{ ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight'), content: HeadroomLabel }}
-              />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
     </div>

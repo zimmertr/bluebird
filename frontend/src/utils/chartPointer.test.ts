@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { PLOT_MARGIN, X_AXIS_HEIGHT_PX, Y_AXIS_WIDTH_PX, fingerReading, hourIndexAt, plotBand } from './chartPointer'
+import {
+  CHART_TITLE_PX,
+  PLOT_MARGIN,
+  TITLED_PLOT_MARGIN,
+  X_AXIS_HEIGHT_PX,
+  Y_AXIS_WIDTH_PX,
+  fingerReading,
+  hourIndexAt,
+  plotBand,
+} from './chartPointer'
 
 const HOUR = 3_600_000
 // Seven hourly stamps, so the band of a 360px box divides into six steps.
@@ -49,5 +58,25 @@ describe('fingerReading', () => {
 
   it('reads nothing from a box too short for a band', () => {
     expect(fingerReading(100, 10, { width: 360, height: 30 }, TIMES, 0, 50)).toBeNull()
+  })
+})
+
+// A phone's chart wears its picker as a title over the plot (#696), and the
+// plot starts under it: a finger reads the same band the plot is drawn in.
+describe('a titled plot', () => {
+  it('starts the band under the title line, the rest of the margins unchanged', () => {
+    expect(TITLED_PLOT_MARGIN).toEqual({ ...PLOT_MARGIN, top: PLOT_MARGIN.top + CHART_TITLE_PX })
+    const plain = plotBand(360, 200)
+    const titled = plotBand(360, 200, TITLED_PLOT_MARGIN)
+    expect(titled.top - plain.top).toBe(CHART_TITLE_PX)
+    expect(plain.height - titled.height).toBe(CHART_TITLE_PX)
+    expect(titled.left).toBe(plain.left)
+    expect(titled.width).toBe(plain.width)
+  })
+
+  it('reads the axis maximum at the titled band top, not at the plain one', () => {
+    const band = plotBand(360, 200, TITLED_PLOT_MARGIN)
+    const box = { width: 360, height: 200 }
+    expect(fingerReading(band.left, band.top, box, TIMES, 0, 50, TITLED_PLOT_MARGIN)).toEqual({ index: 0, value: 50 })
   })
 })

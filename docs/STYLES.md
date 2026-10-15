@@ -481,6 +481,15 @@ label's white at 12% and the shadow a step lower while held, on either
 pointer, and never a grey after a run.
 Record: [0135](decisions/0135-phone-opens-on-the-map.md)
 
+A phone chart's metric picker is the plot's title (`CHART_TITLE`): the
+metric's label with its unit and a trailing chevron in the chart's slate-400
+at the control type, the native select laid over it, transparent, 44px tall
+under a finger. The plot's top margin grows by the title's 20px line
+(`TITLED_PLOT_MARGIN`), so its dashed lines, their labels and the top tick
+start under it. Measured 2026-10-14: the field row it replaced was 52px, and
+the plotting band grew 32px at 360 and 390.
+Record: [0149](decisions/0149-phone-chart-picker-is-the-title.md)
+
 Every button the map library draws wears `MAP_ROUND_BUTTON`, at both widths:
 the locate button, the compass and a desk's zoom pair, 40px round in the
 pill's dark chrome, handed to each by `map/controls.ts` because the library
@@ -488,8 +497,10 @@ makes the markup. A phone stands the locate button and the compass in slots
 at the rows' right ends (`MAP_SLOT`). The credit line's (i) is the same dark
 round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), its links dressed in `map.css` as
-`LINK` dresses the app's. The scale bar keeps the library's look: it is a
-ruler on the map, not a control.
+`LINK` dresses the app's. The compass needle is redrawn rather than inverted,
+red-500 north and slate-50 south edged in slate-600, and the (i)'s glyph is
+centred on its button's whole box. The scale bar keeps the library's look: it
+is a ruler on the map, not a control.
 Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md)
 
 The whole notice block stands on the map in a band (`MAP_NOTICE_BAND`):
@@ -511,9 +522,12 @@ It carries no notice block and no fixed foot: the document links are the
 last thing in its scrolling body.
 Record: [0141](decisions/0141-phone-controls-sheet.md)
 
-A phone's home indicator band (`SAFE_AREA`) is padded under every surface that
-reaches the screen's foot, and the chrome placed in pixels stands on its top
-edge before there is a sheet. 0 on a desk.
+A phone's home indicator band (`SAFE_AREA`) is padded under the results sheet,
+and the chrome placed in pixels stands on its top edge before there is a
+sheet. A sheet that scrolls takes the band as padding at its scroller's end
+instead (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`), so its content runs to
+the screen's edge and its last row clears the band once scrolled to; on its
+card the band was a strip of fill nothing scrolled into. 0 on a desk.
 Record: [0145](decisions/0145-safe-area-bottom.md)
 
 The results table's Name column sticks at the left edge on an opaque fill

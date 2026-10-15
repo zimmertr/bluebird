@@ -296,7 +296,7 @@ describe('resultsHeading', () => {
 })
 
 describe('rankedNoun', () => {
-  // The header's window caption fixes the tense ("as of 12:09:41 PM"), so a point
+  // The header's window caption fixes the tense ("as of 12:09 PM"), so a point
   // sample takes no qualifier here or it gets stated twice.
   it('qualifies a window ranking and leaves a point sample bare', () => {
     expect(rankedNoun('precip_total_in', false)).toBe('Total Precipitation')

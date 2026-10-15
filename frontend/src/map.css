@@ -91,6 +91,21 @@
   filter: invert(1) hue-rotate(180deg);
 }
 
+/* The compass needle is redrawn rather than inverted (TJ, 2026-10-14): the
+ * library draws its south half dark grey and its north half light, which
+ * inverted put a dark half on the dark button, where it vanished. Here the
+ * north half is red-500 and the south half slate-50, the needle's usual
+ * reading, at the library's own size and paths, each edged in slate-600 so
+ * the light half still has an outline on a light button. Red-500 stands at
+ * 3.89:1 on the button's slate-800 and 3.76:1 on white, slate-50 at 13.98:1
+ * on slate-800 and its slate-600 edge at 7.58:1 on white, each over the 3:1
+ * a graphic owes. The library
+ * turns the icon by an inline transform, which a background leaves alone. */
+.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+  filter: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2229%22%20height%3D%2229%22%20viewBox%3D%220%200%2029%2029%22%20stroke%3D%22%23475569%22%20stroke-width%3D%220.75%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20fill%3D%22%23ef4444%22%20d%3D%22m10.5%2014%204-8%204%208z%22%2F%3E%3Cpath%20fill%3D%22%23f8fafc%22%20d%3D%22m10.5%2016%204%208%204-8z%22%2F%3E%3C%2Fsvg%3E");
+}
+
 /* A phone's slots at the right of its two rows (`MAP_SLOT`, #696): the
  * locate button beside the search pill and the compass under it. The group
  * takes the slot's place, so the library's margin goes. The zoom pair, which
@@ -246,6 +261,13 @@
 .maplibregl-ctrl-attrib-button,
 .maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23cbd5e1%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E");
+  /* Centred on the button's whole box. The library's 24px glyph sits at the
+   * top left of the padding box, which the role's 1px border shrinks to
+   * 22px, so it stood 1px off centre and was clipped by the border (TJ, on
+   * a Pixel, 2026-10-14). */
+  background-origin: border-box;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 @media (hover: none) {

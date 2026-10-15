@@ -77,6 +77,7 @@ import {
   CONTROLS_SHEET,
   SAFE_AREA,
   CHART_PLOT_TOUCH,
+  CHART_TITLE,
   MAP_CHIP,
   MAP_CHIP_SUMMARY,
   MAP_CHIP_SUMMARY_TEXT,
@@ -117,7 +118,8 @@ import {
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
-import { CHART_TICK_PX } from './utils/chartColors'
+import { CHART_AXIS_COLOR, CHART_TICK_PX } from './utils/chartColors'
+import { CHART_TITLE_PX, PLOT_MARGIN, TITLED_PLOT_MARGIN } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
 // `?raw` gives us the file's text without executing it, so this stays a pure
@@ -2101,6 +2103,35 @@ describe('the phone chrome\'s hit areas', () => {
     expect(24 + 2 * 10).toBe(44)
   })
 
+  // The (i)'s glyph is centred on its button's whole box (TJ, 2026-10-14):
+  // the library places it at the padding box's top left, which the role's
+  // 1px border moves 1px off centre and clips.
+  it('centres the (i) glyph on its button', () => {
+    const at = mapCss.indexOf('.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button {')
+    const rule = mapCss.slice(at, mapCss.indexOf('}', at))
+    expect(rule).toContain('background-origin: border-box;')
+    expect(rule).toContain('background-position: center;')
+    expect(rule).toContain('background-repeat: no-repeat;')
+  })
+
+  // The compass needle is redrawn, not inverted (TJ, 2026-10-14): inverting
+  // the library's dark south half put it dark on the dark button. North red,
+  // south light, both edged so a light button can carry it too. Measured
+  // ratios, pinned so a colour change forces a re-measurement.
+  it('draws the compass needle red to the north and light to the south, unfiltered', () => {
+    const at = mapCss.indexOf('.maplibregl-ctrl-group .maplibregl-ctrl-compass .maplibregl-ctrl-icon {')
+    expect(at).toBeGreaterThan(-1)
+    const rule = mapCss.slice(at, mapCss.indexOf('}', at))
+    expect(rule).toContain('filter: none;')
+    const svg = decodeURIComponent(rule.slice(rule.indexOf('url("') + 5, rule.indexOf('")')))
+    expect(svg).toContain('<path fill="#ef4444" d="m10.5 14 4-8 4 8z"/>')
+    expect(svg).toContain('<path fill="#f8fafc" d="m10.5 16 4 8 4-8z"/>')
+    expect(svg).toContain('stroke="#475569"')
+    expect(svg).toContain('viewBox="0 0 29 29"')
+    const MEASURED = { northOnButton: 3.89, northOnWhite: 3.76, southOnButton: 13.98, edgeOnWhite: 7.58 }
+    for (const [pair, ratio] of Object.entries(MEASURED)) expect(ratio, pair).toBeGreaterThanOrEqual(3)
+  })
+
   // The library's white box comes off its buttons (record 0147): a group is
   // no surface of its own, its buttons 4px apart as the app's column is.
   it('draws the library\'s buttons as the app\'s, 4px apart, glyphs light', () => {
@@ -2257,9 +2288,27 @@ describe('the safe area', () => {
     )
   })
 
-  // Every surface that reaches the screen's foot keeps its content above it.
-  it('pads every sheet that reaches the foot of the screen', () => {
-    for (const recipe of [BOTTOM_SHEET.card, CONTROLS_SHEET.card]) expect(words(recipe)).toContain(SAFE_AREA.pad)
+  // A sheet that scrolls takes the band inside its scroller's end, not on its
+  // card, where it was a strip of fill nothing scrolled into (the maintainer's
+  // Pixel, 2026-10-14): the content runs to the edge, and the last item
+  // clears the band once scrolled to.
+  it('pads the end of every sheet scroller by the band, and no sheet card', () => {
+    for (const recipe of [BOTTOM_SHEET.card, CONTROLS_SHEET.card]) expect(recipe).not.toContain('safe-area')
+    expect(words(BOTTOM_SHEET.body)).toContain('pb-[calc(0.75rem+env(safe-area-inset-bottom))]')
+    expect(words(BOTTOM_SHEET.body)).not.toContain('pb-3')
+    expect(words(CONTROLS_SHEET.body)).toEqual([
+      'pb-[calc(1rem+env(safe-area-inset-bottom))]',
+      '[--scroll-shadow-end-inset:env(safe-area-inset-bottom)]',
+    ])
+    // The Controls body keeps the panel body's 16px under the band: its
+    // padding is PANEL_BODY's py-4 plus the band.
+    expect(words(PANEL_BODY)).toContain('py-4')
+  })
+
+  // The end shade stands on the scroller's padding, so a scroller that pads
+  // for the band tells the shade, which then still meets the bottom edge.
+  it('drops the end shade by the band a scroller names', () => {
+    expect(indexCss).toMatch(/bottom: calc\(-1 \* var\(--scroll-shadow-bleed, 0px\) - var\(--scroll-shadow-end-inset, 0px\)\)/)
   })
 })
 
@@ -2301,6 +2350,36 @@ describe('the sticky Name column', () => {
 describe('the chart under a finger', () => {
   it('leaves the browser the vertical pan alone', () => {
     expect(CHART_PLOT_TOUCH).toBe('touch-pan-y')
+  })
+})
+
+// A phone's chart picker is the plot's title (#696; record 0149), and the plot
+// is inset by the title's line so its dashed lines, their labels and the y
+// axis's top tick start under the letters. Measured 2026-10-14 in the
+// Playwright image's Chromium: the field row it replaces was 52px at 360 and
+// 390 (the 44px select a finger presses and the row's 4px either side), and
+// the plotting band grew by 32px at both, 52 less the 20px inset.
+describe('the chart title on a phone', () => {
+  const MEASURED = { fieldRowPx: 52, insetPx: 20, gainedPx: 32 }
+
+  it('is a 20px line the titled margins reserve over the plot', () => {
+    expect(words(CHART_TITLE.box)).toContain('h-5')
+    expect(5 * 4).toBe(CHART_TITLE_PX)
+    expect(CHART_TITLE_PX).toBe(MEASURED.insetPx)
+    expect(TITLED_PLOT_MARGIN.top - PLOT_MARGIN.top).toBe(CHART_TITLE_PX)
+    expect(MEASURED.fieldRowPx - MEASURED.insetPx).toBe(MEASURED.gainedPx)
+  })
+
+  it("wears the control type in the chart's own ink, at the plot's left margin", () => {
+    expect(words(CHART_TITLE.box)).toEqual(expect.arrayContaining([CONTROL_SIZE, 'text-slate-400', 'left-2', 'top-0']))
+    // slate-400 is the axis colour chartColors.ts spells for Recharts.
+    expect(CHART_AXIS_COLOR).toBe('#90a1b9')
+    expect(2 * 4).toBe(PLOT_MARGIN.left)
+  })
+
+  it('lays the native select over the title, invisible, a 44px target on a coarse pointer', () => {
+    expect(words(CHART_TITLE.select)).toEqual(expect.arrayContaining(['absolute', 'opacity-0', 'touch:h-11', 'w-full']))
+    expect(CHART_TITLE.box).toContain('has-[select:focus-visible]:outline-2')
   })
 })
 

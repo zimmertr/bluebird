@@ -317,8 +317,8 @@ export function windowAggregate(sortBy: SortBy): string {
  *
  * The header composes this with the sort direction ("Highest …", "Lowest …")
  * and the window caption that follows it, which is why a point sample takes no
- * qualifier here: the caption already fixes the tense ("as of 12:09:41 PM"), and
- * "Highest Current Precipitation as of 12:09:41 PM" says it twice.
+ * qualifier here: the caption already fixes the tense ("as of 12:09 PM"), and
+ * "Highest Current Precipitation as of 12:09 PM" says it twice.
  */
 export function rankedNoun(sortBy: SortBy, pointSample: boolean): string {
   const noun = NOUN[familyOf(sortBy)]

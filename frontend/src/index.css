@@ -175,7 +175,10 @@ body,
   background: linear-gradient(to bottom, var(--scroll-shade), transparent);
 }
 .scroll-shadow-end::after {
-  bottom: calc(-1 * var(--scroll-shadow-bleed, 0px));
+  /* A scroller that pads its end for a phone's home indicator (the Controls
+     sheet, `CONTROLS_SHEET.body`) names that band, so the shade still stands
+     on the scroller's bottom edge rather than the band's height above it. */
+  bottom: calc(-1 * var(--scroll-shadow-bleed, 0px) - var(--scroll-shadow-end-inset, 0px));
   margin-top: -12px;
   background: linear-gradient(to top, var(--scroll-shade), transparent);
 }

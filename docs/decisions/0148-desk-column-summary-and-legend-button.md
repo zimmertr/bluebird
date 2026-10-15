@@ -29,4 +29,4 @@ Shot 2026-10-14 at 1440x900 with a ring analysis landed and the panel shut: the 
 
 ## Consequences
 
-`MapStage` renders `MapLegend` at a desk only and hands it `legendInitiallyOpen` from `App.tsx`'s stored view. The `style-map-legend-column` check counts `MAP_COL_W` twice and requires the unfurl join. The privacy page's sentence on what the browser remembers of a layout does not yet name the legend's fold.
+`MapStage` renders `MapLegend` at a desk only and hands it `legendInitiallyOpen` from `App.tsx`'s stored view. The `style-map-legend-column` check counts `MAP_COL_W` twice and requires the unfurl join. The privacy page names the fold, in the maintainer's approved words: local storage keeps how you laid out the results and the map, which views are open, which columns show and in what order, and whether the map's legend is folded.

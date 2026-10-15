@@ -1291,6 +1291,31 @@ export const CHART_METRIC_W = 'w-36'
 export const CHART_PLOT_TOUCH = 'touch-pan-y'
 
 /**
+ * A phone chart's metric picker, as the plot's title (#696, option A of the
+ * picker mockups, TJ 2026-10-14): the metric's full label with its unit and
+ * a trailing chevron, Material's text button with a trailing icon, at the
+ * plot's top left (`left-2`, `PLOT_MARGIN.left`). The field row above the
+ * plot was 44px a phone's chart could not spare. `box` is the title line,
+ * `CHART_TITLE_PX` tall (h-5), which `TITLED_PLOT_MARGIN` reserves over the
+ * plot so nothing the plot draws, its dashed lines and their labels
+ * included, meets the letters. Its ink is the chart's own, slate-400
+ * (`CHART_AXIS_COLOR`), at the control type, since a pressable word does not
+ * take the ticks' micro step. `select` is the native select laid over the
+ * line, transparent, so a tap opens the phone's own picker; 44px tall on a
+ * coarse pointer, reaching 16px past the line onto the plot's top under the
+ * title alone. The focus ring is the box's, since the select is invisible.
+ */
+export const CHART_TITLE = {
+  box:
+    `absolute left-2 top-0 z-[1] flex h-5 max-w-[calc(100%-1.5rem)] items-center gap-0.5 ` +
+    `${CONTROL_SIZE} leading-4 font-semibold text-slate-400 rounded-sm ` +
+    'has-[select:focus-visible]:outline-2 has-[select:focus-visible]:outline-offset-2 has-[select:focus-visible]:outline-sky-400',
+  text: 'min-w-0 truncate',
+  chevron: 'flex-shrink-0',
+  select: 'absolute inset-x-0 top-0 h-full touch:h-11 w-full cursor-pointer appearance-none opacity-0',
+} as const
+
+/**
  * The width of the map's left column, which EVERYTHING in it wears: the search
  * field, the list of results under it, the Controls and Layers buttons, the
  * Layers popover and the legend box.
@@ -2271,8 +2296,14 @@ export const SEARCH_LIST = `${SCROLL_BARS} max-h-[min(20rem,50dvh)] overflow-y-a
  *
  * `pad` is for a surface that reaches the screen's foot and keeps its own
  * content above the band: the results sheet, whose grip and header then stand
- * on the band's top edge when it is collapsed, the Controls sheet and every
- * bottom sheet, whose surface still runs to the edge. `probe` is an invisible
+ * on the band's top edge when it is collapsed. A sheet whose body scrolls
+ * takes the band differently, as padding at the END of its scroller
+ * (`BOTTOM_SHEET.body`, `CONTROLS_SHEET.body`), Material's rule for a sheet
+ * under gesture navigation: the content runs to the sheet's bottom edge while
+ * it scrolls, and the last item clears the band once scrolled to. Worn on the
+ * card, the band was a strip of fill under the content that nothing scrolled
+ * into, about 40px on the maintainer's Pixel with the scroller's own padding
+ * (2026-10-14). `probe` is an invisible
  * box as tall as the band, which `useSafeAreaBottom` reads, because the
  * chrome placed in pixels over the map (the Analyze button, the notice band,
  * the player, the scale and the credit) measures from the sheet's edge, and
@@ -2289,13 +2320,13 @@ export const BOTTOM_SHEET = {
   dim: 'absolute inset-0 bg-black/40',
   card:
     `fixed inset-x-0 bottom-0 ${LAYER.popover} flex max-h-[calc(100dvh-104px)] flex-col ` +
-    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} ${SAFE_AREA.pad} focus:outline-none`,
+    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} focus:outline-none`,
   grip: 'flex h-5 flex-shrink-0 touch-none items-center justify-center [&>span]:h-1 [&>span]:w-9 [&>span]:rounded-full [&>span]:bg-slate-500',
   head: 'flex flex-shrink-0 items-center gap-2 px-4 pb-1',
   title: TEXT.subheading,
   done: `${CONTROL_SIZE} font-semibold ml-auto ${TAP.action} px-1 ${LINK_ACTION} ${FOCUS_RING}`,
   body:
-    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 pb-3 ` +
+    `min-h-0 flex-1 overflow-y-auto overscroll-contain ${SCROLL_BARS} px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] ` +
     'divide-y divide-slate-700 [&>*]:min-h-11',
 } as const
 
@@ -2396,10 +2427,17 @@ export const MOTION = {
 export const CONTROLS_SHEET = {
   card:
     `absolute inset-x-0 bottom-0 ${LAYER.drawer} flex flex-col overflow-hidden ` +
-    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} ${SAFE_AREA.pad} ${MOTION.slide}`,
+    `bg-slate-800 border-t border-slate-600 rounded-t-lg ${ELEVATION.overlay} ${MOTION.slide}`,
   shut: 'translate-y-full',
   /** The panel under the sheet's top, which takes the rest and scrolls inside. */
   panel: 'min-h-0 flex-1',
+  /**
+   * The panel's scrolling body on a phone: its own 16px at the end plus the
+   * home indicator band (`SAFE_AREA`), so the document links clear the band
+   * once scrolled to and nothing fixed sits under them. The end shade is told
+   * the band too, since it stands on the scroller's padding.
+   */
+  body: 'pb-[calc(1rem+env(safe-area-inset-bottom))] [--scroll-shadow-end-inset:env(safe-area-inset-bottom)]',
 } as const
 
 /**

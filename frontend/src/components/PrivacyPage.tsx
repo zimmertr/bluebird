@@ -71,8 +71,9 @@ export default function PrivacyPage() {
           <li>
             <span className={PROSE.strong}>On your device</span>, Bluebird Forecast saves four
             things and sends none of them anywhere. Your browser's local storage keeps whether you
-            dismissed the welcome dialog and how you laid out the results: which views are open,
-            which columns show, and in what order. Session storage, which ends when you close the
+            dismissed the welcome dialog and how you laid out the results and the map: which views
+            are open, which columns show and in what order, and whether the map's legend is folded.
+            Session storage, which ends when you close the
             tab, keeps the forecasts fetched in the last 15 minutes so a reload does not fetch them
             again, and the version of the app that last reloaded itself after an update.
           </li>

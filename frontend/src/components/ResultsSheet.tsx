@@ -25,6 +25,8 @@ interface ResultsSheetProps
     | 'onRemovePending'
     | 'onFocusResult'
     | 'onFocusPending'
+    // Read off `isDesktop` here (#696).
+    | 'chartTitled'
   > {
   /** The sheet's view (`useResultsView`): whether it shows, its layout, the chart, the table and the table's callbacks. */
   resultsView: ResultsSheetView
@@ -205,6 +207,7 @@ export default function ResultsSheet({
               removeResult={removeResult}
               sortBy={sortBy}
               sortDesc={sortDesc}
+              chartTitled={!isDesktop}
               pointSample={pointSample}
               forecastTimes={forecastTimes}
               playbackIndex={playbackIndex}

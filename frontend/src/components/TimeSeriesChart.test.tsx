@@ -2,8 +2,10 @@ import type { ComponentProps, ReactNode } from 'react'
 import { act, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TimeSeriesChart from './TimeSeriesChart'
-import { extremeValue } from '../utils/chartData'
+import { CHART_METRICS, extremeValue } from '../utils/chartData'
 import { CHART_SURFACE_COLOR } from '../utils/chartColors'
+import { PLOT_MARGIN, TITLED_PLOT_MARGIN } from '../utils/chartPointer'
+import { CHART_TITLE } from '../styles'
 import { placeAt, render } from '../testSupport/render'
 import { resultRow, series } from '../testSupport/fixtures'
 
@@ -38,13 +40,15 @@ const chart = vi.hoisted(() => ({
   onClick: undefined as undefined | Handler,
   onMouseMove: undefined as undefined | Handler,
   lines: [] as unknown[],
+  margin: undefined as unknown,
 }))
 vi.mock('recharts', () => {
   const Pass = ({ children }: { children?: ReactNode }) => <>{children}</>
   const Nothing = () => null
   return {
     ResponsiveContainer: Pass,
-    LineChart: (props: { onClick?: Handler; onMouseMove?: Handler; children?: ReactNode }) => {
+    LineChart: (props: { onClick?: Handler; onMouseMove?: Handler; margin?: unknown; children?: ReactNode }) => {
+      chart.margin = props.margin
       chart.onClick = props.onClick
       chart.onMouseMove = props.onMouseMove
       return <>{props.children}</>
@@ -98,9 +102,13 @@ function props(over: Partial<Props> = {}): Props {
 }
 
 // The plot div is the one the chart measures a tap against: the parent of the
-// chart area, and the only child of the component's root after its toolbar.
+// chart area, the last child of the box after the toolbar, beside a phone's
+// title when there is one.
+function plotIn(container: HTMLElement): HTMLElement {
+  return container.firstElementChild!.lastElementChild!.lastElementChild as HTMLElement
+}
 function placePlot(container: HTMLElement, width: number) {
-  const plot = container.firstElementChild!.lastElementChild!
+  const plot = plotIn(container)
   placeAt(plot, { left: 0, top: 460, width, height: 209 })
 }
 
@@ -144,6 +152,21 @@ describe('TimeSeriesChart click', () => {
     expect(onPlayheadChange).toHaveBeenCalledWith(TIMES[32])
   })
 
+  // Chrome moves a tap's click toward a clickable node near the finger, so the
+  // click's own pixel can be an hour off the finger's (#696). The finger's
+  // press wins.
+  it('names the hour where a tapping finger went down, not where the tap\'s click landed', () => {
+    const onPlayheadChange = vi.fn()
+    const { container } = render(<TimeSeriesChart {...props({ onPlayheadChange })} />)
+    placePlot(container, 360)
+    fireEvent.pointerDown(plotIn(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
+    chart.onClick!({ activeTooltipIndex: null }, { clientX: 245 })
+    expect(onPlayheadChange).toHaveBeenLastCalledWith(TIMES[32])
+    // Used once: a later click with no finger reads its own pixel.
+    chart.onClick!({}, { clientX: 144 })
+    expect(onPlayheadChange).toHaveBeenLastCalledWith(TIMES[15])
+  })
+
   it('does nothing when the click carries no position and no label', () => {
     const onPlayheadChange = vi.fn()
     const { container } = render(<TimeSeriesChart {...props({ onPlayheadChange })} />)
@@ -162,7 +185,7 @@ describe('TimeSeriesChart click', () => {
 // 0144): the tooltip shows that hour, a sideways drag keeps reading, and the
 // browser taking the pointer for a vertical scroll drops the reading.
 describe('TimeSeriesChart under a finger', () => {
-  const plotOf = (container: HTMLElement) => container.firstElementChild!.lastElementChild as HTMLElement
+  const plotOf = plotIn
   const tip = () => screen.getByTestId('tooltip').dataset
 
   it('shows the hour under a touch, follows a drag, and lets go on a cancel', () => {
@@ -338,5 +361,43 @@ describe('TimeSeriesChart extreme line', () => {
     act(() => chart.onMouseMove!({ activeTooltipIndex: 40, chartY: 180 }))
     expect(extremeValue).toHaveBeenCalledTimes(1)
     expect(screen.getAllByTestId('extreme-line')).toHaveLength(1)
+  })
+})
+
+// A phone's picker is the plot's title (#696; record 0149): no row above the
+// plot, the native select laid over the metric's name, and the plot's margin
+// inset by the title's line, so a finger reads the same band Recharts draws.
+describe('TimeSeriesChart on a phone', () => {
+  it('stands the select in the title, under its name, with no row above the plot', () => {
+    const { container } = render(<TimeSeriesChart {...props({ titled: true, metric: 'temp' })} />)
+    const select = screen.getByRole('combobox', { name: 'Chart metric' })
+    const title = select.parentElement!
+    expect(title.className).toBe(CHART_TITLE.box)
+    expect(select.className).toBe(CHART_TITLE.select)
+    expect(title.textContent).toContain(CHART_METRICS.find((m) => m.key === 'temp')!.label)
+    // The root holds the plot's box alone: the row is gone.
+    expect(container.firstElementChild!.children).toHaveLength(1)
+    expect(chart.margin).toEqual(TITLED_PLOT_MARGIN)
+  })
+
+  it('keeps the row for a comparison note, without the select in it', () => {
+    const { container } = render(<TimeSeriesChart {...props({ titled: true, controls: <p>note</p> })} />)
+    expect(container.firstElementChild!.children).toHaveLength(2)
+    expect(container.firstElementChild!.firstElementChild!.querySelector('select')).toBeNull()
+    expect(screen.getAllByRole('combobox', { name: 'Chart metric' })).toHaveLength(1)
+  })
+
+  it('stands the select in its row at a desk, the plot at the plain margins', () => {
+    const { container } = render(<TimeSeriesChart {...props()} />)
+    expect(container.firstElementChild!.children).toHaveLength(2)
+    expect(container.querySelector(`.${CSS.escape('has-[select:focus-visible]:outline-2')}`)).toBeNull()
+    expect(chart.margin).toEqual(PLOT_MARGIN)
+  })
+
+  it('reads a finger against the titled band', () => {
+    const { container } = render(<TimeSeriesChart {...props({ titled: true })} />)
+    placePlot(container, 360)
+    fireEvent.pointerDown(plotIn(container), { pointerType: 'touch', clientX: 252, clientY: 560 })
+    expect(screen.getByTestId('tooltip').dataset.index).toBe('32')
   })
 })

@@ -45,3 +45,30 @@ for (const width of [360, 390]) {
     expect(Math.round(opened.fabLeft - opened.creditRight)).toBe(8)
   })
 }
+
+// The (i)'s glyph is centred on its round button (TJ, 2026-10-14): the
+// library's 24px drawing, whose circle is centred in it, placed on the
+// button's whole box rather than at the top left of the padding box the 1px
+// border shrinks. Read off the computed background, since the glyph is one.
+for (const width of [360, 390]) {
+  test(`the (i)'s glyph is centred on its button at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('/')
+    await expect(page.locator('.maplibregl-ctrl-attrib-button')).toBeVisible()
+    const at = await page.evaluate(() => {
+      const b = document.querySelector('.maplibregl-ctrl-attrib-button')!
+      const r = b.getBoundingClientRect()
+      const cs = getComputedStyle(b)
+      const border = parseFloat(cs.borderTopWidth)
+      const origin = cs.backgroundOrigin === 'border-box' ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: r.left + border, y: r.top + border, w: r.width - 2 * border, h: r.height - 2 * border }
+      const [px, py] = cs.backgroundPosition.split(' ').map((v) => parseFloat(v) / 100)
+      // The drawing is 24px square with its circle at the middle.
+      const glyph = { x: origin.x + (origin.w - 24) * px + 12, y: origin.y + (origin.h - 24) * py + 12 }
+      return { button: { x: r.left + r.width / 2, y: r.top + r.height / 2 }, glyph, repeat: cs.backgroundRepeat }
+    })
+    console.log(`info glyph ${width} px`, JSON.stringify(at))
+    expect(at.glyph.x).toBeCloseTo(at.button.x, 1)
+    expect(at.glyph.y).toBeCloseTo(at.button.y, 1)
+    expect(at.repeat).toBe('no-repeat')
+  })
+}
