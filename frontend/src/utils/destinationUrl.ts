@@ -26,3 +26,14 @@ export function destinationUrl(
   }
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=13/${lat}/${lon}`
 }
+
+/**
+ * What a screen reader hears for the link `destinationUrl` builds: the site it
+ * opens, since the card's glyph shows none (#738). Follows the same type
+ * rule, so the name and the place cannot disagree.
+ */
+export function destinationLinkLabel(type: DestinationResult['type']): string {
+  if (type === 'peak') return 'View on Peakbagger'
+  if (type === 'crag') return 'View on Mountain Project'
+  return 'View on OpenStreetMap'
+}

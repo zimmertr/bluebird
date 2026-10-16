@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { destinationUrl } from './destinationUrl'
+import { destinationLinkLabel, destinationUrl } from './destinationUrl'
 
 const blackPeak = {
   name: 'Black Peak',
@@ -70,5 +70,16 @@ describe('destinationUrl', () => {
     ).toBe(
       'https://www.openstreetmap.org/?mlat=46.85230&mlon=-121.76030#map=13/46.85230/-121.76030'
     )
+  })
+})
+
+// The card's glyph shows no site, so its name says which one it opens, by the
+// rule `destinationUrl` picks it with (#738).
+describe('destinationLinkLabel', () => {
+  it('names the site destinationUrl opens for each type', () => {
+    expect(destinationLinkLabel('peak')).toBe('View on Peakbagger')
+    expect(destinationLinkLabel('crag')).toBe('View on Mountain Project')
+    expect(destinationLinkLabel('lake')).toBe('View on OpenStreetMap')
+    expect(destinationLinkLabel('custom')).toBe('View on OpenStreetMap')
   })
 })

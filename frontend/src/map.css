@@ -227,10 +227,10 @@
   padding-right: var(--popup-close-lane);
 }
 
-/* A ranked destination's card draws its own padding, so its header band can
-   run edge to edge (`resultCardShell` in utils/popupChrome.ts, TJ,
-   2026-10-08), and its band keeps the same lane itself. */
-.result-popup .maplibregl-popup-content {
+/* A card draws its own padding, so its header band can run edge to edge
+   (`popupCard` in utils/popupChrome.ts, TJ, 2026-10-08), and its band keeps
+   the same lane itself. Every popup but a bare button is one (#738). */
+.popup-card .maplibregl-popup-content {
   padding: 0;
 }
 

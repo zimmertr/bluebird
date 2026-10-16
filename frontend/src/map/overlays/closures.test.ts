@@ -21,6 +21,10 @@ const { FakePopup, popups } = vi.hoisted(() => {
       this.html = html
       return this
     }
+    // `openCard` measures the card; a fake one has no size.
+    getElement() {
+      return undefined
+    }
     addTo() {
       return this
     }
@@ -168,7 +172,7 @@ describe('mountClosures', () => {
     click([closure()], { lngLat: { lng: -121.4, lat: 45.6 } })
     expect(popups).toHaveLength(1)
     expect(popups[0].at).toEqual({ lng: -121.4, lat: 45.6 })
-    expect(popups[0].html).toBe(closurePopupHtml(closureFeature().properties as ClosureProps))
+    expect(popups[0].html).toBe(closurePopupHtml(closureFeature().properties as ClosureProps, 'area'))
   })
 
   // The fire is the smaller shape and the hazard itself; the closure is often

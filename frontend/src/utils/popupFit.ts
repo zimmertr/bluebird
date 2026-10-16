@@ -45,6 +45,9 @@ export interface Placement {
   dy: number
 }
 
+/** How long a card's pan takes: short, because the reader is waiting on the card it opens. */
+export const POPUP_PAN_MS = 300
+
 /** MapLibre's default tip: the triangle between the card and its marker. */
 export const TIP_PX = 10
 /** Breath between the card, or its marker, and any edge it is fitted to. */

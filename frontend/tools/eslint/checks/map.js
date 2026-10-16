@@ -74,7 +74,7 @@ export const MAP = [
       },
       {
         selector: 'NewExpression[callee.name="Popup"], NewExpression[callee.property.name="Popup"]',
-        message: 'Open a popup in its feature module, through create in map/mapPopups.ts.',
+        message: 'Open a popup in its feature module, through openCard in map/mapPopups.ts.',
       },
       {
         selector: 'CallExpression[callee.name=/^mount(?!Features$)/]',
@@ -199,7 +199,7 @@ export const MAP = [
     ban: [
       {
         selector: 'NewExpression[callee.name="Popup"], NewExpression[callee.property.name="Popup"]',
-        message: 'Make a popup with create in map/mapPopups.ts, which every popup shares.',
+        message: 'Make a popup with openCard in map/mapPopups.ts, which every card shares.',
       },
       {
         selector: 'NewExpression[callee.name="Marker"], NewExpression[callee.property.name="Marker"]',

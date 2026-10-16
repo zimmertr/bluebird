@@ -31,8 +31,8 @@ import {
   WIND_ARROW_FILL,
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
-import { capHeight, placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
-import { POPUP_BODY_ATTR, RESULT_POPUP_CLASS, capPopupBody, compactGrid } from '../utils/popupChrome'
+import type { Point as ScreenPoint, Rect } from '../utils/popupFit'
+import { POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -132,8 +132,6 @@ export interface PopupPlacement {
   dy: number
 }
 
-/** How long a marker click's pan takes: short, because the reader is waiting on the card it opens. */
-export const POPUP_PAN_MS = 300
 
 export function mountResultsLayer(
   map: maplibregl.Map,
@@ -234,42 +232,10 @@ export function mountResultsLayer(
     // are the fallback for the case the match cannot happen — they carry no
     // aggregates, so those columns draw the dash a missing value draws
     // anywhere else rather than a number nobody fetched.
-    const { dx, dy } = openFitted(anchor, row ?? featureRow(p, lat, lon), p.rank, {})
-    // The map comes to the card rather than the card unfurling wherever the
-    // marker rested (TJ, 2026-09-29): a pan of what the fit asked for, with
-    // the marker riding along under its tip. `panBy` moves the camera, so
-    // its sign is the marker's move reversed.
-    if (dx !== 0 || dy !== 0) map.panBy([-dx || 0, -dy || 0], { duration: POPUP_PAN_MS })
+    // The card pans the map to fit it, as every card does (`openCard`).
+    openFitted(anchor, row ?? featureRow(p, lat, lon), p.rank, { pan: true })
   }
 
-  // What stands over the map inside the part of it a card can be seen in,
-  // in the container's pixels: every surface that names itself
-  // `data-map-overlay` (the button column at the top left, the legend box
-  // under it) plus whatever the caller names. Found through the container's
-  // document rather than handed in, because the layer that opens popups on
-  // a click has no caller to hand it anything.
-  const obstacles = (avoid: readonly Rect[]): Rect[] => {
-    const container = map.getContainer()
-    const box = container.getBoundingClientRect()
-    const overlays = [...(container.ownerDocument?.querySelectorAll('[data-map-overlay]') ?? [])]
-    return [...overlays.map((el) => el.getBoundingClientRect()), ...avoid].map((r) => ({
-      left: r.left - box.left,
-      top: r.top - box.top,
-      right: r.right - box.left,
-      bottom: r.bottom - box.top,
-    }))
-  }
-
-  // Open a popup where it shows the most of itself. The card is built once
-  // hanging below its marker, measured, and rebuilt above it only when the
-  // fit says so, all before a frame is drawn, because MapLibre fixes a
-  // popup's side at construction and this is the one moment its size is
-  // known. A card too tall to stand whole in the free map area has its body
-  // capped first and scrolls (`capHeight`, TJ 2026-10-08), so the fit then
-  // places the card the reader will actually see. Never closeOnClick: it is fixed at construction too, so an
-  // already-open popup could not be told to survive the click that pins a
-  // second one — the first shift-click always lost the card it was meant to
-  // keep. Dismissal is the board's (`map/mapPopups.ts`).
   // A card's markup from the inputs as they stand. One function for the first
   // open and every redraw, so a redrawn card cannot differ from a fresh one.
   // Read from the row's own coordinates, which are the exact ones a marker
@@ -314,49 +280,18 @@ export function mountResultsLayer(
   type OpenCard = { popup: Popup; row: DestinationResult; html: string; capped: number | null }
   let cards: OpenCard[] = []
 
+  // Open a result's card through `openCard`, which fits, caps and places it
+  // the way it does every card on the map; this adds what only a result card
+  // has: the tutorial's mark, the remove button and a place among the cards
+  // `refreshPopups` redraws.
   const openFitted = (
     at: [number, number],
     subject: DestinationResult,
     rank: number | string,
-    { markerAt, avoid = [] }: { markerAt?: ScreenPoint; avoid?: readonly Rect[] },
+    { markerAt, avoid, pan = false }: { markerAt?: ScreenPoint; avoid?: readonly Rect[]; pan?: boolean },
   ): PopupPlacement => {
     const html = cardHtml(subject, rank)
-    const build = (anchor: 'top' | 'bottom') =>
-      popups.create(at, html, { owner: 'result', result: true, anchor, className: RESULT_POPUP_CLASS })
-    let popup = build('top')
-    const measure = () => {
-      const el = popup.getElement()
-      return { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
-    }
-    let size = measure()
-    const canvas = map.getCanvas()
-    // The part of the map a card can be seen in: above the results sheet.
-    const region = {
-      left: 0,
-      top: 0,
-      right: canvas.clientWidth,
-      bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx,
-    }
-    const marker = markerAt ?? map.project(at)
-    const standing = obstacles(avoid)
-    // The body's height under the cap: whatever the card must lose comes off
-    // the body alone, so the title and the band under it stay in view.
-    const cap = capHeight(marker, size, region, standing)
-    const bodyOf = () => popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
-    const first = cap === null ? null : bodyOf()
-    const capped = cap === null || first === null ? null : first.offsetHeight - (size.height - cap)
-    const applyCap = () => {
-      const body = capped === null ? null : bodyOf()
-      if (body) capPopupBody(body, capped!)
-    }
-    applyCap()
-    if (capped !== null) size = measure()
-    const placed = placePopup(marker, size, region, standing)
-    if (placed.anchor !== 'top') {
-      popup.remove()
-      popup = build('bottom')
-      applyCap()
-    }
+    const { popup, dx, dy, capped } = popups.openCard(at, html, { owner: 'result', result: true, markerAt, avoid, pan })
     // The tutorial's marker step frames this popup (#536).
     popup.getElement()?.setAttribute('data-tour', 'marker')
     const card: OpenCard = { popup, row: subject, html, capped }
@@ -365,7 +300,7 @@ export function mountResultsLayer(
     popup.on('close', () => {
       cards = cards.filter((c) => c !== card)
     })
-    return { dx: placed.dx, dy: placed.dy }
+    return { dx, dy }
   }
 
   popups.register({ target: 'result', layers: [RESULT_MARKER_LAYER], open: openResultPopup })
