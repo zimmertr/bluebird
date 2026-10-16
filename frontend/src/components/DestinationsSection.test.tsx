@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, within } from '@testing-library/react'
 import DestinationsSection from './DestinationsSection'
 import { render } from '../testSupport/render'
+import type { DiscoveryType } from '../types'
 
 // The section's own behavior: the draw counter beside the polygon, the buttons
 // that enter and leave draw mode, the type set and the unnamed-peaks knob
@@ -37,6 +38,10 @@ function props(over: Partial<Props> = {}): Props {
     ...over,
   }
 }
+
+// A ring a search can use: the types and the unnamed-peaks knob are greyed
+// without one.
+const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 // The Polygon block's buttons, in order, apart from the box above it.
@@ -205,7 +210,7 @@ describe('DestinationsSection', () => {
   describe('the destination types', () => {
     it('adds and removes a type from the set', async () => {
       const setDestinationTypes = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ setDestinationTypes })} />)
+      const { user } = render(<DestinationsSection {...props({ ...RING, setDestinationTypes })} />)
       await user.click(screen.getByRole('checkbox', { name: 'Lakes' }))
       expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'lake'])
       await user.click(screen.getByRole('checkbox', { name: 'Peaks' }))
@@ -214,7 +219,7 @@ describe('DestinationsSection', () => {
 
     it('offers Crags between Peaks and Lakes, and ticks it into the set', async () => {
       const setDestinationTypes = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ setDestinationTypes })} />)
+      const { user } = render(<DestinationsSection {...props({ ...RING, setDestinationTypes })} />)
       const labels = screen
         .getAllByRole('checkbox')
         .filter((box) => (box as HTMLInputElement).name === 'destination_types')
@@ -222,6 +227,48 @@ describe('DestinationsSection', () => {
       expect(labels).toEqual(['Peaks', 'Crags', 'Lakes', 'Trailheads'])
       await user.click(screen.getByRole('checkbox', { name: 'Crags' }))
       expect(setDestinationTypes).toHaveBeenLastCalledWith(['peak', 'crag'])
+    })
+
+    // A type with no usable ring discovers nothing, so the row is greyed until
+    // there is one and greyed again when it is cleared or grows past the cap;
+    // the ticks survive the grey (the maintainer, 2026-10-15).
+    const typeBoxes = () =>
+      ['Peaks', 'Crags', 'Lakes', 'Trailheads', 'Include unnamed peaks'].map(
+        (name) => screen.getByRole('checkbox', { name }) as HTMLInputElement,
+      )
+
+    it('greys the types and the knob until the ring is usable, keeping the ticks', () => {
+      const { rerender } = render(
+        <DestinationsSection {...props({ destinationTypes: ['peak', 'crag'], includeUnnamedPeaks: true })} />,
+      )
+      expect(typeBoxes().map((b) => b.disabled)).toEqual([true, true, true, true, true])
+      expect(typeBoxes().map((b) => b.checked)).toEqual([true, true, false, false, true])
+
+      // Two points while drawing is not a ring yet.
+      rerender(
+        <DestinationsSection
+          {...props({ drawing: true, drawPointCount: 2, pointsNeeded: 1, destinationTypes: ['peak', 'crag'], includeUnnamedPeaks: true })}
+        />,
+      )
+      expect(typeBoxes().every((b) => b.disabled)).toBe(true)
+
+      rerender(<DestinationsSection {...props({ ...RING, destinationTypes: ['peak', 'crag'], includeUnnamedPeaks: true })} />)
+      expect(typeBoxes().some((b) => b.disabled)).toBe(false)
+    })
+
+    it('greys them again when the ring is cleared or grows past the cap', () => {
+      const ticked = { destinationTypes: ['peak'] as DiscoveryType[] }
+      const { rerender } = render(<DestinationsSection {...props({ ...RING, ...ticked })} />)
+      expect(typeBoxes().some((b) => b.disabled)).toBe(false)
+
+      rerender(
+        <DestinationsSection {...props({ ...RING, ...ticked, polygonAreaKm2: 120_000, areaTooLarge: true })} />,
+      )
+      expect(typeBoxes().every((b) => b.disabled)).toBe(true)
+
+      rerender(<DestinationsSection {...props(ticked)} />)
+      expect(typeBoxes().every((b) => b.disabled)).toBe(true)
+      expect(typeBoxes()[0].checked).toBe(true)
     })
 
     // Unnamed peaks widens a peak search, so with no peak search there is
@@ -248,7 +295,9 @@ describe('DestinationsSection', () => {
     it('ticks unnamed peaks and leaves the type set alone', async () => {
       const setDestinationTypes = vi.fn()
       const setIncludeUnnamedPeaks = vi.fn()
-      const { user } = render(<DestinationsSection {...props({ setDestinationTypes, setIncludeUnnamedPeaks })} />)
+      const { user } = render(
+        <DestinationsSection {...props({ ...RING, setDestinationTypes, setIncludeUnnamedPeaks })} />,
+      )
       await user.click(screen.getByRole('checkbox', { name: 'Include unnamed peaks' }))
       expect(setIncludeUnnamedPeaks).toHaveBeenCalledWith(true)
       expect(setDestinationTypes).not.toHaveBeenCalled()

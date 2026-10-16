@@ -58,7 +58,7 @@ Press **Draw polygon** to start. While drawing, each click on the map drops a po
 
 Outside draw mode the polygon stays on the map but has no handles, so panning and zooming around your results can't nudge a corner, and a click belongs to whatever sits under it.
 
-The checkboxes under the buttons control what discovery looks for inside your polygon. Tick as many as you like, and each result is labelled with what it actually is. Peaks and lakes are read from the map's own tiles, in about a second, and the map service is asked only for trailheads and crags, which the tiles cannot answer, or for an area too large for the tiles to answer quickly; whatever it is asked for, it finds in a single query.
+The checkboxes under the buttons control what discovery looks for inside your polygon. They stay greyed until the polygon has at least three points and fits under the size limit, and grey again if you clear it or it grows past the limit; **Include unnamed peaks** greys with them. Your ticks are kept while they are greyed, so the next polygon looks for the same things. Tick as many as you like, and each result is labelled with what it actually is. Peaks and lakes are read from the map's own tiles, in about a second, and the map service is asked only for trailheads and crags, which the tiles cannot answer, or for an area too large for the tiles to answer quickly; whatever it is asked for, it finds in a single query.
 
 | Type | OSM Query | Status |
 |---|---|---|

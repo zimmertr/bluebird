@@ -53,8 +53,9 @@ test('axe finds nothing serious on the panel, the results, or a popover', async 
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
   await audit(page, 'panel open', seen)
 
-  await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
+  // Drawn first: the types are greyed until there is a ring to search.
   await drawRing(page)
+  await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
   await page.getByRole('button', { name: 'Analyze' }).click()
   await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
   await audit(page, 'results open', seen)

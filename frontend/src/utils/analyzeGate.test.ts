@@ -4,6 +4,7 @@ import {
   analyzeGateFor,
   canAnalyze,
   ringAddsNothing,
+  ringUsable,
   shouldAutoAnalyze,
   AnalyzeGate,
   AnalyzeGateInputs,
@@ -23,6 +24,19 @@ const READY_POLYGON: AnalyzeGate = {
   compareAqi: false,
   compareFreeze: false,
 }
+
+// The rule the type checkboxes grey on, which is the ring half of the polygon
+// gate: a type with no usable ring discovers nothing.
+describe('ringUsable', () => {
+  it('holds from three points, inside the cap', () => {
+    expect(ringUsable(0, false)).toBe(false)
+    expect(ringUsable(2, false)).toBe(false)
+    expect(ringUsable(3, false)).toBe(true)
+  })
+  it('fails a ring past the area cap however many points it has', () => {
+    expect(ringUsable(8, true)).toBe(false)
+  })
+})
 
 describe('canAnalyze — ranked inputs', () => {
   it('enables when a complete polygon is drawn', () => {

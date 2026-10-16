@@ -12,6 +12,7 @@ import {
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
+import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
 
 // Above this drawn area, an informational note warns that dense regions can
@@ -128,6 +129,13 @@ export default function DestinationsSection({
   }, [drawing, drawPointCount])
   const row = drawControls(drawing, drawPointCount)
   const peaksOn = destinationTypes.includes('peak')
+  // The types and the unnamed-peaks knob are live only over a ring a search
+  // can use, and grey again when it is cleared or grows past the cap. Greyed
+  // keeps the ticks, so the next ring searches what the reader chose, and a
+  // tick with no ring was never sent anyway (`planAnalysis` sends no types
+  // without one). Greyed rather than hidden, as the draw row's buttons are
+  // (#687), so a ring arriving does not move the panel under the reader.
+  const typesLive = ringUsable(drawPointCount, areaTooLarge)
 
   return (
     <section data-tour="destinations">
@@ -289,7 +297,7 @@ export default function DestinationsSection({
                 name="destination_types"
                 value={value}
                 checked={destinationTypes.includes(value)}
-                disabled={!implemented}
+                disabled={!implemented || !typesLive}
                 onChange={(e) =>
                   setDestinationTypes(
                     e.target.checked
@@ -317,6 +325,7 @@ export default function DestinationsSection({
             <input
               type="checkbox"
               checked={includeUnnamedPeaks}
+              disabled={!typesLive}
               onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
               className={CHOICE_INPUT}
             />

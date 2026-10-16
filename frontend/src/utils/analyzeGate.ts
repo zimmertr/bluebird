@@ -52,6 +52,18 @@ export interface AnalyzeGate {
   compareFreeze: boolean
 }
 
+/**
+ * Whether the drawn ring is one a polygon search can use: three points or
+ * more, inside the area cap. The type checkboxes read this too, and stay
+ * greyed until it holds (the maintainer, 2026-10-15, on PR #731): a type with
+ * no usable ring discovers nothing, and a box that could be ticked then said
+ * otherwise. One spelling, so the boxes and Analyze cannot disagree about
+ * which ring counts.
+ */
+export function ringUsable(drawPointCount: number, areaTooLarge: boolean): boolean {
+  return drawPointCount >= 3 && !areaTooLarge
+}
+
 export function canAnalyze(g: AnalyzeGate): boolean {
   if (g.hasWindowWarning || g.datesPending || g.loading || g.areaTooLarge) return false
   if (g.compareAqi || g.compareFreeze) return false
@@ -106,7 +118,7 @@ export function analyzeGateFor(i: AnalyzeGateInputs): { gate: AnalyzeGate; freez
       datesPending: i.selection.kind === 'days' && !hasDates(i.selection),
       loading: i.loading,
       areaTooLarge,
-      polygonReady: i.drawPointCount >= 3 && !areaTooLarge && i.destinationTypes.length > 0,
+      polygonReady: ringUsable(i.drawPointCount, areaTooLarge) && i.destinationTypes.length > 0,
       hasCustom: i.hasCustom,
       hasPins: i.hasPins,
       // Air quality comes from one source for every model, so a comparison on
