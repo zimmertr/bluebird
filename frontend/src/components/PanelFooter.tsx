@@ -79,8 +79,15 @@ function FooterNotice({
   // condition for the derived lines — which `utils/notices.ts` owns.
   onDismiss: (key: string) => void
 }) {
+  // A flex column with a gap rather than `space-y-2`: the message stack below
+  // wears `NOTICE_DIVIDER`'s negative margin to cancel its rows' padding at the
+  // box's edges, and in Tailwind v4 that class outranks the margin `space-y`
+  // puts on the same element, so the retry sat 0px under the last line of text
+  // with 8px over the first. A gap is not a margin, so the two add instead:
+  // 8px above the text, 8px between it and the retry, 8px under the retry
+  // (measured 2026-10-15 in the live stylesheet).
   return (
-    <div className={`${NOTICE[severity]} ${STATUS[severity]} space-y-2`}>
+    <div className={`${NOTICE[severity]} ${STATUS[severity]} flex flex-col gap-2`}>
       {/* Every message renders the same way, alone or one of several: a row
           under a row, separated by the rule `NOTICE_DIVIDER` draws in the box's
           own border tint. A bulleted list did the separating before and spent
