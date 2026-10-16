@@ -246,7 +246,7 @@
  * tokens (#706), so in light the line is the middle ink on the light
  * floating box and its links take the light accent. The (i)'s glyph is the library's
  * own drawing filled light, and it keeps a 44px rim under a finger. The
- * scale bar stays the library's: a measurement on the map, not a control. */
+ * scale bar is not a control and does not wear this chrome (below). */
 .maplibregl-ctrl.maplibregl-ctrl-attrib {
   color-scheme: dark;
   color: var(--ui-ink-mid);
@@ -297,6 +297,40 @@
     position: absolute;
     inset: -10px;
   }
+}
+
+/* The scale bar on the theme's ground (#739; record 0161). It is a ruler on
+ * the map, not a control, so it takes no radius, shadow or button: only the
+ * scrim the legend ramp's numbers stand on (`SWATCH_RAMP_SCRIM`, the recessed
+ * surface at 70%) and the ink they are drawn in, for its label. The vendor's
+ * white box was the one light piece of chrome on the dark theme; in the light
+ * theme the tokens make it light again. The ink clears 4.5:1 on that ground
+ * over a white map and over a black one, in both themes (`styles.test.ts`).
+ *
+ * Its edge, the ruler's two ends and its foot, is the recessed surface itself
+ * in the dark theme and the ink in the light one: dark in both, because the
+ * basemap is light in both. A light edge drawn in the dark theme's ink stood
+ * on the map's own light grey and the bar lost its ends (screenshot,
+ * 2026-10-16); the opaque edge reads darker than the 70% fill beside it.
+ *
+ * Its label keeps the vendor's 10px, under the app's 11px floor, because the
+ * floor does not fit. The library joins the number and the unit with a
+ * no-break space, so the label cannot wrap; it can run past the bar's end
+ * where the bar is narrowest, half `SCALE_MAX_WIDTH_PX`. Measured 2026-10-16
+ * in Chromium with every label the map can draw at its narrowest bar
+ * (`frontend/e2e/scaleBar.spec.ts`): at 11px `1000 km` on a 50px bar, a
+ * continent's zoom, ran 1.2px past the end in Liberation Sans (Arial's
+ * widths) and 1.7px in Roboto; at 10px it stops 2.6px and 2.2px inside it.
+ * The vendor's top border stays off: the shorthand it sets clears the style,
+ * so a colour here draws no top edge. */
+.maplibregl-ctrl.maplibregl-ctrl-scale {
+  background-color: color-mix(in oklab, var(--ui-recessed) 70%, transparent);
+  border-color: var(--ui-recessed);
+  color: var(--ui-ink);
+}
+
+:root[data-theme="light"] .maplibregl-ctrl.maplibregl-ctrl-scale {
+  border-color: var(--ui-ink);
 }
 
 /* The attribution's type, one step down the app's ramp from the vendor's 12px:

@@ -2938,6 +2938,63 @@ describe('the attribution beside the scale', () => {
   })
 })
 
+// The scale bar on the theme's ground (#739; record 0161): the legend ramp's
+// scrim and ink, read by their variables because the library makes the
+// markup, and measured over the lightest and the darkest map it can stand on.
+describe('the scale bar', () => {
+  const rule = mapCss.match(/\n\.maplibregl-ctrl\.maplibregl-ctrl-scale \{[^}]*\}/)?.[0] ?? ''
+  const scrim = token(SWATCH_RAMP_SCRIM, 'bg')
+  const alpha = Number(SWATCH_RAMP_SCRIM.match(/\/(\d+)/)![1])
+  const ink = token(SWATCH_RAMP_TICK, 'text')
+  // Tailwind's own palette, read off the disk for the reason preflight is
+  // above, so the dark theme's steps are measured rather than copied.
+  const palette: string = readFileSync(new URL('../node_modules/tailwindcss/theme.css', import.meta.url), 'utf8')
+  const dark = (name: string): string => {
+    const decl = palette.match(new RegExp(String.raw`--color-${darkStep(name)}: oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\);`))
+    if (!decl) throw new Error(`no oklch declaration for ${darkStep(name)} in tailwindcss/theme.css`)
+    return oklchHex(Number(decl[1]) / 100, Number(decl[2]), Number(decl[3]))
+  }
+  /** `top` at `a` over `under`, the way the browser composites the scrim. */
+  const over = (top: string, a: number, under: string) =>
+    `#${rgb(top)
+      .map((v, i) => Math.round(a * v + (1 - a) * rgb(under)[i]))
+      .map((v) => v.toString(16).padStart(2, '0'))
+      .join('')}`
+
+  it('stands on the legend scrim in the legend ink, and wears no chrome', () => {
+    expect(rule).toContain(`background-color: color-mix(in oklab, var(--ui-${scrim}) ${alpha}%, transparent);`)
+    expect(rule).toContain(`color: var(--ui-${ink});`)
+    // Its ends are dark in both themes, because the basemap is light in both:
+    // the scrim's own surface, opaque, in the dark theme, the ink in the light.
+    expect(rule).toContain(`border-color: var(--ui-${scrim});`)
+    expect(mapCss).toMatch(
+      new RegExp(String.raw`:root\[data-theme="light"\] \.maplibregl-ctrl\.maplibregl-ctrl-scale \{\s*border-color: var\(--ui-${ink}\);\s*\}`),
+    )
+    // A ruler, not a control (record 0147): no corner, no shadow, and the
+    // vendor's own 10px label, which e2e/scaleBar.spec.ts holds inside the bar.
+    expect(rule).not.toMatch(/radius|shadow|font-size/)
+  })
+
+  // Measured 2026-10-16: the ink on the scrim over a white map and a black
+  // one, dark theme then light.
+  it('reads its label at 4.5:1 or better over any map in both themes', () => {
+    const measure = (hex: (name: string) => string) =>
+      ['#ffffff', '#000000'].map((map) => ratio(hex(ink), over(hex(scrim), alpha / 100, map)))
+    expect(darkStep(scrim)).toBe('slate-900')
+    expect(darkStep(ink)).toBe('slate-200')
+    expect(measure(dark)).toEqual([5.35, 15.39])
+    expect(measure(light)).toEqual([17.12, 8.16])
+    for (const r of [...measure(dark), ...measure(light)]) expect(r).toBeGreaterThanOrEqual(4.5)
+  })
+
+  // The ruler's ends against a white map, past the 3:1 a graphic owes.
+  it('draws its ends past 3:1 on a white map in both themes', () => {
+    const ends = [ratio(dark(scrim), '#ffffff'), ratio(light(ink), '#ffffff')]
+    expect(ends).toEqual([17.83, 17.12])
+    for (const r of ends) expect(r).toBeGreaterThanOrEqual(3)
+  })
+})
+
 describe('the idle compass', () => {
   it('is hidden by map.css under the class the controls module sets', () => {
     // On the button itself (record 0147), since a phone stands it outside the
