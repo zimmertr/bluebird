@@ -12,7 +12,7 @@ import {
 } from '../utils/closureProximity'
 import { FREEZE_UNAVAILABLE_NOTE } from '../utils/freezingLevel'
 import { pendingChartRow } from '../utils/resultsCells'
-import { TABLE } from '../styles'
+import { CHOICE_INPUT, LINE_EDGE, TABLE } from '../styles'
 import { formatPrecipTotal } from '../metrics'
 import { closureWarning, fireWarning, pendingDestination, resultRow } from '../testSupport/fixtures'
 import { render } from '../testSupport/render'
@@ -53,6 +53,7 @@ function props(over: Partial<Props> = {}): Props {
     widths: NO_WIDTHS,
     coloredGroup: GROUP,
     pointSample: false,
+    theme: 'dark',
     fireStatus: 'ready',
     fireUncovered: false,
     closureStatus: 'ready',
@@ -333,6 +334,7 @@ describe('a pending row', () => {
     columns: COLUMNS,
     widths: NO_WIDTHS,
     charted: false,
+    theme: 'dark' as const,
     ...over,
   })
 
@@ -367,5 +369,43 @@ describe('a pending row', () => {
   it('offers no remove button on a CSV row, whose truth is the textarea', () => {
     inTable(<PendingRow {...pendingProps({ destination: pendingDestination({ source: 'csv' }), onRemovePending: vi.fn() })} />)
     expect(screen.queryByRole('button', { name: 'Remove Probe Peak' })).toBeNull()
+  })
+
+  it('rims its ticked box in light as a ranked row does', () => {
+    const box: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
+    inTable(<PendingRow {...pendingProps({ chartBox: box, charted: true, chartColor: 'rgb(253, 165, 213)', theme: 'light' })} />)
+    expect(screen.getByRole('checkbox', { name: 'Chart Probe Peak' }).className).toBe(`${CHOICE_INPUT} ${LINE_EDGE.input}`)
+  })
+})
+
+// A ticked chart box is filled with its line's colour, which in light is a
+// pastel under 3:1 on the panel, so it wears the rim the line is drawn over
+// (PR #733). Dark boxes and unticked ones are the browser's own.
+describe('the chart box in each theme', () => {
+  const BOX: ChartBox = { onShift: vi.fn(), onToggle: vi.fn() }
+  const check = () => screen.getByRole('checkbox', { name: 'Chart Mount Adams' }) as HTMLInputElement
+
+  it('rims a ticked box in light and keeps the line colour as its fill', () => {
+    inTable(<ResultsTableRow {...props({ theme: 'light', chartBox: BOX, charted: true, chartColor: 'rgb(253, 165, 213)' })} />)
+    expect(check().className).toBe(`${CHOICE_INPUT} ${LINE_EDGE.input}`)
+    expect(check().style.accentColor).toBe('rgb(253, 165, 213)')
+  })
+
+  it('draws no rim in dark', () => {
+    inTable(<ResultsTableRow {...props({ theme: 'dark', chartBox: BOX, charted: true, chartColor: 'rgb(244, 114, 182)' })} />)
+    expect(check().className).toBe(CHOICE_INPUT)
+    expect(check().style.accentColor).toBe('rgb(244, 114, 182)')
+  })
+
+  it('draws no rim on an unticked box in light', () => {
+    inTable(<ResultsTableRow {...props({ theme: 'light', chartBox: BOX, charted: false })} />)
+    expect(check().className).toBe(CHOICE_INPUT)
+  })
+
+  // An author outline replaces the browser's focus ring, so the rim brings
+  // the app's.
+  it('keeps a focus ring under the rim', () => {
+    expect(LINE_EDGE.input).toContain(LINE_EDGE.swatch)
+    expect(LINE_EDGE.input).toMatch(/focus-visible:outline-2/)
   })
 })

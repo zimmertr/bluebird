@@ -4,7 +4,7 @@ import type { AnalyzedView } from './analyzeTypes'
 import type { ForecastModelOption } from './useCapabilities'
 import { useChartSelection } from './useChartSelection'
 import { useModelCompare } from './useModelCompare'
-import { allocateColors } from '../utils/chartColors'
+import { allocateColors, paletteColors } from '../utils/chartColors'
 import { alignRowToGrid, chartKey } from '../utils/chartData'
 import { type PendingDestination, pendingAsResult } from '../utils/customList'
 import type { WindowLimits } from '../utils/forecastWindow'
@@ -19,6 +19,7 @@ import { modelRows, pruneHidden, shownModels, toggleHidden } from '../utils/mode
 import { terrainFallbackFor } from '../utils/openMeteo'
 import { paceWaitLine } from '../utils/pacing'
 import { geoKey } from '../utils/points'
+import type { Theme } from '../utils/viewPrefs'
 
 // No compared model came back empty: one identity, so the bar is handed the
 // same empty list on every render where there is nothing to say.
@@ -52,6 +53,8 @@ export interface ChartCompareInputs {
   windowLimits: WindowLimits
   /** Whether the chart panel is on screen (`useResultsLayout`). */
   chartShowing: boolean
+  /** The theme every line's colour is painted in (`useTheme`, #706). */
+  theme: Theme
 }
 
 /**
@@ -78,6 +81,7 @@ export function useChartCompare({
   times,
   windowLimits,
   chartShowing,
+  theme,
 }: ChartCompareInputs) {
   // Models whose lines the reader has put down (#232). Presentation and
   // nothing else: the forecasts behind them are bought either way, so this
@@ -101,7 +105,7 @@ export function useChartCompare({
       .map(pendingAsResult)
   }, [results, pending])
   const chartCandidates = useMemo(() => [...results, ...pendingRows], [results, pendingRows])
-  const chart = useChartSelection(chartCandidates, sortBy)
+  const chart = useChartSelection(chartCandidates, sortBy, theme)
 
   // Every DISPLAYED row as a point the comparison can fetch for. Wider than
   // the charted set: the results table shows one row per model for everything
@@ -122,6 +126,7 @@ export function useChartCompare({
   // The rank comes from `results`, the ranking order the markers and the
   // legend already read, not from the table's rows, whose numbering follows a
   // detail-column sort.
+  const colorFor = chart.colorFor
   const chartedDestinations = useMemo(() => {
     const rankByKey = new Map(results.map((r, i) => [chartKey(r), i + 1]))
     return chart.selectedRows
@@ -137,13 +142,12 @@ export function useChartCompare({
         // The colour it already wears in the table and on the map. A compared
         // chart says two things at once, and this is the one it has always
         // said; the model is the line style.
-        color: chart.colorFor(r),
+        color: colorFor(r),
       }))
-    // Kept: the rule asks for the whole `chart` object, which useChartSelection
-    // rebuilds every render. `colorFor` cannot answer differently for a row
-    // that has not changed, so the two listed values are the real inputs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chart.selectedRows, results])
+    // `colorFor` rather than the whole `chart`, which useChartSelection
+    // rebuilds every render; it is listed because a theme switch changes what
+    // it answers for a row that has not changed (#706).
+  }, [chart.selectedRows, results, colorFor])
   // The ranking model's own numbers per destination, on the chart's grid: a
   // pinned row carries its own stamps, so the alignment the chart does for its
   // rows has to happen here too or a pin would compare against the wrong hours.
@@ -185,11 +189,11 @@ export function useChartCompare({
   const chartedPairColors = useMemo(
     () =>
       seedPairColors(
-        allocateColors(chart.colorByKey, chartedPairKeys),
+        paletteColors(allocateColors(chart.colorByKey, chartedPairKeys), theme),
         analyzed?.forecastModel,
         chartedDestinations,
       ),
-    [analyzed, chart.colorByKey, chartedDestinations, chartedPairKeys],
+    [analyzed, chart.colorByKey, chartedDestinations, chartedPairKeys, theme],
   )
   // The allocation above is for the frame that draws the lines; this is what
   // makes it stick, so a pair hidden and shown again comes back the colour it
@@ -242,7 +246,6 @@ export function useChartCompare({
   // returns a new object every render, so keying on it handed the memoized
   // table a new callback every render, and the table re-mapped its rows on
   // every overlay toggle and keystroke.
-  const colorFor = chart.colorFor
   const rowChartColor = useCallback(
     (row: DestinationResult) =>
       pairColor(chartedPairColors, (row as ModelRow).modelId, chartKey(row), colorFor(row)),

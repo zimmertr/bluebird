@@ -65,6 +65,7 @@ const RESPONSE: AnalyzeResponse = { results: [], total_queried: 0, total_matched
 function inputs(over: Partial<ResultsViewInputs> = {}): ResultsViewInputs {
   return {
     showResults: true,
+    theme: 'dark',
     response: null,
     results: [ROW],
     pending: NO_PENDING,

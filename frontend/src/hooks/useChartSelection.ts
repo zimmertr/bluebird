@@ -7,7 +7,8 @@ import {
   debutRows,
   metricForSort,
 } from '../utils/chartData'
-import { UNASSIGNED_LINE_COLOR, allocateColors } from '../utils/chartColors'
+import { CHART_CHROME, allocateColors, colorForIndex } from '../utils/chartColors'
+import type { Theme } from '../utils/viewPrefs'
 
 // Chart selection for the results table and the chart-only legend: which
 // destinations are overlaid, their stable line colors, and the active metric.
@@ -21,9 +22,13 @@ import { UNASSIGNED_LINE_COLOR, allocateColors } from '../utils/chartColors'
 // color, bluebird forecast sky. Selections persist until the user changes them —
 // removals and re-analyses never uncheck a box (a key whose row leaves the
 // report simply stops rendering, and returns if the row does).
-export function useChartSelection(results: DestinationResult[], sortBy: SortBy) {
+//
+// A colour is kept as its palette index and painted in the theme's shade of it
+// (#706), so a theme switch recolours every line already charted, its swatch
+// and its checkbox with it, without re-allocating one.
+export function useChartSelection(results: DestinationResult[], sortBy: SortBy, theme: Theme) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
-  const [colorByKey, setColorByKey] = useState<Record<string, string>>({})
+  const [colorByKey, setColorByKey] = useState<Record<string, number>>({})
   const [metric, setMetric] = useState<ChartMetric>(() => metricForSort(sortBy))
 
   // The metric follows each new ranking; a same-ranking refresh leaves a
@@ -51,7 +56,7 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
   // searched place is charted from the moment it is searched. colorByKey is
   // the "ever charted" memory: a deliberately unchecked box has been charted,
   // stays in the map, and is therefore never re-checked by a later report.
-  const colorByKeyRef = useRef<Record<string, string>>({})
+  const colorByKeyRef = useRef<Record<string, number>>({})
   colorByKeyRef.current = colorByKey
   const resultsRef = useRef<DestinationResult[]>(results)
   resultsRef.current = results
@@ -118,8 +123,11 @@ export function useChartSelection(results: DestinationResult[], sortBy: SortBy) 
   )
 
   const colorFor = useCallback(
-    (row: DestinationResult): string => colorByKey[chartKey(row)] ?? UNASSIGNED_LINE_COLOR,
-    [colorByKey],
+    (row: DestinationResult): string => {
+      const index = colorByKey[chartKey(row)]
+      return index === undefined ? CHART_CHROME[theme].unassigned : colorForIndex(index, theme)
+    },
+    [colorByKey, theme],
   )
 
   /**

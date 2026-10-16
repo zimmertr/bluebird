@@ -38,9 +38,11 @@ const COLOR_OWNERS = [
 ]
 
 // A colour value: a hex triplet or sextet where CSS or a paint spec would put
-// one, or an rgb() call. Three-digit hex is matched only after a `:`, `(` or
-// `,`, because `#123` is also how a string names an issue.
-const COLOR_VALUE = String.raw`#[0-9a-fA-F]{6}(?![0-9a-zA-Z])|[:(,]\s*#[0-9a-fA-F]{3}(?![0-9a-zA-Z])|^#[0-9a-fA-F]{3}$|\brgba?\(`
+// one, or a CSS colour function (`rgb()`, `hsl()`, `oklch()` and the rest,
+// which since #706 are as fixed to one theme as a hex is). Three-digit hex is
+// matched only after a `:`, `(` or `,`, because `#123` is also how a string
+// names an issue.
+const COLOR_VALUE = String.raw`#[0-9a-fA-F]{6}(?![0-9a-zA-Z])|[:(,]\s*#[0-9a-fA-F]{3}(?![0-9a-zA-Z])|^#[0-9a-fA-F]{3}$|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(`
 
 // How many interpolations into one template the helpers below look through.
 // No class template in the app comes near it.
@@ -184,7 +186,7 @@ export const STYLES = [
         // The error boundary's fallback replaces the tree it guards, so it
         // cannot inherit the ground, and a fourth spelling is how the grounds
         // would part. A translucent scrim over the map is a different thing.
-        selector: text(String.raw`bg-slate-900(?![\x2f\w-])`),
+        selector: text(String.raw`bg-page(?![\x2f\w-])`),
         message: 'Stand a page on SURFACE_PAGE rather than spelling its ground.',
       },
       {
@@ -803,6 +805,25 @@ export const STYLES = [
       {
         selector: text(COLOR_VALUE),
         message: 'Name a colour in the module that owns it (colors.ts, chartColors.ts, popupChrome.ts, map/mapStyles.ts or an overlay module), never at the call site.',
+      },
+    ],
+  },
+  {
+    // The theme is the header switch's, and dark is the default whatever the
+    // operating system says (#706, record 0158). Tailwind's dark variant is a
+    // prefers-color-scheme query, so a class wearing it paints by the system's
+    // setting under a switch that may say the opposite, and a matchMedia on
+    // the same query does the same in script. A colour that differs by theme
+    // is a token in index.css with a value in each block. styles.test.ts holds
+    // the stylesheets to the same rule, since ESLint does not read CSS.
+    name: 'style-no-os-theme',
+    files: SHIPPED,
+    ignores: TESTS,
+    probe: 'src/styles.ts',
+    ban: [
+      {
+        selector: text(String.raw`(^|\s)dark:(\[|[a-z])|prefers-color-scheme`),
+        message: "The theme is the switch's, not the system's. Give the colour a token in index.css with a value in each theme.",
       },
     ],
   },

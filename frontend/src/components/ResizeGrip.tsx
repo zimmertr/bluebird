@@ -28,10 +28,10 @@ export default function ResizeGrip({ onReset, onDragStart, onDrag, onDragEnd }: 
   return (
     <div
       onPointerDown={handlePointerDown}
-      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-slate-700 border-t border-b border-slate-600 hover:bg-slate-600 transition-colors group`}
+      className={`${TAP.grip} flex-shrink-0 h-2 flex items-center justify-center cursor-ns-resize touch-none bg-raised border-t border-b border-frame hover:bg-raised-hover transition-colors group`}
     >
       <div
-        className={`w-10 h-0.5 ${RADIUS.pill} bg-slate-500 group-hover:bg-slate-300 transition-colors`}
+        className={`w-10 h-0.5 ${RADIUS.pill} bg-edge group-hover:bg-ink-mid transition-colors`}
       />
     </div>
   )

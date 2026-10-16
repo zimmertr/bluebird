@@ -25,7 +25,7 @@ import { SUPPORT_EMAIL } from './utils/contact'
 import { DATA_SOURCES } from './utils/dataSources'
 import { STORAGE_KEY } from './utils/forecastStore'
 import forecastStore from './utils/forecastStore.ts?raw'
-import { VIEW_KEY, WELCOME_KEY } from './utils/viewPrefs'
+import { THEME_KEY, VIEW_KEY, WELCOME_KEY } from './utils/viewPrefs'
 import viewPrefs from './utils/viewPrefs.ts?raw'
 import { CHUNK_RELOAD_KEY } from './staleChunk'
 import mainEntry from './main.tsx?raw'
@@ -346,7 +346,7 @@ describe('the privacy copy, held to the code', () => {
   )
 
   it('dates the policy to the change that last corrected it', () => {
-    expect(privacyPage).toMatch(/Last updated 7 October 2026\./)
+    expect(privacyPage).toMatch(/Last updated 15 October 2026\./)
   })
 
   // The page names each key by what it keeps, and says how many there are.
@@ -365,6 +365,7 @@ describe('the privacy copy, held to the code', () => {
     }
     const described: Record<string, RegExp> = {
       [WELCOME_KEY]: /local storage keeps whether you dismissed the welcome dialog/,
+      [THEME_KEY]: /whether you chose the light theme/,
       [VIEW_KEY]: /how you laid out the results and the map: which views are open, which columns show and in what order, and whether the map's legend is folded/,
       [STORAGE_KEY]: /Session storage, which ends when you close the tab, keeps the forecasts fetched/,
       [CHUNK_RELOAD_KEY]: /the version of the app that last reloaded itself after an update/,
@@ -381,6 +382,7 @@ describe('the privacy copy, held to the code', () => {
     // is the half the page says ends with the tab.
     expect(viewPrefs).toMatch(/localStorage\.setItem\(VIEW_KEY/)
     expect(viewPrefs).toMatch(/localStorage\.setItem\(WELCOME_KEY/)
+    expect(viewPrefs).toMatch(/localStorage\.setItem\(THEME_KEY/)
     expect(forecastStore).toMatch(/sessionStorage\?\.setItem\(STORAGE_KEY/)
     expect(mainEntry).toMatch(/reloadOnStaleChunk\(\{[\s\S]*?storage: \(\) => window\.sessionStorage/)
     // The page's "last 15 minutes".

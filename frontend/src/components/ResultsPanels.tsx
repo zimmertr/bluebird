@@ -12,8 +12,9 @@ import ModelCompare from './ModelCompare'
 import ResizeGrip from './ResizeGrip'
 import ResultsTable from './ResultsTable'
 import { IconClose } from './icons'
-import { FOCUS_RING, ICON_ACTION, MUTED, RADIUS, SCROLL_BARS, SCROLL_SHADOW, TEXT } from '../styles'
+import { FOCUS_RING, ICON_ACTION, LINE_EDGE, MUTED, RADIUS, SCROLL_BARS, SCROLL_SHADOW, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
+import type { Theme } from '../utils/viewPrefs'
 
 // Lazy, because `recharts` is the one large library the first screen does not
 // need: the map mounts before any chart exists, and a reader who never opens
@@ -78,6 +79,8 @@ export interface ResultsPanelsProps {
   onRemovePending: (d: { latitude: number; longitude: number }) => void
   onFocusResult: (row: DestinationResult) => void
   onFocusPending: (at: { latitude: number; longitude: number }) => void
+  /** The theme the chart's chrome and the table's ranked cells paint in (#706). */
+  theme: Theme
 }
 
 /**
@@ -112,6 +115,7 @@ export default function ResultsPanels({
   onRemovePending,
   onFocusResult,
   onFocusPending,
+  theme,
 }: ResultsPanelsProps) {
   const { resultsMode, chartGrip, chartPanelPx, tableGrip, tablePanelPx } = layout
   const tableScrollRef = useRef<HTMLDivElement>(null)
@@ -178,6 +182,7 @@ export default function ResultsPanels({
                   modelEnds={compare.endLines}
                   controls={compareControls}
                   titled={chartTitled}
+                  theme={theme}
                 />
               </Suspense>
             </div>
@@ -197,7 +202,7 @@ export default function ResultsPanels({
                 chip rows at most — 26px chips + the 6px gap =
                 58px — then it scrolls. */}
             {resultsMode === 'chart' && legend.length > 0 && (
-              <div className="flex-shrink-0 border-t border-slate-600 bg-slate-900/50 px-3 py-1.5">
+              <div className="flex-shrink-0 border-t border-frame bg-page/50 px-3 py-1.5">
                 <div className={`${SCROLL_BARS} flex max-h-[58px] flex-wrap gap-1.5 overflow-y-auto`}>
                   {legend.map(({ key, row, suffix }) => {
                     const plotted = chart.isSelected(row)
@@ -205,7 +210,7 @@ export default function ResultsPanels({
                       <span
                         key={key}
                         className={`inline-flex max-w-full items-center ${RADIUS.control} ${
-                          plotted ? 'bg-slate-700' : 'bg-slate-800/50'
+                          plotted ? 'bg-raised' : 'bg-panel/50'
                         }`}
                       >
                         <button
@@ -214,8 +219,12 @@ export default function ResultsPanels({
                           aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
                           className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                         >
+                          {/* The line's colour, wearing the line's rim in
+                              light (PR #733). */}
                           <span
-                            className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
+                            className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${
+                              theme === 'light' ? LINE_EDGE.swatch : ''
+                            }`}
                             style={{ backgroundColor: rowChartColor(row) }}
                           />
                           <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>
@@ -294,6 +303,7 @@ export default function ResultsPanels({
               chartColor={rowChartColor}
               onChartRange={chart.setRange}
               partialNote={partialNote}
+              theme={theme}
             />
           </div>
         </>

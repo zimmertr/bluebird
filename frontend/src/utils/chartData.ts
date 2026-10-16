@@ -69,12 +69,12 @@ export function candidateSetKey(rows: DestinationResult[]): string {
 // render a hook in, so a decision left inside one is untestable by construction.
 export function debutRows(
   rows: DestinationResult[],
-  charted: Record<string, string>,
+  charted: Readonly<Record<string, number>>,
 ): DestinationResult[] {
   const seen = new Set<string>()
   return rows.filter((r) => {
     const key = chartKey(r)
-    if (charted[key] || seen.has(key)) return false
+    if (charted[key] !== undefined || seen.has(key)) return false
     seen.add(key)
     return true
   })

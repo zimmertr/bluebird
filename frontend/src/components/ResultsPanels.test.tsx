@@ -5,6 +5,7 @@ import ResultsPanels from './ResultsPanels'
 import { render } from '../testSupport/render'
 import { resultRow } from '../testSupport/fixtures'
 import { DEFAULT_FAMILY_KEY } from '../metrics'
+import { LINE_EDGE } from '../styles'
 
 // The table and the chart are memoized and have suites of their own. What
 // this one is about is what the panels hand them, so both are replaced by
@@ -67,11 +68,12 @@ const BOTH = layout('both')
 const CHARTS_QUIET = { chart: CHART, compare: QUIET, rowChartColor: NOOP }
 const CHARTS_COMPARING = { chart: CHART, compare: COMPARING, rowChartColor: NOOP }
 
-function props(over: { layout?: unknown; charts?: unknown } = {}): Props {
+function props(over: { layout?: unknown; charts?: unknown; tableView?: unknown; theme?: string } = {}): Props {
   return {
     layout: over.layout ?? BOTH,
     charts: over.charts ?? CHARTS_QUIET,
-    tableView: TABLE_VIEW,
+    tableView: over.tableView ?? TABLE_VIEW,
+    theme: over.theme ?? 'dark',
     report: REPORT,
     pending: [],
     removeResult,
@@ -180,5 +182,25 @@ describe('ResultsPanels', () => {
     for (const key of Object.keys(tableBefore)) {
       expect(Object.is(tableAfter[key], tableBefore[key]), `table ${key}`).toBe(true)
     }
+  })
+})
+
+// The chart-only legend's dot is a mark in its line's colour, so in light it
+// wears the rim the line is drawn over (PR #733), and in dark none.
+describe('the chart legend in each theme', () => {
+  const legend = { ...TABLE_VIEW, legend: [{ key: 'a', row: ROW, suffix: '' }] }
+  const charts = { ...CHARTS_QUIET, rowChartColor: () => '#fda5d5' }
+  const dot = () => screen.getByRole('button', { name: `Hide ${ROW.name} on the chart` }).firstElementChild as HTMLElement
+
+  it('rims a light dot', async () => {
+    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts, theme: 'light' })} />)
+    await screen.findByTestId('chart')
+    expect(dot().className).toContain(LINE_EDGE.swatch)
+  })
+
+  it('leaves a dark dot bare', async () => {
+    render(<ResultsPanels {...props({ layout: layout('chart'), tableView: legend, charts, theme: 'dark' })} />)
+    await screen.findByTestId('chart')
+    expect(dot().className).not.toContain(LINE_EDGE.swatch)
   })
 })

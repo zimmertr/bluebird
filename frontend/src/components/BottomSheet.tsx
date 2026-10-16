@@ -105,6 +105,12 @@ interface SheetTopProps {
   onGripDown: (e: PointerEvent) => void
   /** Done, for a sheet that hands it the keyboard (the Controls sheet). */
   doneRef?: Ref<HTMLButtonElement>
+  /**
+   * A control beside Done, which only the Controls sheet fills: its theme
+   * switch (#706). Every menu sheet leaves it empty, so its title row is as
+   * it was.
+   */
+  actions?: ReactNode
 }
 
 /**
@@ -115,7 +121,12 @@ interface SheetTopProps {
  * (`AppDrawer`, record 0141) wears the same top over a sheet that is not
  * modal and never unmounts.
  */
-export function SheetTop({ heading, headingId, onClose, onGripDown, doneRef }: SheetTopProps) {
+export function SheetTop({ heading, headingId, onClose, onGripDown, doneRef, actions }: SheetTopProps) {
+  const done = (
+    <button ref={doneRef} type="button" onClick={onClose} className={BOTTOM_SHEET.done}>
+      Done
+    </button>
+  )
   return (
     <>
       <div className={BOTTOM_SHEET.grip} aria-hidden="true" onPointerDown={onGripDown}>
@@ -124,7 +135,7 @@ export function SheetTop({ heading, headingId, onClose, onGripDown, doneRef }: S
       <div
         className={BOTTOM_SHEET.head}
         onPointerDown={(e) => {
-          // Done is a button, not a handle.
+          // Done is a button, not a handle, and so is anything beside it.
           if ((e.target as Element).closest('button')) return
           onGripDown(e)
         }}
@@ -132,9 +143,14 @@ export function SheetTop({ heading, headingId, onClose, onGripDown, doneRef }: S
         <h2 id={headingId} className={BOTTOM_SHEET.title}>
           {heading}
         </h2>
-        <button ref={doneRef} type="button" onClick={onClose} className={BOTTOM_SHEET.done}>
-          Done
-        </button>
+        {actions ? (
+          <div className={BOTTOM_SHEET.actions}>
+            {actions}
+            {done}
+          </div>
+        ) : (
+          done
+        )}
       </div>
     </>
   )

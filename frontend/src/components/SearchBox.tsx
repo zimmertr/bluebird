@@ -244,7 +244,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // No width of its own: the box is `MAP_COL_W` and the input takes
           // what the icon and the clear button leave. `min-w-0` is what lets
           // it, a flex item's default `min-width:auto` being its content.
-          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-slate-400 focus:outline-none ${pill ? MAP_PILL_FIELD : ''}`}
+          className={`${TEXT.control} min-w-0 flex-1 bg-transparent placeholder-ink-soft focus:outline-none ${pill ? MAP_PILL_FIELD : ''}`}
         />
         {loading ? (
           // A picture of the wait, named as one: a label on an element with
@@ -294,7 +294,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
           // exactly the half that went (TJ, 2026-09-14, reversing the bind).
           // It hangs past the column's right edge the way the model picker's
           // listbox hangs past the panel's.
-          className={`${DROPDOWN} ${pill ? 'w-full' : DROPDOWN_W} ${SEARCH_LIST} divide-y divide-slate-600`}
+          className={`${DROPDOWN} ${pill ? 'w-full' : DROPDOWN_W} ${SEARCH_LIST} divide-y divide-frame`}
         >
           {places.map((p, i) => (
             // The option is what a press picks, with no button inside it: an
@@ -317,7 +317,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
               onClick={() => pick(p)}
               onMouseEnter={() => setHighlight(i)}
               className={`${TAP.height} w-full cursor-pointer px-2.5 py-2 text-left transition-colors ${
-                i === highlight ? 'bg-slate-600/50' : ''
+                i === highlight ? 'bg-highlight' : ''
               }`}
             >
               <span className={`${TEXT.control} block truncate`}>

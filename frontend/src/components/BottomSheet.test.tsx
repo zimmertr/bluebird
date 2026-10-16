@@ -33,6 +33,15 @@ describe('BottomSheet', () => {
     expect(screen.getByRole('heading', { name: 'Layers' })).toBeTruthy()
   })
 
+  // The title row's slot beside Done is the Controls sheet's alone (#706):
+  // a menu sheet's row is its title and Done, as it was.
+  it('keeps a menu sheet\'s title row to its title and Done', () => {
+    sheet()
+    const done = screen.getByRole('button', { name: 'Done' })
+    expect(done.parentElement!.querySelectorAll('button')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: /theme/ })).toBeNull()
+  })
+
   // `useDialog` takes the keyboard into the card as it opens.
   it('takes the keyboard into the card', () => {
     sheet()

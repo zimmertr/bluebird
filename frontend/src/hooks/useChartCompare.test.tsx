@@ -44,6 +44,7 @@ function inputs(over: Partial<ChartCompareInputs> = {}): ChartCompareInputs {
   return {
     results: ROWS,
     pending: NONE,
+    theme: 'dark',
     sortBy: 'precip_total_in',
     analyzed: REPORT,
     analysisSeq: 1,

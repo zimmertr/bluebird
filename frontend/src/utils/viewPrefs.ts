@@ -1,6 +1,7 @@
 // The reading posture this browser remembers: which panels the results area
 // opens with, which columns the table carries, in which order, whether a
-// desk's legend is folded, and whether the welcome modal has been seen.
+// desk's legend is folded, whether the welcome modal has been seen, and which
+// theme it reads in.
 //
 // One module rather than the six inline reads App.tsx used to carry, because
 // every one of them re-parsed the same stored object behind its own try/catch
@@ -20,6 +21,17 @@ import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
 // this browser keeps to the keys that are actually written.
 export const VIEW_KEY = 'bluebird_forecast_view'
 export const WELCOME_KEY = 'bluebird_forecast_welcomed'
+/**
+ * The theme, under a key of its own rather than inside `VIEW_KEY`'s object
+ * (#706), because `public/theme.js` reads it before the first paint: a classic
+ * script that compares one string, rather than parsing the view object, is
+ * what keeps it small enough to block the paint for. `theme.test.ts` holds that
+ * script's spelling of the key to this one.
+ */
+export const THEME_KEY = 'bluebird_forecast_theme'
+
+/** The two themes. Dark is the default, whatever the OS prefers (#706). */
+export type Theme = 'dark' | 'light'
 
 /** Which views the results area shows: chart-only, table-only, or both. */
 export type ResultsMode = 'chart' | 'table' | 'both'
@@ -202,5 +214,34 @@ export function setWelcomed(): void {
     localStorage.setItem(WELCOME_KEY, '1')
   } catch {
     // As above: a storage that refuses only costs the reader a second welcome.
+  }
+}
+
+/**
+ * The theme this browser chose, or dark when it never chose one. Only `light`
+ * is ever stored, so anything else in the key, a value no build wrote
+ * included, reads as the default.
+ */
+export function readTheme(): Theme {
+  if (typeof localStorage === 'undefined') return 'dark'
+  try {
+    return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
+/**
+ * Record the theme. Dark removes the key rather than storing it, so a browser
+ * that switched back keeps nothing, which is what the privacy page's account
+ * of this key says.
+ */
+export function writeTheme(theme: Theme): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    if (theme === 'light') localStorage.setItem(THEME_KEY, 'light')
+    else localStorage.removeItem(THEME_KEY)
+  } catch {
+    // A storage that refuses keeps the theme for this visit only.
   }
 }

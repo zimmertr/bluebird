@@ -93,6 +93,8 @@ function drawer(
       sheetFullPx={700}
       onSheetPx={NOOP}
       onClose={onClose}
+      theme="dark"
+      onToggleTheme={NOOP}
       onTutorial={NOOP}
       drawMode={DRAW}
       destinationInputs={INPUTS}
@@ -124,6 +126,26 @@ function drawer(
 }
 
 describe('AppDrawer', () => {
+  // The theme switch at a desk (#706): in the header, beside the close
+  // button and in its box, offering the theme it goes to.
+  it('carries the theme switch beside its close button at a desk', () => {
+    const onToggleTheme = vi.fn()
+    render(drawer(true, NOOP, false, { onToggleTheme }))
+    const toLight = screen.getByRole('button', { name: 'Switch to light theme' })
+    const close = screen.getByRole('button', { name: 'Close controls' })
+    expect(toLight.parentElement).toBe(close.parentElement)
+    expect(toLight.nextElementSibling).toBe(close)
+    expect(toLight.className).toBe(close.className)
+    fireEvent.click(toLight)
+    expect(onToggleTheme).toHaveBeenCalledOnce()
+  })
+
+  it('offers the dark theme while light', () => {
+    render(drawer(true, NOOP, false, { theme: 'light' }))
+    expect(screen.getByRole('button', { name: 'Switch to dark theme' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Switch to light theme' })).toBeNull()
+  })
+
   it('closes from its own button', () => {
     const onClose = vi.fn()
     render(drawer(true, onClose))
@@ -217,6 +239,19 @@ describe('AppDrawer', () => {
       expect(screen.getByTestId('panel').dataset.phone).toBe('true')
       expect(container.querySelector('aside')).toBeNull()
       expect(screen.queryByRole('dialog')).toBeNull()
+    })
+
+    // On a phone the switch is the Controls sheet's alone, in its title row
+    // beside Done (#706).
+    it('carries the theme switch in its title row, beside Done', () => {
+      const onToggleTheme = vi.fn()
+      render(drawer(true, NOOP, false, { isDesktop: false, sheetPx: 540, onToggleTheme }))
+      const toLight = screen.getByRole('button', { name: 'Switch to light theme' })
+      const done = screen.getByRole('button', { name: 'Done' })
+      expect(toLight.nextElementSibling).toBe(done)
+      expect(screen.queryByRole('button', { name: 'Close controls' })).toBeNull()
+      fireEvent.click(toLight)
+      expect(onToggleTheme).toHaveBeenCalledOnce()
     })
 
     it('closes from Done and from Escape', () => {
