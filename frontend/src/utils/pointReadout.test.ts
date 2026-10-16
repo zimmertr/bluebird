@@ -10,7 +10,7 @@ const text = (html: string) => markupText(html.split('</div>').join('</div> ')).
 const rain: PointSection = {
   title: 'Light precipitation',
   source: 'NEXRAD radar',
-  rows: [row('Rate', 'about 0.02 in/h'), row('Reflectivity', '16.5 dBZ'), updatedLine('now')],
+  rows: [row('Rate', '~0.02 in/h'), row('Reflectivity', '16.5 dBZ'), updatedLine('now')],
 }
 const snow: PointSection = {
   title: 'Very deep snow',
@@ -24,7 +24,7 @@ describe('pointCardHtml', () => {
   it('names one reading and its source on the band, and lists its values in the body', () => {
     const html = pointCardHtml([rain])
     expect(text(html)).toBe(
-      'Light precipitation NEXRAD radar Rate: about 0.02 in/h Reflectivity: 16.5 dBZ Updated: now',
+      'Light precipitation NEXRAD radar Rate: ~0.02 in/h Reflectivity: 16.5 dBZ Updated: now',
     )
     expect(html).not.toContain(`border-top:${SECTION_EDGE}`)
   })
@@ -36,7 +36,7 @@ describe('pointCardHtml', () => {
     const html = pointCardHtml([rain, snow])
     expect(text(html)).toBe(
       `${BOTH_TITLE} NEXRAD radar|NOAA snow analysis ` +
-        'Light precipitation Rate: about 0.02 in/h Reflectivity: 16.5 dBZ Updated: now ' +
+        'Light precipitation Rate: ~0.02 in/h Reflectivity: 16.5 dBZ Updated: now ' +
         'Very deep snow Depth: 151 in Snow water equivalent: 83 in Updated: Oct 16, 2026, 5:00 AM',
     )
     expect(html.split(`border-top:${SECTION_EDGE}`)).toHaveLength(2)

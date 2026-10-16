@@ -1084,7 +1084,8 @@ where the NEXRAD rainfall algorithm stops too, because an echo past it is
 usually hail. Without that cap the strongest cell measured, 59 dBZ, read 7 in
 an hour. A rate the cap holds reads as a floor, `≥2.9 in/h`, from 53 dBZ up,
 because the echo past it could be more rain or only hail and the card cannot
-say which. It assumes rain, so under snow it is wrong, and even in rain the true
+say which. The reflectivity is marked the same way at the composite's two
+ends, `≥95.0 dBZ` and `≤-32.0 dBZ`, since an echo past either is encoded there. It assumes rain, so under snow it is wrong, and even in rain the true
 relation varies by storm. What the card cannot say at all: the wind (Doppler
 velocity is per radar and only toward or away from it), what is falling, or how
 much has fallen. During playback it reads the frame on screen and says how old

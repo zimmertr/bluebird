@@ -66,6 +66,25 @@ const INDEX_OF_COLOR: ReadonlyMap<string, number> = new Map(
   }),
 )
 
+/**
+ * The reflectivities at the composite's two ends, index 1 and index 255: an
+ * echo past either is encoded there, so a pixel at an end says only that the
+ * echo reached it. The card marks them as bounds, inclusive (TJ, 2026-10-16),
+ * which is true whether IEM clamps to them or merely reaches them. No storm
+ * reaches the top, and IEM may never paint the bottom; the mark is there so
+ * either reads right if it does.
+ */
+export const N0Q_FLOOR_DBZ = 1 * 0.5 - 32.5
+export const N0Q_CEILING_DBZ = 255 * 0.5 - 32.5
+
+/** A reflectivity as the card prints it, to the composite's half-dBZ step, marked as a bound at either end. */
+export function formatReflectivity(dbz: number): string {
+  const shown = `${dbz.toFixed(1)} dBZ`
+  if (dbz >= N0Q_CEILING_DBZ) return `≥${shown}`
+  if (dbz <= N0Q_FLOOR_DBZ) return `≤${shown}`
+  return shown
+}
+
 /** How many colours the palette carries: one per value of the 8-bit composite. */
 export const N0Q_PALETTE_SIZE = INDEX_OF_COLOR.size
 
@@ -130,12 +149,12 @@ export function rainRateInPerHour(dbz: number): number {
  * A rain rate as the card prints it: two decimals under an inch an hour, one
  * above. A rate read at {@link HAIL_CAP_DBZ} or past it is the cap's rather
  * than the echo's, so it says it is a floor (`≥2.9 in/h`) the way the cloud
- * deck marks a reading at its ceiling (TJ, 2026-10-16), and loses the `about`
+ * deck marks a reading at its ceiling (TJ, 2026-10-16), and loses the `~`
  * that an estimate under the cap carries.
  */
 export function formatRainRate(inPerHour: number, atCap = false): string {
   const shown = `${inPerHour.toFixed(inPerHour < 1 ? 2 : 1)} in/h`
-  return atCap ? `≥${shown}` : `about ${shown}`
+  return atCap ? `≥${shown}` : `~${shown}`
 }
 
 /**
@@ -161,7 +180,7 @@ export const RADAR_SOURCE = 'NEXRAD radar'
 export function radarSection(dbz: number, offsetMin: number): PointSection {
   const rows: string[] = []
   if (dbz >= WEAK_ECHO_DBZ) rows.push(row('Rate', formatRainRate(rainRateInPerHour(dbz), dbz >= HAIL_CAP_DBZ)))
-  rows.push(row('Reflectivity', `${dbz.toFixed(1)} dBZ`))
+  rows.push(row('Reflectivity', formatReflectivity(dbz)))
   rows.push(updatedLine(radarUpdated(offsetMin)))
   return { title: escapeHtml(radarTitle(dbz)), source: escapeHtml(RADAR_SOURCE), rows }
 }
