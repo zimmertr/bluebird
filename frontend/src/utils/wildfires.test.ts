@@ -4,7 +4,6 @@ import {
   wildfireQueryUrl,
   formatAcres,
   formatContainment,
-  formatRevised,
   wildfirePopupHtml,
   nifcFireUrl,
   isRateLimited,
@@ -69,20 +68,6 @@ describe('formatContainment', () => {
   })
   it('handles an unreported percentage', () => {
     expect(formatContainment(null)).toBe('Containment not reported')
-  })
-})
-
-describe('formatRevised', () => {
-  it('omits the line when no timestamp is present', () => {
-    expect(formatRevised(null)).toBeNull()
-    expect(formatRevised(undefined)).toBeNull()
-  })
-  it('labels the date the way every overlay card labels its date', () => {
-    // NIFC's survey time for one fire, not the age of Bluebird Forecast's copy:
-    // the card's band names the fire and links NIFC, which is what keeps a bare
-    // "Updated" the fire's. Avoid asserting a locale/timezone-specific
-    // rendering, just the label.
-    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Updated: /)
   })
 })
 

@@ -30,10 +30,18 @@ export const DATA = [
     // while the primitive is the only door. Open-Meteo keeps its own, because
     // its failures are about a quota and a model domain rather than our pod,
     // and so does the tile host the elevation lookup reads (#673), whose
-    // failure is no message at all: the pod's lookup takes the rows.
+    // failure is no message at all: the pod's lookup takes the rows. The
+    // point readings a click on the radar or the snow takes (#737) have one
+    // door of their own for the same reason: a failed reading is no message.
     name: 'one-api-door',
     files: ['src/**/*.{ts,tsx}'],
-    ignores: ['src/**/*.test.{ts,tsx}', 'src/utils/apiFetch.ts', 'src/utils/openMeteo.ts', 'src/utils/peakTiles.ts'],
+    ignores: [
+      'src/**/*.test.{ts,tsx}',
+      'src/utils/apiFetch.ts',
+      'src/utils/openMeteo.ts',
+      'src/utils/peakTiles.ts',
+      'src/utils/pointReadout.ts',
+    ],
     probe: 'src/App.tsx',
     ban: [
       {

@@ -20,12 +20,14 @@
  * One function rather than calls spread through the component's load handler,
  * so the whole stack can be mounted on a stub map and pinned by a test.
  */
+import { addProtocol } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import type { GeoPolygon } from '../types'
 import { enhanceBasemap } from './basemap'
 import { mountCamera } from './camera'
 import type { MapController } from './controller'
 import { mountDrawRing, type DrawRing } from './drawRing'
+import { serveHeldTiles } from './heldTileProtocol'
 import { mountMapPopups } from './mapPopups'
 import { mountClosures, type ClosureOverlay } from './overlays/closures'
 import { mountForecastGrid, type ForecastGridOverlay } from './overlays/forecastGrid'
@@ -76,14 +78,18 @@ export function mountFeatures(
   // below; the click cannot come before the map has finished loading.
   const mapPopups = mountMapPopups(map, { controller, board: popups, addPoint: (pt) => drawRing.addPoint(pt) })
 
+  // Before any layer that loads through them: the radar's and the snow's
+  // tiles go through the app's own schemes, which keep a copy to read what
+  // they painted (#737).
+  serveHeldTiles(addProtocol)
   enhanceBasemap(map)
   const grid = mountForecastGrid(map)
   const smoke = mountSmoke(map, { popups: mapPopups })
   const wildfires = mountWildfires(map, { popups: mapPopups })
   const areaClosures = mountClosures(map, 'area', { popups: mapPopups })
   const trailClosures = mountClosures(map, 'trail', { popups: mapPopups })
-  const snow = mountSnow(map)
-  const radar = mountRadar(map)
+  const snow = mountSnow(map, { popups: mapPopups })
+  const radar = mountRadar(map, { popups: mapPopups })
   const drawRing = mountDrawRing(map, {
     ring: deps.ring,
     controller,

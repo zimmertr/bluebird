@@ -40,10 +40,11 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { createMapController, type MapInputs } from './controller'
-import { mountMapPopups, type MapPopupTarget } from './mapPopups'
+import { mountMapPopups, type MapPointTarget, type MapPopupTarget } from './mapPopups'
 import { createPopupBoard, popupOptions } from './popups'
 import { stubMap, type StubFeature } from '../testSupport/stubMap'
 import type { MapTarget } from '../utils/mapClick'
+import type { PointReading, PointSection } from '../utils/pointReadout'
 
 const LAYERS = ['fire-fill', 'marker', 'heavy', 'light', 'trail', 'vertices']
 
@@ -68,7 +69,7 @@ function setup({ drawing = false, layers = LAYERS } = {}) {
   const under = (...ids: string[]) => stub.setUnder(ids.map((id): StubFeature => ({ layer: { id } })))
   const click = (shiftKey = false) =>
     stub.fire('click', undefined, { point: { x: 10, y: 20 }, lngLat: { lng: -121.5, lat: 47.5 }, originalEvent: { shiftKey } })
-  const move = () => stub.fire('mousemove', undefined, { point: { x: 10, y: 20 } })
+  const move = () => stub.fire('mousemove', undefined, { point: { x: 10, y: 20 }, lngLat: { lng: -121.5, lat: 47.5 } })
   return { stub, controller, addPoint, popups, opened, register, under, click, move }
 }
 
@@ -324,5 +325,235 @@ describe('mountMapPopups openCard and openBare', () => {
     const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
     expect(popups.openCard([0, 0], '<p>card</p>', { owner: 'result', pan: false }).dy).toBeLessThan(0)
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+})
+
+describe('mountMapPopups point targets', () => {
+  const section = (title: string, rows: string[] = []): PointSection => ({ title, source: `${title} source`, rows })
+  const whole = (title: string): PointReading => ({ section: section(title) })
+  // Lets every promise that has answered settle.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  function point(
+    popups: ReturnType<typeof setup>['popups'],
+    target: MapTarget,
+    read: MapPointTarget['read'],
+    { shown = (): boolean => true, paints = (): boolean | Promise<boolean> => true } = {},
+  ) {
+    const spy = vi.fn(read)
+    popups.registerPoint({ target, shown, paints, read: spy })
+    return spy
+  }
+
+  // A storm over a snowpack is described whole: both readings, one card,
+  // the radar first, and either layer switched off takes the card down.
+  it('puts every picture painted under the click on one card in rank order', async () => {
+    const { popups, click } = setup()
+    point(popups, 'snow', async () => whole('Snow'))
+    point(popups, 'radar', async () => whole('Rain'))
+    click()
+    await settle()
+    expect(made).toHaveLength(1)
+    expect(made[0].html.indexOf('Rain source')).toBeLessThan(made[0].html.indexOf('Snow source'))
+    popups.closeAll('snow')
+    expect(made[0].removed).toBe(true)
+  })
+
+  // The card opens on what the tile says at once, and a value asked for
+  // after fills its row when it lands (TJ, 2026-10-16).
+  it('opens at once and fills a value that lands later', async () => {
+    const { popups, click } = setup()
+    let land: (s: PointSection) => void = () => {}
+    point(popups, 'snow', async () => ({
+      section: section('Snow', ['waiting']),
+      later: new Promise<PointSection>((resolve) => (land = resolve)),
+    }))
+    click()
+    await settle()
+    expect(made).toHaveLength(1)
+    expect(made[0].html).toContain('waiting')
+    land(section('Snow', ['151 in']))
+    await settle()
+    expect(made).toHaveLength(1)
+    expect(made[0].html).toContain('151 in')
+    expect(made[0].html).not.toContain('waiting')
+  })
+
+  // A closed card's question is dropped rather than answered into nothing.
+  it('aborts what a card was waiting for when it closes', async () => {
+    const { popups, click } = setup()
+    let signal: AbortSignal | null = null
+    point(popups, 'snow', async (_at, s) => {
+      signal = s
+      return { section: section('Snow'), later: new Promise<PointSection>(() => {}) }
+    })
+    click()
+    await settle()
+    expect(signal!.aborted).toBe(false)
+    popups.closeAll()
+    expect(signal!.aborted).toBe(true)
+  })
+
+  // A shift-click keeps the first card and its wait.
+  it('keeps filling a card that a later shift-click leaves open', async () => {
+    const { popups, click } = setup()
+    let land: (s: PointSection) => void = () => {}
+    let first = true
+    point(popups, 'snow', async () => {
+      if (!first) return null
+      first = false
+      return { section: section('Snow', ['waiting']), later: new Promise<PointSection>((resolve) => (land = resolve)) }
+    })
+    click()
+    await settle()
+    click(true)
+    land(section('Snow', ['151 in']))
+    await settle()
+    expect(made[0].removed).toBe(false)
+    expect(made[0].html).toContain('151 in')
+  })
+
+  it('hands a reader the clicked point, its longitude wrapped, and the zoom', async () => {
+    const { stub, popups } = setup()
+    const read = point(popups, 'radar', async () => null)
+    stub.fire('click', undefined, { point: { x: 0, y: 0 }, lngLat: { lng: 238.5, lat: 47.5 }, originalEvent: {} })
+    expect(read.mock.calls[0][0]).toEqual({ lng: -121.5, lat: 47.5, zoom: 8 })
+  })
+
+  it('opens nothing where no picture painted', async () => {
+    const { popups, click } = setup()
+    point(popups, 'radar', async () => null)
+    point(popups, 'snow', async () => null)
+    click()
+    await settle()
+    expect(made).toEqual([])
+  })
+
+  it('never asks a picture that is switched off', () => {
+    const { popups, click } = setup()
+    const read = point(popups, 'snow', async () => whole('Snow'), { shown: () => false })
+    click()
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it('leaves a failed reading off the card and warns', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { popups, click } = setup()
+    point(popups, 'radar', async () => whole('Rain'))
+    point(popups, 'snow', async () => {
+      throw new Error('down')
+    })
+    click()
+    await settle()
+    expect(made).toHaveLength(1)
+    expect(made[0].html).toContain('Rain')
+    expect(made[0].html).not.toContain('Snow')
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
+  it('asks no picture when a shape under the click opens', () => {
+    const { popups, register, under, click, opened } = setup()
+    const read = point(popups, 'radar', async () => whole('Rain'))
+    register('smoke', ['heavy'])
+    under('heavy')
+    click()
+    expect(opened).toEqual([{ target: 'smoke', layer: 'heavy' }])
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it('asks no picture while the ring is drawn, and places a point', () => {
+    const { popups, click, addPoint } = setup({ drawing: true })
+    const read = point(popups, 'radar', async () => whole('Rain'))
+    click()
+    expect(read).not.toHaveBeenCalled()
+    expect(addPoint).toHaveBeenCalledTimes(1)
+  })
+
+  // A reader who has clicked somewhere else before the first card opened is
+  // not shown a card about the place they left.
+  it('drops a reading the next click made stale', async () => {
+    const { popups, click } = setup()
+    let answer: (r: PointReading) => void = () => {}
+    let first = true
+    point(popups, 'snow', (_at, signal) => {
+      if (!first) return Promise.resolve(null)
+      first = false
+      return new Promise((resolve, reject) => {
+        answer = resolve
+        signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+      })
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    click()
+    click()
+    answer(whole('Snow'))
+    await settle()
+    expect(made).toEqual([])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
+  })
+})
+
+describe('mountMapPopups point target cursor', () => {
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+  const pointTarget = (target: MapTarget, paints: MapPointTarget['paints'], shown = () => true) => ({
+    target,
+    shown,
+    paints,
+    read: async () => null,
+  })
+
+  // A pointer over painted pixels says a click there opens something, as
+  // over a fire (TJ, 2026-10-16).
+  it('points over a picture that painted there, and rests where none did', () => {
+    const { stub, popups, move } = setup()
+    let painted = true
+    popups.registerPoint(pointTarget('snow', () => painted))
+    move()
+    expect(stub.canvas.style.cursor).toBe('pointer')
+    painted = false
+    move()
+    expect(stub.canvas.style.cursor).toBe('')
+  })
+
+  it('points once a tile that was still decoding says it painted, unless the pointer moved on', async () => {
+    const { stub, popups, move } = setup()
+    let answer: (painted: boolean) => void = () => {}
+    let calls = 0
+    popups.registerPoint(
+      pointTarget('radar', () => (++calls === 1 ? new Promise<boolean>((resolve) => (answer = resolve)) : false)),
+    )
+    move()
+    expect(stub.canvas.style.cursor).toBe('')
+    answer(true)
+    await settle()
+    expect(stub.canvas.style.cursor).toBe('pointer')
+
+    calls = 0
+    move()
+    move()
+    answer(true)
+    await settle()
+    expect(stub.canvas.style.cursor).toBe('')
+  })
+
+  it('asks no picture over a shape, while drawing, or for a layer switched off', () => {
+    const { stub, popups, register, under, move, controller } = setup()
+    const paints = vi.fn(() => true)
+    popups.registerPoint(pointTarget('snow', paints, () => false))
+    move()
+    expect(paints).not.toHaveBeenCalled()
+    const on = vi.fn(() => true)
+    popups.registerPoint(pointTarget('radar', on))
+    register('fire', ['fire-fill'])
+    under('fire-fill')
+    move()
+    expect(on).not.toHaveBeenCalled()
+    under()
+    controller.update({ ...controller.inputs, drawing: true })
+    move()
+    expect(on).not.toHaveBeenCalled()
+    expect(stub.canvas.style.cursor).toBe('crosshair')
   })
 })

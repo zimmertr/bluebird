@@ -158,7 +158,7 @@ export function closureName(props: ClosureProps): string {
   return text(props.ClosureOrderName) || text(props.ClosureOrderNumber) || 'Closure'
 }
 
-/** Epoch ms as a medium date, or null. Timezone-tolerant like `formatRevised`, so it never throws. */
+/** Epoch ms as a medium date, or null. Timezone-tolerant like `updatedAt`, so it never throws. */
 function closureDate(ms: number | null | undefined): string | null {
   if (ms == null || !Number.isFinite(ms)) return null
   const d = new Date(ms)

@@ -25,6 +25,8 @@ import {
   popupCard,
   resultPopupWidth,
   row,
+  updatedAt,
+  updatedLine,
 } from './popupChrome'
 import { AGGREGATE } from '../metrics'
 import { closurePopupHtml } from './closures'
@@ -312,6 +314,25 @@ describe("an overlay's facts line and body", () => {
   it('leaves off a part or a line it does not have', () => {
     expect(mount(factsLine(['Smoke', null, ''])).textContent).toBe('Smoke')
     expect(bodyLines([null, 'Colville National Forest', undefined])).toBe('<div>Colville National Forest</div>')
+  })
+})
+
+// One date line for every source that says when it measured: a fire's survey,
+// the snow analysis, the radar frame (TJ, 2026-10-16).
+describe('the updated line', () => {
+  it('labels the date and sets it as fine print', () => {
+    const line = mount(updatedLine('Oct 16, 2026, 5:00 AM'))
+    expect(line.textContent).toBe('Updated: Oct 16, 2026, 5:00 AM')
+    expect(line.firstElementChild!.getAttribute('style')).toContain('font-style:italic')
+  })
+
+  it("formats a source's time with its date, and leaves the line off without one", () => {
+    // The reader's locale and zone decide the rendering, so only its two
+    // halves are asserted.
+    expect(updatedAt(Date.UTC(2026, 9, 16, 12))).toMatch(/2026.*\d:\d\d/)
+    expect(updatedAt(null)).toBeNull()
+    expect(updatedAt(undefined)).toBeNull()
+    expect(updatedAt(Number.NaN)).toBeNull()
   })
 })
 

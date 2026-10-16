@@ -107,7 +107,8 @@ export function row(label: string, value: string, href?: string | null): string 
  * to: slate-500 is 4.76:1, which is a pass for text you glance at and thin for
  * text you read. The dark card's label is the panel's own soft ink.
  *
- * The popup's one <strong> therefore stays where it was, on the title.
+ * A row's label and value therefore never go bold. The bold in a card is the
+ * title's, and a section's name where a card holds two (`sectionHeading`).
  */
 export const LABEL_COLOR = 'color:var(--popup-label)'
 
@@ -200,6 +201,33 @@ export const FINE_COLOR = 'var(--popup-fine)'
  */
 export function fineprint(inner: string): string {
   return `<span style="color:${FINE_COLOR};${POPUP_FINE_SIZE};font-style:italic">${inner}</span>`
+}
+
+/**
+ * The fine print that ends a card whose source says when it measured: a
+ * fire's survey, the snow analysis, the radar frame. One label for all of them
+ * (`Updated:`; TJ, 2026-10-16), so the source's date reads the same on every
+ * card. `when` is markup the caller escaped, which lets a card still waiting
+ * on its source stand a `pendingValue` there.
+ */
+export function updatedLine(when: string): string {
+  return fineprint(`Updated: ${when}`)
+}
+
+/**
+ * Epoch ms as the date and time an `updatedLine` carries, in the reader's own
+ * zone and locale, or null to leave the line off. Falls back to a bare ISO
+ * date where the locale cannot format it, so it never throws.
+ */
+export function updatedAt(ms: number | null | undefined): string | null {
+  if (ms == null || !Number.isFinite(ms)) return null
+  const d = new Date(ms)
+  if (Number.isNaN(d.getTime())) return null
+  try {
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return d.toISOString().slice(0, 10)
+  }
 }
 
 /**
@@ -322,6 +350,43 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
     .filter(Boolean)
     .map((l) => `<div>${l}</div>`)
     .join('')
+}
+
+/**
+ * A value still on its way, drawn as a bar where the number will stand
+ * (#737): the snow card opens the moment it is clicked and NOAA's numbers
+ * arrive most of a second later. A bar rather than a word, so the wait adds
+ * no copy, in the rule colour so it reads as a blank rather than as data, and
+ * still, since a shimmer would move under a reader who has asked for less
+ * motion. Hidden from a screen reader, which hears the label alone until the
+ * number lands.
+ */
+export function pendingValue(): string {
+  return `<span aria-hidden="true" style="display:inline-block;width:3.5em;height:0.8em;vertical-align:-0.05em;border-radius:2px;background:${RULE_COLOR}"></span>`
+}
+
+/**
+ * The name a section opens on, where one card describes two things at one
+ * point: the rain radar and the snow depth under one click (#737). The band
+ * names the pair and lists both sources, and each section says which of the
+ * two it is and how much, `Moderate precipitation` over its rows (TJ,
+ * 2026-10-16). Bold, because it names the section rather than being one more
+ * row in it; the band's title still outranks it on size. The text is markup
+ * the caller escaped.
+ */
+export function sectionHeading(inner: string): string {
+  return `<div style="font-weight:700">${inner}</div>`
+}
+
+/**
+ * A second part of a card's body, ruled off from the part above it by the
+ * edge the card's own sections wear, run from edge to edge through the body's
+ * 10px sides. Inside the body rather than a section of `popupCard` after it,
+ * so a capped card scrolls the two together. The text is markup the caller
+ * escaped.
+ */
+export function bodySection(inner: string): string {
+  return `<div style="margin:${SECTION_PAD_Y} -10px 0;padding:${SECTION_PAD_Y} 10px 0;border-top:${SECTION_EDGE}">${inner}</div>`
 }
 
 /**

@@ -9,6 +9,9 @@ import {
   radarOffsets,
   radarScaleEnds,
   radarTileUrl,
+  RADAR_SCHEME,
+  radarHeldUrl,
+  radarTileHref,
 } from './radar'
 
 describe('radarOffsets', () => {
@@ -90,5 +93,16 @@ describe('RADAR_EXTENTS', () => {
       inside(144.8, 13.5), // Guam
     ]).toEqual([true, true, true, true, true])
     expect([inside(-170, 25), inside(7.7, 46.0), inside(127, 37.5)]).toEqual([false, false, false])
+  })
+})
+
+describe('the held-tile scheme', () => {
+  // A frame loads through the app's own scheme so a copy of every tile stays
+  // readable (#737); the real URL is the one the frame always asked for.
+  it('names a frame on the scheme and expands it back to the real tile', () => {
+    expect(radarHeldUrl(20)).toBe(`${RADAR_SCHEME}://20/{z}/{x}/{y}`)
+    expect(radarTileHref(20, 5, 7, 12)).toBe(
+      radarTileUrl(20).replace('{z}', '5').replace('{x}', '7').replace('{y}', '12'),
+    )
   })
 })

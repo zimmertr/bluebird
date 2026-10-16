@@ -6,18 +6,28 @@
  * is: a raster source starts fetching the moment a rendered layer names it, and
  * every one of those tiles is a render NOAA performs on demand for somebody who
  * never asked for the layer.
+ *
+ * The renders load through the app's own scheme (`../heldTileProtocol.ts`),
+ * which keeps a copy of every tile, so painted snow answers the pointer and a
+ * click on it opens a card at once, named from the pixel, while NOAA is asked
+ * for the numbers (`utils/snowPoint.ts`, #737): a point target, since a
+ * raster layer has no feature for a click to find.
  */
 import type * as maplibregl from 'maplibre-gl'
+import type { HeldTiles } from '../../utils/heldTiles'
+import { SNOW_TILES } from '../heldTileProtocol'
+import type { MapPopups } from '../mapPopups'
 import { RADAR_OLDEST_MIN, radarLayerId } from '../../utils/radar'
 import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 import {
   SNOW_BOUNDS,
+  SNOW_HELD_URL,
   SNOW_LAYER_ID,
   SNOW_MAX_ZOOM,
   SNOW_SOURCE_ID,
   SNOW_TILE_SIZE,
-  snowTileUrl,
 } from '../../utils/snowDepth'
+import { SNOW_HELD_LAYER, readSnowAt, snowPaints } from '../../utils/snowPoint'
 
 /**
  * How solid the snow depth field is drawn.
@@ -52,8 +62,15 @@ export interface SnowOverlay {
   update(next: { show: boolean }): void
 }
 
-export function mountSnow(map: maplibregl.Map): SnowOverlay {
+export function mountSnow(map: maplibregl.Map, deps: { popups: MapPopups; tiles?: HeldTiles }): SnowOverlay {
+  const tiles = deps.tiles ?? SNOW_TILES
   let showing = false
+  deps.popups.registerPoint({
+    target: 'snow',
+    shown: () => showing,
+    paints: (at) => snowPaints(tiles, at),
+    read: (at, signal) => readSnowAt(tiles, at, signal),
+  })
   return {
     update({ show }) {
       if (show === showing) return
@@ -61,13 +78,17 @@ export function mountSnow(map: maplibregl.Map): SnowOverlay {
       if (!show) {
         if (map.getLayer(SNOW_LAYER_ID)) map.removeLayer(SNOW_LAYER_ID)
         if (map.getSource(SNOW_SOURCE_ID)) map.removeSource(SNOW_SOURCE_ID)
+        // A card about snow the map no longer draws goes with it, and so do
+        // the copies of the tiles it was read from.
+        deps.popups.closeAll('snow')
+        tiles.drop(SNOW_HELD_LAYER)
         return
       }
       const beneath = snowBeneath((id) => Boolean(map.getLayer(id)))
       if (!map.getSource(SNOW_SOURCE_ID)) {
         map.addSource(SNOW_SOURCE_ID, {
           type: 'raster',
-          tiles: [snowTileUrl()],
+          tiles: [SNOW_HELD_URL],
           tileSize: SNOW_TILE_SIZE,
           // The analysis covers the coterminous US and no further, so this is
           // what stops a reader in the Alps paying for a screen of transparent

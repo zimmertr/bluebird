@@ -370,3 +370,29 @@ export function analyzedSnapshot(over: Partial<AnalyzedView> = {}): AnalyzedView
 export function elevationLookup(identity: IdentityMap = NO_IDENTITY): ElevationLookup {
   return { identity, latest: () => identity, inquiring: new Set() }
 }
+
+/**
+ * An ArcGIS `identify` answer from the NOHRSC snow analysis, as the live
+ * service gave it at Rocky Mountain National Park on 2026-10-16 (#737): the
+ * footprint layer with the valid time, the depth in metres and the water in
+ * millimetres, each with the class NOAA paints it by. Trimmed to the
+ * attributes `snowPoint.ts` reads.
+ */
+export function snowIdentify({
+  depthM = '0.11',
+  depthClass = '3',
+  sweMm = '18',
+  validTime = '10/16/2026 12:00:00 PM',
+}: { depthM?: string; depthClass?: string; sweMm?: string; validTime?: string } = {}) {
+  return {
+    results: [
+      { layerId: 2, layerName: 'Footprint', attributes: { idp_validtime: validTime } },
+      {
+        layerId: 3,
+        layerName: 'Image',
+        attributes: { 'Service Pixel Value': depthM, 'Classify.Class value': depthClass },
+      },
+      { layerId: 7, layerName: 'Image', attributes: { 'Service Pixel Value': sweMm, 'Classify.Class value': '3' } },
+    ],
+  }
+}

@@ -43,18 +43,19 @@ export interface PopupBoard {
   /**
    * Put a popup on the board, so the next `closeAll` takes it down. `owner` is
    * the kind of thing it describes, so an overlay switched off can take down
-   * its own popups and leave the rest.
+   * its own popups and leave the rest. A card that describes two layers at
+   * one point names both (#737), and either one switched off takes it down.
    */
-  track(popup: BoardPopup, owner?: MapTarget): void
+  track(popup: BoardPopup, owner?: MapTarget | readonly MapTarget[]): void
   /** Close every popup on the board, or every one this kind of thing owns. */
   closeAll(owner?: MapTarget): void
 }
 
 export function createPopupBoard(): PopupBoard {
-  let open: { popup: BoardPopup; owner?: MapTarget }[] = []
+  let open: { popup: BoardPopup; owners: readonly MapTarget[] }[] = []
   return {
     track(popup, owner) {
-      open.push({ popup, owner })
+      open.push({ popup, owners: owner === undefined ? [] : typeof owner === 'string' ? [owner] : owner })
       // MapLibre fires this for its own close button and for closeOnClick, so
       // the board empties itself rather than growing for the session.
       popup.on('close', () => {
@@ -62,7 +63,7 @@ export function createPopupBoard(): PopupBoard {
       })
     },
     closeAll(owner) {
-      const closing = open.filter((p) => owner === undefined || p.owner === owner)
+      const closing = open.filter((p) => owner === undefined || p.owners.includes(owner))
       open = open.filter((p) => !closing.includes(p))
       for (const { popup } of closing) popup.remove()
     },

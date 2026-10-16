@@ -48,9 +48,14 @@
 
 import { RampTick, rampCss, rampTicks } from './legendRamp'
 
-/** The `export` endpoint of the NOHRSC snow analysis map service. */
-const EXPORT_URL =
-  'https://mapservices.weather.noaa.gov/raster/rest/services/snow/NOHRSC_Snow_Analysis/MapServer/export'
+/**
+ * The NOHRSC snow analysis map service: `export` draws the layer, and
+ * `identify` answers a click on it (`snowPoint.ts`).
+ */
+export const SNOW_SERVICE_URL =
+  'https://mapservices.weather.noaa.gov/raster/rest/services/snow/NOHRSC_Snow_Analysis/MapServer'
+
+const EXPORT_URL = `${SNOW_SERVICE_URL}/export`
 
 /** Where a click on the snow legend goes: NOAA's own page for the analysis. */
 export const NOHRSC_HREF = 'https://www.nohrsc.noaa.gov/nsa/'
@@ -78,6 +83,32 @@ export const SNOW_TILE_SIZE = 512
 export const SNOW_BOUNDS: [number, number, number, number] = [
   -130.5167, 24.1, -62.25, 58.2334,
 ]
+
+/**
+ * The scheme the field's tiles are loaded through, so the app keeps a copy of
+ * each one to read what was painted at a point (#737,
+ * `map/heldTileProtocol.ts`): `bluebird-snow://{z}/{x}/{y}` asks for the
+ * render `snowExportHref` names for that tile.
+ */
+export const SNOW_SCHEME = 'bluebird-snow'
+
+/** The field's tile template on that scheme, with `{z}/{x}/{y}` left for MapLibre. */
+export const SNOW_HELD_URL = `${SNOW_SCHEME}://{z}/{x}/{y}`
+
+/** Half the width of the Web Mercator world, in metres. */
+const MERCATOR_HALF = 20037508.342789244
+
+/**
+ * The render of one tile: `snowTileUrl` with the tile's own EPSG:3857 box,
+ * `minX,minY,maxX,maxY`, which is what MapLibre's `{bbox-epsg-3857}` expands
+ * to.
+ */
+export function snowExportHref(z: number, x: number, y: number): string {
+  const w = (2 * MERCATOR_HALF) / 2 ** z
+  const minX = -MERCATOR_HALF + x * w
+  const maxY = MERCATOR_HALF - y * w
+  return snowTileUrl().replace('{bbox-epsg-3857}', [minX, maxY - w, minX + w, maxY].join(','))
+}
 
 /**
  * The deepest zoom worth asking NOAA to render.
