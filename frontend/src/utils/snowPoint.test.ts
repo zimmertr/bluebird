@@ -6,6 +6,7 @@ import {
   failedSnowSection,
   fetchSnowAt,
   formatInches,
+  GLACIER_TITLE,
   isServiceError,
   parseSnowIdentify,
   parseValidTime,
@@ -24,6 +25,7 @@ import { storeHolding } from '../testSupport/heldTiles'
 import { fakeResponse, snowIdentify } from '../testSupport/fixtures'
 import { markupText } from '../testSupport/markupText'
 import { updatedAt, updatedLine } from './popupChrome'
+import type { GlacierCheck } from './glacierCell'
 
 // The ArcGIS error the service sometimes answers with a 200 (2026-10-16).
 const SERVICE_ERROR = {
@@ -120,23 +122,30 @@ const held = (rgba: readonly [number, number, number, number]) =>
 const READING = { depthIn: 151.2, sweIn: 83.4, validMs: VALID_MS }
 
 describe('snowWord', () => {
-  // NOAA's own band boundaries, five words (TJ, 2026-10-16).
+  // NOAA's own band boundaries, four words that say only how deep (TJ,
+  // 2026-10-16, #748).
   it('names a depth by the band it falls in', () => {
     expect(snowWord(0.39)).toBe('Light snow')
-    expect(snowWord(3.89)).toBe('Light snow')
-    expect(snowWord(3.9)).toBe('Moderate snow')
-    expect(snowWord(20)).toBe('Deep snow')
-    expect(snowWord(59)).toBe('Very deep snow')
+    expect(snowWord(9.79)).toBe('Light snow')
+    expect(snowWord(9.8)).toBe('Moderate snow')
+    expect(snowWord(38.9)).toBe('Moderate snow')
+    expect(snowWord(39)).toBe('Deep snow')
+    expect(snowWord(97.9)).toBe('Deep snow')
+    expect(snowWord(98)).toBe('Very deep snow')
     expect(snowWord(196)).toBe('Very deep snow')
-    // Baker's glaciers read 769 in.
-    expect(snowWord(769)).toBe('Permanent snow')
+    // A record winter's snowpack, where nothing is permanent.
+    expect(snowWord(197)).toBe('Extremely deep snow')
+    expect(snowWord(769)).toBe('Extremely deep snow')
   })
 
   // The renders paint in exactly NOAA's legend colours, so the pixel names
   // the band before NOAA is asked anything.
   it('names a painted pixel by the legend colour it wears', () => {
+    expect(snowWordOfPixel(bandColor(3.9))).toBe('Light snow')
     expect(snowWordOfPixel(bandColor(9.8))).toBe('Moderate snow')
-    expect(snowWordOfPixel(bandColor(394))).toBe('Permanent snow')
+    expect(snowWordOfPixel(bandColor(59))).toBe('Deep snow')
+    expect(snowWordOfPixel(bandColor(98))).toBe('Very deep snow')
+    expect(snowWordOfPixel(bandColor(394))).toBe('Extremely deep snow')
     expect(snowWordOfPixel([0, 0, 0, 0])).toBeNull()
     expect(snowWordOfPixel([1, 2, 3, 255])).toBeNull()
     expect(snowWordOfPixel(null)).toBeNull()
@@ -163,7 +172,7 @@ describe('the snow sections', () => {
   // The name and the source on the band, every number in the body with when
   // it was measured (TJ, 2026-10-16).
   it('opens with its name, its source and a bar for each value on its way', () => {
-    const section = pendingSnowSection('Very deep snow')
+    const section = pendingSnowSection('Very deep snow', false)
     expect(section.title).toBe('Very deep snow')
     expect(section.source).toBe(SNOW_SOURCE)
     expect(section.rows.map(markupText)).toEqual(['Depth: ', 'Snow water equivalent: ', 'Updated: '])
@@ -181,9 +190,21 @@ describe('the snow sections', () => {
     expect(section.rows[2]).toBe(updatedLine(String(updatedAt(VALID_MS))))
   })
 
-  it('leaves off a value NOAA did not give', () => {
+  // Every snow section has the same lines (#748).
+  it('marks a value NOAA did not give rather than leaving its row off', () => {
     const section = snowSection('Light snow', { depthIn: 2, sweIn: null, validMs: null })
-    expect(section.rows.map(markupText)).toEqual(['Depth: 2.0 in'])
+    expect(section.rows.map(markupText)).toEqual(['Depth: 2.0 in', 'Snow water equivalent: N/A', 'Updated: N/A'])
+  })
+
+  // On a glacier the name says where the numbers stand, and the numbers
+  // stay NOAA's (TJ, 2026-10-16, #748).
+  it('names a glacier and keeps NOAA\'s numbers there', () => {
+    expect(pendingSnowSection('Very deep snow', true).title).toBe(GLACIER_TITLE)
+    // Not known yet: a bar, never a depth word a glacier would replace.
+    expect(pendingSnowSection('Very deep snow', undefined).title).toContain('aria-hidden')
+    const section = snowSection('Very deep snow', READING, true)
+    expect(section.title).toBe(GLACIER_TITLE)
+    expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in', `Updated: ${updatedAt(VALID_MS)}`])
   })
 
   it('says NOAA failed in place of the values, keeping its name', () => {
@@ -221,19 +242,29 @@ describe('fetchSnowAt', () => {
   })
 })
 
+// A glacier check that knows its answer at once, and one that must ask.
+const OFF_GLACIER: GlacierCheck = { now: () => false, ask: async () => false }
+const asksGlacier = (answer: boolean): GlacierCheck => ({ now: () => undefined, ask: async () => answer })
+
 describe('readSnowAt', () => {
   // The card opens on the name alone; NOAA's numbers come later.
   it('names the snow at once from the pixel and fills the values later', async () => {
-    const reading = await readSnowAt(held(bandColor(98)), AT, signal(), async () => READING)
-    expect(reading?.section).toEqual(pendingSnowSection('Very deep snow'))
+    const reading = await readSnowAt(held(bandColor(98)), AT, signal(), async () => READING, OFF_GLACIER)
+    expect(reading?.section).toEqual(pendingSnowSection('Very deep snow', false))
     expect(await reading?.later).toEqual(snowSection('Very deep snow', READING))
   })
 
   it('settles to the failure line when NOAA cannot answer, and warns', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const reading = await readSnowAt(held(bandColor(20)), AT, signal(), async () => {
-      throw new Error('down')
-    })
+    const reading = await readSnowAt(
+      held(bandColor(39)),
+      AT,
+      signal(),
+      async () => {
+        throw new Error('down')
+      },
+      OFF_GLACIER,
+    )
     expect(await reading?.later).toEqual(failedSnowSection('Deep snow'))
     expect(warn).toHaveBeenCalledTimes(1)
     warn.mockRestore()
@@ -243,19 +274,57 @@ describe('readSnowAt', () => {
   it('rejects quietly once its card is gone', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const ac = new AbortController()
-    const reading = await readSnowAt(held(bandColor(20)), AT, ac.signal, async () => {
-      ac.abort()
-      throw new DOMException('aborted', 'AbortError')
-    })
+    const reading = await readSnowAt(
+      held(bandColor(20)),
+      AT,
+      ac.signal,
+      async () => {
+        ac.abort()
+        throw new DOMException('aborted', 'AbortError')
+      },
+      OFF_GLACIER,
+    )
     await expect(reading?.later).rejects.toThrow()
     expect(warn).not.toHaveBeenCalled()
     warn.mockRestore()
   })
 
+  it('names a glacier at once where its tiles are in hand', async () => {
+    const reading = await readSnowAt(held(bandColor(394)), AT, signal(), async () => READING, { now: () => true, ask: async () => true })
+    expect(reading?.section).toEqual(pendingSnowSection('Extremely deep snow', true))
+    expect(await reading?.later).toEqual(snowSection('Extremely deep snow', READING, true))
+  })
+
+  // A cell whose glacier tiles were not in hand opens with a bar for its
+  // name, and takes the right one with its numbers (TJ, 2026-10-16).
+  it('names a cell with its numbers where it had to ask about glaciers', async () => {
+    const onIce = await readSnowAt(held(bandColor(394)), AT, signal(), async () => READING, asksGlacier(true))
+    expect(onIce?.section.title).not.toContain('Extremely deep snow')
+    expect(onIce?.section.title).toContain('aria-hidden')
+    expect((await onIce?.later)?.title).toBe(GLACIER_TITLE)
+    const offIce = await readSnowAt(held(bandColor(394)), AT, signal(), async () => READING, asksGlacier(false))
+    expect((await offIce?.later)?.title).toBe('Extremely deep snow')
+  })
+
+  it('keeps a glacier\'s name when NOAA fails there', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const reading = await readSnowAt(
+      held(bandColor(394)),
+      AT,
+      signal(),
+      async () => {
+        throw new Error('down')
+      },
+      asksGlacier(true),
+    )
+    expect(await reading?.later).toEqual(failedSnowSection(GLACIER_TITLE))
+    warn.mockRestore()
+  })
+
   it('reads nothing where the field painted nothing, and asks NOAA nothing', async () => {
     const fetchReading = vi.fn()
-    expect(await readSnowAt(held([0, 0, 0, 0]), AT, signal(), fetchReading)).toBeNull()
-    expect(await readSnowAt(held(bandColor(20)), { lng: 10, lat: 46, zoom: 9 }, signal(), fetchReading)).toBeNull()
+    expect(await readSnowAt(held([0, 0, 0, 0]), AT, signal(), fetchReading, OFF_GLACIER)).toBeNull()
+    expect(await readSnowAt(held(bandColor(20)), { lng: 10, lat: 46, zoom: 9 }, signal(), fetchReading, OFF_GLACIER)).toBeNull()
     expect(fetchReading).not.toHaveBeenCalled()
   })
 })

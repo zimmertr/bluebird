@@ -21,7 +21,7 @@ import type { HeldTiles } from '../../utils/heldTiles'
 import { RADAR_TILES } from '../heldTileProtocol'
 import type { MapPopups } from '../mapPopups'
 import { radarHeldUrl, radarLayerId, radarOffsets } from '../../utils/radar'
-import { radarPaints, readRadarAt } from '../../utils/radarPoint'
+import { radarPaints, readRadarAt, rereadRadarAt } from '../../utils/radarPoint'
 import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 
 /**
@@ -75,6 +75,7 @@ export function mountRadar(
     shown: () => showing,
     paints: (at) => radarPaints(tiles, onScreen, at),
     read: (at) => readRadarAt(tiles, onScreen, at),
+    refresh: (at) => rereadRadarAt(tiles, onScreen, at),
   })
 
   function addFrames() {
@@ -183,6 +184,9 @@ export function mountRadar(
   function showFrame(index: number) {
     const offsets = radarOffsets()
     const active = activeOffset(offsets, index)
+    // A new frame is a new picture under an open card and under a resting
+    // mouse, and neither a click nor a move will come to say so (#748).
+    const moved = active !== onScreen
     onScreen = active
     for (const offset of offsets) {
       const id = radarLayerId(offset)
@@ -193,6 +197,7 @@ export function mountRadar(
       if (offset === active) map.setLayoutProperty(id, 'visibility', 'visible')
       map.setPaintProperty(id, 'raster-opacity', offset === active ? RADAR_OPACITY : 0)
     }
+    if (moved) deps.popups.refreshPoint('radar')
   }
 
   return {
