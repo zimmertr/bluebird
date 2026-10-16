@@ -537,7 +537,10 @@ One size stays under the floor, `GLYPH_SIZE` at 10px, private to `styles.ts`: a
 glyph inside a box whose size something else decides, the legend strip's
 numerals in their scrim band and the smoke key's letters in their chips, which
 grew to 16px squares to take them. Neither is prose, and each is measured
-against its box.
+against its box. The map's scale bar keeps MapLibre's 10px for the same
+reason: its label sits in a bar whose width the distance decides, and at 11px
+`1000 km` ran past the end of its narrowest bar (record
+[0162](decisions/0162-scale-bar-on-the-theme-ground.md)).
 
 Re-measured at 11px, 2026-10-13 against the built image: the calendar's weekday
 row, the player's marks, the model picker's reach column (no option overflows),
@@ -685,9 +688,15 @@ round button at the library's 24px (`MAP_CREDIT.button`) and the opened line
 is the floating card (`MAP_CREDIT.card`), its links dressed in `map.css` as
 `LINK` dresses the app's. The compass needle is redrawn rather than inverted,
 red-500 north and slate-50 south edged in slate-600, and the (i)'s glyph is
-centred on its button's whole box. The scale bar keeps the library's look: it
-is a ruler on the map, not a control.
-Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md)
+centred on its button's whole box. The scale bar is a ruler on the map, not a
+control, so it wears none of that chrome.
+Record: [0147](decisions/0147-map-buttons-wear-the-app-chrome.md) It stands on
+the legend ramp's scrim in the ramp's ink instead, so it follows the theme
+(5.35:1 over a white map in the dark theme, its worst), with its ends dark in
+both themes because the basemap is light in both, and its label keeps the
+vendor's 10px, under the floor, because at 11px `1000 km` on its narrowest bar
+ran past the bar's end (`e2e/scaleBar.spec.ts`).
+Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)
 
 The whole notice block stands on the map in a band (`MAP_NOTICE_BAND`):
 the panel's own boxes on its slate-800, 12px off each side, 10px over the
