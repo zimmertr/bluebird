@@ -325,6 +325,19 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
 }
 
 /**
+ * A second part of a card's body, ruled off from the part above it by the
+ * edge the card's own sections wear, run from edge to edge through the body's
+ * 10px sides. For a card that describes two things at one point, the rain
+ * radar and the snow depth under one click (#737): the second keeps its own
+ * name and source line inside the body, since the band can carry only one.
+ * Inside the body rather than a section of `popupCard` after it, so a capped
+ * card scrolls the two together.
+ */
+export function bodySection(inner: string): string {
+  return `<div style="margin:${SECTION_PAD_Y} -10px 0;padding:${SECTION_PAD_Y} 10px 0;border-top:${SECTION_EDGE}">${inner}</div>`
+}
+
+/**
  * The popup's measurements as a grid: a row per metric family, a column per
  * aggregate with the window total last, headed once at the top (TJ,
  * 2026-10-08, at every width). It replaced a heading line per family with its

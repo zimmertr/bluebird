@@ -9,9 +9,16 @@
  *
  * Inserted before the first smoke fill, which puts the whole loop under every
  * polygon overlay and under the draw, result and label layers above them.
+ *
+ * A click on an echo reads the frame on screen at that point and describes it
+ * (#737): a point target, since a raster layer has no feature for a click to
+ * find, answered by decoding the tile the frame drew there
+ * (`utils/radarPoint.ts`).
  */
 import type * as maplibregl from 'maplibre-gl'
+import type { MapPopups } from '../mapPopups'
 import { radarLayerId, radarOffsets, radarTileUrl } from '../../utils/radar'
+import { readRadarAt } from '../../utils/radarPoint'
 import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 
 /**
@@ -49,9 +56,18 @@ export interface RadarOverlay {
   dispose(): void
 }
 
-export function mountRadar(map: maplibregl.Map): RadarOverlay {
+export function mountRadar(map: maplibregl.Map, deps: { popups: MapPopups }): RadarOverlay {
   let showing = false
   let warmTimer: ReturnType<typeof setInterval> | undefined
+  // The frame on screen, which is the one a click describes: during playback
+  // the reader is looking at an older picture than now.
+  let onScreen = 0
+
+  deps.popups.registerPoint({
+    target: 'radar',
+    shown: () => showing,
+    read: ({ lng, lat, zoom }, signal) => readRadarAt(lng, lat, zoom, onScreen, signal),
+  })
 
   function addFrames() {
     const beneath = smokeLayerId(SMOKE_DENSITIES[0])
@@ -159,6 +175,7 @@ export function mountRadar(map: maplibregl.Map): RadarOverlay {
   function showFrame(index: number) {
     const offsets = radarOffsets()
     const active = activeOffset(offsets, index)
+    onScreen = active
     for (const offset of offsets) {
       const id = radarLayerId(offset)
       if (!map.getLayer(id)) continue
@@ -178,6 +195,8 @@ export function mountRadar(map: maplibregl.Map): RadarOverlay {
       } else if (!show && showing) {
         stopWarmUp()
         removeFrames()
+        // A card about echoes the map no longer draws goes with them.
+        deps.popups.closeAll('radar')
       }
       showing = show
       if (show) showFrame(index)

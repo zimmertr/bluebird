@@ -48,9 +48,14 @@
 
 import { RampTick, rampCss, rampTicks } from './legendRamp'
 
-/** The `export` endpoint of the NOHRSC snow analysis map service. */
-const EXPORT_URL =
-  'https://mapservices.weather.noaa.gov/raster/rest/services/snow/NOHRSC_Snow_Analysis/MapServer/export'
+/**
+ * The NOHRSC snow analysis map service: `export` draws the layer, and
+ * `identify` answers a click on it (`snowPoint.ts`).
+ */
+export const SNOW_SERVICE_URL =
+  'https://mapservices.weather.noaa.gov/raster/rest/services/snow/NOHRSC_Snow_Analysis/MapServer'
+
+const EXPORT_URL = `${SNOW_SERVICE_URL}/export`
 
 /** Where a click on the snow legend goes: NOAA's own page for the analysis. */
 export const NOHRSC_HREF = 'https://www.nohrsc.noaa.gov/nsa/'

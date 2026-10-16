@@ -6,8 +6,13 @@
  * is: a raster source starts fetching the moment a rendered layer names it, and
  * every one of those tiles is a render NOAA performs on demand for somebody who
  * never asked for the layer.
+ *
+ * A click where it paints snow asks NOAA for the analysis at that point and
+ * describes it (#737): a point target, since a raster layer has no feature for
+ * a click to find (`utils/snowPoint.ts`).
  */
 import type * as maplibregl from 'maplibre-gl'
+import type { MapPopups } from '../mapPopups'
 import { RADAR_OLDEST_MIN, radarLayerId } from '../../utils/radar'
 import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 import {
@@ -18,6 +23,7 @@ import {
   SNOW_TILE_SIZE,
   snowTileUrl,
 } from '../../utils/snowDepth'
+import { readSnowAt } from '../../utils/snowPoint'
 
 /**
  * How solid the snow depth field is drawn.
@@ -52,8 +58,13 @@ export interface SnowOverlay {
   update(next: { show: boolean }): void
 }
 
-export function mountSnow(map: maplibregl.Map): SnowOverlay {
+export function mountSnow(map: maplibregl.Map, deps: { popups: MapPopups }): SnowOverlay {
   let showing = false
+  deps.popups.registerPoint({
+    target: 'snow',
+    shown: () => showing,
+    read: ({ lng, lat }, signal) => readSnowAt(lng, lat, signal),
+  })
   return {
     update({ show }) {
       if (show === showing) return
@@ -61,6 +72,8 @@ export function mountSnow(map: maplibregl.Map): SnowOverlay {
       if (!show) {
         if (map.getLayer(SNOW_LAYER_ID)) map.removeLayer(SNOW_LAYER_ID)
         if (map.getSource(SNOW_SOURCE_ID)) map.removeSource(SNOW_SOURCE_ID)
+        // A card about snow the map no longer draws goes with it.
+        deps.popups.closeAll('snow')
         return
       }
       const beneath = snowBeneath((id) => Boolean(map.getLayer(id)))

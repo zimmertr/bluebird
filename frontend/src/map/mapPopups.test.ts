@@ -40,10 +40,11 @@ vi.mock('maplibre-gl', () => ({
 }))
 
 import { createMapController, type MapInputs } from './controller'
-import { mountMapPopups, type MapPopupTarget } from './mapPopups'
+import { mountMapPopups, type MapPointTarget, type MapPopupTarget } from './mapPopups'
 import { createPopupBoard, popupOptions } from './popups'
 import { stubMap, type StubFeature } from '../testSupport/stubMap'
 import type { MapTarget } from '../utils/mapClick'
+import type { PointSection } from '../utils/pointReadout'
 
 const LAYERS = ['fire-fill', 'marker', 'heavy', 'light', 'trail', 'vertices']
 
@@ -324,5 +325,119 @@ describe('mountMapPopups openCard and openBare', () => {
     const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
     expect(popups.openCard([0, 0], '<p>card</p>', { owner: 'result', pan: false }).dy).toBeLessThan(0)
     expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
+  })
+})
+
+describe('mountMapPopups point targets', () => {
+  const section = (title: string): PointSection => ({ title, source: `${title} source`, rows: [] })
+  // Lets every reading that has answered settle.
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  function point(
+    popups: ReturnType<typeof setup>['popups'],
+    target: MapTarget,
+    read: MapPointTarget['read'],
+    shown = () => true,
+  ) {
+    const spy = vi.fn(read)
+    popups.registerPoint({ target, shown, read: spy })
+    return spy
+  }
+
+  // A storm over a snowpack is described whole: both readings, one card,
+  // the radar first, and either layer switched off takes the card down.
+  it('asks every picture that is on and puts every answer on one card in rank order', async () => {
+    const { popups, click } = setup()
+    point(popups, 'snow', async () => section('Snow'))
+    point(popups, 'radar', async () => section('Rain'))
+    click()
+    await settle()
+    expect(made).toHaveLength(1)
+    expect(made[0].html.indexOf('Rain')).toBeLessThan(made[0].html.indexOf('Snow'))
+    popups.closeAll('snow')
+    expect(made[0].removed).toBe(true)
+  })
+
+  it('hands a reader the clicked point, its longitude wrapped, and the zoom', async () => {
+    const { stub, popups } = setup()
+    const read = point(popups, 'radar', async () => null)
+    stub.fire('click', undefined, { point: { x: 0, y: 0 }, lngLat: { lng: 238.5, lat: 47.5 }, originalEvent: {} })
+    expect(read.mock.calls[0][0]).toEqual({ lng: -121.5, lat: 47.5, zoom: 8 })
+  })
+
+  it('opens nothing where no picture painted', async () => {
+    const { popups, click } = setup()
+    point(popups, 'radar', async () => null)
+    point(popups, 'snow', async () => null)
+    click()
+    await settle()
+    expect(made).toEqual([])
+  })
+
+  it('never asks a picture that is switched off', () => {
+    const { popups, click } = setup()
+    const read = point(popups, 'snow', async () => section('Snow'), () => false)
+    click()
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  // What every overlay's failed fetch does: nothing on screen, a warning in
+  // the console, and the other layer's answer still stands.
+  it('leaves a failed reading off the card and warns', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { popups, click } = setup()
+    point(popups, 'radar', async () => section('Rain'))
+    point(popups, 'snow', async () => {
+      throw new Error('down')
+    })
+    click()
+    await settle()
+    expect(made).toHaveLength(1)
+    expect(made[0].html).toContain('Rain')
+    expect(made[0].html).not.toContain('Snow')
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
+  })
+
+  it('asks no picture when a shape under the click opens', () => {
+    const { popups, register, under, click, opened } = setup()
+    const read = point(popups, 'radar', async () => section('Rain'))
+    register('smoke', ['heavy'])
+    under('heavy')
+    click()
+    expect(opened).toEqual([{ target: 'smoke', layer: 'heavy' }])
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  it('asks no picture while the ring is drawn, and places a point', () => {
+    const { popups, click, addPoint } = setup({ drawing: true })
+    const read = point(popups, 'radar', async () => section('Rain'))
+    click()
+    expect(read).not.toHaveBeenCalled()
+    expect(addPoint).toHaveBeenCalledTimes(1)
+  })
+
+  // NOAA takes most of a second: a reader who has clicked somewhere else by
+  // then is not shown a card about the place they left.
+  it('drops a reading the next click made stale', async () => {
+    const { popups, click } = setup()
+    let answer: (s: PointSection) => void = () => {}
+    let first = true
+    point(popups, 'snow', (_at, signal) => {
+      if (!first) return Promise.resolve(null)
+      first = false
+      return new Promise((resolve, reject) => {
+        answer = resolve
+        signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))
+      })
+    })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    click()
+    click()
+    answer(section('Snow'))
+    await settle()
+    expect(made).toEqual([])
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

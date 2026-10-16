@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// The reading itself is `snowPoint.ts`'s, tested there; this file holds what
+// the overlay hands it.
+const { readSnowAt } = vi.hoisted(() => ({ readSnowAt: vi.fn() }))
+vi.mock('../../utils/snowPoint', () => ({ readSnowAt }))
 import { SNOW_OPACITY, mountSnow, snowBeneath } from './snow'
 import { SNOW_LAYER_ID, SNOW_SOURCE_ID } from '../../utils/snowDepth'
+import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
 const SMOKE_FIRST = 'smoke-fill-Light'
@@ -23,20 +29,20 @@ describe('snowBeneath', () => {
 describe('mountSnow', () => {
   it('adds nothing until it is switched on', () => {
     const stub = stubMap({ layers: [SMOKE_FIRST] })
-    mountSnow(stub.map)
+    mountSnow(stub.map, { popups: fakeMapPopups().popups })
     expect(stub.stack).toEqual([SMOKE_FIRST])
   })
 
   it('sits under the radar whichever is switched on first', () => {
     const stub = stubMap({ layers: ['forecast-grid-fill', RADAR_OLDEST, SMOKE_FIRST] })
-    mountSnow(stub.map).update({ show: true })
+    mountSnow(stub.map, { popups: fakeMapPopups().popups }).update({ show: true })
     expect(stub.stack).toEqual(['forecast-grid-fill', SNOW_LAYER_ID, RADAR_OLDEST, SMOKE_FIRST])
     expect(stub.paint[SNOW_LAYER_ID]['raster-opacity']).toBe(SNOW_OPACITY)
   })
 
   it('removes its layer and source when switched off, and adds them again', () => {
     const stub = stubMap({ layers: [SMOKE_FIRST] })
-    const snow = mountSnow(stub.map)
+    const snow = mountSnow(stub.map, { popups: fakeMapPopups().popups })
     snow.update({ show: true })
     snow.update({ show: false })
     expect(stub.stack).toEqual([SMOKE_FIRST])
@@ -47,10 +53,32 @@ describe('mountSnow', () => {
 
   it('does nothing for a repeat of the same state', () => {
     const stub = stubMap({ layers: [SMOKE_FIRST] })
-    const snow = mountSnow(stub.map)
+    const snow = mountSnow(stub.map, { popups: fakeMapPopups().popups })
     snow.update({ show: true })
     const before = stub.calls.length
     snow.update({ show: true })
     expect(stub.calls.length).toBe(before)
+  })
+})
+
+describe('mountSnow click reading', () => {
+  it('registers a point target that is asked only while the field is on', () => {
+    const { popups, points } = fakeMapPopups()
+    const snow = mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups })
+    expect(points.map((p) => p.target)).toEqual(['snow'])
+    expect(points[0].shown()).toBe(false)
+    snow.update({ show: true })
+    expect(points[0].shown()).toBe(true)
+    const signal = new AbortController().signal
+    void points[0].read({ lng: -105.6, lat: 40.25, zoom: 9 }, signal)
+    expect(readSnowAt).toHaveBeenLastCalledWith(-105.6, 40.25, signal)
+  })
+
+  it('takes its cards down when switched off', () => {
+    const { popups, closed } = fakeMapPopups()
+    const snow = mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups })
+    snow.update({ show: true })
+    snow.update({ show: false })
+    expect(closed).toEqual(['snow'])
   })
 })

@@ -16,6 +16,16 @@
  * a hover: one opened under the cursor covers the destinations inside a fire
  * or a closure, and a touch screen has no hover to open it.
  *
+ * A picture rather than a shape, the rain radar or the snow depth (#737), is
+ * a point target instead (`registerPoint`): it has no feature for a click to
+ * find, so it is asked what it painted at the point once no shape there has
+ * opened, every such layer that is on at once, and one card carries every
+ * answer (`utils/pointReadout.ts`). Its answer takes a tile decode or a
+ * request, so the next click drops a reading still on its way, and a reading
+ * that fails opens nothing and warns in the console, as an overlay's failed
+ * fetch does. The cursor does not change over one: it is decided on every
+ * move, and asking a picture what it painted is a fetch.
+ *
  * So a new layer with something to say registers a target and inherits all of
  * this. The linter's `map-popups-owned` check fails a `new Popup`, a DOM
  * marker, or a click, hover, touch or pointer listener anywhere else under the
@@ -24,8 +34,9 @@
  */
 import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
-import { mapCursor, rankedTargets, type MapTarget } from '../utils/mapClick'
+import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popupChrome'
+import { pointCardHtml, type PointSection } from '../utils/pointReadout'
 import { POPUP_PAN_MS, capHeight, placePopup, type Point, type PopupSide, type Rect } from '../utils/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
@@ -75,10 +86,33 @@ export interface MapPopupTarget {
   holdsCursor?: () => boolean
 }
 
+/** Where a point target is asked about: the clicked coordinate, and the map's zoom. */
+export interface MapPoint {
+  lng: number
+  lat: number
+  zoom: number
+}
+
+/** A picture on the map that answers a click by what it painted at the point (#737). */
+export interface MapPointTarget {
+  target: MapTarget
+  /** Whether the layer is on, so a layer switched off is never asked. */
+  shown(): boolean
+  /**
+   * The layer's section of the card at this point, or null where it painted
+   * nothing. A rejection is a failed reading; `signal` aborts when the next
+   * click makes the answer stale.
+   */
+  read(at: MapPoint, signal: AbortSignal): Promise<PointSection | null>
+}
+
 /** What a card may set for itself; everything else is the same for every card. */
 export interface MapCardOptions {
-  /** The kind of thing it describes, so an overlay switched off can take it down. */
-  owner?: MapTarget
+  /**
+   * The kind of thing it describes, so an overlay switched off can take it
+   * down; every kind, for a card that describes more than one.
+   */
+  owner?: MapTarget | readonly MapTarget[]
   /** A ranked destination's card, which takes its own width rule. */
   result?: boolean
   /**
@@ -108,6 +142,8 @@ export interface PlacedCard {
 
 export interface MapPopups {
   register(target: MapPopupTarget): void
+  /** Register a picture that is asked about a point rather than found under it. */
+  registerPoint(target: MapPointTarget): void
   /**
    * Open a card on the board, placed where it shows the most of itself
    * (#738): every card the map opens, a destination's, a fire's, a closure's
@@ -143,6 +179,9 @@ export function mountMapPopups(
 ): MapPopups {
   const { controller, board } = deps
   const targets: MapPopupTarget[] = []
+  const points: MapPointTarget[] = []
+  // The point reading still on its way, which the next click makes stale.
+  let reading: AbortController | null = null
 
   // Every registered layer the map has drawn, asked together, because the
   // rank reads the whole set rather than a series of answers: one query for
@@ -172,6 +211,8 @@ export function mountMapPopups(
   }
 
   map.on('click', (e) => {
+    reading?.abort()
+    reading = null
     const { under, features } = targetsAt(e.point)
     if (!isPinning(e)) board.closeAll()
     const drawing = controller.inputs.drawing
@@ -183,7 +224,43 @@ export function mountMapPopups(
       if (feature && target.open({ feature, lngLat: e.lngLat, point: e.point }) !== false) return
     }
     if (drawing) deps.addPoint([e.lngLat.lng, e.lngLat.lat])
+    else void readPoint(e.lngLat)
   })
+
+  // Every picture that is on, asked together, because a click over a storm on
+  // a snowpack waits on the slower of the two rather than on both in turn.
+  // The answers go on one card in rank order; a failed one is left off and
+  // warned about, so a radar answer still opens when NOAA does not.
+  async function readPoint(lngLat: maplibregl.LngLat) {
+    const live = points.filter((p) => p.shown()).map((p) => p.target)
+    const asked = pointTargetsToAsk(controller.inputs.drawing, live)
+    if (asked.length === 0) return
+    const ac = new AbortController()
+    reading = ac
+    // A map scrolled past the antimeridian reports a longitude outside
+    // -180..180, which neither source knows.
+    const at = { lng: (((lngLat.lng + 180) % 360) + 360) % 360 - 180, lat: lngLat.lat, zoom: map.getZoom() }
+    const answers = await Promise.all(
+      asked.map((kind) =>
+        points
+          .find((p) => p.target === kind)!
+          .read(at, ac.signal)
+          .catch((err: unknown) => {
+            if (!ac.signal.aborted) console.warn(`The ${kind} reading failed`, err)
+            return null
+          }),
+      ),
+    )
+    if (ac.signal.aborted) return
+    reading = null
+    const found = asked.flatMap((kind, i) => (answers[i] ? [{ kind, section: answers[i] }] : []))
+    if (found.length === 0) return
+    api.openCard(
+      lngLat,
+      pointCardHtml(found.map((f) => f.section)),
+      { owner: found.map((f) => f.kind) },
+    )
+  }
 
   // The cursor follows the same rule as the click, read on every move over
   // the map rather than on each layer's enter and leave: two overlapping
@@ -207,7 +284,7 @@ export function mountMapPopups(
   const make = (
     at: maplibregl.LngLatLike,
     html: string,
-    owner: MapTarget | undefined,
+    owner: MapTarget | readonly MapTarget[] | undefined,
     options: maplibregl.PopupOptions,
   ) => {
     const popup = new Popup({ ...options, closeOnClick: false }).setLngLat(at).setHTML(html).addTo(map)
@@ -233,9 +310,12 @@ export function mountMapPopups(
     }))
   }
 
-  return {
+  const api: MapPopups = {
     register(target) {
       targets.push(target)
+    },
+    registerPoint(target) {
+      points.push(target)
     },
     openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true } = {}) {
       // Built hanging below its point, measured, and rebuilt above it only
@@ -296,4 +376,5 @@ export function mountMapPopups(
       board.closeAll(owner)
     },
   }
+  return api
 }

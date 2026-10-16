@@ -88,4 +88,15 @@ describe('createPopupBoard', () => {
     expect([card.open, loose.open]).toEqual([false, false])
     expect(fire.remove).toHaveBeenCalledTimes(1)
   })
+
+  // A card about a storm over a snowpack describes both layers, and either
+  // one switched off takes it down (#737).
+  it('closes a card two kinds of thing own when either is asked for', () => {
+    const board = createPopupBoard()
+    const [both, rain] = [fakePopup(), fakePopup()]
+    board.track(both, ['radar', 'snow'])
+    board.track(rain, 'radar')
+    board.closeAll('snow')
+    expect([both.open, rain.open]).toEqual([false, true])
+  })
 })

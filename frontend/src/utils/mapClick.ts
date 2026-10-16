@@ -24,11 +24,31 @@
  * destination the reader may add), then a closed trail, road or site, then a
  * fire perimeter, then the closed ground around it, then a smoke plume. A fire
  * outranks the closure drawn around it because the perimeter is the smaller
- * shape and the hazard itself, and smoke is last because a plume routinely
- * covers states.
+ * shape and the hazard itself, and smoke is the last of the shapes because a
+ * plume routinely covers states.
+ *
+ * The rain radar and the snow depth come after every shape (#737). They are
+ * pictures rather than features, so nothing is under the cursor until they
+ * are asked what they painted at the point, which takes a tile decode or a
+ * request to NOAA: they are asked only when no shape above them opened, and a
+ * click where both painted opens one card with the radar first, since rain is
+ * what is happening over the snow.
  */
-export const MAP_TARGETS = ['vertex', 'result', 'poi', 'closure-trail', 'fire', 'closure-area', 'smoke'] as const
+export const MAP_TARGETS = ['vertex', 'result', 'poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'] as const
 export type MapTarget = (typeof MAP_TARGETS)[number]
+
+/**
+ * The targets a click reads at a point rather than finds under the cursor,
+ * which `map/mapPopups.ts` asks after every shape has passed. Never while
+ * the ring is drawn, where a click on scenery places a corner.
+ */
+export const POINT_TARGETS: readonly MapTarget[] = ['radar', 'snow']
+
+/** The point targets to ask, in rank order: none while drawing. */
+export function pointTargetsToAsk(drawing: boolean, live: readonly MapTarget[]): MapTarget[] {
+  if (drawing) return []
+  return MAP_TARGETS.filter((t) => POINT_TARGETS.includes(t) && live.includes(t))
+}
 
 /**
  * What still takes a click while the ring is being drawn: its own handles and

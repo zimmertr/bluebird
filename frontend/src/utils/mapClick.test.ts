@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { DRAW_TARGETS, MAP_TARGETS, mapCursor, rankedTargets, resolveMapClick, type MapTarget } from './mapClick'
+import {
+  DRAW_TARGETS,
+  MAP_TARGETS,
+  POINT_TARGETS,
+  mapCursor,
+  pointTargetsToAsk,
+  rankedTargets,
+  resolveMapClick,
+  type MapTarget,
+} from './mapClick'
 
 // Every case is about which of two or more targets wins, because a single
 // target under the cursor always wins alone.
@@ -55,7 +64,7 @@ describe('resolveMapClick while drawing', () => {
   // perimeter used to swallow the click.
   it('treats every overlay and basemap label as scenery a corner lands on', () => {
     const scenery = MAP_TARGETS.filter((t) => !DRAW_TARGETS.includes(t))
-    expect(scenery).toEqual(['poi', 'closure-trail', 'fire', 'closure-area', 'smoke'])
+    expect(scenery).toEqual(['poi', 'closure-trail', 'fire', 'closure-area', 'smoke', 'radar', 'snow'])
     expect(resolveMapClick(true, scenery)).toEqual({ kind: 'add-vertex' })
   })
 
@@ -88,5 +97,27 @@ describe('mapCursor', () => {
   ]
   it.each(cases)('drawing %s over %j reads %j', (drawing, under, cursor) => {
     expect(mapCursor(drawing, under)).toBe(cursor)
+  })
+})
+
+describe('pointTargetsToAsk', () => {
+  // A picture is asked only once every shape has passed, so it ranks under
+  // all of them, and rain over snow is what the card leads with (#737).
+  it('ranks the pictures under every shape, the radar over the snow', () => {
+    expect(MAP_TARGETS.slice(-POINT_TARGETS.length)).toEqual(['radar', 'snow'])
+  })
+
+  it('asks the pictures that are on, in rank order', () => {
+    expect(pointTargetsToAsk(false, ['snow', 'radar'])).toEqual(['radar', 'snow'])
+    expect(pointTargetsToAsk(false, ['snow'])).toEqual(['snow'])
+    expect(pointTargetsToAsk(false, [])).toEqual([])
+  })
+
+  it('asks none of them while the ring is drawn', () => {
+    expect(pointTargetsToAsk(true, ['radar', 'snow'])).toEqual([])
+  })
+
+  it('never asks a shape as though it were a picture', () => {
+    expect(pointTargetsToAsk(false, ['smoke', 'fire', 'radar'])).toEqual(['radar'])
   })
 })

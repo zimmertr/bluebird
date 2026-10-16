@@ -267,13 +267,19 @@ links to the order where the Forest Service published one. Outside Oregon and
 Washington an amber line under the band gives the order's type, such as
 **Safety Closure**; an Oregon or Washington order is a fire closure, which its
 name already says. A plume's card says how dense it is, which satellite it was
-traced from, and over what hours. Nothing on the map opens on a hover. Where things overlap, the
+traced from, and over what hours. A click on a radar echo or on painted snow
+opens a card too: the radar's says how strong the echo is, its reflectivity, an
+estimated rain rate and which frame it was read from, and the snow's says the
+depth, the snow water equivalent and when NOAA's analysis was made. Where both
+are painted under one click, one card carries both, the radar first. A click
+where neither is painted opens nothing. Nothing on the map opens on a hover. Where things overlap, the
 smaller and more deliberate target takes the click: a marker or a peak inside a
 fire or a closure opens its own popup, a closed trail opens before the fire or
-the ground around it, a fire before the closure drawn around it, and any of them
-before the smoke over it. A closed trail answers a click a few pixels either
-side of its line. While you draw a polygon, fires, closures, smoke and map
-labels are scenery, and a click on one places a point.
+the ground around it, a fire before the closure drawn around it, any of them
+before the smoke over it, and the smoke before the radar and the snow under it.
+A closed trail answers a click a few pixels either side of its line. While you
+draw a polygon, fires, closures, smoke, the radar, the snow and map labels are
+scenery, and a click on one places a point.
 
 Read them for what they are. Radar is a **measurement of the last hour** and
 snow depth is an **analysis of now**, which makes them the two layers here that
