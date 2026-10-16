@@ -3250,6 +3250,15 @@ describe('the light theme', () => {
     expect([light('ink-strong'), light('ink'), light('ink-soft')]).toEqual(['#181c21', '#181c21', '#42474e'])
   })
 
+  // The theme is the header switch's, and dark the default whatever the
+  // operating system says (record 0158). A prefers-color-scheme query, or a
+  // custom dark variant built on one, would paint by the system's setting
+  // under a switch that may say the opposite. The linter's style-no-os-theme
+  // holds the sources to the same rule; ESLint does not read a stylesheet.
+  it('takes the theme from the switch, never from the operating system', () => {
+    for (const css of [indexCss, mapCss]) expect(css).not.toMatch(/prefers-color-scheme|@custom-variant dark/)
+  })
+
   // The accent: the label on the fill (1.4.3), the fill against everything
   // beside it (1.4.11), and the hover, which in light darkens and so stays AA
   // where the dark hover could not.
@@ -3368,7 +3377,7 @@ describe('the light theme', () => {
   // Notices: each ink on its own tint and on the panel, the destructive
   // button's label on its fill, and the dismiss glyph on its pill.
   it('keeps every notice ink at 4.5:1 or better on its tint and the panel', () => {
-    const tones = { warn: [6.93, 7.48], error: [7.24, 8.33], info: [7.44, 8.35] }
+    const tones = { warn: [5.85, 6.31], error: [7.24, 8.33], info: [7.44, 8.35] }
     for (const [tone, [onTint, onPanel]] of Object.entries(tones)) {
       const ink = hex(STATUS[tone as keyof typeof STATUS], 'text')
       const tint = hex(NOTICE[tone as keyof typeof NOTICE], 'bg')
@@ -3377,12 +3386,17 @@ describe('the light theme', () => {
       // The rule is the ink at 38% over the tint, the theme lab's derivation.
       expect(hex(NOTICE[tone as keyof typeof NOTICE], 'border')).toBe(over(ink, 0.38, tint))
     }
+    // The warning ink also stands bare, off any tint: the grid's waiting line
+    // on the floating legend, the comparison's notes on the raised results
+    // bar, the search notice on the well. Amber-800 since PR #733.
+    const warn = hex(STATUS.warn, 'text')
+    expect([FLOATING, RAISED, WELL].map((g) => ratio(warn, g))).toEqual([6.75, 5.66, 7.09])
     expect(ratio(hex(STATUS.ok, 'text'), PANEL)).toBe(5.84)
     expect(ratio(hex(BUTTON_DANGER, 'text'), hex(BUTTON_DANGER, 'bg'))).toBe(7.72)
     expect(ratio(hex(BUTTON_DANGER, 'text'), hex(BUTTON_DANGER, 'hover:bg'))).toBe(6.59)
     // The dismiss X, its box's ink on the pill's lift over the tint.
     const lift = Number(NOTICE_DISMISS.pill.match(/bg-lift\/(\d+)/)![1]) / 100
-    for (const [tone, want] of Object.entries({ warn: 6.31, error: 6.6, info: 6.77 })) {
+    for (const [tone, want] of Object.entries({ warn: 5.33, error: 6.6, info: 6.77 })) {
       const tint = hex(NOTICE[tone as keyof typeof NOTICE], 'bg')
       const ink = hex(STATUS[tone as keyof typeof STATUS], 'text')
       expect(ratio(ink, over(light('lift'), lift, tint)), tone).toBe(want)

@@ -256,13 +256,16 @@ body,
   --ui-range-hover: #bcdafc;
   --ui-on-fill: #ffffff;
   --ui-ok: #1d6b33;
-  --ui-warn: #6b4600;
+  /* Amber-800 rather than the palette's #6b4600, a brown that no longer read
+     as a warning beside dark's amber (the maintainer on PR #733): still
+     amber's own family, redder, and 28 degrees of hue from the danger red. */
+  --ui-warn: #973c00;
   --ui-danger: #93000a;
   --ui-info: #0b4a73;
   --ui-warn-tint: #fbe7c4;
   --ui-danger-tint: #ffdad6;
   --ui-info-tint: #d6e7fb;
-  --ui-warn-line: #c4aa7a;
+  --ui-warn-line: #d5a67a;
   --ui-danger-line: #d68788;
   --ui-info-line: #89abc7;
   --ui-danger-fill: #ffb4ab;

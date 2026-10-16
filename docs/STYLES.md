@@ -264,7 +264,7 @@ utilities and ride the same block as plain variables: the accent ring's glow
 | `mark` | sky-500 | sky-650 | `ACCENT.input`, `ACCENT.mark` |
 | `range` / `range-hover` | sky-950 / sky-900 | `#cfe5ff` / `#bcdafc` | `DAY.range` |
 | `on-fill` | white | `#ffffff` | the label on any fill |
-| `ok`, `warn`, `danger`, `info` | green-400, amber-300, red-400, sky-300 | `#1d6b33`, `#6b4600`, `#93000a`, `#0b4a73` | `STATUS`, the `NOTICE` inks |
+| `ok`, `warn`, `danger`, `info` | green-400, amber-300, red-400, sky-300 | `#1d6b33`, `#973c00`, `#93000a`, `#0b4a73` | `STATUS`, the `NOTICE` inks |
 | `*-tint` / `*-line` | the hue's 950 at 40% / 800 at 60% | `#fbe7c4`, `#ffdad6`, `#d6e7fb` / the ink at 38% over its tint | the `NOTICE` boxes |
 | `danger-fill`, `-hover`, `-edge`, `-label` | red-900 at 60%, red-800, red-700, red-200 | `#ffb4ab`, `#ff9e94`, `#ba1a1a`, `#690005` | `BUTTON_DANGER` |
 | `lift`, `thumb`, `scrim` | white, white, black | `#181c21`, `#181c21`, black | a hovered row's tint, a range thumb, the dim under a modal |
@@ -362,6 +362,7 @@ line reads in `ink-mid`.
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
 | The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
 | Every light value is measured where it lands | `styles.test.ts`, `colors.test.ts`, `chartColors.test.ts` | The test parses both token blocks out of `index.css`, reads each dark token back to the slate or sky step it always was, and pins the light theme's ratios role by role (see The light theme below); the cell inks and chart lines per theme |
+| The theme is the switch's, never the operating system's | `checks/styles.js`, `styles.test.ts` | `style-no-os-theme` bans a `dark:` variant and `prefers-color-scheme` in any string or template under `src/`, tests aside, because either paints by the system's setting under a switch that may say the opposite; the test holds `index.css` and `map.css` to the same, since ESLint does not read CSS (#706) |
 | A stored light theme paints before React does | `theme.test.ts` | `public/theme.js` reads `THEME_KEY`, stays under 400 bytes, and is in the head of all four HTML entries before the module script, with no inline script anywhere |
 | No component draws its own glyph | `checks/styles.js` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
 | Nor does the map popup | `checks/styles.js`, `styles.test.ts` | `style-popup-glyph` bans the same tag in `utils/popupChrome.ts`, which builds markup rather than elements; the test pins its glyph size to the `inline` step |
@@ -375,7 +376,7 @@ line reads in `ink-mid`.
 | Nothing pressed reads at the micro step | `checks/styles.js` | `style-micro-not-pressed` bans `TEXT.micro` in the class of any `button` or `a` in the app's sources; `styles.test.ts` holds `MICRO_SIZE` at 11px and `GLYPH_SIZE` to the two swatch roles |
 | Every shadow is a step of one scale | `styles.test.ts` | Every surface role's shadow is an `ELEVATION` value, the sheet and the banner wear `none`, and no component spells a `shadow-` utility |
 | Every exported role is rendered by something | `styles.test.ts` | Each `export const` in `styles.ts` appears in some non-test file's import list under `src/`, or in a `TEST_ONLY` list that carries its reason and is itself checked for a real importer |
-| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or `rgb()` in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `popupChrome.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
+| No call site names a colour value | `checks/styles.js` | `value-hex` bans a hex triplet, sextet or colour function (`rgb()`, `hsl()`, `oklch()` and the rest) in any string or template under `src/`, tests aside, outside the modules that own a colour (`styles.ts`, `colors.ts`, `chartColors.ts`, `resultFeatures.ts`, `popupChrome.ts`, `map/mapStyles.ts`, `map/basemap.ts`, the four overlay modules, `radar.ts`, `iconPaths.ts`, `logo.ts`). This is the hue ban's reach into the four channels a Tailwind class never touches: MapLibre paint, canvas drawing, popup HTML and Recharts props (#365) |
 | No popup spells its own type size, padding, radius or background | `checks/styles.js` | `value-inline-style` bans `font-size:`, `padding:`, `border-radius:` and `background:` in any string or template under `src/`, tests aside, outside `popupChrome.ts`, which owns the popup's three sizes, its button and its rule |
 | The app's own layers read their paint from one module | `checks/styles.js` | `map-paint-named` bans a numeric literal under a `circle-`, `line-`, `fill-`, `text-` or `icon-` key in `map/*.ts` outside `mapStyles.ts` and `basemap.ts`; the result and pending markers and the ring's handles spread one recipe each |
 
@@ -485,9 +486,12 @@ The rest of the theme, role by role, each pinned as a literal:
 - **Lines meant to be quiet.** The rule 1.50:1 on the panel (dark's is 1.41)
   and the outline 2.35, which is exactly halfway between the rule and the
   edge in RGB, the derivation the palette asked for.
-- **Notices.** Each ink on its own tint and on the panel: warn 6.93 and 7.48,
+- **Notices.** Each ink on its own tint and on the panel: warn 5.85 and 6.31,
   error 7.24 and 8.33, info 7.44 and 8.35. Each box's rule is its ink at 38%
-  over its tint. `STATUS.ok` reads 5.84 on the panel, and the danger button's
+  over its tint. The warning ink is amber-800 (`#973c00`) rather than the
+  palette's `#6b4600`, a brown that did not read as a warning beside dark's
+  amber (PR #733); it reads 5.66:1 or better on every surface a warning stands
+  on, and its dismiss glyph 5.33 on the pill. `STATUS.ok` reads 5.84 on the panel, and the danger button's
   label 7.72 on its fill and 6.59 on the hover.
 - **Fades.** `MUTED` at 65%: 5.07, 5.34 and 5.10 on the three places a muted
   label stands (60% left 4.31, 4.50 and 4.38).
