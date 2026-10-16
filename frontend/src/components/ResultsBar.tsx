@@ -194,7 +194,7 @@ export default function ResultsBar({
     },
   ].filter((action) => action !== false)
   return (
-    <div className={`@container flex-shrink-0 px-3 py-1.5 bg-slate-700 border-b border-slate-600`}>
+    <div className={`@container flex-shrink-0 px-3 py-1.5 bg-raised border-b border-frame`}>
       <div className="flex flex-col gap-1 @4xl:flex-row @4xl:items-center @4xl:gap-2">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           {/* Before the first analysis the title is the same ranked

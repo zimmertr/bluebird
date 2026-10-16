@@ -47,22 +47,31 @@ async function audit(page: Page, state: string, seen: Set<string>) {
   expect.soft(unknown, `serious or critical axe violations with the ${state}`).toEqual([])
 }
 
-test('axe finds nothing serious on the panel, the results, or a popover', async ({ page }) => {
-  const seen = new Set<string>()
-  await page.goto('/')
-  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await audit(page, 'panel open', seen)
+// Both themes (#706): the same three states, the light one opened the way a
+// returning reader's browser opens it, with the theme already stored, so
+// `theme.js` paints it before the app mounts.
+for (const theme of ['dark', 'light'] as const) {
+  test(`axe finds nothing serious on the panel, the results, or a popover in the ${theme} theme`, async ({ page }) => {
+    if (theme === 'light') {
+      await page.addInitScript(() => localStorage.setItem('bluebird_forecast_theme', 'light'))
+    }
+    const seen = new Set<string>()
+    await page.goto('/')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.dataset.theme ?? 'dark')).toBe(theme)
+    await audit(page, `${theme}: panel open`, seen)
 
-  // Drawn first: the types are greyed until there is a ring to search.
-  await drawRing(page)
-  await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
-  await page.getByRole('button', { name: 'Analyze' }).click()
-  await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
-  await audit(page, 'results open', seen)
+    // Drawn first: the types are greyed until there is a ring to search.
+    await drawRing(page)
+    await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
+    await page.getByRole('button', { name: 'Analyze' }).click()
+    await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
+    await audit(page, `${theme}: results open`, seen)
 
-  await page.getByRole('button', { name: 'Layers' }).click()
-  await expect(page.getByText('Forecast player')).toBeVisible()
-  await audit(page, 'layers popover open', seen)
+    await page.getByRole('button', { name: 'Layers' }).click()
+    await expect(page.getByText('Forecast player')).toBeVisible()
+    await audit(page, `${theme}: layers popover open`, seen)
 
-  expect(KNOWN.filter((k) => !seen.has(k.html)).map((k) => k.why), 'known violations that no longer occur').toEqual([])
-})
+    expect(KNOWN.filter((k) => !seen.has(k.html)).map((k) => k.why), 'known violations that no longer occur').toEqual([])
+  })
+}

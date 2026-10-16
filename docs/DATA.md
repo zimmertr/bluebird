@@ -85,7 +85,7 @@ typed Crag: 6 of the 104 in that box share a name with a peak. None of the 104 i
 plain near-ground values the way a lake or trailhead with no elevation does.
 And coverage follows where climbers have mapped: the well-known areas are
 there, and an obscure crag may not be
-([record 0158](decisions/0158-crags-destination-type.md)).
+([record 0159](decisions/0159-crags-destination-type.md)).
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so each one is matched to the nearest mapped

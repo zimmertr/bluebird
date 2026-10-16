@@ -128,6 +128,16 @@ describe('cellColor', () => {
     expect(cellColor('temp_min_f', 20, group, false)).toBeUndefined()
     expect(cellColor('precip_total_in', null, group, false)).toBeUndefined()
   })
+
+  // The light theme's ink reaches the cell through the same call (#706).
+  it('paints the light theme\'s ink when handed the light theme', () => {
+    expect(cellColor('precip_max_in_hr', 0.2, group, false, 'light')).toEqual(
+      cellStyle(0.2, scaleFor('precip_max_in_hr', false)!, 'light'),
+    )
+    expect(cellColor('precip_max_in_hr', 0.2, group, false, 'light')).not.toEqual(
+      cellColor('precip_max_in_hr', 0.2, group, false),
+    )
+  })
 })
 
 describe('windyCellUrl', () => {

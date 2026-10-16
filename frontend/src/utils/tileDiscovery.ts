@@ -23,7 +23,7 @@ import { PEAK_TILE_ZOOM, TILE_CONCURRENCY, decodePeaks, tileAt, tileKey, type Fe
  * ponds and reservoirs included. The maintainer took the superset
  * (2026-10-07, decision 0118). What the tiles cannot answer: trailheads,
  * which no tile layer carries, crags, which the tiles hold only as climbing
- * points that cannot be told from routes (decision 0158), and a ring over
+ * points that cannot be told from routes (decision 0159), and a ring over
  * `DISCOVERY_TILE_BUDGET`,
  * which would take longer to read from a cold edge than the map server
  * takes to answer; both keep the Overpass path, through `analysisPipeline`.
@@ -42,7 +42,7 @@ import { PEAK_TILE_ZOOM, TILE_CONCURRENCY, decodePeaks, tileAt, tileKey, type Fe
 export const DISCOVERY_TILE_BUDGET = 256
 
 // The kinds the tiles answer. Trailheads are in no OpenMapTiles layer, and
-// crags only as `class=climbing` points that include every route (0158).
+// crags only as `class=climbing` points that include every route (0159).
 export const TILE_TYPES: ReadonlySet<DiscoveryType> = new Set<DiscoveryType>(['peak', 'lake'])
 
 /** The kinds of a request the tiles answer, and the ones the map server keeps. */

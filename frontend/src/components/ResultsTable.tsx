@@ -12,6 +12,7 @@ import { useChartBox } from '../hooks/useChartBox'
 import { TEXT } from '../styles'
 import ResultsTableHeader from './ResultsTableHeader'
 import ResultsTableRow, { FireClock, NoteTargetsContext, type NoteTargets, PendingRow } from './ResultsTableRow'
+import type { Theme } from '../utils/viewPrefs'
 
 // Hoisted so a table with no widths set hands every row the same empty map,
 // which is what lets a memoized row skip.
@@ -114,6 +115,10 @@ interface Props {
   // hours (#493, #508). Null when no row on display is short. Drawn only while
   // the Model column is, since the marks it explains ride that column.
   partialNote?: string | null
+  // The theme the ranked cells paint their ink for (#706): the tint is the
+  // band at 20% in both, but the light theme's text is the band's 800 step
+  // (`cellStyle`), which an inline style cannot pick from a CSS variable.
+  theme?: Theme
 }
 
 function ResultsTable({
@@ -148,6 +153,7 @@ function ResultsTable({
   columnWidths,
   onColumnWidthsChange,
   partialNote = null,
+  theme = 'dark',
 }: Props) {
   // Memoized because every row is memoized on it.
   const coloredGroup = useMemo(() => new Set<string>(FAMILY_KEYS[familyOf(sortBy)]), [sortBy])
@@ -251,6 +257,7 @@ function ResultsTable({
                   chartBox={showChartCol ? chartBox : undefined}
                   charted={charted}
                   chartColor={charted ? chartColor?.(pendingChartRow(d)) : undefined}
+                  theme={theme}
                   onRemovePending={onRemovePending}
                   onFocusPending={onFocusPending}
                 />
@@ -268,6 +275,7 @@ function ResultsTable({
                   widths={widths}
                   coloredGroup={coloredGroup}
                   pointSample={pointSample}
+                  theme={theme}
                   modelFallbackLabel={modelFallbackLabel}
                   modelId={modelId}
                   times={times}

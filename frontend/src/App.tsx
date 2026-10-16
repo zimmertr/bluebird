@@ -53,6 +53,7 @@ import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
 import { usePreview } from './hooks/usePreview'
 import { useIsDesktop } from './hooks/useIsDesktop'
+import { useTheme } from './hooks/useTheme'
 import { useDrawer } from './hooks/useDrawer'
 import { useSafeAreaBottom } from './hooks/useSafeAreaBottom'
 import { controlsFullPx, controlsSheetPx } from './utils/resultsSheet'
@@ -153,6 +154,7 @@ export default function App() {
   const openedAtTutorial = useRef(window.location.pathname === TUTORIAL_PATH)
   const [showWelcome, setShowWelcome] = useState(() => !hasWelcomed() && !openedAtTutorial.current)
   const isDesktop = useIsDesktop()
+  const { theme, toggleTheme } = useTheme()
   // The controls panel is docked on desktop and the Controls sheet on phones
   // (record 0141). It starts open on a desktop and closed on a phone
   // (`useDrawer`, #696); a close button collapses it to widen the map.
@@ -545,6 +547,7 @@ export default function App() {
     closure,
     mapRef,
     removePlace,
+    theme,
   })
   const { layout, tableView } = resultsView
 
@@ -594,6 +597,8 @@ export default function App() {
         sheetFullPx={controlsFullPx(layout.mapPx)}
         onSheetPx={setControlsHeldPx}
         onClose={closeDrawer}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         drawMode={drawMode}
         destinationInputs={destinationInputs}
         forecastSelection={forecastSelection}
@@ -692,6 +697,7 @@ export default function App() {
           closure={closure}
           pendingHeights={waitingHeights}
           modelId={analyzed?.forecastModel ?? forecastModel}
+          theme={theme}
         />
       </main>
       </div>

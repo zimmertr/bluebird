@@ -18,6 +18,10 @@ On a phone with a home indicator, nothing you press stands in the strip it keeps
 
 Every menu on a phone is a sheet that rises from the bottom of the screen: Layers, Legend, and the results bar's Columns, Models and Removed. **Done**, a tap on the dimmed map or Escape closes it, and its handle and title drag it the way the Controls sheet's do: up to just under the chips, down to close, anywhere between to stay, with a flick down closing it and a double tap on the handle putting it back at its own height. The Analyze button tucks away while one of these is open; the Controls sheet dims nothing and keeps it.
 
+## Light theme
+
+The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays and the popups look the same in both: the map is terrain, and it is light either way. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws its lines in lighter shades, each with a thin dark edge.
+
 ## Destinations
 
 One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map search**, **Coordinate search** and **Polygon search**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map search**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.

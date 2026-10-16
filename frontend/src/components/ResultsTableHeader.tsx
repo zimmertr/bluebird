@@ -168,7 +168,7 @@ function ResultsTableHeader({
         tabIndex={0}
         onKeyDown={(e) => handleSortKey(e, key)}
         aria-describedby={sortHintId}
-        className={`${TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap hover:text-white select-none`}
+        className={`${TABLE.head} ${FOCUS_RING_INSET} ${cellClass} cursor-pointer whitespace-nowrap hover:text-ink-strong select-none`}
       >
         {label}
         {/* The arrow's slot is drawn on every header, hidden where the sort
@@ -188,7 +188,7 @@ function ResultsTableHeader({
 
   return (
     <>
-      <thead className={`sticky top-0 bg-slate-700 z-10 ${SCROLL_SHADOW.head}`}>
+      <thead className={`sticky top-0 bg-raised z-10 ${SCROLL_SHADOW.head}`}>
         <tr>
           {showChartCol && <SelectAllCell rows={chartableRows} headState={headState} onChartRange={onChartRange} />}
           {sortHeader(RANK_KEY, '#', 'w-6')}
@@ -211,7 +211,7 @@ function ResultsTableHeader({
                     onPointerDown={(e) => resize.begin(e, col.key as string)}
                     onDoubleClick={(e) => resize.fit(e, col.key as string)}
                     onClick={(e) => e.stopPropagation()}
-                    className={`absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none border-r-2 border-slate-500/40 ${ACCENT.edgeHover}`}
+                    className={`absolute inset-y-0 right-0 w-1.5 cursor-col-resize touch-none border-r-2 border-edge/40 ${ACCENT.edgeHover}`}
                     aria-hidden="true"
                   />
                 ),

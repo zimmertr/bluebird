@@ -1,4 +1,4 @@
-# 0159. The destination-type checkboxes are greyed until the polygon is usable
+# 0160. The destination-type checkboxes are greyed until the polygon is usable
 
 - Status: Accepted
 - Date: 2026-10-15

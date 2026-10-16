@@ -1,5 +1,6 @@
 import type { DestinationResult } from '../types'
 import { cellStyle, scaleFor } from './colors'
+import type { Theme } from './viewPrefs'
 import type { ColDef } from './tableColumns'
 import type { ModelRow } from './modelCompare'
 import {
@@ -116,9 +117,10 @@ export function cellColor(
   raw: unknown,
   coloredGroup: ReadonlySet<string>,
   pointSample: boolean,
+  theme: Theme = 'dark',
 ): { backgroundColor: string; color: string } | undefined {
   const scale = coloredGroup.has(key) ? scaleFor(key, pointSample) : null
-  return scale && raw != null ? cellStyle(raw as number, scale) : undefined
+  return scale && raw != null ? cellStyle(raw as number, scale, theme) : undefined
 }
 
 /**

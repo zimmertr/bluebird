@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FAMILY_KEYS } from '../metrics'
 import { CLOSURE_KEY, WILDFIRE_KEY } from './tableColumns'
-import { hasWelcomed, readViewPrefs, setWelcomed, writeViewPrefs } from './viewPrefs'
+import {
+  THEME_KEY,
+  hasWelcomed,
+  readTheme,
+  readViewPrefs,
+  setWelcomed,
+  writeTheme,
+  writeViewPrefs,
+} from './viewPrefs'
 
 const VIEW_KEY = 'bluebird_forecast_view'
 const WELCOME_KEY = 'bluebird_forecast_welcomed'
@@ -298,5 +306,51 @@ describe('a storage that will not answer', () => {
   it('yields the defaults on a stored value that is not JSON', () => {
     vi.stubGlobal('localStorage', fakeStorage({ [VIEW_KEY]: '{not json' }))
     expect(readViewPrefs().modeChosen).toBeNull()
+  })
+})
+
+describe('the theme (#706)', () => {
+  it('keeps it under a key of its own, beside the view object rather than in it', () => {
+    expect(THEME_KEY).toBe('bluebird_forecast_theme')
+    expect(THEME_KEY).not.toBe(VIEW_KEY)
+  })
+
+  it('reads dark when nothing is stored, whatever the OS prefers', () => {
+    vi.stubGlobal('localStorage', fakeStorage())
+    expect(readTheme()).toBe('dark')
+  })
+
+  it('reads light only when light is what is stored', () => {
+    vi.stubGlobal('localStorage', fakeStorage({ [THEME_KEY]: 'light' }))
+    expect(readTheme()).toBe('light')
+    vi.stubGlobal('localStorage', fakeStorage({ [THEME_KEY]: 'sepia' }))
+    expect(readTheme()).toBe('dark')
+  })
+
+  it('stores light and forgets the key on dark, leaving the view object alone', () => {
+    const storage = withStored({ legendOpen: true })
+    writeTheme('light')
+    expect(storage.getItem(THEME_KEY)).toBe('light')
+    writeTheme('dark')
+    expect(storage.getItem(THEME_KEY)).toBeNull()
+    expect(stored(storage)).toEqual({ legendOpen: true })
+  })
+
+  it('answers dark and writes nothing when there is no storage, or it refuses', () => {
+    expect(readTheme()).toBe('dark')
+    expect(() => writeTheme('light')).not.toThrow()
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('denied')
+      },
+      setItem: () => {
+        throw new Error('denied')
+      },
+      removeItem: () => {
+        throw new Error('denied')
+      },
+    })
+    expect(readTheme()).toBe('dark')
+    expect(() => writeTheme('dark')).not.toThrow()
   })
 })

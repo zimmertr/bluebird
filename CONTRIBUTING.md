@@ -10,6 +10,7 @@ If you send a change:
 - A change that touches what the first screen loads keeps the Lighthouse budgets in `.github/lighthouserc.js` green, and puts the before and after numbers on the PR.
 - The page in `docs/` that owns the topic changes in the same PR. The table in `CLAUDE.md` says which page owns what.
 - Frontend styling composes the roles in `frontend/src/styles.ts`. No component names its own color.
+- A change to what is on screen works in both the dark and the light theme, and the PR shows it in each.
 - A change to a route or a Pydantic model regenerates `backend/openapi.json` (`cd backend && python scripts/generate_openapi.py`) and the frontend types read off it (`cd frontend && npm run generate:api`). CI fails the PR otherwise.
 - A new source file under `frontend/src` or `backend/app` gets a line in the layout list beside it (the `CLAUDE.md` in its own directory under `frontend/src`, or `backend/CLAUDE.md`), saying what it owns and why it is separate.
 - A change that makes or reverses a design decision adds or supersedes a record in `docs/decisions/` and links it from the guide paragraph beside it.

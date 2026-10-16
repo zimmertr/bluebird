@@ -32,30 +32,46 @@ export const CLASS_BANS = [
     String.raw`\btext-(xs|sm|base|lg|xl|2xl|3xl)\b|text-\[`,
     'Size text through a TEXT or PROSE role in styles.ts, never at the call site.',
   ),
-  // Slate is the surface system, already covered by TEXT, SURFACE_* and FIELD.
+  // The panel's text inks are the surface system's, already covered by TEXT,
+  // SURFACE_* and FIELD. Since #706 they are theme tokens rather than slate
+  // steps (a slate step at a call site is the ban below), and the bright one,
+  // `ink-strong`, is the only one a call site may name, as it could name white.
   ban(
-    String.raw`\btext-slate-[0-9]`,
-    'Take slate text from a role in styles.ts, never at the call site.',
+    String.raw`\btext-(ink|ink-mid|ink-soft|ink-faint|ink-ghost)(?![\w-])`,
+    'Take the panel\'s text ink from a role in styles.ts, never at the call site.',
   ),
   // The placeholder colour lives in FIELD. What no component may do is dim one
   // back below AA.
   ban(
-    String.raw`placeholder[:-](text-)?slate-[56]00`,
+    String.raw`placeholder[:-](text-)?(ink-faint|ink-ghost)(?![\w-])`,
     'A placeholder at this step fails AA on the surface it lands on. Use FIELD.',
   ),
   // A fourth copy of a shared recipe should fail here rather than ship a fourth
   // look: the idle half of a segmented choice, and the two surfaces around it.
   ban(
-    String.raw`bg-slate-900 text-slate-400|bg-slate-900 border border-slate-500|bg-slate-800(\/95)? border border-slate-600`,
+    String.raw`bg-recessed text-ink-soft|bg-recessed border border-edge(?![\w-])|bg-(panel|floating\/95) border border-frame`,
     'Compose the shared recipe from styles.ts rather than restating it.',
   ),
   // The guardrail #167 exists to install. Every hue in the app carries meaning
   // (the accent says "this acts"; green, amber and red say how an analysis is
   // going), so every one of them is the design system's decision rather than a
-  // call site's. Slate is exempt and stays compositional.
+  // call site's. Since #706 that is the theme's hue tokens too: `text-warn` is
+  // amber in another spelling, so it is no more a call site's than amber was.
   ban(
-    String.raw`(^|["'\s:])(bg|text|border|ring|divide|accent|caret|outline|decoration|shadow|from|via|to)-(sky|blue|cyan|indigo|violet|purple|fuchsia|pink|rose|red|orange|amber|yellow|lime|green|emerald|teal)-[0-9]{2,3}`,
+    String.raw`(^|["'\s:])(bg|text|border|ring|divide|accent|caret|outline|decoration|shadow|from|via|to)-` +
+      String.raw`((sky|blue|cyan|indigo|violet|purple|fuchsia|pink|rose|red|orange|amber|yellow|lime|green|emerald|teal)-[0-9]{2,3}` +
+      String.raw`|(accent|accent-hover|accent-ink|accent-ink-hover|mark|range|range-hover|on-fill|ok|warn|danger|info|` +
+      String.raw`warn-tint|danger-tint|info-tint|warn-line|danger-line|info-line|danger-fill|danger-fill-hover|danger-edge|danger-label)(?![\w-]))`,
     'A hue carries meaning here, so it is a styles.ts decision. Add or derive a role there.',
+  ),
+  // Slate, white and black were the surface system, and since #706 they are
+  // the dark theme's half of it: `index.css` names each surface, line and ink
+  // as a token with a value per theme. A slate step at a call site paints the
+  // dark value in both themes, so it is the one spelling that cannot follow a
+  // switch. Take the role, or the token the role would read.
+  ban(
+    String.raw`(^|["'\s:])(bg|text|border|ring|divide|accent|caret|outline|decoration|shadow|from|via|to|placeholder|fill|stroke)-(slate-[0-9]{2,3}|white|black)(?![\w-])`,
+    'A slate, white or black step cannot follow the theme. Use a role from styles.ts or its token.',
   ),
   // #160: tap targets are sized across every control at once, never one at a
   // time. The variant is spelled in styles.ts and nowhere else.

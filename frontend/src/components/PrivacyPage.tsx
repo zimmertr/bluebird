@@ -69,10 +69,11 @@ export default function PrivacyPage() {
             counters expire on their own and are gone whenever the server restarts.
           </li>
           <li>
-            <span className={PROSE.strong}>On your device</span>, Bluebird Forecast saves four
+            <span className={PROSE.strong}>On your device</span>, Bluebird Forecast saves five
             things and sends none of them anywhere. Your browser's local storage keeps whether you
-            dismissed the welcome dialog and how you laid out the results and the map: which views
-            are open, which columns show and in what order, and whether the map's legend is folded.
+            dismissed the welcome dialog, whether you chose the light theme, and how you laid out
+            the results and the map: which views are open, which columns show and in what order,
+            and whether the map's legend is folded.
             Session storage, which ends when you close the
             tab, keeps the forecasts fetched in the last 15 minutes so a reload does not fetch them
             again, and the version of the app that last reloaded itself after an update.
@@ -111,7 +112,7 @@ export default function PrivacyPage() {
         <ContactBody />
       </Section>
 
-      <p className={`${PROSE.note} mt-6`}>Last updated 7 October 2026.</p>
+      <p className={`${PROSE.note} mt-6`}>Last updated 15 October 2026.</p>
     </PageShell>
   )
 }

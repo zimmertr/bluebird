@@ -366,8 +366,10 @@ describe('debutRows', () => {
 
   // colorByKey is the "ever charted" memory. A key in it has had its debut, so
   // a later report must not re-check a box the user deliberately unchecked.
+  // Index 0 included: the first colour a session hands out is a palette
+  // index of zero, which a truthiness test would read as no colour at all.
   it('skips a destination that already owns a color', () => {
-    expect(debutRows([a, b, c], { [chartKey(b)]: '#38bdf8' }).map((r) => r.name)).toEqual(['A', 'C'])
+    expect(debutRows([a, b, c], { [chartKey(b)]: 0 }).map((r) => r.name)).toEqual(['A', 'C'])
   })
 
   it('returns one row per coordinate key', () => {
@@ -376,7 +378,7 @@ describe('debutRows', () => {
   })
 
   it('is empty when every destination is already charted', () => {
-    const charted = { [chartKey(a)]: '#38bdf8', [chartKey(b)]: '#f472b6' }
+    const charted = { [chartKey(a)]: 0, [chartKey(b)]: 1 }
     expect(debutRows([a, b], charted)).toEqual([])
   })
 })

@@ -39,7 +39,7 @@ const STEPS: [string, string][] = [
 export default function WelcomeModal({ onDismiss, onTutorial, tutorialWaits = false }: Props) {
   const panelRef = useDialog(onDismiss)
   return (
-    <div className={`fixed inset-0 ${LAYER.modal} flex items-center justify-center bg-black/60 backdrop-blur-sm p-4`}>
+    <div className={`fixed inset-0 ${LAYER.modal} flex items-center justify-center bg-scrim/60 backdrop-blur-sm p-4`}>
       <div
         ref={panelRef}
         role="dialog"

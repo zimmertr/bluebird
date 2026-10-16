@@ -456,7 +456,7 @@ export default function ModelPicker({
                 }}
                 className={`flex items-start gap-2 rounded px-2 py-1.5 ${
                   locked ? 'cursor-default' : 'cursor-pointer'
-                } ${i === active ? 'bg-slate-700' : ''}`}
+                } ${i === active ? 'bg-raised' : ''}`}
               >
                 <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
