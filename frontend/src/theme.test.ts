@@ -41,12 +41,28 @@ describe('the theme before the first paint (#706)', () => {
   // Every entry, ahead of its module script, which is where Vite puts the
   // stylesheet link. A same-origin file, because the CSP's `script-src 'self'`
   // allows that and refuses an inline script.
+  // Every <script> opening tag without a src, found by walking the lowercased
+  // document rather than by a pattern, because a pattern written for one
+  // spelling misses `<SCRIPT>` or a tag carrying attributes, and an inline
+  // script is exactly what the CSP would refuse (CodeQL's bad-tag-filter
+  // finding on #733).
+  function inlineScripts(html: string): string[] {
+    const lower = html.toLowerCase()
+    const found: string[] = []
+    for (let at = lower.indexOf('<script'); at !== -1; at = lower.indexOf('<script', at + 1)) {
+      const end = lower.indexOf('>', at)
+      const tag = lower.slice(at, end === -1 ? undefined : end + 1)
+      if (!/\ssrc\s*=/.test(tag)) found.push(tag)
+    }
+    return found
+  }
+
   it.each(PAGES)('runs in %s before anything that paints', (page) => {
     const html = readFileSync(repoFile(page), 'utf-8')
     const at = html.indexOf('<script src="/theme.js"></script>')
     expect(at).toBeGreaterThan(-1)
     expect(at).toBeLessThan(html.indexOf('<script type="module"'))
     expect(at).toBeLessThan(html.indexOf('<body'))
-    expect(html).not.toMatch(/<script>[^<]/)
+    expect(inlineScripts(html)).toEqual([])
   })
 })
