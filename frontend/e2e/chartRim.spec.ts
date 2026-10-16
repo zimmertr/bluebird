@@ -1,0 +1,41 @@
+import { test, expect, resultRows } from './fixtures'
+
+// In light the chart's lines are pastels drawn over a dark rim (PR #733),
+// which is one SVG filter that `index.css` applies to the group Recharts
+// draws the lines into. That group is Recharts' own, named by a class it
+// writes, so only a browser can say the rule still reaches it: a Recharts
+// release that renamed it would leave every pastel under 2:1 on the panel
+// with every unit test green. Dark lines carry no rim, and a ticked chart box
+// wears the same rim as an outline in light.
+
+function isoDay(offset: number): string {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() + offset)
+  return d.toISOString().slice(0, 10)
+}
+
+test.use({ viewport: { width: 1280, height: 900 } })
+
+test('rims the light chart lines and the ticked chart boxes, and nothing in dark', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('bluebird_forecast_theme', 'light'))
+  await page.goto(`/?mode=days&d1=${isoDay(1)}&d2=${isoDay(2)}&type=peak&poly=-121.9,47.4;-121.7,47.4;-121.7,47.55`)
+  await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+  await page.getByRole('button', { name: 'Analyze' }).click()
+  await expect(resultRows(page).first()).toBeAttached()
+
+  // The group holding the series lines, and the filter it is drawn through.
+  const layer = page.locator('svg.recharts-surface g[class^="recharts-zIndex-layer_"]', {
+    has: page.locator('.recharts-line'),
+  })
+  await expect(layer).toHaveCount(1)
+  await expect.poll(() => layer.evaluate((g) => getComputedStyle(g).filter)).toBe('url("#chart-line-rim")')
+  await expect(page.locator('#chart-line-rim')).toHaveCount(1)
+  const box = resultRows(page).first().getByRole('checkbox')
+  await expect(box).toBeChecked()
+  expect(await box.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+
+  await page.getByRole('button', { name: 'Switch to dark theme' }).first().click()
+  await expect.poll(() => layer.evaluate((g) => getComputedStyle(g).filter)).toBe('none')
+  await expect(page.locator('#chart-line-rim')).toHaveCount(0)
+  expect(await box.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('solid')
+})
