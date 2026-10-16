@@ -20,7 +20,7 @@ Every menu on a phone is a sheet that rises from the bottom of the screen: Layer
 
 ## Light theme
 
-The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays and the popups look the same in both: the map is terrain, and it is light either way. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws its lines a step or two darker.
+The app opens dark, whatever your system is set to. The round sun button at the top right of the panel, beside the close button, switches it to light, and the same button, now a moon, switches it back. On a phone it sits beside **Done** in the Controls sheet's title row. Your browser remembers the choice, so the next visit opens in it; it does not ride a shared link, so whoever opens yours sees their own. The map, its markers and overlays and the popups look the same in both: the map is terrain, and it is light either way. In light the results table's shaded cells print their numbers in a darker shade of the band's own colour, so they stay legible on a light page, and the chart draws its lines in lighter shades, each with a thin dark edge.
 
 ## Destinations
 

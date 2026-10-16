@@ -259,9 +259,9 @@ utilities and ride the same block as plain variables: the accent ring's glow
 | `ink-mid` | slate-300 | `#2d3238` | `LINK`, `TEXT.micro`, `CAPTION_LIFTED`, `TEXT.section` |
 | `ink-soft` | slate-400 | `#42474e` | captions, `SEGMENT_IDLE`, `ICON_ADORNMENT`, placeholders |
 | `ink-faint` / `ink-ghost` | slate-500 / slate-600 | `#6c727a` / `#a0a6ae` | `ICON_ACTION` at rest; `DAY.unservable` |
-| `accent` / `accent-hover` | sky-650 / sky-600 | `#00639b` / `#005585` | `ACCENT.fill`, `BUTTON_PRIMARY`, `BADGE_STEP` |
+| `accent` / `accent-hover` | sky-650 / sky-600 | sky-650 / `#00639b` | `ACCENT.fill`, `BUTTON_PRIMARY`, `BADGE_STEP` |
 | `accent-ink` / `accent-ink-hover` | sky-400 / sky-300 | `#00639b` / `#004a75` | `LINK_ACTION`, `ACCENT.text`, `FOCUS_RING` |
-| `mark` | sky-500 | `#00639b` | `ACCENT.input`, `ACCENT.mark` |
+| `mark` | sky-500 | sky-650 | `ACCENT.input`, `ACCENT.mark` |
 | `range` / `range-hover` | sky-950 / sky-900 | `#cfe5ff` / `#bcdafc` | `DAY.range` |
 | `on-fill` | white | `#ffffff` | the label on any fill |
 | `ok`, `warn`, `danger`, `info` | green-400, amber-300, red-400, sky-300 | `#1d6b33`, `#6b4600`, `#93000a`, `#0b4a73` | `STATUS`, the `NOTICE` inks |
@@ -298,13 +298,22 @@ panel over its tint: the verdict ramp 5.42 to 6.27:1, temperature 5.44 to
 the reverses of the two they mirror.
 
 **The chart.** `chartColors.ts` holds a twin of the ten-line palette for light,
-the same hues one or two steps down (sky-600, pink-600, lime-700, amber-700,
-purple-600, emerald-600, orange-600, blue-600, fuchsia-600, teal-600), and the
-golden-angle generator past the ten walks at lightness 40 where dark walks at
-60. The allocator stores an index rather than a colour, so a switch recolours
-every line, swatch and table checkbox without reallocating which destination
-has which slot. The chrome follows the tokens: axis `ink-soft`, grid `rule`,
-surface `panel`, playhead `accent-ink`.
+the same hues at Tailwind's 300 step (sky, pink, lime, amber, purple, emerald,
+orange, blue, fuchsia and teal), and the golden-angle generator past the ten
+walks at saturation 70, lightness 78, where dark walks at 70 and 64. A pastel
+alone cannot stand off the light panel, so every light line is drawn over a
+rim of `ink-soft`, a pixel wider than the line on each side (one SVG filter
+over the group Recharts draws the lines into, which measured half the cost of
+a second line under each; record 0156 has the numbers), and every mark in
+a line's colour wears the same rim: the hover dot, a point sample's dots, the
+readout's swatches, the chart-only legend's dots and a ticked chart checkbox
+(`LINE_EDGE` in `styles.ts`, `lineEdge` in `CHART_CHROME`). The chart can carry
+a line per displayed row, hundreds of them, so the generator is held to the
+same 3:1 at every hue it can land on, in both themes. The allocator stores an
+index rather than a colour, so a switch recolours every line, swatch and table
+checkbox without reallocating which destination has which slot. The chrome
+follows the tokens: axis `ink-soft`, grid `rule`, surface `panel`, playhead
+`accent-ink`, and the light lines' rim `ink-soft`.
 
 **What does not change.** The map is terrain and light in both themes: the
 basemap, the markers, the ring, the labels and their halo, and every overlay's
@@ -351,7 +360,7 @@ line reads in `ink-mid`.
 | A phone's rows, sheets and Analyze button are built from one sum, and every target is 44 on a finger | `styles.test.ts` | `MAP_ROWS`' 92px and every anchor under it, the chips', pill's and locate button's hit areas, `MAP_FAB`'s 56px and reserved width, `BOTTOM_SHEET`'s 44px rows, the one 13px role, the notice band's 66px cap, `SAFE_AREA` under every sheet, `CONTROLS_SHEET` and the sticky Name column |
 | The control column is derived, not chosen | `styles.test.ts` | `CONTROL_W` equals two `METRIC_BOX_W` plus the grid gap; the picker, chart-select, metric-label and segment-half budgets are summed from measured words |
 | No bottom offset is spelled in a component | `checks/app.js` | Ban `bottom-*` in `App.tsx`, `MapLegend.tsx` and `TimelineTransport.tsx`, and `justify-end` / auto margins on the legend stack |
-| The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 6.45, 5.74, 5.00, 6.45 and the 7.96 hover |
+| The accent ratios are pinned | `styles.test.ts` | 4.57, 3.21, 3.04, 3.91 and the 4.02 hover are literals a change must re-measure, and in light 4.56, 4.06, 3.54, 3.17, 4.56 and the 6.45 hover |
 | Every light value is measured where it lands | `styles.test.ts`, `colors.test.ts`, `chartColors.test.ts` | The test parses both token blocks out of `index.css`, reads each dark token back to the slate or sky step it always was, and pins the light theme's ratios role by role (see The light theme below); the cell inks and chart lines per theme |
 | A stored light theme paints before React does | `theme.test.ts` | `public/theme.js` reads `THEME_KEY`, stays under 400 bytes, and is in the head of all four HTML entries before the module script, with no inline script anywhere |
 | No component draws its own glyph | `checks/styles.js` | Ban a literal SVG opening tag everywhere under `components/` and `map/` and in `App.tsx`, except `icons.tsx` |
@@ -437,21 +446,29 @@ The accent fill answers four measured constraints at once and must pass WCAG AA 
 
 ### The light theme
 
-The light accent is not a custom shade, because it does not need one. A white
-label on a dark fill has room on both sides, so `#00639b` (the Material
-primary at tone 40) clears every constraint the dark shade squeezes between,
-and its hover darkens rather than lightens, so it clears AA too. Measured
-2026-10-15 in `styles.test.ts`, against the token values it parses out of
-`index.css`:
+The light accent is the dark theme's own sky-650, so the accent is one colour
+in both themes. The theme first shipped `#00639b`, the Material primary, which
+the maintainer found too dark on Analyze, the segments, the calendar's ends and
+the checkboxes (PR #733). On the light grounds sky-650 has more room than it
+has on the dark ones, and its hover darkens to `#00639b` rather than
+lightening, which with a white label is the direction that gains contrast, so
+no light accent state is under AA. The accent as text does not follow: sky-650
+reads 4.06:1 on the light panel, under the 4.5 text owes, so links,
+`ACCENT.text` and the focus ring keep `#00639b`. Measured 2026-10-15 in
+`styles.test.ts`, against the token values it parses out of `index.css`:
 
 | What | On | Light | Dark, for comparison |
 |---|---|---|---|
-| White label on the accent fill | the fill | **6.45:1** | 4.57 |
-| The fill | the panel | **5.74:1** | 3.21 |
-| The fill | `DAY.range` | **5.00:1** | 3.04 |
-| The fill | the segment track | **6.45:1** | 3.91 |
-| The fill | `DAY.range`'s hover | **4.47:1** | |
-| White label on the hover | `#005585` | **7.96:1** | 4.02 |
+| White label on the accent fill | the fill | **4.56:1** | 4.57 |
+| The fill | the panel | **4.06:1** | 3.21 |
+| The fill | `DAY.range` | **3.54:1** | 3.04 |
+| The fill | the segment track | **4.56:1** | 3.91 |
+| The fill | `DAY.range`'s hover | **3.17:1** | |
+| White label on the hover | `#00639b` | **6.45:1** | 4.02 |
+
+The 4.56 is the dark 4.57 taken on the hex the browser paints rather than on
+the oklch value, and it is every label on the fill: a button's, a lit map
+chip's and its glyph, and the welcome dialog's step badge.
 
 The rest of the theme, role by role, each pinned as a literal:
 
@@ -462,7 +479,7 @@ The rest of the theme, role by role, each pinned as a literal:
 - **Icons and boundaries (3:1).** The faint ink, which an icon at rest wears,
   4.32, 3.87 and 4.85 on the panel, raised fill and well. The structural edge
   3.97 on the panel and 4.46 on the well, and 4.24 on the floating fill; the
-  lifted edge 3.56 on the raised fill. The accent mark 5.74, 5.14 and 6.45 on
+  lifted edge 3.56 on the raised fill. The accent mark 4.06, 3.64 and 4.56 on
   the panel, raised fill and well, and the focus ring 5.14 to 6.45 on all four
   grounds. The adornment glyph 9.36.
 - **Lines meant to be quiet.** The rule 1.50:1 on the panel (dark's is 1.41)
@@ -479,15 +496,20 @@ The rest of the theme, role by role, each pinned as a literal:
 - **The legend strip's numbers** read 15.12 and 9.79 on the strip's lightest and darkest
   bands under the light scrim, where dark's read 6.49.
 - **The slider thumb** is the ink rather than white, because a white thumb
-  would vanish on the white well; it reads 2.66:1 on the accent beside the
-  dark white thumb's 2.71 on its mark.
+  would vanish on the white well; it reads 3.75:1 on the mark beside the
+  dark white thumb's 2.71 on its own.
 - **The scroll shade** is the ink at 12%, 1.27:1 off the light panel, where
   dark's slate-950 at 70% stands 1.29:1 off its own.
-- **Chart lines** clear 3:1 on the light panel, the lowest orange-600 at 3.21,
-  and the axis reads 8.34 (dark's lines bottom out at 5.52 and its axis at
-  5.56). The golden-angle colours past the tenth line are NOT held to 3:1 in
-  either theme and measure as low as 2.13 in light and 2.54 in dark; that was
-  true before #706 and is left as it was.
+- **Chart lines** are pastels that read only 1.16 to 1.62:1 on the light
+  panel, so the boundary is the rim each is drawn over, `ink-soft` at 8.34:1
+  on the panel. Against the rim the curated ten read 5.14 (pink) to 7.21
+  (lime), and the golden-angle colours past the tenth, at saturation 70 and
+  lightness 78, read 3.90 at the wheel's worst hue (pure blue) and 7.75 at its
+  best, so a chart of any size clears 3:1. Dark's lines read 5.52 and up on
+  its panel, and its generator now walks at lightness 64, the lowest whole
+  value at which pure blue clears 3:1 on slate-800 (3.08); at the 60 it
+  walked at before, the colours past the tenth read as low as 2.53 (PR #733).
+  The axis reads 8.34 in light and 5.56 in dark.
 
 **Re-measure condition:** every one of these numbers is a literal in
 `styles.test.ts`, `colors.test.ts` or `chartColors.test.ts`, so changing a
