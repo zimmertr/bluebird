@@ -1,6 +1,6 @@
 # 0165. The rain radar and the snow depth answer a click with the source's own value, on one card where both paint
 
-- Status: Accepted
+- Status: Accepted. The snow's top word, `Permanent snow`, is superseded by 0167: the words say only how deep, and a glacier is named `Glacier`.
 - Date: 2026-10-16
 - Decider: the maintainer (TJ), on issue #737, 2026-10-16: ask the source where it can answer (option B), a card only where the layer painted, both readings on one card, the snow card's depth and water and the radar card's reflectivity and rate, the intensity words and their thresholds, and a failed reading handled as an overlay's failed fetch is; then, after the first build, the pointer over both, a card that opens on the click with its numbers landing after, the card's layout, the snow's words, the combined card's title and headings, and the shorter row labels
 - Issues and PRs: #737, #738 (every popup is the card), #700 (one click opens one popup), #446 (the snow layer), #121 (the radar loop)

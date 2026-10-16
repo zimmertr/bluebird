@@ -273,7 +273,10 @@ how strong the echo is and gives an estimated rate, the reflectivity it is read
 from and how old the frame is, and the snow's is named for how deep the snow is and gives the
 depth, the snow water equivalent and when NOAA's analysis was made. The snow
 card opens at once and its numbers land a moment later, since they are asked of
-NOAA at the click. Where both are painted under one click, one card carries
+NOAA at the click, and over a glacier OpenStreetMap has mapped it is titled
+**Glacier**. A radar card left open follows the forecast player, frame by
+frame, reading **No radar echo** on a frame with none at its point, and the
+pointer follows the frames under a mouse that is not moving. Where both are painted under one click, one card carries
 both, titled **Precipitation and snow**, the radar first. A click where neither
 is painted opens nothing. Nothing on the map opens on a hover. Where things overlap, the
 smaller and more deliberate target takes the click: a marker or a peak inside a

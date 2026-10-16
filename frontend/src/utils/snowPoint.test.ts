@@ -166,7 +166,7 @@ describe('the snow sections', () => {
   // The name and the source on the band, every number in the body with when
   // it was measured (TJ, 2026-10-16).
   it('opens with its name, its source and a bar for each value on its way', () => {
-    const section = pendingSnowSection('Very deep snow')
+    const section = pendingSnowSection('Very deep snow', false)
     expect(section.title).toBe('Very deep snow')
     expect(section.source).toBe(SNOW_SOURCE)
     expect(section.rows.map(markupText)).toEqual(['Depth: ', 'Snow water equivalent: ', 'Updated: '])
@@ -194,6 +194,8 @@ describe('the snow sections', () => {
   // stay NOAA's (TJ, 2026-10-16, #748).
   it('names a glacier and keeps NOAA\'s numbers there', () => {
     expect(pendingSnowSection('Very deep snow', true).title).toBe(GLACIER_TITLE)
+    // Not known yet: a bar, never a depth word a glacier would replace.
+    expect(pendingSnowSection('Very deep snow', undefined).title).toContain('aria-hidden')
     const section = snowSection('Very deep snow', READING, true)
     expect(section.title).toBe(GLACIER_TITLE)
     expect(section.rows.map(markupText)).toEqual(['Depth: 151 in', 'Snow water equivalent: 83 in', `Updated: ${updatedAt(VALID_MS)}`])
@@ -242,7 +244,7 @@ describe('readSnowAt', () => {
   // The card opens on the name alone; NOAA's numbers come later.
   it('names the snow at once from the pixel and fills the values later', async () => {
     const reading = await readSnowAt(held(bandColor(98)), AT, signal(), async () => READING, OFF_GLACIER)
-    expect(reading?.section).toEqual(pendingSnowSection('Very deep snow'))
+    expect(reading?.section).toEqual(pendingSnowSection('Very deep snow', false))
     expect(await reading?.later).toEqual(snowSection('Very deep snow', READING))
   })
 
@@ -287,11 +289,15 @@ describe('readSnowAt', () => {
     expect(await reading?.later).toEqual(snowSection('Very deep snow', READING, true))
   })
 
-  // A glacier whose tiles were not in hand takes its name with its numbers.
-  it('names a glacier with its numbers where it had to ask', async () => {
-    const reading = await readSnowAt(held(bandColor(394)), AT, signal(), async () => READING, asksGlacier(true))
-    expect(reading?.section.title).toBe('Very deep snow')
-    expect((await reading?.later)?.title).toBe(GLACIER_TITLE)
+  // A cell whose glacier tiles were not in hand opens with a bar for its
+  // name, and takes the right one with its numbers (TJ, 2026-10-16).
+  it('names a cell with its numbers where it had to ask about glaciers', async () => {
+    const onIce = await readSnowAt(held(bandColor(394)), AT, signal(), async () => READING, asksGlacier(true))
+    expect(onIce?.section.title).not.toContain('Very deep snow')
+    expect(onIce?.section.title).toContain('aria-hidden')
+    expect((await onIce?.later)?.title).toBe(GLACIER_TITLE)
+    const offIce = await readSnowAt(held(bandColor(394)), AT, signal(), async () => READING, asksGlacier(false))
+    expect((await offIce?.later)?.title).toBe('Very deep snow')
   })
 
   it('keeps a glacier\'s name when NOAA fails there', async () => {

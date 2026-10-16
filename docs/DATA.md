@@ -1084,14 +1084,25 @@ where the NEXRAD rainfall algorithm stops too, because an echo past it is
 usually hail. Without that cap the strongest cell measured, 59 dBZ, read 7 in
 an hour. A rate the cap holds reads as a floor, `≥2.9 in/h`, from 53 dBZ up,
 because the echo past it could be more rain or only hail and the card cannot
-say which. The reflectivity is marked the same way at the composite's two
-ends, `≥95.0 dBZ` and `≤-32.0 dBZ`, since an echo past either is encoded there. It assumes rain, so under snow it is wrong, and even in rain the true
-relation varies by storm. What the card cannot say at all: the wind (Doppler
-velocity is per radar and only toward or away from it), what is falling, or how
-much has fallen. During playback it reads the frame on screen and says how old
-that frame is, as `now` or minutes ago rather than a clock time: IEM publishes
-each frame's time, but a tile can sit in its edge cache for five minutes, so a
-time asked for at the click could be a frame off the picture.
+say which. The rate assumes rain, so under snow it is wrong, and even in rain
+the true relation varies by storm. Under 15 dBZ it reads `N/A`, since an echo
+that weak may be birds or clutter. The reflectivity is marked as a bound at the
+composite's two ends, `≥95.0 dBZ` and `≤-32.0 dBZ`, since an echo past either
+is encoded there. What the card cannot say at all: the wind (Doppler velocity
+is per radar and only toward or away from it), what is falling, or how much has
+fallen. It reads the frame on screen and says how old that frame is, as `now`
+or minutes ago rather than a clock time: IEM publishes each frame's time, but a
+tile can sit in its edge cache for five minutes, so a time asked for at the
+click could be a frame off the picture.
+
+**An open card follows the player** (#748). Each time the frame on screen
+changes, the card reads its point again from the copy of that frame's tile, so
+playback asks IEM for nothing, and the pointer over the map is decided again
+where the mouse rests. A frame that painted nothing at the point reads
+`No radar echo`, with `Rate: 0 in/h`, because the radar saw nothing falling
+there, and `Reflectivity: N/A`; the card stays open, since the storm may be
+back on the next frame. Every radar card has the same three lines, so it keeps
+its height through playback.
 
 ## Snow depth
 
@@ -1155,11 +1166,37 @@ valid for, in your own time zone. The card opens at once, named for the band
 the map painted under the click, which the app reads off its own copy of the
 tile: NOAA's renders use exactly the legend's colours, so the pixel names the
 band. `Light snow` under 3.9 in, then `Moderate`, `Deep` and `Very deep snow`
-from 3.9, 20 and 59 in, and `Permanent snow` from 197 in, a depth seasonal snow
-rarely reaches, so most of what paints there is glacier and firn. The words
-follow NOAA's own band edges, so the name and the colour cannot disagree. The numbers
-then land in the card from NOAA's answer, and they are the analysis's, not a
-reading of the colour. NOAA states neither unit, so both were read off its own
+from 3.9, 20 and 59 in. The edges are NOAA's own legend's, which are round
+centimetres (10, 50 and 150 cm), so the name and the colour cannot disagree;
+the words are this app's, since NOAA names its bands nothing. They say how deep
+and nothing more, because
+depth is all the colour knows: a record winter's snowpack is `Very deep snow`
+however deep it gets. The numbers then land in the card from NOAA's answer, and
+they are the analysis's, not a reading of the colour. A value NOAA does not
+give reads `N/A`, so every snow card has the same rows.
+
+**On a glacier the card is titled `Glacier`** (#748), and keeps NOAA's numbers
+under it. The test is whether the analysis cell under the click, a box of 1/120
+of a degree around it, overlaps a glacier OpenStreetMap has mapped, read from
+the basemap's own vector tiles at zoom 12 whatever zoom the map shows. The cell
+rather than the point, because NOAA's number is the cell's; one zoom rather
+than the map's own drawing, because the basemap draws Natural Earth's coarse
+outlines at zooms 5 and 6, none at 7 and 8, and OSM's from 9, and OSM leaves
+Mount Baker's summit dome out of its outlines, so a point test on the map read
+the summit as bare ground. Measured 2026-10-16, the cell test read the
+summits of Baker, Rainier and Hood, the cell west of Baker's summit and Camp
+Muir as glacier, and Paradise, Mount Baker Ski Area and Timberline Lodge as
+not, the same at every zoom from 10 to 14. A run within about half a kilometre
+of a mapped glacier therefore reads as one, which is deliberate: NOAA's number
+for that cell already carries the glacier's ground. Where OSM has mapped no
+glacier the card keeps its depth word. The title names the place and not the
+material, because the numbers are not ice either: Baker's summit read 834 in of
+depth over 499 in of water, a density of 0.60, which is old, packed snow
+(firn), where ice would be about 0.9. The glacier is read from a tile the
+browser may not hold yet (400 to 770 ms measured), so on the first click in an
+area the card opens with a bar where its name will be and takes its name with
+its numbers, rather than a depth word that `Glacier` would replace a moment
+later; a second click nearby is named at once. NOAA states neither unit, so both were read off its own
 classification, which comes back beside each value: the depth is in metres and
 the water in millimetres. The answer depends on the size of the box the request
 describes, because the service resamples to the pixel that box implies: the

@@ -189,19 +189,26 @@ export const SNOW_FAILED = 'NOAA snow analysis failed. Try again later.'
  * What the card names a cell on a glacier (TJ, 2026-10-16, #748). The
  * analysis has no glacier in it, and where snow never melts out its depth
  * keeps building from year to year, so the number there is neither a
- * season's snow nor the ice's thickness. The card still gives NOAA's numbers,
- * because they are what the source says (TJ, 2026-10-16), and lets the name
- * say where they stand; `docs/DATA.md` says what they are.
+ * season's snow nor the ice's thickness: Baker's summit read 834 in of depth
+ * over 499 in of water, a density of 0.60, which is firn's rather than ice's
+ * (about 0.9). So the name says where the numbers stand and claims nothing
+ * about what they are made of, and the card still gives NOAA's numbers,
+ * because they are what the source says. `docs/DATA.md` says what they are.
  */
-export const GLACIER_TITLE = 'Glacier ice'
+export const GLACIER_TITLE = 'Glacier'
 
 /** What a snow row NOAA cannot fill reads: the table's own mark for a value it does not have. */
 const NO_VALUE = 'N/A'
 
-/** The snow's section the moment it is clicked: its name, and a bar for each value on its way. */
-export function pendingSnowSection(word: string, glacier = false): PointSection {
+/**
+ * The snow's section the moment it is clicked: its name, and a bar for each
+ * value on its way. A cell not yet known to be on a glacier or off one wears
+ * a bar for its name too, rather than a depth word that a glacier would
+ * replace a moment later (TJ, 2026-10-16, #748).
+ */
+export function pendingSnowSection(word: string, glacier: boolean | undefined): PointSection {
   return {
-    title: escapeHtml(glacier ? GLACIER_TITLE : word),
+    title: glacier === undefined ? pendingValue() : escapeHtml(glacier ? GLACIER_TITLE : word),
     source: escapeHtml(SNOW_SOURCE),
     rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue()), updatedLine(pendingValue())],
   }
@@ -259,7 +266,7 @@ export async function readSnowAt(
   const word = snowWordOfPixel(await tiles.pixel(SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom)))
   if (word === null) return null
   // A cell whose glacier tiles are in hand is named at once; one whose are
-  // not opens under its depth word and takes its name with its numbers.
+  // not opens with a bar for its name and takes it with its numbers.
   const known = glaciers.now(lng, lat)
   const onGlacier = known ?? glaciers.ask(lng, lat, signal).catch(() => false)
   const later = Promise.all([fetchReading(lng, lat, signal), onGlacier]).then(
@@ -270,5 +277,5 @@ export async function readSnowAt(
       return failedSnowSection((await onGlacier) ? GLACIER_TITLE : word)
     },
   )
-  return { section: pendingSnowSection(word, known === true), later }
+  return { section: pendingSnowSection(word, known), later }
 }
