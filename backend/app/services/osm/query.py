@@ -40,18 +40,26 @@ _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
         'way["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
         'relation["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
     ),
-    # A crag is `sport=climbing` with `climbing=crag` or `climbing=area`, and
-    # nothing wider. Bare `sport=climbing` also tags every route and boulder:
-    # measured 2026-10-15 over 47.0 to 48.0 N, 121.8 to 120.8 W, it found 183
-    # named features, of which 82 were crags and 22 areas, and 67 routes, 5
-    # route bottoms and 4 boulders would each have become a row. Areas stay in
-    # because some places are mapped only as one (Index is an area holding
-    # Lower Town Wall). All three element kinds, because the 104 crags and
-    # areas in that box were 45 nodes, 9 ways and 50 relations.
+    # A crag is `sport=climbing` with `climbing=crag`, `area` or `boulder`, or
+    # a climbable stone with no `climbing=` key at all, and nothing wider. Bare
+    # `sport=climbing` also tags every route: measured 2026-10-15 over 47.0 to
+    # 48.0 N, 121.8 to 120.8 W, it found 183 named features, of which 82 were
+    # crags, 22 areas and 4 boulders, and 67 routes and 5 route bottoms would
+    # each have become a row. Areas stay in because some places are mapped
+    # only as one (Index is an area holding Lower Town Wall). Boulders are in
+    # because the maintainer wants them as destinations, however many a
+    # boulder field adds (2026-10-15). A boulder is as often a
+    # `natural=stone` with `sport=climbing` and no subtype (Midnite Boulder at
+    # Index), which the last two clauses take; `[!"climbing"]` keeps a stone
+    # tagged as a route out. All three element kinds for the subtyped
+    # clauses, because the 104 crags and areas in that box were 45 nodes, 9
+    # ways and 50 relations; a stone is a node or, rarely, a way.
     DestinationType.crag: (
-        'node["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"](poly:"{poly}");',
-        'way["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"](poly:"{poly}");',
-        'relation["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"](poly:"{poly}");',
+        'node["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
+        'way["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
+        'relation["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
+        'node["natural"="stone"]["sport"="climbing"][!"climbing"]["name"](poly:"{poly}");',
+        'way["natural"="stone"]["sport"="climbing"][!"climbing"]["name"](poly:"{poly}");',
     ),
 }
 
@@ -115,8 +123,10 @@ def _classify(tags: dict[str, Any]) -> str:
         return DestinationType.trailhead.value
     if natural == "water" and tags.get("water") == "lake":
         return DestinationType.lake.value
-    if tags.get("sport") == "climbing" and tags.get("climbing") in ("crag", "area"):
-        return DestinationType.crag.value
+    if tags.get("sport") == "climbing":
+        climbing = tags.get("climbing")
+        if climbing in ("crag", "area", "boulder") or (climbing is None and natural == "stone"):
+            return DestinationType.crag.value
     # Unreachable for anything the clauses asked for, but a tagging change
     # upstream should degrade to an unbadged row rather than raise.
     return DestinationType.custom.value

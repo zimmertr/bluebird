@@ -69,11 +69,15 @@ to 40, 16 to 3 and 23 to 4 on the same three rings). A lake from the tiles
 carries no elevation, so its Elevation cell shows the terrain height marked
 ([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
 
-A crag is `sport=climbing` with `climbing=crag` or `climbing=area`, and
-nothing wider. Climbers tag every route and boulder `sport=climbing` too:
-measured 2026-10-15 over 47.0 to 48.0 N, 121.8 to 120.8 W, 183 named features
-carried it, of which 82 were crags and 22 areas, and 67 routes, 5 route
-bottoms and 4 boulders would each have been a row of their own. Areas are in
+A crag is `sport=climbing` with `climbing=crag`, `climbing=area` or
+`climbing=boulder`, or a climbable stone (`natural=stone` with
+`sport=climbing` and no `climbing=` tag), and nothing wider. Climbers tag
+every route `sport=climbing` too: measured 2026-10-15 over 47.0 to 48.0 N,
+121.8 to 120.8 W, 183 named features carried it, of which 82 were crags, 22
+areas and 4 boulders, and 67 routes and 5 route bottoms would each have been a
+row of their own. Boulders are in even though a boulder field can add dozens of
+rows a few metres apart, and a boulder mapped as a bare stone counts too
+(Midnite Boulder at Index is one). Areas are in
 because some places are mapped only as one, and an area holds the crags inside
 it, so a ring can list both: Index is an area, and Lower Town Wall inside it is
 a crag. The basemap's tiles cannot stand in for the query: they carry

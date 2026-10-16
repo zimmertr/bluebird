@@ -129,8 +129,9 @@ async def test_several_types_are_one_query_not_one_each(monkeypatch):
 
 
 async def test_crags_add_three_clauses_and_never_bare_sport_climbing(monkeypatch):
-    # Crags come as nodes, ways and relations alike, and the clause must name
-    # the subtype: bare sport=climbing would make every route and boulder a row.
+    # Crags come as nodes, ways and relations alike, and every clause must
+    # narrow sport=climbing: bare, it would make every route a row. A boulder
+    # comes subtyped, or as a stone with no subtype at all.
     calls = []
 
     async def fake_post(query, on_status=None, **_kwargs):
@@ -142,8 +143,10 @@ async def test_crags_add_three_clauses_and_never_bare_sport_climbing(monkeypatch
 
     [query] = calls
     for kind in ("node", "way", "relation"):
-        assert f'{kind}["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"]' in query
-    assert query.count('["sport"="climbing"]') == 3
+        assert f'{kind}["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"]' in query
+    for kind in ("node", "way"):
+        assert f'{kind}["natural"="stone"]["sport"="climbing"][!"climbing"]["name"]' in query
+    assert query.count('["sport"="climbing"]') == 5
     assert 'node["natural"="peak"]["name"]' in query
 
 
@@ -167,6 +170,14 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
             # degrades to an unbadged row rather than passing as a crag.
             {"type": "node", "id": 7, "lat": 7.0, "lon": 7.0,
              "tags": {"name": "G", "sport": "climbing", "climbing": "route"}},
+            # A boulder is a crag row, whether subtyped or a bare climbable
+            # stone, and a stone subtyped as a route is still a route.
+            {"type": "node", "id": 8, "lat": 8.0, "lon": 8.0,
+             "tags": {"name": "H", "sport": "climbing", "climbing": "boulder"}},
+            {"type": "node", "id": 9, "lat": 9.0, "lon": 9.0,
+             "tags": {"name": "Midnite Boulder", "natural": "stone", "sport": "climbing"}},
+            {"type": "node", "id": 10, "lat": 10.0, "lon": 10.0,
+             "tags": {"name": "J", "natural": "stone", "sport": "climbing", "climbing": "route"}},
         ]
     }
 
@@ -180,7 +191,7 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
     )
 
     assert [r["type"] for r in results] == [
-        "peak", "peak", "lake", "trailhead", "crag", "crag", "custom"
+        "peak", "peak", "lake", "trailhead", "crag", "crag", "custom", "crag", "crag", "custom"
     ]
     assert (results[5]["latitude"], results[5]["longitude"]) == (6.0, 6.0)
 

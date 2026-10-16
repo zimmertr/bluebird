@@ -38,8 +38,8 @@ export const LAKE_LAYERS = ['ofm-lakes', 'ofm-lakes-line'] as const
  * One class for a crag and a single route alike: the tile drops OSM's
  * `climbing=` tag, so `Foodbar Crag` and the route `Thin Fingers` carry the
  * same properties (measured 2026-10-15 at Index, z14/2659/5707) and both are
- * selectable. The crag type #715 discovers by Overpass (crags and areas
- * only) therefore cannot be matched from a click, which the maintainer
+ * selectable. The crag type #715 discovers by Overpass (crags, areas and
+ * boulders, never routes) therefore cannot be matched from a click, which the maintainer
  * accepted on 2026-10-15. `ofm-climbing` filters on this class and the
  * style's own `poi` labels are filtered off it, so nothing is labelled twice.
  */

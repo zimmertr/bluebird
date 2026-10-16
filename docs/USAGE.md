@@ -69,7 +69,7 @@ The checkboxes under the buttons control what discovery looks for inside your po
 | Type | OSM Query | Status |
 |---|---|---|
 | Peaks | `natural=peak` or `natural=volcano` (named nodes; OSM tags the Cascade volcanoes as volcano instead of peak) | Implemented |
-| Crags | `sport=climbing` with `climbing=crag` or `climbing=area` (named nodes/ways/relations; routes and boulders are left out) | Implemented |
+| Crags | `sport=climbing` with `climbing=crag`, `climbing=area` or `climbing=boulder`, or `natural=stone` with `sport=climbing` and no `climbing=` tag (named nodes/ways/relations; routes are left out) | Implemented |
 | Lakes | In the app, every named water body on the map (lakes, tarns, ponds and reservoirs alike); through the API, `natural=water` + `water=lake` (named nodes/ways/relations) | Implemented |
 | Trailheads | `highway=trailhead` (named nodes/ways) | Implemented |
 

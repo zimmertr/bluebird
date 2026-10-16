@@ -1,4 +1,4 @@
-# 0159. Crags are the fourth polygon destination type, found from climbing=crag and climbing=area
+# 0159. Crags are the fourth polygon destination type, found from crags, areas and boulders
 
 - Status: Accepted
 - Date: 2026-10-15
@@ -14,7 +14,8 @@ The Destinations section's type row carried three checkboxes, Peaks, Lakes and T
 ## Decision
 
 - **The type is `crag`**, a member of `DestinationType` on both sides, in `IMPLEMENTED_TYPES`, and in the share link's `DISCOVERY_TYPES`.
-- **The clause is `["sport"="climbing"]["climbing"~"^(crag|area)$"]["name"]`**, as three clauses (node, way and relation) in `_CLAUSES`, the way the lake clauses are written, and `_classify` reads the same two tags. It is never widened to bare `sport=climbing`.
+- **The clause is `["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"]`**, as three clauses (node, way and relation) in `_CLAUSES`, the way the lake clauses are written, plus `["natural"="stone"]["sport"="climbing"][!"climbing"]["name"]` for nodes and ways, and `_classify` reads the same tags. It is never widened to bare `sport=climbing`.
+- **Boulders are crags.** The first cut took crags and areas only. On 2026-10-15, after Midnite Boulder at Index was not found, the maintainer added boulders, knowing a boulder field can add many rows a few metres apart. A boulder is mapped either as `climbing=boulder` or as a climbable stone with no subtype (Midnite Boulder is `natural=stone` and `sport=climbing` alone), so both are asked for, and `[!"climbing"]` keeps a stone tagged as a route out. Boulders take the Crag type, checkbox and Mountain Project link; no fifth label was added.
 - **The checkbox reads Crags**, and the row is Peaks, Crags, Lakes, Trailheads.
 - **A crag row's name links to a Mountain Project search by name** (`destinationUrl.ts`), rather than to its OSM object.
 - **The copy that listed the types now names none**: the tutorial's destinations step, the Overpass line `/api/capabilities` publishes, the API description and the README say "destination" or "places", approved verbatim on 2026-10-15, so a fifth type changes none of them.
@@ -47,10 +48,11 @@ The row: the four labels take 289.8px of the 327px row at the 360px panel, and s
 ## Alternatives rejected
 
 - **Cities and towns** (#116, closed 2026-07-31). A valley floor beats every summit on wind and temperature, so a ring with Cities and Peaks ticked ranks to no purpose, and the box held 50 settlements, most of them hamlets nobody plans a trip around.
-- **Bare `sport=climbing`.** It brings every route and boulder with it: in the measured box, 67 routes, 5 route bottoms and 4 boulders would each have been a row.
+- **Bare `sport=climbing`.** It brings every route with it: in the measured box, 67 routes and 5 route bottoms would each have been a row.
+- **Leaving boulders out**, the first cut. A boulder is a place a climber plans a day around, and the maintainer chose to have them, rows and all.
 - **Crags without areas.** Some places are mapped only as an area, and leaving areas out loses them.
 - **A link to the OSM object**, as lakes and trailheads have. The maintainer chose Mountain Project, which is where a climber looks a crag up.
 
 ## Consequences
 
-`test_osm.py` holds the three clauses, their absence when crags are not asked for, and the classification of a crag node, an area relation and a stray route; `test_models.py` holds the enum's members, `test_analyze.py` and `clientAnalyze.test.ts` the over-cap noun (mirror row 18), `urlState.test.ts` the `type=crag` round trip, `DestinationsSection.test.tsx` the checkbox and its order, `destinationUrl.test.ts` the Mountain Project link, and `test_capabilities.py` reads `IMPLEMENTED_TYPES`, so the type is published with no test of its own. `test_osm.py` also keeps a peak and a crag of one name, `test_analyze.py` keeps a custom row and a discovered row of one name at two points (and `analyze_golden.json`'s union case now carries both), and `chartData.test.ts`, `modelCompare.test.ts` and `menuSheets.test.tsx` hold the type in the chart's names and the Removed list. `test_security_headers.py` lists `www.mountainproject.com` as a link-only host. The `add-destination-type` skill now names every file this type touched. OSM's coverage of crags is uneven: the popular areas are mapped and the obscure ones are not, which `docs/DATA.md` says.
+`test_osm.py` holds the three clauses, their absence when crags are not asked for, and the two stone clauses, and the classification of a crag node, an area relation, a boulder, a bare climbable stone, a stray route and a stone tagged as a route; `test_models.py` holds the enum's members, `test_analyze.py` and `clientAnalyze.test.ts` the over-cap noun (mirror row 18), `urlState.test.ts` the `type=crag` round trip, `DestinationsSection.test.tsx` the checkbox and its order, `destinationUrl.test.ts` the Mountain Project link, and `test_capabilities.py` reads `IMPLEMENTED_TYPES`, so the type is published with no test of its own. `test_osm.py` also keeps a peak and a crag of one name, `test_analyze.py` keeps a custom row and a discovered row of one name at two points (and `analyze_golden.json`'s union case now carries both), and `chartData.test.ts`, `modelCompare.test.ts` and `menuSheets.test.tsx` hold the type in the chart's names and the Removed list. `test_security_headers.py` lists `www.mountainproject.com` as a link-only host. The `add-destination-type` skill now names every file this type touched. OSM's coverage of crags is uneven: the popular areas are mapped and the obscure ones are not, which `docs/DATA.md` says.
