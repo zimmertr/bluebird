@@ -566,7 +566,7 @@ function factsText(html: string): string {
 }
 
 // A colour is a `var(--popup-*)` (#740), whose parentheses a pattern would
-// read as a group.
+// read as a group; every character a pattern gives a meaning is escaped.
 function escapeRegExp(s: string): string {
-  return s.replace(/[()]/g, '\\$&')
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

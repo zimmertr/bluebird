@@ -145,7 +145,8 @@ describe('the popup grid', () => {
     expect(link.closest('td')!.getAttribute('style')).not.toMatch(/(^|;)color:/)
     expect(link.getAttribute('style')).toMatch(/^color:inherit;text-decoration:underline;/)
     const facts = metaBand([factsRow('Peak', null, 47.5, -121.7, 'https://example.com')])
-    expect(facts).toMatch(new RegExp(`^<div style="[^"]*${LABEL_COLOR.replace(/[()]/g, '\\$&')}">`))
+    // The band's own tag carries the label grey the coordinates inherit.
+    expect(facts.slice(0, facts.indexOf('>'))).toContain(LABEL_COLOR)
     expect(facts).toMatch(/<a [^>]*style="color:inherit;text-decoration:underline;"/)
   })
 
