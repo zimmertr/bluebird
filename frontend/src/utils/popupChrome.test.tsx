@@ -3,25 +3,22 @@ import { within } from '@testing-library/react'
 import { render } from '../testSupport/render'
 import { closureFeature, closureWarning, resultRow } from '../testSupport/fixtures'
 import {
-  FINE_COLOR,
   GRID_BAND_COLOR,
   GRID_COMPACT_INSET_PX,
   GRID_COMPACT_LABEL_GAP_PX,
-  GRID_GUTTER_COLOR,
   GRID_INSET_PX,
   GRID_LABEL_GAP_PX,
   GRID_RANKED_COLOR,
   HEADER_BAND_COLOR,
-  HEADER_ICON_COLOR,
   LABEL_COLOR,
-  LINK_COLOR,
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
+  POPUP_TINT_ATTR,
   SECTION_EDGE,
-  WARNING_COLOR,
   WIDEST_GRID_PX,
   compactGrid,
   factsRow,
+  metaBand,
   metricGrid,
   bodyLines,
   factsLine,
@@ -103,13 +100,54 @@ describe('a result popup', () => {
   })
 })
 
-// The grid's column bands (TJ, 2026-10-08). The band sits under every number
-// and every head, so both colours on it must still clear AA.
+// The grid's column bands (TJ, 2026-10-08). Every colour on the card is
+// measured in both themes in `styles.test.ts`, beside the scale bar, because
+// its values are `map.css`'s (#740).
 describe('the popup grid', () => {
-  it('keeps link and label text above AA on the band', () => {
-    expect(round2(contrast(LINK_COLOR, GRID_BAND_COLOR))).toBe(5.42)
-    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), GRID_BAND_COLOR))).toBe(6.92)
-    expect(GRID_GUTTER_COLOR).toBe('#ffffff')
+  // A ranked family's number carries the table's fill and both themes' inks,
+  // and takes its colour from the one `map.css` picks (#740); a ranked number
+  // with no colour keeps the slate step.
+  it('paints a coloured number with the fill and both inks it carries', () => {
+    const tint = { fill: 'rgba(1,2,3,0.2)', ink: { dark: 'rgb(4,5,6)', light: 'rgb(7,8,9)' } }
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum, AGGREGATE.maximum],
+      rows: [
+        {
+          kind: 'aggregates',
+          label: 'Wind (mph)',
+          cells: [
+            { text: '3.2', href: null, ranked: false, tint },
+            { text: '41.8', href: null, ranked: true, tint },
+          ],
+        },
+        { kind: 'value', label: 'AQI', cell: { text: '24', href: null, ranked: true } },
+      ],
+    })
+    const cells = mount(html).querySelectorAll(`td[${POPUP_TINT_ATTR}]`)
+    expect(cells).toHaveLength(2)
+    for (const cell of cells) {
+      expect(cell.getAttribute('style')).toContain(
+        ';background:rgba(1,2,3,0.2);--tint-dark:rgb(4,5,6);--tint-light:rgb(7,8,9);color:var(--popup-tint)',
+      )
+    }
+    expect(html.split(`;background:${GRID_RANKED_COLOR}`)).toHaveLength(2)
+  })
+
+  // A link is underlined in the colour of the text around it, as the table's
+  // numbers are (TJ, 2026-10-16, #740): a grid number in the card's ink, the
+  // coordinates in the facts line's grey. Sky stays on the title's glyph.
+  it('underlines a link in the colour of the text around it', () => {
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum],
+      rows: [{ kind: 'aggregates', label: 'Wind (mph)', cells: [{ text: '3.2', href: 'https://example.com', ranked: false }] }],
+    })
+    const link = mount(html).querySelector('td a')!
+    expect(link.closest('td')!.getAttribute('style')).not.toMatch(/(^|;)color:/)
+    expect(link.getAttribute('style')).toMatch(/^color:inherit;text-decoration:underline;/)
+    const facts = metaBand([factsRow('Peak', null, 47.5, -121.7, 'https://example.com')])
+    // The band's own tag carries the label grey the coordinates inherit.
+    expect(facts.slice(0, facts.indexOf('>'))).toContain(LABEL_COLOR)
+    expect(facts).toMatch(/<a [^>]*style="color:inherit;text-decoration:underline;"/)
   })
 
   it('stands a one-value line across Min, Max and Avg and leaves Total empty', () => {
@@ -132,14 +170,9 @@ describe('the popup grid', () => {
     expect(html).toMatch(/<th scope="row" style="[^"]*white-space:nowrap[^"]*">Precipitation \(in\/hr\)<\/th>/)
   })
 
-  // The number the report ranks by is bold on a cell one slate darker than
-  // its column (TJ, 2026-10-08). The step is small, so the link on it must
-  // still clear AA, and the bold does the rest.
-  it('marks the ranked number bold on a darker slate, keeping its link above AA', () => {
-    // Slate-200, one step past the column's slate-100, with no hue.
-    expect(GRID_RANKED_COLOR).toBe('#e2e8f0')
-    expect(round2(contrast(GRID_RANKED_COLOR, GRID_BAND_COLOR))).toBe(1.13)
-    expect(round2(contrast(LINK_COLOR, GRID_RANKED_COLOR))).toBe(4.81)
+  // The number the report ranks by is bold on a cell one step past its
+  // column (TJ, 2026-10-08).
+  it('marks the ranked number bold on its own shade', () => {
     const html = metricGrid({
       columns: [AGGREGATE.minimum, AGGREGATE.maximum],
       rows: [
@@ -177,24 +210,10 @@ describe('the popup grid', () => {
   })
 })
 
-// The warning amber sits under AA on the card's white by the maintainer's
-// choice (TJ kept amber-500 over amber-700, 2026-10-08). Pinned so a change
-// re-measures rather than inherits the claim.
-describe('the warning colour', () => {
-  it('measures 2.15:1 on white', () => {
-    expect(round2(contrast(WARNING_COLOR, '#ffffff'))).toBe(2.15)
-  })
-})
-
-// The result card's header band (TJ, 2026-10-08): every colour on it measured.
+// The result card's header band (TJ, 2026-10-08).
 describe('the header band', () => {
-  it('keeps its text above AA and its link glyph above the 3:1 an icon owes', () => {
-    expect(round2(contrast(LABEL_COLOR.replace('color:', ''), HEADER_BAND_COLOR))).toBe(6.92)
-    expect(round2(contrast('#000000', HEADER_BAND_COLOR))).toBe(19.17)
-    expect(round2(contrast(HEADER_ICON_COLOR, HEADER_BAND_COLOR))).toBe(3.74)
-    // The pipes are decoration, hidden from a screen reader; they need only show.
-    expect(round2(contrast(FINE_COLOR, HEADER_BAND_COLOR))).toBe(2.34)
-    // No hue: the band is the grid's own column slate (option H, TJ 2026-10-08).
+  // No hue: the band is the grid's own column slate (option H, TJ 2026-10-08).
+  it('is the grid\'s own column shade', () => {
     expect(HEADER_BAND_COLOR).toBe(GRID_BAND_COLOR)
   })
 
@@ -281,23 +300,6 @@ describe('compactGrid', () => {
   })
 })
 
-// WCAG relative luminance and contrast, for the band above. Small enough to
-// live here, as `colors.test.ts` keeps its own.
-function contrast(a: string, b: string): number {
-  const lum = (hex: string) => {
-    const [r, g, bl] = [1, 3, 5].map((i) => {
-      const c = parseInt(hex.slice(i, i + 2), 16) / 255
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-    })
-    return 0.2126 * r + 0.7152 * g + 0.0722 * bl
-  }
-  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
-  return (hi + 0.05) / (lo + 0.05)
-}
-
-function round2(v: number): number {
-  return Math.round(v * 100) / 100
-}
 
 describe("an overlay's facts line and body", () => {
   it('parts the kind and its figure with the pipe a destination wears, and cuts rather than wraps', () => {

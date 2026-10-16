@@ -224,7 +224,7 @@ function luminance(hex: string): number {
 }
 
 // WCAG relative luminance and contrast. Kept here, as `colors.test.ts` and
-// `popupChrome.test.tsx` keep theirs, because no shared helper exists to reuse.
+// `styles.test.ts` keep theirs, because no shared helper exists to reuse.
 function contrast(a: string, b: string): number {
   const lum = (hex: string) => {
     const [r, g, bl] = [1, 3, 5].map((i) => {

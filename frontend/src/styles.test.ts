@@ -123,6 +123,22 @@ import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
+import { METRIC_SCALE } from './utils/colors'
+import {
+  FINE_COLOR,
+  GRID_BAND_COLOR,
+  GRID_GUTTER_COLOR,
+  GRID_LINE_COLOR,
+  GRID_RANKED_COLOR,
+  HEADER_BAND_COLOR,
+  HEADER_EDGE_COLOR,
+  HEADER_ICON_COLOR,
+  LABEL_COLOR,
+  RULE_COLOR,
+  WARNING_COLOR,
+  popupButton,
+  type PopupButtonVariant,
+} from './utils/popupChrome'
 // `?raw` gives us the file's text without executing it, so this stays a pure
 // node test with no DOM, matching vitest.config.ts. (The same trick does not
 // work on index.css: vitest stubs CSS imports to an empty string.)
@@ -215,6 +231,31 @@ function oklchHex(l: number, c: number, h: number): string {
     .map((v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055))
     .map((v) => Math.round(v * 255).toString(16).padStart(2, '0'))
     .join('')}`
+}
+/**
+ * `a` at weight `w` mixed with `b`, as `color-mix(in oklab, a w, b)` paints
+ * it: both to oklab, the weighted sum, and back through `oklchHex`'s path.
+ */
+function mixOklab(a: string, w: number, b: string): string {
+  const oklab = (hex: string) => {
+    const [r, g, bl] = rgb(hex).map((v) => {
+      const c = v / 255
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+    })
+    const [l, m, s] = [
+      0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * bl,
+      0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * bl,
+      0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * bl,
+    ].map(Math.cbrt)
+    return [
+      0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+      1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+      0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+    ]
+  }
+  const [x, y] = [oklab(a), oklab(b)]
+  const [L, A, B] = x.map((v, i) => w * v + (1 - w) * y[i])
+  return oklchHex(L, Math.hypot(A, B), (Math.atan2(B, A) * 180) / Math.PI)
 }
 // WCAG 2 relative luminance and contrast over a hex, for the light theme's
 // measurements and the accent's light half.
@@ -2995,6 +3036,160 @@ describe('the scale bar', () => {
   })
 })
 
+// The map's popups follow the theme (#740): white in the light theme, every
+// value the one the card has always painted, and the panel's own surfaces and
+// inks in the dark one. A card names `var(--popup-*)` in its markup and
+// `map.css` gives each one value per theme, so every pair is measured here,
+// where the stylesheets are read, on the surface it lands on. Measured
+// 2026-10-16.
+describe('the popup card', () => {
+  type Theme = 'dark' | 'light'
+  const popupBlock = (selector: string): Record<string, string> => {
+    const body = mapCss.match(new RegExp(String.raw`\n${selector} \{([^}]*)\}`))![1]
+    return Object.fromEntries([...body.matchAll(/--popup-([\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]))
+  }
+  const POPUP: Record<Theme, Record<string, string>> = {
+    dark: popupBlock(':root'),
+    light: popupBlock(String.raw`:root\[data-theme="light"\]`),
+  }
+  // Tailwind's own palette, read off the disk as the scale bar's is.
+  const palette: string = readFileSync(new URL('../node_modules/tailwindcss/theme.css', import.meta.url), 'utf8')
+  const step = (name: string): string => {
+    // White and black are hexes in the palette, every other step an oklch.
+    if (name === 'white') return '#ffffff'
+    const decl = palette.match(new RegExp(String.raw`--color-${name}: oklch\(([\d.]+)% ([\d.]+) ([\d.]+)\);`))
+    if (!decl) throw new Error(`no oklch declaration for ${name} in tailwindcss/theme.css`)
+    return oklchHex(Number(decl[1]) / 100, Number(decl[2]), Number(decl[3]))
+  }
+  /** The hex a value paints in a theme: a popup value, a theme token, a step, a mix. */
+  const paint = (value: string, theme: Theme): string => {
+    const v = value.replace(/^color:/, '').trim()
+    if (/^#[0-9a-f]{6}$/i.test(v)) return v.toLowerCase()
+    if (v === '#fff') return '#ffffff'
+    // The scheme's own text colour, which the light card resolves to black.
+    if (v === 'CanvasText') return theme === 'light' ? '#000000' : '#ffffff'
+    const popup = v.match(/^var\(--popup-([\w-]+)\)$/)
+    if (popup) return paint(POPUP[theme][popup[1]], theme)
+    const ui = v.match(/^var\(--ui-([\w-]+)\)$/)
+    if (ui) return theme === 'light' ? light(ui[1]) : paint(DARK_TOKENS[ui[1]], theme)
+    const own = v.match(/^var\(--color-([\w-]+)\)$/)
+    if (own) return own[1] === 'sky-650' ? light('accent') : step(own[1])
+    const mix = v.match(/^color-mix\(in oklab, (.+) (\d+)%, (.+)\)$/)
+    if (mix) return mixOklab(paint(mix[1], theme), Number(mix[2]) / 100, paint(mix[3], theme))
+    throw new Error(`cannot resolve ${v}`)
+  }
+  const measure = (a: string, b: string, theme: Theme) => ratio(paint(a, theme), paint(b, theme))
+  const SURFACE = GRID_GUTTER_COLOR
+  const INK = 'var(--popup-ink)'
+  // A button's fill and its label, as `popupButton` writes them.
+  const onFill = (variant: PopupButtonVariant, theme: Theme) => {
+    const [, fill, label] = popupButton('data-x', variant, 'Go').match(/background:([^;]+);color:([^;"]+)/)!
+    return measure(label, fill, theme)
+  }
+
+  it('declares every popup colour in both themes, and paints the vendor parts with them', () => {
+    expect(Object.keys(POPUP.dark).sort()).toEqual(Object.keys(POPUP.light).sort())
+    expect(mapCss).toMatch(/\n\.maplibregl-popup-content \{\s*background: var\(--popup-surface\);/)
+    expect(mapCss.match(/border-(top|bottom|left|right)-color: var\(--popup-surface\);/g)).toHaveLength(4)
+    expect(mapCss).toContain('scrollbar-color: var(--popup-thumb) var(--popup-band);')
+  })
+
+  // Light: the white card, pixel for pixel, with the ratios it always had.
+  it('keeps the light card the white it always was', () => {
+    expect([SURFACE, INK, HEADER_BAND_COLOR, GRID_RANKED_COLOR, LABEL_COLOR].map((c) => paint(c, 'light'))).toEqual([
+      '#ffffff', '#000000', '#f1f5f9', '#e2e8f0', '#475569',
+    ])
+    // A label, and the coordinates, which link in the facts line's own grey
+    // (#740), on the band.
+    expect(measure(LABEL_COLOR, GRID_BAND_COLOR, 'light')).toBe(6.92)
+    expect(measure(GRID_RANKED_COLOR, GRID_BAND_COLOR, 'light')).toBe(1.13)
+    // The title on its band, and a grid number, which links in the ink (#740),
+    // on its column and on the ranked cell.
+    expect([HEADER_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'light'))).toEqual([19.17, 17.03])
+    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'light')).toBe(3.74)
+    // The pipes are decoration, hidden from a screen reader; they need only show.
+    expect(measure(FINE_COLOR, HEADER_BAND_COLOR, 'light')).toBe(2.34)
+    // The warning amber sits under AA on white by the maintainer's choice (TJ
+    // kept amber-500 over amber-700, 2026-10-08).
+    expect(measure(WARNING_COLOR, SURFACE, 'light')).toBe(2.15)
+    expect(measure('var(--popup-thumb)', GRID_BAND_COLOR, 'light')).toBe(4.34)
+  })
+
+  // Dark: the panel's own surface, and the band and ranked cell one and two
+  // half steps toward the raised slate, so they part from it about as far as
+  // the light card's do from white (1.1 and 1.13).
+  it('stands the dark band and ranked cell on the panel surface', () => {
+    expect(POPUP.dark.surface).toBe('var(--ui-panel)')
+    expect(darkStep('panel')).toBe('slate-800')
+    expect(measure(HEADER_BAND_COLOR, SURFACE, 'dark')).toBe(1.18)
+    expect(measure(GRID_RANKED_COLOR, GRID_BAND_COLOR, 'dark')).toBe(1.2)
+  })
+
+  it('reads every dark text above AA on each surface it lands on', () => {
+    // A link takes the colour of the text around it (#740), so the ink is the
+    // title's and every grid number's, linked or not.
+    expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'dark'))).toEqual([11.86, 10.05, 8.4])
+    // Labels and the coordinates beside them. Neither stands on the ranked
+    // cell, which holds a number alone.
+    expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, 'dark'))).toEqual([5.56, 4.71])
+    // The maintainer's amber, which clears AA on the dark card where on white
+    // it does not.
+    expect(measure(WARNING_COLOR, SURFACE, 'dark')).toBe(6.81)
+  })
+
+  // The link-out glyph and the scroll bar's thumb owe 3:1.
+  it('keeps the dark glyph and thumb above the 3:1 a graphic owes', () => {
+    expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'dark')).toBe(5.69)
+    expect(measure('var(--popup-thumb)', GRID_BAND_COLOR, 'dark')).toBe(4.71)
+  })
+
+  // The fine print steps back as far as the light card's does (2.98:1 on
+  // white), and stays under AA for the reason `FINE_COLOR` gives.
+  it('steps the dark fine print back as far as the light card does', () => {
+    expect([SURFACE, HEADER_BAND_COLOR].map((on) => measure(FINE_COLOR, on, 'dark'))).toEqual([3.07, 2.6])
+  })
+
+  it('reads every button label and the close glyph on its own fill', () => {
+    expect((['primary', 'secondary', 'danger'] as const).map((v) => [onFill(v, 'dark'), onFill(v, 'light')])).toEqual([
+      // The app's accent fill in dark, where the light card's sky-600 is 4.1.
+      [4.56, 4.1],
+      [6.15, 8.4],
+      // Red-500 under white in both, unchanged; only the ring's remove-point
+      // popup wears it.
+      [3.76, 3.76],
+    ])
+    expect(measure('var(--popup-close)', 'var(--popup-close-fill)', 'dark')).toBe(6.97)
+    expect(measure('var(--popup-close-hover)', 'var(--popup-close-hover-fill)', 'dark')).toBe(7.58)
+  })
+
+  // The ranked family's colours (#740) are the table's, so the dark card,
+  // which stands on the table's own panel, reads every band's ink at the
+  // ratios `colors.test.ts` pins. The light card is white where the light
+  // table is its panel, so each band's ink is measured again on its 20% tint
+  // over white.
+  it('reads every coloured number above AA on the card, in both themes', () => {
+    expect(paint(SURFACE, 'dark')).toBe(paint('var(--ui-panel)', 'dark'))
+    const tintOver = (band: string, under: string) =>
+      `#${rgb(band)
+        .map((v, i) => Math.round(0.2 * v + 0.8 * rgb(under)[i]))
+        .map((v) => v.toString(16).padStart(2, '0'))
+        .join('')}`
+    const white = paint(SURFACE, 'light')
+    const lightest = Math.min(
+      ...Object.values(METRIC_SCALE).flatMap((scale) => scale.colors.map((band, i) => contrast(scale.ink[i], tintOver(band, white)))),
+    )
+    expect(Math.round(lightest * 100) / 100).toBe(6)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-dark\);/)
+    expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-light\);/)
+  })
+
+  // The quiet lines, the header's edge and the grid's hairline, and the
+  // firmer rule under the grid's heads.
+  it('draws the dark lines a step and two off the surface', () => {
+    expect([HEADER_EDGE_COLOR, GRID_LINE_COLOR, RULE_COLOR].map((l) => measure(l, SURFACE, 'dark'))).toEqual([1.41, 1.41, 1.93])
+  })
+})
+
 describe('the idle compass', () => {
   it('is hidden by map.css under the class the controls module sets', () => {
     // On the button itself (record 0147), since a phone stands it outside the
@@ -3166,8 +3361,10 @@ describe('the panel frame', () => {
     expect(darkStep('edge')).toBe('slate-500')
     expect(darkStep('panel')).toBe('slate-800')
     expect(bars).not.toMatch(/#[0-9a-f]{3,6}\b/i)
-    // The map's white surfaces keep the light scheme for themselves.
-    expect(mapCss).toMatch(/\.maplibregl-popup,\s*\.maplibregl-ctrl\s*\{\s*color-scheme:\s*light;\s*color:\s*CanvasText;/)
+    // MapLibre's white controls keep the light scheme for themselves, and a
+    // popup takes its card's (#740).
+    expect(mapCss).toMatch(/\n\.maplibregl-ctrl\s*\{\s*color-scheme:\s*light;\s*color:\s*CanvasText;/)
+    expect(mapCss).toMatch(/\n\.maplibregl-popup\s*\{\s*color-scheme:\s*var\(--popup-scheme\);\s*color:\s*var\(--popup-ink\);/)
   })
 
   // The two halves of the shadow, each drawn only while content continues

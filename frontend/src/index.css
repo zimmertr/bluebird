@@ -156,8 +156,8 @@ body,
    dark (#697): without it Chromium and Safari draw their light-theme chrome
    on every surface the app does not style itself, the welcome dialog's and
    the legal pages' scroll bars and the glyphs of the native date, time and
-   number inputs. The white map popups and MapLibre's white controls say
-   `light` for themselves in map.css. */
+   number inputs. MapLibre's white controls say `light` for themselves in
+   map.css, and the map popups take their card's scheme there (#740). */
 :root {
   color-scheme: dark;
   --ui-page: var(--color-slate-900);

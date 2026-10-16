@@ -62,6 +62,9 @@ export function resultPopupHtml(d: {
   // The key the report ranks by, whose number the grid marks. Optional for
   // the reason `modelId` is.
   rankedBy?: SortBy | null
+  // Whether the window is one hour, which the ranked family's colours read
+  // the way the table's do. Optional for the reason `modelId` is.
+  pointSample?: boolean
   // Whether the grid takes its narrow insets, for a map too narrow for the
   // widest grid at full inset (`compactGrid`).
   compact?: boolean
@@ -125,7 +128,7 @@ export function resultPopupHtml(d: {
   // (TJ, 2026-10-08). The two safety lines stand in a section of their own
   // above it (`popupCard`'s `warnings`).
   const grid = popupGrid(
-    popupGroups(r, d.columns, { modelId: d.modelId, times: d.times, rankedBy: d.rankedBy }),
+    popupGroups(r, d.columns, { modelId: d.modelId, times: d.times, rankedBy: d.rankedBy, pointSample: d.pointSample }),
   )
   const body = grid.rows.length ? metricGrid(grid, { compact: d.compact }) : ''
 

@@ -83,6 +83,7 @@ function setup(points: Pts = TRI, drawing = true, maxPolygonPoints = MAX_POLYGON
     times: [],
     modelFallbackLabel: null,
     popupColumns: [],
+    pointSample: false,
     sortBy: 'aqi_avg',
     fireWarnings: new Map(),
     closureWarnings: new Map(),

@@ -29,6 +29,9 @@ export interface MapInputs {
   popupColumns: readonly ColDef[]
   // What the report ranks by, whose number a result popup marks.
   sortBy: SortBy
+  // Whether the window is one hour, which a result popup's colours read as
+  // the table's do.
+  pointSample: boolean
   fireWarnings: Map<string, FireWarning>
   closureWarnings: Map<string, ClosureWarning>
   searchedPlaces: Place[]

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { POI_ACTION_ATTR, poiPopupHtml } from './poiPopup'
 import { ELEVATION_COL } from './tableColumns'
 import {
+  FINE_COLOR,
   HEADER_BAND_COLOR,
   POPUP_BODY_ATTR,
   POPUP_MAX_WIDTH_PX,
@@ -51,7 +52,7 @@ describe('poiPopupHtml', () => {
     const [primary, secondary, danger] = (['primary', 'secondary', 'danger'] as const).map((v) =>
       popupButton('data-x', v, 'Go'),
     )
-    const look = (html: string) => html.replace(/background:#[0-9a-f]{6};color:#[0-9a-f]{3,6}/, '')
+    const look = (html: string) => html.replace(/background:[^;]+;color:[^;"]+/, '')
     expect(look(primary)).toBe(look(secondary))
     expect(look(primary)).toBe(look(danger))
     expect(primary).toContain('<button data-x style="')
@@ -60,7 +61,7 @@ describe('poiPopupHtml', () => {
 
   it('sets fine print small, italic and stepped back', () => {
     expect(fineprint('Updated: today')).toBe(
-      '<span style="color:#94a3b8;font-size:11px;font-style:italic">Updated: today</span>',
+      `<span style="color:${FINE_COLOR};font-size:11px;font-style:italic">Updated: today</span>`,
     )
   })
 

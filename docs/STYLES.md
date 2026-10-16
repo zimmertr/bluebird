@@ -318,11 +318,22 @@ follows the tokens: axis `ink-soft`, grid `rule`, surface `panel`, playhead
 **What does not change.** The map is terrain and light in both themes: the
 basemap, the markers, the ring, the labels and their halo, and every overlay's
 fill and edge keep their values in `mapStyles.ts` and the overlay modules. The
-popups stay white, as MapLibre draws them, and `popupChrome.ts` keeps its
-values. The map's control buttons and its credit box are the app's chrome and
+map's control buttons and its credit box are the app's chrome and
 follow the theme like any floating box, which is why in light their glyphs keep
 MapLibre's own dark drawing where `map.css` inverts them in dark, and the credit
 line reads in `ink-mid`.
+
+**The popups follow the theme** (#740). Every colour a card wears is a
+`--popup-*` value that `map.css` declares once per theme, and `popupChrome.ts`
+names them in its markup as `var(--popup-label)` and the rest. The light card
+is the white it has always been, value for value. The dark card is the
+panel's own: its surface `panel`, its header band and grid columns halfway
+between `panel` and `raised`, its ranked cell `raised`, its inks the panel's,
+its link-out glyph `accent-ink`. A link in a card is underlined in the colour
+of the text around it, the way the results table's numbers are: a grid number
+in the ink, the coordinates in the facts line's grey. The warning amber is the one colour both cards share,
+because on the dark card it clears AA. `styles.test.ts` measures every pair in
+both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 
 ## What is enforced
 
@@ -393,15 +404,17 @@ values (#365):
 |---|---|---|
 | MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
 | Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
-| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the rule, the label, link, glyph, fine-print and warning colours, the one button recipe in three variants, the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
+| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the rule, the label, glyph, fine-print and warning colours, the one button recipe in three variants, the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
 A colour in one of those channels is measured against the surface it actually
-lands on, which for a popup is the white MapLibre draws rather than the app's
-slate; `popupChrome.ts` records each measurement beside its value, including
-the ones that sit under AA as shipped (`FINE_COLOR`, `WARNING_COLOR`), which
-#365 named without recolouring. A third, the overlays' sky-400 link, left with
-the overlays' own shell in #738.
+lands on, which for a popup is the card's own surface in each theme rather
+than the panel; `popupChrome.ts` records each light measurement beside its
+value, including the ones that sit under AA as shipped (`FINE_COLOR`,
+`WARNING_COLOR`), which #365 named without recolouring. On the dark card the
+warning clears AA and the fine print still does not, by the same step back.
+A third, the overlays' sky-400 link, left with the overlays' own shell in
+#738.
 
 ### Two enforcers, split by what they know
 

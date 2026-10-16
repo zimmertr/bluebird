@@ -1,6 +1,6 @@
 # 0158. The app has a light theme behind a header switch, painted through semantic tokens, and opens dark
 
-- Status: Accepted
+- Status: Accepted. Its popup clause is superseded by 0163: the popups follow the theme.
 - Date: 2026-10-15
 - Decider: the maintainer (TJ), on issue #706, 2026-10-15; the accent and the chart lines on PR #733, 2026-10-15
 - Issues and PRs: #706, #733
