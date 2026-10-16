@@ -1067,17 +1067,18 @@ as how much water is landing on a summit.
 point, but it does not need to: the composite is an 8-bit image whose 256
 values each have a colour of their own, from -32 dBZ to 95 dBZ in half-dBZ
 steps, and the tiles keep those colours exactly (measured 2026-10-16: 13,348
-painted pixels over seven tiles, every one an exact palette colour). So the card
-decodes the clicked pixel of the frame on screen, out of the tile the map
-already loaded, and reports the radar's own number rather than a band read off
-a colour. The card names the echo by its strength: `Weak radar echo` under
+painted pixels over seven tiles, every one an exact palette colour). So the app
+keeps a copy of each tile as the map loads it, and the card decodes the clicked
+pixel of the frame on screen out of that copy, reporting the radar's own number
+rather than a band read off a colour. Reading a tile already in hand is why the
+card opens on the click and why the pointer can say where one will. The card names the echo by its strength: `Weak radar echo` under
 15 dBZ, where birds, insects and ground clutter paint as readily as drizzle,
 then `Light`, `Moderate`, `Heavy` and `Very heavy precipitation` at 15, 30, 40
 and 50 dBZ, a common convention rather than a published NWS table.
 "Precipitation" rather than "rain", because reflectivity cannot tell the two
 apart.
 
-The card's **rain rate is an estimate**: Marshall and Palmer's Z = 200 R^1.6,
+The card's **rate is an estimate**: Marshall and Palmer's Z = 200 R^1.6,
 the textbook relation for stratiform rain, read no higher than 53 dBZ, which is
 where the NEXRAD rainfall algorithm stops too, because an echo past it is
 usually hail. Without that cap the strongest cell measured, 59 dBZ, read 7 in
@@ -1085,7 +1086,9 @@ an hour. It assumes rain, so under snow it is wrong, and even in rain the true
 relation varies by storm. What the card cannot say at all: the wind (Doppler
 velocity is per radar and only toward or away from it), what is falling, or how
 much has fallen. During playback it reads the frame on screen and says how old
-that frame is.
+that frame is, as `now` or minutes ago rather than a clock time: IEM publishes
+each frame's time, but a tile can sit in its edge cache for five minutes, so a
+time asked for at the click could be a frame off the picture.
 
 ## Snow depth
 
@@ -1145,8 +1148,15 @@ permanent snow and ice is not a number to plan on.
 
 **A click where the layer paints snow asks NOAA for the analysis there** (#737)
 and shows the depth, the snow water equivalent and the time the analysis is
-valid for, in your own time zone. The numbers are the analysis's, not a reading
-of the colour. NOAA states neither unit, so both were read off its own
+valid for, in your own time zone. The card opens at once, named for the band
+the map painted under the click, which the app reads off its own copy of the
+tile: NOAA's renders use exactly the legend's colours, so the pixel names the
+band. `Light snow` under 3.9 in, then `Moderate`, `Deep` and `Very deep snow`
+from 3.9, 20 and 59 in, and `Permanent snow` from 197 in, a depth seasonal snow
+rarely reaches, so most of what paints there is glacier and firn. The words
+follow NOAA's own band edges, so the name and the colour cannot disagree. The numbers
+then land in the card from NOAA's answer, and they are the analysis's, not a
+reading of the colour. NOAA states neither unit, so both were read off its own
 classification, which comes back beside each value: the depth is in metres and
 the water in millimetres. The answer depends on the size of the box the request
 describes, because the service resamples to the pixel that box implies: the
@@ -1154,12 +1164,12 @@ same Rainier summit read 52.13 m asked about with a continent and 74.58 m asked
 about with a hundredth of a degree, and the 68.62 m above is the September
 figure. The card asks with a hundredth of a degree, a pixel well inside one cell
 of the 1 km grid, so it reads the cell under the click. A card opens only where
-the map shows snow: the answer carries the class NOAA paints by, and 0.02 m
-(0.8 in) came back unpainted although the legend starts at 0.39 in, so the card
-follows the paint rather than the number. Each click is one request of about
-0.8 s. The service sometimes answers an error inside a 200, so that one shape of
-failure is asked once more before the click is given up; any other failure
-opens nothing, as a layer that fails to load shows nothing.
+the map shows snow, because the painted pixel decides rather than the number:
+0.02 m (0.8 in) came back unpainted although the legend starts at 0.39 in. Each
+click is one request of about 0.8 s. The service sometimes answers an error
+inside a 200, so that one shape of failure is asked once more; if NOAA still
+cannot answer, the card keeps its name and says
+`NOAA snow analysis failed. Try again later.` in place of the numbers.
 
 ## The forecast grid
 

@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-// The reading itself is `radarPoint.ts`'s, tested there; this file holds what
-// the overlay hands it.
-const { readRadarAt } = vi.hoisted(() => ({ readRadarAt: vi.fn() }))
-vi.mock('../../utils/radarPoint', () => ({ readRadarAt }))
 import { RADAR_OPACITY, RADAR_WARM_MS, activeOffset, mountRadar } from './radar'
-import { radarLayerId, radarOffsets } from '../../utils/radar'
+import { radarHeldUrl, radarLayerId, radarOffsets } from '../../utils/radar'
+import { RADAR_TILE_PX, radarHeldLayer, radarTileZoom } from '../../utils/radarPoint'
+import { storeHolding } from '../../testSupport/heldTiles'
+import { markupText } from '../../testSupport/markupText'
 import { fakeMapPopups } from '../../testSupport/fakeMapPopups'
 import { stubMap } from '../../testSupport/stubMap'
 
@@ -110,14 +108,35 @@ describe('mountRadar click reading', () => {
   })
 
   // During playback the reader is looking at an older picture than now, and
-  // a click describes the picture they are looking at.
-  it('reads the frame on screen', () => {
+  // the pointer and a click read the picture they are looking at.
+  it('reads the frame on screen from the tiles it holds', async () => {
+    const AT = { lng: -121.5, lat: 47.5, zoom: 7 }
+    const onScreen = radarOffsets()[2]
+    const tiles = storeHolding({
+      size: RADAR_TILE_PX,
+      layer: radarHeldLayer(onScreen),
+      ...AT,
+      z: radarTileZoom(AT.zoom),
+      rgba: [9, 111, 12, 255],
+    })
     const { popups, points } = fakeMapPopups()
-    const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups })
+    const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, tiles })
     radar.update({ show: true, index: 2 })
-    const signal = new AbortController().signal
-    void points[0].read({ lng: -121.5, lat: 47.5, zoom: 7 }, signal)
-    expect(readRadarAt).toHaveBeenLastCalledWith(-121.5, 47.5, 7, radarOffsets()[2], signal)
+    expect(await points[0].paints(AT)).toBe(true)
+    const reading = await points[0].read(AT, new AbortController().signal)
+    expect(reading?.section.rows.map(markupText)).toContain(`Updated: ${onScreen} min ago`)
+    radar.update({ show: true, index: 5 })
+    expect(await points[0].paints(AT)).toBe(false)
+  })
+
+  // The frames load through the scheme that keeps a copy of every tile.
+  it('loads every frame through the held-tile scheme', () => {
+    const stub = stubMap({ layers: [SMOKE_FIRST] })
+    mountRadar(stub.map, { popups: fakeMapPopups().popups }).update({ show: true, index: 0 })
+    for (const offset of radarOffsets()) {
+      const added = stub.calls.find((c) => c[0] === 'addSource' && c[1] === radarLayerId(offset))
+      expect((added?.[2] as { tiles: string[] }).tiles).toEqual([radarHeldUrl(offset)])
+    }
   })
 
   it('takes its cards down when switched off', () => {
@@ -127,5 +146,14 @@ describe('mountRadar click reading', () => {
     expect(closed).toEqual([])
     radar.update({ show: false, index: 0 })
     expect(closed).toEqual(['radar'])
+  })
+
+  it('forgets the tiles it held when switched off', async () => {
+    const AT = { lng: -121.5, lat: 47.5, zoom: 7 }
+    const tiles = storeHolding({ size: RADAR_TILE_PX, layer: radarHeldLayer(0), ...AT, z: radarTileZoom(7), rgba: [9, 111, 12, 255] })
+    const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups: fakeMapPopups().popups, tiles })
+    radar.update({ show: true, index: 5 })
+    radar.update({ show: false, index: 5 })
+    expect(await tiles.pixel(radarHeldLayer(0), AT.lng, AT.lat, radarTileZoom(7))).toBeNull()
   })
 })

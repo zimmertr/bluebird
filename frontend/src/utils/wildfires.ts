@@ -15,7 +15,7 @@
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { bodyLines, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popupChrome'
+import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, updatedAt, updatedLine } from './popupChrome'
 
 const WILDFIRES_URL = '/api/wildfires'
 
@@ -190,30 +190,6 @@ export function formatContainment(pct: number | null | undefined): string {
 }
 
 /**
- * Epoch-ms → localized "Updated: <date>, <time>", or null to omit it.
- *
- * This is NIFC's own timestamp for when the incident's perimeter was last
- * redrawn: a fact about the fire, not about Bluebird Forecast. Measured across one
- * national snapshot it ranged from minutes to two weeks old. It sits inside a
- * card titled with the incident, whose band says `Wildfire` and whose glyph
- * links NIFC, which is what makes "Updated" read as the fire's date rather
- * than the app's. Every overlay card's date line is one `Label: value` shape
- * (`Updated:`, `Effective:`, `Observed:`; TJ, 2026-10-16).
- *
- * Kept timezone-tolerant (falls back to a bare ISO date) so it never throws.
- */
-export function formatRevised(ms: number | null | undefined): string | null {
-  if (ms == null || !Number.isFinite(ms)) return null
-  const d = new Date(ms)
-  if (Number.isNaN(d.getTime())) return null
-  try {
-    return `Updated: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
-  } catch {
-    return `Updated: ${d.toISOString().slice(0, 10)}`
-  }
-}
-
-/**
  * Popup markup for a clicked or tapped wildfire perimeter, on the card every
  * popup wears (`popupCard`, #738).
  *
@@ -230,14 +206,18 @@ export function formatRevised(ms: number | null | undefined): string | null {
  */
 export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
   const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
-  const revised = formatRevised(props.attr_ModifiedOnDateTime_dt)
+  // NIFC's own time for when the perimeter was last redrawn, a fact about the
+  // fire rather than about this app's copy: measured across one national
+  // snapshot it ran from minutes to two weeks old. The band names the fire and
+  // its glyph links NIFC, which is what keeps a bare `Updated` the fire's.
+  const revised = updatedAt(props.attr_ModifiedOnDateTime_dt)
   return popupCard({
     title: escapeHtml(name),
     link: { href: nifcUrl, label: FIRE_LINK_LABEL },
     meta: metaBand([factsLine([FIRE_KIND, escapeHtml(formatAcres(props.poly_GISAcres))])]),
     body: bodyLines([
       formatContainment(props.attr_PercentContained),
-      revised ? fineprint(escapeHtml(revised)) : null,
+      revised ? updatedLine(escapeHtml(revised)) : null,
     ]),
   })
 }

@@ -1,9 +1,14 @@
 /**
  * The snow depth's reading at a clicked point, asked of NOAA (#737).
  *
- * The NOHRSC map service the layer is drawn from answers ArcGIS `identify` at
- * a point, so the card shows the analysis's own numbers rather than a colour's
- * reading of them. Measured 2026-10-16 against the live service:
+ * The card opens at once, named from the tile the map drew (`heldTiles.ts`):
+ * the field's renders paint every cell in exactly one of NOAA's legend
+ * colours, fully opaque (6,481 painted pixels over three renders, measured
+ * 2026-10-16), so the pixel under the click names its band with no request.
+ * The numbers then come from NOAA: the map service the layer is drawn from
+ * answers ArcGIS `identify` at a point, so the body shows the analysis's own
+ * values rather than a colour's reading of them, and they replace the bars
+ * they were standing in for. Measured 2026-10-16 against the live service:
  *
  * - **Layer 3 is the depth, in metres; layer 7 the snow water equivalent, in
  *   millimetres.** Neither unit is published. Both are read off NOAA's own
@@ -14,11 +19,11 @@
  * - **Layer 2 carries the time the analysis is valid for**, as
  *   `idp_validtime`, `10/16/2026 12:00:00 PM`, in UTC: that run was ingested
  *   at 18:07 against a service that states its runs in UTC.
- * - **The class decides whether a card opens, not the number.** The class is
- *   what the layer paints by, and the two disagree at the bottom: 0.02 m
+ * - **The picture decides whether a card opens, not the number.** NOAA paints
+ *   by its class, and class and number disagree at the bottom: 0.02 m
  *   (0.8 in) came back in class 0, which NOAA draws transparent, though the
- *   legend starts painting at 0.39 in. A click opens a card where the map
- *   shows snow, and nowhere else.
+ *   legend starts painting at 0.39 in. A card opens where the map shows snow,
+ *   and nowhere else, and says the number NOAA answers there.
  * - **The answer depends on the extent sent.** The service resamples to the
  *   pixel the request's `mapExtent` and `imageDisplay` imply: the Rainier
  *   summit read 52.13 m with a continent at 1000 px, 74.58 m with a hundredth
@@ -30,18 +35,76 @@
  * - **It sometimes fails inside a 200.** Three answers in about twenty came
  *   back `{"status":"error","messages":["Could not access any server
  *   machines. ..."]}` and the next thirty all answered, so a failure of that
- *   shape is asked once more before the click is given up. Once rather than
+ *   shape is asked once more before the card says it failed. Once rather than
  *   on a schedule, because the reader's next click is the next attempt.
  */
-import { pointFetch, inBounds, type PointSection } from './pointReadout'
-import { escapeHtml, row } from './popupChrome'
-import { SNOW_BOUNDS, SNOW_SERVICE_URL } from './snowDepth'
+import type { HeldTiles, Rgba } from './heldTiles'
+import { inBounds, layerFetch, type PointReading, type PointSection } from './pointReadout'
+import { escapeHtml, pendingValue, row, updatedAt, updatedLine } from './popupChrome'
+import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snowDepth'
 
 const METRES_TO_INCHES = 1 / 0.0254
 const MM_TO_INCHES = 1 / 25.4
 
 /** Half the side of the box the request reads the point in, in degrees. */
 const HALF_BOX_DEG = 0.005
+
+/** Where the field's tiles are kept in `heldTiles.ts`. */
+export const SNOW_HELD_LAYER = 'snow'
+
+/**
+ * The zoom MapLibre loads the field's 512 px tiles at, no deeper than the
+ * source's `maxzoom`, past which it magnifies the tiles it holds.
+ */
+export function snowTileZoom(mapZoom: number): number {
+  return Math.max(0, Math.min(SNOW_MAX_ZOOM, Math.round(mapZoom)))
+}
+
+/**
+ * The card's name for each depth, by NOAA's own band boundaries (TJ,
+ * 2026-10-16). The top word is `Permanent` rather than a depth because the
+ * cells past 197 in are mostly glacier ice the analysis never melts out
+ * (`docs/DATA.md`), and rather than `Glacier ice` because a deep spring
+ * snowpack can occasionally pass it where there is no glacier.
+ */
+const SNOW_WORDS: readonly { from: number; word: string }[] = [
+  { from: 197, word: 'Permanent snow' },
+  { from: 59, word: 'Very deep snow' },
+  { from: 20, word: 'Deep snow' },
+  { from: 3.9, word: 'Moderate snow' },
+  { from: 0, word: 'Light snow' },
+]
+
+/** The name for a depth in inches. */
+export function snowWord(inches: number): string {
+  return SNOW_WORDS.find((w) => inches >= w.from)!.word
+}
+
+/** Each painted legend colour, as `r,g,b`, to the band that wears it. */
+const BAND_OF_COLOR: ReadonlyMap<string, { from: number }> = new Map(
+  SNOW_BANDS.filter((b) => b.color !== null).map((b) => {
+    const hex = b.color!.slice(1)
+    return [[0, 2, 4].map((at) => parseInt(hex.slice(at, at + 2), 16)).join(','), b] as const
+  }),
+)
+
+/** The name a held pixel's band takes, or null where the field painted nothing there. */
+export function snowWordOfPixel(pixel: Rgba | null): string | null {
+  if (pixel === null || pixel[3] === 0) return null
+  const band = BAND_OF_COLOR.get(`${pixel[0]},${pixel[1]},${pixel[2]}`)
+  return band ? snowWord(band.from) : null
+}
+
+/** Whether the field painted at a point, from the tile the map drew: at once where it is decoded, and once it is otherwise. */
+export function snowPaints(
+  tiles: HeldTiles,
+  { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
+): boolean | Promise<boolean> {
+  if (!inBounds(lng, lat, SNOW_BOUNDS)) return false
+  const now = tiles.pixelNow(SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom))
+  if (now !== 'pending') return snowWordOfPixel(now) !== null
+  return tiles.pixel(SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom)).then((p) => snowWordOfPixel(p) !== null)
+}
 
 /** The `identify` request for one point. */
 export function snowIdentifyUrl(lng: number, lat: number): string {
@@ -60,7 +123,7 @@ export function snowIdentifyUrl(lng: number, lat: number): string {
   return `${SNOW_SERVICE_URL}/identify?${params.toString()}`
 }
 
-/** What the analysis holds at a point where it paints snow. */
+/** What the analysis holds at a point. */
 export interface SnowReading {
   depthIn: number
   /** Null where the water equivalent did not come back as a number. */
@@ -88,19 +151,17 @@ export function parseValidTime(text: string | undefined): number | null {
 }
 
 /**
- * The reading in an `identify` answer, or null where the layer paints nothing
- * there: no depth layer in the answer, a value that is not a number
- * (`NoData`), or a class of 0, which NOAA draws transparent.
+ * The reading in an `identify` answer, or null where it holds no depth: no
+ * depth layer in the answer, or a value that is not a number (`NoData`). The
+ * class is not consulted, because the card only asks where the map shows snow.
  */
 export function parseSnowIdentify(body: unknown): SnowReading | null {
   if (isServiceError(body)) return null
   const results = (body as { results: IdentifyResult[] }).results
   const attrs = (id: number) => results.find((r) => r.layerId === id)?.attributes
-  const depth = attrs(3)
-  const depthM = Number(depth?.['Service Pixel Value'])
-  const painted = Number(depth?.['Classify.Class value']) >= 1
-  if (!painted || !Number.isFinite(depthM)) return null
-  const sweMm = Number(attrs(7)?.['Service Pixel Value'])
+  const depthM = Number(attrs(3)?.['Service Pixel Value'] ?? NaN)
+  if (!Number.isFinite(depthM)) return null
+  const sweMm = Number(attrs(7)?.['Service Pixel Value'] ?? NaN)
   return {
     depthIn: depthM * METRES_TO_INCHES,
     sweIn: Number.isFinite(sweMm) ? sweMm * MM_TO_INCHES : null,
@@ -117,46 +178,68 @@ export function formatInches(inches: number): string {
   return inches < 10 ? `${inches.toFixed(1)} in` : `${Math.round(inches).toLocaleString('en-US')} in`
 }
 
-/**
- * When the analysis is valid for, in the reader's own time: the time alone on
- * the day it is read, the date with it otherwise, as the smoke card dates its
- * imagery.
- */
-export function formatValidTime(validMs: number, nowMs: number): string {
-  const at = new Date(validMs)
-  const sameDay = at.toDateString() === new Date(nowMs).toDateString()
-  return sameDay
-    ? at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : at.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
+/** What the card names the snow analysis as, on its band. */
+export const SNOW_SOURCE = 'NOAA snow analysis'
 
-/** The snow's section of the card. */
-export function snowSection(reading: SnowReading, nowMs: number): PointSection {
-  const source =
-    reading.validMs === null ? 'NOAA snow analysis' : `NOAA snow analysis, ${formatValidTime(reading.validMs, nowMs)}`
+/** The line the body carries when NOAA could not answer (TJ, 2026-10-16). */
+export const SNOW_FAILED = 'NOAA snow analysis failed. Try again later.'
+
+/** The snow's section the moment it is clicked: its name, and a bar for each value on its way. */
+export function pendingSnowSection(word: string): PointSection {
   return {
-    title: escapeHtml(`${formatInches(reading.depthIn)} of snow`),
-    source: escapeHtml(source),
-    rows: reading.sweIn === null ? [] : [row('Snow water equivalent', escapeHtml(formatInches(reading.sweIn)))],
+    title: escapeHtml(word),
+    source: escapeHtml(SNOW_SOURCE),
+    rows: [row('Depth', pendingValue()), row('Snow water equivalent', pendingValue()), updatedLine(pendingValue())],
   }
 }
 
-/**
- * The snow's section at a point, or null where the analysis paints nothing or
- * does not reach. A failed request, or a second error inside a 200, rejects,
- * and the caller warns.
- */
-export async function readSnowAt(
-  lng: number,
-  lat: number,
-  signal: AbortSignal,
-  nowMs: number = Date.now(),
-): Promise<PointSection | null> {
-  if (!inBounds(lng, lat, SNOW_BOUNDS)) return null
-  const ask = async () => (await pointFetch(snowIdentifyUrl(lng, lat), signal)).json() as Promise<unknown>
+/** The snow's section once NOAA has answered; a value it did not give is left off. */
+export function snowSection(word: string, reading: SnowReading): PointSection {
+  const rows = [row('Depth', escapeHtml(formatInches(reading.depthIn)))]
+  if (reading.sweIn !== null) rows.push(row('Snow water equivalent', escapeHtml(formatInches(reading.sweIn))))
+  const valid = updatedAt(reading.validMs)
+  if (valid !== null) rows.push(updatedLine(escapeHtml(valid)))
+  return { title: escapeHtml(word), source: escapeHtml(SNOW_SOURCE), rows }
+}
+
+/** The snow's section when NOAA could not answer: its name kept, and the failure in place of the values. */
+export function failedSnowSection(word: string): PointSection {
+  return { title: escapeHtml(word), source: escapeHtml(SNOW_SOURCE), rows: [escapeHtml(SNOW_FAILED)] }
+}
+
+/** Ask NOAA for the analysis at a point, once more after an error inside a 200. */
+export async function fetchSnowAt(lng: number, lat: number, signal: AbortSignal): Promise<SnowReading> {
+  const ask = async () => (await layerFetch(snowIdentifyUrl(lng, lat), signal)).json() as Promise<unknown>
   let body = await ask()
   if (isServiceError(body)) body = await ask()
   if (isServiceError(body)) throw new Error('The snow analysis answered with an error')
   const reading = parseSnowIdentify(body)
-  return reading === null ? null : snowSection(reading, nowMs)
+  if (reading === null) throw new Error('The snow analysis held no depth at a painted point')
+  return reading
+}
+
+/**
+ * The snow's reading at a point, or null where the field painted nothing:
+ * named at once from the held tile, its values asked of NOAA for `later`,
+ * which settles to the failure line if NOAA cannot answer and rejects only
+ * when `signal` says the card is gone.
+ */
+export async function readSnowAt(
+  tiles: HeldTiles,
+  { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
+  signal: AbortSignal,
+  fetchReading: typeof fetchSnowAt = fetchSnowAt,
+): Promise<PointReading | null> {
+  if (!inBounds(lng, lat, SNOW_BOUNDS)) return null
+  const word = snowWordOfPixel(await tiles.pixel(SNOW_HELD_LAYER, lng, lat, snowTileZoom(zoom)))
+  if (word === null) return null
+  const later = fetchReading(lng, lat, signal).then(
+    (reading) => snowSection(word, reading),
+    (err: unknown) => {
+      if (signal.aborted) throw err
+      console.warn('The snow reading failed', err)
+      return failedSnowSection(word)
+    },
+  )
+  return { section: pendingSnowSection(word), later }
 }

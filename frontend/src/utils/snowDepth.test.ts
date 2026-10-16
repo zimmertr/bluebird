@@ -9,6 +9,9 @@ import {
   snowRampCss,
   snowTicks,
   snowTileUrl,
+  SNOW_HELD_URL,
+  SNOW_SCHEME,
+  snowExportHref,
 } from './snowDepth'
 
 describe('the tile URL', () => {
@@ -161,5 +164,20 @@ describe('the legend strip', () => {
     // 2026-09-17). The ticks are then numbers and nothing else.
     expect(SNOW_LABEL).toBe('Snow depth (in)')
     for (const tick of snowTicks()) expect(tick.label).toMatch(/^\d+$/)
+  })
+})
+
+describe('the held-tile scheme', () => {
+  // The bbox MapLibre's {bbox-epsg-3857} would have expanded to: z0 is the
+  // whole Web Mercator square.
+  it('renders a tile by the box MapLibre would have asked for', () => {
+    expect(SNOW_HELD_URL).toBe(`${SNOW_SCHEME}://{z}/{x}/{y}`)
+    const bbox = new URL(snowExportHref(0, 0, 0)).searchParams.get('bbox')!.split(',').map(Number)
+    expect(bbox[0]).toBeCloseTo(-20037508.34, 1)
+    expect(bbox[1]).toBeCloseTo(-20037508.34, 1)
+    expect(bbox[2]).toBeCloseTo(20037508.34, 1)
+    expect(bbox[3]).toBeCloseTo(20037508.34, 1)
+    const [w, s, e, n] = new URL(snowExportHref(1, 1, 0)).searchParams.get('bbox')!.split(',').map(Number)
+    expect([w, s, e, n].map(Math.round)).toEqual([0, 0, 20037508, 20037508])
   })
 })

@@ -268,11 +268,14 @@ Washington an amber line under the band gives the order's type, such as
 **Safety Closure**; an Oregon or Washington order is a fire closure, which its
 name already says. A plume's card says how dense it is, which satellite it was
 traced from, and over what hours. A click on a radar echo or on painted snow
-opens a card too: the radar's says how strong the echo is, its reflectivity, an
-estimated rain rate and which frame it was read from, and the snow's says the
-depth, the snow water equivalent and when NOAA's analysis was made. Where both
-are painted under one click, one card carries both, the radar first. A click
-where neither is painted opens nothing. Nothing on the map opens on a hover. Where things overlap, the
+opens a card too, and the pointer says where one will: the radar's is named for
+how strong the echo is and gives its reflectivity, an estimated rate and how old
+the frame is, and the snow's is named for how deep the snow is and gives the
+depth, the snow water equivalent and when NOAA's analysis was made. The snow
+card opens at once and its numbers land a moment later, since they are asked of
+NOAA at the click. Where both are painted under one click, one card carries
+both, titled **Precipitation and snow**, the radar first. A click where neither
+is painted opens nothing. Nothing on the map opens on a hover. Where things overlap, the
 smaller and more deliberate target takes the click: a marker or a peak inside a
 fire or a closure opens its own popup, a closed trail opens before the fire or
 the ground around it, a fire before the closure drawn around it, any of them

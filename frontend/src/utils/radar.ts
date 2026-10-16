@@ -119,6 +119,24 @@ export function radarTileUrl(offsetMin: number): string {
   return `${TILE_BASE}/${product}/{z}/{x}/{y}.png`
 }
 
+/**
+ * The scheme the loop's tiles are loaded through, so the app keeps a copy of
+ * each one to read what was painted at a point (#737,
+ * `map/heldTileProtocol.ts`): `bluebird-radar://{offset}/{z}/{x}/{y}` asks
+ * for the tile `radarTileUrl` names, and nothing else.
+ */
+export const RADAR_SCHEME = 'bluebird-radar'
+
+/** One frame's tile template on that scheme, with `{z}/{x}/{y}` left for MapLibre. */
+export function radarHeldUrl(offsetMin: number): string {
+  return `${RADAR_SCHEME}://${offsetMin}/{z}/{x}/{y}`
+}
+
+/** The real URL of one frame's tile, the string MapLibre would have expanded the template to. */
+export function radarTileHref(offsetMin: number, z: number, x: number, y: number): string {
+  return radarTileUrl(offsetMin).replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y))
+}
+
 function pad(minutes: number): string {
   return String(minutes).padStart(2, '0')
 }

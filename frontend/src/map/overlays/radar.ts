@@ -10,15 +10,18 @@
  * Inserted before the first smoke fill, which puts the whole loop under every
  * polygon overlay and under the draw, result and label layers above them.
  *
- * A click on an echo reads the frame on screen at that point and describes it
- * (#737): a point target, since a raster layer has no feature for a click to
- * find, answered by decoding the tile the frame drew there
- * (`utils/radarPoint.ts`).
+ * The frames load through the app's own scheme (`../heldTileProtocol.ts`),
+ * which keeps a copy of every tile, so an echo answers the pointer and a
+ * click on it opens a card at once, read from the frame on screen
+ * (`utils/radarPoint.ts`, #737): a point target, since a raster layer has no
+ * feature for a click to find.
  */
 import type * as maplibregl from 'maplibre-gl'
+import type { HeldTiles } from '../../utils/heldTiles'
+import { RADAR_TILES } from '../heldTileProtocol'
 import type { MapPopups } from '../mapPopups'
-import { radarLayerId, radarOffsets, radarTileUrl } from '../../utils/radar'
-import { readRadarAt } from '../../utils/radarPoint'
+import { radarHeldUrl, radarLayerId, radarOffsets } from '../../utils/radar'
+import { radarPaints, readRadarAt } from '../../utils/radarPoint'
 import { SMOKE_DENSITIES, smokeLayerId } from '../../utils/smoke'
 
 /**
@@ -56,7 +59,11 @@ export interface RadarOverlay {
   dispose(): void
 }
 
-export function mountRadar(map: maplibregl.Map, deps: { popups: MapPopups }): RadarOverlay {
+export function mountRadar(
+  map: maplibregl.Map,
+  deps: { popups: MapPopups; tiles?: HeldTiles },
+): RadarOverlay {
+  const tiles = deps.tiles ?? RADAR_TILES
   let showing = false
   let warmTimer: ReturnType<typeof setInterval> | undefined
   // The frame on screen, which is the one a click describes: during playback
@@ -66,7 +73,8 @@ export function mountRadar(map: maplibregl.Map, deps: { popups: MapPopups }): Ra
   deps.popups.registerPoint({
     target: 'radar',
     shown: () => showing,
-    read: ({ lng, lat, zoom }, signal) => readRadarAt(lng, lat, zoom, onScreen, signal),
+    paints: (at) => radarPaints(tiles, onScreen, at),
+    read: (at) => readRadarAt(tiles, onScreen, at),
   })
 
   function addFrames() {
@@ -76,7 +84,7 @@ export function mountRadar(map: maplibregl.Map, deps: { popups: MapPopups }): Ra
       if (map.getSource(id)) continue
       map.addSource(id, {
         type: 'raster',
-        tiles: [radarTileUrl(offset)],
+        tiles: [radarHeldUrl(offset)],
         tileSize: 256,
         // No `attribution` here on purpose. IEM's credit is on the radar
         // legend, beside the data, which is where this app puts a provider's
@@ -195,8 +203,10 @@ export function mountRadar(map: maplibregl.Map, deps: { popups: MapPopups }): Ra
       } else if (!show && showing) {
         stopWarmUp()
         removeFrames()
-        // A card about echoes the map no longer draws goes with them.
+        // A card about echoes the map no longer draws goes with them, and
+        // so do the copies of the tiles they were read from.
         deps.popups.closeAll('radar')
+        tiles.drop('radar-')
       }
       showing = show
       if (show) showFrame(index)

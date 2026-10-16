@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // MapLibre's Popup needs a DOM, and no popup opens here. Hoisted, because
 // `vi.mock` runs before the imports.
-vi.mock('maplibre-gl', () => ({ Popup: class {} }))
+vi.mock('maplibre-gl', () => ({ Popup: class {}, addProtocol: vi.fn() }))
 
 import { mountFeatures } from './features'
 import { createMapController, type MapInputs } from './controller'

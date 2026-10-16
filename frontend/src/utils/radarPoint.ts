@@ -12,22 +12,22 @@
  * fully transparent. So the colour of one tile pixel IS the radar's value
  * there, to its own 0.5 dBZ step, rather than a band read off a ramp.
  *
- * Two things make that hold, and both are why this decodes the tile rather
- * than reading the map's canvas. The canvas carries the layer at 0.65 opacity
- * over the basemap, and MapLibre resamples a tile it draws between zooms, so
- * a canvas pixel is a blend no palette entry matches. And the tile is the one
- * the map already fetched: the same URL, at the zoom MapLibre asks a 256 px
- * raster for, under IEM's `max-age=300`, so a click is a browser cache hit
- * rather than a request to IEM.
+ * The pixel is read from the copy of the tile the app keeps as MapLibre
+ * loads it (`heldTiles.ts`), never from the map's canvas, which carries the
+ * layer at 0.65 opacity over the basemap and MapLibre's resampling, so a
+ * canvas pixel is a blend no palette entry matches. Reading the copy costs no
+ * request, which is what lets the pointer change over an echo on every move
+ * and the card open whole the moment it is clicked.
  *
  * Reflectivity is all the radar measures. It says nothing of the wind, of
  * whether the echo is rain, snow or hail, or of how much has fallen; the rain
  * rate on the card is an estimate from the reflectivity alone
  * ({@link rainRateInPerHour}), and `docs/DATA.md` says what it cannot know.
  */
-import { pointFetch, inBounds, type PointSection } from './pointReadout'
-import { escapeHtml, row } from './popupChrome'
-import { RADAR_EXTENTS, radarTileUrl } from './radar'
+import type { HeldTiles, Rgba } from './heldTiles'
+import { inBounds, type PointReading, type PointSection } from './pointReadout'
+import { escapeHtml, row, updatedLine } from './popupChrome'
+import { RADAR_EXTENTS } from './radar'
 
 /**
  * The N0Q composite's palette, 256 colours as RGB hex, index 0 first.
@@ -131,95 +131,79 @@ export function formatRainRate(inPerHour: number): string {
   return `about ${inPerHour.toFixed(inPerHour < 1 ? 2 : 1)} in/h`
 }
 
-/** Which frame a reading came from, as the card's source line names it. */
-export function radarSource(offsetMin: number): string {
-  return offsetMin === 0 ? 'NEXRAD radar, now' : `NEXRAD radar, ${offsetMin} min ago`
+/**
+ * When the frame was measured, as the card's `Updated` line says it: `now` for
+ * the newest and its age for an older one, in the timeline's own terms. A
+ * clock time would claim a precision the relative frames do not carry
+ * (`radar.ts`): IEM's per-frame times exist, but a tile can sit in its edge
+ * cache for five minutes, so a time asked for at the click can be a frame off
+ * the picture on screen.
+ */
+export function radarUpdated(offsetMin: number): string {
+  return offsetMin === 0 ? 'now' : `${offsetMin} min ago`
 }
+
+/** What the card names the radar as, on its band. */
+export const RADAR_SOURCE = 'NEXRAD radar'
 
 /** The radar's section of the card, for a painted reflectivity on one frame. */
 export function radarSection(dbz: number, offsetMin: number): PointSection {
   const rows = [row('Reflectivity', `${dbz.toFixed(1)} dBZ`)]
-  if (dbz >= WEAK_ECHO_DBZ) rows.push(row('Rain rate', formatRainRate(rainRateInPerHour(dbz))))
-  return { title: escapeHtml(radarTitle(dbz)), source: escapeHtml(radarSource(offsetMin)), rows }
-}
-
-/** One pixel of one web-mercator tile. */
-export interface TilePixel {
-  z: number
-  x: number
-  y: number
-  /** The pixel inside the tile, from its top left. */
-  px: number
-  py: number
+  if (dbz >= WEAK_ECHO_DBZ) rows.push(row('Rate', formatRainRate(rainRateInPerHour(dbz))))
+  rows.push(updatedLine(radarUpdated(offsetMin)))
+  return { title: escapeHtml(radarTitle(dbz)), source: escapeHtml(RADAR_SOURCE), rows }
 }
 
 /** The radar tiles' size, which is the `tileSize` the overlay declares. */
 export const RADAR_TILE_PX = 256
 
 /**
- * The tile and pixel the map drew a point from. MapLibre asks a 256 px raster
- * for the zoom `round(zoom + 1)`, since its own tiles are 512 px and it rounds
- * for a raster (`coveringZoomLevel` in maplibre-gl 6.13.0, read rather than
- * assumed), so this is the tile it already holds.
+ * The zoom MapLibre loads a 256 px raster at: `round(zoom + 1)`, since its own
+ * tiles are 512 px and it rounds for a raster (`coveringZoomLevel` in
+ * maplibre-gl 6.13.0, read rather than assumed).
  */
-export function radarTilePixel(lng: number, lat: number, mapZoom: number): TilePixel {
-  const z = Math.max(0, Math.min(22, Math.round(mapZoom + 1)))
-  const n = 2 ** z
-  const fx = ((lng + 180) / 360) * n
-  const sin = Math.sin((lat * Math.PI) / 180)
-  const fy = (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * n
-  const x = Math.min(n - 1, Math.max(0, Math.floor(fx)))
-  const y = Math.min(n - 1, Math.max(0, Math.floor(fy)))
-  const pixel = (f: number, t: number) =>
-    Math.min(RADAR_TILE_PX - 1, Math.max(0, Math.floor((f - t) * RADAR_TILE_PX)))
-  return { z, x, y, px: pixel(fx, x), py: pixel(fy, y) }
+export function radarTileZoom(mapZoom: number): number {
+  return Math.max(0, Math.min(22, Math.round(mapZoom + 1)))
 }
 
-/** The URL of one frame's tile, the same string MapLibre expands the template to. */
-export function radarTileHref(offsetMin: number, { z, x, y }: TilePixel): string {
-  return radarTileUrl(offsetMin).replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y))
+/** Where one frame's tiles are kept in `heldTiles.ts`. */
+export function radarHeldLayer(offsetMin: number): string {
+  return `radar-${offsetMin}`
 }
 
-/** Reads one pixel of an image as `[r, g, b, a]`, exactly as the file carries it. */
-export type PixelReader = (image: Blob, px: number, py: number) => Promise<readonly number[]>
-
-/**
- * The browser's pixel reader. `premultiplyAlpha: 'none'` and
- * `colorSpaceConversion: 'none'` keep the bytes the PNG carries, which is
- * what the palette lookup needs, and one pixel is copied 1:1 with smoothing
- * off, so nothing is interpolated.
- */
-export const readPixel: PixelReader = async (image, px, py) => {
-  const bitmap = await createImageBitmap(image, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' })
-  try {
-    const canvas = new OffscreenCanvas(1, 1)
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) throw new Error('No 2D context for the radar reading')
-    ctx.imageSmoothingEnabled = false
-    ctx.drawImage(bitmap, px, py, 1, 1, 0, 0, 1, 1)
-    return Array.from(ctx.getImageData(0, 0, 1, 1).data)
-  } finally {
-    bitmap.close()
-  }
+/** The reflectivity a held pixel paints, or null where it painted nothing. */
+export function dbzOfHeld(pixel: Rgba | null): number | null {
+  return pixel === null ? null : dbzOfPixel(...pixel)
 }
 
 /**
- * The radar's section at a point on the frame on screen, or null where that
- * frame painted nothing or where no radar reaches. A failed fetch or decode
- * rejects, and the caller warns.
+ * Whether the frame on screen painted at a point, from the tile the map
+ * drew: at once where that tile is decoded, and once it is otherwise. False
+ * outside every radar's reach, without a lookup.
+ */
+export function radarPaints(
+  tiles: HeldTiles,
+  offsetMin: number,
+  { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
+): boolean | Promise<boolean> {
+  if (!RADAR_EXTENTS.some((box) => inBounds(lng, lat, box))) return false
+  const layer = radarHeldLayer(offsetMin)
+  const now = tiles.pixelNow(layer, lng, lat, radarTileZoom(zoom))
+  if (now !== 'pending') return dbzOfHeld(now) !== null
+  return tiles.pixel(layer, lng, lat, radarTileZoom(zoom)).then((p) => dbzOfHeld(p) !== null)
+}
+
+/**
+ * The radar's reading at a point on the frame on screen, or null where that
+ * frame painted nothing. Every value is in the pixel, so nothing is asked of
+ * anyone and the reading is whole at once.
  */
 export async function readRadarAt(
-  lng: number,
-  lat: number,
-  mapZoom: number,
+  tiles: HeldTiles,
   offsetMin: number,
-  signal: AbortSignal,
-  read: PixelReader = readPixel,
-): Promise<PointSection | null> {
+  { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
+): Promise<PointReading | null> {
   if (!RADAR_EXTENTS.some((box) => inBounds(lng, lat, box))) return null
-  const at = radarTilePixel(lng, lat, mapZoom)
-  const response = await pointFetch(radarTileHref(offsetMin, at), signal)
-  const [r, g, b, a] = await read(await response.blob(), at.px, at.py)
-  const dbz = dbzOfPixel(r, g, b, a)
-  return dbz === null ? null : radarSection(dbz, offsetMin)
+  const dbz = dbzOfHeld(await tiles.pixel(radarHeldLayer(offsetMin), lng, lat, radarTileZoom(zoom)))
+  return dbz === null ? null : { section: radarSection(dbz, offsetMin) }
 }

@@ -85,6 +85,32 @@ export const SNOW_BOUNDS: [number, number, number, number] = [
 ]
 
 /**
+ * The scheme the field's tiles are loaded through, so the app keeps a copy of
+ * each one to read what was painted at a point (#737,
+ * `map/heldTileProtocol.ts`): `bluebird-snow://{z}/{x}/{y}` asks for the
+ * render `snowExportHref` names for that tile.
+ */
+export const SNOW_SCHEME = 'bluebird-snow'
+
+/** The field's tile template on that scheme, with `{z}/{x}/{y}` left for MapLibre. */
+export const SNOW_HELD_URL = `${SNOW_SCHEME}://{z}/{x}/{y}`
+
+/** Half the width of the Web Mercator world, in metres. */
+const MERCATOR_HALF = 20037508.342789244
+
+/**
+ * The render of one tile: `snowTileUrl` with the tile's own EPSG:3857 box,
+ * `minX,minY,maxX,maxY`, which is what MapLibre's `{bbox-epsg-3857}` expands
+ * to.
+ */
+export function snowExportHref(z: number, x: number, y: number): string {
+  const w = (2 * MERCATOR_HALF) / 2 ** z
+  const minX = -MERCATOR_HALF + x * w
+  const maxY = MERCATOR_HALF - y * w
+  return snowTileUrl().replace('{bbox-epsg-3857}', [minX, maxY - w, minX + w, maxY].join(','))
+}
+
+/**
  * The deepest zoom worth asking NOAA to render.
  *
  * The analysis is a 1 km grid. At this zoom a 512 px tile is ~26 m per pixel at

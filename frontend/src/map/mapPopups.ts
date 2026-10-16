@@ -18,13 +18,14 @@
  *
  * A picture rather than a shape, the rain radar or the snow depth (#737), is
  * a point target instead (`registerPoint`): it has no feature for a click to
- * find, so it is asked what it painted at the point once no shape there has
- * opened, every such layer that is on at once, and one card carries every
- * answer (`utils/pointReadout.ts`). Its answer takes a tile decode or a
- * request, so the next click drops a reading still on its way, and a reading
- * that fails opens nothing and warns in the console, as an overlay's failed
- * fetch does. The cursor does not change over one: it is decided on every
- * move, and asking a picture what it painted is a fetch.
+ * find, so it says whether it painted at the point from the copy of its tile
+ * the app keeps (`utils/heldTiles.ts`), once no shape there has answered.
+ * That answers the cursor on every move, a pointer over painted pixels as over
+ * a fire, and opens the card at once with every picture painted there on it
+ * (`utils/pointReadout.ts`); a value still on its way, the snow's from NOAA,
+ * fills its row when it lands. The next click drops a reading that has not
+ * opened its card yet, and closing a card drops what it was still waiting
+ * for.
  *
  * So a new layer with something to say registers a target and inherits all of
  * this. The linter's `map-popups-owned` check fails a `new Popup`, a DOM
@@ -36,7 +37,7 @@ import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, pointTargetsToAsk, rankedTargets, type MapTarget } from '../utils/mapClick'
 import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popupChrome'
-import { pointCardHtml, type PointSection } from '../utils/pointReadout'
+import { pointCardHtml, type PointReading } from '../utils/pointReadout'
 import { POPUP_PAN_MS, capHeight, placePopup, type Point, type PopupSide, type Rect } from '../utils/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
@@ -99,11 +100,17 @@ export interface MapPointTarget {
   /** Whether the layer is on, so a layer switched off is never asked. */
   shown(): boolean
   /**
-   * The layer's section of the card at this point, or null where it painted
-   * nothing. A rejection is a failed reading; `signal` aborts when the next
-   * click makes the answer stale.
+   * Whether the layer painted at this point, read from the tile the map drew:
+   * at once where that tile is ready to read, and once it is otherwise. Asked
+   * on every pointer move, so it asks nothing of anyone.
    */
-  read(at: MapPoint, signal: AbortSignal): Promise<PointSection | null>
+  paints(at: MapPoint): boolean | Promise<boolean>
+  /**
+   * The layer's reading at this point, or null where it painted nothing. A
+   * rejection is a failed reading. `signal` aborts when the next click makes
+   * the card stale before it opens, or when the card closes.
+   */
+  read(at: MapPoint, signal: AbortSignal): Promise<PointReading | null>
 }
 
 /** What a card may set for itself; everything else is the same for every card. */
@@ -180,8 +187,24 @@ export function mountMapPopups(
   const { controller, board } = deps
   const targets: MapPopupTarget[] = []
   const points: MapPointTarget[] = []
-  // The point reading still on its way, which the next click makes stale.
+  // The point reading whose card has not opened yet, which the next click
+  // makes stale.
   let reading: AbortController | null = null
+  // The latest pointer move, so a cursor answer that needed a tile decoded
+  // is dropped once the pointer has moved on.
+  let moveSeq = 0
+
+  // A map scrolled past the antimeridian reports a longitude outside
+  // -180..180, which no tile and no source knows.
+  const pointOf = (lngLat: maplibregl.LngLat): MapPoint => ({
+    lng: (((lngLat.lng + 180) % 360) + 360) % 360 - 180,
+    lat: lngLat.lat,
+    zoom: map.getZoom(),
+  })
+  const pointsOn = () => {
+    const live = points.filter((p) => p.shown()).map((p) => p.target)
+    return pointTargetsToAsk(controller.inputs.drawing, live).map((kind) => points.find((p) => p.target === kind)!)
+  }
 
   // Every registered layer the map has drawn, asked together, because the
   // rank reads the whole set rather than a series of answers: one query for
@@ -227,39 +250,53 @@ export function mountMapPopups(
     else void readPoint(e.lngLat)
   })
 
-  // Every picture that is on, asked together, because a click over a storm on
-  // a snowpack waits on the slower of the two rather than on both in turn.
-  // The answers go on one card in rank order; a failed one is left off and
-  // warned about, so a radar answer still opens when NOAA does not.
+  // Every picture that is on, asked together. Each reads its own held tile,
+  // so the card opens as fast as a fire's, with every picture painted here on
+  // it in rank order; a reading that failed is left off and warned about. A
+  // value one of them is still asking for fills its section when it lands,
+  // for as long as the card is open: closing it aborts the ask.
   async function readPoint(lngLat: maplibregl.LngLat) {
-    const live = points.filter((p) => p.shown()).map((p) => p.target)
-    const asked = pointTargetsToAsk(controller.inputs.drawing, live)
+    const asked = pointsOn()
     if (asked.length === 0) return
     const ac = new AbortController()
     reading = ac
-    // A map scrolled past the antimeridian reports a longitude outside
-    // -180..180, which neither source knows.
-    const at = { lng: (((lngLat.lng + 180) % 360) + 360) % 360 - 180, lat: lngLat.lat, zoom: map.getZoom() }
+    const at = pointOf(lngLat)
     const answers = await Promise.all(
-      asked.map((kind) =>
-        points
-          .find((p) => p.target === kind)!
-          .read(at, ac.signal)
-          .catch((err: unknown) => {
-            if (!ac.signal.aborted) console.warn(`The ${kind} reading failed`, err)
-            return null
-          }),
+      asked.map((p) =>
+        p.read(at, ac.signal).catch((err: unknown) => {
+          if (!ac.signal.aborted) console.warn(`The ${p.target} reading failed`, err)
+          return null
+        }),
       ),
     )
     if (ac.signal.aborted) return
     reading = null
-    const found = asked.flatMap((kind, i) => (answers[i] ? [{ kind, section: answers[i] }] : []))
-    if (found.length === 0) return
-    api.openCard(
-      lngLat,
-      pointCardHtml(found.map((f) => f.section)),
-      { owner: found.map((f) => f.kind) },
-    )
+    const found = asked.flatMap((p, i) => (answers[i] ? [{ kind: p.target, reading: answers[i] }] : []))
+    if (found.length === 0) {
+      ac.abort()
+      return
+    }
+    const sections = found.map((f) => f.reading.section)
+    const placed = api.openCard(lngLat, pointCardHtml(sections), { owner: found.map((f) => f.kind) })
+    placed.popup.on('close', () => ac.abort())
+    found.forEach(({ reading: { later } }, i) => {
+      later
+        ?.then((section) => {
+          if (ac.signal.aborted) return
+          sections[i] = section
+          redraw(placed, pointCardHtml(sections))
+        })
+        .catch(() => {})
+    })
+  }
+
+  // A card's content replaced where it stands. Its body keeps the cap it
+  // opened with, so a card that had to scroll still scrolls rather than
+  // growing past the free map.
+  function redraw(placed: PlacedCard, html: string) {
+    placed.popup.setHTML(html)
+    const body = placed.popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`)
+    if (body && placed.capped !== null) capPopupBody(body, placed.capped)
   }
 
   // The cursor follows the same rule as the click, read on every move over
@@ -270,14 +307,35 @@ export function mountMapPopups(
   // A move with a button held is the map being dragged: the cursor is left to
   // MapLibre's grabbing hand, which a pointer over a plume or a fire would
   // otherwise cover, and nothing is asked of the map on every frame of a pan.
+  //
+  // Over no shape, the pictures are asked whether they painted here, which
+  // reads the copy of their tile and asks nothing of anyone. A tile not yet
+  // ready to read answers a moment later, and only if the pointer has not
+  // moved on since.
   map.on('mousemove', (e) => {
+    const seq = ++moveSeq
     if (targets.some((t) => t.holdsCursor?.())) return
     const canvas = map.getCanvas()
     if ((e.originalEvent as MouseEvent | undefined)?.buttons) {
       canvas.style.cursor = ''
       return
     }
-    canvas.style.cursor = mapCursor(controller.inputs.drawing, targetsAt(e.point).under)
+    const cursor = mapCursor(controller.inputs.drawing, targetsAt(e.point).under)
+    canvas.style.cursor = cursor
+    if (cursor !== '') return
+    const live = pointsOn()
+    if (live.length === 0) return
+    const at = pointOf(e.lngLat)
+    const answers = live.map((p) => p.paints(at))
+    if (answers.includes(true)) {
+      canvas.style.cursor = 'pointer'
+      return
+    }
+    const pending = answers.filter((a): a is Promise<boolean> => a instanceof Promise)
+    if (pending.length === 0) return
+    void Promise.all(pending.map((a) => a.catch(() => false))).then((painted) => {
+      if (seq === moveSeq && painted.includes(true)) canvas.style.cursor = 'pointer'
+    })
   })
 
   // Every popup, card or bare, is made here and put on the board.
