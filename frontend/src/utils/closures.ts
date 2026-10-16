@@ -18,7 +18,7 @@
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, warningLine } from './popupChrome'
+import { bodyLines, escapeHtml, factsLine, fineprint, metaBand, popupCard, warningLine } from './popupChrome'
 import { type BBox, type FireDetail, formatAcres } from './wildfires'
 
 const CLOSURES_URL = '/api/closures'
@@ -228,8 +228,9 @@ export const CLOSURE_KIND: Record<ClosureKind, string> = {
  * through the title's glyph when it has one, and the kind under it with the
  * figure that identifies it, an area's acres or a trail's route. The notice
  * is the order's type where the region files one (`closureReason`), the one
- * thing the card's name does not already say. The body is
- * whose forest and for how long. Every line but the name is omitted when the
+ * thing the card's name does not already say. The body is whose forest, then
+ * for how long in the fine print a fire's `Last updated` and a plume's
+ * `Observed` wear, so the three cards end on the same line. Every line but the name is omitted when the
  * service left it empty, rather than filled with a word the order does not
  * say.
  */
@@ -246,6 +247,6 @@ export function closurePopupHtml(props: ClosureProps, kind: ClosureKind): string
     link: order ? { href: order, label: CLOSURE_LINK_LABEL } : null,
     meta: metaBand([factsLine([CLOSURE_KIND[kind], figure ? escapeHtml(figure) : null])]),
     warnings: reason ? [warningLine(escapeHtml(reason), null)] : [],
-    body: bodyLines([forest ? escapeHtml(forest) : null, dates ? escapeHtml(dates) : null]),
+    body: bodyLines([forest ? escapeHtml(forest) : null, dates ? fineprint(escapeHtml(dates)) : null]),
   })
 }

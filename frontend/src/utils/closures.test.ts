@@ -108,6 +108,19 @@ describe('closurePopupHtml', () => {
     expect(html).not.toContain('🚫')
   })
 
+  // The span ends the body in the fire card's fine print, so the three
+  // overlay cards end on the same line.
+  it('sets the dates last, and smaller and italic than the forest', () => {
+    const html = closurePopupHtml(props(), 'area')
+    const dates = `${medium(START)} to ${medium(END)}`
+    expect(html.indexOf(dates)).toBeGreaterThan(html.indexOf('Columbia River Gorge NSA'))
+    const line = html.slice(html.lastIndexOf('<span', html.indexOf(dates)))
+    expect(line).toContain('font-style:italic')
+    expect(line).toContain('font-size:11px')
+    const forest = html.slice(html.lastIndexOf('<', html.indexOf('Columbia River Gorge NSA')))
+    expect(forest.slice(0, forest.indexOf('Columbia'))).not.toContain('italic')
+  })
+
   it('gives an area its acres where the route would stand, and only an area', () => {
     expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210.4 }), 'area'))).toContain('Area closure|4,210 acres')
     expect(textOf(closurePopupHtml(props({ GIS_Acres: null }), 'area'))).not.toContain('Area closure|')
