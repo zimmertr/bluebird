@@ -771,7 +771,7 @@ itself unavailable. The same limit applies to smoke and closures below
 ([record 0077](decisions/0077-snapshot-max-stale-24h.md)). The overlay does not
 show the copy's age before that point.
 
-A fire's popup dates the perimeter: **Last updated** is when NIFC last
+A fire's popup dates the perimeter: **Updated** is when NIFC last
 surveyed that incident, which is a fact about the fire and not about Bluebird Forecast.
 It routinely runs days old on a fire that is burning right now, which is normal
 for a surveyed product and not a sign of stale data on this end. If you are
@@ -948,6 +948,8 @@ text can be wrong both ways, so read the order itself.
 status, a start date and an end date. The status is maintained by hand at the forest offices,
 and Bluebird Forecast shows every order the Forest Service marks active, whatever its
 dates say. So an active order can carry an end date that is already past.
+That is why a closure's card labels its dates **Effective** rather than
+Active: they are the span the order states, not a claim that it stands today.
 Measured 2026-09-30: the Eagle Creek area closure on the Mt. Hood National
 Forest ended 2026-07-07 by its own date and was still listed as active. A
 date filter here would hide an order the Forest Service still stands behind,

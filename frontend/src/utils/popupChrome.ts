@@ -205,8 +205,9 @@ export const FINE_COLOR = 'var(--popup-fine)'
 
 /**
  * A line of fine print: small, italic, stepped back. The overlay cards end
- * their body on one, because a survey date qualifies everything above it
- * rather than being another fact in the list. The text is escaped by the
+ * their body on one, because a date qualifies everything above it rather than
+ * being another fact in the list: a fire's survey, a plume's imagery, a
+ * closure's span. The text is escaped by the
  * caller.
  */
 export function fineprint(inner: string): string {

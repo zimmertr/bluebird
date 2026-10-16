@@ -200,9 +200,9 @@ export function formatObserved(
     const time = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
     const dated = (d: Date) =>
       d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-    if (end === null) return `Observed ${dated(start)}`
-    if (sameDay) return `Observed ${time(start)} to ${time(end)}`
-    return `Observed ${dated(start)} to ${dated(end)}`
+    if (end === null) return `Observed: ${dated(start)}`
+    if (sameDay) return `Observed: ${time(start)} to ${time(end)}`
+    return `Observed: ${dated(start)} to ${dated(end)}`
   } catch {
     return null
   }
