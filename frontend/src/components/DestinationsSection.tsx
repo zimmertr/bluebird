@@ -139,12 +139,15 @@ export default function DestinationsSection({
           subsection rather than two widgetless ones. Each of the three
           subheadings says its row searches, because `Polygon` over a Draw
           polygon button never said that drawing one searches the area for
-          destinations (the maintainer, 2026-10-15, #710). The map is named
-          once, in the subheading, and the sentence points back at it with
-          "from it". The sentence names no kind of destination: the map
-          labels and lets you select peaks, lakes, places and climbing
-          features, and prose that lists the types is a string every new
-          type would have to reopen. Hovering the group rings the search box
+          destinations (the maintainer, 2026-10-15, #710). The sentence names
+          the map again under `Map search`, which the maintainer accepted so
+          it says where a destination is selected, and says `a` rather than
+          `any` so it stays one line where the panel's scroll bars are always
+          drawn: about 316px of room there, 305.6px for this sentence and
+          318.9px with `any` (12px italic, 2026-10-15). It names no kind of
+          destination: the map labels and lets you select peaks, lakes,
+          places and climbing features, and prose that lists the types is a
+          string every new type would have to reopen. Hovering the group rings the search box
           AND glows the selectable features, so the reader is shown where
           both live instead of told. Hover-only is fine here because it adds
           a cue to copy that already stands on its own. */}
@@ -160,7 +163,7 @@ export default function DestinationsSection({
         }}
       >
         <h3 className={`${TEXT.subheading} mb-1`}>Map search</h3>
-        <p className={TEXT.helper}>Search by name, or select any destination from it.</p>
+        <p className={TEXT.helper}>Search by name, or select a destination from the map.</p>
       </div>
 
       {/* Coordinate search: second, under Map search, so the Polygon

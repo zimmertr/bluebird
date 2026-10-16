@@ -9,7 +9,7 @@
 
 ## Context
 
-Record [0156](0156-destination-subheadings-say-search.md) gives the panel's Map row the line `Search by name, or select any destination from it.` Since #119 the map let a reader select its peaks and lakes and nothing else, while it labels towns everywhere and, at a crag, dozens of climbing features. #715 is adding a crag destination type found by Overpass. For "any destination" to be true of what the map labels, more of those labels had to be selectable.
+Record [0156](0156-destination-subheadings-say-search.md) gives the panel's Map row the line `Search by name, or select a destination from the map.` Since #119 the map let a reader select its peaks and lakes and nothing else, while it labels towns everywhere and, at a crag, dozens of climbing features. #715 is adding a crag destination type found by Overpass. For that line to be true of what the map labels, more of those labels had to be selectable.
 
 ## Decision
 

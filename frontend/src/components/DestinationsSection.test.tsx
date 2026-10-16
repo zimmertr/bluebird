@@ -292,7 +292,7 @@ describe('DestinationsSection', () => {
     render(<DestinationsSection {...props()} />)
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     expect(headings).toEqual(['Map search', 'Coordinate search', 'Polygon search'])
-    expect(screen.getByText('Search by name, or select any destination from it.')).toBeTruthy()
+    expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
   })
 
   it('points at the map while the Map group is hovered', () => {
