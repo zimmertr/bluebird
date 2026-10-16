@@ -1,4 +1,4 @@
-# 0156. Crags are the fourth polygon destination type, found from climbing=crag and climbing=area
+# 0158. Crags are the fourth polygon destination type, found from climbing=crag and climbing=area
 
 - Status: Accepted
 - Date: 2026-10-15

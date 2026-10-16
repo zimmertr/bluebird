@@ -45,7 +45,7 @@ const RING = { drawPointCount: 3, pointsNeeded: 0 } as const
 
 const coordinates = () => screen.getByRole('textbox', { name: /^Custom destination coordinates/ })
 // The Polygon block's buttons, in order, apart from the box above it.
-const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon' }).parentElement!
+const polygonBlock = () => screen.getByRole('heading', { name: 'Polygon search' }).parentElement!
 const polygonButtons = () =>
   within(polygonBlock())
     .getAllByRole('button')
@@ -91,7 +91,7 @@ describe('DestinationsSection', () => {
       expect(area.parentElement!.className).toContain('flex-wrap')
       expect(area.className).not.toContain('ml-auto')
       for (const el of [counter, area]) expect(el.className).toContain('whitespace-nowrap')
-      expect(screen.getByRole('heading', { name: 'Polygon' }).nextElementSibling!.contains(counter)).toBe(true)
+      expect(screen.getByRole('heading', { name: 'Polygon search' }).nextElementSibling!.contains(counter)).toBe(true)
     })
 
     it('warns a large area that is still under the cap', () => {
@@ -347,19 +347,20 @@ describe('DestinationsSection', () => {
   })
 
   // Map, Coordinates, Polygon (#687, record 0137): the two full-width inputs
-  // together, the polygon's buttons and boxes last.
-  it('orders the three ways in as Map, Coordinates, Polygon', () => {
+  // together, the polygon's buttons and boxes last. Each subheading says its
+  // row searches (#710, record 0156).
+  it('orders the three ways in as Map search, Coordinate search, Polygon search', () => {
     render(<DestinationsSection {...props()} />)
     const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
-    expect(headings).toEqual(['Map', 'Coordinates', 'Polygon'])
-    expect(screen.getByText('Search by name, or click any peak or lake.')).toBeTruthy()
+    expect(headings).toEqual(['Map search', 'Coordinate search', 'Polygon search'])
+    expect(screen.getByText('Search by name, or select a destination from the map.')).toBeTruthy()
   })
 
   it('points at the map while the Map group is hovered', () => {
     const onPointAtSearch = vi.fn()
     const onPointAtMapPois = vi.fn()
     render(<DestinationsSection {...props({ onPointAtSearch, onPointAtMapPois })} />)
-    const group = screen.getByRole('heading', { name: 'Map' }).parentElement as HTMLElement
+    const group = screen.getByRole('heading', { name: 'Map search' }).parentElement as HTMLElement
     fireEvent.mouseEnter(group)
     expect(onPointAtSearch).toHaveBeenLastCalledWith(true)
     expect(onPointAtMapPois).toHaveBeenLastCalledWith(true)

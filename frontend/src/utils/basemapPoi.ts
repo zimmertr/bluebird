@@ -1,20 +1,21 @@
-// Turning a labeled basemap feature into a destination (#119).
+// Turning a labeled basemap feature into a destination (#119, #710).
 //
-// The peak and lake labels on the map both come from OpenMapTiles vector
-// tiles, so the name and elevation a click needs are sitting in the feature's
-// properties — no lookup, no network call. The job here is only to decide
-// which features are destinations at all, and to normalize the tile's fields
-// into the `Place` the searched-destinations pipeline already carries end to
-// end (map dot → `pins` URL param → `custom_destinations` on the next Analyze).
+// Every clickable label on the map comes from the OpenMapTiles vector tiles:
+// the peaks, lakes and climbing features the app draws itself, and the
+// cities, towns, villages and hamlets the style already labels. So the name
+// and elevation a click needs are sitting in the feature's properties: no
+// lookup, no network call.
+// The job here is only to decide which features are destinations at all, and
+// to normalize the tile's fields into the `Place` the searched-destinations
+// pipeline already carries end to end (map dot → `pins` URL param →
+// `custom_destinations` on the next Analyze).
 //
-// Trailheads and crags are deliberately absent even though the app discovers
-// them. OpenMapTiles' `poi` layer carries no `highway=trailhead`. It does carry
-// `sport=climbing` points as `class=climbing`, but with no `climbing=` subtype,
-// so a crag cannot be told from a route, and crags mapped as relations are not
-// in it: measured 2026-10-15 in the zoom-14 tile over Index, it held 33 of
-// OSM's 36 named routes and 3 of its 12 crags. Nor does the style draw them, as
-// its sprite has no `climbing` icon. Making both clickable needs a source of
-// the app's own (#734).
+// Trailheads are deliberately absent even though the app discovers them: it
+// finds them as `highway=trailhead`, and OpenMapTiles' `poi` layer does not
+// source that tag, so there is nothing on the basemap to click (measured
+// 2026-10-15 at Mount Si: its trailhead is in the tile only as a bus stop and
+// a parking lot). Adding them would mean shipping a second data source for a
+// layer the map does not draw.
 
 import { Place } from './geocode'
 
@@ -31,11 +32,56 @@ import { Place } from './geocode'
  */
 export const LAKE_LAYERS = ['ofm-lakes', 'ofm-lakes-line'] as const
 
+/**
+ * The `poi` class the app draws as a climbing label and accepts (#710).
+ *
+ * One class for a crag and a single route alike: the tile drops OSM's
+ * `climbing=` tag, so `Foodbar Crag` and the route `Thin Fingers` carry the
+ * same properties (measured 2026-10-15 at Index, z14/2659/5707) and both are
+ * selectable. The crag type #715 discovers by Overpass (crags and areas
+ * only) therefore cannot be matched from a click, which the maintainer
+ * accepted on 2026-10-15. `ofm-climbing` filters on this class and the
+ * style's own `poi` labels are filtered off it, so nothing is labelled twice.
+ */
+export const CLIMBING_CLASS = 'climbing'
+
+/**
+ * The style's own place labels, which a click takes where the style draws
+ * them (#710).
+ *
+ * The Liberty style's ids rather than layers of ours: it already labels
+ * settlements well, so the app adds a glow under each and no label. Hamlets
+ * have no layer of their own: they ride `label_other`, which labels every
+ * place class the style names no layer for, suburbs, neighbourhoods and
+ * islands among them. That is why `PLACE_CLASSES` is the guard rather than
+ * the layer, here and in the glow's filter. A Liberty update that renames one
+ * of these ids drops it as a target without an error, because both the glow
+ * and the click target skip an id the loaded style does not carry.
+ */
+export const PLACE_LAYERS = [
+  'label_city',
+  'label_city_capital',
+  'label_town',
+  'label_village',
+  'label_other',
+] as const
+
+/** The place classes that are destinations: settlements, not districts or islands. */
+export const PLACE_CLASSES = ['city', 'town', 'village', 'hamlet'] as const
+
 /** The basemap layers a click can turn into a destination. */
-export const POI_LAYERS = ['ofm-peaks', ...LAKE_LAYERS] as const
+export const POI_LAYERS = ['ofm-peaks', ...LAKE_LAYERS, 'ofm-climbing', ...PLACE_LAYERS] as const
 
 function isLakeLayer(layerId: string): boolean {
   return (LAKE_LAYERS as readonly string[]).includes(layerId)
+}
+
+function isPlaceLayer(layerId: string): boolean {
+  return (PLACE_LAYERS as readonly string[]).includes(layerId)
+}
+
+function isPlaceClass(kind: string): boolean {
+  return (PLACE_CLASSES as readonly string[]).includes(kind)
 }
 
 /**
@@ -79,6 +125,19 @@ const FEET_PER_METER = 3.28084
  * requires, so this only ever merges a feature with itself.
  */
 export const POI_MATCH_M = 60
+
+/**
+ * The same tolerance for a clicked place, which the tile snaps far more
+ * coarsely than a summit.
+ *
+ * A city is labelled from the style's `label_city` minzoom of 3, where the
+ * grid is 360/(2^3 × 4096) degrees, 1.22 km at the equator, so one city
+ * clicked at z4 and again at z12 can come back more than a kilometre apart
+ * and the popup would offer to add it a second time. 4 km is over three of
+ * those cells, the margin `POI_MATCH_M` keeps for summits. The name must match
+ * too, and two settlements that share a name are rarely that close.
+ */
+export const PLACE_MATCH_M = 4_000
 
 const M_PER_DEG_LAT = 111_320
 
@@ -174,7 +233,33 @@ export function poiFromFeature(
     return { name, kind: LAKE_CLASS, lat, lon }
   }
 
+  if (layerId === 'ofm-climbing') {
+    // The layer draws named features only and the tile has unnamed ones, so
+    // the name check above is what refuses them here. No elevation: `poi`
+    // carries none.
+    if (rawClass !== CLIMBING_CLASS) return null
+    return { name, kind: CLIMBING_CLASS, lat, lon }
+  }
+
+  if (isPlaceLayer(layerId)) {
+    // The class check is the guard `label_other` needs (see PLACE_LAYERS),
+    // and the class is the kind, so the Type column says `Town`. The `place`
+    // layer carries no elevation.
+    if (!isPlaceClass(rawClass)) return null
+    return { name, kind: rawClass, lat, lon }
+  }
+
   return null
+}
+
+/**
+ * Whether a label drawn on one of `POI_LAYERS` is a destination at all, with
+ * no position needed. The cursor asks this on every move (`accepts` in
+ * `map/mapPopups.ts`), so a suburb's label shows no pointer for a click that
+ * would open nothing.
+ */
+export function isPoiFeature(layerId: string, props: Record<string, unknown>): boolean {
+  return poiFromFeature(layerId, props, [0, 0]) !== null
 }
 
 /** The searched-place record a POI becomes, so both inputs share one pipeline. */
@@ -204,5 +289,5 @@ export function samePoi(poi: BasemapPoi, place: Pick<Place, 'label' | 'lat' | 'l
   const dLat = (poi.lat - place.lat) * M_PER_DEG_LAT
   const dLon =
     (poi.lon - place.lon) * M_PER_DEG_LAT * Math.cos(((poi.lat + place.lat) / 2 / 180) * Math.PI)
-  return Math.hypot(dLat, dLon) <= POI_MATCH_M
+  return Math.hypot(dLat, dLon) <= (isPlaceClass(poi.kind) ? PLACE_MATCH_M : POI_MATCH_M)
 }

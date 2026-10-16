@@ -6,7 +6,7 @@ import { escapeHtml, factsRow, metaBand, popupAction, popupButton, popupShell } 
 import { elevationFact } from './popupRows'
 import { TYPE_COL } from './tableColumns'
 
-// The popup a clicked basemap peak or lake opens (#119).
+// The popup a clicked basemap label opens (#119): a peak, a lake or a place.
 //
 // It wears the result card itself (#712, TJ 2026-10-14): the name and the
 // link out on the header band, the type, elevation and coordinates on the

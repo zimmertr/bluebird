@@ -20,7 +20,7 @@ Every menu on a phone is a sheet that rises from the bottom of the screen: Layer
 
 ## Destinations
 
-One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map**, **Coordinates** and **Polygon**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
+One analysis ranks a single set of destinations, which you define using one or all of the following methods. The panel lists them as **Map search**, **Coordinate search** and **Polygon search**, in that order. The first two methods live on the map rather than in the panel, so the panel groups them under **Map search**: hovering that group rings the search box and lights every clickable feature, showing you where both controls are.
 
 ### a. Search by name
 
@@ -28,23 +28,25 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 ### b. Click a destination
 
-The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks and lakes labeled on the map can be picked. Tap or click one for a popup in the same card a result gets: its name on the band, and under it its kind, its elevation where there is one, and its coordinates, which open CalTopo. Then press **Add to analysis**. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks, lakes, cities, towns, villages, hamlets and climbing features labeled on the map can be picked. Tap or click one for a popup in the same card a result gets: its name on the band, and under it its kind, its elevation where there is one, and its coordinates, which open CalTopo. Then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in as soon as it is added, by the same lookup a pasted coordinate gets: the map's own tiles first, then the map server for whatever they cannot place.
 
-Five things are worth knowing about what you can click:
+Seven things are worth knowing about what you can click:
 
-- **Lakes show no elevation.** Peaks do, because the map data carries one for a summit and none for a water body. Analyzing the lake fills it in.
+- **Only peaks show an elevation.** The map data carries one for a summit and none for a water body, a town or a climbing feature. Analyzing a lake fills it in.
 - **Unnamed summits are clickable too.** OSM knows plenty of peaks only by their height, and the map draws those as a bare elevation. Clicking one adds it as `Peak 5961`, after the number you clicked on.
 - **Shift-click keeps a popup open** instead of replacing it, so two destinations can be compared side by side. A popup opened that way stays until you close it, or until the next analysis lands, which closes every popup on the map.
 - **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
+- **A town wears a disc like a peak's from zoom 9**, with its name under it in the map's own type, so bigger places still read bigger. A clicked town is the point the disc stands on, which is the map data's point for the place, usually its centre, and not the spot you clicked.
+- **A climbing label may be a crag or a single route.** The map data does not say which, so both can be picked, and both are added as `Climbing`. They show from zoom 14, the first zoom the map data carries them at. Routes on one wall stand metres apart, so a crowded wall shows only the icons that fit until you zoom in, and a hidden one can be picked once it draws.
 - **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
 
-Trailheads and crags are not clickable, so a polygon is still how you find them: the map has no trailheads, and its climbing points mix crags with individual routes.
+Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them. A polygon is also how you find crags without the routes: tick **Crags** under **Polygon search**.
 
-### c. Polygon
+### c. Polygon search
 
-Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
+Press **Draw polygon** to start. While drawing, each click on the map drops a point and the polygon previews live as you add them. The row under **Polygon search** always holds three buttons, and one that has nothing to do yet is greyed: **Cancel** until you are drawing, **Clear** until there is a point, and **Done** until there are three.
 
 - You need at least 3 points before Analyze turns on.
 - The estimated bounding-box area is shown in km² at the right of the point count while you draw, or under it when the two do not fit on one line, and for a polygon a shared link brings in.
@@ -69,9 +71,9 @@ The checkboxes under the buttons control what discovery looks for inside your po
 
 Nothing is ticked to begin with, and a polygon with nothing ticked finds nothing. When another destination still lets Analyze run, a line under the Analyze button says so, and the analysis covers the other destinations alone. **Include unnamed peaks**, which shows under **Peaks** once Peaks is ticked, adds the summits OSM knows only by their height, listed as `Peak 5961`. It is off by default because it is not a small addition: in one 8 by 10 km box in the Alpine Lakes, 7 peaks are named and 13 are not, so it roughly triples how many destinations an analysis covers, how long it takes, and how often it hits the candidate ceiling. The other three methods still work on their own, so an analysis of searched places, clicked destinations or pasted coordinates needs no polygon and no ticks at all.
 
-### d. Coordinates
+### d. Coordinate search
 
-Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinates** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller.
+Paste a CSV of your own coordinates to add them to the analysis — alongside whatever the polygon finds, or entirely on their own (no polygon needed). In the panel, **Coordinate search** is a box two rows tall that shows the format and one example row until you paste or type into it; drag its corner to make it taller.
 
 ```
 # Lines beginning with # are ignored
@@ -711,4 +713,4 @@ nothing within 10 miles, which still is not proof there is no fire:
 successful check can still miss.
 
 Coordinates are deliberately absent. The file is meant to be read, not pasted
-back into [Coordinates](#d-coordinates).
+back into [Coordinate search](#d-coordinate-search).

@@ -103,7 +103,7 @@ function setup({
       lngLat: { lng: SUMMIT[0], lat: SUMMIT[1] },
       shiftKey,
     })
-  return { stub, pois, inputs, peakClick, mapPopups }
+  return { stub, pois, inputs, peakClick, mapPopups, click }
 }
 
 // The map's zoom when a card is drawn, which its CalTopo link carries (#712).
@@ -154,6 +154,23 @@ describe('mountPoiPopups', () => {
     marked.peakClick(false, [{ layer: { id: RESULT_MARKER_LAYER } }])
     expect(popups).toHaveLength(0)
     expect(markerOpened).toHaveBeenCalledTimes(1)
+  })
+
+  // The style's own place labels (#710): a town opens the same card at the
+  // label's point, and a suburb on the same `label_other` opens nothing.
+  it('offers a clicked town, and passes over a suburb', () => {
+    const NORTH_BEND: [number, number] = [-121.7868, 47.4957]
+    const town = { name: 'North Bend', class: 'town', rank: 11 }
+    const { click } = setup()
+    const placeClick = (layer: string, properties: Record<string, unknown>) =>
+      click([{ layer: { id: layer }, geometry: { type: 'Point', coordinates: NORTH_BEND }, properties }], {
+        lngLat: { lng: -121.78, lat: 47.49 },
+      })
+    placeClick('label_town', town)
+    expect(popups).toHaveLength(1)
+    expect(popups[0].html).toBe(poiPopupHtml(poiFromFeature('label_town', town, NORTH_BEND)!, false, MAP_ZOOM))
+    placeClick('label_other', { name: 'Capitol Hill', class: 'suburb' })
+    expect(popups).toHaveLength(1)
   })
 
   it('replaces the open popup on a click and keeps it on a shift-click', () => {

@@ -2,7 +2,7 @@
  * Every popup on the map, and the one click that opens one (TJ, 2026-10-08).
  *
  * A thing on the map that describes itself in a popup is a target: a ranked
- * marker, a basemap peak or lake, a ring handle, a fire perimeter, a closure,
+ * marker, a clickable basemap label, a ring handle, a fire perimeter, a closure,
  * a smoke plume. Each registers here with the layers it draws on and how it
  * opens, and this module does the rest the same way for all of them: a click
  * opens the popup of the highest-ranked target under it (the rank is
@@ -46,6 +46,15 @@ export interface MapPopupTarget {
    * margin, or only a click exactly on it could open it.
    */
   slopPx?: number
+  /**
+   * Whether a feature drawn on one of the target's layers is one it opens for.
+   * For a layer that also draws things the target refuses: the style's
+   * `label_other` labels suburbs and islands beside the hamlets a click takes
+   * (#710). A refused feature is not under the cursor at all, so it shows no
+   * pointer and the click passes to whatever lies beneath it. Every feature
+   * by default.
+   */
+  accepts?: (feature: maplibregl.MapGeoJSONFeature) => boolean
   /**
    * Open the popup for this hit. False says the target has nothing to open
    * here after all (a label with no name, a feature with no properties), and
@@ -118,7 +127,7 @@ export function mountMapPopups(
             ],
         { layers },
       ),
-    )
+    ).filter((f) => targets.find((t) => t.layers.includes(f.layer.id))?.accepts?.(f) ?? true)
     const hit = new Set(features.map((f) => f.layer.id))
     const under = targets.filter((t) => t.layers.some((id) => hit.has(id))).map((t) => t.target)
     return { under, features }

@@ -58,6 +58,8 @@ describe('mountFeatures', () => {
       'ofm-lakes',
       'ofm-lakes-line-glow',
       'ofm-lakes-line',
+      'ofm-climbing-glow',
+      'ofm-climbing',
       'road_label',
       'forecast-grid-fill',
       'forecast-grid-wind',
