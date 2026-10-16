@@ -11,7 +11,7 @@
  * it that sits under the style's own labels. `basemap.test.ts` pins that order.
  */
 import type * as maplibregl from 'maplibre-gl'
-import type { FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
+import type { ExpressionSpecification, FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
@@ -78,6 +78,14 @@ const POI_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
   'text-halo-color': '#f8f4ef',
   'text-halo-width': 1.4,
 }
+
+// The disc a clickable settlement wears from POI_MINZOOM (see townMarker).
+const TOWN_ICON = 'town_hall_11'
+
+// The style's own settlement dot, which every Liberty settlement layer that
+// draws an icon draws below zoom 9 (read 2026-10-15). Spelled because the
+// style's `icon-image` is a zoom step and cannot be nested in townMarker's.
+const STYLE_DOT = 'circle_11_black'
 
 // The style's one water fill. Read for lake geometry on a click, not drawn by
 // us, so a style that renamed it would cost the pole rather than the feature —
@@ -193,6 +201,54 @@ export function glowTwin(layer: maplibregl.SymbolLayerSpecification): maplibregl
       ...(placement ? { 'symbol-placement': placement } : {}),
       visibility: 'none',
     },
+  }
+}
+
+/**
+ * The disc a clickable settlement wears from `POI_MINZOOM` up (#710).
+ *
+ * The style draws a small dot under a town only below zoom 10 (below 9 for a
+ * city) and then the name alone, so a clickable town had nothing marking it
+ * the way a peak's disc does (the maintainer, 2026-10-15, on Issaquah). From
+ * zoom 9 the place wears the sprite's `town_hall_11` on its point with the
+ * name under it, anchored like a peak, in the style's own font, size and
+ * colour, so a bigger place still reads bigger. `town_hall_11` is the one
+ * settlement glyph in the sprite's disc family; the style also uses it for
+ * real town hall buildings from zoom 15, which the maintainer accepted. On
+ * `label_other` only a hamlet gets the disc, never a suburb or an island.
+ *
+ * MapLibre takes `zoom` only as the input of a top-level `step` or
+ * `interpolate`, so the style's own value cannot be nested inside this step:
+ * each property is the whole step, with the style's value below 9. The icon
+ * size, the anchor and the offset are plain values in the style and are read
+ * off the layer; its icon is itself a zoom step, so its value below 9 is
+ * spelled, `STYLE_DOT`. A layer whose other three are not plain values is
+ * left as the style draws it, and so is one with no point to anchor to.
+ */
+export function townMarker(
+  layer: maplibregl.SymbolLayerSpecification,
+): Record<'icon-image' | 'icon-size' | 'text-anchor' | 'text-offset', ExpressionSpecification> | null {
+  const own = layer.layout ?? {}
+  const size = own['icon-size'] ?? 1
+  const anchor = own['text-anchor'] ?? 'center'
+  const offset = own['text-offset'] ?? [0, 0]
+  const plainOffset = Array.isArray(offset) && offset.length === 2 && offset.every((n) => typeof n === 'number')
+  if (typeof size !== 'number' || typeof anchor !== 'string' || !plainOffset) return null
+  if (own['symbol-placement'] !== undefined && own['symbol-placement'] !== 'point') return null
+  const styleIcon = own['icon-image']
+  const icon = styleIcon === undefined ? '' : typeof styleIcon === 'string' ? styleIcon : STYLE_DOT
+  const peak = poiLabelLayout(TOWN_ICON)!
+  // A hamlet on `label_other` gets the disc and its other places keep the
+  // style's own look at every zoom.
+  const settled = (disc: unknown, mine: unknown) =>
+    layer.id === 'label_other' ? ['match', ['get', 'class'], 'hamlet', disc, mine] : disc
+  const step = (mine: unknown, disc: unknown) =>
+    ['step', ['zoom'], mine, POI_MINZOOM, settled(disc, mine)] as ExpressionSpecification
+  return {
+    'icon-image': step(icon, TOWN_ICON),
+    'icon-size': step(size, 1),
+    'text-anchor': step(anchor, peak['text-anchor']),
+    'text-offset': step(['literal', offset], ['literal', peak['text-offset']]),
   }
 }
 
@@ -367,11 +423,11 @@ export function enhanceBasemap(map: maplibregl.Map) {
   }
 
   // The style's own place labels (#710) are clicked where the style draws
-  // them, so each gets a halo directly beneath it and nothing else: no label
-  // of ours, and the style's look left as it is. An id this style does not
-  // carry is skipped. The halo lights only the classes a click takes, which
-  // matters on `label_other`: it labels hamlets, and also suburbs,
-  // neighbourhoods and islands the click refuses.
+  // them, so each gets a halo directly beneath it and, from POI_MINZOOM, a
+  // disc on its point (`townMarker`), but no label of ours. An id this style
+  // does not carry is skipped. The halo lights only the classes a click
+  // takes, which matters on `label_other`: it labels hamlets, and also
+  // suburbs, neighbourhoods and islands the click refuses.
   const styleLayers = map.getStyle().layers ?? []
   for (const id of PLACE_LAYERS) {
     const spec = styleLayers.find((l) => l.id === id)
@@ -381,6 +437,10 @@ export function enhanceBasemap(map: maplibregl.Map) {
       ? (['all', spec.filter, settlements] as FilterSpecification)
       : settlements
     map.addLayer({ ...glowTwin(spec), filter }, id)
+    const marker = townMarker(spec)
+    if (marker) {
+      for (const key of Object.keys(marker) as (keyof typeof marker)[]) map.setLayoutProperty(id, key, marker[key])
+    }
   }
 
   // The style keeps the water we do NOT draw — oceans, bays, straits, which

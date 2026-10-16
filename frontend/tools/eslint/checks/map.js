@@ -249,6 +249,7 @@ export const MAP = [
     'makeGlowImage',
     'poiLabelLayout',
     'glowTwin',
+    'townMarker',
   ]),
   declaresOnly('map-grid-declares', 'src/map/overlays/forecastGrid.ts', [
     'gridRedraws',
@@ -296,10 +297,12 @@ export const MAP = [
       },
       {
         // Peaks and climbing build from the shared layout directly; the two
-        // lake layers share one recipe, spelled once and spread twice.
+        // lake layers share one recipe, spelled once and spread twice; and a
+        // town's disc takes its anchor and offset from it, so a town's name
+        // sits under its disc exactly as a peak's does.
         selector: 'CallExpression[callee.name="poiLabelLayout"]',
-        count: 3,
-        message: 'Build the peak and climbing layouts and the one lake recipe from poiLabelLayout.',
+        count: 4,
+        message: 'Build the peak, climbing and town layouts and the one lake recipe from poiLabelLayout.',
       },
       {
         // The long lakes render only because their layer places labels along
