@@ -120,6 +120,63 @@ function makeGlowImage(): ImageData | null {
   return ctx.getImageData(0, 0, POI_GLOW_PX, POI_GLOW_PX)
 }
 
+// The climbing icon (#715): a rock face with a climber cut out of it, which
+// the maintainer picked on 2026-10-15 from nine drawn in the sprite's own disc.
+// The sprite has no climbing glyph, so the layer wore the generic stroked
+// circle until then. Drawn here like the glow rather than shipped as a file,
+// at the sprite's @2x size so it stands at the same 17px as `mountain_11`.
+// It marks every climbing point the tiles carry, routes included, because
+// the tile drops the `climbing=` subtype (`CLIMBING_CLASS`).
+export const CLIMBING_IMAGE = 'ofm-climbing-icon'
+const CLIMBING_ICON_PX = 34
+
+// The sprite's disc icons, read off `mountain_11` and `water_11` at @2x on
+// 2026-10-15: a white disc, a grey ring a pixel wide, and the brown the lake
+// and town glyphs are filled with. The climber is cut out in the disc's white.
+const SPRITE_DISC = '#ffffff'
+const SPRITE_RING = '#bbbbbb'
+const SPRITE_GLYPH = '#725a50'
+
+// On the 34-unit grid, scaled to 0.8 about the centre, which is the share of
+// the disc the sprite's own glyphs take.
+const CLIMBING_ROCK = 'M7,28 L7.6,14 L10.6,7.8 L16.8,5.6 L23.2,6.8 L26.8,11.6 L27,28 Z'
+const CLIMBER_LIMBS =
+  'M17,12.6 L15.8,19.4 M16.8,14 L21.6,10.2 M16.8,14 L12.4,16.6 M15.8,19.4 L21,21.4 L21.6,25.6 M15.8,19.4 L12.6,23.4 L12.6,27'
+
+function makeClimbingImage(): ImageData | null {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = CLIMBING_ICON_PX
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const c = CLIMBING_ICON_PX / 2
+  ctx.beginPath()
+  ctx.arc(c, c, c - 0.5, 0, Math.PI * 2)
+  ctx.fillStyle = SPRITE_DISC
+  ctx.fill()
+  ctx.lineWidth = 1
+  ctx.strokeStyle = SPRITE_RING
+  ctx.stroke()
+
+  ctx.translate(c, c)
+  ctx.scale(0.8, 0.8)
+  ctx.translate(-c, -c)
+  ctx.fillStyle = SPRITE_GLYPH
+  ctx.fill(new Path2D(CLIMBING_ROCK))
+
+  // The climber sits low enough that its head clears the rock's top edge.
+  ctx.translate(-0.5, 2.2)
+  ctx.fillStyle = SPRITE_DISC
+  ctx.beginPath()
+  ctx.arc(17.5, 9.4, 2.7, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = SPRITE_DISC
+  ctx.lineWidth = 2.6
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  ctx.stroke(new Path2D(CLIMBER_LIMBS))
+  return ctx.getImageData(0, 0, CLIMBING_ICON_PX, CLIMBING_ICON_PX)
+}
+
 /**
  * Where a clicked lake becomes a coordinate.
  *
@@ -261,6 +318,13 @@ export function enhanceBasemap(map: maplibregl.Map) {
   // unknown icon and only warns.
   const glow = makeGlowImage()
   if (glow && !map.hasImage(POI_GLOW_IMAGE)) map.addImage(POI_GLOW_IMAGE, glow)
+  // A browser with no 2D canvas keeps the stroked circle, which the sprite
+  // carries, rather than drawing climbing points with no icon at all.
+  const climbingIcon = makeClimbingImage()
+  if (climbingIcon && !map.hasImage(CLIMBING_IMAGE)) {
+    map.addImage(CLIMBING_IMAGE, climbingIcon, { pixelRatio: 2 })
+  }
+  const climbingIconId = climbingIcon ? CLIMBING_IMAGE : 'circle_stroked_11'
 
   // Trails: OSM class=path/track. Liberty only draws these from z14, too late
   // for orienting while drawing a polygon — show them from z11 in a trail hue.
@@ -384,10 +448,8 @@ export function enhanceBasemap(map: maplibregl.Map) {
       paint: POI_LABEL_PAINT,
     },
     // Climbing: crags and single routes, which the tile cannot tell apart
-    // (`CLIMBING_CLASS`). The sprite has no climbing glyph, so the icon is the
-    // stroked circle, which reads as a different kind of thing from the
-    // `mountain_11` and `water_11` of the peaks and lakes. Named features
-    // only, so every icon drawn is one a click can add.
+    // (`CLIMBING_CLASS`), wearing the drawn climber (`CLIMBING_IMAGE`). Named
+    // features only, so every icon drawn is one a click can add.
     {
       id: 'ofm-climbing',
       type: 'symbol',
@@ -401,7 +463,7 @@ export function enhanceBasemap(map: maplibregl.Map) {
         ['has', 'name'],
       ],
       layout: {
-        ...poiLabelLayout('circle_stroked_11'),
+        ...poiLabelLayout(climbingIconId),
         'text-field': ['get', 'name'],
         // The one clickable layer whose icons collide away. Routes on one
         // wall stand metres apart, so with overlap allowed z14 drew each wall

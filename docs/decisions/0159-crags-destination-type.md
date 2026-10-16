@@ -21,6 +21,7 @@ The Destinations section's type row carried three checkboxes, Peaks, Lakes and T
 - **The copy that listed the types now names none**: the tutorial's destinations step, the Overpass line `/api/capabilities` publishes, the API description and the README say "destination" or "places", approved verbatim on 2026-10-15, so a fifth type changes none of them.
 - **A crag named for the peak it stands on is its own row.** Discovery's identity for a mapped feature is its type and its name (`query_osm`), not the name alone, and a custom row claims a discovered one by its coordinate only (`_merge_custom`), so a pasted row and a discovered row of one name at different points are two rows, Custom and Peak. The maintainer decided both on 2026-10-15.
 - **The chart tells two rows of one name apart by their type**, composed through `TYPE_COL`'s formatter: `The Tooth (Crag)` and `The Tooth (Peak)`, and under a comparison one bracket, type first: `1. The Tooth (Crag, NOAA GFS)`. It shows on both of the pair and only while both are on screen, in the lines, the hover box, the legend chips and the Removed list. A name no other place shares reads exactly as before. The formats were approved on 2026-10-15.
+- **The map's climbing labels wear a climber on a rock** (`CLIMBING_IMAGE` in `basemap.ts`), in place of the sprite's `circle_stroked_11` that 0157 named. The maintainer picked it on 2026-10-15 from nine drawn in the sprite's own frame: a white disc, a `#bbbbbb` ring and a `#725a50` glyph, read off `mountain_11` and `water_11`, at the sprite's @2x size so it stands at 17px like a peak. It is drawn on a canvas, as the hover glow is, and a browser with no 2D canvas keeps the circle. The tiles cannot tell a crag from a route, so every climbing label wears it.
 - Crags never join `TILE_TYPES`: the basemap's tiles carry climbing points (`class=climbing` in the `poi` layer) but no `climbing=` subtype, so a crag cannot be told from a route, and crags mapped as relations are not in them. A ring with Crags ticked therefore asks Overpass, as one with Trailheads ticked does. A crag with no `ele` takes the unknown-elevation path lakes and trailheads take, and no elevation lookup is added for it.
 
 ## Evidence
@@ -51,6 +52,7 @@ The row: the four labels take 289.8px of the 327px row at the 360px panel, and s
 - **Bare `sport=climbing`.** It brings every route with it: in the measured box, 67 routes and 5 route bottoms would each have been a row.
 - **Leaving boulders out**, the first cut. A boulder is a place a climber plans a day around, and the maintainer chose to have them, rows and all.
 - **Crags without areas.** Some places are mapped only as an area, and leaving areas out loses them.
+- **Eight other climbing icons**: a climber at a vertical or a slab wall, a crack, a faceted boulder, a carabiner, a quickdraw, a chalk hand and a bolt-on hold. Four more were drawn and dropped before the maintainer saw them, because at 17px they read as a bin, a search icon, the number 8 and a gallows.
 - **A link to the OSM object**, as lakes and trailheads have. The maintainer chose Mountain Project, which is where a climber looks a crag up.
 
 ## Consequences
