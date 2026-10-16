@@ -76,7 +76,7 @@ body,
   padding: 0;
 }
 
-/* Two themes, one set of names (#706; record 0156). Every colour role in
+/* Two themes, one set of names (#706; record 0158). Every colour role in
    styles.ts paints a semantic token below rather than a palette step, so a
    theme is a second set of values for the same names and no role is spelled
    twice. Dark is the default whatever the OS says (the maintainer's call on

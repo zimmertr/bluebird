@@ -243,6 +243,25 @@ describe('mountMapPopups cursor', () => {
     expect(asked).toBe(1)
   })
 
+  // A layer can draw things its target refuses: the style's `label_other`
+  // labels suburbs beside the hamlets a click takes (#710). A refused feature
+  // is not under the cursor at all, for the pointer or for the click.
+  it('passes over a feature its target does not accept', () => {
+    const { stub, register, click, move, opened } = setup()
+    register('poi', ['light'], { accepts: (f) => f.properties?.class === 'hamlet' })
+    register('fire', ['fire-fill'])
+    const suburb: StubFeature = { layer: { id: 'light' }, properties: { class: 'suburb' } }
+    stub.setUnder([suburb])
+    move()
+    expect(stub.canvas.style.cursor).toBe('')
+    stub.setUnder([suburb, { layer: { id: 'fire-fill' } }])
+    click()
+    expect(opened).toEqual([{ target: 'fire', layer: 'fire-fill' }])
+    stub.setUnder([{ layer: { id: 'light' }, properties: { class: 'hamlet' } }])
+    move()
+    expect(stub.canvas.style.cursor).toBe('pointer')
+  })
+
   it('leaves the cursor alone while a target holds it', () => {
     let held = true
     const { stub, register, under, move } = setup({ drawing: true })

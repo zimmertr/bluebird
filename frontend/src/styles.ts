@@ -27,7 +27,7 @@
  * color carries the meaning, not the hierarchy.
  *
  * Every colour utility in this file names a semantic token rather than a
- * palette step (#706; record 0156): `text-ink-soft` rather than the
+ * palette step (#706; record 0158): `text-ink-soft` rather than the
  * slate-400 text it was, `bg-panel` rather than the slate-800 fill. `index.css` gives
  * each token two values, the dark theme's Tailwind step and the light theme's
  * measured hex, so a role is written once and paints both themes. Where a

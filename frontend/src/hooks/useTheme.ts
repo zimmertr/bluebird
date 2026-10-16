@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useState } from 'react'
 import { type Theme, readTheme, writeTheme } from '../utils/viewPrefs'
 
 /**
- * The theme the app paints in (#706; record 0156): dark unless this browser
+ * The theme the app paints in (#706; record 0158): dark unless this browser
  * chose light, and the one switch that changes it.
  *
  * The theme itself is CSS: `index.css` gives every token a light value under

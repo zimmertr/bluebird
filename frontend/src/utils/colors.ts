@@ -19,7 +19,7 @@ export type ColorScale = {
   thresholds: number[]
   colors: readonly string[]
   /**
-   * The light theme's cell text, one per band (#706; record 0156). A table
+   * The light theme's cell text, one per band (#706; record 0158). A table
    * cell paints its band at 20% under text in the band itself, which reads on
    * the dark panel and fails on the light one, where these 300 and 500 steps
    * are pale. So in light the tint stays the band and the TEXT is the same
@@ -504,7 +504,7 @@ export function colorOnScale(value: number, scale: ColorScale): string {
  * color, so the peak the reader was looking for was the one thing the color
  * could not tell them.
  *
- * The theme picks the ink (#706; record 0156): the band itself on the dark
+ * The theme picks the ink (#706; record 0158): the band itself on the dark
  * panel, as it always was, and the band's 800 step (`ColorScale.ink`) on the
  * light one, where the band is too pale to read as text. The tint is the band
  * at 20% in both.

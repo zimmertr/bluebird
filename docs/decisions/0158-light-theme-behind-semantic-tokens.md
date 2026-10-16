@@ -1,4 +1,4 @@
-# 0156. The app has a light theme behind a header switch, painted through semantic tokens, and opens dark
+# 0158. The app has a light theme behind a header switch, painted through semantic tokens, and opens dark
 
 - Status: Accepted
 - Date: 2026-10-15

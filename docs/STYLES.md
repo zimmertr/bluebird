@@ -229,7 +229,7 @@ One `DRAG` object for both surfaces that reorder columns (five exports until #68
 Dark is the default and stays the default whatever the operating system says;
 light applies only once a reader presses the switch (#706). The two are one set
 of names with two sets of values, so no role is spelled twice.
-Record: [0156](decisions/0156-light-theme-behind-semantic-tokens.md)
+Record: [0158](decisions/0158-light-theme-behind-semantic-tokens.md)
 
 **How it is built.** `frontend/src/index.css` registers each token in an
 `@theme inline` block as `--color-<token>: var(--ui-<token>)`, which gives it a
@@ -304,7 +304,7 @@ walks at saturation 70, lightness 78, where dark walks at 70 and 64. A pastel
 alone cannot stand off the light panel, so every light line is drawn over a
 rim of `ink-soft`, a pixel wider than the line on each side (one SVG filter
 over the group Recharts draws the lines into, which measured half the cost of
-a second line under each; record 0156 has the numbers), and every mark in
+a second line under each; record 0158 has the numbers), and every mark in
 a line's colour wears the same rim: the hover dot, a point sample's dots, the
 readout's swatches, the chart-only legend's dots and a ticked chart checkbox
 (`LINE_EDGE` in `styles.ts`, `lineEdge` in `CHART_CHROME`). The chart can carry
@@ -514,7 +514,7 @@ The rest of the theme, role by role, each pinned as a literal:
 **Re-measure condition:** every one of these numbers is a literal in
 `styles.test.ts`, `colors.test.ts` or `chartColors.test.ts`, so changing a
 light token fails the suite until the number is taken again.
-Record: [0156](decisions/0156-light-theme-behind-semantic-tokens.md)
+Record: [0158](decisions/0158-light-theme-behind-semantic-tokens.md)
 
 ### The type floor
 

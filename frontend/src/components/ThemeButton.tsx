@@ -3,7 +3,7 @@ import { HEADER_BUTTON } from '../styles'
 import type { Theme } from '../utils/viewPrefs'
 
 /**
- * The theme switch (#706; record 0156): a round button in the panel's header
+ * The theme switch (#706; record 0158): a round button in the panel's header
  * at a desk, beside the close button, and in the Controls sheet's title row
  * on a phone, beside Done.
  *

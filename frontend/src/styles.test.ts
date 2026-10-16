@@ -153,7 +153,7 @@ const mapCss: string = readFileSync(new URL('./map.css', import.meta.url), 'utf8
 // same reason.
 const indexCss: string = readFileSync(new URL('./index.css', import.meta.url), 'utf8')
 
-// The theme layer (#706; record 0156). Every colour role names a semantic
+// The theme layer (#706; record 0158). Every colour role names a semantic
 // token (`text-ink-mid`, `bg-panel`), and `index.css` gives each one two
 // values: the dark theme's Tailwind step and the light theme's hex. The dark
 // assertions below read a role's token back to its step, so every slate and
@@ -3218,7 +3218,7 @@ describe('the calendar field wraps', () => {
   })
 })
 
-// The light theme (#706; record 0156), measured rather than copied: every
+// The light theme (#706; record 0158), measured rather than copied: every
 // pair the dark assertions above pin as a literal is computed here from the
 // light values `index.css` declares, so a light value that moves fails here
 // and forces the re-measurement. The palette is the maintainer's (issue
