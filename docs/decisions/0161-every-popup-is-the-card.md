@@ -36,7 +36,7 @@ Enforced three ways: `POPUP_FACE` and `POPUP_TITLE_SIZE` are no longer exported,
 
 Measured 2026-10-16 against the Forest Service feeds `services/usfs_closures.py` reads: Region 6 named its fire in `FireName` on 12 of 13 active areas, 891 of 901 lines and 172 of 172 points. Regions 3 and 4 name no fire, and their `ordertype` values that day included `Safety Closure`, `Recreation Closure`, `Closure for Resource Protection`, `Fire Closure - Stage 3` and `Other Closure`. `ClosureType` already rode `/api/closures`; only the browser's `ClosureProps` lacked it.
 
-The built image was shot on 2026-10-16 in Chrome on macOS, at 1389 and 500 px wide and in both themes: Kaiser Canyon, the Three Queens and Ptarmigan trail closures, the Little Giant area closure (`Closed for: Wildfire (Little Giant Fire)`), a Coconino area closure (`Closed for: Safety Closure`) and a GOES-EAST plume. Mount Rainier's clicked-feature card was unchanged.
+The built image was shot on 2026-10-16 in Chrome on macOS at 1389 px in both themes: Kaiser Canyon (`Wildfire | 138,285 acres`), a Coconino area closure (`Area closure | 2,816 acres` over `Safety Closure`), the Little Giant area closure and the Three Queens and Ptarmigan trail closures (no notice once the fire line went), and a GOES-EAST plume; Mount Rainier's clicked-feature card was unchanged. On a 390 px phone the browser suite's new placement test taps an area closure 30 px under the chip rows: the build before the shared fit stood the card over them (the overlap the test asserts against), and this one hangs it clear below. The full browser suite (47 tests) passes.
 
 ## Alternatives rejected
 
