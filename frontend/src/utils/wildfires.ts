@@ -190,13 +190,15 @@ export function formatContainment(pct: number | null | undefined): string {
 }
 
 /**
- * Epoch-ms → localized "Last updated: <date>, <time>", or null to omit it.
+ * Epoch-ms → localized "Updated: <date>, <time>", or null to omit it.
  *
  * This is NIFC's own timestamp for when the incident's perimeter was last
  * redrawn: a fact about the fire, not about Bluebird Forecast. Measured across one
  * national snapshot it ranged from minutes to two weeks old. It sits inside a
- * popup titled with the incident and credited to NIFC, which is what makes
- * "Last updated" read as the fire's date rather than the app's.
+ * card titled with the incident, whose band says `Wildfire` and whose glyph
+ * links NIFC, which is what makes "Updated" read as the fire's date rather
+ * than the app's. Every overlay card's date line is one `Label: value` shape
+ * (`Updated:`, `Effective:`, `Observed:`; TJ, 2026-10-16).
  *
  * Kept timezone-tolerant (falls back to a bare ISO date) so it never throws.
  */
@@ -205,9 +207,9 @@ export function formatRevised(ms: number | null | undefined): string | null {
   const d = new Date(ms)
   if (Number.isNaN(d.getTime())) return null
   try {
-    return `Last updated: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+    return `Updated: ${d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
   } catch {
-    return `Last updated: ${d.toISOString().slice(0, 10)}`
+    return `Updated: ${d.toISOString().slice(0, 10)}`
   }
 }
 

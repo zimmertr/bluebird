@@ -79,7 +79,7 @@ describe('formatObserved', () => {
 
   it('states a same-day window as two times', () => {
     const line = formatObserved(morning, afternoon)
-    expect(line).toMatch(/^Observed .+ to .+$/)
+    expect(line).toMatch(/^Observed: .+ to .+$/)
     // The date is redundant on both sides of a three-hour window.
     expect(line).not.toMatch(/Aug/)
   })
@@ -90,7 +90,7 @@ describe('formatObserved', () => {
   })
 
   it('states a single stamp when HMS gave no end', () => {
-    expect(formatObserved(morning, null)).toMatch(/^Observed /)
+    expect(formatObserved(morning, null)).toMatch(/^Observed: /)
   })
 
   it('omits the line rather than inventing one when the stamp is missing', () => {
@@ -134,7 +134,7 @@ describe('smokePopupHtml', () => {
       observed_start: Date.parse('2026-08-04T11:00:00'),
       observed_end: Date.parse('2026-08-04T14:00:00'),
     })
-    expect(html).toContain('Observed')
+    expect(html).toContain('Observed:')
     expect(html).toContain('font-style:italic')
   })
 })

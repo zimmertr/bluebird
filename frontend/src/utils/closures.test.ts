@@ -80,7 +80,7 @@ describe('closureName', () => {
 
 describe('formatClosureDates', () => {
   it('states the span only when both ends exist', () => {
-    expect(formatClosureDates(START, END)).toBe(`${medium(START)} to ${medium(END)}`)
+    expect(formatClosureDates(START, END)).toBe(`Effective: ${medium(START)} to ${medium(END)}`)
     expect(formatClosureDates(START, null)).toBeNull()
     expect(formatClosureDates(undefined, END)).toBeNull()
     expect(formatClosureDates(Number.NaN, END)).toBeNull()
@@ -100,7 +100,7 @@ describe('closurePopupHtml', () => {
     expect(textOf(bandOf(html))).toContain('Probe Fire Closure')
     expect(textOf(bandOf(html))).toContain('Trail closure|Eagle Creek 440')
     expect(textOf(bodyOf(html))).toContain('Columbia River Gorge NSA')
-    expect(textOf(bodyOf(html))).toContain(`${medium(START)} to ${medium(END)}`)
+    expect(textOf(bodyOf(html))).toContain(`Effective: ${medium(START)} to ${medium(END)}`)
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
     expect(html).toContain('target="_blank" rel="noopener noreferrer"')
     expect(textOf(html)).not.toContain('View closure order')
@@ -112,7 +112,7 @@ describe('closurePopupHtml', () => {
   // overlay cards end on the same line.
   it('sets the dates last, and smaller and italic than the forest', () => {
     const html = closurePopupHtml(props(), 'area')
-    const dates = `${medium(START)} to ${medium(END)}`
+    const dates = `Effective: ${medium(START)} to ${medium(END)}`
     expect(html.indexOf(dates)).toBeGreaterThan(html.indexOf('Columbia River Gorge NSA'))
     const line = html.slice(html.lastIndexOf('<span', html.indexOf(dates)))
     expect(line).toContain('font-style:italic')

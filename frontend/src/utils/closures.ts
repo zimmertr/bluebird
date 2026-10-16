@@ -171,7 +171,12 @@ function closureDate(ms: number | null | undefined): string | null {
 }
 
 /**
- * `{start} to {end}`, or null to omit the line.
+ * `Effective: {start} to {end}`, or null to omit the line.
+ *
+ * `Effective` rather than `Active` because the line states the order's own
+ * span, not a claim about today: Region 6 keeps some orders `Active` past
+ * their end date, and `Active: … to Oct 1` on Oct 16 would contradict itself
+ * (TJ, 2026-10-16).
  *
  * Both or neither: one date alone would read as a span the order never stated,
  * an open end as "closed forever" or a missing start as "closed since always".
@@ -182,7 +187,7 @@ export function formatClosureDates(
 ): string | null {
   const from = closureDate(start)
   const to = closureDate(end)
-  return from && to ? `${from} to ${to}` : null
+  return from && to ? `Effective: ${from} to ${to}` : null
 }
 
 /**
@@ -229,8 +234,8 @@ export const CLOSURE_KIND: Record<ClosureKind, string> = {
  * figure that identifies it, an area's acres or a trail's route. The notice
  * is the order's type where the region files one (`closureReason`), the one
  * thing the card's name does not already say. The body is whose forest, then
- * for how long in the fine print a fire's `Last updated` and a plume's
- * `Observed` wear, so the three cards end on the same line. Every line but the name is omitted when the
+ * for how long in the fine print a fire's `Updated:` and a plume's
+ * `Observed:` wear, so the three cards end on the same line. Every line but the name is omitted when the
  * service left it empty, rather than filled with a word the order does not
  * say.
  */

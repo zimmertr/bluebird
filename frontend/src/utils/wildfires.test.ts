@@ -77,12 +77,12 @@ describe('formatRevised', () => {
     expect(formatRevised(null)).toBeNull()
     expect(formatRevised(undefined)).toBeNull()
   })
-  it('names the fact it states, rather than a bare "Updated"', () => {
-    // This is NIFC's survey time for one fire, not the age of Bluebird Forecast's copy,
-    // and it is the only date in the popup, so nothing else is there to correct
-    // a reader who reads it as ours. Avoid asserting a locale/timezone-specific
+  it('labels the date the way every overlay card labels its date', () => {
+    // NIFC's survey time for one fire, not the age of Bluebird Forecast's copy:
+    // the card's band names the fire and links NIFC, which is what keeps a bare
+    // "Updated" the fire's. Avoid asserting a locale/timezone-specific
     // rendering, just the label.
-    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Last updated: /)
+    expect(formatRevised(Date.UTC(2026, 6, 20))).toMatch(/^Updated: /)
   })
 })
 
@@ -140,7 +140,7 @@ describe('wildfirePopupHtml', () => {
       { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
       NIFC,
     )
-    expect(html).toContain('Last updated:')
+    expect(html).toContain('Updated:')
   })
 
   // The date qualifies the facts above it rather than joining them, so it goes
@@ -151,8 +151,8 @@ describe('wildfirePopupHtml', () => {
       { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
       NIFC,
     )
-    expect(html.indexOf('Last updated:')).toBeGreaterThan(html.indexOf('% contained'))
-    const line = html.slice(html.lastIndexOf('<span', html.indexOf('Last updated:')))
+    expect(html.indexOf('Updated:')).toBeGreaterThan(html.indexOf('% contained'))
+    const line = html.slice(html.lastIndexOf('<span', html.indexOf('Updated:')))
     expect(line).toContain('font-style:italic')
     expect(line).toContain('font-size:11px')
   })
@@ -172,7 +172,7 @@ describe('wildfirePopupHtml', () => {
 
   it('still renders a perimeter NIFC has never revised', () => {
     const html = wildfirePopupHtml({ attr_IncidentName: 'Fresh' }, NIFC)
-    expect(html).not.toContain('Last updated')
+    expect(html).not.toContain('Updated:')
     expect(html).toContain('Fresh')
   })
 })
