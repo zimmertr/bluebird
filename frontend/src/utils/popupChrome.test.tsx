@@ -27,6 +27,7 @@ import {
   row,
   updatedAt,
   updatedLine,
+  widestName,
 } from './popupChrome'
 import { AGGREGATE } from '../metrics'
 import { closurePopupHtml } from './closures'
@@ -239,6 +240,29 @@ describe('a popup title', () => {
     expect(title.getAttribute('style')).toContain('text-overflow:ellipsis')
     expect(title.getAttribute('style')).toContain('white-space:nowrap')
     expect(title.getAttribute('style')).toContain('min-width:0')
+  })
+})
+
+// A name that changes while its card is open keeps the card one width
+// (#752): every name it can take stands in one grid cell, and only the
+// shown one is seen or read.
+describe('widestName', () => {
+  const NAMES = ['No radar echo', 'Moderate precipitation', 'Very heavy precipitation']
+
+  it('shows one name and keeps the rest in the same cell, unseen and unread', () => {
+    const name = mount(widestName('No radar echo', NAMES)).firstElementChild as HTMLElement
+    expect(name.style.display).toBe('inline-grid')
+    const cells = [...name.children] as HTMLElement[]
+    expect(cells.map((c) => c.textContent)).toEqual(['No radar echo', 'Moderate precipitation', 'Very heavy precipitation'])
+    expect(cells.map((c) => c.style.gridArea.replace(/ /g, ''))).toEqual(Array(3).fill('1/1'))
+    expect(cells.map((c) => c.style.visibility)).toEqual(['', 'hidden', 'hidden'])
+    expect(cells.map((c) => c.getAttribute('aria-hidden'))).toEqual([null, 'true', 'true'])
+  })
+
+  it('holds a name not in the list as well as one in it', () => {
+    const cells = [...(mount(widestName('Glacier', NAMES)).firstElementChild as HTMLElement).children]
+    expect(cells).toHaveLength(4)
+    expect(cells[0].textContent).toBe('Glacier')
   })
 })
 

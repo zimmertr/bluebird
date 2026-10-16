@@ -121,8 +121,10 @@ const INTENSITY: readonly { from: number; word: string }[] = [
  */
 export function radarTitle(dbz: number): string {
   const band = INTENSITY.find((b) => dbz >= b.from)
-  return band ? `${band.word} precipitation` : 'Weak radar echo'
+  return band ? `${band.word} precipitation` : WEAK_ECHO_TITLE
 }
+
+const WEAK_ECHO_TITLE = 'Weak radar echo'
 
 /**
  * The reflectivity a rain rate is read at most from, the NEXRAD rainfall
@@ -187,6 +189,7 @@ export function radarSection(dbz: number, offsetMin: number): PointSection {
   const rate = dbz >= WEAK_ECHO_DBZ ? formatRainRate(rainRateInPerHour(dbz), dbz >= HAIL_CAP_DBZ) : NO_VALUE
   return {
     title: escapeHtml(radarTitle(dbz)),
+    titles: RADAR_TITLES,
     source: escapeHtml(RADAR_SOURCE),
     rows: [row('Rate', escapeHtml(rate)), row('Reflectivity', formatReflectivity(dbz)), updatedLine(radarUpdated(offsetMin))],
   }
@@ -194,6 +197,17 @@ export function radarSection(dbz: number, offsetMin: number): PointSection {
 
 /** What an open card names a frame that painted nothing at its point (TJ, 2026-10-16, #748). */
 export const NO_ECHO_TITLE = 'No radar echo'
+
+/**
+ * Every name a radar section can take, which its card is kept as wide as the
+ * widest of, so a card the forecast player renames does not jump sideways
+ * (#752).
+ */
+export const RADAR_TITLES: readonly string[] = [
+  ...INTENSITY.map((b) => `${b.word} precipitation`),
+  WEAK_ECHO_TITLE,
+  NO_ECHO_TITLE,
+].map(escapeHtml)
 
 /**
  * The radar's section for a frame with no echo at the point: a card already
@@ -204,6 +218,7 @@ export const NO_ECHO_TITLE = 'No radar echo'
 export function noEchoSection(offsetMin: number): PointSection {
   return {
     title: escapeHtml(NO_ECHO_TITLE),
+    titles: RADAR_TITLES,
     source: escapeHtml(RADAR_SOURCE),
     rows: [row('Rate', '0 in/h'), row('Reflectivity', NO_VALUE), updatedLine(radarUpdated(offsetMin))],
   }

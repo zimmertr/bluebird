@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BOTH_TITLE, inBounds, pointCardHtml, type PointSection } from './pointReadout'
-import { SECTION_EDGE, row, sectionHeading, updatedLine } from './popupChrome'
+import { SECTION_EDGE, row, sectionHeading, updatedLine, widestName } from './popupChrome'
 import { markupText } from '../testSupport/markupText'
 
 // The text a reader reads, a space between blocks: `markupText` joins
@@ -46,6 +46,25 @@ describe('pointCardHtml', () => {
 
   it('names one reading on the band alone, with no heading in its body', () => {
     expect(pointCardHtml([rain])).not.toContain(sectionHeading('Light precipitation'))
+  })
+})
+
+// A section the forecast player renames keeps its card one width, alone on
+// the card or under the other picture's (#752).
+describe('pointCardHtml, for a section that can change its name', () => {
+  const NAMES = ['Light precipitation', 'Very heavy precipitation', 'No radar echo']
+  const playing: PointSection = { ...rain, titles: NAMES }
+
+  it('sizes the band title to the widest name', () => {
+    expect(pointCardHtml([playing])).toContain(widestName('Light precipitation', NAMES))
+  })
+
+  it('sizes the section heading to the widest name on a card of two', () => {
+    expect(pointCardHtml([playing, snow])).toContain(sectionHeading(widestName('Light precipitation', NAMES)))
+  })
+
+  it('leaves a section with one name as it was', () => {
+    expect(pointCardHtml([rain])).not.toContain('inline-grid')
   })
 })
 

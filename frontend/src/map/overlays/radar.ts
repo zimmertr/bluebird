@@ -78,6 +78,15 @@ export function mountRadar(
     refresh: (at) => rereadRadarAt(tiles, onScreen, at),
   })
 
+  // A frame waiting at opacity 0 loads no tiles, so where the view has moved
+  // since the warm-up, the playhead lands on a frame whose tiles are still on
+  // their way, and the card read at that moment says `No radar echo` over
+  // the storm that paints a moment later. Reading again as each of the
+  // on-screen frame's tiles arrives puts the echo on the card (#752).
+  map.on('sourcedata', (event: maplibregl.MapSourceDataEvent) => {
+    if (showing && event.tile && event.sourceId === radarLayerId(onScreen)) deps.popups.refreshPoint('radar')
+  })
+
   function addFrames() {
     const beneath = smokeLayerId(SMOKE_DENSITIES[0])
     for (const offset of radarOffsets()) {

@@ -22,12 +22,18 @@
  * with `registerPoint` in `map/mapPopups.ts`; the card, the rank, the abort of
  * a stale answer and the failure posture are all here or there already.
  */
-import { bodyLines, bodySection, escapeHtml, factsLine, metaBand, popupCard, sectionHeading } from './popupChrome'
+import { bodyLines, bodySection, escapeHtml, factsLine, metaBand, popupCard, sectionHeading, widestName } from './popupChrome'
 
 /** What one layer says at the clicked point. Every string is markup the reader has escaped. */
 export interface PointSection {
   /** What is there, as a name: `Moderate precipitation`, `Deep snow`. */
   title: string
+  /**
+   * Every name this section can take, for one a card shows changing while it
+   * is open: the card stays as wide as the widest of them, so it does not
+   * jump sideways when the name changes (#752).
+   */
+  titles?: readonly string[]
   /** Where it comes from: `NEXRAD radar`. */
   source: string
   /** The values, each a `row`, the last saying when it was measured. */
@@ -61,16 +67,17 @@ export const BOTH_TITLE = 'Precipitation and snow'
  * values from the snow's and still sees how heavy each is (TJ, 2026-10-16).
  */
 export function pointCardHtml(sections: readonly PointSection[]): string {
+  const name = (s: PointSection) => (s.titles ? widestName(s.title, s.titles) : s.title)
   if (sections.length === 1) {
     const [only] = sections
-    return popupCard({ title: only.title, meta: metaBand([factsLine([only.source])]), body: bodyLines(only.rows) })
+    return popupCard({ title: name(only), meta: metaBand([factsLine([only.source])]), body: bodyLines(only.rows) })
   }
   return popupCard({
     title: escapeHtml(BOTH_TITLE),
     meta: metaBand([factsLine(sections.map((s) => s.source))]),
     body: sections
       .map((s, i) => {
-        const inner = sectionHeading(s.title) + bodyLines(s.rows)
+        const inner = sectionHeading(name(s)) + bodyLines(s.rows)
         return i === 0 ? inner : bodySection(inner)
       })
       .join(''),
