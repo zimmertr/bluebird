@@ -128,6 +128,24 @@ describe('enhanceBasemap', () => {
     expect(added['ofm-climbing-glow'].minzoom).toBe(14)
   })
 
+  // The peak layer's source also holds cliffs and ridges, most of them with
+  // no name and no elevation, which a click cannot turn into a destination.
+  // Only a feature with a name, or an elevation to call it `Peak 2562`, draws,
+  // and its glow lights the same set.
+  it('draws only the peak-layer features a click can add', () => {
+    const added: Record<string, { filter?: unknown }> = {}
+    const { map } = stubMap({ styleLayers })
+    const addLayer = map.addLayer.bind(map)
+    map.addLayer = ((layer: (typeof added)[string] & { id: string }, before?: string) => {
+      added[layer.id] = layer
+      return addLayer(layer as never, before)
+    }) as typeof map.addLayer
+    enhanceBasemap(map)
+    const filter = ['any', ['has', 'name'], ['has', 'ele_ft']]
+    expect(added['ofm-peaks'].filter).toEqual(filter)
+    expect(added['ofm-peaks-glow'].filter).toEqual(filter)
+  })
+
   it('leaves a style without the label layers alone', () => {
     const { map, calls } = stubMap({
       styleLayers: styleLayers.filter((l) => !l.id.startsWith('water_name')),
@@ -309,8 +327,8 @@ describe('glowTwin', () => {
     expect('text-field' in layout).toBe(false)
   })
 
-  // MapLibre rejects an explicit `filter: undefined`, and the peaks layer has
-  // no filter at all.
+  // MapLibre rejects an explicit `filter: undefined`, so a label with no
+  // filter gives its twin none.
   it('carries no filter key when the label has none', () => {
     const { filter: _filter, ...peaks } = lake
     expect('filter' in glowTwin({ ...peaks, layout: {} })).toBe(false)

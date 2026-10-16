@@ -246,9 +246,9 @@ export function glowTwin(layer: maplibregl.SymbolLayerSpecification): maplibregl
     source: layer.source,
     'source-layer': layer['source-layer'],
     minzoom: layer.minzoom,
-    // Spread rather than assigned: the peaks layer matches everything in its
-    // source-layer and so carries no filter, and MapLibre rejects an explicit
-    // `filter: undefined` rather than treating it as absent.
+    // Spread rather than assigned: a label with no filter must give its twin
+    // none, and MapLibre rejects an explicit `filter: undefined` rather than
+    // treating it as absent.
     ...(layer.filter ? { filter: layer.filter } : {}),
     layout: {
       'icon-image': POI_GLOW_IMAGE,
@@ -367,6 +367,12 @@ export function enhanceBasemap(map: maplibregl.Map) {
       source: 'openmaptiles',
       'source-layer': 'mountain_peak',
       minzoom: POI_MINZOOM,
+      // Only what a click can add: a feature needs a name, or an elevation to
+      // be called `Peak 2562`. The layer also carries cliffs and ridges as
+      // lines, and most cliffs have neither, so without this they drew as
+      // peaks that did nothing when clicked: 25 of the 35 features in the two
+      // tiles over Index, 14/2658/5707 and 14/2659/5707 (2026-10-16).
+      filter: ['any', ['has', 'name'], ['has', 'ele_ft']],
       layout: {
         ...poiLabelLayout('mountain_11'),
         'text-field': [
