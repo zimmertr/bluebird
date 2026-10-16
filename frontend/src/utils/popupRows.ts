@@ -1,5 +1,6 @@
 import { DestinationResult, SortBy } from '../types'
-import { AGGREGATE, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../metrics'
+import { AGGREGATE, FAMILY_KEYS, MetricFamily, aggregateToken, familyOf, metricLabel, windowAggregate } from '../metrics'
+import { cellColor } from './resultsCells'
 import { CLOSURE_KEY, ColDef, ELEVATION_COL, LEAD_KEYS, MODEL_KEY, WILDFIRE_KEY } from './tableColumns'
 import { ModelRow } from './modelCompare'
 import { extremeHourMs, windyUrl } from './windy'
@@ -44,7 +45,20 @@ export type PopupValue = {
    * the card says why its destination stands where it does.
    */
   ranked: boolean
+  /** The ranked family's colour for this number, or null (`PopupTint`). */
+  tint: PopupTint | null
 }
+
+/**
+ * The colour a ranked family's number wears, the results table's own
+ * (`cellColor`, TJ 2026-10-16, #740): every number in the family the report
+ * ranks by is scored on its own column's scale, so the card and the table
+ * colour one number alike, and both agree with the marker under the card.
+ * The fill is the band at 20% in both themes; the ink is the theme's, so
+ * both are carried and `map.css` picks one, which keeps the markup free of
+ * the theme and an open card right across a switch.
+ */
+export type PopupTint = { fill: string; ink: { dark: string; light: string } }
 
 /**
  * One label and its values.
@@ -141,6 +155,12 @@ export function popupGroups(
     times?: readonly number[]
     /** The key the report ranks by, whose cell the grid marks. */
     rankedBy?: SortBy | null
+    /**
+     * Whether the window is one hour, which scores precipitation and snowfall
+     * on their window scales rather than their hourly ones, as the table does
+     * (`scaleFor`).
+     */
+    pointSample?: boolean
   } = {},
 ): PopupGroup[] {
   // Insertion-ordered, which is what makes "first appearance" the family order
@@ -163,6 +183,13 @@ export function popupGroups(
 
   const rowModel = (row as ModelRow).modelId ?? context.modelId
   const rankedFamily = context.rankedBy ? familyOf(context.rankedBy) : null
+  const colored = new Set<string>(rankedFamily ? FAMILY_KEYS[rankedFamily] : [])
+  const tintOf = (col: ColDef): PopupTint | null => {
+    const raw = row[col.key as keyof DestinationResult]
+    const at = (theme: 'dark' | 'light') => cellColor(col.key as string, raw, colored, context.pointSample ?? false, theme)
+    const [dark, light] = [at('dark'), at('light')]
+    return dark && light ? { fill: dark.backgroundColor, ink: { dark: dark.color, light: light.color } } : null
+  }
   const out: PopupGroup[] = []
   for (const [bucket, cols] of groups) {
     const shared = groupUnit(cols)
@@ -192,6 +219,7 @@ export function popupGroups(
         // so a ranking on Max has no cell of its own there, and its one
         // number is the one the ranking read.
         ranked: col.key === context.rankedBy || (cols.length === 1 && bucket === rankedFamily),
+        tint: tintOf(col),
       }
     })
     // One value keeps the column's own label, which already names the metric,
@@ -244,8 +272,11 @@ export function elevationFact(elevationFt: number): string {
 /** The elevation column's unit, which its label spells as `Elevation (ft)`. */
 const ELEVATION_UNIT = 'ft'
 
-/** A number in the grid, and whether it is the one the report ranks by. */
-export type PopupGridCell = { text: string; href: string | null; ranked: boolean }
+/**
+ * A number in the grid, whether it is the one the report ranks by, and the
+ * ranked family's colour it wears.
+ */
+export type PopupGridCell = { text: string; href: string | null; ranked: boolean; tint?: PopupTint | null }
 
 /** A value in the grid, or an aggregate the reader's columns leave out. */
 export type PopupCell = PopupGridCell | null
@@ -297,6 +328,7 @@ export function popupGrid(groups: readonly PopupGroup[]): PopupGrid {
     text: v.unit ? `${v.text} ${v.unit}` : v.text,
     href: v.href,
     ranked: v.ranked,
+    tint: v.tint,
   })
   const rows: PopupGridRow[] = []
   for (const g of groups) {

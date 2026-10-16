@@ -345,9 +345,13 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
  * A number that links is underlined in the card's ink (`popupLink`), which
  * is how the results table marks the same number (`TABLE.valueLink`).
  *
- * The number the report ranks by is bold on a cell one slate darker than its
- * column (`GRID_RANKED_COLOR`), so the card says why its destination stands
- * where it does (TJ, 2026-10-08). `compact` narrows every band's inset and the
+ * Every number in the family the report ranks by wears the results table's
+ * colour for it, a 20% fill of its band and the band's ink (`PopupTint`, TJ
+ * 2026-10-16, #740), so the card colours a number the way the table and the
+ * marker under it do. The ranked number itself is bold, which is how the
+ * card says why its destination stands where it does (TJ, 2026-10-08): the
+ * table says it with the arrow on its column's head, and the card has none.
+ * A ranked number with no colour falls back to `GRID_RANKED_COLOR`. `compact` narrows every band's inset and the
  * label's gap to fit a map too narrow for the widest grid at full inset
  * (`compactGrid`).
  */
@@ -358,7 +362,15 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
   const headStyle = `text-align:center;font-weight:700;vertical-align:bottom;white-space:nowrap;${band};${GRID_HEAD_RULE};${LABEL_COLOR}`
   const valueStyle = `text-align:right;white-space:nowrap;vertical-align:bottom;${band}`
   const value = (c: PopupGridCell, line: string, span = '') =>
-    `<td${span} style="${valueStyle}${c.ranked ? `;background:${GRID_RANKED_COLOR}` : ''}${line}">${cell(c)}</td>`
+    `<td${span}${c.tint ? ` ${POPUP_TINT_ATTR}` : ''} style="${valueStyle}${shade(c)}${line}">${cell(c)}</td>`
+  // The ranked family's colour where its scale gives one, the table's own;
+  // the slate step marks the ranked number only where it has none.
+  const shade = (c: PopupGridCell) =>
+    c.tint
+      ? `;background:${c.tint.fill};--tint-dark:${c.tint.ink.dark};--tint-light:${c.tint.ink.light};color:var(--popup-tint)`
+      : c.ranked
+        ? `;background:${GRID_RANKED_COLOR}`
+        : ''
   const cell = (c: PopupGridCell) => {
     const shown = `<span style="${VALUE_FACE}${c.ranked ? ';font-weight:700' : ''}">${c.text}</span>`
     return c.href ? popupLink(c.href, shown) : shown
@@ -484,6 +496,12 @@ export const POPUP_SCROLL_CLASS = 'popup-scroll'
  */
 export const POPUP_CARD_CLASS = 'popup-card'
 export const POPUP_BODY_ATTR = 'data-popup-body'
+/**
+ * The attribute a coloured grid cell wears, which `map.css` reads to give it
+ * the theme's ink out of the two the cell carries (`--tint-dark` and
+ * `--tint-light`), so the markup names no theme.
+ */
+export const POPUP_TINT_ATTR = 'data-tint'
 
 /**
  * Cap a popup's body so the whole card stands in the free map area, and let

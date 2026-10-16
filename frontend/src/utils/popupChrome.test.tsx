@@ -13,6 +13,7 @@ import {
   LABEL_COLOR,
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
+  POPUP_TINT_ATTR,
   SECTION_EDGE,
   WIDEST_GRID_PX,
   compactGrid,
@@ -103,6 +104,35 @@ describe('a result popup', () => {
 // measured in both themes in `styles.test.ts`, beside the scale bar, because
 // its values are `map.css`'s (#740).
 describe('the popup grid', () => {
+  // A ranked family's number carries the table's fill and both themes' inks,
+  // and takes its colour from the one `map.css` picks (#740); a ranked number
+  // with no colour keeps the slate step.
+  it('paints a coloured number with the fill and both inks it carries', () => {
+    const tint = { fill: 'rgba(1,2,3,0.2)', ink: { dark: 'rgb(4,5,6)', light: 'rgb(7,8,9)' } }
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum, AGGREGATE.maximum],
+      rows: [
+        {
+          kind: 'aggregates',
+          label: 'Wind (mph)',
+          cells: [
+            { text: '3.2', href: null, ranked: false, tint },
+            { text: '41.8', href: null, ranked: true, tint },
+          ],
+        },
+        { kind: 'value', label: 'AQI', cell: { text: '24', href: null, ranked: true } },
+      ],
+    })
+    const cells = mount(html).querySelectorAll(`td[${POPUP_TINT_ATTR}]`)
+    expect(cells).toHaveLength(2)
+    for (const cell of cells) {
+      expect(cell.getAttribute('style')).toContain(
+        ';background:rgba(1,2,3,0.2);--tint-dark:rgb(4,5,6);--tint-light:rgb(7,8,9);color:var(--popup-tint)',
+      )
+    }
+    expect(html.split(`;background:${GRID_RANKED_COLOR}`)).toHaveLength(2)
+  })
+
   // A link is underlined in the colour of the text around it, as the table's
   // numbers are (TJ, 2026-10-16, #740): a grid number in the card's ink, the
   // coordinates in the facts line's grey. Sky stays on the title's glyph.

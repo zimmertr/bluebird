@@ -11,6 +11,7 @@ import {
 import { AGGREGATE, FAMILY_KEYS, NOUN, RANKED_FAMILIES, UNIT } from '../metrics'
 import type { DestinationResult } from '../types'
 import { resultRow } from '../testSupport/fixtures'
+import { cellColor } from './resultsCells'
 
 // Every aggregate differs, so a test can tell which column a value came from.
 const row = resultRow({
@@ -429,5 +430,36 @@ describe('popupGrid', () => {
     const grid = popupGrid(popupGroups(row, point, { rankedBy: 'temp_max_f' }))
     const marked = grid.rows.filter((r) => r.kind === 'value' && r.cell.ranked)
     expect(marked.map((r) => r.label.startsWith(NOUN.temp))).toEqual([true])
+  })
+})
+
+// The ranked family wears the results table's colours (#740): each number is
+// scored by `cellColor`, the table's own, on its own column's scale, and
+// every other family stays plain.
+describe('popupGroups colours the ranked family', () => {
+  // A wet hour: heavy on the hourly scale, light as a window's whole total.
+  const wet = { ...row, precip_max_in_hr: 0.3 }
+  const tintOf = (key: string, pointSample: boolean) => {
+    const at = (theme: 'dark' | 'light') => cellColor(key, wet[key as keyof DestinationResult], new Set(FAMILY_KEYS.precip), pointSample, theme)!
+    return { fill: at('dark').backgroundColor, ink: { dark: at('dark').color, light: at('light').color } }
+  }
+  it('tints every number in the ranked family, and only those', () => {
+    const groups = popupGroups(row, displayedColumns(false, 'precip_total_in'), { rankedBy: 'precip_total_in' })
+    for (const g of groups) {
+      const ranked = g.label.startsWith(NOUN.precip)
+      for (const v of g.values) expect(v.tint !== null, `${g.label} ${v.aggregate}`).toBe(ranked)
+    }
+  })
+
+  it('scores a one-hour window on the window scale, as the table does', () => {
+    const groups = (pointSample: boolean) =>
+      popupGroups(wet, displayedColumns(false, 'precip_total_in'), { rankedBy: 'precip_total_in', pointSample })
+    const max = (pointSample: boolean) =>
+      groups(pointSample)
+        .find((g) => g.label.startsWith(NOUN.precip))!
+        .values.find((v) => v.aggregate === AGGREGATE.maximum)!.tint
+    expect(max(false)).toEqual(tintOf('precip_max_in_hr', false))
+    expect(max(true)).toEqual(tintOf('precip_max_in_hr', true))
+    expect(max(true)).not.toEqual(max(false))
   })
 })

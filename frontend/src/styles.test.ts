@@ -123,6 +123,7 @@ import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
+import { METRIC_SCALE } from './utils/colors'
 import {
   FINE_COLOR,
   GRID_BAND_COLOR,
@@ -3159,6 +3160,27 @@ describe('the popup card', () => {
     ])
     expect(measure('var(--popup-close)', 'var(--popup-close-fill)', 'dark')).toBe(6.97)
     expect(measure('var(--popup-close-hover)', 'var(--popup-close-hover-fill)', 'dark')).toBe(7.58)
+  })
+
+  // The ranked family's colours (#740) are the table's, so the dark card,
+  // which stands on the table's own panel, reads every band's ink at the
+  // ratios `colors.test.ts` pins. The light card is white where the light
+  // table is its panel, so each band's ink is measured again on its 20% tint
+  // over white.
+  it('reads every coloured number above AA on the card, in both themes', () => {
+    expect(paint(SURFACE, 'dark')).toBe(paint('var(--ui-panel)', 'dark'))
+    const tintOver = (band: string, under: string) =>
+      `#${rgb(band)
+        .map((v, i) => Math.round(0.2 * v + 0.8 * rgb(under)[i]))
+        .map((v) => v.toString(16).padStart(2, '0'))
+        .join('')}`
+    const white = paint(SURFACE, 'light')
+    const lightest = Math.min(
+      ...Object.values(METRIC_SCALE).flatMap((scale) => scale.colors.map((band, i) => contrast(scale.ink[i], tintOver(band, white)))),
+    )
+    expect(Math.round(lightest * 100) / 100).toBe(6)
+    expect(mapCss).toMatch(/\.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-dark\);/)
+    expect(mapCss).toMatch(/:root\[data-theme="light"\] \.maplibregl-popup \[data-tint\] \{\s*--popup-tint: var\(--tint-light\);/)
   })
 
   // The quiet lines, the header's edge and the grid's hairline, and the

@@ -95,6 +95,16 @@
   --popup-close-hover-edge: #94a3b8;
 }
 
+/* A ranked family's grid cell carries the table's ink for both themes
+   (`PopupTint` in utils/popupRows.ts) and takes the one the root is in, so
+   the card's markup names no theme and an open card follows a switch. */
+.maplibregl-popup [data-tint] {
+  --popup-tint: var(--tint-dark);
+}
+:root[data-theme="light"] .maplibregl-popup [data-tint] {
+  --popup-tint: var(--tint-light);
+}
+
 /* The scheme is said for the card so the browser draws its native chrome for
    the surface it is on, and the text colour is resolved again for the reason
    the controls above give. */

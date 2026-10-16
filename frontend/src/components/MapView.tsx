@@ -131,6 +131,9 @@ interface Props {
   // Columns picker and the reader's column order all arrive with it — as does
   // the wind datum the header names (#361), baked into the labels upstream.
   popupColumns: readonly ColDef[]
+  // Whether the window is one hour, which a popup's colours read as the
+  // table's do.
+  pointSample: boolean
   // The model name a row falls back to while one model answered every row.
   modelFallbackLabel: string | null
   // Fire-proximity warnings keyed by geoKey(lat,lon), mirroring the results
@@ -242,6 +245,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       modelId,
       times,
       popupColumns,
+      pointSample,
       modelFallbackLabel,
       fireWarnings,
       closureWarnings,
@@ -319,6 +323,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       times,
       modelFallbackLabel,
       popupColumns,
+      pointSample,
       sortBy,
       fireWarnings,
       closureWarnings,
@@ -705,7 +710,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
     // inputs are this render's by now, because its effect is declared first.
     useEffect(() => {
       if (mapReady) featuresRef.current?.results.refreshPopups()
-    }, [results, sortBy, popupColumns, modelId, times, modelFallbackLabel, fireWarnings, closureWarnings, mapReady])
+    }, [results, sortBy, popupColumns, pointSample, modelId, times, modelFallbackLabel, fireWarnings, closureWarnings, mapReady])
 
     // The forecast field and its arrows, on the same contract as the markers
     // above: one redraw per scrub tick, from series the browser already holds.

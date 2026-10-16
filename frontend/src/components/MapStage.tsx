@@ -99,6 +99,8 @@ export interface MapStageProps {
   analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
   /** The metric the markers are coloured on. */
   sortBy: SortBy
+  /** Whether the window is one hour, which a popup's colours read as the table's do. */
+  pointSample: boolean
   /** The model the markers' popups name. */
   modelId: string | null
   /** Whether the results are shown, which is when the markers wear the ranking's colours. */
@@ -164,6 +166,7 @@ export default function MapStage({
   layout,
   analysis,
   sortBy,
+  pointSample,
   modelId,
   showResults,
   sidebarOpen,
@@ -323,6 +326,7 @@ export default function MapStage({
         modelId={modelId}
         times={timeline.forecastTimes}
         popupColumns={tableView.tableColumns}
+        pointSample={pointSample}
         modelFallbackLabel={tableView.analysisModelLabel}
         fireWarnings={fire.warnings}
         closureWarnings={closure.warnings}

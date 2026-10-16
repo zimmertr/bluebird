@@ -83,6 +83,7 @@ function setup({
     times: [],
     modelFallbackLabel: null,
     popupColumns: [],
+    pointSample: false,
     sortBy: 'aqi_avg',
     fireWarnings: new Map(),
     closureWarnings: new Map(),

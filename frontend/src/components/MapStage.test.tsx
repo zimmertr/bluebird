@@ -179,6 +179,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     layout: LAYOUT,
     analysis: ANALYSIS,
     sortBy: DEFAULT_FAMILY_KEY.temp,
+    pointSample: false,
     modelId: 'gfs_seamless',
     showResults: true,
     sidebarOpen: true,

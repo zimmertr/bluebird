@@ -658,6 +658,7 @@ export default function App() {
           layout={layout}
           analysis={analysis}
           sortBy={view.sortBy}
+          pointSample={pointSample}
           modelId={analyzed?.forecastModel ?? forecastModel}
           showResults={showResults}
           sidebarOpen={sidebarOpen}

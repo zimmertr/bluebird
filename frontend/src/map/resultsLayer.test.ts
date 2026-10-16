@@ -91,7 +91,7 @@ import { createMapController, type MapInputs } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { pendingFC } from '../utils/mapFeatures'
 import { RESULT_ACTION_ATTR, resultPopupHtml } from '../utils/resultPopup'
-import { GRID_RANKED_COLOR } from '../utils/popupChrome'
+import { POPUP_TINT_ATTR } from '../utils/popupChrome'
 import { displayedColumns } from '../utils/tableColumns'
 import { resultsFeatureCollection } from '../utils/resultFeatures'
 import { closureWarning, resultRow } from '../testSupport/fixtures'
@@ -133,6 +133,7 @@ function setup(results = [ADAMS, RAINIER], markerAt?: { x: number; y: number }, 
     times: [],
     modelFallbackLabel: null,
     popupColumns: [],
+    pointSample: false,
     sortBy: 'aqi_avg',
     fireWarnings: new Map(),
     closureWarnings: new Map(),
@@ -278,7 +279,8 @@ describe('mountResultsLayer', () => {
         removable: true,
       }),
     )
-    expect(popups[0].html).toContain(`;background:${GRID_RANKED_COLOR}`)
+    // The ranked family wears the table's colours (#740).
+    expect(popups[0].html).toContain(POPUP_TINT_ATTR)
   })
 
   // A finger reaches a row's remove through the card its row tap opens

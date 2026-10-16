@@ -254,6 +254,7 @@ export function mountResultsLayer(
       times: row.series_times ?? live.times,
       modelFallbackLabel: live.modelFallbackLabel,
       rankedBy: live.sortBy,
+      pointSample: live.pointSample,
       compact: compactGrid(map.getCanvas().clientWidth),
       mapZoom: map.getZoom(),
       removable: true,
