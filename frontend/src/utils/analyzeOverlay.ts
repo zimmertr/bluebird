@@ -75,9 +75,12 @@ const TAIL_MESSAGES: readonly string[] = [ELEVATION_MESSAGE, AQI_TAIL_MESSAGE, C
 // overpass-api.de answers big polygons in 12-42s; a failover adds the backup
 // mirror's 38-45s on top, so "up to 30 seconds" (the old copy) measured false
 // the first time a search crossed it. Tier one covers the common case and we
-// show the same message for both tiers now.
+// show the same message for both tiers now. The line names the polygon's size
+// as the cause and leaves "Searching" to the heading above it, so it stays on
+// one line of the 280px card, whose text has 232px: it is 163px at 12px on a
+// Mac (the maintainer chose the wording on 2026-10-16).
 const STILL_SEARCHING_AFTER_S = 20
-const STILL_SEARCHING = 'Still searching. Large analyses can take a while.'
+const STILL_SEARCHING = 'Large areas can take a while.'
 
 // "Retrieving forecast…" for exactly one, "Retrieving {N} forecasts…" otherwise.
 function retrievingLabel(total: number): string {

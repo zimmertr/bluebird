@@ -91,14 +91,10 @@ describe('composeOverlay', () => {
     const early = composeOverlay({ ...search, elapsedS: 19 })
     expect(early.visible && early.detail).toBe(null)
     const staged = composeOverlay({ ...search, elapsedS: 20 })
-    expect(staged.visible && staged.detail).toBe(
-      'Still searching. Large analyses can take a while.'
-    )
+    expect(staged.visible && staged.detail).toBe('Large areas can take a while.')
     // Same message after more time has elapsed
     const long = composeOverlay({ ...search, elapsedS: 45 })
-    expect(long.visible && long.detail).toBe(
-      'Still searching. Large analyses can take a while.'
-    )
+    expect(long.visible && long.detail).toBe('Large areas can take a while.')
   })
 
   it('never stages the searching reassurance outside the search phase', () => {
