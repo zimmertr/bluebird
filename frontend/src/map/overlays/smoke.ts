@@ -70,7 +70,7 @@ export function mountSmoke(
     target: 'smoke',
     layers: SMOKE_CLICK_ORDER,
     open: ({ feature, lngLat }) => {
-      deps.popups.create(lngLat, smokePopupHtml(feature.properties as SmokeProps), { owner: 'smoke' })
+      deps.popups.openCard(lngLat, smokePopupHtml(feature.properties as SmokeProps), { owner: 'smoke' })
     },
   })
 

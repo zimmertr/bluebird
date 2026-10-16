@@ -21,6 +21,10 @@ const { FakePopup, popups } = vi.hoisted(() => {
       this.html = html
       return this
     }
+    // `openCard` measures the card; a fake one has no size.
+    getElement() {
+      return undefined
+    }
     addTo() {
       return this
     }

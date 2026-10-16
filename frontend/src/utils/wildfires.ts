@@ -15,14 +15,7 @@
 // not "nothing burning".
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import {
-  escapeHtml,
-  fineprint,
-  LINK_ICON_COLOR,
-  POPUP_FACE,
-  POPUP_TITLE_SIZE,
-  popupLink,
-} from './popupChrome'
+import { bodyLines, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popupChrome'
 
 const WILDFIRES_URL = '/api/wildfires'
 
@@ -219,28 +212,36 @@ export function formatRevised(ms: number | null | undefined): string | null {
 }
 
 /**
- * Popup markup for a clicked or tapped wildfire perimeter.
+ * Popup markup for a clicked or tapped wildfire perimeter, on the card every
+ * popup wears (`popupCard`, #738).
  *
- * Inline styles mirror the results-marker popup in MapView so the two read
- * consistently; this is markup handed to MapLibre's `setHTML`, which the
- * stylesheet-scanned design system in styles.ts cannot reach.
+ * The band says what it is: the incident's name, linked to NIFC's map at the
+ * fire through the title's glyph, and `Wildfire | {acres}` under it, the
+ * Layers menu's own word for the kind and the size that identifies it, the way
+ * a summit's elevation does. The body says how it is going: the containment,
+ * then the date, last, small and italic, because it qualifies everything
+ * above it rather than being another fact in the list, and because it is the
+ * one line that is about NIFC's survey rather than about the fire.
  *
- * Ordered by what the reader came for: which fire, how big and how contained,
- * where to go for more. The date sits last, small and italic, because it
- * qualifies everything above it rather than being another fact in the list —
- * and because it is the one line that is about NIFC's survey rather than about
- * the fire.
+ * No notices and no action: the card IS the hazard, so a warning on it would
+ * say it twice.
  */
 export function wildfirePopupHtml(props: WildfireProps, nifcUrl: string): string {
   const name = (props.attr_IncidentName || props.poly_IncidentName || '').trim() || 'Unnamed fire'
   const revised = formatRevised(props.attr_ModifiedOnDateTime_dt)
-  // The link keeps the lighter sky and no underline it shipped with, written
-  // as an override on `popupLink` so the departure from `LINK_COLOR` is on the
-  // line that makes it rather than hidden in a second anchor recipe.
-  return `<div style="${POPUP_FACE};${POPUP_TITLE_SIZE}">
-      <strong>🔥 ${escapeHtml(name)}</strong>
-      <br>${formatAcres(props.poly_GISAcres)} · ${formatContainment(props.attr_PercentContained)}
-      <br>${popupLink(nifcUrl, 'View on NIFC map ↗', `color:${LINK_ICON_COLOR};text-decoration:none`)}
-      ${revised ? `<br>${fineprint(escapeHtml(revised))}` : ''}
-    </div>`
+  return popupCard({
+    title: escapeHtml(name),
+    link: { href: nifcUrl, label: FIRE_LINK_LABEL },
+    meta: metaBand([factsLine([FIRE_KIND, escapeHtml(formatAcres(props.poly_GISAcres))])]),
+    body: bodyLines([
+      formatContainment(props.attr_PercentContained),
+      revised ? fineprint(escapeHtml(revised)) : null,
+    ]),
+  })
 }
+
+/** What a screen reader hears for the title's link: the text link it replaced (#738). */
+export const FIRE_LINK_LABEL = 'View on NIFC map'
+
+/** What a fire's facts line calls it: the Layers menu's row, singular. */
+export const FIRE_KIND = 'Wildfire'

@@ -766,6 +766,33 @@ export const STYLES = [
     ],
   },
   {
+    // Every popup that describes a thing is one card (#738): the header band
+    // with the title and facts line, then the notices, the body and the
+    // action, all drawn by popupCard in popupChrome.ts. The fire, closure and
+    // smoke popups kept a ruled shell of their own for a release after the
+    // destination card moved on, because nothing said a popup had to be the
+    // card. A builder (`*PopupHtml`) that never calls popupCard is a card of
+    // its own, and a <strong>, <br> or <hr> outside the chrome is a title, a
+    // line break or a rule written by hand.
+    name: 'style-popup-card',
+    files: SHIPPED,
+    ignores: [...TESTS, 'src/utils/popupChrome.ts'],
+    probe: 'src/utils/wildfires.ts',
+    ban: [
+      {
+        selector: [
+          'FunctionDeclaration[id.name=/PopupHtml$/]:not(:has(CallExpression[callee.name="popupCard"]))',
+          'VariableDeclarator[id.name=/PopupHtml$/]:not(:has(CallExpression[callee.name="popupCard"]))',
+        ].join(', '),
+        message: 'Build a popup with popupCard from popupChrome.ts, which every card shares.',
+      },
+      {
+        selector: text('<(strong|br|hr)[\\s/>]'),
+        message: 'A title, a line and a rule are the card\'s: compose factsLine, bodyLines and popupCard.',
+      },
+    ],
+  },
+  {
     // The rank cell trades its number for the remove cross by visibility, in
     // one grid cell, so the column never grows on hover. And both kinds of
     // body row come off one recipe, whose group is what the cross hangs on.

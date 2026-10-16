@@ -1,4 +1,4 @@
-# 0161. The scale bar stands on the theme's ground, and keeps its 10px label
+# 0162. The scale bar stands on the theme's ground, and keeps its 10px label
 
 - Status: Accepted. Amends 0147 (the scale bar no longer keeps the library's look, though it still wears no chrome).
 - Date: 2026-10-16

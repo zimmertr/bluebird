@@ -7,12 +7,14 @@ import {
   closureName,
   closurePopupHtml,
   closureQueryUrl,
+  closureReason,
   closureTrailSwatch,
   fetchClosures,
   formatClosureDates,
 } from './closures'
 import { isRateLimited } from './wildfires'
 import { closureFeature, fakeResponse } from '../testSupport/fixtures'
+import { markupText } from '../testSupport/markupText'
 
 const props = (over = {}) => closureFeature(over).properties
 const START = Date.UTC(2026, 7, 1, 12)
@@ -85,44 +87,96 @@ describe('formatClosureDates', () => {
   })
 })
 
+const textOf = markupText
+// The body starts at its attribute; the band and the notices stand above it.
+const bodyOf = (html: string) => html.slice(html.indexOf('data-popup-body'))
+const bandOf = (html: string) => html.slice(0, html.indexOf('data-popup-body'))
+
 describe('closurePopupHtml', () => {
-  it('names the order, the forest, the route and the dates, and links the order', () => {
-    const html = closurePopupHtml(props())
-    expect(html).toContain('<strong>🚫 Probe Fire Closure</strong>')
-    expect(html).toContain('<br>Columbia River Gorge NSA')
-    expect(html).toContain('<br>Eagle Creek 440')
-    expect(html).toContain(`<br>${medium(START)} to ${medium(END)}`)
+  // The band says what it is, the notice why, the body whose and how long
+  // (#738), and the title's glyph links the order.
+  it('names the order and its kind on the band and the forest and dates in the body', () => {
+    const html = closurePopupHtml(props(), 'trail')
+    expect(textOf(bandOf(html))).toContain('Probe Fire Closure')
+    expect(textOf(bandOf(html))).toContain('Trail closure|Eagle Creek 440')
+    expect(textOf(bodyOf(html))).toContain('Columbia River Gorge NSA')
+    expect(textOf(bodyOf(html))).toContain(`${medium(START)} to ${medium(END)}`)
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
     expect(html).toContain('target="_blank" rel="noopener noreferrer"')
-    expect(html).toContain('View closure order ↗')
+    expect(textOf(html)).not.toContain('View closure order')
+    expect(html).toContain('aria-label="View closure order"')
+    expect(html).not.toContain('🚫')
+  })
+
+  it('gives an area its acres where the route would stand, and only an area', () => {
+    expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210.4 }), 'area'))).toContain('Area closure|4,210 acres')
+    expect(textOf(closurePopupHtml(props({ GIS_Acres: null }), 'area'))).not.toContain('Area closure|')
+    expect(textOf(closurePopupHtml(props({ GIS_Acres: 4210 }), 'trail'))).not.toContain('acres')
   })
 
   it('leaves out every line the order does not carry', () => {
     const html = closurePopupHtml(
-      props({ ForestUnit: null, RouteName: null, RouteNum: null, ClosureEndDate: null, ClosureURLlink: null }),
+      props({
+        ForestUnit: null,
+        RouteName: null,
+        RouteNum: null,
+        ClosureEndDate: null,
+        ClosureURLlink: null,
+        FireName: null,
+      }),
+      'trail',
     )
-    expect(html.match(/<br>/g)).toBeNull()
-    expect(html).not.toContain('View closure order')
+    expect(html).not.toContain('data-popup-body')
+    expect(html).not.toContain('<a ')
+    expect(html).not.toContain('⚠️')
+    expect(textOf(html)).toContain('Trail closure')
+    expect(textOf(html)).not.toContain('Trail closure|')
   })
 
   it('joins whichever half of the route exists', () => {
-    expect(closurePopupHtml(props({ RouteName: null }))).toContain('<br>440')
-    expect(closurePopupHtml(props({ RouteNum: null }))).toContain('<br>Eagle Creek\n')
+    expect(textOf(closurePopupHtml(props({ RouteName: null }), 'trail'))).toContain('Trail closure|440')
+    const named = textOf(closurePopupHtml(props({ RouteNum: null }), 'trail'))
+    expect(named).toContain('Trail closure|Eagle Creek')
+    expect(named).not.toContain('440')
+  })
+
+  // The notice is the order's own type, where the region files one. A fire
+  // closure's fire is already in its name, so it carries none (TJ, 2026-10-16).
+  it('puts the order type in the notice section, above the body, and nothing for a fire', () => {
+    const typed = closurePopupHtml(props({ FireName: null, ClosureType: ' Safety Closure ' }), 'area')
+    expect(textOf(typed)).toContain('Safety Closure')
+    expect(typed.indexOf('Safety Closure')).toBeLessThan(typed.indexOf('data-popup-body'))
+    expect(typed).toContain('⚠️')
+    expect(textOf(typed)).not.toContain('Closed for')
+    const fire = closurePopupHtml(props({ FireName: 'Little Giant Fire', ClosureType: null }), 'trail')
+    expect(fire).not.toContain('⚠️')
+    expect(fire).not.toContain('Little Giant')
   })
 
   it('escapes every value it prints', () => {
     const html = closurePopupHtml(
-      props({ ClosureOrderName: '<img src=x>', ForestUnit: 'A & B', RouteName: '"q"' }),
+      props({ ClosureOrderName: '<img src=x>', ForestUnit: 'A & B', RouteName: '"q"', ClosureType: '<b>' }),
+      'trail',
     )
-    expect(html).toContain('🚫 &lt;img src=x&gt;')
+    expect(html).toContain('&lt;img src=x&gt;')
     expect(html).toContain('A &amp; B')
     expect(html).toContain('&quot;q&quot;')
+    expect(html).toContain('&lt;b&gt;')
     expect(html).not.toContain('<img')
+    expect(html).not.toContain('<b>')
   })
 
   // The link is the service's free text, and only a web address is a link.
   it('links nothing but an http(s) address', () => {
-    expect(closurePopupHtml(props({ ClosureURLlink: 'javascript:alert(1)' }))).not.toContain('<a ')
+    expect(closurePopupHtml(props({ ClosureURLlink: 'javascript:alert(1)' }), 'area')).not.toContain('<a ')
+  })
+})
+
+describe('closureReason', () => {
+  it('is the order type where the region files one, and never the fire', () => {
+    expect(closureReason(props({ FireName: null, ClosureType: ' Recreation Closure ' }))).toBe('Recreation Closure')
+    expect(closureReason(props({ FireName: 'Cedar Creek', ClosureType: null }))).toBeNull()
+    expect(closureReason(props({ FireName: null, ClosureType: '  ' }))).toBeNull()
   })
 })
 

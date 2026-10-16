@@ -77,7 +77,9 @@ test('a fire opens its popup on a click and never on a hover, and a marker insid
   // Centring a row opens its card on the marker, which says where the marker is.
   await page.getByRole('button', { name: `Center map on ${DESTINATION_NAMES[0]}` }).click()
   const popups = page.locator('.maplibregl-popup')
-  const card = page.locator('.maplibregl-popup.result-popup')
+  // Every popup is a card since #738, so the destination's is the one that
+  // names it.
+  const card = popups.filter({ hasText: DESTINATION_NAMES[0] })
   await expect(card).toHaveCount(1)
   const marker = await markerUnder(card)
   await card.locator('.maplibregl-popup-close-button').click()
@@ -177,5 +179,36 @@ test.describe('on a phone', () => {
     await page.touchscreen.tap(middle.x, middle.y + 4)
     await expect(popups).toHaveCount(1)
     await expect(popups).toContainText('Probe Trail Closure')
+  })
+
+  // A card is placed as every card is (#738): a tap just under the chip rows
+  // would have stood a closure's card over them, where only a destination's
+  // card used to be fitted, so its name opened under the search pill.
+  test('a closure card tapped under the search pill stands clear of every button over the map', async ({ page }) => {
+    await page.route('**/api/closures**', (r) => {
+      const kind = new URL(r.request().url()).searchParams.get('kind')
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(kind === 'trail' ? collection([]) : AREA) })
+    })
+    await page.goto('/?view=-121.5,47.5,12&closedareas=1')
+    await expect(page.locator('.maplibregl-canvas')).toBeVisible()
+    const canvas = (await page.locator('.maplibregl-canvas').boundingBox())!
+    const overlays = await page.locator('[data-map-overlay]').evaluateAll((els) =>
+      els.map((el) => el.getBoundingClientRect()).map((r) => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom })),
+    )
+    const rows = Math.max(...overlays.filter((r) => r.top < canvas.y + canvas.height / 2).map((r) => r.bottom))
+    const popups = page.locator('.maplibregl-popup')
+
+    await expect(async () => {
+      await page.touchscreen.tap(canvas.x + canvas.width / 2, rows + 30)
+      await expect(popups).toContainText('Probe Area Closure', { timeout: 1_500 })
+    }).toPass({ timeout: 20_000 })
+
+    // Read once the pan has settled.
+    await page.waitForTimeout(600)
+    const card = (await popups.locator('.maplibregl-popup-content').boundingBox())!
+    for (const r of overlays) {
+      const overlaps = card.x < r.right && card.x + card.width > r.left && card.y < r.bottom && card.y + card.height > r.top
+      expect(overlaps).toBe(false)
+    }
   })
 })

@@ -136,7 +136,7 @@ export function mountClosures(
     layers: clickable,
     ...(kind === 'trail' && { slopPx: CLOSURE_TRAIL_SLOP_PX }),
     open: ({ feature, lngLat }) => {
-      deps.popups.create(lngLat, closurePopupHtml(feature.properties as ClosureProps), { owner: target })
+      deps.popups.openCard(lngLat, closurePopupHtml(feature.properties as ClosureProps, kind), { owner: target })
     },
   })
 

@@ -1,8 +1,8 @@
 import { BasemapPoi } from './basemapPoi'
 import { caltopoUrl } from './caltopoUrl'
-import { destinationUrl } from './destinationUrl'
+import { destinationLinkLabel, destinationUrl } from './destinationUrl'
 import { placeType } from './geocode'
-import { escapeHtml, factsRow, metaBand, popupAction, popupButton, popupShell } from './popupChrome'
+import { escapeHtml, factsRow, metaBand, popupAction, popupButton, popupCard } from './popupChrome'
 import { elevationFact } from './popupRows'
 import { TYPE_COL } from './tableColumns'
 
@@ -85,5 +85,6 @@ export function poiPopupHtml(poi: BasemapPoi, added: boolean, mapZoom?: number):
   ])
 
   // The name is OSM's, so it is third-party text on its way to setHTML.
-  return popupShell(escapeHtml(poi.name), poiUrl(poi), action, meta, { resultCard: true })
+  const link = { href: poiUrl(poi), label: destinationLinkLabel(placeType(poi.kind)) }
+  return popupCard({ title: escapeHtml(poi.name), link, meta, body: action })
 }

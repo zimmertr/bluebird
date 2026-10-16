@@ -27,7 +27,6 @@ import {
   samePoi,
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
-import { RESULT_POPUP_CLASS } from '../utils/popupChrome'
 import { lakeAnchor } from './basemap'
 import type { MapController } from './controller'
 import type { MapPopups } from './mapPopups'
@@ -47,27 +46,23 @@ export function mountPoiPopups(
   const { controller, popups } = deps
 
   function openPoiPopup(poi: BasemapPoi) {
-    // The result card's class and width (#712): `map.css` zeroes the content
-    // padding under that class so the header band can run edge to edge, and
-    // the width rule is the one the facts line was measured against.
-    const popup = popups.create([poi.lon, poi.lat], '', {
-      owner: 'poi',
-      result: true,
-      className: RESULT_POPUP_CLASS,
-    })
-
     // Which registered place this POI is, or null. Held in the closure
     // rather than re-read from the controller after each click: that
     // only catches up on React's next render, and the button has to
     // flip on the click that caused it.
     let registered = controller.inputs.searchedPlaces.find((p) => samePoi(poi, p)) ?? null
+    const html = () => poiPopupHtml(poi, registered !== null, map.getZoom())
 
-    function render() {
-      popup.setHTML(poiPopupHtml(poi, registered !== null, map.getZoom()))
-      // setHTML replaces the content element's children, so the button is
-      // a new node every time and its listener has to be re-armed. The
-      // timeout lets MapLibre attach the markup first, matching the
-      // remove-point popup in `map/drawRing.ts`.
+    // The result card's width (#712), the rule the facts line was measured
+    // against, and the fit every card gets (`openCard`, #738), built with its
+    // markup so the fit measures the card the reader will see.
+    const { popup } = popups.openCard([poi.lon, poi.lat], html(), { owner: 'poi', result: true })
+
+    // setHTML replaces the content element's children, so the button is a
+    // new node every time and its listener has to be re-armed. The timeout
+    // lets MapLibre attach the markup first, matching the remove-point popup
+    // in `map/drawRing.ts`.
+    function arm() {
       setTimeout(() => {
         popup
           .getElement()
@@ -81,11 +76,12 @@ export function mountPoiPopups(
               controller.inputs.onAddPoi(place)
               registered = place
             }
-            render()
+            popup.setHTML(html())
+            arm()
           })
       }, 0)
     }
-    render()
+    arm()
   }
 
   // A label under a ranked marker, a draw handle or anything else that

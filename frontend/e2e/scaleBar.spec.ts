@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 
-// The scale bar's label never runs past the bar's end (#739; record 0161).
+// The scale bar's label never runs past the bar's end (#739; record 0162).
 // MapLibre draws the bar at `SCALE_MAX_WIDTH_PX` times the ratio of a round
 // distance to the distance that width spans, and the round distance's leading
 // digit bounds that ratio from below: just over 1/2 for a 1 or a 5, 2/3 for a

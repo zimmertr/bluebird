@@ -2938,7 +2938,7 @@ describe('the attribution beside the scale', () => {
   })
 })
 
-// The scale bar on the theme's ground (#739; record 0161): the legend ramp's
+// The scale bar on the theme's ground (#739; record 0162): the legend ramp's
 // scrim and ink, read by their variables because the library makes the
 // markup, and measured over the lightest and the darkest map it can stand on.
 describe('the scale bar', () => {

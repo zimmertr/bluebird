@@ -393,14 +393,15 @@ values (#365):
 |---|---|---|
 | MapLibre `paint` and `layout` | `map/mapStyles.ts` for the app's own objects (markers, labels, the ring and its handles, the camera's durations and padding); `map/basemap.ts` for the terrain-matched label and trail colours; each overlay's pure module (`utils/wildfires.ts`, `utils/smoke.ts`, `utils/closures.ts`, `utils/snowDepth.ts`) for its fill, edge and legend swatch | Hex values named for the Tailwind step they match, because the GL renderer takes a string and not a class |
 | Canvas 2D | `map/mapStyles.ts` (the wind arrow's two inks); `map/basemap.ts` (the POI glow) | The same |
-| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the rule, the label, link, glyph, fine-print and warning colours, the one button recipe in three variants, and the marker popup's header band and grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and its frame and close-button lane `.result-popup`, both in `map.css` |
+| Popup HTML handed to `setHTML` | `utils/popupChrome.ts` | The three type sizes, the face, the rule, the label, link, glyph, fine-print and warning colours, the one button recipe in three variants, the card every popup wears (`popupCard`: its header band, notices, body and action), and the marker popup's grid cells (bands, gutter, hairlines, the ranked cell's darker slate, and the compact insets a narrow map takes); its scroll cap's bar is `.popup-scroll` and a card's frame and close-button lane `.popup-card`, both in `map.css`. The `style-popup-card` check fails a popup builder that does not return the card (#738) |
 | Recharts props | `utils/chartColors.ts` | The axis, grid and playhead colours beside the line palette |
 
 A colour in one of those channels is measured against the surface it actually
 lands on, which for a popup is the white MapLibre draws rather than the app's
 slate; `popupChrome.ts` records each measurement beside its value, including
-the three that sit under AA as shipped (`FINE_COLOR`, `LINK_ICON_COLOR`,
-`WARNING_COLOR`), which #365 named without recolouring.
+the ones that sit under AA as shipped (`FINE_COLOR`, `WARNING_COLOR`), which
+#365 named without recolouring. A third, the overlays' sky-400 link, left with
+the overlays' own shell in #738.
 
 ### Two enforcers, split by what they know
 
@@ -539,7 +540,7 @@ grew to 16px squares to take them. Neither is prose, and each is measured
 against its box. The map's scale bar keeps MapLibre's 10px for the same
 reason: its label sits in a bar whose width the distance decides, and at 11px
 `1000 km` ran past the end of its narrowest bar (record
-[0161](decisions/0161-scale-bar-on-the-theme-ground.md)).
+[0162](decisions/0162-scale-bar-on-the-theme-ground.md)).
 
 Re-measured at 11px, 2026-10-13 against the built image: the calendar's weekday
 row, the player's marks, the model picker's reach column (no option overflows),
@@ -695,7 +696,7 @@ the legend ramp's scrim in the ramp's ink instead, so it follows the theme
 both themes because the basemap is light in both, and its label keeps the
 vendor's 10px, under the floor, because at 11px `1000 km` on its narrowest bar
 ran past the bar's end (`e2e/scaleBar.spec.ts`).
-Record: [0161](decisions/0161-scale-bar-on-the-theme-ground.md)
+Record: [0162](decisions/0162-scale-bar-on-the-theme-ground.md)
 
 The whole notice block stands on the map in a band (`MAP_NOTICE_BAND`):
 the panel's own boxes on its slate-800, 12px off each side, 10px over the

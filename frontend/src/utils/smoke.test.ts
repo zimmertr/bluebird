@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { markupText } from '../testSupport/markupText'
 import {
   SMOKE_DENSITIES,
   SMOKE_EXTENT,
@@ -104,12 +105,21 @@ describe('smokePopupHtml', () => {
     expect(smokePopupHtml({ density: 'Heavy' })).toContain('Heavy smoke')
   })
 
-  it('names the satellite the plume was traced from', () => {
-    expect(smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })).toContain('GOES-WEST')
+  // The band names the satellite and no kind word, since the title already
+  // says smoke (#738, TJ 2026-10-16).
+  it('puts the satellite alone on the facts line, with no emoji', () => {
+    const html = smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })
+    expect(html).toContain('GOES-WEST')
+    expect(markupText(html)).not.toMatch(/Smoke\s*\|/)
+    expect(html).not.toContain('🌫️')
+    expect(html).not.toContain('Traced from')
   })
 
-  it('drops the satellite line rather than leaving it blank', () => {
-    expect(smokePopupHtml({ density: 'Light', satellite: '' })).not.toContain('Traced from')
+  it('drops the satellite rather than leaving a bare pipe, and links nowhere', () => {
+    const html = smokePopupHtml({ density: 'Light', satellite: '' })
+    expect(html).not.toContain('|')
+    expect(html).not.toContain('<a ')
+    expect(html).not.toContain('data-popup-body')
   })
 
   it('escapes provider text on its way to setHTML', () => {

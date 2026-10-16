@@ -202,10 +202,9 @@ export function mountDrawRing(
       if (feature.layer.id !== 'draw-vertices') return
       const idx = Number(feature.properties?.index)
       popup?.remove()
-      const opened = deps.popups.create(lngLat, popupButton('data-rm', 'danger', '✕ Remove point'), {
+      const opened = deps.popups.openBare(lngLat, popupButton('data-rm', 'danger', '✕ Remove point'), {
         owner: 'vertex',
         offset: [0, -8],
-        closeButton: false,
       })
       popup = opened
       setTimeout(() => {

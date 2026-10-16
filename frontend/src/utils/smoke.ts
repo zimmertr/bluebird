@@ -20,7 +20,7 @@
 // answer means "not covered", not "clear".
 import type { FeatureCollection } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { escapeHtml, fineprint, POPUP_FACE, POPUP_TITLE_SIZE } from './popupChrome'
+import { bodyLines, escapeHtml, factsLine, fineprint, metaBand, popupCard } from './popupChrome'
 
 const SMOKE_URL = '/api/smoke'
 
@@ -209,24 +209,23 @@ export function formatObserved(
 }
 
 /**
- * Popup markup for a clicked or tapped smoke plume.
+ * Popup markup for a clicked or tapped smoke plume, on the card every popup
+ * wears (`popupCard`, #738).
  *
- * Inline styles mirror the wildfire popup so the two overlays read as one
- * family; this is markup handed to MapLibre's `setHTML`, which the
- * stylesheet-scanned design system in `styles.ts` cannot reach.
- *
- * Shorter than the fire popup and deliberately so: HMS carries the density, the
+ * Shorter than the fire's and deliberately so: HMS carries the density, the
  * satellite, and the window, and there is no per-plume page anywhere to link
- * to. The observed window sits last, small and italic, for the reason the
- * fire's revision date does — it qualifies everything above it rather than
- * being another fact in the list.
+ * to, so the title has no glyph. The band says what it is, `{density} smoke`
+ * with the satellite under it and no kind word, since the title already says
+ * smoke (TJ, 2026-10-16); the body is the observed window alone,
+ * small and italic for the reason the fire's revision date is: it qualifies
+ * everything above it rather than being another fact in the list.
  */
 export function smokePopupHtml(props: SmokeProps): string {
   const observed = formatObserved(props.observed_start, props.observed_end)
   const satellite = (props.satellite ?? '').trim()
-  return `<div style="${POPUP_FACE};${POPUP_TITLE_SIZE}">
-      <strong>🌫️ ${densityOf(props)} smoke</strong>
-      ${satellite ? `<br>Traced from ${escapeHtml(satellite)} imagery` : ''}
-      ${observed ? `<br>${fineprint(escapeHtml(observed))}` : ''}
-    </div>`
+  return popupCard({
+    title: `${densityOf(props)} smoke`,
+    meta: metaBand([satellite ? factsLine([escapeHtml(satellite)]) : '']),
+    body: bodyLines([observed ? fineprint(escapeHtml(observed)) : null]),
+  })
 }
