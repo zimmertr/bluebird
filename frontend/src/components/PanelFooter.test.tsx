@@ -74,6 +74,18 @@ describe('PanelFooter', () => {
     expect(onRetry).toHaveBeenCalledOnce()
   })
 
+  // jsdom lays nothing out, so this pins the cause rather than the pixels: the
+  // message stack's negative margin overrides a `space-y` margin on the same
+  // element and left the retry flush under the text. A gap cannot be
+  // overridden that way (measured 8px above the text and 8px below it).
+  it('spaces the retry from the message with a gap, not a margin', () => {
+    render(<PanelFooter {...props({ messages: MESSAGES })} />)
+    const box = boxes()[0]
+    expect(box.className).toMatch(/\bflex-col\b/)
+    expect(box.className).toMatch(/\bgap-2\b/)
+    expect(box.className).not.toMatch(/\bspace-y-/)
+  })
+
   it('dismisses one message and keeps its box for the rest', async () => {
     const { user } = render(<PanelFooter {...props({ messages: MESSAGES })} />)
     const [first] = within(boxes()[1]).getAllByRole('button', { name: 'Dismiss notice' })

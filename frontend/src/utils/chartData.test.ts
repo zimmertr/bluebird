@@ -6,8 +6,11 @@ import {
   alignRowToGrid,
   axisTimeLabel,
   comparedLineLabel,
+  collidingType,
+  lineNamed,
   modelNamed,
   modelSuffix,
+  sharedNames,
   gridRemapper,
   nowWithinGrid,
   tracksCursor,
@@ -636,6 +639,51 @@ describe('modelNamed', () => {
   it('is the compared line label without its rank', () => {
     expect(comparedLineLabel(3, 'Cathedral Peak', 'ECMWF IFS')).toBe(
       `3. ${modelNamed('Cathedral Peak', 'ECMWF IFS')}`,
+    )
+  })
+})
+
+// A crag named for the peak it stands on is two rows of one name (#715). The
+// table tells them apart by its Type column; every name the chart prints
+// carries the type instead, and only while the collision is on screen.
+describe('a name two places share', () => {
+  const peak = resultRow({ name: 'The Tooth', type: 'peak', latitude: 47.41, longitude: -121.45 })
+  const crag = resultRow({ name: 'The Tooth', type: 'crag', latitude: 47.4108, longitude: -121.4492 })
+  const rainier = resultRow({ name: 'Mount Rainier', type: 'peak', latitude: 46.85, longitude: -121.76 })
+  const named = (rows: DestinationResult[]) => {
+    const shared = sharedNames(rows)
+    return rows.map((r) => lineNamed(r.name, collidingType(r, shared)))
+  }
+
+  it('leaves every name bare when none is shared', () => {
+    expect(named([peak, rainier])).toEqual(['The Tooth', 'Mount Rainier'])
+  })
+
+  it('names the type, as the Type column words it, on both of the pair', () => {
+    expect(named([crag, peak, rainier])).toEqual(['The Tooth (Crag)', 'The Tooth (Peak)', 'Mount Rainier'])
+  })
+
+  // Removals apply before the chart reads its rows, so a × that leaves one
+  // place with the name leaves nothing to tell apart.
+  it('drops the type again once one of the pair is removed', () => {
+    expect(named([crag, rainier])).toEqual(['The Tooth', 'Mount Rainier'])
+  })
+
+  // A comparison repeats a place once per model; one place is no collision.
+  it('counts places, not rows', () => {
+    expect(sharedNames([peak, { ...peak }]).size).toBe(0)
+  })
+
+  it('shares one bracket with the model under a comparison, type first', () => {
+    const shared = sharedNames([crag, peak])
+    expect(comparedLineLabel(1, crag.name, 'NOAA GFS', collidingType(crag, shared))).toBe(
+      '1. The Tooth (Crag, NOAA GFS)',
+    )
+    expect(modelNamed(crag.name, 'NOAA GFS', collidingType(crag, shared))).toBe(
+      `The Tooth${modelSuffix('NOAA GFS', 'Crag')}`,
+    )
+    expect(comparedLineLabel(1, rainier.name, 'NOAA GFS', collidingType(rainier, shared))).toBe(
+      '1. Mount Rainier (NOAA GFS)',
     )
   })
 })

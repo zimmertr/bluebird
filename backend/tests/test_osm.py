@@ -37,6 +37,12 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
             {"type": "node", "id": 4, "lat": 47.8, "lon": -121.8, "tags": {}},
             # Missing coordinates — dropped.
             {"type": "node", "id": 5, "lat": None, "lon": -121.9, "tags": {"name": "NoCoord"}},
+            # One name, two types: a crag named for the peak it stands on is
+            # a second destination (#715), so both are kept.
+            {"type": "node", "id": 6, "lat": 47.4, "lon": -121.4,
+             "tags": {"name": "The Tooth", "natural": "peak"}},
+            {"type": "relation", "id": 7, "center": {"lat": 47.41, "lon": -121.41},
+             "tags": {"name": "The Tooth", "sport": "climbing", "climbing": "crag"}},
         ]
     }
 
@@ -44,13 +50,14 @@ async def test_query_osm_parses_dedups_and_skips(monkeypatch):
         return canned
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
-    results = await osm.query_osm(POLY, [DestinationType.peak])
+    results = await osm.query_osm(POLY, [DestinationType.peak, DestinationType.crag])
 
     names = [r["name"] for r in results]
-    assert names == ["Peak A", "Lake B"]
+    assert names == ["Peak A", "Lake B", "The Tooth", "The Tooth"]
     assert results[1]["latitude"] == 47.7  # way center picked up
     assert results[0]["osm_id"] == "node/1"
     assert results[1]["osm_id"] == "way/3"
+    assert [(r["type"], r["osm_id"]) for r in results[2:]] == [("peak", "node/6"), ("crag", "relation/7")]
 
 
 async def test_query_osm_converts_elevation_meters_to_feet(monkeypatch):
@@ -116,8 +123,31 @@ async def test_several_types_are_one_query_not_one_each(monkeypatch):
     assert 'node["natural"="peak"]["name"]' in query
     assert 'node["natural"="volcano"]["name"]' in query
     assert 'relation["natural"="water"]["water"="lake"]["name"]' in query
-    # Trailheads were not asked for and must not ride along.
+    # Trailheads and crags were not asked for and must not ride along.
     assert "trailhead" not in query
+    assert "climbing" not in query
+
+
+async def test_crags_add_three_clauses_and_never_bare_sport_climbing(monkeypatch):
+    # Crags come as nodes, ways and relations alike, and every clause must
+    # narrow sport=climbing: bare, it would make every route a row. A boulder
+    # comes subtyped, or as a stone with no subtype at all.
+    calls = []
+
+    async def fake_post(query, on_status=None, **_kwargs):
+        calls.append(query)
+        return {"elements": []}
+
+    monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
+    await osm.query_osm(POLY, [DestinationType.peak, DestinationType.crag])
+
+    [query] = calls
+    for kind in ("node", "way", "relation"):
+        assert f'{kind}["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"]' in query
+    for kind in ("node", "way"):
+        assert f'{kind}["natural"="stone"]["sport"="climbing"][!"climbing"]["name"]' in query
+    assert query.count('["sport"="climbing"]') == 5
+    assert 'node["natural"="peak"]["name"]' in query
 
 
 async def test_rows_are_classified_by_their_own_tags(monkeypatch):
@@ -131,6 +161,23 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
             {"type": "way", "id": 3, "center": {"lat": 3.0, "lon": 3.0},
              "tags": {"name": "C", "natural": "water", "water": "lake"}},
             {"type": "node", "id": 4, "lat": 4.0, "lon": 4.0, "tags": {"name": "D", "highway": "trailhead"}},
+            {"type": "node", "id": 5, "lat": 5.0, "lon": 5.0,
+             "tags": {"name": "E", "sport": "climbing", "climbing": "crag"}},
+            # An area is often a relation, read from its center like a lake.
+            {"type": "relation", "id": 6, "center": {"lat": 6.0, "lon": 6.0},
+             "tags": {"name": "F", "sport": "climbing", "climbing": "area"}},
+            # The clause never asks for a route, but one that arrives anyway
+            # degrades to an unbadged row rather than passing as a crag.
+            {"type": "node", "id": 7, "lat": 7.0, "lon": 7.0,
+             "tags": {"name": "G", "sport": "climbing", "climbing": "route"}},
+            # A boulder is a crag row, whether subtyped or a bare climbable
+            # stone, and a stone subtyped as a route is still a route.
+            {"type": "node", "id": 8, "lat": 8.0, "lon": 8.0,
+             "tags": {"name": "H", "sport": "climbing", "climbing": "boulder"}},
+            {"type": "node", "id": 9, "lat": 9.0, "lon": 9.0,
+             "tags": {"name": "Midnite Boulder", "natural": "stone", "sport": "climbing"}},
+            {"type": "node", "id": 10, "lat": 10.0, "lon": 10.0,
+             "tags": {"name": "J", "natural": "stone", "sport": "climbing", "climbing": "route"}},
         ]
     }
 
@@ -139,10 +186,14 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     results = await osm.query_osm(
-        POLY, [DestinationType.peak, DestinationType.lake, DestinationType.trailhead]
+        POLY,
+        [DestinationType.peak, DestinationType.lake, DestinationType.trailhead, DestinationType.crag],
     )
 
-    assert [r["type"] for r in results] == ["peak", "peak", "lake", "trailhead"]
+    assert [r["type"] for r in results] == [
+        "peak", "peak", "lake", "trailhead", "crag", "crag", "custom", "crag", "crag", "custom"
+    ]
+    assert (results[5]["latitude"], results[5]["longitude"]) == (6.0, 6.0)
 
 
 async def test_type_order_does_not_change_the_query_or_the_cache_key(monkeypatch):

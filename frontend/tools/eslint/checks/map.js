@@ -247,6 +247,7 @@ export const MAP = [
     'lakeAnchor',
     'setSource',
     'makeGlowImage',
+    'makeClimbingImage',
     'poiLabelLayout',
     'glowTwin',
     'townMarker',

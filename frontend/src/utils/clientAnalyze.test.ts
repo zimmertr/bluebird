@@ -346,6 +346,7 @@ describe('analysisNoun', () => {
   const base = { start_datetime: '', end_datetime: '', limit: 10 }
   it('uses the discovery noun for pure polygon runs', () => {
     expect(analysisNoun({ ...base, destination_types: ['peak'] } as AnalyzeRequest)).toBe('peak')
+    expect(analysisNoun({ ...base, destination_types: ['crag'] } as AnalyzeRequest)).toBe('crag')
   })
   it('a union is a mixed set of destinations', () => {
     expect(

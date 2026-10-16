@@ -130,17 +130,18 @@ async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
  * 0118). The peaks and lakes inside the ring are read from the zoom-14 tiles
  * under it (`tileDiscovery.ts`), in well under a second from a warm edge,
  * and the pod is sent what the tiles cannot answer: the trailheads, which no
- * tile carries, discovered through the map server as before. The tile rows
- * and the reader's own list ride as `custom_destinations` with
+ * tile carries, and the crags, which no tile tells from a route, discovered
+ * through the map server as before. The
+ * tile rows and the reader's own list ride as `custom_destinations` with
  * `elevation_lookup: false`, so the call takes no map-server slot and
- * answers in milliseconds unless trailheads are ticked; the rows come back
+ * answers in milliseconds unless trailheads or crags are ticked; the rows come back
  * typed `custom`, so their kinds and OSM ids are put back here from what the
  * tiles said. The cap is applied before the call, as the pod would apply it
  * to the union: a refusal below the opt-in, the highest kept above it.
  *
  * Null when the tiles cannot answer the ring, and the run takes the map
  * server's path (`discoverCandidates`) as before: a request for trailheads
- * alone, a ring over `DISCOVERY_TILE_BUDGET`, a tile that could not be read,
+ * or crags alone, a ring over `DISCOVERY_TILE_BUDGET`, a tile that could not be read,
  * or the decoder's chunk failing to load. The decoder and the tile library
  * load on the first polygon run, so the cold load the Lighthouse gate
  * measures carries neither.

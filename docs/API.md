@@ -620,8 +620,10 @@ You do not need a polygon. Send coordinates directly and skip discovery:
 ```
 
 Custom destinations can also accompany a polygon, in which case they are merged
-into whatever discovery finds. A custom row matching a discovered one by name or
-by coordinates to five decimals replaces it. Two custom rows at the same
+into whatever discovery finds. A custom row at a discovered one's coordinates
+to five decimals replaces it. A name alone claims nothing: a custom row and a
+discovered one of the same name at different coordinates are two rows, one
+`custom` and one typed as discovery found it. Two custom rows at the same
 coordinates to five decimals are one destination: the first is kept and the
 later ones are dropped.
 

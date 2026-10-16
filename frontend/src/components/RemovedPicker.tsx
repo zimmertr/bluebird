@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { RemovedEntry } from '../utils/removals'
+import { collidingType, lineNamed, sharedNames } from '../utils/chartData'
 import { usePopover } from '../hooks/usePopover'
 import Popover from './Popover'
 import BottomSheet from './BottomSheet'
@@ -48,21 +49,28 @@ export default function RemovedPicker({
     if (open && entries.length === 0) onOpenChange(false)
   }, [open, entries.length, onOpenChange])
 
-  const rows = entries.map(([key, entry]) => (
-    <div key={key} className="flex items-center gap-2 px-2 py-1">
-      <span className={`${TEXT.control} min-w-0 flex-1 truncate`}>{entry.row.name}</span>
-      {/* At the control size, the floor for anything pressed (#687):
-          it was the micro step. Colourless, so the link colour is
-          LINK_ACTION's alone rather than racing TEXT.control's slate. */}
-      <button
-        onClick={() => onRestore(key)}
-        aria-label={`Restore ${entry.row.name}`}
-        className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
-      >
-        Restore
-      </button>
-    </div>
-  ))
+  // Two removed places of one name (a crag and the peak it is named for,
+  // #715) each name their type, as the chart's lines do; a name no other
+  // entry shares reads bare.
+  const shared = sharedNames(entries.map(([, entry]) => entry.row))
+  const rows = entries.map(([key, entry]) => {
+    const name = lineNamed(entry.row.name, collidingType(entry.row, shared))
+    return (
+      <div key={key} className="flex items-center gap-2 px-2 py-1">
+        <span className={`${TEXT.control} min-w-0 flex-1 truncate`}>{name}</span>
+        {/* At the control size, the floor for anything pressed (#687):
+            it was the micro step. Colourless, so the link colour is
+            LINK_ACTION's alone rather than racing TEXT.control's slate. */}
+        <button
+          onClick={() => onRestore(key)}
+          aria-label={`Restore ${name}`}
+          className={`${CONTROL_SIZE} ${LINK_ACTION} ${FOCUS_RING} cursor-pointer whitespace-nowrap`}
+        >
+          Restore
+        </button>
+      </div>
+    )
+  })
   const restoreAll = entries.length > 1 && (
     <button
       onClick={onRestoreAll}

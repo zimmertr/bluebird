@@ -355,6 +355,8 @@ LINK_ONLY_HOSTS = {
     "polyformproject.org",
     "www.cloudflare.com",
     "www.fs.usda.gov",
+    # A crag row's name opens a search here (#715); nothing is fetched from it.
+    "www.mountainproject.com",
     "www.nifc.gov",
     "www.nohrsc.noaa.gov",
     "www.openstreetmap.org",

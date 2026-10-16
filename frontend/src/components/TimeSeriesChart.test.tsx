@@ -419,6 +419,25 @@ describe('TimeSeriesChart on a phone', () => {
   })
 })
 
+// A crag and the peak it is named for are two lines of one name (#715), so
+// each line names its type while both are on screen, and a line no other
+// place shares a name with reads as it always did.
+describe('TimeSeriesChart line names', () => {
+  beforeEach(() => {
+    chart.series = []
+  })
+
+  it('names the type on both lines of a shared name and leaves the rest bare', () => {
+    const rows = [
+      resultRow({ name: 'The Tooth', type: 'peak', latitude: 47.41, series: series() }),
+      resultRow({ name: 'The Tooth', type: 'crag', latitude: 47.4108, series: series() }),
+      resultRow({ name: 'Mount Alpha', latitude: 47.5, series: series() }),
+    ]
+    render(<TimeSeriesChart {...props({ rows, sharedNames: new Set(['The Tooth']) })} />)
+    expect(new Set(chart.series.map((p) => p.name))).toEqual(new Set(['The Tooth (Peak)', 'The Tooth (Crag)', 'Mount Alpha']))
+  })
+})
+
 // In light every series is a pastel drawn over a rim of the secondary ink,
 // which carries the 3:1 the pastel cannot on the light panel; every mark in
 // a line's colour wears the same rim. Dark lines stand on their own (PR #733).

@@ -132,8 +132,8 @@ static_dir = Path(__file__).parent.parent / "static"
 _DESCRIPTION = """
 Bluebird Forecast ranks outdoor destinations by their forecast weather.
 
-Draw a polygon and every named peak, trailhead, or lake inside it is discovered
-from OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery
+Draw a polygon and every named destination inside it is discovered from
+OpenStreetMap, given a real hourly forecast, and ranked. Or skip discovery
 entirely and send your own coordinates.
 
 The analyze routes require an Open-Meteo API key in the X-Open-Meteo-Key

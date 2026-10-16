@@ -142,7 +142,7 @@ export function useResultsView({
     chartShowing: layout.chartShowing,
     theme,
   })
-  const { compare, pendingRows, comparingRows } = charts
+  const { compare, pendingRows, comparingRows, shared } = charts
 
   // ── The table's shape and its file ──────────────────────────────────────────
   const tableView = useTableView({
@@ -162,6 +162,7 @@ export function useResultsView({
     compareReachEnds: compare.reachEnds,
     pending,
     pendingRows,
+    shared,
     fire,
     closure,
   })

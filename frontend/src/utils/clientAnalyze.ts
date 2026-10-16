@@ -67,6 +67,7 @@ const NOUNS: Record<string, string> = {
   peak: 'peak',
   trailhead: 'trailhead',
   lake: 'lake',
+  crag: 'crag',
   custom: 'destination',
 }
 
@@ -732,7 +733,7 @@ export async function runClientAnalysis(
     elevation_ft: d.elevation_ft,
     // Where OSM gave none (a pasted point it could not match, a clicked peak
     // with no `ele`), a peak is read at the terrain height the response
-    // reports and a lake or trailhead at the surface (#545). The terrain
+    // reports and a lake, trailhead or crag at the surface (#545). The terrain
     // height is not written onto the row, so the Elevation column still says
     // only what OSM or the list said.
     terrainFallback: terrainFallbackFor(d.type),

@@ -34,7 +34,13 @@ export const POI_ACTION_ATTR = 'data-poi-action'
  * the same reason.
  */
 function poiUrl(poi: BasemapPoi): string {
-  return destinationUrl({ type: placeType(poi.kind), latitude: poi.lat, longitude: poi.lon, osm_id: null })
+  return destinationUrl({
+    name: poi.name,
+    type: placeType(poi.kind),
+    latitude: poi.lat,
+    longitude: poi.lon,
+    osm_id: null,
+  })
 }
 
 /**

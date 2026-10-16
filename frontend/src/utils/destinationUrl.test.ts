@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { destinationUrl } from './destinationUrl'
 
 const blackPeak = {
+  name: 'Black Peak',
   type: 'peak',
   latitude: 48.5257,
   longitude: -120.7568,
@@ -22,6 +23,7 @@ describe('destinationUrl', () => {
   it('links other OSM-sourced types to their exact OSM object', () => {
     expect(
       destinationUrl({
+        name: 'Paradise',
         type: 'trailhead',
         latitude: 46.786,
         longitude: -121.735,
@@ -30,6 +32,7 @@ describe('destinationUrl', () => {
     ).toBe('https://www.openstreetmap.org/node/4744885856')
     expect(
       destinationUrl({
+        name: 'Lake Constance',
         type: 'lake',
         latitude: 47.601,
         longitude: -123.246,
@@ -38,9 +41,27 @@ describe('destinationUrl', () => {
     ).toBe('https://www.openstreetmap.org/way/33104903')
   })
 
+  // A crag links by name even with an osm_id, and the name is escaped whole:
+  // an unescaped ampersand would end the query at "Lower Town Wall ".
+  it('links crags to a Mountain Project search by name', () => {
+    expect(
+      destinationUrl({
+        name: 'Lower Town Wall',
+        type: 'crag',
+        latitude: 47.8216,
+        longitude: -121.5532,
+        osm_id: 'relation/123',
+      })
+    ).toBe('https://www.mountainproject.com/search?q=Lower%20Town%20Wall')
+    expect(
+      destinationUrl({ name: 'Castle & Rock', type: 'crag', latitude: 0, longitude: 0, osm_id: null })
+    ).toBe('https://www.mountainproject.com/search?q=Castle%20%26%20Rock')
+  })
+
   it('falls back to an OSM map pin for rows without an osm_id', () => {
     expect(
       destinationUrl({
+        name: 'Mount Rainier',
         type: 'custom',
         latitude: 46.8523,
         longitude: -121.7603,

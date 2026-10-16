@@ -64,6 +64,29 @@ describe('the Removed sheet', () => {
     expect(onRestoreAll).toHaveBeenCalledOnce()
   })
 
+  // A crag and the peak it is named for, both removed (#715): each names its
+  // type, as the chart does, so the two Restore buttons are not one name twice.
+  it('names the type beside a name two removed places share', () => {
+    const tooth = (type: 'peak' | 'crag', latitude: number): [string, RemovedEntry] => [
+      type,
+      { row: resultRow({ name: 'The Tooth', type, latitude }) } as RemovedEntry,
+    ]
+    render(
+      <RemovedPicker
+        open
+        onOpenChange={() => {}}
+        entries={[tooth('peak', 47.41), tooth('crag', 47.4108), entry('Mount Baker')]}
+        onRestore={() => {}}
+        onRestoreAll={() => {}}
+        sheet
+        {...refs()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Restore The Tooth (Peak)' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Restore The Tooth (Crag)' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Restore Mount Baker' })).toBeTruthy()
+  })
+
   it('offers no Restore all for one row', () => {
     render(
       <RemovedPicker open onOpenChange={() => {}} entries={[entry('Mount Baker')]} onRestore={() => {}} onRestoreAll={() => {}} sheet {...refs()} />,

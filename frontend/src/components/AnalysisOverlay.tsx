@@ -38,7 +38,7 @@ export default function AnalysisOverlay({
   // Elapsed-time counter for phases with no countable progress (the OSM
   // search). It lives here, beside the one card that shows it, so its 250 ms
   // tick re-renders the card rather than the whole page. The composition
-  // reads it to stage the "Still searching…" reassurance line.
+  // reads it to stage the reassurance line once a search runs long.
   const [elapsed, setElapsed] = useState(0)
   const overlay = composeOverlay({
     analyzeLoading: loading,

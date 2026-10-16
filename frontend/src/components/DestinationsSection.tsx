@@ -12,6 +12,7 @@ import {
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { parseCustomCsv } from '../utils/customDestinations'
 import { drawControls } from '../utils/drawControls'
+import { ringUsable } from '../utils/analyzeGate'
 import DrawReadout from './DrawReadout'
 
 // Above this drawn area, an informational note warns that dense regions can
@@ -35,6 +36,7 @@ const MODE_LABEL = { draw: 'Draw polygon', edit: 'Edit polygon', done: 'Done' } 
 // always-visible Custom Destinations section below adds to any of these.
 const DESTINATION_TYPES: { value: DiscoveryType; label: string; implemented: boolean }[] = [
   { value: 'peak', label: 'Peaks', implemented: true },
+  { value: 'crag', label: 'Crags', implemented: true },
   { value: 'lake', label: 'Lakes', implemented: true },
   { value: 'trailhead', label: 'Trailheads', implemented: true },
 ]
@@ -127,6 +129,13 @@ export default function DestinationsSection({
   }, [drawing, drawPointCount])
   const row = drawControls(drawing, drawPointCount)
   const peaksOn = destinationTypes.includes('peak')
+  // The types and the unnamed-peaks knob are live only over a ring a search
+  // can use, and grey again when it is cleared or grows past the cap. Greyed
+  // keeps the ticks, so the next ring searches what the reader chose, and a
+  // tick with no ring was never sent anyway (`planAnalysis` sends no types
+  // without one). Greyed rather than hidden, as the draw row's buttons are
+  // (#687), so a ring arriving does not move the panel under the reader.
+  const typesLive = ringUsable(drawPointCount, areaTooLarge)
 
   return (
     <section data-tour="destinations">
@@ -217,8 +226,9 @@ export default function DestinationsSection({
                 outside the mode every ring under the cap fits (`99 points
                 placed` and `~99,999 km²` are 175.7px), and while drawing a
                 closed ring only one under 1,000 km² does: `3 points placed.
-                Press Done when ready.` is 229.8px, which leaves 57.2px, and
-                `~779 km²` is 53.4px where `~2,109 km²` is 63px (12px on a Mac). */}
+                Press Done or Analyze.` is 229.5px at the readout's medium
+                weight, which leaves 57.5px, and `~999 km²` is 54.9px where
+                `~2,109 km²` is 63px (12px on a Mac, 2026-10-16). */}
             <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
               {/* The count in the words the phone's draw bar uses too
                   (`DrawReadout`), kept whole on its line like the area. */}
@@ -275,10 +285,12 @@ export default function DestinationsSection({
           </button>
         </div>
         {/* Checkboxes, not radios: one polygon can look for several kinds
-            at once, and they all come back from a single Overpass query,
-            so asking for peaks and lakes together costs what peaks alone
-            would. The "Find:" label that used to lead this row is gone —
-            three checkboxes under the Polygon search heading are not ambiguous
+            at once. Peaks and lakes come from the basemap's tiles (#675)
+            and whatever the map server is asked for comes back from a
+            single Overpass query, so asking for trailheads and crags
+            together costs what trailheads alone would. The "Find:" label
+            that used to lead this row is gone —
+            the checkboxes under the Polygon search heading are not ambiguous
             about what they do. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
           {DESTINATION_TYPES.map(({ value, label, implemented }) => (
@@ -288,7 +300,7 @@ export default function DestinationsSection({
                 name="destination_types"
                 value={value}
                 checked={destinationTypes.includes(value)}
-                disabled={!implemented}
+                disabled={!implemented || !typesLive}
                 onChange={(e) =>
                   setDestinationTypes(
                     e.target.checked
@@ -316,6 +328,7 @@ export default function DestinationsSection({
             <input
               type="checkbox"
               checked={includeUnnamedPeaks}
+              disabled={!typesLive}
               onChange={(e) => setIncludeUnnamedPeaks(e.target.checked)}
               className={CHOICE_INPUT}
             />

@@ -57,8 +57,9 @@ A drawn area's peaks and lakes are read from the basemap's own tiles rather
 than asked of Overpass ([Map tiles](#map-tiles) below): the zoom-14 tiles
 under the area carry every named summit with its elevation and OSM id, and
 every named water body, so the app has its answer in about a second and asks
-Overpass only for trailheads, which no tile carries, or for an area too large
-to read from the tiles quickly. Measured 2026-10-07 over three rings, the
+Overpass only for trailheads, which no tile carries, and crags, which the
+tiles cannot tell from routes, or for an area too large to read from the tiles
+quickly. Measured 2026-10-07 over three rings, the
 peaks were exactly Overpass's (42 of 42, 28 of 28 and 16 of 16, the same
 ids). The lakes are broader than the API's: Overpass is asked for
 `natural=water` with `water=lake`, and the tiles carry tarns, ponds and
@@ -67,6 +68,28 @@ the app finds every named water body where the API finds the lakes alone (46
 to 40, 16 to 3 and 23 to 4 on the same three rings). A lake from the tiles
 carries no elevation, so its Elevation cell shows the terrain height marked
 ([record 0116](decisions/0116-no-recorded-elevation-shows-terrain-height-marked.md)).
+
+A crag is `sport=climbing` with `climbing=crag`, `climbing=area` or
+`climbing=boulder`, or a climbable stone (`natural=stone` with
+`sport=climbing` and no `climbing=` tag), and nothing wider. Climbers tag
+every route `sport=climbing` too: measured 2026-10-15 over 47.0 to 48.0 N,
+121.8 to 120.8 W, 183 named features carried it, of which 82 were crags, 22
+areas and 4 boulders, and 67 routes and 5 route bottoms would each have been a
+row of their own. Boulders are in even though a boulder field can add dozens of
+rows a few metres apart, and a boulder mapped as a bare stone counts too
+(Midnite Boulder at Index is one). Areas are in
+because some places are mapped only as one, and an area holds the crags inside
+it, so a ring can list both: Index is an area, and Lower Town Wall inside it is
+a crag. The basemap's tiles cannot stand in for the query: they carry
+`sport=climbing` points with no `climbing=` subtype, and crags mapped as
+relations are missing, so in the zoom-14 tile over Index, measured
+2026-10-15, 33 of OSM's 36 named routes were there and 3 of its 12 crags. A
+crag named for the peak it stands on is its own row beside the peak,
+typed Crag: 6 of the 104 in that box share a name with a peak. None of the 104 in that box carried an `ele` tag, so a crag reads the
+plain near-ground values the way a lake or trailhead with no elevation does.
+And coverage follows where climbers have mapped: the well-known areas are
+there, and an obscure crag may not be
+([record 0159](decisions/0159-crags-destination-type.md)).
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so each one is matched to the nearest mapped
@@ -196,8 +219,8 @@ however far the summit rises above it. No summit in the contiguous United
 States reaches it. With
 no known elevation, the app reads a peak or a pasted point at the terrain
 height Open-Meteo reports for its coordinate, as the grid below is read,
-because a summit stands above the model's terrain; a lake, a trailhead or a
-searched town sits on that terrain, so it keeps the plain 10 m wind, which is
+because a summit stands above the model's terrain; a lake, a trailhead, a crag
+or a searched town sits on that terrain, so it keeps the plain 10 m wind, which is
 the real near-ground air there, whether it was found in a ring or clicked on
 the map, and the API keeps the 10 m wind for all of them. The level heights are the standard atmosphere's,
 fixed rather than fetched, and that is the larger error here: measured
@@ -248,8 +271,8 @@ clamp in either direction would report a number no model produced. And the
 fallback is the 2 m value rather than the 10 m one — a destination below the
 lowest level (~762 m) or in an archive window reports the surface temperature
 exactly as it did before, and one with no known elevation follows the wind's
-rule above: a peak or pasted point at the terrain height, a lake or trailhead
-at the surface. Above the 500 hPa height the temperature takes that level's
+rule above: a peak or pasted point at the terrain height, a lake, trailhead or
+crag at the surface. Above the 500 hPa height the temperature takes that level's
 value as the wind does, which reads warm by the lapse over the remaining height: at the
 standard rate, about 4 °C (7 °F) at Denali's 6,190 m.
 
@@ -1148,7 +1171,7 @@ service on your own quota rather than a pre-rendered tile.
 
 ## Where the links go
 
-Three sites the app links out to are not data sources, since nothing is fetched
+Four sites the app links out to are not data sources, since nothing is fetched
 from them, but a reader lands on them often enough to say what to expect.
 
 **Windy.** Every metric cell in the results table and every row of a map popup
@@ -1172,6 +1195,12 @@ CalTopo's URL grammar is undocumented, like Windy's, and the head comment of
 **Peakbagger and OpenStreetMap.** The arrow beside a peak's name opens
 Peakbagger's coordinate search centred on the summit, which lists the clicked
 peak first; Peakbagger has no mapping from OSM ids, and a name search there is
-ambiguous for a common name. Every other row links to the exact OpenStreetMap
+ambiguous for a common name. Every other row but a crag links to the exact OpenStreetMap
 object it came from, and a row with no OSM id (a pasted coordinate) links to a
 map pin at its coordinates.
+
+**Mountain Project.** The arrow beside a crag's name opens a Mountain Project
+search for that name, where a climber looks a crag up. A search is not the
+crag's own page, so the crag is one of its results rather than where you land:
+checked 2026-10-15, a search for `Lower Town Wall` lists that area in its Areas
+section.

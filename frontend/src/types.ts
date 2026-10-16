@@ -1,4 +1,4 @@
-export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'custom'
+export type DestinationType = 'peak' | 'trailhead' | 'lake' | 'crag' | 'custom'
 
 // What polygon discovery can find. The UI's type picker offers only these:
 // 'custom' is no longer a mode, just the wire form of a CSV-only request (and

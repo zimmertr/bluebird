@@ -74,8 +74,9 @@ PEAKS = [
     dest(47.5, -121.5, name="Peak E", elevation_ft=7100.0, osm_id="node/105", type="peak"),
 ]
 
-# A caller's list. In the union case the first claims Peak A's name and the
-# second Peak B's coordinate, so the custom row wins both collisions.
+# A caller's list. In the union case the first shares Peak A's name at another
+# point, which since #715 is a second row rather than a claim, and the second
+# claims Peak B's coordinate, so the custom row wins that collision.
 CUSTOM = [
     {"name": "Peak A", "latitude": 46.6, "longitude": -121.6, "elevation_ft": 5400.0},
     {"name": "Camp", "latitude": 47.2, "longitude": -121.2},

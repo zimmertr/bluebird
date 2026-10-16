@@ -3,8 +3,9 @@ import { test, expect, drawRing, DESTINATION_NAMES, resultRows } from './fixture
 test('draw a ring, analyze, and see the rows and the chart', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.maplibregl-canvas')).toBeVisible()
-  await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
+  // Drawn first: the types are greyed until there is a ring to search.
   await drawRing(page)
+  await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
 
   const analyze = page.getByRole('button', { name: 'Analyze' })
   await expect(analyze).toBeEnabled()

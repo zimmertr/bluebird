@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as maplibregl from 'maplibre-gl'
 import {
+  CLIMBING_IMAGE,
   enhanceBasemap,
   glowTwin,
   lakeAnchor,
@@ -117,6 +118,7 @@ describe('enhanceBasemap', () => {
       ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
       ['has', 'name'],
     ])
+    // No 2D canvas here, so the sprite's circle stands in for the drawn climber.
     expect(climbing.layout?.['icon-image']).toBe('circle_stroked_11')
     // Routes on one wall pile up at z14, so climbing alone lets collision
     // hide icons; every other clickable layer keeps each marker.
@@ -126,12 +128,64 @@ describe('enhanceBasemap', () => {
     expect(added['ofm-climbing-glow'].minzoom).toBe(14)
   })
 
+  // The peak layer's source also holds cliffs and ridges, most of them with
+  // no name and no elevation, which a click cannot turn into a destination.
+  // Only a feature with a name, or an elevation to call it `Peak 2562`, draws,
+  // and its glow lights the same set.
+  it('draws only the peak-layer features a click can add', () => {
+    const added: Record<string, { filter?: unknown }> = {}
+    const { map } = stubMap({ styleLayers })
+    const addLayer = map.addLayer.bind(map)
+    map.addLayer = ((layer: (typeof added)[string] & { id: string }, before?: string) => {
+      added[layer.id] = layer
+      return addLayer(layer as never, before)
+    }) as typeof map.addLayer
+    enhanceBasemap(map)
+    const filter = ['any', ['has', 'name'], ['has', 'ele_ft']]
+    expect(added['ofm-peaks'].filter).toEqual(filter)
+    expect(added['ofm-peaks-glow'].filter).toEqual(filter)
+  })
+
   it('leaves a style without the label layers alone', () => {
     const { map, calls } = stubMap({
       styleLayers: styleLayers.filter((l) => !l.id.startsWith('water_name')),
     })
     enhanceBasemap(map)
     expect(calls.filter((c) => c[0] === 'setFilter')).toEqual([])
+  })
+
+  // The climbing points wear the drawn climber (#715) at the sprite's @2x
+  // size, so it stands at the 17px the peak's icon does. The canvas here is a
+  // recorder: what matters is that a drawable icon is registered before the
+  // layer names it, and that the rock and the climber are both drawn.
+  it('registers the climber icon at pixel ratio 2 and draws climbing with it', () => {
+    const drawn: string[] = []
+    const ctx = new Proxy({} as Record<string, unknown>, {
+      get: (_t, key: string) =>
+        key === 'getImageData'
+          ? () => ({ width: 34, height: 34, data: new Uint8ClampedArray(34 * 34 * 4) })
+          : key === 'createRadialGradient'
+            ? () => ({ addColorStop: () => {} })
+            : (...args: unknown[]) => drawn.push(`${key}:${args.length}`),
+      set: () => true,
+    })
+    vi.stubGlobal('document', { createElement: () => ({ width: 0, height: 0, getContext: () => ctx }) })
+    vi.stubGlobal('Path2D', class { constructor(public d: string) {} })
+    const images: [string, unknown][] = []
+    const added: Record<string, { layout?: Record<string, unknown> }> = {}
+    const { map } = stubMap({ styleLayers })
+    map.addImage = ((id: string, _img: unknown, opts?: unknown) => images.push([id, opts])) as unknown as typeof map.addImage
+    const addLayer = map.addLayer.bind(map)
+    map.addLayer = ((layer: (typeof added)[string] & { id: string }, before?: string) => {
+      added[layer.id] = layer
+      return addLayer(layer as never, before)
+    }) as typeof map.addLayer
+    enhanceBasemap(map)
+    expect(images).toContainEqual([CLIMBING_IMAGE, { pixelRatio: 2 }])
+    expect(added['ofm-climbing'].layout?.['icon-image']).toBe(CLIMBING_IMAGE)
+    // The rock is filled from a path and the climber's limbs stroked from one.
+    expect(drawn).toContain('fill:1')
+    expect(drawn).toContain('stroke:1')
   })
 
   // MapLibre draws nothing for an unknown icon and only warns, so a canvas
@@ -273,8 +327,8 @@ describe('glowTwin', () => {
     expect('text-field' in layout).toBe(false)
   })
 
-  // MapLibre rejects an explicit `filter: undefined`, and the peaks layer has
-  // no filter at all.
+  // MapLibre rejects an explicit `filter: undefined`, so a label with no
+  // filter gives its twin none.
   it('carries no filter key when the label has none', () => {
     const { filter: _filter, ...peaks } = lake
     expect('filter' in glowTwin({ ...peaks, layout: {} })).toBe(false)

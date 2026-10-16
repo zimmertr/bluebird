@@ -106,7 +106,7 @@ export function unescapeQueryText(raw: string): string | null {
   }
 }
 
-const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake']
+const DISCOVERY_TYPES: DiscoveryType[] = ['peak', 'trailhead', 'lake', 'crag']
 
 // The shape of an Open-Meteo model id, which `model` and `compare` both check.
 // Membership is the caller's to judge, since only it holds the published list.

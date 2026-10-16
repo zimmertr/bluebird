@@ -456,7 +456,7 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
             DataSource(
                 name="OpenStreetMap via Overpass",
                 url="https://overpass-api.de",
-                provides="Named peaks, trailheads, and lakes inside the polygon",
+                provides="Named destinations inside the polygon",
             ),
             DataSource(
                 name="Open-Meteo",

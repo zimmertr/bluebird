@@ -78,6 +78,8 @@ export interface TableViewInputs {
   pending: PendingDestination[]
   /** The same destinations as the chart's pseudo-rows (`useChartCompare`), for the legend. */
   pendingRows: DestinationResult[]
+  /** The names two places on screen share (`useChartCompare`), which the legend names the type beside. */
+  shared: ReadonlySet<string>
   /** The wildfire check (`useFireProximity`), which sorts and fills the wildfire column. */
   fire: FireProximity
   /** The closure check (`useClosureProximity`), which sorts and fills the Closure column. */
@@ -110,6 +112,7 @@ export function useTableView({
   compareReachEnds,
   pending,
   pendingRows,
+  shared,
   fire,
   closure,
 }: TableViewInputs) {
@@ -258,8 +261,8 @@ export function useTableView({
   // The chart-only legend's chips: the rows the table would show, so a chip is
   // a line whenever models are compared. `legendEntries` owns the rules.
   const legend = useMemo(
-    () => legendEntries(comparedTableRows ?? results, pendingRows, comparingRows),
-    [comparedTableRows, results, pendingRows, comparingRows],
+    () => legendEntries(comparedTableRows ?? results, pendingRows, comparingRows, shared),
+    [comparedTableRows, results, pendingRows, comparingRows, shared],
   )
 
   // Nulls sort last in both directions; string columns use numeric collation so

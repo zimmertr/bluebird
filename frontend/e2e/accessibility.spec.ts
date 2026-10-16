@@ -61,8 +61,9 @@ for (const theme of ['dark', 'light'] as const) {
     expect(await page.evaluate(() => document.documentElement.dataset.theme ?? 'dark')).toBe(theme)
     await audit(page, `${theme}: panel open`, seen)
 
-    await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
+    // Drawn first: the types are greyed until there is a ring to search.
     await drawRing(page)
+    await page.getByRole('checkbox', { name: 'Peaks', exact: true }).check()
     await page.getByRole('button', { name: 'Analyze' }).click()
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
     await audit(page, `${theme}: results open`, seen)
