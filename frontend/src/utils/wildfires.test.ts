@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { markupText } from '../testSupport/markupText'
 import {
   wildfireQueryUrl,
   formatAcres,
@@ -12,9 +13,7 @@ import {
 
 // A representative fire-scoped NIFC link, reused by the popup tests.
 const NIFC = nifcFireUrl(-121.5, 39.5, 11)
-
-// What a reader reads off the card: its text with the markup taken out.
-const textOf = (html: string) => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ')
+const textOf = markupText
 
 describe('wildfireQueryUrl', () => {
   it('targets Bluebird Forecast rather than NIFC', () => {

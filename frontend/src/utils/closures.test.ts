@@ -14,6 +14,7 @@ import {
 } from './closures'
 import { isRateLimited } from './wildfires'
 import { closureFeature, fakeResponse } from '../testSupport/fixtures'
+import { markupText } from '../testSupport/markupText'
 
 const props = (over = {}) => closureFeature(over).properties
 const START = Date.UTC(2026, 7, 1, 12)
@@ -86,8 +87,7 @@ describe('formatClosureDates', () => {
   })
 })
 
-// What a reader reads off the card: its text with the markup taken out.
-const textOf = (html: string) => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ')
+const textOf = markupText
 // The body starts at its attribute; the band and the notices stand above it.
 const bodyOf = (html: string) => html.slice(html.indexOf('data-popup-body'))
 const bandOf = (html: string) => html.slice(0, html.indexOf('data-popup-body'))

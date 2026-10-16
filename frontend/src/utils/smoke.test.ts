@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { markupText } from '../testSupport/markupText'
 import {
   SMOKE_DENSITIES,
   SMOKE_EXTENT,
@@ -109,7 +110,7 @@ describe('smokePopupHtml', () => {
   it('puts the satellite alone on the facts line, with no emoji', () => {
     const html = smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })
     expect(html).toContain('GOES-WEST')
-    expect(html.replace(/<[^>]+>/g, '')).not.toMatch(/Smoke\s*\|/)
+    expect(markupText(html)).not.toMatch(/Smoke\s*\|/)
     expect(html).not.toContain('🌫️')
     expect(html).not.toContain('Traced from')
   })
