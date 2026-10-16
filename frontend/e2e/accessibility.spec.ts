@@ -47,11 +47,14 @@ async function audit(page: Page, state: string, seen: Set<string>) {
   expect.soft(unknown, `serious or critical axe violations with the ${state}`).toEqual([])
 }
 
-// Both themes (#706): the same three states, the light one opened the way a
+// Both themes (#706): the same four states, the light one opened the way a
 // returning reader's browser opens it, with the theme already stored, so
-// `theme.js` paints it before the app mounts.
+// `theme.js` paints it before the app mounts. The result card follows the
+// theme too (#740), so its colours are audited on each card.
 for (const theme of ['dark', 'light'] as const) {
-  test(`axe finds nothing serious on the panel, the results, or a popover in the ${theme} theme`, async ({ page }) => {
+  test(`axe finds nothing serious on the panel, the results, a result card, or a popover in the ${theme} theme`, async ({
+    page,
+  }) => {
     if (theme === 'light') {
       await page.addInitScript(() => localStorage.setItem('bluebird_forecast_theme', 'light'))
     }
@@ -67,6 +70,10 @@ for (const theme of ['dark', 'light'] as const) {
     await page.getByRole('button', { name: 'Analyze' }).click()
     await expect(resultRows(page)).toHaveCount(DESTINATION_NAMES.length)
     await audit(page, `${theme}: results open`, seen)
+
+    await page.getByRole('button', { name: `Center map on ${DESTINATION_NAMES[0]}` }).click()
+    await expect(page.locator('.maplibregl-popup')).toContainText(DESTINATION_NAMES[0])
+    await audit(page, `${theme}: result card open`, seen)
 
     await page.getByRole('button', { name: 'Layers' }).click()
     await expect(page.getByText('Forecast player')).toBeVisible()

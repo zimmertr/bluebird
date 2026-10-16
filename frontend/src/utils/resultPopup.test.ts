@@ -95,7 +95,7 @@ describe('resultPopupHtml fire warning', () => {
 describe('resultPopupHtml warnings section', () => {
   const fire: FireWarning = { miles: 1, name: 'KING', latitude: 47.5, longitude: -121.3 }
   const section = (html: string) =>
-    html.match(/<div style="font-size:12px;display:flex;[^"]*border-bottom:1px solid #[0-9a-f]+">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
+    html.match(/<div style="font-size:12px;display:flex;[^"]*border-bottom:1px solid var\(--popup-[\w-]+\)">(.*?)<\/div>(?=\s*<div data-popup-body)/s)
   const glyphs = (html: string) => html.split('⚠️').length - 1
 
   it('puts both warnings after the header and before the grid, ruled off from it', () => {
@@ -197,7 +197,7 @@ describe('resultPopupHtml remove', () => {
     // On a line of its own at the foot of the card, after the body the scroll
     // cap shortens rather than inside it, so a capped card keeps it in view.
     expect(html).toMatch(
-      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${HEADER_EDGE_COLOR}"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
+      new RegExp(`<div style="padding:8px 10px;border-top:1px solid ${escapeRegExp(HEADER_EDGE_COLOR)}"><div style="text-align:center"><button ${RESULT_ACTION_ATTR}="remove"[^>]*>Remove from analysis</button></div></div>\\s*</div>$`),
     )
     expect(html.indexOf(POPUP_BODY_ATTR)).toBeLessThan(html.indexOf(RESULT_ACTION_ATTR))
   })
@@ -368,7 +368,7 @@ describe('resultPopupHtml type', () => {
     for (const value of values) {
       expect(value.replace(/^<span style="[^"]*">/, '')).not.toContain(':')
     }
-    expect(html).toMatch(new RegExp(`<th scope="row" style="[^"]*${LABEL_COLOR}[^"]*">${NOUN.temp} \\(°F\\)</th>`))
+    expect(html).toMatch(new RegExp(`<th scope="row" style="[^"]*${escapeRegExp(LABEL_COLOR)}[^"]*">${NOUN.temp} \\(°F\\)</th>`))
   })
 
   // The popup's only bold is its title. Precip-total and AQI-avg wore
@@ -546,4 +546,10 @@ function factsText(html: string): string {
   return [...`>${line}<`.matchAll(/>([^<]*)</g)]
     .map((m) => (m[1] === '|' ? ' | ' : m[1]))
     .join('')
+}
+
+// A colour is a `var(--popup-*)` (#740), whose parentheses a pattern would
+// read as a group.
+function escapeRegExp(s: string): string {
+  return s.replace(/[()]/g, '\\$&')
 }

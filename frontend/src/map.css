@@ -20,19 +20,110 @@
   font-family: inherit;
 }
 
-/* The map's own white surfaces are light, in both themes, where the app
+/* MapLibre's own white controls are light, in both themes, where the app
    around them is dark by default (index.css sets `color-scheme: dark` on the
    root, #697, and `light` only under the light theme, #706). Said here so the
-   browser draws a popup's native chrome for the white card it is on, and the
-   same for MapLibre's white control buttons and credit line. The scheme alone
-   does not reach the text: `color` is inherited as the root's already
-   resolved light grey, which measured white on the popup's white card
+   browser draws their native chrome for the white surface they are on. The
+   scheme alone does not reach the text: `color` is inherited as the root's
+   already resolved light grey, which measured white on a white popup
    (2026-10-13), so the default text colour is resolved again here, in the
-   light scheme, which is the black it was before the root went dark. */
-.maplibregl-popup,
+   light scheme. */
 .maplibregl-ctrl {
   color-scheme: light;
   color: CanvasText;
+}
+
+/* The popups follow the theme (#740): dark cards in the dark theme, the white
+   cards they always were in the light one. Every colour a card wears is one
+   of the `--popup-*` values below, which `utils/popupChrome.ts` names in its
+   markup (`var(--popup-label)`) and the rules further down name for the
+   parts MapLibre draws itself: the card's surface, its tip, the close button
+   and the scroll bar. Here rather than in index.css, which every page loads,
+   because nothing but the map draws a popup.
+
+   The dark card is the app's own: its surface the panel every popover
+   stands on, its header band and grid columns halfway between that and the
+   raised step, its ranked cell the raised step, its inks the panel's. Each
+   is a `--ui-*` token, so the dark card cannot drift from the panel beside
+   it. The light values are the hexes the white card has always painted,
+   pixel for pixel, so the light theme is unchanged. Every pair is measured in
+   `styles.test.ts`, in both themes. */
+:root {
+  --popup-scheme: dark;
+  --popup-surface: var(--ui-panel);
+  --popup-ink: var(--ui-ink);
+  --popup-band: color-mix(in oklab, var(--ui-raised) 50%, var(--ui-panel));
+  --popup-ranked: var(--ui-raised);
+  --popup-line: var(--ui-rule);
+  --popup-rule: var(--ui-frame);
+  --popup-shadow: rgba(2, 6, 23, 0.5);
+  --popup-label: var(--ui-ink-soft);
+  --popup-fine: var(--ui-ink-faint);
+  --popup-link: var(--ui-accent-ink);
+  --popup-glyph: var(--ui-accent-ink);
+  --popup-primary: var(--ui-accent);
+  --popup-secondary: var(--ui-raised-hover);
+  --popup-secondary-ink: var(--ui-ink);
+  --popup-thumb: var(--ui-edge-lifted);
+  --popup-close: var(--ui-ink-mid);
+  --popup-close-fill: var(--ui-raised);
+  --popup-close-edge: var(--ui-frame);
+  --popup-close-hover: var(--ui-ink-strong);
+  --popup-close-hover-fill: var(--ui-raised-hover);
+  --popup-close-hover-edge: var(--ui-edge);
+}
+:root[data-theme="light"] {
+  --popup-scheme: light;
+  --popup-surface: #ffffff;
+  --popup-ink: CanvasText;
+  --popup-band: #f1f5f9;
+  --popup-ranked: #e2e8f0;
+  --popup-line: #e2e8f0;
+  --popup-rule: #cbd5e1;
+  --popup-shadow: rgba(15, 23, 42, 0.08);
+  --popup-label: #475569;
+  --popup-fine: #94a3b8;
+  --popup-link: #0369a1;
+  --popup-glyph: #0284c7;
+  --popup-primary: #0284c7;
+  --popup-secondary: #334155;
+  --popup-secondary-ink: #e2e8f0;
+  --popup-thumb: #64748b;
+  --popup-close: #475569;
+  --popup-close-fill: #f8fafc;
+  --popup-close-edge: #cbd5e1;
+  --popup-close-hover: #0f172a;
+  --popup-close-hover-fill: #e2e8f0;
+  --popup-close-hover-edge: #94a3b8;
+}
+
+/* The scheme is said for the card so the browser draws its native chrome for
+   the surface it is on, and the text colour is resolved again for the reason
+   the controls above give. */
+.maplibregl-popup {
+  color-scheme: var(--popup-scheme);
+  color: var(--popup-ink);
+}
+.maplibregl-popup-content {
+  background: var(--popup-surface);
+}
+/* The tip is the vendor's border triangle, one side of it coloured per
+   anchor. */
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: var(--popup-surface);
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--popup-surface);
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--popup-surface);
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--popup-surface);
 }
 
 /* The library's own top-right stack — zoom, compass, geolocate — measured off
@@ -168,6 +259,7 @@
    with no hit area and no surface. It read as a stray character rather than a
    control. This makes it an actual button: a bordered chip on the app's own
    slate, the same radius the panel's small controls use, with a hover state.
+   In the dark theme it is the panel's own chip on the card's dark band.
 
    `line-height: 1` matters. Without it the inherited line box pushes the glyph
    off-centre inside the square, which is most of what looked crooked; the
@@ -183,20 +275,20 @@
   width: 1.375rem;
   height: 1.375rem;
   padding: 0 0 1px 0;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--popup-close-edge);
   border-radius: 0.25rem;
   font-size: 0.875rem;
   line-height: 1;
-  color: #475569;
-  background: #f8fafc;
+  color: var(--popup-close);
+  background: var(--popup-close-fill);
   transition: color 120ms, background-color 120ms, border-color 120ms;
 }
 
 .maplibregl-popup-close-button:hover,
 .maplibregl-popup-close-button:focus-visible {
-  color: #0f172a;
-  background: #e2e8f0;
-  border-color: #94a3b8;
+  color: var(--popup-close-hover);
+  background: var(--popup-close-hover-fill);
+  border-color: var(--popup-close-hover-edge);
 }
 
 /* Coarse pointers get the same 44px every other control in the app takes. */
@@ -466,22 +558,23 @@
    scrollbars vanish until scrolled and a card cut mid-list would give no hint
    there is more: `scrollbar-color` gives Chrome and Firefox a classic bar and
    the -webkit-* rules cover Safari, as `.surface-scrollbars` does for the
-   dark surfaces. Slate-500 on slate-100, 4.34:1, a pass for a UI boundary on
-   the white card. The gutter keeps the right-aligned numbers clear of it. */
+   dark surfaces. The track is the card's band, and the thumb clears the 3:1 a
+   UI boundary owes on it in both themes (`styles.test.ts`). The gutter
+   keeps the right-aligned numbers clear of it. */
 .popup-scroll {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 6px;
   scrollbar-width: thin;
-  scrollbar-color: #64748b #f1f5f9;
+  scrollbar-color: var(--popup-thumb) var(--popup-band);
 }
 .popup-scroll::-webkit-scrollbar {
   width: 6px;
 }
 .popup-scroll::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--popup-band);
 }
 .popup-scroll::-webkit-scrollbar-thumb {
-  background-color: #64748b;
+  background-color: var(--popup-thumb);
   border-radius: 3px;
 }

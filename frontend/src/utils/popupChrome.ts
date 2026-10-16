@@ -10,6 +10,12 @@
 // popup builder that does not return `popupCard`, so a new layer's card
 // cannot start a fourth look.
 //
+// Every colour in it is a `--popup-*` value `map.css` declares once per theme
+// (#740), named here as `var(--popup-label)` and resolved where the markup
+// lands, so one card is dark in the dark theme and white in the light one.
+// The hexes and ratios below are the light card's, which is the white it has
+// always been; `styles.test.ts` measures every pair in both themes.
+//
 // It lives in utils, like the popup bodies that compose it, because this markup
 // is handed to MapLibre's setHTML and the design system in styles.ts cannot
 // reach it: Tailwind scans source for class names and generates CSS for the
@@ -96,14 +102,14 @@ export function row(label: string, value: string, href?: string | null): string 
  *
  * Colour has no such dependency: it renders the same wherever the card opens,
  * and it is the axis the app's own panels already use to step text back.
- * Slate-600 measures 7.4:1 on the white MapLibre draws a popup on, well past
- * AA for text, so the label recedes without becoming hard to read. Anything
- * lighter starts to: slate-500 is 4.76:1, which is a pass for text you glance
- * at and thin for text you read.
+ * Slate-600 measures 7.4:1 on the light card's white, well past AA for text,
+ * so the label recedes without becoming hard to read. Anything lighter starts
+ * to: slate-500 is 4.76:1, which is a pass for text you glance at and thin for
+ * text you read. The dark card's label is the panel's own soft ink.
  *
  * The popup's one <strong> therefore stays where it was, on the title.
  */
-export const LABEL_COLOR = 'color:#475569'
+export const LABEL_COLOR = 'color:var(--popup-label)'
 
 /**
  * A row's label.
@@ -119,13 +125,12 @@ export function rowLabel(label: string): string {
 /**
  * The colour a link takes inside a popup.
  *
- * MapLibre draws a popup as black on white, and the roles in `styles.ts` are
- * written for the app's own slate panels, so `LINK_ACTION`'s sky-400 lands at
- * 2.1:1 here. Sky-700 measures 5.74:1 on white and clears AA for text. The
- * title's link glyph keeps the lighter shade because an icon answers to the
- * 3:1 rule instead.
+ * The light card is black on white, where `LINK_ACTION`'s sky-400 would land
+ * at 2.1:1, so it takes sky-700, 5.74:1 on white. The title's link glyph
+ * keeps a lighter shade because an icon answers to the 3:1 rule instead. The
+ * dark card's links are the panel's own accent ink.
  */
-export const LINK_COLOR = '#0369a1'
+export const LINK_COLOR = 'var(--popup-link)'
 
 /**
  * A link inside a popup body.
@@ -148,7 +153,7 @@ export function popupLink(href: string, inner: string, extra = ''): string {
  * rule between a popup's title and its body until every popup became a card
  * (#738), whose header band parts the two instead.
  */
-export const RULE_COLOR = '#cbd5e1'
+export const RULE_COLOR = 'var(--popup-rule)'
 
 /**
  * The amber a safety warning wears in a popup: the fire line and the closure
@@ -156,8 +161,9 @@ export const RULE_COLOR = '#cbd5e1'
  * counterpart of the `STATUS` amber the table's Wildfire column wears in the
  * stylesheet. On white it measures 2.15:1, under the 4.5:1 AA asks of 12px
  * text, and stays by the maintainer's choice: amber-700 (5.02:1) was tried on
- * the #700 preview and TJ kept this one (2026-10-08). Pinned in
- * `popupChrome.test.tsx`, so a change re-measures rather than inherits.
+ * the #700 preview and TJ kept this one (2026-10-08). The one colour the two
+ * themes share, because on the dark card the same amber clears AA. Pinned in
+ * `styles.test.ts`, so a change re-measures rather than inherits.
  */
 export const WARNING_COLOR = '#f59e0b'
 
@@ -184,10 +190,11 @@ const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
  * The colour of the one line that qualifies a card rather than adding to it:
  * an overlay popup's "last updated" date, set small and italic in slate-400.
  * It is the colour those popups shipped with and #365 only named it; on the
- * white MapLibre draws a popup on it measures 2.98:1, under AA for text, and
- * raising it is a colour decision for the maintainer rather than a move.
+ * light card's white it measures 2.98:1, under AA for text, and raising it is
+ * a colour decision for the maintainer rather than a move. The dark card's is
+ * the panel's faint ink, the same step back from its label.
  */
-export const FINE_COLOR = '#94a3b8'
+export const FINE_COLOR = 'var(--popup-fine)'
 
 /**
  * A line of fine print: small, italic, stepped back. The overlay cards end
@@ -206,16 +213,18 @@ export function fineprint(inner: string): string {
  * siblings in `styles.ts` cannot dress it; these are their popup-side
  * counterparts, one recipe with the colour as the only variable, where three
  * files used to spell three near-identical buttons (#365). `primary` acts
- * (sky-600 under white), `secondary` undoes (slate-700 under slate-200), and
- * `danger` removes (red-500 under white). `attr` is the attribute the map
+ * (sky-600 under white on the light card, the app's accent fill on the dark
+ * one), `secondary` undoes (slate-700 under slate-200 on the light card, the
+ * panel's raised hover on the dark one), and `danger` removes (red-500 under
+ * white in both). `attr` is the attribute the map
  * handler finds the button by, written whole (`data-rm`, or
  * `data-poi-action="add"`); `extra` is appended last, as `popupLink`'s is, for
  * the one button that sits under rows and needs a margin above it.
  */
 export type PopupButtonVariant = 'primary' | 'secondary' | 'danger'
 const POPUP_BUTTON_LOOK: Record<PopupButtonVariant, string> = {
-  primary: 'background:#0284c7;color:#fff',
-  secondary: 'background:#334155;color:#e2e8f0',
+  primary: 'background:var(--popup-primary);color:#fff',
+  secondary: 'background:var(--popup-secondary);color:var(--popup-secondary-ink)',
   danger: 'background:#ef4444;color:#fff',
 }
 export function popupButton(
@@ -377,15 +386,15 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
 }
 
 /**
- * The shade behind each column, slate-100: 5.42:1 under `LINK_COLOR` and
- * 6.92:1 under `LABEL_COLOR`, against 5.93 and 7.58 on the card's white, so
- * both stay above AA's 4.5. It is 1.1:1 against the white beside it, which is
+ * The shade behind each column, slate-100 on the light card: 5.42:1 under
+ * `LINK_COLOR` and 6.92:1 under `LABEL_COLOR`, against 5.93 and 7.58 on the
+ * card's white, so both stay above AA's 4.5. It is 1.1:1 against the white beside it, which is
  * enough to read as a band and no more: the heads and the alignment carry the
- * columns, and the shade only groups them. Pinned in `popupChrome.test.tsx`.
+ * columns, and the shade only groups them. Pinned in `styles.test.ts`.
  */
-export const GRID_BAND_COLOR = '#f1f5f9'
-/** The gutter between bands is the card's own white, which MapLibre paints. */
-export const GRID_GUTTER_COLOR = '#ffffff'
+export const GRID_BAND_COLOR = 'var(--popup-band)'
+/** The gutter between bands is the card's own surface, which `map.css` paints. */
+export const GRID_GUTTER_COLOR = 'var(--popup-surface)'
 
 /**
  * The hairline between the grid's lines, slate-200, and the firmer rule under
@@ -393,16 +402,17 @@ export const GRID_GUTTER_COLOR = '#ffffff'
  * heads take a rule rather than an underline because every number in the grid
  * is an underlined link, and an underlined head would read as one more.
  */
-export const GRID_LINE_COLOR = '#e2e8f0'
+export const GRID_LINE_COLOR = 'var(--popup-line)'
 
 /**
- * The ranked number's cell, slate-200: one step darker than the column's
- * slate-100, with no hue, so the card's only colour is its links (TJ,
- * 2026-10-08, option H, over a sky-100 cell). It is 1.13:1 against the
+ * The ranked number's cell, slate-200 on the light card: one step darker than
+ * the column's slate-100, with no hue, so the card's only colour is its links
+ * (TJ, 2026-10-08, option H, over a sky-100 cell). It is 1.13:1 against the
  * column, so the number's bold carries most of the mark. `LINK_COLOR` on it
- * is 4.81:1. Pinned in `popupChrome.test.tsx`.
+ * is 4.81:1. The dark card's is the panel's raised slate, a step past its
+ * column the other way. Pinned in `styles.test.ts`.
  */
-export const GRID_RANKED_COLOR = '#e2e8f0'
+export const GRID_RANKED_COLOR = 'var(--popup-ranked)'
 
 /**
  * Each band's inset a side: 5px, so a number as wide as `0.000` has visible
@@ -672,16 +682,16 @@ const TITLE_ROW = `display:flex;align-items:center;gap:6px;min-width:0;${POPUP_T
 const TITLE_TEXT = `min-width:0;${ONE_LINE}`
 
 /**
- * The result card's header band: slate-100, the grid's own band colour, under
- * an edge of slate-200 and a faint slate shadow (TJ, 2026-10-08, option H of
+ * The result card's header band: slate-100 on the light card, the grid's own
+ * band colour, under an edge of slate-200 and a faint slate shadow (TJ, 2026-10-08, option H of
  * eight). It replaced a sky-100 band, which was the one light blue surface
  * in an app of slate, and sky is the accent that says a thing acts. The
  * labels on it measure 6.92:1 and the title 19.17:1 (pinned in
- * `popupChrome.test.tsx`).
+ * `styles.test.ts`).
  */
-export const HEADER_BAND_COLOR = '#f1f5f9'
-export const HEADER_EDGE_COLOR = '#e2e8f0'
-export const HEADER_SHADOW_COLOR = 'rgba(15,23,42,0.08)'
+export const HEADER_BAND_COLOR = 'var(--popup-band)'
+export const HEADER_EDGE_COLOR = 'var(--popup-line)'
+export const HEADER_SHADOW_COLOR = 'var(--popup-shadow)'
 
 /**
  * The edge and the padding a result card's sections wear below the header:
@@ -718,10 +728,12 @@ function warningList(warnings: readonly string[]): string {
 }
 
 /**
- * The link-out glyph on the band, sky-600 at 3.74:1. The sky-400 the old
- * ruled shell gave it would fall under the 3:1 an icon owes there.
+ * The link-out glyph on the band, sky-600 at 3.74:1 on the light card. The
+ * sky-400 the old ruled shell gave it would fall under the 3:1 an icon owes
+ * there; on the dark card's band that same sky-400, the panel's accent ink,
+ * is what clears it.
  */
-export const HEADER_ICON_COLOR = '#0284c7'
+export const HEADER_ICON_COLOR = 'var(--popup-glyph)'
 
 /**
  * Third-party text on its way to setHTML — OSM names, NIFC incident names —
