@@ -226,8 +226,9 @@ export default function DestinationsSection({
                 outside the mode every ring under the cap fits (`99 points
                 placed` and `~99,999 km²` are 175.7px), and while drawing a
                 closed ring only one under 1,000 km² does: `3 points placed.
-                Press Done when ready.` is 229.8px, which leaves 57.2px, and
-                `~779 km²` is 53.4px where `~2,109 km²` is 63px (12px on a Mac). */}
+                Press Done or Analyze.` is 229.5px at the readout's medium
+                weight, which leaves 57.5px, and `~999 km²` is 54.9px where
+                `~2,109 km²` is 63px (12px on a Mac, 2026-10-16). */}
             <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
               {/* The count in the words the phone's draw bar uses too
                   (`DrawReadout`), kept whole on its line like the area. */}

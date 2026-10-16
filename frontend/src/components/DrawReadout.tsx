@@ -35,10 +35,13 @@ export default function DrawReadout({ drawing, drawPointCount, pointsNeeded, who
       </p>
     )
   }
+  // Both ways to finish are named because Analyze closes the ring and leaves
+  // draw mode as Done does (`useAnalyzeCommand`), and a line naming Done alone
+  // read as if Analyze were running on a ring still being drawn.
   if (drawing) {
     return (
       <p className={`${STATUS.ok} font-medium${line}`}>
-        {drawPointCount} points placed. Press Done when ready.
+        {drawPointCount} points placed. Press Done or Analyze.
       </p>
     )
   }

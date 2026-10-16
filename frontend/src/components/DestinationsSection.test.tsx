@@ -66,7 +66,7 @@ describe('DestinationsSection', () => {
 
     it('says when the ring is ready while drawing', () => {
       render(<DestinationsSection {...props({ drawing: true, drawPointCount: 4, pointsNeeded: 0 })} />)
-      expect(screen.getByText('4 points placed. Press Done when ready.')).toBeTruthy()
+      expect(screen.getByText('4 points placed. Press Done or Analyze.')).toBeTruthy()
     })
 
     it('reads the area, and the cap beside it once the area is over it', () => {
@@ -82,7 +82,7 @@ describe('DestinationsSection', () => {
     // area right-justified (#687), and neither breaks inside itself.
     it("puts the area on the counter's line", () => {
       render(<DestinationsSection {...props({ drawing: true, drawPointCount: 3, pointsNeeded: 0, polygonAreaKm2: 779 })} />)
-      const counter = screen.getByText('3 points placed. Press Done when ready.')
+      const counter = screen.getByText('3 points placed. Press Done or Analyze.')
       const area = screen.getByText('~779 km²')
       expect(area.parentElement).toBe(counter.parentElement)
       // Right-justified beside the counter by `justify-between`, which also
