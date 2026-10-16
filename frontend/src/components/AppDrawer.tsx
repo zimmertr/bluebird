@@ -12,7 +12,7 @@ import type { DestinationInputs } from '../hooks/useDestinationInputs'
 import type { DrawMode } from '../hooks/useDrawMode'
 import type { ForecastSelectionState } from '../hooks/useForecastSelection'
 import type { RankingKnobs } from '../hooks/useRankingKnobs'
-import type { AnalyzeResponse, DestinationResult } from '../types'
+import type { AnalyzeResponse, DestinationResult, DiscoveryType } from '../types'
 import { type FireProximityStatus, checkNoticeDue } from '../utils/fireProximity'
 import type { ClosureProximityStatus } from '../utils/closureProximity'
 import type { CommitReason } from '../utils/present'
@@ -104,6 +104,8 @@ interface AppDrawerProps {
   /** The committed report, and the rows on display. */
   response: AnalyzeResponse | null
   results: DestinationResult[]
+  /** The ticked kinds that report is without, because the map server failed them (#735). */
+  missingTypes?: readonly DiscoveryType[]
   /** Where the wildfire check stands, for the panel's note when it failed. */
   fireStatus: FireProximityStatus
   /** Where the closure check stands, for the same note about closures. */
@@ -156,6 +158,7 @@ export default function AppDrawer({
   tutorialWaits,
   response,
   results,
+  missingTypes,
   fireStatus,
   closureStatus,
   showWildfires,
@@ -227,6 +230,7 @@ export default function AppDrawer({
       wildfireCheckFailed={checkNoticeDue(fireStatus, showWildfires, results.length)}
       closureCheckFailed={checkNoticeDue(closureStatus, showAreaClosures, results.length)}
       basemapFailed={basemapFailed}
+      missingTypes={missingTypes}
       onPointAtMapPois={onPointAtMapPois}
       destinationTypes={destinationTypes}
       setDestinationTypes={setDestinationTypes}

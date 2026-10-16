@@ -7,6 +7,7 @@ import type { AnalyzeBlocker } from './analyzeGate'
 import { BLOCKER_SEVERITY, listPhrase, noticeKey, type FooterMessage } from './notices'
 import { archiveSeamPhrase } from './calendar'
 import type { WindowLimits, WindowSource } from './forecastWindow'
+import type { DiscoveryType } from '../types'
 
 // Which messages the panel shows under the Analyze button, and in what order.
 // A module of its own because that decision is pure data: the panel's state in,
@@ -29,6 +30,31 @@ const COMMIT_CUE: Record<CommitReason, string> = {
   'polygon-changed': commitCue('search area'),
   'types-changed': commitCue('destination type'),
   'destination-added': commitCue('destination'),
+}
+
+// The kinds a report can be without when the map server fails (#735), in
+// the order the line names them (TJ, 2026-10-16).
+// Peaks and lakes come from the tiles on every ring the fallback covers, so in
+// practice the line names the first two alone.
+const MISSING_NOUN: Record<DiscoveryType, string> = {
+  trailhead: 'trailheads',
+  crag: 'crags',
+  peak: 'peaks',
+  lake: 'lakes',
+}
+const MISSING_ORDER = Object.keys(MISSING_NOUN) as DiscoveryType[]
+
+/**
+ * The one line a report missing some kinds shows. Two kinds drop "could":
+ * "Trailheads and crags could not be found. Try again later." measured 318 px
+ * against about 281 px of line in the panel's notice, where "Trailheads and
+ * crags not found." fits at 265 (TJ, 2026-10-16).
+ */
+export function missingTypesText(missing: readonly DiscoveryType[]): string {
+  const named = MISSING_ORDER.filter((t) => missing.includes(t)).map((t) => MISSING_NOUN[t])
+  const phrase = listPhrase(named)
+  const verb = named.length > 1 ? 'not found' : 'could not be found'
+  return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)} ${verb}. Try again later.`
 }
 
 // The AQI info line's dismissal key (#253): a condition, not a message, like
@@ -107,6 +133,9 @@ export interface PanelMessageInputs {
   windowLimits: WindowLimits
   // Whether a report is on screen at all.
   hasReport: boolean
+  // The ticked kinds that report is without, because the map server failed
+  // to answer them (#735).
+  missingTypes: readonly DiscoveryType[]
   aqiAllNull: boolean
   wildfireCheckFailed: boolean
   closureCheckFailed: boolean
@@ -136,15 +165,12 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   // because each new message is a new fact the reader has not seen.
   const refusalKey = p.refusal ? noticeKey('refusal', p.refusal.message) : null
   const errorKey = p.error ? noticeKey('error', p.error.message) : null
+  // Lines about the report on screen, which a run in flight is replacing
+  // and a failed or refused one is not the subject of.
+  const reportSettled = p.hasReport && !p.loading && !p.error && !p.refusal
   // The AQI line qualifies the ANALYSIS rather than the view of it: every
   // displayed row has null AQI although the window is inside the horizon.
-  const aqiNoteActive =
-    p.hasReport &&
-    !p.loading &&
-    !p.error &&
-    !p.refusal &&
-    p.aqiAllNull &&
-    p.aqiCoverage !== 'none'
+  const aqiNoteActive = reportSettled && p.aqiAllNull && p.aqiCoverage !== 'none'
 
   // Everything the Forecast section has to say, said below the button with
   // every other message (#123 review). These used to render inside that section
@@ -301,6 +327,20 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
     // answer — and it never coexists with the run error above.
     ...(p.refusal && refusalKey && !p.loading
       ? [{ key: refusalKey, text: p.refusal.message, severity: 'error' as const }]
+      : []),
+    // A ticked kind the report is without (#735). Warn, like the AQI line
+    // under it: the report is real and still ranks, but it no longer covers
+    // everything the panel asked for, and this line is the only thing that
+    // says so. Keyed on the kinds, so a later report missing a different set
+    // re-arms it.
+    ...(reportSettled && p.missingTypes.length
+      ? [
+          {
+            key: `discovery:missing:${[...p.missingTypes].sort().join(',')}`,
+            text: missingTypesText(p.missingTypes),
+            severity: 'warn' as const,
+          },
+        ]
       : []),
     ...(aqiNoteActive
       ? [

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnalyzeRequest, DestinationResult, GeoPolygon } from '../types'
 import {
   DISCOVERY_UNAVAILABLE_MESSAGE,
+  DiscoveryUnavailableError,
   UNDESCRIBED_FAILURE_MESSAGE,
   discoverCandidates,
   readErrorBody,
@@ -215,13 +216,131 @@ describe('a polygon run and the tiles', () => {
   })
 })
 
+// #735: when the map server fails the kinds it was asked for, the run keeps
+// the rows that needed none of it, and says which kinds it is without.
+describe('a polygon run when the map server fails', () => {
+  const ALPHA = discovered({ name: 'Alpha', type: 'peak', latitude: 47.45, longitude: -121.8, elevation_ft: 8000, osm_id: 'node/1' })
+  const TARN = discovered({ name: 'Tarn', type: 'lake', latitude: 47.5, longitude: -121.75, elevation_ft: null, osm_id: 'way/2' })
+  const MINE = { name: 'Mine', latitude: 47, longitude: -121 }
+  const TYPES = ['peak', 'lake', 'trailhead', 'crag'] as const
+  const found = () => {
+    const seen: Awaited<ReturnType<typeof discoverCandidates>>[] = []
+    ranked.mockResolvedValue({ response: { results: [], total_queried: 0, total_matched: 0 }, universe: [], aqiFailed: new Set<string>(), columns: new Map(), late: null })
+    return { seen, onDiscovered: (f: (typeof seen)[number]) => seen.push(f) }
+  }
+
+  beforeEach(() => {
+    fromTiles.mockReset()
+    fromTiles.mockResolvedValue([ALPHA, TARN])
+    discoverable.mockReset()
+    discoverable.mockReturnValue(true)
+  })
+
+  it('ranks the tile rows and the reader\'s list, and names the kinds it could not find', async () => {
+    stubDestinations({ detail: DISCOVERY_UNAVAILABLE_MESSAGE }, 502)
+    const { seen, onDiscovered } = found()
+    const out = await runAnalysisPipeline(
+      { ...REQUEST, destination_types: [...TYPES], custom_destinations: [MINE] },
+      options({ onDiscovered, knownTypes: { [geoKey(47, -121)]: 'peak' } }),
+    )
+    // One call: the fallback stands in for the pod's echo rather than asking again.
+    expect(posted).toHaveLength(1)
+    expect(seen[0].candidates).toEqual([ALPHA, TARN, expect.objectContaining({ name: 'Mine', type: 'peak' })])
+    expect(seen[0].missingTypes).toEqual(['trailhead', 'crag'])
+    expect(out.missingTypes).toEqual(['trailhead', 'crag'])
+    expect(ranked.mock.calls[0][1]).toHaveLength(3)
+  })
+
+  it('keeps each coordinate once, as the pod would have', async () => {
+    stubDestinations({ detail: DISCOVERY_UNAVAILABLE_MESSAGE }, 502)
+    const { seen, onDiscovered } = found()
+    await runAnalysisPipeline(
+      { ...REQUEST, destination_types: [...TYPES], custom_destinations: [{ name: 'Also Alpha', latitude: 47.45, longitude: -121.8 }] },
+      options({ onDiscovered }),
+    )
+    expect(seen[0].candidates.map((c) => c.name)).toEqual(['Alpha', 'Tarn'])
+  })
+
+  it.each([
+    ['the pod\'s 502', { detail: DISCOVERY_UNAVAILABLE_MESSAGE }, 502],
+    ['an edge\'s 504 page', { raw: '<html>' }, 504],
+    ['the pod\'s busy 503', { detail: 'Bluebird Forecast is busy. Try again later.' }, 503],
+    ['the map server\'s rate limit', { detail: 'OpenStreetMap is rate-limiting. Try again later.' }, 429],
+  ] as [string, unknown, number][])('falls back on %s', async (_case, body, status) => {
+    stubDestinations(body, status)
+    const { seen, onDiscovered } = found()
+    await runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'] }, options({ onDiscovered }))
+    expect(seen[0]).toMatchObject({ candidates: [ALPHA, TARN], missingTypes: ['trailhead'] })
+  })
+
+  // The tiles answered every kind and only the pod's echo failed: nothing is
+  // missing, so the run ranks what it has and says nothing.
+  it('ranks the tile rows with nothing missing when only the pod failed', async () => {
+    stubDestinations({ raw: 'down' }, 502)
+    const { seen, onDiscovered } = found()
+    await runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'lake'] }, options({ onDiscovered }))
+    expect(seen[0]).toMatchObject({ candidates: [ALPHA, TARN], missingTypes: [] })
+  })
+
+  it('still fails when there is nothing to rank without the map server', async () => {
+    fromTiles.mockResolvedValue([])
+    stubDestinations({ detail: DISCOVERY_UNAVAILABLE_MESSAGE }, 502)
+    await expect(runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'] }, options())).rejects.toThrow(
+      DISCOVERY_UNAVAILABLE_MESSAGE,
+    )
+  })
+
+  it('still fails a ring the tiles cannot answer, which sent every kind to the map server', async () => {
+    discoverable.mockReturnValue(false)
+    stubDestinations({ detail: DISCOVERY_UNAVAILABLE_MESSAGE }, 502)
+    await expect(
+      runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'], custom_destinations: [MINE] }, options()),
+    ).rejects.toBeInstanceOf(DiscoveryUnavailableError)
+  })
+
+  // Only an upstream failure falls back: a refusal or a bad request would
+  // answer the same way however often it was asked.
+  it('fails as before on a refusal or a rejected request', async () => {
+    stubDestinations({ detail: 'Over the cap.', found: 2000 }, 400)
+    await expect(runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'] }, options())).rejects.toBeInstanceOf(
+      AnalysisRefusalError,
+    )
+    stubDestinations({ detail: [{ msg: 'Bad ring.' }] }, 422)
+    const plain = runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'] }, options())
+    await expect(plain).rejects.toThrow('Bad ring.')
+    await expect(plain).rejects.not.toBeInstanceOf(DiscoveryUnavailableError)
+  })
+
+  it('fails as before when the reader cancels', async () => {
+    const controller = new AbortController()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        controller.abort()
+        throw new DOMException('The operation was aborted.', 'AbortError')
+      }),
+    )
+    await expect(
+      runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'] }, options({ signal: controller.signal })),
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('names nothing missing when the map server answered', async () => {
+    stubDestinations({ destinations: [], total: 0 })
+    const { seen, onDiscovered } = found()
+    const out = await runAnalysisPipeline({ ...REQUEST, destination_types: ['peak', 'trailhead'] }, options({ onDiscovered }))
+    expect(seen[0].missingTypes).toEqual([])
+    expect(out.missingTypes).toEqual([])
+  })
+})
+
 describe('discoverCandidates', () => {
   it('sends the discovery knobs with their defaults, and custom rows only when there are some', async () => {
     stubDestinations({ destinations: [CANDIDATE], total: 1, total_found: 9, truncated: true })
     const found = await discoverCandidates(REQUEST, signal)
     expect(posted[0]).toMatchObject({ include_unnamed_peaks: false, top_by_elevation: false })
     expect(posted[0]).not.toHaveProperty('custom_destinations')
-    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true })
+    expect(found).toEqual({ candidates: [CANDIDATE], totalFound: 9, truncated: true, missingTypes: [] })
 
     const custom = [{ name: 'Mine', latitude: 47, longitude: -121 }]
     await discoverCandidates({ ...REQUEST, custom_destinations: custom }, signal)

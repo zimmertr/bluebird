@@ -7,6 +7,7 @@ import type { WindowSource } from '../utils/forecastWindow'
 import type { ElevationLookup } from './useElevationLookup'
 import type { SelectionKind } from '../utils/calendar'
 import type { AnalyzedSnapshot } from '../utils/present'
+import type { DiscoveryType } from '../types'
 
 export type Progress = {
   processed: number
@@ -87,6 +88,10 @@ export type AnalyzedView = AnalyzedSnapshot & {
   // therefore cues a commit and unticking applies at once: the held field can
   // always answer a smaller question and never a larger one.
   compareModels: readonly string[]
+  // The ticked kinds the map server failed to answer, which this report is
+  // without (#735): what the panel's one warn line names. Empty for a report
+  // that found everything it asked for.
+  missingTypes: readonly DiscoveryType[]
   // When the report committed, epoch ms: what a Current report's caption
   // says it is "as of". Every commit stamps its own moment, a run that reused
   // every forecast it held included, so the caption names the last run rather
@@ -126,6 +131,8 @@ export interface AnalyzeOptions {
    * What the click that started this run changes once it commits: the
    * discovery record and the removal scope (#560). Carried on the options
    * because a retry replays them, and the retry's commit is the click's.
+   * `partial` says the report is missing kinds the map server failed to
+   * answer (#735), so the record must not claim they were searched.
    */
-  onCommit?: () => void
+  onCommit?: (committed: { partial: boolean }) => void
 }

@@ -162,6 +162,17 @@ or re-analyzing a pasted list at window after window asks Overpass at most once
 per pod while the entry lasts, not once per analysis. A lookup that gave up is
 not cached, so the next analysis asks again.
 
+The public mirrors fail together. Between 02:12 and 02:16 UTC on 2026-10-16
+all three free instances with worldwide data were at capacity, timing out or
+answering errors at once, so a third mirror would not have saved anything.
+What an outage costs is therefore kept to what only Overpass can answer. A
+polygon search in the app reads its peaks and lakes from the map tiles (see
+[Map tiles](#map-tiles)), so when Overpass fails it ranks those and your own
+destinations, and the line under **Analyze** names the kinds it could not
+find. An area too large for the tiles asks Overpass for everything and still
+fails whole, and so do the API's `POST /api/destinations` and
+`POST /api/analyze`, which are one Overpass query each.
+
 ## Open-Meteo
 
 The free tier is for non-commercial use, needs no key, and meters **weighted
