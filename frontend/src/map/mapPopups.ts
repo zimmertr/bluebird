@@ -21,6 +21,7 @@
 import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, rankedTargets, type MapTarget } from '../utils/mapClick'
+import { POPUP_CARD_CLASS } from '../utils/popupChrome'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
 
@@ -76,10 +77,16 @@ export interface MapPopupOptions {
   /** A ranked destination's card, which takes its own width rule. */
   result?: boolean
   anchor?: maplibregl.PositionAnchor
-  className?: string
   offset?: maplibregl.Offset
   /** False for a popup that is itself one button, like the ring's remove-point. */
   closeButton?: boolean
+  /**
+   * True for a popup that is one bare button rather than a card, like the
+   * ring's remove-point. Every other popup is framed as a card
+   * (`POPUP_CARD_CLASS`), which is what lets a card's header band run edge to
+   * edge, and what a builder that hand-rolls its markup would sit wrong in.
+   */
+  bare?: boolean
 }
 
 export interface MapPopups {
@@ -169,12 +176,12 @@ export function mountMapPopups(
     register(target) {
       targets.push(target)
     },
-    create(at, html, { owner, result = false, anchor, className, offset, closeButton } = {}) {
+    create(at, html, { owner, result = false, anchor, offset, closeButton, bare = false } = {}) {
       const popup = new Popup({
         ...popupOptions(map, { result }),
         closeOnClick: false,
         ...(anchor && { anchor }),
-        ...(className && { className }),
+        ...(!bare && { className: POPUP_CARD_CLASS }),
         ...(offset !== undefined && { offset }),
         ...(closeButton !== undefined && { closeButton }),
       })

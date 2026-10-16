@@ -29,6 +29,12 @@ describe('poiPopupHtml', () => {
     expect(html).not.toContain('volcano')
   })
 
+  // The glyph shows no site, so its link's name says which (#738).
+  it('names the link out for a screen reader by the site it opens', () => {
+    expect(poiPopupHtml(RAINIER, false)).toContain('aria-label="View on Peakbagger"')
+    expect(poiPopupHtml({ ...RAINIER, kind: 'water' }, false)).toContain('aria-label="View on OpenStreetMap"')
+  })
+
   // The add and remove buttons are popupChrome's one button recipe in two of
   // its three variants (#365). The button stands alone in the body under the
   // band, so it carries no gap of its own.

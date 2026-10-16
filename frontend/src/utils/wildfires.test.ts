@@ -13,6 +13,9 @@ import {
 // A representative fire-scoped NIFC link, reused by the popup tests.
 const NIFC = nifcFireUrl(-121.5, 39.5, 11)
 
+// What a reader reads off the card: its text with the markup taken out.
+const textOf = (html: string) => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ')
+
 describe('wildfireQueryUrl', () => {
   it('targets Bluebird Forecast rather than NIFC', () => {
     // The whole point of #203: a browser calling NIFC directly competes with
@@ -106,16 +109,31 @@ describe('wildfirePopupHtml', () => {
     expect(html).toContain('&lt;img src=x&gt;')
   })
 
-  it('renders size and containment together', () => {
+  // The band says what it is and the body how it is going (#738): the kind and
+  // the size on the facts line, the containment under the band's edge.
+  it('puts the kind and the size on the facts line and the containment in the body', () => {
     const html = wildfirePopupHtml({ poly_GISAcres: 5649, attr_PercentContained: 0 }, NIFC)
-    expect(html).toContain('5,649 acres')
-    expect(html).toContain('0% contained')
+    expect(textOf(html)).toContain('Wildfire|5,649 acres')
+    expect(html.indexOf('0% contained')).toBeGreaterThan(html.indexOf('data-popup-body'))
+    expect(html.indexOf('5,649 acres')).toBeLessThan(html.indexOf('data-popup-body'))
   })
 
-  it('links to the fire-scoped NIFC map', () => {
+  it('carries no emoji, and no notice or action section', () => {
+    const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive', poly_GISAcres: 10 }, NIFC)
+    expect(html).not.toContain('🔥')
+    expect(html).not.toContain('⚠️')
+    expect(html).not.toContain('<button')
+  })
+
+  // The link out is the title's glyph, as a destination's is, and the text
+  // link it replaced is gone.
+  it('links the title to the fire-scoped NIFC map', () => {
     const html = wildfirePopupHtml({ attr_IncidentName: 'Beehive' }, NIFC)
     expect(html).toContain(`href="${NIFC}"`)
     expect(html).toContain('target="_blank"')
+    expect(textOf(html)).not.toContain('View on NIFC map')
+    expect(html).toContain('aria-label="View on NIFC map"')
+    expect(html.indexOf(`href="${NIFC}"`)).toBeLessThan(html.indexOf('Wildfire'))
   })
 
   it('dates the perimeter, and says whose date it is', () => {
@@ -134,7 +152,7 @@ describe('wildfirePopupHtml', () => {
       { attr_IncidentName: 'Dollar Lake', attr_ModifiedOnDateTime_dt: Date.UTC(2026, 6, 17) },
       NIFC,
     )
-    expect(html.indexOf('Last updated:')).toBeGreaterThan(html.indexOf('View on NIFC map'))
+    expect(html.indexOf('Last updated:')).toBeGreaterThan(html.indexOf('% contained'))
     const line = html.slice(html.lastIndexOf('<span', html.indexOf('Last updated:')))
     expect(line).toContain('font-style:italic')
     expect(line).toContain('font-size:11px')

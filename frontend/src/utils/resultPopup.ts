@@ -1,6 +1,6 @@
 import { DestinationResult, SortBy } from '../types'
 import { caltopoUrl } from './caltopoUrl'
-import { destinationUrl } from './destinationUrl'
+import { destinationLinkLabel, destinationUrl } from './destinationUrl'
 import { FireWarning, firePopupText } from './fireProximity'
 import { type ClosureWarning, closurePopupText } from './closureProximity'
 import {
@@ -9,7 +9,7 @@ import {
   metaBand,
   metricGrid,
   popupButton,
-  popupShell,
+  popupCard,
   warningLine,
 } from './popupChrome'
 import { ColDef } from './tableColumns'
@@ -123,7 +123,7 @@ export function resultPopupHtml(d: {
 
   // The measurements as one grid, a row per family and a column per aggregate
   // (TJ, 2026-10-08). The two safety lines stand in a section of their own
-  // above it (`popupShell`'s `warnings`).
+  // above it (`popupCard`'s `warnings`).
   const grid = popupGrid(
     popupGroups(r, d.columns, { modelId: d.modelId, times: d.times, rankedBy: d.rankedBy }),
   )
@@ -133,5 +133,5 @@ export function resultPopupHtml(d: {
   // The clicked feature's remove, in its words and its look (#712), so the
   // one destination says "out" the same way before and after an analysis.
   const action = d.removable ? popupButton(`${RESULT_ACTION_ATTR}="remove"`, 'secondary', 'Remove from analysis') : ''
-  return popupShell(title, url, body, meta, { resultCard: true, warnings: [fire, closure].filter(Boolean), action })
+  return popupCard({ title, link: { href: url, label: destinationLinkLabel(r.type) }, meta, warnings: [fire, closure].filter(Boolean), body, action })
 }

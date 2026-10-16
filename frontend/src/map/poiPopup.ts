@@ -27,7 +27,6 @@ import {
   samePoi,
 } from '../utils/basemapPoi'
 import { POI_ACTION_ATTR, poiPopupHtml } from '../utils/poiPopup'
-import { RESULT_POPUP_CLASS } from '../utils/popupChrome'
 import { lakeAnchor } from './basemap'
 import type { MapController } from './controller'
 import type { MapPopups } from './mapPopups'
@@ -53,7 +52,6 @@ export function mountPoiPopups(
     const popup = popups.create([poi.lon, poi.lat], '', {
       owner: 'poi',
       result: true,
-      className: RESULT_POPUP_CLASS,
     })
 
     // Which registered place this POI is, or null. Held in the closure

@@ -206,6 +206,7 @@ export function mountDrawRing(
         owner: 'vertex',
         offset: [0, -8],
         closeButton: false,
+        bare: true,
       })
       popup = opened
       setTimeout(() => {

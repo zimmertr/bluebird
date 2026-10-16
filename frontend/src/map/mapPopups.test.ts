@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { POPUP_CARD_CLASS } from '../utils/popupChrome'
 
 // MapLibre's Popup needs a DOM. This one records the options it was made with
 // and whether it is open, and fires `close` when removed, as MapLibre's does.
@@ -278,15 +279,16 @@ describe('mountMapPopups cursor', () => {
 
 describe('mountMapPopups create', () => {
   // Every popup is made the same way: the board's width rule, never
-  // closeOnClick, and on the board under its owner.
+  // closeOnClick, framed as a card unless it is a bare button (#738), and on
+  // the board under its owner.
   it('makes every popup with the shared options, on the board under its owner', () => {
     const { stub, popups } = setup()
     popups.create([0, 0], '<p>fire</p>', { owner: 'fire' })
-    popups.create([0, 0], '<p>card</p>', { owner: 'result', result: true, anchor: 'bottom', className: 'card' })
-    popups.create([0, 0], '<p>rm</p>', { offset: [0, -8], closeButton: false })
+    popups.create([0, 0], '<p>card</p>', { owner: 'result', result: true, anchor: 'bottom' })
+    popups.create([0, 0], '<p>rm</p>', { offset: [0, -8], closeButton: false, bare: true })
     expect(made.map((p) => p.options)).toEqual([
-      { ...popupOptions(stub.map), closeOnClick: false },
-      { ...popupOptions(stub.map, { result: true }), closeOnClick: false, anchor: 'bottom', className: 'card' },
+      { ...popupOptions(stub.map), closeOnClick: false, className: POPUP_CARD_CLASS },
+      { ...popupOptions(stub.map, { result: true }), closeOnClick: false, anchor: 'bottom', className: POPUP_CARD_CLASS },
       { ...popupOptions(stub.map), closeOnClick: false, offset: [0, -8], closeButton: false },
     ])
     popups.closeAll('fire')

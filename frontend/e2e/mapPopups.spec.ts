@@ -77,7 +77,7 @@ test('a fire opens its popup on a click and never on a hover, and a marker insid
   // Centring a row opens its card on the marker, which says where the marker is.
   await page.getByRole('button', { name: `Center map on ${DESTINATION_NAMES[0]}` }).click()
   const popups = page.locator('.maplibregl-popup')
-  const card = page.locator('.maplibregl-popup.result-popup')
+  const card = page.locator('.maplibregl-popup.popup-card')
   await expect(card).toHaveCount(1)
   const marker = await markerUnder(card)
   await card.locator('.maplibregl-popup-close-button').click()

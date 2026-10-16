@@ -18,8 +18,8 @@
 // order says, and nothing here decides whether a closure is still in force.
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
-import { escapeHtml, LINK_ICON_COLOR, POPUP_FACE, POPUP_TITLE_SIZE, popupLink } from './popupChrome'
-import type { BBox, FireDetail } from './wildfires'
+import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, warningLine } from './popupChrome'
+import { type BBox, type FireDetail, FIRE_KIND, formatAcres } from './wildfires'
 
 const CLOSURES_URL = '/api/closures'
 
@@ -64,6 +64,12 @@ export interface ClosureProps {
   RouteNum?: string | null
   /** Polygons only. */
   GIS_Acres?: number | null
+  /**
+   * The region's own type for the order, such as `Safety Closure`. Regions 3
+   * and 4 only: Region 6's service is fire closures alone, and names the fire
+   * in `FireName` instead.
+   */
+  ClosureType?: string | null
 }
 
 /**
@@ -192,27 +198,56 @@ export function closureUrl(props: ClosureProps): string | null {
 }
 
 /**
- * Popup markup for a clicked or tapped closure.
+ * Why an order closed its ground, from the order's own fields and nothing
+ * else: `Wildfire ({FireName})` where Region 6 names the fire, else Region 3
+ * or 4's own type for the order, verbatim (`Safety Closure`), else null.
  *
- * Inline styles copy `wildfirePopupHtml`'s so the two popups read as one
- * kind of thing; this is markup handed to MapLibre's `setHTML`, which the
- * stylesheet-scanned design system in styles.ts cannot reach.
- *
- * Ordered by what the reader came for: which order, whose forest, which trail
- * (lines only), for how long, and where to read it. Every line but the name is
- * omitted when the service left it empty, rather than filled with a word the
- * order does not say.
+ * Measured 2026-10-16: Region 6 named its fire on 12 of 13 active areas, 891
+ * of 901 lines and 172 of 172 points. Nothing here matches an order to a NIFC
+ * perimeter (TJ, 2026-10-16): a closure names its fire but says nothing of
+ * where it is, and a join on a name would be a guess shown as a fact.
  */
-export function closurePopupHtml(props: ClosureProps): string {
+export function closureReason(props: ClosureProps): string | null {
+  const fire = text(props.FireName)
+  if (fire) return `${FIRE_KIND} (${fire})`
+  return text(props.ClosureType) || null
+}
+
+/** What a screen reader hears for the title's link: the text link it replaced (#738). */
+export const CLOSURE_LINK_LABEL = 'View closure order'
+
+/** What a closure's facts line calls it: the Layers menu's row, singular. */
+export const CLOSURE_KIND: Record<ClosureKind, string> = {
+  area: 'Area closure',
+  trail: 'Trail closure',
+}
+
+/**
+ * Popup markup for a clicked or tapped closure, on the card every popup wears
+ * (`popupCard`, #738).
+ *
+ * The band says what it is: the order's name, linked to the order's own page
+ * through the title's glyph when it has one, and the kind under it with the
+ * figure that identifies it, an area's acres or a trail's route. The notice
+ * says why it is closed (`closureReason`), which is the one thing a closure
+ * card can warn of that the card itself does not already say. The body is
+ * whose forest and for how long. Every line but the name is omitted when the
+ * service left it empty, rather than filled with a word the order does not
+ * say.
+ */
+export function closurePopupHtml(props: ClosureProps, kind: ClosureKind): string {
   const forest = text(props.ForestUnit)
   const route = [text(props.RouteName), text(props.RouteNum)].filter(Boolean).join(' ')
+  const acres = props.GIS_Acres != null && Number.isFinite(props.GIS_Acres) ? formatAcres(props.GIS_Acres) : ''
+  const figure = kind === 'area' ? acres : route
   const dates = formatClosureDates(props.ClosureStartDate, props.ClosureEndDate)
-  const url = closureUrl(props)
-  return `<div style="${POPUP_FACE};${POPUP_TITLE_SIZE}">
-      <strong>🚫 ${escapeHtml(closureName(props))}</strong>
-      ${forest ? `<br>${escapeHtml(forest)}` : ''}
-      ${route ? `<br>${escapeHtml(route)}` : ''}
-      ${dates ? `<br>${escapeHtml(dates)}` : ''}
-      ${url ? `<br>${popupLink(url, 'View closure order ↗', `color:${LINK_ICON_COLOR};text-decoration:none`)}` : ''}
-    </div>`
+  const reason = closureReason(props)
+  const order = closureUrl(props)
+  return popupCard({
+    title: escapeHtml(closureName(props)),
+    link: order ? { href: order, label: CLOSURE_LINK_LABEL } : null,
+    meta: metaBand([factsLine([CLOSURE_KIND[kind], figure ? escapeHtml(figure) : null])]),
+    warnings: reason ? [warningLine(escapeHtml(`Closed for: ${reason}`), null)] : [],
+    body: bodyLines([forest ? escapeHtml(forest) : null, dates ? escapeHtml(dates) : null]),
+  })
 }

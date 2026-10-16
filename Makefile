@@ -15,7 +15,7 @@ RUFF_VERSION := 0.16.0
 PIP_TOOLS_VERSION := 7.5.3
 # Must match @playwright/test in frontend/e2e/package.json: each release pins
 # its own Chromium build, and the image carries the build for its own version.
-PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.63.0-noble
+PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.0-noble
 
 .PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lock-backend lighthouse browser perf
 

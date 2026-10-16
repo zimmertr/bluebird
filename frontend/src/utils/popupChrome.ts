@@ -1,10 +1,14 @@
-// The shared chrome of every map popup: the titled header with its external
-// link, the rule under it, and the "label: value" rows below.
+// The shared chrome of every map popup: the card (`popupCard`), its header
+// band with the title, link-out glyph and facts line, and the notices, body
+// and action sections below it.
 //
-// Two popups wear it — a ranked result and a clicked basemap feature — and
-// they had drifted into two looks for what is the same object at two stages of
-// its life. A destination you clicked and a destination you analyzed should not
-// be a different kind of card.
+// Every popup that describes a thing wears it: a ranked result, a clicked
+// basemap feature, a fire, a closure and a smoke plume (#738). They had
+// drifted into three looks for what is one kind of object, a thing on the map
+// that says what it is, and the overlays kept the old ruled shell after the
+// destination card moved on. The linter's `style-popup-card` check fails a
+// popup builder that does not return `popupCard`, so a new layer's card
+// cannot start a fourth look.
 //
 // It lives in utils, like the popup bodies that compose it, because this markup
 // is handed to MapLibre's setHTML and the design system in styles.ts cannot
@@ -26,10 +30,12 @@ import type { PopupGrid, PopupGridCell } from './popupRows'
  * were spelled in five files before #365 (`popupChrome.ts`, `poiPopup.ts`,
  * `smoke.ts`, `wildfires.ts`, `closures.ts`), which is how a popup gets a
  * fourth size: the linter's inline-style ban now fails a `font-size:` written
- * outside this file.
+ * outside this file. The face and the title size are not exported: the card
+ * is the only thing that sets them (#738), where three overlays used to
+ * compose a card of their own from them.
  */
-export const POPUP_FACE = 'font-family:sans-serif;line-height:1.5'
-export const POPUP_TITLE_SIZE = 'font-size:13px'
+const POPUP_FACE = 'font-family:sans-serif;line-height:1.5'
+const POPUP_TITLE_SIZE = 'font-size:13px'
 export const POPUP_BODY_SIZE = 'font-size:12px'
 export const POPUP_FINE_SIZE = 'font-size:11px'
 
@@ -138,8 +144,9 @@ export function popupLink(href: string, inner: string, extra = ''): string {
 }
 
 /**
- * The rule between a popup's title and its body: slate-300, a hairline that
- * parts the two without reading as a row of its own.
+ * The firmer of the grid's two rules, slate-300, under its heads. It was the
+ * rule between a popup's title and its body until every popup became a card
+ * (#738), whose header band parts the two instead.
  */
 export const RULE_COLOR = '#cbd5e1'
 
@@ -157,7 +164,7 @@ export const WARNING_COLOR = '#f59e0b'
 /**
  * One safety warning, the whole sentence a link where it has one. It carries
  * no glyph of its own: the section's one ⚠️ stands for every line in it
- * (`resultCardShell`). It keeps one line and ends in an ellipsis where it
+ * (`popupCard`). It keeps one line and ends in an ellipsis where it
  * outruns the card, as a title does (TJ, 2026-10-08): a closure order's name
  * wrapped most cards onto a second line, which on a phone is a row of the
  * grid scrolled out of view. The card still widens to its cap first, so the
@@ -183,16 +190,10 @@ const ONE_LINE = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
 export const FINE_COLOR = '#94a3b8'
 
 /**
- * The lighter sky the title row's link-out glyph wears, and the colour the
- * overlay popups' links shipped with (see `LINK_COLOR` for why a text link in
- * the body does not).
- */
-export const LINK_ICON_COLOR = '#38bdf8'
-
-/**
- * A line of fine print: small, italic, stepped back. The overlay popups end on
- * one, because a survey date qualifies everything above it rather than being
- * another fact in the list. The text is escaped by the caller.
+ * A line of fine print: small, italic, stepped back. The overlay cards end
+ * their body on one, because a survey date qualifies everything above it
+ * rather than being another fact in the list. The text is escaped by the
+ * caller.
  */
 export function fineprint(inner: string): string {
   return `<span style="color:${FINE_COLOR};${POPUP_FINE_SIZE};font-style:italic">${inner}</span>`
@@ -277,7 +278,6 @@ export function factsRow(
   longitude: number,
   href: string | null,
 ): string {
-  const pipe = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:0 5px">|</span>`
   const pair = `<span style="${VALUE_FACE}">${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</span>`
   const coords = href ? popupLink(href, pair) : pair
   const parts = [
@@ -285,7 +285,38 @@ export function factsRow(
     elevation ? `<span style="${VALUE_FACE}">${escapeHtml(elevation)}</span>` : '',
     coords,
   ].filter(Boolean)
-  return `<div style="white-space:nowrap">${parts.join(pipe)}</div>`
+  return `<div style="white-space:nowrap">${parts.join(FACTS_PIPE)}</div>`
+}
+
+/** The light pipe between two facts, which a screen reader skips. */
+const FACTS_PIPE = `<span aria-hidden="true" style="color:${FINE_COLOR};padding:0 5px">|</span>`
+
+/**
+ * An overlay's facts line: what kind of thing it is, in the Layers menu's own
+ * word for it, and the one figure that identifies it, parted by the pipe a
+ * destination's facts wear (#738, TJ 2026-10-16). `Wildfire | 138,285 acres`
+ * under a fire's name reads the way `Peak | 7,000 ft` does under a summit's.
+ *
+ * Unlike a destination's it may be cut with an ellipsis: a route name or a
+ * satellite is third-party text with no bound on its length, where a
+ * destination's line is three facts of known width. The parts are markup the
+ * caller has escaped; an empty one is left off.
+ */
+export function factsLine(parts: readonly (string | null | undefined)[]): string {
+  return `<div style="${ONE_LINE}">${parts.filter(Boolean).join(FACTS_PIPE)}</div>`
+}
+
+/**
+ * A card's body as plain lines, one block each, for a card whose details are
+ * a few sentences rather than a grid: a fire's containment, a closure's forest
+ * and dates. Empty lines are left off, so a field the provider left blank is
+ * not filled with a word it never said.
+ */
+export function bodyLines(lines: readonly (string | null | undefined)[]): string {
+  return lines
+    .filter(Boolean)
+    .map((l) => `<div>${l}</div>`)
+    .join('')
 }
 
 /**
@@ -403,7 +434,7 @@ export const GRID_COMPACT_LABEL_GAP_PX = 6
  * built card to them with the Mac's wider monospace emulated.
  */
 export const WIDEST_GRID_PX = 345
-/** The result card's body padding a side, `resultCardShell`'s 10px. */
+/** The result card's body padding a side, `popupCard`'s 10px. */
 export const RESULT_CARD_PAD_PX = 10
 
 /**
@@ -437,8 +468,12 @@ const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
  * visible; `map/resultsLayer.ts` sets the height (`capPopupBody`).
  */
 export const POPUP_SCROLL_CLASS = 'popup-scroll'
-/** The class a destination's popup wears, which `map.css` frames (`resultCardShell`). */
-export const RESULT_POPUP_CLASS = 'result-popup'
+/**
+ * The class every card wears, which `map.css` frames (`popupCard`). Put on by
+ * `create` in `map/mapPopups.ts` rather than by each caller, so a popup is a
+ * card unless it says it is a bare button.
+ */
+export const POPUP_CARD_CLASS = 'popup-card'
 export const POPUP_BODY_ATTR = 'data-popup-body'
 
 /**
@@ -509,7 +544,7 @@ export function popupWidth(canvasWidthPx: number): string {
 /**
  * The link-out glyph, sitting to the right of a popup's title.
  *
- * The anchor is this file's — where it goes, and the lighter sky the title row
+ * The anchor is this file's — where it goes, and the sky the header band
  * gives it — and the glyph inside it is `iconPaths.ts`'s, the same shape the
  * results table draws through `IconExternalLink` (#435). The shape was typed
  * out here until then, which made it the one icon in the app that could drift
@@ -521,72 +556,70 @@ export function popupWidth(canvasWidthPx: number): string {
  * from numbers and OSM's own `type/id`, but a pin restored from a share link
  * carries its id from the link's text, and so does a place the geocoder named.
  */
-export function linkIcon(url: string, color = LINK_ICON_COLOR): string {
-  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color:${color};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
+export function linkIcon({ href, label }: PopupCardLink): string {
+  return `<a href="${escapeHtml(href)}" aria-label="${escapeHtml(label)}" target="_blank" rel="noopener noreferrer" style="color:${HEADER_ICON_COLOR};flex-shrink:0;display:inline-flex">${externalLinkMarkup()}</a>`
 }
 
 /**
- * A popup: a title row, a rule, then whatever the caller puts below it.
- *
- * The rule is what makes the card read as a labelled thing rather than a run
- * of lines whose first happens to be bold — the title names the destination,
- * everything under it describes it, and the separation should be visible
- * rather than inferred from weight alone.
+ * Where a card's title links out, and what a screen reader hears for it. The
+ * glyph is `aria-hidden`, so the label is the link's whole name: without it
+ * the glyph read as a bare "link" (TJ, 2026-10-16, #738), which the overlay
+ * cards' text links never did. Required with the url, so no card can link
+ * out unnamed.
  */
-export function popupShell(
-  title: string,
-  url: string,
-  body: string,
-  meta = '',
-  {
-    resultCard = false,
-    warnings = [],
-    action = '',
-  }: { resultCard?: boolean; warnings?: readonly string[]; action?: string } = {},
-): string {
-  // The name stays at the reading size and everything under it steps down one.
-  // Setting both the same made the details compete with the thing they
-  // describe, and the step also narrows the widest row, which is what lets the
-  // card itself be narrower.
-  //
-  // `meta` sits between the title and the rule, so the rule separates what the
-  // destination IS from what the forecast says about it. It is optional: the
-  // overlay popups have no destination. `resultCard` is the destination card,
-  // which a ranked result and a clicked basemap feature both wear (TJ,
-  // 2026-10-14): one mountain, one card, before and after an analysis.
-  if (resultCard) return resultCardShell(title, url, body, meta, warnings, action)
-  return `<div style="${POPUP_FACE}">
-    <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url)}</div>
-    ${meta}
-    <hr style="border:none;border-top:1px solid ${RULE_COLOR};margin:5px 0" />
-    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE}">${body}</div>
-  </div>`
+export interface PopupCardLink {
+  href: string
+  label: string
+}
+
+/** What a card is made of; every part but the title is optional. */
+export interface PopupCard {
+  /** The name, as markup the caller has escaped. */
+  title: string
+  /** Where the title's link-out glyph goes and its name; no glyph without one. */
+  link?: PopupCardLink | null
+  /** The lines under the title on the band, usually `metaBand([...])`. */
+  meta?: string
+  /** Safety lines, each a `warningLine`, in a section of their own. */
+  warnings?: readonly string[]
+  /** The details: a destination's grid, or an overlay's `bodyLines`. */
+  body?: string
+  /** One button, in a section of its own under the body. */
+  action?: string
 }
 
 /**
- * A destination's card: the name and its facts on a slate band, shadowed onto
- * the body below it, so what the place IS reads apart from what the forecast
- * says about it (TJ, 2026-10-08). It replaces the rule the overlay popups
- * keep. A clicked basemap feature wears it too (#712): its body is the add or
- * remove button alone, under the same band a ranked result's grid sits under.
+ * A card: the name and its facts on a slate band, shadowed onto the sections
+ * below it, so what a thing IS reads apart from what is said about it (TJ,
+ * 2026-10-08). Four sections, each but the band optional (#738):
+ *
+ * 1. The header band: the title and its link-out glyph, and the facts line.
+ * 2. The notices: what is wrong there, in amber under one ⚠️.
+ * 3. The body: a destination's grid, an overlay's lines.
+ * 4. The action: one centred button.
+ *
+ * Every popup that describes a thing wears it. A ranked result and a clicked
+ * basemap feature did first (#712: one mountain, one card, before and after an
+ * analysis); a fire, a closure and a smoke plume followed (#738), because a
+ * thing on the map that says what it is should read as one kind of card
+ * whatever it is. A section the caller leaves empty is left out, rather than
+ * drawn as an empty strip.
+ *
+ * The name stays at the reading size and everything under it steps down one.
+ * Setting both the same made the details compete with the thing they describe,
+ * and the step also narrows the widest row, which is what lets the card itself
+ * be narrower.
  *
  * The card draws its own padding (`map.css` zeroes MapLibre's for
- * `.result-popup`), so the band can run edge to edge and the grid can stand
- * 10px from both sides. The band keeps a lane on its right for the close
- * button, `--popup-close-lane` in `map.css`: 2rem, or 3.375rem on a touch
- * screen, where the button is 44px and reaches past the name's line into the
- * facts line below it. The body is `border-box` because the scroll cap sets
- * its height from its measured outer height (`capPopupBody`), and it scrolls
+ * `.popup-card`), so the band can run edge to edge and the grid can stand 10px
+ * from both sides. The band keeps a lane on its right for the close button,
+ * `--popup-close-lane` in `map.css`: 2rem, or 3.375rem on a touch screen,
+ * where the button is 44px and reaches past the name's line into the facts
+ * line below it. The body is `border-box` because the scroll cap sets its
+ * height from its measured outer height (`capPopupBody`), and it scrolls
  * sideways on a map narrower than its grid.
  */
-function resultCardShell(
-  title: string,
-  url: string,
-  body: string,
-  meta: string,
-  warnings: readonly string[],
-  action: string,
-): string {
+export function popupCard({ title, link = null, meta = '', warnings = [], body = '', action = '' }: PopupCard): string {
   // The warnings, between the header and the grid and closed off from the grid
   // by the header's own edge (TJ, 2026-10-08), so the card reads as three
   // parts: what the place is, what is wrong there, what the forecast says.
@@ -596,12 +629,14 @@ function resultCardShell(
   const notice = warnings.length
     ? `<div style="${POPUP_BODY_SIZE};display:flex;align-items:flex-start;padding:${SECTION_PAD_Y} 0 ${SECTION_PAD_Y} 10px;border-bottom:${SECTION_EDGE}"><div style="flex:1;min-width:0">${warningList(warnings)}</div>${WARNING_GLYPH}</div>`
     : ''
+  const content = body
+    ? `<div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>`
+    : ''
   return `<div style="${POPUP_FACE}">
     <div style="background:${HEADER_BAND_COLOR};border-bottom:1px solid ${HEADER_EDGE_COLOR};box-shadow:0 1px 3px ${HEADER_SHADOW_COLOR};border-radius:3px 3px 0 0;padding:10px var(--popup-close-lane, 2rem) 8px 10px">
-      <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${linkIcon(url, HEADER_ICON_COLOR)}</div>
+      <div style="${TITLE_ROW}"><strong style="${TITLE_TEXT}">${title}</strong>${link ? linkIcon(link) : ''}</div>
       ${meta}
-    </div>${notice}
-    <div ${POPUP_BODY_ATTR} style="${POPUP_BODY_SIZE};padding:8px 10px 12px;box-sizing:border-box;overflow-x:auto">${body}</div>${
+    </div>${notice}${content}${
       // Under the body rather than in it, so a card whose numbers the scroll
       // cap shortened keeps its action in view the way it keeps its name. A
       // section of its own, ruled off from the grid by the edge and padding
@@ -683,8 +718,8 @@ function warningList(warnings: readonly string[]): string {
 }
 
 /**
- * The link-out glyph on the band, sky-600 at 3.74:1. `LINK_ICON_COLOR`'s
- * sky-400 would fall under the 3:1 an icon owes there.
+ * The link-out glyph on the band, sky-600 at 3.74:1. The sky-400 the old
+ * ruled shell gave it would fall under the 3:1 an icon owes there.
  */
 export const HEADER_ICON_COLOR = '#0284c7'
 

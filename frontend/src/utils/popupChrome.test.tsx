@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { within } from '@testing-library/react'
 import { render } from '../testSupport/render'
-import { closureWarning, resultRow } from '../testSupport/fixtures'
+import { closureFeature, closureWarning, resultRow } from '../testSupport/fixtures'
 import {
   FINE_COLOR,
   GRID_BAND_COLOR,
@@ -17,17 +17,23 @@ import {
   LINK_COLOR,
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
+  SECTION_EDGE,
   WARNING_COLOR,
   WIDEST_GRID_PX,
   compactGrid,
   factsRow,
   metricGrid,
-  popupShell,
+  bodyLines,
+  factsLine,
+  popupCard,
   resultPopupWidth,
   row,
 } from './popupChrome'
 import { AGGREGATE } from '../metrics'
+import { closurePopupHtml } from './closures'
 import { resultPopupHtml } from './resultPopup'
+import { smokePopupHtml } from './smoke'
+import { wildfirePopupHtml } from './wildfires'
 import { displayedColumns } from './tableColumns'
 
 // A popup is a string MapLibre hands to innerHTML (`Popup.setHTML`), so these
@@ -46,14 +52,14 @@ const QUOTED = 'x"><b>probe</b><i x="'
 
 describe('a popup link', () => {
   it('keeps a quote mark in the link-out url inside the href', () => {
-    const popup = mount(popupShell('Title', `https://www.openstreetmap.org/${QUOTED}`, ''))
+    const popup = mount(popupCard({ title: 'Title', link: { href: `https://www.openstreetmap.org/${QUOTED}`, label: 'Open' } }))
     const [link] = within(popup).getAllByRole('link')
     expect(link.getAttribute('href')).toBe(`https://www.openstreetmap.org/${QUOTED}`)
     expect(popup.querySelector('b')).toBeNull()
   })
 
   it('keeps a quote mark in a value link inside the href', () => {
-    const popup = mount(popupShell('Title', 'https://example.org/', row('Wind', '5.0', `https://www.windy.com/${QUOTED}`)))
+    const popup = mount(popupCard({ title: 'Title', link: { href: 'https://example.org/', label: 'Open' }, body: row('Wind', '5.0', `https://www.windy.com/${QUOTED}`) }))
     const links = within(popup).getAllByRole('link')
     expect(links.map((a) => a.getAttribute('href'))).toContain(`https://www.windy.com/${QUOTED}`)
     expect(popup.querySelector('b')).toBeNull()
@@ -61,7 +67,7 @@ describe('a popup link', () => {
 
   it('reads an ampersand in a url back as one ampersand', () => {
     const url = 'https://www.peakbagger.com/search.aspx?tid=R&lat=46.85230&lon=-121.76030'
-    const [link] = within(mount(popupShell('Title', url, ''))).getAllByRole('link')
+    const [link] = within(mount(popupCard({ title: 'Title', link: { href: url, label: 'Open' } }))).getAllByRole('link')
     expect(link.getAttribute('href')).toBe(url)
   })
 })
@@ -193,7 +199,7 @@ describe('the header band', () => {
   })
 
   it('keeps the close button\'s lane, which map.css widens on a touch screen', () => {
-    const html = popupShell('Title', 'https://example.com', '', '', { resultCard: true })
+    const html = popupCard({ title: 'Title', link: { href: 'https://example.com', label: 'Open' } })
     expect(html).toContain(`background:${HEADER_BAND_COLOR}`)
     expect(html).toContain('padding:10px var(--popup-close-lane, 2rem) 8px 10px')
     expect(html).not.toContain('<hr')
@@ -204,16 +210,14 @@ describe('the header band', () => {
 // table's does, rather than wrapping the rank away and running off the edge.
 describe('a popup title', () => {
   const NAME = 'Taumatawhakatangihangakōauauotamateapōkaiwhenuakitānatahu'
-  it('keeps a long name on one line, ending in an ellipsis, on both shells', () => {
-    for (const resultCard of [false, true]) {
-      const popup = document.createElement('div')
-      popup.innerHTML = popupShell(`#1 ${NAME}`, 'https://example.com', '', '', { resultCard })
-      const title = popup.querySelector('strong')!
-      expect(title.textContent).toBe(`#1 ${NAME}`)
-      expect(title.getAttribute('style')).toContain('text-overflow:ellipsis')
-      expect(title.getAttribute('style')).toContain('white-space:nowrap')
-      expect(title.getAttribute('style')).toContain('min-width:0')
-    }
+  it('keeps a long name on one line, ending in an ellipsis', () => {
+    const popup = document.createElement('div')
+    popup.innerHTML = popupCard({ title: `#1 ${NAME}`, link: { href: 'https://example.com', label: 'Open' } })
+    const title = popup.querySelector('strong')!
+    expect(title.textContent).toBe(`#1 ${NAME}`)
+    expect(title.getAttribute('style')).toContain('text-overflow:ellipsis')
+    expect(title.getAttribute('style')).toContain('white-space:nowrap')
+    expect(title.getAttribute('style')).toContain('min-width:0')
   })
 })
 
@@ -294,3 +298,54 @@ function contrast(a: string, b: string): number {
 function round2(v: number): number {
   return Math.round(v * 100) / 100
 }
+
+describe("an overlay's facts line and body", () => {
+  it('parts the kind and its figure with the pipe a destination wears, and cuts rather than wraps', () => {
+    const line = mount(factsLine(['Trail closure', 'BACON CR 1060000']))
+    expect(line.textContent).toBe('Trail closure|BACON CR 1060000')
+    expect(line.querySelectorAll('[aria-hidden="true"]')).toHaveLength(1)
+    expect(line.firstElementChild!.getAttribute('style')).toContain('text-overflow:ellipsis')
+  })
+
+  it('leaves off a part or a line it does not have', () => {
+    expect(mount(factsLine(['Smoke', null, ''])).textContent).toBe('Smoke')
+    expect(bodyLines([null, 'Colville National Forest', undefined])).toBe('<div>Colville National Forest</div>')
+  })
+})
+
+// Every popup that describes a thing is one card (#738): a header band holding
+// the title, then the sections below it. Mounted the way MapLibre mounts them,
+// so the structure is read off the DOM a reader gets rather than off a string.
+describe('every overlay card', () => {
+  const band = (popup: HTMLElement) => popup.firstElementChild!.firstElementChild as HTMLElement
+  const cards: [string, string][] = [
+    ['a fire', wildfirePopupHtml({ attr_IncidentName: 'Kaiser Canyon', poly_GISAcres: 138285, attr_PercentContained: 100 }, 'https://nifc.example/')],
+    ['an area closure', closurePopupHtml(closureFeature({ GIS_Acres: 4210 }).properties, 'area')],
+    ['a trail closure', closurePopupHtml(closureFeature().properties, 'trail')],
+    ['a smoke plume', smokePopupHtml({ density: 'Medium', satellite: 'GOES-EAST' })],
+  ]
+
+  it.each(cards)('draws %s on the header band, its title and facts line inside it', (_, html) => {
+    const popup = mount(html)
+    expect(band(popup).getAttribute('style')).toContain(`background:${HEADER_BAND_COLOR}`)
+    expect(band(popup).querySelector('strong')).not.toBeNull()
+    const hidden = Array.from(band(popup).querySelectorAll('[aria-hidden="true"]'))
+    expect(hidden.some((e) => e.textContent === '|')).toBe(true)
+    expect(popup.querySelector('hr')).toBeNull()
+    expect(popup.textContent).not.toMatch(/🔥|🚫|🌫/u)
+  })
+
+  // The glyph is aria-hidden, so the label is the link's whole name (#738).
+  it.each(cards.slice(0, 3))('names the link out of %s for a screen reader', (_, html) => {
+    const [link] = within(mount(html)).getAllByRole('link')
+    expect(link.getAttribute('aria-label')).toMatch(/^View (on NIFC map|closure order)$/)
+  })
+
+  it('puts the closure reason in a notice section between the band and the body', () => {
+    const popup = mount(cards[2][1])
+    const [, notice, body] = Array.from(popup.firstElementChild!.children) as HTMLElement[]
+    expect(notice.textContent).toContain('Closed for: Wildfire (Probe)')
+    expect(notice.getAttribute('style')).toContain(`border-bottom:${SECTION_EDGE}`)
+    expect(body.hasAttribute('data-popup-body')).toBe(true)
+  })
+})

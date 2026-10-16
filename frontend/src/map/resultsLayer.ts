@@ -32,7 +32,7 @@ import {
   WIND_ARROW_OUTLINE,
 } from './mapStyles'
 import { capHeight, placePopup, type Point as ScreenPoint, type Rect } from '../utils/popupFit'
-import { POPUP_BODY_ATTR, RESULT_POPUP_CLASS, capPopupBody, compactGrid } from '../utils/popupChrome'
+import { POPUP_BODY_ATTR, capPopupBody, compactGrid } from '../utils/popupChrome'
 
 /** The marker circles, which a click anywhere on the map asks about by name. */
 export const RESULT_MARKER_LAYER = 'results-circles'
@@ -322,7 +322,7 @@ export function mountResultsLayer(
   ): PopupPlacement => {
     const html = cardHtml(subject, rank)
     const build = (anchor: 'top' | 'bottom') =>
-      popups.create(at, html, { owner: 'result', result: true, anchor, className: RESULT_POPUP_CLASS })
+      popups.create(at, html, { owner: 'result', result: true, anchor })
     let popup = build('top')
     const measure = () => {
       const el = popup.getElement()

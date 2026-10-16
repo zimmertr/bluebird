@@ -104,12 +104,20 @@ describe('smokePopupHtml', () => {
     expect(smokePopupHtml({ density: 'Heavy' })).toContain('Heavy smoke')
   })
 
-  it('names the satellite the plume was traced from', () => {
-    expect(smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })).toContain('GOES-WEST')
+  // The band names the kind and the satellite, the way a destination's facts
+  // line names its type and elevation (#738).
+  it('puts the kind and the satellite on the facts line, with no emoji', () => {
+    const html = smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })
+    expect(html.replace(/<[^>]+>/g, '')).toContain('Smoke|GOES-WEST')
+    expect(html).not.toContain('🌫️')
+    expect(html).not.toContain('Traced from')
   })
 
-  it('drops the satellite line rather than leaving it blank', () => {
-    expect(smokePopupHtml({ density: 'Light', satellite: '' })).not.toContain('Traced from')
+  it('drops the satellite rather than leaving a bare pipe, and links nowhere', () => {
+    const html = smokePopupHtml({ density: 'Light', satellite: '' })
+    expect(html).not.toContain('|')
+    expect(html).not.toContain('<a ')
+    expect(html).not.toContain('data-popup-body')
   })
 
   it('escapes provider text on its way to setHTML', () => {
