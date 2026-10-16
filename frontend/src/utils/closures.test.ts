@@ -80,7 +80,7 @@ describe('closureName', () => {
 
 describe('formatClosureDates', () => {
   it('states the span only when both ends exist', () => {
-    expect(formatClosureDates(START, END)).toBe(`${medium(START)} to ${medium(END)}`)
+    expect(formatClosureDates(START, END)).toBe(`Effective: ${medium(START)} to ${medium(END)}`)
     expect(formatClosureDates(START, null)).toBeNull()
     expect(formatClosureDates(undefined, END)).toBeNull()
     expect(formatClosureDates(Number.NaN, END)).toBeNull()
@@ -100,12 +100,25 @@ describe('closurePopupHtml', () => {
     expect(textOf(bandOf(html))).toContain('Probe Fire Closure')
     expect(textOf(bandOf(html))).toContain('Trail closure|Eagle Creek 440')
     expect(textOf(bodyOf(html))).toContain('Columbia River Gorge NSA')
-    expect(textOf(bodyOf(html))).toContain(`${medium(START)} to ${medium(END)}`)
+    expect(textOf(bodyOf(html))).toContain(`Effective: ${medium(START)} to ${medium(END)}`)
     expect(html).toContain('href="https://www.fs.usda.gov/r06/alerts/probe"')
     expect(html).toContain('target="_blank" rel="noopener noreferrer"')
     expect(textOf(html)).not.toContain('View closure order')
     expect(html).toContain('aria-label="View closure order"')
     expect(html).not.toContain('🚫')
+  })
+
+  // The span ends the body in the fire card's fine print, so the three
+  // overlay cards end on the same line.
+  it('sets the dates last, and smaller and italic than the forest', () => {
+    const html = closurePopupHtml(props(), 'area')
+    const dates = `Effective: ${medium(START)} to ${medium(END)}`
+    expect(html.indexOf(dates)).toBeGreaterThan(html.indexOf('Columbia River Gorge NSA'))
+    const line = html.slice(html.lastIndexOf('<span', html.indexOf(dates)))
+    expect(line).toContain('font-style:italic')
+    expect(line).toContain('font-size:11px')
+    const forest = html.slice(html.lastIndexOf('<', html.indexOf('Columbia River Gorge NSA')))
+    expect(forest.slice(0, forest.indexOf('Columbia'))).not.toContain('italic')
   })
 
   it('gives an area its acres where the route would stand, and only an area', () => {

@@ -59,8 +59,8 @@ describe('poiPopupHtml', () => {
   })
 
   it('sets fine print small, italic and stepped back', () => {
-    expect(fineprint('Last updated: today')).toBe(
-      '<span style="color:#94a3b8;font-size:11px;font-style:italic">Last updated: today</span>',
+    expect(fineprint('Updated: today')).toBe(
+      '<span style="color:#94a3b8;font-size:11px;font-style:italic">Updated: today</span>',
     )
   })
 
