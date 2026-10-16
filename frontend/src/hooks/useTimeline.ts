@@ -22,6 +22,20 @@ import {
 // finding 8).
 const NO_TIMES: number[] = []
 
+// Where Space already does something: a button or link it presses (the play
+// button's own press would otherwise toggle twice), a box it ticks, a field it
+// types into, a widget whose role gives it the key, and anything inside a modal,
+// which owns the keyboard while it is open. A range input is the one input left
+// out: Space does nothing to a slider, and the scrubber is one.
+const SPACE_TAKEN =
+  'button, a[href], select, textarea, input:not([type="range"]), [contenteditable]:not([contenteditable="false"]), ' +
+  '[role="button"], [role="checkbox"], [role="switch"], [role="radio"], [role="tab"], [role="option"], ' +
+  '[role^="menuitem"], [role="combobox"], [role="textbox"], [aria-modal="true"]'
+
+function spaceIsTaken(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(SPACE_TAKEN) !== null
+}
+
 export interface TimelineInputs {
   /** The report's hourly grid, epoch ms, or undefined before a report. */
   times: number[] | undefined
@@ -78,6 +92,23 @@ export function useTimeline({ times, analysisSeq, playerShown, showRadar }: Time
   // leave an interval running against an axis that no longer exists.
   useEffect(() => {
     if (timelineAxis === null) setPlaying(false)
+  }, [timelineAxis])
+
+  // Space plays and pauses while the bar is on the map, as it does in every
+  // media player, so a reader watching the markers need not find the button
+  // again (#750). Window rather than document, so a document handler that took
+  // the key first (the tour's Space is its next step) has already said so.
+  useEffect(() => {
+    if (timelineAxis === null) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== ' ' || e.repeat || e.defaultPrevented) return
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      if (spaceIsTaken(e.target)) return
+      e.preventDefault()
+      setPlaying((p) => !p)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
   }, [timelineAxis])
 
   useEffect(() => {

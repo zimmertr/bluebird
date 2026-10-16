@@ -461,7 +461,8 @@ export const APP = [
   },
   {
     // The playhead reset, the stop when the bar goes and the playback timer
-    // are the three effects this hook took from App.tsx. The reset keys on the
+    // are the three effects this hook took from App.tsx, and the Space key
+    // (#750) is the fourth. The reset keys on the
     // report alone: the times array is a new reference on every live knob
     // change, and keying on it would move the playhead under a reader who only
     // re-sorted. The grid is memoized so the memoized map and chart get one
@@ -469,7 +470,7 @@ export const APP = [
     name: 'timeline-hook',
     files: ['src/hooks/useTimeline.ts'],
     require: [
-      { selector: EFFECT, count: 3, message: 'useTimeline.ts runs its three effects through useEffect.' },
+      { selector: EFFECT, count: 4, message: 'useTimeline.ts runs its four effects through useEffect.' },
       { selector: keyedOnlyOn('analysisSeq'), message: 'Reset the forecast playhead in an effect keyed on analysisSeq alone.' },
       {
         selector: 'VariableDeclarator[id.name="forecastTimes"] > CallExpression[callee.name="useMemo"]',
