@@ -28,8 +28,8 @@ export interface StubFeature {
 }
 
 export interface StubMapOptions {
-  /** The loaded style's own layers, as `getStyle()` reports them. */
-  styleLayers?: { id: string; type: string }[]
+  /** The loaded style's own layers, as `getStyle()` reports them, filters and all. */
+  styleLayers?: { id: string; type: string; [key: string]: unknown }[]
   /** Layer ids present before the module runs, on top of `styleLayers`. */
   layers?: string[]
   filters?: Record<string, unknown>

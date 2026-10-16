@@ -1,6 +1,6 @@
 # 0137. Destinations reads Map, Coordinates, Polygon, with the Polygon row on the coordinates box's edges and the area on the counter's line
 
-- Status: Accepted
+- Status: Accepted. Amended by [0156](0156-destination-subheadings-say-search.md) (the subheadings say each row searches, the Map line names no type, and the search box stays on the map)
 - Date: 2026-10-13
 - Decider: the maintainer, on #687 (2026-10-13: round 2's direction b, reordered to Map, Coordinates, Polygon, with the `Map` subheading kept; the coordinates line kept with its `#`). Then on the maintainer's first look at #707 the same day: Coordinates back to a box two rows tall, and the Polygon row always the same three buttons, so the inputs share one width. And on the third look: the Map part back to what main had, with the search affordance's open question moved to #710, and the polygon's area onto the counter's line to give the section a line back (first asked beside the subheading, then moved to the counter's line on the fourth look)
 - Issues and PRs: #687, #707, #710

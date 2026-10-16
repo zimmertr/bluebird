@@ -134,20 +134,23 @@ export default function DestinationsSection({
         Destinations
       </h2>
 
-      {/* Map — the two methods whose control is the map itself, the
-          floating search box and the clickable peaks and lakes, grouped
-          as one subsection rather than two widgetless ones. The heading
-          keeps the caption from reading as a description of the whole
-          section, and makes the three groups parallel: each names the
-          instrument, so the shape says "another way to add destinations"
-          without a "Search by" prefix saying it four times. Hovering the
-          group rings the search box AND glows the selectable features,
-          so the reader is shown where both live instead of told.
-          Hover-only is fine here because it adds a cue to copy that
-          already stands on its own. The caption names peaks and lakes
-          rather than "a destination" because those are the two things
-          the basemap makes clickable - trailheads are not on it, which
-          is why they are found by polygon instead. */}
+      {/* Map search: the two methods whose control is the map itself, the
+          floating search box and the clickable labels, grouped as one
+          subsection rather than two widgetless ones. Each of the three
+          subheadings says its row searches, because `Polygon` over a Draw
+          polygon button never said that drawing one searches the area for
+          destinations (the maintainer, 2026-10-15, #710). The sentence names
+          the map again under `Map search`, which the maintainer accepted so
+          it says where a destination is selected, and says `a` rather than
+          `any` so it stays one line where the panel's scroll bars are always
+          drawn: about 316px of room there, 305.6px for this sentence and
+          318.9px with `any` (12px italic, 2026-10-15). It names no kind of
+          destination: the map labels and lets you select peaks, lakes,
+          places and climbing features, and prose that lists the types is a
+          string every new type would have to reopen. Hovering the group rings the search box
+          AND glows the selectable features, so the reader is shown where
+          both live instead of told. Hover-only is fine here because it adds
+          a cue to copy that already stands on its own. */}
       <div
         className="mb-3"
         onMouseEnter={() => {
@@ -159,18 +162,18 @@ export default function DestinationsSection({
           onPointAtMapPois(false)
         }}
       >
-        <h3 className={`${TEXT.subheading} mb-1`}>Map</h3>
-        <p className={TEXT.helper}>Search by name, or click any peak or lake.</p>
+        <h3 className={`${TEXT.subheading} mb-1`}>Map search</h3>
+        <p className={TEXT.helper}>Search by name, or select a destination from the map.</p>
       </div>
 
-      {/* Coordinates: second, under Map, so the Polygon block's buttons
-          and boxes come last (#687, record 0137). A list you bring to the
-          map rather than a gesture on it. Two rows tall at rest, so a
-          reader sees that several rows go in, with the format and one row
-          that follows it as the placeholder. No helper line; the format
-          states itself. */}
+      {/* Coordinate search: second, under Map search, so the Polygon
+          block's buttons and boxes come last (#687, record 0137). A list you
+          bring to the map rather than a gesture on it. Two rows tall at
+          rest, so a reader sees that several rows go in, with the format and
+          one row that follows it as the placeholder. No helper line; the
+          format states itself. */}
       <div className="mb-3">
-        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinates</h3>
+        <h3 className={`${TEXT.subheading} mb-1.5`}>Coordinate search</h3>
         <textarea
           aria-label="Custom destination coordinates, one per line as latitude, longitude, optional name"
           value={customCsv}
@@ -196,12 +199,12 @@ export default function DestinationsSection({
         )}
       </div>
 
-      {/* Polygon, a bare noun, not "Search by polygon": beside Map and
-          Coordinates, a Draw polygon button says the rest, and the verb
-          phrase restated its own helper line. Last since #687, so the two
-          full-width inputs above it stand together. */}
+      {/* Polygon search: drawing a ring searches the area inside it for
+          destinations, which a Draw polygon button alone does not say, so
+          the subheading does (#710). Last since #687, so the two full-width
+          inputs above it stand together. */}
       <div>
-        <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon</h3>
+        <h3 className={`${TEXT.subheading} mb-1.5`}>Polygon search</h3>
         {drawPointCount > 0 && (
           <div className={`${TEXT.caption} space-y-0.5 mb-2`}>
             {/* The counter and the area share a line, the counter at the left
@@ -275,7 +278,7 @@ export default function DestinationsSection({
             at once, and they all come back from a single Overpass query,
             so asking for peaks and lakes together costs what peaks alone
             would. The "Find:" label that used to lead this row is gone —
-            three checkboxes under the Polygon heading are not ambiguous
+            three checkboxes under the Polygon search heading are not ambiguous
             about what they do. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
           {DESTINATION_TYPES.map(({ value, label, implemented }) => (

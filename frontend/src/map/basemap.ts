@@ -11,11 +11,11 @@
  * it that sits under the style's own labels. `basemap.test.ts` pins that order.
  */
 import type * as maplibregl from 'maplibre-gl'
-import type { FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
+import type { ExpressionSpecification, FilterSpecification, SymbolLayerSpecification } from 'maplibre-gl'
 // TS 7 no longer resolves @types/geojson's UMD global namespace from module
 // files, so the types must be imported explicitly.
 import type { FeatureCollection } from 'geojson'
-import { LAKE_CLASS } from '../utils/basemapPoi'
+import { CLIMBING_CLASS, LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../utils/basemapPoi'
 import { polygonsOf } from '../utils/drawGeometry'
 import { widestPole } from '../utils/polylabel'
 
@@ -35,6 +35,18 @@ export const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
  * sooner.
  */
 const POI_MINZOOM = 9
+
+/**
+ * The zoom the climbing labels start at (#710).
+ *
+ * The first zoom whose tiles carry them. Measured 2026-10-15 at Index's Lower
+ * Town Wall: the z12 and z13 tiles there hold no `poi` feature at all, and
+ * the z14 tile holds 58 climbing features, 57 of them named, so a lower floor
+ * would draw nothing more. Routes on one wall stand metres apart, so the
+ * layer lets collision hide icons (see `ofm-climbing`) and a wall shows one
+ * or two until the reader zooms in.
+ */
+const CLIMBING_MINZOOM = 14
 
 /**
  * The label treatment every clickable basemap destination wears.
@@ -67,14 +79,21 @@ const POI_LABEL_PAINT: SymbolLayerSpecification['paint'] = {
   'text-halo-width': 1.4,
 }
 
+// The disc a clickable settlement wears from POI_MINZOOM (see townMarker).
+const TOWN_ICON = 'town_hall_11'
+
+// The style's own settlement dot, which every Liberty settlement layer that
+// draws an icon draws below zoom 9 (read 2026-10-15). Spelled because the
+// style's `icon-image` is a zoom step and cannot be nested in townMarker's.
+const STYLE_DOT = 'circle_11_black'
+
 // The style's one water fill. Read for lake geometry on a click, not drawn by
 // us, so a style that renamed it would cost the pole rather than the feature —
 // see lakeAnchor's fallback.
 const WATER_FILL_LAYER = 'water'
 
-// The halo drawn under every clickable feature while the panel's "Specify by
-// Click" section is hovered — the map's answer to the ring that section's
-// neighbour puts around the search box.
+// The halo drawn under every clickable feature while the panel's Map search
+// group is hovered, beside the ring that group puts around the search box.
 //
 // Generated rather than shipped, because the basemap sprite carries no SDF
 // icons at all (checked: zero of them), so `icon-color` and `icon-halo-color`
@@ -185,6 +204,54 @@ export function glowTwin(layer: maplibregl.SymbolLayerSpecification): maplibregl
   }
 }
 
+/**
+ * The disc a clickable settlement wears from `POI_MINZOOM` up (#710).
+ *
+ * The style draws a small dot under a town only below zoom 10 (below 9 for a
+ * city) and then the name alone, so a clickable town had nothing marking it
+ * the way a peak's disc does (the maintainer, 2026-10-15, on Issaquah). From
+ * zoom 9 the place wears the sprite's `town_hall_11` on its point with the
+ * name under it, anchored like a peak, in the style's own font, size and
+ * colour, so a bigger place still reads bigger. `town_hall_11` is the one
+ * settlement glyph in the sprite's disc family; the style also uses it for
+ * real town hall buildings from zoom 15, which the maintainer accepted. On
+ * `label_other` only a hamlet gets the disc, never a suburb or an island.
+ *
+ * MapLibre takes `zoom` only as the input of a top-level `step` or
+ * `interpolate`, so the style's own value cannot be nested inside this step:
+ * each property is the whole step, with the style's value below 9. The icon
+ * size, the anchor and the offset are plain values in the style and are read
+ * off the layer; its icon is itself a zoom step, so its value below 9 is
+ * spelled, `STYLE_DOT`. A layer whose other three are not plain values is
+ * left as the style draws it, and so is one with no point to anchor to.
+ */
+export function townMarker(
+  layer: maplibregl.SymbolLayerSpecification,
+): Record<'icon-image' | 'icon-size' | 'text-anchor' | 'text-offset', ExpressionSpecification> | null {
+  const own = layer.layout ?? {}
+  const size = own['icon-size'] ?? 1
+  const anchor = own['text-anchor'] ?? 'center'
+  const offset = own['text-offset'] ?? [0, 0]
+  const plainOffset = Array.isArray(offset) && offset.length === 2 && offset.every((n) => typeof n === 'number')
+  if (typeof size !== 'number' || typeof anchor !== 'string' || !plainOffset) return null
+  if (own['symbol-placement'] !== undefined && own['symbol-placement'] !== 'point') return null
+  const styleIcon = own['icon-image']
+  const icon = styleIcon === undefined ? '' : typeof styleIcon === 'string' ? styleIcon : STYLE_DOT
+  const peak = poiLabelLayout(TOWN_ICON)!
+  // A hamlet on `label_other` gets the disc and its other places keep the
+  // style's own look at every zoom.
+  const settled = (disc: unknown, mine: unknown) =>
+    layer.id === 'label_other' ? ['match', ['get', 'class'], 'hamlet', disc, mine] : disc
+  const step = (mine: unknown, disc: unknown) =>
+    ['step', ['zoom'], mine, POI_MINZOOM, settled(disc, mine)] as ExpressionSpecification
+  return {
+    'icon-image': step(icon, TOWN_ICON),
+    'icon-size': step(size, 1),
+    'text-anchor': step(anchor, peak['text-anchor']),
+    'text-offset': step(['literal', offset], ['literal', peak['text-offset']]),
+  }
+}
+
 export function enhanceBasemap(map: maplibregl.Map) {
   // Slot our additions just beneath the style's first text layer so labels
   // (including the ones we add) stay on top of lines and fills.
@@ -225,9 +292,10 @@ export function enhanceBasemap(map: maplibregl.Map) {
     'text-field': ['get', 'name'],
   }
 
-  // Every clickable destination the basemap offers, declared rather than added
+  // Every clickable destination layer of our own, declared rather than added
   // one call at a time, so each can be given a matching glow below without the
-  // two lists drifting.
+  // two lists drifting. The style's place labels are clickable too, and get
+  // their glow further down.
   const poiLayers: SymbolLayerSpecification[] = [
     {
       id: 'ofm-peaks',
@@ -315,6 +383,35 @@ export function enhanceBasemap(map: maplibregl.Map) {
       },
       paint: POI_LABEL_PAINT,
     },
+    // Climbing: crags and single routes, which the tile cannot tell apart
+    // (`CLIMBING_CLASS`). The sprite has no climbing glyph, so the icon is the
+    // stroked circle, which reads as a different kind of thing from the
+    // `mountain_11` and `water_11` of the peaks and lakes. Named features
+    // only, so every icon drawn is one a click can add.
+    {
+      id: 'ofm-climbing',
+      type: 'symbol',
+      source: 'openmaptiles',
+      'source-layer': 'poi',
+      minzoom: CLIMBING_MINZOOM,
+      filter: [
+        'all',
+        ['==', ['get', 'class'], CLIMBING_CLASS],
+        ['match', ['geometry-type'], ['Point', 'MultiPoint'], true, false],
+        ['has', 'name'],
+      ],
+      layout: {
+        ...poiLabelLayout('circle_stroked_11'),
+        'text-field': ['get', 'name'],
+        // The one clickable layer whose icons collide away. Routes on one
+        // wall stand metres apart, so with overlap allowed z14 drew each wall
+        // as a pile of circles (measured at Index, 2026-10-15). The
+        // maintainer chose to show one or two until the reader zooms in, and
+        // accepted that a hidden icon cannot be clicked until it draws.
+        'icon-allow-overlap': false,
+      },
+      paint: POI_LABEL_PAINT,
+    },
   ]
 
   // Each label goes on with its halo underneath it: the glow is added first so
@@ -323,6 +420,27 @@ export function enhanceBasemap(map: maplibregl.Map) {
   for (const layer of poiLayers) {
     map.addLayer(glowTwin(layer), firstSymbolId)
     map.addLayer(layer, firstSymbolId)
+  }
+
+  // The style's own place labels (#710) are clicked where the style draws
+  // them, so each gets a halo directly beneath it and, from POI_MINZOOM, a
+  // disc on its point (`townMarker`), but no label of ours. An id this style
+  // does not carry is skipped. The halo lights only the classes a click
+  // takes, which matters on `label_other`: it labels hamlets, and also
+  // suburbs, neighbourhoods and islands the click refuses.
+  const styleLayers = map.getStyle().layers ?? []
+  for (const id of PLACE_LAYERS) {
+    const spec = styleLayers.find((l) => l.id === id)
+    if (spec?.type !== 'symbol' || !map.getLayer(id)) continue
+    const settlements: FilterSpecification = ['match', ['get', 'class'], [...PLACE_CLASSES], true, false]
+    const filter = spec.filter
+      ? (['all', spec.filter, settlements] as FilterSpecification)
+      : settlements
+    map.addLayer({ ...glowTwin(spec), filter }, id)
+    const marker = townMarker(spec)
+    if (marker) {
+      for (const key of Object.keys(marker) as (keyof typeof marker)[]) map.setLayoutProperty(id, key, marker[key])
+    }
   }
 
   // The style keeps the water we do NOT draw — oceans, bays, straits, which
@@ -338,6 +456,15 @@ export function enhanceBasemap(map: maplibregl.Map) {
     // undone here.
     const existing = map.getFilter(id) as FilterSpecification | undefined
     const notOurs: FilterSpecification = ['!=', ['get', 'class'], LAKE_CLASS]
+    map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
+  }
+
+  // The style's own `poi` labels lose the climbing class for the same reason,
+  // since `ofm-climbing` labels it from z14 and these from z15 up.
+  for (const id of ['poi_r1', 'poi_r7', 'poi_r20']) {
+    if (!map.getLayer(id)) continue
+    const existing = map.getFilter(id) as FilterSpecification | undefined
+    const notOurs: FilterSpecification = ['!=', ['get', 'class'], CLIMBING_CLASS]
     map.setFilter(id, existing ? (['all', existing, notOurs] as FilterSpecification) : notOurs)
   }
 }

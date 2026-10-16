@@ -1,7 +1,8 @@
 /**
- * The clickable basemap peaks and lakes: the popup a click opens, the button
- * in it that adds the place as a destination or takes it back out, and the
- * glow that lights them all while the panel points at them.
+ * The clickable basemap labels (the peaks, lakes and places
+ * `utils/basemapPoi.ts` lists): the popup a click opens, the button in it that
+ * adds the place as a destination or takes it back out, and the glow that
+ * lights them all while the panel points at them.
  *
  * The map already draws these features from the OpenMapTiles source, so the
  * click costs no lookup: the name and elevation are in the feature's own
@@ -18,6 +19,7 @@ import type * as maplibregl from 'maplibre-gl'
 import type { Point } from 'geojson'
 import {
   BasemapPoi,
+  isPoiFeature,
   LAKE_LAYERS,
   POI_LAYERS,
   poiFromFeature,
@@ -31,7 +33,7 @@ import type { MapController } from './controller'
 import type { MapPopups } from './mapPopups'
 
 export interface PoiPopups {
-  /** Light every clickable peak and lake, or put them back. */
+  /** Light every clickable label, or put them back. */
   setPointed(pointed: boolean): void
 }
 
@@ -86,18 +88,19 @@ export function mountPoiPopups(
     render()
   }
 
-  // A peak or lake under a ranked marker, a draw handle or anything else
-  // that outranks it is the rank's call (`utils/mapClick.ts`), and in draw
-  // mode these are scenery a polygon corner can land on.
+  // A label under a ranked marker, a draw handle or anything else that
+  // outranks it is the rank's call (`utils/mapClick.ts`), and in draw mode
+  // these are scenery a polygon corner can land on.
   popups.register({
     target: 'poi',
     layers: POI_LAYERS,
+    accepts: (feature) => !!feature.properties && isPoiFeature(feature.layer.id, feature.properties),
     // A label that names no place (no name, or no usable position) has
     // nothing to add, so the click falls to whatever lies under it.
     open: ({ feature, lngLat, point }) => {
       if (!feature.properties) return false
       const layer = feature.layer.id
-      // A peak labels its own summit. A lake's label geometry is a tile
+      // A peak or a place labels its own point. A lake's label geometry is a tile
       // artifact — a point for a compact one, a line for a long one — so it
       // is resolved against the water itself; the click point is the
       // fallback, and it is on the lake because that is what was clicked.

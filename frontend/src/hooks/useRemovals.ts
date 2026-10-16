@@ -116,7 +116,7 @@ export function useRemovals({
   }, [])
 
   // Registering a destination the user named, however they named it: by
-  // searching, or by clicking a labeled peak or lake on the basemap (#119).
+  // searching, or by clicking a label on the basemap (#119, #710).
   // Naming a spot that was ×-removed is an explicit request for it again, so
   // the stale removal goes, or the place would be filtered out of its next
   // report.
