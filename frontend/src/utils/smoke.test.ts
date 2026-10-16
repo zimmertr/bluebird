@@ -104,11 +104,12 @@ describe('smokePopupHtml', () => {
     expect(smokePopupHtml({ density: 'Heavy' })).toContain('Heavy smoke')
   })
 
-  // The band names the kind and the satellite, the way a destination's facts
-  // line names its type and elevation (#738).
-  it('puts the kind and the satellite on the facts line, with no emoji', () => {
+  // The band names the satellite and no kind word, since the title already
+  // says smoke (#738, TJ 2026-10-16).
+  it('puts the satellite alone on the facts line, with no emoji', () => {
     const html = smokePopupHtml({ density: 'Light', satellite: 'GOES-WEST' })
-    expect(html.replace(/<[^>]+>/g, '')).toContain('Smoke|GOES-WEST')
+    expect(html).toContain('GOES-WEST')
+    expect(html.replace(/<[^>]+>/g, '')).not.toMatch(/Smoke\s*\|/)
     expect(html).not.toContain('🌫️')
     expect(html).not.toContain('Traced from')
   })

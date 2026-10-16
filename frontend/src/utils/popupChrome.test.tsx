@@ -320,7 +320,7 @@ describe('every overlay card', () => {
   const band = (popup: HTMLElement) => popup.firstElementChild!.firstElementChild as HTMLElement
   const cards: [string, string][] = [
     ['a fire', wildfirePopupHtml({ attr_IncidentName: 'Kaiser Canyon', poly_GISAcres: 138285, attr_PercentContained: 100 }, 'https://nifc.example/')],
-    ['an area closure', closurePopupHtml(closureFeature({ GIS_Acres: 4210 }).properties, 'area')],
+    ['an area closure', closurePopupHtml(closureFeature({ GIS_Acres: 4210, FireName: null, ClosureType: 'Safety Closure' }).properties, 'area')],
     ['a trail closure', closurePopupHtml(closureFeature().properties, 'trail')],
     ['a smoke plume', smokePopupHtml({ density: 'Medium', satellite: 'GOES-EAST' })],
   ]
@@ -329,8 +329,7 @@ describe('every overlay card', () => {
     const popup = mount(html)
     expect(band(popup).getAttribute('style')).toContain(`background:${HEADER_BAND_COLOR}`)
     expect(band(popup).querySelector('strong')).not.toBeNull()
-    const hidden = Array.from(band(popup).querySelectorAll('[aria-hidden="true"]'))
-    expect(hidden.some((e) => e.textContent === '|')).toBe(true)
+    expect(band(popup).children).toHaveLength(2)
     expect(popup.querySelector('hr')).toBeNull()
     expect(popup.textContent).not.toMatch(/🔥|🚫|🌫/u)
   })
@@ -341,10 +340,10 @@ describe('every overlay card', () => {
     expect(link.getAttribute('aria-label')).toMatch(/^View (on NIFC map|closure order)$/)
   })
 
-  it('puts the closure reason in a notice section between the band and the body', () => {
-    const popup = mount(cards[2][1])
+  it('puts the closure type in a notice section between the band and the body', () => {
+    const popup = mount(cards[1][1])
     const [, notice, body] = Array.from(popup.firstElementChild!.children) as HTMLElement[]
-    expect(notice.textContent).toContain('Closed for: Wildfire (Probe)')
+    expect(notice.textContent).toContain('Safety Closure')
     expect(notice.getAttribute('style')).toContain(`border-bottom:${SECTION_EDGE}`)
     expect(body.hasAttribute('data-popup-body')).toBe(true)
   })

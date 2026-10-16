@@ -953,15 +953,14 @@ Forest ended 2026-07-07 by its own date and was still listed as active. A
 date filter here would hide an order the Forest Service still stands behind,
 which is the worse mistake. Read the order itself for the details.
 
-**A closure's card says why, in the order's own words.** Region 6 names the
-fire behind an order, and its card reads `Closed for: Wildfire (Little Giant
-Fire)`. Measured 2026-10-16, it named one on 12 of 13 active areas, 891 of 901
-lines and 172 of 172 sites. Regions 3 and 4 name no fire, so their cards give
-the order's own type instead, as filed: `Closed for: Safety Closure`. That type
-is the forest's label and not a finding, for the reason under **Regions 3 and
-4 publish every standing order** above. Nothing matches an order to a NIFC perimeter: an order names its fire
-but not where it is, and a match on a name would be a guess shown as a fact.
-An order that carries neither field gets no line.
+**A closure's card gives the order's type, in the region's own words.**
+Regions 3 and 4 file a type with every order, and the card shows it as filed,
+such as `Safety Closure`. That type is the forest's label and not a finding,
+for the reason under **Regions 3 and 4 publish every standing order** above.
+Region 6's feed is fire closures alone and names the fire (measured 2026-10-16:
+12 of 13 active areas, 891 of 901 lines and 172 of 172 sites), but the order's
+own name already says it, as in `Little Giant Fire Closure`, so a Region 6
+card has no line.
 
 **The link is often missing.** Each order can carry a link to its page on
 `fs.usda.gov`, and most trail segments do not: 629 of the first 1,000 lines

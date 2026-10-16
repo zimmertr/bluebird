@@ -31,6 +31,10 @@ vi.mock('maplibre-gl', () => ({
       this.html = html
       return this
     }
+    // `openCard` measures the card; a fake one has no size.
+    getElement() {
+      return undefined
+    }
     addTo() {
       this.state.html = this.html
       this.state.options = this.options

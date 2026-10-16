@@ -85,7 +85,8 @@ vi.mock('maplibre-gl', () => ({
   },
 }))
 
-import { makeArrowImage, mountResultsLayer, POPUP_PAN_MS, RESULT_MARKER_LAYER } from './resultsLayer'
+import { makeArrowImage, mountResultsLayer, RESULT_MARKER_LAYER } from './resultsLayer'
+import { POPUP_PAN_MS } from '../utils/popupFit'
 import { createMapController, type MapInputs } from './controller'
 import { mountTestPopups } from '../testSupport/mapPopups'
 import { pendingFC } from '../utils/mapFeatures'

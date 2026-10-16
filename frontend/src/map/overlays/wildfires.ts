@@ -90,7 +90,7 @@ export function mountWildfires(
     target: 'fire',
     layers: [WILDFIRE_FILL_LAYER],
     open: ({ feature, lngLat }) => {
-      deps.popups.create(lngLat, wildfirePopupHtml(feature.properties as WildfireProps, fireLinkAt(map, lngLat)), {
+      deps.popups.openCard(lngLat, wildfirePopupHtml(feature.properties as WildfireProps, fireLinkAt(map, lngLat)), {
         owner: 'fire',
       })
     },

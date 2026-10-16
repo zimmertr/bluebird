@@ -215,7 +215,8 @@ export function formatObserved(
  * Shorter than the fire's and deliberately so: HMS carries the density, the
  * satellite, and the window, and there is no per-plume page anywhere to link
  * to, so the title has no glyph. The band says what it is, `{density} smoke`
- * and `Smoke | {satellite}` under it; the body is the observed window alone,
+ * with the satellite under it and no kind word, since the title already says
+ * smoke (TJ, 2026-10-16); the body is the observed window alone,
  * small and italic for the reason the fire's revision date is: it qualifies
  * everything above it rather than being another fact in the list.
  */
@@ -224,10 +225,7 @@ export function smokePopupHtml(props: SmokeProps): string {
   const satellite = (props.satellite ?? '').trim()
   return popupCard({
     title: `${densityOf(props)} smoke`,
-    meta: metaBand([factsLine([SMOKE_KIND, satellite ? escapeHtml(satellite) : null])]),
+    meta: metaBand([satellite ? factsLine([escapeHtml(satellite)]) : '']),
     body: bodyLines([observed ? fineprint(escapeHtml(observed)) : null]),
   })
 }
-
-/** What a plume's facts line calls it: the Layers menu's row. */
-export const SMOKE_KIND = 'Smoke'

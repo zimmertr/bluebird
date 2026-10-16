@@ -7,8 +7,12 @@
  * opens, and this module does the rest the same way for all of them: a click
  * opens the popup of the highest-ranked target under it (the rank is
  * `utils/mapClick.ts`), a click without shift clears the board first, the
- * cursor over a target says it can be clicked, and every popup is made by
- * `create` with the same options and put on the board. A popup never opens on
+ * cursor over a target says it can be clicked, and every popup is made here
+ * with the same options and put on the board. Every card is `openCard`, which
+ * fits it to the free map, caps a body too tall to stand whole, picks the
+ * side of its point it shows more of, and pans the map to it, for a fire, a
+ * closure or a plume exactly as for a destination (#738); the one popup that
+ * is not a card, the ring's remove-point button, is `openBare`. A popup never opens on
  * a hover: one opened under the cursor covers the destinations inside a fire
  * or a closure, and a touch screen has no hover to open it.
  *
@@ -21,7 +25,8 @@
 import { Popup } from 'maplibre-gl'
 import type * as maplibregl from 'maplibre-gl'
 import { mapCursor, rankedTargets, type MapTarget } from '../utils/mapClick'
-import { POPUP_CARD_CLASS } from '../utils/popupChrome'
+import { POPUP_BODY_ATTR, POPUP_CARD_CLASS, capPopupBody } from '../utils/popupChrome'
+import { POPUP_PAN_MS, capHeight, placePopup, type Point, type PopupSide, type Rect } from '../utils/popupFit'
 import type { MapController } from './controller'
 import { isPinning, popupOptions, type PopupBoard } from './popups'
 
@@ -70,33 +75,59 @@ export interface MapPopupTarget {
   holdsCursor?: () => boolean
 }
 
-/** What a popup may set for itself; everything else is the same for every popup. */
-export interface MapPopupOptions {
+/** What a card may set for itself; everything else is the same for every card. */
+export interface MapCardOptions {
   /** The kind of thing it describes, so an overlay switched off can take it down. */
   owner?: MapTarget
   /** A ranked destination's card, which takes its own width rule. */
   result?: boolean
-  anchor?: maplibregl.PositionAnchor
-  offset?: maplibregl.Offset
-  /** False for a popup that is itself one button, like the ring's remove-point. */
-  closeButton?: boolean
   /**
-   * True for a popup that is one bare button rather than a card, like the
-   * ring's remove-point. Every other popup is framed as a card
-   * (`POPUP_CARD_CLASS`), which is what lets a card's header band run edge to
-   * edge, and what a builder that hand-rolls its markup would sit wrong in.
+   * Where the card's point WILL stand, in the map container's pixels, for a
+   * caller about to fly it there; the point's present position otherwise.
    */
-  bare?: boolean
+  markerAt?: Point
+  /** What else stands over the map, as viewport rects, beyond the `data-map-overlay` surfaces found here. */
+  avoid?: readonly Rect[]
+  /**
+   * Whether the map pans by the fit's move, which it does by default. False
+   * hands the move back to a caller that folds it into a flight of its own,
+   * as a table row's centring does.
+   */
+  pan?: boolean
+}
+
+/** A card on the map, and the move its fit asked of the map. */
+export interface PlacedCard {
+  popup: Popup
+  /** How far the card's point, and the card with it, moves across the screen. */
+  dx: number
+  dy: number
+  /** The height its body was capped to, which a redraw must keep, or null. */
+  capped: number | null
 }
 
 export interface MapPopups {
   register(target: MapPopupTarget): void
   /**
-   * Open a popup, on the board. Never closeOnClick: that is fixed when a popup
-   * is made, so an open popup could not be told to survive the shift-click
-   * that pins a second one. Dismissal is the board's.
+   * Open a card on the board, placed where it shows the most of itself
+   * (#738): every card the map opens, a destination's, a fire's, a closure's
+   * or a plume's, is fitted, capped and panned the same way here, rather than
+   * one kind of card being placed and the rest opening wherever they were
+   * clicked. Never closeOnClick: that is fixed when a popup is made, so an
+   * open popup could not be told to survive the shift-click that pins a
+   * second one. Dismissal is the board's.
    */
-  create(at: maplibregl.LngLatLike, html: string, options?: MapPopupOptions): Popup
+  openCard(at: maplibregl.LngLatLike, html: string, options?: MapCardOptions): PlacedCard
+  /**
+   * Open a popup that is one bare button rather than a card, like the ring's
+   * remove-point: no card frame, no close button, and no fit, since it is
+   * smaller than the handle it stands on.
+   */
+  openBare(
+    at: maplibregl.LngLatLike,
+    html: string,
+    options: { owner?: MapTarget; offset?: maplibregl.Offset },
+  ): Popup
   /** Close every popup, or every one this kind of thing owns. */
   closeAll(owner?: MapTarget): void
 }
@@ -172,24 +203,94 @@ export function mountMapPopups(
     canvas.style.cursor = mapCursor(controller.inputs.drawing, targetsAt(e.point).under)
   })
 
+  // Every popup, card or bare, is made here and put on the board.
+  const make = (
+    at: maplibregl.LngLatLike,
+    html: string,
+    owner: MapTarget | undefined,
+    options: maplibregl.PopupOptions,
+  ) => {
+    const popup = new Popup({ ...options, closeOnClick: false }).setLngLat(at).setHTML(html).addTo(map)
+    board.track(popup, owner)
+    return popup
+  }
+
+  // What stands over the map inside the part of it a card can be seen in,
+  // in the container's pixels: every surface that names itself
+  // `data-map-overlay` (the button column at the top left, the legend box
+  // under it) plus whatever the caller names. Found through the container's
+  // document rather than handed in, because a card a click opens has no
+  // caller to hand it anything.
+  const obstacles = (avoid: readonly Rect[]): Rect[] => {
+    const container = map.getContainer()
+    const box = container.getBoundingClientRect()
+    const overlays = [...(container.ownerDocument?.querySelectorAll('[data-map-overlay]') ?? [])]
+    return [...overlays.map((el) => el.getBoundingClientRect()), ...avoid].map((r) => ({
+      left: r.left - box.left,
+      top: r.top - box.top,
+      right: r.right - box.left,
+      bottom: r.bottom - box.top,
+    }))
+  }
+
   return {
     register(target) {
       targets.push(target)
     },
-    create(at, html, { owner, result = false, anchor, offset, closeButton, bare = false } = {}) {
-      const popup = new Popup({
-        ...popupOptions(map, { result }),
-        closeOnClick: false,
-        ...(anchor && { anchor }),
-        ...(!bare && { className: POPUP_CARD_CLASS }),
-        ...(offset !== undefined && { offset }),
-        ...(closeButton !== undefined && { closeButton }),
-      })
-        .setLngLat(at)
-        .setHTML(html)
-        .addTo(map)
-      board.track(popup, owner)
-      return popup
+    openCard(at, html, { owner, result = false, markerAt, avoid = [], pan = true } = {}) {
+      // Built hanging below its point, measured, and rebuilt above it only
+      // when the fit says so, all before a frame is drawn, because MapLibre
+      // fixes a popup's side at construction and this is the one moment its
+      // size is known. A card too tall to stand whole in the free map area
+      // has its body capped first and scrolls (`capHeight`, TJ 2026-10-08),
+      // so the fit then places the card the reader will actually see.
+      const build = (anchor: PopupSide) =>
+        make(at, html, owner, { ...popupOptions(map, { result }), anchor, className: POPUP_CARD_CLASS })
+      let popup = build('top')
+      const measure = () => {
+        const el = popup.getElement()
+        return { width: el?.offsetWidth ?? 0, height: el?.offsetHeight ?? 0 }
+      }
+      let size = measure()
+      const canvas = map.getCanvas()
+      // The part of the map a card can be seen in: above the results sheet.
+      const region = {
+        left: 0,
+        top: 0,
+        right: canvas.clientWidth,
+        bottom: canvas.clientHeight - controller.inputs.cameraPadBottomPx,
+      }
+      const point = markerAt ?? map.project(at)
+      const standing = obstacles(avoid)
+      // The body's height under the cap: whatever the card must lose comes
+      // off the body alone, so the title and the band under it stay in view.
+      const cap = capHeight(point, size, region, standing)
+      const bodyOf = () => popup.getElement()?.querySelector<HTMLElement>(`[${POPUP_BODY_ATTR}]`) ?? null
+      const first = cap === null ? null : bodyOf()
+      const capped = cap === null || first === null ? null : first.offsetHeight - (size.height - cap)
+      const applyCap = () => {
+        const body = capped === null ? null : bodyOf()
+        if (body) capPopupBody(body, capped!)
+      }
+      applyCap()
+      if (capped !== null) size = measure()
+      const placed = placePopup(point, size, region, standing)
+      if (placed.anchor !== 'top') {
+        popup.remove()
+        popup = build('bottom')
+        applyCap()
+      }
+      // The map comes to the card rather than the card unfurling wherever its
+      // point rested (TJ, 2026-09-29): a pan of what the fit asked for, with
+      // the point riding along under the tip. `panBy` moves the camera, so
+      // its sign is the point's move reversed.
+      if (pan && (placed.dx !== 0 || placed.dy !== 0)) {
+        map.panBy([-placed.dx || 0, -placed.dy || 0], { duration: POPUP_PAN_MS })
+      }
+      return { popup, dx: placed.dx, dy: placed.dy, capped }
+    },
+    openBare(at, html, { owner, offset }) {
+      return make(at, html, owner, { ...popupOptions(map), closeButton: false, ...(offset !== undefined && { offset }) })
     },
     closeAll(owner) {
       board.closeAll(owner)

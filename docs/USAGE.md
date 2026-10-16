@@ -259,13 +259,14 @@ the BLM or a tribe puts in place never appears, and in Oregon and Washington
 the feed holds fire closures only.
 
 Clicking a perimeter, a closure or a plume opens the same card a destination
-gets: its name on a light grey band, and what kind of thing it is under that.
-A fire's card gives its size and how contained it is, and its name links to it
-on NIFC's live map. A closure's gives the area's acres or the trail's route,
-the forest and the dates, and its name links to the order where the Forest
-Service published one. An amber line under the band says why it was closed:
-the fire, where an Oregon or Washington order names one, or the order's own
-type elsewhere. A plume's card says how dense it is, which satellite it was
+gets, and the map moves to show it the same way: its name on a light grey band,
+and what kind of thing it is under that. A fire's card gives its size and how
+contained it is, and its name links to it on NIFC's live map. A closure's gives
+the area's acres or the trail's route, the forest and the dates, and its name
+links to the order where the Forest Service published one. Outside Oregon and
+Washington an amber line under the band gives the order's type, such as
+**Safety Closure**; an Oregon or Washington order is a fire closure, which its
+name already says. A plume's card says how dense it is, which satellite it was
 traced from, and over what hours. Nothing on the map opens on a hover. Where things overlap, the
 smaller and more deliberate target takes the click: a marker or a peak inside a
 fire or a closure opens its own popup, a closed trail opens before the fire or

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { POPUP_CARD_CLASS } from '../utils/popupChrome'
+import { POPUP_PAN_MS } from '../utils/popupFit'
 
 // MapLibre's Popup needs a DOM. This one records the options it was made with
 // and whether it is open, and fires `close` when removed, as MapLibre's does.
@@ -23,6 +24,9 @@ vi.mock('maplibre-gl', () => ({
     }
     addTo() {
       return this
+    }
+    getElement() {
+      return undefined
     }
     on(_type: string, fn: () => void) {
       this.closers.push(fn)
@@ -57,7 +61,7 @@ function setup({ drawing = false, layers = LAYERS } = {}) {
       layers: targetLayers,
       open: ({ feature }) => {
         opened.push({ target, layer: feature.layer.id })
-        popups.create([0, 0], target, { owner: target })
+        popups.openCard([0, 0], target, { owner: target })
       },
       ...extra,
     })
@@ -277,23 +281,48 @@ describe('mountMapPopups cursor', () => {
   })
 })
 
-describe('mountMapPopups create', () => {
+describe('mountMapPopups openCard and openBare', () => {
   // Every popup is made the same way: the board's width rule, never
   // closeOnClick, framed as a card unless it is a bare button (#738), and on
   // the board under its owner.
   it('makes every popup with the shared options, on the board under its owner', () => {
     const { stub, popups } = setup()
-    popups.create([0, 0], '<p>fire</p>', { owner: 'fire' })
-    popups.create([0, 0], '<p>card</p>', { owner: 'result', result: true, anchor: 'bottom' })
-    popups.create([0, 0], '<p>rm</p>', { offset: [0, -8], closeButton: false, bare: true })
+    popups.openCard([0, 0], '<p>fire</p>', { owner: 'fire' })
+    popups.openCard([0, 0], '<p>card</p>', { owner: 'result', result: true })
+    popups.openBare([0, 0], '<p>rm</p>', { offset: [0, -8] })
     expect(made.map((p) => p.options)).toEqual([
-      { ...popupOptions(stub.map), closeOnClick: false, className: POPUP_CARD_CLASS },
-      { ...popupOptions(stub.map, { result: true }), closeOnClick: false, anchor: 'bottom', className: POPUP_CARD_CLASS },
+      { ...popupOptions(stub.map), closeOnClick: false, anchor: 'top', className: POPUP_CARD_CLASS },
+      { ...popupOptions(stub.map, { result: true }), closeOnClick: false, anchor: 'top', className: POPUP_CARD_CLASS },
       { ...popupOptions(stub.map), closeOnClick: false, offset: [0, -8], closeButton: false },
     ])
     popups.closeAll('fire')
     expect(made.map((p) => p.removed)).toEqual([true, false, false])
     popups.closeAll()
     expect(made.every((p) => p.removed)).toBe(true)
+  })
+
+  // One framework for every card (#738): a fire's card is fitted and panned
+  // exactly as a destination's is, where an overlay's used to open wherever
+  // it was clicked and could stand under the search pill or the sheet.
+  it.each(['fire', 'closure-area', 'smoke', 'poi', 'result'] as const)(
+    'pans the map to show a %s card standing over the results sheet',
+    (owner) => {
+      const stub = stubMap({ canvasWidth: 800, canvasHeight: 900, markerAt: { x: 400, y: 880 } })
+      const controller = createMapController({ drawing: false, cameraPadBottomPx: 500 } as MapInputs)
+      const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
+      const placed = popups.openCard([0, 0], '<p>card</p>', { owner })
+      expect(placed.dy).toBeLessThan(0)
+      expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([
+        ['panBy', [0, -placed.dy], { duration: POPUP_PAN_MS }],
+      ])
+    },
+  )
+
+  it('hands the move back instead of panning when asked to', () => {
+    const stub = stubMap({ canvasWidth: 800, canvasHeight: 900, markerAt: { x: 400, y: 880 } })
+    const controller = createMapController({ drawing: false, cameraPadBottomPx: 500 } as MapInputs)
+    const popups = mountMapPopups(stub.map, { controller, board: createPopupBoard(), addPoint: vi.fn() })
+    expect(popups.openCard([0, 0], '<p>card</p>', { owner: 'result', pan: false }).dy).toBeLessThan(0)
+    expect(stub.calls.filter((c) => c[0] === 'panBy')).toEqual([])
   })
 })

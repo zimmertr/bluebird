@@ -128,7 +128,7 @@ describe('closurePopupHtml', () => {
     )
     expect(html).not.toContain('data-popup-body')
     expect(html).not.toContain('<a ')
-    expect(html).not.toContain('Closed for')
+    expect(html).not.toContain('⚠️')
     expect(textOf(html)).toContain('Trail closure')
     expect(textOf(html)).not.toContain('Trail closure|')
   })
@@ -140,25 +140,28 @@ describe('closurePopupHtml', () => {
     expect(named).not.toContain('440')
   })
 
-  // The notice is the order's own reason, and only where it gives one.
-  it('says why the order closed its ground in the notice section, above the body', () => {
-    const fire = closurePopupHtml(props({ FireName: ' Little Giant Fire ' }), 'trail')
-    expect(textOf(fire)).toContain('Closed for: Wildfire (Little Giant Fire)')
-    expect(fire.indexOf('Closed for')).toBeLessThan(fire.indexOf('data-popup-body'))
-    expect(fire).toContain('⚠️')
-    const typed = closurePopupHtml(props({ FireName: null, ClosureType: 'Safety Closure' }), 'area')
-    expect(textOf(typed)).toContain('Closed for: Safety Closure')
+  // The notice is the order's own type, where the region files one. A fire
+  // closure's fire is already in its name, so it carries none (TJ, 2026-10-16).
+  it('puts the order type in the notice section, above the body, and nothing for a fire', () => {
+    const typed = closurePopupHtml(props({ FireName: null, ClosureType: ' Safety Closure ' }), 'area')
+    expect(textOf(typed)).toContain('Safety Closure')
+    expect(typed.indexOf('Safety Closure')).toBeLessThan(typed.indexOf('data-popup-body'))
+    expect(typed).toContain('⚠️')
+    expect(textOf(typed)).not.toContain('Closed for')
+    const fire = closurePopupHtml(props({ FireName: 'Little Giant Fire', ClosureType: null }), 'trail')
+    expect(fire).not.toContain('⚠️')
+    expect(fire).not.toContain('Little Giant')
   })
 
   it('escapes every value it prints', () => {
     const html = closurePopupHtml(
-      props({ ClosureOrderName: '<img src=x>', ForestUnit: 'A & B', RouteName: '"q"', FireName: '<b>' }),
+      props({ ClosureOrderName: '<img src=x>', ForestUnit: 'A & B', RouteName: '"q"', ClosureType: '<b>' }),
       'trail',
     )
     expect(html).toContain('&lt;img src=x&gt;')
     expect(html).toContain('A &amp; B')
     expect(html).toContain('&quot;q&quot;')
-    expect(html).toContain('Wildfire (&lt;b&gt;)')
+    expect(html).toContain('&lt;b&gt;')
     expect(html).not.toContain('<img')
     expect(html).not.toContain('<b>')
   })
@@ -170,10 +173,10 @@ describe('closurePopupHtml', () => {
 })
 
 describe('closureReason', () => {
-  it('names the fire where Region 6 does, else the order type, else nothing', () => {
-    expect(closureReason(props({ FireName: 'Cedar Creek', ClosureType: null }))).toBe('Wildfire (Cedar Creek)')
+  it('is the order type where the region files one, and never the fire', () => {
     expect(closureReason(props({ FireName: null, ClosureType: ' Recreation Closure ' }))).toBe('Recreation Closure')
-    expect(closureReason(props({ FireName: '  ', ClosureType: null }))).toBeNull()
+    expect(closureReason(props({ FireName: 'Cedar Creek', ClosureType: null }))).toBeNull()
+    expect(closureReason(props({ FireName: null, ClosureType: '  ' }))).toBeNull()
   })
 })
 

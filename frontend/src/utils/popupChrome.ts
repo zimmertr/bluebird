@@ -465,13 +465,13 @@ const GRID_ROW_RULE = `;border-bottom:1px solid ${GRID_LINE_COLOR}`
 /**
  * The class a too-tall marker popup's body wears while it scrolls, and the
  * attribute that finds that body. `map.css` draws the scrollbar it keeps
- * visible; `map/resultsLayer.ts` sets the height (`capPopupBody`).
+ * visible; `openCard` in `map/mapPopups.ts` sets the height (`capPopupBody`).
  */
 export const POPUP_SCROLL_CLASS = 'popup-scroll'
 /**
  * The class every card wears, which `map.css` frames (`popupCard`). Put on by
- * `create` in `map/mapPopups.ts` rather than by each caller, so a popup is a
- * card unless it says it is a bare button.
+ * `openCard` in `map/mapPopups.ts` rather than by each caller, so no card can
+ * open without it.
  */
 export const POPUP_CARD_CLASS = 'popup-card'
 export const POPUP_BODY_ATTR = 'data-popup-body'

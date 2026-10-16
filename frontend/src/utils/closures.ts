@@ -19,7 +19,7 @@
 import type { FeatureCollection, MultiPolygon } from 'geojson'
 import { apiFetch, retryAfterSeconds } from './apiFetch'
 import { bodyLines, escapeHtml, factsLine, metaBand, popupCard, warningLine } from './popupChrome'
-import { type BBox, type FireDetail, FIRE_KIND, formatAcres } from './wildfires'
+import { type BBox, type FireDetail, formatAcres } from './wildfires'
 
 const CLOSURES_URL = '/api/closures'
 
@@ -198,18 +198,16 @@ export function closureUrl(props: ClosureProps): string | null {
 }
 
 /**
- * Why an order closed its ground, from the order's own fields and nothing
- * else: `Wildfire ({FireName})` where Region 6 names the fire, else Region 3
- * or 4's own type for the order, verbatim (`Safety Closure`), else null.
+ * What kind of order a closure is, in the region's own words, verbatim
+ * (`Safety Closure`, `Recreation Closure`), or null.
  *
- * Measured 2026-10-16: Region 6 named its fire on 12 of 13 active areas, 891
- * of 901 lines and 172 of 172 points. Nothing here matches an order to a NIFC
- * perimeter (TJ, 2026-10-16): a closure names its fire but says nothing of
- * where it is, and a join on a name would be a guess shown as a fact.
+ * Regions 3 and 4 only. Region 6's feed is fire closures alone and names the
+ * fire in `FireName` (12 of 13 active areas, 891 of 901 lines and 172 of 172
+ * points, measured 2026-10-16), but a card that said `Wildfire (Little Giant
+ * Fire)` under `Little Giant Fire Closure` said the order's name twice, so a
+ * Region 6 card carries no line (TJ, 2026-10-16).
  */
 export function closureReason(props: ClosureProps): string | null {
-  const fire = text(props.FireName)
-  if (fire) return `${FIRE_KIND} (${fire})`
   return text(props.ClosureType) || null
 }
 
@@ -229,8 +227,8 @@ export const CLOSURE_KIND: Record<ClosureKind, string> = {
  * The band says what it is: the order's name, linked to the order's own page
  * through the title's glyph when it has one, and the kind under it with the
  * figure that identifies it, an area's acres or a trail's route. The notice
- * says why it is closed (`closureReason`), which is the one thing a closure
- * card can warn of that the card itself does not already say. The body is
+ * is the order's type where the region files one (`closureReason`), the one
+ * thing the card's name does not already say. The body is
  * whose forest and for how long. Every line but the name is omitted when the
  * service left it empty, rather than filled with a word the order does not
  * say.
@@ -247,7 +245,7 @@ export function closurePopupHtml(props: ClosureProps, kind: ClosureKind): string
     title: escapeHtml(closureName(props)),
     link: order ? { href: order, label: CLOSURE_LINK_LABEL } : null,
     meta: metaBand([factsLine([CLOSURE_KIND[kind], figure ? escapeHtml(figure) : null])]),
-    warnings: reason ? [warningLine(escapeHtml(`Closed for: ${reason}`), null)] : [],
+    warnings: reason ? [warningLine(escapeHtml(reason), null)] : [],
     body: bodyLines([forest ? escapeHtml(forest) : null, dates ? escapeHtml(dates) : null]),
   })
 }
