@@ -109,6 +109,9 @@ export default function TimelineTransport({
       <button
         onClick={() => onPlayingChange(!playing)}
         aria-label={playing ? 'Pause the timeline' : 'Play the timeline'}
+        // The key itself is useTimeline's, which listens on the window so it
+        // works wherever focus is; this only tells assistive technology.
+        aria-keyshortcuts="Space"
         className={`${ACCENT.fill} ${ACCENT.fillHover} ${TAP.action} h-7 w-7 flex-shrink-0 ${RADIUS.control} transition-colors`}
       >
         <IconPlay playing={playing} />

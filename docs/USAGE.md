@@ -375,7 +375,8 @@ from drawing between summits.
 A bar appears at the bottom of the map whenever something on it spans time, as
 long as **Forecast player** is switched on in the map's Layers list: it is on by
 default in a desktop-sized window and off on a phone. Press play to run it, or
-drag the scrubber to a moment. With it switched off the markers keep the window
+drag the scrubber to a moment. The spacebar plays and pauses it too, unless you
+are typing in a field or have a button focused. With it switched off the markers keep the window
 colors they are ranked on.
 
 It has up to two axes, and a switch to pick between them when both exist:

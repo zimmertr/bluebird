@@ -50,6 +50,12 @@ describe('TimelineTransport', () => {
     expect(onPlayingChange).toHaveBeenLastCalledWith(false)
   })
 
+  // useTimeline owns the key; the button says so to assistive technology.
+  it('names Space as the shortcut for the play button', () => {
+    render(<TimelineTransport {...props()} />)
+    expect(screen.getByRole('button', { name: 'Play the timeline' }).getAttribute('aria-keyshortcuts')).toBe('Space')
+  })
+
   it('scrubs to a frame and reads the position out', () => {
     const onIndexChange = vi.fn()
     render(<TimelineTransport {...props({ onIndexChange })} />)

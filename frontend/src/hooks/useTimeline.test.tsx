@@ -66,4 +66,73 @@ describe('useTimeline', () => {
       expect(result.current.movePlayheadTo).toBe(before.movePlayheadTo)
     }
   })
+
+  describe('the Space key', () => {
+    afterEach(() => document.body.replaceChildren())
+
+    // Dispatched from the element that would have focus, so it bubbles to the
+    // window the way a real keystroke does.
+    function press(target: Element = document.body, init: KeyboardEventInit = {}) {
+      const e = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true, ...init })
+      act(() => void target.dispatchEvent(e))
+      return e
+    }
+
+    function place(html: string): Element {
+      document.body.innerHTML = html
+      return document.body.querySelector('[data-at]') ?? document.body.firstElementChild!
+    }
+
+    it('plays and pauses while the bar is on the map, and keeps the page from scrolling', () => {
+      const { result } = render(REPORT)
+      expect(press().defaultPrevented).toBe(true)
+      expect(result.current.playing).toBe(true)
+      press()
+      expect(result.current.playing).toBe(false)
+    })
+
+    it('does nothing with no bar on the map', () => {
+      for (const inputs of [EMPTY, { ...REPORT, playerShown: false }]) {
+        const { result, unmount } = render(inputs)
+        expect(press().defaultPrevented).toBe(false)
+        expect(result.current.playing).toBe(false)
+        unmount()
+      }
+    })
+
+    it('works from the scrubber, which Space does nothing to', () => {
+      const { result } = render(REPORT)
+      press(place('<input type="range">'))
+      expect(result.current.playing).toBe(true)
+    })
+
+    // The play button's own press would toggle a second time, a field would
+    // lose its space, and a modal owns the keyboard while it is open.
+    it.each([
+      ['a button', '<button>Play</button>'],
+      ['a text field', '<input type="text">'],
+      ['a checkbox', '<input type="checkbox">'],
+      ['a select', '<select></select>'],
+      ['a textarea', '<textarea></textarea>'],
+      ['an editable region', '<div contenteditable="true"></div>'],
+      ['a widget with a role', '<div role="switch" tabindex="0"></div>'],
+      ['the inside of a modal', '<div aria-modal="true"><p data-at>Prose</p></div>'],
+    ])('leaves Space to %s', (_, html) => {
+      const { result } = render(REPORT)
+      expect(press(place(html)).defaultPrevented).toBe(false)
+      expect(result.current.playing).toBe(false)
+    })
+
+    it('ignores a held key, a chord, and a key another handler took', () => {
+      const { result } = render(REPORT)
+      press(document.body, { repeat: true })
+      press(document.body, { shiftKey: true })
+      press(document.body, { metaKey: true })
+      const take = (e: Event) => e.preventDefault()
+      document.addEventListener('keydown', take)
+      press()
+      document.removeEventListener('keydown', take)
+      expect(result.current.playing).toBe(false)
+    })
+  })
 })
