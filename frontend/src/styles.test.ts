@@ -133,9 +133,7 @@ import {
   HEADER_EDGE_COLOR,
   HEADER_ICON_COLOR,
   LABEL_COLOR,
-  LINK_COLOR,
   RULE_COLOR,
-  VALUE_LINK,
   WARNING_COLOR,
   popupButton,
   type PopupButtonVariant,
@@ -3097,15 +3095,16 @@ describe('the popup card', () => {
 
   // Light: the white card, pixel for pixel, with the ratios it always had.
   it('keeps the light card the white it always was', () => {
-    expect([SURFACE, INK, HEADER_BAND_COLOR, GRID_RANKED_COLOR, LINK_COLOR, LABEL_COLOR].map((c) => paint(c, 'light'))).toEqual([
-      '#ffffff', '#000000', '#f1f5f9', '#e2e8f0', '#0369a1', '#475569',
+    expect([SURFACE, INK, HEADER_BAND_COLOR, GRID_RANKED_COLOR, LABEL_COLOR].map((c) => paint(c, 'light'))).toEqual([
+      '#ffffff', '#000000', '#f1f5f9', '#e2e8f0', '#475569',
     ])
-    expect([measure(LINK_COLOR, GRID_BAND_COLOR, 'light'), measure(LABEL_COLOR, GRID_BAND_COLOR, 'light')]).toEqual([5.42, 6.92])
+    // A label, and the coordinates, which link in the facts line's own grey
+    // (#740), on the band.
+    expect(measure(LABEL_COLOR, GRID_BAND_COLOR, 'light')).toBe(6.92)
     expect(measure(GRID_RANKED_COLOR, GRID_BAND_COLOR, 'light')).toBe(1.13)
     // The title on its band, and a grid number, which links in the ink (#740),
     // on its column and on the ranked cell.
-    expect(measure(INK, HEADER_BAND_COLOR, 'light')).toBe(19.17)
-    expect(measure(VALUE_LINK, GRID_RANKED_COLOR, 'light')).toBe(17.03)
+    expect([HEADER_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'light'))).toEqual([19.17, 17.03])
     expect(measure(HEADER_ICON_COLOR, HEADER_BAND_COLOR, 'light')).toBe(3.74)
     // The pipes are decoration, hidden from a screen reader; they need only show.
     expect(measure(FINE_COLOR, HEADER_BAND_COLOR, 'light')).toBe(2.34)
@@ -3126,13 +3125,12 @@ describe('the popup card', () => {
   })
 
   it('reads every dark text above AA on each surface it lands on', () => {
-    // The ink is the title's and every grid number's, linked or not (#740).
-    expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(VALUE_LINK, on, 'dark'))).toEqual([11.86, 10.05, 8.4])
-    // Labels never stand on the ranked cell, which holds a number alone.
+    // A link takes the colour of the text around it (#740), so the ink is the
+    // title's and every grid number's, linked or not.
+    expect([SURFACE, GRID_BAND_COLOR, GRID_RANKED_COLOR].map((on) => measure(INK, on, 'dark'))).toEqual([11.86, 10.05, 8.4])
+    // Labels and the coordinates beside them. Neither stands on the ranked
+    // cell, which holds a number alone.
     expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LABEL_COLOR, on, 'dark'))).toEqual([5.56, 4.71])
-    // Sky links stand on the surface (an overlay's text link) and the band
-    // (the coordinates), never in the grid.
-    expect([SURFACE, GRID_BAND_COLOR].map((on) => measure(LINK_COLOR, on, 'dark'))).toEqual([6.71, 5.69])
     // The maintainer's amber, which clears AA on the dark card where on white
     // it does not.
     expect(measure(WARNING_COLOR, SURFACE, 'dark')).toBe(6.81)

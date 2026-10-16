@@ -1,6 +1,6 @@
 # 0138. A popup's coordinates link to CalTopo, centred on the point at the map's zoom, with no layer named
 
-- Status: Accepted
+- Status: Accepted. The link's sky colour is superseded by 0163: it is underlined in the facts line's own grey.
 - Date: 2026-10-14
 - Decider: TJ (#712)
 - Issues and PRs: #712

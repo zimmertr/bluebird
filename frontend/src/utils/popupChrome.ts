@@ -123,24 +123,12 @@ export function rowLabel(label: string): string {
 }
 
 /**
- * The colour a link takes inside a popup.
- *
- * The light card is black on white, where `LINK_ACTION`'s sky-400 would land
- * at 2.1:1, so it takes sky-700, 5.74:1 on white. The title's link glyph
- * keeps a lighter shade because an icon answers to the 3:1 rule instead. The
- * dark card's links are the panel's own accent ink.
- */
-export const LINK_COLOR = 'var(--popup-link)'
-
-/**
- * A grid number's link, in the card's ink: underlined like any link here, but
- * without the sky, as the results table's numbers are (`metricGrid`). Passed
- * as `popupLink`'s `extra`, so it overrides `LINK_COLOR` by coming after it.
- */
-export const VALUE_LINK = 'color:var(--popup-ink)'
-
-/**
- * A link inside a popup body.
+ * A link inside a popup body: underlined, in the colour of the text around
+ * it (TJ, 2026-10-16, #740). A grid number links in the card's ink and the
+ * coordinates in the facts line's grey, the way the results table underlines
+ * a number in its own ink, because sky at rest is the accent that says a
+ * thing acts, and on every number of a grid it was the card's loudest colour.
+ * The underline is what says link. Sky stays on the title's link-out glyph.
  *
  * `extra` is appended AFTER the colour, so a caller that owns its own colour —
  * the fire warning, which is amber before it is a link — overrides it by
@@ -152,7 +140,7 @@ export const VALUE_LINK = 'color:var(--popup-ink)'
  * caller to remember (#621). `inner` is markup the caller has already built.
  */
 export function popupLink(href: string, inner: string, extra = ''): string {
-  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:${LINK_COLOR};text-decoration:underline;${extra}">${inner}</a>`
+  return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;${extra}">${inner}</a>`
 }
 
 /**
@@ -354,11 +342,8 @@ export function bodyLines(lines: readonly (string | null | undefined)[]): string
  * push the card wider. Numbers never wrap and are right-aligned, so a column
  * lines up on its last digit in the mono face, the way the table's do.
  *
- * A number that links is underlined in the card's ink rather than in
- * `LINK_COLOR` (`VALUE_LINK`), which is how the results table marks the same
- * number (`TABLE.valueLink`): sky at rest is the accent that says a
- * thing acts, and on every number of a grid it was the card's loudest colour
- * (TJ, 2026-10-16, #740).
+ * A number that links is underlined in the card's ink (`popupLink`), which
+ * is how the results table marks the same number (`TABLE.valueLink`).
  *
  * The number the report ranks by is bold on a cell one slate darker than its
  * column (`GRID_RANKED_COLOR`), so the card says why its destination stands
@@ -376,7 +361,7 @@ export function metricGrid(grid: PopupGrid, { compact = false }: { compact?: boo
     `<td${span} style="${valueStyle}${c.ranked ? `;background:${GRID_RANKED_COLOR}` : ''}${line}">${cell(c)}</td>`
   const cell = (c: PopupGridCell) => {
     const shown = `<span style="${VALUE_FACE}${c.ranked ? ';font-weight:700' : ''}">${c.text}</span>`
-    return c.href ? popupLink(c.href, shown, VALUE_LINK) : shown
+    return c.href ? popupLink(c.href, shown) : shown
   }
   // A one-value line stands across Min, Max and Avg and leaves the Total
   // column empty, so the number cannot read as a window total.
@@ -423,7 +408,7 @@ export const GRID_LINE_COLOR = 'var(--popup-line)'
  * the column's slate-100, with no hue, so the card's only colour is its links
  * (TJ, 2026-10-08, option H, over a sky-100 cell). It is 1.13:1 against the
  * column, so the number's bold carries most of the mark. The number on it
- * is the ink (`VALUE_LINK`), 17.03:1. The dark card's is the panel's raised slate, a step past its
+ * is the ink, 17.03:1. The dark card's is the panel's raised slate, a step past its
  * column the other way. Pinned in `styles.test.ts`.
  */
 export const GRID_RANKED_COLOR = 'var(--popup-ranked)'

@@ -10,13 +10,14 @@ import {
   GRID_LABEL_GAP_PX,
   GRID_RANKED_COLOR,
   HEADER_BAND_COLOR,
+  LABEL_COLOR,
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
   SECTION_EDGE,
-  VALUE_LINK,
   WIDEST_GRID_PX,
   compactGrid,
   factsRow,
+  metaBand,
   metricGrid,
   bodyLines,
   factsLine,
@@ -102,18 +103,20 @@ describe('a result popup', () => {
 // measured in both themes in `styles.test.ts`, beside the scale bar, because
 // its values are `map.css`'s (#740).
 describe('the popup grid', () => {
-  // A number that links is underlined in the card's ink, as the table's are
-  // (TJ, 2026-10-16, #740); sky stays on the coordinates and the glyph.
-  it('underlines a linked number in the ink, not the sky', () => {
+  // A link is underlined in the colour of the text around it, as the table's
+  // numbers are (TJ, 2026-10-16, #740): a grid number in the card's ink, the
+  // coordinates in the facts line's grey. Sky stays on the title's glyph.
+  it('underlines a link in the colour of the text around it', () => {
     const html = metricGrid({
       columns: [AGGREGATE.minimum],
       rows: [{ kind: 'aggregates', label: 'Wind (mph)', cells: [{ text: '3.2', href: 'https://example.com', ranked: false }] }],
     })
-    const style = mount(html).querySelector('td a')!.getAttribute('style')!
-    expect(style).toMatch(new RegExp(`text-decoration:underline;${VALUE_LINK.replace(/[()]/g, '\\$&')}$`))
-    const coords = factsRow('Peak', null, 47.5, -121.7, 'https://example.com')
-    expect(coords).toContain('<a ')
-    expect(coords).not.toContain(VALUE_LINK)
+    const link = mount(html).querySelector('td a')!
+    expect(link.closest('td')!.getAttribute('style')).not.toMatch(/(^|;)color:/)
+    expect(link.getAttribute('style')).toMatch(/^color:inherit;text-decoration:underline;/)
+    const facts = metaBand([factsRow('Peak', null, 47.5, -121.7, 'https://example.com')])
+    expect(facts).toMatch(new RegExp(`^<div style="[^"]*${LABEL_COLOR.replace(/[()]/g, '\\$&')}">`))
+    expect(facts).toMatch(/<a [^>]*style="color:inherit;text-decoration:underline;"/)
   })
 
   it('stands a one-value line across Min, Max and Avg and leaves Total empty', () => {
