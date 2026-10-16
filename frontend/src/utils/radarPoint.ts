@@ -126,9 +126,16 @@ export function rainRateInPerHour(dbz: number): number {
   return (z / 200) ** (1 / 1.6) / 25.4
 }
 
-/** A rain rate as the card prints it: two decimals under an inch an hour, one above. */
-export function formatRainRate(inPerHour: number): string {
-  return `about ${inPerHour.toFixed(inPerHour < 1 ? 2 : 1)} in/h`
+/**
+ * A rain rate as the card prints it: two decimals under an inch an hour, one
+ * above. A rate read at {@link HAIL_CAP_DBZ} or past it is the cap's rather
+ * than the echo's, so it says it is a floor (`≥2.9 in/h`) the way the cloud
+ * deck marks a reading at its ceiling (TJ, 2026-10-16), and loses the `about`
+ * that an estimate under the cap carries.
+ */
+export function formatRainRate(inPerHour: number, atCap = false): string {
+  const shown = `${inPerHour.toFixed(inPerHour < 1 ? 2 : 1)} in/h`
+  return atCap ? `≥${shown}` : `about ${shown}`
 }
 
 /**
@@ -146,10 +153,15 @@ export function radarUpdated(offsetMin: number): string {
 /** What the card names the radar as, on its band. */
 export const RADAR_SOURCE = 'NEXRAD radar'
 
-/** The radar's section of the card, for a painted reflectivity on one frame. */
+/**
+ * The radar's section of the card, for a painted reflectivity on one frame.
+ * The rate leads, being what a reader came to ask, and the reflectivity it is
+ * read from follows it (TJ, 2026-10-16).
+ */
 export function radarSection(dbz: number, offsetMin: number): PointSection {
-  const rows = [row('Reflectivity', `${dbz.toFixed(1)} dBZ`)]
-  if (dbz >= WEAK_ECHO_DBZ) rows.push(row('Rate', formatRainRate(rainRateInPerHour(dbz))))
+  const rows: string[] = []
+  if (dbz >= WEAK_ECHO_DBZ) rows.push(row('Rate', formatRainRate(rainRateInPerHour(dbz), dbz >= HAIL_CAP_DBZ)))
+  rows.push(row('Reflectivity', `${dbz.toFixed(1)} dBZ`))
   rows.push(updatedLine(radarUpdated(offsetMin)))
   return { title: escapeHtml(radarTitle(dbz)), source: escapeHtml(RADAR_SOURCE), rows }
 }

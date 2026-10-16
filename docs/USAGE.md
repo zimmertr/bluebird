@@ -269,8 +269,8 @@ Washington an amber line under the band gives the order's type, such as
 name already says. A plume's card says how dense it is, which satellite it was
 traced from, and over what hours. A click on a radar echo or on painted snow
 opens a card too, and the pointer says where one will: the radar's is named for
-how strong the echo is and gives its reflectivity, an estimated rate and how old
-the frame is, and the snow's is named for how deep the snow is and gives the
+how strong the echo is and gives an estimated rate, the reflectivity it is read
+from and how old the frame is, and the snow's is named for how deep the snow is and gives the
 depth, the snow water equivalent and when NOAA's analysis was made. The snow
 card opens at once and its numbers land a moment later, since they are asked of
 NOAA at the click. Where both are painted under one click, one card carries

@@ -82,6 +82,12 @@ describe('rainRateInPerHour', () => {
     expect(formatRainRate(0.454)).toBe('about 0.45 in/h')
     expect(formatRainRate(3.86)).toBe('about 3.9 in/h')
   })
+
+  // A rate at the cap is a floor, marked as the cloud deck marks its ceiling
+  // (TJ, 2026-10-16).
+  it('marks a rate held at the cap as a floor', () => {
+    expect(formatRainRate(2.948, true)).toBe('≥2.9 in/h')
+  })
 })
 
 describe('radarSection', () => {
@@ -92,10 +98,18 @@ describe('radarSection', () => {
     expect(section.title).toBe('Moderate precipitation')
     expect(section.source).toBe(RADAR_SOURCE)
     expect(section.rows.map(markupText)).toEqual([
-      'Reflectivity: 38.5 dBZ',
       'Rate: about 0.37 in/h',
+      'Reflectivity: 38.5 dBZ',
       'Updated: now',
     ])
+  })
+
+  // Inclusive: an echo at the cap reads the cap's rate, so it is a floor too.
+  it('marks the rate a floor from the hail cap up, and an estimate under it', () => {
+    const rate = (dbz: number) => markupText(radarSection(dbz, 0).rows[0])
+    expect(rate(52.5)).toBe('Rate: about 2.7 in/h')
+    expect(rate(HAIL_CAP_DBZ)).toBe('Rate: ≥2.9 in/h')
+    expect(rate(59)).toBe('Rate: ≥2.9 in/h')
   })
 
   // Under the threshold an echo is as likely birds as drizzle, so no rate.
