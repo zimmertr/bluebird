@@ -172,17 +172,41 @@ export function radarUpdated(offsetMin: number): string {
 /** What the card names the radar as, on its band. */
 export const RADAR_SOURCE = 'NEXRAD radar'
 
+/** What a radar row the frame cannot fill reads: the table's own mark for a value it does not have. */
+const NO_VALUE = 'N/A'
+
 /**
  * The radar's section of the card, for a painted reflectivity on one frame.
  * The rate leads, being what a reader came to ask, and the reflectivity it is
- * read from follows it (TJ, 2026-10-16).
+ * read from follows it (TJ, 2026-10-16). A weak echo, which may be birds or
+ * clutter, has no rate to give and says so rather than dropping the row, so
+ * every radar section has the same lines and a card that follows the player
+ * keeps its height (TJ, 2026-10-16, #748).
  */
 export function radarSection(dbz: number, offsetMin: number): PointSection {
-  const rows: string[] = []
-  if (dbz >= WEAK_ECHO_DBZ) rows.push(row('Rate', formatRainRate(rainRateInPerHour(dbz), dbz >= HAIL_CAP_DBZ)))
-  rows.push(row('Reflectivity', formatReflectivity(dbz)))
-  rows.push(updatedLine(radarUpdated(offsetMin)))
-  return { title: escapeHtml(radarTitle(dbz)), source: escapeHtml(RADAR_SOURCE), rows }
+  const rate = dbz >= WEAK_ECHO_DBZ ? formatRainRate(rainRateInPerHour(dbz), dbz >= HAIL_CAP_DBZ) : NO_VALUE
+  return {
+    title: escapeHtml(radarTitle(dbz)),
+    source: escapeHtml(RADAR_SOURCE),
+    rows: [row('Rate', escapeHtml(rate)), row('Reflectivity', formatReflectivity(dbz)), updatedLine(radarUpdated(offsetMin))],
+  }
+}
+
+/** What an open card names a frame that painted nothing at its point (TJ, 2026-10-16, #748). */
+export const NO_ECHO_TITLE = 'No radar echo'
+
+/**
+ * The radar's section for a frame with no echo at the point: a card already
+ * open stays open through it, since the storm may come back on the next
+ * frame. No echo means the radar saw nothing falling, so the rate is a
+ * reading of 0, and there is no reflectivity to give.
+ */
+export function noEchoSection(offsetMin: number): PointSection {
+  return {
+    title: escapeHtml(NO_ECHO_TITLE),
+    source: escapeHtml(RADAR_SOURCE),
+    rows: [row('Rate', '0 in/h'), row('Reflectivity', NO_VALUE), updatedLine(radarUpdated(offsetMin))],
+  }
 }
 
 /** The radar tiles' size, which is the `tileSize` the overlay declares. */
@@ -234,7 +258,32 @@ export async function readRadarAt(
   offsetMin: number,
   { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
 ): Promise<PointReading | null> {
-  if (!RADAR_EXTENTS.some((box) => inBounds(lng, lat, box))) return null
-  const dbz = dbzOfHeld(await tiles.pixel(radarHeldLayer(offsetMin), lng, lat, radarTileZoom(zoom)))
+  const dbz = await heldDbz(tiles, offsetMin, { lng, lat, zoom })
   return dbz === null ? null : { section: radarSection(dbz, offsetMin) }
+}
+
+/**
+ * The radar's section at a point for a card already open, read again when the
+ * frame on screen changes (#748). A frame that painted nothing there, or
+ * whose tiles the map has not loaded, answers the no-echo section rather than
+ * closing the card: in both the map shows no echo at the point, so that is
+ * what the card says.
+ */
+export async function rereadRadarAt(
+  tiles: HeldTiles,
+  offsetMin: number,
+  at: { lng: number; lat: number; zoom: number },
+): Promise<PointSection> {
+  const dbz = await heldDbz(tiles, offsetMin, at)
+  return dbz === null ? noEchoSection(offsetMin) : radarSection(dbz, offsetMin)
+}
+
+/** The reflectivity one frame painted at a point, or null where it painted nothing. */
+async function heldDbz(
+  tiles: HeldTiles,
+  offsetMin: number,
+  { lng, lat, zoom }: { lng: number; lat: number; zoom: number },
+): Promise<number | null> {
+  if (!RADAR_EXTENTS.some((box) => inBounds(lng, lat, box))) return null
+  return dbzOfHeld(await tiles.pixel(radarHeldLayer(offsetMin), lng, lat, radarTileZoom(zoom)))
 }

@@ -129,6 +129,33 @@ describe('mountRadar click reading', () => {
     expect(await points[0].paints(AT)).toBe(false)
   })
 
+  // A new frame is a new picture under an open card and a resting mouse
+  // (#748), and the same frame again is not.
+  it('asks for its open cards to be read again when the frame on screen changes, and only then', () => {
+    const { popups, refreshed } = fakeMapPopups()
+    const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups })
+    radar.update({ show: true, index: 2 })
+    const asked = refreshed.length
+    radar.update({ show: true, index: 2 })
+    expect(refreshed).toHaveLength(asked)
+    radar.update({ show: true, index: 5 })
+    expect(refreshed).toHaveLength(asked + 1)
+    expect(new Set(refreshed)).toEqual(new Set(['radar']))
+  })
+
+  it('reads an open card again from the frame now on screen', async () => {
+    const AT = { lng: -121.5, lat: 47.5, zoom: 7 }
+    const onScreen = radarOffsets()[2]
+    const tiles = storeHolding({ size: RADAR_TILE_PX, layer: radarHeldLayer(onScreen), ...AT, z: radarTileZoom(7), rgba: [9, 111, 12, 255] })
+    const { popups, points } = fakeMapPopups()
+    const radar = mountRadar(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, tiles })
+    radar.update({ show: true, index: 2 })
+    const signal = new AbortController().signal
+    expect((await points[0].refresh!(AT, signal)).rows.map(markupText)).toContain(`Updated: ${onScreen} min ago`)
+    radar.update({ show: true, index: 5 })
+    expect((await points[0].refresh!(AT, signal)).title).toBe('No radar echo')
+  })
+
   // The frames load through the scheme that keeps a copy of every tile.
   it('loads every frame through the held-tile scheme', () => {
     const stub = stubMap({ layers: [SMOKE_FIRST] })

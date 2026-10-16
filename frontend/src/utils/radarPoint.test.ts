@@ -7,6 +7,9 @@ import {
   WEAK_ECHO_DBZ,
   dbzOfPixel,
   formatRainRate,
+  NO_ECHO_TITLE,
+  noEchoSection,
+  rereadRadarAt,
   formatReflectivity,
   N0Q_CEILING_DBZ,
   N0Q_FLOOR_DBZ,
@@ -134,11 +137,23 @@ describe('radarSection', () => {
     expect(rate(59)).toBe('Rate: ≥2.9 in/h')
   })
 
-  // Under the threshold an echo is as likely birds as drizzle, so no rate.
-  it('gives a weak echo no rain rate', () => {
-    expect(radarSection(5, 20).rows.map(markupText)).toEqual(['Reflectivity: 5.0 dBZ', 'Updated: 20 min ago'])
+  // Under the threshold an echo is as likely birds as drizzle, so it has no
+  // rate to give, and says so in a row of its own so the card keeps its
+  // height through playback (TJ, 2026-10-16, #748).
+  it('gives a weak echo no rain rate, keeping the row', () => {
+    expect(radarSection(5, 20).rows.map(markupText)).toEqual(['Rate: N/A', 'Reflectivity: 5.0 dBZ', 'Updated: 20 min ago'])
     // The frame's age is fine print, as every overlay card's date is (TJ, 2026-10-16).
-    expect(radarSection(5, 20).rows[1]).toBe(updatedLine('20 min ago'))
+    expect(radarSection(5, 20).rows[2]).toBe(updatedLine('20 min ago'))
+  })
+
+  // A card open through playback stays open on a frame that painted nothing
+  // at its point (TJ, 2026-10-16, #748).
+  it('says a frame had no echo, with the same rows as one that did', () => {
+    const section = noEchoSection(30)
+    expect(section.title).toBe(NO_ECHO_TITLE)
+    expect(section.source).toBe(RADAR_SOURCE)
+    expect(section.rows.map(markupText)).toEqual(['Rate: 0 in/h', 'Reflectivity: N/A', 'Updated: 30 min ago'])
+    expect(section.rows).toHaveLength(radarSection(38.5, 0).rows.length)
   })
 
   it('says how old an older frame is', () => {
@@ -174,6 +189,20 @@ describe('radarPaints', () => {
   it('is false where nothing was painted, and outside every radar without a lookup', async () => {
     expect(await radarPaints(held(0, [0, 0, 0, 0]), 0, AT)).toBe(false)
     expect(radarPaints(heldTiles({ size: RADAR_TILE_PX }), 0, { lng: 10, lat: 46, zoom: 7 })).toBe(false)
+  })
+})
+
+describe('rereadRadarAt', () => {
+  it('reads the frame now on screen for a card already open', async () => {
+    const section = await rereadRadarAt(held(30), 30, AT)
+    expect(section.title).toBe('Moderate precipitation')
+    expect(section.rows.map(markupText)).toContain('Updated: 30 min ago')
+  })
+
+  // The map shows no echo there either way, so the card says so rather than closing.
+  it('answers no echo where the frame painted nothing, or holds no tile yet', async () => {
+    expect((await rereadRadarAt(held(0, [0, 0, 0, 0]), 0, AT)).title).toBe(NO_ECHO_TITLE)
+    expect((await rereadRadarAt(heldTiles({ size: RADAR_TILE_PX }), 20, AT)).title).toBe(NO_ECHO_TITLE)
   })
 })
 

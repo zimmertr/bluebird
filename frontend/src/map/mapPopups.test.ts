@@ -557,3 +557,97 @@ describe('mountMapPopups point target cursor', () => {
     expect(stub.canvas.style.cursor).toBe('crosshair')
   })
 })
+
+// The radar's frames move under an open card and a resting mouse during
+// playback, and neither a click nor a move comes to say so (#748).
+describe('mountMapPopups point targets that change', () => {
+  const section = (title: string): PointSection => ({ title, source: `${title} source`, rows: [] })
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+  function changing(popups: ReturnType<typeof setup>['popups'], refresh: NonNullable<MapPointTarget['refresh']>) {
+    const spy = vi.fn(refresh)
+    popups.registerPoint({ target: 'radar', shown: () => true, paints: () => true, read: async () => ({ section: section('Rain') }), refresh: spy })
+    popups.registerPoint({ target: 'snow', shown: () => true, paints: () => true, read: async () => ({ section: section('Snow') }) })
+    return spy
+  }
+
+  it('reads an open card again where it stands, and redraws only that picture', async () => {
+    const { popups, click } = setup()
+    const refresh = changing(popups, async () => section('No echo'))
+    click()
+    await settle()
+    expect(made[0].html).toContain('Rain')
+    popups.refreshPoint('radar')
+    await settle()
+    expect(refresh.mock.calls[0][0]).toEqual({ lng: -121.5, lat: 47.5, zoom: 8 })
+    expect(made[0].html).toContain('No echo')
+    expect(made[0].html).not.toContain('Rain')
+    expect(made[0].html).toContain('Snow')
+    expect(made).toHaveLength(1)
+  })
+
+  it('asks nothing for a card that has closed, or of a picture that does not change', async () => {
+    const { popups, click } = setup()
+    const refresh = changing(popups, async () => section('No echo'))
+    click()
+    await settle()
+    popups.refreshPoint('snow')
+    await settle()
+    expect(made[0].html).toContain('Rain')
+    popups.closeAll()
+    popups.refreshPoint('radar')
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  // A scrub moves faster than a tile decodes: the newest frame wins.
+  it('never lets a slower answer paint over a newer frame', async () => {
+    const { popups, click } = setup()
+    const answers: ((s: PointSection) => void)[] = []
+    changing(popups, () => new Promise((resolve) => answers.push(resolve)))
+    click()
+    await settle()
+    popups.refreshPoint('radar')
+    popups.refreshPoint('radar')
+    answers[1](section('Newer'))
+    answers[0](section('Older'))
+    await settle()
+    expect(made[0].html).toContain('Newer')
+    expect(made[0].html).not.toContain('Older')
+  })
+})
+
+describe('mountMapPopups cursor under a changing picture', () => {
+  function resting() {
+    const ctx = setup()
+    let painted = true
+    ctx.popups.registerPoint({ target: 'radar', shown: () => true, paints: () => painted, read: async () => null })
+    return { ...ctx, paint: (on: boolean) => (painted = on) }
+  }
+
+  // The pointer follows the frames under a mouse that does not move (TJ,
+  // 2026-10-16).
+  it('decides the cursor again where the mouse rests', () => {
+    const { stub, popups, move, paint } = resting()
+    move()
+    expect(stub.canvas.style.cursor).toBe('pointer')
+    paint(false)
+    popups.refreshPoint('radar')
+    expect(stub.canvas.style.cursor).toBe('')
+    paint(true)
+    popups.refreshPoint('radar')
+    expect(stub.canvas.style.cursor).toBe('pointer')
+  })
+
+  it('leaves the cursor alone once the mouse has left the map, and while it drags', () => {
+    const { stub, popups, move, paint } = resting()
+    move()
+    stub.fire('mouseout', undefined, {})
+    paint(false)
+    popups.refreshPoint('radar')
+    expect(stub.canvas.style.cursor).toBe('pointer')
+    stub.fire('mousemove', undefined, { point: { x: 10, y: 20 }, lngLat: { lng: -121.5, lat: 47.5 }, originalEvent: { buttons: 1 } })
+    paint(true)
+    popups.refreshPoint('radar')
+    expect(stub.canvas.style.cursor).toBe('')
+  })
+})
