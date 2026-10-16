@@ -2,7 +2,7 @@
 
 - Status: Accepted. Supersedes 0165 in part: the snow's top word.
 - Date: 2026-10-16
-- Decider: the maintainer (TJ), on issue #748, 2026-10-16: drop `Permanent snow`, name a glacier `Glacier`, keep NOAA's numbers on it, and stand a bar in the title until the glacier answer is in
+- Decider: the maintainer (TJ), on issue #748, 2026-10-16: drop `Permanent snow`, move the word edges up to 25, 100 and 250 cm and add `Extremely deep snow` from 500 cm, name a glacier `Glacier`, keep NOAA's numbers on it, and stand a bar in the title until the glacier answer is in
 - Issues and PRs: #748, #749, #737 (the cards), #446 (the snow layer)
 - Cited in code as: #748
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `glacierCell.ts` and `snowPoint.ts` bullets; [`frontend/src/CLAUDE.md`](../../frontend/src/CLAUDE.md), the `testSupport/mvt.ts` bullet; [`docs/DATA.md`](../DATA.md), Snow depth; [`docs/USAGE.md`](../USAGE.md); [`docs/TRAFFIC.md`](../TRAFFIC.md)
@@ -16,7 +16,7 @@ NOAA's number on a glacier is not ice either. The analysis has no glacier in it,
 
 ## Decision
 
-**The words say how deep and nothing more**: `Light snow` under 3.9 in, `Moderate snow` from 3.9, `Deep snow` from 20 and `Very deep snow` from 59 in up.
+**The words say how deep and nothing more**: `Light snow` under 9.8 in, `Moderate snow` from 9.8, `Deep snow` from 39, `Very deep snow` from 98 and `Extremely deep snow` from 197 in up. The edges are still NOAA's band boundaries, so the word and the colour cannot disagree, but one band up from 0165's 3.9, 20 and 59 in, which are 10, 50 and 150 cm: the maintainer read 20 in as not deep and 59 in as not very deep. The new edges are 25, 100, 250 and 500 cm, set where a hiker's ground changes: boots below about 10 in, snowshoes or skis to about 3 ft, deep past that, past 8 ft what a big Cascade winter piles up, and past 16 ft a record one. The maintainer added the fifth word for that record winter, the case that retired `Permanent snow`: the same band now says how far past ordinary the depth is without claiming it lasts. NOAA names none of its bands, and no NWS or avalanche-centre vocabulary for a depth on the ground was found, so the words and where they fall are this app's.
 
 **A cell on a glacier is titled `Glacier`, and keeps NOAA's numbers.** The test is whether the analysis cell under the click, a box of 1/120 of a degree around it, overlaps a glacier OpenStreetMap has mapped (`utils/glacierCell.ts`), read from the basemap's `landcover` class `ice` at zoom 12 whatever the map shows. The cell rather than the point, because NOAA's number is the cell's, and one zoom rather than the map's drawing, because that drawing changes with zoom and OSM leaves Baker's summit dome out of its outlines: a point test on the map read the summit as bare ground from zoom 9 up. Measured 2026-10-16, the cell test read Baker's, Rainier's and Hood's summits, the cell west of Baker's and Camp Muir as glacier, and Paradise, Mount Baker Ski Area and Timberline Lodge as not, the same at every zoom from 10 to 14. `Glacier` over `Glacier ice`, which the maintainer first chose, because the numbers have firn's density and not ice's, so the title names the place and claims nothing about the material. The numbers stay rather than `N/A`, as the maintainer asked: they are what the source says, and the title tells a reader where they stand.
 
@@ -27,10 +27,10 @@ NOAA's number on a glacier is not ice either. The analysis has no glacier in it,
 ## Alternatives rejected
 
 - **`Permanent snow`.** Wrong in a record winter.
-- **`Extreme snow` for the top band.** Kept a fifth word for a band the colour cannot tell from glacier.
 - **Testing the point against the map's own glacier fill.** Zoom-dependent, and blind to Baker's summit.
 - **`N/A` for a glacier's depth and water.** Dropped the source's own numbers.
 - **`Glacier ice/snow`.** No title in the app hedges with a slash.
+- **0165's edges, 3.9, 20 and 59 in.** Called a knee-deep 20 in `Deep snow`.
 
 ## Consequences
 

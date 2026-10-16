@@ -1165,13 +1165,13 @@ and shows the depth, the snow water equivalent and the time the analysis is
 valid for, in your own time zone. The card opens at once, named for the band
 the map painted under the click, which the app reads off its own copy of the
 tile: NOAA's renders use exactly the legend's colours, so the pixel names the
-band. `Light snow` under 3.9 in, then `Moderate`, `Deep` and `Very deep snow`
-from 3.9, 20 and 59 in. The edges are NOAA's own legend's, which are round
-centimetres (10, 50 and 150 cm), so the name and the colour cannot disagree;
-the words are this app's, since NOAA names its bands nothing. They say how deep
-and nothing more, because
-depth is all the colour knows: a record winter's snowpack is `Very deep snow`
-however deep it gets. The numbers then land in the card from NOAA's answer, and
+band. `Light snow` under 9.8 in, then `Moderate`, `Deep`, `Very deep` and
+`Extremely deep snow` from 9.8, 39, 98 and 197 in. The edges are NOAA's own
+legend's, which are round centimetres (25, 100, 250 and 500 cm), so the name
+and the colour cannot disagree; the words are this app's, since NOAA names its
+bands nothing. They say how deep and nothing more, because depth is all the
+colour knows: a record winter's snowpack and a glacier's carried-over depth
+paint the same colours. The numbers then land in the card from NOAA's answer, and
 they are the analysis's, not a reading of the colour. A value NOAA does not
 give reads `N/A`, so every snow card has the same rows.
 

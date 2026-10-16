@@ -61,7 +61,7 @@ describe('mountSnow', () => {
 describe('mountSnow click reading', () => {
   it('registers a point target that is asked only while the field is on', async () => {
     const AT = { lng: -121.76, lat: 46.85, zoom: 11 }
-    // Deep snow's legend colour, #3c3fc2.
+    // The 20 to 39 in band's legend colour, #3c3fc2.
     const tiles = storeHolding({ size: SNOW_TILE_SIZE, layer: SNOW_HELD_LAYER, ...AT, z: snowTileZoom(11), rgba: [60, 63, 194, 255] })
     const { popups, points } = fakeMapPopups()
     const snow = mountSnow(stubMap({ layers: [SMOKE_FIRST] }).map, { popups, tiles })

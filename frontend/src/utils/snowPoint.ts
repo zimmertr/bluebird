@@ -63,16 +63,20 @@ export function snowTileZoom(mapZoom: number): number {
 
 /**
  * The card's name for each depth, by NOAA's own band boundaries (TJ,
- * 2026-10-16). Every word says how deep and nothing more, because the depth
- * is all the colour knows: a top word of `Permanent snow` once stood past
- * 197 in, and a record winter's snowpack can pass that where nothing is
- * permanent (TJ, 2026-10-16, #748). A glacier is named by where it is
- * instead (`glacierCell.ts`).
+ * 2026-10-16). The edges are 25, 100, 250 and 500 cm, where a hiker's
+ * ground changes: boots below 10 in, snowshoes or skis to about 3 ft, deep
+ * past that, past 8 ft what a big Cascade winter piles up, and past 16 ft a
+ * record one (TJ, 2026-10-16, #748; the first edges, 10, 50 and 150 cm,
+ * called 20 in deep). Every word says how deep and nothing more, because the
+ * depth is all the colour knows: the top word was `Permanent snow` once, and
+ * a record winter's snowpack can pass it where nothing is permanent. A
+ * glacier is named by where it is instead (`glacierCell.ts`).
  */
 const SNOW_WORDS: readonly { from: number; word: string }[] = [
-  { from: 59, word: 'Very deep snow' },
-  { from: 20, word: 'Deep snow' },
-  { from: 3.9, word: 'Moderate snow' },
+  { from: 197, word: 'Extremely deep snow' },
+  { from: 98, word: 'Very deep snow' },
+  { from: 39, word: 'Deep snow' },
+  { from: 9.8, word: 'Moderate snow' },
   { from: 0, word: 'Light snow' },
 ]
 
