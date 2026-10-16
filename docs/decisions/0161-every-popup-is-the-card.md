@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-10-16
 - Decider: TJ, in the session that filed #738 (2026-10-16)
-- Issues and PRs: #738
+- Issues and PRs: #738, #741
 - Cited in code as: #738
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `popupChrome.ts`, `closures.ts`, `smoke.ts` and `wildfires.ts` bullets; [`frontend/src/map/CLAUDE.md`](../../frontend/src/map/CLAUDE.md), the `mapPopups.ts`, `drawRing.ts`, `poiPopup.ts` and overlay bullets
 
