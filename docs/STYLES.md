@@ -329,7 +329,9 @@ names them in its markup as `var(--popup-label)` and the rest. The light card
 is the white it has always been, value for value. The dark card is the
 panel's own: its surface `panel`, its header band and grid columns halfway
 between `panel` and `raised`, its ranked cell `raised`, its inks the panel's,
-its links `accent-ink`. The warning amber is the one colour both cards share,
+its links `accent-ink`. A grid number links in the ink, underlined, the way
+the results table's numbers do, so sky stays on the title's glyph and the
+coordinates. The warning amber is the one colour both cards share,
 because on the dark card it clears AA. `styles.test.ts` measures every pair in
 both themes. Record: [0163](decisions/0163-popups-follow-the-theme.md)
 

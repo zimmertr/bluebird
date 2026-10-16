@@ -16,6 +16,7 @@ Record [0158](0158-light-theme-behind-semantic-tokens.md) kept the popups out of
 - **Every colour a card wears is a `--popup-*` value, declared once per theme in `map.css`.** `popupChrome.ts` names them in its markup (`var(--popup-label)`), which resolves where the markup lands; `map.css` names them for the parts MapLibre draws, the card's surface, its tip, the close button and the scroll bar. They sit in `map.css` rather than `index.css`, which every page loads, because only the map draws a popup.
 - **The light card is unchanged.** Its values are the hexes it always painted, so the light theme is pixel-identical.
 - **The dark card is the panel's own.** Its surface is `panel`, the surface every popover stands on; its header band and grid columns are halfway between `panel` and `raised` in oklab; its ranked cell is `raised`; its ink, label and fine print are the panel's `ink`, `ink-soft` and `ink-faint`; its links and link-out glyph are `accent-ink`; its lines are `rule` and `frame`; its primary button is the accent fill. Each is a `--ui-*` token, so the card cannot drift from the panel beside it.
+- **A grid number links in the card's ink, underlined, in both themes** (the maintainer, 2026-10-16, on this PR). The results table marks the same number that way, and sky at rest is the accent that says a thing acts; on every number of a grid it was the card's loudest colour, and in the dark card the inconsistency with the table beside it showed. The underline still says link. Sky stays on the title's link-out glyph and on the coordinates.
 - **The warning amber stays amber-500 in both themes.** It is the maintainer's choice on white (2026-10-08), and on the dark card it clears AA.
 - **The ring's remove-point popup follows too.** It is the one popup that is not a card, a bare button, and it stands on the same surface.
 
@@ -25,9 +26,9 @@ Measured 2026-10-16 in `styles.test.ts`, from `map.css`, `index.css` and Tailwin
 
 | Pair, dark card | Ratio | Light card |
 |---|---|---|
-| Ink on surface, band, ranked cell | 11.86, 10.05, 8.40 | 21.00, 19.17, 17.03 |
+| Ink, and every grid number, on surface, band, ranked cell | 11.86, 10.05, 8.40 | 21.00, 19.17, 17.03 |
 | Label on surface, band | 5.56, 4.71 | 7.58, 6.92 |
-| Link on surface, band, ranked cell | 6.71, 5.69, 4.75 | 5.93, 5.42, 4.81 |
+| Sky link on surface, band | 6.71, 5.69 | 5.93, 5.42 |
 | Link-out glyph on band | 5.69 | 3.74 |
 | Warning on surface | 6.81 | 2.15 |
 | Fine print on surface, band | 3.07, 2.60 | 2.98, 2.34 |

@@ -13,6 +13,7 @@ import {
   RESULT_CARD_PAD_PX,
   RESULT_POPUP_MAX_WIDTH_PX,
   SECTION_EDGE,
+  VALUE_LINK,
   WIDEST_GRID_PX,
   compactGrid,
   factsRow,
@@ -101,6 +102,20 @@ describe('a result popup', () => {
 // measured in both themes in `styles.test.ts`, beside the scale bar, because
 // its values are `map.css`'s (#740).
 describe('the popup grid', () => {
+  // A number that links is underlined in the card's ink, as the table's are
+  // (TJ, 2026-10-16, #740); sky stays on the coordinates and the glyph.
+  it('underlines a linked number in the ink, not the sky', () => {
+    const html = metricGrid({
+      columns: [AGGREGATE.minimum],
+      rows: [{ kind: 'aggregates', label: 'Wind (mph)', cells: [{ text: '3.2', href: 'https://example.com', ranked: false }] }],
+    })
+    const style = mount(html).querySelector('td a')!.getAttribute('style')!
+    expect(style).toMatch(new RegExp(`text-decoration:underline;${VALUE_LINK.replace(/[()]/g, '\\$&')}$`))
+    const coords = factsRow('Peak', null, 47.5, -121.7, 'https://example.com')
+    expect(coords).toContain('<a ')
+    expect(coords).not.toContain(VALUE_LINK)
+  })
+
   it('stands a one-value line across Min, Max and Avg and leaves Total empty', () => {
     const html = metricGrid({
       columns: [AGGREGATE.minimum, AGGREGATE.maximum, AGGREGATE.average, AGGREGATE.total],
