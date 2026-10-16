@@ -1,8 +1,8 @@
 # 0163. The map popups follow the theme: dark cards in the dark theme, white in the light
 
-- Status: Proposed, on PR #744 for #740. Supersedes the popup clause of 0158 once accepted.
+- Status: Accepted. Supersedes the popup clause of 0158.
 - Date: 2026-10-16
-- Decider: the maintainer (TJ), on issue #740, whose option B this builds; the dark palette is the PR's proposal and awaits the same call
+- Decider: the maintainer (TJ), on PR #744, 2026-10-16: option B of #740, the dark palette, links in the colour of the text around them, and the ranked family in the table's colours
 - Issues and PRs: #740, #744, #738, #741, #706, #739
 - Cited in code as: #740
 - Guide: [`frontend/src/utils/CLAUDE.md`](../../frontend/src/utils/CLAUDE.md), the `popupChrome.ts` bullet; [`docs/STYLES.md`](../STYLES.md), Two themes; [`docs/USAGE.md`](../USAGE.md), Light theme
