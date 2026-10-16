@@ -6,6 +6,7 @@ import type {
   DestinationsRequest,
   DestinationsResponse,
   DiscoveredDestination,
+  DiscoveryType,
   RefusalFields,
 } from '../types'
 import {
@@ -21,6 +22,7 @@ import {
 import type { LatePatch } from './clientAnalyze'
 import { type Identity, NO_IDENTITY, withIdentity, withLearnedElevation } from './elevationLookup'
 import { geoKey } from './points'
+import { distinctRows } from './customList'
 import type { ElevationLookup } from '../hooks/useElevationLookup'
 import { postDestinations } from './apiFetch'
 import { resolveWindow, type WindowLimits } from './forecastWindow'
@@ -79,13 +81,26 @@ export async function readErrorBody(res: Response): Promise<{ message: string; r
   return { message: message || fallback, refusal }
 }
 
+/**
+ * A discovery the map server could not answer: the pod's own 5xx or 429, or
+ * an edge's page in place of it. Its own class so a polygon run can keep the
+ * rows that needed no map server (#735), where a refusal or a malformed
+ * request still fails the run, since asking again cannot change either.
+ */
+export class DiscoveryUnavailableError extends Error {}
+
 /** The field an analysis will forecast, and what finding it reported. */
 export interface Discovered {
   candidates: DiscoveredDestination[]
   // Server-side truncation, which happened at discovery.
   totalFound: number | null
   truncated: boolean
+  // The ticked kinds the map server failed to answer, which the field is
+  // therefore without (#735). Empty for every run that found what it asked.
+  missingTypes: readonly DiscoveryType[]
 }
+
+const NONE_MISSING: readonly DiscoveryType[] = []
 
 // A polygon run's one server call: what is in here? A run with no polygon
 // never comes this way. Its field is the list it was sent, and
@@ -112,6 +127,7 @@ export async function discoverCandidates(request: AnalyzeRequest, signal: AbortS
     candidates: discovered.destinations,
     totalFound: discovered.total_found ?? null,
     truncated: discovered.truncated ?? false,
+    missingTypes: NONE_MISSING,
   }
 }
 
@@ -120,6 +136,7 @@ async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
   if (!res.ok) {
     const { message, refusal } = await readErrorBody(res)
     if (refusal) throw new AnalysisRefusalError(message)
+    if (res.status >= 500 || res.status === 429) throw new DiscoveryUnavailableError(message)
     throw new Error(message)
   }
   return (await res.json()) as DestinationsResponse
@@ -138,6 +155,17 @@ async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
  * typed `custom`, so their kinds and OSM ids are put back here from what the
  * tiles said. The cap is applied before the call, as the pod would apply it
  * to the union: a refusal below the opt-in, the highest kept above it.
+ *
+ * When the call fails upstream, the run keeps what needed no map server
+ * (#735, decision 0164): the tile rows and the reader's list are the field,
+ * and the kinds the pod was asked to find ride on it as `missingTypes` for
+ * the panel to name (none, when the tiles answered every kind and only the
+ * pod itself failed). The rows are the ones the pod would have answered,
+ * since a call with `elevation_lookup: false` echoes what it is sent with
+ * each coordinate kept once, so that rule (`distinctRows`) stands in for the
+ * call rather than a second request to a pod that may be what failed. A run
+ * with no such rows has nothing to rank and fails with the map server's
+ * message as before.
  *
  * Null when the tiles cannot answer the ring, and the run takes the map
  * server's path (`discoverCandidates`) as before: a request for trailheads
@@ -190,21 +218,28 @@ async function discoverFromTilesFirst(
     longitude: r.longitude,
     ...(r.elevation_ft != null ? { elevation_ft: r.elevation_ft } : {}),
   }))
-  const answer = await discoveryAnswer(
-    await postDestinations(
-      {
-        polygon: request.polygon,
-        destination_types: tiles.splitTypes(types).server,
-        include_unnamed_peaks: request.include_unnamed_peaks ?? false,
-        min_elevation_ft: request.min_elevation_ft,
-        max_elevation_ft: request.max_elevation_ft,
-        top_by_elevation: request.top_by_elevation ?? false,
-        custom_destinations: sent,
-        elevation_lookup: false,
-      },
-      signal,
-    ),
-  )
+  const server = tiles.splitTypes(types).server
+  let answer: DestinationsResponse
+  try {
+    answer = await discoveryAnswer(
+      await postDestinations(
+        {
+          polygon: request.polygon,
+          destination_types: server,
+          include_unnamed_peaks: request.include_unnamed_peaks ?? false,
+          min_elevation_ft: request.min_elevation_ft,
+          max_elevation_ft: request.max_elevation_ft,
+          top_by_elevation: request.top_by_elevation ?? false,
+          custom_destinations: sent,
+          elevation_lookup: false,
+        },
+        signal,
+      ),
+    )
+  } catch (e) {
+    if (!(e instanceof DiscoveryUnavailableError) || rows.length === 0) throw e
+    return { candidates: distinctRows(rows), totalFound, truncated, missingTypes: server }
+  }
   // The pod truncates the union it saw, tile rows included, and reports what
   // it saw; otherwise the count is this side's, over the tile rows and the
   // list before the cut.
@@ -213,6 +248,7 @@ async function discoverFromTilesFirst(
     candidates: withIdentity(withKnownTypes(answer.destinations, kinds), identity),
     totalFound: podTruncated ? (answer.total_found ?? null) : totalFound,
     truncated: truncated || podTruncated,
+    missingTypes: NONE_MISSING,
   }
 }
 
@@ -262,6 +298,9 @@ export interface PipelineResult {
   // the rows it changed (each reduced again at its height) and the columns
   // still worth holding. Rejects only on abort.
   late: Promise<LatePatch> | null
+  // The ticked kinds the map server failed to answer, which this report is
+  // without (#735). A committed report all the same, so the run commits.
+  missingTypes: readonly DiscoveryType[]
 }
 
 export async function runAnalysisPipeline(request: AnalyzeRequest, options: PipelineOptions): Promise<PipelineResult> {
@@ -291,7 +330,7 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     // the pod to look up what is still missing, the way every custom run
     // once did.
     const custom = request.custom_destinations ?? []
-    const listed = { totalFound: null, truncated: false }
+    const listed = { totalFound: null, truncated: false, missingTypes: NONE_MISSING }
     const known = options.identity?.latest() ?? NO_IDENTITY
     found = typed({ ...listed, candidates: withIdentity(customRows(custom), known) })
     const lookup = (request.top_by_elevation ?? false) && custom.length > options.maxDestinations
@@ -332,5 +371,6 @@ export async function runAnalysisPipeline(request: AnalyzeRequest, options: Pipe
     // those rows have nothing left to wait for.
     pending: late ? new Set(columns.keys()) : new Set(),
     late,
+    missingTypes: found.missingTypes,
   }
 }
