@@ -42,14 +42,65 @@ export interface ChartChrome {
    * rather than as a destination that happens to be grey.
    */
   unassigned: string
+  /**
+   * The thin edge every series line and every mark in a line's colour wears
+   * (PR #733), or null where the lines need none. The light lines are pastels
+   * that read 1.16 to 1.62:1 on the light panel, under the 3:1 a graphic owes
+   * its ground (WCAG 1.4.11), so the boundary is carried by this edge, which
+   * every pastel reads 3:1 or better against and which reads 8.34:1 on the
+   * panel. The dark lines read 3:1 on their panel by themselves.
+   */
+  lineEdge: string | null
 }
 
-export const CHART_CHROME: Record<Theme, ChartChrome> = {
-  // slate-400, slate-700, slate-800 and sky-400.
-  dark: { axis: '#90a1b9', grid: '#314158', surface: '#1d293d', playhead: '#00bcff', unassigned: '#90a1b9' },
-  // The secondary ink, the quiet rule, the panel and the accent ink.
-  light: { axis: '#42474e', grid: '#c2c8d1', surface: '#eef2f9', playhead: '#00639b', unassigned: '#42474e' },
+// slate-400, slate-700, slate-800 and sky-400.
+const DARK_CHROME: ChartChrome = {
+  axis: '#90a1b9',
+  grid: '#314158',
+  surface: '#1d293d',
+  playhead: '#00bcff',
+  unassigned: '#90a1b9',
+  lineEdge: null,
 }
+// The secondary ink (`ink-soft`), the quiet rule, the panel and the accent ink.
+const LIGHT_INK_SOFT = '#42474e'
+const LIGHT_CHROME: ChartChrome = {
+  axis: LIGHT_INK_SOFT,
+  grid: '#c2c8d1',
+  surface: '#eef2f9',
+  playhead: '#00639b',
+  unassigned: LIGHT_INK_SOFT,
+  lineEdge: LIGHT_INK_SOFT,
+}
+
+export const CHART_CHROME: Record<Theme, ChartChrome> = { dark: DARK_CHROME, light: LIGHT_CHROME }
+
+/**
+ * How much wider a line's edge is drawn than the line: a pixel each side, so
+ * the edge shows as a 1px rim and the colour inside it keeps the line's width.
+ */
+export const LINE_EDGE_EXTRA_PX = 2
+
+/**
+ * How the chart draws that rim (PR #733): one SVG filter over every series
+ * line at once, rather than a second, wider line under each. Measured
+ * 2026-10-15 against the built image at 946 charted lines over a three-day
+ * window, a theme switch took about 1.1 s with the filter, the same as
+ * before the rim, and 2.3 s with a second line each, which doubles what
+ * Recharts lays out; a hover's raster work stayed at the no-rim figure with
+ * the filter and doubled with the second lines.
+ *
+ * Recharts 3 draws each z-index into its own SVG group, so the series lines
+ * stand one above its line layer (`DefaultZIndexes.line`, 400), alone in a
+ * group of their own, and `index.css` filters that group in light: the
+ * reference lines, the dots and the hover dots stay unfiltered at their
+ * own layers. Both numbers are spelled here rather than read from Recharts,
+ * which this module must not import (it would pull Recharts into the entry
+ * chunk); `chartColors.test.ts` holds the layer to Recharts' own constant
+ * and the id and the layer to the stylesheet's rule.
+ */
+export const LINE_LAYER_Z = 401
+export const LINE_RIM_FILTER_ID = 'chart-line-rim'
 
 /**
  * The type size of every word the chart draws: its tick labels and the Now and
@@ -60,11 +111,13 @@ export const CHART_CHROME: Record<Theme, ChartChrome> = {
 export const CHART_TICK_PX = 11
 // A curated, reasonably colorblind-aware palette used first — where distinction
 // matters most (the common case of a handful of lines). The light theme's is
-// the same ten hues one or two steps down (#706), each at least 3:1 on the
-// light panel the way the dark ones are on the dark one, which
-// `chartColors.test.ts` measures for both. An index means the same hue in
-// either theme, which is what lets a switch recolour a line rather than
-// re-allocate it.
+// the same ten hues at Tailwind's 300 step (PR #733): the maintainer found
+// the 600/700 twin too dark, and a pastel reads 3:1 or better against the
+// dark edge it is drawn over (`lineEdge`), which is what stands it off the
+// light panel. The dark ones stand 3:1 on the dark panel by themselves.
+// `chartColors.test.ts` measures both. An index means the same hue in either
+// theme, which is what lets a switch recolour a line rather than re-allocate
+// it.
 const BASE_PALETTE: Record<Theme, readonly string[]> = {
   dark: [
     '#38bdf8', // sky
@@ -79,16 +132,16 @@ const BASE_PALETTE: Record<Theme, readonly string[]> = {
     '#2dd4bf', // teal
   ],
   light: [
-    '#0084d1', // sky-600
-    '#e60076', // pink-600
-    '#497d00', // lime-700
-    '#bb4d00', // amber-700
-    '#9810fa', // purple-600
-    '#009966', // emerald-600
-    '#f54900', // orange-600
-    '#155dfc', // blue-600
-    '#c800de', // fuchsia-600
-    '#009689', // teal-600
+    '#74d4ff', // sky-300
+    '#fda5d5', // pink-300
+    '#bbf451', // lime-300
+    '#ffd230', // amber-300
+    '#dab2ff', // purple-300
+    '#5ee9b5', // emerald-300
+    '#ffb86a', // orange-300
+    '#8ec5ff', // blue-300
+    '#f4a8ff', // fuchsia-300
+    '#46ecd5', // teal-300
   ],
 }
 
@@ -111,12 +164,22 @@ function hslToHex(h: number, s: number, l: number): string {
 // Past the curated palette, walk the hue wheel by the golden angle so each new
 // line lands ~137.5° from the previous — maximally spaced for any count. Always
 // hex, so the same value drives the swatch, the table's checkbox tint, and the
-// Recharts stroke. Lightness 60 on the dark panel and 40 on the light one
-// (#706): the same hue walk, on the side of middle grey its ground is not.
-const GENERATED_LIGHTNESS: Record<Theme, number> = { dark: 60, light: 40 }
+// Recharts stroke. The chart can carry a line per displayed row, hundreds of
+// them, so these are most of a big chart's colours and every one owes 3:1 to
+// whatever stands it off the panel, at any hue the walk lands on.
+//
+// Saturation 70 in both themes. Dark walks at 64, the lowest whole lightness
+// at which the worst hue on the wheel (pure blue) still clears 3:1 on
+// slate-800, at 3.08:1; the 60 it walked at before bottomed out at 2.53.
+// Light walks at 78, the maintainer's pastel (PR #733), against the dark edge
+// rather than the panel: pure blue is again the worst at 3.90:1 and the best
+// reads 7.75, so a line clears 3:1 however many there are. A higher
+// saturation fails sooner there (80 bottoms at 3.70, 90 at about 3.5).
+const GENERATED_SATURATION = 70
+const GENERATED_LIGHTNESS: Record<Theme, number> = { dark: 64, light: 78 }
 
 function generatedHex(index: number, theme: Theme): string {
-  return hslToHex((index * 137.508) % 360, 70, GENERATED_LIGHTNESS[theme])
+  return hslToHex((index * 137.508) % 360, GENERATED_SATURATION, GENERATED_LIGHTNESS[theme])
 }
 
 /** The hex an allocated index paints in a theme. */

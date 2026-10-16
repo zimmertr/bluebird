@@ -218,7 +218,16 @@ body,
    faint ink (icons, 3:1), the outline halfway between the quiet rule and the
    structural edge, the range band's hover, the shade and the thumb. The
    notice rules are each ink at 38% over its own tint, the theme lab's
-   derivation. */
+   derivation.
+
+   The accent fill and the checkbox mark are the dark theme's own sky-650
+   (the maintainer's call on PR #733), so the accent is one colour in both
+   themes: white reads 4.56:1 on it, and it stands 4.06:1 on this panel and
+   3.54:1 on the range band. Its hover darkens rather than lightens, because
+   with a white label darkening is the direction that gains contrast (6.45:1).
+   The accent as TEXT stays `#00639b` (links, `ACCENT.text`, the focus ring
+   and the ring's glow, which is that ink's): sky-650 reads 4.06:1 on the
+   panel, under the 4.5:1 text owes. */
 :root[data-theme="light"] {
   color-scheme: light;
   --ui-page: #f8f9ff;
@@ -238,11 +247,11 @@ body,
   --ui-ink-soft: #42474e;
   --ui-ink-faint: #6c727a;
   --ui-ink-ghost: #a0a6ae;
-  --ui-accent: #00639b;
-  --ui-accent-hover: #005585;
+  --ui-accent: var(--color-sky-650);
+  --ui-accent-hover: #00639b;
   --ui-accent-ink: #00639b;
   --ui-accent-ink-hover: #004a75;
-  --ui-mark: #00639b;
+  --ui-mark: var(--color-sky-650);
   --ui-range: #cfe5ff;
   --ui-range-hover: #bcdafc;
   --ui-on-fill: #ffffff;
@@ -266,6 +275,16 @@ body,
   --ui-accent-glow: rgba(0, 99, 155, 0.45);
   --ui-swatch-edge: #9aa0a8;
   --ui-muted: 0.65;
+}
+
+/* The chart's series lines in light (PR #733): pastels drawn over a rim of
+   the secondary ink, which is one SVG filter over the group Recharts draws
+   the lines into (`LINE_LAYER_Z` and `LINE_RIM_FILTER_ID` in
+   `utils/chartColors.ts`; `TimeSeriesChart` defines the filter in light).
+   A rule here rather than an attribute, because Recharts creates that group
+   itself and hands no prop for it. Dark lines carry no rim. */
+:root[data-theme="light"] .recharts-zIndex-layer_401 {
+  filter: url(#chart-line-rim);
 }
 
 /* Indeterminate progress bar — used while a phase has no countable progress

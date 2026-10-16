@@ -12,7 +12,7 @@ import ModelCompare from './ModelCompare'
 import ResizeGrip from './ResizeGrip'
 import ResultsTable from './ResultsTable'
 import { IconClose } from './icons'
-import { FOCUS_RING, ICON_ACTION, MUTED, RADIUS, SCROLL_BARS, SCROLL_SHADOW, TEXT } from '../styles'
+import { FOCUS_RING, ICON_ACTION, LINE_EDGE, MUTED, RADIUS, SCROLL_BARS, SCROLL_SHADOW, TEXT } from '../styles'
 import { useScrollShadows } from '../hooks/useScrollShadows'
 import type { Theme } from '../utils/viewPrefs'
 
@@ -219,8 +219,12 @@ export default function ResultsPanels({
                           aria-label={`${plotted ? 'Hide' : 'Show'} ${row.name} on the chart`}
                           className={`${TEXT.control} ${FOCUS_RING} inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2 pr-1`}
                         >
+                          {/* The line's colour, wearing the line's rim in
+                              light (PR #733). */}
                           <span
-                            className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED}`}
+                            className={`h-2 w-2 flex-shrink-0 ${RADIUS.pill} ${plotted ? '' : MUTED} ${
+                              theme === 'light' ? LINE_EDGE.swatch : ''
+                            }`}
                             style={{ backgroundColor: rowChartColor(row) }}
                           />
                           <span className={`flex min-w-0 ${plotted ? '' : MUTED}`}>

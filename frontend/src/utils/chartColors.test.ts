@@ -12,7 +12,7 @@ const THEMES = ['dark', 'light'] as const
 describe('colorForIndex', () => {
   it('uses the curated palette for the first indices', () => {
     expect(colorForIndex(0, 'dark')).toBe('#38bdf8')
-    expect(colorForIndex(0, 'light')).toBe('#0084d1')
+    expect(colorForIndex(0, 'light')).toBe('#74d4ff')
     expect(colorForIndex(1, 'dark')).toMatch(/^#[0-9a-f]{6}$/)
   })
 
@@ -30,15 +30,15 @@ describe('colorForIndex', () => {
     expect(colorForIndex(20, 'dark')).toBe(colorForIndex(20, 'dark'))
   })
 
-  // The light walk is the dark one's hue at lightness 40 rather than 60
-  // (#706): a generated line keeps its hue across a switch and takes the
-  // ground's side of middle grey.
-  it('walks the same hues past the palette in both themes, darker in light', () => {
+  // The light walk is the dark one's hue at lightness 78 rather than 64
+  // (PR #733): a generated line keeps its hue across a switch and takes the
+  // light theme's pastel, drawn over its edge.
+  it('walks the same hues past the palette in both themes, paler in light', () => {
     for (const index of [BASE_PALETTE_SIZE, 17, 42]) {
       const dark = colorForIndex(index, 'dark')
       const light = colorForIndex(index, 'light')
       expect(hue(light)).toBeCloseTo(hue(dark), -1)
-      expect(luminance(light)).toBeLessThan(luminance(dark))
+      expect(luminance(light)).toBeGreaterThan(luminance(dark))
     }
   })
 })
@@ -55,23 +55,71 @@ describe('the palette in each theme (#706)', () => {
   })
 
   // A series line is a graphic the reader tells apart from its ground, so
-  // 3:1 (WCAG 1.4.11) on the panel it is drawn on. Measured 2026-10-15: dark
-  // 5.52 (pink) to 9.69 (lime) on slate-800, light 3.21 (orange-600) to 4.94
-  // (purple-600) on the light panel.
-  it('stands every curated line at 3:1 or better on its own panel', () => {
-    for (const theme of THEMES) {
-      const ratios = Array.from({ length: BASE_PALETTE_SIZE }, (_, i) =>
-        contrast(colorForIndex(i, theme), CHART_CHROME[theme].surface),
-      )
-      for (const ratio of ratios) expect(ratio, theme).toBeGreaterThanOrEqual(3)
-      expect(Math.round(Math.min(...ratios) * 100) / 100).toBe(theme === 'dark' ? 5.52 : 3.21)
-    }
+  // 3:1 (WCAG 1.4.11) against whatever stands it off the panel. In dark that
+  // is the panel itself: 5.52 (pink) to 9.69 (lime) on slate-800. In light
+  // it is the dark edge the line is drawn over (PR #733), because the pastels
+  // alone read 1.16 (lime) to 1.62 on the light panel: against the edge they
+  // read 5.14 (pink) to 7.21 (lime). Measured 2026-10-15.
+  it('stands every curated line at 3:1 or better against its boundary', () => {
+    const ratios = (theme: (typeof THEMES)[number], ground: string) =>
+      Array.from({ length: BASE_PALETTE_SIZE }, (_, i) => contrast(colorForIndex(i, theme), ground))
+    const dark = ratios('dark', CHART_CHROME.dark.surface)
+    for (const ratio of dark) expect(ratio, 'dark').toBeGreaterThanOrEqual(3)
+    expect(round(Math.min(...dark))).toBe(5.52)
+    const light = ratios('light', CHART_CHROME.light.lineEdge!)
+    for (const ratio of light) expect(ratio, 'light').toBeGreaterThanOrEqual(3)
+    expect([round(Math.min(...light)), round(Math.max(...light))]).toEqual([5.14, 7.21])
+    // Why the edge exists: no light line clears 3:1 on the panel alone.
+    const bare = ratios('light', CHART_CHROME.light.surface)
+    expect([round(Math.min(...bare)), round(Math.max(...bare))]).toEqual([1.16, 1.62])
+  })
+
+  // The chart draws a line per displayed row, hundreds of them, so the
+  // generated colours past the tenth are most of a big chart and owe the
+  // same 3:1. The first thousand allocator indices in each theme, measured
+  // 2026-10-15: dark 3.08 to 10.74 on slate-800 (the walk's lightness is the
+  // lowest whole number that clears it at every hue), light 3.90 to 7.75
+  // against the edge.
+  it('stands every generated line at 3:1 or better for the first thousand indices', () => {
+    const indices = Array.from({ length: 1000 }, (_, i) => i)
+    const dark = indices.map((i) => contrast(colorForIndex(i, 'dark'), CHART_CHROME.dark.surface))
+    const light = indices.map((i) => contrast(colorForIndex(i, 'light'), CHART_CHROME.light.lineEdge!))
+    for (const ratio of dark) expect(ratio, 'dark').toBeGreaterThanOrEqual(3)
+    for (const ratio of light) expect(ratio, 'light').toBeGreaterThanOrEqual(3)
+    const generated = (xs: number[]) => xs.slice(BASE_PALETTE_SIZE)
+    expect([round(Math.min(...generated(dark))), round(Math.max(...generated(dark)))]).toEqual([3.08, 10.74])
+    expect([round(Math.min(...generated(light))), round(Math.max(...generated(light)))]).toEqual([3.9, 7.75])
+  })
+
+  // The edge itself is what stands a light line off the panel, so it owes
+  // the panel 3:1 too: it is the light theme's secondary ink, 8.34:1 there.
+  // Dark lines carry no edge.
+  it('draws the light lines over an edge that stands off the panel, and the dark ones over none', () => {
+    expect(CHART_CHROME.light.lineEdge).toBe(CHART_CHROME.light.axis)
+    expect(round(contrast(CHART_CHROME.light.lineEdge!, CHART_CHROME.light.surface))).toBe(8.34)
+    expect(CHART_CHROME.dark.lineEdge).toBeNull()
   })
 
   it('resolves a whole allocation for one theme', () => {
     const held = allocateColors({}, ['a', 'b'])
     expect(paletteColors(held, 'dark')).toEqual({ a: '#38bdf8', b: '#f472b6' })
-    expect(paletteColors(held, 'light')).toEqual({ a: '#0084d1', b: '#e60076' })
+    expect(paletteColors(held, 'light')).toEqual({ a: '#74d4ff', b: '#fda5d5' })
+  })
+
+  // The allocator knows nothing of the theme: a key keeps its index across a
+  // switch, past the curated ten as well, and takes that index's shade in
+  // whichever theme paints it.
+  it('keeps a key on the same index across a theme switch', () => {
+    const keys = Array.from({ length: 25 }, (_, i) => `k${i}`)
+    const held = allocateColors({}, keys)
+    expect(allocateColors(held, keys)).toBe(held)
+    const dark = paletteColors(held, 'dark')
+    const light = paletteColors(held, 'light')
+    for (const key of keys) {
+      expect(dark[key]).toBe(colorForIndex(held[key], 'dark'))
+      expect(light[key]).toBe(colorForIndex(held[key], 'light'))
+    }
+    expect(held.k24).toBe(24)
   })
 })
 
@@ -154,6 +202,8 @@ describe('chart chrome contrast', () => {
     expect(CHART_CHROME.light.surface).toBe('#eef2f9')
   })
 })
+
+const round = (x: number) => Math.round(x * 100) / 100
 
 function rgbOf(hex: string): number[] {
   return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)

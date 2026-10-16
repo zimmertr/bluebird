@@ -118,7 +118,8 @@ import {
 } from './styles'
 import * as STYLES from './styles'
 import { EXTERNAL_LINK_PX } from './iconPaths'
-import { CHART_TICK_PX } from './utils/chartColors'
+import { CHART_TICK_PX, LINE_LAYER_Z, LINE_RIM_FILTER_ID } from './utils/chartColors'
+import { DefaultZIndexes } from 'recharts'
 import { CHART_TITLE_INSET_PX, CHART_TITLE_PX, TITLED_PLOT_MARGIN, TOP_LABEL_RISE_PX } from './utils/chartPointer'
 import { SCRUBBER_THUMB_PX } from './utils/timeline'
 import { NOTICE_BAND_MAX_PX } from './utils/resultsSheet'
@@ -181,8 +182,55 @@ function token(recipe: string, utility: string): string {
 }
 /** The Tailwind step a token paints in the dark theme: `slate-300`, `sky-650`. */
 const darkStep = (name: string): string => DARK_TOKENS[name].match(/^var\(--color-([\w-]+)\)$/)?.[1] ?? DARK_TOKENS[name]
-/** The hex a token paints in the light theme. */
-const light = (name: string): string => LIGHT_TOKENS[name]
+/**
+ * The hex a token paints in the light theme. A light token that names one of
+ * this app's own colours (`var(--color-sky-650)`, the accent the two themes
+ * share) is resolved through its oklch declaration in `index.css`, so the
+ * light assertions measure the colour the browser paints rather than a copy
+ * of its hex.
+ */
+const light = (name: string): string => {
+  const own = LIGHT_TOKENS[name].match(/^var\(--color-([\w-]+)\)$/)
+  if (!own) return LIGHT_TOKENS[name]
+  const decl = indexCss.match(new RegExp(`--color-${own[1]}: oklch\\(([\\d.]+) ([\\d.]+) ([\\d.]+)\\);`))
+  if (!decl) throw new Error(`no oklch declaration for --color-${own[1]} in index.css`)
+  return oklchHex(Number(decl[1]), Number(decl[2]), Number(decl[3]))
+}
+/** CSS Color 4's oklch to sRGB, gamut-clipped, as the hex a browser paints. */
+function oklchHex(l: number, c: number, h: number): string {
+  const a = c * Math.cos((h * Math.PI) / 180)
+  const b = c * Math.sin((h * Math.PI) / 180)
+  const lms = [
+    l + 0.3963377774 * a + 0.2158037573 * b,
+    l - 0.1055613458 * a - 0.0638541728 * b,
+    l - 0.0894841775 * a - 1.291485548 * b,
+  ].map((v) => v ** 3)
+  const linear = [
+    4.0767416621 * lms[0] - 3.3077115913 * lms[1] + 0.2309699292 * lms[2],
+    -1.2684380046 * lms[0] + 2.6097574011 * lms[1] - 0.3413193965 * lms[2],
+    -0.0041960863 * lms[0] - 0.7034186147 * lms[1] + 1.707614701 * lms[2],
+  ]
+  return `#${linear
+    .map((v) => Math.min(1, Math.max(0, v)))
+    .map((v) => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055))
+    .map((v) => Math.round(v * 255).toString(16).padStart(2, '0'))
+    .join('')}`
+}
+// WCAG 2 relative luminance and contrast over a hex, for the light theme's
+// measurements and the accent's light half.
+const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+const lum = (hex: string) => {
+  const [r, g, b] = rgb(hex).map((v) => {
+    const c = v / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+const contrast = (a: string, b: string) => {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+const ratio = (a: string, b: string) => Math.round(contrast(a, b) * 100) / 100
 
 // The arbitrary branch cannot carry a trailing \b: `text-[10px]` ends in `]`, a
 // non-word character, so a boundary there would require the *next* character to
@@ -1588,6 +1636,36 @@ describe('the accent', () => {
     for (const [edge, ratio] of Object.entries(MEASURED.edges)) {
       expect(ratio, `${edge} must clear the 3:1 asked of a UI boundary`).toBeGreaterThanOrEqual(3)
     }
+  })
+
+  // The light half (the maintainer's call on PR #733): the same sky-650, so
+  // the accent is one colour in both themes, measured on the light grounds it
+  // lands on. The binding pair moves: the label still has the least room, and
+  // the tightest edge is the range band's hover, where the dark fill's was the
+  // band itself. Measured 2026-10-15.
+  const LIGHT_MEASURED = {
+    hex: '#007bc1',
+    label: 4.56,
+    edges: { panel: 4.06, rangeBand: 3.54, rangeHover: 3.17, segmentTrack: 4.56 },
+  }
+
+  it('rests on the same shade in light, which clears the label and every light edge', () => {
+    const fill = token(ACCENT.fill, 'bg')
+    expect(LIGHT_TOKENS[fill]).toBe(DARK_TOKENS[fill])
+    const hex = light(fill)
+    expect(hex).toBe(LIGHT_MEASURED.hex)
+    expect(ratio(light(token(ACCENT.fill, 'text')), hex)).toBe(LIGHT_MEASURED.label)
+    const grounds = {
+      panel: light('panel'),
+      rangeBand: light(token(DAY.range, 'bg')),
+      rangeHover: light(token(DAY.range, 'hover:bg')),
+      segmentTrack: light(token(SEGMENT_IDLE, 'bg')),
+    }
+    for (const [edge, ground] of Object.entries(grounds)) {
+      expect(ratio(hex, ground), edge).toBe(LIGHT_MEASURED.edges[edge as keyof typeof LIGHT_MEASURED.edges])
+      expect(contrast(hex, ground), `${edge} must clear the 3:1 asked of a UI boundary`).toBeGreaterThanOrEqual(3)
+    }
+    expect(contrast(light(token(ACCENT.fill, 'text')), hex)).toBeGreaterThanOrEqual(4.5)
   })
 
   // The custom token is the whole point: a scale step here would mean someone
@@ -3148,25 +3226,12 @@ describe('the calendar field wraps', () => {
 // outline, the range band's hover, the shade, the thumb and the muted fade)
 // are each held to the floor they owe. Measured 2026-10-15.
 describe('the light theme', () => {
-  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
-  const lum = (hex: string) => {
-    const [r, g, b] = rgb(hex).map((v) => {
-      const c = v / 255
-      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-    })
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-  }
-  const contrast = (a: string, b: string) => {
-    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
-    return (hi + 0.05) / (lo + 0.05)
-  }
   /** `top` at `alpha` over `under`, the way an opacity or a `/NN` composites. */
   const over = (top: string, alpha: number, under: string) =>
     `#${rgb(top)
       .map((v, i) => Math.round(alpha * v + (1 - alpha) * rgb(under)[i]))
       .map((v) => v.toString(16).padStart(2, '0'))
       .join('')}`
-  const ratio = (a: string, b: string) => Math.round(contrast(a, b) * 100) / 100
   // A role's light hex through one of its utilities.
   const hex = (recipe: string, utility: string) => light(token(recipe, utility))
 
@@ -3188,32 +3253,48 @@ describe('the light theme', () => {
   // The accent: the label on the fill (1.4.3), the fill against everything
   // beside it (1.4.11), and the hover, which in light darkens and so stays AA
   // where the dark hover could not.
+  // The fill is the dark theme's sky-650 (PR #733), so the label has 4.56:1
+  // where `#00639b` gave it 6.45; the hover is that darker blue, which with a
+  // white label is the direction that gains contrast.
   it('clears the label and every edge on the light accent, the hover included', () => {
     const fill = hex(ACCENT.fill, 'bg')
     const label = hex(ACCENT.fill, 'text')
-    expect(fill).toBe('#00639b')
-    expect(ratio(label, fill)).toBe(6.45)
-    expect(ratio(fill, PANEL)).toBe(5.74)
-    expect(ratio(fill, hex(DAY.range, 'bg'))).toBe(5)
-    expect(ratio(fill, hex(SEGMENT_IDLE, 'bg'))).toBe(6.45)
-    expect(ratio(fill, hex(DAY.range, 'hover:bg'))).toBe(4.47)
-    expect(ratio(label, hex(ACCENT.fillHover, 'hover:bg'))).toBe(7.96)
-    for (const edge of [PANEL, hex(DAY.range, 'bg'), hex(DAY.range, 'hover:bg'), WELL]) {
+    expect(fill).toBe('#007bc1')
+    expect(ratio(label, fill)).toBe(4.56)
+    expect(ratio(fill, PANEL)).toBe(4.06)
+    expect(ratio(fill, hex(DAY.range, 'bg'))).toBe(3.54)
+    expect(ratio(fill, hex(SEGMENT_IDLE, 'bg'))).toBe(4.56)
+    expect(ratio(fill, hex(DAY.range, 'hover:bg'))).toBe(3.17)
+    expect(ratio(fill, RAISED)).toBe(3.64)
+    expect(hex(ACCENT.fillHover, 'hover:bg')).toBe('#00639b')
+    expect(ratio(label, hex(ACCENT.fillHover, 'hover:bg'))).toBe(6.45)
+    for (const edge of [PANEL, RAISED, hex(DAY.range, 'bg'), hex(DAY.range, 'hover:bg'), WELL]) {
       expect(contrast(fill, edge)).toBeGreaterThanOrEqual(3)
     }
     // Darker than the rest, where the dark theme's hover lightens.
     expect(lum(hex(ACCENT.fillHover, 'hover:bg'))).toBeLessThan(lum(fill))
+    // Every label the fill carries: a button's, a lit chip's glyph and the
+    // welcome dialog's step badge, all the label-on-fill ink.
+    for (const recipe of [BUTTON_PRIMARY, BADGE_STEP]) {
+      expect(ratio(hex(recipe, 'text'), hex(recipe, 'bg'))).toBe(4.56)
+    }
+    // The accent as text stays the darker blue: the fill itself would read
+    // under 4.5 on the panel.
+    expect(hex(LINK_ACTION, 'text')).toBe('#00639b')
+    expect(contrast(fill, PANEL)).toBeLessThan(4.5)
   })
 
   // A lit map chip wears the fill, so its label and glyph take the ink on the
-  // fill. The resting ink would read 2.66:1 there, which is how the summary
-  // chip's menu glyph vanished in light while its sheet was up.
+  // fill. The resting ink would read 3.75:1 there (2.66 on the darker fill
+  // this theme first had), which is how the summary chip's menu glyph
+  // vanished in light while its sheet was up.
   it('lights a map chip in the label-on-fill ink', () => {
     for (const chip of [MAP_CHIP, MAP_CHIP_SUMMARY]) {
       expect(hex(chip, 'aria-expanded:bg')).toBe(hex(ACCENT.fill, 'bg'))
-      expect(ratio(hex(chip, 'aria-expanded:text'), hex(chip, 'aria-expanded:bg'))).toBe(6.45)
+      expect(ratio(hex(chip, 'aria-expanded:text'), hex(chip, 'aria-expanded:bg'))).toBe(4.56)
     }
-    expect(ratio(hex(MAP_CHIP, 'text'), hex(ACCENT.fill, 'bg'))).toBe(2.66)
+    expect(ratio(hex(MAP_CHIP_SUMMARY_TEXT, 'in-aria-expanded:text'), hex(ACCENT.fill, 'bg'))).toBe(4.56)
+    expect(ratio(hex(MAP_CHIP, 'text'), hex(ACCENT.fill, 'bg'))).toBe(3.75)
     expect(MAP_CHIP_SUMMARY_TEXT).toContain('in-aria-expanded:text-on-fill')
   })
 
@@ -3263,7 +3344,9 @@ describe('the light theme', () => {
     const lifted = hex(LIFTED_EDGE, 'border')
     expect([RAISED, WELL].map((g) => ratio(lifted, g))).toEqual([3.56, 4.46])
     const mark = hex(ACCENT.input, 'accent')
-    expect([PANEL, RAISED, WELL].map((g) => ratio(mark, g))).toEqual([5.74, 5.14, 6.45])
+    expect([PANEL, RAISED, WELL].map((g) => ratio(mark, g))).toEqual([4.06, 3.64, 4.56])
+    expect(mark).toBe(hex(ACCENT.fill, 'bg'))
+    expect(hex(ACCENT.mark, 'bg')).toBe(mark)
     const ring = hex(FOCUS_RING, 'focus-visible:outline')
     expect([PAGE, PANEL, RAISED, WELL].map((g) => ratio(ring, g))).toEqual([6.13, 5.74, 5.14, 6.45])
     expect(ratio(hex(ICON_ADORNMENT, 'text'), WELL)).toBe(9.36)
@@ -3330,13 +3413,26 @@ describe('the light theme', () => {
   })
 
   // The range thumb is the ink here, half on the white well where a white
-  // thumb would vanish; on the accent it reads 2.66:1 beside the dark white
-  // thumb's 2.71:1 on its mark.
+  // thumb would vanish; on the mark it reads 3.75:1 beside the dark white
+  // thumb's 2.71:1 on its own.
   it('draws the slider thumb in the ink, findable on the well and the fill', () => {
     const thumb = light(token(SCRUBBER, '[&::-webkit-slider-thumb]:bg'))
-    expect(ratio(thumb, hex(ACCENT.mark, 'bg'))).toBe(2.66)
+    expect(ratio(thumb, hex(ACCENT.mark, 'bg'))).toBe(3.75)
     expect(contrast(thumb, WELL)).toBeGreaterThan(15)
     expect(token(SCRUBBER, '[&::-moz-range-thumb]:bg')).toBe(token(SCRUBBER, '[&::-webkit-slider-thumb]:bg'))
+  })
+
+  // The chart's light lines are drawn over a rim, one SVG filter over the
+  // group Recharts draws the series lines into (PR #733), applied by a rule
+  // here: the layer must be the one the lines stand in, one above Recharts'
+  // own line layer, and the rule must name it and the filter, in light alone.
+  // The browser suite's `chartRim.spec.ts` holds that the rule reaches it.
+  it('points the light rule at the chart lines\' own layer and its rim filter', () => {
+    expect(LINE_LAYER_Z).toBe(DefaultZIndexes.line + 1)
+    const rule = indexCss.match(/:root\[data-theme="light"\] \.recharts-zIndex-layer_(\d+) \{\s*filter: url\(#([\w-]+)\);\s*\}/)
+    expect(rule).not.toBeNull()
+    expect([Number(rule![1]), rule![2]]).toEqual([LINE_LAYER_Z, LINE_RIM_FILTER_ID])
+    expect(indexCss.match(/recharts-zIndex-layer_/g)).toHaveLength(1)
   })
 
   // The shade under a fixed edge: the ink at 12% stands 1.27:1 off the light

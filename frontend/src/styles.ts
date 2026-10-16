@@ -491,6 +491,16 @@ export const SURFACE_POPOVER =
  * above is pinned in `styles.test.ts`: the last time this recipe carried a
  * contrast claim in a comment the claim was simply wrong (it said 4.6:1), and
  * an entire accessibility sweep believed it.
+ *
+ * ## The light theme paints the same shade
+ *
+ * The light fill and mark are this sky-650 too (the maintainer's call on PR
+ * #733), so the accent is one colour in both themes. On the light grounds the
+ * label keeps its 4.56:1 and every edge has more room than the dark ones: 4.06
+ * on the panel, 3.54 on the range band and 3.17 on its hover, the tightest.
+ * Only the hover differs, for the reason on `fillHover` below. The accent as
+ * text does not follow: sky-650 reads 4.06:1 on the light panel, under 4.5,
+ * so `accent-ink` stays the darker `#00639b` there.
  */
 export const ACCENT = {
   /**
@@ -509,8 +519,12 @@ export const ACCENT = {
    * The hover step for a fill that is a button: `BUTTON_PRIMARY` and the
    * inline `BUTTON_ACCENT`.
    *
-   * Still lightens, matching every other hover in the app. That is the one
-   * state left below AA: white on sky-600 is **4.02:1** against 4.5. It cannot
+   * In light it darkens, to `#00639b` (white 6.45:1): there the app's other
+   * hovers darken too, so the direction that gains contrast is also the one
+   * that matches.
+   *
+   * In dark it still lightens, matching every other hover there. That is the
+   * one state left below AA: white on sky-600 is **4.02:1** against 4.5. It cannot
    * be fixed by lightening less, because with a white label *every* lightening
    * costs contrast — a conformant hover would have to darken, making the app's
    * one primary action the only control that dims under the pointer.
@@ -920,6 +934,28 @@ export const SWATCH_RAMP_TICK =
  * four call sites in `App.tsx` until #454.
  */
 export const SWATCH_EDGE = 'var(--ui-swatch-edge)'
+
+/**
+ * The dark rim a mark in a chart line's colour wears in the light theme (PR
+ * #733): the readout's swatches, the chart-only legend's dots and the table's
+ * chart checkbox. The light lines are pastels that read 1.16 to 1.62:1 on the
+ * light panel, under the 3:1 a graphic owes its ground, so the chart draws
+ * each over a rim of the secondary ink (`CHART_CHROME.light.lineEdge`, 8.34:1
+ * on the panel), which every pastel reads 3:1 or better against. A mark in a
+ * line's colour is the same pastel on the same panel and owes the same
+ * boundary, so it wears the same rim; dark marks stand off their panel by
+ * themselves and wear none, so a call site adds this in light only.
+ *
+ * An outline, 1px, so the rim takes no room from the colour inside it and a
+ * native checkbox keeps the box the browser draws: Chromium follows the
+ * control's rounded corners with it. The checkbox's half carries `FOCUS_RING`
+ * because an author outline replaces the browser's own focus ring, which the
+ * box had relied on.
+ */
+export const LINE_EDGE = {
+  swatch: 'outline-1 outline-ink-soft',
+  input: `outline-1 outline-ink-soft ${FOCUS_RING}`,
+} as const
 
 export const ICON_ACTION = `text-ink-faint ${ACCENT.hoverText}`
 
@@ -1686,8 +1722,9 @@ const CHIP_HIT = "relative touch:before:absolute touch:before:inset-x-0 touch:be
  *
  * The lit chip's label and glyph take the label-on-fill ink. In dark that is
  * the white the chip wears at rest, so nothing moved there; in light the
- * resting ink is the dark one, which stood 2.66:1 on the accent and hid the
- * summary chip's menu glyph (#706).
+ * resting ink is the dark one, which stands 3.75:1 on the accent, under the
+ * 4.5:1 a label owes (2.66:1 on the darker fill the theme first had, where it
+ * hid the summary chip's menu glyph, #706).
  */
 const CHIP_FACE =
   `bg-floating/95 border border-frame ${RADIUS.pill} ${ELEVATION.raised} backdrop-blur-sm ` +
@@ -2794,8 +2831,8 @@ export const SR_ONLY = 'sr-only'
  * the one part that has to be findable at a glance while it moves. In the
  * light theme (#706) the thumb is the ink instead (`--ui-thumb`): half of it
  * stands on the white well there, where a white thumb would vanish, and the
- * ink reads 2.66:1 on the light accent, beside the white thumb's 2.71:1 on the
- * dark one's mark. It is 14px,
+ * ink reads 3.75:1 on the light theme's mark, beside the white thumb's 2.71:1
+ * on the dark one's. It is 14px,
  * which is under the 44px target — deliberately, and it is the exception
  * `TAP.grip` already argues for: the control is a horizontal drag on a bar that
  * is itself the target, so the height that matters is the input's, and the

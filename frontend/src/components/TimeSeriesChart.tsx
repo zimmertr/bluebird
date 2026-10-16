@@ -11,7 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DestinationResult, SortBy } from '../types'
-import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
+import { CHART_METRIC_W, CHART_PLOT_TOUCH, CHART_TITLE, LINE_EDGE, RADIUS, SELECT, SURFACE_FLOATING, TEXT } from '../styles'
 import { IconSelectArrow } from './icons'
 import {
   CHART_METRICS,
@@ -46,7 +46,14 @@ import {
   hourIndexAt,
   readoutPlace,
 } from '../utils/chartPointer'
-import { CHART_CHROME, CHART_TICK_PX, type ChartChrome } from '../utils/chartColors'
+import {
+  CHART_CHROME,
+  CHART_TICK_PX,
+  LINE_EDGE_EXTRA_PX,
+  LINE_LAYER_Z,
+  LINE_RIM_FILTER_ID,
+  type ChartChrome,
+} from '../utils/chartColors'
 import type { Theme } from '../utils/viewPrefs'
 
 // Explicit geometry so the hover handler can invert pixels → data values: the
@@ -75,7 +82,16 @@ const CHROME_LINE: Record<Theme, { stroke: string; strokeDasharray: string }> = 
   dark: { stroke: CHART_CHROME.dark.axis, strokeDasharray: '4 3' },
   light: { stroke: CHART_CHROME.light.axis, strokeDasharray: '4 3' },
 }
-//
+
+// The hovered hour's dot on each line. Recharts rings it in white, which is
+// the dark theme's and is kept there; a light line is a pastel that owes its
+// 3:1 to the rim it is drawn over (PR #733), so its dot wears that rim
+// instead. Hoisted, one per theme, like the chrome line above.
+const ACTIVE_DOT: Record<Theme, true | { r: number; stroke: string; strokeWidth: number }> = {
+  dark: true,
+  light: { r: 4, stroke: CHART_CHROME.light.lineEdge ?? CHART_CHROME.light.axis, strokeWidth: 1 },
+}
+
 // Every label wears a halo in the panel's own colour: the stroke is painted
 // first (`paintOrder`), so it erases whatever line runs under the letters and
 // the fill stands on the surface, where the bare text was lost wherever a
@@ -203,6 +219,8 @@ function TimeSeriesChart({
   theme = 'dark',
 }: Props) {
   const chrome = CHART_CHROME[theme]
+  // The rim a light line is drawn over, or null in dark (PR #733).
+  const edge = chrome.lineEdge
   const plotRef = useRef<HTMLDivElement>(null)
   // Where the last finger went down on the plot, for the click its tap makes.
   const tapXRef = useRef<number | null>(null)
@@ -546,6 +564,7 @@ function TimeSeriesChart({
                     metric={metric}
                     focusedKey={focusedKey}
                     cursorValue={cursorValue}
+                    edged={edge !== null}
                     // Read at render rather than observed: this component
                     // re-renders on every hover move, which is the only time
                     // the value is used.
@@ -556,6 +575,8 @@ function TimeSeriesChart({
               {ordered.map((line) => {
                 const key = line.key
                 const dimmed = focusedKey != null && focusedKey !== key
+                const width = focusedKey === key ? 2.5 : 1.5
+                const opacity = dimmed ? 0.25 : 1
                 return (
                   <Line
                     key={key}
@@ -567,19 +588,49 @@ function TimeSeriesChart({
                       pointGrid
                         ? {
                             r: focusedKey === key ? 4.5 : 3.5,
-                            strokeWidth: 0,
+                            // A light dot wears the line's rim (PR #733).
+                            stroke: edge ?? undefined,
+                            strokeWidth: edge ? 1 : 0,
+                            strokeOpacity: opacity,
                             fill: line.color,
-                            fillOpacity: dimmed ? 0.25 : 1,
+                            fillOpacity: opacity,
                           }
                         : false
                     }
+                    activeDot={ACTIVE_DOT[theme]}
+                    zIndex={LINE_LAYER_Z}
                     connectNulls={false}
                     isAnimationActive={false}
-                    strokeWidth={focusedKey === key ? 2.5 : 1.5}
-                    strokeOpacity={dimmed ? 0.25 : 1}
+                    strokeWidth={width}
+                    strokeOpacity={opacity}
                   />
                 )
               })}
+              {/* In light every series line is drawn over its rim (PR #733):
+                  the lines' own layer (`LINE_LAYER_Z`) is filtered in
+                  `index.css` by this, which grows their shape a pixel each
+                  side, fills the growth with the secondary ink and lays the
+                  lines back over it, so a pastel reads 3:1 against the rim
+                  where it reads under 2:1 against the panel. One filter for
+                  every line rather than a second line under each, which
+                  measured twice the cost; where two lines cross they share
+                  one outline rather than each keeping its own. A dimmed line
+                  dims its rim with it, since the rim is grown from its alpha.
+                  A point sample's dots and the hover dots are other layers,
+                  and carry their rim themselves. */}
+              {edge && (
+                <defs>
+                  <filter id={LINE_RIM_FILTER_ID} colorInterpolationFilters="sRGB">
+                    <feMorphology in="SourceAlpha" operator="dilate" radius={LINE_EDGE_EXTRA_PX / 2} result="grown" />
+                    <feFlood floodColor={edge} result="ink" />
+                    <feComposite in="ink" in2="grown" operator="in" result="rim" />
+                    <feMerge>
+                      <feMergeNode in="rim" />
+                      <feMergeNode in="SourceGraphic" />
+                    </feMerge>
+                  </filter>
+                </defs>
+              )}
               {/* The most extreme value among the ranked lines drawn (#699),
                   as one dashed line across the plot in the Now seam's style,
                   labelled with the value. A line rather than a mark on a point,
@@ -590,6 +641,10 @@ function TimeSeriesChart({
               {extreme !== null && (
                 <ReferenceLine
                   y={extreme}
+                  // Above the lines' own layer, which is filtered in light,
+                  // so it stays whole over them as it did when it shared
+                  // their layer and was drawn after them.
+                  zIndex={LINE_LAYER_Z + 1}
                   {...CHROME_LINE[theme]}
                   label={{ ...chromeLabel(extremeLabel(extreme, metric), 'insideBottomRight', chrome), content: titled ? TITLED_HEADROOM_LABEL : HEADROOM_LABEL }}
                 />
@@ -627,6 +682,8 @@ interface ChartTooltipProps {
   metric: ChartMetric
   focusedKey: string | null
   cursorValue: number | null
+  /** Whether a line's swatch wears its rim (light, PR #733). */
+  edged: boolean
   // How many series the card has room to list, from the plot area's current
   // height rather than a constant — see tooltipCapacity.
   maxRows: number
@@ -643,6 +700,7 @@ function ChartTooltip({
   metric,
   focusedKey,
   cursorValue,
+  edged,
   maxRows,
 }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null
@@ -676,7 +734,10 @@ function ChartTooltip({
           }`}
         >
           <span className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 ${RADIUS.control}`} style={{ backgroundColor: it.line.color }} />
+            <span
+              className={`h-2 w-2 ${RADIUS.control} ${edged ? LINE_EDGE.swatch : ''}`}
+              style={{ backgroundColor: it.line.color }}
+            />
             {it.line.label}
           </span>
           <span className="font-mono">{formatTooltipValue(it.value, metric)}</span>

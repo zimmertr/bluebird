@@ -33,7 +33,7 @@ import {
   unavailableCell,
   windyCellUrl,
 } from '../utils/resultsCells'
-import { CHOICE_INPUT, ICON_ACTION, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '../styles'
+import { CHOICE_INPUT, ICON_ACTION, LINE_EDGE, LINK_ACTION, SR_ONLY, TABLE, TEXT } from '../styles'
 import { IconClose, IconExternalLink } from './icons'
 import { sized } from './sizedCell'
 import { rowTapOpens } from '../utils/rowTap'
@@ -79,7 +79,24 @@ function RankRemoveCell({ rank, name, onRemove }: { rank: string; name: string; 
 // Rendered for every row, series or not: a pending row's box pre-selects it
 // (and shows its sticky color) so the line appears the moment an analysis
 // gives it data. Only the shift-range path insists on series rows.
-function ChartToggle({ row, on, color, box }: { row: DestinationResult; on: boolean; color?: string; box: ChartBox }) {
+//
+// A ticked box is filled with its line's colour, which in light is a pastel
+// under 3:1 on the panel, so it wears the rim the line is drawn over (PR
+// #733). An unticked box is the browser's own and needs none.
+function ChartToggle({
+  row,
+  on,
+  color,
+  box,
+  theme,
+}: {
+  row: DestinationResult
+  on: boolean
+  color?: string
+  box: ChartBox
+  theme: Theme
+}) {
+  const tinted = on && color
   return (
     <td className={TABLE.cell}>
       <input
@@ -88,8 +105,8 @@ function ChartToggle({ row, on, color, box }: { row: DestinationResult; on: bool
         onClick={(e) => box.onShift(e.shiftKey)}
         onChange={() => box.onToggle(row)}
         aria-label={`Chart ${row.name}`}
-        className={CHOICE_INPUT}
-        style={on && color ? { accentColor: color } : undefined}
+        className={tinted && theme === 'light' ? `${CHOICE_INPUT} ${LINE_EDGE.input}` : CHOICE_INPUT}
+        style={tinted ? { accentColor: color } : undefined}
       />
     </td>
   )
@@ -544,7 +561,7 @@ function ResultsTableRow({
   }
   return (
     <tr className={`${TABLE.row} ${onFocusResult ? TABLE.rowOpens : ''}`} onClick={openFromRow}>
-      {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} />}
+      {chartBox && <ChartToggle row={row} on={charted} color={chartColor} box={chartBox} theme={theme} />}
       <RankRemoveCell rank={rank} name={row.name} onRemove={onRemove ? () => onRemove(row) : undefined} />
       {columns.map((col) => (
         <BodyTd key={col.key as string} col={col} row={row} ctx={ctx} />
@@ -569,6 +586,8 @@ interface PendingProps {
   chartBox?: ChartBox
   charted: boolean
   chartColor?: string
+  // The theme its chart box's rim follows (PR #733).
+  theme: Theme
   // Absent for a CSV row: its truth is the textarea text, so it is removed by
   // editing that, not by an × here.
   onRemovePending?: (d: PendingDestination) => void
@@ -584,6 +603,7 @@ function PendingTableRow({
   chartBox,
   charted,
   chartColor,
+  theme,
   onRemovePending,
   onFocusPending,
 }: PendingProps) {
@@ -595,7 +615,9 @@ function PendingTableRow({
   const center = () => onFocusPending?.({ latitude: d.latitude, longitude: d.longitude })
   return (
     <tr className={TABLE.row}>
-      {chartBox && <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} />}
+      {chartBox && (
+        <ChartToggle row={pendingChartRow(d)} on={charted} color={chartColor} box={chartBox} theme={theme} />
+      )}
       <RankRemoveCell
         rank="—"
         name={d.name}

@@ -257,6 +257,7 @@ function ResultsTable({
                   chartBox={showChartCol ? chartBox : undefined}
                   charted={charted}
                   chartColor={charted ? chartColor?.(pendingChartRow(d)) : undefined}
+                  theme={theme}
                   onRemovePending={onRemovePending}
                   onFocusPending={onFocusPending}
                 />
