@@ -147,8 +147,9 @@ export default function DestinationsSection({
           Hover-only is fine here because it adds a cue to copy that
           already stands on its own. The caption names peaks and lakes
           rather than "a destination" because those are the two things
-          the basemap makes clickable - trailheads and crags are not on
-          it, which is why they are found by polygon instead. */}
+          the basemap makes clickable - trailheads are not on it and its
+          climbing points mix crags with routes, which is why both are
+          found by polygon instead (#734). */}
       <div
         className="mb-3"
         onMouseEnter={() => {

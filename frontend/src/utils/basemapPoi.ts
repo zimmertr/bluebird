@@ -8,10 +8,13 @@
 // end (map dot → `pins` URL param → `custom_destinations` on the next Analyze).
 //
 // Trailheads and crags are deliberately absent even though the app discovers
-// them: it finds them as `highway=trailhead` and `sport=climbing`, and
-// OpenMapTiles' `poi` layer sources neither tag, so there is nothing on the
-// basemap to click. Adding them would mean shipping a second data source for a
-// layer the map does not draw.
+// them. OpenMapTiles' `poi` layer carries no `highway=trailhead`. It does carry
+// `sport=climbing` points as `class=climbing`, but with no `climbing=` subtype,
+// so a crag cannot be told from a route, and crags mapped as relations are not
+// in it: measured 2026-10-15 in the zoom-14 tile over Index, it held 33 of
+// OSM's 36 named routes and 3 of its 12 crags. Nor does the style draw them, as
+// its sprite has no `climbing` icon. Making both clickable needs a source of
+// the app's own (#734).
 
 import { Place } from './geocode'
 

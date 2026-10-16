@@ -20,7 +20,7 @@ The Destinations section's type row carried three checkboxes, Peaks, Lakes and T
 - **The copy that listed the types now names none**: the tutorial's destinations step, the Overpass line `/api/capabilities` publishes, the API description and the README say "destination" or "places", approved verbatim on 2026-10-15, so a fifth type changes none of them.
 - **A crag named for the peak it stands on is its own row.** Discovery's identity for a mapped feature is its type and its name (`query_osm`), not the name alone, and a custom row claims a discovered one by its coordinate only (`_merge_custom`), so a pasted row and a discovered row of one name at different points are two rows, Custom and Peak. The maintainer decided both on 2026-10-15.
 - **The chart tells two rows of one name apart by their type**, composed through `TYPE_COL`'s formatter: `The Tooth (Crag)` and `The Tooth (Peak)`, and under a comparison one bracket, type first: `1. The Tooth (Crag, NOAA GFS)`. It shows on both of the pair and only while both are on screen, in the lines, the hover box, the legend chips and the Removed list. A name no other place shares reads exactly as before. The formats were approved on 2026-10-15.
-- Crags never join `TILE_TYPES`: the basemap's tiles carry no climbing layer, so a ring with Crags ticked asks Overpass, as one with Trailheads ticked does. A crag with no `ele` takes the unknown-elevation path lakes and trailheads take, and no elevation lookup is added for it.
+- Crags never join `TILE_TYPES`: the basemap's tiles carry climbing points (`class=climbing` in the `poi` layer) but no `climbing=` subtype, so a crag cannot be told from a route, and crags mapped as relations are not in them. A ring with Crags ticked therefore asks Overpass, as one with Trailheads ticked does. A crag with no `ele` takes the unknown-elevation path lakes and trailheads take, and no elevation lookup is added for it.
 
 ## Evidence
 
@@ -39,6 +39,8 @@ Measured 2026-10-15 through Overpass over 47.0 to 48.0 N, 121.8 to 120.8 W, name
 The 104 crags and areas were 45 nodes, 9 ways and 50 relations, and none carried `ele`. An area nests crags (Index is an area and Lower Town Wall a crag inside it), so a ring can list both. 6 of the 104 share a name with a `natural=peak` node in the same box: Chair Peak, The Tooth, The Fang, Stegosaurus Butte, Bessemer Mountain and Quartz Mountain. With the name alone as identity, one of each pair was dropped whenever Peaks and Crags were both ticked: whichever Overpass listed first on the pod's path, and always the crag on the tile path, because the tile peak rides to the pod as a custom row and `_merge_custom` let a custom row claim a discovered one by name.
 
 On 2026-10-15 a Mountain Project search for `Lower Town Wall` listed the area (`/area/105790643/lower-town-wall`) in its Areas section.
+
+The tiles, decoded 2026-10-15 from OpenFreeMap's planet build of 2026-10-11: the zoom-14 tile over Index (14/2659/5707) carries 57 named `class=climbing` points in its `poi` layer, with no `climbing=` subtype. Of OSM's named climbing features inside that tile, it held 33 of 36 routes, 1 of 1 boulder, 3 of 12 crags and 0 of 4 areas. Issue #715 said no OpenMapTiles layer has a climbing class; that was wrong, though the conclusion it drew, that a crag ring must ask Overpass, stands.
 
 The row: the four labels take 289.8px of the 327px row at the 360px panel, and stay on one line down to a 322px row; below that the row wraps.
 

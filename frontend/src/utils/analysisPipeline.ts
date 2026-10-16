@@ -129,8 +129,9 @@ async function discoveryAnswer(res: Response): Promise<DestinationsResponse> {
  * A polygon run's discovery from the basemap's tiles first (#675, decision
  * 0118). The peaks and lakes inside the ring are read from the zoom-14 tiles
  * under it (`tileDiscovery.ts`), in well under a second from a warm edge,
- * and the pod is sent what the tiles cannot answer: the trailheads and crags,
- * which no tile carries, discovered through the map server as before. The
+ * and the pod is sent what the tiles cannot answer: the trailheads, which no
+ * tile carries, and the crags, which no tile tells from a route, discovered
+ * through the map server as before. The
  * tile rows and the reader's own list ride as `custom_destinations` with
  * `elevation_lookup: false`, so the call takes no map-server slot and
  * answers in milliseconds unless trailheads or crags are ticked; the rows come back

@@ -40,7 +40,7 @@ Five things are worth knowing about what you can click:
 - **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
 - **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
 
-Trailheads and crags are not clickable: the basemap does not carry them, so a polygon is still how you find them.
+Trailheads and crags are not clickable, so a polygon is still how you find them: the map has no trailheads, and its climbing points mix crags with individual routes.
 
 ### c. Polygon
 
@@ -58,7 +58,7 @@ Press **Draw polygon** to start. While drawing, each click on the map drops a po
 
 Outside draw mode the polygon stays on the map but has no handles, so panning and zooming around your results can't nudge a corner, and a click belongs to whatever sits under it.
 
-The checkboxes under the buttons control what discovery looks for inside your polygon. Tick as many as you like, and each result is labelled with what it actually is. Peaks and lakes are read from the map's own tiles, in about a second, and the map service is asked only for trailheads and crags, which the tiles do not carry, or for an area too large for the tiles to answer quickly; whatever it is asked for, it finds in a single query.
+The checkboxes under the buttons control what discovery looks for inside your polygon. Tick as many as you like, and each result is labelled with what it actually is. Peaks and lakes are read from the map's own tiles, in about a second, and the map service is asked only for trailheads and crags, which the tiles cannot answer, or for an area too large for the tiles to answer quickly; whatever it is asked for, it finds in a single query.
 
 | Type | OSM Query | Status |
 |---|---|---|

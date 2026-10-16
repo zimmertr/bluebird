@@ -57,8 +57,9 @@ A drawn area's peaks and lakes are read from the basemap's own tiles rather
 than asked of Overpass ([Map tiles](#map-tiles) below): the zoom-14 tiles
 under the area carry every named summit with its elevation and OSM id, and
 every named water body, so the app has its answer in about a second and asks
-Overpass only for trailheads and crags, which no tile carries, or for an area
-too large to read from the tiles quickly. Measured 2026-10-07 over three rings, the
+Overpass only for trailheads, which no tile carries, and crags, which the
+tiles cannot tell from routes, or for an area too large to read from the tiles
+quickly. Measured 2026-10-07 over three rings, the
 peaks were exactly Overpass's (42 of 42, 28 of 28 and 16 of 16, the same
 ids). The lakes are broader than the API's: Overpass is asked for
 `natural=water` with `water=lake`, and the tiles carry tarns, ponds and
@@ -75,7 +76,11 @@ carried it, of which 82 were crags and 22 areas, and 67 routes, 5 route
 bottoms and 4 boulders would each have been a row of their own. Areas are in
 because some places are mapped only as one, and an area holds the crags inside
 it, so a ring can list both: Index is an area, and Lower Town Wall inside it is
-a crag. A crag named for the peak it stands on is its own row beside the peak,
+a crag. The basemap's tiles cannot stand in for the query: they carry
+`sport=climbing` points with no `climbing=` subtype, and crags mapped as
+relations are missing, so in the zoom-14 tile over Index, measured
+2026-10-15, 33 of OSM's 36 named routes were there and 3 of its 12 crags. A
+crag named for the peak it stands on is its own row beside the peak,
 typed Crag: 6 of the 104 in that box share a name with a peak. None of the 104 in that box carried an `ele` tag, so a crag reads the
 plain near-ground values the way a lake or trailhead with no elevation does.
 And coverage follows where climbers have mapped: the well-known areas are
