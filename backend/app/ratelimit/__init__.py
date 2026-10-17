@@ -47,6 +47,8 @@ from app.ratelimit.client import (
     RATE_LIMIT_DESTINATIONS_PER_MINUTE,
     RATE_LIMIT_GEOCODE_BURST,
     RATE_LIMIT_GEOCODE_PER_MINUTE,
+    RATE_LIMIT_LANDMARKS_BURST,
+    RATE_LIMIT_LANDMARKS_PER_MINUTE,
     RATE_LIMIT_SMOKE_BURST,
     RATE_LIMIT_SMOKE_PER_MINUTE,
     RATE_LIMIT_WILDFIRES_BURST,
@@ -63,6 +65,7 @@ from app.ratelimit.client import (
     destinations_rate_limit,
     discovery_in_flight,
     geocode_rate_limit,
+    landmarks_rate_limit,
     smoke_rate_limit,
     wildfires_rate_limit,
 )
@@ -100,6 +103,8 @@ __all__ = [
     "RATE_LIMIT_SMOKE_BURST",
     "RATE_LIMIT_CLOSURES_PER_MINUTE",
     "RATE_LIMIT_CLOSURES_BURST",
+    "RATE_LIMIT_LANDMARKS_PER_MINUTE",
+    "RATE_LIMIT_LANDMARKS_BURST",
     "UPSTREAM_CONCURRENCY_WEATHER",
     "UPSTREAM_CONCURRENCY_AQI",
     "UPSTREAM_CONCURRENCY_OVERPASS",
@@ -132,4 +137,5 @@ __all__ = [
     "wildfires_rate_limit",
     "smoke_rate_limit",
     "closures_rate_limit",
+    "landmarks_rate_limit",
 ]

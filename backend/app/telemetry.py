@@ -6,7 +6,8 @@ upstreams, on purpose:
 
 - The fetch layers (``osm``, ``weather.py``, ``air_quality.py``) use short
   slugs: ``service`` is ``weather``/``aqi``, ``mirror`` is the Overpass host,
-  and ``path`` is ``discovery``/``enrichment``, the question Overpass was asked.
+  and ``path`` is ``discovery``/``enrichment``/``snapshot``, the question
+  Overpass was asked.
 - The pacing layer (``ratelimit``) uses each budget's ``provider`` string
   verbatim ("Open-Meteo (air quality)", …). Those strings already uniquely
   name every budget instance, and mapping them to slugs here would be a
@@ -131,8 +132,9 @@ DESTINATIONS_RETURNED = Histogram(
 # ── Overpass (discovery and the elevation lookup) ─────────────────────────────
 
 # `path` says which question was asked: `discovery` for a polygon's features,
-# `enrichment` for the peak beside each pasted point (osm/enrich.py). The two
-# queries differ in size and in how long the asker waits, and the lookup's
+# `enrichment` for the peak beside each pasted point (osm/enrich.py), and
+# `snapshot` for the worldwide trailhead and crag set (landmarks.py, #734).
+# The three differ in size and in how long the asker waits, and the lookup's
 # per-mirror slices are retuned from its own series alone (#655).
 OVERPASS_REQUESTS = Counter(
     "bluebird_forecast_overpass_requests_total",

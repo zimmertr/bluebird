@@ -129,6 +129,21 @@ class RateLimits(BaseModel):
             "closure layers on."
         )
     )
+    landmarks_per_minute: int = Field(
+        description=(
+            "Sustained `GET /api/landmarks` requests per client address per "
+            "minute. As loose as the wildfire bucket and for the same reason: "
+            "it answers from a set this instance already holds and reaches no "
+            "upstream. 0 means the limit is disabled."
+        )
+    )
+    landmarks_burst: int = Field(
+        description=(
+            "How many landmark requests an idle client can send back-to-back "
+            "before the per-minute pace applies. Sized for a map pan, which "
+            "refetches on a 400 ms debounce from zoom 11 up."
+        )
+    )
 
 
 class ForecastModelInfo(BaseModel):
@@ -442,6 +457,8 @@ async def capabilities(response: Response) -> CapabilitiesResponse:
                 smoke_burst=ratelimit.client.SMOKE_LIMITER.burst,
                 closures_per_minute=ratelimit.client.CLOSURES_LIMITER.per_minute,
                 closures_burst=ratelimit.client.CLOSURES_LIMITER.burst,
+                landmarks_per_minute=ratelimit.client.LANDMARKS_LIMITER.per_minute,
+                landmarks_burst=ratelimit.client.LANDMARKS_LIMITER.burst,
             ),
         ),
         # The same static geometries the overlay routes ride, read from the

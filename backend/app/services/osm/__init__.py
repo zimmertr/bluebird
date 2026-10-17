@@ -42,6 +42,7 @@ from app.services.osm.query import (
     _classify,
     _ele_ft,
     _polygon_to_overpass,
+    build_world_query,
 )
 
 __all__ = [
@@ -56,6 +57,7 @@ __all__ = [
     "_UNNAMED_PEAK_CLAUSES",
     "_QUERY",
     "_build_query",
+    "build_world_query",
     "_classify",
     "IMPLEMENTED_TYPES",
     "_polygon_to_overpass",

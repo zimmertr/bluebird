@@ -653,6 +653,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
         resizeObserver.disconnect()
         if (refitTimerRef.current) clearTimeout(refitTimerRef.current)
         featuresRef.current?.wildfires.dispose()
+        featuresRef.current?.landmarks.dispose()
         featuresRef.current?.areaClosures.dispose()
         featuresRef.current?.trailClosures.dispose()
         featuresRef.current?.smoke.dispose()

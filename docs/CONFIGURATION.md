@@ -24,7 +24,7 @@ LOG_LEVEL=WARNING docker compose up -d
 The rate limiting and upstream budgets are tunable the same way. Per-client
 limits are enforced per backend instance, so behind a multi-replica deployment
 the effective ceiling is roughly the value times the replica count (documented
-in detail in [`TRAFFIC.md`](TRAFFIC.md)). The ten `RATE_LIMIT_*` defaults below
+in detail in [`TRAFFIC.md`](TRAFFIC.md)). The `RATE_LIMIT_*` defaults below
 repeat what a running deployment publishes under `limits.rate` in
 `GET /api/capabilities`; read the endpoint for the values in force, and this
 table for what each knob means:
@@ -51,6 +51,9 @@ table for what each knob means:
 | `RATE_LIMIT_CLOSURES_BURST` | `30` | Closure requests an idle client may send back-to-back. |
 | `CLOSURE_CACHE_TTL_S` | `1800` | How long a fetched Forest Service closure snapshot (Regions 3, 4 and 6) counts as current. Longer than the wildfire TTL because the orders are edited by hand a few times a week. Past it the snapshot is still served, with a refresh running behind the request. |
 | `CLOSURE_RETRY_AFTER_FAILURE_S` | `60` | How long a failed closure refresh suppresses the next attempt. Same contract as the wildfire twin above. |
+| `RATE_LIMIT_LANDMARKS_PER_MINUTE` | `90` | Sustained `GET /api/landmarks` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from the trailhead and crag set the pod already holds, and the map refetches on every pan from zoom 11. `0` disables the limit. |
+| `RATE_LIMIT_LANDMARKS_BURST` | `30` | Landmark requests an idle client may send back-to-back. |
+| `LANDMARKS_REFRESH_S` | `86400` | How long a complete worldwide trailhead and crag set stands before the pod asks Overpass again. The set fills when the pod starts, one kind at a time with a doubling backoff on failure, and is served however old it is. |
 | `UPSTREAM_CONCURRENCY_WEATHER` | `4` | In-flight Open-Meteo weather batches, totalled across every concurrent analysis in the instance. A fairness knob: the weighted budgets below are the actual rate protection. |
 | `UPSTREAM_CONCURRENCY_AQI` | `4` | Same cap for the air-quality API. |
 | `UPSTREAM_WEIGHT_PER_MINUTE_WEATHER` | `550` | Instance spend budget for the weather API in Open-Meteo's own unit (weighted calls: one location in a batch is one call). The full safe rate, given to **every** pod rather than divided by replica count: one analysis is served end to end by a single pod, so the budget must cover one request's whole fan-out. It is the most the pod spends in any 60 seconds: a burst up to it passes at once, and batches past it pace instead of bursting. `0` disables pacing, which fails analyses rather than slowing them. |

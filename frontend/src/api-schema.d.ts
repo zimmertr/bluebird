@@ -169,6 +169,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/landmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Named trailheads and crags in a bounding box
+         * @description Every named trailhead (`highway=trailhead`, or a parking lot named as one) and crag (`sport=climbing` with `climbing=crag`, `area` or `boulder`, or a climbable stone) that OpenStreetMap carries inside `bbox`, as points.
+         *
+         *     This exists because the basemap's tiles carry neither: no tile has a trailhead, and the climbing points a tile has lose OSM's `climbing=` tag, so a crag, a boulder and a single route look alike and a crag mapped as a relation is absent. This instance asks Overpass for the whole world once at startup, one kind at a time, retrying with a backoff until each lands, refreshes the set about daily, and serves it to everyone, so a map pan costs the donated server nothing.
+         *
+         *     The set is served however old it is. Read `fetched_at` to see how current the answer is. An instance answers 503 while nothing has landed yet, which on a fresh instance lasts a few minutes; trailheads land first and are served while crags are still loading.
+         */
+        get: operations["landmarks_in_box_api_landmarks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/smoke": {
         parameters: {
             query?: never;
@@ -1170,6 +1194,33 @@ export interface components {
             wind_mph: (number | null)[];
         };
         /**
+         * LandmarkCollection
+         * @description A GeoJSON FeatureCollection of named trailheads and crags, plus when it was fetched.
+         *
+         *     Declared for the schema only: the handler returns pre-serialized text so a
+         *     viewport is a filter and a join rather than a re-encode of every feature.
+         */
+        LandmarkCollection: {
+            /**
+             * Features
+             * @description Point features inside the requested bounding box. Each carries `name`, `kind` (`trailhead` or `crag`; a crag is OpenStreetMap's `climbing=crag`, `climbing=area` or `climbing=boulder`, or a climbable stone, and never a single route), `osm_id` (`node/123`, `way/123` or `relation/123`) and `elevation_ft`, an integer or null. The geometry is the OSM node's position, or the centre of a way or relation, so it matches the row a polygon search returns for the same feature exactly.
+             */
+            features: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Fetched At
+             * @description When the newest kind in this instance's set landed from Overpass, in epoch milliseconds. A GeoJSON foreign member, which map libraries ignore. The set is fetched once per instance start and refreshed about daily, and is served however old it is, because a trailhead or a crag does not move; this is the only statement of how current it is.
+             */
+            fetched_at: number;
+            /**
+             * Type
+             * @description Always `FeatureCollection`, so the body drops straight into a map library.
+             * @constant
+             */
+            type: "FeatureCollection";
+        };
+        /**
          * Limits
          * @description Hard bounds every request is validated against.
          */
@@ -1307,6 +1358,16 @@ export interface components {
              * @description Sustained `GET /api/geocode` requests per client address per minute. 0 means the limit is disabled.
              */
             geocode_per_minute: number;
+            /**
+             * Landmarks Burst
+             * @description How many landmark requests an idle client can send back-to-back before the per-minute pace applies. Sized for a map pan, which refetches on a 400 ms debounce from zoom 11 up.
+             */
+            landmarks_burst: number;
+            /**
+             * Landmarks Per Minute
+             * @description Sustained `GET /api/landmarks` requests per client address per minute. As loose as the wildfire bucket and for the same reason: it answers from a set this instance already holds and reaches no upstream. 0 means the limit is disabled.
+             */
+            landmarks_per_minute: number;
             /**
              * Smoke Burst
              * @description How many smoke requests an idle client can send back-to-back before the per-minute pace applies.
@@ -1807,6 +1868,56 @@ export interface operations {
                 };
             };
             /** @description This instance is already at Nominatim's usage-policy pace and the queue is full. Transient; `Retry-After` says when to retry. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    landmarks_in_box_api_landmarks_get: {
+        parameters: {
+            query: {
+                /** @description Bounding box as `west,south,east,north` in decimal degrees (EPSG:4326). A feature is returned when its point is inside. */
+                bbox: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trailheads and crags inside the box, with the fetch timestamp. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LandmarkCollection"];
+                };
+            };
+            /** @description `bbox` was missing, malformed, or outside valid coordinate ranges. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description This client is requesting faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Nothing has landed from Overpass yet on this instance, so it has nothing to serve. Transient; `Retry-After` says when to retry. */
             503: {
                 headers: {
                     [name: string]: unknown;

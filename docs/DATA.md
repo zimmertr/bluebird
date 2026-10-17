@@ -91,6 +91,26 @@ And coverage follows where climbers have mapped: the well-known areas are
 there, and an obscure crag may not be
 ([record 0159](decisions/0159-crags-destination-type.md)).
 
+The map's trailhead and crag markers are OSM too, from a list the server
+keeps rather than a query per view. When a server starts it asks Overpass for
+every named trailhead in the world, then every named crag, area, boulder and
+climbable stone, with the same clauses a polygon search uses, so what the map
+marks and what a search finds are one definition. A trailhead is the
+`highway=trailhead` tag or a parking lot with Trailhead in its name: Issaquah,
+which calls itself Trailhead City, tags 2 of its 14 named trailheads and maps
+the other 12 as lots, Poo Poo Trailhead among them (checked 2026-10-17), and
+the lots add about 3,540 features worldwide. Measured 2026-10-16 on
+`overpass-api.de`: the trailheads took 120 s and 2.8 MB for 12,954 features,
+the crags about 160 s and 9 MB for 14,630, and both in one query 192 s and
+7.4 MB for 27,584. A kind that fails is asked for again on a doubling backoff,
+a minute to an hour, until it lands, and each kind is served as soon as it
+does. The list is refreshed once a day and served however old it is, because
+a trailhead does not move. A server that has just started shows no markers for
+a few minutes. The cost is about five minutes of one Overpass slot per server
+start, which that server's own capacity notice counts as heavy use; a query
+per pan would spend the same server for every reader
+([record 0171](decisions/0171-trailheads-and-crags-from-a-worldwide-snapshot.md)).
+
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so each one is matched to the nearest mapped
 peak within about 150 metres and takes that peak's `ele` tag. The app asks two
@@ -733,13 +753,17 @@ lookup instead, and nothing is said about it. What the lookup relies on in
 those tiles, and what happens when OpenFreeMap changes one of those things, is
 [record 0115](decisions/0115-elevation-lookup-depends-on-openfreemap-zoom-14-peaks.md).
 
-A click on the map reads the same tiles, so it costs no request: a peak comes
-from the `mountain_peak` layer, a lake from `water_name`, a city, town, village
-or hamlet from `place`, and a crag or route from `poi`, class `climbing`. That
-class is all the tiles say about a climbing feature: OSM's `climbing=` tag is
-dropped, so a crag and a single route look the same. Trailheads are in none of
-these layers, which is why a trailhead cannot be clicked
-([record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md)).
+A click on a peak, a lake or a settlement reads the same tiles, so it costs
+no request: a peak comes from the `mountain_peak` layer, a lake from
+`water_name`, and a city, town, village or hamlet from `place`. A trailhead or
+a crag is not in the tiles. No tile carries `highway=trailhead`, and the `poi`
+layer's climbing points lose OSM's `climbing=` tag, so a crag, a boulder and a
+single route look the same there and a crag mapped as a relation is absent.
+Those markers come from the server's own list
+([above](#openstreetmap-and-overpass)), and the style's own climbing labels
+stay off the map, so a route is not drawn at all
+([record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md),
+[record 0171](decisions/0171-trailheads-and-crags-from-a-worldwide-snapshot.md)).
 
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each
@@ -1313,7 +1337,10 @@ Peakbagger's coordinate search centred on the summit, which lists the clicked
 peak first; Peakbagger has no mapping from OSM ids, and a name search there is
 ambiguous for a common name. Every other row but a crag links to the exact OpenStreetMap
 object it came from, and a row with no OSM id (a pasted coordinate) links to a
-map pin at its coordinates.
+map pin at its coordinates. A trailhead or crag picked on the map carries its
+OSM id from the start, so a trailhead's card links to the object before it is
+analyzed; a lake or a town picked on the map links to a pin until the next
+Analyze fills the id in.
 
 **Mountain Project.** The arrow beside a crag's name opens a Mountain Project
 search for that name, where a climber looks a crag up. A search is not the

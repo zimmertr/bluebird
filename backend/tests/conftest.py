@@ -21,7 +21,7 @@ import pytest
 # run like `pytest tests/test_osm.py` used to fail on the missing attribute.
 from app import main as _main  # noqa: F401
 from app import ratelimit
-from app.services import cache, hms, nifc, osm, usfs_closures
+from app.services import cache, hms, landmarks, nifc, osm, usfs_closures
 
 # ── Builders ───────────────────────────────────────────────────────────────
 #
@@ -96,6 +96,7 @@ def _rate_limiting_off(monkeypatch):
     monkeypatch.setattr(ratelimit.client, "WILDFIRES_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "SMOKE_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(ratelimit.client, "CLOSURES_LIMITER", ratelimit.RateLimiter(0, 1))
+    monkeypatch.setattr(ratelimit.client, "LANDMARKS_LIMITER", ratelimit.RateLimiter(0, 1))
     monkeypatch.setattr(
         ratelimit,
         "NOMINATIM_GATE",
@@ -165,6 +166,22 @@ def _no_live_closures(monkeypatch):
         raise AssertionError("test reached the Forest Service; install a stub closure cache")
 
     monkeypatch.setattr(usfs_closures, "CLOSURES", usfs_closures.closure_cache(fetch=refuse))
+
+
+@pytest.fixture(autouse=True)
+def _no_live_landmarks(monkeypatch):
+    """The landmark loader starts a worldwide Overpass fetch with the app, so
+    the app's lifespan is kept from starting it: every `with TestClient(app)`
+    would otherwise make a live call and then sit in a backoff. Tests that
+    mean to exercise the loop drive `run()` on a loader of their own
+    (test_landmarks.py), and the route tests install a loader holding what
+    they need."""
+
+    async def refuse(kind):
+        raise AssertionError("test reached Overpass for landmarks; install a stub loader")
+
+    monkeypatch.setattr(landmarks.LandmarkLoader, "start", lambda self: None)
+    monkeypatch.setattr(landmarks, "LOADER", landmarks.LandmarkLoader(fetch=refuse))
 
 
 @pytest.fixture(autouse=True)

@@ -68,6 +68,13 @@ RATE_LIMIT_SMOKE_BURST = env_int("RATE_LIMIT_SMOKE_BURST", 30)
 # times (issue #550).
 RATE_LIMIT_CLOSURES_PER_MINUTE = env_int("RATE_LIMIT_CLOSURES_PER_MINUTE", 90)
 RATE_LIMIT_CLOSURES_BURST = env_int("RATE_LIMIT_CLOSURES_BURST", 30)
+# Landmarks are the same kind of request once more, a filter over the
+# trailheads and crags the pod holds, refetched on every pan from zoom 11 up
+# (#734). Its own bucket because the markers are always on: a reader panning
+# with every overlay lit should not find the fire layer's budget spent by the
+# trailheads under it.
+RATE_LIMIT_LANDMARKS_PER_MINUTE = env_int("RATE_LIMIT_LANDMARKS_PER_MINUTE", 90)
+RATE_LIMIT_LANDMARKS_BURST = env_int("RATE_LIMIT_LANDMARKS_BURST", 30)
 
 # Discoveries one client key may have in flight at once. A bucket bounds how
 # often an address starts a discovery, not how many it holds open, and one
@@ -332,6 +339,9 @@ SMOKE_LIMITER = RateLimiter(RATE_LIMIT_SMOKE_PER_MINUTE, RATE_LIMIT_SMOKE_BURST,
 CLOSURES_LIMITER = RateLimiter(
     RATE_LIMIT_CLOSURES_PER_MINUTE, RATE_LIMIT_CLOSURES_BURST, name="closures"
 )
+LANDMARKS_LIMITER = RateLimiter(
+    RATE_LIMIT_LANDMARKS_PER_MINUTE, RATE_LIMIT_LANDMARKS_BURST, name="landmarks"
+)
 DESTINATIONS_IN_FLIGHT = InFlightLimiter(
     DISCOVERY_IN_FLIGHT_PER_CLIENT, name="destinations_in_flight"
 )
@@ -422,6 +432,11 @@ async def wildfires_rate_limit(request: Request) -> None:
 async def smoke_rate_limit(request: Request) -> None:
     """Route dependency: the smoke-overlay bucket, independent of wildfires."""
     _throttle(SMOKE_LIMITER, request)
+
+
+async def landmarks_rate_limit(request: Request) -> None:
+    """Route dependency: the landmark bucket, independent of every overlay."""
+    _throttle(LANDMARKS_LIMITER, request)
 
 
 async def closures_rate_limit(request: Request) -> None:

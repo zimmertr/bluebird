@@ -107,6 +107,25 @@ describe('poiPopupHtml', () => {
     expect(html).not.toContain('peakbagger.com')
   })
 
+  // A trailhead from the pod's snapshot brings its OSM id, so it links to
+  // that object; a crag goes to Mountain Project by name, as its row does
+  // (#734).
+  it('links a trailhead to its OSM object and a crag to Mountain Project', () => {
+    const trailhead = poiPopupHtml(
+      { name: 'Mailbox Peak Trailhead', kind: 'trailhead', lat: 47.4875, lon: -121.7437, osmId: 'node/4578891234' },
+      false,
+    )
+    expect(trailhead).toContain('href="https://www.openstreetmap.org/node/4578891234"')
+    expect(factsText(trailhead)).toBe('Trailhead | 47.48750, -121.74370')
+    const crag = poiPopupHtml(
+      { name: 'Lower Town Wall', kind: 'crag', lat: 47.8208, lon: -121.5555, osmId: 'relation/1234' },
+      false,
+    )
+    expect(crag).toContain('https://www.mountainproject.com/search?q=Lower%20Town%20Wall')
+    expect(crag).toContain('aria-label="View on Mountain Project"')
+    expect(factsText(crag)).toBe('Crag | 47.82080, -121.55550')
+  })
+
   // A lone action sits centred in the body (TJ, 2026-10-14), not against the
   // card's left edge where the facts line's width left it hanging.
   it('centres the button in the body', () => {

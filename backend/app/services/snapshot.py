@@ -296,22 +296,33 @@ def unavailable_message(exc: Exception, provider: str) -> str:
     return classify_http_error(exc, provider)
 
 
+def unavailable_error(exc: Exception, *, provider: str, event: str) -> ApiError:
+    """The 503 for a dataset the pod holds nothing of, however it is held.
+
+    One builder for the status, the message and the ``Retry-After``, so a
+    :class:`SnapshotCache` route and the landmark loader's route (#734), which
+    fills at startup rather than on demand, answer an empty pod alike.
+    ``event`` is the token a pod's logs are searched by, and is the only part
+    of this an overlay still owns.
+    """
+    retry_after = getattr(exc, "retry_after_s", DEFAULT_RETRY_AFTER_S)
+    log.warning("event=%s error=%s", event, exc)
+    return ApiError(
+        status_code=503,
+        detail=unavailable_message(exc, provider),
+        code=ErrorCode.snapshot_unavailable,
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 async def snapshot_or_503[T](cache: SnapshotCache[T], *, event: str) -> T:
     """The snapshot to answer with, or the 503 that says why there is none.
 
     Every failure that reaches here means the cache holds nothing it may
     serve: never fetched, or older than `MAX_STALE_S`. Short of that,
-    :meth:`SnapshotCache.get` serves what it holds rather than raising. ``event`` is the token a pod's logs are searched
-    by, and is the only part of this an overlay still owns.
+    :meth:`SnapshotCache.get` serves what it holds rather than raising.
     """
     try:
         return await cache.get()
     except Exception as exc:
-        retry_after = getattr(exc, "retry_after_s", DEFAULT_RETRY_AFTER_S)
-        log.warning("event=%s error=%s", event, exc)
-        raise ApiError(
-            status_code=503,
-            detail=unavailable_message(exc, cache.label),
-            code=ErrorCode.snapshot_unavailable,
-            headers={"Retry-After": str(retry_after)},
-        ) from exc
+        raise unavailable_error(exc, provider=cache.label, event=event) from exc
