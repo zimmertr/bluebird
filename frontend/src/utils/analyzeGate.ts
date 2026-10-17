@@ -1,8 +1,10 @@
 import { familyOf } from '../metrics'
+import type { AnalyzedView, RunError } from '../hooks/analyzeTypes'
 import type { DiscoveryType, SortBy } from '../types'
 import { type ForecastSelection, hasDates } from './calendarSelection'
 import { modelsWithoutFreeze } from './freezingLevel'
 import { type OrderedModel, selectedIds } from './modelSelection'
+import { type PanelState, panelCommitCues } from './present'
 
 // Whether the Analyze button should be enabled.
 //
@@ -243,4 +245,45 @@ export interface AutoAnalyzeState {
 
 export function shouldAutoAnalyze(s: AutoAnalyzeState): boolean {
   return s.requested && s.capabilitiesSettled && s.gateOpen && !s.fired
+}
+
+/**
+ * The word on the Analyze button (#736). One button starts a run, on the
+ * panel at a desk and on the map on a phone, and it says what pressing it
+ * does now: `Analyze`, `Analyzing…` while a run is up, or `Try again` after
+ * a failed run that is worth repeating. The error box under it used to carry
+ * a `Try again` of its own, which replayed the failed request even after the
+ * panel had changed and ignored the gate; now the one button is the retry,
+ * and it runs what the panel says through the same gate.
+ *
+ * Listed in full so the phone's floating button can reserve the widest
+ * word's width and never resize when the word changes (record 0135).
+ */
+export const ACTION_WORDS = ['Analyze', 'Analyzing…', 'Try again'] as const
+export type ActionWord = (typeof ACTION_WORDS)[number]
+
+/**
+ * Whether the last failed run is still worth offering again under its own
+ * name: the failure was transient (`retry`), the error has not been
+ * dismissed (a dismissed error is null, `useAnalysisRun.dismissEvent`), and
+ * the panel still describes the request that failed. The comparison is the
+ * commit cues' own (`panelCommitCues`), read against the failed run's
+ * snapshot instead of the committed report's, so the word reverts for the
+ * same changes that would stale a report: the model, the window, the ring,
+ * the types, or a destination the run never saw. A changed sort or bound
+ * does not count, since it would not change what the run fetches.
+ */
+export function retryStands(
+  error: RunError | null,
+  failed: AnalyzedView | null,
+  panel: Omit<PanelState, 'settled'>,
+): boolean {
+  if (error === null || !error.retry || failed === null) return false
+  return panelCommitCues(failed, { ...panel, settled: true }).length === 0
+}
+
+/** What the button reads, from whether a run is up and whether a retry stands. */
+export function actionWord(loading: boolean, retry: boolean): ActionWord {
+  if (loading) return 'Analyzing…'
+  return retry ? 'Try again' : 'Analyze'
 }

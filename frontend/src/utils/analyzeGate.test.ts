@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
+  ACTION_WORDS,
+  actionWord,
   analyzeBlockers,
   analyzeGateFor,
   canAnalyze,
+  retryStands,
   ringAddsNothing,
   ringUsable,
   shouldAutoAnalyze,
@@ -10,7 +13,9 @@ import {
   AnalyzeGateInputs,
   AutoAnalyzeState,
 } from './analyzeGate'
-import { forecastModel } from '../testSupport/fixtures'
+import { NO_CONSTRAINTS } from './clientAnalyze'
+import { discoveryKeys, type PanelState } from './present'
+import { analyzedSnapshot, forecastModel } from '../testSupport/fixtures'
 
 // A fully-ready polygon analysis: three points drawn, no vetoes.
 const READY_POLYGON: AnalyzeGate = {
@@ -402,5 +407,89 @@ describe('analyzeGateFor', () => {
     expect(freeze.freezeGaps).toEqual(['UK Met Office'])
     expect(freeze.gate.compareFreeze).toBe(true)
     expect(analyzeGateFor({ ...PINNED, sortBy: 'freeze_min_ft' }).freezeGaps).toEqual([])
+  })
+})
+
+// The word on the Analyze button (#736). One button is the retry, and it says
+// so only while the request the panel would send is the one that failed.
+describe('retryStands', () => {
+  const RING = { coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+  const WINDOW = { startMs: Date.UTC(2026, 6, 20, 6), endMs: Date.UTC(2026, 6, 20, 18) }
+  // The run that failed: peaks inside RING over WINDOW on the default model.
+  const failed = analyzedSnapshot({ window: WINDOW, ...discoveryKeys(RING, ['peak'], false) })
+  const transient = { message: 'Open-Meteo request failed. Try again later.', retry: true }
+  const panel = (over: Partial<Omit<PanelState, 'settled'>> = {}): Omit<PanelState, 'settled'> => ({
+    selectionKind: 'days',
+    windowMs: WINDOW,
+    forecastModel: failed.forecastModel,
+    comparedModels: [],
+    polygon: RING,
+    destinationTypes: ['peak'],
+    includeUnnamedPeaks: false,
+    pendingCount: 0,
+    sortBy: 'precip_total_in',
+    constraints: NO_CONSTRAINTS,
+    ...over,
+  })
+
+  it('stands while a transient failure is up and the panel still describes its request', () => {
+    expect(retryStands(transient, failed, panel())).toBe(true)
+  })
+
+  it('does not stand with no error, a dismissed error, or no failed run to compare against', () => {
+    expect(retryStands(null, failed, panel())).toBe(false)
+    expect(retryStands(transient, null, panel())).toBe(false)
+  })
+
+  // A model with no coverage over the area fails the same way again, so the
+  // button keeps its own word and the box's sentence names the remedy.
+  it('does not stand for a failure that would only repeat itself', () => {
+    expect(retryStands({ message: 'No coverage.', retry: false }, failed, panel())).toBe(false)
+  })
+
+  // The same changes that stale a report revert the word: each is a request
+  // the failed run never made.
+  it.each([
+    ['the model', { forecastModel: 'ecmwf_ifs025' }],
+    ['a compared model', { comparedModels: ['ecmwf_ifs025'] }],
+    ['the window', { windowMs: { startMs: WINDOW.startMs, endMs: WINDOW.endMs + 3_600_000 } }],
+    ['the selection arm', { selectionKind: 'now' as const }],
+    ['the ring', { polygon: { coordinates: [[[-122, 47], [-121, 47], [-121, 48], [-122, 47]]] } }],
+    ['the types', { destinationTypes: ['peak', 'lake'] }],
+    ['the unnamed-peaks toggle', { includeUnnamedPeaks: true }],
+    ['a destination the run never saw', { pendingCount: 1 }],
+  ] as [string, Partial<Omit<PanelState, 'settled'>>][])('falls when %s changes', (_what, over) => {
+    expect(retryStands(transient, failed, panel(over))).toBe(false)
+  })
+
+  // Sort and the bounds re-present held rows and change nothing a run
+  // fetches, so the failed request is still the one the panel would send.
+  it('stands through a changed sort or bound', () => {
+    expect(retryStands(transient, failed, panel({ sortBy: 'aqi_avg' }))).toBe(true)
+    expect(retryStands(transient, failed, panel({ constraints: { ...NO_CONSTRAINTS, maxPrecipTotalIn: 0.5 } }))).toBe(true)
+  })
+
+  // A cleared ring is no request either way: the ring cue is silent without
+  // a complete ring, so a failed ring search with the ring since cleared
+  // keeps the word until the run or the error goes.
+  it('ignores the ring while none is drawn, as the commit cue does', () => {
+    expect(retryStands(transient, failed, panel({ polygon: null }))).toBe(true)
+  })
+})
+
+describe('actionWord', () => {
+  it('reads Analyzing… while a run is up, whatever else holds', () => {
+    expect(actionWord(true, true)).toBe('Analyzing…')
+    expect(actionWord(true, false)).toBe('Analyzing…')
+  })
+
+  it('reads Try again while a retry stands, and Analyze otherwise', () => {
+    expect(actionWord(false, true)).toBe('Try again')
+    expect(actionWord(false, false)).toBe('Analyze')
+  })
+
+  // The phone's floating button reserves every word's width (record 0135).
+  it('lists every word the button can read', () => {
+    expect(ACTION_WORDS).toEqual(['Analyze', 'Analyzing…', 'Try again'])
   })
 })

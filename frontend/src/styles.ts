@@ -633,10 +633,12 @@ export const BUTTON_SECONDARY =
  * two sit side by side and must read as one pair, wearing the accent fill that
  * marks the primary action everywhere else.
  *
- * The size is set bare rather than by composing `TEXT.control`, for the reason
- * spelled out on `BUTTON_DANGER` below: that role carries slate-200, which
- * would race `ACCENT.fill`'s white by stylesheet order and could not be
- * overridden here.
+ * The size is set bare rather than by composing `TEXT.control`: that role
+ * carries a colour of its own, which would race `ACCENT.fill`'s white by
+ * stylesheet order and could not be overridden here. (The error box's
+ * `BUTTON_DANGER` first fell into exactly that, and `styles.test.ts` pins the
+ * rule since; the role itself went with #736, which made Analyze the one
+ * retry.)
  */
 export const BUTTON_ACCENT =
   `text-xs ${TAP.action} px-3 py-1.5 ${RADIUS.control} transition-colors ` +
@@ -752,24 +754,6 @@ export const CHIP = {
     `flex h-6 w-5 flex-shrink-0 cursor-pointer items-center justify-center ` +
     `touch:-mx-0.5 touch:w-6 ${FOCUS_RING}`,
 } as const
-
-/**
- * The destructive retry inside an error notice: "Try again".
- *
- * The one button in the app that is neither the primary action nor a neutral
- * secondary, and it had its whole recipe — fill, hover, border, weight, radius,
- * padding, disabled treatment — inline at the call site. red-200 on the tinted
- * fill reads 8.8:1, and it stays red-200 rather than white so the button reads
- * as part of the notice holding it rather than as a second primary action.
- *
- * Sets the size bare rather than composing `TEXT.control`, which is the one
- * place in this file that would be wrong: that role carries slate-200, and a
- * second color utility here would race the red one by stylesheet order.
- */
-export const BUTTON_DANGER =
-  `text-xs ${TAP.action} w-full py-1.5 ${RADIUS.control} font-medium transition-colors ` +
-  `text-danger-label bg-danger-fill hover:bg-danger-fill-hover border border-danger-edge ` +
-  `disabled:opacity-40 disabled:cursor-not-allowed ${FOCUS_RING}`
 
 /**
  * A button floating over the map rather than sitting in a panel: the one that
@@ -1787,10 +1771,11 @@ export const MAP_FAB =
 
 
 /**
- * The button's two words in one cell, the one not showing kept invisible, so
- * the button is always as wide as the wider of `Analyze` and `Analyzing…` and
- * never resizes as a run starts and ends. A grid rather than a measured width:
- * the cell is the words' own, in whatever face the reader's system draws.
+ * The button's words in one cell, the ones not showing kept invisible, so the
+ * button is always as wide as the widest of `Analyze`, `Analyzing…` and `Try
+ * again` (`ACTION_WORDS`, #736) and never resizes as a run starts, ends or
+ * fails. A grid rather than a measured width: the cell is the words' own, in
+ * whatever face the reader's system draws.
  */
 export const MAP_FAB_WORDS = {
   cell: 'grid place-items-center [&>*]:col-start-1 [&>*]:row-start-1',
@@ -2092,8 +2077,8 @@ export const ACCENT_RING = 'ring-4 ring-accent-ink shadow-[0_0_18px_var(--ui-acc
 
 /**
  * The box a status line sits in when it is a block rather than a sentence: the
- * forecast-window warning, the AQI-coverage note, the refusal remedies, the
- * error retry, and the failed wildfire check.
+ * forecast-window warning, the AQI-coverage note, the refusal, the run error,
+ * and the failed wildfire check.
  *
  * There is no unboxed alternative any more. A `CUE` role used to hold the
  * centred, borderless variant, and the panel's footer showed both: a commit cue

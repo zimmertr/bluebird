@@ -2,7 +2,6 @@ import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 're
 import { createPortal } from 'react-dom'
 import { TUTORIAL_PATH } from '../utils/tourSteps'
 import {
-  BUTTON_DANGER,
   BUTTON_PRIMARY,
   DISABLED,
   LINK,
@@ -16,9 +15,12 @@ import {
 } from '../styles'
 import { IconClose } from './icons'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
+import type { ActionWord } from '../utils/analyzeGate'
 import {
+  type EventNoticeKind,
   type FooterMessage,
   type NoticeSeverity,
+  eventKindOf,
   isDismissed,
   noticeBoxes,
   pruneDismissals,
@@ -66,28 +68,21 @@ function NoticeMessage({
 function FooterNotice({
   severity,
   messages,
-  children,
   onDismiss,
 }: {
   severity: NoticeSeverity
   // Whatever this severity currently has to say, one entry per message. Each
-  // message carries its own X (`NoticeMessage`); `children` is the box-wide
-  // action below them all — the error box's retry.
+  // message carries its own X (`NoticeMessage`), and the box carries nothing
+  // else: the error box used to end in a `Try again` of its own, a second
+  // button a few pixels under Analyze that did what Analyze does, until #736
+  // made the Analyze button the one retry.
   messages: readonly FooterMessage[]
-  children?: React.ReactNode
   // Dismisses ONE message by its key — a message for the event notices, a
   // condition for the derived lines — which `utils/notices.ts` owns.
   onDismiss: (key: string) => void
 }) {
-  // A flex column with a gap rather than `space-y-2`: the message stack below
-  // wears `NOTICE_DIVIDER`'s negative margin to cancel its rows' padding at the
-  // box's edges, and in Tailwind v4 that class outranks the margin `space-y`
-  // puts on the same element, so the retry sat 0px under the last line of text
-  // with 8px over the first. A gap is not a margin, so the two add instead:
-  // 8px above the text, 8px between it and the retry, 8px under the retry
-  // (measured 2026-10-15 in the live stylesheet).
   return (
-    <div className={`${NOTICE[severity]} ${STATUS[severity]} flex flex-col gap-2`}>
+    <div className={`${NOTICE[severity]} ${STATUS[severity]}`}>
       {/* Every message renders the same way, alone or one of several: a row
           under a row, separated by the rule `NOTICE_DIVIDER` draws in the box's
           own border tint. A bulleted list did the separating before and spent
@@ -100,16 +95,21 @@ function FooterNotice({
           <NoticeMessage key={m.key} text={m.text} onDismiss={() => onDismiss(m.key)} />
         ))}
       </div>
-      {children}
     </div>
   )
 }
 
 interface Props {
   analyzeEnabled: boolean
-  loading: boolean
+  // What the button reads (#736, `actionWord`): `Analyze`, `Analyzing…`
+  // while a run is up, or `Try again` while the last run's failure stands and
+  // the panel still describes the request that failed. Decided above the
+  // panel, because the phone's floating button reads the same word.
+  word: ActionWord
   onAnalyze: () => void
-  onRetry: () => void
+  // The reader dismissed the run error or the refusal: the event clears
+  // rather than joining the ledger below (`useAnalysisRun.dismissEvent`).
+  onDismissEvent: (kind: EventNoticeKind) => void
   /** Open the guided tutorial (#536). */
   onTutorial: () => void
   /** The tour cannot start now (a draw or a run is under way), so the link is inert. */
@@ -133,9 +133,9 @@ interface Props {
  */
 export default function PanelFooter({
   analyzeEnabled,
-  loading,
+  word,
   onAnalyze,
-  onRetry,
+  onDismissEvent,
   onTutorial,
   tutorialWaits = false,
   messages,
@@ -155,15 +155,16 @@ export default function PanelFooter({
     e.preventDefault()
     onTutorial()
   }
-  // The dismissal ledger (#253): every footer message is dismissable, each
-  // alone. `pruneDismissals` retires a dismissal the moment its key stops
-  // being active, which is what makes an identical error return after the
-  // next Analyze (`useAnalysisRun.clearEvents` nulls both event states
-  // before it fetches)
-  // and a cleared-then-retriggered warning return — while panning, sorting
-  // and knob twiddling, which change no key, resurface nothing. Local state
-  // on purpose: the panel stays mounted while closed, and a dismissal is
-  // presentation, not part of the analysis.
+  // The dismissal ledger (#253) for the derived lines: every footer message
+  // is dismissable, each alone. `pruneDismissals` retires a dismissal the
+  // moment its key stops being active, which is what makes a
+  // cleared-then-retriggered warning return, while panning, sorting and knob
+  // twiddling, which change no key, resurface nothing. Local state on
+  // purpose: the panel stays mounted while closed, and a dismissal is
+  // presentation, not part of the analysis. The two event notices are not in
+  // it: dismissing the run error or the refusal clears the event itself
+  // (`onDismissEvent`, #736), so the Analyze button that reads `Try again`
+  // off the error reads `Analyze` again in the same render.
   const [dismissed, setDismissed] = useState<readonly string[]>([])
   const activeKeySig = messages
     .map((m) => m.key)
@@ -183,9 +184,9 @@ export default function PanelFooter({
   // sheet's edge (record 0140), informing lines and action lines alike, so the
   // Controls sheet spends none of its height on it and a cue is read with the
   // sheet shut, beside the one Analyze that answers it. At a desk it is under
-  // the button. A portal, so the dismissals above and the retry below are one
-  // ledger's wherever the block stands; a phone whose band is not mounted yet
-  // draws it nowhere for that frame rather than in the sheet.
+  // the button. A portal, so the dismissals above are one ledger's wherever
+  // the block stands; a phone whose band is not mounted yet draws it nowhere
+  // for that frame rather than in the sheet.
   const place = (region: ReactNode) =>
     noticeHome ? createPortal(region, noticeHome) : phone ? null : region
 
@@ -202,7 +203,7 @@ export default function PanelFooter({
           disabled={!analyzeEnabled}
           className={`${BUTTON_PRIMARY} ${DISABLED}`}
         >
-          {loading ? 'Analyzing…' : 'Analyze'}
+          {word}
         </button>
       )}
 
@@ -217,19 +218,12 @@ export default function PanelFooter({
               key={box.severity}
               severity={box.severity}
               messages={box.messages}
-              onDismiss={(key) => setDismissed((prev) => [...prev, key])}
-            >
-              {/* One retry for the whole box, at the bottom (TJ, 2026-08-22):
-                  it re-runs the analysis, so a message whose condition clears
-                  drops out and the box closes when none remain. Only a failed
-                  run summons it — a state problem alone, like an oversized
-                  polygon, cannot be retried into working. */}
-              {box.messages.some((m) => m.retry) && (
-                <button onClick={onRetry} disabled={loading} className={BUTTON_DANGER}>
-                  Try again
-                </button>
-              )}
-            </FooterNotice>
+              onDismiss={(key) => {
+                const event = eventKindOf(key)
+                if (event) onDismissEvent(event)
+                else setDismissed((prev) => [...prev, key])
+              }}
+            />
           ))}
         </div>,
       )}

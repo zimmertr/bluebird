@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { analysisFailure } from '../utils/analysisFailure'
+import type { EventNoticeKind } from '../utils/notices'
 import type { ForecastModelOption } from './useCapabilities'
 import { usePacedFetch } from './usePacedFetch'
 import type { Progress, Refusal, RunError } from './analyzeTypes'
@@ -41,6 +42,16 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   function clearEvents() {
     setError(null)
     setRefusal(null)
+  }
+
+  // The reader dismissed the error or the refusal line (#253, #736). An event
+  // notice is a fact about one run, so dismissing it clears the event rather
+  // than hiding its text: the next run sets it afresh if it fails the same
+  // way, and the Analyze button, which reads `Try again` off the error
+  // (`retryStands`), reads `Analyze` again at once.
+  function dismissEvent(kind: EventNoticeKind) {
+    if (kind === 'error') setError(null)
+    else setRefusal(null)
   }
 
   // Announce the retrieval phase with the final count the moment discovery
@@ -97,6 +108,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     run,
     cancel,
     clearEvents,
+    dismissEvent,
     announce,
     onProgress,
     onTail,

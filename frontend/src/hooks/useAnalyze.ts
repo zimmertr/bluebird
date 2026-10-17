@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { geoKey } from '../utils/points'
 import type { AnalyzeRequest, DiscoveredDestination, DiscoveryType } from '../types'
 import { RETRIEVING_MESSAGE, SEARCHING_MESSAGE } from '../utils/analyzeOverlay'
@@ -24,8 +24,8 @@ export type { AnalyzeOptions, AnalyzedView, Progress, Refusal, RunError } from '
 // One Analyze click, end to end, composed from three parts: the run in flight
 // (useAnalysisRun), the report it commits (useAnalysisReport), and the
 // pipeline that does the work (analysisPipeline.ts). What stays here is what
-// spans runs: the forecasts the next one may reuse, and the request a retry
-// repeats.
+// spans runs: the forecasts the next one may reuse, and the snapshot of the
+// run that failed, which the Analyze button's word is read against.
 export function useAnalyze(
   maxDestinations: number = MAX_ANALYZE_DESTINATIONS,
   models: readonly ForecastModelOption[] = [],
@@ -34,7 +34,14 @@ export function useAnalyze(
 ) {
   const run = useAnalysisRun(models)
   const report = useAnalysisReport()
-  const lastRequestRef = useRef<{ request: AnalyzeRequest; kind: SelectionKind; options: AnalyzeOptions } | null>(null)
+  // The snapshot of the run that last failed (#736): what the panel is
+  // compared against to decide whether the Analyze button still reads `Try
+  // again` (`retryStands`). Set when a run does not finish, which is a cancel
+  // too, where it is harmless since no error stands; cleared when a run
+  // starts or on a reset. Not the committed report's snapshot: a failure puts
+  // that report back untouched (#560), so it describes the report on screen
+  // and not the request that failed.
+  const [failedView, setFailedView] = useState<AnalyzedView | null>(null)
   // The forecasts the last browser analysis fetched, kept so the next one only
   // pays for what it does not already have. It helps any re-analysis at the
   // same window and model (a pasted destination, a toggled unnamed-peaks, a
@@ -76,14 +83,6 @@ export function useAnalyze(
     }
   }
 
-  // Re-run the most recent request (the "Try again" button on transient
-  // errors; a deterministic refusal gets no retry, because run verbatim it can
-  // only repeat itself).
-  function retry() {
-    const last = lastRequestRef.current
-    if (last) analyze(last.request, last.kind, last.options)
-  }
-
   // Clear the current ranked results without fetching. Used by a pins-only
   // Analyze so a stale ranking (e.g. from a since-deleted polygon) doesn't
   // linger in the table and on the map above the refetched pins.
@@ -91,7 +90,7 @@ export function useAnalyze(
     runSeqRef.current += 1
     report.clear()
     run.clearEvents()
-    lastRequestRef.current = null
+    setFailedView(null)
     heldForecastsRef.current = null
   }
 
@@ -109,7 +108,7 @@ export function useAnalyze(
     options: AnalyzeOptions = {},
   ): Promise<boolean> {
     const { discovery, compareModels = [], onCommit, identity } = options
-    lastRequestRef.current = { request, kind, options }
+    setFailedView(null)
     const runSeq = ++runSeqRef.current
     // Derived off the request unless the caller says otherwise: the weather-
     // only refresh re-fetches a polygon report through the custom path, so its
@@ -193,14 +192,20 @@ export function useAnalyze(
           },
         )
       },
-      { onFailure: report.discard, onSettled: report.settle },
+      {
+        onFailure: () => {
+          report.discard()
+          setFailedView(view())
+        },
+        onSettled: report.settle,
+      },
     )
   }
 
   return {
     analyze,
     cancel: run.cancel,
-    retry,
+    dismissEvent: run.dismissEvent,
     reset,
     placeHeld,
     analyzed: report.analyzed,
@@ -213,6 +218,8 @@ export function useAnalyze(
     // The rows on screen are a floor while this holds (#337).
     arriving: report.arriving,
     error: run.error,
+    // The run `error` describes, for the button's word (#736).
+    failedView,
     refusal: run.refusal,
     response: report.response,
     universe: report.universe,

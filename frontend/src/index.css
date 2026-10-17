@@ -140,11 +140,6 @@ body,
   --color-warn-line: var(--ui-warn-line);
   --color-danger-line: var(--ui-danger-line);
   --color-info-line: var(--ui-info-line);
-  /* The destructive button inside an error notice. */
-  --color-danger-fill: var(--ui-danger-fill);
-  --color-danger-fill-hover: var(--ui-danger-fill-hover);
-  --color-danger-edge: var(--ui-danger-edge);
-  --color-danger-label: var(--ui-danger-label);
   /* The tint a hovered row lifts by, a range thumb, and the dim under a
      modal. */
   --color-lift: var(--ui-lift);
@@ -195,10 +190,6 @@ body,
   --ui-warn-line: color-mix(in oklab, var(--color-amber-800) 60%, transparent);
   --ui-danger-line: color-mix(in oklab, var(--color-red-800) 60%, transparent);
   --ui-info-line: color-mix(in oklab, var(--color-sky-800) 60%, transparent);
-  --ui-danger-fill: color-mix(in oklab, var(--color-red-900) 60%, transparent);
-  --ui-danger-fill-hover: var(--color-red-800);
-  --ui-danger-edge: var(--color-red-700);
-  --ui-danger-label: var(--color-red-200);
   --ui-lift: var(--color-white);
   --ui-thumb: var(--color-white);
   --ui-scrim: var(--color-black);
@@ -268,10 +259,6 @@ body,
   --ui-warn-line: #d5a67a;
   --ui-danger-line: #d68788;
   --ui-info-line: #89abc7;
-  --ui-danger-fill: #ffb4ab;
-  --ui-danger-fill-hover: #ff9e94;
-  --ui-danger-edge: #ba1a1a;
-  --ui-danger-label: #690005;
   --ui-lift: #181c21;
   --ui-thumb: #181c21;
   --ui-scrim: #000000;

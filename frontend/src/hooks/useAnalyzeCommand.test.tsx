@@ -159,9 +159,10 @@ describe('useAnalyzeCommand', () => {
       .toEqual(['discovery', 'custom', 'refresh'])
   })
 
-  // Try again replays the request with its options, and its commit answers for
-  // the click that failed, so the click's bookkeeping rides on the options.
-  it('hands the run what its commit changes, for a retry to apply', async () => {
+  // The click's bookkeeping rides on the run's options, so it is the run's
+  // commit that applies it: a failed click applies nothing, and the commit of
+  // the same request later does.
+  it('hands the run what its commit changes, for the commit to apply', async () => {
     const r = recorder()
     r.map.finishDrawing.mockReturnValue(RING_B)
     const { result } = renderHook(() => useAnalyzeCommand({ ...r.inputs, polygon: RING_B }))

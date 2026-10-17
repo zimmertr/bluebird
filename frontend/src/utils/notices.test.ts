@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BLOCKER_SEVERITY,
   FooterMessage,
+  eventKindOf,
   listPhrase,
   isDismissed,
   noticeBoxes,
@@ -187,16 +188,13 @@ describe('noticeBoxes', () => {
     ])
   })
 
-  it('carries the retry flag through for the box to read', () => {
-    const boxes = noticeBoxes([
-      { key: 'error:run', text: 'x', severity: 'error', retry: true },
-      msg('blocker:area', 'error'),
-    ])
-    expect(boxes[0].messages.some((m) => m.retry)).toBe(true)
-    // A state problem alone summons no retry button.
-    expect(noticeBoxes([msg('blocker:area', 'error')])[0].messages.some((m) => m.retry)).toBe(
-      false,
-    )
+  // Which dismissals clear an event and which join the ledger (#736).
+  it('tells an event notice from a derived line by its key', () => {
+    expect(eventKindOf(noticeKey('error', 'Open-Meteo request failed. Try again later.'))).toBe('error')
+    expect(eventKindOf(noticeKey('refusal', 'Too many.'))).toBe('refusal')
+    expect(eventKindOf('blocker:area')).toBeNull()
+    expect(eventKindOf('cue:window-changed')).toBeNull()
+    expect(eventKindOf('fire:unavailable')).toBeNull()
   })
 })
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTakeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { useSheetOpen } from '../hooks/useSheetOpen'
 import { DISABLED, MAP_FAB, MAP_FAB_WORDS, MAP_NOTICE_BAND } from '../styles'
+import { ACTION_WORDS, type ActionWord } from '../utils/analyzeGate'
 import { noticeBottomPx } from '../utils/resultsSheet'
 
 interface PhoneFootProps {
@@ -20,8 +21,8 @@ interface PhoneFootProps {
   onFabPx: (px: number) => void
   /** The panel's Analyze gate (`analyzeGateFor`), which the button shares. */
   analyzeEnabled: boolean
-  /** A run is under way, which the button says as the panel's does. */
-  analyzing: boolean
+  /** What the button reads (#736, `actionWord`), the same word as the panel's. */
+  word: ActionWord
   /** The panel's Analyze command itself, never a second path to it. */
   onAnalyze: () => void
 }
@@ -45,7 +46,7 @@ export default function PhoneFoot({
   onBandPx,
   onFabPx,
   analyzeEnabled,
-  analyzing,
+  word,
   onAnalyze,
 }: PhoneFootProps) {
   const [band, setBand] = useState<HTMLDivElement | null>(null)
@@ -58,7 +59,7 @@ export default function PhoneFoot({
   )
   // The band's height decides where the button stands, and the notices in it
   // come and go with the panel's state, so it is observed rather than added
-  // up: a box can wrap, be dismissed or gain a retry.
+  // up: a box can wrap, be dismissed or gain a line.
   useEffect(() => {
     if (!band) return
     const report = () => onBandPx(Math.round(band.getBoundingClientRect().height))
@@ -70,7 +71,7 @@ export default function PhoneFoot({
   }, [band, onBandPx])
 
   const sheetOpen = useSheetOpen()
-  // The button's width is the wider word's whichever it reads, so it moves
+  // The button's width is the widest word's whichever it reads, so it moves
   // only with the face, the size or the zoom; observed for those, and left
   // standing while a sheet hides the button, since the width it held is the
   // width it comes back at.
@@ -107,13 +108,15 @@ export default function PhoneFoot({
           // The tour's Analyze step (#536): a phone's one Analyze is this.
           data-tour="analyze"
         >
-          {/* Both words in one cell, so the button is the wider one's width
-              whichever it reads; the other is invisible and unread. */}
+          {/* Every word in one cell, so the button is the widest one's width
+              whichever it reads; the others are invisible and unread. */}
           <span className={MAP_FAB_WORDS.cell}>
-            <span>{analyzing ? 'Analyzing…' : 'Analyze'}</span>
-            <span aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
-              {analyzing ? 'Analyze' : 'Analyzing…'}
-            </span>
+            <span>{word}</span>
+            {ACTION_WORDS.filter((w) => w !== word).map((w) => (
+              <span key={w} aria-hidden="true" className={MAP_FAB_WORDS.hidden}>
+                {w}
+              </span>
+            ))}
           </span>
         </button>
       )}

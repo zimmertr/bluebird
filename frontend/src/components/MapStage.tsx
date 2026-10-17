@@ -38,6 +38,7 @@ import { fieldHasValue } from '../utils/present'
 import type { CameraView } from '../utils/mapView'
 import type { UrlSync } from '../hooks/useUrlSync'
 import type { LayerCoverage } from '../utils/layerCoverage'
+import type { ActionWord } from '../utils/analyzeGate'
 
 export interface MapStageProps {
   /** The map's handle; draw mode, the drawer and the table's focus callbacks drive it too. */
@@ -125,6 +126,8 @@ export interface MapStageProps {
   onNoticeBand: (band: HTMLDivElement | null) => void
   /** The panel's Analyze gate (`analyzeGateFor`), which the phone's Analyze button shares. */
   analyzeEnabled: boolean
+  /** What the panel's Analyze reads (#736, `actionWord`), which the phone's button reads too. */
+  actionWord: ActionWord
   /** The panel's Analyze command, which the phone's Analyze button calls. */
   onAnalyze: () => void
   /** The tutorial holds the Layers menu open for its step (#536). */
@@ -177,6 +180,7 @@ export default function MapStage({
   controlsSummary,
   onNoticeBand,
   analyzeEnabled,
+  actionWord,
   onAnalyze,
   layersForcedOpen,
   searchPointed,
@@ -411,7 +415,7 @@ export default function MapStage({
           onBandPx={setBandPx}
           onFabPx={setFabPx}
           analyzeEnabled={analyzeEnabled}
-          analyzing={analysis.loading}
+          word={actionWord}
           onAnalyze={onAnalyze}
         />
       )}

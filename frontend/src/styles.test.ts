@@ -12,7 +12,6 @@ import {
   BADGE_STEP,
   LAYER,
   BUTTON_ACCENT,
-  BUTTON_DANGER,
   BUTTON_FLOATING,
   ACTION_GROUP,
   ACTION_ITEM,
@@ -779,7 +778,6 @@ describe('shared recipes', () => {
     ['BUTTON_PRIMARY', BUTTON_PRIMARY],
     ['BUTTON_SECONDARY', BUTTON_SECONDARY],
     ['BUTTON_ACCENT', BUTTON_ACCENT],
-    ['BUTTON_DANGER', BUTTON_DANGER],
     ['CHOICE_ROW', CHOICE_ROW],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['FIELD', FIELD],
@@ -1238,7 +1236,6 @@ describe('shared recipes', () => {
     ['BUTTON_PRIMARY', BUTTON_PRIMARY],
     ['BUTTON_SECONDARY', BUTTON_SECONDARY],
     ['BUTTON_ACCENT', BUTTON_ACCENT],
-    ['BUTTON_DANGER', BUTTON_DANGER],
     ['BUTTON_FLOATING', BUTTON_FLOATING],
     ['SEGMENT_ITEM', SEGMENT_ITEM],
     ['ICON_BUTTON', ICON_BUTTON],
@@ -1556,11 +1553,11 @@ describe('every role', () => {
         ),
   )
 
-  // The file warns about this in five places and it still nearly shipped: this
-  // very PR first built BUTTON_DANGER out of TEXT.control, which carries
-  // slate-200, so its red label would have raced a slate one and the winner
-  // would have been decided by Tailwind's stylesheet order rather than by
-  // intent. A comment cannot catch that. Variants are excluded because a
+  // The file warns about this in five places and it still nearly shipped: the
+  // error box's retry button (`BUTTON_DANGER`, gone with #736) was first built
+  // out of TEXT.control, which carries slate-200, so its red label would have
+  // raced a slate one and the winner would have been decided by Tailwind's
+  // stylesheet order rather than by intent. A comment cannot catch that. Variants are excluded because a
   // `hover:` color does not compete with a resting one.
   // The theme's tokens are colours too (#706), so a role that put two of them
   // in one list, or a token beside a palette step, races the same way.
@@ -1752,7 +1749,7 @@ describe('the accent', () => {
       expect(BUTTON_SECONDARY).toContain(box)
     }
     // Composing TEXT.control would race the fill's own label color by
-    // stylesheet order — the trap BUTTON_DANGER documents.
+    // stylesheet order — the trap the test above pins.
     expect(BUTTON_ACCENT).not.toContain(TEXT.control)
     expect(sizes(BUTTON_ACCENT)).toEqual(sizes(TEXT.control))
   })
@@ -1794,15 +1791,6 @@ describe('status and notices', () => {
 
     expect(new Set(Object.values(NOTICE).map(shape)).size).toBe(1)
     expect(Object.values(NOTICE)).toHaveLength(3)
-  })
-
-  // The destructive retry had its entire recipe inline. It stays in the red
-  // family rather than going white so it reads as part of the notice holding
-  // it, not as a second primary action competing with Analyze.
-  it('keeps the destructive action inside the notice that holds it', () => {
-    expect(BUTTON_DANGER).toContain(RADIUS.control)
-    expect(darkStep(token(BUTTON_DANGER, 'text'))).toMatch(/^red-/)
-    expect(token(BUTTON_DANGER, 'text')).not.toBe('on-fill')
   })
 
   // #253. The dismiss X inherits its box's STATUS color, so neither part of
@@ -3628,8 +3616,8 @@ describe('the light theme', () => {
     expect(ratio(hex(PANEL_EDGE, 'border'), FLOATING)).toBe(4.24)
   })
 
-  // Notices: each ink on its own tint and on the panel, the destructive
-  // button's label on its fill, and the dismiss glyph on its pill.
+  // Notices: each ink on its own tint and on the panel, and the dismiss glyph
+  // on its pill.
   it('keeps every notice ink at 4.5:1 or better on its tint and the panel', () => {
     const tones = { warn: [5.85, 6.31], error: [7.24, 8.33], info: [7.44, 8.35] }
     for (const [tone, [onTint, onPanel]] of Object.entries(tones)) {
@@ -3646,8 +3634,6 @@ describe('the light theme', () => {
     const warn = hex(STATUS.warn, 'text')
     expect([FLOATING, RAISED, WELL].map((g) => ratio(warn, g))).toEqual([6.75, 5.66, 7.09])
     expect(ratio(hex(STATUS.ok, 'text'), PANEL)).toBe(5.84)
-    expect(ratio(hex(BUTTON_DANGER, 'text'), hex(BUTTON_DANGER, 'bg'))).toBe(7.72)
-    expect(ratio(hex(BUTTON_DANGER, 'text'), hex(BUTTON_DANGER, 'hover:bg'))).toBe(6.59)
     // The dismiss X, its box's ink on the pill's lift over the tint.
     const lift = Number(NOTICE_DISMISS.pill.match(/bg-lift\/(\d+)/)![1]) / 100
     for (const [tone, want] of Object.entries({ warn: 5.33, error: 6.6, info: 6.77 })) {

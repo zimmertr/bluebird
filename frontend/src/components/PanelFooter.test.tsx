@@ -14,9 +14,9 @@ type Props = ComponentProps<typeof PanelFooter>
 function props(over: Partial<Props> = {}): Props {
   return {
     analyzeEnabled: true,
-    loading: false,
+    word: 'Analyze',
     onAnalyze: () => {},
-    onRetry: () => {},
+    onDismissEvent: () => {},
     onTutorial: () => {},
     messages: [],
     ...over,
@@ -26,11 +26,11 @@ function props(over: Partial<Props> = {}): Props {
 const MESSAGES: FooterMessage[] = [
   { key: 'blocker:types', text: 'Info line.', severity: 'info' },
   { key: 'cue:model-changed', text: 'First warning.', severity: 'warn' },
-  { key: 'error:boom', text: 'Run failed.', severity: 'error', retry: true },
+  { key: 'error:boom', text: 'Run failed.', severity: 'error' },
   { key: 'cue:window-changed', text: 'Second warning.', severity: 'warn' },
 ]
 
-const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…)$/ })
+const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…|Try again)$/ })
 // The boxes stand inside the footer's one live region, which is mounted for
 // good so a box that arrives is announced.
 const boxes = () => [...screen.getByRole('status').children] as HTMLElement[]
@@ -43,10 +43,17 @@ describe('PanelFooter', () => {
     expect(onAnalyze).toHaveBeenCalledOnce()
   })
 
-  it('disables the button when the panel says so, and names a running analysis', () => {
-    render(<PanelFooter {...props({ analyzeEnabled: false, loading: true })} />)
+  it('disables the button when the panel says so, and reads the word it is handed', () => {
+    const { rerender } = render(<PanelFooter {...props({ analyzeEnabled: false, word: 'Analyzing…' })} />)
     expect((analyze() as HTMLButtonElement).disabled).toBe(true)
     expect(analyze().textContent).toBe('Analyzing…')
+    // After a failed run the one button is the retry (#736): same button,
+    // same command, a different word.
+    const onAnalyze = vi.fn()
+    rerender(<PanelFooter {...props({ word: 'Try again', onAnalyze })} />)
+    expect(analyze().textContent).toBe('Try again')
+    fireEvent.click(analyze())
+    expect(onAnalyze).toHaveBeenCalledOnce()
   })
 
   it('draws no box with nothing to say', () => {
@@ -66,24 +73,15 @@ describe('PanelFooter', () => {
     }
   })
 
-  it('offers a retry only in a box holding a failed run', async () => {
-    const onRetry = vi.fn()
-    const { user } = render(<PanelFooter {...props({ messages: MESSAGES, onRetry })} />)
+  // The error box used to end in a Try again of its own, a second button
+  // under Analyze that did what Analyze does (#736). Now the box holds its
+  // lines and their dismiss controls, and nothing a reader presses to run.
+  it('puts no button but the dismiss controls in any box', () => {
+    render(<PanelFooter {...props({ messages: MESSAGES, word: 'Try again' })} />)
     expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
-    await user.click(within(boxes()[0]).getByRole('button', { name: 'Try again' }))
-    expect(onRetry).toHaveBeenCalledOnce()
-  })
-
-  // jsdom lays nothing out, so this pins the cause rather than the pixels: the
-  // message stack's negative margin overrides a `space-y` margin on the same
-  // element and left the retry flush under the text. A gap cannot be
-  // overridden that way (measured 8px above the text and 8px below it).
-  it('spaces the retry from the message with a gap, not a margin', () => {
-    render(<PanelFooter {...props({ messages: MESSAGES })} />)
-    const box = boxes()[0]
-    expect(box.className).toMatch(/\bflex-col\b/)
-    expect(box.className).toMatch(/\bgap-2\b/)
-    expect(box.className).not.toMatch(/\bspace-y-/)
+    for (const box of boxes()) {
+      expect(within(box).getAllByRole('button').every((b) => b.getAttribute('aria-label') === 'Dismiss notice')).toBe(true)
+    }
   })
 
   it('dismisses one message and keeps its box for the rest', async () => {
@@ -92,6 +90,24 @@ describe('PanelFooter', () => {
     await user.click(first)
     expect(boxes()[1].textContent).not.toMatch(/First warning/)
     expect(boxes()[1].textContent).toMatch(/Second warning/)
+  })
+
+  // An event line is one run's outcome, held as state: dismissing it clears
+  // the event (#736), so the button that read Try again off the error reads
+  // Analyze again, rather than hiding the line in this footer's ledger.
+  it('hands the dismissal of an event line up, and keeps the ledger for the derived lines', async () => {
+    const onDismissEvent = vi.fn()
+    const { user, rerender } = render(<PanelFooter {...props({ messages: MESSAGES, onDismissEvent })} />)
+    await user.click(within(boxes()[0]).getByRole('button', { name: 'Dismiss notice' }))
+    expect(onDismissEvent).toHaveBeenCalledExactlyOnceWith('error')
+    // The line stays until its state clears above; nothing here hid it.
+    expect(boxes()[0].textContent).toMatch(/Run failed/)
+    rerender(<PanelFooter {...props({ messages: MESSAGES.filter((m) => m.key !== 'error:boom'), onDismissEvent })} />)
+    expect(boxes()[0].textContent).not.toMatch(/Run failed/)
+    const refusal: FooterMessage[] = [{ key: 'refusal:Too many.', text: 'Too many.', severity: 'error' }]
+    rerender(<PanelFooter {...props({ messages: refusal, onDismissEvent })} />)
+    await user.click(screen.getByRole('button', { name: 'Dismiss notice' }))
+    expect(onDismissEvent).toHaveBeenLastCalledWith('refusal')
   })
 
   // A dismissal lives as long as its condition: once the message is gone and
@@ -130,7 +146,7 @@ describe('PanelFooter', () => {
     await user.click(analyze())
     rerender(
       <>
-        <PanelFooter {...props({ analyzeEnabled: false, loading: true })} />
+        <PanelFooter {...props({ analyzeEnabled: false, word: 'Analyzing…' })} />
         <button>Cancel</button>
       </>,
     )
@@ -202,7 +218,6 @@ describe('PanelFooter', () => {
     expect(within(onMap).getByText('First warning.')).toBeTruthy()
     expect(within(onMap).getByText('Run failed.')).toBeTruthy()
     expect(within(onMap).getByText('Info line.')).toBeTruthy()
-    expect(within(onMap).getByRole('button', { name: 'Try again' })).toBeTruthy()
     // What the sheet keeps is the document links alone.
     expect(container.textContent).toBe('Tutorial · Privacy · Terms')
     rerender(<PanelFooter {...props({ messages: MESSAGES })} />)

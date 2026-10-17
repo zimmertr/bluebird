@@ -15,6 +15,8 @@ import type { RankingKnobs } from '../hooks/useRankingKnobs'
 import type { AnalyzeResponse, DestinationResult, DiscoveryType } from '../types'
 import { type FireProximityStatus, checkNoticeDue } from '../utils/fireProximity'
 import type { ClosureProximityStatus } from '../utils/closureProximity'
+import type { ActionWord } from '../utils/analyzeGate'
+import type { EventNoticeKind } from '../utils/notices'
 import type { CommitReason } from '../utils/present'
 import { CONTROLS_SHEET, HEADER_BUTTON, LAYER, MOTION, PANEL_EDGE, PANEL_HEADER } from '../styles'
 import type { Theme } from '../utils/viewPrefs'
@@ -96,7 +98,9 @@ interface AppDrawerProps {
   loading: boolean
   error: RunError | null
   refusal: Refusal | null
-  onRetry: () => void
+  /** What the Analyze button reads (#736), and the dismissal of an event line. */
+  actionWord: ActionWord
+  onDismissEvent: (kind: EventNoticeKind) => void
   /** Open the guided tutorial from the panel footer (#536). */
   onTutorial: () => void
   /** The tour cannot start now (a draw or a run is under way), so the footer's link is inert. */
@@ -153,7 +157,8 @@ export default function AppDrawer({
   loading,
   error,
   refusal,
-  onRetry,
+  actionWord,
+  onDismissEvent,
   onTutorial,
   tutorialWaits,
   response,
@@ -282,7 +287,8 @@ export default function AppDrawer({
       autoAnalyze={autoAnalyze}
       capabilitiesSettled={capabilitiesSettled}
       onAutoAnalyze={onAutoAnalyze}
-      onRetry={onRetry}
+      actionWord={actionWord}
+      onDismissEvent={onDismissEvent}
       onTutorial={onTutorial}
       tutorialWaits={tutorialWaits}
       noticeHome={noticeHome}

@@ -51,6 +51,20 @@ describe('useAnalysisRun', () => {
     expect(h.onSettled).toHaveBeenCalledOnce()
   })
 
+  // #736: a dismissed event line clears its state, so the Analyze button that
+  // reads `Try again` off the error reads `Analyze` again at once.
+  it('clears one event on its dismissal and leaves the other', async () => {
+    const { result } = renderHook(() => useAnalysisRun(MODELS))
+    await act(() => result.current.run('s', async () => Promise.reject(new Error('Broken.')), hooks()))
+    act(() => result.current.dismissEvent('refusal'))
+    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
+    act(() => result.current.dismissEvent('error'))
+    expect(result.current.error).toBeNull()
+    await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), hooks()))
+    act(() => result.current.dismissEvent('refusal'))
+    expect(result.current.refusal).toBeNull()
+  })
+
   it('puts a refusal in the warn box, not the error box', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     await act(() => result.current.run('s', async () => Promise.reject(new AnalysisRefusalError('Too many.')), hooks()))

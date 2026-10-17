@@ -106,7 +106,7 @@ function blockerText(
 /** Everything the message list depends on, already derived by the panel. */
 export interface PanelMessageInputs {
   loading: boolean
-  error: { message: string; retry: boolean } | null
+  error: { message: string } | null
   refusal: { message: string } | null
   // Every knob that has stopped applying live, in `commitNeeded`'s order.
   commitReasons: readonly CommitReason[]
@@ -259,9 +259,10 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
   ]
 
   return [
-    // One run's outcome. `retry` is what summons the box's Try again button.
+    // One run's outcome. Whether it is worth repeating is the Analyze
+    // button's to say (#736, `retryStands`), not a button of this box's.
     ...(p.error && errorKey && !p.refusal
-      ? [{ key: errorKey, text: p.error.message, severity: 'error' as const, retry: p.error.retry }]
+      ? [{ key: errorKey, text: p.error.message, severity: 'error' as const }]
       : []),
     // Every stale-report reason at once (TJ, 2026-08-22): a user who changed
     // the window and the model is owed both sentences, in `commitNeeded`'s
@@ -322,9 +323,10 @@ export function panelMessages(p: PanelMessageInputs): FooterMessage[] {
       ? [{ key: 'map:style', text: BASEMAP_FAILED_NOTE, severity: 'error' as const }]
       : []),
     // The refusal is an error like the area cap: a finished request, refused
-    // for its size (TJ, 2026-08-22). It carries no `retry` — retrying a
-    // deterministic refusal verbatim re-buys the same map query for the same
-    // answer — and it never coexists with the run error above.
+    // for its size (TJ, 2026-08-22). It never coexists with the run error
+    // above, and the Analyze button offers no `Try again` over it: a
+    // deterministic refusal run again re-buys the same map query for the
+    // same answer.
     ...(p.refusal && refusalKey && !p.loading
       ? [{ key: refusalKey, text: p.refusal.message, severity: 'error' as const }]
       : []),
