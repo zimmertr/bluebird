@@ -109,7 +109,7 @@ a trailhead does not move. A server that has just started shows no markers for
 a few minutes. The cost is about five minutes of one Overpass slot per server
 start, which that server's own capacity notice counts as heavy use; a query
 per pan would spend the same server for every reader
-([record 0169](decisions/0169-trailheads-and-crags-from-a-worldwide-snapshot.md)).
+([record 0171](decisions/0171-trailheads-and-crags-from-a-worldwide-snapshot.md)).
 
 OSM is also what gives a pasted coordinate its elevation. A CSV row carries a
 name and a point and nothing else, so each one is matched to the nearest mapped
@@ -763,7 +763,7 @@ Those markers come from the server's own list
 ([above](#openstreetmap-and-overpass)), and the style's own climbing labels
 stay off the map, so a route is not drawn at all
 ([record 0157](decisions/0157-places-and-climbing-labels-are-selectable.md),
-[record 0169](decisions/0169-trailheads-and-crags-from-a-worldwide-snapshot.md)).
+[record 0171](decisions/0171-trailheads-and-crags-from-a-worldwide-snapshot.md)).
 
 If the style document cannot be fetched, the map stays blank and an error under
 Analyze says the map could not load. The page asks for the style again each

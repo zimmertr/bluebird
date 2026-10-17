@@ -1,4 +1,4 @@
-# 0169. The map's trailheads and crags come from a worldwide snapshot the pod fills at startup
+# 0171. The map's trailheads and crags come from a worldwide snapshot the pod fills at startup
 
 - Status: Accepted
 - Date: 2026-10-16
