@@ -756,30 +756,19 @@ export const CHIP = {
 } as const
 
 /**
- * A button floating over the map rather than sitting in a panel: the one that
- * reopens the collapsed controls, and the one that opens the map's layers.
+ * A button floating over the page rather than sitting in a panel: the skip
+ * link's look while it has the keyboard (`SKIP_LINK`).
  *
- * Both wear it, deliberately. They are the app's only two map buttons and they
- * stack in one column, so a size difference between them reads as a mistake
- * rather than as a hierarchy — which is exactly how it read when Layers was
- * given a quieter role of its own.
+ * It was the map's two buttons' too, Controls and Layers in the desk's column,
+ * until #714 gave a desk the phone's chips (`MAP_CHIP`). The skip link kept
+ * it: it is one word on the floating surface, pressed with a keyboard, and a
+ * chip's capsule would read as one more chip in the map's row.
  *
- * ## Why the label is `CONTROL_SIZE` and not `TEXT.cta`
- *
- * It was `text-sm` on the argument that a map button is pressed outdoors at
- * arm's length. What that missed is that these two buttons are not alone: they
- * stand in one column with the search field, its results, and the legends,
- * every one of which reads at 12px, and a 14px label in that column read as a
- * different kind of object rather than as a louder one (TJ, 2026-09-14). The
- * column now has ONE type size, and `CONTROL_SIZE` is it — colorless, so the
- * white label below does not race it by stylesheet order. Reach is bought by
- * the target instead: `MAP_ROW_H` floors every row in the column at 44px on a
- * finger, which is the dimension a glove actually needs.
- *
- * It is `SURFACE_FLOATING` that has become pressable, so it takes the surface
- * whole and adds only what pressability needs — the accent on hover, and a
- * pressed state. Layout (the icon row, its gap and padding) stays at the call
- * site, the way `FIELD` leaves padding to the control that wears it.
+ * Its label is `CONTROL_SIZE`, colorless, so the ink below does not race it by
+ * stylesheet order. It takes `SURFACE_FLOATING` whole and adds what
+ * pressability needs: the accent on hover, and a pressed state. Layout stays
+ * at the call site, the way `FIELD` leaves padding to the control that wears
+ * it.
  */
 export const BUTTON_FLOATING =
   `${SURFACE_FLOATING} ${CONTROL_SIZE} font-semibold text-ink-strong transition-colors ` +
@@ -973,8 +962,8 @@ export const ICON_ADORNMENT =
  * a pixel under `control` and the same chip cross was drawn at two sizes, both
  * carried over by #386 because that change moved no visible size. #436
  * measured them in Chrome on macOS on 2026-09-16, at 1440 and at 360px alike
- * — every box below comes out the same at both widths, the map column being a
- * fixed 184px and a chip as wide as its name — and the number that decided
+ * — every box below comes out the same at both widths, a chip being as wide
+ * as its name — and the number that decided
  * each step is in its comment.
  */
 export const ICON = {
@@ -986,14 +975,12 @@ export const ICON = {
    * measured off this step).
    *
    * The magnifier was 15 and is the reason this step is worth a number. Its
-   * row is `MAP_ROW_H`, 36px on a pointer and 44 on a finger, and both are
-   * even: a 16px box centres on 10 and 14px of clear space, a 15px box on 10.5
-   * and 14.5. The row also holds two 16px boxes already — the clear cross, and
-   * the spinner that stands in its place — which sit at that same 10px. So the
-   * odd step bought nothing and cost a half-pixel, on the one glyph in the row
-   * that was off the pixel grid and the one that was off the scale. The column
-   * pays for the extra pixel out of slack it has: `MAP_COL_W` is 184px against
-   * 178.6px of content.
+   * row is the search pill's 40px (`MAP_PILL`), which is even: a 16px box
+   * centres on 12px of clear space, a 15px box on 12.5. The row also holds two
+   * 16px boxes already — the clear cross, and the spinner that stands in its
+   * place — which sit at that same 12px. So the odd step bought nothing and
+   * cost a half-pixel, on the one glyph in the row that was off the pixel grid
+   * and the one that was off the scale.
    */
   control: 'h-4 w-4',
   /**
@@ -1363,68 +1350,28 @@ export const CHART_TITLE = {
 } as const
 
 /**
- * The width of the map's left column, which EVERYTHING in it wears: the search
- * field, the list of results under it, the Controls and Layers buttons, the
- * Layers popover and the legend box.
+ * The width of a chip's menu on a desk (#714): the Layers menu and the legend
+ * card, each unfurling out of its chip in the row under the search pill.
  *
- * They sit in one column on the left of the map, so differing widths read as a
- * ragged edge rather than as a column. It covered the three boxes first (the
- * popover and the legends had drifted a step apart); the buttons and the search
- * field were still sizing themselves — 128px, 128px and 301px against the
- * boxes' 192 — which is the edge TJ measured with a red line across a
- * screenshot on 2026-09-14.
+ * A chip is its word's width, 65 to 70px, and both menus need more, so each is
+ * wider than its chip and joined to it the way the model dropdown is to its
+ * row (`MAP_CHIP_MENU`, record 0134). The two share the width so a reader who
+ * opens one over the other sees one edge.
  *
  * ## The number
  *
- * Measured in Chrome on macOS 2026-09-14 at the app's own type sizes, and TWO
- * things govern it within a pixel of each other:
+ * Measured in Chrome on macOS 2026-09-14 at the app's own type sizes: the grid
+ * legend's wait line, "Forecast grid" against "Waiting · 99s", is
+ * 74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
+ * padding a card carries. The countdown switches to minutes past 99s, so that
+ * row's widest case is bounded. 184 leaves 7.2px; at 176 (`w-44`) the wait
+ * line wraps. The widest Layers row, "Forecast player", needs 130.0px
+ * (measured 2026-10-07). Re-measure before lengthening a line in either.
  *
- *   - the grid legend's wait line, "Forecast grid" against "Waiting · 99s":
- *     74.7 + 8 + 74.1 = 156.8px of content, so 176.8px with the 20px of side
- *     padding a legend box carries. The countdown switches to minutes past 99s,
- *     so that row's widest case is bounded.
- *   - the search field at rest: 16px of icon, the 8px gap, and 134.6px of
- *     "Search for a destination" — 178.6px with the same 20px of padding.
- *
- * 184 leaves 5.4px over the wider of the two. It is 8px narrower than the
- * `w-48` it replaced, which is all the slack there was: at 176 (`w-44`) the
- * wait line wraps and the placeholder clips. Everything else in the column has
- * room to spare — the widest popover row, "Forecast player", needs 130.0px
- * (measured 2026-10-07, after the coverage parentheticals left the labels),
- * and the Controls button 107.6px. Re-measure before lengthening a line in any
- * of them.
+ * It was the width of the whole left column until #714, when the search field
+ * became the pill and the buttons became chips at both widths.
  */
-export const MAP_COL_W = 'w-46'
-
-/**
- * The height of one row in that column: the search field and the two buttons.
- *
- * Fixed rather than derived from each row's contents, because the contents
- * differ — a glyph beside a label, a glyph beside an input and a clear cross —
- * and three rows that each solved for their own height came out 34, 38 and 38.
- * One number instead, floored at the 44px target on a finger the way `TAP`
- * floors every other control, and 36 on a pointer, which is the size the
- * column's own inset was already derived against (`LEGEND_TOP`).
- */
-export const MAP_ROW_H = 'h-9 touch:h-11'
-
-/**
- * The gap between members of that column: the field, the buttons and the
- * legend box.
- *
- * 4px, half the 8px every one of them took before: a quarter off first, then
- * the same again once the tighter column was on screen (TJ, 2026-09-14).
- * It is a role rather than a `gap-1.5` at four call sites because
- * `LEGEND_TOP`'s arithmetic is built out of it: a gap changed in one of the
- * four would move the column's height without moving the inset that clears it.
- *
- * One object since #687, which held a second spelling, `top`, as a margin for
- * the Layers menu under its button. That menu unfurls out of the button now,
- * with no gap at all (record 0134), so `gap` is the one key left.
- */
-export const MAP_COL_GAP = {
-  gap: 'gap-1',
-} as const
+export const MAP_MENU_W = 'w-46'
 
 /**
  * How far anything floating on the map stands off its edge.
@@ -1448,9 +1395,12 @@ export const MAP_EDGE = {
    * On the map wrapper: publishes the inset to the app's chrome and the
    * vendor's, and the credit line's type size — the ramp's smallest step, the
    * second spelling of `MICRO_SIZE` — to `map.css`, which has no call site to
-   * hand `TEXT.micro` to.
+   * hand `TEXT.micro` to. And the map's own height, as a size container: a
+   * desk's legend card hangs from its chip in the rows and scrolls inside
+   * what is left of the map below them (`legendMaxPx`), which only `cqh` can
+   * read from inside the rows without measuring the map in script.
    */
-  publish: '[--map-edge-inset:0.75rem] [--map-credit-size:11px]',
+  publish: '[--map-edge-inset:0.75rem] [--map-credit-size:11px] [container-type:size]',
   /** The left edge every floating box on the map's left shares. */
   left: 'left-[var(--map-edge-inset)]',
   /**
@@ -1458,7 +1408,7 @@ export const MAP_EDGE = {
    * (`DRAW_BAR`), which stands the same inset off both sides.
    */
   right: 'right-[var(--map-edge-inset)]',
-  /** The top edge the app's own button column takes. */
+  /** The top edge the map's rows take. */
   top: 'top-[var(--map-edge-inset)]',
   /**
    * On a phone, where the app's two rows span the map's top (#696), the
@@ -1491,79 +1441,34 @@ export const DRAW_BAR =
   'flex items-center gap-2 px-3 py-1.5'
 
 /**
- * Where the legend stack hangs: one row of the column's own gap under the last
- * button, at both pointer sizes, in the column's two heights.
+ * On a box laid over the map: the box gives its empty area back to the map,
+ * and each member it holds takes pointer events again.
  *
- * Every row above it is `MAP_ROW_H` — 36 on a pointer, 44 on a finger — and
- * they are separated by `MAP_COL_GAP.gap`'s 4px, so the arithmetic is the inset,
- * then a row and a gap per member:
- *
- *   search + Layers:            12 + 36 + 4 + 36 + 4 =  92
- *                               12 + 44 + 4 + 44 + 4 = 108
- *   search + Controls + Layers: + 36 + 4 = 132
- *                               + 44 + 4 = 156
- *
- * Spelled in pixels rather than on Tailwind's 4px spacing scale. Three of the
- * four land on it, but writing one of them as `top-33` and its neighbour as
- * `top-[132px]` would hide which numbers share a derivation. One form for all
- * four keeps the class and the sum above one thing rather than two.
- *
- * TWO heights because the Controls button exists only while the panel is
- * collapsed, and since the search field moved out of its row and above it
- * (TJ, 2026-09-14) that is a whole row rather than a neighbour. One inset for
- * both would leave 44px of dead space under the button whenever the panel is
- * open, which is the state a desktop is in by default — the same objection
- * that split the pointer sizes in the first place. Anything under the height
- * on screen collides: the stack's first rows paint BEHIND the buttons, which
- * are opaque and paint after the legends by design (see the ordering note in
- * `App.tsx`).
- *
- * Keyed on `touch` rather than on Tailwind's `pointer-coarse`, deliberately.
- * The heights above are `MAP_ROW_H`'s, and it is floored by `touch`
- * (`@media (hover: none)`, see index.css). A second query here would answer
- * differently on the devices the two disagree about — a hover-capable stylus
- * screen, a remote — and the inset would clear a column of a different height
- * than the one on screen.
- *
- * `resultsSheet.ts` holds the numbers (`LEGEND_TOP_PX`, `LEGEND_TOP_FINE_PX`),
- * because everything anchored below the stack measures off them, and
- * `resultsSheet.test.ts` reads this file as text so the classes and the
- * constants cannot drift.
- */
-export const LEGEND_TOP = {
-  /** The panel is open, so the column is the search field and Layers. */
-  compact: 'top-[92px] touch:top-[108px]',
-  /** The panel is collapsed and the Controls button stands between them. */
-  full: 'top-[132px] touch:top-[156px]',
-} as const
-
-/**
- * On the legend stack: the box gives its empty area back to the map, and each
- * section it holds takes pointer events again.
- *
- * The stack is a scroll box with a derived floor, so it spans the map's height
- * whatever its sections hold, and the part under the last section is empty. A
- * click there belongs to the map: a vertex in draw mode, a peak, a fire
- * perimeter. On a phone that band is the map's whole left column, which is
- * where a reader draws a ring.
- *
- * Written on the box with a child variant rather than as two roles, so a
- * section added later yields nothing by accident. The wheel still scrolls the
- * stack from over a section, because a wheel scrolls the scroll ancestors of
- * the element it lands on; only the empty band now pans the map instead.
+ * The map's rows and the phone's notice band span more of the map than their
+ * members cover, and a press in the gaps belongs to the map: a vertex in draw
+ * mode, a peak, a fire perimeter. Written on the box with a child variant
+ * rather than as two roles, so a member added later yields nothing by
+ * accident.
  */
 export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
 
 /**
- * The phone's two rows across the top of the map (#696; record 0135, the
- * maintainer's approved mockup, 2026-10-14): the search pill with the locate
- * button at its right, and under it the chip row, the controls summary,
- * Layers and Legend. A desk keeps its column (`MAP_COL_W`).
+ * The map's two rows across its top (#696; record 0135, the maintainer's
+ * approved mockup, 2026-10-14): the search pill with the locate button at its
+ * right, and under it the chip row, the controls summary, Layers and Legend.
+ * A desk has worn them too since #714 (record 0172), where they replaced a
+ * column of boxed buttons so a reader meets one map at both widths.
  *
- * The geometry is four numbers, and every other phone anchor is built from
- * them: the map's 12px inset (`MAP_EDGE`), the 40px first row, 8px between
- * the rows and the 32px chip row. So the rows end 92px down the map, and
- * `styles.test.ts` holds each anchor below to that sum.
+ * The geometry is four numbers, and every other anchor on the map's top is
+ * built from them: the map's 12px inset (`MAP_EDGE`), the 40px first row, 8px
+ * between the rows and the 32px chip row. So the rows end 92px down the map at
+ * both widths, and `styles.test.ts` holds each anchor below to that sum.
+ *
+ * A phone's rows span the map. A desk's stop at 368px (`lg:w-92`): the pill
+ * takes 320, the width its results list opened at beside the old column, and
+ * the locate button 40 with the 8px between them. A map 1080px wide does not
+ * need a search field across it, and the rows end where the chip row's
+ * longest summary still fits beside Layers, Legend and the compass.
  *
  * `MAP_ROWS.stack` stands both rows one inset off the top and both sides and
  * takes no press itself; each row yields every press that lands between its
@@ -1574,7 +1479,7 @@ export const YIELD_EMPTY = 'pointer-events-none [&>*]:pointer-events-auto'
  * hangs from its left edge and the locate button from its right.
  */
 export const MAP_ROWS = {
-  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} flex flex-col gap-2 pointer-events-none`,
+  stack: `absolute ${MAP_EDGE.top} ${MAP_EDGE.left} ${MAP_EDGE.right} lg:right-auto lg:w-92 flex flex-col gap-2 pointer-events-none`,
   row: `relative h-10 ${YIELD_EMPTY}`,
   /**
    * Where the pill stands: across the row less the locate button and the 8px
