@@ -38,12 +38,14 @@ from app.routes.closures import router as closures_router
 from app.routes.config import router as config_router
 from app.routes.destinations import router as destinations_router
 from app.routes.geocode import router as geocode_router
+from app.routes.landmarks import router as landmarks_router
 from app.routes.notfound import EDGE_PATH_PHRASE, not_found_body
 from app.routes.notfound import router as notfound_router
 from app.routes.smoke import router as smoke_router
 from app.routes.version import router as version_router
 from app.routes.wildfires import router as wildfires_router
 from app.services import http as upstream_http
+from app.services import landmarks
 from app.version import get_version
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -194,6 +196,16 @@ _TAGS = [
             "organization and is shared with every other consumer."
         ),
     },
+    {
+        "name": "landmarks",
+        "description": (
+            "Every named trailhead and crag in OpenStreetMap, fetched worldwide "
+            "once per instance start and refreshed about daily, because the "
+            "basemap's tiles carry no trailhead and cannot tell a crag from a "
+            "route. Served from this instance's set rather than asked of "
+            "Overpass per map pan, which is a donated server."
+        ),
+    },
 ]
 
 @asynccontextmanager
@@ -203,10 +215,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # /metrics route here would be a public one (see telemetry.py).
     telemetry.init_canary_series(_app.openapi())
     telemetry.start_metrics_server()
+    # The trailhead and crag set fills behind the startup, kind by kind, and
+    # the route answers 503 until the first kind lands (#734). Started here
+    # rather than on the first request because the worldwide query runs
+    # minutes, which no visitor should wait on.
+    landmarks.LOADER.start()
     # The Open-Meteo client is built lazily on first use so it binds to this
     # loop; all we owe it is a close, so the pod's keep-alive connections go
     # away with the process rather than waiting on upstream's idle timeout.
     yield
+    await landmarks.LOADER.stop()
     telemetry.stop_metrics_server()
     await upstream_http.aclose()
 
@@ -429,6 +447,7 @@ app.include_router(capabilities_router, prefix="/api")
 app.include_router(wildfires_router, prefix="/api")
 app.include_router(smoke_router, prefix="/api")
 app.include_router(closures_router, prefix="/api")
+app.include_router(landmarks_router, prefix="/api")
 # Must stay last of the /api routers: it matches every path under the prefix, so
 # anything registered after it would be unreachable.
 app.include_router(notfound_router, prefix="/api")

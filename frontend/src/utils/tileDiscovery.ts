@@ -23,8 +23,9 @@ import { PEAK_TILE_ZOOM, TILE_CONCURRENCY, decodePeaks, tileAt, tileKey, type Fe
  * ponds and reservoirs included. The maintainer took the superset
  * (2026-10-07, decision 0118). What the tiles cannot answer: trailheads,
  * which no tile layer carries, crags, which the tiles hold only as climbing
- * points that cannot be told from routes (decision 0159), and a ring over
- * `DISCOVERY_TILE_BUDGET`,
+ * points that cannot be told from routes (decision 0159; the map's own
+ * trailhead and crag markers come from the pod's snapshot instead, #734),
+ * and a ring over `DISCOVERY_TILE_BUDGET`,
  * which would take longer to read from a cold edge than the map server
  * takes to answer; both keep the Overpass path, through `analysisPipeline`.
  *

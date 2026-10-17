@@ -21,6 +21,12 @@ from app.models import DestinationType, GeoPolygon
 # cost one request rather than three. Overpass unions natively — `( … );` — so
 # combining types is concatenating their clauses.
 #
+# Each clause is the tag selector alone, with no spatial filter: `_build_query`
+# appends the polygon, and `build_world_query` appends nothing, because the
+# worldwide snapshot behind `GET /api/landmarks` (#734) asks for every named
+# trailhead and crag there is. One list of selectors, so the map's markers and a
+# polygon search cannot disagree about what a crag is.
+#
 # Peaks are nodes only: the vast majority of OSM peaks are nodes, and node-only
 # clauses are significantly faster on the public API. natural=volcano is in
 # because OSM tags volcanic summits as volcano INSTEAD of peak — without it,
@@ -28,17 +34,17 @@ from app.models import DestinationType, GeoPolygon
 # Cascades search.
 _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
     DestinationType.peak: (
-        'node["natural"="peak"]["name"](poly:"{poly}");',
-        'node["natural"="volcano"]["name"](poly:"{poly}");',
+        'node["natural"="peak"]["name"];',
+        'node["natural"="volcano"]["name"];',
     ),
     DestinationType.trailhead: (
-        'node["highway"="trailhead"]["name"](poly:"{poly}");',
-        'way["highway"="trailhead"]["name"](poly:"{poly}");',
+        'node["highway"="trailhead"]["name"];',
+        'way["highway"="trailhead"]["name"];',
     ),
     DestinationType.lake: (
-        'node["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
-        'way["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
-        'relation["natural"="water"]["water"="lake"]["name"](poly:"{poly}");',
+        'node["natural"="water"]["water"="lake"]["name"];',
+        'way["natural"="water"]["water"="lake"]["name"];',
+        'relation["natural"="water"]["water"="lake"]["name"];',
     ),
     # A crag is `sport=climbing` with `climbing=crag`, `area` or `boulder`, or
     # a climbable stone with no `climbing=` key at all, and nothing wider. Bare
@@ -55,11 +61,11 @@ _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
     # clauses, because the 104 crags and areas in that box were 45 nodes, 9
     # ways and 50 relations; a stone is a node or, rarely, a way.
     DestinationType.crag: (
-        'node["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
-        'way["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
-        'relation["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"](poly:"{poly}");',
-        'node["natural"="stone"]["sport"="climbing"][!"climbing"]["name"](poly:"{poly}");',
-        'way["natural"="stone"]["sport"="climbing"][!"climbing"]["name"](poly:"{poly}");',
+        'node["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"];',
+        'way["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"];',
+        'relation["sport"="climbing"]["climbing"~"^(crag|area|boulder)$"]["name"];',
+        'node["natural"="stone"]["sport"="climbing"][!"climbing"]["name"];',
+        'way["natural"="stone"]["sport"="climbing"][!"climbing"]["name"];',
     ),
 }
 
@@ -71,8 +77,8 @@ _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
 # call and a step closer to the analysis cap. `["ele"]` is required because an
 # unnamed summit with no elevation has nothing to call itself.
 _UNNAMED_PEAK_CLAUSES: tuple[str, ...] = (
-    'node["natural"="peak"]["ele"](poly:"{poly}");',
-    'node["natural"="volcano"]["ele"](poly:"{poly}");',
+    'node["natural"="peak"]["ele"];',
+    'node["natural"="volcano"]["ele"];',
 )
 
 # Stands where a query's server timeout goes. The number belongs to the mirror
@@ -90,9 +96,14 @@ _QUERY = (
 (
 {clauses}
 );
-out center;
+out {out};
 """
 )
+
+
+def _inside(clause: str, poly_str: str) -> str:
+    """The selector with the polygon filter in front of its semicolon."""
+    return f'{clause[:-1]}(poly:"{poly_str}");'
 
 
 def _build_query(
@@ -100,15 +111,27 @@ def _build_query(
 ) -> str:
     """One Overpass document covering every requested type."""
     clauses = [
-        "  " + clause.format(poly=poly_str)
+        "  " + _inside(clause, poly_str)
         # Sorted so the same set of types always produces the same query text,
         # which is what lets the cache key below be order-independent.
         for t in sorted(types, key=lambda t: t.value)
         for clause in _CLAUSES[t]
     ]
     if include_unnamed_peaks and DestinationType.peak in types:
-        clauses += ["  " + c.format(poly=poly_str) for c in _UNNAMED_PEAK_CLAUSES]
-    return _QUERY.format(clauses="\n".join(clauses))
+        clauses += ["  " + _inside(c, poly_str) for c in _UNNAMED_PEAK_CLAUSES]
+    return _QUERY.format(clauses="\n".join(clauses), out="center")
+
+
+def build_world_query(destination_type: DestinationType) -> str:
+    """Every named feature of one type, worldwide, for the landmark snapshot (#734).
+
+    No spatial filter, and `out tags center` rather than `out center`: the
+    members of 6,400 crag relations were most of a 9.0 MB answer that `tags`
+    cuts to the id, the tags and the centre, which is all the snapshot keeps
+    (measured 2026-10-16: 7.4 MB for every trailhead and crag together).
+    """
+    clauses = ["  " + clause for clause in _CLAUSES[destination_type]]
+    return _QUERY.format(clauses="\n".join(clauses), out="tags center")
 
 
 # Which type a returned element actually is. A single-type query could assume

@@ -1,6 +1,6 @@
 # 0159. Crags are the fourth polygon destination type, found from crags, areas and boulders
 
-- Status: Accepted
+- Status: Accepted; the climbing labels the icon marks superseded by [0169](0169-trailheads-and-crags-from-a-worldwide-snapshot.md), which keeps the icon for the crag markers
 - Date: 2026-10-15
 - Decider: the maintainer (TJ), on issue #715, 2026-10-15
 - Issues and PRs: #715, PR #731

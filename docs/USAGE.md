@@ -32,21 +32,21 @@ The search box at the top-left of the map recenters on any named place (a peak, 
 
 ### b. Click a destination
 
-The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks, lakes, cities, towns, villages, hamlets and climbing features labeled on the map can be picked. Tap or click one for a popup in the same card a result gets: its name on the band, and under it its kind, its elevation where there is one, and its coordinates, which open CalTopo. Then press **Add to analysis**. Picking it again offers **Remove from analysis**.
+The control for this one is the map itself, which is why the panel carries no widget for it beyond the pointer line above. Whenever you are not drawing, the peaks, lakes, trailheads, crags, cities, towns, villages and hamlets marked on the map can be picked. Tap or click one for a popup in the same card a result gets: its name on the band, and under it its kind, its elevation where there is one, and its coordinates, which open CalTopo. Then press **Add to analysis**. Picking it again offers **Remove from analysis**.
 
 An added feature behaves exactly like a place searched by name: a neutral blue dot until analyzed, saved in the URL, and ranked against everything else on the next Analyze. Its elevation and its link to Peakbagger or OpenStreetMap are filled in as soon as it is added, by the same lookup a pasted coordinate gets: the map's own tiles first, then the map server for whatever they cannot place.
 
 Seven things are worth knowing about what you can click:
 
-- **Only peaks show an elevation.** The map data carries one for a summit and none for a water body, a town or a climbing feature. Analyzing a lake fills it in.
+- **Peaks show an elevation; a trailhead or crag shows one only where OpenStreetMap has it tagged.** The map data carries none for a water body or a town. Analyzing a lake fills it in.
 - **Unnamed summits are clickable too.** OSM knows plenty of peaks only by their height, and the map draws those as a bare elevation. Clicking one adds it as `Peak 5961`, after the number you clicked on.
 - **Shift-click keeps a popup open** instead of replacing it, so two destinations can be compared side by side. A popup opened that way stays until you close it, or until the next analysis lands, which closes every popup on the map.
 - **A clicked lake becomes the middle of the water**, not the spot you clicked and not the middle of its bounding box, which on a bent lake would land on the far shore. The point chosen is the one furthest from any shoreline.
 - **A town wears a disc like a peak's from zoom 9**, with its name under it in the map's own type, so bigger places still read bigger. A clicked town is the point the disc stands on, which is the map data's point for the place, usually its centre, and not the spot you clicked.
-- **A climbing label may be a crag or a single route.** The map data does not say which, so both can be picked, and both are added as `Climbing`. Both wear the same icon, a climber on a rock. They show from zoom 14, the first zoom the map data carries them at. Routes on one wall stand metres apart, so a crowded wall shows only the icons that fit until you zoom in, and a hidden one can be picked once it draws.
+- **Trailheads and crags come from the server.** The map tiles carry no trailhead and cannot tell a crag from a single route, so the server keeps every named trailhead and crag in OpenStreetMap and the map draws them from zoom 11, where the trails appear. A trailhead wears a signboard and a crag a climber on a rock. A crag is a crag, an area or a boulder, never a route, and it is the one a polygon search finds, with the same Mountain Project link. Where a wall or a boulder field stands crags metres apart, only the icons that fit are drawn until you zoom in; a hidden one can be picked once it draws. The server builds its list when it starts, which takes a few minutes, so a server that has just started shows none until then.
 - **A crowded label may show only its icon.** Where names would overlap, the map keeps the marker and drops the text, so a ridge of summits or a lake beside a city still shows you what is there. The icon is clickable either way.
 
-Trailheads are not clickable: the basemap does not carry them, so a polygon is still how you find them. A polygon is also how you find crags without the routes: tick **Crags** under **Polygon search**.
+A polygon is the other way to find trailheads and crags: tick them under **Polygon search**.
 
 ### c. Polygon search
 

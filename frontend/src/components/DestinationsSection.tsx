@@ -155,7 +155,7 @@ export default function DestinationsSection({
           drawn: about 316px of room there, 305.6px for this sentence and
           318.9px with `any` (12px italic, 2026-10-15). It names no kind of
           destination: the map labels and lets you select peaks, lakes,
-          places and climbing features, and prose that lists the types is a
+          places, trailheads and crags, and prose that lists the types is a
           string every new type would have to reopen. Hovering the group rings the search box
           AND glows the selectable features, so the reader is shown where
           both live instead of told. Hover-only is fine here because it adds

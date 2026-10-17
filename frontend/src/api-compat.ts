@@ -329,6 +329,10 @@ type Unmirrored =
   // against. The exceptions are the fire and closure coverage members,
   // asserted above.
   | 'SmokeCollection'
+  // The trailhead and crag markers (#734), drawn from GeoJSON the same way;
+  // the property names a click reads (`LandmarkProps` in utils/landmarks.ts)
+  // are in the route's description, which the schema cannot type.
+  | 'LandmarkCollection'
   // Build identity, for humans and for the release probe. Nothing in the SPA
   // fetches it.
   | 'VersionResponse'

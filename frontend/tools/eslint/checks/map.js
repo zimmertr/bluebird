@@ -248,6 +248,7 @@ export const MAP = [
     'setSource',
     'makeGlowImage',
     'makeClimbingImage',
+    'makeTrailheadImage',
     'poiLabelLayout',
     'glowTwin',
     'townMarker',
@@ -265,9 +266,9 @@ export const MAP = [
   declaresOnly('map-poi-declares', 'src/map/poiPopup.ts', ['mountPoiPopups']),
   declaresOnly('map-popups-declares', 'src/map/popups.ts', ['createPopupBoard', 'isPinning', 'popupOptions']),
   {
-    // What map/basemap.ts must say about the clickable peaks, lakes and
-    // climbing labels. The ids
-    // and the label offset are compared with utils/basemapPoi.ts in its test.
+    // What map/basemap.ts must say about the clickable peaks and lakes. The
+    // ids and the label offset are compared with utils/basemapPoi.ts in its
+    // test.
     name: 'map-basemap-layers',
     files: ['src/map/basemap.ts'],
     require: [
@@ -284,26 +285,27 @@ export const MAP = [
       { selector: 'Literal[value="water_name_point_label"]', message: 'Filter the style\'s point water labels.' },
       {
         // Lakes and peaks share one floor and one look, so neither kind of
-        // destination can become clickable at a zoom the other is not.
-        // Climbing has its own floor, the first zoom whose tiles carry it
-        // (`CLIMBING_MINZOOM` in basemap.ts).
+        // destination can become clickable at a zoom the other is not. The
+        // trailheads and crags in map/landmarks.ts draw from the trails'
+        // floor instead (`LANDMARK_MINZOOM`, #734).
         selector: 'Property[key.name="minzoom"][value.name="POI_MINZOOM"]',
         count: 3,
         message: 'Give every peak and lake layer the one POI_MINZOOM.',
       },
       {
         selector: 'Property[key.name="paint"][value.name="POI_LABEL_PAINT"]',
-        count: 4,
+        count: 3,
         message: 'Give every clickable layer the one POI_LABEL_PAINT.',
       },
       {
-        // Peaks and climbing build from the shared layout directly; the two
-        // lake layers share one recipe, spelled once and spread twice; and a
-        // town's disc takes its anchor and offset from it, so a town's name
-        // sits under its disc exactly as a peak's does.
+        // Peaks build from the shared layout directly; the two lake layers
+        // share one recipe, spelled once and spread twice; and a town's disc
+        // takes its anchor and offset from it, so a town's name sits under
+        // its disc exactly as a peak's does. The trailheads and crags build
+        // from it in map/landmarks.ts.
         selector: 'CallExpression[callee.name="poiLabelLayout"]',
-        count: 4,
-        message: 'Build the peak, climbing and town layouts and the one lake recipe from poiLabelLayout.',
+        count: 3,
+        message: 'Build the peak and town layouts and the one lake recipe from poiLabelLayout.',
       },
       {
         // The long lakes render only because their layer places labels along

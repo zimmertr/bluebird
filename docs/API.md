@@ -248,6 +248,7 @@ meant to prevent.
 | `GET /api/wildfires` | Active US wildfire perimeters in a bounding box, cached from NIFC. |
 | `GET /api/smoke` | Smoke plumes over North America, cached from NOAA's Hazard Mapping System. |
 | `GET /api/closures` | Forest Service closure orders in a bounding box: closed areas in Regions 3, 4 and 6, or closed trails, roads and sites in Region 6 (Oregon and Washington). |
+| `GET /api/landmarks` | Every named trailhead and crag in a bounding box, from a worldwide OpenStreetMap set the instance holds. |
 | `GET /api/config` | Deployment-specific UI settings. Internal to the web app. |
 | `GET /healthz` | Liveness probe. Answers `GET` and `HEAD`. |
 
@@ -544,6 +545,52 @@ outward on land. When this instance's last fetch from Region 3 or Region 4
 failed, the other regions are still served and the `area` outline leaves the
 failed region out, so an empty answer there still reads as "not covered". See
 [DATA.md](DATA.md#closures).
+
+### Trailheads and crags
+
+`GET /api/landmarks` returns every named trailhead and crag OpenStreetMap
+carries inside a bounding box, as points:
+
+```bash
+curl -s "https://bluebirdforecast.com/api/landmarks?bbox=-121.9,47.4,-121.5,47.9"
+```
+
+```json
+{
+  "type": "FeatureCollection",
+  "fetched_at": 1792200000000,
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-121.672516, 47.4671809] },
+      "properties": {
+        "name": "Mailbox Peak Trailhead",
+        "kind": "trailhead",
+        "osm_id": "node/53207063",
+        "elevation_ft": null
+      }
+    }
+  ]
+}
+```
+
+`bbox` is `west,south,east,north` in decimal degrees, and a feature is returned
+when its point is inside. `kind` is `trailhead` or `crag`. A crag is what a
+polygon search calls one: `climbing=crag`, `climbing=area` or
+`climbing=boulder`, or a climbable stone, and never a single route. The
+geometry is the OSM node's position, or the centre of a way or relation, which
+is the point `POST /api/destinations` returns for the same feature, so the two
+match by coordinate.
+
+The endpoint exists because the web app's basemap tiles carry no trailhead and
+cannot tell a crag from a route. Rather than ask Overpass, a donated server,
+for each map view, an instance asks it for the whole world when it starts:
+trailheads first, then crags, each kind retried on a doubling backoff until it
+lands and served as soon as it does, and the set refreshed about daily. The set
+is served however old it is; `fetched_at` says when the newest kind landed. An
+instance answers `503` with `Retry-After` until the first kind lands, which
+takes a few minutes after a start. See
+[DATA.md](DATA.md#openstreetmap-and-overpass).
 
 ### Resolving your own coordinates
 

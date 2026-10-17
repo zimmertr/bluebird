@@ -43,8 +43,8 @@ function setup(drawing = false) {
 
 describe('mountFeatures', () => {
   // The order the layers go on in is the order they draw in, so this is the
-  // whole stack in one list: the basemap patch under the style's labels, then
-  // the grid, smoke, fire, closures, ring, markers and pending dots above the
+  // whole stack in one list: the basemap patch and the trailhead and crag
+  // markers over it under the style's labels, then the grid, smoke, fire, closures, ring, markers and pending dots above the
   // style.
   it('stacks every feature, lowest first', () => {
     const { stub } = setup()
@@ -58,8 +58,10 @@ describe('mountFeatures', () => {
       'ofm-lakes',
       'ofm-lakes-line-glow',
       'ofm-lakes-line',
-      'ofm-climbing-glow',
-      'ofm-climbing',
+      'landmark-trailheads-glow',
+      'landmark-trailheads',
+      'landmark-crags-glow',
+      'landmark-crags',
       'road_label',
       'forecast-grid-fill',
       'forecast-grid-wind',
@@ -107,7 +109,7 @@ describe('mountFeatures', () => {
   it('hands back every feature the component drives', () => {
     const { features } = setup()
     expect(Object.keys(features).sort()).toEqual(
-      ['areaClosures', 'drawRing', 'grid', 'pois', 'radar', 'results', 'smoke', 'snow', 'trailClosures', 'wildfires'].sort(),
+      ['areaClosures', 'drawRing', 'grid', 'landmarks', 'pois', 'radar', 'results', 'smoke', 'snow', 'trailClosures', 'wildfires'].sort(),
     )
   })
 })

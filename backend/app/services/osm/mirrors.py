@@ -43,7 +43,7 @@ PROVIDER = "OpenStreetMap (Overpass)"
 StatusCallback = Callable[[str], Awaitable[None]]
 
 # Which question a chain is asking, as the Overpass metrics label it.
-OverpassPath = Literal["discovery", "enrichment"]
+OverpassPath = Literal["discovery", "enrichment", "snapshot"]
 
 
 @dataclass(frozen=True)
