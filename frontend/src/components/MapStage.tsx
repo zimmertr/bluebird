@@ -215,6 +215,10 @@ export default function MapStage({
     registerPlace(place)
   }
 
+  // Read at the press of Enter rather than watched, so a pan renders nothing
+  // (the reason the share link's camera is written without state, #711).
+  const searchView = useCallback(() => mapRef.current?.getSearchView() ?? null, [mapRef])
+
   // A clicked basemap feature registers without a camera move: you are already
   // looking straight at it, and flying to it would answer a question nobody
   // asked.
@@ -377,6 +381,7 @@ export default function MapStage({
         <MapButtonColumn
           searchBoxRef={searchBoxRef}
           onSearchSelect={handleSearchSelect}
+          searchView={searchView}
           searchPointed={searchPointed}
           sidebarOpen={sidebarOpen}
           onOpenControls={onOpenControls}
@@ -388,6 +393,7 @@ export default function MapStage({
         <PhoneMapRows
           searchBoxRef={searchBoxRef}
           onSearchSelect={handleSearchSelect}
+          searchView={searchView}
           searchPointed={searchPointed}
           onLocateSlot={setLocateSlot}
           onCompassSlot={setCompassSlot}

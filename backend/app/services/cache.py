@@ -208,16 +208,23 @@ def custom_enrich_key(points: list[tuple[float, float]]) -> tuple:
     return (CACHE_VERSION, "custom-enrich", coords)
 
 
-def geocode_key(query: str, limit: int) -> tuple:
+def geocode_key(
+    query: str, limit: int, viewbox: tuple[float, float, float, float] | None = None
+) -> tuple:
     """Cache key for one place search.
 
     The query is kept exactly as sent. Nominatim's answer to a query that
     differs only in case or spacing is usually, not always, the same, and a
     repeat search from the box sends the identical string, which is the hit
     pattern that matters. ``limit`` is part of the key because a shorter list
-    cannot answer a request for a longer one.
+    cannot answer a request for a longer one. ``viewbox`` is too (#711): the
+    box changes which places come back, not only their order, so an answer
+    biased to one view cannot stand in for another's or for an unbiased one.
+    The parsed numbers rather than the sent text, so ``-128`` and ``-128.0``
+    are one entry. The web app rounds its box outward to whole degrees before
+    sending it, so the keys count boxes rather than exact views.
     """
-    return (CACHE_VERSION, "geocode", query, limit)
+    return (CACHE_VERSION, "geocode", query, limit, viewbox)
 
 
 # Cached values are per-WINDOW results (aggregates and series computed over

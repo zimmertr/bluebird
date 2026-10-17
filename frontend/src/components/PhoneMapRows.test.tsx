@@ -29,6 +29,7 @@ function rows(over: Partial<Parameters<typeof PhoneMapRows>[0]> = {}) {
     <PhoneMapRows
       searchBoxRef={createRef<SearchBoxHandle>()}
       onSearchSelect={() => {}}
+      searchView={() => null}
       searchPointed={false}
       onLocateSlot={() => {}}
       onCompassSlot={() => {}}

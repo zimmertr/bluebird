@@ -2388,7 +2388,7 @@
     },
     "/api/geocode": {
       "get": {
-        "description": "Thin proxy to Nominatim, forwarding its JSON verbatim. The response shape is therefore Nominatim's `jsonv2` format, not something Bluebird Forecast defines, and each row carries `lat`, `lon`, `display_name`, and `extratags` (which is where a summit's `ele` lives).\n\nThis exists because Nominatim's usage policy asks callers to identify themselves with a real User-Agent, which a browser fetch cannot set. That same policy forbids autocomplete, so call this on an explicit search action rather than on every keystroke.",
+        "description": "Thin proxy to Nominatim, forwarding its JSON verbatim. The response shape is therefore Nominatim's `jsonv2` format, not something Bluebird Forecast defines, and each row carries `lat`, `lon`, `display_name`, and `extratags` (which is where a summit's `ele` lives).\n\nThis exists because Nominatim's usage policy asks callers to identify themselves with a real User-Agent, which a browser fetch cannot set. That same policy forbids autocomplete, so call this on an explicit search action rather than on every keystroke.\n\nWithout `viewbox` the list is in Nominatim's own order, which ranks the whole world by importance. With it, Nominatim prefers places inside the box, and that changes which places come back as well as their order. The box never excludes anything: a place outside it still comes back when nothing inside matches better. Ordering inside the box is still Nominatim's, so a caller that wants the nearest first sorts the answer itself, as the web app does.",
         "operationId": "geocode_api_geocode_get",
         "parameters": [
           {
@@ -2417,6 +2417,27 @@
               "title": "Limit",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional. The area to prefer, as `west,south,east,north` in decimal degrees (EPSG:4326), the same shape `GET /api/wildfires` takes. Forwarded to Nominatim as its `viewbox`, without `bounded`, so it biases the answer toward the box and excludes nothing. The web app sends the map's view rounded outward to whole degrees, so that the cache, which holds an answer per query, limit and box, holds one per box rather than per exact view.",
+            "in": "query",
+            "name": "viewbox",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional. The area to prefer, as `west,south,east,north` in decimal degrees (EPSG:4326), the same shape `GET /api/wildfires` takes. Forwarded to Nominatim as its `viewbox`, without `bounded`, so it biases the answer toward the box and excludes nothing. The web app sends the map's view rounded outward to whole degrees, so that the cache, which holds an answer per query, limit and box, holds one per box rather than per exact view.",
+              "examples": [
+                "-123,46,-120,49"
+              ],
+              "title": "Viewbox"
+            }
           }
         ],
         "responses": {
@@ -2432,11 +2453,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "`viewbox` was malformed or outside valid coordinate ranges."
           },
           "429": {
             "content": {

@@ -285,8 +285,24 @@ because Nominatim's usage policy asks for a real User-Agent, which a browser
 fetch cannot set. That policy also forbids autocomplete, so call it on an
 explicit search action, never per keystroke. The pod paces its own calls to
 Nominatim's rate; when that queue is full the route answers `503` with
-`error.code` `busy`. A repeat of the same `q` and `limit` within about ten
-minutes is answered from the pod's cache and never joins that queue.
+`error.code` `busy`. A repeat of the same `q`, `limit` and `viewbox` within
+about ten minutes is answered from the pod's cache and never joins that queue.
+
+`viewbox` is optional: `west,south,east,north` in decimal degrees, the shape
+`bbox` takes on the overlay routes. It is forwarded as Nominatim's `viewbox`
+without `bounded`, so places inside the box are preferred and none outside it
+is excluded. It changes which places come back as well as their order:
+measured from a view of the Cascades, `Snow Lake` answered one town in
+Manitoba without it and six Cascades lakes with it. Ordering inside the box is
+still Nominatim's importance score, so sort the answer yourself if you want
+the nearest first, as the web app does. A malformed box, or one with no
+area, is a `422` with `error.code` `validation`. The cache keys on the parsed numbers, so `-128` and
+`-128.0` share an entry; the web app sends whole degrees, rounded outward
+from its view, so that a pan does not miss.
+
+```
+GET /api/geocode?q=Snow%20Lake&limit=10&viewbox=-129,44,-112,51
+```
 
 ### Which build is running
 

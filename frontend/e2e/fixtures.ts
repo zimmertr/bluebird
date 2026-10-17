@@ -100,6 +100,17 @@ export const DESTINATION_NAMES = ['Mount Alpha', 'Beta Peak', 'Gamma Butte', 'De
 // grid (#683), and its rows would count as results.
 export const resultRows = (page: Page) => page.locator('[data-results-table] tbody tr')
 
+// What the pod's place search answers, in the order Nominatim would send it
+// from no view at all: the famous one first, a subdivision that is no place,
+// and the two Cascades lakes last. The search spec reads the list the box
+// shows against this order (#711).
+export const SEARCH_ANSWER = [
+  { name: 'Blue Lake', display_name: 'Blue Lake, Humboldt County, California', category: 'boundary', type: 'administrative', addresstype: 'city', lat: '40.88', lon: '-123.98' },
+  { name: 'Blue Lake', display_name: 'Blue Lake, Frederickson, Pierce County, Washington', category: 'landuse', type: 'residential', lat: '47.1', lon: '-122.4' },
+  { name: 'Blue Lake', display_name: 'Blue Lake, Skamania County, Washington', category: 'natural', type: 'water', lat: '46.1', lon: '-121.9' },
+  { name: 'Blue Lake', display_name: 'Blue Lake, Okanogan County, Washington', category: 'natural', type: 'water', lat: '48.6', lon: '-119.6' },
+]
+
 const json = (body: unknown) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
 const emptyCollection = () => json({ type: 'FeatureCollection', features: [], fetched_at: new Date().toISOString() })
 
@@ -149,6 +160,9 @@ async function installRoutes(page: Page, appHost: string): Promise<Traffic> {
   // Service itself, so they are stubbed too. /api/capabilities and /api/config reach no upstream
   // and are left to the image, so the limits the page reads are the real ones.
   await page.route('**/api/destinations', (r) => r.fulfill(json(destinationsBody(r))))
+  // The pod would call Nominatim for a search; the answer is fixed and out of
+  // order on purpose (`SEARCH_ANSWER`).
+  await page.route('**/api/geocode**', (r) => r.fulfill(json(SEARCH_ANSWER)))
   await page.route('**/api/wildfires**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/smoke**', (r) => r.fulfill(emptyCollection()))
   await page.route('**/api/closures**', (r) => r.fulfill(emptyCollection()))

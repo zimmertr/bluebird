@@ -3,13 +3,15 @@ import SearchBox, { type SearchBoxHandle } from './SearchBox'
 import { IconMenu } from './icons'
 import { takeOrphanedFocus } from '../hooks/useFocusHandoff'
 import { BUTTON_FLOATING, LAYER, MAP_CHIP_SUMMARY_TEXT, MAP_COL_GAP, MAP_COL_W, MAP_EDGE, MAP_ROW_H } from '../styles'
-import type { Place } from '../utils/geocode'
+import type { Place, SearchView } from '../utils/geocode'
 
 interface MapButtonColumnProps {
   /** The search field's handle, which the panel's Map group focuses. */
   searchBoxRef: RefObject<SearchBoxHandle | null>
   /** A place picked in the search field. */
   onSearchSelect: (place: Place) => void
+  /** The map's view when a search is sent, which biases and orders its answer (#711). */
+  searchView: () => SearchView | null
   /** The panel's Map group is hovered, so the field wears a ring. */
   searchPointed: boolean
   /** Whether the panel is open; the Controls button stands in the column while it is not. */
@@ -33,6 +35,7 @@ interface MapButtonColumnProps {
 export default function MapButtonColumn({
   searchBoxRef,
   onSearchSelect,
+  searchView,
   searchPointed,
   sidebarOpen,
   onOpenControls,
@@ -57,7 +60,7 @@ export default function MapButtonColumn({
           buttons below — they are siblings in one cluster, and DOM order
           alone put the buttons on top (#288 review). */}
       <div className="relative z-10">
-        <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} pointed={searchPointed} />
+        <SearchBox ref={searchBoxRef} onSelect={onSearchSelect} view={searchView} pointed={searchPointed} />
       </div>
       {/* Stands in for the drawer's Close button, so it takes the keyboard
           when that button goes inert under it (#576). */}

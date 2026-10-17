@@ -12,6 +12,7 @@ function column(over: { sidebarOpen?: boolean; onOpenControls?: () => void } = {
     <MapButtonColumn
       searchBoxRef={createRef<SearchBoxHandle>()}
       onSearchSelect={NOOP}
+      searchView={() => null}
       searchPointed={false}
       sidebarOpen={over.sidebarOpen ?? true}
       onOpenControls={over.onOpenControls ?? NOOP}
@@ -81,7 +82,7 @@ describe('MapButtonColumn', () => {
   it('hands the search field the handle the map column holds', () => {
     const ref = createRef<SearchBoxHandle>()
     render(
-      <MapButtonColumn searchBoxRef={ref} onSearchSelect={NOOP} searchPointed={false} sidebarOpen onOpenControls={NOOP} controlsSummary="">
+      <MapButtonColumn searchBoxRef={ref} onSearchSelect={NOOP} searchView={() => null} searchPointed={false} sidebarOpen onOpenControls={NOOP} controlsSummary="">
         {null}
       </MapButtonColumn>,
     )

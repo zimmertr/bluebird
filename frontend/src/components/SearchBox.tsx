@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
-import { Place, SEARCH_LIMIT, parseCoordinates, searchPlaces } from '../utils/geocode'
+import { Place, SEARCH_LIMIT, type SearchView, parseCoordinates, searchPlaces } from '../utils/geocode'
 import {
   ACCENT,
   ACCENT_RING,
@@ -42,6 +42,12 @@ const DROPDOWN_W = 'w-72 sm:w-80'
 
 interface Props {
   onSelect: (place: Place) => void
+  // The map the reader is looking at, read when Enter is pressed (#711): its
+  // bounds bias what the geocoder answers and its centre orders the list.
+  // A function rather than a value, because the view moves with every pan
+  // and a value on state would render the box on each one. Null before the
+  // map exists, when the list is the geocoder's own.
+  view?: () => SearchView | null
   // The panel is pointing at this box: the reader is hovering the panel's
   // Map group, whose search-by-name control lives out here on the map rather
   // than in the panel. Purely a cue — nothing about the box's behavior changes.
@@ -64,7 +70,7 @@ export interface SearchBoxHandle {
 // Nominatim's usage policy forbids autocomplete — and coordinate pairs are
 // handled locally without ever reaching the geocoder. The × only clears the
 // text: searched places persist as pins, removed via their 📍 in the table.
-const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, pointed = false, pill = false, onExpandedChange }, ref) {
+const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSelect, view, pointed = false, pill = false, onExpandedChange }, ref) {
   const [query, setQuery] = useState('')
   const [places, setPlaces] = useState<Place[] | null>(null)
   const [highlight, setHighlight] = useState(0)
@@ -153,7 +159,7 @@ const SearchBox = forwardRef<SearchBoxHandle, Props>(function SearchBox({ onSele
     const controller = new AbortController()
     searchRef.current = controller
     try {
-      const found = await searchPlaces(q, controller.signal, SEARCH_LIMIT)
+      const found = await searchPlaces(q, controller.signal, SEARCH_LIMIT, view?.() ?? null)
       if (found.length === 0) setError('No places found.')
       else if (found.length === 1) pick(found[0])
       else {

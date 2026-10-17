@@ -16,7 +16,7 @@ import { GeoPolygon, DestinationResult, SortBy } from '../types'
 import { ColDef } from '../utils/tableColumns'
 import { FireWarning } from '../utils/fireProximity'
 import type { ClosureWarning } from '../utils/closureProximity'
-import { Place, boundsAround, boundsForPoints } from '../utils/geocode'
+import { Place, type SearchView, boundsAround, boundsForPoints } from '../utils/geocode'
 import { anyPointInView, framePadding, pointsWithinView } from '../utils/mapFraming'
 import { type CameraView, initialCamera } from '../utils/mapView'
 import type { ViewBounds } from '../utils/layerCoverage'
@@ -64,6 +64,9 @@ export interface MapViewHandle {
   watchBounds: (onBounds: (bounds: ViewBounds) => void) => () => void
   /** Put the camera back where `getCamera` found it, with no animation. */
   setCamera: (camera: MapCamera) => void
+  // The view a search sends (#711): the bounds that bias the geocoder's
+  // answer and the centre that orders it. Null before the map exists.
+  getSearchView: () => SearchView | null
   framePolygon: () => void
   finishDrawing: () => GeoPolygon | null
   // Replace the ring outright: null empties it (Clear), a polygon puts back
@@ -530,6 +533,13 @@ const MapView = forwardRef<MapViewHandle, Props>(
         if (!map) return null
         const c = map.getCenter()
         return { lng: c.lng, lat: c.lat, zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
+      },
+      getSearchView() {
+        const map = mapRef.current
+        if (!map) return null
+        const b = map.getBounds()
+        const c = map.getCenter()
+        return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth(), lat: c.lat, lon: c.lng }
       },
       setCamera(camera: MapCamera) {
         mapRef.current?.jumpTo({

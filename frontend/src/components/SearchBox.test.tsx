@@ -73,6 +73,23 @@ describe('SearchBox', () => {
     expect(onSelect).toHaveBeenCalledWith(place())
   })
 
+  // The map's view rides the search (#711), read at Enter: what the reader is
+  // looking at biases the geocoder's answer and orders the list.
+  it('hands the map\'s view to the search when it has one', async () => {
+    const view = { west: -123, south: 46, east: -120, north: 49, lat: 47.5, lon: -121.5 }
+    search.mockResolvedValue([place()])
+    const { user } = render(<SearchBox onSelect={onSelect} view={() => view} />)
+    await user.type(field(), 'Mount Baker{Enter}')
+    expect(search.mock.lastCall?.[3]).toEqual(view)
+  })
+
+  it('searches with no view before the map exists', async () => {
+    search.mockResolvedValue([place()])
+    const { user } = render(<SearchBox onSelect={onSelect} view={() => null} />)
+    await user.type(field(), 'Mount Baker{Enter}')
+    expect(search.mock.lastCall?.[3]).toBeNull()
+  })
+
   // Ten places, the pod's ceiling, where it asked for five (#696).
   it('asks for ten places', async () => {
     search.mockResolvedValue([place()])

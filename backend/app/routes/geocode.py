@@ -11,6 +11,7 @@ from app import ratelimit
 from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import cache
+from app.services.bbox import parse_bbox
 from app.services.errors import classify_http_error
 from app.services.http import USER_AGENT
 
@@ -44,7 +45,14 @@ TIMEOUT_S = 10.0
         "This exists because Nominatim's usage policy asks callers to identify "
         "themselves with a real User-Agent, which a browser fetch cannot set. "
         "That same policy forbids autocomplete, so call this on an explicit "
-        "search action rather than on every keystroke."
+        "search action rather than on every keystroke.\n\n"
+        "Without `viewbox` the list is in Nominatim's own order, which ranks "
+        "the whole world by importance. With it, Nominatim prefers places "
+        "inside the box, and that changes which places come back as well as "
+        "their order. The box never excludes anything: a place outside it "
+        "still comes back when nothing inside matches better. Ordering "
+        "inside the box is still Nominatim's, so a caller that wants the "
+        "nearest first sorts the answer itself, as the web app does."
     ),
     response_description="Matching places, in Nominatim's `jsonv2` format.",
     # Explicit, because FastAPI otherwise builds a response model from the
@@ -52,6 +60,10 @@ TIMEOUT_S = 10.0
     # there is no model of ours to validate it against or to publish.
     response_model=None,
     responses={
+        422: {
+            "model": ErrorResponse,
+            "description": "`viewbox` was malformed or outside valid coordinate ranges.",
+        },
         429: {
             "model": ErrorResponse,
             "description": (
@@ -82,11 +94,37 @@ async def geocode(
         description="Place name to search for, such as `Mount Rainier`.",
     ),
     limit: int = Query(5, ge=1, le=10, description="Maximum places to return."),
+    viewbox: str | None = Query(
+        None,
+        description=(
+            "Optional. The area to prefer, as `west,south,east,north` in decimal "
+            "degrees (EPSG:4326), the same shape `GET /api/wildfires` takes. "
+            "Forwarded to Nominatim as its `viewbox`, without `bounded`, so it "
+            "biases the answer toward the box and excludes nothing. The web app "
+            "sends the map's view rounded outward to whole degrees, so that the "
+            "cache, which holds an answer per query, limit and box, holds one "
+            "per box rather than per exact view."
+        ),
+        examples=["-123,46,-120,49"],
+    ),
 ) -> list[Any]:
     log.info("Geocode query: %r", q)
+    # Parsed before the cache so a malformed box is a 422 and never a key,
+    # and keyed on the numbers so two spellings of one box are one entry.
+    box = parse_bbox(viewbox, "viewbox") if viewbox is not None else None
+    if box is not None and (box[0] == box[2] or box[1] == box[3]):
+        # Nominatim answers a box with no area with a 400 ("Bounding box with
+        # invalid parameters", measured 2026-10-16), which would read as an
+        # upstream failure. The overlays take such a box as a point, so the
+        # check is this route's rather than parse_bbox's.
+        raise ApiError(
+            status_code=422,
+            detail="viewbox must enclose an area.",
+            code=ErrorCode.validation,
+        )
     # Checked before the gate, so a repeat search neither calls Nominatim nor
     # waits in the queue behind other visitors' searches.
-    cache_key = cache.geocode_key(q, limit)
+    cache_key = cache.geocode_key(q, limit, box)
     cached = cache.GEOCODE_CACHE.get(cache_key)
     if cached is not None:
         log.debug("Geocode query %r served from cache", q)
@@ -107,12 +145,18 @@ async def geocode(
             httpx.AsyncClient(timeout=TIMEOUT_S) as client,
             asyncio.timeout(TIMEOUT_S),
         ):
+            # extratags carries the raw OSM tags — notably `ele`, which is
+            # how pinned search rows get the same summit elevation an
+            # Overpass-sourced analysis row would show.
+            params: dict[str, Any] = {"format": "jsonv2", "limit": limit, "extratags": 1, "q": q}
+            if box is not None:
+                # Nominatim's order is x1,y1,x2,y2 and takes any two corners;
+                # west,south,east,north is one such pair. No `bounded=1`: that
+                # would turn the preference into a filter (#711).
+                params["viewbox"] = ",".join(str(v) for v in box)
             resp = await client.get(
                 NOMINATIM_URL,
-                # extratags carries the raw OSM tags — notably `ele`, which is
-                # how pinned search rows get the same summit elevation an
-                # Overpass-sourced analysis row would show.
-                params={"format": "jsonv2", "limit": limit, "extratags": 1, "q": q},
+                params=params,
                 headers={"User-Agent": USER_AGENT},
             )
             resp.raise_for_status()

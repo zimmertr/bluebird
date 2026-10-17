@@ -706,6 +706,23 @@ search that has not finished in ten seconds, or that comes back as something
 other than Nominatim's JSON, is reported as a failed search rather than left
 waiting.
 
+The list is ordered for where you are looking. A search sends the map's view,
+rounded outward to whole degrees, as Nominatim's `viewbox`, which asks it to
+prefer places inside the box without excluding any outside it. Nominatim's own
+order is a global importance score, so from a view of the Cascades `Mount
+Washington` answered Kentucky, New Hampshire and Maryland before any summit in
+Washington, and `Snow Lake` answered one town in Manitoba. With the box the
+Cascades lakes come back, but inside the box Nominatim still orders by that
+score, and every rural peak and lake carries the same floor value, so the app
+sorts the answer itself by distance from the centre of the map. It drops two
+kinds of row on the way: roads and zoning areas (a residential subdivision,
+farmland, an industrial estate), which carry a name you may type and are
+nowhere to stand. Nothing reads your position: the centre is the map's, which
+the locate button has already moved to you if you pressed it. The ranks each
+step measured are on issue #711. Nominatim does no fuzzy matching, so a
+misspelled name finds nothing, or only streets that carry the same
+misspelling.
+
 ## Map tiles
 
 The basemap is OpenFreeMap's vector tiles, fetched straight from

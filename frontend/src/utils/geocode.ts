@@ -126,6 +126,10 @@ export function boundsForPoints(
 interface NominatimRow {
   name?: string
   display_name: string
+  // The OSM key the row was matched on (`natural`, `place`, `boundary`,
+  // `highway`, `landuse`…), which is what says whether a row is a place at
+  // all. jsonv2 calls it `category`; the older `json` format said `class`.
+  category?: string
   type?: string
   // Nominatim's own answer to "what kind of place", which is the useful
   // one for anywhere administered rather than mapped as a feature.
@@ -188,6 +192,102 @@ export function placeFromNominatimRow(row: NominatimRow): Place {
 }
 
 /**
+ * The rows a search never lists (#711). A road (`highway`) and a zoning
+ * polygon (`landuse`: a residential subdivision, farmland, an industrial
+ * estate) each carry a name a reader may type, and neither is a place a
+ * reader can stand at. They matter once the view is sent, because the box
+ * lets low-scoring rows in: from the app's opening view, `Springfield`
+ * answered two `landuse=residential` subdivisions ahead of Springfield,
+ * Oregon, and a misspelled `Mt Ranier` answered ten streets that carry the
+ * same misspelling (measured 2026-10-16). Dropped rather than sorted last,
+ * the maintainer's call on 2026-10-16.
+ */
+export const NOT_A_PLACE = new Set(['highway', 'landuse'])
+
+/**
+ * The map the reader is looking at, as a search sends it: the view's bounds,
+ * which bias what Nominatim answers, and its centre, which orders the answer.
+ */
+export interface SearchView {
+  west: number
+  south: number
+  east: number
+  north: number
+  lat: number
+  lon: number
+}
+
+/**
+ * The view's bounds as the `viewbox` the pod forwards: rounded OUTWARD to
+ * whole degrees and brought inside the globe. Whole degrees because the pod
+ * holds an answer per query, limit and box, so a box spelled from the exact
+ * view would make every pan a miss (how often a whole-degree one hits was not
+ * measured); outward so the box never excludes a corner of what the reader
+ * can see. A zoom-14 view a few kilometres wide becomes a one-degree box,
+ * which still prefers what is near.
+ *
+ * MapLibre does not wrap longitude: a view dragged across the antimeridian
+ * reports a west past -180 or an east past 180, and one wider than the world
+ * a span over 360 (`viewBoxes` in `layerCoverage.ts` meets the same). The
+ * west edge is shifted into range by whole turns and the east carried with
+ * it. A box that still crosses the antimeridian, or spans the world, becomes
+ * the globe in longitude: Nominatim's two-corner box cannot say "across 180",
+ * and the whole globe prefers everything, the same as no box. Without this a
+ * search from a view over Japan reached by dragging west sent a west of -230,
+ * which the pod refused, and every search failed until the reader panned back.
+ */
+export function viewboxParam(view: Pick<SearchView, 'west' | 'south' | 'east' | 'north'>): string {
+  const south = Math.max(-90, Math.floor(view.south))
+  const north = Math.min(90, Math.ceil(view.north))
+  const turns = Math.floor((view.west + 180) / 360) * 360
+  const west = Math.floor(view.west - turns)
+  const east = Math.ceil(view.east - turns)
+  if (east > 180) return `-180,${south},180,${north}`
+  return `${west},${south},${east},${north}`
+}
+
+const EARTH_RADIUS_KM = 6371
+
+/** Great-circle distance, which a list spanning continents needs. */
+export function distanceKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180
+  const dLat = toRad(b.lat - a.lat)
+  const dLon = toRad(b.lon - a.lon)
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h))
+}
+
+/** A row that is a place: not a `NOT_A_PLACE` kind, and somewhere on the globe. */
+export function isPlaceRow(row: NominatimRow): boolean {
+  return (
+    !NOT_A_PLACE.has(row.category ?? '') &&
+    Number.isFinite(parseFloat(row.lat)) &&
+    Number.isFinite(parseFloat(row.lon))
+  )
+}
+
+/**
+ * The places a search shows, in the order it shows them: the rows that are
+ * places, nearest the origin first. Nominatim's own order inside a box is its
+ * importance score, and every rural peak and lake carries the same floor
+ * score, so from the opening view `Pyramid Peak` in King County stood eighth
+ * of ten box-biased rows and `Mirror Lake` in Kittitas County seventh
+ * (measured 2026-10-16). Sorted here, by distance from the map's centre, the
+ * nearest namesake stood first in every audited query. Nothing reads where
+ * the reader is: the centre is the map's, which a press of the locate button
+ * has already moved to them.
+ */
+export function rankPlaces(rows: NominatimRow[], origin: { lat: number; lon: number }): Place[] {
+  return rows
+    .filter(isPlaceRow)
+    .map((row) => placeFromNominatimRow(row))
+    .map((place) => ({ place, km: distanceKm(origin, place) }))
+    .sort((a, b) => a.km - b.km)
+    .map((entry) => entry.place)
+}
+
+/**
  * How many places one search asks for: the most `GET /api/geocode` accepts
  * (`le=10` on its `limit`, `routes/geocode.py`), which is a comment's mirror
  * and the root guide's table row 35. Nominatim's usage policy bounds how often
@@ -203,16 +303,21 @@ export const SEARCH_LIMIT = 10
  * Ask the pod's Nominatim proxy about a place.
  *
  * `signal` before `limit`, because the caller that has a signal is the search
- * box and no caller has ever needed another limit.
+ * box and no caller has ever needed another limit. With a `view` the request
+ * carries the view's box and the answer comes back ranked by distance from
+ * its centre (`rankPlaces`); without one, which is a search before the map
+ * exists, it keeps Nominatim's order. The non-places are dropped either way.
  */
 export async function searchPlaces(
   query: string,
   signal?: AbortSignal,
   limit = SEARCH_LIMIT,
+  view?: SearchView | null,
 ): Promise<Place[]> {
-  const url = `/api/geocode?limit=${limit}&q=${encodeURIComponent(query)}`
+  const box = view ? `&viewbox=${viewboxParam(view)}` : ''
+  const url = `/api/geocode?limit=${limit}&q=${encodeURIComponent(query)}${box}`
   const res = await apiFetch(url, { headers: { Accept: 'application/json' }, signal })
   if (!res.ok) throw new Error('Place search unavailable. Try again later.')
   const rows: NominatimRow[] = await res.json()
-  return rows.map(placeFromNominatimRow)
+  return view ? rankPlaces(rows, view) : rows.filter(isPlaceRow).map(placeFromNominatimRow)
 }

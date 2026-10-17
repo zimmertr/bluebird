@@ -159,6 +159,8 @@ export interface paths {
          * @description Thin proxy to Nominatim, forwarding its JSON verbatim. The response shape is therefore Nominatim's `jsonv2` format, not something Bluebird Forecast defines, and each row carries `lat`, `lon`, `display_name`, and `extratags` (which is where a summit's `ele` lives).
          *
          *     This exists because Nominatim's usage policy asks callers to identify themselves with a real User-Agent, which a browser fetch cannot set. That same policy forbids autocomplete, so call this on an explicit search action rather than on every keystroke.
+         *
+         *     Without `viewbox` the list is in Nominatim's own order, which ranks the whole world by importance. With it, Nominatim prefers places inside the box, and that changes which places come back as well as their order. The box never excludes anything: a place outside it still comes back when nothing inside matches better. Ordering inside the box is still Nominatim's, so a caller that wants the nearest first sorts the answer itself, as the web app does.
          */
         get: operations["geocode_api_geocode_get"];
         put?: never;
@@ -1763,6 +1765,8 @@ export interface operations {
                 q: string;
                 /** @description Maximum places to return. */
                 limit?: number;
+                /** @description Optional. The area to prefer, as `west,south,east,north` in decimal degrees (EPSG:4326), the same shape `GET /api/wildfires` takes. Forwarded to Nominatim as its `viewbox`, without `bounded`, so it biases the answer toward the box and excludes nothing. The web app sends the map's view rounded outward to whole degrees, so that the cache, which holds an answer per query, limit and box, holds one per box rather than per exact view. */
+                viewbox?: string | null;
             };
             header?: never;
             path?: never;
@@ -1779,13 +1783,13 @@ export interface operations {
                     "application/json": unknown;
                 };
             };
-            /** @description Validation Error */
+            /** @description `viewbox` was malformed or outside valid coordinate ranges. */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description This client is searching faster than the per-address limit. `Retry-After` says how many seconds to wait. `GET /api/capabilities` publishes the limit. */

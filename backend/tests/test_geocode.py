@@ -133,6 +133,51 @@ def test_geocode_cache_keys_on_the_limit(monkeypatch):
     assert [c["limit"] for c in calls] == [5, 10]
 
 
+# The view (#711). Nominatim's `viewbox` changes which places come back, not
+# only their order: measured 2026-10-16 from the app's opening view, `Snow
+# Lake` went from one Manitoba town to six Cascades lakes. So the box is
+# forwarded as sent, never as `bounded`, and joins the cache key.
+
+
+def test_geocode_forwards_the_viewbox_to_nominatim(monkeypatch):
+    calls = _patch_counting(monkeypatch, fake_response([]))
+    client.get("/api/geocode", params={"q": "Snow Lake", "viewbox": "-128,44,-113,51"})
+    assert calls[0]["viewbox"] == "-128.0,44.0,-113.0,51.0"
+    assert "bounded" not in calls[0]
+
+
+def test_geocode_sends_no_viewbox_when_none_was_asked(monkeypatch):
+    calls = _patch_counting(monkeypatch, fake_response([]))
+    client.get("/api/geocode", params={"q": "Snow Lake"})
+    assert "viewbox" not in calls[0]
+
+
+def test_geocode_cache_keys_on_the_viewbox(monkeypatch):
+    # An answer biased to one view cannot stand in for another's, nor for an
+    # unbiased one; two spellings of one box are one entry.
+    calls = _patch_counting(monkeypatch, fake_response([]))
+    client.get("/api/geocode", params={"q": "Snow Lake"})
+    client.get("/api/geocode", params={"q": "Snow Lake", "viewbox": "-128,44,-113,51"})
+    client.get("/api/geocode", params={"q": "Snow Lake", "viewbox": "-128.0,44.0,-113.0,51.0"})
+    client.get("/api/geocode", params={"q": "Snow Lake", "viewbox": "-123,46,-120,49"})
+    client.get("/api/geocode", params={"q": "Snow Lake"})
+    assert [c.get("viewbox") for c in calls] == [
+        None,
+        "-128.0,44.0,-113.0,51.0",
+        "-123.0,46.0,-120.0,49.0",
+    ]
+
+
+def test_geocode_malformed_viewbox_is_422_and_never_reaches_nominatim(monkeypatch):
+    calls = _patch_counting(monkeypatch, fake_response([]))
+    for bad in ("-128,44,-113", "a,b,c,d", "-200,44,-113,51", "-128,52,-113,51", "10,10,10,10"):
+        resp = client.get("/api/geocode", params={"q": "Snow Lake", "viewbox": bad})
+        assert resp.status_code == 422, bad
+        assert resp.json()["error"]["code"] == "validation"
+        assert resp.json()["detail"].startswith("viewbox ")
+    assert calls == []
+
+
 def test_geocode_caches_an_empty_answer(monkeypatch):
     calls = _patch_counting(monkeypatch, fake_response([]))
     client.get("/api/geocode", params={"q": "Nowhere at all"})

@@ -13,13 +13,15 @@ import {
   MAP_ROWS,
   MAP_SLOT,
 } from '../styles'
-import type { Place } from '../utils/geocode'
+import type { Place, SearchView } from '../utils/geocode'
 
 interface PhoneMapRowsProps {
   /** The search field's handle, which `MapStage` holds. */
   searchBoxRef: RefObject<SearchBoxHandle | null>
   /** A place picked in the search field. */
   onSearchSelect: (place: Place) => void
+  /** The map's view when a search is sent, which biases and orders its answer (#711). */
+  searchView: () => SearchView | null
   /** The panel's Map group is hovered, so the field wears a ring. */
   searchPointed: boolean
   /** Receives the locate button's slot, which the map stands its own button in. */
@@ -56,6 +58,7 @@ interface PhoneMapRowsProps {
 export default function PhoneMapRows({
   searchBoxRef,
   onSearchSelect,
+  searchView,
   searchPointed,
   onLocateSlot,
   onCompassSlot,
@@ -91,6 +94,7 @@ export default function PhoneMapRows({
           <SearchBox
             ref={searchBoxRef}
             onSelect={onSearchSelect}
+            view={searchView}
             pointed={searchPointed}
             pill
             onExpandedChange={setSearching}
