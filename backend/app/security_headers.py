@@ -7,7 +7,8 @@ code that defines it and inside a suite that can read that code:
 ``tests/test_security_headers.py`` reads ``frontend/src`` as text and fails
 when a host appears there that this module has not classified.
 
-Every host below was measured from the source on 2026-09-16, not remembered.
+Every host was measured from the source on 2026-09-16, not remembered, and
+now lives in ``browser_upstreams.py`` as a default the environment can move.
 Overpass, Nominatim, NIFC and NOAA's HMS smoke files are absent on purpose:
 those are fetched by the pod, so the browser only ever talks to this origin for
 them. NOAA's snow map service is the one NOAA host that IS here, because that
@@ -24,39 +25,18 @@ from html.parser import HTMLParser
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app import browser_upstreams
+
 # ── The browser's third-party surface ─────────────────────────────────────────
 
 # Origins the SPA fetches directly, and therefore the whole of connect-src
-# beyond 'self'. MapLibre reaches the map host five ways (the style JSON, its
-# TileJSON, vector tiles, glyphs and sprites) and all five resolve to this one
-# origin, checked against the served style document rather than assumed.
-BROWSER_FETCH_ORIGINS = (
-    # frontend/src/utils/openMeteo.ts: the ranked field's forecasts.
-    "https://api.open-meteo.com",
-    # frontend/src/utils/openMeteo.ts: US AQI, fetched beside the weather.
-    "https://air-quality-api.open-meteo.com",
-    # frontend/src/utils/openMeteo.ts: reanalysis for a window older than the
-    # forecast endpoint holds (#123).
-    "https://archive-api.open-meteo.com",
-    # frontend/src/components/MapView.tsx: the basemap style, and every tile,
-    # glyph and sprite that style names.
-    "https://tiles.openfreemap.org",
-    # frontend/src/utils/radar.ts: the NEXRAD frames behind the radar overlay.
-    "https://mesonet.agron.iastate.edu",
-    # frontend/src/utils/snowDepth.ts: the NOHRSC snow analysis, rendered per
-    # tile by NOAA's own map service (#446).
-    "https://mapservices.weather.noaa.gov",
-)
-
-# The subset of the above that also serves raster images. MapLibre fetches
-# raster tiles with fetch and decodes them to an ImageBitmap, so connect-src
-# carries the common path; an engine without createImageBitmap falls back to an
-# Image element instead, which is what these entries cover.
-BROWSER_IMAGE_ORIGINS = (
-    "https://tiles.openfreemap.org",
-    "https://mesonet.agron.iastate.edu",
-    "https://mapservices.weather.noaa.gov",
-)
+# beyond 'self', with the subset that also serves raster images for img-src.
+# Both are derived from the addresses /api/config tells the browser to call
+# (browser_upstreams.py, where each host's comment says who fetches it), so a
+# sim that moves a host moves the policy with it (#224). Unset, they are the
+# production origins in the order this policy has always printed them.
+BROWSER_FETCH_ORIGINS = browser_upstreams.fetch_origins()
+BROWSER_IMAGE_ORIGINS = browser_upstreams.image_origins()
 
 
 def _directives(pairs: Iterable[tuple[str, str]]) -> str:

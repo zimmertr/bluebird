@@ -23,6 +23,7 @@ import wildfires from './utils/wildfires.ts?raw'
 import mapLegend from './components/MapLegend.tsx?raw'
 import { SUPPORT_EMAIL } from './utils/contact'
 import { DATA_SOURCES } from './utils/dataSources'
+import { DEFAULT_UPSTREAMS } from './utils/upstreams'
 import { STORAGE_KEY } from './utils/forecastStore'
 import forecastStore from './utils/forecastStore.ts?raw'
 import { THEME_KEY, VIEW_KEY, WELCOME_KEY } from './utils/viewPrefs'
@@ -393,11 +394,10 @@ describe('the privacy copy, held to the code', () => {
   // list of providers that see your address is read against it. A new origin
   // there fails until this table and the page both name it.
   it('names exactly the providers the browser contacts itself', () => {
-    const securityHeaders = repoFile('backend/app/security_headers.py')
-    const hosts = new Set<string>()
-    for (const block of securityHeaders.matchAll(/BROWSER_(?:FETCH|IMAGE)_ORIGINS = \(([\s\S]*?)\n\)/g)) {
-      for (const match of block[1].matchAll(/"https:\/\/([^"]+)"/g)) hosts.add(match[1])
-    }
+    // The production hosts, which the pod builds its connect-src and img-src
+    // from and publishes on `/api/config` unless a stack points the browser at
+    // the supplier simulator (#224).
+    const hosts = new Set(Object.values(DEFAULT_UPSTREAMS).map((url) => new URL(url).hostname))
     expect(hosts.size).toBeGreaterThan(0)
 
     const PROVIDER_BY_HOST: [string, string][] = [
@@ -462,8 +462,10 @@ describe('the privacy copy, held to the code', () => {
   // mirror added to the chain fails here until the page names who runs it.
   it('names the operator of every Overpass mirror the server can reach', () => {
     const mirrors = repoFile('backend/app/services/osm/mirrors.py')
-    const table = mirrors.slice(mirrors.indexOf('OVERPASS_MIRRORS = ['), mirrors.indexOf('\n]\n', mirrors.indexOf('OVERPASS_MIRRORS = [')))
-    const hosts = [...table.matchAll(/url="https:\/\/([^/"]+)\//g)].map((match) => match[1])
+    // The production chain, which `OVERPASS_URLS` replaces only on a stack
+    // pointed at the supplier simulator (#224).
+    const table = mirrors.slice(mirrors.indexOf('_DEFAULT_OVERPASS_URLS = ('), mirrors.indexOf('\n)\n', mirrors.indexOf('_DEFAULT_OVERPASS_URLS = (')))
+    const hosts = [...table.matchAll(/"https:\/\/([^/"]+)\//g)].map((match) => match[1])
     expect(hosts.length).toBeGreaterThan(0)
 
     const OPERATOR_BY_HOST: Record<string, RegExp> = {
@@ -493,7 +495,8 @@ describe('the privacy copy, held to the code', () => {
     expect(hook).toMatch(/LOOKUP_DEBOUNCE_MS/)
     expect(hook).toMatch(/tiles\.lookupPeaks\(rows,/)
     expect(hook).toMatch(/resolveCustomOnly\(left, controller\.signal, true\)/)
-    expect(tiles).toMatch(/TILEJSON_URL = 'https:\/\/tiles\.openfreemap\.org\/planet'/)
+    expect(tiles).toMatch(/return `\$\{upstreams\(\)\.mapTiles\}\/planet`/)
+    expect(new URL(DEFAULT_UPSTREAMS.mapTiles).hostname).toBe('tiles.openfreemap.org')
 
     expect(text).toMatch(
       /A coordinate you paste or click is looked up as soon as it is in the box: your browser reads the map tiles around it from OpenFreeMap, and sends the server any it could not place\./,

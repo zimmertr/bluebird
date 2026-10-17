@@ -144,6 +144,11 @@ export interface MapStageProps {
   onBasemapFailed: (failed: boolean) => void
   /** The most positions a drawn ring may carry, from /api/capabilities. */
   maxPolygonPoints: number
+  /**
+   * Whether `/api/config` has settled. The map is built on its style URL once,
+   * at mount, so it mounts only after the pod has named the host (#224).
+   */
+  upstreamsSettled: boolean
 }
 
 /**
@@ -189,6 +194,7 @@ export default function MapStage({
   restoredView,
   onBasemapFailed,
   maxPolygonPoints,
+  upstreamsSettled,
 }: MapStageProps) {
   const searchBoxRef = useRef<SearchBoxHandle>(null)
   // The round slot at the right of a phone's search pill, which the map
@@ -317,47 +323,49 @@ export default function MapStage({
         paceRemainingS={analysis.paceRemainingS}
         onCancel={analysis.cancel}
       />
-      <MapView
-        ref={mapRef}
-        drawing={drawMode.drawing}
-        pointedPois={poisPointed}
-        polygon={destinationInputs.polygon}
-        restoredPoints={destinationInputs.restoredPoints}
-        onPolygonChange={destinationInputs.setPolygon}
-        onDrawUpdate={drawMode.handleDrawUpdate}
-        results={results}
-        sortBy={sortBy}
-        modelId={modelId}
-        times={timeline.forecastTimes}
-        popupColumns={tableView.tableColumns}
-        pointSample={pointSample}
-        modelFallbackLabel={tableView.analysisModelLabel}
-        fireWarnings={fire.warnings}
-        closureWarnings={closure.warnings}
-        showWildfires={overlays.showWildfires}
-        showAreaClosures={overlays.showAreaClosures}
-        showTrailClosures={overlays.showTrailClosures}
-        showRadar={overlays.showRadar}
-        showSmoke={overlays.showSmoke}
-        showSnow={overlays.showSnow}
-        radarIndex={timeline.radarIndex}
-        gridSpec={grid.grid.spec}
-        gridCells={grid.grid.cells}
-        gridStyle={grid.gridStyle}
-        playbackIndex={playbackIndex}
-        pending={report.pending}
-        searchedPlaces={destinationInputs.places}
-        onAddPoi={handleAddPoi}
-        onRemovePoi={handleRemovePoi}
-        onRemoveResult={removeResult}
-        cameraPadBottomPx={layout.cameraPadBottomPx}
-        restoredView={restoredView}
-        onCameraMove={urlSync.reportView}
-        onBasemapFailed={onBasemapFailed}
-        maxPolygonPoints={maxPolygonPoints}
-        locateSlot={locateSlot}
-        compassSlot={compassSlot}
-      />
+      {upstreamsSettled && (
+        <MapView
+          ref={mapRef}
+          drawing={drawMode.drawing}
+          pointedPois={poisPointed}
+          polygon={destinationInputs.polygon}
+          restoredPoints={destinationInputs.restoredPoints}
+          onPolygonChange={destinationInputs.setPolygon}
+          onDrawUpdate={drawMode.handleDrawUpdate}
+          results={results}
+          sortBy={sortBy}
+          modelId={modelId}
+          times={timeline.forecastTimes}
+          popupColumns={tableView.tableColumns}
+          pointSample={pointSample}
+          modelFallbackLabel={tableView.analysisModelLabel}
+          fireWarnings={fire.warnings}
+          closureWarnings={closure.warnings}
+          showWildfires={overlays.showWildfires}
+          showAreaClosures={overlays.showAreaClosures}
+          showTrailClosures={overlays.showTrailClosures}
+          showRadar={overlays.showRadar}
+          showSmoke={overlays.showSmoke}
+          showSnow={overlays.showSnow}
+          radarIndex={timeline.radarIndex}
+          gridSpec={grid.grid.spec}
+          gridCells={grid.grid.cells}
+          gridStyle={grid.gridStyle}
+          playbackIndex={playbackIndex}
+          pending={report.pending}
+          searchedPlaces={destinationInputs.places}
+          onAddPoi={handleAddPoi}
+          onRemovePoi={handleRemovePoi}
+          onRemoveResult={removeResult}
+          cameraPadBottomPx={layout.cameraPadBottomPx}
+          restoredView={restoredView}
+          onCameraMove={urlSync.reportView}
+          onBasemapFailed={onBasemapFailed}
+          maxPolygonPoints={maxPolygonPoints}
+          locateSlot={locateSlot}
+          compassSlot={compassSlot}
+        />
+      )}
       {/* The legends render BEFORE the button column below on purpose.
           Both are map chrome at the same layer, so paint order is DOM
           order, and the one that has to win is the one you can click:

@@ -18,10 +18,10 @@
 // so the schema's type is asserted assignable to the app's. Where only one
 // direction is honest, the comment says why.
 import type { components } from './api-schema'
-import type { PreviewInfo } from './hooks/usePreview'
 import type {
   AnalyzeRequest,
   AnalyzeResponse,
+  ConfigResponse,
   DestinationResult,
   DestinationType,
   DestinationsRequest,
@@ -29,8 +29,10 @@ import type {
   DiscoveredDestination,
   DiscoveryType,
   HourlySeries,
+  PreviewInfo,
   RefusalFields,
   SortBy,
+  Upstreams,
 } from './types'
 
 type Schema = components['schemas']
@@ -180,8 +182,16 @@ export type DiscoveredDestinationIsReadable = Assert<
 
 export type PreviewConfigMatchesTheBanner = Assert<Equal<PreviewInfo, Schema['PreviewConfig']>>
 
-export type ConfigResponseCarriesThePreview = Assert<
-  Extends<Wire<Schema['ConfigResponse']>['preview'], PreviewInfo>
+// Both directions: `utils/upstreams.ts` maps each wire name onto its holder by
+// hand, so a member added on either side must fail here rather than be dropped.
+export type UpstreamsMatchTheSchema = Assert<Equal<Upstreams, Schema['BrowserUpstreams']>>
+
+export type ConfigResponseFieldsExist = Assert<
+  Extends<keyof ConfigResponse, keyof Schema['ConfigResponse']>
+>
+
+export type ConfigResponseIsReadable = Assert<
+  Extends<Wire<Schema['ConfigResponse']>, Wire<ConfigResponse>>
 >
 
 // ---------------------------------------------------------------------------
@@ -292,6 +302,7 @@ type Mirrored =
   | 'AnalysisRefusal'
   | 'AnalyzeRequest'
   | 'AnalyzeResponse'
+  | 'BrowserUpstreams'
   | 'CapabilitiesResponse'
   | 'ClosureCollection'
   | 'ConfigResponse'

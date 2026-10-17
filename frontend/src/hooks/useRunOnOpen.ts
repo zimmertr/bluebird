@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { decodeAutoAnalyze } from '../utils/urlState'
 
 export interface RunOnOpenInputs {
-  /** Whether the live limits have landed (`useCapabilities`). */
+  /** Whether the live limits (`useCapabilities`) and the upstream hosts (`useConfig`) have landed. */
   settled: boolean
   /** Writes the queued address now, so the flag leaves the bar before the run spends. */
   flushUrl: () => void

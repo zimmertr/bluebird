@@ -7,7 +7,7 @@ import time
 
 import httpx
 import pytest
-from conftest import fake_response
+from conftest import fake_response, fresh_copy
 from prometheus_client import REGISTRY
 
 from app import ratelimit
@@ -1060,3 +1060,35 @@ async def test_the_flag_is_ignored_when_peaks_were_not_asked_for(monkeypatch):
 
     monkeypatch.setattr(osm.mirrors, "_post_with_fallback", fake_post)
     await osm.query_osm(POLY, [DestinationType.lake], include_unnamed_peaks=True)
+
+
+def test_the_unset_chain_names_each_budget_for_its_host():
+    assert [m.budget.provider for m in osm.OVERPASS_MIRRORS] == [
+        "OpenStreetMap (overpass-api.de)",
+        "OpenStreetMap (maps.mail.ru)",
+    ]
+
+
+def test_one_overpass_url_is_a_one_mirror_chain(monkeypatch):
+    # What the supplier simulator sets (#224): its one endpoint, paced and
+    # timed the way a production mirror is.
+    monkeypatch.setenv("OVERPASS_URLS", "http://sim:8080/overpass/api/interpreter")
+    mirrors = fresh_copy("app.services.osm.mirrors").OVERPASS_MIRRORS
+    assert [m.url for m in mirrors] == ["http://sim:8080/overpass/api/interpreter"]
+    assert [m.timeout_s for m in mirrors] == [25.0]
+    assert [m.budget.provider for m in mirrors] == ["OpenStreetMap (sim)"]
+    assert mirrors[0].budget.capacity == ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
+
+
+def test_overpass_urls_keep_their_order_and_ignore_spacing(monkeypatch):
+    monkeypatch.setenv("OVERPASS_URLS", "http://b.example/api , http://a.example/api,")
+    mirrors = fresh_copy("app.services.osm.mirrors").OVERPASS_MIRRORS
+    assert [m.url for m in mirrors] == ["http://b.example/api", "http://a.example/api"]
+
+
+def test_a_non_url_overpass_entry_falls_back_to_the_whole_default_chain(monkeypatch, caplog):
+    monkeypatch.setenv("OVERPASS_URLS", "http://sim:8080/overpass/api/interpreter,sim:8080")
+    with caplog.at_level(logging.WARNING):
+        mirrors = fresh_copy("app.services.osm.mirrors").OVERPASS_MIRRORS
+    assert [m.url for m in mirrors] == [m.url for m in osm.OVERPASS_MIRRORS]
+    assert "OVERPASS_URLS" in caplog.text

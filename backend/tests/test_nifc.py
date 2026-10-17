@@ -15,7 +15,7 @@ import zlib
 
 import httpx
 import pytest
-from conftest import fake_response
+from conftest import fake_response, fresh_copy
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -599,3 +599,12 @@ def test_capabilities_publishes_the_wildfire_bucket():
         limits = client.get("/api/capabilities").json()["limits"]["rate"]
     assert "wildfires_per_minute" in limits
     assert "wildfires_burst" in limits
+
+
+def test_the_perimeter_layer_is_production_unset_and_follows_the_env(monkeypatch):
+    assert nifc.QUERY_URL == (
+        "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/"
+        "WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
+    )
+    monkeypatch.setenv("NIFC_URL", "http://sim:8080/nifc/query")
+    assert fresh_copy("app.services.nifc").QUERY_URL == "http://sim:8080/nifc/query"

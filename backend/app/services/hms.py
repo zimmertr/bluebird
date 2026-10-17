@@ -44,7 +44,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
-from app.env import env_int
+from app.env import env_int, env_url
 from app.services.errors import UpstreamError
 from app.services.http import HEADERS
 from app.services.snapshot import cache_factory
@@ -56,8 +56,9 @@ PROVIDER = "NOAA HMS (smoke plumes)"
 # NOAA's own file server. Deliberately not one of the ArcGIS-hosted mirrors of
 # the same dataset: those share an organization quota with every other consumer,
 # which is the exact failure mode #203 spent a release removing from the fire
-# overlay. A static file server has no quota to lose.
-BASE_URL = "https://satepsanone.nesdis.noaa.gov/pub/FIRE/web/HMS/Smoke_Polygons/KML"
+# overlay. A static file server has no quota to lose. An env knob so a local
+# stack can point it at the supplier simulator (#224).
+BASE_URL = env_url("HMS_URL", "https://satepsanone.nesdis.noaa.gov/pub/FIRE/web/HMS/Smoke_Polygons/KML")
 
 # The analysts' own timezone. A UTC date would ask for tomorrow's file for five
 # hours every evening, and get a 404 for every one of them.

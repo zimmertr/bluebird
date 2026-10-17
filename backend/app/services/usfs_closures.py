@@ -65,7 +65,7 @@ from typing import Any
 
 import httpx
 
-from app.env import env_int
+from app.env import env_int, env_url
 from app.services import arcgis, usfs_coverage
 from app.services.errors import UpstreamError
 from app.services.http import HEADERS
@@ -77,11 +77,13 @@ log = logging.getLogger(__name__)
 
 PROVIDER = "US Forest Service (closure orders)"
 
-_ARCGIS_URL = "https://services1.arcgis.com/gGHDlz6USftL5Pau/arcgis/rest/services/"
-_SERVICE_URL = (
-    "https://services1.arcgis.com/gGHDlz6USftL5Pau/arcgis/rest/services/"
-    "R06_FireClosureOrders_PublicView/FeatureServer"
+# The Forest Service's ArcGIS organization, which hosts all three regions'
+# layers. An env knob so a local stack can point it at the supplier simulator
+# (#224), and every URL below is built from it so one value moves them all.
+_ARCGIS_URL = env_url(
+    "USFS_ARCGIS_URL", "https://services1.arcgis.com/gGHDlz6USftL5Pau/arcgis/rest/services/"
 )
+_SERVICE_URL = f"{_ARCGIS_URL}R06_FireClosureOrders_PublicView/FeatureServer"
 POINT_QUERY_URL = f"{_SERVICE_URL}/0/query"
 LINE_QUERY_URL = f"{_SERVICE_URL}/1/query"
 AREA_QUERY_URL = f"{_SERVICE_URL}/2/query"

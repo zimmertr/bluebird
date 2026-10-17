@@ -27,7 +27,7 @@ import type { PendingDestination } from '../utils/customList'
 import { ringPolygon, ringToPts } from '../utils/drawGeometry'
 import { useIsDesktop } from '../hooks/useIsDesktop'
 import { createMapController, type MapInputs } from '../map/controller'
-import { STYLE } from '../map/basemap'
+import { styleUrl } from '../utils/upstreams'
 import { addAttribution, addControls, placeControl, type MapControls } from '../map/controls'
 import { mountFeatures, type MapFeatures } from '../map/features'
 import { watchView } from '../map/viewWatch'
@@ -572,9 +572,12 @@ const MapView = forwardRef<MapViewHandle, Props>(
       if (!containerRef.current || mapRef.current) return
 
       const opening = initialCamera(restoredView)
+      // Read at mount, which App holds back until `/api/config` has settled,
+      // so the map is built on the host the pod names (#224).
+      const style = styleUrl()
       const map = new maplibregl.Map({
         container: containerRef.current,
-        style: STYLE,
+        style,
         center: [opening.lng, opening.lat],
         zoom: opening.zoom,
         // The library adds its own attribution unless told not to, and the
@@ -588,7 +591,7 @@ const MapView = forwardRef<MapViewHandle, Props>(
       // coarse under a session, where a window does change width.
       controlsRef.current = addControls(map, window.matchMedia('(hover: none)').matches)
       // Before `load`: a style that fails never gets there.
-      const basemap = watchBasemap(map, { style: STYLE, onFailed: onBasemapFailed })
+      const basemap = watchBasemap(map, { style, onFailed: onBasemapFailed })
 
       // Keep the canvas in sync with its container. MapLibre only tracks window
       // resizes, but our container also changes size when the results panel

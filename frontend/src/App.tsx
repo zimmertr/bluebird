@@ -51,7 +51,7 @@ import { useUrlSync } from './hooks/useUrlSync'
 import { useFireProximity } from './hooks/useFireProximity'
 import { useClosureProximity } from './hooks/useClosureProximity'
 import { useGridLayer } from './hooks/useGridLayer'
-import { usePreview } from './hooks/usePreview'
+import { useConfig } from './hooks/useConfig'
 import { useIsDesktop } from './hooks/useIsDesktop'
 import { useTheme } from './hooks/useTheme'
 import { useDrawer } from './hooks/useDrawer'
@@ -334,7 +334,9 @@ export default function App() {
 
   // What the displayed report is rendered under, and whether it is one hour.
   const { view, pointSample } = reportView(shownAnalyzed, sortBy, sortDesc, selection.kind, panelWindowMs)
-  const preview = usePreview()
+  // The preview banner, and the upstream hosts every browser fetch is built on.
+  const config = useConfig()
+  const { preview } = config
 
   const report = usePresentedReport({
     universe: shownUniverse,
@@ -499,8 +501,9 @@ export default function App() {
   )
 
   // A link that asks to run its analysis on open (`analyze=1`, #511).
+  // It waits for the upstream hosts too, so its fetches go where the pod says.
   const { autoAnalyze, capsApplied, runAutoAnalyze } = useRunOnOpen({
-    settled: caps.settled,
+    settled: caps.settled && config.settled,
     flushUrl: writeUrl.flush,
     analyze: handleAnalyze,
   })
@@ -704,6 +707,7 @@ export default function App() {
           restoredView={restoredView}
           onBasemapFailed={setBasemapFailed}
           maxPolygonPoints={caps.maxPolygonPoints}
+          upstreamsSettled={config.settled}
         />
 
         <ResultsSheet

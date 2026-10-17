@@ -26,7 +26,7 @@ def _files_matching(pattern: re.Pattern[str]) -> list[str]:
 
 def test_env_reader_has_one_home():
     # The underscore alternative catches the private copies this replaced.
-    pattern = re.compile(r"^def _?env_int\(", re.MULTILINE)
+    pattern = re.compile(r"^def _?env_(int|url)\(", re.MULTILINE)
     assert _files_matching(pattern) == ["app/env.py"]
 
 

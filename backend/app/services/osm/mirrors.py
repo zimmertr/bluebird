@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 import httpx
 
 from app import ratelimit, telemetry
+from app.env import env_url
 from app.models import DestinationType, GeoPolygon
 from app.services import cache
 from app.services.errors import PartialResultError, UpstreamError, classify_http_error
@@ -85,22 +86,43 @@ class OverpassMirror:
 # was accepted and sent no bytes in 60s, so it only ever added 45s to a chain
 # that was going to fail anyway. The sum of the timeouts is the worst case an
 # analysis can wait on this table, 50s where it was 115s.
-OVERPASS_MIRRORS = [
-    OverpassMirror(
-        url="https://overpass-api.de/api/interpreter",
+#
+# The chain is read from OVERPASS_URLS, comma-separated in chain order, so a
+# local stack can point discovery at the supplier simulator (#224). Unset, it
+# is the two mirrors above. Every mirror gets the 25s and a budget named for its
+# host, so a chain the sim supplies is paced the way production's is.
+_DEFAULT_OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter,"
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+)
+
+
+def _mirror(url: str) -> OverpassMirror:
+    return OverpassMirror(
+        url=url,
         timeout_s=25.0,
         budget=ratelimit.UpstreamBudget(
-            "OpenStreetMap (overpass-api.de)", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
+            f"OpenStreetMap ({urlparse(url).hostname})", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
         ),
-    ),
-    OverpassMirror(
-        url="https://maps.mail.ru/osm/tools/overpass/api/interpreter",
-        timeout_s=25.0,
-        budget=ratelimit.UpstreamBudget(
-            "OpenStreetMap (maps.mail.ru)", ratelimit.UPSTREAM_CONCURRENCY_OVERPASS
-        ),
-    ),
-]
+    )
+
+
+def _split(urls: str) -> list[str]:
+    return [url.strip() for url in urls.split(",") if url.strip()]
+
+
+def _overpass_urls() -> list[str]:
+    # env_url can only vouch for the first entry of a list, so the rest are
+    # checked here, with its posture: one bad entry falls back to the whole
+    # default chain rather than starting a pod that posts to a typo.
+    urls = _split(env_url("OVERPASS_URLS", _DEFAULT_OVERPASS_URLS))
+    if all(url.startswith(("http://", "https://")) for url in urls):
+        return urls
+    log.warning("Ignoring OVERPASS_URLS with a non-URL entry; using the default chain")
+    return _split(_DEFAULT_OVERPASS_URLS)
+
+
+OVERPASS_MIRRORS = [_mirror(url) for url in _overpass_urls()]
 
 # How long a mirror that just failed goes to the back of the chain. The
 # primary's busy spells on 2026-09-30 came in bursts over tens of minutes with

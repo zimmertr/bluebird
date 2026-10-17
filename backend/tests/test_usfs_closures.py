@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 import pytest
-from conftest import fake_response
+from conftest import fake_response, fresh_copy
 
 from app.services import nifc, usfs_closures, usfs_coverage
 from app.services.errors import UpstreamRateLimited
@@ -921,3 +921,36 @@ def test_the_permit_exception_answers_as_it_did():
 )
 def test_the_sentence_scan_keeps_its_reading(text, readings):
     assert usfs_closures._entry_sentences(text) == readings
+
+
+def _closure_urls(module):
+    return [
+        module._SERVICE_URL,
+        module.POINT_QUERY_URL,
+        module.LINE_QUERY_URL,
+        module.AREA_QUERY_URL,
+        *(feed.query_url for feed in module.ORDER_FEEDS),
+    ]
+
+
+def test_every_layer_url_is_built_from_the_one_arcgis_base(monkeypatch):
+    # One knob has to move all six: a URL that repeated the host would keep
+    # calling production from inside the simulator (#224).
+    production = "https://services1.arcgis.com/gGHDlz6USftL5Pau/arcgis/rest/services/"
+    assert _closure_urls(usfs_closures) == [
+        f"{production}R06_FireClosureOrders_PublicView/FeatureServer",
+        f"{production}R06_FireClosureOrders_PublicView/FeatureServer/0/query",
+        f"{production}R06_FireClosureOrders_PublicView/FeatureServer/1/query",
+        f"{production}R06_FireClosureOrders_PublicView/FeatureServer/2/query",
+        f"{production}r03_ForestOrder/FeatureServer/1/query",
+        f"{production}R04_Forest_Orders_PUBLIC_VIEW/FeatureServer/0/query",
+    ]
+    monkeypatch.setenv("USFS_ARCGIS_URL", "http://sim:8080/usfs/")
+    assert _closure_urls(fresh_copy("app.services.usfs_closures")) == [
+        "http://sim:8080/usfs/R06_FireClosureOrders_PublicView/FeatureServer",
+        "http://sim:8080/usfs/R06_FireClosureOrders_PublicView/FeatureServer/0/query",
+        "http://sim:8080/usfs/R06_FireClosureOrders_PublicView/FeatureServer/1/query",
+        "http://sim:8080/usfs/R06_FireClosureOrders_PublicView/FeatureServer/2/query",
+        "http://sim:8080/usfs/r03_ForestOrder/FeatureServer/1/query",
+        "http://sim:8080/usfs/R04_Forest_Orders_PUBLIC_VIEW/FeatureServer/0/query",
+    ]

@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { encodeTile, type MvtPoint } from '../testSupport/mvt'
 import {
-  FALLBACK_TILE_TEMPLATE,
   PEAK_MATCH_RADIUS_M,
   PEAK_NAME_RADIUS_M,
   PEAK_TILE_ZOOM,
   TILE_CONCURRENCY,
-  TILEJSON_URL,
   decodePeaks,
   distanceM,
+  fallbackTileTemplate,
   fetchTileWith,
   lookupPeaks,
   nearestPeak,
@@ -16,6 +15,7 @@ import {
   peakByName,
   resetPeakTiles,
   tileAt,
+  tileJsonUrl,
   tileKey,
   tileTemplate,
   tilesWithin,
@@ -23,6 +23,7 @@ import {
   type TileRef,
 } from './peakTiles'
 import { geoKey } from './points'
+import { resetUpstreams, setUpstreams } from './upstreams'
 
 // Mount Rainier's tile at zoom 14, and that tile's centre, computed apart
 // from the module (the slippy-map formula in Python, 2026-10-07).
@@ -227,13 +228,37 @@ describe('the tile host', () => {
     expect(await tileTemplate(fetchJson)).toBe('https://tiles.openfreemap.org/planet/20261005_001001_pt/{z}/{x}/{y}.pbf')
     expect(await tileTemplate(fetchJson)).toBe('https://tiles.openfreemap.org/planet/20261005_001001_pt/{z}/{x}/{y}.pbf')
     expect(fetchJson).toHaveBeenCalledTimes(1)
-    expect(fetchJson).toHaveBeenCalledWith(TILEJSON_URL)
+    expect(fetchJson).toHaveBeenCalledWith('https://tiles.openfreemap.org/planet')
   })
 
   it('falls back to the current build when the TileJSON is unreadable or not one', async () => {
-    expect(await tileTemplate(async () => ({ not: 'tilejson' }))).toBe(FALLBACK_TILE_TEMPLATE)
+    const latest = 'https://tiles.openfreemap.org/planet/latest/{z}/{x}/{y}.pbf'
+    expect(fallbackTileTemplate()).toBe(latest)
+    expect(await tileTemplate(async () => ({ not: 'tilejson' }))).toBe(latest)
     resetPeakTiles()
-    expect(await tileTemplate(async () => Promise.reject(new SyntaxError('not JSON')))).toBe(FALLBACK_TILE_TEMPLATE)
+    expect(await tileTemplate(async () => Promise.reject(new SyntaxError('not JSON')))).toBe(latest)
+  })
+
+  // A link's pasted rows can be looked up before `/api/config` answers, so a
+  // template read from the production host must not outlive the pod naming
+  // another one (#224).
+  it('reads the TileJSON again from the host the pod names', async () => {
+    const fetchJson = vi.fn(async (url: string) => ({ tiles: [`${url}/dated/{z}/{x}/{y}.pbf`] }))
+    expect(await tileTemplate(fetchJson)).toBe('https://tiles.openfreemap.org/planet/dated/{z}/{x}/{y}.pbf')
+    setUpstreams({ map_tiles: 'http://localhost:8080/tiles' })
+    try {
+      expect(tileJsonUrl()).toBe('http://localhost:8080/tiles/planet')
+      expect(fallbackTileTemplate()).toBe('http://localhost:8080/tiles/planet/latest/{z}/{x}/{y}.pbf')
+      expect(await tileTemplate(fetchJson)).toBe('http://localhost:8080/tiles/planet/dated/{z}/{x}/{y}.pbf')
+      expect(await tileTemplate(fetchJson)).toBe('http://localhost:8080/tiles/planet/dated/{z}/{x}/{y}.pbf')
+      expect(fetchJson.mock.calls.map((c) => c[0])).toEqual([
+        'https://tiles.openfreemap.org/planet',
+        'http://localhost:8080/tiles/planet',
+      ])
+      expect(await tileTemplate(async () => ({}))).toBe('http://localhost:8080/tiles/planet/dated/{z}/{x}/{y}.pbf')
+    } finally {
+      resetUpstreams()
+    }
   })
 
   it('fetches a tile at the template, and reads a refusal as a tile that could not be read', async () => {

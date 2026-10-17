@@ -3,6 +3,7 @@ import { PbfReader } from 'pbf'
 import type { CustomDestination } from '../types'
 import { geoKey } from './points'
 import type { Identity } from './elevationLookup'
+import { upstreams } from './upstreams'
 
 /**
  * The elevation lookup's first source (#673): the basemap's own vector tiles.
@@ -41,9 +42,16 @@ export const PEAK_MATCH_RADIUS_M = 150
 // short.
 export const PEAK_NAME_RADIUS_M = 300
 
-export const TILEJSON_URL = 'https://tiles.openfreemap.org/planet'
-// Served as the current build when the TileJSON cannot be read.
-export const FALLBACK_TILE_TEMPLATE = 'https://tiles.openfreemap.org/planet/latest/{z}/{x}/{y}.pbf'
+/** The planet's TileJSON on the map host, which names the current build's dated tile path. */
+export function tileJsonUrl(): string {
+  return `${upstreams().mapTiles}/planet`
+}
+
+/** Served as the current build when the TileJSON cannot be read. */
+export function fallbackTileTemplate(): string {
+  return `${upstreams().mapTiles}/planet/latest/{z}/{x}/{y}.pbf`
+}
+
 // A tile the edge serves answers in well under a second (the 135 above took
 // 0.2 to 0.7 s together), so one not back in this long is a host that is not
 // answering, and its rows go to the pod's lookup.
@@ -311,7 +319,10 @@ export async function lookupPeaks(rows: readonly CustomDestination[], fetchTile:
   return placed
 }
 
-let templatePromise: Promise<string> | null = null
+// Held with the TileJSON address it was read from: a lookup can run before
+// `/api/config` answers (a link's pasted rows), and a template read from the
+// production host then must not outlive the pod naming another one.
+let template: { from: string; promise: Promise<string> } | null = null
 
 /**
  * The tile URL template, read once per session from the TileJSON: a dated,
@@ -320,14 +331,18 @@ let templatePromise: Promise<string> | null = null
  * which the host answers with the current build.
  */
 export function tileTemplate(fetchJson: (url: string) => Promise<unknown> = fetchTileJson): Promise<string> {
-  templatePromise ??= fetchJson(TILEJSON_URL)
+  const from = tileJsonUrl()
+  if (template?.from === from) return template.promise
+  const fallback = fallbackTileTemplate()
+  const promise = fetchJson(from)
     .then((body) => {
       const tiles = (body as { tiles?: unknown } | null)?.tiles
       const first = Array.isArray(tiles) ? tiles[0] : null
-      return typeof first === 'string' && first.includes('{z}') ? first : FALLBACK_TILE_TEMPLATE
+      return typeof first === 'string' && first.includes('{z}') ? first : fallback
     })
-    .catch(() => FALLBACK_TILE_TEMPLATE)
-  return templatePromise
+    .catch(() => fallback)
+  template = { from, promise }
+  return promise
 }
 
 async function fetchTileJson(url: string): Promise<unknown> {
@@ -363,5 +378,5 @@ export function fetchTileWith(template: string, signal?: AbortSignal): FetchTile
 
 /** Forget the memoized template (tests). */
 export function resetPeakTiles(): void {
-  templatePromise = null
+  template = null
 }

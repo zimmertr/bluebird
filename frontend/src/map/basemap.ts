@@ -19,10 +19,6 @@ import { CLIMBING_CLASS, LAKE_CLASS, PLACE_CLASSES, PLACE_LAYERS } from '../util
 import { polygonsOf } from '../utils/drawGeometry'
 import { widestPole } from '../utils/polylabel'
 
-// OpenFreeMap's Liberty style. `coldLoad.test.ts` reads this line to check the
-// entry document warms the same host.
-export const STYLE = 'https://tiles.openfreemap.org/styles/liberty'
-
 /**
  * The zoom the clickable basemap destinations start at.
  *

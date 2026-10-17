@@ -189,6 +189,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     restoredView: null,
     onBasemapFailed: ON_BASEMAP_FAILED,
     maxPolygonPoints: MAX_POLYGON_POINTS,
+    upstreamsSettled: true,
     onOpenControls: NOOP,
     controlsSummary: 'Current · NOAA GFS',
     onNoticeBand: NOOP,
@@ -239,6 +240,19 @@ describe('MapStage', () => {
     expect(got.cameraPadBottomPx).toBe(40)
     expect(got.modelId).toBe('gfs_seamless')
     expect(got.onBasemapFailed).toBe(ON_BASEMAP_FAILED)
+  })
+
+  // The map reads its style URL once, at mount, so it waits for `/api/config`
+  // to name the host (#224). The rest of the column draws at once.
+  it('builds the map only once the upstream hosts have settled', () => {
+    seen.mapView.length = 0
+    const { rerender } = render(<MapStage {...props({ upstreamsSettled: false })} />)
+    expect(screen.queryByTestId('map')).toBeNull()
+    expect(seen.mapView).toHaveLength(0)
+    expect(screen.getByTestId('buttons')).toBeTruthy()
+    rerender(<MapStage {...props()} />)
+    expect(screen.getByTestId('map')).toBeTruthy()
+    expect(seen.mapView).toHaveLength(1)
   })
 
   // Paint order is DOM order at one layer, and the Layers popover must open

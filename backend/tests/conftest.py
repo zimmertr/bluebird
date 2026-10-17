@@ -9,7 +9,9 @@ in their own strict instances explicitly (see test_ratelimit.py).
 
 from __future__ import annotations
 
+import importlib.util
 import logging
+from types import ModuleType
 from typing import Any
 
 import httpx
@@ -80,6 +82,23 @@ def assert_no_key_logged(records: list[logging.LogRecord], key: str = FAKE_API_K
         text = formatter.format(record)
         for form in forms:
             assert form not in text, f"{record.name} {record.levelname} logged the key:\n{text}"
+
+
+def fresh_copy(name: str) -> ModuleType:
+    """A second, private execution of module ``name``, for its import-time knobs.
+
+    The upstream URLs are read once, when the module loads, so honouring an
+    env var can only be shown by loading it again. A copy rather than
+    ``importlib.reload``, because a reload rebinds the one module every other
+    module and test holds: its classes are replaced under code that still has
+    the old ones, and its snapshot caches start over. The copy shares nothing
+    and is dropped when the test ends.
+    """
+    spec = importlib.util.find_spec(name)
+    assert spec is not None and spec.loader is not None, name
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def dest(lat: float, lon: float, **extra: Any) -> dict[str, Any]:

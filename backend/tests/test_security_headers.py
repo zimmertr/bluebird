@@ -4,17 +4,20 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import importlib
+import json
 import logging
 import re
 from pathlib import Path
 
 import pytest
+from conftest import fresh_copy
 from fastapi.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.responses import StreamingResponse
 from starlette.routing import Route
 
-from app import cache_headers, main, security_headers
+from app import browser_upstreams, cache_headers, main, security_headers
 from app.main import app
 from app.routes import version as version_route
 
@@ -406,3 +409,63 @@ def test_every_host_the_frontend_names_is_classified():
 
     stale = (fetched | LINK_ONLY_HOSTS) - set(found)
     assert not stale, f"hosts nothing in frontend/src names any more: {sorted(stale)}"
+
+
+# ── The policy follows the published upstreams (#224) ─────────────────────────
+
+_BROWSER_VARS = (
+    "BROWSER_OPEN_METEO_FORECAST_URL",
+    "BROWSER_OPEN_METEO_ARCHIVE_URL",
+    "BROWSER_OPEN_METEO_AIR_QUALITY_URL",
+    "BROWSER_MAP_TILES_URL",
+    "BROWSER_RADAR_URL",
+    "BROWSER_SNOW_URL",
+)
+
+def test_the_unset_policy_is_the_production_policy():
+    # The edge record is the policy production sends, pinned for the chart's
+    # gateway; an unset deployment must derive exactly that string.
+    record = json.loads((Path(__file__).parent.parent / "edge_not_found.json").read_text())
+    assert security_headers.APP_CSP == record["headers"]["content-security-policy"]
+
+
+def _policy_under(monkeypatch, env):
+    """APP_CSP as a pod started with ``env`` would build it."""
+    for var, value in env.items():
+        monkeypatch.setenv(var, value)
+    try:
+        importlib.reload(browser_upstreams)
+        return _parse(fresh_copy("app.security_headers").APP_CSP)
+    finally:
+        for var in env:
+            monkeypatch.delenv(var, raising=False)
+        importlib.reload(browser_upstreams)
+
+
+def test_one_origin_for_all_six_upstreams_is_one_source(monkeypatch):
+    # The sim serves every browser fetch from one origin under six paths.
+    policy = _policy_under(
+        monkeypatch,
+        {var: f"http://localhost:8080/{var.lower()}" for var in _BROWSER_VARS},
+    )
+    assert policy["connect-src"] == ["'self'", "data:", "http://localhost:8080"]
+    assert policy["img-src"] == ["'self'", "data:", "blob:", "http://localhost:8080"]
+
+
+def test_a_moved_host_replaces_its_origin_and_keeps_the_rest(monkeypatch):
+    policy = _policy_under(monkeypatch, {"BROWSER_RADAR_URL": "http://localhost:8080/radar"})
+    assert "http://localhost:8080" in policy["connect-src"]
+    assert "http://localhost:8080" in policy["img-src"]
+    assert "https://mesonet.agron.iastate.edu" not in policy["connect-src"]
+    assert "https://mesonet.agron.iastate.edu" not in policy["img-src"]
+    assert "https://api.open-meteo.com" in policy["connect-src"]
+    # Open-Meteo serves no images, so its hosts never reach img-src.
+    assert "https://api.open-meteo.com" not in policy["img-src"]
+
+
+def test_an_origin_carries_its_port_and_never_a_path_or_credentials(monkeypatch):
+    policy = _policy_under(
+        monkeypatch, {"BROWSER_MAP_TILES_URL": "https://user:secret@tiles.example:8443/base"}
+    )
+    assert "https://tiles.example:8443" in policy["connect-src"]
+    assert not any("secret" in source or "/base" in source for source in policy["connect-src"])

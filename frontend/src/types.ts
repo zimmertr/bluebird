@@ -271,3 +271,26 @@ export interface DestinationsResponse {
   // Whether the pod's elevation lookup finished (#673); absent reads as true.
   elevation_lookup_complete?: boolean
 }
+
+// The PR preview banner's contents, from GET /api/config.
+export interface PreviewInfo {
+  enabled: boolean
+  pr: string | null
+  commit: string | null
+}
+
+// Where the browser fetches the data it asks for itself, as the pod publishes
+// it on GET /api/config (#224). `utils/upstreams.ts` holds them in camelCase.
+export interface Upstreams {
+  open_meteo_forecast: string
+  open_meteo_archive: string
+  open_meteo_air_quality: string
+  map_tiles: string
+  radar: string
+  snow: string
+}
+
+export interface ConfigResponse {
+  preview: PreviewInfo
+  upstreams: Upstreams
+}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { resetUpstreams, setUpstreams } from './upstreams'
 import {
   RADAR_EXTENTS,
   RADAR_FRAME_COUNT,
@@ -53,6 +54,17 @@ describe('radarTileUrl', () => {
 
   it('leaves the tile placeholders for MapLibre', () => {
     expect(radarTileUrl(20)).toMatch(/\{z\}\/\{x\}\/\{y\}\.png$/)
+  })
+
+  // Built when the layer is switched on, after `/api/config` has answered (#224).
+  it('asks the tile cache the pod names', () => {
+    setUpstreams({ radar: 'http://localhost:8080/radar' })
+    try {
+      expect(radarTileUrl(0)).toBe('http://localhost:8080/radar/nexrad-n0q-900913/{z}/{x}/{y}.png')
+      expect(radarTileHref(10, 3, 1, 2)).toBe('http://localhost:8080/radar/nexrad-n0q-900913-m10m/3/1/2.png')
+    } finally {
+      resetUpstreams()
+    }
   })
 })
 

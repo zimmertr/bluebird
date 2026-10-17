@@ -8,6 +8,7 @@ import httpx
 from fastapi import APIRouter, Depends, Query
 
 from app import ratelimit
+from app.env import env_url
 from app.error_codes import ApiError, ErrorCode
 from app.models import ErrorResponse
 from app.services import cache
@@ -17,7 +18,9 @@ from app.services.http import USER_AGENT
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+# An env knob so a local stack can point search at the supplier simulator
+# (#224); unset, it is the public instance.
+NOMINATIM_URL = env_url("NOMINATIM_URL", "https://nominatim.openstreetmap.org/search")
 # The User-Agent comes from services/http.py, with every other upstream's.
 # Nominatim's usage policy asks callers to identify themselves with a real
 # User-Agent — something a browser fetch can't set. That, plus getting search

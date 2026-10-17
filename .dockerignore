@@ -17,5 +17,8 @@ frontend/tools/
 # The browser suite runs against the built image from outside it.
 frontend/e2e/
 frontend/dist/
+# The supplier sim builds its own image from sim/Dockerfile and never ships in
+# this one; sim/Dockerfile.dockerignore is the context it builds from.
+sim/
 __pycache__/
 *.pyc

@@ -416,7 +416,10 @@ Five points in it are measurements rather than habits.
   files are the pod's fetch and the snow images are the browser's. The one origin covers every
   basemap request, checked against the served style document rather than
   assumed: the style JSON, its TileJSON, the vector tiles, the glyphs and the
-  sprites all resolve to `tiles.openfreemap.org`.
+  sprites all resolve to `tiles.openfreemap.org`. Both `connect-src` and
+  `img-src` are built from the six `BROWSER_*` values in
+  [`CONFIGURATION.md`](CONFIGURATION.md), so a stack that moves a host moves
+  the policy with it, and an unset pod sends the policy above.
 - **`data:` in `connect-src` is the forecast grid.** MapLibre loads an image
   source by *fetching* its URL, and that overlay's raster is a canvas
   `data:` URL, so a strict `connect-src` blanks the layer. `blob:` in the
@@ -552,6 +555,12 @@ release.
 | [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu/ogc/) (rain radar overlay) | **browser**, raster tiles per visible frame | visitor IP | none published; IEM asks that applications with thousands of simultaneous users self-host | off by default, one frame's tiles on toggle and the rest only as the loop reaches them, plus IEM's own `max-age=300` edge cache. The map loads its tiles through the app (`map/heldTileProtocol.ts`), which keeps a copy of each as it arrives, so a click on an echo, the pointer over one, and an open card following the player ask IEM for nothing (#737, #748) |
 | [NOAA NOHRSC](https://www.nohrsc.noaa.gov/nsa/) (`mapservices.weather.noaa.gov`; snow depth overlay) | **browser**, one server-side render per visible tile | visitor IP | none published; a public National Weather Service GIS endpoint with no key | off by default, and the service refuses caching (`max-age=0, must-revalidate`) so every pan re-renders. Bounded by a 512 px tile rather than 256, which is four times fewer renders per screen at the same ~0.46 s each; by the source's `bounds`, so nothing is requested outside the analysis extent; and by a zoom cap at the point the 1 km analysis has no more detail to give, past which MapLibre magnifies what it holds. The tiles load through the app, which keeps a copy of each, so the pointer over painted snow asks for nothing; a click on it is one `identify` request of about 0.8 s, asked once more only after an ArcGIS error inside a 200 (#737), plus, for the glacier check, the zoom-12 basemap tile under the click from `tiles.openfreemap.org`, one to four of them, kept for the next click nearby (#748) |
 | Open-Meteo forecast + air quality (forecast grid overlay) | **browser** (`useForecastGrid.ts`), 1 lattice of ≤ 600 points per analysis while the layer is on, weather, the cloud column and AQI concurrently | visitor IP | same weighted accounting as the rows above, on the same per-visitor quota | off by default, and the toggle is the spend gate: nothing is fetched until it is on with an analysis held. Sequenced behind the ranked report by construction, so it can never delay a ranking; capped at 600 cells by coarsening the lattice; shares the ranked fetch's ~550 weighted/min pacer and its 15-min per-location cache, so a re-toggle or a second analysis over the same ground costs ~0 |
+
+Every host in this table is an environment variable, read once at startup and
+defaulting to the address above. The pod's own calls each have one, and the
+browser's are published on `GET /api/config` for the web app to read. A local
+stack sets them all to the supplier sim, so nothing it does reaches a real
+provider. [`CONFIGURATION.md`](CONFIGURATION.md) lists them.
 
 Everything the browser fetches itself costs our egress IP nothing — that is
 [#170](https://github.com/zimmertr/bluebird/issues/170): the web app calls

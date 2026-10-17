@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { resetUpstreams, setUpstreams } from './upstreams'
 import {
   SNOW_BANDS,
   SNOW_BOUNDS,
@@ -179,5 +180,26 @@ describe('the held-tile scheme', () => {
     expect(bbox[3]).toBeCloseTo(20037508.34, 1)
     const [w, s, e, n] = new URL(snowExportHref(1, 1, 0)).searchParams.get('bbox')!.split(',').map(Number)
     expect([w, s, e, n].map(Math.round)).toEqual([0, 0, 20037508, 20037508])
+  })
+})
+
+describe('the map service the pod names', () => {
+  // The layer and every held tile build their URL when they are asked for,
+  // after `/api/config` has answered (#224).
+  it('draws the layer from the published service', () => {
+    setUpstreams({ snow: 'http://localhost:8080/snow' })
+    try {
+      const at = (href: string) => {
+        const url = new URL(href.replace('{bbox-epsg-3857}', '0,0,1,1'))
+        return `${url.origin}${url.pathname}`
+      }
+      expect(at(snowTileUrl())).toBe('http://localhost:8080/snow/export')
+      expect(at(snowExportHref(9, 82, 178))).toBe('http://localhost:8080/snow/export')
+    } finally {
+      resetUpstreams()
+    }
+    expect(snowTileUrl()).toMatch(
+      /^https:\/\/mapservices\.weather\.noaa\.gov\/raster\/rest\/services\/snow\/NOHRSC_Snow_Analysis\/MapServer\/export\?/,
+    )
   })
 })

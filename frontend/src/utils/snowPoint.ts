@@ -41,8 +41,9 @@
 import type { HeldTiles, Rgba } from './heldTiles'
 import { inBounds, layerFetch, type PointReading, type PointSection } from './pointReadout'
 import { escapeHtml, pendingValue, row, updatedAt, updatedLine } from './popupChrome'
-import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL } from './snowDepth'
+import { SNOW_BANDS, SNOW_BOUNDS, SNOW_MAX_ZOOM } from './snowDepth'
 import { GLACIERS, type GlacierCheck } from './glacierCell'
+import { upstreams } from './upstreams'
 
 const METRES_TO_INCHES = 1 / 0.0254
 const MM_TO_INCHES = 1 / 25.4
@@ -125,7 +126,7 @@ export function snowIdentifyUrl(lng: number, lat: number): string {
     returnGeometry: 'false',
     f: 'json',
   })
-  return `${SNOW_SERVICE_URL}/identify?${params.toString()}`
+  return `${upstreams().snow}/identify?${params.toString()}`
 }
 
 /** What the analysis holds at a point. */

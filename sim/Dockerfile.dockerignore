@@ -1,0 +1,7 @@
+# BuildKit reads this file in place of the root .dockerignore when the build
+# names sim/Dockerfile. The root one leaves sim/ out of the app's context; this
+# one lets in the two things the sim's image is made of and nothing else.
+*
+!backend/requirements.txt
+!sim/app/
+**/__pycache__

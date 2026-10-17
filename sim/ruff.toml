@@ -1,0 +1,5 @@
+# The backend's rules, so the two Python trees in this repo read alike.
+# `known-first-party = ["app"]` comes with them: the sim's package is also
+# called `app`, which keeps its import order the same from the repo root and
+# from inside sim/.
+extend = "../backend/ruff.toml"

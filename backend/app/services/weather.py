@@ -8,6 +8,7 @@ from typing import Any, NamedTuple
 import httpx
 
 from app import ratelimit, telemetry
+from app.env import env_url
 from app.models import DEFAULT_FORECAST_MODEL, MODEL_INFO, ForecastModel, WindowSource
 from app.services import cache, http
 from app.services.aggregation import (
@@ -39,16 +40,22 @@ from app.services.openmeteo_weight import call_weight
 
 log = logging.getLogger(__name__)
 
-FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+# Every upstream address is an env knob so a local stack can point the pod at
+# the supplier simulator (#224); unset, each is the production host.
+FORECAST_URL = env_url("OPEN_METEO_FORECAST_URL", "https://api.open-meteo.com/v1/forecast")
 # Where a keyed request goes (issue #317). Named directly rather than letting
 # the free host redirect: it answers a request carrying `apikey` with a 303 to
 # this URL, and a redirect the provider can retire is not a transport.
-CUSTOMER_FORECAST_URL = "https://customer-api.open-meteo.com/v1/forecast"
+CUSTOMER_FORECAST_URL = env_url(
+    "OPEN_METEO_CUSTOMER_FORECAST_URL", "https://customer-api.open-meteo.com/v1/forecast"
+)
 # Where a window older than the forecast endpoint's retention goes (issue #123).
 # A separate endpoint rather than a parameter, and `models.window_source` is the
 # one thing that decides which of the two a window belongs to.
-ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
-CUSTOMER_ARCHIVE_URL = "https://customer-archive-api.open-meteo.com/v1/archive"
+ARCHIVE_URL = env_url("OPEN_METEO_ARCHIVE_URL", "https://archive-api.open-meteo.com/v1/archive")
+CUSTOMER_ARCHIVE_URL = env_url(
+    "OPEN_METEO_CUSTOMER_ARCHIVE_URL", "https://customer-archive-api.open-meteo.com/v1/archive"
+)
 # Open-Meteo's factor is max(1, vars x models/10) and a request names one
 # model, so 15 variables cost 1.5 weighted calls per location where 9 cost 1.
 # The five level temperatures (#443) are what took it over the floor of 10,

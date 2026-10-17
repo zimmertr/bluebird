@@ -17,7 +17,7 @@ PIP_TOOLS_VERSION := 7.5.3
 # its own Chromium build, and the image carries the build for its own version.
 PLAYWRIGHT_IMAGE := mcr.microsoft.com/playwright:v1.64.0-noble
 
-.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lock-backend lighthouse browser perf
+.PHONY: typecheck lint-frontend test-frontend check-api test-backend check-openapi typecheck-backend lint-backend lock-backend lighthouse browser perf sim sim-down test-sim typecheck-sim
 
 typecheck:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/frontend $(NODE_IMAGE) sh -c "npm ci --ignore-scripts && npx tsc --noEmit"
@@ -43,9 +43,10 @@ typecheck-backend:
 	docker run --rm -v "$(CURDIR)":/repo -w /repo/backend $(PYTHON_IMAGE) sh -c "pip install -r requirements-dev.txt && mypy app"
 
 # From the repo root, which is what CI does; backend/ruff.toml makes the
-# import order the same from either directory.
+# import order the same from either directory. sim/ruff.toml extends it, so
+# one run covers both Python trees.
 lint-backend:
-	docker run --rm -v "$(CURDIR)":/repo -w /repo $(PYTHON_IMAGE) sh -c "pip install ruff==$(RUFF_VERSION) && ruff check backend/"
+	docker run --rm -v "$(CURDIR)":/repo -w /repo $(PYTHON_IMAGE) sh -c "pip install ruff==$(RUFF_VERSION) && ruff check backend/ sim/"
 
 # Not a check: rewrites the two hashed locks from requirements.in and
 # requirements-dev.in. On the image's own base, so every marker resolves for the
@@ -84,3 +85,19 @@ perf:
 	docker run -d --rm --name perf-target --network perf-net bluebird:perf
 	docker run --rm --network perf-net --ipc=host -v "$(CURDIR)":/repo -w /repo/frontend/e2e -e BASE_URL=http://perf-target:8000 $(PLAYWRIGHT_IMAGE) sh -c "npm ci --ignore-scripts && npx playwright test --config perf/playwright.config.ts"
 	docker rm -f perf-target
+
+# The supplier sim (issue #224): the stack with every upstream pointed at a
+# local sim on :8080, so nothing leaves the machine. Not a check; a dev stack.
+sim:
+	docker compose -f docker-compose.yml -f sim/compose.yml up --build -d
+
+sim-down:
+	docker compose -f docker-compose.yml -f sim/compose.yml down
+
+# The sim's tests run against the backend's dev lock, because the drift guards
+# read the sim's answers with the pod's own parsers.
+test-sim:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/sim $(PYTHON_IMAGE) sh -c "pip install -r ../backend/requirements-dev.txt && pytest"
+
+typecheck-sim:
+	docker run --rm -v "$(CURDIR)":/repo -w /repo/sim $(PYTHON_IMAGE) sh -c "pip install -r ../backend/requirements-dev.txt && mypy app"

@@ -49,7 +49,9 @@ inside Docker, so nothing needs installing on the host beyond Docker and
 | `make test-backend` | `pytest` |
 | `make check-openapi` | `python scripts/generate_openapi.py --check`: the committed snapshot still matches the app |
 | `make typecheck-backend` | `mypy app` at the version `requirements-dev.txt` pins, with the settings in `backend/mypy.ini` |
-| `make lint-backend` | `ruff check backend/` at the version CI pins |
+| `make lint-backend` | `ruff check backend/ sim/` at the version CI pins |
+| `make test-sim` | `pytest` over the [supplier simulator](#the-supplier-simulator) |
+| `make typecheck-sim` | `mypy app` from `sim/`, with the settings in `sim/mypy.ini` |
 | `make lighthouse` | the cold-load audit below |
 | `make browser` | the browser suite below |
 
@@ -314,82 +316,104 @@ and npm resolves one version of a peer. A package rather than a version inside a
 script also gives Dependabot something to bump. It installs on demand, so
 `npm ci` in `frontend/` stays as fast as it was.
 
-## Testing the browser path without spending quota
+## The supplier simulator
 
-> A stopgap for [#224](https://github.com/zimmertr/bluebird/issues/224), which
-> tracks mocking the providers properly. This covers only the browser's
-> Open-Meteo calls, which is the half a backend mock cannot reach.
+Open-Meteo is fetched from your own browser against your own address, so a
+session of manual testing spends your quota, and the quota of everyone behind
+the same address. A long morning of it can leave the real app answering
+`Open-Meteo quota reached. Try again later.` for the rest of the hour, which
+looks the same as an outage.
 
-Open-Meteo is fetched **from the visitor's own browser against the visitor's own
-IP**, so a regression-testing session spends the quota of whoever is sitting at
-the machine — and anyone else behind the same address. A morning of manual
-testing can leave the real app answering `Open-Meteo quota reached. Try again
-later.` for the rest of the hour, which is indistinguishable from a real
-outage.
+The simulator under `sim/` stands in for every supplier the pod and the page
+call ([#224](https://github.com/zimmertr/bluebird/issues/224)). It is one
+FastAPI app on port 8080, built from its own `sim/Dockerfile` and never part of
+the app's image. Every number it sends is a pure function of the place, the
+hour and the model, so the same request gets the same bytes every time. The
+basemap is a blank ground with made-up peaks, lakes, crags and towns on it.
+They draw as markers you can click, and the map draws no labels. [Record 0173](decisions/0173-supplier-simulator-outside-the-correctness-path.md)
+has the reasons.
 
-Paste this into the browser console before pressing Analyze and every forecast
-request is answered locally instead. **The numbers it returns are invented** —
-a latitude-driven gradient with a daily wave — so it is for exercising layout,
-state and interaction, never for judging a forecast.
+Bring the stack up against it, and take it down again:
 
-```js
-(() => {
-  const real = window.fetch
-  const series = (lat, lon, start, end) => {
-    const time = [], precipitation = [], temperature_2m = [], wind_speed_10m = [], wind_direction_10m = []
-    const freezing_level_height = []
-    const t0 = Date.parse(start + 'Z'), t1 = Date.parse(end + 'Z')
-    for (let h = 0; t0 + h * 3600000 <= t1; h++) {
-      time.push(new Date(t0 + h * 3600000).toISOString().slice(0, 16))
-      precipitation.push(Math.max(0, Math.sin(h / 9) * 0.04))
-      temperature_2m.push(52 - (lat - 46) * 3 + Math.sin(h / 4) * 9)
-      wind_speed_10m.push(5 + Math.abs(Math.sin(h / 6)) * 10)
-      wind_direction_10m.push((h * 17 + lat * 30) % 360)
-      freezing_level_height.push(9000 - (lat - 46) * 500 + Math.sin(h / 5) * 1200)
-    }
-    return { time, precipitation, temperature_2m, wind_speed_10m, wind_direction_10m, freezing_level_height }
-  }
-  window.fetch = function (...args) {
-    const url = String(args[0]?.url ?? args[0])
-    if (!url.includes('open-meteo')) return real.apply(this, args)
-    const u = new URL(url)
-    const lats = (u.searchParams.get('latitude') || '').split(',').map(Number)
-    const lons = (u.searchParams.get('longitude') || '').split(',').map(Number)
-    const start = u.searchParams.get('start_hour')
-    const end = u.searchParams.get('end_hour')
-    const aqi = url.includes('air-quality')
-    const body = lats.map((lat, i) => {
-      const s = series(lat, lons[i], start, end)
-      return {
-        latitude: lat,
-        longitude: lons[i],
-        utc_offset_seconds: 0,
-        timezone: 'GMT',
-        elevation: 1000,
-        hourly: aqi ? { time: s.time, us_aqi: s.time.map(() => 35) } : s,
-        // The freezing level's unit follows `precipitation_unit`, so a real
-        // response to these requests quotes it in feet. Declared here too, or
-        // a stubbed session would exercise the meters branch alone.
-        hourly_units: aqi ? {} : { freezing_level_height: 'ft' },
-      }
-    })
-    return Promise.resolve(
-      new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }),
-    )
-  }
-  console.log('[bluebird-forecast] Open-Meteo stubbed. Values are synthetic. Reload to undo.')
-})()
+```bash
+make sim
+make sim-down
 ```
 
-Reload the page to remove it. Two things it will not do: the destination search
-still goes to the pod (and through it to Overpass), and the per-location cache
-means a window you have already fetched is served from memory rather than from
-the stub, so change the dates if you need a fresh fetch.
+The app is on `http://localhost:8000` as usual and the simulator on
+`http://localhost:8080`. It logs every request it answers with the method,
+path and status, so its log shows what the stack asked for and that nothing
+went anywhere else:
 
-To force the paths that are otherwise hard to reach, add a branch to the
-`fetch` above: return a `429` whose body reads
-`{"reason": "Minutely API request limit exceeded."}` with a `Retry-After`
-header to see the pacing countdown, or wrap the response in a `setTimeout` to
-hold a loading state still. Gate a 429 on `!url.includes('air-quality')`, or
-the air-quality fetch running alongside will swallow it and degrade silently
-instead.
+```bash
+docker compose -f docker-compose.yml -f sim/compose.yml logs -f sim
+```
+
+For hot reload, start the simulator alone, load its variables into the shell,
+and run the backend the way the top of this page does:
+
+```bash
+docker compose -f docker-compose.yml -f sim/compose.yml up --build -d sim
+set -a; source sim/pod.env; set +a
+cd backend
+LOG_LEVEL=TRACE uvicorn app.main:app --reload --port 8000
+```
+
+Then `npm run dev` in `frontend/` from a second shell. `sim/pod.env` points all
+seventeen upstream variables at `localhost:8080`, and
+[CONFIGURATION.md](CONFIGURATION.md) lists them. The dev server needs none of
+them: the page reads where to fetch from off the pod's `/api/config`.
+
+### Making it fail
+
+Nothing fails until you ask. `PUT /control` replaces the whole control
+document, `GET` shows it, and `DELETE` puts the default back. A fault takes a
+`status`, a `reason`, a `retry_after_s`, a `delay_s` and a `times` count, and it
+clears itself once the count is spent. Leave `times` out and it holds until the
+next `PUT` or `DELETE`. The endpoint names are `forecast`, `archive`,
+`air_quality`, `overpass`, `nominatim`, `nifc`, `usfs`, `hms`, `tiles`, `radar`
+and `snow`.
+
+One minutely 429 with a 30-second `Retry-After`, which the pacer waits out and
+resumes from:
+
+```bash
+curl -X PUT localhost:8080/control -H 'Content-Type: application/json' \
+  -d '{"faults": {"forecast": {"status": 429, "times": 1, "retry_after_s": 30}}}'
+```
+
+A discovery over the analysis cap. `overpass.candidates` makes every Overpass
+answer that many elements, so pick a number above `limits.max_destinations` on
+`GET /api/capabilities`:
+
+```bash
+curl -X PUT localhost:8080/control -H 'Content-Type: application/json' \
+  -d '{"overpass": {"candidates": 5000}}'
+```
+
+Two slow forecast batches, which hold the loading state for eight seconds
+each and then succeed:
+
+```bash
+curl -X PUT localhost:8080/control -H 'Content-Type: application/json' \
+  -d '{"faults": {"forecast": {"delay_s": 8, "times": 2}}}'
+```
+
+An air-quality outage, which the analysis survives with empty AQI columns:
+
+```bash
+curl -X PUT localhost:8080/control -H 'Content-Type: application/json' \
+  -d '{"faults": {"air_quality": {"status": 500}}}'
+```
+
+`curl -X DELETE localhost:8080/control` clears whatever is left.
+
+Two traps cost time here. The browser keeps every forecast it fetched for 15
+minutes, in memory and across a reload, so a window you have already analyzed
+never reaches the simulator. Change the window, or clear the site's data,
+before you look for a fault. And aim a 429 at `forecast`. The air-quality fetch
+runs beside the weather and stops at its own first 429 by design, so a 429 aimed
+there turns into empty AQI and the pacer never runs.
+
+The simulator checks no number: pytest and
+`backend/tests/data/weather_vectors.json` say whether the aggregation is right.

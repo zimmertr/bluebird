@@ -516,6 +516,51 @@
         "title": "ApiErrorInfo",
         "type": "object"
       },
+      "BrowserUpstreams": {
+        "description": "Where the web app fetches the data it asks for itself.\n\nProduction publishes the public hosts. A local stack that runs the\nsupplier simulator publishes the simulator's addresses instead, and the\npage's Content-Security-Policy allows the same origins.",
+        "properties": {
+          "map_tiles": {
+            "description": "Base of the basemap host. The style, its tiles, glyphs and sprites are paths under it.",
+            "title": "Map Tiles",
+            "type": "string"
+          },
+          "open_meteo_air_quality": {
+            "description": "Open-Meteo air-quality endpoint the browser fetches US AQI from.",
+            "title": "Open Meteo Air Quality",
+            "type": "string"
+          },
+          "open_meteo_archive": {
+            "description": "Open-Meteo archive endpoint for a window older than the forecast endpoint holds.",
+            "title": "Open Meteo Archive",
+            "type": "string"
+          },
+          "open_meteo_forecast": {
+            "description": "Open-Meteo forecast endpoint the browser fetches the ranked field's weather from.",
+            "title": "Open Meteo Forecast",
+            "type": "string"
+          },
+          "radar": {
+            "description": "Base of the tile service behind the radar overlay.",
+            "title": "Radar",
+            "type": "string"
+          },
+          "snow": {
+            "description": "NOAA map service behind the snow depth overlay.",
+            "title": "Snow",
+            "type": "string"
+          }
+        },
+        "required": [
+          "open_meteo_forecast",
+          "open_meteo_archive",
+          "open_meteo_air_quality",
+          "map_tiles",
+          "radar",
+          "snow"
+        ],
+        "title": "BrowserUpstreams",
+        "type": "object"
+      },
       "CapabilitiesResponse": {
         "description": "What this deployment can do, and the bounds it enforces.",
         "properties": {
@@ -618,10 +663,14 @@
         "properties": {
           "preview": {
             "$ref": "#/components/schemas/PreviewConfig"
+          },
+          "upstreams": {
+            "$ref": "#/components/schemas/BrowserUpstreams"
           }
         },
         "required": [
-          "preview"
+          "preview",
+          "upstreams"
         ],
         "title": "ConfigResponse",
         "type": "object"

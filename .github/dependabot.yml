@@ -90,3 +90,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+
+  # The supplier sim's base (#224), the same python tag@digest as the root
+  # Dockerfile's runtime stage. A sim test holds the two FROM lines equal, so
+  # the two PRs this entry and the one above open for one rebuild merge
+  # together or not at all.
+  - package-ecosystem: docker
+    directory: /sim
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

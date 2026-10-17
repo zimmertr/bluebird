@@ -1,0 +1,40 @@
+# A compose overlay that runs the stack against the supplier sim (issue #224):
+#
+#   docker compose -f docker-compose.yml -f sim/compose.yml up --build -d
+#
+# which is `make sim`. Paths resolve against the first file's directory, the
+# repo root. The pod reaches the sim by its service name; the browser reaches it
+# through the published port, which is why the BROWSER_* half says localhost.
+services:
+  sim:
+    build:
+      context: .
+      dockerfile: sim/Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  bluebird:
+    environment:
+      - OPEN_METEO_FORECAST_URL=http://sim:8080/open-meteo/v1/forecast
+      - OPEN_METEO_ARCHIVE_URL=http://sim:8080/open-meteo/v1/archive
+      - OPEN_METEO_AIR_QUALITY_URL=http://sim:8080/open-meteo/v1/air-quality
+      - OPEN_METEO_CUSTOMER_FORECAST_URL=http://sim:8080/open-meteo-customer/v1/forecast
+      - OPEN_METEO_CUSTOMER_ARCHIVE_URL=http://sim:8080/open-meteo-customer/v1/archive
+      - OPEN_METEO_CUSTOMER_AIR_QUALITY_URL=http://sim:8080/open-meteo-customer/v1/air-quality
+      - OVERPASS_URLS=http://sim:8080/overpass/api/interpreter
+      - NOMINATIM_URL=http://sim:8080/nominatim/search
+      - NIFC_URL=http://sim:8080/nifc/query
+      - USFS_ARCGIS_URL=http://sim:8080/usfs/
+      - HMS_URL=http://sim:8080/hms
+      - BROWSER_OPEN_METEO_FORECAST_URL=http://localhost:8080/open-meteo/v1/forecast
+      - BROWSER_OPEN_METEO_ARCHIVE_URL=http://localhost:8080/open-meteo/v1/archive
+      - BROWSER_OPEN_METEO_AIR_QUALITY_URL=http://localhost:8080/open-meteo/v1/air-quality
+      - BROWSER_MAP_TILES_URL=http://localhost:8080/tiles
+      - BROWSER_RADAR_URL=http://localhost:8080/radar
+      - BROWSER_SNOW_URL=http://localhost:8080/snow
+    depends_on:
+      sim:
+        # The pod fetches its snapshots at start, so it waits for the sim's
+        # HEALTHCHECK rather than for its container to exist.
+        condition: service_healthy

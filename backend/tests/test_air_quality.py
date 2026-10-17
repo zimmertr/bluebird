@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 import pytest
-from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response
+from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response, fresh_copy
 
 from app.services import air_quality
 from app.services.aggregation import _aqi_metrics, _aqi_series, _parse_ts
@@ -448,3 +448,18 @@ async def test_an_archive_era_window_is_still_fetched(monkeypatch):
     assert len(calls) == 1
     assert calls[0]["start_hour"] == stamp
     assert results[0]["aqi_max"] == 42
+
+
+def test_both_endpoints_are_production_unset_and_follow_the_env(monkeypatch):
+    assert air_quality.AIR_QUALITY_URL == "https://air-quality-api.open-meteo.com/v1/air-quality"
+    assert (
+        air_quality.CUSTOMER_AIR_QUALITY_URL
+        == "https://customer-air-quality-api.open-meteo.com/v1/air-quality"
+    )
+    monkeypatch.setenv("OPEN_METEO_AIR_QUALITY_URL", "http://sim:8080/open-meteo/v1/air-quality")
+    monkeypatch.setenv(
+        "OPEN_METEO_CUSTOMER_AIR_QUALITY_URL", "http://sim:8080/open-meteo-customer/v1/air-quality"
+    )
+    copy = fresh_copy("app.services.air_quality")
+    assert copy.AIR_QUALITY_URL == "http://sim:8080/open-meteo/v1/air-quality"
+    assert copy.CUSTOMER_AIR_QUALITY_URL == "http://sim:8080/open-meteo-customer/v1/air-quality"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 import httpx
-from conftest import fake_response
+from conftest import fake_response, fresh_copy
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -197,3 +197,9 @@ def test_geocode_past_its_total_deadline_is_502(monkeypatch):
     resp = client.get("/api/geocode", params={"q": "Seattle"})
     assert resp.status_code == 502
     assert resp.json()["detail"] == f"{geocode_mod.PROVIDER} took too long. Try again later."
+
+
+def test_the_search_host_is_production_unset_and_follows_the_env(monkeypatch):
+    assert geocode_mod.NOMINATIM_URL == "https://nominatim.openstreetmap.org/search"
+    monkeypatch.setenv("NOMINATIM_URL", "http://sim:8080/nominatim/search")
+    assert fresh_copy("app.routes.geocode").NOMINATIM_URL == "http://sim:8080/nominatim/search"

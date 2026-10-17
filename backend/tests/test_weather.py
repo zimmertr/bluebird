@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 import pytest
-from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response
+from conftest import FAKE_API_KEY, assert_no_key_logged, dest, fake_response, fresh_copy
 
 from app import ratelimit
 from app.models import DEFAULT_FORECAST_MODEL, ForecastModel
@@ -2041,3 +2041,21 @@ def test_a_cloud_answer_needs_no_declared_unit():
     payload = _cloud_location()
     assert "hourly_units" not in payload
     assert aggregation._cloud_metrics(payload, START, END, 2000.0) is not None
+
+
+def test_the_four_endpoints_are_production_unset_and_follow_the_env(monkeypatch):
+    # The supplier simulator (#224) points the pod here; unset is production.
+    assert weather.FORECAST_URL == "https://api.open-meteo.com/v1/forecast"
+    assert weather.CUSTOMER_FORECAST_URL == "https://customer-api.open-meteo.com/v1/forecast"
+    assert weather.ARCHIVE_URL == "https://archive-api.open-meteo.com/v1/archive"
+    assert weather.CUSTOMER_ARCHIVE_URL == "https://customer-archive-api.open-meteo.com/v1/archive"
+    sim = "http://sim:8080/open-meteo"
+    monkeypatch.setenv("OPEN_METEO_FORECAST_URL", f"{sim}/v1/forecast")
+    monkeypatch.setenv("OPEN_METEO_CUSTOMER_FORECAST_URL", f"{sim}-customer/v1/forecast")
+    monkeypatch.setenv("OPEN_METEO_ARCHIVE_URL", f"{sim}/v1/archive")
+    monkeypatch.setenv("OPEN_METEO_CUSTOMER_ARCHIVE_URL", f"{sim}-customer/v1/archive")
+    copy = fresh_copy("app.services.weather")
+    assert copy.FORECAST_URL == f"{sim}/v1/forecast"
+    assert copy.CUSTOMER_FORECAST_URL == f"{sim}-customer/v1/forecast"
+    assert copy.ARCHIVE_URL == f"{sim}/v1/archive"
+    assert copy.CUSTOMER_ARCHIVE_URL == f"{sim}-customer/v1/archive"

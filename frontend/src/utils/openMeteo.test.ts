@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  ARCHIVE_URL,
-  FORECAST_URL,
   REQUEST_DEADLINE_MS,
   callWeight,
   fetchAqi,
@@ -34,7 +32,8 @@ import {
 } from './openMeteoErrors'
 import { archiveBoundaryMs, windowSource } from './forecastWindow'
 import type { HourlyPayload } from './openMeteoAggregate'
-import { cloudAnswer, WEATHER_UNITS } from '../testSupport/fixtures'
+import { cloudAnswer, fakeResponse, WEATHER_UNITS } from '../testSupport/fixtures'
+import { DEFAULT_UPSTREAMS, resetUpstreams, setUpstreams } from './upstreams'
 // `?raw` gives a file's text without executing it, the drift-guard idiom
 // `styles.test.ts` and `metrics.test.ts` use. Both surfaces that say the
 // model-coverage sentence compose it inside a React hook, which a node-env
@@ -242,6 +241,8 @@ function hourlyPayload() {
     },
   }
 }
+
+const { openMeteoArchive: ARCHIVE_URL, openMeteoForecast: FORECAST_URL } = DEFAULT_UPSTREAMS
 
 function jsonResponse(body: unknown): Response {
   return { ok: true, status: 200, json: async () => body } as unknown as Response
@@ -1720,5 +1721,53 @@ describe('columns kept for a lookup still out (#673)', () => {
     // Cached under the elevation it was reduced at.
     await fetchCloud([placed], WINDOW.startMs, WINDOW.endMs, cloudOpts)
     expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ── The hosts the pod names (#224) ─────────────────────────────────────────
+//
+// A stack on the supplier simulator publishes its own addresses on
+// `/api/config`, and every request here is built after they land, so each one
+// must read them when it is made rather than when the module loaded.
+describe('the Open-Meteo hosts the pod publishes', () => {
+  const SIM = 'http://localhost:8080/open-meteo/v1'
+  const coords = [{ latitude: 47.5, longitude: -121.9 }]
+
+  beforeEach(() => {
+    setUpstreams({
+      open_meteo_forecast: `${SIM}/forecast`,
+      open_meteo_archive: `${SIM}/archive`,
+      open_meteo_air_quality: `${SIM}/air-quality`,
+    })
+  })
+  afterEach(() => resetUpstreams())
+
+  const asked = (spy: ReturnType<typeof vi.fn>) =>
+    spy.mock.calls.map((c) => {
+      const url = new URL(String((c as unknown[])[0]))
+      return `${url.origin}${url.pathname}`
+    })
+
+  it('sends a forecast window to the published forecast host', async () => {
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchWeather(coords, WINDOW.startMs, WINDOW.endMs, OPTS)
+    expect(asked(fetchSpy)).toEqual([`${SIM}/forecast`])
+  })
+
+  it('sends an archive window to the published archive host', async () => {
+    const fetchSpy = vi.fn(async () => fakeResponse(hourlyPayload()))
+    vi.stubGlobal('fetch', fetchSpy)
+    const old = { startMs: Date.parse('2026-01-02T00:00:00Z'), endMs: Date.parse('2026-01-02T02:00:00Z') }
+    // Only where the request went is under test, not what the reply holds.
+    await fetchWeather(coords, old.startMs, old.endMs, OPTS).catch(() => undefined)
+    expect(asked(fetchSpy)).toEqual([`${SIM}/archive`])
+  })
+
+  it('sends the air quality to the published air-quality host', async () => {
+    const fetchSpy = vi.fn(async () => fakeResponse({ hourly: {} }))
+    vi.stubGlobal('fetch', fetchSpy)
+    await fetchAqi(coords, WINDOW.startMs, WINDOW.endMs, { nowMs: NOW_MS })
+    expect(asked(fetchSpy)).toEqual([`${SIM}/air-quality`])
   })
 })

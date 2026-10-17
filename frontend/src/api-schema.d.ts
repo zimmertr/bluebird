@@ -560,6 +560,46 @@ export interface components {
             retryable: boolean;
         };
         /**
+         * BrowserUpstreams
+         * @description Where the web app fetches the data it asks for itself.
+         *
+         *     Production publishes the public hosts. A local stack that runs the
+         *     supplier simulator publishes the simulator's addresses instead, and the
+         *     page's Content-Security-Policy allows the same origins.
+         */
+        BrowserUpstreams: {
+            /**
+             * Map Tiles
+             * @description Base of the basemap host. The style, its tiles, glyphs and sprites are paths under it.
+             */
+            map_tiles: string;
+            /**
+             * Open Meteo Air Quality
+             * @description Open-Meteo air-quality endpoint the browser fetches US AQI from.
+             */
+            open_meteo_air_quality: string;
+            /**
+             * Open Meteo Archive
+             * @description Open-Meteo archive endpoint for a window older than the forecast endpoint holds.
+             */
+            open_meteo_archive: string;
+            /**
+             * Open Meteo Forecast
+             * @description Open-Meteo forecast endpoint the browser fetches the ranked field's weather from.
+             */
+            open_meteo_forecast: string;
+            /**
+             * Radar
+             * @description Base of the tile service behind the radar overlay.
+             */
+            radar: string;
+            /**
+             * Snow
+             * @description NOAA map service behind the snow depth overlay.
+             */
+            snow: string;
+        };
+        /**
          * CapabilitiesResponse
          * @description What this deployment can do, and the bounds it enforces.
          */
@@ -635,6 +675,7 @@ export interface components {
          */
         ConfigResponse: {
             preview: components["schemas"]["PreviewConfig"];
+            upstreams: components["schemas"]["BrowserUpstreams"];
         };
         /**
          * Coverage

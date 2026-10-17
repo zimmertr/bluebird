@@ -46,13 +46,7 @@ import {
   OpenMeteoUnreachable,
   TIMEOUT_MESSAGE,
 } from './openMeteoErrors'
-
-export const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
-// Where a window older than the forecast endpoint's retention goes (#123).
-// `windowSource` in forecastWindow.ts is the one thing that decides which of the
-// two a window belongs to, mirrored with the backend.
-export const ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive'
-export const AIR_QUALITY_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+import { upstreams } from './upstreams'
 
 // Same batching the backend uses: 50 locations per request, at most 4
 // requests in flight. One browser analyzing is exactly as polite to
@@ -743,7 +737,7 @@ export async function fetchWeather(
         )
       await spend()
       const data = await getJsonWithResume(
-        span.archive ? ARCHIVE_URL : FORECAST_URL,
+        span.archive ? upstreams().openMeteoArchive : upstreams().openMeteoForecast,
         {
           ...coordParams(chunk),
           // The model is named on the forecast endpoint and NEVER on the archive.
@@ -870,7 +864,7 @@ export async function fetchCloud(
         )
       await spend()
       const data = await getJsonWithResume(
-        span.archive ? ARCHIVE_URL : FORECAST_URL,
+        span.archive ? upstreams().openMeteoArchive : upstreams().openMeteoForecast,
         {
           ...coordParams(chunk),
           ...(span.archive ? {} : { models: model }),
@@ -990,7 +984,7 @@ export async function fetchAqi(
     try {
       await aqiBudget.acquire(callWeight(chunk.length, startMs, reqEndMs, 1), signal, onPace)
       const data = await getJson(
-        AIR_QUALITY_URL,
+        upstreams().openMeteoAirQuality,
         {
           ...coordParams(chunk),
           hourly: 'us_aqi',

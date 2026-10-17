@@ -19,7 +19,8 @@ import {
   snowWord,
   snowWordOfPixel,
 } from './snowPoint'
-import { SNOW_BANDS, SNOW_MAX_ZOOM, SNOW_SERVICE_URL, SNOW_TILE_SIZE } from './snowDepth'
+import { SNOW_BANDS, SNOW_MAX_ZOOM, SNOW_TILE_SIZE } from './snowDepth'
+import { DEFAULT_UPSTREAMS, resetUpstreams, setUpstreams } from './upstreams'
 import { heldTiles } from './heldTiles'
 import { storeHolding } from '../testSupport/heldTiles'
 import { fakeResponse, snowIdentify } from '../testSupport/fixtures'
@@ -42,7 +43,7 @@ describe('snowIdentifyUrl', () => {
   // reads a coarser cell, or NoData: the box is a hundredth of a degree.
   it('asks for the depth, the water and the valid time in a box one cell wide', () => {
     const url = new URL(snowIdentifyUrl(-105.6, 40.25))
-    expect(`${url.origin}${url.pathname}`).toBe(`${SNOW_SERVICE_URL}/identify`)
+    expect(`${url.origin}${url.pathname}`).toBe(`${DEFAULT_UPSTREAMS.snow}/identify`)
     expect(url.searchParams.get('layers')).toBe('all:2,3,7')
     expect(url.searchParams.get('geometry')).toBe('-105.6,40.25')
     const [w, s, e, n] = url.searchParams.get('mapExtent')!.split(',').map(Number)
@@ -50,6 +51,17 @@ describe('snowIdentifyUrl', () => {
     expect(n - s).toBeCloseTo(0.01)
     expect(url.searchParams.get('imageDisplay')).toBe('10,10,96')
     expect(url.searchParams.get('f')).toBe('json')
+  })
+
+  // Built at the click, after `/api/config` has answered (#224).
+  it('asks the map service the pod names', () => {
+    setUpstreams({ snow: 'http://localhost:8080/snow' })
+    try {
+      const url = new URL(snowIdentifyUrl(-105.6, 40.25))
+      expect(`${url.origin}${url.pathname}`).toBe('http://localhost:8080/snow/identify')
+    } finally {
+      resetUpstreams()
+    }
   })
 })
 

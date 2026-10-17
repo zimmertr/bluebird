@@ -80,7 +80,7 @@ jobs:
       # Pin ruff: its default rule set changes between releases, so an unpinned
       # install can turn a green lint red with no code change on our side.
       - run: pip install ruff==0.16.0
-      - run: ruff check backend/
+      - run: ruff check backend/ sim/
 
   # Run the backend unit suite: pure logic (aggregation, validation, sorting,
   # error mapping) plus route behavior with the upstream APIs stubbed.
@@ -117,6 +117,14 @@ jobs:
       - name: Check OpenAPI snapshot is current
         run: python scripts/generate_openapi.py --check
         working-directory: backend
+      # The supplier simulator's own suite (#224), on the backend's install:
+      # its tests read each answer with the pod's parsers, so a pod change the
+      # sim no longer satisfies fails here rather than in someone's dev stack.
+      # Nothing in CI points the app at the sim.
+      - run: mypy app
+        working-directory: sim
+      - run: pytest -q
+        working-directory: sim
 
   # Validate the Dockerfile builds end-to-end without pushing the image, then
   # scan the result for vulnerabilities. amd64-only on purpose: this gate

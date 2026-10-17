@@ -42,7 +42,7 @@ from typing import Any
 
 import httpx
 
-from app.env import env_int
+from app.env import env_int, env_url
 from app.services import arcgis, wfigs_coverage
 from app.services.errors import UpstreamError
 from app.services.http import HEADERS
@@ -52,10 +52,12 @@ PROVIDER = "NIFC (wildfire perimeters)"
 
 # WFIGS "Interagency Perimeters — Current", layer 0. The service already scopes
 # this view to incidents not yet declared contained/controlled/out, so recency
-# needs no extra filter of our own.
-QUERY_URL = (
+# needs no extra filter of our own. An env knob so a local stack can point it
+# at the supplier simulator (#224).
+QUERY_URL = env_url(
+    "NIFC_URL",
     "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/"
-    "WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query"
+    "WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query",
 )
 
 # The fields the popup renders. `attr_` values come from the joined IRWIN

@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app import ratelimit, telemetry
+from app.env import env_url
 from app.services import cache, http
 from app.services.aggregation import _aqi_metrics, _aqi_series
 from app.services.openmeteo_fetch import (
@@ -19,11 +20,15 @@ from app.services.weather import hour_param
 
 log = logging.getLogger(__name__)
 
-AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+# Env knobs for the supplier simulator (#224), like the weather service's.
+AIR_QUALITY_URL = env_url(
+    "OPEN_METEO_AIR_QUALITY_URL", "https://air-quality-api.open-meteo.com/v1/air-quality"
+)
 # Where a keyed request goes (issue #317), for the reason the weather service
 # names its own customer host: the free host only redirects a keyed request.
-CUSTOMER_AIR_QUALITY_URL = (
-    "https://customer-air-quality-api.open-meteo.com/v1/air-quality"
+CUSTOMER_AIR_QUALITY_URL = env_url(
+    "OPEN_METEO_CUSTOMER_AIR_QUALITY_URL",
+    "https://customer-air-quality-api.open-meteo.com/v1/air-quality",
 )
 N_VARIABLES = 1  # us_aqi
 PROVIDER = "Open-Meteo (air quality)"

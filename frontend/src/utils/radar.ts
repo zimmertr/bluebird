@@ -42,8 +42,7 @@
  * less than its arithmetic suggests.
  */
 
-/** IEM's tile cache. `{z}/{x}/{y}` are MapLibre's own placeholders. */
-const TILE_BASE = 'https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0'
+import { upstreams } from './upstreams'
 
 /** Where a click on the radar legend goes. */
 export const IEM_HREF = 'https://mesonet.agron.iastate.edu/ogc/'
@@ -116,7 +115,8 @@ export const RADAR_FRAME_COUNT = radarOffsets().length
  */
 export function radarTileUrl(offsetMin: number): string {
   const product = offsetMin === 0 ? 'nexrad-n0q-900913' : `nexrad-n0q-900913-m${pad(offsetMin)}m`
-  return `${TILE_BASE}/${product}/{z}/{x}/{y}.png`
+  // IEM's tile cache, as the pod names it. `{z}/{x}/{y}` are MapLibre's own placeholders.
+  return `${upstreams().radar}/${product}/{z}/{x}/{y}.png`
 }
 
 /**

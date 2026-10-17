@@ -17,6 +17,7 @@ from datetime import UTC, date, datetime
 
 import httpx
 import pytest
+from conftest import fresh_copy
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -376,3 +377,9 @@ def test_capabilities_publishes_the_smoke_bucket():
         limits = client.get("/api/capabilities").json()["limits"]["rate"]
     assert "smoke_per_minute" in limits
     assert "smoke_burst" in limits
+
+
+def test_the_file_server_is_production_unset_and_follows_the_env(monkeypatch):
+    assert hms.BASE_URL == "https://satepsanone.nesdis.noaa.gov/pub/FIRE/web/HMS/Smoke_Polygons/KML"
+    monkeypatch.setenv("HMS_URL", "http://sim:8080/hms")
+    assert fresh_copy("app.services.hms").BASE_URL == "http://sim:8080/hms"
