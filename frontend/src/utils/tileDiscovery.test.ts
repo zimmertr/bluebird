@@ -56,10 +56,35 @@ function fetching(tiles: Record<string, Uint8Array | null | Error>) {
 }
 const key = (x: number, y: number) => tileKey({ z: Z, x, y })
 
+// A ring's corner in tile units from the block's north-west corner, inside
+// the tiles rather than on their edges.
+const at = (dx: number, dy: number): Position => [lonOf(X + dx), latOf(Y + dy)]
+
 describe('the tiles under a ring', () => {
-  it('are every zoom-14 tile under its bounding box', () => {
+  it('are every zoom-14 tile the ring touches, in row order', () => {
     expect(tilesCovering(RING).map(tileKey)).toEqual([key(X, Y), key(X + 1, Y), key(X, Y + 1), key(X + 1, Y + 1)])
     expect(tilesCovering([])).toEqual([])
+  })
+
+  // A triangle over a four-by-four block: the six tiles past its diagonal
+  // are under its bounding box and touched by nothing (#745).
+  it('leave out the tiles of the bounding box the ring never reaches', () => {
+    const triangle = [at(0.2, 0.2), at(3.6, 0.2), at(0.2, 3.6), at(0.2, 0.2)]
+    const expected: string[] = []
+    for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) if (dx + dy <= 3) expected.push(key(X + dx, Y + dy))
+    expect(tilesCovering(triangle).map(tileKey)).toEqual(expected)
+  })
+
+  // A U over a three-by-three block: the tile in its mouth is inside the
+  // bounding box, crossed by no edge and outside the ring, and the tile under
+  // it is crossed by the mouth's floor.
+  it('leave out a tile inside a concave ring\'s mouth and keep the one its floor crosses', () => {
+    const u = [at(0.1, 0.1), at(2.9, 0.1), at(2.9, 2.9), at(2.1, 2.9), at(2.1, 1.1), at(0.9, 1.1), at(0.9, 2.9), at(0.1, 2.9), at(0.1, 0.1)]
+    const keys = tilesCovering(u).map(tileKey)
+    expect(keys).toHaveLength(8)
+    expect(keys).not.toContain(key(X + 1, Y + 2))
+    expect(keys).toContain(key(X + 1, Y + 1))
+    expect(keys).toContain(key(X + 1, Y))
   })
 
   it("are the tiles' to discover for a kind they carry, inside the budget", () => {
@@ -71,6 +96,16 @@ describe('the tiles under a ring', () => {
     const state: Position[] = [[-124.8, 45.5], [-116.9, 45.5], [-116.9, 49], [-124.8, 49], [-124.8, 45.5]]
     expect(tilesCovering(state).length).toBeGreaterThan(DISCOVERY_TILE_BUDGET)
     expect(tileDiscoverable(state, ['peak'])).toBe(false)
+  })
+
+  // A strip three tiles wide along the diagonal of a hundred-tile square: the
+  // box holds ten times the budget, the strip a few hundred tiles (#745).
+  it('count a ring by the tiles it touches, so a strip along a range fits where its box would not', () => {
+    const strip = [at(0.5, 0.5), at(3.5, 0.5), at(100.5, 97.5), at(97.5, 100.5), at(0.5, 0.5)]
+    const n = tilesCovering(strip).length
+    expect(n).toBeGreaterThan(300)
+    expect(n).toBeLessThan(DISCOVERY_TILE_BUDGET)
+    expect(tileDiscoverable(strip, ['peak'])).toBe(true)
   })
 
   it('split a request into what the tiles answer and what the map server keeps', () => {
@@ -174,5 +209,12 @@ describe('discovering a ring from its tiles', () => {
 
   it('answers an empty ring from empty tiles', async () => {
     expect(await discoverFromTiles(RING, ['peak', 'lake'], false, fetching({}).fetchTile)).toEqual([])
+  })
+
+  // For the loading card's bar (#745): every tile read, against the count.
+  it('reports each tile read against the ring\'s count', async () => {
+    const seen: [number, number][] = []
+    await discoverFromTiles(RING, ['peak'], false, fetching(ALL).fetchTile, (read, total) => seen.push([read, total]))
+    expect(seen).toEqual([[1, 4], [2, 4], [3, 4], [4, 4]])
   })
 })

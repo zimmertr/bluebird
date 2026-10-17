@@ -97,7 +97,7 @@ export interface MapStageProps {
    */
   layout: Pick<ResultsLayout, 'mapCornerLift' | 'sheetLiftPx' | 'cameraPadBottomPx' | 'sheetPadBottomPx' | 'mapPx'>
   /** The run in flight, which the loading card reports and can cancel. */
-  analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'paceRemainingS' | 'cancel'>
+  analysis: Pick<Analysis, 'loading' | 'statusMessage' | 'progress' | 'searchProgress' | 'paceRemainingS' | 'cancel'>
   /** The metric the markers are coloured on. */
   sortBy: SortBy
   /** Whether the window is one hour, which a popup's colours read as the table's do. */
@@ -314,6 +314,7 @@ export default function MapStage({
         loading={analysis.loading}
         statusMessage={analysis.statusMessage}
         progress={analysis.progress}
+        searchProgress={analysis.searchProgress}
         paceRemainingS={analysis.paceRemainingS}
         onCancel={analysis.cancel}
       />

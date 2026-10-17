@@ -6,7 +6,7 @@ import type { Progress } from '../hooks/useAnalyze'
 
 const NOOP = () => {}
 const QUARTER: Progress = { processed: 1, total: 4, percent: 25 }
-const IDLE = { loading: false, statusMessage: null, progress: null, paceRemainingS: null, onCancel: NOOP }
+const IDLE = { loading: false, statusMessage: null, progress: null, searchProgress: null, paceRemainingS: null, onCancel: NOOP }
 const SEARCHING = { ...IDLE, loading: true, statusMessage: 'Searching' }
 const FETCHING = { ...IDLE, loading: true, progress: QUARTER, paceRemainingS: 45 }
 
@@ -59,6 +59,15 @@ describe('AnalysisOverlay', () => {
     render(<AnalysisOverlay {...FETCHING} />)
     expect(screen.getByRole('status').textContent).toBe('Retrieving 4 forecasts… Open-Meteo quota: resuming in 45s')
     expect(screen.getByText('Open-Meteo quota: resuming in 45s')).toBeTruthy()
+    expect(screen.getByText('25%')).toBeTruthy()
+    expect(screen.queryByText(/^Elapsed/)).toBeNull()
+  })
+
+  // #745: a ring read from the basemap's tiles fills the bar by tiles read,
+  // under the searching heading.
+  it('shows the tiles read as a percentage under the searching heading', () => {
+    render(<AnalysisOverlay {...IDLE} loading statusMessage="Searching for destinations…" searchProgress={QUARTER} />)
+    expect(screen.getByRole('status').textContent).toBe('Searching for destinations…')
     expect(screen.getByText('25%')).toBeTruthy()
     expect(screen.queryByText(/^Elapsed/)).toBeNull()
   })

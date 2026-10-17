@@ -144,6 +144,7 @@ const ANALYSIS: MapStageProps['analysis'] = {
   loading: false,
   statusMessage: null,
   progress: null,
+  searchProgress: null,
   paceRemainingS: null,
   cancel: NOOP,
 }

@@ -12,6 +12,8 @@ interface AnalysisOverlayProps {
   statusMessage: string | null
   /** The weather batches done and in all, once the total is known. */
   progress: Progress | null
+  /** The tiles read and in all while a ring is discovered from the basemap's tiles. */
+  searchProgress: Progress | null
   /** Seconds until the client pacer spends quota again, while it sleeps. */
   paceRemainingS: number | null
   /** Stops the analysis in flight. */
@@ -32,6 +34,7 @@ export default function AnalysisOverlay({
   loading,
   statusMessage,
   progress,
+  searchProgress,
   paceRemainingS,
   onCancel,
 }: AnalysisOverlayProps) {
@@ -45,6 +48,7 @@ export default function AnalysisOverlay({
     statusMessage,
     elapsedS: elapsed,
     rankedProgress: progress ? { processed: progress.processed, total: progress.total } : null,
+    searchProgress: searchProgress ? { processed: searchProgress.processed, total: searchProgress.total } : null,
     // Live countdown while the client pacer sleeps off a quota deficit;
     // `usePacedFetch` ticks it.
     paceRemainingS,
@@ -110,8 +114,8 @@ function OverlayCard({
           )}
         </div>
         {overlay.progress ? (
-          // Weather phase — countable batch progress (the union count is
-          // already in the "(x/y)" headline, so the bar just visualizes it).
+          // Countable progress: the forecast batches, or the basemap tiles
+          // while a ring is searched (#745).
           <div className="mt-3">
             <div className={`h-2 w-full ${RADIUS.pill} bg-raised overflow-hidden`}>
               <div
@@ -124,7 +128,8 @@ function OverlayCard({
             </p>
           </div>
         ) : (
-          // Search / analyzing phase — no countable progress; show activity.
+          // No countable progress (a search the map server answers, or the
+          // gap before the first batch); show activity.
           <div className="mt-3">
             <div className={`h-2 w-full ${RADIUS.pill} bg-raised overflow-hidden`}>
               <div className={`h-full w-1/3 ${RADIUS.pill} ${ACCENT.mark} animate-indeterminate`} />

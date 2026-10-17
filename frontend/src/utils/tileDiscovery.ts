@@ -3,7 +3,7 @@ import { PbfReader } from 'pbf'
 import type { Position } from 'geojson'
 import type { DiscoveredDestination, DiscoveryType } from '../types'
 import { pointInRing } from './fireProximity'
-import { PEAK_TILE_ZOOM, TILE_CONCURRENCY, decodePeaks, tileAt, tileKey, type FetchTile, type TileRef } from './peakTiles'
+import { PEAK_TILE_ZOOM, TILE_CONCURRENCY, decodePeaks, tileKey, type FetchTile, type TileRef } from './peakTiles'
 
 /**
  * A ring's discovery from the basemap's own tiles (#675): the peaks and the
@@ -35,12 +35,19 @@ import { PEAK_TILE_ZOOM, TILE_CONCURRENCY, decodePeaks, tileAt, tileKey, type Fe
  */
 
 // The most zoom-14 tiles a ring may read before it goes to the map server
-// instead. On a cold edge every tile is an origin round trip: 135 took 4.7 s
-// and 144 took 7.2 s at 16 in flight on 2026-10-07, so this many is ten to
-// thirteen seconds cold and about two warm (121 tiles over the Enchantments
-// took 1.6 s to 3.3 s in Chromium), against the map server's ten-second median
-// and its failure rate. About 700 km² at 47° N, a 26 km square.
-export const DISCOVERY_TILE_BUDGET = 256
+// instead. Counted over the tiles the ring touches, not its bounding box, so
+// a ring drawn along a range pays for no empty corners (#745). The ceiling is
+// where a cold edge stops being worth the wait: every tile there is an origin
+// round trip, and at 16 in flight 256 took 5.4 s and 1,024 took 17.9 s on
+// 2026-10-16 (curl, a BC interior block the edge had not held), against the
+// map server's ten-second median and a failure rate of one attempt in three
+// to five in six (0118). Warm, the same 1,024 took 2.4 s. The maintainer took
+// a cold read slower than a good evening's map server for a read that cannot
+// fail the way the map server does (2026-10-16, decision 0170). OpenFreeMap's
+// terms (2026-10-14) allow an area read of up to 3,000 tiles or 50 MB; this
+// many is about 4 MB at the densest. About 2,800 km² at 47° N, a 53 km
+// square. Was 256 (0118).
+export const DISCOVERY_TILE_BUDGET = 1024
 
 // The kinds the tiles answer. Trailheads are in no OpenMapTiles layer, and
 // crags only as `class=climbing` points that include every route (0159).
@@ -51,9 +58,25 @@ export function splitTypes(types: readonly DiscoveryType[]): { tiles: DiscoveryT
   return { tiles: types.filter((t) => TILE_TYPES.has(t)), server: types.filter((t) => !TILE_TYPES.has(t)) }
 }
 
-/** Every zoom-14 tile under a ring's bounding box, in row order. */
+// Tile columns are lines of constant longitude and tile rows are bands of
+// latitude, so the ring's edges are tested in the plane of longitude and
+// latitude, the plane `pointInRing` reads the rows in. A tile is touched when
+// an edge crosses it, or when it lies wholly inside the ring, in which case
+// its centre does and a scan line through the band finds it; a square with
+// no edge through it is on one side of the ring or the other.
+const xOf = (lon: number) => ((lon + 180) / 360) * 2 ** PEAK_TILE_ZOOM
+const latOf = (y: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 2 ** PEAK_TILE_ZOOM))) * 180) / Math.PI
+const yOf = (lat: number) => {
+  const rad = (lat * Math.PI) / 180
+  return ((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2) * 2 ** PEAK_TILE_ZOOM
+}
+
+/** Every zoom-14 tile the ring touches, in row order. */
 export function tilesCovering(ring: readonly Position[]): TileRef[] {
   if (ring.length === 0) return []
+  const n = 2 ** PEAK_TILE_ZOOM
+  const last = n - 1
+  const clamp = (v: number) => Math.min(last, Math.max(0, Math.floor(v)))
   let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity
   for (const [lon, lat] of ring) {
     minLon = Math.min(minLon, lon)
@@ -61,10 +84,46 @@ export function tilesCovering(ring: readonly Position[]): TileRef[] {
     minLat = Math.min(minLat, lat)
     maxLat = Math.max(maxLat, lat)
   }
-  const nw = tileAt(maxLat, minLon)
-  const se = tileAt(minLat, maxLon)
+  const x0 = clamp(xOf(minLon))
+  const x1 = clamp(xOf(maxLon))
+  const edges: [Position, Position][] = []
+  for (let i = 0; i < ring.length; i++) edges.push([ring[i], ring[(i + 1) % ring.length]])
   const out: TileRef[] = []
-  for (let y = nw.y; y <= se.y; y++) for (let x = nw.x; x <= se.x; x++) out.push({ z: PEAK_TILE_ZOOM, x, y })
+  for (let y = clamp(yOf(maxLat)); y <= clamp(yOf(minLat)); y++) {
+    const north = latOf(y)
+    const south = latOf(y + 1)
+    const mid = (north + south) / 2
+    const touched = new Uint8Array(x1 - x0 + 1)
+    const mark = (lonA: number, lonB: number) => {
+      for (let x = Math.max(x0, clamp(xOf(lonA))); x <= Math.min(x1, clamp(xOf(lonB))); x++) touched[x - x0] = 1
+    }
+    const crossings: number[] = []
+    for (const [[lonA, latA], [lonB, latB]] of edges) {
+      // The edge's run inside this band, as a span of longitude.
+      if (latA === latB) {
+        if (latA <= north && latA >= south) mark(Math.min(lonA, lonB), Math.max(lonA, lonB))
+      } else {
+        const tS = (south - latA) / (latB - latA)
+        const tN = (north - latA) / (latB - latA)
+        const t0 = Math.max(0, Math.min(tS, tN))
+        const t1 = Math.min(1, Math.max(tS, tN))
+        if (t0 <= t1) {
+          const a = lonA + t0 * (lonB - lonA)
+          const b = lonA + t1 * (lonB - lonA)
+          mark(Math.min(a, b), Math.max(a, b))
+        }
+      }
+      // Where the edge crosses the band's middle, for the tiles inside.
+      if (latA > mid !== latB > mid) crossings.push(lonA + ((mid - latA) / (latB - latA)) * (lonB - lonA))
+    }
+    crossings.sort((a, b) => a - b)
+    for (let i = 0; i + 1 < crossings.length; i += 2) {
+      const from = Math.max(x0, Math.ceil(xOf(crossings[i]) - 0.5))
+      const to = Math.min(x1, Math.floor(xOf(crossings[i + 1]) - 0.5))
+      for (let x = from; x <= to; x++) touched[x - x0] = 1
+    }
+    for (let x = x0; x <= x1; x++) if (touched[x - x0]) out.push({ z: PEAK_TILE_ZOOM, x, y })
+  }
   return out
 }
 
@@ -156,13 +215,15 @@ export function decodeLakes(bytes: Uint8Array, tile: TileRef): TileLake[] {
  * summit (`Peak N`, row 20 of the mirror table), one row per OSM element
  * however many tiles' buffers carry it, and only the elements inside the
  * ring. Null when a tile could not be read, which sends the whole ring to the
- * map server: a partial answer would be a field with holes in it.
+ * map server: a partial answer would be a field with holes in it. Reports
+ * each tile read against the ring's count, for the loading card's bar (#745).
  */
 export async function discoverFromTiles(
   ring: readonly Position[],
   types: readonly DiscoveryType[],
   includeUnnamedPeaks: boolean,
   fetchTile: FetchTile,
+  onProgress?: (read: number, total: number) => void,
 ): Promise<DiscoveredDestination[] | null> {
   const wanted = new Set(splitTypes(types).tiles)
   const refs = tilesCovering(ring)
@@ -174,6 +235,7 @@ export async function discoverFromTiles(
       const bytes = broken ? null : await fetchTile(t).catch(() => null)
       if (bytes === null || !isTile(bytes)) broken = true
       tiles.set(tileKey(t), bytes)
+      onProgress?.(tiles.size, refs.length)
     }
   }
   await Promise.all(Array.from({ length: Math.min(TILE_CONCURRENCY, queue.length) }, worker))

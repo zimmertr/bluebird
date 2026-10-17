@@ -738,8 +738,8 @@ control rather than by the app. The tiles carry OpenStreetMap data under the
 ODbL, which is why that credit links to OpenStreetMap's copyright page.
 
 The same tiles are also what a drawn area is searched from (every zoom-14
-tile under its bounding box, up to a budget of a few hundred, past which the
-area goes to the map server), and the first source of a pasted coordinate's
+tile the area touches, up to a budget of about a thousand, around 2,800 km²
+at 47° N, past which the area goes to the map server), and the first source of a pasted coordinate's
 elevation ([above](#openstreetmap)): when the coordinates box holds rows, the browser
 reads the zoom-14 tile under each point and any neighbour within the match
 radius, and decodes the peak layer itself. That is one to four small static
@@ -752,6 +752,16 @@ summit. If the TileJSON or a tile cannot be read the rows go to the server's
 lookup instead, and nothing is said about it. What the lookup relies on in
 those tiles, and what happens when OpenFreeMap changes one of those things, is
 [record 0115](decisions/0115-elevation-lookup-depends-on-openfreemap-zoom-14-peaks.md).
+
+OpenFreeMap's terms of 2026-10-14 allow an app to download an area for
+offline use if the download is at most 3,000 tiles or 50 MB, made with at most
+4 parallel requests, and sent with a User-Agent naming the app. The largest
+area the app reads is about a third of the first limit and a tenth of the
+second. It reads at 16 in flight, the ceiling the map beside it uses for its
+own tiles, and a browser cannot name itself in a User-Agent. The maintainer
+reads the search as the map's own use over the drawn area rather than an
+offline copy of it, and the reasoning is in
+[record 0170](decisions/0170-tile-budget-counts-the-tiles-a-ring-touches.md).
 
 A click on a peak, a lake or a settlement reads the same tiles, so it costs
 no request: a peak comes from the `mountain_peak` layer, a lake from
