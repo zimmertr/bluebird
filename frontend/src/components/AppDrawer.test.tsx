@@ -112,7 +112,8 @@ function drawer(
       loading={false}
       error={null}
       refusal={null}
-      onRetry={NOOP}
+      actionWord="Analyze"
+      onDismissEvent={NOOP}
       response={null}
       results={NO_ROWS}
       fireStatus="idle"

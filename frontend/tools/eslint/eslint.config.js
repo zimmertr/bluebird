@@ -61,7 +61,7 @@ export const CLASS_BANS = [
     String.raw`(^|["'\s:])(bg|text|border|ring|divide|accent|caret|outline|decoration|shadow|from|via|to)-` +
       String.raw`((sky|blue|cyan|indigo|violet|purple|fuchsia|pink|rose|red|orange|amber|yellow|lime|green|emerald|teal)-[0-9]{2,3}` +
       String.raw`|(accent|accent-hover|accent-ink|accent-ink-hover|mark|range|range-hover|on-fill|ok|warn|danger|info|` +
-      String.raw`warn-tint|danger-tint|info-tint|warn-line|danger-line|info-line|danger-fill|danger-fill-hover|danger-edge|danger-label)(?![\w-]))`,
+      String.raw`warn-tint|danger-tint|info-tint|warn-line|danger-line|info-line)(?![\w-]))`,
     'A hue carries meaning here, so it is a styles.ts decision. Add or derive a role there.',
   ),
   // Slate, white and black were the surface system, and since #706 they are

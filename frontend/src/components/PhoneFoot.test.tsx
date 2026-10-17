@@ -18,7 +18,7 @@ function foot(over: Partial<Parameters<typeof PhoneFoot>[0]> = {}) {
       onBandPx={() => {}}
       onFabPx={() => {}}
       analyzeEnabled
-      analyzing={false}
+      word="Analyze"
       onAnalyze={() => {}}
       {...over}
     />
@@ -39,7 +39,7 @@ function stubResizeObserver() {
   )
   return () => callbacks.forEach((cb) => cb())
 }
-const button = () => screen.getByRole('button', { name: /^Analyz/ }) as HTMLButtonElement
+const button = () => screen.getByRole('button', { name: /^(Analyz|Try again)/ }) as HTMLButtonElement
 
 describe('PhoneFoot', () => {
   it('is lit while the gate is open, and runs the panel\'s command', () => {
@@ -53,27 +53,35 @@ describe('PhoneFoot', () => {
     expect(onAnalyze).toHaveBeenCalledOnce()
   })
 
-  it('greys while the gate is shut, and says a run is on', () => {
+  it('greys while the gate is shut, and reads the word it is handed', () => {
     const { rerender } = render(foot({ analyzeEnabled: false }))
     expect(button().disabled).toBe(true)
-    rerender(foot({ analyzeEnabled: false, analyzing: true }))
+    rerender(foot({ analyzeEnabled: false, word: 'Analyzing…' }))
     expect(button().disabled).toBe(true)
     expect(screen.getByRole('button', { name: 'Analyzing…' })).toBeTruthy()
+    // After a failed run the one button is the retry (#736), on the same gate.
+    rerender(foot({ word: 'Try again' }))
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy()
+    expect(button().disabled).toBe(false)
   })
 
-  // The width is the wider word's whichever is showing: both stand in one
-  // cell, the other invisible and out of the name.
-  it('reserves the width of both words, and names itself by the one it shows', () => {
+  // The width is the widest word's whichever is showing: every word stands
+  // in one cell, the others invisible and out of the name.
+  it('reserves the width of every word, and names itself by the one it shows', () => {
     const { rerender } = render(foot())
     const words = () => [...button().firstElementChild!.children] as HTMLElement[]
     expect(button().firstElementChild!.className).toBe(MAP_FAB_WORDS.cell)
-    expect(words().map((w) => w.textContent)).toEqual(['Analyze', 'Analyzing…'])
-    expect(words()[1].className).toBe(MAP_FAB_WORDS.hidden)
-    expect(words()[1].getAttribute('aria-hidden')).toBe('true')
+    expect(words().map((w) => w.textContent)).toEqual(['Analyze', 'Analyzing…', 'Try again'])
+    for (const hidden of words().slice(1)) {
+      expect(hidden.className).toBe(MAP_FAB_WORDS.hidden)
+      expect(hidden.getAttribute('aria-hidden')).toBe('true')
+    }
     expect(button().textContent).toContain('Analyzing…')
     expect(screen.getByRole('button', { name: 'Analyze' })).toBeTruthy()
-    rerender(foot({ analyzing: true }))
-    expect(words().map((w) => w.textContent)).toEqual(['Analyzing…', 'Analyze'])
+    rerender(foot({ word: 'Analyzing…' }))
+    expect(words().map((w) => w.textContent)).toEqual(['Analyzing…', 'Analyze', 'Try again'])
+    rerender(foot({ word: 'Try again' }))
+    expect(words().map((w) => w.textContent)).toEqual(['Try again', 'Analyze', 'Analyzing…'])
   })
 
   // Placed where it is told, and the band just above the scale and credit.

@@ -67,7 +67,8 @@ import {
 } from './utils/urlState'
 import { removalScopeFor } from './utils/analyzeRequest'
 import { controlsSummary } from './utils/controlsSummary'
-import { analyzeGateFor, canAnalyze } from './utils/analyzeGate'
+import { pendingDestinations } from './utils/customList'
+import { actionWord, analyzeGateFor, canAnalyze, retryStands } from './utils/analyzeGate'
 import {
   panelCommitCues,
   reportView,
@@ -229,9 +230,10 @@ export default function App() {
   )
   const {
     analyze,
-    retry,
+    dismissEvent,
     reset,
     analyzed,
+    failedView,
     analysisSeq,
     discardSeq,
     fireField,
@@ -425,6 +427,28 @@ export default function App() {
     constraints,
   })
 
+  // What the Analyze button reads (#736), on the panel and on a phone's map
+  // alike: `Try again` while the last run's failure stands and the panel still
+  // describes the request that failed, read against that run's snapshot the
+  // way the cues above read against the report's. Destinations are counted
+  // against the failed run's own list, since the committed report's `pending`
+  // describes a different question.
+  const panelForRetry = {
+    selectionKind: selection.kind,
+    windowMs: panelWindowMs,
+    forecastModel,
+    comparedModels,
+    polygon,
+    destinationTypes,
+    includeUnnamedPeaks,
+    pendingCount: failedView
+      ? pendingDestinations(csvRows, places, failedView.customKeys, activeRemovedKeys, elevations.identity).length
+      : 0,
+    sortBy,
+    constraints,
+  }
+  const word = actionWord(loading, retryStands(error, failedView, panelForRetry))
+
   const { handleAnalyze } = useAnalyzeCommand({
     selection,
     polygon,
@@ -615,7 +639,8 @@ export default function App() {
         loading={loading}
         error={error}
         refusal={refusal}
-        onRetry={retry}
+        actionWord={word}
+        onDismissEvent={dismissEvent}
         onTutorial={tour.start}
         tutorialWaits={tourWaits}
         response={response}
@@ -670,6 +695,7 @@ export default function App() {
           controlsSummary={controlsSummary(selection.kind, caps.forecastModels, forecastModel)}
           onNoticeBand={setNoticeBand}
           analyzeEnabled={mapAnalyzeEnabled}
+          actionWord={word}
           onAnalyze={handleAnalyze}
           layersForcedOpen={tour.layersOpen}
           searchPointed={searchPointed}

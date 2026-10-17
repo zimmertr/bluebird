@@ -75,7 +75,8 @@ function props(over: Partial<Props> = {}): Props {
     autoAnalyze: false,
     capabilitiesSettled: false,
     onAutoAnalyze: noop,
-    onRetry: noop,
+    actionWord: 'Analyze',
+    onDismissEvent: noop,
     maxLimit: 1500,
     maxAreaKm2: 100_000,
     archiveDays: 365,
@@ -85,7 +86,7 @@ function props(over: Partial<Props> = {}): Props {
   }
 }
 
-const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…)$/ })
+const analyze = () => screen.getByRole('button', { name: /^(Analyze|Analyzing…|Try again)$/ })
 
 /** Every notice box, in document order. */
 // The boxes stand inside the footer's one live region, which is mounted for
@@ -170,7 +171,7 @@ describe('the Analyze button', () => {
   })
 
   it('is busy rather than blocked while an analysis runs', () => {
-    render(<ControlPanel {...props({ loading: true })} />)
+    render(<ControlPanel {...props({ loading: true, actionWord: 'Analyzing…' })} />)
     expect(analyze().textContent).toBe('Analyzing…')
     expect((analyze() as HTMLButtonElement).disabled).toBe(true)
     // Busy is the button's own news; there is no reason to act on.
@@ -226,6 +227,7 @@ describe('the notice block', () => {
   // stale report, a blocker, and the air-quality horizon.
   const crowded = props({
     error: { message: 'Open-Meteo request failed. Try again later.', retry: true },
+    actionWord: 'Try again',
     commitReasons: ['model-changed', 'window-changed'],
     modelClamped: true,
     drawPointCount: 1,
@@ -256,18 +258,34 @@ describe('the notice block', () => {
     expect(info).toMatch(/2 more points/)
   })
 
-  it('offers one retry for a failed run', async () => {
-    const onRetry = vi.fn()
-    const { user } = render(<ControlPanel {...crowded} onRetry={onRetry} />)
-    await user.click(within(notices()[0]).getByRole('button', { name: 'Try again' }))
-    expect(onRetry).toHaveBeenCalledOnce()
+  // After a failed run the Analyze button is the one retry (#736): it reads
+  // the word App decided, runs the panel's own command through the panel's
+  // own gate, and the error box under it carries no button of its own.
+  it('makes the Analyze button the one retry for a failed run', async () => {
+    const onAnalyze = vi.fn()
+    const { user } = render(<ControlPanel {...crowded} drawPointCount={3} destinationTypes={['peak']} polygonAreaKm2={10} onAnalyze={onAnalyze} />)
+    expect(screen.getAllByRole('button', { name: 'Try again' })).toHaveLength(1)
+    expect(within(notices()[0]).queryByRole('button', { name: 'Try again' })).toBeNull()
+    expect((analyze() as HTMLButtonElement).disabled).toBe(false)
+    await user.click(analyze())
+    expect(onAnalyze).toHaveBeenCalledOnce()
   })
 
-  // A model with no coverage over the area fails the same way on a second
-  // request, so its error box carries no Try again.
-  it('offers no retry for a failure that would only repeat itself', () => {
-    render(<ControlPanel {...crowded} error={{ message: 'Broken.', retry: false }} />)
-    expect(within(notices()[0]).queryByRole('button', { name: 'Try again' })).toBeNull()
+  // The gate still rules the retry: with the ring gone after the failure the
+  // old box's button still fired, and this one does not.
+  it('holds the retry to the gate', () => {
+    render(<ControlPanel {...crowded} drawPointCount={0} />)
+    expect(analyze().textContent).toBe('Try again')
+    expect((analyze() as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  // Dismissing the error line clears the event above rather than hiding the
+  // line here, which is what lets the button read Analyze again at once.
+  it('hands the dismissal of the error line up', async () => {
+    const onDismissEvent = vi.fn()
+    const { user } = render(<ControlPanel {...crowded} onDismissEvent={onDismissEvent} />)
+    await user.click(within(notices()[0]).getByRole('button', { name: 'Dismiss notice' }))
+    expect(onDismissEvent).toHaveBeenCalledExactlyOnceWith('error')
   })
 
   it('dismisses one message and keeps the rest', async () => {

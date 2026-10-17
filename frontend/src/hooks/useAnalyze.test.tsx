@@ -181,28 +181,68 @@ describe('one analysis', () => {
     expect(onCommit).toHaveBeenCalledWith({ partial: true })
   })
 
-  // The click's bookkeeping runs with the commit, and a retry's commit is the
-  // click's, so it runs then too.
-  it('runs the commit hook on a commit only, including the commit of a retry', async () => {
+  // The click's bookkeeping runs with the commit, not with the click, so a
+  // failed click's does not run and the next click's does.
+  it('runs the commit hook on a commit only', async () => {
     const onCommit = vi.fn()
     const { result } = renderHook(() => useAnalyze())
     ranked.mockRejectedValueOnce(new Error('Broken.'))
     await act(() => result.current.analyze(REQUEST, 'days', { onCommit }))
     expect(onCommit).not.toHaveBeenCalled()
-    await act(async () => result.current.retry())
+    await act(() => result.current.analyze(REQUEST, 'days', { onCommit }))
     await vi.waitFor(() => expect(result.current.analysisSeq).toBe(1))
     expect(onCommit).toHaveBeenCalledOnce()
   })
 
-  it('records the discovery a refresh names, and a retry repeats it', async () => {
+  it('records the discovery a refresh names', async () => {
     const { result } = renderHook(() => useAnalyze())
     const discovery = discoveryKeys({ coordinates: [[[1, 2], [3, 4], [5, 6], [1, 2]]] }, ['peak'], false)
-    ranked.mockRejectedValueOnce(new Error('Broken.'))
     await act(() => result.current.analyze(REQUEST, 'days', { discovery, compareModels: ['icon_seamless'] }))
-    await act(async () => result.current.retry())
-    await vi.waitFor(() => expect(result.current.analysisSeq).toBe(1))
     expect(result.current.analyzed).toMatchObject({ ...discovery, compareModels: ['icon_seamless'] })
+  })
+
+  // #736: the Analyze button reads `Try again` against the snapshot of the run
+  // that failed, not the report's, which a failure puts back untouched (#560).
+  it('keeps the failed run\'s snapshot beside the error, and drops it when a run starts', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    await analyzeAt(result, T0)
+    expect(result.current.failedView).toBeNull()
+    const discovery = discoveryKeys({ coordinates: [[[1, 2], [3, 4], [5, 6], [1, 2]]] }, ['peak'], false)
+    ranked.mockRejectedValueOnce(new Error('Broken.'))
+    await act(() => result.current.analyze({ ...REQUEST, forecast_model: 'ecmwf_ifs025' }, 'days', { discovery }))
+    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
+    expect(result.current.failedView).toMatchObject({ ...discovery, forecastModel: 'ecmwf_ifs025' })
+    // The committed report still describes the first run.
+    expect(result.current.analyzed?.forecastModel).toBe(REQUEST.forecast_model)
+    let release!: () => void
+    ranked.mockImplementationOnce(async () => {
+      await new Promise<void>((r) => (release = r))
+      return { response: DATA, universe: ROWS, aqiFailed: new Set<string>(), columns: new Map(), late: null }
+    })
+    let run!: Promise<boolean>
+    act(() => {
+      run = result.current.analyze(REQUEST)
+    })
+    expect(result.current.failedView).toBeNull()
+    await act(async () => {
+      release()
+      await run
+    })
+    expect(result.current.failedView).toBeNull()
+  })
+
+  // Dismissing the error line clears the event, so the button's word reverts
+  // at once; the next failure sets it afresh.
+  it('clears the error on dismissal, and sets it again on the next failure', async () => {
+    const { result } = renderHook(() => useAnalyze())
+    ranked.mockRejectedValueOnce(new Error('Broken.'))
+    await analyzeAt(result, T0)
+    expect(result.current.error).not.toBeNull()
+    act(() => result.current.dismissEvent('error'))
     expect(result.current.error).toBeNull()
+    ranked.mockRejectedValueOnce(new Error('Broken.'))
+    await analyzeAt(result, T0)
+    expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
   })
 })
 
@@ -379,7 +419,7 @@ describe('what the reader sees', () => {
     await analyzeAt(result, T0)
     expect(result.current.error).toEqual({ message: 'Broken.', retry: true })
     act(() => result.current.reset())
-    expect(result.current).toMatchObject({ error: null, refusal: null, response: null, universe: null, analyzed: null })
+    expect(result.current).toMatchObject({ error: null, refusal: null, response: null, universe: null, analyzed: null, failedView: null })
   })
 
   // #560: a run that does not finish changes nothing. Its rows go with it,
@@ -402,8 +442,8 @@ describe('the returned API', () => {
   it('is the same set of names in the same order', () => {
     const { result } = renderHook(() => useAnalyze())
     expect(Object.keys(result.current)).toEqual([
-      'analyze', 'cancel', 'retry', 'reset', 'placeHeld', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
-      'arriving', 'error', 'refusal', 'response', 'universe', 'pendingHeights', 'statusMessage', 'progress', 'paceRemainingS',
+      'analyze', 'cancel', 'dismissEvent', 'reset', 'placeHeld', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
+      'arriving', 'error', 'failedView', 'refusal', 'response', 'universe', 'pendingHeights', 'statusMessage', 'progress', 'paceRemainingS',
     ])
   })
 })

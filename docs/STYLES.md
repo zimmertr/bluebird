@@ -54,11 +54,10 @@ The app has two themes since #706, dark by default and light behind the switch i
 
 | Role | Purpose |
 |---|---|
-| `BUTTON_PRIMARY` | Full-width main action: Analyze button |
+| `BUTTON_PRIMARY` | Full-width main action: the Analyze button, which reads `Try again` after a failed run (record 0169) |
 | `BUTTON_SECONDARY` | Secondary action beside something else |
 | `BUTTON_ACCENT` | Leading action in a pair: Done button in draw mode |
 | `DRAW_ROW` | The Polygon row: three equal buttons in a grid, `BUTTON_SECONDARY` and `BUTTON_ACCENT` at a 4px inset, because a third of the panel is narrower than `Draw polygon` at their 12px (#687, record 0137) |
-| `BUTTON_DANGER` | Destructive retry inside an error notice |
 | `ACTION_GROUP` / `ACTION_ITEM` | The results bar's Columns, Models, Removed and Download CSV as one group in the mode switch's look: the same bordered well, the same half and height, the same idle fill, a divider between each two, and a 6px inset so a glyph alone is 28px wide and passes target spacing on a fine pointer. They were underlined links, then ghost buttons that wrapped to three rows on a phone |
 | `BAR_LABEL` | Every word on the results bar, the switch's three and the buttons' four: shown only where the bar's content is 584px or wider, the measured line of both groups labelled with Removed showing; under it each control is its glyph, named by its word |
 | `DIALOG_FOOT` | The welcome dialog's actions, in a foot that sticks to the card's bottom edge while the body scrolls. `secondary` is the tutorial button, full width at the primary's height |
@@ -266,7 +265,6 @@ utilities and ride the same block as plain variables: the accent ring's glow
 | `on-fill` | white | `#ffffff` | the label on any fill |
 | `ok`, `warn`, `danger`, `info` | green-400, amber-300, red-400, sky-300 | `#1d6b33`, `#973c00`, `#93000a`, `#0b4a73` | `STATUS`, the `NOTICE` inks |
 | `*-tint` / `*-line` | the hue's 950 at 40% / 800 at 60% | `#fbe7c4`, `#ffdad6`, `#d6e7fb` / the ink at 38% over its tint | the `NOTICE` boxes |
-| `danger-fill`, `-hover`, `-edge`, `-label` | red-900 at 60%, red-800, red-700, red-200 | `#ffb4ab`, `#ff9e94`, `#ba1a1a`, `#690005` | `BUTTON_DANGER` |
 | `lift`, `thumb`, `scrim` | white, white, black | `#181c21`, `#181c21`, black | a hovered row's tint, a range thumb, the dim under a modal |
 
 The light values are the maintainer's palette from #706, the Material light
@@ -668,8 +666,9 @@ call site.
 
 Analyze is Material's extended floating action button: 56px tall, 16px off
 the right edge and off whatever it stands on, a 16px corner, the call to
-action's type on `BUTTON_PRIMARY`'s fill. Both its words stand in one grid
-cell, so it is as wide as the wider. Measured 2026-10-14 in the Playwright
+action's type on `BUTTON_PRIMARY`'s fill. Its three words (`Analyze`,
+`Analyzing…`, `Try again`; record 0169) stand in one grid cell, so it is as
+wide as the widest. Measured 2026-10-14 in the Playwright
 image's Chromium at 360, 390 and 430 wide: the summary chip 169.4px, Layers
 65.0 and Legend 69.4, 315.8 with the gaps, which leaves 20.2, 50.2 and 90.2px
 of the row empty; the button 120.1px, `Analyze` 52.9 and `Analyzing…` 80.1.

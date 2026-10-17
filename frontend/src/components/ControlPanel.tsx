@@ -12,7 +12,15 @@ import { useScrollShadows } from '../hooks/useScrollShadows'
 import { MetricFamily } from '../metrics'
 import { Constraints } from '../utils/clientAnalyze'
 import type { CommitReason } from '../utils/present'
-import { analyzeBlockers, analyzeGateFor, canAnalyze, ringAddsNothing, shouldAutoAnalyze } from '../utils/analyzeGate'
+import {
+  type ActionWord,
+  analyzeBlockers,
+  analyzeGateFor,
+  canAnalyze,
+  ringAddsNothing,
+  shouldAutoAnalyze,
+} from '../utils/analyzeGate'
+import type { EventNoticeKind } from '../utils/notices'
 import { panelMessages } from '../utils/panelMessages'
 import { classifyAqiCoverage } from '../utils/urlState'
 import { ForecastSelection, selectionLocalWindow } from '../utils/calendar'
@@ -100,10 +108,14 @@ interface Props {
   hasPins: boolean
   loading: boolean
   error: RunError | null
-  // An over-limit refusal with its remedy fields. Rendered as an action
-  // panel, never with "Try again": retrying a deterministic refusal verbatim
-  // re-buys the same 10-40s map query for the same answer.
+  // An over-limit refusal. One error line, and the Analyze button keeps its
+  // own word over it: retrying a deterministic refusal verbatim re-buys the
+  // same 10-40s map query for the same answer.
   refusal: Refusal | null
+  // What the Analyze button reads (#736): decided by App from the run's
+  // error and the panel, because the phone's floating button reads the same
+  // word and the two must never disagree.
+  actionWord: ActionWord
   onAnalyze: () => void
   // The link asked for its analysis to run on open (`analyze=1`) and has not
   // run it yet. Held by App, which owns the URL; fired from here, which owns
@@ -113,7 +125,8 @@ interface Props {
   // applied, so the gate below reads the deployment's numbers.
   capabilitiesSettled: boolean
   onAutoAnalyze: () => void
-  onRetry: () => void
+  // Dismissing the run error or the refusal clears the event (#253, #736).
+  onDismissEvent: (kind: EventNoticeKind) => void
   onTutorial: () => void
   tutorialWaits?: boolean
   maxLimit: number
@@ -200,11 +213,12 @@ export default function ControlPanel({
   loading,
   error,
   refusal,
+  actionWord,
   onAnalyze,
   autoAnalyze,
   capabilitiesSettled,
   onAutoAnalyze,
-  onRetry,
+  onDismissEvent,
   onTutorial,
   tutorialWaits,
   maxLimit,
@@ -343,9 +357,9 @@ export default function ControlPanel({
   const footer = (
     <PanelFooter
       analyzeEnabled={analyzeEnabled}
-      loading={loading}
+      word={actionWord}
       onAnalyze={onAnalyze}
-      onRetry={onRetry}
+      onDismissEvent={onDismissEvent}
       onTutorial={onTutorial}
       tutorialWaits={tutorialWaits}
       messages={messages}

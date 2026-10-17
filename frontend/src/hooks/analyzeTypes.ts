@@ -17,19 +17,22 @@ export type Progress = {
 
 // An over-limit refusal, normalized from whichever path produced it (the
 // server's structured 400 or the client-only paths' AnalysisRefusalError).
-// Drives the warn box instead of the error box, with no retry action: a
-// deterministic refusal retried verbatim can only repeat itself, and the
-// message already names the remedies in prose. The server's structured
+// Drives the warn box instead of the error box, and leaves the Analyze
+// button reading `Analyze` rather than `Try again`: a deterministic refusal
+// run again can only repeat itself, and the message already names the
+// remedies in prose. The server's structured
 // remedy fields stay on the API for direct callers; the SPA renders none of
 // them (removed with #253's PR at TJ's request, 2026-08-22).
 export type Refusal = {
   message: string
 }
 
-// A run that failed, in the error box. `retry` says whether Try again can do
-// any good: a transient failure can, but a model with no coverage over the
-// area answers the same request the same way every time, and the remedy its
-// sentence names is a different model rather than a second attempt.
+// A run that failed, in the error box. `retry` says whether running it again
+// can do any good, which is what turns the Analyze button's word to `Try
+// again` (#736, `retryStands`): a transient failure can, but a model with no
+// coverage over the area answers the same request the same way every time,
+// and the remedy its sentence names is a different model rather than a
+// second attempt.
 export type RunError = {
   message: string
   retry: boolean
@@ -130,7 +133,7 @@ export interface AnalyzeOptions {
   /**
    * What the click that started this run changes once it commits: the
    * discovery record and the removal scope (#560). Carried on the options
-   * because a retry replays them, and the retry's commit is the click's.
+   * because the run's commit, not the click, is when they apply.
    * `partial` says the report is missing kinds the map server failed to
    * answer (#735), so the record must not claim they were searched.
    */

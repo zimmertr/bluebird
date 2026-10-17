@@ -46,10 +46,10 @@ vi.mock('./PhoneFoot', () => ({
     onBandPx: (px: number) => void
     onFabPx: (px: number) => void
     analyzeEnabled: boolean
-    analyzing: boolean
+    word: string
     onAnalyze: () => void
   }) => (
-    <div data-testid="foot" data-lift={String(props.liftPx)} data-fab={String(props.fabBottomPx)} data-analyzing={String(props.analyzing)}>
+    <div data-testid="foot" data-lift={String(props.liftPx)} data-fab={String(props.fabBottomPx)} data-word={props.word}>
       <button onClick={() => props.onBandPx(40)}>Band</button>
       <button onClick={() => props.onFabPx(120)}>Fab</button>
       <button onClick={props.onAnalyze} disabled={!props.analyzeEnabled}>
@@ -193,6 +193,7 @@ function props(over: Partial<MapStageProps> = {}): MapStageProps {
     controlsSummary: 'Current · NOAA GFS',
     onNoticeBand: NOOP,
     analyzeEnabled: true,
+    actionWord: 'Analyze',
     onAnalyze: NOOP,
     searchPointed: false,
     poisPointed: false,
@@ -383,8 +384,9 @@ describe('MapStage', () => {
     rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, onAnalyze })} />)
     fireEvent.click(screen.getByRole('button', { name: 'Analyze' }))
     expect(onAnalyze).toHaveBeenCalledOnce()
-    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, analysis: { ...ANALYSIS, loading: true } })} />)
-    expect(screen.getByTestId('foot').dataset.analyzing).toBe('true')
+    // The word is App's (#736), the same one the panel's button reads.
+    rerender(<MapStage {...props({ isDesktop: false, sidebarOpen: false, actionWord: 'Try again' })} />)
+    expect(screen.getByTestId('foot').dataset.word).toBe('Try again')
   })
 
   // Two things move the button (record 0135): the sheet it rides, and the

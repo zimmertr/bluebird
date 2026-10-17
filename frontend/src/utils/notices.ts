@@ -13,15 +13,20 @@
  *   not their text — the polygon blocker counts down as you draw, and keyed
  *   by text it would resurface on every click.
  *
+ * The two classes are dismissed differently too (#736). An event notice is
+ * one run's outcome, held as state, so dismissing it clears that state
+ * (`useAnalysisRun.dismissEvent`): the line goes, the Analyze button stops
+ * reading `Try again`, and the next run sets the event afresh if it fails
+ * the same way. A derived line has no state to clear, so its dismissal is a
+ * ledger entry keyed on its condition.
+ *
  * The safety property is that a dismissal can never swallow a fresh notice,
  * and the annoyance property is that nothing resurfaces because the user
- * merely touched the UI. Both come from one rule: a dismissal lives exactly
- * as long as its key is continuously active, and is pruned the moment the
- * key goes inactive. Panning, sorting and knob twiddling change no key, so
- * they resurface nothing; a condition that clears and later re-triggers
- * shows again; `useAnalysisRun.clearEvents` nulls both event states before
- * every fetch, so
- * an identical error from the next Analyze shows again.
+ * merely touched the UI. Both come from one rule: a ledger entry lives
+ * exactly as long as its key is continuously active, and is pruned the
+ * moment the key goes inactive. Panning, sorting and knob twiddling change
+ * no key, so they resurface nothing; a condition that clears and later
+ * re-triggers shows again.
  */
 
 import type { AnalyzeBlocker } from './analyzeGate'
@@ -48,12 +53,6 @@ export interface FooterMessage {
   key: string
   text: string
   severity: NoticeSeverity
-  /**
-   * A failed run that "Try again" can re-run. The error box shows its retry
-   * button only when one of these is present: a state problem alone (an
-   * oversized polygon) cannot be retried into working.
-   */
-  retry?: boolean
 }
 
 /**
@@ -101,6 +100,17 @@ export function noticeBoxes(
 /** The identity of one event notice: what was said, and which box said it. */
 export function noticeKey(kind: EventNoticeKind, message: string): string {
   return `${kind}:${message}`
+}
+
+/**
+ * Which event a key names, or null for a derived line's key. The footer reads
+ * it to decide how a dismissal lands: an event's clears its state, a derived
+ * line's joins the ledger.
+ */
+export function eventKindOf(key: string): EventNoticeKind | null {
+  if (key.startsWith('error:')) return 'error'
+  if (key.startsWith('refusal:')) return 'refusal'
+  return null
 }
 
 /**
