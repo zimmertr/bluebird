@@ -1102,7 +1102,9 @@ where the mouse rests. A frame that painted nothing at the point reads
 `No radar echo`, with `Rate: 0 in/h`, because the radar saw nothing falling
 there, and `Reflectivity: N/A`; the card stays open, since the storm may be
 back on the next frame. Every radar card has the same three lines, so it keeps
-its height through playback.
+its height through playback, and it is always as wide as its longest name,
+`Very heavy precipitation`, so it keeps its width too (#752). A frame whose
+tiles arrive after the playhead lands on it is read again as they arrive.
 
 ## Snow depth
 

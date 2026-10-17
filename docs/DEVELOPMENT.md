@@ -219,7 +219,9 @@ to measure like the Mac's and checks that it neither wraps a label nor scrolls
 sideways at a desktop's width and a phone's (`popupFit.spec.ts`), walks the keyboard through the skip link, Analyze, the closed drawer, a row's remove
 button and the Columns popover (`keyboardFocus.spec.ts`, the half of #576 that
 rests on `inert` and on a hidden element refusing focus, neither of which jsdom
-implements), and runs axe on the panel, the results,
+implements), serves fixed radar frames and holds an open radar card to one
+width and the right name while the player steps back (`radarCard.spec.ts`),
+and runs axe on the panel, the results,
 and the Layers popover, once in each theme. Every third-party host is answered from fixtures in
 `frontend/e2e/fixtures.ts`, so a run spends no Open-Meteo quota.
 `make browser` runs it locally: it builds the image, serves it on a docker

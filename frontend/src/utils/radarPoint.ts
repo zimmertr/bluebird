@@ -279,10 +279,11 @@ export async function readRadarAt(
 
 /**
  * The radar's section at a point for a card already open, read again when the
- * frame on screen changes (#748). A frame that painted nothing there, or
- * whose tiles the map has not loaded, answers the no-echo section rather than
- * closing the card: in both the map shows no echo at the point, so that is
- * what the card says.
+ * frame on screen changes (#748), and again as each of that frame's tiles
+ * arrives (#752). A frame that painted nothing there, or whose tiles have not
+ * arrived, answers the no-echo section rather than closing the card: the map
+ * shows no echo at the point either, so that is what the card says until a
+ * tile says otherwise.
  */
 export async function rereadRadarAt(
   tiles: HeldTiles,
