@@ -25,6 +25,12 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [progress, setProgress] = useState<Progress | null>(null)
+  // The basemap tiles read and in all while a polygon run discovers its field
+  // (#745). A second field rather than `progress`: `composeOverlay` keys the
+  // retrieval heading off the forecast progress, and `announce` sets that
+  // while the status line still reads the searching label, so a tile count on
+  // the same field would relabel the search as retrieval.
+  const [searchProgress, setSearchProgress] = useState<Progress | null>(null)
   // The overlay's live countdown while the client pacer sleeps off a quota
   // deficit. Shared with the forecast grid and the model comparison, which
   // sleep against the same budget (#394).
@@ -56,14 +62,20 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
 
   // Announce the retrieval phase with the final count the moment discovery
   // settles, like the streaming endpoint's up-front progress event.
+  // Discovery has settled, so the tile bar gives way to the forecast one.
   function announce(total: number) {
+    setSearchProgress(null)
     setProgress({ processed: 0, total, percent: 0 })
   }
 
   function onProgress(processed: number, total: number, message: string) {
     clearPace()
     setStatusMessage(message)
-    setProgress({ processed, total, percent: total ? Math.round((processed / total) * 100) : 100 })
+    setProgress({ processed, total, percent: percentOf(processed, total) })
+  }
+
+  function onSearchProgress(read: number, total: number) {
+    setSearchProgress({ processed: read, total, percent: percentOf(read, total) })
   }
 
   // The tail label replaces the status; the progress stays full under it.
@@ -81,6 +93,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     setLoading(true)
     clearEvents()
     setProgress(null)
+    setSearchProgress(null)
     clearPace()
     setStatusMessage(seed)
     let finished = false
@@ -99,6 +112,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
       hooks.onSettled()
       setStatusMessage(null)
       setProgress(null)
+      setSearchProgress(null)
       clearPace()
     }
     return finished
@@ -111,6 +125,7 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     dismissEvent,
     announce,
     onProgress,
+    onSearchProgress,
     onTail,
     onPace,
     loading,
@@ -118,6 +133,11 @@ export function useAnalysisRun(models: readonly ForecastModelOption[]) {
     refusal,
     statusMessage,
     progress,
+    searchProgress,
     paceRemainingS,
   }
+}
+
+function percentOf(done: number, total: number): number {
+  return total ? Math.round((done / total) * 100) : 100
 }

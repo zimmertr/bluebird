@@ -152,6 +152,7 @@ export function useAnalyze(
           },
           onPartial: (data, fieldSoFar) => report.commitArriving(data, fieldSoFar, view()),
           onProgress: run.onProgress,
+          onSearchProgress: run.onSearchProgress,
           onTail: run.onTail,
           onPace: run.onPace,
         })
@@ -227,6 +228,8 @@ export function useAnalyze(
     pendingHeights: report.pendingHeights,
     statusMessage: run.statusMessage,
     progress: run.progress,
+    // The basemap tiles read while a polygon run discovers its field (#745).
+    searchProgress: run.searchProgress,
     paceRemainingS: run.paceRemainingS,
   }
 }
