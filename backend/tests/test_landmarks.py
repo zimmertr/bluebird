@@ -8,6 +8,7 @@ next is still loading, and a held set is served however old it is.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import zlib
@@ -315,6 +316,82 @@ def _failures() -> float:
         "bluebird_forecast_snapshot_refresh_failures_total", {"provider": landmarks.PROVIDER}
     )
     return value or 0.0
+
+
+# ── A polygon search from the held set (#745) ────────────────────────────────
+
+# A ring around Index, closed, that holds the crag and the boulder but not
+# the Mailbox Peak trailhead 37 km south.
+INDEX = [[-121.7, 47.7], [-121.4, 47.7], [-121.4, 47.9], [-121.7, 47.9], [-121.7, 47.7]]
+# A triangle whose bounding box holds the boulder at (-121.56, 47.82) but
+# whose diagonal leaves it out, and keeps the crag at (-121.5555, 47.8208).
+TRIANGLE = [[-121.6, 47.7], [-121.5, 47.7], [-121.5, 47.9], [-121.6, 47.7]]
+SAME_NAME = {
+    "type": "node",
+    "id": 4,
+    "lat": 47.821,
+    "lon": -121.556,
+    "tags": {"sport": "climbing", "climbing": "crag", "name": "Lower Town Wall"},
+}
+
+
+def _holding(*kinds: DestinationType) -> landmarks.LandmarkLoader:
+    """A loader that has landed exactly these kinds, from the canned answers."""
+    answers = {DestinationType.trailhead: TH, DestinationType.crag: CR}
+    script = _Script({k: [answers[k]] for k in kinds})
+    loader = _loader(script)
+    for kind in kinds:
+        asyncio.run(loader._fill(kind))
+    return loader
+
+
+def test_a_search_reads_the_landed_kinds_inside_the_ring_in_discoverys_row_shape():
+    rows, live = _holding(DestinationType.trailhead, DestinationType.crag).discover_held(
+        INDEX, [DestinationType.crag, DestinationType.trailhead, DestinationType.peak]
+    )
+    assert live == [DestinationType.peak]
+    assert rows == [
+        {
+            "name": "Lower Town Wall",
+            "type": "crag",
+            "latitude": 47.8208,
+            "longitude": -121.5555,
+            "elevation_ft": None,
+            "osm_id": "relation/2",
+        },
+        {
+            "name": "Midnite Boulder",
+            "type": "crag",
+            "latitude": 47.82,
+            "longitude": -121.56,
+            "elevation_ft": None,
+            "osm_id": "node/3",
+        },
+    ]
+
+
+def test_a_search_keeps_only_what_the_ring_holds_not_its_bounding_box():
+    rows, _ = _holding(DestinationType.crag).discover_held(TRIANGLE, [DestinationType.crag])
+    assert [r["name"] for r in rows] == ["Lower Town Wall"]
+
+
+def test_a_kind_that_has_not_landed_goes_to_the_live_query():
+    loader = _holding(DestinationType.trailhead)
+    rows, live = loader.discover_held(INDEX, [DestinationType.trailhead, DestinationType.crag])
+    assert rows == []
+    assert live == [DestinationType.crag]
+    assert loader.live_kinds([DestinationType.trailhead, DestinationType.lake]) == [DestinationType.lake]
+    assert landmarks.LandmarkLoader().live_kinds([DestinationType.trailhead]) == [DestinationType.trailhead]
+
+
+# The live query keeps one row per kind and name, because OSM carries
+# duplicate nodes for one feature; a search from the set must answer the same.
+def test_a_search_keeps_one_row_per_name_and_asks_each_kind_once():
+    loader = landmarks.LandmarkLoader()
+    loader._held[DestinationType.crag] = landmarks.parse_elements([CRAG, SAME_NAME], DestinationType.crag)
+    rows, live = loader.discover_held(INDEX, [DestinationType.crag, DestinationType.crag])
+    assert [r["osm_id"] for r in rows] == ["relation/2"]
+    assert live == []
 
 
 # ── The route ────────────────────────────────────────────────────────────────

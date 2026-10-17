@@ -1,5 +1,11 @@
 """Every named trailhead and crag in OpenStreetMap, fetched once per pod and served by bounding box (#734).
 
+It answers a polygon search's trailheads and crags as well as the map's
+markers (#745): `discover_held` gives the rows of every kind that has
+landed, by ray cast over the ring, and names the kinds still loading for
+the live query. So a search asks Overpass for those two kinds only in the
+minutes after a pod starts, and a ring the tiles answer asks it nothing.
+
 The basemap's tiles carry no trailhead at all and only the climbing points
 that happen to be nodes, with OSM's ``climbing=`` tag dropped, so a crag, a
 boulder and a single route all look alike and a crag mapped as a relation is
@@ -45,6 +51,7 @@ from app.env import env_int
 from app.models import DestinationType
 from app.services import osm
 from app.services.errors import UpstreamError
+from app.services.wfigs_coverage import _in_ring
 
 log = logging.getLogger(__name__)
 
@@ -264,6 +271,61 @@ class LandmarkLoader:
             )
             log.info("Landmarks: %d %s features held", len(features), kind.value)
             return
+
+    def held(self, kind: DestinationType) -> tuple[Landmark, ...] | None:
+        """The landed features of one kind, or None while it has not landed.
+
+        Per kind rather than the whole snapshot, because trailheads land a
+        minute or more before crags and each is good to serve on its own.
+        """
+        return self._held.get(kind)
+
+    def live_kinds(self, kinds: list[DestinationType]) -> list[DestinationType]:
+        """The kinds of a search the held set cannot answer, for the live query."""
+        return [k for k in dict.fromkeys(kinds) if k not in STAGES or self.held(k) is None]
+
+    def discover_held(
+        self, ring: list[list[float]], kinds: list[DestinationType]
+    ) -> tuple[list[dict[str, Any]], list[DestinationType]]:
+        """A polygon search's rows from the held set, and the kinds left over.
+
+        Every kind of ``kinds`` this loader has landed is answered here, in
+        the row shape and with the identity rule the live query uses (one row
+        per kind and name; ``query_osm`` in osm/mirrors.py), so a caller
+        cannot tell which source answered. The rest, peaks and lakes always
+        and a snapshot kind that has not landed yet, go back for the live
+        query to find.
+        """
+        rows: list[dict[str, Any]] = []
+        live = self.live_kinds(kinds)
+        if not ring:
+            return rows, list(dict.fromkeys(kinds))
+        lons = [p[0] for p in ring]
+        lats = [p[1] for p in ring]
+        west, east, south, north = min(lons), max(lons), min(lats), max(lats)
+        for kind in dict.fromkeys(kinds):
+            features = None if kind in live else self.held(kind)
+            if features is None:
+                continue
+            seen: set[str] = set()
+            for f in features:
+                if not f.inside(west, south, east, north) or not _in_ring(f.lon, f.lat, ring):
+                    continue
+                props = json.loads(f.blob)["properties"]
+                if props["name"] in seen:
+                    continue
+                seen.add(props["name"])
+                rows.append(
+                    {
+                        "name": props["name"],
+                        "type": props["kind"],
+                        "latitude": f.lat,
+                        "longitude": f.lon,
+                        "elevation_ft": props["elevation_ft"],
+                        "osm_id": props["osm_id"],
+                    }
+                )
+        return rows, live
 
     def unavailable(self) -> UpstreamError:
         """Why there is nothing to serve, for the route's 503."""

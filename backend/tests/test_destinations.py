@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from app import ratelimit
 from app.main import app
 from app.models import MAX_ANALYZE_PEAKS
+from app.models import DestinationType
+from app.services import landmarks
 from app.services import osm as osm_mod
 from app.services.errors import UpstreamError
 
@@ -584,3 +586,78 @@ def test_carries_no_snow_depth(monkeypatch):
     body = client.post("/api/destinations", json=_payload()).json()
     assert "snow_analysis_date" not in body
     assert "snow_depth_in" not in body["destinations"][0]
+
+
+# ── Trailheads and crags from the landmarks set (#745) ────────────────────────
+
+
+def _crag_at(name: str, lat: float, lon: float, osm_id: int) -> landmarks.Landmark:
+    element = {
+        "type": "node",
+        "id": osm_id,
+        "lat": lat,
+        "lon": lon,
+        "tags": {"sport": "climbing", "climbing": "crag", "name": name},
+    }
+    return landmarks.parse_elements([element], DestinationType.crag)[0]
+
+
+def _install_landmarks(monkeypatch, crags: list[landmarks.Landmark] | None) -> None:
+    """A loader that has landed the crags given, or nothing when None."""
+    loader = landmarks.LandmarkLoader()
+    if crags is not None:
+        loader._held[DestinationType.crag] = tuple(crags)
+    monkeypatch.setattr(landmarks, "LOADER", loader)
+
+
+def _forbid_slot(monkeypatch):
+    def refuse(_request):
+        raise AssertionError("took the Overpass slot for a search Overpass never sees")
+
+    monkeypatch.setattr(ratelimit, "discovery_in_flight", refuse)
+
+
+def test_a_search_for_held_kinds_asks_overpass_nothing_and_takes_no_slot(monkeypatch):
+    _install_landmarks(monkeypatch, [_crag_at("Inside", 0.05, 0.05, 1), _crag_at("Outside", 0.5, 0.5, 2)])
+    _stub_osm(monkeypatch, AssertionError("reached Overpass"))
+    _forbid_slot(monkeypatch)
+    resp = client.post("/api/destinations", json=_payload(destination_types=["crag"]))
+    assert resp.status_code == 200
+    assert [(d["name"], d["type"], d["osm_id"]) for d in resp.json()["destinations"]] == [("Inside", "crag", "node/1")]
+
+
+def test_a_search_answers_held_kinds_from_the_set_and_asks_overpass_for_the_rest(monkeypatch):
+    _install_landmarks(monkeypatch, [_crag_at("Inside", 0.05, 0.05, 1)])
+    asked: list[list[str]] = []
+
+    async def fake(polygon, destination_types, on_status=None, **_):
+        asked.append(sorted(t.value for t in destination_types))
+        return [_peak("Summit", 5000)]
+
+    monkeypatch.setattr(osm_mod, "query_osm", fake)
+    resp = client.post("/api/destinations", json=_payload(destination_types=["peak", "crag"]))
+    assert resp.status_code == 200
+    assert asked == [["peak"]]
+    assert sorted(d["name"] for d in resp.json()["destinations"]) == ["Inside", "Summit"]
+
+
+def test_a_kind_still_loading_is_found_by_the_live_query(monkeypatch):
+    _install_landmarks(monkeypatch, None)
+    asked: list[list[str]] = []
+
+    async def fake(polygon, destination_types, on_status=None, **_):
+        asked.append(sorted(t.value for t in destination_types))
+        return []
+
+    monkeypatch.setattr(osm_mod, "query_osm", fake)
+    assert client.post("/api/destinations", json=_payload(destination_types=["crag"])).status_code == 200
+    assert asked == [["crag"]]
+
+
+# An outage costs a held kind nothing: the failure belongs to the kinds
+# Overpass was asked for, and a request for held kinds alone never sees it.
+def test_an_overpass_outage_does_not_reach_a_search_for_held_kinds(monkeypatch):
+    _install_landmarks(monkeypatch, [_crag_at("Inside", 0.05, 0.05, 1)])
+    _stub_osm(monkeypatch, UpstreamError("Overpass is down"))
+    assert client.post("/api/destinations", json=_payload(destination_types=["crag"])).status_code == 200
+    assert client.post("/api/destinations", json=_payload(destination_types=["crag", "peak"])).status_code == 502

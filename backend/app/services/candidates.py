@@ -22,7 +22,7 @@ from app.models import (
     DestinationType,
     GeoPolygon,
 )
-from app.services import osm
+from app.services import landmarks, osm
 from app.services.errors import UpstreamError
 from app.services.ranking import _cap_detail
 
@@ -227,11 +227,24 @@ async def discover(
     `on_status` is Overpass's only progress signal — mirror failover — and is
     passed straight through: a route that has nowhere to show it leaves it
     None.
+
+    Trailheads and crags come from the pod's worldwide set once it holds them
+    (#745), so only the other kinds, and those two in the minutes after a pod
+    starts, reach Overpass, and a request for those two alone never does.
     """
+    held, live = landmarks.LOADER.discover_held(polygon.coordinates[0], list(destination_types))
+    if held or len(live) < len(destination_types):
+        log.info(
+            "Discovery: %d row(s) from the landmarks set; asking Overpass for %s",
+            len(held),
+            ",".join(t.value for t in live) or "nothing",
+        )
+    if not live:
+        return held
     try:
-        return await osm.query_osm(
+        return held + await osm.query_osm(
             polygon,
-            destination_types,
+            live,
             on_status,
             include_unnamed_peaks=include_unnamed_peaks,
         )

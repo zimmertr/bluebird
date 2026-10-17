@@ -19,6 +19,7 @@ from app.models import (
     ErrorResponse,
     bbox_area_km2,
 )
+from app.services import landmarks
 from app.services.candidates import (
     _filter_elevation,
     _merge_custom,
@@ -155,11 +156,13 @@ async def destinations(
     # (the web app's own analysis, which sends `elevation_lookup: false` and
     # every elevation it has learned) is answered with the rows as sent and
     # takes no slot, so it never waits behind that address's
-    # lookup in flight (#673).
+    # lookup in flight (#673). Nor does a search for kinds the landmarks set
+    # already holds, which never reaches Overpass (#745).
+    asks_overpass = bool(landmarks.LOADER.live_kinds(list(request.destination_types)))
     needs_lookup = bool(request.custom_destinations) and request.elevation_lookup and any(
         d.elevation_ft is None for d in request.custom_destinations or []
     )
-    async with _overpass_slot(http_request, bool(request.destination_types) or needs_lookup):
+    async with _overpass_slot(http_request, asks_overpass or needs_lookup):
         found: list[dict] = []
         if request.destination_types and request.polygon is not None:
             found = await discover(
