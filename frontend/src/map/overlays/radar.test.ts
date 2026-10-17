@@ -143,6 +143,27 @@ describe('mountRadar click reading', () => {
     expect(new Set(refreshed)).toEqual(new Set(['radar']))
   })
 
+  // A frame the view moved away from while it waited at opacity 0 fetches
+  // its tiles only when the playhead lands on it, after the card was read
+  // again, so each of its tiles arriving reads the card once more (#752).
+  it('asks for its open cards to be read again as the frame on screen gets its tiles', () => {
+    const { popups, refreshed } = fakeMapPopups()
+    const stub = stubMap({ layers: [SMOKE_FIRST] })
+    const radar = mountRadar(stub.map, { popups })
+    radar.update({ show: true, index: 2 })
+    const onScreen = radarLayerId(radarOffsets()[2])
+    const asked = refreshed.length
+    stub.fire('sourcedata', undefined, { sourceId: onScreen, tile: {} })
+    expect(refreshed).toHaveLength(asked + 1)
+    // Another frame's tile, or the source's own metadata, is no new picture.
+    stub.fire('sourcedata', undefined, { sourceId: radarLayerId(radarOffsets()[3]), tile: {} })
+    stub.fire('sourcedata', undefined, { sourceId: onScreen })
+    expect(refreshed).toHaveLength(asked + 1)
+    radar.update({ show: false, index: 2 })
+    stub.fire('sourcedata', undefined, { sourceId: onScreen, tile: {} })
+    expect(refreshed).toHaveLength(asked + 1)
+  })
+
   it('reads an open card again from the frame now on screen', async () => {
     const AT = { lng: -121.5, lat: 47.5, zoom: 7 }
     const onScreen = radarOffsets()[2]

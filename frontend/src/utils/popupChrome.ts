@@ -379,6 +379,25 @@ export function sectionHeading(inner: string): string {
 }
 
 /**
+ * A name set as wide as the widest name its card can take (#752). The radar
+ * card renames itself on every frame the forecast player shows, and a card
+ * as wide as its name then grew and shrank around its tip, carrying the
+ * close button sideways under a reader reaching for it: 129px on `No radar
+ * echo`, 181px on `Moderate precipitation`, measured 2026-10-16 (TJ: "always
+ * as wide as max"). Every name stands in one grid cell, so the cell takes the
+ * widest one's width in whatever font and size the card is set in, and all
+ * but the shown one are hidden, from a screen reader too. The names are
+ * markup the caller escaped.
+ */
+export function widestName(shown: string, every: readonly string[]): string {
+  const cell = 'grid-area:1/1'
+  const others = every
+    .filter((name) => name !== shown)
+    .map((name) => `<span aria-hidden="true" style="${cell};visibility:hidden">${name}</span>`)
+  return `<span style="display:inline-grid"><span style="${cell}">${shown}</span>${others.join('')}</span>`
+}
+
+/**
  * A second part of a card's body, ruled off from the part above it by the
  * edge the card's own sections wear, run from edge to edge through the body's
  * 10px sides. Inside the body rather than a section of `popupCard` after it,

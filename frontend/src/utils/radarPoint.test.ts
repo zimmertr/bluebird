@@ -8,6 +8,7 @@ import {
   dbzOfPixel,
   formatRainRate,
   NO_ECHO_TITLE,
+  RADAR_TITLES,
   noEchoSection,
   rereadRadarAt,
   formatReflectivity,
@@ -154,6 +155,17 @@ describe('radarSection', () => {
     expect(section.source).toBe(RADAR_SOURCE)
     expect(section.rows.map(markupText)).toEqual(['Rate: 0 in/h', 'Reflectivity: N/A', 'Updated: 30 min ago'])
     expect(section.rows).toHaveLength(radarSection(38.5, 0).rows.length)
+  })
+
+  // The card is kept as wide as the widest name it can take (#752), so the
+  // list has to hold every name the radar can give, at every reflectivity
+  // the palette paints.
+  it('lists every name a radar section can take, on every section', () => {
+    const named = new Set<string>([NO_ECHO_TITLE])
+    for (let dbz = N0Q_FLOOR_DBZ; dbz <= N0Q_CEILING_DBZ; dbz += 0.5) named.add(radarSection(dbz, 0).title)
+    expect([...named].sort()).toEqual([...RADAR_TITLES].sort())
+    expect(radarSection(38.5, 0).titles).toBe(RADAR_TITLES)
+    expect(noEchoSection(30).titles).toBe(RADAR_TITLES)
   })
 
   it('says how old an older frame is', () => {

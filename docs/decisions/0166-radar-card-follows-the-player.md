@@ -1,6 +1,6 @@
 # 0166. An open radar card and the pointer follow the forecast player
 
-- Status: Accepted
+- Status: Accepted. Consequences superseded by 0168
 - Date: 2026-10-16
 - Decider: the maintainer (TJ), on issue #748, 2026-10-16: the card follows the player, the pointer follows the frames under a resting mouse, a frame with no echo reads `No radar echo` with `Rate: 0 in/h` and `Reflectivity: N/A`, and a weak echo keeps its rate row as `Rate: N/A`
 - Issues and PRs: #748, #749, #737 (the cards), #121 (the radar loop)
