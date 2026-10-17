@@ -114,6 +114,27 @@ def test_the_world_query_is_the_discovery_clauses_with_no_polygon():
     assert query.rstrip().endswith("out tags center;")
 
 
+def test_a_named_parking_lot_is_a_trailhead_when_its_name_says_so():
+    # Issaquah, 2026-10-17: Poo Poo Trailhead is `amenity=parking`, and so are
+    # twelve of its fourteen named trailheads. The world query asks for them
+    # and the parser types them with the same words.
+    query = osm.build_world_query(DestinationType.trailhead)
+    assert 'way["amenity"="parking"]["name"~"[Tt]rail ?[Hh]ead"];' in query
+    lot = {
+        "type": "way",
+        "id": 52524610,
+        "center": {"lat": 47.5002, "lon": -122.0411},
+        "tags": {"amenity": "parking", "name": "Poo Poo Trailhead", "capacity": "60"},
+    }
+    (feature,) = landmarks.parse_elements([lot], DestinationType.trailhead)
+    assert json.loads(feature.blob)["properties"] == {
+        "name": "Poo Poo Trailhead",
+        "kind": "trailhead",
+        "osm_id": "way/52524610",
+        "elevation_ft": None,
+    }
+
+
 def test_the_polygon_query_is_the_same_clauses_inside_the_ring():
     query = osm._build_query([DestinationType.trailhead], "1 2 3 4")
     assert 'node["highway"="trailhead"]["name"](poly:"1 2 3 4");' in query

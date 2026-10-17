@@ -57,7 +57,7 @@ class LandmarkCollection(BaseModel):
     tags=["landmarks"],
     summary="Named trailheads and crags in a bounding box",
     description=(
-        "Every named trailhead (`highway=trailhead`) and crag (`sport=climbing` "
+        "Every named trailhead (`highway=trailhead`, or a parking lot named as one) and crag (`sport=climbing` "
         "with `climbing=crag`, `area` or `boulder`, or a climbable stone) that "
         "OpenStreetMap carries inside `bbox`, as points.\n\n"
         "This exists because the basemap's tiles carry neither: no tile has a "

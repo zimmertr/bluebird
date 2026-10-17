@@ -178,7 +178,7 @@ export interface paths {
         };
         /**
          * Named trailheads and crags in a bounding box
-         * @description Every named trailhead (`highway=trailhead`) and crag (`sport=climbing` with `climbing=crag`, `area` or `boulder`, or a climbable stone) that OpenStreetMap carries inside `bbox`, as points.
+         * @description Every named trailhead (`highway=trailhead`, or a parking lot named as one) and crag (`sport=climbing` with `climbing=crag`, `area` or `boulder`, or a climbable stone) that OpenStreetMap carries inside `bbox`, as points.
          *
          *     This exists because the basemap's tiles carry neither: no tile has a trailhead, and the climbing points a tile has lose OSM's `climbing=` tag, so a crag, a boulder and a single route look alike and a crag mapped as a relation is absent. This instance asks Overpass for the whole world once at startup, one kind at a time, retrying with a backoff until each lands, refreshes the set about daily, and serves it to everyone, so a map pan costs the donated server nothing.
          *

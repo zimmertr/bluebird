@@ -7,6 +7,7 @@ same way through it.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -32,14 +33,27 @@ from app.models import DestinationType, GeoPolygon
 # because OSM tags volcanic summits as volcano INSTEAD of peak — without it,
 # Baker, Rainier, Glacier Peak, Adams and St. Helens are all invisible to a
 # Cascades search.
+# Overpass regexes are POSIX extended and `re` is Python's; this pattern means
+# the same in both. English only on purpose: mappers elsewhere use the tag.
+_TRAILHEAD_LOT_NAME = r"[Tt]rail ?[Hh]ead"
+
 _CLAUSES: dict[DestinationType, tuple[str, ...]] = {
     DestinationType.peak: (
         'node["natural"="peak"]["name"];',
         'node["natural"="volcano"]["name"];',
     ),
+    # A trailhead is the tag, or a named parking lot whose name says so: much
+    # of the US maps the lot and never adds the node (Issaquah, 2026-10-17: 2
+    # of 14 named trailheads were `highway=trailhead`, Poo Poo Trailhead among
+    # the parking lots), and the name pattern is cheap (3,540 worldwide, the
+    # count measured at 66 s). The pattern is spelled once, in
+    # `_TRAILHEAD_LOT_NAME`, so `_classify` reads the same words.
     DestinationType.trailhead: (
         'node["highway"="trailhead"]["name"];',
         'way["highway"="trailhead"]["name"];',
+        f'node["amenity"="parking"]["name"~"{_TRAILHEAD_LOT_NAME}"];',
+        f'way["amenity"="parking"]["name"~"{_TRAILHEAD_LOT_NAME}"];',
+        f'relation["amenity"="parking"]["name"~"{_TRAILHEAD_LOT_NAME}"];',
     ),
     DestinationType.lake: (
         'node["natural"="water"]["water"="lake"]["name"];',
@@ -143,6 +157,8 @@ def _classify(tags: dict[str, Any]) -> str:
     if natural in ("peak", "volcano"):
         return DestinationType.peak.value
     if tags.get("highway") == "trailhead":
+        return DestinationType.trailhead.value
+    if tags.get("amenity") == "parking" and re.search(_TRAILHEAD_LOT_NAME, tags.get("name") or ""):
         return DestinationType.trailhead.value
     if natural == "water" and tags.get("water") == "lake":
         return DestinationType.lake.value

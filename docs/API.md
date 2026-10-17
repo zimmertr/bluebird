@@ -575,7 +575,9 @@ curl -s "https://bluebirdforecast.com/api/landmarks?bbox=-121.9,47.4,-121.5,47.9
 ```
 
 `bbox` is `west,south,east,north` in decimal degrees, and a feature is returned
-when its point is inside. `kind` is `trailhead` or `crag`. A crag is what a
+when its point is inside. `kind` is `trailhead` or `crag`. A trailhead is
+`highway=trailhead`, or a parking lot with Trailhead in its name, which is how
+much of the US maps one. A crag is what a
 polygon search calls one: `climbing=crag`, `climbing=area` or
 `climbing=boulder`, or a climbable stone, and never a single route. The
 geometry is the OSM node's position, or the centre of a way or relation, which

@@ -178,6 +178,15 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
              "tags": {"name": "Midnite Boulder", "natural": "stone", "sport": "climbing"}},
             {"type": "node", "id": 10, "lat": 10.0, "lon": 10.0,
              "tags": {"name": "J", "natural": "stone", "sport": "climbing", "climbing": "route"}},
+            # Issaquah maps its trailheads as named parking lots (#734): the
+            # lot is a trailhead when its name says so, and a lot named for
+            # anything else is not one even if the clauses never ask for it.
+            {"type": "way", "id": 11, "center": {"lat": 11.0, "lon": 11.0},
+             "tags": {"name": "Poo Poo Trailhead", "amenity": "parking"}},
+            {"type": "way", "id": 12, "center": {"lat": 12.0, "lon": 12.0},
+             "tags": {"name": "Trail Head Lot", "amenity": "parking"}},
+            {"type": "way", "id": 13, "center": {"lat": 13.0, "lon": 13.0},
+             "tags": {"name": "Town Hall Parking", "amenity": "parking"}},
         ]
     }
 
@@ -191,7 +200,8 @@ async def test_rows_are_classified_by_their_own_tags(monkeypatch):
     )
 
     assert [r["type"] for r in results] == [
-        "peak", "peak", "lake", "trailhead", "crag", "crag", "custom", "crag", "crag", "custom"
+        "peak", "peak", "lake", "trailhead", "crag", "crag", "custom", "crag", "crag", "custom",
+        "trailhead", "trailhead", "custom",
     ]
     assert (results[5]["latitude"], results[5]["longitude"]) == (6.0, 6.0)
 
