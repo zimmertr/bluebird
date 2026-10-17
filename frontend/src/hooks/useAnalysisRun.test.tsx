@@ -42,6 +42,36 @@ describe('useAnalysisRun', () => {
     expect(result.current.progress?.percent).toBe(100)
   })
 
+  // #745: the tiles a ring is searched from fill the bar under the searching
+  // label, and the forecast progress takes over when the field is announced.
+  it('counts the tiles read on their own field, until the field is announced', () => {
+    const { result } = renderHook(() => useAnalysisRun(MODELS))
+    act(() => result.current.onSearchProgress(256, 1024))
+    expect(result.current.searchProgress).toEqual({ processed: 256, total: 1024, percent: 25 })
+    expect(result.current.progress).toBeNull()
+    act(() => result.current.announce(12))
+    expect(result.current.searchProgress).toBeNull()
+    expect(result.current.progress).toEqual({ processed: 0, total: 12, percent: 0 })
+  })
+
+  it('clears the tiles read as a run starts and as it ends', async () => {
+    const { result } = renderHook(() => useAnalysisRun(MODELS))
+    act(() => result.current.onSearchProgress(1, 2))
+    let release!: () => void
+    let done!: Promise<boolean>
+    act(() => {
+      done = result.current.run('Searching…', () => new Promise<void>((r) => (release = r)), hooks())
+    })
+    expect(result.current.searchProgress).toBeNull()
+    act(() => result.current.onSearchProgress(3, 4))
+    expect(result.current.searchProgress?.percent).toBe(75)
+    await act(async () => {
+      release()
+      await done
+    })
+    expect(result.current.searchProgress).toBeNull()
+  })
+
   it('puts a failure in the error box and calls both hooks', async () => {
     const { result } = renderHook(() => useAnalysisRun(MODELS))
     const h = hooks()

@@ -3,8 +3,10 @@ import { paceWaitLine } from './pacing'
 // Composes the full-screen loading overlay for an Analyze operation — a single
 // ranked analysis (searched places and CSV rows ride inside it as custom
 // destinations). Two destination-type-agnostic phases:
-//   1. "Searching for destinations…"  — Overpass discovery (backend status).
-//      A run with no polygon has no such phase and opens on the next one
+//   1. "Searching for destinations…"  — discovery. A ring read from the
+//      basemap's tiles fills the bar by tiles read (#745); one the map server
+//      answers has no count, so the bar runs indeterminate. A run with no
+//      polygon has no such phase and opens on the next one
 //   2. "Retrieving {N} forecasts…"    — the weather fetch (a lone forecast
 //        reads "Retrieving forecast…")
 //   3. "Retrieving elevation…" — a run with no polygon, only when the pod's
@@ -30,6 +32,9 @@ export interface OverlayInputs {
   statusMessage: string | null // latest phase status (drives phase 1 + the gap)
   elapsedS: number // whole seconds since the overlay appeared
   rankedProgress: { processed: number; total: number } | null // batch progress
+  // The basemap tiles read and in all while a ring is discovered from them
+  // (#745). Read only before the forecast progress exists.
+  searchProgress?: { processed: number; total: number } | null
   // Seconds until the client-side pacer resumes spending quota; null/absent
   // when it is not sleeping. Rendered as a live countdown so a paced wait
   // reads as scheduled work, not a hang.
@@ -100,10 +105,9 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
       message === SEARCHING_MESSAGE && i.elapsedS >= STILL_SEARCHING_AFTER_S
         ? STILL_SEARCHING
         : null
-    return { visible: true, message, detail: staged, progress: null }
+    return { visible: true, message, detail: staged, progress: i.searchProgress ? withPercent(i.searchProgress) : null }
   }
-  const { processed, total } = i.rankedProgress
-  const percent = total ? Math.round((processed / total) * 100) : 100
+  const { processed, total, percent } = withPercent(i.rankedProgress)
   // During retrieval the detail line carries the live pace countdown when the
   // quota bucket is refilling. A paced analysis must never look hung: the
   // countdown plus the elapsed timer is what proves the wait is scheduled.
@@ -117,4 +121,8 @@ export function composeOverlay(i: OverlayInputs): OverlayView {
     detail,
     progress: { processed, total, percent },
   }
+}
+
+function withPercent({ processed, total }: { processed: number; total: number }): OverlayProgress {
+  return { processed, total, percent: total ? Math.round((processed / total) * 100) : 100 }
 }

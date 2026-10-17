@@ -214,6 +214,29 @@ describe('a polygon run and the tiles', () => {
     expect(posted[0].custom_destinations?.map((c) => c.name)).toEqual(['P2', 'P1'])
     expect(seen[0]).toMatchObject({ totalFound: 3, truncated: true })
   })
+
+  it('hands the loading card the tiles read as the ring is searched (#745)', async () => {
+    fromTiles.mockImplementation(async (_ring, _types, _unnamed, _fetch, onProgress) => {
+      onProgress?.(1, 4)
+      onProgress?.(4, 4)
+      return [ALPHA]
+    })
+    stubDestinations({ destinations: [asCustom(ALPHA)], total: 1 })
+    const { onDiscovered } = found()
+    const reads: [number, number][] = []
+    await runAnalysisPipeline(REQUEST, options({ onDiscovered, onSearchProgress: (read, total) => reads.push([read, total]) }))
+    expect(reads).toEqual([[1, 4], [4, 4]])
+  })
+
+  it('reports no tiles read when the map server searches the ring', async () => {
+    discoverable.mockReturnValue(false)
+    stubDestinations({ destinations: [CANDIDATE], total: 1 })
+    const { onDiscovered } = found()
+    const onSearchProgress = vi.fn()
+    await runAnalysisPipeline(REQUEST, options({ onDiscovered, onSearchProgress }))
+    expect(fromTiles).not.toHaveBeenCalled()
+    expect(onSearchProgress).not.toHaveBeenCalled()
+  })
 })
 
 // #735: when the map server fails the kinds it was asked for, the run keeps

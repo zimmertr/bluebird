@@ -181,6 +181,34 @@ describe('one analysis', () => {
     expect(onCommit).toHaveBeenCalledWith({ partial: true })
   })
 
+  // #745: the tiles read fill the loading card's bar under the searching
+  // label, and give way to the forecast count once the field is announced.
+  it('shows the tiles read while a ring is searched, and none once the run ends', async () => {
+    const peak = discovered({ name: 'Alpha', type: 'peak', latitude: 47.45, longitude: -121.8, osm_id: 'node/1' })
+    let release!: () => void
+    vi.mocked(tileDiscoverable).mockReturnValueOnce(true)
+    vi.mocked(discoverFromTiles).mockImplementationOnce(async (_ring, _types, _unnamed, _fetch, onProgress) => {
+      onProgress?.(2, 4)
+      await new Promise<void>((r) => (release = r))
+      return [peak]
+    })
+    vi.stubGlobal('fetch', vi.fn(async () => fakeResponse({ destinations: [{ ...peak, type: 'custom', osm_id: null }], total: 1 })))
+    const ring: GeoPolygon = { type: 'Polygon', coordinates: [[[-121.9, 47.4], [-121.7, 47.4], [-121.7, 47.55], [-121.9, 47.4]]] }
+    const { result } = renderHook(() => useAnalyze())
+    let done!: Promise<boolean>
+    act(() => {
+      done = result.current.analyze({ ...REQUEST, polygon: ring, destination_types: ['peak'], custom_destinations: [] })
+    })
+    await vi.waitFor(() => expect(result.current.searchProgress).toEqual({ processed: 2, total: 4, percent: 50 }))
+    expect(result.current.statusMessage).toBe(SEARCHING_MESSAGE)
+    expect(result.current.progress).toBeNull()
+    await act(async () => {
+      release()
+      await done
+    })
+    expect(result.current.searchProgress).toBeNull()
+  })
+
   // The click's bookkeeping runs with the commit, not with the click, so a
   // failed click's does not run and the next click's does.
   it('runs the commit hook on a commit only', async () => {
@@ -443,7 +471,8 @@ describe('the returned API', () => {
     const { result } = renderHook(() => useAnalyze())
     expect(Object.keys(result.current)).toEqual([
       'analyze', 'cancel', 'dismissEvent', 'reset', 'placeHeld', 'analyzed', 'analysisSeq', 'discardSeq', 'fireField', 'fireSeq', 'loading',
-      'arriving', 'error', 'failedView', 'refusal', 'response', 'universe', 'pendingHeights', 'statusMessage', 'progress', 'paceRemainingS',
+      'arriving', 'error', 'failedView', 'refusal', 'response', 'universe', 'pendingHeights', 'statusMessage', 'progress', 'searchProgress',
+      'paceRemainingS',
     ])
   })
 })

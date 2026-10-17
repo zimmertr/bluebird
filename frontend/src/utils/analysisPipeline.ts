@@ -190,7 +190,13 @@ async function discoverFromTilesFirst(
   }
   if (!tiles.tileDiscoverable(ring, types)) return null
   const fetchTile = peakTiles.fetchTileWith(await peakTiles.tileTemplate(), signal)
-  const found = await tiles.discoverFromTiles(ring, types, request.include_unnamed_peaks ?? false, fetchTile)
+  const found = await tiles.discoverFromTiles(
+    ring,
+    types,
+    request.include_unnamed_peaks ?? false,
+    fetchTile,
+    options.onSearchProgress,
+  )
   if (found === null) return null
 
   const known = options.identity?.latest() ?? NO_IDENTITY
@@ -276,6 +282,10 @@ export interface PipelineOptions {
   // floor: `total_queried` is what has been forecast so far.
   onPartial: (data: AnalyzeResponse, fieldSoFar: DestinationResult[]) => void
   onProgress: (processed: number, total: number, message: string) => void
+  // The tiles read so far against the ring's count, for the loading card's bar
+  // while a polygon run reads the basemap (#745). A run the map server
+  // discovers reports none.
+  onSearchProgress?: (read: number, total: number) => void
   // The tail label, when air quality or the cloud column outlasts the weather.
   onTail?: (message: string) => void
   onPace: (seconds: number) => void

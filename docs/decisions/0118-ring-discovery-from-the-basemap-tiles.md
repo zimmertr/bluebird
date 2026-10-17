@@ -1,6 +1,6 @@
 # 0118. A ring's peaks and lakes are discovered from the basemap's zoom-14 tiles, the map server keeps the trailheads and the oversized rings, and a lake is any named water body
 
-- Status: Accepted
+- Status: Accepted; the budget and what it counts amended by 0170
 - Date: 2026-10-07
 - Decider: the maintainer (TJ), on issue #675: filed at his request after "OpenStreetMap (Overpass) failed (HTTP 504). Try again later." became the usual end of a polygon search; the lake definition is his pick of 2026-10-07 ("tiles, superset accepted")
 - Issues and PRs: #675, #673 (the lookup this extends), #545 and #546 (no self-maintained index), #177 (no hedged Overpass requests)

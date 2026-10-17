@@ -97,6 +97,37 @@ describe('composeOverlay', () => {
     expect(long.visible && long.detail).toBe('Large areas can take a while.')
   })
 
+  // #745: a ring searched from the basemap's tiles fills the bar by tiles
+  // read, under the same heading and the same staged line.
+  it('fills the bar by tiles read while a ring is searched from the tiles', () => {
+    const search = {
+      ...idle,
+      analyzeLoading: true,
+      statusMessage: SEARCHING_MESSAGE,
+      searchProgress: { processed: 341, total: 1024 },
+    }
+    expect(composeOverlay(search)).toEqual({
+      visible: true,
+      message: 'Searching for destinations…',
+      detail: null,
+      progress: { processed: 341, total: 1024, percent: 33 },
+    })
+    const staged = composeOverlay({ ...search, elapsedS: 20 })
+    expect(staged.visible && staged.detail).toBe('Large areas can take a while.')
+    expect(staged.visible && staged.progress?.percent).toBe(33)
+  })
+
+  it('reads the forecast progress over the tiles read once it exists', () => {
+    const view = composeOverlay({
+      ...idle,
+      analyzeLoading: true,
+      statusMessage: SEARCHING_MESSAGE,
+      searchProgress: { processed: 1024, total: 1024 },
+      rankedProgress: { processed: 0, total: 40 },
+    })
+    expect(view).toMatchObject({ message: 'Retrieving 40 forecasts…', progress: { processed: 0, total: 40, percent: 0 } })
+  })
+
   it('never stages the searching reassurance outside the search phase', () => {
     // The retrieval gap (statusMessage null) and a custom run's seeded
     // "Retrieving forecasts…" heading must not claim we are still searching.
